@@ -95,6 +95,20 @@ module_sources() {
   esac
 }
 
+# Module name -> module dependencies (space-separated). A dependency is wired
+# with `-I <dep>.kklib` when its artifact from a previous module compile exists
+# in $OUT_DIR, so single-module runs degrade gracefully to the unresolved
+# imports the module would see without its dependencies.
+module_deps() {
+  case "$1" in
+    kotlinx_io) echo "" ;;
+    ktor_io) echo "kotlinx_io" ;;
+    ktor_utils) echo "kotlinx_io ktor_io" ;;
+    ktor_http) echo "kotlinx_io ktor_io ktor_utils" ;;
+    *) echo "" ;;
+  esac
+}
+
 # Compile in dependency order unless a single module was requested.
 MODULES="kotlinx_io ktor_io ktor_utils ktor_http"
 if [[ -n "$ONLY_MODULE" ]]; then
@@ -117,8 +131,14 @@ for module in $MODULES; do
   log="$OUT_DIR/$module.log"
   kklib="$OUT_DIR/$module.kklib"
   rm -rf "$kklib"
+  dep_args=()
+  for dep in $(module_deps "$module"); do
+    if [[ -d "$OUT_DIR/$dep.kklib" ]]; then
+      dep_args+=("-I" "$OUT_DIR/$dep.kklib")
+    fi
+  done
   set +e
-  "$KSWIFTC" --emit library -m "$module" -o "$kklib" "${KSWIFTC_EXTRA_ARGS[@]}" "${files[@]}" > "$log" 2>&1
+  "$KSWIFTC" --emit library -m "$module" -o "$kklib" "${dep_args[@]}" "${KSWIFTC_EXTRA_ARGS[@]}" "${files[@]}" > "$log" 2>&1
   exit_code=$?
   set -e
   error_count=$(grep -c 'error KSWIFTK' "$log" || true)

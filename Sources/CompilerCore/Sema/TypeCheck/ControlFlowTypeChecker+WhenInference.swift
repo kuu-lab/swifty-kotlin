@@ -232,12 +232,16 @@ extension ControlFlowTypeChecker {
                 var isNullBranch = false
                 var branchLocals = locals
                 var branchCtx = ctx
+                // The branch runs on its own locals copy, so narrowing inside
+                // cannot leak to the enclosing conditional path.
+                branchCtx.isConditionallyEvaluated = false
                 var trueFlowStates: [DataFlowState] = []
                 var cumulativeFalseState = ctx.flowState.includingMembers(from: locals)
                 var branchConditionKeys: Set<String> = []
 
                 for cond in branch.conditions {
-                    let conditionCtx = ctx.copying(flowState: cumulativeFalseState)
+                    var conditionCtx = ctx.copying(flowState: cumulativeFalseState)
+                    conditionCtx.isConditionallyEvaluated = false
                     let condType = driver.inferExpr(cond, ctx: conditionCtx, locals: &branchLocals)
                     if branch.guard_ == nil, isNullCondition(cond) {
                         hasNullCase = true
@@ -364,9 +368,13 @@ extension ControlFlowTypeChecker {
                     }
                 }
 
-                branchTypes.append(
-                    driver.inferExpr(branch.body, ctx: branchCtx, locals: &branchLocals, expectedType: expectedType, isStatementContext: isStatementContext)
-                )
+                var branchBodyType = driver.inferExpr(branch.body, ctx: branchCtx, locals: &branchLocals, expectedType: expectedType, isStatementContext: isStatementContext)
+                if let companionType = driver.helpers.retypeBranchClassObjectValue(
+                    branch.body, currentType: branchBodyType, ast: ctx.ast, sema: ctx.sema
+                ) {
+                    branchBodyType = companionType
+                }
+                branchTypes.append(branchBodyType)
                 allBranchLocals.append(branchLocals)
             }
 
@@ -391,9 +399,13 @@ extension ControlFlowTypeChecker {
                         elseCtx = elseCtx.copying(implicitReceiverType: narrowedType)
                     }
                 }
-                branchTypes.append(
-                    driver.inferExpr(elseExpr, ctx: elseCtx, locals: &elseLocals, expectedType: expectedType, isStatementContext: isStatementContext)
-                )
+                var elseBodyType = driver.inferExpr(elseExpr, ctx: elseCtx, locals: &elseLocals, expectedType: expectedType, isStatementContext: isStatementContext)
+                if let companionType = driver.helpers.retypeBranchClassObjectValue(
+                    elseExpr, currentType: elseBodyType, ast: ctx.ast, sema: ctx.sema
+                ) {
+                    elseBodyType = companionType
+                }
+                branchTypes.append(elseBodyType)
                 allBranchLocals.append(elseLocals)
             }
 
@@ -516,6 +528,7 @@ extension ControlFlowTypeChecker {
             for branch in branches {
                 var branchLocals = locals
                 var condCtx = ctx.copying(flowState: cumulativeFalseState)
+                condCtx.isConditionallyEvaluated = false
                 driver.exprChecker.applyFlowStateToLocals(cumulativeFalseState, locals: &branchLocals, sema: sema)
                 var branchCtx = condCtx
                 // Collect all true-states and merge them (join) for the body context,
@@ -573,9 +586,13 @@ extension ControlFlowTypeChecker {
                     }
                 }
 
-                branchTypes.append(
-                    driver.inferExpr(branch.body, ctx: branchCtx, locals: &branchLocals, expectedType: expectedType, isStatementContext: isStatementContext)
-                )
+                var branchBodyType = driver.inferExpr(branch.body, ctx: branchCtx, locals: &branchLocals, expectedType: expectedType, isStatementContext: isStatementContext)
+                if let companionType = driver.helpers.retypeBranchClassObjectValue(
+                    branch.body, currentType: branchBodyType, ast: ctx.ast, sema: ctx.sema
+                ) {
+                    branchBodyType = companionType
+                }
+                branchTypes.append(branchBodyType)
                 allBranchLocals.append(branchLocals)
             }
 
@@ -583,9 +600,13 @@ extension ControlFlowTypeChecker {
                 var elseLocals = locals
                 let elseCtx = ctx.copying(flowState: cumulativeFalseState)
                 driver.exprChecker.applyFlowStateToLocals(cumulativeFalseState, locals: &elseLocals, sema: sema)
-                branchTypes.append(
-                    driver.inferExpr(elseExpr, ctx: elseCtx, locals: &elseLocals, expectedType: expectedType, isStatementContext: isStatementContext)
-                )
+                var elseBodyType = driver.inferExpr(elseExpr, ctx: elseCtx, locals: &elseLocals, expectedType: expectedType, isStatementContext: isStatementContext)
+                if let companionType = driver.helpers.retypeBranchClassObjectValue(
+                    elseExpr, currentType: elseBodyType, ast: ctx.ast, sema: ctx.sema
+                ) {
+                    elseBodyType = companionType
+                }
+                branchTypes.append(elseBodyType)
                 allBranchLocals.append(elseLocals)
             }
 

@@ -7,6 +7,7 @@ public struct ASTArenaSnapshot: Codable {
     public let loopLabels: [ExprID: InternedString]
     public let whenSubjectVarNames: [ExprID: InternedString]
     public let whenSubjectTypeRefs: [ExprID: TypeRefID]
+    public let forVariableTypeRefs: [ExprID: TypeRefID]
     public let lambdaParamTypeRefs: [ExprID: [TypeRefID?]]
     public let callableRefReceiverTypeRefs: [ExprID: TypeRefID]
     public let infixCallExpressions: Set<ExprID>
@@ -14,9 +15,13 @@ public struct ASTArenaSnapshot: Codable {
     public let operatorFunctionExpressions: Set<ExprID>
     public let explicitCallExpressions: Set<ExprID>
     public let receiverExpressionArgsCallExpressions: Set<ExprID>
+    public let typeQualifierCallExpressions: Set<ExprID>
     public let incrementDecrementExpressions: Set<ExprID>
     public let incrementDecrementValueExpressions: Set<ExprID>
     public let callResultCompoundAssignmentBlocks: Set<ExprID>
+    /// `x!! += v` / `a[i]!! += v` compound assignments whose LHS carried a
+    /// postfix `!!`: the read of the assignable value is asserted non-null.
+    public let nullAssertedCompoundAssignReads: Set<ExprID>
     public let nonFunctionLambdaLabels: Set<ExprID>
     public let incrementDecrementCachedValues: [ExprID: ExprID]
     public let expressionAnnotations: [ExprID: [AnnotationNode]]
@@ -33,6 +38,7 @@ public struct ASTArenaSnapshot: Codable {
         case loopLabels
         case whenSubjectVarNames
         case whenSubjectTypeRefs
+        case forVariableTypeRefs
         case lambdaParamTypeRefs
         case callableRefReceiverTypeRefs
         case infixCallExpressions
@@ -40,9 +46,11 @@ public struct ASTArenaSnapshot: Codable {
         case operatorFunctionExpressions
         case explicitCallExpressions
         case receiverExpressionArgsCallExpressions
+        case typeQualifierCallExpressions
         case incrementDecrementExpressions
         case incrementDecrementValueExpressions
         case callResultCompoundAssignmentBlocks
+        case nullAssertedCompoundAssignReads
         case nonFunctionLambdaLabels
         case incrementDecrementCachedValues
         case expressionAnnotations
@@ -60,6 +68,7 @@ public struct ASTArenaSnapshot: Codable {
         loopLabels: [ExprID: InternedString],
         whenSubjectVarNames: [ExprID: InternedString],
         whenSubjectTypeRefs: [ExprID: TypeRefID] = [:],
+        forVariableTypeRefs: [ExprID: TypeRefID] = [:],
         lambdaParamTypeRefs: [ExprID: [TypeRefID?]] = [:],
         callableRefReceiverTypeRefs: [ExprID: TypeRefID] = [:],
         infixCallExpressions: Set<ExprID> = [],
@@ -67,9 +76,11 @@ public struct ASTArenaSnapshot: Codable {
         operatorFunctionExpressions: Set<ExprID> = [],
         explicitCallExpressions: Set<ExprID> = [],
         receiverExpressionArgsCallExpressions: Set<ExprID> = [],
+        typeQualifierCallExpressions: Set<ExprID> = [],
         incrementDecrementExpressions: Set<ExprID> = [],
         incrementDecrementValueExpressions: Set<ExprID> = [],
         callResultCompoundAssignmentBlocks: Set<ExprID> = [],
+        nullAssertedCompoundAssignReads: Set<ExprID> = [],
         nonFunctionLambdaLabels: Set<ExprID> = [],
         incrementDecrementCachedValues: [ExprID: ExprID] = [:],
         expressionAnnotations: [ExprID: [AnnotationNode]] = [:],
@@ -85,6 +96,7 @@ public struct ASTArenaSnapshot: Codable {
         self.loopLabels = loopLabels
         self.whenSubjectVarNames = whenSubjectVarNames
         self.whenSubjectTypeRefs = whenSubjectTypeRefs
+        self.forVariableTypeRefs = forVariableTypeRefs
         self.lambdaParamTypeRefs = lambdaParamTypeRefs
         self.callableRefReceiverTypeRefs = callableRefReceiverTypeRefs
         self.infixCallExpressions = infixCallExpressions
@@ -92,9 +104,11 @@ public struct ASTArenaSnapshot: Codable {
         self.operatorFunctionExpressions = operatorFunctionExpressions
         self.explicitCallExpressions = explicitCallExpressions
         self.receiverExpressionArgsCallExpressions = receiverExpressionArgsCallExpressions
+        self.typeQualifierCallExpressions = typeQualifierCallExpressions
         self.incrementDecrementExpressions = incrementDecrementExpressions
         self.incrementDecrementValueExpressions = incrementDecrementValueExpressions
         self.callResultCompoundAssignmentBlocks = callResultCompoundAssignmentBlocks
+        self.nullAssertedCompoundAssignReads = nullAssertedCompoundAssignReads
         self.nonFunctionLambdaLabels = nonFunctionLambdaLabels
         self.incrementDecrementCachedValues = incrementDecrementCachedValues
         self.expressionAnnotations = expressionAnnotations
@@ -115,6 +129,9 @@ public struct ASTArenaSnapshot: Codable {
         whenSubjectTypeRefs = try container.decodeIfPresent(
             [ExprID: TypeRefID].self, forKey: .whenSubjectTypeRefs
         ) ?? [:]
+        forVariableTypeRefs = try container.decodeIfPresent(
+            [ExprID: TypeRefID].self, forKey: .forVariableTypeRefs
+        ) ?? [:]
         lambdaParamTypeRefs = try container.decode([ExprID: [TypeRefID?]].self, forKey: .lambdaParamTypeRefs)
         callableRefReceiverTypeRefs = try container.decodeIfPresent(
             [ExprID: TypeRefID].self,
@@ -128,6 +145,10 @@ public struct ASTArenaSnapshot: Codable {
             Set<ExprID>.self,
             forKey: .receiverExpressionArgsCallExpressions
         ) ?? []
+        typeQualifierCallExpressions = try container.decodeIfPresent(
+            Set<ExprID>.self,
+            forKey: .typeQualifierCallExpressions
+        ) ?? []
         incrementDecrementExpressions = try container.decodeIfPresent(
             Set<ExprID>.self,
             forKey: .incrementDecrementExpressions
@@ -138,6 +159,9 @@ public struct ASTArenaSnapshot: Codable {
         ) ?? []
         callResultCompoundAssignmentBlocks = try container.decodeIfPresent(
             Set<ExprID>.self, forKey: .callResultCompoundAssignmentBlocks
+        ) ?? []
+        nullAssertedCompoundAssignReads = try container.decodeIfPresent(
+            Set<ExprID>.self, forKey: .nullAssertedCompoundAssignReads
         ) ?? []
         nonFunctionLambdaLabels = try container.decodeIfPresent(
             Set<ExprID>.self,
@@ -224,6 +248,7 @@ public final class ASTArena: @unchecked Sendable {
     private var _loopLabels: [ExprID: InternedString] = [:]
     private var _whenSubjectVarNames: [ExprID: InternedString] = [:]
     private var _whenSubjectTypeRefs: [ExprID: TypeRefID] = [:]
+    private var _forVariableTypeRefs: [ExprID: TypeRefID] = [:]
     private var _lambdaParamTypeRefs: [ExprID: [TypeRefID?]] = [:]
     private var _callableRefReceiverTypeRefs: [ExprID: TypeRefID] = [:]
     /// Tracks member-call expressions written with parentheses so zero-argument
@@ -236,6 +261,11 @@ public final class ASTArena: @unchecked Sendable {
     /// Marks `receiver.(expression)(args)` calls, which require a function type
     /// with an explicit extension receiver.
     private var _receiverExpressionArgsCallExpressions: Set<ExprID> = []
+    /// Tracks `expr<Args>` nodes parsed as the receiver of `.member` access
+    /// (`G<Int>.GI()`): the `.call` shape carries the type arguments while the
+    /// marker tells Sema to resolve the callee chain as a classifier qualifier
+    /// rather than a zero-argument call.
+    private var _typeQualifierCallExpressions: Set<ExprID> = []
     /// Tracks compound-assignment nodes synthesized from `++` / `--` so Sema and
     /// KIR can apply inc/dec semantics without changing the public AST shape.
     private var _incrementDecrementExpressions: Set<ExprID> = []
@@ -244,6 +274,9 @@ public final class ASTArena: @unchecked Sendable {
     /// Synthetic call-result assignment blocks preserve outer data flow while
     /// keeping their receiver temporary in a separate lexical scope.
     private var _callResultCompoundAssignmentBlocks: Set<ExprID> = []
+    /// Compound assignments whose LHS carried a postfix `!!`
+    /// (`a[i]!! += v`): the read of the assignable is asserted non-null.
+    private var _nullAssertedCompoundAssignReads: Set<ExprID> = []
     /// Tracks lambda literals whose leading `label@` is bound to a following
     /// postfix expression. In Kotlin a label prefixes the whole postfix-unary
     /// expression, so `foo@{ ... }()` labels the invocation rather than the
@@ -287,9 +320,11 @@ public final class ASTArena: @unchecked Sendable {
         _operatorFunctionExpressions = snapshot.operatorFunctionExpressions
         _explicitCallExpressions = snapshot.explicitCallExpressions
         _receiverExpressionArgsCallExpressions = snapshot.receiverExpressionArgsCallExpressions
+        _typeQualifierCallExpressions = snapshot.typeQualifierCallExpressions
         _incrementDecrementExpressions = snapshot.incrementDecrementExpressions
         _incrementDecrementValueExpressions = snapshot.incrementDecrementValueExpressions
         _callResultCompoundAssignmentBlocks = snapshot.callResultCompoundAssignmentBlocks
+        _nullAssertedCompoundAssignReads = snapshot.nullAssertedCompoundAssignReads
         _nonFunctionLambdaLabels = snapshot.nonFunctionLambdaLabels
         _incrementDecrementCachedValues = snapshot.incrementDecrementCachedValues
         _expressionAnnotations = snapshot.expressionAnnotations
@@ -310,6 +345,7 @@ public final class ASTArena: @unchecked Sendable {
             loopLabels: _loopLabels,
             whenSubjectVarNames: _whenSubjectVarNames,
             whenSubjectTypeRefs: _whenSubjectTypeRefs,
+        forVariableTypeRefs: _forVariableTypeRefs,
             lambdaParamTypeRefs: _lambdaParamTypeRefs,
             callableRefReceiverTypeRefs: _callableRefReceiverTypeRefs,
             infixCallExpressions: _infixCallExpressions,
@@ -317,9 +353,11 @@ public final class ASTArena: @unchecked Sendable {
             operatorFunctionExpressions: _operatorFunctionExpressions,
             explicitCallExpressions: _explicitCallExpressions,
             receiverExpressionArgsCallExpressions: _receiverExpressionArgsCallExpressions,
+            typeQualifierCallExpressions: _typeQualifierCallExpressions,
             incrementDecrementExpressions: _incrementDecrementExpressions,
             incrementDecrementValueExpressions: _incrementDecrementValueExpressions,
             callResultCompoundAssignmentBlocks: _callResultCompoundAssignmentBlocks,
+            nullAssertedCompoundAssignReads: _nullAssertedCompoundAssignReads,
             nonFunctionLambdaLabels: _nonFunctionLambdaLabels,
             incrementDecrementCachedValues: _incrementDecrementCachedValues,
             expressionAnnotations: _expressionAnnotations,
@@ -361,6 +399,9 @@ public final class ASTArena: @unchecked Sendable {
         for (key, value) in snapshot.whenSubjectTypeRefs {
             _whenSubjectTypeRefs[remapper.remap(key)] = remapper.remap(value)
         }
+        for (key, value) in snapshot.forVariableTypeRefs {
+            _forVariableTypeRefs[remapper.remap(key)] = remapper.remap(value)
+        }
         for (key, value) in snapshot.lambdaParamTypeRefs {
             _lambdaParamTypeRefs[remapper.remap(key)] = value.map { $0.map { remapper.remap($0) } }
         }
@@ -392,9 +433,11 @@ public final class ASTArena: @unchecked Sendable {
         _operatorFunctionExpressions.formUnion(snapshot.operatorFunctionExpressions.map { remapper.remap($0) })
         _explicitCallExpressions.formUnion(snapshot.explicitCallExpressions.map { remapper.remap($0) })
         _receiverExpressionArgsCallExpressions.formUnion(snapshot.receiverExpressionArgsCallExpressions.map { remapper.remap($0) })
+        _typeQualifierCallExpressions.formUnion(snapshot.typeQualifierCallExpressions.map { remapper.remap($0) })
         _incrementDecrementExpressions.formUnion(snapshot.incrementDecrementExpressions.map { remapper.remap($0) })
         _incrementDecrementValueExpressions.formUnion(snapshot.incrementDecrementValueExpressions.map { remapper.remap($0) })
         _callResultCompoundAssignmentBlocks.formUnion(snapshot.callResultCompoundAssignmentBlocks.map { remapper.remap($0) })
+        _nullAssertedCompoundAssignReads.formUnion(snapshot.nullAssertedCompoundAssignReads.map { remapper.remap($0) })
         _nonFunctionLambdaLabels.formUnion(snapshot.nonFunctionLambdaLabels.map { remapper.remap($0) })
         _parenthesizedExpressions.formUnion(snapshot.parenthesizedExpressions.map { remapper.remap($0) })
         return remapper
@@ -652,6 +695,18 @@ public final class ASTArena: @unchecked Sendable {
         _whenSubjectTypeRefs[exprID] = typeRef
     }
 
+    public func setForVariableTypeRef(_ typeRef: TypeRefID, for exprID: ExprID) {
+        lock.lock()
+        defer { lock.unlock() }
+        _forVariableTypeRefs[exprID] = typeRef
+    }
+
+    public func forVariableTypeRef(for exprID: ExprID) -> TypeRefID? {
+        lock.lock()
+        defer { lock.unlock() }
+        return _forVariableTypeRefs[exprID]
+    }
+
     public func whenSubjectTypeRef(for exprID: ExprID) -> TypeRefID? {
         lock.lock()
         defer { lock.unlock() }
@@ -730,6 +785,18 @@ public final class ASTArena: @unchecked Sendable {
         return _explicitCallExpressions.contains(exprID)
     }
 
+    public func markTypeQualifierCall(_ exprID: ExprID) {
+        lock.lock()
+        defer { lock.unlock() }
+        _typeQualifierCallExpressions.insert(exprID)
+    }
+
+    public func isTypeQualifierCall(_ exprID: ExprID) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return _typeQualifierCallExpressions.contains(exprID)
+    }
+
     public func markReceiverExpressionArgsCall(_ exprID: ExprID) {
         lock.lock()
         defer { lock.unlock() }
@@ -752,6 +819,18 @@ public final class ASTArena: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         return _callResultCompoundAssignmentBlocks.contains(exprID)
+    }
+
+    public func markNullAssertedCompoundAssignRead(_ exprID: ExprID) {
+        lock.lock()
+        defer { lock.unlock() }
+        _nullAssertedCompoundAssignReads.insert(exprID)
+    }
+
+    public func isNullAssertedCompoundAssignRead(_ exprID: ExprID) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return _nullAssertedCompoundAssignReads.contains(exprID)
     }
 
     public func markIncrementDecrement(

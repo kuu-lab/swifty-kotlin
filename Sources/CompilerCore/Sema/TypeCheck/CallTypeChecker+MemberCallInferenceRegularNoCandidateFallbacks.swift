@@ -370,7 +370,9 @@ extension CallTypeChecker {
                ownerNominalSymbol: classNameReceiverNominalSymbol,
                memberName: calleeName,
                sema: sema
-           )
+           ),
+           !(receiverQualifierIsTypeAlias(receiverID: receiverID, ctx: ctx)
+               && sema.symbols.symbol(staticMember.symbol)?.kind == .object)
         {
             if let memberSymbol = sema.symbols.symbol(staticMember.symbol),
                !ctx.visibilityChecker.isAccessible(

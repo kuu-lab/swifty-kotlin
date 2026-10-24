@@ -1,0 +1,449 @@
+// Primitive-array HOF skeletons: one body stamped once per element type (the
+// format is documented on BundledStdlibTemplate). The six outputs are
+// byte-identical to the hand-written PrimitiveArrayHOF*.kt files they replaced,
+// drift included, so declaration order and SymbolIDs did not move. Normalizing
+// the drift (see the //@ note lines) is a behavior change and belongs in a
+// separate change with diff cases.
+//@ file PrimitiveArrayHOF Int Long
+//@ file PrimitiveArrayHOF+ByteShort Byte Short
+//@ file PrimitiveArrayHOF+DoubleFloat Double Float
+//@ file PrimitiveArrayHOF+BooleanChar Boolean Char
+//@ file PrimitiveArrayHOF+UByteUShort UByte UShort
+//@ file PrimitiveArrayHOF+UIntULong UInt ULong
+//@ header
+package kotlin.collections
+
+// The generated-looking repetition mirrors Kotlin's specialized primitive-array API
+// and keeps element values typed at the source boundary instead of passing raw words
+// through the former kk_array_* runtime HOF bridges.
+
+//@ body
+//@ note The unsigned arrays carry extra accessors ahead of the shared HOFs; UInt alone also has
+//@ note indexOf, forEachIndexed, maxOrNull and minOrNull.
+//@ only UByte UShort UInt ULong
+public fun {{T}}Array.elementAt(index: Int): {{T}} = this[index]
+
+public fun {{T}}Array.getOrNull(index: Int): {{T}}? =
+    if (index >= 0 && index < size) this[index] else null
+
+public inline fun {{T}}Array.elementAtOrElse(index: Int, defaultValue: (Int) -> {{T}}): {{T}} =
+    if (index >= 0 && index < size) this[index] else defaultValue(index)
+
+//@ end
+//@ only UInt
+public fun {{T}}Array.indexOf(element: {{T}}): Int {
+    var i = 0
+    while (i < this.size) {
+        if (this[i] == element) return i
+        i++
+    }
+    return -1
+}
+
+//@ end
+//@ only UByte UShort UInt ULong
+public inline fun {{T}}Array.indexOfFirst(predicate: ({{T}}) -> Boolean): Int {
+    var i = 0
+    while (i < this.size) {
+        if (predicate(this[i])) return i
+        i++
+    }
+    return -1
+}
+
+public inline fun {{T}}Array.indexOfLast(predicate: ({{T}}) -> Boolean): Int {
+    var i = this.size - 1
+    while (i >= 0) {
+        if (predicate(this[i])) return i
+        i--
+    }
+    return -1
+}
+
+//@ end
+//@ only UInt
+public inline fun {{T}}Array.forEachIndexed(action: (Int, {{T}}) -> Unit) {
+    var i = 0
+    while (i < this.size) {
+        action(i, this[i])
+        i++
+    }
+}
+
+public fun {{T}}Array.maxOrNull(): {{T}}? {
+    if (this.size == 0) return null
+    var max = this[0]
+    var i = 1
+    while (i < this.size) {
+        val element = this[i]
+        if (element > max) max = element
+        i++
+    }
+    return max
+}
+
+public fun {{T}}Array.minOrNull(): {{T}}? {
+    if (this.size == 0) return null
+    var min = this[0]
+    var i = 1
+    while (i < this.size) {
+        val element = this[i]
+        if (element < min) min = element
+        i++
+    }
+    return min
+}
+
+//@ end
+public fun <R> {{T}}Array.map(transform: ({{T}}) -> R): List<R> {
+    val result = mutableListOf<R>()
+    var i = 0
+    while (i < this.size) {
+        result.add(transform(this[i]))
+        i++
+    }
+    return result
+}
+//@ note IntArray.map is directly followed by mapIndexed (no blank line).
+//@ except Int
+
+//@ end
+public fun <R> {{T}}Array.mapIndexed(transform: (Int, {{T}}) -> R): List<R> {
+    val result = mutableListOf<R>()
+    var i = 0
+    while (i < this.size) {
+        result.add(transform(i, this[i]))
+        i++
+    }
+    return result
+}
+
+public fun <R : Any> {{T}}Array.mapNotNull(transform: ({{T}}) -> R?): List<R> {
+    val result = mutableListOf<R>()
+    var i = 0
+    while (i < this.size) {
+        val mapped = transform(this[i])
+        if (mapped != null) result.add(mapped)
+        i++
+    }
+    return result
+}
+
+public fun <R> {{T}}Array.flatMap(transform: ({{T}}) -> List<R>): List<R> {
+    val result = mutableListOf<R>()
+    var i = 0
+    while (i < this.size) {
+        val nested = transform(this[i])
+        var j = 0
+        while (j < nested.size) {
+            result.add(nested[j])
+            j++
+        }
+        i++
+    }
+    return result
+}
+
+//@ note Only IntArray.forEach is inline.
+//@ only Int
+public inline fun {{T}}Array.forEach(action: ({{T}}) -> Unit) {
+//@ else
+public fun {{T}}Array.forEach(action: ({{T}}) -> Unit) {
+//@ end
+    var i = 0
+    while (i < this.size) {
+        action(this[i])
+        i++
+    }
+}
+
+public fun {{T}}Array.filter(predicate: ({{T}}) -> Boolean): List<{{T}}> {
+    val result = mutableListOf<{{T}}>()
+    var i = 0
+    while (i < this.size) {
+        val element = this[i]
+        if (predicate(element)) result.add(element)
+        i++
+    }
+    return result
+}
+
+public fun {{T}}Array.filterIndexed(predicate: (Int, {{T}}) -> Boolean): List<{{T}}> {
+    val result = mutableListOf<{{T}}>()
+    var i = 0
+    while (i < this.size) {
+        val element = this[i]
+        if (predicate(i, element)) result.add(element)
+        i++
+    }
+    return result
+}
+
+public fun {{T}}Array.filterNot(predicate: ({{T}}) -> Boolean): List<{{T}}> {
+    val result = mutableListOf<{{T}}>()
+    var i = 0
+    while (i < this.size) {
+        val element = this[i]
+        if (!predicate(element)) result.add(element)
+        i++
+    }
+    return result
+}
+
+public fun {{T}}Array.reduce(operation: ({{T}}, {{T}}) -> {{T}}): {{T}} {
+    if (this.size == 0) throw UnsupportedOperationException("Empty array can't be reduced.")
+    var acc = this[0]
+    var i = 1
+    while (i < this.size) {
+        acc = operation(acc, this[i])
+        i++
+    }
+    return acc
+}
+
+public fun {{T}}Array.reduceIndexed(operation: (Int, {{T}}, {{T}}) -> {{T}}): {{T}} {
+    if (this.size == 0) throw UnsupportedOperationException("Empty array can't be reduced.")
+    var acc = this[0]
+    var i = 1
+    while (i < this.size) {
+        acc = operation(i, acc, this[i])
+        i++
+    }
+    return acc
+}
+
+public fun {{T}}Array.reduceOrNull(operation: ({{T}}, {{T}}) -> {{T}}): {{T}}? {
+    if (this.size == 0) return null
+    var acc = this[0]
+    var i = 1
+    while (i < this.size) {
+        acc = operation(acc, this[i])
+        i++
+    }
+    return acc
+}
+
+public fun <R> {{T}}Array.fold(initial: R, operation: (R, {{T}}) -> R): R {
+    var acc = initial
+    var i = 0
+    while (i < this.size) {
+        acc = operation(acc, this[i])
+        i++
+    }
+    return acc
+}
+
+public fun <R> {{T}}Array.foldIndexed(initial: R, operation: (Int, R, {{T}}) -> R): R {
+    var acc = initial
+    var i = 0
+    while (i < this.size) {
+        acc = operation(i, acc, this[i])
+        i++
+    }
+    return acc
+}
+
+//@ note scanIndexed exists for IntArray only (#8770).
+//@ only Int
+public fun <R> {{T}}Array.scanIndexed(initial: R, operation: (Int, R, {{T}}) -> R): List<R> {
+    val result = mutableListOf<R>()
+    var accumulator = initial
+    result.add(accumulator)
+    var i = 0
+    while (i < this.size) {
+        accumulator = operation(i, accumulator, this[i])
+        result.add(accumulator)
+        i++
+    }
+    return result
+}
+
+//@ end
+public fun {{T}}Array.find(predicate: ({{T}}) -> Boolean): {{T}}? {
+    var i = 0
+    while (i < this.size) {
+        val element = this[i]
+        if (predicate(element)) return element
+        i++
+    }
+    return null
+}
+
+public fun {{T}}Array.findLast(predicate: ({{T}}) -> Boolean): {{T}}? {
+    var i = this.size - 1
+    while (i >= 0) {
+        val element = this[i]
+        if (predicate(element)) return element
+        i--
+    }
+    return null
+}
+
+public fun {{T}}Array.first(): {{T}} {
+    if (this.size == 0) throw NoSuchElementException("Array is empty.")
+    return this[0]
+}
+
+public fun {{T}}Array.first(predicate: ({{T}}) -> Boolean): {{T}} {
+    var i = 0
+    while (i < this.size) {
+        val element = this[i]
+        if (predicate(element)) return element
+        i++
+    }
+    throw NoSuchElementException("Array contains no element matching the predicate.")
+}
+
+public fun {{T}}Array.firstOrNull(): {{T}}? {
+    if (this.size == 0) return null
+    return this[0]
+}
+
+public fun {{T}}Array.firstOrNull(predicate: ({{T}}) -> Boolean): {{T}}? {
+    var i = 0
+    while (i < this.size) {
+        val element = this[i]
+        if (predicate(element)) return element
+        i++
+    }
+    return null
+}
+
+public fun {{T}}Array.last(): {{T}} {
+    if (this.size == 0) throw NoSuchElementException("Array is empty.")
+    return this[this.size - 1]
+}
+
+public fun {{T}}Array.last(predicate: ({{T}}) -> Boolean): {{T}} {
+    var i = this.size - 1
+    while (i >= 0) {
+        val element = this[i]
+        if (predicate(element)) return element
+        i--
+    }
+    throw NoSuchElementException("Array contains no element matching the predicate.")
+}
+
+public fun {{T}}Array.lastOrNull(): {{T}}? {
+    if (this.size == 0) return null
+    return this[this.size - 1]
+}
+
+public fun {{T}}Array.lastOrNull(predicate: ({{T}}) -> Boolean): {{T}}? {
+    var i = this.size - 1
+    while (i >= 0) {
+        val element = this[i]
+        if (predicate(element)) return element
+        i--
+    }
+    return null
+}
+
+public fun {{T}}Array.single(): {{T}} {
+    if (this.size == 0) throw NoSuchElementException("Array is empty.")
+    if (this.size != 1) throw IllegalArgumentException("Array has more than one element.")
+    return this[0]
+}
+
+public fun {{T}}Array.singleOrNull(): {{T}}? = if (this.size == 1) this[0] else null
+
+public inline fun {{T}}Array.single(predicate: ({{T}}) -> Boolean): {{T}} {
+    var matchIndex = -1
+    var i = 0
+    while (i < this.size) {
+        if (predicate(this[i])) {
+            if (matchIndex >= 0) throw IllegalArgumentException("Array contains more than one matching element.")
+            matchIndex = i
+        }
+        i++
+    }
+    if (matchIndex >= 0) return this[matchIndex]
+    throw NoSuchElementException("Array contains no element matching the predicate.")
+}
+
+public inline fun {{T}}Array.singleOrNull(predicate: ({{T}}) -> Boolean): {{T}}? {
+    var matchIndex = -1
+    var i = 0
+    while (i < this.size) {
+        if (predicate(this[i])) {
+            if (matchIndex >= 0) return null
+            matchIndex = i
+        }
+        i++
+    }
+    return if (matchIndex >= 0) this[matchIndex] else null
+}
+
+public fun {{T}}Array.any(): Boolean = this.size != 0
+
+public fun {{T}}Array.any(predicate: ({{T}}) -> Boolean): Boolean {
+    var i = 0
+    while (i < this.size) {
+        if (predicate(this[i])) return true
+        i++
+    }
+    return false
+}
+
+public fun {{T}}Array.all(predicate: ({{T}}) -> Boolean): Boolean {
+    var i = 0
+    while (i < this.size) {
+        if (!predicate(this[i])) return false
+        i++
+    }
+    return true
+}
+
+public fun {{T}}Array.none(): Boolean = this.size == 0
+
+public fun {{T}}Array.none(predicate: ({{T}}) -> Boolean): Boolean {
+    var i = 0
+    while (i < this.size) {
+        if (predicate(this[i])) return false
+        i++
+    }
+    return true
+}
+
+public fun {{T}}Array.count(): Int = this.size
+
+public fun {{T}}Array.count(predicate: ({{T}}) -> Boolean): Int {
+    var count = 0
+    var i = 0
+    while (i < this.size) {
+        if (predicate(this[i])) count++
+        i++
+    }
+    return count
+}
+
+public fun {{T}}Array.joinToString(separator: String = ", ", prefix: String = "", postfix: String = ""): String {
+    val sb = StringBuilder()
+    sb.append(prefix)
+    var i = 0
+    while (i < this.size) {
+        if (i > 0) sb.append(separator)
+        sb.append(this[i].toString())
+        i++
+    }
+    sb.append(postfix)
+    return sb.toString()
+}
+
+public fun {{T}}Array.joinToString(
+    separator: String = ", ",
+    prefix: String = "",
+    postfix: String = "",
+    transform: ({{T}}) -> String
+): String {
+    val sb = StringBuilder()
+    sb.append(prefix)
+    var i = 0
+    while (i < this.size) {
+        if (i > 0) sb.append(separator)
+        sb.append(transform(this[i]))
+        i++
+    }
+    sb.append(postfix)
+    return sb.toString()
+}

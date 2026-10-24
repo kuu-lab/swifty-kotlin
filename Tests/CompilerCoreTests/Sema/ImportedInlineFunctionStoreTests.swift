@@ -146,6 +146,113 @@ struct ImportedInlineFunctionStoreTests {
         }
     }
 
+    /// Compact-index imports keep an inline body's descriptor deferred until
+    /// the lowering-time demand scan. BuildKIR's function-value gate must
+    /// still treat that pending body as available — otherwise a captured
+    /// non-local-return lambda is boxed into a `kk_function_value_adapter_*`
+    /// thunk that references the lambda's `isInlineOnly` (never emitted)
+    /// implementation symbol, producing an undefined `kk_lambda_*` at link
+    /// time (KUU-3157).
+    @Test func testPendingInlineBodyKeepsRawLambdaArgument() throws {
+        let fm = FileManager.default
+        let baseDir = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let libDir = baseDir.appendingPathExtension("kklib")
+        let inlineDir = libDir.appendingPathComponent("inline-kir")
+        try fm.createDirectory(at: inlineDir, withIntermediateDirectories: true)
+        defer { try? fm.removeItem(at: baseDir) }
+        let t = defaultTargetTriple()
+        let targetStr = "\(t.arch)-\(t.vendor)-\(t.os)"
+
+        let manifest = """
+        {
+          "formatVersion": 2,
+          "moduleName": "PendingInline",
+          "kotlinLanguageVersion": "2.3.10",
+          "target": "\(targetStr)",
+          "metadata": "metadata.bin",
+          "inlineKIRDir": "inline-kir"
+        }
+        """
+        let records = [MetadataRecord(
+            kind: .function,
+            mangledName: "_kk_apply",
+            fqName: "demo.apply",
+            arity: 1,
+            isInline: true,
+            typeSignature: "F1<F1<I,I>,I>",
+            valueParameterAllowsNonLocalReturn: [true],
+            valueParameterNames: ["block"]
+        )]
+        let metadata = MetadataEncoder().serializeCompactIndexed(records)
+        let kirbin = """
+        version=2
+        params=0
+        suspend=false
+        body:
+        beginBlock
+        returnValue value=1
+        """
+
+        try manifest.write(to: libDir.appendingPathComponent("manifest.json"), atomically: true, encoding: .utf8)
+        try metadata.write(to: libDir.appendingPathComponent("metadata.bin"))
+        try kirbin.write(
+            to: inlineDir.appendingPathComponent(MetadataEncoder.inlineKIRFileName(for: "_kk_apply")),
+            atomically: true, encoding: .utf8
+        )
+
+        let source = """
+        fun box(marker: Int): Int {
+            val result = demo.apply { if (marker > 0) return marker else it }
+            return result
+        }
+        fun main() { box(3) }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(
+                inputs: [path],
+                moduleName: "PendingInlineApp",
+                emit: .kirDump,
+                searchPaths: [libDir.path],
+                includeStdlib: false
+            )
+            try runToKIR(ctx)
+            #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+
+            let sema = try #require(ctx.sema)
+            let applySymbol = try #require(sema.symbols.lookup(
+                fqName: ["demo", "apply"].map(ctx.interner.intern)
+            ))
+            #expect(sema.importedInlineFunctions.pendingBodySymbols.contains(applySymbol))
+
+            let module = try #require(ctx.kir)
+            let functions = module.arena.declarations.compactMap { decl -> KIRFunction? in
+                guard case let .function(function) = decl else { return nil }
+                return function
+            }
+            // No adapter thunk may wrap the inline call's lambda argument.
+            #expect(!functions.contains {
+                ctx.interner.resolve($0.name).hasPrefix("kk_function_value_adapter")
+            })
+            // The call keeps the raw lambda symbol reference, so the lowering
+            // expansion can splice the captured non-local-return body inline.
+            let lambdaSymbol = try #require(functions.first {
+                ctx.interner.resolve($0.name).hasPrefix("kk_lambda_")
+            }?.symbol)
+            let applyCallArguments = functions.flatMap(\.body).compactMap { instruction -> [KIRExprID]? in
+                guard case let .call(symbol, _, arguments, _, _, _, _, _) = instruction,
+                      symbol == applySymbol
+                else { return nil }
+                return arguments
+            }
+            #expect(applyCallArguments.contains { arguments in
+                arguments.contains { argument in
+                    guard case let .symbolRef(target) = module.arena.expr(argument) else { return false }
+                    return target == lambdaSymbol
+                }
+            })
+        }
+    }
+
     /// When demanded inline bodies are resolved from indexed metadata, the store
     /// must register a descriptor without pre-populating `functions[symbol]`,
     /// ensuring Materializer still rewrites lambdas and non-local returns.

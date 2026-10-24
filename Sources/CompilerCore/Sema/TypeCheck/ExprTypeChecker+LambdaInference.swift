@@ -352,6 +352,10 @@ extension ExprTypeChecker {
         }
         bodyCtx = bodyCtx.enteringLambdaBody(id)
         bodyCtx.isUnitCoercionContext = lambdaUsesUnitCoercion
+        // The lambda body runs on its own `lambdaLocals` scope, so local
+        // narrowing inside it cannot leak to the enclosing locals — the
+        // conditional-evaluation suppression does not apply within the body.
+        bodyCtx.isConditionallyEvaluated = false
         if let receiverType = ctx.implicitReceiverType,
            let receiverSymbol = locals[ctx.interner.intern("this")]?.symbol,
            bodyCtx.implicitReceiverStack.last?.symbol != receiverSymbol
@@ -483,12 +487,34 @@ extension ExprTypeChecker {
             }
             return elseExpr == nil
         }()
+        // A `try` at the end of a lambda is likewise a statement position:
+        // kotlinc does not propagate expression context into its branches even
+        // when the lambda is expected to return a value -- a mismatch is
+        // reported on the `try` itself. Pushing expression context here would
+        // wrongly flag an else-less `if` nested in the try/catch bodies (e.g.
+        // `thread { try { if (c) { ... } } catch ... }` on an unresolved
+        // callee). Parentheses keep the expression form on the normal path.
+        let lambdaTailIsTry: Bool = {
+            let tailExpr: ExprID = if case let .blockExpr(_, trailingExpr, _) = ast.arena.expr(body),
+                                      let trailingExpr {
+                trailingExpr
+            } else {
+                body
+            }
+            guard !ast.arena.isParenthesized(tailExpr),
+                  case .tryExpr = ast.arena.expr(tailExpr)
+            else {
+                return false
+            }
+            return true
+        }()
         let fallthroughType = driver.inferExpr(
             body,
             ctx: bodyCtx,
             locals: &lambdaLocals,
             expectedType: bodyExpectedType,
             isStatementContext: lambdaUsesUnitCoercion || lambdaTailIsElselessIf || lambdaTailIsWhenWithoutElse
+                || lambdaTailIsTry
         )
         if expectedLambdaReturnType == sema.types.unitType,
            sema.types.makeNonNullable(fallthroughType) == sema.types.unitType

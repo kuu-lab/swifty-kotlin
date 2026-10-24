@@ -180,15 +180,11 @@ extension ExprTypeChecker {
         locals: LocalBindings
     ) -> TypeID {
         let sema = ctx.sema
-        guard let receiverType = ctx.implicitReceiverType else {
-            ctx.sema.diagnostics.error(
-                "KSWIFTK-SEMA-0051",
-                "'this' is not allowed in this context.",
-                range: range
-            )
-            sema.bindings.bindExprType(id, type: sema.types.errorType)
-            return sema.types.errorType
-        }
+        // A labeled `this@Outer` addresses a receiver on the enclosing tower,
+        // not the current `this`, so it must resolve even in contexts where no
+        // implicit receiver is active — e.g. a local class's superclass
+        // constructor arguments, which type-check with `implicitReceiverType`
+        // nil but keep the enclosing receiver entries (KUU-3226).
         if let label {
             if let qualifiedType = ctx.resolveQualifiedThis(label: label) {
                 // An outer receiver whose enclosing `this` is capturable (e.g.
@@ -219,6 +215,15 @@ extension ExprTypeChecker {
             ctx.sema.diagnostics.error(
                 "KSWIFTK-SEMA-0053",
                 "Unresolved label '\(labelStr)' for qualified 'this'.",
+                range: range
+            )
+            sema.bindings.bindExprType(id, type: sema.types.errorType)
+            return sema.types.errorType
+        }
+        guard let receiverType = ctx.implicitReceiverType else {
+            ctx.sema.diagnostics.error(
+                "KSWIFTK-SEMA-0051",
+                "'this' is not allowed in this context.",
                 range: range
             )
             sema.bindings.bindExprType(id, type: sema.types.errorType)

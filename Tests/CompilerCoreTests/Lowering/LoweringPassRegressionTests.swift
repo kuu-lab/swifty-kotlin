@@ -96,6 +96,8 @@ struct LoweringPassRegressionTests {
         case unboxInt = "kk_unbox_int"
         case unboxIntStatic = "kk_unbox_int_static"
         case unboxLongStatic = "kk_unbox_long_static"
+        case valueClassBox = "kk_value_class_box"
+        case valueClassUnbox = "kk_value_class_unbox"
         case withTimeout = "kk_with_timeout"
         case withTimeoutOrNull = "kk_with_timeout_or_null"
         case withTimeoutOrNullThrowing = "kk_with_timeout_or_null_throwing"

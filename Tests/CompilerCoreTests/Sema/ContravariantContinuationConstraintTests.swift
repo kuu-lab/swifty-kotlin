@@ -8,10 +8,12 @@ struct ContravariantContinuationConstraintTests {
     func testBundledCancellableStartAcceptsAnyNullableCompletion(useLibrary: Bool) throws {
         if useLibrary { TestStdlibCache.shared.prepare() }
         let calls = """
+        @OptIn(InternalCoroutinesApi::class)
         internal fun <R> (suspend () -> R).ff() {
             this.startCoroutineCancellable(NO_CB)
             this.startCoroutineCancellable<R>(NO_CB)
         }
+        @OptIn(InternalCoroutinesApi::class)
         fun <R> typed(block: suspend () -> R, completion: Continuation<Any?>) {
             block.startCoroutineCancellable(completion)
             block.startCoroutineCancellable<R>(completion)
@@ -32,6 +34,7 @@ struct ContravariantContinuationConstraintTests {
             return """
             package sample\(index)
             import kotlin.coroutines.*
+            import kotlinx.coroutines.InternalCoroutinesApi
             import kotlinx.coroutines.intrinsics.startCoroutineCancellable
 
             \(completionDeclaredFirst ? completion : calls)
@@ -74,6 +77,34 @@ struct ContravariantContinuationConstraintTests {
             let errors = context.diagnostics.diagnostics.filter { $0.severity == .error }
             #expect(errors.count == 2, "\(errors.map { "\($0.code): \($0.message)" })")
             #expect(errors.allSatisfy { $0.code == "KSWIFTK-TYPE-0001" })
+        }
+    }
+
+    @Test(arguments: [false, true])
+    func testElvisArgumentSeesReceiverSubstitutedParameterType(useLibrary: Bool) throws {
+        if useLibrary { TestStdlibCache.shared.prepare() }
+        // `Result.failure`'s type parameter appears only in its return type, so
+        // the call needs the expected `Result<Unit>` propagated through the
+        // `?.let { ... } ?: RESUME` elvis argument (Ktor's ByteChannel).
+        let source = """
+        import kotlin.coroutines.*
+
+        class Task(private val continuation: Continuation<Unit>) {
+            fun resume(throwable: Throwable?) {
+                continuation.resumeWith(throwable?.let { Result.failure(it) } ?: RESUME)
+            }
+
+            companion object {
+                val RESUME = Result.success(Unit)
+            }
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let library = useLibrary ? try #require(CompilerOptions.defaultStdlibLibraryPath) : nil
+            let context = makeCompilationContext(inputs: [path], stdlibLibraryPath: library)
+            try runSema(context)
+            let errors = context.diagnostics.diagnostics.filter { $0.severity == .error }
+            #expect(errors.isEmpty, "\(errors.map { "\($0.code): \($0.message)" })")
         }
     }
 

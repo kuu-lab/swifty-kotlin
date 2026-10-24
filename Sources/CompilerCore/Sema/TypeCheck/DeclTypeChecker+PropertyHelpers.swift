@@ -649,6 +649,12 @@ extension DeclTypeChecker {
                 declaredReceiver: declaredReceiver,
                 sema: sema
             ) else { return false }
+            // An expression-bodied extension's return stays the `Any`
+            // placeholder until its body is checked; the expected-type probe
+            // below would wrongly reject it when the property type is declared
+            // (KUU-3206). Resolve the inferred return type first so the probe
+            // sees the real signature, mirroring `resolve` above.
+            driver.inferFunctionReturnTypesIfNeeded(for: [candidate])
             let call = CallExpr(
                 range: range,
                 calleeName: name,

@@ -1082,6 +1082,12 @@ enum DiagnosticRegistry {
             defaultSeverity: .error,
             summary: "Conflicting type parameter declarations."
         ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0438",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "An interface cannot extend a class."
+        ),
     ]
 
 

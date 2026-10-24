@@ -1548,6 +1548,21 @@ extension CallLowerer {
            isEnumEntryField(entrySym, sema: sema),
            let entryInfo = sema.symbols.symbol(entrySym)
         {
+            // KUU-3196: `E.OK.name` is a compile-time constant on the JVM
+            // (intrinsic const evaluation) — the enum entry is never loaded,
+            // so the enum's <clinit> does not run. Drop the receiver's
+            // now-dead materialization: keeping its `.symbolRef` constValue /
+            // loadGlobal would let insertEnumLazyInitTriggers emit a
+            // `$enumEnsureInit$` call whose init blocks then run. `.ordinal`
+            // is not const-folded by kotlinc — its entry load (and <clinit>)
+            // must stay.
+            if calleeStr == "name" {
+                dropDeadEnumEntryMaterialization(
+                    of: loweredReceiverID,
+                    entrySymbol: entrySym,
+                    instructions: &instructions
+                )
+            }
             let helperName = calleeStr == "name"
                 ? NameMangler.enumEntryNameHelperName(for: entryInfo, interner: interner)
                 : NameMangler.enumEntryOrdinalHelperName(for: entryInfo, interner: interner)
@@ -1620,6 +1635,37 @@ extension CallLowerer {
             thrownResult: nil
         ))
         return result
+    }
+
+    /// Removes the instruction that materialized a compile-time-known enum
+    /// entry (`constValue .symbolRef(entry)` / `loadGlobal entry`) when a
+    /// `name` read folds it away. This mirrors the JVM's intrinsic const
+    /// evaluation of `E.OK.name`, which never loads the entry field and
+    /// therefore never runs the enum's `<clinit>`
+    /// (`insertEnumLazyInitTriggers` keys its `$enumEnsureInit$` insertion off
+    /// that symbol reference).
+    ///
+    /// Only a *trailing* producer is dropped — one this read's own receiver
+    /// lowering just emitted. A `.symbolRef` produced earlier is the value a
+    /// `val`/parameter/smart-cast slot itself holds (locals bind their
+    /// initializer's expr id directly via `setLocalValue`), so dropping it
+    /// would also erase a real `E.OK` load whose `<clinit>` the JVM does run.
+    private func dropDeadEnumEntryMaterialization(
+        of exprID: KIRExprID,
+        entrySymbol: SymbolID,
+        instructions: inout [KIRInstruction]
+    ) {
+        guard let last = instructions.last else { return }
+        let isProducer = switch last {
+        case let .constValue(result, .symbolRef(symbol)),
+             let .loadGlobal(result, symbol):
+            result == exprID && symbol == entrySymbol
+        default:
+            false
+        }
+        if isProducer {
+            instructions.removeLast()
+        }
     }
 
     func tryLowerExternalMemberPropertyRead(

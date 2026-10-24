@@ -80,7 +80,9 @@ struct ASTIDRemapper {
         SuperTypeEntry(
             typeRef: remap(value.typeRef),
             delegateExpression: value.delegateExpression.map { remap($0) },
-            constructorArgs: value.constructorArgs.map { remap($0) }
+            constructorArgs: value.constructorArgs.map { remap($0) },
+            hasConstructorCallSyntax: value.hasConstructorCallSyntax,
+            range: value.range
         )
     }
 

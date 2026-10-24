@@ -530,14 +530,29 @@ extension DataEnumSealedSynthesisPass {
             )
             var params = [KIRParameter(symbol: receiverSymbol, type: receiverType)]
             var argumentRefs: [KIRExprID] = []
-            for (parameterSymbol, parameterType) in zip(
+            let isVararg = OverloadResolver.normalizeFlags(
+                signature.valueParameterIsVararg,
+                count: signature.parameterTypes.count
+            )
+            for (index, (parameterSymbol, parameterType)) in zip(
                 signature.valueParameterSymbols,
                 signature.parameterTypes
-            ) {
-                params.append(KIRParameter(symbol: parameterSymbol, type: parameterType))
+            ).enumerated() {
+                // The signature keeps a vararg's element type, but the KIR ABI
+                // carries the packed array — mirror regular function lowering
+                // (KUU-3112: a String vararg would otherwise declare a flat
+                // aggregate parameter while callers pass an i64 array handle).
+                let effectiveType = (index < isVararg.count && isVararg[index])
+                    ? primitiveVarargArrayType(
+                        elementType: parameterType, sema: sema, interner: interner
+                    ) ?? referenceVarargArrayType(
+                        elementType: parameterType, sema: sema, interner: interner
+                    ) ?? parameterType
+                    : parameterType
+                params.append(KIRParameter(symbol: parameterSymbol, type: effectiveType))
                 let parameterRef = module.arena.appendExpr(
                     .symbolRef(parameterSymbol),
-                    type: parameterType
+                    type: effectiveType
                 )
                 argumentRefs.append(parameterRef)
             }
