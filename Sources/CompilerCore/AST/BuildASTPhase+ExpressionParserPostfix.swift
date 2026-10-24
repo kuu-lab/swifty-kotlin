@@ -316,6 +316,7 @@ extension BuildASTPhase.ExpressionParser {
         if !matches(.symbol(.rParen)) {
             while true {
                 let argumentStart = index
+                let diagnosticsBefore = diagnostics?.diagnostics.count ?? 0
                 var missingArgument = false
                 if let argument = parseCallArgument(implicitLambdaLabel: implicitLambdaLabel) {
                     args.append(argument)
@@ -324,11 +325,16 @@ extension BuildASTPhase.ExpressionParser {
                     // `f(,)`), or a label/spread consumed without an expression
                     // (`f(x = ,1)`, `f(x = )`, `f(*)`). Only a trailing comma
                     // after a real argument is legal (Kotlin 1.4+).
-                    diagnostics?.error(
-                        "KSWIFTK-PARSE-0022",
-                        "Expected an argument.",
-                        range: current()?.range
-                    )
+                    // A slot whose expression already diagnosed itself (e.g.
+                    // `f(::)` reporting PARSE-0014 after consuming `::`) is not
+                    // "missing", so skip the redundant report.
+                    if (diagnostics?.diagnostics.count ?? 0) == diagnosticsBefore {
+                        diagnostics?.error(
+                            "KSWIFTK-PARSE-0022",
+                            "Expected an argument.",
+                            range: current()?.range
+                        )
+                    }
                     missingArgument = true
                 }
                 if matches(.symbol(.comma)) {
