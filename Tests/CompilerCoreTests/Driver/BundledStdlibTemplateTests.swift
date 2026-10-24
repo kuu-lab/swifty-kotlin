@@ -172,6 +172,24 @@ struct BundledStdlibTemplateTests {
         #expect(unsignedWide.contains("ULongArray.elementAt(") && !unsignedWide.contains("ULongArray.indexOf("))
     }
 
+    /// `PrimitiveArrayCollectionOps.kt.tmpl` replaced one hand-written file of
+    /// eight identical per-type blocks. The cross-type toSortedSet trailer rides on
+    /// the last (Double) body verbatim, directly after its closing brace.
+    @Test
+    func testPrimitiveArrayCollectionOpsTemplateKeepsPathAndTrailer() throws {
+        let sources = try BundledStdlib.collectBundledStdlibSources()
+        let path = "__bundled_kotlin/collections/PrimitiveArrayCollectionOps.kt"
+        #expect(sources.map(\.path).filter { $0.contains("PrimitiveArrayCollectionOps") } == [path])
+        let source = try #require(sources.first { $0.path == path })
+        let text = String(decoding: source.contents, as: UTF8.self)
+        let types = ["Int", "Long", "Byte", "Short", "Char", "Boolean", "Float", "Double"]
+        let blockStarts = types.compactMap { text.range(of: "public fun \($0)Array.toHashSet(")?.lowerBound }
+        #expect(blockStarts.count == types.count && blockStarts == blockStarts.sorted())
+        #expect(text.contains("}\n// Natural ordering only (JVM parity)"))
+        #expect(text.components(separatedBy: "Array.toSortedSet(").count - 1 == types.count)
+        #expect(text.hasSuffix("public fun CharArray.toSortedSet(): java.util.SortedSet<Char> = asList().toSortedSet()\n"))
+    }
+
     @Test
     func testBrokenTemplateEmits0102AndThrows() throws {
         try withStdlibResources(["kotlin/x/Foo.kt.tmpl": "//@ body\n"]) { root in
