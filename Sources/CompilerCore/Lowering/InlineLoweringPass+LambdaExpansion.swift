@@ -97,6 +97,30 @@ extension InlineLoweringPass {
         callerBody: [KIRInstruction],
         ctx: KIRContext? = nil
     ) -> KIRFunction? {
+        // A callable spliced from its producer must be written exactly once:
+        // a slot assigned again — e.g. a tailrec parameter slot rebound each
+        // loop iteration — can hold a different lambda by the time the invoke
+        // runs, so the dispatch has to stay dynamic (KUU-3222). Mirrors the
+        // register-def notion of `exprIsDefined` (call/copy/thrownResult).
+        var producerCount = 0
+        for instruction in callerBody {
+            let defines: Bool
+            switch instruction {
+            case let .copy(_, to):
+                defines = to == argExpr
+            case let .call(_, _, _, result, _, thrownResult, _, _),
+                 let .virtualCall(_, _, _, _, result, _, thrownResult, _):
+                defines = result == argExpr || thrownResult == argExpr
+            case let .beginNonLocalReturnScope(value, _, function):
+                defines = function != nil && value == argExpr
+            default:
+                defines = InlineExprAliasing.definedResult(in: instruction) == argExpr
+            }
+            if defines {
+                producerCount += 1
+                if producerCount > 1 { return nil }
+            }
+        }
         if let symbol = lambdaSymbolRef(for: argExpr, arena: arena, callerBody: callerBody),
            let fn = allFunctionsBySymbol[symbol]
         {
