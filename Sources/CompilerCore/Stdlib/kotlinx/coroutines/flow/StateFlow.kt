@@ -163,6 +163,20 @@ public class MutableStateFlow<T>(initialValue: T) : StateFlow<T>, MutableSharedF
     }
 
     override suspend fun collect(collector: suspend (T) -> Unit) {
+        collectImpl(collector, null)
+    }
+
+    internal suspend fun collectWithSharing(
+        collector: suspend (T) -> Unit,
+        sharing: SnapshotSharingController
+    ) {
+        collectImpl(collector, sharing)
+    }
+
+    private suspend fun collectImpl(
+        collector: suspend (T) -> Unit,
+        sharing: SnapshotSharingController?
+    ) {
         val subscription = HotFlowSubscription<T>()
         // Registration, the first value delivery, and the subscription count
         // form one critical section: an emission cannot slip between them and
@@ -172,9 +186,14 @@ public class MutableStateFlow<T>(initialValue: T) : StateFlow<T>, MutableSharedF
             subscription.emitConflated(_value)
             subscriptionCounter().also { it.update { count -> count + 1 } }
         }
+        var sharingSubscribed = false
         var hasPrevious = false
         var previous: Any? = null
         try {
+            if (sharing != null) {
+                sharing.subscribe()
+                sharingSubscribed = true
+            }
             while (true) {
                 val next = subscription.receive()
                 if (!hasPrevious || previous != next) {
@@ -189,6 +208,7 @@ public class MutableStateFlow<T>(initialValue: T) : StateFlow<T>, MutableSharedF
                 subscription.clear()
                 counter.update { it - 1 }
             }
+            if (sharingSubscribed) sharing?.unsubscribe()
         }
     }
 }
