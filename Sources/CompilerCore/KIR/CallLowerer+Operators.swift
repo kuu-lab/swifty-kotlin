@@ -1421,6 +1421,19 @@ extension CallLowerer {
         // Member-access const reads (`O.OC`) never reach `constExprValue`;
         // resolve them the same way tryLowerObjectMemberPropertyRead does,
         // restricted to `.constValue` symbols so a plain `val` can never fold.
+        // An unqualified member `const val` read inside its owner (e.g. `a`
+        // in `object A { const val a = "$"; val s = "1234$a" }`) reaches here
+        // as a `.nameRef` — it is likewise a compile-time constant on the JVM
+        // even though Sema does not bind `constExprValue` for it (KUU-3180).
+        if case .nameRef? = ast.arena.expr(exprID),
+           let refSymbol = sema.bindings.identifierSymbol(for: exprID),
+           let symbol = sema.symbols.accessorOwnerProperty(for: refSymbol) ?? refSymbol as SymbolID?,
+           let info = sema.symbols.symbol(symbol),
+           info.flags.contains(.constValue),
+           !isEnumEntry(symbol, sema: sema)
+        {
+            return sema.symbols.constValueExprKind(for: symbol)
+        }
         guard case .memberCall(let receiver, _, _, let args, _)? = ast.arena.expr(exprID),
               args.isEmpty,
               let chosen = sema.bindings.callBindings[exprID]?.chosenCallee
