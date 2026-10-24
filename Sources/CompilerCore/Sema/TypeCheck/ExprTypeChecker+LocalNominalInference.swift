@@ -552,12 +552,17 @@ extension ExprTypeChecker {
 
         // Unlike an object literal (KSP-CAP-018), a local class's superclass
         // constructor arguments are evaluated inside `<init>`, so they infer
-        // against ctor-param + captured locals.
+        // against ctor-param + captured locals. The enclosing receiver tower
+        // (`ctx`, not `classCtx` — that already holds `this@<local class>`)
+        // stays visible so `class Y : C(x)` can resolve `x` on the captured
+        // outer `this`; `excludingEnclosingClassReceiver` inside the
+        // delegation path still hides the local class's own `this`.
         driver.declChecker.typeCheckPrimaryConstructorSuperDelegation(
             classDecl,
             symbol: classSymbol,
             ctx: classCtx,
-            extraLocals: outerLocalsSnapshot
+            extraLocals: outerLocalsSnapshot,
+            outerReceiversToKeep: ctx.outerReceiverTypes
         )
         driver.declChecker.typeCheckPrimaryConstructorDefaultValues(
             classDecl,
