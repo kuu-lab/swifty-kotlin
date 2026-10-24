@@ -943,6 +943,28 @@ struct TypeCheckHelpers {
                     }
                     .sorted(by: sourceFirstThenID)
                 }()
+                // KUU-3237: a typealias cannot qualify a nested-classifier
+                // reference (`A2.Nested` is unresolved in Kotlin). The scoped
+                // lookups above walk the alias's own fqName, which has no
+                // children, so every qualified candidate list is empty here —
+                // report the member instead of letting the short-name
+                // fallback resolve `Nested` against an unrelated owner.
+                if path.count > 1,
+                   let scope,
+                   qualifiedScopeCandidates.isEmpty,
+                   fqCandidates.isEmpty,
+                   nestedCandidates.isEmpty,
+                   let qualifierID = scope.lookupClassifier(path[0], matching: isTypeLikeSymbol)
+                       .sorted(by: sourceFirstThenID).first,
+                   sema.symbols.symbol(qualifierID)?.kind == .typeAlias
+                {
+                    diagnostics?.error(
+                        "KSWIFTK-SEMA-0025",
+                        "Unresolved type '\(interner.resolve(shortName))'.",
+                        range: usageRange
+                    )
+                    return sema.types.errorType
+                }
                 // Fall back to short-name lookup so that packaged types
                 // (e.g. `package test; class Foo`) resolve when referenced
                 // by simple name (`Foo`) during type checking.

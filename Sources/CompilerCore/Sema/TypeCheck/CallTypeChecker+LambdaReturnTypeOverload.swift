@@ -454,6 +454,18 @@ extension CallTypeChecker {
                         candidates: expectedTypeCandidates,
                         ctx: ctx
                     )
+                case let .binary(op, _, _, _) where op == .elvis:
+                    // Elvis branches need the candidate parameter type, e.g.
+                    // `resumeWith(throwable?.let { Result.failure(it) } ?: RESUME)`
+                    // where `Result.failure`'s return-only `T` is only
+                    // determinable from `resumeWith`'s `Result<T>` parameter.
+                    contextualArgExpectedTypes[index] = uniformContextualParameterType(
+                        for: argument,
+                        at: index,
+                        candidates: expectedTypeCandidates,
+                        receiverType: receiverType ?? ctx.implicitReceiverType,
+                        ctx: ctx
+                    )
                 case let .lambdaLiteral(lambdaParams, _, _, _):
                     // Prove non-escaping invocation before checking the lambda body.
                     if !expectedTypeCandidates.isEmpty, expectedTypeCandidates.allSatisfy({ candidate in

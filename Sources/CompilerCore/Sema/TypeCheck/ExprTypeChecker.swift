@@ -6,6 +6,30 @@ final class ExprTypeChecker {
         self.driver = driver
     }
 
+    /// Whether the receiver/callee spine of `id` contains a `?.` access. The
+    /// members chained after a safe call (`a?.b.c(...)`) only evaluate when the
+    /// chain did not short-circuit, so casts inside their arguments sit on a
+    /// conditionally-evaluated path.
+    func exprSpineContainsSafeMemberAccess(_ id: ExprID, ast: ASTModule) -> Bool {
+        var currentID = id
+        var visited: Set<ExprID> = []
+        while visited.insert(currentID).inserted {
+            guard let expr = ast.arena.expr(currentID) else { return false }
+            switch expr {
+            case .safeMemberCall, .safeMemberAssign:
+                return true
+            case let .memberCall(receiver, _, _, _, _),
+                 let .memberAssign(receiver, _, _, _):
+                currentID = receiver
+            case let .nullAssert(operand, _):
+                currentID = operand
+            default:
+                return false
+            }
+        }
+        return false
+    }
+
     // swiftlint:disable:next cyclomatic_complexity
     func inferExpr(
         _ id: ExprID,
@@ -196,22 +220,36 @@ final class ExprTypeChecker {
             return driver.localDeclChecker.inferLocalAssignExpr(id, name: name, value: value, range: range, ctx: ctx, locals: &locals)
 
         case let .memberAssign(receiverExpr, calleeName, valueExpr, range):
+            var assignCtx = ctx
+            if exprSpineContainsSafeMemberAccess(receiverExpr, ast: ast) {
+                assignCtx.isConditionallyEvaluated = true
+            }
             return inferMemberAssignExpr(
                 id, receiver: receiverExpr, name: calleeName, value: valueExpr,
-                range: range, ctx: ctx, locals: &locals
+                range: range, ctx: assignCtx, locals: &locals
             )
 
         case let .safeMemberAssign(receiverExpr, calleeName, valueExpr, range):
+            var assignCtx = ctx
+            assignCtx.isConditionallyEvaluated = true
             return inferMemberAssignExpr(
                 id, receiver: receiverExpr, name: calleeName, value: valueExpr,
-                range: range, ctx: ctx, locals: &locals, isSafeCall: true
+                range: range, ctx: assignCtx, locals: &locals, isSafeCall: true
             )
 
         case let .indexedAccess(receiverExpr, indices, range):
-            return driver.localDeclChecker.inferIndexedAccessExpr(id, receiverExpr: receiverExpr, indices: indices, range: range, ctx: ctx, locals: &locals)
+            var indexCtx = ctx
+            if exprSpineContainsSafeMemberAccess(receiverExpr, ast: ast) {
+                indexCtx.isConditionallyEvaluated = true
+            }
+            return driver.localDeclChecker.inferIndexedAccessExpr(id, receiverExpr: receiverExpr, indices: indices, range: range, ctx: indexCtx, locals: &locals)
 
         case let .indexedAssign(receiverExpr, indices, valueExpr, range):
-            return driver.localDeclChecker.inferIndexedAssignExpr(id, receiverExpr: receiverExpr, indices: indices, valueExpr: valueExpr, range: range, ctx: ctx, locals: &locals)
+            var assignCtx = ctx
+            if exprSpineContainsSafeMemberAccess(receiverExpr, ast: ast) {
+                assignCtx.isConditionallyEvaluated = true
+            }
+            return driver.localDeclChecker.inferIndexedAssignExpr(id, receiverExpr: receiverExpr, indices: indices, valueExpr: valueExpr, range: range, ctx: assignCtx, locals: &locals)
 
         case let .returnExpr(value, label, range):
             let lambdaReturnScope = label.flatMap { label in
@@ -368,12 +406,18 @@ final class ExprTypeChecker {
             let explicitTypeArgs = driver.helpers.resolveExplicitTypeArgs(typeArgRefs, ast: ast, sema: sema, interner: interner, scope: ctx.scope, diagnostics: ctx.sema.diagnostics, usageRange: range)
             var callCtx = ctx
             callCtx.isCallResultDiscarded = isStatementContext && expectedType == nil
+            if exprSpineContainsSafeMemberAccess(calleeID, ast: ast) {
+                callCtx.isConditionallyEvaluated = true
+            }
             return driver.callChecker.inferCallExpr(id, calleeID: calleeID, args: args, range: range, ctx: callCtx, locals: &locals, expectedType: expectedType, explicitTypeArgs: explicitTypeArgs)
 
         case let .memberCall(receiverID, calleeName, typeArgRefs, args, range):
             let explicitTypeArgs = driver.helpers.resolveExplicitTypeArgs(typeArgRefs, ast: ast, sema: sema, interner: interner, scope: ctx.scope, diagnostics: ctx.sema.diagnostics, usageRange: range)
             var callCtx = ctx
             callCtx.isCallResultDiscarded = isStatementContext && expectedType == nil
+            if exprSpineContainsSafeMemberAccess(receiverID, ast: ast) {
+                callCtx.isConditionallyEvaluated = true
+            }
             return driver.callChecker.inferMemberCallExpr(
                 id, receiverID: receiverID, calleeName: calleeName,
                 args: args, range: range, ctx: callCtx, locals: &locals,
@@ -610,10 +654,12 @@ final class ExprTypeChecker {
                     )
                 }
             }
-            // A standalone `x as T` statement narrows later uses of x. When
-            // the cast value is consumed (for example, `val y = x as T`),
-            // only that expression has the target type; x keeps its flow type.
-            if isStatementContext,
+            // A successful `x as T` narrows later uses of x on the same linear
+            // evaluation path — whether the cast is a standalone statement or
+            // nested in an initializer/receiver position. Casts on a
+            // conditionally-evaluated path (`a?.f(x as T)`) do not prove the
+            // type for following code and must not narrow.
+            if !ctx.isConditionallyEvaluated,
                !isSafe,
                let castSubjectExpr = ast.arena.expr(exprID),
                case let .nameRef(castVarName, _) = castSubjectExpr,
@@ -652,6 +698,7 @@ final class ExprTypeChecker {
             let explicitTypeArgs = driver.helpers.resolveExplicitTypeArgs(typeArgRefs, ast: ast, sema: sema, interner: interner, scope: ctx.scope, diagnostics: ctx.sema.diagnostics, usageRange: range)
             var callCtx = ctx
             callCtx.isCallResultDiscarded = isStatementContext && expectedType == nil
+            callCtx.isConditionallyEvaluated = true
             return driver.callChecker.inferSafeMemberCallExpr(
                 id, receiverID: receiverID, calleeName: calleeName,
                 args: args, range: range, ctx: callCtx, locals: &locals,

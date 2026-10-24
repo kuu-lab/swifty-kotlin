@@ -281,6 +281,7 @@ extension CallTypeChecker {
         for argument: CallArgument,
         at index: Int,
         candidates: [SymbolID],
+        receiverType: TypeID? = nil,
         ctx: TypeInferenceContext
     ) -> TypeID? {
         var commonType: TypeID?
@@ -292,7 +293,7 @@ extension CallTypeChecker {
                       in: signature,
                       sema: ctx.sema
                   ),
-                  let parameterType = contextualCallArgumentType(
+                  let declaredParameterType = contextualCallArgumentType(
                       argument,
                       parameterIndex: parameterIndex,
                       in: signature,
@@ -301,6 +302,16 @@ extension CallTypeChecker {
             else {
                 return nil
             }
+            // A class type parameter in the parameter type (e.g. `Result<T>`
+            // on `Continuation<in T>.resumeWith`) is resolved by the call-site
+            // receiver's type arguments before it can serve as an expected type.
+            let parameterType = applyReceiverClassTypeArgs(
+                to: declaredParameterType,
+                signature: signature,
+                candidate: candidate,
+                receiverType: receiverType,
+                sema: ctx.sema
+            )
             let typeVarBySymbol = ctx.sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
             guard !ctx.resolver.containsTypeVariable(
                 parameterType,

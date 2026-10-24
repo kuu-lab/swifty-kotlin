@@ -96,6 +96,11 @@ func alignedMethodParameterTypes(
     }
 }
 
+private func nominalSymbolForMethodIdentity(_ symbol: SymbolID, types: TypeSystem) -> SymbolID {
+    guard let symbolTable = types.symbolTable else { return symbol }
+    return types.actualTypeAliasTargetNominalSymbol(for: symbol, symbols: symbolTable) ?? symbol
+}
+
 func methodIdentityParameterTypesMatch(
     candidateParameterTypes: [TypeID],
     interfaceParameterTypes: [TypeID],
@@ -152,7 +157,12 @@ private func methodIdentityTypesMatch(
                 candidateParameterTypes: lhs.throws, interfaceParameterTypes: rhs.throws, types: types, allowTypeParameterWildcards: allowTypeParameterWildcards
             )
     case let (.classType(lhs), .classType(rhs)):
-        guard lhs.classSymbol == rhs.classSymbol,
+        // A supertype written through a typealias (`Sub : Base<Node>`) keeps
+        // the alias symbol in lifted supertype args while the member
+        // signature resolves the same alias to its target — normalize both
+        // sides so the override check compares the real nominals.
+        guard nominalSymbolForMethodIdentity(lhs.classSymbol, types: types)
+                == nominalSymbolForMethodIdentity(rhs.classSymbol, types: types),
               methodIdentityNullabilityMatches(lhs.nullability, rhs.nullability),
               lhs.args.count == rhs.args.count
         else { return false }

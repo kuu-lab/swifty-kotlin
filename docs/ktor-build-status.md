@@ -174,12 +174,22 @@ bundled `kotlinx.io` クラスを source が shadow した際に imported member
 source 側へ優先させる修正、imported 拡張関数を shadow された imported nominal 側へ留める修正、
 同 fqName・同消去シグネチャの imported callable を scope 候補から落とす dedup、および
 「内側 tier が不可視候補のみ／全候補が不適格のとき call tower を外側 tier へ続行する」フォールスルーで
-解消した。ktor_utils は 76 errors（大半が io.ktor.utils.io.* の依存モジュール未リンク由来）、
-ktor_http は 344 errors で standalone コンパイルは依然失敗する。
+解消した。
+
+その後 `ktor_build.sh` がモジュール間依存（`kotlinx_io → ktor_io → ktor_utils → ktor_http`）を
+`-I <dep>.kklib` で連鎖するようになり、ktor_io は **0 errors** になった。残っていた
+`ByteChannel.kt` の `continuation.resumeWith(throwable?.let { Result.failure(it) } ?: RESUME)`
+（`KSWIFTK-TYPE-0001`）は、`Result.failure` の型パラメータが戻り値にしか現れないため
+call 引数位置で推論不能だったもので、elvis 引数へ「レシーバの型引数で置換した候補パラメータ型」を
+文脈期待型として渡す修正で解消した（`ContravariantContinuationConstraintTests` に回帰テストあり）。
+ktor_utils は 26 errors、ktor_http は 324 errors まで減少（`io.ktor.utils.io.*` の
+kklib リンクと `this[key]!! += v` の parse/sema 対応で大半のカスケードが解消）。kotlinx_io は
+master 取り込み後のドリフトで 5 errors（`ByteString` 同名ファクトリ関数からの companion 参照、
+`UByte.compareTo` 未解決、vararg 再ディスパッチの3系統）に戻っている。
 
 ## まとめ
 
-pinned `ktor-io` は consumer まで含めて O0/O2 で動作し、kotlinx_io プローブも 0 errors に到達した。
-一方で ktor_utils / ktor_http の standalone コンパイルは依然失敗し、Ktor 全体をビルド可能にするには
-さらに大きな作業（依存モジュール未リンク由来の unresolved reference、kotlinx.serialization /
-atomicfu / kotlinx.coroutines のAPI実装）が必要になる。
+pinned `ktor-io` は consumer まで含めて O0/O2 で動作し、`ktor_build.sh` の ktor_io プローブも
+依存リンク込みで 0 errors に到達した。一方で ktor_utils / ktor_http の standalone コンパイルは
+依然失敗し、Ktor 全体をビルド可能にするにはさらに大きな作業（kotlinx.serialization /
+atomicfu / kotlinx.coroutines のAPI実装、kotlinx_io の残存5件など）が必要になる。

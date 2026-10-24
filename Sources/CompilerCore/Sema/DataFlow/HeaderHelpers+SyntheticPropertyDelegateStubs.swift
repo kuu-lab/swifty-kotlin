@@ -1536,7 +1536,7 @@ extension DataFlowSemaPhase {
         let listFQName: [InternedString] = [
             interner.intern("kotlin"), interner.intern("collections"), interner.intern("List"),
         ]
-        guard let listSymbol = symbols.lookup(fqName: listFQName),
+        guard let listSymbol = symbols.lookupNominal(fqName: listFQName),
               let kFunctionSymbol = types.kFunctionInterfaceSymbol
         else {
             return
@@ -1567,7 +1567,7 @@ extension DataFlowSemaPhase {
             interner.intern("kotlin"), interner.intern("collections"), interner.intern("List"),
         ]
         let reflectPkg = [interner.intern("kotlin"), interner.intern("reflect")]
-        guard let listSymbol = symbols.lookup(fqName: listFQName),
+        guard let listSymbol = symbols.lookupNominal(fqName: listFQName),
               let kTypeSymbol = symbols.lookup(fqName: reflectPkg + [interner.intern("KType")]),
               let kTypeProjectionSymbol = symbols.lookup(fqName: reflectPkg + [interner.intern("KTypeProjection")]),
               let kTypeInfo = symbols.symbol(kTypeSymbol)
@@ -1599,7 +1599,7 @@ extension DataFlowSemaPhase {
             interner.intern("kotlin"), interner.intern("collections"), interner.intern("List"),
         ]
         let reflectPkg = [interner.intern("kotlin"), interner.intern("reflect")]
-        guard let listSymbol = symbols.lookup(fqName: listFQName),
+        guard let listSymbol = symbols.lookupNominal(fqName: listFQName),
               let kTypeSymbol = symbols.lookup(fqName: reflectPkg + [interner.intern("KType")]),
               let kTypeParameterSymbol = symbols.lookup(fqName: reflectPkg + [interner.intern("KTypeParameter")]),
               let kTypeParameterInfo = symbols.symbol(kTypeParameterSymbol)

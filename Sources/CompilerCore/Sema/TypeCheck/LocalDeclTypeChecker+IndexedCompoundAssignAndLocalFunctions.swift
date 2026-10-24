@@ -86,10 +86,14 @@ extension LocalDeclTypeChecker {
             return sema.types.errorType
         }
 
-        let (elementType, operatorResolved) = resolveIndexedGetElement(
+        var (elementType, operatorResolved) = resolveIndexedGetElement(
             id: id, receiverType: receiverType, getCandidates: getCandidates, getCall: getCall,
             ctx: ctx
         )
+        if ctx.ast.arena.isNullAssertedCompoundAssignRead(id) {
+            // `a[i]!! += v`: the `!!` applies to the element read by `get()`.
+            elementType = sema.types.definitelyNonNullForm(of: elementType)
+        }
 
         // A member `get` sharing only the convention name (no `operator`
         // modifier) cannot serve `x[i] op= v`; reject instead of falling back

@@ -24,6 +24,13 @@ extension CallTypeChecker {
         let interner = ctx.interner
         let knownNames = KnownCompilerNames(interner: interner)
 
+        // KUU-3237: a typealias qualifier cannot reach nested classifiers
+        // (`A2.Nested`, `A2.Inner`, `A2.Companion` are all unresolved in
+        // Kotlin), but companion members and enum entries stay visible
+        // through the alias, so only `.object` member values are skipped.
+        let receiverViaTypeAlias = receiverQualifierIsTypeAlias(
+            receiverID: request.receiverID, ctx: ctx
+        )
         if isClassNameReceiver,
            args.isEmpty,
            let ownerSymbol = classNameReceiverNominalSymbol,
@@ -31,7 +38,9 @@ extension CallTypeChecker {
                ownerNominalSymbol: ownerSymbol,
                memberName: calleeName,
                sema: sema
-           )
+           ),
+           !(receiverViaTypeAlias
+               && sema.symbols.symbol(staticMember.symbol)?.kind == .object)
         {
             if let memberSymbol = sema.symbols.symbol(staticMember.symbol),
                !ctx.visibilityChecker.isAccessible(
@@ -290,7 +299,10 @@ extension CallTypeChecker {
 
         let nestedClassifierOwnerSymbol: SymbolID? = {
             if isClassNameReceiver {
-                return classNameReceiverNominalSymbol
+                // Nested classifiers are not reachable through a typealias
+                // qualifier (KUU-3237); keep the nominal only for a genuine
+                // class-name receiver.
+                return receiverViaTypeAlias ? nil : classNameReceiverNominalSymbol
             }
             guard !request.safeCall else {
                 return nil
@@ -389,6 +401,24 @@ extension CallTypeChecker {
                 sema.bindings.bindIdentifier(id, symbol: nestedOwner)
                 sema.bindings.bindExprType(id, type: nestedType)
                 return nestedType
+            }
+            // `Outer.I()` reaches here as a classifier qualifier — there is
+            // no containing-class instance on the receiver side, so an inner
+            // class constructor cannot be called this way. Object qualifiers
+            // only reach this path through the value binding above and are
+            // already instances.
+            if isClassNameReceiver,
+               let nestedOwner = nestedOwnerSymbols.first,
+               sema.symbols.symbol(nestedOwner)?.flags.contains(.innerClass) == true
+            {
+                let innerName = sema.symbols.symbol(nestedOwner)
+                    .map { interner.resolve($0.name) } ?? interner.resolve(calleeName)
+                ctx.sema.diagnostics.error(
+                    "KSWIFTK-SEMA-0437",
+                    "constructor of the inner class '\(innerName)' can only be called with a receiver of the containing class.",
+                    range: range
+                )
+                return driver.helpers.bindAndReturnErrorType(id, sema: sema)
             }
             let nestedCtorFQName = owner.fqName + [calleeName, knownNames.initName]
             var nestedCtorCandidates = sema.symbols.lookupAll(fqName: nestedCtorFQName).filter { candidate in

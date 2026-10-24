@@ -160,6 +160,41 @@ struct OperatorConventionModifierTests {
     }
 
     @Test
+    func thisCompoundAssignResolvesPlusAssignOnReceiver() throws {
+        // `this += x` in an extension body targets `plusAssign` on the
+        // receiver — `this` is never assignable so no writeback is needed.
+        // Used by ktor-utils' `Digest.build(bytes:)` extension.
+        let source = """
+        class C {
+            var total: Int = 0
+            operator fun plusAssign(x: Int) { total += x }
+        }
+        fun C.addAndReturn(x: Int): Int {
+            this += x
+            return total
+        }
+        """
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "Got: \(ctx.diagnostics.diagnostics)")
+    }
+
+    @Test
+    func nullAssertedIndexedCompoundAssignCompiles() throws {
+        // `map[key]!! += v` — `get` returns `V?`, so the compound assign must
+        // read through the `!!` non-null type. Used by ktor-http's
+        // RegexParserGenerator.
+        let source = """
+        fun MutableMap<String, MutableList<Int>>.add(key: String, value: Int) {
+            this[key]!! += value
+        }
+        """
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "Got: \(ctx.diagnostics.diagnostics)")
+    }
+
+    @Test
     func dataClassDestructuringStaysLegal() throws {
         let source = """
         data class P(val x: Int, val y: Int)

@@ -3,10 +3,11 @@
 import Testing
 
 extension BuildKIRRegressionTests {
-    /// KSP-651: `iterator {}` is produced through the coroutine/CPS builder path, so its
-    /// runtime construction must keep the single builder-lambda argument instead of being
-    /// expanded like a collection HOF closure (which passes an invalid builder handle).
-    @Test func testIteratorBuilderKeepsSingleBuilderArgument() throws {
+    /// KSP-651 / KUU-1359: `iterator {}` is produced through the coroutine/CPS
+    /// builder path whose runtime ABI takes (fnPtr, closureRaw) — the env slot
+    /// carries the builder lambda's captures and must always be present, even
+    /// when the block captures nothing.
+    @Test func testIteratorBuilderPassesFnAndEnvToBuilder() throws {
         let source = """
         fun main() {
             val iter = iterator {
@@ -34,8 +35,8 @@ extension BuildKIRRegressionTests {
 
         #expect(!argumentCounts.isEmpty, "Expected an __kk_iterator_builder_build call")
         #expect(
-            argumentCounts.allSatisfy { $0 == 1 },
-            "Iterator builder must receive exactly the builder lambda, got argument counts: \(argumentCounts)"
+            argumentCounts.allSatisfy { $0 == 2 },
+            "Iterator builder must receive (fnPtr, closureRaw), got argument counts: \(argumentCounts)"
         )
     }
 }
