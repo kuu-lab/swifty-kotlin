@@ -590,6 +590,68 @@ import TestStdlibCache
         }
     }
 
+    // KUU-3255: interfaces never list `kotlin.Any` in directSupertypes, but
+    // redeclaring toString/equals/hashCode — or a parent-interface member —
+    // without `override` still hides a supertype member like kotlinc reports.
+    @Test func testInterfaceMemberHidingSupertypeRequiresOverride() throws {
+        let rejectingSources: [String] = [
+            """
+            interface Named {
+                fun toString(): String
+            }
+            """,
+            """
+            interface Eq {
+                fun equals(other: Any?): Boolean
+            }
+            """,
+            """
+            interface H {
+                fun hashCode(): Int
+            }
+            """,
+            """
+            interface I { fun foo() }
+            interface J : I { fun foo() }
+            """,
+        ]
+        let acceptingSources: [String] = [
+            """
+            interface WithOverride {
+                override fun toString(): String
+            }
+            """,
+            """
+            interface OverloadOnly {
+                fun toString(x: Int): String
+            }
+            """,
+            """
+            interface Base { fun foo() }
+            interface Child : Base { override fun foo() }
+            """,
+        ]
+
+        try withTemporaryFiles(contents: rejectingSources) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
+            try runSema(ctx)
+            for path in paths {
+                let sampleDiags = diagnosticsForPath(path, in: ctx)
+                assertHasDiagnostic("KSWIFTK-SEMA-OVERRIDE", in: sampleDiags)
+            }
+        }
+
+        try withTemporaryFiles(contents: acceptingSources) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
+            try runSema(ctx)
+            for path in paths {
+                let sampleDiags = diagnosticsForPath(path, in: ctx)
+                assertNoDiagnostic("KSWIFTK-SEMA-OVERRIDE", in: sampleDiags)
+                #expect(!sampleDiags.hasError)
+            }
+        }
+    }
+
     @Test func testInternalOverrideOfPublicFromOtherModule() throws {
         let source = """
         open class Shape {
