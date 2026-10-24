@@ -407,5 +407,55 @@ struct LocalExtensionFunctionTests {
         #expect(ctx.diagnostics.hasError)
         #expect(!ctx.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-SEMA-0051" })
     }
+
+    @Test(arguments: [
+        ("unaryPlus", """
+        fun box(): String {
+            val sb = StringBuilder()
+            operator fun String.unaryPlus() { sb.append(this) }
+            +"OK"
+            return sb.toString()!!
+        }
+        fun main() { println(box()) }
+        """),
+        ("unaryMinus", """
+        fun box(): String {
+            val sb = StringBuilder()
+            operator fun String.unaryMinus() { sb.append(this) }
+            -"OK"
+            return sb.toString()!!
+        }
+        fun main() { println(box()) }
+        """),
+    ])
+    func statementPrefixUnaryAfterLocalFunctionDispatchesToLocalOperator(
+        operatorName: String,
+        source: String
+    ) throws {
+        // A `+x`/`-x` statement on the line after a block-bodied local
+        // function is a new statement, not a continuation of the function
+        // body (`f() { } + x` continues only on the same line). The parser used
+        // to swallow the newline `+x`/`-x` into the preceding declaration, so
+        // no unary expression was built and the local `operator fun` never ran.
+        let ctx = makeContextFromSource(source)
+        try runToKIR(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let localSymbol = try #require(localFunctionSymbol(
+            named: ctx.interner.intern(operatorName),
+            in: ast,
+            sema: sema
+        ))
+        let boundToLocal = sema.bindings.callBindings.contains { exprID, binding in
+            guard binding.chosenCallee == localSymbol,
+                  case .unaryExpr = ast.arena.expr(exprID)
+            else {
+                return false
+            }
+            return true
+        }
+        #expect(boundToLocal, "The prefix-unary statement must bind to the local \(operatorName) operator")
+    }
 }
 #endif
