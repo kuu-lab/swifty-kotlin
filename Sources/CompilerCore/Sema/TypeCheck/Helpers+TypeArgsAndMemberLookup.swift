@@ -429,8 +429,12 @@ extension TypeCheckHelpers {
             // Primitive values use dedicated TypeIDs, but their synthetic class
             // symbols carry the compiler-owned Comparable conformance and source
             // member surface needed for ordinary member lookup.
+            // `kotlin.UInt`/`kotlin.ULong`/`kotlin.UByte`/`kotlin.UShort` are
+            // shared with the bundled constructor helpers (`fun UInt(data: Int)`);
+            // an imported-library index can materialize the function ahead of the
+            // class, so resolve the nominal symbol explicitly (KUU-3143).
             guard let interner,
-                  let primitiveSymbol = symbols.lookup(fqName: [
+                  let primitiveSymbol = symbols.lookupNominal(fqName: [
                 interner.intern("kotlin"),
                 interner.intern(primitive.kotlinName)
             ]) else {

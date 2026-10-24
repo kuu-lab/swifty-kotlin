@@ -1,5 +1,6 @@
 @testable import CompilerCore
 import Testing
+import TestStdlibCache
 
 @Suite
 struct NarrowPrimitiveCompareToTests {
@@ -58,6 +59,33 @@ struct NarrowPrimitiveCompareToTests {
             s.compareTo(true)
         }
         """)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+    }
+
+    /// KUU-3143: `kotlin.UInt`/`ULong`/`UByte`/`UShort` FQ names collide with
+    /// the bundled `fun UInt(data: Int)`-style constructor helpers. On the
+    /// precompiled stdlib artifact path the imported index materializes the
+    /// function ahead of the class, so primitive member lookup must prefer the
+    /// nominal class symbol rather than the first entry at the FQ name.
+    @Test(arguments: [false, true])
+    func unsignedPrimitiveMemberCallsResolve(
+        allowDefaultStdlibLibrary: Bool
+    ) throws {
+        if allowDefaultStdlibLibrary {
+            TestStdlibCache.shared.prepare()
+        }
+        let ctx = makeContextFromSource("""
+        @OptIn(ExperimentalUnsignedTypes::class)
+        fun checkUnsignedMembers() {
+            val r1: Int = 1u.compareTo(2u)
+            val r2: Int = 1uL.compareTo(2uL)
+            val r3: Int = 1.toUByte().compareTo(2.toUByte())
+            val r4: Int = 1.toUShort().compareTo(2.toUShort())
+            val m: UInt = uintArrayOf(1u, 2u).max()
+            val n: UInt = uintArrayOf(1u, 2u).min()
+        }
+        """, allowDefaultStdlibLibrary: allowDefaultStdlibLibrary)
         try runSema(ctx)
         #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
     }
