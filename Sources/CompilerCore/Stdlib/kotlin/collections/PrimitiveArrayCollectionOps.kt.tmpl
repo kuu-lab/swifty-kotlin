@@ -1,0 +1,200 @@
+// Primitive-array collection ops: one body stamped once per element type (the
+// format is documented on BundledStdlibTemplate). The output is byte-identical
+// to the hand-written PrimitiveArrayCollectionOps.kt it replaced, so declaration
+// order and SymbolIDs did not move.
+//@ file PrimitiveArrayCollectionOps Int Long Byte Short Char Boolean Float Double
+//@ header
+package kotlin.collections
+
+// KUU-1105: primitive-array overloads keep their exact element types.
+
+//@ body
+public fun {{T}}Array.toHashSet(): HashSet<{{T}}> = asList().toHashSet()
+
+public fun {{T}}Array.toMutableSet(): MutableSet<{{T}}> = asList().toMutableSet()
+
+public fun {{T}}Array.toSet(): Set<{{T}}> = asList().toSet()
+
+public fun <C : MutableCollection<in {{T}}>> {{T}}Array.toCollection(destination: C): C =
+    asList().toCollection(destination)
+
+public inline fun <R : Comparable<R>> {{T}}Array.sortedBy(crossinline selector: ({{T}}) -> R?): List<{{T}}> =
+    asList().sortedBy(selector)
+
+public fun {{T}}Array.sortedWith(comparator: Comparator<in {{T}}>): List<{{T}}> =
+    asList().sortedWith(comparator)
+
+public inline fun <R, C : MutableCollection<in R>> {{T}}Array.mapTo(
+    destination: C, transform: ({{T}}) -> R
+): C {
+    for (element in this) destination.add(transform(element))
+    return destination
+}
+
+public inline fun <C : MutableCollection<in {{T}}>> {{T}}Array.filterTo(
+    destination: C, predicate: ({{T}}) -> Boolean
+): C {
+    for (element in this) if (predicate(element)) destination.add(element)
+    return destination
+}
+
+public inline fun {{T}}Array.partition(predicate: ({{T}}) -> Boolean): Pair<List<{{T}}>, List<{{T}}>> {
+    val matching = mutableListOf<{{T}}>()
+    val other = mutableListOf<{{T}}>()
+    for (element in this) {
+        if (predicate(element)) matching.add(element) else other.add(element)
+    }
+    return Pair(matching, other)
+}
+
+@Suppress("UNCHECKED_CAST")
+public inline fun <K> {{T}}Array.groupBy(keySelector: ({{T}}) -> K): Map<K, List<{{T}}>> {
+    val result = mutableMapOf<K, MutableList<{{T}}>>()
+    for (element in this) {
+        val key = keySelector(element)
+        val existing = result[key]
+        if (existing == null) {
+            val bucket = mutableListOf<{{T}}>()
+            bucket.add(element)
+            result[key] = bucket
+        } else {
+            existing.add(element)
+        }
+    }
+    return result as Map<K, List<{{T}}>>
+}
+
+@Suppress("UNCHECKED_CAST")
+public inline fun <K, V> {{T}}Array.groupBy(
+    keySelector: ({{T}}) -> K,
+    valueTransform: ({{T}}) -> V
+): Map<K, List<V>> {
+    val result = mutableMapOf<K, MutableList<V>>()
+    for (element in this) {
+        val key = keySelector(element)
+        val existing = result[key]
+        if (existing == null) {
+            val bucket = mutableListOf<V>()
+            bucket.add(valueTransform(element))
+            result[key] = bucket
+        } else {
+            existing.add(valueTransform(element))
+        }
+    }
+    return result as Map<K, List<V>>
+}
+
+public inline fun {{T}}Array.forEachIndexed(action: (Int, {{T}}) -> Unit) {
+    var index = 0
+    for (element in this) action(index++, element)
+}
+
+public inline fun <K, V> {{T}}Array.associate(transform: ({{T}}) -> Pair<K, V>): Map<K, V> {
+    val result = mutableMapOf<K, V>()
+    for (element in this) {
+        val pair = transform(element)
+        result[pair.first] = pair.second
+    }
+    return result
+}
+
+public inline fun <K> {{T}}Array.associateBy(keySelector: ({{T}}) -> K): Map<K, {{T}}> {
+    val result = mutableMapOf<K, {{T}}>()
+    for (element in this) result[keySelector(element)] = element
+    return result
+}
+
+public inline fun <K, V> {{T}}Array.associateBy(
+    keySelector: ({{T}}) -> K,
+    valueTransform: ({{T}}) -> V
+): Map<K, V> {
+    val result = mutableMapOf<K, V>()
+    for (element in this) result[keySelector(element)] = valueTransform(element)
+    return result
+}
+
+public infix fun {{T}}Array.zip(other: {{T}}Array): List<Pair<{{T}}, {{T}}>> {
+    val result = mutableListOf<Pair<{{T}}, {{T}}>>()
+    val length = if (size < other.size) size else other.size
+    var index = 0
+    while (index < length) {
+        result.add(Pair(this[index], other[index]))
+        index++
+    }
+    return result
+}
+
+public inline fun <V> {{T}}Array.zip(other: {{T}}Array, transform: ({{T}}, {{T}}) -> V): List<V> {
+    val result = mutableListOf<V>()
+    val length = if (size < other.size) size else other.size
+    var index = 0
+    while (index < length) {
+        result.add(transform(this[index], other[index]))
+        index++
+    }
+    return result
+}
+
+public infix fun <R> {{T}}Array.zip(other: Array<out R>): List<Pair<{{T}}, R>> {
+    val result = mutableListOf<Pair<{{T}}, R>>()
+    val length = if (size < other.size) size else other.size
+    var index = 0
+    while (index < length) {
+        result.add(Pair(this[index], other[index]))
+        index++
+    }
+    return result
+}
+
+public inline fun <R, V> {{T}}Array.zip(other: Array<out R>, transform: ({{T}}, R) -> V): List<V> {
+    val result = mutableListOf<V>()
+    val length = if (size < other.size) size else other.size
+    var index = 0
+    while (index < length) {
+        result.add(transform(this[index], other[index]))
+        index++
+    }
+    return result
+}
+
+public infix fun <R> {{T}}Array.zip(other: Iterable<R>): List<Pair<{{T}}, R>> {
+    val result = mutableListOf<Pair<{{T}}, R>>()
+    var index = 0
+    for (element in other) {
+        if (index >= size) break
+        result.add(Pair(this[index++], element))
+    }
+    return result
+}
+
+public inline fun <R, V> {{T}}Array.zip(other: Iterable<R>, transform: ({{T}}, R) -> V): List<V> {
+    val result = mutableListOf<V>()
+    var index = 0
+    for (element in other) {
+        if (index >= size) break
+        result.add(transform(this[index++], element))
+    }
+    return result
+}
+//@ note The toSortedSet overloads for all eight types follow the DoubleArray body, directly
+//@ note after its last brace (no blank line) and in a different type order, so they are
+//@ note written out literally rather than stamped per type.
+//@ only Double
+// Natural ordering only (JVM parity); comparator overloads exist only on
+// Array<out T> upstream.
+public fun IntArray.toSortedSet(): java.util.SortedSet<Int> = asList().toSortedSet()
+
+public fun LongArray.toSortedSet(): java.util.SortedSet<Long> = asList().toSortedSet()
+
+public fun ByteArray.toSortedSet(): java.util.SortedSet<Byte> = asList().toSortedSet()
+
+public fun ShortArray.toSortedSet(): java.util.SortedSet<Short> = asList().toSortedSet()
+
+public fun FloatArray.toSortedSet(): java.util.SortedSet<Float> = asList().toSortedSet()
+
+public fun DoubleArray.toSortedSet(): java.util.SortedSet<Double> = asList().toSortedSet()
+
+public fun BooleanArray.toSortedSet(): java.util.SortedSet<Boolean> = asList().toSortedSet()
+
+public fun CharArray.toSortedSet(): java.util.SortedSet<Char> = asList().toSortedSet()
+//@ end
