@@ -802,7 +802,31 @@ extension CallLowerer {
                nonNullReceiverType == nonNullResultType || isRepresentationPreservingConversion,
                nonNullReceiverType == intType || nonNullReceiverType == longType || nonNullReceiverType == uintType || nonNullReceiverType == ulongType || nonNullReceiverType == ubyteType || nonNullReceiverType == ushortType || nonNullReceiverType == byteType || nonNullReceiverType == shortType || nonNullReceiverType == floatType || nonNullReceiverType == doubleType
             {
-                instructions.append(.copy(from: loweredReceiverID, to: result))
+                if nonNullReceiverType == nonNullResultType {
+                    instructions.append(.copy(from: loweredReceiverID, to: result))
+                    return result
+                }
+                // The receiver's box is tagged with the receiver's type, so
+                // copying it would hand out a `ULong` where a `Long?` is
+                // expected (`ULong?.toLong()` printed as an unsigned value).
+                // Unbox the payload and let the result copy box it again under
+                // the result type.
+                let nonNullLabel = driver.ctx.makeLoopLabel()
+                let endLabel = driver.ctx.makeLoopLabel()
+                instructions.append(.jumpIfNotNull(value: loweredReceiverID, target: nonNullLabel))
+                let nullValue = arena.appendExpr(.unit, type: resultType)
+                instructions.append(.constValue(result: nullValue, value: .null))
+                instructions.append(.copy(from: nullValue, to: result))
+                instructions.append(.jump(endLabel))
+                instructions.append(.label(nonNullLabel))
+                let conversionReceiverID = materializePrimitiveValue(
+                    loweredReceiverID, toType: nonNullReceiverType, sema: sema,
+                    arena: arena, instructions: &instructions.instructions
+                ) ?? loweredReceiverID
+                let nonNullResult = arena.appendTemporary(type: nonNullResultType)
+                instructions.append(.copy(from: conversionReceiverID, to: nonNullResult))
+                instructions.append(.copy(from: nonNullResult, to: result))
+                instructions.append(.label(endLabel))
                 return result
             }
         }
