@@ -11,6 +11,24 @@ struct DeclarationPositionValidator {
     var fullValueClassesEnabled: Bool = false
     var jvmInlineAnnotationNames: Set<String> = ["JvmInline", "kotlin.jvm.JvmInline"]
 
+    static func validateMultipleVarargParameters(
+        _ parameters: [ValueParamDecl],
+        fallbackRange: SourceRange,
+        diagnostics: DiagnosticEngine?
+    ) {
+        let varargParameters = parameters.filter(\.isVararg)
+        guard varargParameters.count > 1 else {
+            return
+        }
+        for parameter in varargParameters {
+            diagnostics?.error(
+                "KSWIFTK-SEMA-0441",
+                "multiple vararg parameters are prohibited.",
+                range: parameter.varargRange ?? fallbackRange
+            )
+        }
+    }
+
     enum OwnerSite: Equatable {
         case file
         case function
