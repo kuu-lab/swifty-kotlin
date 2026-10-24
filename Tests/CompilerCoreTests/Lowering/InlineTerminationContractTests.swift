@@ -44,7 +44,7 @@ struct InlineTerminationContractTests {
     ) -> KIRInstruction {
         .call(
             symbol: symbol, callee: interner.intern(callee),
-            arguments: arguments, result: nil, canThrow: false, thrownResult: nil
+            arguments: arguments, result: nil, canThrow: false
         )
     }
 

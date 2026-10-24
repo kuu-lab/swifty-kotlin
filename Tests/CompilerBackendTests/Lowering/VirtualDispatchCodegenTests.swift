@@ -134,7 +134,6 @@ struct VirtualDispatchCodegenTests {
                     arguments: [],
                     result: resultExpr,
                     canThrow: false,
-                    thrownResult: nil,
                     dispatch: .vtable(slot: 0)
                 ),
                 .returnUnit,
@@ -241,7 +240,6 @@ struct VirtualDispatchCodegenTests {
                     arguments: [],
                     result: resultExpr,
                     canThrow: false,
-                    thrownResult: nil,
                     dispatch: .itable(interfaceSlot: 0, methodSlot: 0)
                 ),
                 .returnUnit,
@@ -329,7 +327,6 @@ struct VirtualDispatchCodegenTests {
                     arguments: [],
                     result: resultExpr,
                     canThrow: false,
-                    thrownResult: nil,
                     dispatch: .vtable(slot: 0)
                 ),
                 .returnUnit,
@@ -490,7 +487,6 @@ struct VirtualDispatchCodegenTests {
                     arguments: [argExpr],
                     result: resultExpr,
                     canThrow: false,
-                    thrownResult: nil,
                     dispatch: .vtable(slot: 0)
                 ),
                 .returnUnit,

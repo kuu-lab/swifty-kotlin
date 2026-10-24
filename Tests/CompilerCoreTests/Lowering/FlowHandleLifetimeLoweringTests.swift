@@ -35,11 +35,11 @@ struct FlowHandleLifetimeLoweringTests {
         let condition = arena.appendExpr(.boolLiteral(false))
         let thrown = arena.appendTemporary()
         let create = KIRInstruction.call(
-            symbol: nil, callee: interner.intern("flow"), arguments: [callback],
-            result: handle, canThrow: false, thrownResult: nil
+            callee: interner.intern("flow"), arguments: [callback],
+            result: handle, canThrow: false
         )
         let collect = KIRInstruction.call(
-            symbol: nil, callee: interner.intern("collect"), arguments: [handle, callback],
+            callee: interner.intern("collect"), arguments: [handle, callback],
             result: nil, canThrow: true, thrownResult: thrown
         )
         var body: [KIRInstruction] = []
@@ -51,8 +51,8 @@ struct FlowHandleLifetimeLoweringTests {
             .jumpIfNotNull(value: thrown, target: 20),
             .jump(30),
             .label(20),
-            .call(symbol: nil, callee: interner.intern("println"), arguments: [thrown],
-                  result: nil, canThrow: false, thrownResult: nil),
+            .call(callee: interner.intern("println"), arguments: [thrown],
+                  result: nil, canThrow: false),
             .label(30),
         ]
         if conditionalBackEdge {

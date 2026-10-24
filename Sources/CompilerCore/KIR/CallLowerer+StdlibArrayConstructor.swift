@@ -27,12 +27,10 @@ extension CallLowerer {
         instructions.append(.constValue(result: zero, value: .intLiteral(0)))
         let array = arena.appendTemporary(type: arrayType)
         instructions.append(.call(
-            symbol: nil,
             callee: interner.intern("kk_array_new"),
             arguments: [zero],
             result: array,
-            canThrow: false,
-            thrownResult: nil
+            canThrow: false
         ))
         return appendRuntimeArrayComponentTag(
             array,
@@ -111,24 +109,20 @@ extension CallLowerer {
         // sizes instead of silently clamping to an empty array.
         var arrayExpr = arena.appendTemporary(type: anyType)
         instructions.append(.call(
-            symbol: nil,
             callee: arrayNewCallee,
             arguments: [sizeExpr],
             result: arrayExpr,
-            canThrow: true,
-            thrownResult: nil
+            canThrow: true
         ))
         if let arrayTypeID {
             let typeIDExpr = arena.appendExpr(.intLiteral(arrayTypeID), type: intType)
             instructions.append(.constValue(result: typeIDExpr, value: .intLiteral(arrayTypeID)))
             let taggedArrayExpr = arena.appendTemporary(type: anyType)
             instructions.append(.call(
-                symbol: nil,
                 callee: interner.intern("kk_array_tag_type"),
                 arguments: [arrayExpr, typeIDExpr],
                 result: taggedArrayExpr,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
             arrayExpr = taggedArrayExpr
         }
@@ -163,12 +157,10 @@ extension CallLowerer {
 
         let conditionExpr = arena.appendTemporary(type: boolType)
         instructions.append(.call(
-            symbol: nil,
             callee: lessThanCallee,
             arguments: [indexExpr, sizeExpr],
             result: conditionExpr,
-            canThrow: true,
-            thrownResult: nil
+            canThrow: true
         ))
         instructions.append(.jumpIfEqual(lhs: conditionExpr, rhs: falseExpr, target: exitLabel))
 
@@ -206,8 +198,7 @@ extension CallLowerer {
                     callee: callableInfo.callee,
                     arguments: callableInfo.captureArguments + [indexExpr],
                     result: actionResult,
-                    canThrow: true,
-                    thrownResult: nil
+                    canThrow: true
                 ))
                 lambdaResultExpr = actionResult
             }
@@ -216,23 +207,19 @@ extension CallLowerer {
         if let lambdaResult = lambdaResultExpr {
             let setResult = arena.appendTemporary(type: anyType)
             instructions.append(.call(
-                symbol: nil,
                 callee: arraySetCallee,
                 arguments: [arrayExpr, indexExpr, lambdaResult],
                 result: setResult,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
         }
 
         let nextIndexBoxedExpr = arena.appendTemporary(type: intType)
         instructions.append(.call(
-            symbol: nil,
             callee: addCallee,
             arguments: [indexExpr, oneExpr],
             result: nextIndexBoxedExpr,
-            canThrow: true,
-            thrownResult: nil
+            canThrow: true
         ))
         let nextIndexExpr = emitNonThrowingCall(
             callee: unboxIntCallee,

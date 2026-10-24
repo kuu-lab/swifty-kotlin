@@ -171,12 +171,10 @@ extension LambdaLowerer {
             let captureType = captureBindings[index].param.type
             let loadedExpr = arena.appendTemporary(type: captureType)
             methodBody.append(.call(
-                symbol: nil,
                 callee: interner.intern("kk_array_get_inbounds"),
                 arguments: [receiverExpr, offsetExpr],
                 result: loadedExpr,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
             loadedCaptureExprs.append(loadedExpr)
         }
@@ -194,8 +192,7 @@ extension LambdaLowerer {
             callee: lambdaName,
             arguments: loadedCaptureExprs + samMethodInputExprs,
             result: callResult,
-            canThrow: true,
-            thrownResult: nil
+            canThrow: true
         ))
         if lambdaReturnType == sema.types.unitType {
             methodBody.append(.returnUnit)
@@ -233,12 +230,10 @@ extension LambdaLowerer {
             )))
         )
         instructions.append(.call(
-            symbol: nil,
             callee: interner.intern("kk_object_new"),
             arguments: [slotCountExpr, classIDExpr],
             result: wrapperValue,
-            canThrow: false,
-            thrownResult: nil
+            canThrow: false
         ))
 
         let childTypeExpr = arena.appendExpr(.intLiteral(classIDValue), type: sema.types.intType)
@@ -252,12 +247,10 @@ extension LambdaLowerer {
         instructions.append(.constValue(result: interfaceTypeExpr, value: .intLiteral(interfaceTypeID)))
         let registerResult = arena.appendTemporary(type: sema.types.intType)
         instructions.append(.call(
-            symbol: nil,
             callee: interner.intern("kk_type_register_iface"),
             arguments: [childTypeExpr, interfaceTypeExpr],
             result: registerResult,
-            canThrow: false,
-            thrownResult: nil
+            canThrow: false
         ))
         // BUG-224: `wrapperSymbol` is a KIR-synthetic identity with no Sema
         // supertype entry of its own, so the edge above must stay explicit —
@@ -303,12 +296,10 @@ extension LambdaLowerer {
             instructions.append(.constValue(result: offsetExpr, value: .intLiteral(Int64(fieldOffset))))
             let unusedResult = arena.appendTemporary(type: sema.types.anyType)
             instructions.append(.call(
-                symbol: nil,
                 callee: interner.intern("kk_array_set"),
                 arguments: [wrapperValue, offsetExpr, capture.valueExpr],
                 result: unusedResult,
-                canThrow: true,
-                thrownResult: nil
+                canThrow: true
             ))
         }
 

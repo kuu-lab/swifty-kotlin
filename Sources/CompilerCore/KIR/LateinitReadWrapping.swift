@@ -26,12 +26,10 @@ func wrapLateinitReadIfNeeded(
     // temporary would store the exception into a slot nothing inspects, so
     // reads outside a `try` silently yielded the sentinel as `null`.
     instructions.append(.call(
-        symbol: nil,
         callee: interner.intern("kk_lateinit_get_or_throw"),
         arguments: [valueExpr, propertyNameExpr],
         result: result,
-        canThrow: true,
-        thrownResult: nil
+        canThrow: true
     ))
     return result
 }

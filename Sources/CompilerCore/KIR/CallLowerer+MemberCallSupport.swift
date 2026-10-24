@@ -532,8 +532,7 @@ extension CallLowerer {
                 callee: nameHelper.callee,
                 arguments: [valueID],
                 result: name,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
             return name
         }
@@ -565,8 +564,7 @@ extension CallLowerer {
                     callee: classToString.callee,
                     arguments: [valueID],
                     result: result,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 )
             }
             guard needsNullGuard else {
@@ -622,7 +620,7 @@ extension CallLowerer {
         }
         if objectConversionCanThrow {
             let thrown = arena.appendTemporary(type: sema.types.nullableAnyType)
-            instructions.append(.call(symbol: nil, callee: interner.intern("__kk_any_to_string_throwing"),
+            instructions.append(.call(callee: interner.intern("__kk_any_to_string_throwing"),
                 arguments: [renderedValue, tagID], result: converted, canThrow: true, thrownResult: thrown))
             let failure = driver.ctx.makeLoopLabel()
             let continuation = driver.ctx.makeLoopLabel()
@@ -635,12 +633,10 @@ extension CallLowerer {
         }
         guard isNullable, tag == 5 || tag == 6 || tag == 7 else {
             instructions.append(.call(
-                symbol: nil,
                 callee: interner.intern("kk_any_to_string"),
                 arguments: [renderedValue, tagID],
                 result: converted,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
             return converted
         }
@@ -655,12 +651,10 @@ extension CallLowerer {
         instructions.append(.label(nonNullLabel))
         let innerConverted = arena.appendTemporary(type: stringType)
         instructions.append(.call(
-            symbol: nil,
             callee: interner.intern("kk_any_to_string"),
             arguments: [valueID, tagID],
             result: innerConverted,
-            canThrow: false,
-            thrownResult: nil
+            canThrow: false
         ))
         instructions.append(.copy(from: innerConverted, to: converted))
         instructions.append(.label(endLabel))

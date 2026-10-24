@@ -315,7 +315,6 @@ extension CallLowerer {
             ? arena.appendTemporary(type: sema.types.nullableAnyType)
             : nil
         instructions.append(.call(
-            symbol: nil,
             callee: runtimeCallee,
             arguments: runtimeArguments,
             result: result,

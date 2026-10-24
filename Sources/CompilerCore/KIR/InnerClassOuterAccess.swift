@@ -85,12 +85,10 @@ func resolveOuterChainValue(
             instructions.append(.constValue(result: offsetExpr, value: .intLiteral(Int64(captureOffset))))
             let capturedValue = arena.appendTemporary(type: captureType)
             instructions.append(.call(
-                symbol: nil,
                 callee: interner.intern("kk_array_get_inbounds"),
                 arguments: [currentValue, offsetExpr],
                 result: capturedValue,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
             return capturedValue
         }
@@ -107,12 +105,10 @@ func resolveOuterChainValue(
         instructions.append(.constValue(result: offsetExpr, value: .intLiteral(Int64(outerOffset))))
         let nextValue = arena.appendTemporary(type: outerType)
         instructions.append(.call(
-            symbol: nil,
             callee: interner.intern("kk_array_get_inbounds"),
             arguments: [currentValue, offsetExpr],
             result: nextValue,
-            canThrow: false,
-            thrownResult: nil
+            canThrow: false
         ))
         currentValue = nextValue
         currentType = outerType
@@ -155,12 +151,10 @@ func resolveImmediateOuterInstance(
     instructions.append(.constValue(result: offsetExpr, value: .intLiteral(Int64(outerOffset))))
     let outerValue = arena.appendTemporary(type: outerType)
     instructions.append(.call(
-        symbol: nil,
         callee: interner.intern("kk_array_get_inbounds"),
         arguments: [receiver, offsetExpr],
         result: outerValue,
-        canThrow: false,
-        thrownResult: nil
+        canThrow: false
     ))
     return outerValue
 }
@@ -205,12 +199,10 @@ func allocateAndRegisterConstructedObject(
     instructions.append(.constValue(result: classIDExpr, value: .intLiteral(classIDValue)))
     let allocatedObj = arena.appendTemporary(type: allocType)
     instructions.append(.call(
-        symbol: nil,
         callee: interner.intern("kk_object_new"),
         arguments: [slotCountExpr, classIDExpr],
         result: allocatedObj,
-        canThrow: false,
-        thrownResult: nil
+        canThrow: false
     ))
     guard let ownerNominalSymbol else { return allocatedObj }
     if sema.symbols.symbol(ownerNominalSymbol)?.flags.contains(.dataType) == true {
@@ -226,12 +218,10 @@ func allocateAndRegisterConstructedObject(
             instructions.append(.constValue(result: maskExpr, value: .intLiteral(fieldMask)))
             let registerFieldsResult = arena.appendTemporary(type: intType)
             instructions.append(.call(
-                symbol: nil,
                 callee: interner.intern("kk_runtime_register_data_class_fields"),
                 arguments: [classIDExpr, maskExpr],
                 result: registerFieldsResult,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
         }
     }
@@ -350,12 +340,10 @@ func allocateAndRegisterConstructedObject(
             ))
             let captureSetResult = arena.appendTemporary(type: sema.types.anyType)
             instructions.append(.call(
-                symbol: nil,
                 callee: interner.intern("kk_array_set"),
                 arguments: [allocatedObj, captureOffsetExpr, captureValue],
                 result: captureSetResult,
-                canThrow: true,
-                thrownResult: nil
+                canThrow: true
             ))
         }
     }
@@ -414,12 +402,10 @@ func storeOuterInstanceLinkIfNeeded(
     instructions.append(.constValue(result: offsetExpr, value: .intLiteral(Int64(outerOffset))))
     let storeResult = arena.appendTemporary(type: sema.types.anyType)
     instructions.append(.call(
-        symbol: nil,
         callee: interner.intern("kk_array_set"),
         arguments: [allocatedObject, offsetExpr, outerValue],
         result: storeResult,
-        canThrow: true,
-        thrownResult: nil
+        canThrow: true
     ))
 }
 
@@ -514,12 +500,10 @@ func storeInheritedOuterInstanceLinks(
         instructions.append(.constValue(result: offsetExpr, value: .intLiteral(Int64(fieldOffset))))
         let storeResult = arena.appendTemporary(type: sema.types.anyType)
         instructions.append(.call(
-            symbol: nil,
             callee: interner.intern("kk_array_set"),
             arguments: [allocatedObject, offsetExpr, outerValue],
             result: storeResult,
-            canThrow: true,
-            thrownResult: nil
+            canThrow: true
         ))
     }
 }
@@ -631,8 +615,7 @@ extension CallLowerer {
                 callee: interner.intern(interner.resolve(calleeName) + "$default"),
                 arguments: finalArguments,
                 result: result,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
             return result
         }
@@ -641,8 +624,7 @@ extension CallLowerer {
             callee: calleeName,
             arguments: finalArguments,
             result: result,
-            canThrow: true,
-            thrownResult: nil
+            canThrow: true
         ))
         return result
     }

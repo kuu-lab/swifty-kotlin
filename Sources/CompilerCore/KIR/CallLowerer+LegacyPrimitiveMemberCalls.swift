@@ -23,12 +23,10 @@ extension CallLowerer {
            shouldLowerPrimitiveInv(receiverExpr: receiverExpr, sema: sema, nullableReceiverAllowed: requireNonNullableReceiverForConstFold)
         {
             instructions.append(.call(
-                symbol: nil,
                 callee: interner.intern("kk_op_inv"),
                 arguments: [loweredReceiverID],
                 result: result,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
             return result
         }
@@ -43,12 +41,10 @@ extension CallLowerer {
             let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
             if sema.types.isSubtype(nonNullReceiverType, sema.types.booleanType) {
                 instructions.append(.call(
-                    symbol: nil,
                     callee: interner.intern("kk_op_not"),
                     arguments: [loweredReceiverID],
                     result: result,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ))
                 return result
             }
@@ -70,12 +66,10 @@ extension CallLowerer {
                 }
                 if let boolCallee {
                     instructions.append(.call(
-                        symbol: nil,
                         callee: boolCallee,
                         arguments: [loweredReceiverID, loweredArgIDs[0]],
                         result: result,
-                        canThrow: false,
-                        thrownResult: nil
+                        canThrow: false
                     ))
                     return result
                 }
@@ -122,12 +116,10 @@ extension CallLowerer {
                     }
                 }
                 instructions.append(.call(
-                    symbol: nil,
                     callee: interner.intern(resultType == doubleType ? "kk_op_dfloor_mod" : "kk_op_ffloor_mod"),
                     arguments: [lhs, rhs],
                     result: result,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ))
                 return result
             }
@@ -148,9 +140,9 @@ extension CallLowerer {
                 sema: sema, arena: arena, interner: interner, instructions: &instructions
             )
             instructions.append(.call(
-                symbol: nil, callee: interner.intern("__kk_string_concat_flat"),
+                callee: interner.intern("__kk_string_concat_flat"),
                 arguments: [receiverString, loweredArgIDs[0]], result: result,
-                canThrow: false, thrownResult: nil
+                canThrow: false
             ))
             return result
         }
@@ -235,12 +227,10 @@ extension CallLowerer {
             }
             if let primitiveCallee {
                 instructions.append(.call(
-                    symbol: nil,
                     callee: primitiveCallee,
                     arguments: [loweredReceiverID, loweredArgIDs[0]],
                     result: result,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ))
                 return result
             }
@@ -294,12 +284,10 @@ extension CallLowerer {
                 let tagID = arena.appendExpr(.intLiteral(1), type: intType)
                 instructions.append(.constValue(result: tagID, value: .intLiteral(1)))
                 instructions.append(.call(
-                    symbol: nil,
                     callee: interner.intern("kk_any_to_string"),
                     arguments: [stringReceiverID, tagID],
                     result: result,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ))
                 return result
             }
@@ -449,12 +437,10 @@ extension CallLowerer {
             }
             if let callee = conversionCallee {
                 instructions.append(.call(
-                    symbol: nil,
                     callee: callee,
                     arguments: [conversionReceiverID],
                     result: result,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ))
                 return result
             }
@@ -500,12 +486,10 @@ extension CallLowerer {
             let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
             if sema.types.makeNonNullable(receiverType) == sema.types.charType {
                 instructions.append(.call(
-                    symbol: nil,
                     callee: interner.intern("kk_char_code"),
                     arguments: [loweredReceiverID],
                     result: result,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ))
                 return result
             }

@@ -135,8 +135,8 @@ final class IntegerNarrowingPass: LoweringPass, ParallelLoweringPass {
                     let rawResult = arena.appendTemporary(type: arena.exprType(result) ?? fallbackType)
                     appendCall(callee: opCallee, result: rawResult)
                     newBody.append(.call(
-                        symbol: nil, callee: wrapCallee, arguments: [rawResult], result: result,
-                        canThrow: false, thrownResult: nil
+                        callee: wrapCallee, arguments: [rawResult], result: result,
+                        canThrow: false
                     ))
                 }
 
