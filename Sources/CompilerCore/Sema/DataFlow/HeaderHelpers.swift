@@ -754,7 +754,8 @@ extension DataFlowSemaPhase {
         symbols: SymbolTable,
         bindings: BindingTable,
         types: TypeSystem,
-        interner: StringInterner
+        interner: StringInterner,
+        diagnostics: DiagnosticEngine
     ) {
         for rawDeclID in 0 ..< ast.arena.declCount {
             let declID = DeclID(rawValue: Int32(rawDeclID))
@@ -771,6 +772,15 @@ extension DataFlowSemaPhase {
                 ownerSymbol = symbol
                 owner = info
                 requireDataTypeFlag = true
+                validateDataClassComponentNSupertypeConflicts(
+                    classDecl: classDecl,
+                    ownerSymbol: symbol,
+                    ownerFQName: info.fqName,
+                    symbols: symbols,
+                    types: types,
+                    interner: interner,
+                    diagnostics: diagnostics
+                )
             case let .objectDecl(objectDecl) where objectDecl.modifiers.contains(.data):
                 guard let symbol = bindings.declSymbols[declID],
                       let info = symbols.symbol(symbol)
@@ -824,15 +834,18 @@ extension DataFlowSemaPhase {
         }
     }
 
-    /// Returns whether the closest superclass declaration of a generated data-class member is final.
-    private func hasInheritedFinalDataClassMember(
+    /// Returns the closest member declared on a superclass in the chain
+    /// (interface supertypes do not participate) whose name, arity and — when
+    /// `returnType` is non-nil — return type match a generated member.
+    /// `private` members are invisible to the subclass and are skipped.
+    private func inheritedClassMemberForGeneratedDataClassMember(
         ownerSymbol: SymbolID,
         name: InternedString,
         parameterTypes: [TypeID],
-        returnType: TypeID,
+        returnType: TypeID?,
         symbols: SymbolTable,
         types: TypeSystem
-    ) -> Bool {
+    ) -> SymbolID? {
         var currentSuperclass = symbols.directSupertypes(for: ownerSymbol).first {
             symbols.symbol($0)?.kind == .class
         }
@@ -842,6 +855,7 @@ extension DataFlowSemaPhase {
                 guard let member = symbols.symbol(memberID),
                       member.kind == .function,
                       member.name == name,
+                      member.visibility != .private,
                       let signature = symbols.functionSignature(for: memberID),
                       let receiverType = signature.receiverType,
                       case let .classType(receiverClass) = types.kind(of: types.makeNonNullable(receiverType)),
@@ -849,13 +863,180 @@ extension DataFlowSemaPhase {
                 else {
                     return false
                 }
-                return signature.parameterTypes == parameterTypes
-                    && (signature.returnType == returnType || signature.returnType == types.anyType)
+                guard signature.parameterTypes == parameterTypes else {
+                    return false
+                }
+                if let returnType {
+                    return signature.returnType == returnType || signature.returnType == types.anyType
+                }
+                return true
             }) {
-                return symbols.symbol(memberID)?.flags.contains(.finalMember) == true
+                return memberID
             }
             currentSuperclass = symbols.directSupertypes(for: superclass).first {
                 symbols.symbol($0)?.kind == .class
+            }
+        }
+        return nil
+    }
+
+    /// Returns whether the closest superclass declaration of a generated data-class member is final.
+    private func hasInheritedFinalDataClassMember(
+        ownerSymbol: SymbolID,
+        name: InternedString,
+        parameterTypes: [TypeID],
+        returnType: TypeID,
+        symbols: SymbolTable,
+        types: TypeSystem
+    ) -> Bool {
+        guard let memberID = inheritedClassMemberForGeneratedDataClassMember(
+            ownerSymbol: ownerSymbol,
+            name: name,
+            parameterTypes: parameterTypes,
+            returnType: returnType,
+            symbols: symbols,
+            types: types
+        ) else {
+            return false
+        }
+        return symbols.symbol(memberID)?.flags.contains(.finalMember) == true
+    }
+
+    /// KUU-3254: a data class's generated `componentN()` must be able to
+    /// override each effective inherited member with the same name and arity.
+    /// An effectively final member, or a member whose return type is not a
+    /// supertype of the generated one, conflicts — kotlinc reports
+    /// "generated for the data class conflicts with the supertype member".
+    /// `private` members are invisible and never conflict.
+    private func validateDataClassComponentNSupertypeConflicts(
+        classDecl: ClassDecl,
+        ownerSymbol: SymbolID,
+        ownerFQName: [InternedString],
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner,
+        diagnostics: DiagnosticEngine
+    ) {
+        let componentReturnTypes = dataClassPrimaryConstructorParameterTypes(
+            classDecl: classDecl,
+            ownerSymbol: ownerSymbol,
+            ownerFQName: ownerFQName,
+            symbols: symbols,
+            interner: interner
+        )
+        for (index, _) in classDecl.primaryConstructorParams.enumerated() {
+            let componentName = interner.intern("component\(index + 1)")
+            // An explicit user declaration suppresses generation; regular
+            // override validation owns any conflict for it.
+            let hasUserDeclared = symbols.lookupAll(fqName: ownerFQName + [componentName]).contains { id in
+                guard let sym = symbols.symbol(id),
+                      sym.kind == .function,
+                      !sym.flags.contains(.synthetic)
+                else { return false }
+                return true
+            }
+            if hasUserDeclared { continue }
+
+            for memberID in effectiveInheritedDataClassComponentMembers(
+                ownerSymbol: ownerSymbol,
+                name: componentName,
+                symbols: symbols,
+                types: types
+            ) {
+                guard let member = symbols.symbol(memberID),
+                      let memberSignature = symbols.functionSignature(for: memberID)
+                else { continue }
+
+                // Interface members can never be final. Kotlin class members
+                // are final unless declared `open`/`abstract` or overriding
+                // without `final`.
+                let memberOwnerIsInterface = symbols.parentSymbol(for: memberID)
+                    .flatMap { symbols.symbol($0) }?.kind == .interface
+                let isEffectivelyFinal = !memberOwnerIsInterface
+                    && (member.flags.contains(.finalMember)
+                        || (!member.flags.contains(.overrideMember)
+                            && !member.flags.contains(.openType)
+                            && !member.flags.contains(.abstractType)))
+                let generatedReturn = componentReturnTypes.map { $0[index] }
+                // A type-parameter return is left unvalidated: substituting it
+                // through the supertype's type arguments is required to
+                // compare precisely and is rare enough to stay out of this
+                // check.
+                let returnTypesCompatible = generatedReturn == nil
+                    || types.typeContainsAnyTypeParam(memberSignature.returnType)
+                    || types.isSubtype(generatedReturn ?? types.anyType, memberSignature.returnType)
+                guard isEffectivelyFinal || !returnTypesCompatible else { continue }
+
+                let generatedReturnName = generatedReturn.map { types.renderType($0) } ?? "?"
+                let supertypeName = member.fqName.dropLast()
+                    .map { interner.resolve($0) }.joined(separator: ".")
+                diagnostics.error(
+                    "KSWIFTK-SEMA-0436",
+                    "Function 'fun \(interner.resolve(componentName))(): \(generatedReturnName)' generated for the data class conflicts with the supertype member 'fun \(interner.resolve(componentName))(): \(types.renderType(memberSignature.returnType))' defined in '\(supertypeName)'.",
+                    range: classDecl.range
+                )
+            }
+        }
+    }
+
+    /// All parameterless functions named `name` visible on the supertype
+    /// chain — classes and interfaces alike — that the generated member must
+    /// override. A declaration shadowed by a more-derived redeclaration of the
+    /// same member no longer participates: the override targets the closest
+    /// redeclaration on each path.
+    private func effectiveInheritedDataClassComponentMembers(
+        ownerSymbol: SymbolID,
+        name: InternedString,
+        symbols: SymbolTable,
+        types: TypeSystem
+    ) -> [SymbolID] {
+        var collected: [SymbolID] = []
+        var visited: Set<SymbolID> = [ownerSymbol]
+        var queue = symbols.directSupertypes(for: ownerSymbol)
+        while let current = queue.popLast() {
+            guard visited.insert(current).inserted,
+                  let currentSym = symbols.symbol(current),
+                  currentSym.kind == .class || currentSym.kind == .interface
+            else { continue }
+            for memberID in symbols.children(ofFQName: currentSym.fqName) {
+                guard let member = symbols.symbol(memberID),
+                      member.kind == .function,
+                      member.name == name,
+                      member.visibility != .private,
+                      let signature = symbols.functionSignature(for: memberID),
+                      signature.parameterTypes.isEmpty,
+                      let receiverType = signature.receiverType,
+                      case let .classType(receiverClass) = types.kind(of: types.makeNonNullable(receiverType)),
+                      receiverClass.classSymbol == current
+                else { continue }
+                collected.append(memberID)
+            }
+            queue.append(contentsOf: symbols.directSupertypes(for: current))
+        }
+        return collected.filter { memberID in
+            guard let memberOwner = symbols.parentSymbol(for: memberID) else { return true }
+            return !collected.contains { otherID in
+                otherID != memberID
+                    && symbols.parentSymbol(for: otherID).map {
+                        isNominalSubtypeOf($0, memberOwner, symbols: symbols)
+                    } == true
+            }
+        }
+    }
+
+    /// Nominal (type-argument-insensitive) strict subtype check over direct
+    /// supertypes.
+    private func isNominalSubtypeOf(
+        _ candidate: SymbolID,
+        _ base: SymbolID,
+        symbols: SymbolTable
+    ) -> Bool {
+        var visited: Set<SymbolID> = [candidate]
+        var queue = symbols.directSupertypes(for: candidate)
+        while let current = queue.popLast() {
+            if current == base { return true }
+            if visited.insert(current).inserted {
+                queue.append(contentsOf: symbols.directSupertypes(for: current))
             }
         }
         return false

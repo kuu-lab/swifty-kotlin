@@ -208,6 +208,207 @@ struct DataClassComponentNTests {
         }
     }
 
+    // KUU-3254: a generated componentN() must be able to override the
+    // closest superclass member with the same name and arity. A member that
+    // is effectively final, or whose return type is incompatible with the
+    // generated one, reports KSWIFTK-SEMA-0436 at the data class. Interface,
+    // abstract and private members never conflict.
+    @Test
+    func testComponentNSupertypeConflictDiagnostics() throws {
+        let sources: [String] = [
+            // 0: final-by-default class member conflicts.
+            """
+            package s0
+            open class Base { fun component1(): String = "x" }
+            data class FinalMember(val field: String) : Base()
+            """,
+            // 1: explicit `final` member conflicts too.
+            """
+            package s1
+            open class Base { final fun component1(): String = "x" }
+            data class ExplicitFinal(val field: String) : Base()
+            """,
+            // 2: the conflict follows the inheritance chain up to the
+            //    defining class.
+            """
+            package s2
+            open class Base { fun component1(): String = "x" }
+            abstract class Mid : Base()
+            data class DeepConflict(val field: String) : Mid()
+            """,
+            // 3: a different return type still conflicts for a final member.
+            """
+            package s3
+            open class Base { fun component1(): Int = 1 }
+            data class FinalReturnMismatch(val field: String) : Base()
+            """,
+            // 4: an overridable member with an incompatible return type
+            //    also conflicts.
+            """
+            package s4
+            open class Base { open fun component1(): Int = 1 }
+            data class OpenReturnMismatch(val field: String) : Base()
+            """,
+            // 5: an overridable member with a covariant return type is a
+            //    legitimate override target.
+            """
+            package s5
+            open class Base { open fun component1(): Number = 1 }
+            data class CovariantReturn(val field: Int) : Base()
+            """,
+            """
+            package s6
+            open class Base { open fun component1(): Any = "x" }
+            data class AnyReturn(val field: String) : Base()
+            """,
+            // 7: interface members — abstract or default — are implemented
+            //    by the generated componentN.
+            """
+            package s7
+            interface I { fun component1(): String }
+            data class InterfaceMember(val field: String) : I
+            """,
+            """
+            package s8
+            interface I { fun component1(): String = "i" }
+            data class InterfaceDefault(val field: String) : I
+            """,
+            // 9: abstract class abstract members are implemented too.
+            """
+            package s9
+            abstract class Base { abstract fun component1(): String }
+            data class AbstractMember(val field: String) : Base()
+            """,
+            // 10: private superclass members are invisible.
+            """
+            package s10
+            open class Base { private fun component1(): String = "x" }
+            data class PrivateMember(val field: String) : Base()
+            """,
+            // 11: members with parameters never conflict.
+            """
+            package s11
+            open class Base { fun component1(n: Int): String = "x" }
+            data class ParameterisedMember(val field: String) : Base()
+            """,
+            // 12: only the generated indices conflict — component2 of the
+            //     supertype does not clash with a single-property class.
+            """
+            package s12
+            open class Base { fun component2(): Int = 2 }
+            data class SingleProperty(val field: String) : Base()
+            """,
+            // 13: a conflicting index is diagnosed while later indices are
+            //     still free to generate.
+            """
+            package s13
+            open class Base { fun component1(): String = "x" }
+            data class TwoProperties(val field: String, val n: Int) : Base()
+            """,
+            // 14: a property named componentN is not a function member.
+            """
+            package s14
+            open class Base { val component1: String get() = "x" }
+            data class PropertyMember(val field: String) : Base()
+            """,
+            // 15: an open member in the direct superclass is overridable.
+            """
+            package s15
+            open class Base { open fun component1(): String = "x" }
+            data class OpenMember(val field: String) : Base()
+            """,
+            // 16: an interface member with an incompatible return type
+            //     conflicts — the generated member cannot validly implement it.
+            """
+            package s16
+            interface I { fun component1(): Int }
+            data class InterfaceMismatch(val field: String) : I
+            """,
+            // 17: an abstract member with different arity is not implemented
+            //     by the generated componentN — reported by the abstract
+            //     member check, not the conflict check.
+            """
+            package s17
+            interface I { fun component1(n: Int): String }
+            data class InterfaceArity(val field: String) : I
+            """,
+            // 18: an abstract class member with an incompatible return type
+            //     conflicts just like an interface member.
+            """
+            package s18
+            abstract class Base { abstract fun component1(): Int }
+            data class AbstractMismatch(val field: String) : Base()
+            """,
+            // 19: with two interfaces, only the incompatible member conflicts.
+            """
+            package s19
+            interface I1 { fun component1(): String }
+            interface I2 { fun component1(): Int }
+            data class TwoInterfaces(val field: String) : I1, I2
+            """,
+            // 20: the closest redeclaration is what the generated member must
+            //     override — a final override mid-chain conflicts.
+            """
+            package s20
+            open class Base { open fun component1(): Int = 1 }
+            open class Mid : Base() { final override fun component1(): Int = 2 }
+            data class ShadowedByFinal(val field: String) : Mid()
+            """,
+        ]
+
+        try withTemporaryFiles(contents: sources) { paths in
+            let ctx = makeCompilationContext(inputs: paths, includeStdlib: false)
+            try runSema(ctx)
+
+            func componentConflicts(_ path: String) -> [CompilerCore.Diagnostic] {
+                diagnosticsForPath(path, in: ctx).filter {
+                    $0.severity == .error && $0.code == "KSWIFTK-SEMA-0436"
+                }
+            }
+            func otherErrors(_ path: String) -> [CompilerCore.Diagnostic] {
+                diagnosticsForPath(path, in: ctx).filter {
+                    $0.severity == .error && $0.code != "KSWIFTK-SEMA-0436"
+                }
+            }
+
+            let conflicted = [0, 1, 2, 3, 4, 13, 16, 18, 19, 20]
+            let clean = [5, 6, 7, 8, 9, 10, 11, 12, 14, 15]
+
+            for index in conflicted {
+                let errors = componentConflicts(paths[index])
+                #expect(
+                    errors.count == 1,
+                    "Source \(index) should report exactly one KSWIFTK-SEMA-0436, got: \(diagnosticsForPath(paths[index], in: ctx).map { "\($0.code): \($0.message)" })"
+                )
+            }
+            for index in clean {
+                let errors = componentConflicts(paths[index])
+                #expect(
+                    errors.isEmpty,
+                    "Source \(index) should not report KSWIFTK-SEMA-0436, got: \(diagnosticsForPath(paths[index], in: ctx).map { "\($0.code): \($0.message)" })"
+                )
+            }
+
+            // Source 17 has an arity-mismatched abstract member: no conflict,
+            // but the abstract-completeness check must still report it.
+            let arityErrors = diagnosticsForPath(paths[17], in: ctx).filter { $0.severity == .error }
+            #expect(
+                componentConflicts(paths[17]).isEmpty
+                    && arityErrors.contains { $0.code == "KSWIFTK-SEMA-ABSTRACT" },
+                "Source 17 should report SEMA-ABSTRACT only, got: \(arityErrors.map { "\($0.code): \($0.message)" })"
+            )
+
+            // Non-conflict sources must be otherwise error-free.
+            for index in clean {
+                let errors = otherErrors(paths[index])
+                #expect(
+                    errors.isEmpty,
+                    "Source \(index) should compile without other errors, got: \(errors.map { "\($0.code): \($0.message)" })"
+                )
+            }
+        }
+    }
+
     @Test
     func testForLoopDestructuringArrayListPairsFromBundledStdlib() throws {
         let source = """
