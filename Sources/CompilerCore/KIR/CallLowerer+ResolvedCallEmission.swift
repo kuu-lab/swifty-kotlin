@@ -956,9 +956,11 @@ extension CallLowerer {
         {
             finalArgIDs.insert(contentsOf: callableInfo.captureArguments, at: 2)
         }
-        // KUU-938: this synthetic conversion has no runtime symbol. The
-        // receiver has already been inserted above, including for an outer
-        // implicit receiver; preserve its raw primitive representation.
+        // KUU-938: a direct call to this synthetic identity conversion is just
+        // a copy (`kk_primitive_identity` exists for callable references, which
+        // reach it by name). The receiver has already been inserted above,
+        // including for an outer implicit receiver; preserve its raw primitive
+        // representation.
         if let chosen,
            sema.symbols.symbol(chosen)?.flags.contains(.synthetic) == true,
            sema.symbols.externalLinkName(for: chosen) == "kk_primitive_identity",
