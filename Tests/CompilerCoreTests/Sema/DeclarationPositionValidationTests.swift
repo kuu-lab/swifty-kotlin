@@ -323,6 +323,27 @@ struct DeclarationPositionValidationTests {
         assertNoDiagnostic("KSWIFTK-SEMA-0431", in: ctx)
     }
 
+    // MARK: - vararg parameter requirements (KUU-2998)
+
+    @Test(arguments: [
+        "fun f(vararg a: Int, vararg b: Int) = a",
+        "fun outer() { fun f(vararg a: Int, vararg b: Int) = a }",
+        "val f = fun(vararg a: Int, vararg b: Int) = a",
+        "class C(vararg a: Int, vararg b: Int)",
+        "class C { constructor(vararg a: Int, vararg b: Int) }",
+    ])
+    func multipleVarargParametersAreRejected(source: String) throws {
+        let ctx = try semaContextWithoutStdlib(for: source)
+        let diagnostics = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0441" }
+        #expect(diagnostics.count == 2, "Expected one diagnostic per vararg modifier, got: \(diagnostics)")
+
+        let expectedOffsets = [source.range(of: "vararg")!, source.range(of: "vararg", options: .backwards)!]
+            .map { source.distance(from: source.startIndex, to: $0.lowerBound) }
+            .sorted()
+        let actualOffsets = diagnostics.compactMap { $0.primaryRange?.start.offset }.sorted()
+        #expect(actualOffsets == expectedOffsets)
+    }
+
     // MARK: - Annotation classes
 
     @Test func annotationMemberWithInvalidTypeIsRejected() throws {

@@ -636,6 +636,11 @@ extension BuildASTPhase {
             appendValueParameter(from: paramTokens, into: &arguments, interner: interner, astArena: astArena,
                                  allowAnnotationArrays: allowsAnnotationArrays)
         }
+        DeclarationPositionValidator.validateMultipleVarargParameters(
+            arguments,
+            fallbackRange: arena.node(nodeID).range,
+            diagnostics: diagnostics
+        )
         return arguments
     }
 
@@ -860,6 +865,9 @@ extension BuildASTPhase {
             }
         }
         let isVararg = candidateModifiers.contains(.vararg)
+        let varargRange = isVararg
+            ? modifierPrefixTokens.first(where: { $0.kind == .keyword(.vararg) })?.range
+            : nil
         let isCrossinline = candidateModifiers.contains(.crossinline)
         let isNoinline = candidateModifiers.contains(.noinline)
         let isOverrideProperty = candidateModifiers.contains(.override)
@@ -889,6 +897,7 @@ extension BuildASTPhase {
             propertyVisibilityModifiers: candidateModifiers.intersection([.public, .private, .internal, .protected]),
             hasDefaultValue: hasDefaultValue,
             isVararg: isVararg,
+            varargRange: varargRange,
             isCrossinline: isCrossinline,
             isNoinline: isNoinline,
             defaultValue: defaultValueExpr,
