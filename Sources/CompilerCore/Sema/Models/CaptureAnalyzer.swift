@@ -203,7 +203,7 @@ struct CaptureAnalyzer {
                     captured.insert(enumOwner)
                 }
 
-            case let .forExpr(_, iterable, body, _, _):
+            case let .forExpr(_, _, iterable, body, _, _):
                 visit(iterable)
                 visit(body)
 

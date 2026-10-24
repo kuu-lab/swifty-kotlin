@@ -343,6 +343,33 @@ struct ForLoopReceiverValidationTests {
     }
 
     @Test
+    func rejectsLoopVariableAnnotationMismatch() throws {
+        let ctx = makeContextFromSource("""
+        fun main() {
+            for (c: Int in "abc") println(c)
+        }
+        """)
+        do { try runSema(ctx) } catch {}
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.contains { $0.code == "KSWIFTK-TYPE-0001" }, "\(errors)")
+    }
+
+    @Test
+    func acceptsMatchingAndSupertypeLoopVariableAnnotations() throws {
+        TestStdlibCache.shared.prepare()
+        let ctx = makeContextFromSource("""
+        fun main() {
+            for (c: Char in "abc") println(c)
+            for (i: Int in 1..3) println(i)
+            for (x: Number in listOf(1, 2.5)) println(x)
+            for (a: Any in arrayOf(1, "s")) println(a)
+        }
+        """, allowDefaultStdlibLibrary: true)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+    }
+
+    @Test
     func acceptsBreakToLabeledDestructuringForLoop() throws {
         let ctx = makeContextFromSource("""
         fun main() {

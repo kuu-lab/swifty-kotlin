@@ -137,8 +137,8 @@ final class ExprTypeChecker {
             }
             return nameType
 
-        case let .forExpr(loopVariable, iterableExpr, bodyExpr, label, range):
-            return driver.controlFlowChecker.inferForExpr(id, loopVariable: loopVariable, iterableExpr: iterableExpr, bodyExpr: bodyExpr, label: label, range: range, ctx: ctx, locals: &locals)
+        case let .forExpr(loopVariable, declaredType, iterableExpr, bodyExpr, label, range):
+            return driver.controlFlowChecker.inferForExpr(id, loopVariable: loopVariable, declaredTypeRef: declaredType, iterableExpr: iterableExpr, bodyExpr: bodyExpr, label: label, range: range, ctx: ctx, locals: &locals)
 
         case let .whileExpr(conditionExpr, bodyExpr, label, range):
             return driver.controlFlowChecker.inferWhileExpr(id, conditionExpr: conditionExpr, bodyExpr: bodyExpr, label: label, range: range, ctx: ctx, locals: &locals)

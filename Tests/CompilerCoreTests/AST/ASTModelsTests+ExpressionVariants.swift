@@ -119,7 +119,7 @@ extension ASTModelsTests {
         let loopVar = interner.intern("i")
 
         let forExpr = Expr.forExpr(loopVariable: loopVar, iterable: bodyID, body: bodyID, range: r)
-        if case let .forExpr(lv, _, _, _, _) = forExpr {
+        if case let .forExpr(lv, _, _, _, _, _) = forExpr {
             #expect(lv == loopVar)
         } else { Issue.record("Expected .forExpr") }
 

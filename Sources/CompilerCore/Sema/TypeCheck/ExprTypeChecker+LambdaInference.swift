@@ -1136,7 +1136,7 @@ extension ExprTypeChecker {
                 if case let .expression(child) = part { return child }
                 return nil
             }
-        case let .forExpr(_, iterable, body, _, _),
+        case let .forExpr(_, _, iterable, body, _, _),
              let .forDestructuringExpr(_, iterable, body, _, _):
             [iterable, body]
         case let .whileExpr(condition, body, _, _):

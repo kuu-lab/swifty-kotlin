@@ -74,7 +74,7 @@ struct NewlineOperatorTests {
 
         let label: InternedString?
         switch ast.arena.expr(loop) {
-        case let .forExpr(_, _, _, loopLabel, _),
+        case let .forExpr(_, _, _, _, loopLabel, _),
              let .whileExpr(_, _, loopLabel, _),
              let .doWhileExpr(_, _, loopLabel, _):
             label = loopLabel

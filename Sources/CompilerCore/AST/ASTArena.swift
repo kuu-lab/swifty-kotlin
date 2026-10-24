@@ -593,7 +593,7 @@ public final class ASTArena: @unchecked Sendable {
              let .boolLiteral(_, range),
              let .stringLiteral(_, range),
              let .nameRef(_, range),
-             let .forExpr(_, _, _, _, range),
+             let .forExpr(_, _, _, _, _, range),
              let .whileExpr(_, _, _, range),
              let .doWhileExpr(_, _, _, range),
              let .breakExpr(_, range),

@@ -411,6 +411,7 @@ final class ControlFlowTypeChecker {
     func inferForExpr(
         _ id: ExprID,
         loopVariable: InternedString?,
+        declaredTypeRef: TypeRefID?,
         iterableExpr: ExprID,
         bodyExpr: ExprID,
         label: InternedString?,
@@ -444,6 +445,34 @@ final class ControlFlowTypeChecker {
         invalidateNullableControlFlowAssignments(id, ctx: ctx, locals: &locals)
         var bodyLocals = locals
         if let loopVariable {
+            // `for (x: T in it)` is a declaration site: the iterator element
+            // type must be assignable to the annotation, and the loop variable
+            // takes the annotated type in the body (kotlinc: "initializer type
+            // mismatch: expected 'Int', actual 'Char'").
+            var loopVariableType = elementType
+            if let declaredTypeRef {
+                let declaredType = driver.helpers.resolveTypeRef(
+                    declaredTypeRef,
+                    ast: ctx.ast,
+                    sema: sema,
+                    interner: ctx.interner,
+                    scope: ctx.scope,
+                    diagnostics: ctx.sema.diagnostics,
+                    inferenceContext: ctx,
+                    usageRange: range
+                )
+                if elementType != sema.types.errorType {
+                    driver.emitSubtypeConstraint(
+                        left: elementType,
+                        right: declaredType,
+                        range: range,
+                        solver: ConstraintSolver(),
+                        sema: sema,
+                        diagnostics: ctx.sema.diagnostics
+                    )
+                }
+                loopVariableType = declaredType
+            }
             let loopVariableSymbol = sema.symbols.define(
                 kind: .local,
                 name: loopVariable,
@@ -467,18 +496,18 @@ final class ControlFlowTypeChecker {
             // Enum name lowering likewise needs the enum identity on the loop
             // temporary to select its generated ordinal-to-name helper.
             let isNominalValueElement: Bool = {
-                guard case let .classType(classType) = sema.types.kind(of: elementType),
+                guard case let .classType(classType) = sema.types.kind(of: loopVariableType),
                       classType.nullability == .nonNull,
                       let sym = sema.symbols.symbol(classType.classSymbol)
                 else { return false }
                 return sym.flags.contains(.valueType) || sym.kind == .enumClass
             }()
-            if case .primitive(_, .nonNull) = sema.types.kind(of: elementType) {
-                sema.symbols.setPropertyType(elementType, for: loopVariableSymbol)
+            if case .primitive(_, .nonNull) = sema.types.kind(of: loopVariableType) {
+                sema.symbols.setPropertyType(loopVariableType, for: loopVariableSymbol)
             } else if isNominalValueElement {
-                sema.symbols.setPropertyType(elementType, for: loopVariableSymbol)
+                sema.symbols.setPropertyType(loopVariableType, for: loopVariableSymbol)
             }
-            bodyLocals[loopVariable] = (elementType, loopVariableSymbol, false, true)
+            bodyLocals[loopVariable] = (loopVariableType, loopVariableSymbol, false, true)
             sema.bindings.bindIdentifier(id, symbol: loopVariableSymbol)
         }
         var newLabelStack = ctx.loopLabelStack
@@ -746,7 +775,7 @@ final class ControlFlowTypeChecker {
                     targetIndex = loopLabelStack.count - 1
                 }
                 return targetIndex == 0
-            case .forExpr(_, let iterable, let body, let label, _):
+            case .forExpr(_, _, let iterable, let body, let label, _):
                 if visit(iterable, loopLabelStack: loopLabelStack) { return true }
                 var nestedStack = loopLabelStack
                 nestedStack.append(label)

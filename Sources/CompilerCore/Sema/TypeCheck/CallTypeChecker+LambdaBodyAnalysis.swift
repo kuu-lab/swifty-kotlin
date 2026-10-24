@@ -46,7 +46,7 @@ extension CallTypeChecker {
                 if case let .expression(child) = part { return visit(child) }
                 return false
             }
-        case let .forExpr(_, iterable, body, _, _):
+        case let .forExpr(_, _, iterable, body, _, _):
             return visit(iterable) || visit(body)
         case let .whileExpr(condition, body, _, _):
             return visit(condition) || visit(body)

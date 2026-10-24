@@ -454,7 +454,7 @@ struct DeclarationPositionValidator {
                 if case .expression(let exprID) = part { return exprID }
                 return nil
             }
-        case .forExpr(_, let iterable, let body, _, _),
+        case .forExpr(_, _, let iterable, let body, _, _),
              .forDestructuringExpr(_, let iterable, let body, _, _):
             [iterable, body]
         case .whileExpr(let condition, let body, _, _):

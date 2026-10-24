@@ -675,21 +675,32 @@ extension BuildASTPhase.ExpressionParser {
 
     private func parseForExpressionFallback(forToken: Token, label: InternedString? = nil, start: SourceLocation? = nil) -> ExprID? {
         var loopVariable: InternedString?
+        var declaredType: TypeRefID?
         if let token = current(),
            token.kind != .keyword(.in),
            let name = tokenText(token)
         {
             loopVariable = name
             _ = consume()
-            if consumeIf(.symbol(.colon)) != nil,
-               let following = current(),
-               following.kind == .keyword(.in) || following.kind == .symbol(.rParen)
-            {
-                diagnostics?.error(
-                    "KSWIFTK-PARSE-0020",
-                    "Expected type after ':'.",
-                    range: following.range
-                )
+            if consumeIf(.symbol(.colon)) != nil {
+                if let following = current(),
+                   following.kind == .keyword(.in) || following.kind == .symbol(.rParen)
+                {
+                    diagnostics?.error(
+                        "KSWIFTK-PARSE-0020",
+                        "Expected type after ':'.",
+                        range: following.range
+                    )
+                } else {
+                    declaredType = parseTypeReference(token.range, allowFunctionType: true)
+                    if declaredType == nil {
+                        diagnostics?.error(
+                            "KSWIFTK-PARSE-0020",
+                            "Expected type after ':'.",
+                            range: current()?.range ?? token.range
+                        )
+                    }
+                }
             }
         }
 
@@ -752,7 +763,7 @@ extension BuildASTPhase.ExpressionParser {
         recordStrayElseIfPresent()
         let end = astArena.exprRange(body)?.end ?? forToken.range.end
         let range = SourceRange(start: start ?? forToken.range.start, end: end)
-        return astArena.appendExpr(.forExpr(loopVariable: loopVariable, iterable: iterable, body: body, label: label, range: range))
+        return astArena.appendExpr(.forExpr(loopVariable: loopVariable, declaredType: declaredType, iterable: iterable, body: body, label: label, range: range))
     }
 
     func parseWhileExpression(label: InternedString? = nil, start: SourceLocation? = nil) -> ExprID? {

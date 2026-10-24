@@ -186,7 +186,7 @@ public enum Expr: Equatable, Codable {
     case stringLiteral(InternedString, SourceRange)
     case stringTemplate(parts: [StringTemplatePart], range: SourceRange)
     case nameRef(InternedString, SourceRange)
-    case forExpr(loopVariable: InternedString?, iterable: ExprID, body: ExprID, label: InternedString? = nil, range: SourceRange)
+    case forExpr(loopVariable: InternedString?, declaredType: TypeRefID? = nil, iterable: ExprID, body: ExprID, label: InternedString? = nil, range: SourceRange)
     case whileExpr(condition: ExprID, body: ExprID, label: InternedString? = nil, range: SourceRange)
     case doWhileExpr(body: ExprID, condition: ExprID, label: InternedString? = nil, range: SourceRange)
     case breakExpr(label: InternedString? = nil, range: SourceRange)

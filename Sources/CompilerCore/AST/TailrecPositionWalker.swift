@@ -64,7 +64,7 @@ enum TailrecPositionWalker {
         case let .whileExpr(condition, body, _, _), let .doWhileExpr(body, condition, _, _):
             child(condition)
             child(body)
-        case let .forExpr(_, iterable, body, _, _), let .forDestructuringExpr(_, iterable, body, _, _):
+        case let .forExpr(_, _, iterable, body, _, _), let .forDestructuringExpr(_, iterable, body, _, _):
             child(iterable)
             child(body)
         case let .localDecl(_, _, _, initializer, _, _, _):

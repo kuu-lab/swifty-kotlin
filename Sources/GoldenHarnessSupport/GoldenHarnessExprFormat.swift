@@ -28,7 +28,7 @@ enum GoldenHarnessExprFormat {
         case let .nameRef(name, _):
             return "name(\(interner.resolve(name)))"
 
-        case let .forExpr(loopVariable, iterable, body, label, _):
+        case let .forExpr(loopVariable, _, iterable, body, label, _):
             return renderLoopExpr(loopVariable, iterable, body, label, ctx)
         case let .whileExpr(condition, body, label, _):
             return renderWhileLoop(condition, body, label, ctx)

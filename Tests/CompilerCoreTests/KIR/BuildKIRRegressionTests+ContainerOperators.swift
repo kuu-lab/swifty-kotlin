@@ -637,7 +637,7 @@ extension BuildKIRRegressionTests {
         let ast = try #require(ctx.ast)
         let sema = try #require(ctx.sema)
         let loopIDsByName = Dictionary(uniqueKeysWithValues: ast.arena.exprs.enumerated().compactMap { (index, expr) -> (String, ExprID)? in
-            guard case let .forExpr(loopVariable?, _, _, _, _) = expr else { return nil }
+            guard case let .forExpr(loopVariable?, _, _, _, _, _) = expr else { return nil }
             let name = ctx.interner.resolve(loopVariable)
             guard ["kuu2302UByteValue", "kuu2302UShortValue"].contains(name) else { return nil }
             return (name, ExprID(rawValue: Int32(index)))

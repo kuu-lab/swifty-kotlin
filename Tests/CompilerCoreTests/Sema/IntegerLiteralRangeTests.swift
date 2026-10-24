@@ -112,7 +112,7 @@ struct IntegerLiteralRangeTests {
         }
         let loopIDsByName = Dictionary(uniqueKeysWithValues: ast.arena.exprs.enumerated().compactMap { (index, expr) -> (String, ExprID)? in
             let exprID = ExprID(rawValue: Int32(index))
-            guard case let .forExpr(loopVariable?, _, _, _, _) = expr,
+            guard case let .forExpr(loopVariable?, _, _, _, _, _) = expr,
                   ast.arena.exprRange(exprID)?.start.file == fileID
             else {
                 return nil

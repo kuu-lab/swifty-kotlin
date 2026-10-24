@@ -270,7 +270,7 @@ extension ExprLowerer {
                 instructions: &instructions
             )
 
-        case let .forExpr(_, iterableExpr, bodyExpr, label, _):
+        case let .forExpr(_, _, iterableExpr, bodyExpr, label, _):
             return driver.controlFlowLowerer.lowerForExpr(
                 exprID,
                 iterableExpr: iterableExpr,

@@ -450,7 +450,7 @@ extension LambdaLowerer {
                 )
             }
 
-        case let .forExpr(_, iterableExpr, bodyExpr, _, _):
+        case let .forExpr(_, _, iterableExpr, bodyExpr, _, _):
             collectBoundIdentifierSymbols(in: iterableExpr, ast: ast, sema: sema, referenced: &referenced, seen: &seen)
             collectBoundIdentifierSymbols(in: bodyExpr, ast: ast, sema: sema, referenced: &referenced, seen: &seen)
 
@@ -812,7 +812,7 @@ extension LambdaLowerer {
             }
             return false
 
-        case let .forExpr(_, iterableExpr, bodyExpr, _, _):
+        case let .forExpr(_, _, iterableExpr, bodyExpr, _, _):
             return containsImplicitReceiverReference(in: iterableExpr, ast: ast)
                 || containsImplicitReceiverReference(in: bodyExpr, ast: ast)
 

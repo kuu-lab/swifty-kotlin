@@ -246,7 +246,7 @@ struct UnbracedIfAssignmentTests {
                   if case .forExpr = ast.arena.expr(expression) { return true }
                   return false
               }),
-              case let .forExpr(_, _, bodyID, _, _) = ast.arena.expr(forID),
+              case let .forExpr(_, _, _, bodyID, _, _) = ast.arena.expr(forID),
               case let .blockExpr(bodyStatements, bodyTrailing, _) = ast.arena.expr(bodyID)
         else {
             Issue.record("Expected a for loop with a block body")

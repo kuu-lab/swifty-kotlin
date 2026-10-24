@@ -1631,7 +1631,7 @@ extension CallTypeChecker {
             if let elseBody {
                 collectProduceBuilderSendExprs(in: elseBody, ast: ast, interner: interner, shadowedNames: shadowedNames, sendArgumentExprs: &sendArgumentExprs)
             }
-        case let .forExpr(loopVariable, iterableExpr, bodyExpr, _, _):
+        case let .forExpr(loopVariable, _, iterableExpr, bodyExpr, _, _):
             collectProduceBuilderSendExprs(in: iterableExpr, ast: ast, interner: interner, shadowedNames: shadowedNames, sendArgumentExprs: &sendArgumentExprs)
             var bodyShadowed = shadowedNames
             if let loopVariable {
@@ -1933,7 +1933,7 @@ extension CallTypeChecker {
                     yieldedCollections: &yieldedCollections
                 )
             }
-        case let .forExpr(_, iterableExpr, bodyExpr, _, _),
+        case let .forExpr(_, _, iterableExpr, bodyExpr, _, _),
             let .forDestructuringExpr(_, iterableExpr, bodyExpr, _, _):
             collectSequenceBuilderYieldExprs(
                 in: iterableExpr,

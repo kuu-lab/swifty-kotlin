@@ -763,7 +763,7 @@ final class JVMFunctionBuilder {
                 mark(exit)
             }
             return nil
-        case let .forExpr(name, iterable, body, label, _):
+        case let .forExpr(name, _, iterable, body, label, _):
             guard let name else { throw fail("Unsupported JVM for loop.", id) }
             try forLoop(name, iterable, body, id, label: label); return nil
         case let .forDestructuringExpr(names, iterable, body, _, _):

@@ -234,7 +234,7 @@ final class ComparableCharEscapeAnalyzer {
             visit(rhs, depth, false)
         case let .destructuringDecl(_, _, initializer, _):
             visit(initializer, depth, false)
-        case let .forExpr(_, iterable, body, _, _):
+        case let .forExpr(_, _, iterable, body, _, _):
             visit(iterable, depth, false)
             visit(body, depth, false)
         case let .forDestructuringExpr(_, iterable, body, _, _):

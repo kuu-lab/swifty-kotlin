@@ -377,8 +377,8 @@ struct ASTIDRemapper {
             .stringTemplate(parts: parts.map { remap($0) }, range: range)
         case let .nameRef(name, range):
             .nameRef(remap(name), range)
-        case let .forExpr(loopVariable, iterable, body, label, range):
-            .forExpr(loopVariable: loopVariable.map { remap($0) }, iterable: remap(iterable), body: remap(body), label: label.map { remap($0) }, range: range)
+        case let .forExpr(loopVariable, declaredType, iterable, body, label, range):
+            .forExpr(loopVariable: loopVariable.map { remap($0) }, declaredType: declaredType.map { remap($0) }, iterable: remap(iterable), body: remap(body), label: label.map { remap($0) }, range: range)
         case let .whileExpr(condition, body, label, range):
             .whileExpr(condition: remap(condition), body: remap(body), label: label.map { remap($0) }, range: range)
         case let .doWhileExpr(body, condition, label, range):

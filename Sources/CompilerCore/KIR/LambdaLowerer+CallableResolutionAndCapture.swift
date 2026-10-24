@@ -529,7 +529,7 @@ extension LambdaLowerer {
                 return false
             }
             return checkFunctionBody(body, check: check)
-        case let .forExpr(_, iterable, body, _, _):
+        case let .forExpr(_, _, iterable, body, _, _):
             return check(iterable) || check(body)
         case let .whileExpr(condition, body, _, _):
             return check(condition) || check(body)

@@ -172,7 +172,7 @@ final class LocalVariableStabilityAnalyzer {
             visitBody(body, ast: ast, locals: scope)
             closureScopes.removeLast()
             locals.removeValue(forKey: name)
-        case let .forExpr(variable, iterable, body, _, _):
+        case let .forExpr(variable, _, iterable, body, _, _):
             children([iterable])
             flowBarrierScopes.append(id)
             scoped(body, hiding: variable.map { [$0] } ?? [])

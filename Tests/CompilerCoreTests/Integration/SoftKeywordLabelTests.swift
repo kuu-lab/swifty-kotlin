@@ -35,7 +35,7 @@ import Testing
         var jumps: [Int: String] = [:]
         for expression in expressions {
             switch expression {
-            case let .forExpr(_, _, _, label?, range), let .whileExpr(_, _, label?, range),
+            case let .forExpr(_, _, _, _, label?, range), let .whileExpr(_, _, label?, range),
                  let .doWhileExpr(_, _, label?, range), let .lambdaLiteral(_, _, label?, range):
                 labels[range.start.offset] = ctx.interner.resolve(label)
             case let .breakExpr(label?, range), let .continueExpr(label?, range),
