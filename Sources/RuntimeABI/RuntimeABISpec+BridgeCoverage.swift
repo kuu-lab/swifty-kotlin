@@ -205,6 +205,7 @@ public extension RuntimeABISpec {
             isThrowing: false),
         ]
         + [
+            "kk_double_equals",
             "kk_op_dadd",
             "kk_op_ddiv",
             "kk_op_deq",
@@ -216,6 +217,7 @@ public extension RuntimeABISpec {
             "kk_op_dne",
             "kk_op_dsub",
             "kk_op_elvis",
+            "kk_float_equals",
             "kk_op_fadd",
             "kk_op_fdiv",
             "kk_op_feq",
