@@ -42,10 +42,16 @@ extension DataFlowSemaPhase {
             name: interner.intern("setValue"),
             arity: 1
         )
-        if hasBundledEntryProperties, hasBundledMutableEntry {
-            return
-        }
 
+        // The nominal shells must exist even when bundled sources supply the
+        // members: `registerSyntheticMapRuntimeResiduals` builds the
+        // `entries` runtime-link property types (`Set<Map.Entry<K,V>>` /
+        // `MutableSet<MutableMap.MutableEntry<K,V>>`) from these symbols, and
+        // `collectHeader` later claims each shell for the bundled declaration
+        // (`reusableSyntheticDeclarationSymbol`). Skipping shell creation
+        // here leaves `Map.entries`/`MutableMap.entries` with no
+        // `__kk_map_entries` link, so reads dispatch through the itable the
+        // runtime map box does not own and panic at runtime.
         let entrySymbol: SymbolID
         if let existing = symbols.lookup(fqName: entryFQName) {
             entrySymbol = existing
@@ -62,37 +68,6 @@ extension DataFlowSemaPhase {
         symbols.setParentSymbol(mapSymbol, for: entrySymbol)
         types.setNominalTypeParameterSymbols([mapKeySymbol, mapValueSymbol], for: entrySymbol)
         types.setNominalTypeParameterVariances([.out, .out], for: entrySymbol)
-
-        let keyType = types.make(.typeParam(TypeParamType(symbol: mapKeySymbol, nullability: .nonNull)))
-        let valueType = types.make(.typeParam(TypeParamType(symbol: mapValueSymbol, nullability: .nonNull)))
-        let entryReceiverType = types.make(.classType(ClassType(
-            classSymbol: entrySymbol,
-            args: [.out(keyType), .out(valueType)],
-            nullability: .nonNull
-        )))
-
-        defineSyntheticMapEntryAccessor(
-            symbols: symbols,
-            interner: interner,
-            entryFQName: entryFQName,
-            entrySymbol: entrySymbol,
-            receiverType: entryReceiverType,
-            name: "key",
-            returnType: keyType,
-            externalLinkName: "__kk_pair_first",
-            typeParameterSymbols: [mapKeySymbol, mapValueSymbol]
-        )
-        defineSyntheticMapEntryAccessor(
-            symbols: symbols,
-            interner: interner,
-            entryFQName: entryFQName,
-            entrySymbol: entrySymbol,
-            receiverType: entryReceiverType,
-            name: "value",
-            returnType: valueType,
-            externalLinkName: "__kk_pair_second",
-            typeParameterSymbols: [mapKeySymbol, mapValueSymbol]
-        )
 
         guard let mutableMapSymbol = symbols.lookup(fqName: mutableMapFQName) else { return }
 
@@ -133,6 +108,41 @@ extension DataFlowSemaPhase {
         types.setNominalDirectSupertypes([entrySymbol], for: mutableEntrySymbol)
         symbols.setSupertypeTypeArgs(entryTypeArgs, for: mutableEntrySymbol, supertype: entrySymbol)
         types.setNominalSupertypeTypeArgs(entryTypeArgs, for: mutableEntrySymbol, supertype: entrySymbol)
+
+        if hasBundledEntryProperties, hasBundledMutableEntry {
+            return
+        }
+
+        let keyType = types.make(.typeParam(TypeParamType(symbol: mapKeySymbol, nullability: .nonNull)))
+        let valueType = types.make(.typeParam(TypeParamType(symbol: mapValueSymbol, nullability: .nonNull)))
+        let entryReceiverType = types.make(.classType(ClassType(
+            classSymbol: entrySymbol,
+            args: [.out(keyType), .out(valueType)],
+            nullability: .nonNull
+        )))
+
+        defineSyntheticMapEntryAccessor(
+            symbols: symbols,
+            interner: interner,
+            entryFQName: entryFQName,
+            entrySymbol: entrySymbol,
+            receiverType: entryReceiverType,
+            name: "key",
+            returnType: keyType,
+            externalLinkName: "__kk_pair_first",
+            typeParameterSymbols: [mapKeySymbol, mapValueSymbol]
+        )
+        defineSyntheticMapEntryAccessor(
+            symbols: symbols,
+            interner: interner,
+            entryFQName: entryFQName,
+            entrySymbol: entrySymbol,
+            receiverType: entryReceiverType,
+            name: "value",
+            returnType: valueType,
+            externalLinkName: "__kk_pair_second",
+            typeParameterSymbols: [mapKeySymbol, mapValueSymbol]
+        )
     }
 
     func ensureSyntheticMapEntryTypeParameter(
