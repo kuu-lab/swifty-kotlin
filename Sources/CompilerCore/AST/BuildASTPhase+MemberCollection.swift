@@ -411,7 +411,9 @@ extension BuildASTPhase {
         return SuperTypeEntry(
             typeRef: parsedSuperType.ref,
             delegateExpression: delegateExpr,
-            constructorArgs: parsedSuperType.constructorArgs
+            constructorArgs: parsedSuperType.constructorArgs,
+            hasConstructorCallSyntax: parsedSuperType.hasConstructorCallSyntax,
+            range: parsedSuperType.range
         )
     }
 
@@ -428,6 +430,8 @@ extension BuildASTPhase {
     private struct ParsedSuperType {
         let ref: TypeRefID
         let constructorArgs: [CallArgument]
+        let hasConstructorCallSyntax: Bool
+        let range: SourceRange?
     }
 
     private func parseSuperTypeTypeRef(
@@ -448,9 +452,16 @@ extension BuildASTPhase {
             return nil
         }
 
+        let typeEndIndex = max(parsed.consumed - 1, 0)
+        let range = SourceRange(start: tokens[0].range.start, end: tokens[typeEndIndex].range.end)
         let remainingStart = parsed.consumed
         guard remainingStart < tokens.count else {
-            return ParsedSuperType(ref: parsed.ref, constructorArgs: [])
+            return ParsedSuperType(
+                ref: parsed.ref,
+                constructorArgs: [],
+                hasConstructorCallSyntax: false,
+                range: range
+            )
         }
 
         guard tokens[remainingStart].kind == .symbol(.lParen) else {
@@ -482,7 +493,12 @@ extension BuildASTPhase {
             interner: interner,
             astArena: astArena
         )
-        return ParsedSuperType(ref: parsed.ref, constructorArgs: args)
+        return ParsedSuperType(
+            ref: parsed.ref,
+            constructorArgs: args,
+            hasConstructorCallSyntax: true,
+            range: range
+        )
     }
 
     private func parseSuperTypeConstructorArgs(

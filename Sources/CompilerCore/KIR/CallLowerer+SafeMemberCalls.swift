@@ -1001,8 +1001,22 @@ extension CallLowerer {
             let declaredType = memberSymbol.flatMap {
                 sema.symbols.propertyType(for: $0) ?? sema.symbols.functionSignature(for: $0)?.returnType
             }
-            guard let declaredType,
-                  case let .primitive(declaredPrimitive, .nonNull) = resolveValueClassKind(
+            guard let declaredType else { return resultType }
+            // A nullable-underlying value class member yields the `V` payload
+            // representation; splitting the merge slot lets the `V` -> `V?`
+            // copy box it rather than storing the payload verbatim
+            // (KUU-3115).
+            if nullableUnderlyingValueClassSymbol(
+                of: sema.types.kind(of: declaredType),
+                types: sema.types, symbols: sema.symbols
+            ) != nil,
+               valueClassBoxTargetIsBoxed(
+                   sema.types.kind(of: resultType), symbols: sema.symbols
+               )
+            {
+                return declaredType
+            }
+            guard case let .primitive(declaredPrimitive, .nonNull) = resolveValueClassKind(
                       sema.types.kind(of: declaredType), types: sema.types, symbols: sema.symbols
                   ),
                   case let .primitive(resultPrimitive, .nonNull) = resolveValueClassKind(

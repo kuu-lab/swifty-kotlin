@@ -41,11 +41,19 @@ extension ControlFlowTypeChecker {
         case let .localAssign(_, value, _), let .compoundAssign(_, _, value, _),
              let .destructuringDecl(_, _, value, _):
             return completes(value)
-        case let .memberAssign(receiver, _, value, _), let .safeMemberAssign(receiver, _, value, _),
+        case let .memberAssign(receiver, _, value, _),
              let .memberCompoundAssign(_, receiver, _, value, _):
             return completes(receiver) && completes(value)
+        case let .safeMemberAssign(receiver, _, _, _):
+            // `a?.b = v` skips `v` entirely when `a` is null — the `?.`
+            // short-circuits the rest of the postfix chain — so only the
+            // receiver has to complete, matching `safeMemberCall` arguments.
+            return completes(receiver)
         case let .indexedAssign(receiver, indices, value, _),
              let .indexedCompoundAssign(_, receiver, indices, value, _):
+            if receiverChainIsGuardedBySafeCall(receiver, ctx: ctx) {
+                return completes(receiver)
+            }
             return completes(receiver) && indices.allSatisfy(completes) && completes(value)
         case let .call(callee, _, args, _):
             return completes(callee)
@@ -58,6 +66,9 @@ extension ControlFlowTypeChecker {
         case let .safeMemberCall(receiver, _, _, _, _):
             return completes(receiver)
         case let .indexedAccess(receiver, indices, _):
+            if receiverChainIsGuardedBySafeCall(receiver, ctx: ctx) {
+                return completes(receiver)
+            }
             return completes(receiver) && indices.allSatisfy(completes)
         case let .binary(op, lhs, rhs, _):
             switch op {
@@ -74,6 +85,28 @@ extension ControlFlowTypeChecker {
         default:
             return true
         }
+    }
+
+    /// Whether `id`'s postfix chain reaches a `?.` that can skip evaluating the
+    /// suffixes applied after it. `a?.b[i] = v` never evaluates `i` or `v` when
+    /// `a` is null. A `!!`, `as` cast, or plain `.member`/`()` on the nullable
+    /// result is not part of the safe navigation and breaks the guard, so the
+    /// walk only follows indexed suffixes.
+    private func receiverChainIsGuardedBySafeCall(_ id: ExprID, ctx: TypeInferenceContext) -> Bool {
+        var current = id
+        while let expr = ctx.ast.arena.expr(current) {
+            switch expr {
+            case .safeMemberCall, .safeMemberAssign:
+                return true
+            case let .indexedAccess(receiver, _, _),
+                 let .indexedAssign(receiver, _, _, _),
+                 let .indexedCompoundAssign(_, receiver, _, _, _):
+                current = receiver
+            default:
+                return false
+            }
+        }
+        return false
     }
 
     private func hasGuaranteedNonCompletingInlineLambda(

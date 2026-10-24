@@ -79,6 +79,23 @@ struct DeclarationPositionValidationTests {
         assertNoDiagnostic("KSWIFTK-SEMA-0435", in: ctx)
     }
 
+    @Test(arguments: [
+        "companion fun f() = 1",
+        "private companion fun f() = 1",
+        "companion val x = 1",
+        "companion class C {}",
+        "companion typealias T = Int",
+    ])
+    func companionModifierWithoutObjectIsRejected(_ source: String) throws {
+        let ctx = try semaContextWithoutStdlib(for: source)
+        assertHasDiagnostic("KSWIFTK-SEMA-0400", in: ctx)
+    }
+
+    @Test func companionAsFunctionNameIsAccepted() throws {
+        let ctx = try semaContextWithoutStdlib(for: "fun companion() = 1")
+        assertNoDiagnostic("KSWIFTK-SEMA-0400", in: ctx)
+    }
+
     @Test func dataInnerClassIsRejected() throws {
         let ctx = try semaContext(for: """
             class Outer { data inner class D(val x: Int) }
@@ -398,6 +415,39 @@ struct DeclarationPositionValidationTests {
             enum class E : B() { A }
             """)
         assertHasDiagnostic("KSWIFTK-SEMA-0405", in: ctx)
+    }
+
+    // MARK: - Interface supertypes (KUU-3233)
+
+    @Test func interfaceExtendingClassIsRejected() throws {
+        let ctx = try semaContext(for: """
+            open class Base
+            interface J : Base
+            """)
+        assertHasDiagnostic("KSWIFTK-SEMA-0438", in: ctx)
+    }
+
+    @Test func interfaceExtendingEnumOrObjectIsRejected() throws {
+        let enumCtx = try semaContext(for: """
+            enum class E { A }
+            interface J : E
+            """)
+        assertHasDiagnostic("KSWIFTK-SEMA-0438", in: enumCtx)
+
+        let objectCtx = try semaContext(for: """
+            object O
+            interface J : O
+            """)
+        assertHasDiagnostic("KSWIFTK-SEMA-0438", in: objectCtx)
+    }
+
+    @Test func interfaceExtendingInterfaceIsAccepted() throws {
+        let ctx = try semaContext(for: """
+            interface I
+            interface J : I
+            """)
+        assertNoDiagnostic("KSWIFTK-SEMA-0438", in: ctx)
+        #expect(!ctx.diagnostics.hasError)
     }
 
     @Test func emptyDataClassIsRejected() throws {

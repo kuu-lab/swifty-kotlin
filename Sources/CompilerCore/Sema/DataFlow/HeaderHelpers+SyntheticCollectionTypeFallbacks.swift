@@ -889,7 +889,7 @@ extension DataFlowSemaPhase {
         // KSP-701: only the source-less fallback may synthesize Sequence.
         // Bundled source declarations, including Sequence.iterator, remain authoritative.
         let sequenceFQName = packageFQName + [interner.intern("Sequence")]
-        if let existing = symbols.lookup(fqName: sequenceFQName),
+        if let existing = symbols.lookupNominal(fqName: sequenceFQName),
            symbols.isSourceBackedSymbol(existing) {
             return existing
         }

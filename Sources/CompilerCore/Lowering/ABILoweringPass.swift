@@ -307,7 +307,50 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                         nullableGenericResults: &nullableGenericResults,
                         boxedReturnCallees: unboxSkipCallees
                     )
-                    if let (vcUnboxCallee, vcReturnType) = vcUnbox, let vcResult {
+                    let vcResultConversion = resolveValueClassResultConversion(
+                        callSymbol: vcSymbol,
+                        callee: vcCallee,
+                        result: vcResult,
+                        signatureByName: signatureByName,
+                        module: module,
+                        types: types,
+                        symbols: symbols,
+                        boxedReturnCallees: unboxSkipCallees
+                    )
+                    if let vcResultConversion, let vcResult, let types, let symbols {
+                        let tempResult = module.arena.appendTemporary(
+                            type: vcResultConversion.returnType
+                        )
+                        newBody.append(.virtualCall(
+                            symbol: vcSymbol,
+                            callee: vcCallee,
+                            receiver: vcReceiver,
+                            arguments: vcBoxedArguments,
+                            result: tempResult,
+                            canThrow: vcCanThrow,
+                            thrownResult: vcThrownResult,
+                            dispatch: vcDispatch
+                        ))
+                        if vcThrownResult != nil {
+                            let nextIdx = idx + 1
+                            if nextIdx < function.body.count,
+                               case .jumpIfNotNull = function.body[nextIdx]
+                            {
+                                newBody.append(function.body[nextIdx])
+                                idx += 1
+                            }
+                        }
+                        appendValueClassResultConversion(
+                            conversion: vcResultConversion,
+                            from: tempResult,
+                            to: vcResult,
+                            module: module,
+                            types: types,
+                            symbols: symbols,
+                            interner: ctx.interner,
+                            into: &newBody
+                        )
+                    } else if let (vcUnboxCallee, vcReturnType) = vcUnbox, let vcResult {
                         let tempResult = module.arena.appendTemporary(type: vcReturnType
                         )
                         newBody.append(.virtualCall(
@@ -421,6 +464,29 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                         boxingCalleeTable: boxingCalleeTable, newBody: &newBody
                     )
                     newBody.append(.binary(op: op, lhs: newLhs, rhs: newRhs, result: result))
+                    idx += 1
+                    continue
+                }
+
+                // `var x: V? = V(...)` stores into a backing field/global slot
+                // bypass `.copy`, so the `V` -> `V?` boundary is normalized
+                // here for nullable-underlying value classes (KUU-3115).
+                if case let .storeGlobal(value, symbol) = instruction,
+                   let types, let symbols,
+                   let slotType = symbols.propertyType(for: symbol),
+                   let valueType = intrinsicArgType(value, arena: module.arena, types: types),
+                   let vcSymbol = nullableUnderlyingValueClassSymbol(
+                       of: types.kind(of: valueType), types: types, symbols: symbols
+                   ),
+                   valueClassBoxTargetIsBoxed(types.kind(of: slotType), symbols: symbols)
+                {
+                    let boxed = module.arena.appendTemporary(type: slotType)
+                    emitValueClassBoxCall(
+                        value: value, classSymbol: vcSymbol, result: boxed,
+                        resultType: slotType, types: types, symbols: symbols,
+                        interner: ctx.interner, arena: module.arena, into: &newBody
+                    )
+                    newBody.append(.storeGlobal(value: boxed, symbol: symbol))
                     idx += 1
                     continue
                 }
@@ -963,7 +1029,51 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                     }
                 }
 
-                if let (resolvedUnboxCallee, resolvedReturnType) = effectiveUnbox, let result {
+                let valueClassResultConversion = resolveValueClassResultConversion(
+                    callSymbol: effectiveCallSymbol,
+                    callee: effectiveCallee,
+                    result: result,
+                    signatureByName: signatureByName,
+                    module: module,
+                    types: types,
+                    symbols: symbols,
+                    boxedReturnCallees: unboxSkipCallees
+                )
+
+                if let valueClassResultConversion, let result, let types, let symbols {
+                    let tempResult = module.arena.appendTemporary(
+                        type: valueClassResultConversion.returnType
+                    )
+                    newBody.append(.call(
+                        symbol: effectiveCallSymbol,
+                        callee: effectiveCallee,
+                        arguments: boxedArguments,
+                        result: tempResult,
+                        canThrow: canThrow,
+                        thrownResult: thrownResult,
+                        isSuperCall: isSuperCall,
+                        qualifiedSuperType: qualifiedSuperType
+                    ))
+                    if thrownResult != nil {
+                        let nextIdx = idx + 1
+                        if nextIdx < function.body.count,
+                           case .jumpIfNotNull = function.body[nextIdx]
+                        {
+                            newBody.append(function.body[nextIdx])
+                            idx += 1
+                        }
+                    }
+                    appendValueClassResultConversion(
+                        conversion: valueClassResultConversion,
+                        from: tempResult,
+                        to: result,
+                        module: module,
+                        types: types,
+                        symbols: symbols,
+                        interner: ctx.interner,
+                        into: &newBody
+                    )
+                } else if let (resolvedUnboxCallee, resolvedReturnType) = effectiveUnbox, let result {
                     let tempResult = module.arena.appendTemporary(type: resolvedReturnType
                     )
                     newBody.append(.call(
@@ -1032,6 +1142,38 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
         }
         let rawValueKind = types.kind(of: valueType)
         let resolvedValueKind = resolveValueClassKind(rawValueKind, types: types, symbols: symbols)
+        // A nullable-underlying value class crossing the `V`/`V?`/reference
+        // boundary in either direction uses the nominal box helpers rather
+        // than a `kk_box_*`/`kk_unbox_*` callee (KUU-3115).
+        if valueType != returnType, let symbols {
+            let rawReturnKind = types.kind(of: returnType)
+            if let vcSymbol = nullableUnderlyingValueClassSymbol(
+                of: rawValueKind, types: types, symbols: symbols
+            ), valueClassBoxTargetIsBoxed(rawReturnKind, symbols: symbols) {
+                var instructions: [KIRInstruction] = []
+                let boxedResult = module.arena.appendTemporary(type: returnType)
+                emitValueClassBoxCall(
+                    value: value, classSymbol: vcSymbol, result: boxedResult,
+                    resultType: returnType, types: types, symbols: symbols,
+                    interner: interner, arena: module.arena, into: &instructions
+                )
+                instructions.append(.returnValue(boxedResult))
+                return instructions
+            }
+            if let vcSymbol = nullableUnderlyingValueClassSymbol(
+                of: rawReturnKind, types: types, symbols: symbols
+            ), valueClassUnboxSourceIsBoxed(rawValueKind, symbols: symbols) {
+                var instructions: [KIRInstruction] = []
+                let unboxed = module.arena.appendTemporary(type: returnType)
+                emitValueClassUnboxCall(
+                    value: value, classSymbol: vcSymbol, result: unboxed,
+                    resultType: returnType, types: types, symbols: symbols,
+                    interner: interner, arena: module.arena, into: &instructions
+                )
+                instructions.append(.returnValue(unboxed))
+                return instructions
+            }
+        }
         // A smart-cast name can still refer to its erased/nullable storage.
         // Explicit returns have no copy instruction to normalize that boundary.
         if valueType != returnType,
@@ -1121,6 +1263,39 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
             }
             return sym.kind == .enumClass
         }()
+        // A nullable-underlying value class keeps payload-or-box
+        // representations on opposite sides of the `V`/`V?` boundary —
+        // `V` -> `V?`/`Any`/other reference slots box through
+        // `kk_value_class_box`, while `V?`/reference -> `V` unwraps through
+        // `kk_value_class_unbox` (KUU-3115).
+        if let symbols,
+           let vcSymbol = nullableUnderlyingValueClassSymbol(
+               of: rawFromKind, types: types, symbols: symbols
+           ),
+           valueClassBoxTargetIsBoxed(rawToKind, symbols: symbols)
+        {
+            var instructions: [KIRInstruction] = []
+            emitValueClassBoxCall(
+                value: from, classSymbol: vcSymbol, result: to,
+                resultType: toType, types: types, symbols: symbols,
+                interner: interner, arena: module.arena, into: &instructions
+            )
+            return instructions
+        }
+        if let symbols,
+           let vcSymbol = nullableUnderlyingValueClassSymbol(
+               of: rawToKind, types: types, symbols: symbols
+           ),
+           valueClassUnboxSourceIsBoxed(rawFromKind, symbols: symbols)
+        {
+            var instructions: [KIRInstruction] = []
+            emitValueClassUnboxCall(
+                value: from, classSymbol: vcSymbol, result: to,
+                resultType: toType, types: types, symbols: symbols,
+                interner: interner, arena: module.arena, into: &instructions
+            )
+            return instructions
+        }
         if !isDirectNonNullEnumCopy,
            isAnyOrNullableAny(toKind) || needsBoxingForCopy(sourceKind: fromKind, targetKind: toKind)
             || isNonValueClassReference(rawToKind, symbols: symbols),
