@@ -37,15 +37,13 @@ extension DataFlowSemaPhase {
         let mutableEntryFQName = mutableMapFQName + [mutableEntryName]
         let hasBundledEntryProperties = bundledIndex.contains(owner: entryFQName, name: interner.intern("key"), arity: 0)
             && bundledIndex.contains(owner: entryFQName, name: interner.intern("value"), arity: 0)
-        let hasBundledMutableEntry = bundledIndex.contains(
-            owner: mutableEntryFQName,
-            name: interner.intern("setValue"),
-            arity: 1
-        )
-        if hasBundledEntryProperties, hasBundledMutableEntry {
-            return
-        }
 
+        // The nested Entry/MutableEntry shells must exist even when bundled
+        // source owns their members: `registerSyntheticMapRuntimeResiduals`
+        // resolves them by name to type `Map.entries`/`MutableMap.entries`,
+        // and the real nested declarations only materialize in the later
+        // `collectAllHeaders` pass. Skipping this entirely leaves `entries`
+        // without its runtime link name in built artifacts.
         let entrySymbol: SymbolID
         if let existing = symbols.lookup(fqName: entryFQName) {
             entrySymbol = existing
@@ -71,28 +69,30 @@ extension DataFlowSemaPhase {
             nullability: .nonNull
         )))
 
-        defineSyntheticMapEntryAccessor(
-            symbols: symbols,
-            interner: interner,
-            entryFQName: entryFQName,
-            entrySymbol: entrySymbol,
-            receiverType: entryReceiverType,
-            name: "key",
-            returnType: keyType,
-            externalLinkName: "__kk_pair_first",
-            typeParameterSymbols: [mapKeySymbol, mapValueSymbol]
-        )
-        defineSyntheticMapEntryAccessor(
-            symbols: symbols,
-            interner: interner,
-            entryFQName: entryFQName,
-            entrySymbol: entrySymbol,
-            receiverType: entryReceiverType,
-            name: "value",
-            returnType: valueType,
-            externalLinkName: "__kk_pair_second",
-            typeParameterSymbols: [mapKeySymbol, mapValueSymbol]
-        )
+        if !hasBundledEntryProperties {
+            defineSyntheticMapEntryAccessor(
+                symbols: symbols,
+                interner: interner,
+                entryFQName: entryFQName,
+                entrySymbol: entrySymbol,
+                receiverType: entryReceiverType,
+                name: "key",
+                returnType: keyType,
+                externalLinkName: "__kk_pair_first",
+                typeParameterSymbols: [mapKeySymbol, mapValueSymbol]
+            )
+            defineSyntheticMapEntryAccessor(
+                symbols: symbols,
+                interner: interner,
+                entryFQName: entryFQName,
+                entrySymbol: entrySymbol,
+                receiverType: entryReceiverType,
+                name: "value",
+                returnType: valueType,
+                externalLinkName: "__kk_pair_second",
+                typeParameterSymbols: [mapKeySymbol, mapValueSymbol]
+            )
+        }
 
         guard let mutableMapSymbol = symbols.lookup(fqName: mutableMapFQName) else { return }
 
