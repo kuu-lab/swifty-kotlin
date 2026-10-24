@@ -290,7 +290,8 @@ extension CallLowerer {
         propertyConstantInitializers: [SymbolID: KIRExprKind],
         instructions: inout [KIRInstruction]
     ) -> KIRExprID {
-        let loweredIndices = indices.map { indexExpr in
+        var loweredIndices: [KIRExprID] = []
+        for (position, indexExpr) in indices.enumerated() {
             let rawIndex = driver.lowerExpr(
                 indexExpr,
                 ast: ast,
@@ -300,10 +301,12 @@ extension CallLowerer {
                 propertyConstantInitializers: propertyConstantInitializers,
                 instructions: &instructions
             )
-            return needsEvaluationOrderFreeze(indexExpr, ast: ast, sema: sema)
-                && expressionMayMutateState(valueExpr, ast: ast)
+            let laterOperands = indices.dropFirst(position + 1) + [valueExpr]
+            let shouldFreeze = needsEvaluationOrderFreeze(indexExpr, ast: ast, sema: sema)
+                && anyExpressionMayMutateState(laterOperands, ast: ast)
+            loweredIndices.append(shouldFreeze
                 ? freezeEvaluationOrderOperand(rawIndex, arena: arena, instructions: &instructions)
-                : rawIndex
+                : rawIndex)
         }
 
         let isSuperCall = sema.bindings.isSuperCallExpr(exprID)
