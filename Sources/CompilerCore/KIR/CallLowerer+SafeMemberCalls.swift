@@ -7,7 +7,8 @@ extension CallLowerer {
         calleeName: InternedString,
         args: [CallArgument],
         shared: KIRLoweringSharedContext,
-        emit instructions: inout KIRLoweringEmitContext
+        emit instructions: inout KIRLoweringEmitContext,
+        precomputedReceiverID: KIRExprID? = nil
     ) -> KIRExprID {
         let ast = shared.ast
         let sema = shared.sema
@@ -36,7 +37,7 @@ extension CallLowerer {
             let nullableResultType = sema.types.makeNullable(scopeBoundType)
             let result = arena.appendTemporary(type: nullableResultType
             )
-            let loweredReceiver = driver.lowerExpr(
+            let loweredReceiver = precomputedReceiverID ?? driver.lowerExpr(
                 receiverExpr,
                 shared: shared,
                 emit: &instructions
@@ -94,7 +95,7 @@ extension CallLowerer {
             }
         }
 
-        let loweredReceiverID = driver.lowerExpr(
+        let loweredReceiverID = precomputedReceiverID ?? driver.lowerExpr(
             receiverExpr,
             shared: shared, emit: &instructions
         )
