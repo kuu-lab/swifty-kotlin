@@ -463,13 +463,12 @@ private fun <T> Sequence<T>.minusRemoving(toRemove: List<Pair<T, Int>>): Sequenc
     }
 }
 
-@KsSymbolName("kk_sequence_minus")
 public operator fun <T> Sequence<T>.minus(element: T): Sequence<T> {
     val source = this
-    var removed = false
     return object : Sequence<T> {
         override fun iterator(): Iterator<T> = object : Iterator<T> {
             val sourceIterator = source.iterator()
+            var removed = false
             var nextState = -2
             var nextItem: T? = null
 
@@ -556,7 +555,6 @@ public operator fun <T> Sequence<T>.minus(other: Sequence<T>): Sequence<T> =
 public operator fun <T> Sequence<T>.minus(other: Array<out T>): Sequence<T> =
     minusRemoving(buildRemovalCounts(other))
 
-@KsSymbolName("kk_sequence_minus")
 public fun <T> Sequence<T>.minusElement(element: T): Sequence<T> = minus(element)
 
 public fun <T> Sequence<T>.minus(predicate: (T) -> Boolean): Sequence<T> {
