@@ -65,12 +65,7 @@ extension CallLowerer {
            getterLink.hasSuffix("_load")
         {
             let storeLinkName = String(getterLink.dropLast("_load".count)) + "_store"
-            instructions.append(.call(
-                callee: interner.intern(storeLinkName),
-                arguments: [receiverID, valueID],
-                result: nil,
-                canThrow: false
-            ))
+            instructions.append(.call(callee: interner.intern(storeLinkName), arguments: [receiverID, valueID], result: nil, canThrow: false))
             let unit = arena.appendExpr(.unit, type: sema.types.unitType)
             instructions.append(.constValue(result: unit, value: .unit))
             return unit
@@ -342,13 +337,7 @@ extension CallLowerer {
             interner: interner
         )
         let result = arena.appendTemporary(type: sema.types.unitType)
-        instructions.append(.call(
-            symbol: chosenCallee,
-            callee: setterName,
-            arguments: [receiverID, valueID],
-            result: result,
-            canThrow: false
-        ))
+        instructions.append(.call(symbol: chosenCallee, callee: setterName, arguments: [receiverID, valueID], result: result, canThrow: false))
         let unit = arena.appendExpr(.unit, type: sema.types.unitType)
         instructions.append(.constValue(result: unit, value: .unit))
         return unit
@@ -939,12 +928,7 @@ extension CallLowerer {
                     interner: interner
                 )
                 let setterResult = arena.appendTemporary(type: sema.types.unitType)
-                instructions.append(.call(
-                    callee: setterName,
-                    arguments: [receiverID, newValue],
-                    result: setterResult,
-                    canThrow: false
-                ))
+                instructions.append(.call(callee: setterName, arguments: [receiverID, newValue], result: setterResult, canThrow: false))
             }
             if ast.arena.incrementDecrementReturnsValue(exprID) {
                 return newValue

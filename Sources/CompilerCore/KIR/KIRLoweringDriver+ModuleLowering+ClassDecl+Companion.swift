@@ -82,12 +82,7 @@ extension KIRLoweringDriver {
                 } else {
                     interner.intern("kk_type_register_super")
                 }
-                body.append(.call(
-                    callee: registerCallee,
-                    arguments: [classIDExpr, parentExpr],
-                    result: registerResult,
-                    canThrow: false
-                ))
+                body.append(.call(callee: registerCallee, arguments: [classIDExpr, parentExpr], result: registerResult, canThrow: false))
             }
             appendObjectItableMethodRegistrations(
                 objectValue: allocatedObject,

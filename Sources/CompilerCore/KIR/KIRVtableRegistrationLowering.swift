@@ -500,12 +500,7 @@ func anyToStringBridgeSymbolForImplementation(
         let unboxedReceiver = arena.appendTemporary(
             type: sema.types.make(resolvedReceiverKind)
         )
-        body.append(.call(
-            callee: unboxCallee,
-            arguments: [receiverExpr],
-            result: unboxedReceiver,
-            canThrow: false
-        ))
+        body.append(.call(callee: unboxCallee, arguments: [receiverExpr], result: unboxedReceiver, canThrow: false))
         receiverForCall = unboxedReceiver
     } else {
         receiverForCall = receiverExpr
@@ -1310,12 +1305,7 @@ func itableBridgeSymbolForMethod(
               ) ?? unboxingTable.unboxCallee(for: implType, types: sema.types, requireNonNull: true)
         else { continue }
         let unboxed = arena.appendTemporary(type: implType)
-        body.append(.call(
-            callee: unboxCallee,
-            arguments: [forwardedArgExprs[index]],
-            result: unboxed,
-            canThrow: false
-        ))
+        body.append(.call(callee: unboxCallee, arguments: [forwardedArgExprs[index]], result: unboxed, canThrow: false))
         forwardedArgExprs[index] = unboxed
     }
     for (index, implType) in implementationParamTypes.enumerated() {
@@ -1387,12 +1377,7 @@ func itableBridgeSymbolForMethod(
               )
     {
         let unboxed = arena.appendTemporary(type: interfaceSig.returnType)
-        body.append(.call(
-            callee: unboxCallee,
-            arguments: [callResult],
-            result: unboxed,
-            canThrow: false
-        ))
+        body.append(.call(callee: unboxCallee, arguments: [callResult], result: unboxed, canThrow: false))
         bridgeResult = unboxed
     } else {
         bridgeResult = callResult
@@ -1524,12 +1509,7 @@ func appendFactoryObjectVtableMethodRegistrations<C: RangeReplaceableCollection>
         let methodFnExpr = arena.appendExpr(.symbolRef(bridgeSymbol), type: intType)
         instructions.append(.constValue(result: methodFnExpr, value: .symbolRef(bridgeSymbol)))
         let registerResult = arena.appendTemporary(type: intType)
-        instructions.append(.call(
-            callee: registerCallee,
-            arguments: [objectValue, slotExpr, methodFnExpr],
-            result: registerResult,
-            canThrow: false
-        ))
+        instructions.append(.call(callee: registerCallee, arguments: [objectValue, slotExpr, methodFnExpr], result: registerResult, canThrow: false))
     }
 }
 
@@ -1588,12 +1568,7 @@ func appendNominalSupertypeEdgeRegistrations<C: RangeReplaceableCollection>(
             } else {
                 interner.intern("kk_type_register_super")
             }
-            instructions.append(.call(
-                callee: registerCallee,
-                arguments: [currentExpr, parentExpr],
-                result: registerResult,
-                canThrow: false
-            ))
+            instructions.append(.call(callee: registerCallee, arguments: [currentExpr, parentExpr], result: registerResult, canThrow: false))
         }
     }
 }

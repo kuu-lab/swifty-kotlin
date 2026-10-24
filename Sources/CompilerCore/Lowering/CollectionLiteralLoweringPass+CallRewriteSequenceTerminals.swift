@@ -73,13 +73,7 @@ extension CollectionLiteralConstructionLoweringPass {
                 }
                 let hofResult = module.arena.appendTemporary(type: nil
                 )
-                loweredBody.append(.call(
-                    callee: kkName,
-                    arguments: [receiverID],
-                    result: hofResult,
-                    canThrow: canThrow,
-                    thrownResult: thrownResult
-                ))
+                loweredBody.append(.call(callee: kkName, arguments: [receiverID], result: hofResult, canThrow: canThrow, thrownResult: thrownResult))
                 if let result {
                     loweredBody.append(.copy(from: hofResult, to: result))
                 }
@@ -91,12 +85,7 @@ extension CollectionLiteralConstructionLoweringPass {
     if callee == lookup.flattenName, arguments.count == 1 {
         let receiverID = arguments[0]
         if state.sequenceExprIDs.contains(receiverID.rawValue) {
-            loweredBody.append(.call(
-                callee: lookup.kkSequenceFlattenName,
-                arguments: [receiverID],
-                result: result,
-                canThrow: false
-            ))
+            loweredBody.append(.call(callee: lookup.kkSequenceFlattenName, arguments: [receiverID], result: result, canThrow: false))
             if let result { state.sequenceExprIDs.insert(result.rawValue) }
             return true
         }
@@ -115,12 +104,7 @@ extension CollectionLiteralConstructionLoweringPass {
             let transformResult = module.arena.appendTemporary(type: nil
             )
             let reversedName = lookup.kkRangeReversedName
-            loweredBody.append(.call(
-                callee: reversedName,
-                arguments: [receiverID],
-                result: transformResult,
-                canThrow: false
-            ))
+            loweredBody.append(.call(callee: reversedName, arguments: [receiverID], result: transformResult, canThrow: false))
             if let result {
                 state.rangeExprIDs.insert(result.rawValue)
                 state.rangeExprIDs.insert(transformResult.rawValue)
@@ -180,12 +164,7 @@ extension CollectionLiteralConstructionLoweringPass {
             } else {
                 rangeToListCallee = lookup.kkRangeToListName
             }
-            loweredBody.append(.call(
-                callee: rangeToListCallee,
-                arguments: [receiverID],
-                result: toListResult,
-                canThrow: false
-            ))
+            loweredBody.append(.call(callee: rangeToListCallee, arguments: [receiverID], result: toListResult, canThrow: false))
             if let result {
                 state.listExprIDs.insert(result.rawValue)
                 state.listExprIDs.insert(toListResult.rawValue)

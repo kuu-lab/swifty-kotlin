@@ -116,12 +116,7 @@ extension CallLowerer {
                     interner: interner
                 )
                 {
-                    instructions.append(.call(
-                        callee: runtimeCallee,
-                        arguments: [loweredReceiverID],
-                        result: result,
-                        canThrow: false
-                    ))
+                    instructions.append(.call(callee: runtimeCallee, arguments: [loweredReceiverID], result: result, canThrow: false))
                     return result
                 }
             }
@@ -276,12 +271,7 @@ extension CallLowerer {
                     callArguments.append(kindExpr)
                 }
                 let canThrow = runtimeCallee == "kk_list_minBy"
-                instructions.append(.call(
-                    callee: interner.intern(runtimeCallee),
-                    arguments: callArguments,
-                    result: result,
-                    canThrow: canThrow
-                ))
+                instructions.append(.call(callee: interner.intern(runtimeCallee), arguments: callArguments, result: result, canThrow: canThrow))
                 return result
                 }
             }
@@ -480,12 +470,7 @@ extension CallLowerer {
                 nil
             }
             if let runtimeCallee {
-                instructions.append(.call(
-                    callee: interner.intern(runtimeCallee),
-                    arguments: [loweredReceiverID],
-                    result: result,
-                    canThrow: false
-                ))
+                instructions.append(.call(callee: interner.intern(runtimeCallee), arguments: [loweredReceiverID], result: result, canThrow: false))
                 return result
             }
         }

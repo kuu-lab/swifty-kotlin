@@ -34,10 +34,7 @@ struct FlowHandleLifetimeLoweringTests {
         let callback = arena.appendExpr(.intLiteral(0))
         let condition = arena.appendExpr(.boolLiteral(false))
         let thrown = arena.appendTemporary()
-        let create = KIRInstruction.call(
-            callee: interner.intern("flow"), arguments: [callback],
-            result: handle, canThrow: false
-        )
+        let create = KIRInstruction.call(callee: interner.intern("flow"), arguments: [callback], result: handle, canThrow: false)
         let collect = KIRInstruction.call(
             callee: interner.intern("collect"), arguments: [handle, callback],
             result: nil, canThrow: true, thrownResult: thrown

@@ -337,13 +337,7 @@ extension MemberLowerer {
             ?? ([receiver] + extraArguments)
         let captures = symbol.flatMap { driver.ctx.localValue(for: $0) }
             .flatMap { driver.ctx.callableValueInfo(for: $0) }?.captureArguments ?? []
-        return .call(
-            symbol: symbol,
-            callee: callee,
-            arguments: captures + arguments,
-            result: result,
-            canThrow: false
-        )
+        return .call(symbol: symbol, callee: callee, arguments: captures + arguments, result: result, canThrow: false)
     }
 
     func prependingMemberExtensionDispatchReceiver(
@@ -388,12 +382,7 @@ extension MemberLowerer {
                 interner: interner
             )
             let result = arena.appendTemporary(type: delegateType)
-            body.append(.call(
-                callee: helperName,
-                arguments: [receiverExprID],
-                result: result,
-                canThrow: false
-            ))
+            body.append(.call(callee: helperName, arguments: [receiverExprID], result: result, canThrow: false))
             return result
         }
         if let ownerSymbol,

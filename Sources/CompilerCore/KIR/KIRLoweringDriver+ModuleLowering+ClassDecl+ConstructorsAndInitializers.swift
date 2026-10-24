@@ -543,13 +543,7 @@ extension KIRLoweringDriver {
             }
 
             let unusedResult = arena.appendTemporary(type: resultType)
-            body.append(.call(
-                callee: callee,
-                arguments: arguments,
-                result: unusedResult,
-                canThrow: false,
-                isSuperCall: false
-            ))
+            body.append(.call(callee: callee, arguments: arguments, result: unusedResult, canThrow: false, isSuperCall: false))
         }
     }
 

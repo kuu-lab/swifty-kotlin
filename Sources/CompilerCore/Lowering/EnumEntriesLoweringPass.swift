@@ -85,13 +85,7 @@ final class EnumEntriesLoweringPass: LoweringPass, ParallelLoweringPass {
             propertySymbol: propSym,
             arena: arena
         ) ?? arena.appendTemporary(type: sema.types.anyType)
-        return .call(
-            symbol: getter,
-            callee: entriesGetName,
-            arguments: [],
-            result: targetResult,
-            canThrow: false
-        )
+        return .call(symbol: getter, callee: entriesGetName, arguments: [], result: targetResult, canThrow: false)
     }
 
     /// BuildKIR may emit `constValue(result, .symbolRef(entriesPropSym))` for
@@ -119,13 +113,7 @@ final class EnumEntriesLoweringPass: LoweringPass, ParallelLoweringPass {
             return nil
         }
         _ = normalizePropertyResult(cvResult, propertySymbol: sym, arena: arena)
-        return .call(
-            symbol: getter,
-            callee: entriesGetName,
-            arguments: [],
-            result: cvResult,
-            canThrow: false
-        )
+        return .call(symbol: getter, callee: entriesGetName, arguments: [], result: cvResult, canThrow: false)
     }
 
     /// BuildKIR emits `loadGlobal(result, entriesPropSym)` when the companion's
@@ -157,13 +145,7 @@ final class EnumEntriesLoweringPass: LoweringPass, ParallelLoweringPass {
             propertySymbol: symbol,
             arena: arena
         )
-        return .call(
-            symbol: getter,
-            callee: entriesGetName,
-            arguments: [],
-            result: normalizedResult,
-            canThrow: false
-        )
+        return .call(symbol: getter, callee: entriesGetName, arguments: [], result: normalizedResult, canThrow: false)
     }
 
     /// The helper may be registered under either the enum class's or the

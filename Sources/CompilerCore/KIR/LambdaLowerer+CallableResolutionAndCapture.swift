@@ -11,12 +11,7 @@ extension LambdaLowerer {
             return
         }
         let receiver = arena.appendTemporary(type: receiverType)
-        instructions.append(.call(
-            callee: interner.intern("kk_coroutine_current_scope"),
-            arguments: [],
-            result: receiver,
-            canThrow: false
-        ))
+        instructions.append(.call(callee: interner.intern("kk_coroutine_current_scope"), arguments: [], result: receiver, canThrow: false))
         let symbol = SyntheticSymbolScheme.lambdaReceiverSymbol(for: exprID)
         driver.ctx.setImplicitReceiver(symbol: symbol, exprID: receiver)
         driver.ctx.runtimeCoroutineScopeReceiverExprIDs.insert(receiver)

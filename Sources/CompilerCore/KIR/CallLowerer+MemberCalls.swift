@@ -405,12 +405,7 @@ extension CallLowerer {
                 loweredArgs = []
             }
             let runtimeCallee = interner.intern(args.isEmpty ? "kk_context_cancel_no_cause" : "kk_context_cancel")
-            instructions.append(.call(
-                callee: runtimeCallee,
-                arguments: [receiverID] + loweredArgs,
-                result: result,
-                canThrow: false
-            ))
+            instructions.append(.call(callee: runtimeCallee, arguments: [receiverID] + loweredArgs, result: result, canThrow: false))
             return result
         }
 
@@ -632,13 +627,7 @@ extension CallLowerer {
                     var allArgs = info.captureArguments
                     allArgs.append(loweredReceiver)
                     allArgs.append(contentsOf: loweredArgIDs)
-                    instructions.append(.call(
-                        symbol: info.symbol,
-                        callee: info.callee,
-                        arguments: allArgs,
-                        result: result,
-                        canThrow: false
-                    ))
+                    instructions.append(.call(symbol: info.symbol, callee: info.callee, arguments: allArgs, result: result, canThrow: false))
                 } else if let localExprID = driver.ctx.localValue(for: localSym),
                           let invokeCallee = runtimeCallableInvokeCallee(
                               callableValueCallBinding: callableBinding,
@@ -647,22 +636,10 @@ extension CallLowerer {
                           )
                 {
                     let allArgs = [localExprID, loweredReceiver] + loweredArgIDs
-                    instructions.append(.call(
-                        symbol: localSym,
-                        callee: invokeCallee,
-                        arguments: allArgs,
-                        result: result,
-                        canThrow: false
-                    ))
+                    instructions.append(.call(symbol: localSym, callee: invokeCallee, arguments: allArgs, result: result, canThrow: false))
                 } else {
                     let allArgs = [loweredReceiver] + loweredArgIDs
-                    instructions.append(.call(
-                        symbol: localSym,
-                        callee: calleeName,
-                        arguments: allArgs,
-                        result: result,
-                        canThrow: false
-                    ))
+                    instructions.append(.call(symbol: localSym, callee: calleeName, arguments: allArgs, result: result, canThrow: false))
                 }
                 return result
             }
@@ -690,12 +667,7 @@ extension CallLowerer {
             )
             let boundType = sema.bindings.exprTypes[exprID] ?? sema.types.anyType
             let result = arena.appendTemporary(type: boundType)
-            instructions.append(.call(
-                callee: invokeCallee,
-                arguments: [functionValue] + invokeArgs,
-                result: result,
-                canThrow: false
-            ))
+            instructions.append(.call(callee: invokeCallee, arguments: [functionValue] + invokeArgs, result: result, canThrow: false))
             return result
         }
 

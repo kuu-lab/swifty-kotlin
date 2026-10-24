@@ -99,12 +99,7 @@ extension CoroutineLoweringPass {
         let resumeLabelExpr = module.arena.appendTemporary(type: intType
         )
         lowered.append(
-            .call(
-                callee: enterCallee,
-                arguments: [continuationExpr, functionIDExpr],
-                result: resumeLabelExpr,
-                canThrow: false
-            )
+            .call(callee: enterCallee, arguments: [continuationExpr, functionIDExpr], result: resumeLabelExpr, canThrow: false)
         )
 
         // Only the entry block and actual suspension continuations can be
@@ -141,24 +136,14 @@ extension CoroutineLoweringPass {
                         lowered: &lowered
                     )
                     lowered.append(
-                        .call(
-                            callee: getSpillCallee,
-                            arguments: [continuationExpr, slotExpr],
-                            result: exprID,
-                            canThrow: false
-                        )
+                        .call(callee: getSpillCallee, arguments: [continuationExpr, slotExpr], result: exprID, canThrow: false)
                     )
                 }
                 if let callResultExpr = transition.callResultExpr {
                     let completionTokenExpr = module.arena.appendTemporary(type: anyType
                     )
                     lowered.append(
-                        .call(
-                            callee: getCompletionCallee,
-                            arguments: [continuationExpr],
-                            result: completionTokenExpr,
-                            canThrow: false
-                        )
+                        .call(callee: getCompletionCallee, arguments: [continuationExpr], result: completionTokenExpr, canThrow: false)
                     )
                     lowered.append(.copy(from: completionTokenExpr, to: callResultExpr))
                 }
@@ -169,12 +154,7 @@ extension CoroutineLoweringPass {
                 let thrownExceptionExpr = module.arena.appendTemporary(type: anyType
                 )
                 lowered.append(
-                    .call(
-                        callee: getThrownExceptionCallee,
-                        arguments: [continuationExpr],
-                        result: thrownExceptionExpr,
-                        canThrow: false
-                    )
+                    .call(callee: getThrownExceptionCallee, arguments: [continuationExpr], result: thrownExceptionExpr, canThrow: false)
                 )
                 let throwLabel = Int32(4000 + block.resumeLabel * 2)
                 let continueLabel = Int32(4000 + block.resumeLabel * 2 + 1)
@@ -223,12 +203,7 @@ extension CoroutineLoweringPass {
                     lowered.append(.copy(from: thrownExceptionExpr, to: thrownResultSlot))
                 } else {
                     lowered.append(
-                        .call(
-                            callee: exitCallee,
-                            arguments: [continuationExpr, thrownExceptionExpr],
-                            result: nil,
-                            canThrow: false
-                        )
+                        .call(callee: exitCallee, arguments: [continuationExpr, thrownExceptionExpr], result: nil, canThrow: false)
                     )
                     lowered.append(.rethrow(value: thrownExceptionExpr))
                 }
@@ -266,12 +241,7 @@ extension CoroutineLoweringPass {
                             lowered: &lowered
                         )
                         lowered.append(
-                            .call(
-                                callee: setSpillCallee,
-                                arguments: [continuationExpr, slotExpr, exprID],
-                                result: nil,
-                                canThrow: false
-                            )
+                            .call(callee: setSpillCallee, arguments: [continuationExpr, slotExpr, exprID], result: nil, canThrow: false)
                         )
                     }
 
@@ -280,12 +250,7 @@ extension CoroutineLoweringPass {
                     lowered.append(.constValue(result: resumeLabelExpr, value: .intLiteral(nextResumeLabel)))
 
                     lowered.append(
-                        .call(
-                            callee: setLabelCallee,
-                            arguments: [continuationExpr, resumeLabelExpr],
-                            result: nil,
-                            canThrow: false
-                        )
+                        .call(callee: setLabelCallee, arguments: [continuationExpr, resumeLabelExpr], result: nil, canThrow: false)
                     )
 
                     let userResultExpr = suspendCallInfo.result
@@ -413,21 +378,11 @@ extension CoroutineLoweringPass {
                     let suspendedExpr = module.arena.appendTemporary(type: anyType
                     )
                     lowered.append(
-                        .call(
-                            callee: suspendedProvider,
-                            arguments: [],
-                            result: suspendedExpr,
-                            canThrow: false
-                        )
+                        .call(callee: suspendedProvider, arguments: [], result: suspendedExpr, canThrow: false)
                     )
                     lowered.append(.returnIfEqual(lhs: suspendTokenResult, rhs: suspendedExpr))
                     lowered.append(
-                        .call(
-                            callee: setCompletionCallee,
-                            arguments: [continuationExpr, suspendTokenResult],
-                            result: nil,
-                            canThrow: false
-                        )
+                        .call(callee: setCompletionCallee, arguments: [continuationExpr, suspendTokenResult], result: nil, canThrow: false)
                     )
                     if let userResultExpr {
                         lowered.append(.copy(from: suspendTokenResult, to: userResultExpr))
@@ -455,12 +410,7 @@ extension CoroutineLoweringPass {
                     let exitValueExpr = module.arena.appendTemporary(type: continuationType
                     )
                     lowered.append(
-                        .call(
-                            callee: exitCallee,
-                            arguments: [continuationExpr, value],
-                            result: exitValueExpr,
-                            canThrow: false
-                        )
+                        .call(callee: exitCallee, arguments: [continuationExpr, value], result: exitValueExpr, canThrow: false)
                     )
                     lowered.append(.returnValue(exitValueExpr))
 
@@ -469,12 +419,7 @@ extension CoroutineLoweringPass {
                     let exitValueExpr = module.arena.appendTemporary(type: continuationType
                     )
                     lowered.append(
-                        .call(
-                            callee: exitCallee,
-                            arguments: [continuationExpr, unitExpr],
-                            result: exitValueExpr,
-                            canThrow: false
-                        )
+                        .call(callee: exitCallee, arguments: [continuationExpr, unitExpr], result: exitValueExpr, canThrow: false)
                     )
                     lowered.append(.returnValue(exitValueExpr))
 

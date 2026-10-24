@@ -160,10 +160,7 @@ extension KIRLoweringDriver {
             callResult: KIRExprID?
         ) {
             guard let context = guardStack.last ?? nil else {
-                result.append(.call(
-                    symbol: symbol, callee: callee, arguments: arguments,
-                    result: callResult, canThrow: false
-                ))
+                result.append(.call(symbol: symbol, callee: callee, arguments: arguments, result: callResult, canThrow: false))
                 return
             }
             result.append(.call(
@@ -628,13 +625,7 @@ extension KIRLoweringDriver {
             forwardedArgs.append(paramExpr)
         }
         let callResult = arena.appendTemporary(type: sema.types.anyType)
-        body.append(.call(
-            symbol: innerLambdaSymbol,
-            callee: innerLambdaName,
-            arguments: forwardedArgs,
-            result: callResult,
-            canThrow: false
-        ))
+        body.append(.call(symbol: innerLambdaSymbol, callee: innerLambdaName, arguments: forwardedArgs, result: callResult, canThrow: false))
         body.append(.returnValue(callResult))
         body.append(.endBlock)
 
@@ -673,12 +664,7 @@ extension KIRLoweringDriver {
         default: preconditionFailure("Unsupported delegate callback arity: \(paramCount)")
         }
         let materializedExpr = arena.appendTemporary(type: sema.types.anyType)
-        instructions.append(.call(
-            callee: createCallee,
-            arguments: [lambdaRefExpr, zeroClosureExpr],
-            result: materializedExpr,
-            canThrow: false
-        ))
+        instructions.append(.call(callee: createCallee, arguments: [lambdaRefExpr, zeroClosureExpr], result: materializedExpr, canThrow: false))
         return materializedExpr
     }
 
@@ -745,13 +731,7 @@ extension KIRLoweringDriver {
         }
 
         let callResult = arena.appendTemporary(type: returnType)
-        body.append(.call(
-            symbol: innerLambdaSymbol,
-            callee: innerLambdaName,
-            arguments: forwardedArgs,
-            result: callResult,
-            canThrow: false
-        ))
+        body.append(.call(symbol: innerLambdaSymbol, callee: innerLambdaName, arguments: forwardedArgs, result: callResult, canThrow: false))
         body.append(.returnValue(callResult))
         body.append(.endBlock)
 
@@ -799,12 +779,7 @@ extension KIRLoweringDriver {
         case 5: interner.intern("kk_function_create_5")
         default: preconditionFailure("Unsupported delegate callback arity: \(adapterNumberedParams.count)")
         }
-        instructions.append(.call(
-            callee: createCallee,
-            arguments: [adapterExpr, closureObj],
-            result: materializedExpr,
-            canThrow: false
-        ))
+        instructions.append(.call(callee: createCallee, arguments: [adapterExpr, closureObj], result: materializedExpr, canThrow: false))
         return materializedExpr
     }
 

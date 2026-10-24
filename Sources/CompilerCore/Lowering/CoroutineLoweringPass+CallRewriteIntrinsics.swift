@@ -7,12 +7,7 @@ extension CoroutineLoweringPass {
         guard call.callee == rewrite.yieldCallee else {
             return nil
         }
-        return .call(
-            callee: rewrite.runtimeYieldCallee,
-            arguments: call.arguments,
-            result: call.result,
-            canThrow: false
-        )
+        return .call(callee: rewrite.runtimeYieldCallee, arguments: call.arguments, result: call.result, canThrow: false)
     }
 
     /// `CoroutineStart.isLazy` is registered as a synthetic member property
@@ -134,12 +129,7 @@ extension CoroutineLoweringPass {
         if call.arguments.count == 3 {
             let slotExpr = rewrite.module.arena.appendExpr(.intLiteral(0), type: rewrite.intType)
             rewritten.append(
-                .call(
-                    callee: rewrite.launcherArgSetCallee,
-                    arguments: [continuationExpr, slotExpr, call.arguments[1]],
-                    result: nil,
-                    canThrow: false
-                )
+                .call(callee: rewrite.launcherArgSetCallee, arguments: [continuationExpr, slotExpr, call.arguments[1]], result: nil, canThrow: false)
             )
         }
 
@@ -260,12 +250,7 @@ extension CoroutineLoweringPass {
         if call.arguments.count == 3 {
             let slotExpr = rewrite.module.arena.appendExpr(.intLiteral(0), type: rewrite.intType)
             rewritten.append(
-                .call(
-                    callee: rewrite.launcherArgSetCallee,
-                    arguments: [continuationExpr, slotExpr, call.arguments[1]],
-                    result: nil,
-                    canThrow: false
-                )
+                .call(callee: rewrite.launcherArgSetCallee, arguments: [continuationExpr, slotExpr, call.arguments[1]], result: nil, canThrow: false)
             )
         }
 
@@ -348,12 +333,7 @@ extension CoroutineLoweringPass {
         if call.arguments.count == 3 {
             let slotExpr = rewrite.module.arena.appendExpr(.intLiteral(0), type: rewrite.intType)
             rewritten.append(
-                .call(
-                    callee: rewrite.launcherArgSetCallee,
-                    arguments: [continuationExpr, slotExpr, call.arguments[1]],
-                    result: nil,
-                    canThrow: false
-                )
+                .call(callee: rewrite.launcherArgSetCallee, arguments: [continuationExpr, slotExpr, call.arguments[1]], result: nil, canThrow: false)
             )
         }
 
@@ -365,12 +345,7 @@ extension CoroutineLoweringPass {
         )
 
         rewritten.append(
-            .call(
-                callee: rewrite.runtimeContinuationResumeCallee,
-                arguments: [continuationExpr, unitExpr],
-                result: nil,
-                canThrow: false
-            )
+            .call(callee: rewrite.runtimeContinuationResumeCallee, arguments: [continuationExpr, unitExpr], result: nil, canThrow: false)
         )
 
         if let result = call.result {

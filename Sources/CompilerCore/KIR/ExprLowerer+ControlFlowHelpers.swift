@@ -41,12 +41,7 @@ extension ExprLowerer {
         let zeroExpr = arena.appendExpr(.intLiteral(0), type: sema.types.intType)
         instructions.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
         let result = arena.appendTemporary(type: resultType)
-        instructions.append(.call(
-            callee: interner.intern("kk_array_get_inbounds"),
-            arguments: [cellExpr, zeroExpr],
-            result: result,
-            canThrow: false
-        ))
+        instructions.append(.call(callee: interner.intern("kk_array_get_inbounds"), arguments: [cellExpr, zeroExpr], result: result, canThrow: false))
         return result
     }
 

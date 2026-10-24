@@ -274,11 +274,7 @@ func emitEnumEntryCollection(
     let enumValuesArray = arena.appendTemporary(type: sema.types.anyType)
     let entriesCountExpr = arena.appendExpr(.intLiteral(Int64(entries.count)), type: intType)
     instructions.append(.constValue(result: entriesCountExpr, value: .intLiteral(Int64(entries.count))))
-    instructions.append(.call(
-        callee: interner.intern("kk_array_new"),
-        arguments: [entriesCountExpr], result: enumValuesArray,
-        canThrow: false
-    ))
+    instructions.append(.call(callee: interner.intern("kk_array_new"), arguments: [entriesCountExpr], result: enumValuesArray, canThrow: false))
 
     let stringType = sema.types.stringType
     let boxOrdinalCallee = interner.intern("kk_enum_box_ordinal")
@@ -304,12 +300,7 @@ func emitEnumEntryCollection(
         // a separate, duplicated code path (enumValues<T>()/enumEntries<T>()
         // rather than T.values()/T.entries) that had the same bug.
         let entryExpr = arena.appendTemporary(type: sema.types.anyType)
-        instructions.append(.call(
-            callee: boxOrdinalCallee,
-            arguments: [indexExpr, nameExpr, classIDExpr],
-            result: entryExpr,
-            canThrow: false
-        ))
+        instructions.append(.call(callee: boxOrdinalCallee, arguments: [indexExpr, nameExpr, classIDExpr], result: entryExpr, canThrow: false))
         instructions.append(.call(
             callee: interner.intern("kk_array_set"),
             arguments: [enumValuesArray, indexExpr, entryExpr],
@@ -326,13 +317,7 @@ func emitEnumEntryCollection(
     let countExpr: KIRExprID
     if let countSymbol {
         let countResult = arena.appendTemporary(type: intType)
-        instructions.append(.call(
-            symbol: countSymbol,
-            callee: countHelperName,
-            arguments: [],
-            result: countResult,
-            canThrow: false
-        ))
+        instructions.append(.call(symbol: countSymbol, callee: countHelperName, arguments: [], result: countResult, canThrow: false))
         countExpr = countResult
     } else {
         let countLiteral = arena.appendExpr(.intLiteral(Int64(entries.count)), type: intType)

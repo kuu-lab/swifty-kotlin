@@ -472,13 +472,7 @@ extension CollectionLiteralLoweringSupport {
         loweredBody: inout KIRLoweringEmitContext
     ) -> KIRExprID {
         let callResult = module.arena.appendTemporary(type: nil)
-        loweredBody.append(.call(
-            callee: callee,
-            arguments: arguments,
-            result: callResult,
-            canThrow: canThrow,
-            thrownResult: thrownResult
-        ))
+        loweredBody.append(.call(callee: callee, arguments: arguments, result: callResult, canThrow: canThrow, thrownResult: thrownResult))
 
         if trackTemporaryWithoutDestination {
             trackedAs?.insert(callResult, into: &state)

@@ -259,12 +259,7 @@ extension BuildKIRRegressionTests {
 
         let intArgExpr = astArena.appendExpr(.intLiteral(7, range))
         let pickCalleeExpr = astArena.appendExpr(.nameRef(pickName, range))
-        let pickCallExpr = astArena.appendExpr(.call(
-            callee: pickCalleeExpr,
-            typeArgs: [],
-            args: [CallArgument(expr: intArgExpr)],
-            range: range
-        ))
+        let pickCallExpr = astArena.appendExpr(.call(callee: pickCalleeExpr, typeArgs: [], args: [CallArgument(expr: intArgExpr)], range: range))
         let mainDeclID = astArena.appendDecl(.funDecl(FunDecl(
             range: range,
             name: mainName,

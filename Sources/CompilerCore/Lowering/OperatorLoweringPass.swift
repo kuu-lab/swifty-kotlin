@@ -64,12 +64,7 @@ final class OperatorLoweringPass: LoweringPass, ParallelLoweringPass {
     ) {
         let notNullResult = arena.appendTemporary(type: arena.exprType(result))
         newBody.append(
-            .call(
-                callee: interner.intern("kk_op_notnull"),
-                arguments: [operand],
-                result: notNullResult,
-                canThrow: true
-            )
+            .call(callee: interner.intern("kk_op_notnull"), arguments: [operand], result: notNullResult, canThrow: true)
         )
 
         guard let types, let resultType = arena.exprType(result) else {
@@ -79,12 +74,7 @@ final class OperatorLoweringPass: LoweringPass, ParallelLoweringPass {
 
         if let unboxCallee = unboxCallee(for: types.kind(of: resultType), interner: interner) {
             newBody.append(
-                .call(
-                    callee: unboxCallee,
-                    arguments: [notNullResult],
-                    result: result,
-                    canThrow: false
-                )
+                .call(callee: unboxCallee, arguments: [notNullResult], result: result, canThrow: false)
             )
         } else {
             newBody.append(.copy(from: notNullResult, to: result))
@@ -236,10 +226,7 @@ final class OperatorLoweringPass: LoweringPass, ParallelLoweringPass {
                 let flagExpr = arena.appendExpr(.intLiteral(flagValue), type: intType)
                 newBody.append(.constValue(result: flagExpr, value: .intLiteral(flagValue)))
                 let callee = interner.intern(op == .equal ? "kk_nullable_primitive_eq" : "kk_nullable_primitive_ne")
-                newBody.append(.call(
-                    callee: callee, arguments: [nullableSide, peerSide, flagExpr],
-                    result: result, canThrow: false
-                ))
+                newBody.append(.call(callee: callee, arguments: [nullableSide, peerSide, flagExpr], result: result, canThrow: false))
                 return
             }
         }
@@ -348,12 +335,7 @@ final class OperatorLoweringPass: LoweringPass, ParallelLoweringPass {
         }
 
         let boxed = arena.appendTemporary(type: types.nullableAnyType)
-        newBody.append(.call(
-            callee: boxCallee,
-            arguments: [operand],
-            result: boxed,
-            canThrow: false
-        ))
+        newBody.append(.call(callee: boxCallee, arguments: [operand], result: boxed, canThrow: false))
         return boxed
     }
 

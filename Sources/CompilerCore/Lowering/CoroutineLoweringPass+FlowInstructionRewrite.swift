@@ -55,12 +55,7 @@ extension CoroutineLoweringPass {
         // unchanged so their actual implementation runs.
 
         func appendFlowReleaseCall(_ handleExpr: KIRExprID) {
-            loweredBody.append(.call(
-                callee: names.kkFlowRelease,
-                arguments: [handleExpr],
-                result: nil,
-                canThrow: false
-            ))
+            loweredBody.append(.call(callee: names.kkFlowRelease, arguments: [handleExpr], result: nil, canThrow: false))
         }
 
         func isSymbolBackedFlowExpr(_ exprID: KIRExprID) -> Bool {
@@ -76,12 +71,7 @@ extension CoroutineLoweringPass {
             if isSymbolBackedFlowExpr(sourceHandle) {
                 let retained = module.arena.appendTemporary(type: ctx.sema?.types.anyType ?? TypeID.invalid
                 )
-                loweredBody.append(.call(
-                    callee: names.kkFlowRetain,
-                    arguments: [sourceHandle],
-                    result: retained,
-                    canThrow: false
-                ))
+                loweredBody.append(.call(callee: names.kkFlowRetain, arguments: [sourceHandle], result: retained, canThrow: false))
                 return (retained, retained)
             }
 
@@ -123,12 +113,7 @@ extension CoroutineLoweringPass {
             result: KIRExprID?
         ) {
             let consume = prepareFlowHandleForConsume(handleExpr)
-            loweredBody.append(.call(
-                callee: callee,
-                arguments: [consume.callArg] + extraArguments,
-                result: result,
-                canThrow: false
-            ))
+            loweredBody.append(.call(callee: callee, arguments: [consume.callArg] + extraArguments, result: result, canThrow: false))
             if let releaseHandle = consume.releaseAfterCall { appendFlowReleaseCall(releaseHandle) }
             if let result { flowExprIDs.insert(result.rawValue) }
         }

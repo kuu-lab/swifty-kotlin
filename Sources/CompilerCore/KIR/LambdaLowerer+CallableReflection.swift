@@ -442,12 +442,7 @@ extension LambdaLowerer {
             into instructions: inout [KIRInstruction]
         ) -> [KIRExprID] {
             let widened = arena.appendTemporary(type: sema.types.longType)
-            instructions.append(.call(
-                callee: interner.intern("kk_int_to_long"),
-                arguments: [first],
-                result: widened,
-                canThrow: false
-            ))
+            instructions.append(.call(callee: interner.intern("kk_int_to_long"), arguments: [first], result: widened, canThrow: false))
             var words = [widened]
             let wordCount = DefaultArgumentMask(parameterCount: parameterCount).stubWords.count
             for _ in 1 ..< wordCount {

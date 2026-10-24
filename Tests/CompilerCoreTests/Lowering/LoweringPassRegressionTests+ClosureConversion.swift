@@ -32,12 +32,7 @@ extension LoweringPassRegressionTests {
         // can still cause the pass to run for this module.
         var body: [KIRInstruction] = []
         if hasMarker {
-            body.append(.call(
-                callee: interner.intern("<lambda>"),
-                arguments: [],
-                result: nil,
-                canThrow: false
-            ))
+            body.append(.call(callee: interner.intern("<lambda>"), arguments: [], result: nil, canThrow: false))
         }
         body.append(.returnUnit)
         let mainID = arena.appendDecl(.function(KIRFunction(
@@ -792,10 +787,7 @@ extension LoweringPassRegressionTests {
             // Source calls can look non-throwing before ABI lowering classifies
             // their default bridges and callees. Closure conversion must not use
             // this pre-ABI bit as proof that the lambda cannot throw.
-            lambdaBody.append(.call(
-                callee: sourceCallee, arguments: [captureExpr],
-                result: nil, canThrow: false
-            ))
+            lambdaBody.append(.call(callee: sourceCallee, arguments: [captureExpr], result: nil, canThrow: false))
         }
         lambdaBody.append(.returnValue(captureExpr))
         lambdaBody.append(.endBlock)

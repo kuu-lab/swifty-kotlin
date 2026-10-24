@@ -410,12 +410,7 @@ final class LambdaLowerer {
                 let offsetExpr = arena.appendExpr(.intLiteral(fieldOffset), type: sema.types.intType)
                 lambdaBody.append(.constValue(result: offsetExpr, value: .intLiteral(fieldOffset)))
                 let loadedExpr = arena.appendTemporary(type: capture.param.type)
-                lambdaBody.append(.call(
-                    callee: kkArrayGet,
-                    arguments: [closureObjExpr, offsetExpr],
-                    result: loadedExpr,
-                    canThrow: false
-                ))
+                lambdaBody.append(.call(callee: kkArrayGet, arguments: [closureObjExpr, offsetExpr], result: loadedExpr, canThrow: false))
                 bindCapturedLambdaValue(loadedExpr, capture: capture, sema: sema, arena: arena, interner: interner, instructions: &lambdaBody)
                 if capture.capturedSymbol == savedReceiverSymbol {
                     if !needsExplicitReceiver {
@@ -717,10 +712,7 @@ final class LambdaLowerer {
             let componentSymbol = SyntheticSymbolScheme.reifiedArrayComponentTokenSymbol(for: capture.capturedSymbol)
             let classToken = arena.appendTemporary(type: sema.types.intType)
             let componentToken = arena.appendTemporary(type: sema.types.intType)
-            instructions.append(.call(
-                callee: interner.intern("__kk_pair_first"), arguments: [capturedValue],
-                result: classToken, canThrow: false
-            ))
+            instructions.append(.call(callee: interner.intern("__kk_pair_first"), arguments: [capturedValue], result: classToken, canThrow: false))
             instructions.append(.call(
                 callee: interner.intern("__kk_pair_second"), arguments: [capturedValue],
                 result: componentToken, canThrow: false

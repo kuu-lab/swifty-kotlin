@@ -478,12 +478,7 @@ extension KIRLoweringDriver {
                 for: symbol, sema: sema, arena: arena, into: &allTopLevelInitInstructions
             )
             allTopLevelInitInstructions.append(
-                .call(
-                    callee: interner.intern(externalLinkName),
-                    arguments: getterArguments,
-                    result: result,
-                    canThrow: false
-                )
+                .call(callee: interner.intern(externalLinkName), arguments: getterArguments, result: result, canThrow: false)
             )
             allTopLevelInitInstructions.append(
                 .copy(from: result, to: storage)
@@ -506,13 +501,7 @@ extension KIRLoweringDriver {
             }
             let result = arena.appendTemporary(type: sema.types.unitType)
             allTopLevelInitInstructions.append(
-                .call(
-                    symbol: initializerSymbol,
-                    callee: interner.intern(externalLinkName),
-                    arguments: [],
-                    result: result,
-                    canThrow: false
-                )
+                .call(symbol: initializerSymbol, callee: interner.intern(externalLinkName), arguments: [], result: result, canThrow: false)
             )
         }
 
@@ -584,13 +573,7 @@ extension KIRLoweringDriver {
             let result = arena.appendTemporary(type: sema.types.unitType
             )
             allTopLevelInitInstructions.append(
-                .call(
-                    symbol: initializer.symbol,
-                    callee: initializer.name,
-                    arguments: [],
-                    result: result,
-                    canThrow: false
-                )
+                .call(symbol: initializer.symbol, callee: initializer.name, arguments: [], result: result, canThrow: false)
             )
         }
     }

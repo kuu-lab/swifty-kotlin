@@ -142,12 +142,7 @@ extension ExprLowerer {
             )
         }
         let isResult = arena.appendTemporary(type: boundType ?? boolType)
-        instructions.append(.call(
-            callee: interner.intern("kk_op_is"),
-            arguments: [operandID, typeToken],
-            result: isResult,
-            canThrow: false
-        ))
+        instructions.append(.call(callee: interner.intern("kk_op_is"), arguments: [operandID, typeToken], result: isResult, canThrow: false))
         guard negated else {
             return isResult
         }

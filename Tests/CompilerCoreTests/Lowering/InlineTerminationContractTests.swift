@@ -42,10 +42,7 @@ struct InlineTerminationContractTests {
         interner: StringInterner,
         arguments: [KIRExprID] = []
     ) -> KIRInstruction {
-        .call(
-            symbol: symbol, callee: interner.intern(callee),
-            arguments: arguments, result: nil, canThrow: false
-        )
+        .call(symbol: symbol, callee: interner.intern(callee), arguments: arguments, result: nil, canThrow: false)
     }
 
     private func makeContext(

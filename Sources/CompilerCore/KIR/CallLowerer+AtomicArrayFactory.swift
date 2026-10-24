@@ -116,12 +116,7 @@ extension CallLowerer {
         instructions.append(.label(conditionLabel))
 
         let conditionExpr = arena.appendTemporary(type: boolType)
-        instructions.append(.call(
-            callee: lessThanCallee,
-            arguments: [indexExpr, sizeExpr],
-            result: conditionExpr,
-            canThrow: true
-        ))
+        instructions.append(.call(callee: lessThanCallee, arguments: [indexExpr, sizeExpr], result: conditionExpr, canThrow: true))
         instructions.append(.jumpIfEqual(lhs: conditionExpr, rhs: falseExpr, target: exitLabel))
 
         var lambdaResultExpr: KIRExprID?
@@ -173,21 +168,11 @@ extension CallLowerer {
 
         if let lambdaResult = lambdaResultExpr {
             let storeResult = arena.appendTemporary(type: unitType)
-            instructions.append(.call(
-                callee: storeAtCallee,
-                arguments: [arrayExpr, indexExpr, lambdaResult],
-                result: storeResult,
-                canThrow: false
-            ))
+            instructions.append(.call(callee: storeAtCallee, arguments: [arrayExpr, indexExpr, lambdaResult], result: storeResult, canThrow: false))
         }
 
         let nextIndexBoxedExpr = arena.appendTemporary(type: intType)
-        instructions.append(.call(
-            callee: addCallee,
-            arguments: [indexExpr, oneExpr],
-            result: nextIndexBoxedExpr,
-            canThrow: true
-        ))
+        instructions.append(.call(callee: addCallee, arguments: [indexExpr, oneExpr], result: nextIndexBoxedExpr, canThrow: true))
         let nextIndexExpr = emitNonThrowingCall(
             callee: unboxIntCallee,
             arg: nextIndexBoxedExpr,

@@ -306,13 +306,7 @@ extension LambdaLowerer {
                 dispatch: dispatch
             ))
         } else {
-            body.append(.call(
-                symbol: targetSymbol,
-                callee: callee,
-                arguments: callArguments,
-                result: callResult,
-                canThrow: isReifiedThunk
-            ))
+            body.append(.call(symbol: targetSymbol, callee: callee, arguments: callArguments, result: callResult, canThrow: isReifiedThunk))
         }
         switch sema.types.kind(of: returnType) {
         case .unit, .nothing(.nonNull), .nothing(.nullable):
@@ -1838,12 +1832,7 @@ extension LambdaLowerer {
 
         let taggedExpr = arena.appendTemporary(type: callableType
         )
-        instructions.append(.call(
-            callee: interner.intern(tagCallee),
-            arguments: tagArguments,
-            result: taggedExpr,
-            canThrow: false
-        ))
+        instructions.append(.call(callee: interner.intern(tagCallee), arguments: tagArguments, result: taggedExpr, canThrow: false))
         let identityTargetSymbol: SymbolID? = {
             guard let targetSymbol else { return nil }
             switch refKind {

@@ -75,12 +75,7 @@ extension KIRLoweringDriver {
         let kPropertyExprID = arena.appendTemporary(type: sema.types.anyType
         )
         body.append(
-            .call(
-                callee: interner.intern(stubCalleeName),
-                arguments: stubArguments,
-                result: kPropertyExprID,
-                canThrow: false
-            )
+            .call(callee: interner.intern(stubCalleeName), arguments: stubArguments, result: kPropertyExprID, canThrow: false)
         )
         return kPropertyExprID
     }

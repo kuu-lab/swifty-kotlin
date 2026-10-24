@@ -50,12 +50,7 @@ func appendTypeAncestryRegistrations<Instructions: RangeReplaceableCollection>(
             } else {
                 interner.intern("kk_type_register_super")
             }
-            instructions.append(.call(
-                callee: registerCallee,
-                arguments: [childExpr, parentExpr],
-                result: registerResult,
-                canThrow: false
-            ))
+            instructions.append(.call(callee: registerCallee, arguments: [childExpr, parentExpr], result: registerResult, canThrow: false))
             stack.append(superSymbol)
         }
     }

@@ -117,12 +117,7 @@ extension BuildASTPhase.ExpressionParser {
                         // value expression.
                         let endToken = tokens[index - 1]
                         let range = mergeRanges(astArena.exprRange(expr), endToken.range, fallback: endToken.range)
-                        let typeReceiver = astArena.appendExpr(.call(
-                            callee: expr,
-                            typeArgs: typeArgs,
-                            args: [],
-                            range: range
-                        ))
+                        let typeReceiver = astArena.appendExpr(.call(callee: expr, typeArgs: typeArgs, args: [], range: range))
                         astArena.markTypeQualifierCall(typeReceiver)
                         expr = typeReceiver
                         continue

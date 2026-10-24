@@ -22,12 +22,7 @@ extension CallLowerer {
            sema.bindings.callBinding(for: exprID) == nil,
            shouldLowerPrimitiveInv(receiverExpr: receiverExpr, sema: sema, nullableReceiverAllowed: requireNonNullableReceiverForConstFold)
         {
-            instructions.append(.call(
-                callee: interner.intern("kk_op_inv"),
-                arguments: [loweredReceiverID],
-                result: result,
-                canThrow: false
-            ))
+            instructions.append(.call(callee: interner.intern("kk_op_inv"), arguments: [loweredReceiverID], result: result, canThrow: false))
             return result
         }
 
@@ -40,12 +35,7 @@ extension CallLowerer {
             let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
             let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
             if sema.types.isSubtype(nonNullReceiverType, sema.types.booleanType) {
-                instructions.append(.call(
-                    callee: interner.intern("kk_op_not"),
-                    arguments: [loweredReceiverID],
-                    result: result,
-                    canThrow: false
-                ))
+                instructions.append(.call(callee: interner.intern("kk_op_not"), arguments: [loweredReceiverID], result: result, canThrow: false))
                 return result
             }
         }
@@ -65,12 +55,7 @@ extension CallLowerer {
                     nil
                 }
                 if let boolCallee {
-                    instructions.append(.call(
-                        callee: boolCallee,
-                        arguments: [loweredReceiverID, loweredArgIDs[0]],
-                        result: result,
-                        canThrow: false
-                    ))
+                    instructions.append(.call(callee: boolCallee, arguments: [loweredReceiverID, loweredArgIDs[0]], result: result, canThrow: false))
                     return result
                 }
             }
@@ -226,12 +211,7 @@ extension CallLowerer {
                 nil
             }
             if let primitiveCallee {
-                instructions.append(.call(
-                    callee: primitiveCallee,
-                    arguments: [loweredReceiverID, loweredArgIDs[0]],
-                    result: result,
-                    canThrow: false
-                ))
+                instructions.append(.call(callee: primitiveCallee, arguments: [loweredReceiverID, loweredArgIDs[0]], result: result, canThrow: false))
                 return result
             }
         }
@@ -436,12 +416,7 @@ extension CallLowerer {
             default: nil
             }
             if let callee = conversionCallee {
-                instructions.append(.call(
-                    callee: callee,
-                    arguments: [conversionReceiverID],
-                    result: result,
-                    canThrow: false
-                ))
+                instructions.append(.call(callee: callee, arguments: [conversionReceiverID], result: result, canThrow: false))
                 return result
             }
             let isRepresentationPreservingConversion =
@@ -485,12 +460,7 @@ extension CallLowerer {
         if args.isEmpty, calleeNameStr == "code" {
             let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
             if sema.types.makeNonNullable(receiverType) == sema.types.charType {
-                instructions.append(.call(
-                    callee: interner.intern("kk_char_code"),
-                    arguments: [loweredReceiverID],
-                    result: result,
-                    canThrow: false
-                ))
+                instructions.append(.call(callee: interner.intern("kk_char_code"), arguments: [loweredReceiverID], result: result, canThrow: false))
                 return result
             }
         }

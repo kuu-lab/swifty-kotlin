@@ -79,12 +79,7 @@ func emitRuntimeAnnotationRegistration(
                 ? "__kk_kcallable_register_annotation_factory" : "__kk_kclass_register_annotation_factory")
         }
         let registerResult = arena.appendTemporary(type: intType)
-        instructions.append(.call(
-            callee: interner.intern(callee),
-            arguments: registrationArguments,
-            result: registerResult,
-            canThrow: false
-        ))
+        instructions.append(.call(callee: interner.intern(callee), arguments: registrationArguments, result: registerResult, canThrow: false))
 
         if registerJavaInheritedAnnotations,
            annotationTypeIsJavaInherited(annotation, sema: sema, interner: interner)

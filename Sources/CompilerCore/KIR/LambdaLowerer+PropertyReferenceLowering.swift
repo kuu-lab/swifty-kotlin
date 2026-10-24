@@ -443,13 +443,7 @@ extension LambdaLowerer {
         let result = arena.appendTemporary(type: accessor.propertyType)
         // Adapt the thunk, not the getter, to the raw function-value ABI.
         // Imported getters must retain their compiled aggregate/throwing ABI.
-        body.append(.call(
-            symbol: accessor.getterSymbol,
-            callee: getterName,
-            arguments: arguments,
-            result: result,
-            canThrow: true
-        ))
+        body.append(.call(symbol: accessor.getterSymbol, callee: getterName, arguments: arguments, result: result, canThrow: true))
         body.append(.returnValue(result))
         body.append(.endBlock)
         driver.ctx.appendGeneratedCallableDecl(arena.appendDecl(.function(KIRFunction(
@@ -712,12 +706,7 @@ extension LambdaLowerer {
             // Route them through the enum name/ordinal lowering instead of the
             // constructor-property slot helpers used by ordinary enum fields.
             let result = arena.appendTemporary(type: propertyType)
-            body.append(.call(
-                callee: enumPropertyInfo.name,
-                arguments: [receiverExpr],
-                result: result,
-                canThrow: false
-            ))
+            body.append(.call(callee: enumPropertyInfo.name, arguments: [receiverExpr], result: result, canThrow: false))
             body.append(.returnValue(result))
         } else if let receiverExpr,
                   kind == .getter,
@@ -753,23 +742,13 @@ extension LambdaLowerer {
             // member read/write paths.
             if kind == .getter {
                 let result = arena.appendTemporary(type: propertyType)
-                body.append(.call(
-                    callee: enumHelperCallee,
-                    arguments: [receiverExpr],
-                    result: result,
-                    canThrow: false
-                ))
+                body.append(.call(callee: enumHelperCallee, arguments: [receiverExpr], result: result, canThrow: false))
                 body.append(.returnValue(result))
             } else if let valueSymbol {
                 let valueExpr = arena.appendExpr(.symbolRef(valueSymbol), type: propertyType)
                 body.append(.constValue(result: valueExpr, value: .symbolRef(valueSymbol)))
                 let result = arena.appendTemporary(type: sema.types.unitType)
-                body.append(.call(
-                    callee: enumHelperCallee,
-                    arguments: [receiverExpr, valueExpr],
-                    result: result,
-                    canThrow: false
-                ))
+                body.append(.call(callee: enumHelperCallee, arguments: [receiverExpr, valueExpr], result: result, canThrow: false))
                 body.append(.returnUnit)
             }
         } else if let fieldOffset,
@@ -1253,13 +1232,7 @@ extension LambdaLowerer {
             args.append(expr)
         }
         let result = arena.appendTemporary(type: implementationFunction.returnType)
-        body.append(.call(
-            symbol: implementation,
-            callee: implementationFunction.name,
-            arguments: args,
-            result: result,
-            canThrow: false
-        ))
+        body.append(.call(symbol: implementation, callee: implementationFunction.name, arguments: args, result: result, canThrow: false))
         body.append(.returnValue(result))
         body.append(.endBlock)
         driver.ctx.appendGeneratedCallableDecl(arena.appendDecl(.function(KIRFunction(

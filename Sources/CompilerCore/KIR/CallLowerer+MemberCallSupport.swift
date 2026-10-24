@@ -526,13 +526,7 @@ extension CallLowerer {
         // an Any-erased boundary.
         if let nameHelper = enumOrdinalToNameCallee(for: valueType, sema: sema, interner: interner) {
             let name = arena.appendTemporary(type: stringType)
-            instructions.append(.call(
-                symbol: nameHelper.symbol,
-                callee: nameHelper.callee,
-                arguments: [valueID],
-                result: name,
-                canThrow: false
-            ))
+            instructions.append(.call(symbol: nameHelper.symbol, callee: nameHelper.callee, arguments: [valueID], result: name, canThrow: false))
             return name
         }
         // A statically class-typed value (data class, ordinary class, or value
@@ -558,13 +552,7 @@ extension CallLowerer {
                     sema: sema,
                     arena: arena,
                     interner: interner
-                ) ?? .call(
-                    symbol: classToString.symbol,
-                    callee: classToString.callee,
-                    arguments: [valueID],
-                    result: result,
-                    canThrow: false
-                )
+                ) ?? .call(symbol: classToString.symbol, callee: classToString.callee, arguments: [valueID], result: result, canThrow: false)
             }
             guard needsNullGuard else {
                 instructions.append(emitToStringCall(into: converted))
@@ -649,12 +637,7 @@ extension CallLowerer {
         instructions.append(.jump(endLabel))
         instructions.append(.label(nonNullLabel))
         let innerConverted = arena.appendTemporary(type: stringType)
-        instructions.append(.call(
-            callee: interner.intern("kk_any_to_string"),
-            arguments: [valueID, tagID],
-            result: innerConverted,
-            canThrow: false
-        ))
+        instructions.append(.call(callee: interner.intern("kk_any_to_string"), arguments: [valueID, tagID], result: innerConverted, canThrow: false))
         instructions.append(.copy(from: innerConverted, to: converted))
         instructions.append(.label(endLabel))
         return converted

@@ -539,11 +539,7 @@ extension KIRLoweringDriver {
             let registerCallee = sema.symbols.symbol(superSymbol)?.kind == .interface
                 ? interner.intern("kk_type_register_iface")
                 : interner.intern("kk_type_register_super")
-            instructions.append(.call(
-                callee: registerCallee,
-                arguments: [childExpr, parentExpr],
-                result: registerResult, canThrow: false
-            ))
+            instructions.append(.call(callee: registerCallee, arguments: [childExpr, parentExpr], result: registerResult, canThrow: false))
         }
         appendObjectItableMethodRegistrations(
             objectValue: allocatedObj, nominalSymbol: ownerSymbol,

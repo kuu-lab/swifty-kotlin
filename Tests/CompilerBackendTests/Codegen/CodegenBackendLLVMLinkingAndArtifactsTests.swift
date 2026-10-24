@@ -958,12 +958,7 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
         ]
 
         func appendRegexCall(_ calleeName: String, arguments: [KIRExprID]) {
-            body.append(.call(
-                callee: interner.intern(calleeName),
-                arguments: arguments,
-                result: temporary(types.intType),
-                canThrow: false
-            ))
+            body.append(.call(callee: interner.intern(calleeName), arguments: arguments, result: temporary(types.intType), canThrow: false))
         }
 
         appendRegexCall(try runtimeLinkName("regex_create_flat"), arguments: [patternExpr])
@@ -1036,12 +1031,7 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
         ]
 
         func appendBuilderCall(_ calleeName: String, arguments: [KIRExprID]) {
-            body.append(.call(
-                callee: interner.intern(calleeName),
-                arguments: arguments,
-                result: temporary(types.intType),
-                canThrow: false
-            ))
+            body.append(.call(callee: interner.intern(calleeName), arguments: arguments, result: temporary(types.intType), canThrow: false))
         }
 
         appendBuilderCall(try runtimeLinkName("string_builder_new_from_string_flat"), arguments: [textExpr])
@@ -1104,12 +1094,7 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
         ]
 
         func appendLocaleCall(_ calleeName: String, arguments: [KIRExprID]) {
-            body.append(.call(
-                callee: interner.intern(calleeName),
-                arguments: arguments,
-                result: temporary(types.intType),
-                canThrow: false
-            ))
+            body.append(.call(callee: interner.intern(calleeName), arguments: arguments, result: temporary(types.intType), canThrow: false))
         }
 
         appendLocaleCall(try runtimeLinkName("locale_new_flat"), arguments: [identifierExpr])
@@ -1336,12 +1321,7 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
         ]
 
         func appendScalarCall(_ calleeName: String, _ arguments: [KIRExprID]) {
-            body.append(.call(
-                callee: interner.intern(calleeName),
-                arguments: arguments,
-                result: temporary(types.intType),
-                canThrow: false
-            ))
+            body.append(.call(callee: interner.intern(calleeName), arguments: arguments, result: temporary(types.intType), canThrow: false))
         }
 
         appendScalarCall(try runtimeLinkName("string_split_flat"), [textExpr, delimiterExpr])
@@ -1405,12 +1385,7 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
         ]
 
         func appendByteArrayCall(_ calleeName: String, _ arguments: [KIRExprID]) {
-            body.append(.call(
-                callee: interner.intern(calleeName),
-                arguments: arguments,
-                result: temporary(types.intType),
-                canThrow: false
-            ))
+            body.append(.call(callee: interner.intern(calleeName), arguments: arguments, result: temporary(types.intType), canThrow: false))
         }
 
         appendByteArrayCall(try runtimeLinkName("string_toByteArray_flat"), [textExpr])
