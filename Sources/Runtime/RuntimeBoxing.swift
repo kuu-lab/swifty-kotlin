@@ -709,6 +709,23 @@ public func kk_unbox_char_static(_ value: Int) -> Int {
 @_cdecl("kk_tag_value_class_box")
 public func kk_tag_value_class_box(_ boxedRaw: Int, _ classID: Int) -> Int {
     guard boxedRaw != runtimeNullSentinelInt else { return boxedRaw }
+    // A RuntimeStringBox is a shared identity handle — `kk_string_from_flat`
+    // resolves every flat String to the canonical box for its buffer, and a
+    // Kotlin variable may still hold the same box as a plain String. Tagging
+    // it in place would poison both: `println(str)` would dispatch
+    // `S.toString`, and `s?.x` would bridge back to the tagged box and
+    // recurse `S(x=S(x=…` (KUU-3251). Clone the payload, remember the
+    // original box as the untagged canonical alias so `x` bridges preserve
+    // object identity, and tag the clone instead.
+    if let ptr = UnsafeMutableRawPointer(bitPattern: boxedRaw),
+       let stringBox = tryCast(ptr, to: RuntimeStringBox.self)
+    {
+        let clone = RuntimeStringBox(stringBox.value)
+        clone.untaggedCanonicalAlias = stringBox.untaggedCanonicalAlias ?? stringBox
+        let cloneRaw = registerRuntimeObject(clone)
+        runtimeRegisterObjectType(rawValue: cloneRaw, classID: Int64(classID))
+        return cloneRaw
+    }
     // A box minted through the JVM-compatible identity cache is shared with
     // every caller that boxes the same primitive value. Tagging it in place
     // would register this value class's nominal type on all of them, so clone
