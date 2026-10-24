@@ -26,13 +26,17 @@ extension LoweringPassRegressionTests {
             visibility: .public
         )
         for entryName in entryNames {
-            _ = symbols.define(
+            let entrySymbol = symbols.define(
                 kind: .field,
                 name: interner.intern(entryName),
                 fqName: packagePath + [enumInternedName, interner.intern(entryName)],
                 declSite: nil,
                 visibility: .public
             )
+            // enumEntrySymbols discovers entries via children(of:), which is
+            // driven by parent links — mirror the linkage real sema sets up so
+            // the hand-built fixtures exercise the same synthesis path.
+            symbols.setParentSymbol(enumSymbol, for: entrySymbol)
         }
 
         let arena = KIRArena()
