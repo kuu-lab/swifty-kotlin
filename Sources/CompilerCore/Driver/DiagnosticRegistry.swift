@@ -1076,6 +1076,18 @@ enum DiagnosticRegistry {
             defaultSeverity: .error,
             summary: "A declaration can have only one companion object."
         ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0439",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "An inner-class supertype requires a receiver of the containing class."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0440",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "An enclosing this of a non-inner class cannot back an inner-class supertype."
+        ),
     ]
 
 

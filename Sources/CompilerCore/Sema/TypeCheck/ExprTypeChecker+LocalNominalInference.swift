@@ -231,6 +231,32 @@ extension ExprTypeChecker {
             enclosingClassSymbol: classSymbol
         )
 
+        // Enclosing nominal scopes (innermost → outermost) for the
+        // inner-class supertype receiver check below and the deferred
+        // annotation-target bookkeeping further down.
+        var lexicalEnclosingFQNames: [[InternedString]] = []
+        var lexicalScope: Scope? = ctx.scope
+        while let scope = lexicalScope as? BaseScope {
+            if let memberScope = scope as? ClassMemberScope,
+               let owner = sema.symbols.symbol(memberScope.owner) {
+                lexicalEnclosingFQNames.append(owner.fqName)
+            }
+            lexicalScope = scope.parent
+        }
+
+        // The implicit receivers a local class may capture: the enclosing
+        // `this` (including an extension receiver), `this@Outer` chain
+        // entries, and receivers pushed by builder lambdas.
+        var lexicalReceiverSymbols = Set(ctx.outerReceiverTypes.compactMap(\.symbol))
+        lexicalReceiverSymbols.formUnion(ctx.implicitReceiverStack.map(\.symbol))
+        if let implicitReceiverType = ctx.implicitReceiverType,
+           let receiverSymbol = driver.helpers.nominalSymbol(
+               of: sema.types.makeNonNullable(implicitReceiverType),
+               types: sema.types
+           ) {
+            lexicalReceiverSymbols.insert(receiverSymbol)
+        }
+
         var directSuperSymbols: [SymbolID] = []
         directSuperSymbols.reserveCapacity(classDecl.superTypeEntries.count)
         var directSuperTypeArgs: [SymbolID: [TypeArg]] = [:]
@@ -256,6 +282,19 @@ extension ExprTypeChecker {
                 }
                 directSuperSymbols.append(classType.classSymbol)
                 directSuperTypeArgs[classType.classSymbol] = classType.args
+                DataFlowSemaPhase().validateInnerClassSupertypeReceiver(
+                    resolvedSymbol: classType.classSymbol,
+                    context: .lexical,
+                    declRange: classDecl.range,
+                    declSymbol: classSymbol,
+                    enclosingClassScopes: Array(lexicalEnclosingFQNames.reversed()),
+                    lexicalReceiverSymbols: lexicalReceiverSymbols,
+                    symbols: sema.symbols,
+                    types: sema.types,
+                    diagnostics: ctx.sema.diagnostics,
+                    sourceManager: ctx.visibilityChecker.sourceManager,
+                    interner: interner
+                )
             }
         }
         let concreteClassSupers = directSuperSymbols.filter {
@@ -400,15 +439,8 @@ extension ExprTypeChecker {
         }
         // Synthetic local owners do not encode lexical nesting in their FQ
         // names. Preserve every surrounding class, including other locals.
-        var lexicalEnclosingFQNames: [[InternedString]] = []
-        var lexicalScope: Scope? = ctx.scope
-        while let scope = lexicalScope as? BaseScope {
-            if let memberScope = scope as? ClassMemberScope,
-               let owner = sema.symbols.symbol(memberScope.owner) {
-                lexicalEnclosingFQNames.append(owner.fqName)
-            }
-            lexicalScope = scope.parent
-        }
+        // `lexicalEnclosingFQNames` is computed above for the supertype
+        // receiver check.
         let lexicalLocalNominalScopes = outerLocalsSnapshot.values
             .sorted(by: { $0.symbol.rawValue < $1.symbol.rawValue })
             .compactMap { binding -> [InternedString]? in
