@@ -106,6 +106,8 @@ struct DeclarationPositionValidator {
         let modifiers = decl.modifiers
         let target = functionTargetName(site: site)
 
+        validateDuplicateTypeParamNames(decl.typeParams, range: decl.range)
+
         for (modifier, name) in Self.funImpossibleModifiers where modifiers.contains(modifier) {
             emitNotApplicable(name, to: target, range: decl.range)
         }
@@ -521,6 +523,8 @@ struct DeclarationPositionValidator {
     }
 
     private func validateClass(_ decl: ClassDecl, site: OwnerSite) {
+        validateDuplicateTypeParamNames(decl.typeParams, range: decl.range)
+
         let modifiers = decl.modifiers
         let isEnum = modifiers.contains(.enumModifier)
         let isAnnotation = modifiers.contains(.annotationClass)
@@ -753,6 +757,8 @@ struct DeclarationPositionValidator {
     }
 
     private func validateInterface(_ decl: InterfaceDecl, site: OwnerSite) {
+        validateDuplicateTypeParamNames(decl.typeParams, range: decl.range)
+
         let modifiers = decl.modifiers
 
         for (modifier, name) in Self.interfaceForbiddenModifiers where modifiers.contains(modifier) {
@@ -897,6 +903,7 @@ struct DeclarationPositionValidator {
     }
 
     private func validateTypeAlias(_ decl: TypeAliasDecl, site: OwnerSite) {
+        validateDuplicateTypeParamNames(decl.typeParams, range: decl.range)
         for (modifier, name) in Self.typeAliasForbiddenModifiers where decl.modifiers.contains(modifier) {
             emitNotApplicable(name, to: "typealias", range: decl.range)
         }
@@ -983,6 +990,21 @@ struct DeclarationPositionValidator {
                 diagnostics?.error(
                     "KSWIFTK-SEMA-0402",
                     "modifier '\(firstName)' is incompatible with '\(secondName)'.",
+                    range: range
+                )
+            }
+        }
+    }
+
+    private func validateDuplicateTypeParamNames(_ typeParams: [TypeParamDecl], range: SourceRange) {
+        var seen: Set<InternedString> = []
+        var reported: Set<InternedString> = []
+        for param in typeParams where !seen.insert(param.name).inserted {
+            if reported.insert(param.name).inserted {
+                let name = interner.resolve(param.name)
+                diagnostics?.error(
+                    "KSWIFTK-SEMA-0436",
+                    "conflicting declarations: \(name), \(name).",
                     range: range
                 )
             }
