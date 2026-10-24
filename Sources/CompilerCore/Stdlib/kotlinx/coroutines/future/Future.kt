@@ -24,7 +24,7 @@ public fun Job.asCompletableFuture(): CompletableFuture<Unit> {
         }
     }
     cf.whenComplete { _, _ ->
-        if (cf.isCancelled()) cancel()
+        if (cf.isCancelled) cancel()
     }
     return cf
 }
@@ -39,7 +39,7 @@ public fun <T> Deferred<T>.asCompletableFuture(): CompletableFuture<T> {
         }
     }
     cf.whenComplete { _, _ ->
-        if (cf.isCancelled()) cancel()
+        if (cf.isCancelled) cancel()
     }
     return cf
 }
