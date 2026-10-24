@@ -368,8 +368,16 @@ extension ControlFlowTypeChecker {
                     }
                 }
 
+                let branchBodyType = driver.inferExpr(
+                    branch.body, ctx: branchCtx, locals: &branchLocals,
+                    expectedType: expectedType, isStatementContext: isStatementContext
+                )
+                // A bare `ClassName` branch denotes the companion object; keep
+                // the companion value type through the join (KUU-3232).
                 branchTypes.append(
-                    driver.inferExpr(branch.body, ctx: branchCtx, locals: &branchLocals, expectedType: expectedType, isStatementContext: isStatementContext)
+                    driver.helpers.retypeClassNameAsCompanionValue(
+                        branch.body, currentType: branchBodyType, ast: ast, sema: sema
+                    ) ?? branchBodyType
                 )
                 allBranchLocals.append(branchLocals)
             }
@@ -395,8 +403,14 @@ extension ControlFlowTypeChecker {
                         elseCtx = elseCtx.copying(implicitReceiverType: narrowedType)
                     }
                 }
+                let elseBodyType = driver.inferExpr(
+                    elseExpr, ctx: elseCtx, locals: &elseLocals,
+                    expectedType: expectedType, isStatementContext: isStatementContext
+                )
                 branchTypes.append(
-                    driver.inferExpr(elseExpr, ctx: elseCtx, locals: &elseLocals, expectedType: expectedType, isStatementContext: isStatementContext)
+                    driver.helpers.retypeClassNameAsCompanionValue(
+                        elseExpr, currentType: elseBodyType, ast: ast, sema: sema
+                    ) ?? elseBodyType
                 )
                 allBranchLocals.append(elseLocals)
             }

@@ -1017,6 +1017,11 @@ final class ControlFlowTypeChecker {
         // enclosing linear scope.
         thenCtx.isConditionallyEvaluated = false
         var thenType = driver.inferExpr(thenExpr, ctx: thenCtx, locals: &thenLocals, expectedType: expectedType, isStatementContext: isStatementContext || elseExpr == nil)
+        // A bare `ClassName` branch denotes the companion object; keep the
+        // companion value type through the join (KUU-3232).
+        thenType = driver.helpers.retypeClassNameAsCompanionValue(
+            thenExpr, currentType: thenType, ast: ast, sema: sema
+        ) ?? thenType
         var elseLocals = locals
         driver.exprChecker.applyFlowStateToLocals(branch.falseState, locals: &elseLocals, sema: sema)
         var elseCompletes = true
@@ -1025,6 +1030,9 @@ final class ControlFlowTypeChecker {
             var elseCtx = ctx.copying(flowState: branch.falseState)
             elseCtx.isConditionallyEvaluated = false
             var elseType = driver.inferExpr(elseExpr, ctx: elseCtx, locals: &elseLocals, expectedType: expectedType, isStatementContext: isStatementContext)
+            elseType = driver.helpers.retypeClassNameAsCompanionValue(
+                elseExpr, currentType: elseType, ast: ast, sema: sema
+            ) ?? elseType
             // A nested call in a branch can leave a type parameter
             // unresolved because it is only fixed by the sibling branch's
             // type — kotlinc solves both branches under one constraint
