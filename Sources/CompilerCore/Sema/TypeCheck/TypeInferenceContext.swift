@@ -112,6 +112,9 @@ struct TypeInferenceContext: CustomStringConvertible {
     /// `lambdaDepth == 0` at the return site. Each nested named function,
     /// accessor, constructor, or init block re-derives it for its own target.
     var enclosingFunctionProhibitsExpressionBodyReturn: Bool = false
+    /// Init blocks are not function bodies, so a bare return cannot target the
+    /// function whose declaration lexically contains a local class.
+    var returnTargetIsInitBlock: Bool = false
     /// Unit getters return a value through their reference ABI; ordinary
     /// Unit functions discard their result.
     var isPropertyGetterReturn: Bool {
@@ -347,6 +350,7 @@ struct TypeInferenceContext: CustomStringConvertible {
         enclosingFunctionReturnType: TypeID?? = nil,
         enclosingFunctionSymbol: SymbolID?? = nil,
         enclosingFunctionProhibitsExpressionBodyReturn: Bool? = nil,
+        returnTargetIsInitBlock: Bool? = nil,
         enclosingLambdaExprIDs: [ExprID]? = nil,
         exportBlockLocalsForExpr: ExprID?? = nil,
         flowState: DataFlowState? = nil,
@@ -382,6 +386,9 @@ struct TypeInferenceContext: CustomStringConvertible {
         if let enclosingFunctionSymbol { copy.enclosingFunctionSymbol = enclosingFunctionSymbol }
         if let enclosingFunctionProhibitsExpressionBodyReturn {
             copy.enclosingFunctionProhibitsExpressionBodyReturn = enclosingFunctionProhibitsExpressionBodyReturn
+        }
+        if let returnTargetIsInitBlock {
+            copy.returnTargetIsInitBlock = returnTargetIsInitBlock
         }
         if let enclosingLambdaExprIDs { copy.enclosingLambdaExprIDs = enclosingLambdaExprIDs }
         if let exportBlockLocalsForExpr { copy.exportBlockLocalsForExpr = exportBlockLocalsForExpr }
