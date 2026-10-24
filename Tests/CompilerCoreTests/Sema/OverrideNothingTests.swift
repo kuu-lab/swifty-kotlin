@@ -38,5 +38,40 @@ struct OverrideNothingTests {
         #expect(overrideNothingDiagnostics.count == 1, "Got: \(ctx.diagnostics.diagnostics)")
         #expect(overrideNothingDiagnostics.first?.message == "'f' overrides nothing.")
     }
+
+    @Test
+    func acceptsOverrideThroughTypeAliasedSupertypeArgument() throws {
+        // `Sub : Base<Node>` lifts the supertype argument with the alias
+        // symbol intact while the member signature resolves `Node` to
+        // `Target`; the override check must compare the real nominals.
+        let source = """
+        class Target
+
+        open class Base<in T> {
+            open fun complete(affected: T, failure: Any?) {}
+        }
+
+        private typealias Node = Target
+
+        class Sub : Base<Node>() {
+            override fun complete(affected: Node, failure: Any?) {}
+        }
+        """
+        let inputPath = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString + ".kt").path
+        let ctx = makeCompilationContext(
+            inputs: [inputPath],
+            includeStdlib: false,
+            allowDefaultStdlibLibrary: false
+        )
+        _ = ctx.sourceManager.addFile(path: inputPath, contents: Data(source.utf8))
+        try runSema(ctx)
+
+        let overrideNothingDiagnostics = ctx.diagnostics.diagnostics.filter {
+            $0.severity == .error
+                && $0.code == "KSWIFTK-SEMA-OVERRIDE-NOTHING"
+        }
+        #expect(overrideNothingDiagnostics.isEmpty, "Got: \(ctx.diagnostics.diagnostics)")
+    }
 }
 #endif

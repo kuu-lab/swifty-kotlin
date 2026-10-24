@@ -120,4 +120,44 @@ struct BareGenericCastTests {
         }
         #expect(targetClass.args.isEmpty)
     }
+
+    @Test
+    func castInsideConsumedExpressionNarrowsLocalForLaterStatements() throws {
+        // `(next as Node).removed()` evaluates `next as Node`
+        // unconditionally, so `next` is `Node` for following statements even
+        // though the cast is nested inside the initializer expression
+        // (LockFreeLinkedList.remove's `finishRemove(next)` pattern).
+        let ctx = makeContextFromSource("""
+        open class Node {
+            fun removed(): Node = this
+        }
+        fun finishRemove(node: Node) {}
+        fun test(x: Any) {
+            val next = x
+            val removed = (next as Node).removed()
+            finishRemove(next)
+            finishRemove(removed)
+        }
+        """)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "got: \(ctx.diagnostics.diagnostics)")
+    }
+
+    @Test
+    func castOnConditionallyEvaluatedPathDoesNotNarrowLocal() throws {
+        // The elvis RHS and a `?.` call's arguments only run conditionally;
+        // a cast there must not narrow the variable for following code.
+        let ctx = makeContextFromSource("""
+        class Node
+        fun finishRemove(node: Node) {}
+        fun test(x: Node?, y: Any, z: Node?) {
+            x ?: (y as Node)
+            z?.let { (y as Node) }
+            finishRemove(y)
+        }
+        """)
+        try runSema(ctx)
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.count == 1, "got: \(ctx.diagnostics.diagnostics)")
+    }
 }

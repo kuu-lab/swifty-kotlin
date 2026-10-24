@@ -611,6 +611,31 @@ extension BuildASTPhase {
                 assignment = desugarCallResultCompoundAssignment(
                     lhsExpr: lhsExpr, op: op, valueExpr: valueExpr, range: range, context: context
                 )
+            case .thisRef:
+                // `this += x` can only mean `plusAssign` on the receiver —
+                // `this` is never assignable. Reuse the call-result desugar:
+                // an immutable temporary rejects binary-operator writeback.
+                assignment = desugarCallResultCompoundAssignment(
+                    lhsExpr: lhsExpr, op: op, valueExpr: valueExpr, range: range, context: context
+                )
+            case let .nullAssert(inner, _):
+                if case let .indexedAccess(receiver, indices, _) = context.astArena.expr(inner) {
+                    // `a[i]!! += v`: the lvalue is `a[i]`; the postfix `!!`
+                    // asserts the read element non-null (marked for Sema).
+                    let compoundID = context.astArena.appendExpr(.indexedCompoundAssign(
+                        op: op,
+                        receiver: receiver,
+                        indices: indices,
+                        value: valueExpr,
+                        range: range
+                    ))
+                    context.astArena.markNullAssertedCompoundAssignRead(compoundID)
+                    assignment = compoundID
+                } else {
+                    assignment = desugarCallResultCompoundAssignment(
+                        lhsExpr: lhsExpr, op: op, valueExpr: valueExpr, range: range, context: context
+                    )
+                }
             default:
                 assignment = nil
             }

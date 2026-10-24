@@ -17,6 +17,9 @@ public struct ASTArenaSnapshot: Codable {
     public let incrementDecrementExpressions: Set<ExprID>
     public let incrementDecrementValueExpressions: Set<ExprID>
     public let callResultCompoundAssignmentBlocks: Set<ExprID>
+    /// `x!! += v` / `a[i]!! += v` compound assignments whose LHS carried a
+    /// postfix `!!`: the read of the assignable value is asserted non-null.
+    public let nullAssertedCompoundAssignReads: Set<ExprID>
     public let nonFunctionLambdaLabels: Set<ExprID>
     public let incrementDecrementCachedValues: [ExprID: ExprID]
     public let expressionAnnotations: [ExprID: [AnnotationNode]]
@@ -43,6 +46,7 @@ public struct ASTArenaSnapshot: Codable {
         case incrementDecrementExpressions
         case incrementDecrementValueExpressions
         case callResultCompoundAssignmentBlocks
+        case nullAssertedCompoundAssignReads
         case nonFunctionLambdaLabels
         case incrementDecrementCachedValues
         case expressionAnnotations
@@ -70,6 +74,7 @@ public struct ASTArenaSnapshot: Codable {
         incrementDecrementExpressions: Set<ExprID> = [],
         incrementDecrementValueExpressions: Set<ExprID> = [],
         callResultCompoundAssignmentBlocks: Set<ExprID> = [],
+        nullAssertedCompoundAssignReads: Set<ExprID> = [],
         nonFunctionLambdaLabels: Set<ExprID> = [],
         incrementDecrementCachedValues: [ExprID: ExprID] = [:],
         expressionAnnotations: [ExprID: [AnnotationNode]] = [:],
@@ -95,6 +100,7 @@ public struct ASTArenaSnapshot: Codable {
         self.incrementDecrementExpressions = incrementDecrementExpressions
         self.incrementDecrementValueExpressions = incrementDecrementValueExpressions
         self.callResultCompoundAssignmentBlocks = callResultCompoundAssignmentBlocks
+        self.nullAssertedCompoundAssignReads = nullAssertedCompoundAssignReads
         self.nonFunctionLambdaLabels = nonFunctionLambdaLabels
         self.incrementDecrementCachedValues = incrementDecrementCachedValues
         self.expressionAnnotations = expressionAnnotations
@@ -138,6 +144,9 @@ public struct ASTArenaSnapshot: Codable {
         ) ?? []
         callResultCompoundAssignmentBlocks = try container.decodeIfPresent(
             Set<ExprID>.self, forKey: .callResultCompoundAssignmentBlocks
+        ) ?? []
+        nullAssertedCompoundAssignReads = try container.decodeIfPresent(
+            Set<ExprID>.self, forKey: .nullAssertedCompoundAssignReads
         ) ?? []
         nonFunctionLambdaLabels = try container.decodeIfPresent(
             Set<ExprID>.self,
@@ -244,6 +253,9 @@ public final class ASTArena: @unchecked Sendable {
     /// Synthetic call-result assignment blocks preserve outer data flow while
     /// keeping their receiver temporary in a separate lexical scope.
     private var _callResultCompoundAssignmentBlocks: Set<ExprID> = []
+    /// Compound assignments whose LHS carried a postfix `!!`
+    /// (`a[i]!! += v`): the read of the assignable is asserted non-null.
+    private var _nullAssertedCompoundAssignReads: Set<ExprID> = []
     /// Tracks lambda literals whose leading `label@` is bound to a following
     /// postfix expression. In Kotlin a label prefixes the whole postfix-unary
     /// expression, so `foo@{ ... }()` labels the invocation rather than the
@@ -290,6 +302,7 @@ public final class ASTArena: @unchecked Sendable {
         _incrementDecrementExpressions = snapshot.incrementDecrementExpressions
         _incrementDecrementValueExpressions = snapshot.incrementDecrementValueExpressions
         _callResultCompoundAssignmentBlocks = snapshot.callResultCompoundAssignmentBlocks
+        _nullAssertedCompoundAssignReads = snapshot.nullAssertedCompoundAssignReads
         _nonFunctionLambdaLabels = snapshot.nonFunctionLambdaLabels
         _incrementDecrementCachedValues = snapshot.incrementDecrementCachedValues
         _expressionAnnotations = snapshot.expressionAnnotations
@@ -320,6 +333,7 @@ public final class ASTArena: @unchecked Sendable {
             incrementDecrementExpressions: _incrementDecrementExpressions,
             incrementDecrementValueExpressions: _incrementDecrementValueExpressions,
             callResultCompoundAssignmentBlocks: _callResultCompoundAssignmentBlocks,
+            nullAssertedCompoundAssignReads: _nullAssertedCompoundAssignReads,
             nonFunctionLambdaLabels: _nonFunctionLambdaLabels,
             incrementDecrementCachedValues: _incrementDecrementCachedValues,
             expressionAnnotations: _expressionAnnotations,
@@ -395,6 +409,7 @@ public final class ASTArena: @unchecked Sendable {
         _incrementDecrementExpressions.formUnion(snapshot.incrementDecrementExpressions.map { remapper.remap($0) })
         _incrementDecrementValueExpressions.formUnion(snapshot.incrementDecrementValueExpressions.map { remapper.remap($0) })
         _callResultCompoundAssignmentBlocks.formUnion(snapshot.callResultCompoundAssignmentBlocks.map { remapper.remap($0) })
+        _nullAssertedCompoundAssignReads.formUnion(snapshot.nullAssertedCompoundAssignReads.map { remapper.remap($0) })
         _nonFunctionLambdaLabels.formUnion(snapshot.nonFunctionLambdaLabels.map { remapper.remap($0) })
         _parenthesizedExpressions.formUnion(snapshot.parenthesizedExpressions.map { remapper.remap($0) })
         return remapper
@@ -752,6 +767,18 @@ public final class ASTArena: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         return _callResultCompoundAssignmentBlocks.contains(exprID)
+    }
+
+    public func markNullAssertedCompoundAssignRead(_ exprID: ExprID) {
+        lock.lock()
+        defer { lock.unlock() }
+        _nullAssertedCompoundAssignReads.insert(exprID)
+    }
+
+    public func isNullAssertedCompoundAssignRead(_ exprID: ExprID) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return _nullAssertedCompoundAssignReads.contains(exprID)
     }
 
     public func markIncrementDecrement(

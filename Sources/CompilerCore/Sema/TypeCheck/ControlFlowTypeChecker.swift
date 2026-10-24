@@ -486,13 +486,17 @@ final class ControlFlowTypeChecker {
         let loopFlowScope = LoopControlFlowInferenceScope(label: label)
         var loopFlowScopes = ctx.loopFlowScopes
         loopFlowScopes.append(loopFlowScope)
+        var bodyCtx = ctx.copying(
+            loopDepth: ctx.loopDepth + 1,
+            loopLabelStack: newLabelStack,
+            loopFlowScopes: loopFlowScopes
+        )
+        // The loop body runs on its own locals copy; narrowing inside it cannot
+        // leak to the enclosing conditional path.
+        bodyCtx.isConditionallyEvaluated = false
         _ = driver.inferExpr(
             bodyExpr,
-            ctx: ctx.copying(
-                loopDepth: ctx.loopDepth + 1,
-                loopLabelStack: newLabelStack,
-                loopFlowScopes: loopFlowScopes
-            ),
+            ctx: bodyCtx,
             locals: &bodyLocals,
             expectedType: nil,
             isStatementContext: true
@@ -535,12 +539,13 @@ final class ControlFlowTypeChecker {
         let loopFlowScope = LoopControlFlowInferenceScope(label: label)
         var loopFlowScopes = ctx.loopFlowScopes
         loopFlowScopes.append(loopFlowScope)
-        let bodyCtx = ctx.copying(
+        var bodyCtx = ctx.copying(
             loopDepth: ctx.loopDepth + 1,
             loopLabelStack: newLabelStack,
             loopFlowScopes: loopFlowScopes,
             flowState: branch.trueState
         )
+        bodyCtx.isConditionallyEvaluated = false
         _ = driver.inferExpr(
             bodyExpr,
             ctx: bodyCtx,
@@ -592,7 +597,8 @@ final class ControlFlowTypeChecker {
             loopLabelStack: newLabelStack,
             loopFlowScopes: loopFlowScopes
         )
-        let bodyCtx = loopCtx.copying(exportBlockLocalsForExpr: bodyExpr)
+        var bodyCtx = loopCtx.copying(exportBlockLocalsForExpr: bodyExpr)
+        bodyCtx.isConditionallyEvaluated = false
         _ = driver.inferExpr(
             bodyExpr,
             ctx: bodyCtx,
@@ -900,14 +906,19 @@ final class ControlFlowTypeChecker {
         )
         var thenLocals = locals
         driver.exprChecker.applyFlowStateToLocals(branch.trueState, locals: &thenLocals, sema: sema)
-        let thenCtx = ctx.copying(flowState: branch.trueState)
+        var thenCtx = ctx.copying(flowState: branch.trueState)
+        // Branch bodies run on their own locals copies, so narrowing inside
+        // them cannot leak — the conditional-evaluation flag only guards the
+        // enclosing linear scope.
+        thenCtx.isConditionallyEvaluated = false
         var thenType = driver.inferExpr(thenExpr, ctx: thenCtx, locals: &thenLocals, expectedType: expectedType, isStatementContext: isStatementContext || elseExpr == nil)
         var elseLocals = locals
         driver.exprChecker.applyFlowStateToLocals(branch.falseState, locals: &elseLocals, sema: sema)
         var elseCompletes = true
         let resolvedType: TypeID
         if let elseExpr {
-            let elseCtx = ctx.copying(flowState: branch.falseState)
+            var elseCtx = ctx.copying(flowState: branch.falseState)
+            elseCtx.isConditionallyEvaluated = false
             var elseType = driver.inferExpr(elseExpr, ctx: elseCtx, locals: &elseLocals, expectedType: expectedType, isStatementContext: isStatementContext)
             // A nested call in a branch can leave a type parameter
             // unresolved because it is only fixed by the sibling branch's
@@ -1229,6 +1240,9 @@ final class ControlFlowTypeChecker {
             // to generic calls nested in its branches.
             branchCtx.isUnitCoercionContext = false
         }
+        // Try/catch bodies run on their own locals copies; narrowing inside
+        // them cannot leak to the enclosing conditional path.
+        branchCtx.isConditionallyEvaluated = false
 
         var tryBodyLocals = preTryLocals
         let tryBodyType = driver.inferExpr(
