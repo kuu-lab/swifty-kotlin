@@ -172,6 +172,11 @@ extension BuildASTPhase {
             appendValueParameter(from: paramTokens, into: &valueParams, interner: interner, astArena: astArena,
                                  allowsImplicitParameterTypes: isAnonymousFunction)
         }
+        DeclarationPositionValidator.validateMultipleVarargParameters(
+            valueParams,
+            fallbackRange: head.range,
+            diagnostics: diagnostics
+        )
 
         guard index < funTokens.count, funTokens[index].kind == .symbol(.rParen) else {
             return nil
