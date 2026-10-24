@@ -927,7 +927,10 @@ extension ExprTypeChecker {
             // the lhs value is proven non-null, so a null-capable type
             // parameter needs its definitely-non-null form (KUU-2693).
             let nonNullLhs = sema.types.definitelyNonNullForm(of: lhs)
-            type = sema.types.lub([nonNullLhs, rhs])
+            let elvisRhs = driver.helpers.retypeBranchClassObjectValue(
+                rhsID, currentType: rhs, ast: ast, sema: sema
+            ) ?? rhs
+            type = sema.types.lub([nonNullLhs, elvisRhs])
             // Smart cast: `x ?: return` / `x ?: throw` narrows x to non-null (P5-66)
             if let rhsExpr = ast.arena.expr(rhsID),
                driver.helpers.isTerminatingExpr(rhsExpr)
