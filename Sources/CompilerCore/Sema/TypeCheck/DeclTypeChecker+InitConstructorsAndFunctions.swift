@@ -40,7 +40,7 @@ extension DeclTypeChecker {
             interner.intern("collections"),
             interner.intern("List"),
         ]
-        guard let listSymbol = sema.symbols.lookup(fqName: listFQName) else {
+        guard let listSymbol = sema.symbols.lookupNominal(fqName: listFQName) else {
             return parameterType
         }
         return sema.types.make(.classType(ClassType(

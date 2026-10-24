@@ -1362,7 +1362,7 @@ extension DataFlowSemaPhase {
             interner.intern("collections"),
             interner.intern("List"),
         ]
-        return symbols.lookup(fqName: listFQName)
+        return symbols.lookupNominal(fqName: listFQName)
     }
 
     func resolveSequenceSymbol(
@@ -1374,7 +1374,7 @@ extension DataFlowSemaPhase {
             interner.intern("sequences"),
             interner.intern("Sequence"),
         ]
-        return symbols.lookup(fqName: sequenceFQName)
+        return symbols.lookupNominal(fqName: sequenceFQName)
     }
 
     private func registerFileConstructor(

@@ -263,7 +263,7 @@ extension CallTypeChecker {
         sema: SemaModule,
         interner: StringInterner
     ) -> [SymbolID] {
-        guard let listSymbol = sema.symbols.lookup(fqName: [
+        guard let listSymbol = sema.symbols.lookupNominal(fqName: [
             interner.intern("kotlin"),
             interner.intern("collections"),
             interner.intern("List"),
@@ -325,7 +325,7 @@ extension CallTypeChecker {
             interner.intern("collections"),
             interner.intern("List"),
         ]
-        guard let listSymbol = sema.symbols.lookup(fqName: listFQName),
+        guard let listSymbol = sema.symbols.lookupNominal(fqName: listFQName),
               let receiverNominal = driver.helpers.nominalSymbol(
                   of: sema.types.makeNonNullable(receiverType),
                   types: sema.types
