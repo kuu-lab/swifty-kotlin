@@ -140,10 +140,17 @@ extension ExprTypeChecker {
         }
         var lhsCtx = ctx
         lhsCtx.isElvisBranchExpectedTypeHint = isElvisCallLhs && !isSafeLetElvisFailure && expectedType != nil
-        let inferredLhs = driver.inferExpr(
+        let lhsOperandType = driver.inferExpr(
             lhsID, ctx: lhsCtx, locals: &locals,
             expectedType: lhsExpectedType
         )
+        // A bare `ClassName` on an Elvis side denotes the companion object;
+        // keep the companion value type through the join (KUU-3232).
+        let inferredLhs = op == .elvis
+            ? driver.helpers.retypeClassNameAsCompanionValue(
+                lhsID, currentType: lhsOperandType, ast: ast, sema: sema
+            ) ?? lhsOperandType
+            : lhsOperandType
         var lhs = sema.types.capturedOperatorReceiverType(of: inferredLhs)
         // Elvis uses an enclosing expected type for its RHS, but the LHS's
         // non-null type is only a contextual hint when no enclosing type exists.
@@ -250,6 +257,11 @@ extension ExprTypeChecker {
             } else {
                 rhs = driver.inferExpr(rhsID, ctx: rhsCtx, locals: &locals, expectedType: rhsExpectedType)
             }
+        }
+        if op == .elvis {
+            rhs = driver.helpers.retypeClassNameAsCompanionValue(
+                rhsID, currentType: rhs, ast: ast, sema: sema
+            ) ?? rhs
         }
         let inferredRhs = rhs
         rhs = sema.types.capturedOperatorReceiverType(of: inferredRhs)

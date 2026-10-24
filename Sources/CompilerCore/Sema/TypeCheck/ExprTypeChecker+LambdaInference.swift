@@ -494,13 +494,19 @@ extension ExprTypeChecker {
             expectedType: bodyExpectedType,
             isStatementContext: lambdaUsesUnitCoercion || lambdaTailIsElselessIf || lambdaTailIsWhenWithoutElse
         )
+        // A bare `ClassName` as the lambda's result denotes the companion
+        // object; keep the companion value type in the inferred return type
+        // (KUU-3232).
+        let bodyResultType = driver.helpers.retypeClassNameAsCompanionValue(
+            body, currentType: fallthroughType, ast: ast, sema: sema
+        ) ?? fallthroughType
         if expectedLambdaReturnType == sema.types.unitType,
-           sema.types.makeNonNullable(fallthroughType) == sema.types.unitType
+           sema.types.makeNonNullable(bodyResultType) == sema.types.unitType
         {
             sema.bindings.markUnitReturnCoercion(body)
         }
         let inferredBodyType = sema.types.lub(
-            [fallthroughType] + returnScope.returnValueTypes.sorted { $0.key.rawValue < $1.key.rawValue }.map(\.value)
+            [bodyResultType] + returnScope.returnValueTypes.sorted { $0.key.rawValue < $1.key.rawValue }.map(\.value)
         )
         // Range expressions use a scalar Sema type plus a marker, while Kotlin
         // lambdas expose their nominal range type to surrounding calls.
