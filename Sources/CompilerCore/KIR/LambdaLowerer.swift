@@ -747,6 +747,13 @@ final class LambdaLowerer {
         }
     }
 
+    private func isFloatingPointValueType(_ type: TypeID, sema: SemaModule) -> Bool {
+        switch sema.types.kind(of: type) {
+        case .primitive(.double, .nonNull), .primitive(.float, .nonNull): true
+        default: false
+        }
+    }
+
     private func lowerNonCapturingLambda(
         exprID: ExprID,
         params: [InternedString],
@@ -926,6 +933,44 @@ final class LambdaLowerer {
             captureArguments: [],
             hasClosureParam: false
         )
+
+        // The body of a lambda taking a `Double`/`Float` reads that parameter as raw
+        // bits, while a consumer that only sees a type-parameter function type
+        // (`(T) -> R`) passes a boxed handle. A direct argument is wrapped where the
+        // lambda is known, but a value that leaves through a factory return, a
+        // property, a field or `id(f)` reaches that consumer unwrapped, so build the
+        // box-tolerant function value where the lambda is created, as for a
+        // capturing lambda.
+        if !hasNonLocalReturn,
+           !allowsNonLocalReturn,
+           !isSamConversion,
+           !sema.bindings.isCoroutineLauncherLambdaExpr(exprID),
+           !sema.bindings.rawSuspendEntryLambdaExprIDs.contains(exprID),
+           lambdaParameterTypes.contains(where: { isFloatingPointValueType($0, sema: sema) }),
+           let functionType
+        {
+            let functionValueType = sema.bindings.functionValueExpectedType(for: exprID)
+                .flatMap { typeID -> FunctionType? in
+                    guard case let .functionType(expectedType) = sema.types.kind(of: typeID) else {
+                        return nil
+                    }
+                    return expectedType
+                } ?? functionType
+            if let materialized = materializeEscapingCallableValue(
+                exprID: exprID,
+                lambdaSymbol: lambdaSymbol,
+                lambdaName: lambdaName,
+                lambdaReturnType: lambdaReturnType,
+                functionType: functionValueType,
+                captureArguments: [],
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            ) {
+                return materialized
+            }
+        }
 
         if !hasNonLocalReturn, let functionType {
             emitRawFunctionArityTag(
