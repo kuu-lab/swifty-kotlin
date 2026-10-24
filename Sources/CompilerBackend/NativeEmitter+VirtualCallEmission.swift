@@ -174,12 +174,22 @@ extension NativeEmitter.FunctionEmissionContext {
             }
             return symbols.throwableMessageGetterSlot(for: owner, interner: interner) == slot
         }()
+        // A vtable slot whose root-most declaration returns a String
+        // aggregate (`toString`, `message` getters, `componentN`, ...) is
+        // invoked through the flat aggregate convention on every call path:
+        // registered implementations are either Kotlin functions with the
+        // source ABI or `itableBridgeSymbolForMethod` bridges that adapt to
+        // it. Declaring the indirect call as `i64`-returning miscalls the
+        // flat implementation — the hidden sret pointer makes the callee
+        // treat the receiver argument as its output buffer — so the
+        // declared slot signature decides the return type for every member
+        // name, not only `get` (KUU-3230).
         let virtualCallReturnsAggregate = !isThrowableMessageVirtualGetter
-            && calleeName == "get"
-            && argumentValues.count == 1
             && typeLowering != nil
             && (virtualCallDeclaredAggregateResult
-                ?? stringAggregateBridge.isStringAggregateType(result.flatMap { module.arena.exprType($0) }))
+                ?? (calleeName == "get"
+                    && argumentValues.count == 1
+                    && stringAggregateBridge.isStringAggregateType(result.flatMap { module.arena.exprType($0) })))
         let isThrowableToStringVirtualCall: Bool = {
             guard case .vtable = dispatch,
                   let symbols
@@ -329,6 +339,19 @@ extension NativeEmitter.FunctionEmissionContext {
             false
         }
 
+        // The slot's declared signature — not the root-most member's
+        // external link — fixes the indirect-call ABI. `Any.toString` and
+        // friends link to runtime helpers (`kk_any_member_to_string`) that
+        // return a raw handle, but the registered vtable entry is always a
+        // Kotlin function or an `itableBridgeSymbolForMethod` bridge with
+        // the flat aggregate ABI. Using the runtime helper's signature
+        // here would declare the call `i64`-returning and miscall the flat
+        // implementation (KUU-3230).
+        let sourceExternalFunctionConflictsWithDeclaredABI = virtualCallReturnsAggregate
+            && (virtualSourceCallSignature ?? sourceExternalCallSignature)
+                .map { !stringAggregateBridge.isStringAggregateType($0.returnType) }
+                ?? false
+
         let calleeFunction: NativeEmitter.LLVMFunction? = if isThrowableMessageVirtualGetter {
             // Only carries the indirect-call type `(Int, Int*) -> Int`.
             declareExternalFunction(
@@ -356,7 +379,9 @@ extension NativeEmitter.FunctionEmissionContext {
                 argumentCount: argumentValues.count,
                 appendThrownChannel: true
             )
-        } else if sourceExternalFunction != nil {
+        } else if let sourceExternalFunction,
+                  !sourceExternalFunctionConflictsWithDeclaredABI
+        {
             sourceExternalFunction
         } else {
             // Virtual calls go through `fptr`, so this declaration only carries
@@ -389,10 +414,14 @@ extension NativeEmitter.FunctionEmissionContext {
         let calleeKIRFunction = effectiveABISymbol.flatMap { module.arena.function(for: $0) }
         let isRuntimeCallbackRawABIVirtualCall = isInternalCall
             && effectiveSymbol.map { runtimeCallbackRawReturnSymbols.contains($0) } == true
+        // The unnamed `__v` declaration always takes `i64` parameters even
+        // when its return is a flat aggregate, so String-aggregate arguments
+        // still need the raw-handle bridging on that fallback path —
+        // `virtualCallReturnsAggregate` only describes the return type and
+        // must not suppress argument bridging (KUU-3230).
         let shouldBridgeVirtualExternalStringABI = !isInternalCall
             && typeLowering != nil
             && (virtualSourceCallSignature == nil || isThrowableToStringVirtualCall)
-            && !virtualCallReturnsAggregate
             && !virtualItableFlatAggregateResult
         var virtualCallArguments = argumentValues
         if isRuntimeCallbackRawABIVirtualCall {
