@@ -84,7 +84,7 @@ final class CoroutineLoweringPass: LoweringPass {
         let intType = ctx.sema?.types.make(.primitive(.int, .nonNull))
         let longType = ctx.sema?.types.make(.primitive(.long, .nonNull))
         let unitType = ctx.sema?.types.unitType
-        let sequenceClassSymbol = ctx.sema?.symbols.lookup(fqName: [
+        let sequenceClassSymbol = ctx.sema?.symbols.lookupNominal(fqName: [
             ctx.interner.intern("kotlin"),
             ctx.interner.intern("sequences"),
             ctx.interner.intern("Sequence"),
