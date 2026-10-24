@@ -76,6 +76,42 @@ struct ImportedInlineKIRRegressionTests {
         }
     }
 
+    /// A callable reference passed to an imported inline function's generic
+    /// function-type parameter is wrapped into an erased function value so its
+    /// boxed arguments are unboxed. Six arguments used to skip the wrapper, so the
+    /// Double arguments reached `add6` as box handles.
+    @Test
+    func importedInlineInvokesSixArgumentDoubleFunctionReference() throws {
+        try withCompiledLibrary(
+            source: """
+            package sixarity
+            inline fun <T> call6(a: T, b: T, c: T, d: T, e: T, g: T, f: (T, T, T, T, T, T) -> T): T =
+                f(a, b, c, d, e, g)
+            """,
+            moduleName: "SixArityInline"
+        ) { libraryPath in
+            try withTemporaryFile(contents: """
+            import sixarity.call6
+            fun add6(a: Double, b: Double, c: Double, d: Double, e: Double, g: Double): Double =
+                a + b + c + d + e + g
+            fun main() { println(call6(1.5, 2.5, 3.5, 4.5, 5.5, 6.5, ::add6)) }
+            """) { path in
+                let output = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
+                defer { try? FileManager.default.removeItem(atPath: output) }
+                let context = makeCompilationContext(
+                    inputs: [path], emit: .executable, outputPath: output, searchPaths: [libraryPath]
+                )
+                try runToLowering(context)
+                #expect(!context.diagnostics.hasError, "\(context.diagnostics.diagnostics)")
+                try CodegenPhase().run(context)
+                try LinkPhase().run(context)
+                let result = try CommandRunner.run(executable: output, arguments: [])
+                #expect(result.exitCode == 0)
+                #expect(result.stdout == "24.0\n")
+            }
+        }
+    }
+
     @Test
     func importedInlineWritesUpdateTopLevelVariables() throws {
         try withCompiledLibrary(
