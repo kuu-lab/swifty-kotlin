@@ -46,6 +46,10 @@ extension JVMFunctionBuilder {
             let object = method.isStatic || method.isConstructor ? nil : try requireValue(receiver)
             return try foreign(method, receiver: object, args: args, id: id)
         }
+        if member == "step", typeArgs.isEmpty, args.count == 1, !args[0].isSpread,
+           let result = try rangeStepCall(receiver: receiver, step: args[0].expr) {
+            return result
+        }
         if member == "compare", args.count == 2,
            let receiverType = try? program.expressionType(receiver),
            receiverType.referenceName == "java/util/Comparator",
