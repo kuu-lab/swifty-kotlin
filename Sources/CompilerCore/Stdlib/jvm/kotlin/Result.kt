@@ -1,5 +1,3 @@
-@file:Suppress("UNCHECKED_CAST")
-
 package kotlin
 @kotlin.jvm.JvmInline
 value class Result<out T>(val value: Any?) {

@@ -54,21 +54,32 @@ extension DataFlowSemaPhase {
         let superTypeRefs: [TypeRefID]
         let superTypeEntries: [SuperTypeEntry]
         let nestedDecls: [DeclID]
+        // A bare class supertype is only illegal when the class has a primary
+        // constructor to initialize it. Without a primary constructor, Kotlin
+        // requires the written form without `()` — each secondary constructor
+        // delegates via `super(...)` instead (kotlinc rejects `Base()` there
+        // with "supertype initialization is impossible without a primary
+        // constructor"). Objects always have an implicit primary constructor.
+        let classHasPrimaryConstructor: Bool
         switch decl {
         case let .classDecl(classDecl):
             superTypeRefs = classDecl.superTypeEntries.map(\.typeRef)
             superTypeEntries = classDecl.superTypeEntries
             nestedDecls = classDecl.nestedClasses + classDecl.nestedObjects
                 + (classDecl.companionObject.map { [$0] } ?? [])
+            classHasPrimaryConstructor = classDecl.hasPrimaryConstructorSyntax
+                || classDecl.secondaryConstructors.isEmpty
         case let .interfaceDecl(interfaceDecl):
             superTypeRefs = interfaceDecl.superTypes
             superTypeEntries = []
             nestedDecls = interfaceDecl.nestedClasses + interfaceDecl.nestedObjects
                 + (interfaceDecl.companionObject.map { [$0] } ?? [])
+            classHasPrimaryConstructor = false
         case let .objectDecl(objectDecl):
             superTypeRefs = objectDecl.superTypes
             superTypeEntries = objectDecl.superTypeEntries
             nestedDecls = objectDecl.nestedClasses + objectDecl.nestedObjects
+            classHasPrimaryConstructor = true
         default:
             return
         }
@@ -132,6 +143,7 @@ extension DataFlowSemaPhase {
                     if !entry.hasConstructorCallSyntax,
                        entry.delegateExpression == nil,
                        symbols.symbol(resolved.symbol)?.kind == .class,
+                       classHasPrimaryConstructor,
                        !isBundledStdlibDecl
                     {
                         diagnostics.error(

@@ -259,6 +259,7 @@ extension ExprTypeChecker {
                 if !entry.hasConstructorCallSyntax,
                    entry.delegateExpression == nil,
                    sema.symbols.symbol(classType.classSymbol)?.kind == .class,
+                   classDecl.hasPrimaryConstructorSyntax || classDecl.secondaryConstructors.isEmpty,
                    !declIsBundledStdlib
                 {
                     ctx.sema.diagnostics.error(

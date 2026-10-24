@@ -6,15 +6,12 @@ import kotlin.jvm.internal.__jvmSpaceChar
 import kotlin.jvm.internal.__jvmIsDigit
 import kotlin.jvm.internal.__jvmIsLowerCase
 import kotlin.jvm.internal.__jvmIsUpperCase
-import kotlin.jvm.internal.__jvmUpperChar
 
 public fun Char.isDigit(): Boolean = __jvmIsDigit(this)
 
 public fun Char.isLowerCase(): Boolean = __jvmIsLowerCase(this)
 
 public fun Char.isUpperCase(): Boolean = __jvmIsUpperCase(this)
-
-public fun Char.uppercaseChar(): Char = __jvmUpperChar(this)
 
 public fun Char.uppercaseChar(): Char = __jvmUpperChar(this)
 
