@@ -47,5 +47,47 @@ struct SignedPrimitiveRangeToTests {
         try runSema(ctx)
         #expect(ctx.diagnostics.hasError, "Expected Byte.rangeTo(String) to be rejected")
     }
+
+    @Test(arguments: [
+        "'a'..1.5",
+        "'a'..1",
+        "1..'a'",
+        "1..1.5",
+        "1.0..2f",
+        "1f..2",
+        "1u..5uL",
+        "'a' downTo 1",
+        "1.0 downTo 0.5",
+    ])
+    func rangeOperatorRejectsMismatchedOperandPair(expr: String) throws {
+        let ctx = makeContextFromSource("""
+        fun invalid() = \(expr)
+        """)
+
+        try runSema(ctx)
+        #expect(ctx.diagnostics.hasError, "Expected `\(expr)` to be rejected")
+    }
+
+    @Test
+    func rangeOperatorAcceptsMatchingOperandPairs() throws {
+        let ctx = makeContextFromSource("""
+        fun ok() {
+            val a = 'a'..'z'
+            val b = 1..10
+            val c = 1..10L
+            val d = 1L..5
+            val e = 1.0..5.0
+            val f = 1f..5f
+            val g = 1u..10u
+            val h = 5 downTo 1
+            val i = 'z' downTo 'a'
+            val j = 1..<10
+            val k = 'a'..<'z'
+        }
+        """)
+
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "Unexpected diagnostics: \(ctx.diagnostics.diagnostics)")
+    }
 }
 #endif

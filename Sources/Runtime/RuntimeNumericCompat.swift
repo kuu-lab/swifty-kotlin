@@ -1530,6 +1530,25 @@ public func kk_op_fne(_ lhs: Int, _ rhs: Int) -> Int {
     kk_bits_to_float(lhs) != kk_bits_to_float(rhs) ? 1 : 0
 }
 
+/// Kotlin `Double.equals`/`Float.equals` equality for synthesized data class
+/// `equals`: like IEEE `==` except NaN equals NaN regardless of payload, while
+/// -0.0 still differs from +0.0 — i.e. canonical doubleToLongBits/floatToIntBits
+/// comparison. kk_op_deq/kk_op_feq implement plain IEEE `==` and kk_op_eq a
+/// raw bit-pattern compare, neither of which matches this contract.
+@_cdecl("kk_double_equals")
+public func kk_double_equals(_ lhs: Int, _ rhs: Int) -> Int {
+    let a = kk_bits_to_double(lhs)
+    let b = kk_bits_to_double(rhs)
+    return (a.isNaN && b.isNaN) || a.bitPattern == b.bitPattern ? 1 : 0
+}
+
+@_cdecl("kk_float_equals")
+public func kk_float_equals(_ lhs: Int, _ rhs: Int) -> Int {
+    let a = kk_bits_to_float(lhs)
+    let b = kk_bits_to_float(rhs)
+    return (a.isNaN && b.isNaN) || a.bitPattern == b.bitPattern ? 1 : 0
+}
+
 @_cdecl("kk_op_flt")
 public func kk_op_flt(_ lhs: Int, _ rhs: Int) -> Int {
     kk_bits_to_float(lhs) < kk_bits_to_float(rhs) ? 1 : 0

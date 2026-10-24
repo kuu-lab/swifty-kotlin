@@ -675,21 +675,54 @@ extension BuildASTPhase.ExpressionParser {
 
     private func parseForExpressionFallback(forToken: Token, label: InternedString? = nil, start: SourceLocation? = nil) -> ExprID? {
         var loopVariable: InternedString?
+        var loopVariableTypeRef: TypeRefID?
         if let token = current(),
            token.kind != .keyword(.in),
            let name = tokenText(token)
         {
             loopVariable = name
             _ = consume()
-            if consumeIf(.symbol(.colon)) != nil,
-               let following = current(),
-               following.kind == .keyword(.in) || following.kind == .symbol(.rParen)
-            {
-                diagnostics?.error(
-                    "KSWIFTK-PARSE-0020",
-                    "Expected type after ':'.",
-                    range: following.range
-                )
+            if consumeIf(.symbol(.colon)) != nil {
+                if let following = current(),
+                   following.kind == .keyword(.in) || following.kind == .symbol(.rParen)
+                {
+                    diagnostics?.error(
+                        "KSWIFTK-PARSE-0020",
+                        "Expected type after ':'.",
+                        range: following.range
+                    )
+                } else {
+                    // Capture the declared loop-variable type (e.g. `c: Int`)
+                    // so sema can check it against the iterator element type.
+                    var typeTokens: [Token] = []
+                    var typeDepth = 0
+                    while let typeToken = current() {
+                        if typeToken.kind == .keyword(.in) { break }
+                        if typeToken.kind == .symbol(.rParen), typeDepth == 0 { break }
+                        switch typeToken.kind {
+                        case .symbol(.lParen), .symbol(.lBracket), .symbol(.lessThan):
+                            typeDepth += 1
+                        case .symbol(.rParen), .symbol(.rBracket), .symbol(.greaterThan), .symbol(.greaterOrEqual):
+                            typeDepth -= 1
+                        default:
+                            break
+                        }
+                        typeTokens.append(typeToken)
+                        _ = consume()
+                    }
+                    if !typeTokens.isEmpty,
+                       let parsed = TypeRefParserCore.parseTypeRefPrefix(
+                           typeTokens[...],
+                           interner: interner,
+                           astArena: astArena,
+                           options: .declaration,
+                           diagnostics: diagnostics,
+                           recursionDepth: recursionDepth
+                       )
+                    {
+                        loopVariableTypeRef = parsed.ref
+                    }
+                }
             }
         }
 
@@ -752,7 +785,11 @@ extension BuildASTPhase.ExpressionParser {
         recordStrayElseIfPresent()
         let end = astArena.exprRange(body)?.end ?? forToken.range.end
         let range = SourceRange(start: start ?? forToken.range.start, end: end)
-        return astArena.appendExpr(.forExpr(loopVariable: loopVariable, iterable: iterable, body: body, label: label, range: range))
+        let exprID = astArena.appendExpr(.forExpr(loopVariable: loopVariable, iterable: iterable, body: body, label: label, range: range))
+        if let loopVariableTypeRef {
+            astArena.setForVariableTypeRef(loopVariableTypeRef, for: exprID)
+        }
+        return exprID
     }
 
     func parseWhileExpression(label: InternedString? = nil, start: SourceLocation? = nil) -> ExprID? {

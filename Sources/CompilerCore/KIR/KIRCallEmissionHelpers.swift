@@ -55,6 +55,20 @@ func boxValueForAnySlot<C: RangeReplaceableCollection>(
     into instructions: inout C
 ) -> KIRExprID where C.Element == KIRInstruction {
     let rawKind = types.kind(of: sourceType)
+    // A nullable-underlying value class has no primitive box callee; its `Any`
+    // representation is the nominal `kk_value_class_box` box (KUU-3115).
+    if let symbols,
+       let vcSymbol = nullableUnderlyingValueClassSymbol(of: rawKind, types: types, symbols: symbols)
+    {
+        let effectiveResultType = resultType ?? types.anyType
+        let boxedResult = arena.appendTemporary(type: effectiveResultType)
+        emitValueClassBoxCall(
+            value: value, classSymbol: vcSymbol, result: boxedResult,
+            resultType: effectiveResultType, types: types, symbols: symbols,
+            interner: interner, arena: arena, into: &instructions
+        )
+        return boxedResult
+    }
     let resolvedKind = resolveValueClassKind(rawKind, types: types, symbols: symbols)
     let table = boxingCalleeTable ?? BoxingCalleeTable(interner: interner)
     guard let boxCallee = table.boxCallee(for: resolvedKind, requireNonNull: requireNonNull) else {
@@ -412,6 +426,149 @@ func normalizeEnumEqualityOperands<C: RangeReplaceableCollection>(
     return (effectiveLhsID, effectiveRhsID)
 }
 
+/// A value class whose *underlying representation can itself be null* — e.g.
+/// `@JvmInline value class V(val x: String?)` — cannot reuse the payload
+/// pointer for its `V?` slot: a null payload and a null wrapper would be
+/// indistinguishable (KUU-3115). For such classes `V` keeps the raw payload
+/// representation while `V?`/`Any`/interface/type-parameter slots carry a
+/// nominal `RuntimeObjectBox` allocated by `kk_value_class_box`, tagged with
+/// the class's stable nominal type ID.
+///
+/// Returns the class symbol when `kind` is exactly such a non-null
+/// value-class type; nil otherwise. Uses `effectiveValueClassUnderlyingType`
+/// so interface-implementing value classes — which stay boxed through the
+/// ordinary `kk_object_new` path — are excluded the same way everywhere.
+func nullableUnderlyingValueClassSymbol(
+    of kind: TypeKind?,
+    types: TypeSystem,
+    symbols: SymbolTable?
+) -> SymbolID? {
+    guard case let .classType(classType) = kind,
+          classType.nullability == .nonNull,
+          let symbols,
+          let sym = symbols.symbol(classType.classSymbol),
+          sym.flags.contains(.valueType),
+          let underlyingType = symbols.effectiveValueClassUnderlyingType(for: classType.classSymbol)
+    else { return nil }
+    var visited: Set<SymbolID> = [classType.classSymbol]
+    return valueClassReprCanBeNull(underlyingType, types: types, symbols: symbols, visited: &visited)
+        ? classType.classSymbol
+        : nil
+}
+
+/// Whether a value-class underlying type's runtime representation can carry
+/// null — i.e. the underlying type is itself nullable, is an erased type
+/// parameter, or chains to another value class whose own payload can be null
+/// (`@JvmInline value class V2(val x: V)` where `V`'s payload is nullable).
+private func valueClassReprCanBeNull(
+    _ type: TypeID,
+    types: TypeSystem,
+    symbols: SymbolTable,
+    visited: inout Set<SymbolID>
+) -> Bool {
+    switch types.kind(of: type) {
+    case .typeParam:
+        // Erased generic slots can hold null regardless of the bound.
+        return true
+    case let .classType(classType) where classType.nullability == .nonNull:
+        guard let sym = symbols.symbol(classType.classSymbol),
+              sym.flags.contains(.valueType),
+              visited.insert(classType.classSymbol).inserted,
+              let inner = symbols.effectiveValueClassUnderlyingType(for: classType.classSymbol)
+        else { return false }
+        return valueClassReprCanBeNull(inner, types: types, symbols: symbols, visited: &visited)
+    default:
+        return types.nullability(of: type) != .nonNull
+    }
+}
+
+/// True when `kind` is a slot type whose runtime value is a pointer that may
+/// carry a `V?`-style nominal box — i.e. the `V` -> box conversion must run
+/// `kk_value_class_box` (KUU-3115). `V` itself is the raw payload, so a
+/// non-null slot of the same value class is *not* a box target.
+func valueClassBoxTargetIsBoxed(_ kind: TypeKind, symbols: SymbolTable?) -> Bool {
+    switch kind {
+    case .any, .typeParam:
+        return true
+    case let .classType(classType):
+        if classType.nullability != .nonNull { return true }
+        // A different non-null classifier (e.g. an interface the value class
+        // implements) is an object slot; the same value class is the payload.
+        return symbols?.symbol(classType.classSymbol)?.flags.contains(.valueType) != true
+    default:
+        return false
+    }
+}
+
+/// True when `kind` is a slot type whose runtime value may hold a nominal
+/// value-class box that `kk_value_class_unbox` must unwrap back to the `V`
+/// payload (KUU-3115). Any `.classType` qualifies: the helper's class-ID check
+/// makes it a no-op for payloads that arrive already unboxed.
+func valueClassUnboxSourceIsBoxed(_ kind: TypeKind, symbols: SymbolTable?) -> Bool {
+    switch kind {
+    case .any, .typeParam, .classType:
+        return true
+    default:
+        return false
+    }
+}
+
+/// Emits `kk_value_class_box(value, classID) -> result` — wraps a
+/// nullable-underlying value class's raw payload in its nominal
+/// `RuntimeObjectBox` so `V?`/`Any`/interface slots observe wrapper nullness
+/// separately from payload nullness (KUU-3115).
+func emitValueClassBoxCall<C: RangeReplaceableCollection>(
+    value: KIRExprID,
+    classSymbol: SymbolID,
+    result: KIRExprID,
+    resultType: TypeID?,
+    types: TypeSystem,
+    symbols: SymbolTable,
+    interner: StringInterner,
+    arena: KIRArena,
+    into instructions: inout C
+) where C.Element == KIRInstruction {
+    let classID = RuntimeTypeCheckToken.stableNominalTypeID(
+        symbol: classSymbol, symbols: symbols, interner: interner
+    )
+    let intType = types.make(.primitive(.int, .nonNull))
+    let classIDExpr = arena.appendExpr(.intLiteral(classID), type: intType)
+    instructions.append(.constValue(result: classIDExpr, value: .intLiteral(classID)))
+    instructions.append(.call(
+        symbol: nil, callee: interner.intern("kk_value_class_box"),
+        arguments: [value, classIDExpr],
+        result: result, canThrow: false, thrownResult: nil
+    ))
+}
+
+/// Emits `kk_value_class_unbox(value, classID) -> result` — unwraps a
+/// `V?`-slot nominal box back to the payload a `V`-typed slot expects
+/// (KUU-3115). The call is idempotent: payloads and the null sentinel pass
+/// through unchanged.
+func emitValueClassUnboxCall<C: RangeReplaceableCollection>(
+    value: KIRExprID,
+    classSymbol: SymbolID,
+    result: KIRExprID,
+    resultType: TypeID?,
+    types: TypeSystem,
+    symbols: SymbolTable,
+    interner: StringInterner,
+    arena: KIRArena,
+    into instructions: inout C
+) where C.Element == KIRInstruction {
+    let classID = RuntimeTypeCheckToken.stableNominalTypeID(
+        symbol: classSymbol, symbols: symbols, interner: interner
+    )
+    let intType = types.make(.primitive(.int, .nonNull))
+    let classIDExpr = arena.appendExpr(.intLiteral(classID), type: intType)
+    instructions.append(.constValue(result: classIDExpr, value: .intLiteral(classID)))
+    instructions.append(.call(
+        symbol: nil, callee: interner.intern("kk_value_class_unbox"),
+        arguments: [value, classIDExpr],
+        result: result, canThrow: false, thrownResult: nil
+    ))
+}
+
 /// Value classes are unboxed to their underlying primitive everywhere
 /// (ValueClassUnboxingPass) except at reference-type boundaries, where every
 /// boxing-callee lookup in ABILoweringPass and CollectionLiteralLoweringPass
@@ -423,6 +580,10 @@ func normalizeEnumEqualityOperands<C: RangeReplaceableCollection>(
 /// incorrectly succeed. `rawSourceKind` must be the *unresolved* kind (i.e.
 /// computed before resolving a value class to its underlying primitive) so
 /// the value class identity is still visible.
+///
+/// Nullable-underlying value classes are different again (KUU-3115): the
+/// primitive box path cannot keep a null payload apart from a null wrapper,
+/// so they box through `kk_value_class_box` instead of `kk_box_*` + tag.
 func emitBoxCallWithValueClassTag<C: RangeReplaceableCollection>(
     boxCallee: InternedString,
     value: KIRExprID,
@@ -480,6 +641,17 @@ func emitBoxCallWithValueClassTag<C: RangeReplaceableCollection>(
     }
     guard sym.flags.contains(.valueType) else {
         emitPlainBoxCall()
+        return
+    }
+    // A value class whose payload can itself be null needs the nominal
+    // `RuntimeObjectBox` representation — `kk_box_*` on a null payload would
+    // produce the null sentinel, losing `V(null)` (KUU-3115).
+    if nullableUnderlyingValueClassSymbol(of: rawSourceKind, types: types, symbols: symbols) != nil {
+        emitValueClassBoxCall(
+            value: value, classSymbol: classType.classSymbol, result: result,
+            resultType: resultType, types: types, symbols: symbols,
+            interner: interner, arena: arena, into: &instructions
+        )
         return
     }
     let classID = RuntimeTypeCheckToken.stableNominalTypeID(
@@ -814,8 +986,14 @@ private func appendEnumBoxItableMethodRegistrations<C: RangeReplaceableCollectio
                       sema.symbols.parentSymbol(for: target) == interfaceSymbol,
                       let targetInfo = sema.symbols.symbol(target),
                       !targetInfo.flags.contains(.abstractType),
-                      !targetInfo.flags.contains(.synthetic),
-                      sema.symbols.externalLinkName(for: target) == nil
+                      // Imported members all carry `.synthetic`, so use the
+                      // stub predicate (imported stdlib + empty link name) —
+                      // a `kk_fn_*` interface default is a real body and must
+                      // register (KUU-3258).
+                      !sema.symbols.isSyntheticStubSymbol(target),
+                      (sema.symbols.externalLinkName(for: target).map {
+                          !$0.isEmpty && CallLowerer.isSourceBackedLinkName($0)
+                      } ?? true)
             {
                 registered = target
             } else {

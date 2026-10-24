@@ -168,7 +168,7 @@ def main():
     terminal={'status':'RUNNING','current_stage':'build','completed_stages':[],'failure':None}
     (output/'terminal.json').write_text(json.dumps(terminal,indent=2)+'\n')
     try:
-        execute(['swift','build','-j','4'],300,output/'build',root)
+        execute(['swift','build','-j','4'],600,output/'build',root)
         (output/'build.products.json').write_text(json.dumps(products(root),indent=2)+'\n')
         terminal['completed_stages'].append('build')
         for name,pattern,limit,expected_methods in stages:

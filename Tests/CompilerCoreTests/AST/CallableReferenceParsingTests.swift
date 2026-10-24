@@ -109,8 +109,8 @@ struct CallableReferenceParsingTests {
 
     @Test(arguments: [
         "::", "x::", "println(\"d\")::",
-        "(::)", "(x::)", "consume(::)", "consume(x::)",
-        "consume(::, 1)", "consume(x::, 1)", "(:: + 1)", "(x:: + 1)",
+        "(::)", "(x::)", "consume(x::)",
+        "consume(x::, 1)", "(:: + 1)", "(x:: + 1)",
     ])
     func missingMemberReportsParseError(_ source: String) throws {
         let lexed = lex(source)
@@ -131,6 +131,27 @@ struct CallableReferenceParsingTests {
         #expect(diagnostic.message == "Expected an identifier after '::'.")
         #expect(diagnostic.primaryRange == opToken.range)
         #expect(!arena.exprs.contains { if case .callableRef = $0 { true } else { false } })
+    }
+
+    /// After the failed `::` inside an argument list, the argument-list
+    /// recovery also reports `KSWIFTK-PARSE-0022` (Expected an argument), so
+    /// these sources yield two diagnostics with PARSE-0014 first.
+    @Test(arguments: ["consume(::)", "consume(::, 1)"])
+    func missingMemberInsideArgumentListReportsBothErrors(_ source: String) throws {
+        let lexed = lex(source)
+        let arena = ASTArena()
+        let parser = BuildASTPhase.ExpressionParser(
+            tokens: lexed.tokens.dropLast(),
+            interner: lexed.interner,
+            astArena: arena,
+            diagnostics: lexed.diagnostics
+        )
+        _ = parser.parse()
+
+        let diagnostic = try #require(lexed.diagnostics.diagnostics.first)
+        #expect(diagnostic.code == "KSWIFTK-PARSE-0014")
+        #expect(lexed.diagnostics.diagnostics.count == 2)
+        #expect(lexed.diagnostics.diagnostics.last?.code == "KSWIFTK-PARSE-0022")
     }
 
     @Test(arguments: ["::", "x::"])
@@ -212,6 +233,49 @@ struct CallableReferenceParsingTests {
         #expect(ctx.diagnostics.diagnostics.contains {
             $0.code == "KSWIFTK-PARSE-0014" && $0.severity == .error
         })
+    }
+
+    /// KUU-3184: `expr::name(args)` is reserved syntax in Kotlin; the parser
+    /// must reject a call suffix directly on a callable reference, while a
+    /// parenthesized reference `(expr::name)(args)` stays legal.
+    @Test(arguments: [
+        "x::f()", "x::f(1, 2)", "::f()", "a.b::c(0)", "x::f()()",
+    ])
+    func directCallOnCallableReferenceReportsReservedSyntax(_ source: String) throws {
+        let lexed = lex(source)
+        let arena = ASTArena()
+        let parser = BuildASTPhase.ExpressionParser(
+            tokens: lexed.tokens.dropLast(),
+            interner: lexed.interner,
+            astArena: arena,
+            diagnostics: lexed.diagnostics
+        )
+        _ = parser.parse()
+
+        #expect(lexed.diagnostics.diagnostics.contains {
+            $0.code == "KSWIFTK-PARSE-0002" &&
+                $0.severity == .error &&
+                $0.message.hasPrefix("This syntax is reserved for future use")
+        })
+    }
+
+    @Test(arguments: [
+        "(x::f)()", "(x::f)(1, 2)", "x::f", "x::f.invoke()", "(x::f).invoke(1)",
+        "consume(x::f)", "x::f + 1",
+    ])
+    func parenthesizedOrNonCallCallableReferenceStaysLegal(_ source: String) throws {
+        let lexed = lex(source)
+        let arena = ASTArena()
+        let parser = BuildASTPhase.ExpressionParser(
+            tokens: lexed.tokens.dropLast(),
+            interner: lexed.interner,
+            astArena: arena,
+            diagnostics: lexed.diagnostics
+        )
+        _ = try #require(parser.parse())
+
+        #expect(lexed.diagnostics.diagnostics.isEmpty)
+        #expect(parser.current() == nil)
     }
 
     /// KUU-1376 / KUU-2086: `T::class.findAssociatedObject<A>()` hung the

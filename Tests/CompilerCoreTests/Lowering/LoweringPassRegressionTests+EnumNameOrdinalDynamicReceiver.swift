@@ -185,6 +185,101 @@ extension LoweringPassRegressionTests {
         }
     }
 
+    // KUU-3196: `E.OK.name` on a literal entry reference is a compile-time
+    // constant on the JVM (intrinsic const evaluation) — the enum entry is
+    // never loaded and the enum's `<clinit>` does not run. The receiver's
+    // dead `.symbolRef(entry)` constValue used to remain in the body, so
+    // insertEnumLazyInitTriggers emitted a `$enumEnsureInit$` call whose
+    // init blocks ran anyway.
+    @Test
+    func testEnumNameOnLiteralEntryDoesNotTriggerLazyInit() throws {
+        let source = """
+        var result = "OK"
+        enum class E { OK; init { result = "Fail" } }
+        fun box() = if (E.OK.name != "OK") "Fail 1" else result
+        fun main() { println(box()) }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], moduleName: "EnumNameNoInit", emit: .kirDump)
+            try runToLowering(ctx)
+            #expect(!ctx.diagnostics.hasError)
+
+            let module = try #require(ctx.kir)
+            let boxBody = try findKIRFunctionBody(named: "box", in: module, interner: ctx.interner)
+            let callees = extractCallees(from: boxBody, interner: ctx.interner)
+
+            #expect(!callees.contains("$enumEnsureInit$"),
+                    "E.OK.name folds to a constant; the enum's init must not run; callees: \(callees)")
+
+            let sema = try #require(ctx.sema)
+            let entrySymbol = try #require(sema.symbols.allSymbols().first {
+                $0.kind == .field && $0.name == ctx.interner.intern("OK")
+            })
+            #expect(!boxBody.contains { instruction in
+                switch instruction {
+                case let .constValue(_, .symbolRef(symbol)),
+                     let .loadGlobal(_, symbol):
+                    symbol == entrySymbol.id
+                default:
+                    false
+                }
+            }, "the dead entry materialization should have been folded away")
+
+            #expect(callees.contains(where: { $0.contains("$enumName$") }),
+                    "expected the per-entry name helper call; callees: \(callees)")
+        }
+    }
+
+    // Unlike `.name`, kotlinc does NOT const-fold `E.OK.ordinal`: the entry
+    // load still happens, so `<clinit>` must run. Guard against an
+    // over-eager fold that would diverge from the JVM.
+    @Test
+    func testEnumOrdinalOnLiteralEntryStillTriggersLazyInit() throws {
+        let source = """
+        var result = "OK"
+        enum class E { OK; init { result = "Fail" } }
+        fun box() = if (E.OK.ordinal != 0) "Fail 1" else result
+        fun main() { println(box()) }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], moduleName: "EnumOrdinalKeepsInit", emit: .kirDump)
+            try runToLowering(ctx)
+            #expect(!ctx.diagnostics.hasError)
+
+            let module = try #require(ctx.kir)
+            let boxBody = try findKIRFunctionBody(named: "box", in: module, interner: ctx.interner)
+            let callees = extractCallees(from: boxBody, interner: ctx.interner)
+            #expect(callees.contains("$enumEnsureInit$"),
+                    "E.OK.ordinal still loads the entry on the JVM; the enum's init must run; callees: \(callees)")
+        }
+    }
+
+    // A `val` bound to an enum entry performs a real entry load on the JVM,
+    // so `<clinit>` must still run even though the `.name` read itself folds.
+    @Test
+    func testEnumEntryLocalReadStillTriggersLazyInit() throws {
+        let source = """
+        var result = "OK"
+        enum class E { OK; init { result = "Fail" } }
+        fun box(): String {
+            val e = E.OK
+            return if (e.name != "OK") "Fail 1" else result
+        }
+        fun main() { println(box()) }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], moduleName: "EnumLocalEntryInit", emit: .kirDump)
+            try runToLowering(ctx)
+            #expect(!ctx.diagnostics.hasError)
+
+            let module = try #require(ctx.kir)
+            let boxBody = try findKIRFunctionBody(named: "box", in: module, interner: ctx.interner)
+            let callees = extractCallees(from: boxBody, interner: ctx.interner)
+            #expect(callees.contains("$enumEnsureInit$"),
+                    "val e = E.OK is a real entry load; the enum's init must still run; callees: \(callees)")
+        }
+    }
+
     // BUG-B/BUG-C: `name`/`ordinal`/a constructor property read via the
     // *implicit* receiver inside an enum member function used to fall
     // through every `.class`/`.interface`-owner branch in ExprLowerer's

@@ -140,7 +140,7 @@ extension CallTypeChecker {
                     elementType: chunkType
                 )
             }
-            if let listSymbol = sema.symbols.lookup(fqName: knownNames.kotlinCollectionsListFQName) {
+            if let listSymbol = sema.symbols.lookupNominal(fqName: knownNames.kotlinCollectionsListFQName) {
                 return sema.types.make(.classType(ClassType(
                     classSymbol: listSymbol,
                     args: [.out(chunkType)],
@@ -1284,7 +1284,7 @@ extension CallTypeChecker {
 
         if memberName == knownNames.chunked, argCount == 2 {
             let listType: TypeID
-            if let listSymbol = sema.symbols.lookup(fqName: knownNames.kotlinCollectionsListFQName) {
+            if let listSymbol = sema.symbols.lookupNominal(fqName: knownNames.kotlinCollectionsListFQName) {
                 listType = sema.types.make(.classType(ClassType(
                     classSymbol: listSymbol,
                     args: [.invariant(receiverElementType)],
@@ -1311,7 +1311,7 @@ extension CallTypeChecker {
             }
             if lastArgIsFunctionLike {
                 let listType: TypeID
-                if let listSymbol = sema.symbols.lookup(fqName: knownNames.kotlinCollectionsListFQName) {
+                if let listSymbol = sema.symbols.lookupNominal(fqName: knownNames.kotlinCollectionsListFQName) {
                     listType = sema.types.make(.classType(ClassType(
                         classSymbol: listSymbol,
                         args: [.invariant(receiverElementType)],

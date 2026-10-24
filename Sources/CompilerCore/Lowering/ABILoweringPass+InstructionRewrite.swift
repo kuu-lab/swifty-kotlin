@@ -68,6 +68,25 @@ extension ABILoweringPass {
                 arena: module.arena, into: &newBody
             )
         }
+        // A `V?`/reference slot holds a nominal box while the `V` formal
+        // expects the payload: `v?.member()` receivers and value parameters
+        // unwrap it here (KUU-3115).
+        func unboxNullableUnderlyingValueClass(_ argument: KIRExprID, to targetType: TypeID) -> KIRExprID? {
+            guard let symbols,
+                  let vcSymbol = nullableUnderlyingValueClassSymbol(
+                      of: types.kind(of: targetType), types: types, symbols: symbols
+                  ),
+                  let argType = intrinsicArgType(argument, arena: module.arena, types: types),
+                  valueClassUnboxSourceIsBoxed(types.kind(of: argType), symbols: symbols)
+            else { return nil }
+            let unboxed = module.arena.appendTemporary(type: targetType)
+            emitValueClassUnboxCall(
+                value: argument, classSymbol: vcSymbol, result: unboxed,
+                resultType: targetType, types: types, symbols: symbols,
+                interner: interner, arena: module.arena, into: &newBody
+            )
+            return unboxed
+        }
         if receiverOffset > 0, arguments.indices.contains(receiverIndex),
            let receiverType = signature.receiverType,
            let unboxed = unboxNullableEnum(arguments[receiverIndex], to: receiverType)
@@ -77,6 +96,12 @@ extension ABILoweringPass {
         if receiverOffset > 0, arguments.indices.contains(receiverIndex),
            let receiverType = signature.receiverType,
            let unboxed = unboxPrimitive(arguments[receiverIndex], to: receiverType)
+        {
+            boxedArguments[receiverIndex] = unboxed
+        }
+        if receiverOffset > 0, arguments.indices.contains(receiverIndex),
+           let receiverType = signature.receiverType,
+           let unboxed = unboxNullableUnderlyingValueClass(arguments[receiverIndex], to: receiverType)
         {
             boxedArguments[receiverIndex] = unboxed
         }
@@ -112,6 +137,10 @@ extension ABILoweringPass {
                 continue
             }
             if let unboxed = unboxPrimitive(arguments[argumentIndex], to: contextType) {
+                boxedArguments[argumentIndex] = unboxed
+                continue
+            }
+            if let unboxed = unboxNullableUnderlyingValueClass(arguments[argumentIndex], to: contextType) {
                 boxedArguments[argumentIndex] = unboxed
                 continue
             }
@@ -237,6 +266,10 @@ extension ABILoweringPass {
                 boxedArguments[argIndex] = unboxed
                 continue
             }
+            if let unboxed = unboxNullableUnderlyingValueClass(arguments[argIndex], to: paramType) {
+                boxedArguments[argIndex] = unboxed
+                continue
+            }
             if let boxCallee = boxingCallee(
                 argType: argType,
                 paramType: paramType,
@@ -339,6 +372,79 @@ extension ABILoweringPass {
             return nil
         }
         return (unboxCallee, returnType)
+    }
+
+    /// KUU-3115: a call whose declared return type and result-slot type sit on
+    /// opposite sides of a nullable-underlying value class's `V`/`V?` boundary
+    /// needs `kk_value_class_box`/`kk_value_class_unbox` — the primitive
+    /// box/unbox tables cannot express that representation change. Returns the
+    /// value-class symbol, whether the result must be *boxed* (vs unboxed),
+    /// and the callee's declared return type for the intermediate slot.
+    func resolveValueClassResultConversion(
+        callSymbol: SymbolID?,
+        callee: InternedString,
+        result: KIRExprID?,
+        signatureByName: [InternedString: FunctionSignature],
+        module: KIRModule,
+        types: TypeSystem?,
+        symbols: SymbolTable?,
+        boxedReturnCallees: Set<InternedString> = []
+    ) -> (classSymbol: SymbolID, boxing: Bool, returnType: TypeID)? {
+        guard !boxedReturnCallees.contains(callee) else { return nil }
+        guard let types, let symbols, let result,
+              let resultType = module.arena.exprType(result)
+        else { return nil }
+        var returnType: TypeID?
+        if let callSymbol {
+            returnType = returnTypeForCall(callSymbol: callSymbol, symbols: symbols)
+        }
+        if returnType == nil {
+            returnType = signatureByName[callee]?.returnType
+        }
+        guard let returnType else { return nil }
+        let rawReturnKind = types.kind(of: returnType)
+        let rawResultKind = types.kind(of: resultType)
+        if let vcSymbol = nullableUnderlyingValueClassSymbol(
+            of: rawResultKind, types: types, symbols: symbols
+        ), valueClassUnboxSourceIsBoxed(rawReturnKind, symbols: symbols) {
+            return (vcSymbol, false, returnType)
+        }
+        if let vcSymbol = nullableUnderlyingValueClassSymbol(
+            of: rawReturnKind, types: types, symbols: symbols
+        ), valueClassBoxTargetIsBoxed(rawResultKind, symbols: symbols) {
+            return (vcSymbol, true, returnType)
+        }
+        return nil
+    }
+
+    /// Emits the `kk_value_class_*` conversion
+    /// `resolveValueClassResultConversion` selected, rewriting `from`'s value
+    /// into `to` (KUU-3115).
+    func appendValueClassResultConversion(
+        conversion: (classSymbol: SymbolID, boxing: Bool, returnType: TypeID),
+        from: KIRExprID,
+        to: KIRExprID,
+        module: KIRModule,
+        types: TypeSystem,
+        symbols: SymbolTable,
+        interner: StringInterner,
+        into newBody: inout KIRLoweringEmitContext
+    ) {
+        if conversion.boxing {
+            emitValueClassBoxCall(
+                value: from, classSymbol: conversion.classSymbol, result: to,
+                resultType: module.arena.exprType(to),
+                types: types, symbols: symbols, interner: interner,
+                arena: module.arena, into: &newBody
+            )
+            return
+        }
+        emitValueClassUnboxCall(
+            value: from, classSymbol: conversion.classSymbol, result: to,
+            resultType: module.arena.exprType(to),
+            types: types, symbols: symbols, interner: interner,
+            arena: module.arena, into: &newBody
+        )
     }
 
     private func inferFunctionTypeParameter(

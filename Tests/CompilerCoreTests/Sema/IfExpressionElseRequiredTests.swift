@@ -241,6 +241,97 @@ struct IfExpressionElseRequiredTests {
         }
     }
 
+    /// A `try` at a lambda tail is a statement position too: kotlinc does not
+    /// push expression context into its branches even when the lambda is
+    /// expected to return a value or the callee is unresolved, so an else-less
+    /// `if` inside the try/catch bodies stays a statement (KUU-3163).
+    @Test func testLambdaTailTryKeepsBranchesInStatementContextSema() throws {
+        let sources: [String] = [
+            // 0: resolved `() -> Unit` callee
+            """
+            package sample0
+            fun take(block: () -> Unit) {}
+            fun f(c: Boolean) {
+                take {
+                    try { if (c) { } } catch (e: Exception) { }
+                }
+            }
+
+            """,
+
+            // 1: unresolved callee — the lambda still checks without an
+            // expected type, and the tail `try` must not flag the inner `if`
+            """
+            package sample1
+            fun f(c: Boolean) {
+                notAFunction {
+                    try { if (c) { } } catch (e: Exception) { }
+                }
+            }
+
+            """,
+
+            // 2: `() -> Int` expected — the `try` value still feeds the return
+            // type mismatch, but the inner `if` is not used as an expression
+            """
+            package sample2
+            fun takeInt(block: () -> Int) {}
+            fun f(c: Boolean) {
+                takeInt {
+                    try { if (c) { } } catch (e: Exception) { 1 }
+                }
+            }
+
+            """,
+
+            // 3: control — a try in expression position still requires `else`
+            """
+            package sample3
+            fun f(c: Boolean) {
+                val x = try { if (c) { } } catch (e: Exception) { }
+            }
+
+            """,
+        ]
+
+        try withTemporaryFiles(contents: sources) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
+            try runSema(ctx)
+
+            let statementTailDiags = diagnosticsForPath(paths[0], in: ctx)
+            #expect(
+                !statementTailDiags.contains(where: { $0.severity == .error }),
+                "lambda tail `try` under a `() -> Unit` callee must compile clean: \(statementTailDiags.map { "\($0.code): \($0.message)" })"
+            )
+
+            let unresolvedCalleeDiags = diagnosticsForPath(paths[1], in: ctx)
+            #expect(
+                unresolvedCalleeDiags.contains(where: { $0.code == "KSWIFTK-SEMA-0023" && $0.severity == .error }),
+                "the unresolved callee must still be reported: \(unresolvedCalleeDiags.map { "\($0.code): \($0.message)" })"
+            )
+            #expect(
+                !unresolvedCalleeDiags.contains(where: { $0.code == "KSWIFTK-SEMA-0434" }),
+                "the `if` inside the tail `try` is a statement: \(unresolvedCalleeDiags.map { "\($0.code): \($0.message)" })"
+            )
+
+            let intReturnDiags = diagnosticsForPath(paths[2], in: ctx)
+            #expect(
+                intReturnDiags.contains(where: { $0.severity == .error }),
+                "a `() -> Int` lambda returning a Unit-valued `try` must be rejected: \(intReturnDiags.map { "\($0.code): \($0.message)" })"
+            )
+            #expect(
+                !intReturnDiags.contains(where: { $0.code == "KSWIFTK-SEMA-0434" }),
+                "kotlinc reports a return-type mismatch, not INVALID_IF_AS_EXPRESSION: \(intReturnDiags.map { "\($0.code): \($0.message)" })"
+            )
+
+            let expressionTryDiags = diagnosticsForPath(paths[3], in: ctx)
+            #expect(
+                expressionTryDiags.contains(where: { $0.code == "KSWIFTK-SEMA-0434" && $0.severity == .error }),
+                "a `try` in expression position still requires `else` branches: \(expressionTryDiags.map { "\($0.code): \($0.message)" })"
+            )
+        }
+    }
+
     /// A bare `if` without `else` as a lambda tail is legal as a statement, but
     /// a non-Unit expected return type still reports a type mismatch — the
     /// same way kotlinc reports a return-type mismatch rather than

@@ -71,6 +71,8 @@ private final class KIRInterpreterEngine {
         "kk_int_narrow", "kk_uint_narrow",
         "kk_op_add", "kk_op_sub", "kk_op_mul", "kk_op_div", "kk_op_mod", "kk_op_rem",
         "kk_op_eq", "kk_op_ne", "kk_op_lt", "kk_op_le", "kk_op_gt", "kk_op_ge",
+        "kk_double_equals", "kk_float_equals",
+        "kk_nullable_double_equals", "kk_nullable_float_equals",
         "kk_op_and", "kk_op_or", "kk_op_not",
         "kk_bitwise_and", "kk_bitwise_or", "kk_bitwise_xor",
         "kk_op_ishl", "kk_op_ishr",
@@ -382,6 +384,30 @@ private final class KIRInterpreterEngine {
         case "kk_op_ne":
             guard args.count == 2 else { throw InterpreterBail(reason: "\(name): arity") }
             return flag(args[0] != args[1])
+        case "kk_double_equals":
+            let a = Double(bitPattern: UInt64(bitPattern: try int(0)))
+            let b = Double(bitPattern: UInt64(bitPattern: try int(1)))
+            return flag((a.isNaN && b.isNaN) || a.bitPattern == b.bitPattern)
+        case "kk_float_equals":
+            let a = Float(bitPattern: UInt32(truncatingIfNeeded: try int(0)))
+            let b = Float(bitPattern: UInt32(truncatingIfNeeded: try int(1)))
+            return flag((a.isNaN && b.isNaN) || a.bitPattern == b.bitPattern)
+        case "kk_nullable_double_equals":
+            let lhs = try int(0), rhs = try int(1)
+            let lhsNull = lhs == IValue.nullSentinel
+            let rhsNull = rhs == IValue.nullSentinel
+            if lhsNull || rhsNull { return flag(lhsNull && rhsNull) }
+            let a = Double(bitPattern: UInt64(bitPattern: lhs))
+            let b = Double(bitPattern: UInt64(bitPattern: rhs))
+            return flag((a.isNaN && b.isNaN) || a.bitPattern == b.bitPattern)
+        case "kk_nullable_float_equals":
+            let lhs = try int(0), rhs = try int(1)
+            let lhsNull = lhs == IValue.nullSentinel
+            let rhsNull = rhs == IValue.nullSentinel
+            if lhsNull || rhsNull { return flag(lhsNull && rhsNull) }
+            let a = Float(bitPattern: UInt32(truncatingIfNeeded: lhs))
+            let b = Float(bitPattern: UInt32(truncatingIfNeeded: rhs))
+            return flag((a.isNaN && b.isNaN) || a.bitPattern == b.bitPattern)
         case "kk_op_lt": return flag(try int(0) < int(1))
         case "kk_op_le", "__kk_int_range_induction_le": return flag(try int(0) <= int(1))
         case "kk_op_gt": return flag(try int(0) > int(1))

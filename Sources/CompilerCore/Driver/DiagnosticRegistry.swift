@@ -1088,6 +1088,12 @@ enum DiagnosticRegistry {
             defaultSeverity: .error,
             summary: "An enclosing this of a non-inner class cannot back an inner-class supertype."
         ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0438",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "An interface cannot extend a class."
+        ),
     ]
 
 

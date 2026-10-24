@@ -302,7 +302,13 @@ extension DataFlowSemaPhase {
         symbols: SymbolTable
     ) -> SymbolID? {
         guard kind == .class || kind == .interface || kind == .object || kind == .enumClass else { return nil }
-        guard sourceManager.path(of: file.fileID).hasPrefix("__bundled_") else { return nil }
+        // `<kswiftk-jvm>` platform declaration files merge into the same
+        // symbol space as bundled sources: their `kotlin.collections.Map.Entry`
+        // / `MutableMap.MutableEntry` shells are pre-anchored by
+        // registerSyntheticMapEntryResiduals, so the platform declaration must
+        // claim that placeholder just like a bundled declaration would.
+        let declFilePath = sourceManager.path(of: file.fileID)
+        guard declFilePath.hasPrefix("__bundled_") || declFilePath.hasPrefix("<kswiftk-jvm>") else { return nil }
         // expect/actual declarations keep the coexistence path that
         // checkAndReportDuplicateDeclaration already grants them over
         // synthetic-only collisions, instead of claiming the placeholder.

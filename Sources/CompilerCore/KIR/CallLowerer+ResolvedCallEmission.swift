@@ -956,9 +956,11 @@ extension CallLowerer {
         {
             finalArgIDs.insert(contentsOf: callableInfo.captureArguments, at: 2)
         }
-        // KUU-938: this synthetic conversion has no runtime symbol. The
-        // receiver has already been inserted above, including for an outer
-        // implicit receiver; preserve its raw primitive representation.
+        // KUU-938: a direct call to this synthetic identity conversion is just
+        // a copy (`kk_primitive_identity` exists for callable references, which
+        // reach it by name). The receiver has already been inserted above,
+        // including for an outer implicit receiver; preserve its raw primitive
+        // representation.
         if let chosen,
            sema.symbols.symbol(chosen)?.flags.contains(.synthetic) == true,
            sema.symbols.externalLinkName(for: chosen) == "kk_primitive_identity",
@@ -1112,7 +1114,7 @@ extension CallLowerer {
                 return nil
             }())
             if let implicitReceiverDispatch, finalArgIDs.first == implicitReceiverDispatch.receiver {
-                instructions.append(.virtualCall(
+                let implicitVirtualInstruction: KIRInstruction = .virtualCall(
                     symbol: callSymbol,
                     callee: loweredCalleeName,
                     receiver: implicitReceiverDispatch.receiver,
@@ -1121,7 +1123,27 @@ extension CallLowerer {
                     canThrow: callCanThrow,
                     thrownResult: thrownResult,
                     dispatch: implicitReceiverDispatch.kind
-                ))
+                )
+                // KUU-763: an unqualified member call on an implicit `this`
+                // receiver dispatches through the same itable lookup as an
+                // explicit `r.contains(x)` call, so a floating-point range box
+                // (no registered itable) needs the same runtime probe before
+                // falling through to virtual dispatch.
+                if let probeEndLabel = emitFloatingPointRangeMemberProbe(
+                    chosenCallee: chosen,
+                    receiverID: implicitReceiverDispatch.receiver,
+                    arguments: finalArgIDs,
+                    result: callResult,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    instructions: &instructions
+                ) {
+                    instructions.append(implicitVirtualInstruction)
+                    instructions.append(.label(probeEndLabel))
+                } else {
+                    instructions.append(implicitVirtualInstruction)
+                }
             } else {
                 instructions.append(.call(
                     symbol: callSymbol,

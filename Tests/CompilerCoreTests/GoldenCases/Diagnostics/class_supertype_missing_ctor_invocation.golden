@@ -1,0 +1,96 @@
+{
+  "version": 1,
+  "diagnostics": [
+    {
+      "file": "class_supertype_missing_ctor_invocation.kt",
+      "range": {
+        "start": { "line": 9, "character": 16 },
+        "end": { "line": 9, "character": 19 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-0436",
+      "source": "kswiftk",
+      "message": "this type has a constructor, so it must be initialized here.",
+      "codeActions": []
+    },
+    {
+      "file": "class_supertype_missing_ctor_invocation.kt",
+      "range": {
+        "start": { "line": 12, "character": 17 },
+        "end": { "line": 12, "character": 21 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-0436",
+      "source": "kswiftk",
+      "message": "this type has a constructor, so it must be initialized here.",
+      "codeActions": []
+    },
+    {
+      "file": "class_supertype_missing_ctor_invocation.kt",
+      "range": {
+        "start": { "line": 22, "character": 17 },
+        "end": { "line": 22, "character": 21 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-0436",
+      "source": "kswiftk",
+      "message": "this type has a constructor, so it must be initialized here.",
+      "codeActions": []
+    },
+    {
+      "file": "class_supertype_missing_ctor_invocation.kt",
+      "range": {
+        "start": { "line": 25, "character": 0 },
+        "end": { "line": 25, "character": 26 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-FINAL",
+      "source": "kswiftk",
+      "message": "Cannot inherit from final class 'Direction'. Mark it as 'open' to allow subclassing.",
+      "codeActions": [{ "title": "Remove 'final' modifier from base declaration", "kind": "quickfix" }]
+    },
+    {
+      "file": "class_supertype_missing_ctor_invocation.kt",
+      "range": {
+        "start": { "line": 28, "character": 20 },
+        "end": { "line": 28, "character": 24 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-0436",
+      "source": "kswiftk",
+      "message": "this type has a constructor, so it must be initialized here.",
+      "codeActions": []
+    },
+    {
+      "file": "class_supertype_missing_ctor_invocation.kt",
+      "range": {
+        "start": { "line": 31, "character": 25 },
+        "end": { "line": 31, "character": 29 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-0436",
+      "source": "kswiftk",
+      "message": "this type has a constructor, so it must be initialized here.",
+      "codeActions": []
+    },
+    {
+      "file": "class_supertype_missing_ctor_invocation.kt",
+      "range": {
+        "start": { "line": 35, "character": 18 },
+        "end": { "line": 35, "character": 22 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-0436",
+      "source": "kswiftk",
+      "message": "this type has a constructor, so it must be initialized here.",
+      "codeActions": []
+    }
+  ]
+}

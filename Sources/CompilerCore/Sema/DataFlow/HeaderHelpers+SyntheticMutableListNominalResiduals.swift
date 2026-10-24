@@ -79,7 +79,7 @@ extension DataFlowSemaPhase {
         let collectionsPackage = [interner.intern("kotlin"), interner.intern("collections")]
         let mutableListName = interner.intern("MutableList")
         let mutableIterableName = interner.intern("MutableIterable")
-        guard let mutableListSymbol = symbols.lookup(fqName: collectionsPackage + [mutableListName]),
+        guard let mutableListSymbol = symbols.lookupNominal(fqName: collectionsPackage + [mutableListName]),
               let mutableListInfo = symbols.symbol(mutableListSymbol),
               !mutableListInfo.flags.contains(.synthetic),
               let mutableIterableSymbol = symbols.lookup(fqName: collectionsPackage + [mutableIterableName])
