@@ -100,7 +100,7 @@ final class TypeCheckSemaPhase: CompilerPhase {
             }
         }
 
-        try withSemaSubPhaseTiming("post-validation", ctx: ctx) {
+        withSemaSubPhaseTiming("post-validation", ctx: ctx) {
             let (inlineLambdaArguments, suspendLambdaArguments) = collectInlineLambdaArguments(ast: ast, sema: sema)
             validateTailrecFunctions(
                 ast: ast,
