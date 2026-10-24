@@ -937,6 +937,25 @@ func itableBridgeSymbolForMethod(
     else {
         return implementation
     }
+    // A `kotlin.Any.toString` vtable slot keeps the runtime's raw
+    // (Int) -> Int string-handle ABI: classes without an override dispatch
+    // to `kk_any_member_to_string` through the same slot, so a Kotlin
+    // override returning the flat String aggregate cannot be registered
+    // directly even though its declared return type matches the slot's.
+    // Route it through the same raw bridge used for
+    // `kk_object_register_any_to_string` registration (KUU-3111).
+    if let interfaceInfo = sema.symbols.symbol(interfaceMethod),
+       isSyntheticAnyToStringSymbol(interfaceInfo, interner: interner),
+       let bridge = anyToStringBridgeSymbolForImplementation(
+           implementation,
+           driver: driver,
+           arena: arena,
+           sema: sema,
+           interner: interner
+       )
+    {
+        return bridge
+    }
     let implementationFn = arena.function(for: implementation)
     // Nested singleton initializers register dispatch before their member bodies
     // are lowered. Ordinary source object methods already have their final ABI
