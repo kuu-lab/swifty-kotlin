@@ -201,6 +201,25 @@ extension BuildASTPhase {
             )
         }
 
+        // KUU-3149: kotlinc also checks `operator` arity/eligibility on local
+        // functions; a local function is never a member, so it qualifies only
+        // through an extension receiver.
+        if hasOperator,
+           let violation = DeclarationPositionValidator.operatorEligibilityViolation(
+               name: interner.resolve(name),
+               isMember: false,
+               isExtension: receiverType != nil,
+               isSuspend: isSuspend,
+               valueParams: valueParams
+           )
+        {
+            diagnostics?.error(
+                "KSWIFTK-SEMA-0439",
+                "'operator' modifier is not applicable: \(violation).",
+                range: leadingModifiers.first(where: { $0.name == "operator" })?.range ?? head.range
+            )
+        }
+
         let returnType = parseReturnTypeAnnotation(
             from: funTokens, index: &index, interner: interner, astArena: astArena
         )

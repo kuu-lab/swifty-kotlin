@@ -112,7 +112,6 @@ final class TypeCheckSemaPhase: CompilerPhase {
 
             validateLoopJumpLambdaPaths(ast: ast, sema: sema, diagnostics: ctx.diagnostics, inlineLambdaArguments: inlineLambdaArguments)
             validateReturnLambdaPaths(ast: ast, sema: sema, diagnostics: ctx.diagnostics, inlineLambdaArguments: inlineLambdaArguments)
-            validateOperatorConventions(ast: ast, interner: ctx.interner, diagnostics: ctx.diagnostics)
             driver.validateSuspensionContexts(
                 inlineLambdaArguments: inlineLambdaArguments,
                 suspendLambdaArguments: suspendLambdaArguments
