@@ -450,6 +450,18 @@ final class LambdaLowerer {
             )
         }
 
+        // The lambda's own receiver parameter is the innermost implicit
+        // receiver inside its body, but the closure-capture loops above run
+        // after it and re-claim the single active-receiver slot for a
+        // captured enclosing `this`. Re-assert the receiver parameter here so
+        // e.g. `iterator { yield(w) }` dispatches `yield` on the
+        // SequenceScope parameter rather than the captured class instance.
+        if needsExplicitReceiver {
+            let receiverParam = lambdaParameters[needsClosureParam ? 1 : 0]
+            if let receiverValue = driver.ctx.localValue(for: receiverParam.symbol) {
+                driver.ctx.setImplicitReceiver(symbol: receiverParam.symbol, exprID: receiverValue)
+            }
+        }
         // Publish this lambda's receiver under its per-lambda symbol so that
         // `this@callee` (in this body or a nested lambda that captures it)
         // reads this receiver rather than the innermost implicit one.
