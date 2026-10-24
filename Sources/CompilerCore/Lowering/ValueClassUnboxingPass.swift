@@ -117,6 +117,27 @@ final class ValueClassUnboxingPass: LoweringPass, ParallelLoweringPass {
         return false
     }
 
+    /// KUU-3115: a `V?` receiver of a value class whose underlying payload can
+    /// itself be null holds a nominal `RuntimeObjectBox` — the inbounds read
+    /// *is* the payload load, so it must be kept rather than rewritten to a
+    /// bare copy (which would alias the box as the `String?` payload).
+    private func isNullableUnderlyingValueClassReceiver(
+        _ expr: KIRExprID,
+        arena: KIRArena,
+        types: TypeSystem,
+        symbols: SymbolTable
+    ) -> Bool {
+        guard let receiverType = arena.exprType(expr),
+              case let .classType(classType) = types.kind(of: receiverType),
+              classType.nullability != .nonNull
+        else { return false }
+        return nullableUnderlyingValueClassSymbol(
+            of: types.kind(of: types.makeNonNullable(receiverType)),
+            types: types,
+            symbols: symbols
+        ) != nil
+    }
+
     private func rewriteBody(
         _ body: [KIRInstruction],
         arena: KIRArena,
@@ -248,6 +269,9 @@ final class ValueClassUnboxingPass: LoweringPass, ParallelLoweringPass {
                        arguments[0], arena: arena, types: types, symbols: symbols,
                        valueClassSymbols: valueClassSymbols,
                        allowTypeParameterUpperBound: true
+                   ),
+                   !isNullableUnderlyingValueClassReceiver(
+                       arguments[0], arena: arena, types: types, symbols: symbols
                    )
                 {
                     result.append(.copy(from: arguments[0], to: callResult))
