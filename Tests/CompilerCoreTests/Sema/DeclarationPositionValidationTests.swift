@@ -417,6 +417,39 @@ struct DeclarationPositionValidationTests {
         assertHasDiagnostic("KSWIFTK-SEMA-0405", in: ctx)
     }
 
+    // MARK: - Interface supertypes (KUU-3233)
+
+    @Test func interfaceExtendingClassIsRejected() throws {
+        let ctx = try semaContext(for: """
+            open class Base
+            interface J : Base
+            """)
+        assertHasDiagnostic("KSWIFTK-SEMA-0438", in: ctx)
+    }
+
+    @Test func interfaceExtendingEnumOrObjectIsRejected() throws {
+        let enumCtx = try semaContext(for: """
+            enum class E { A }
+            interface J : E
+            """)
+        assertHasDiagnostic("KSWIFTK-SEMA-0438", in: enumCtx)
+
+        let objectCtx = try semaContext(for: """
+            object O
+            interface J : O
+            """)
+        assertHasDiagnostic("KSWIFTK-SEMA-0438", in: objectCtx)
+    }
+
+    @Test func interfaceExtendingInterfaceIsAccepted() throws {
+        let ctx = try semaContext(for: """
+            interface I
+            interface J : I
+            """)
+        assertNoDiagnostic("KSWIFTK-SEMA-0438", in: ctx)
+        #expect(!ctx.diagnostics.hasError)
+    }
+
     @Test func emptyDataClassIsRejected() throws {
         let ctx = try semaContext(for: """
             data class D()

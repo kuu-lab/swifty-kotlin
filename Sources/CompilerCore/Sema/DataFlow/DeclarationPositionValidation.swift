@@ -105,6 +105,11 @@ extension DataFlowSemaPhase {
             }
         case .interfaceDecl(let interfaceDecl):
             let declPath = ownerPath + [interfaceDecl.name]
+            validateInterfaceSupertypes(
+                interfaceDecl, ownerPath: ownerPath, file: file,
+                ast: ast, symbols: symbols, types: types,
+                diagnostics: diagnostics, interner: interner
+            )
             for member in interfaceDecl.memberFunctions + interfaceDecl.memberProperties
                 + interfaceDecl.nestedClasses + interfaceDecl.nestedObjects
                 + (interfaceDecl.companionObject.map { [$0] } ?? [])
@@ -163,6 +168,49 @@ extension DataFlowSemaPhase {
                 "enum classes cannot extend classes.",
                 range: enumDecl.range
             )
+        }
+    }
+
+    private func validateInterfaceSupertypes(
+        _ interfaceDecl: InterfaceDecl,
+        ownerPath: [InternedString],
+        file: ASTFile,
+        ast: ASTModule,
+        symbols: SymbolTable,
+        types: TypeSystem,
+        diagnostics: DiagnosticEngine?,
+        interner: StringInterner
+    ) {
+        // kotlinc rejects `interface J : SomeClass` with
+        // "an interface cannot extend a class". Interfaces may only list
+        // interface supertypes. Annotation classes produce their own
+        // diagnostic elsewhere, so only nominal class kinds are reported here.
+        for superTypeRefID in interfaceDecl.superTypes {
+            guard let resolved = resolveTypeRef(
+                superTypeRefID,
+                ast: ast,
+                symbols: symbols,
+                types: types,
+                interner: interner,
+                relativeOwnerFQName: ownerPath,
+                currentPackageFQName: file.packageFQName,
+                imports: file.imports
+            ),
+                case .classType(let classType) = types.kind(of: resolved),
+                let superSymbol = symbols.symbol(classType.classSymbol)
+            else {
+                continue
+            }
+            switch superSymbol.kind {
+            case .class, .enumClass, .object:
+                diagnostics?.error(
+                    "KSWIFTK-SEMA-0438",
+                    "an interface cannot extend a class.",
+                    range: interfaceDecl.range
+                )
+            default:
+                continue
+            }
         }
     }
 
