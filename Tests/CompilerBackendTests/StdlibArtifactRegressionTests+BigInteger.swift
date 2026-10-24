@@ -5,6 +5,39 @@ import Foundation
 import Testing
 
 extension StdlibArtifactRegressionTests {
+    /// KUU-2822: BigInteger.compareTo must link through both stdlib surfaces.
+    @Test
+    func testBigIntegerCompareToAndPriorityQueueAcrossStdlibSurfaces() throws {
+        let repoRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let caseBase = repoRoot.appendingPathComponent("Scripts/diff_cases/big_integer_compare_to")
+        let source = caseBase.appendingPathExtension("kt").path
+        let expected = try String(
+            contentsOf: caseBase.appendingPathExtension("expected"), encoding: .utf8
+        )
+        let artifactPath = try Self.buildStdlibArtifact()
+
+        for (surface, libraryPath) in [("source", nil), ("artifact", artifactPath)] {
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString).path
+            defer { try? FileManager.default.removeItem(atPath: outputBase) }
+            let context = try runCodegenPipeline(
+                inputPath: source,
+                moduleName: "KUU2822BigIntegerCompareTo",
+                outputPath: outputBase,
+                optLevel: .O0,
+                allowDefaultStdlibLibrary: false,
+                stdlibLibraryPath: libraryPath
+            )
+            try assertNoDiagnosticErrors(context)
+            try LinkPhase().run(context)
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            #expect(result.exitCode == 0, "\(surface): \(result.stderr)")
+            #expect(result.stderr.isEmpty, "\(surface): \(result.stderr)")
+            #expect(result.stdout.replacingOccurrences(of: "\r\n", with: "\n") == expected, "\(surface)")
+        }
+    }
+
     /// KUU-2010: value equality must survive source injection and metadata import.
     /// Expected output was measured with Kotlin 2.3.10 and JDK 17.
     /// Multiplication-derived cases remain in the diff fixtures; KUU-2026 blocks them.
