@@ -1112,7 +1112,7 @@ extension CallLowerer {
                 return nil
             }())
             if let implicitReceiverDispatch, finalArgIDs.first == implicitReceiverDispatch.receiver {
-                instructions.append(.virtualCall(
+                let implicitVirtualInstruction: KIRInstruction = .virtualCall(
                     symbol: callSymbol,
                     callee: loweredCalleeName,
                     receiver: implicitReceiverDispatch.receiver,
@@ -1121,7 +1121,27 @@ extension CallLowerer {
                     canThrow: callCanThrow,
                     thrownResult: thrownResult,
                     dispatch: implicitReceiverDispatch.kind
-                ))
+                )
+                // KUU-763: an unqualified member call on an implicit `this`
+                // receiver dispatches through the same itable lookup as an
+                // explicit `r.contains(x)` call, so a floating-point range box
+                // (no registered itable) needs the same runtime probe before
+                // falling through to virtual dispatch.
+                if let probeEndLabel = emitFloatingPointRangeMemberProbe(
+                    chosenCallee: chosen,
+                    receiverID: implicitReceiverDispatch.receiver,
+                    arguments: finalArgIDs,
+                    result: callResult,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    instructions: &instructions
+                ) {
+                    instructions.append(implicitVirtualInstruction)
+                    instructions.append(.label(probeEndLabel))
+                } else {
+                    instructions.append(implicitVirtualInstruction)
+                }
             } else {
                 instructions.append(.call(
                     symbol: callSymbol,
