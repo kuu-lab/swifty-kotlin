@@ -670,6 +670,23 @@ extension CallLowerer {
                sema.types.makeNonNullable(argumentType) != floatingPointElementType,
                chosenContainsArgumentIsPrimitive
             {
+                // KUU-3228: the resolved cross-type contains keeps the range
+                // ABI on tracked boxes: `floatRangeContains`
+                // (ClosedRange<Float>.contains(Double)) truncates the argument
+                // via `toFloat` in MemberCallEmission, while
+                // `doubleRangeContains` widens Float to Double — mirroring the
+                // stdlib extensions the same call resolves to on the JVM.
+                let nonNullArgumentType = sema.types.makeNonNullable(argumentType)
+                if floatingPointElementType == sema.types.floatType,
+                   nonNullArgumentType == sema.types.doubleType
+                {
+                    return interner.intern("__kk_float_range_contains")
+                }
+                if floatingPointElementType == sema.types.doubleType,
+                   nonNullArgumentType == sema.types.floatType
+                {
+                    return interner.intern("__kk_double_range_contains")
+                }
                 return nil
             }
             switch memberName {
