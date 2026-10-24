@@ -24,6 +24,13 @@ extension CallTypeChecker {
         let interner = ctx.interner
         let knownNames = KnownCompilerNames(interner: interner)
 
+        // KUU-3237: a typealias qualifier cannot reach nested classifiers
+        // (`A2.Nested`, `A2.Inner`, `A2.Companion` are all unresolved in
+        // Kotlin), but companion members and enum entries stay visible
+        // through the alias, so only `.object` member values are skipped.
+        let receiverViaTypeAlias = receiverQualifierIsTypeAlias(
+            receiverID: request.receiverID, ctx: ctx
+        )
         if isClassNameReceiver,
            args.isEmpty,
            let ownerSymbol = classNameReceiverNominalSymbol,
@@ -31,7 +38,9 @@ extension CallTypeChecker {
                ownerNominalSymbol: ownerSymbol,
                memberName: calleeName,
                sema: sema
-           )
+           ),
+           !(receiverViaTypeAlias
+               && sema.symbols.symbol(staticMember.symbol)?.kind == .object)
         {
             if let memberSymbol = sema.symbols.symbol(staticMember.symbol),
                !ctx.visibilityChecker.isAccessible(
@@ -290,7 +299,10 @@ extension CallTypeChecker {
 
         let nestedClassifierOwnerSymbol: SymbolID? = {
             if isClassNameReceiver {
-                return classNameReceiverNominalSymbol
+                // Nested classifiers are not reachable through a typealias
+                // qualifier (KUU-3237); keep the nominal only for a genuine
+                // class-name receiver.
+                return receiverViaTypeAlias ? nil : classNameReceiverNominalSymbol
             }
             guard !request.safeCall else {
                 return nil
