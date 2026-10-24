@@ -8,16 +8,44 @@ final class RuntimeLocaleBox {
     let language: String
     let country: String
     let variant: String
+    let script: String
     let locale: Locale
 
-    init(identifier: String, language: String, country: String, variant: String, locale: Locale) {
+    init(
+        identifier: String,
+        language: String,
+        country: String,
+        variant: String,
+        script: String = "",
+        locale: Locale
+    ) {
         self.identifier = identifier
         self.language = language
         self.country = country
         self.variant = variant
+        self.script = script
         self.locale = locale
     }
 }
+
+private final class RuntimeLocaleDefaultState: @unchecked Sendable {
+    private let lock = NSLock()
+    private var override: RuntimeLocaleBox?
+
+    func get() -> RuntimeLocaleBox? {
+        lock.lock()
+        defer { lock.unlock() }
+        return override
+    }
+
+    func set(_ value: RuntimeLocaleBox?) {
+        lock.lock()
+        defer { lock.unlock() }
+        override = value
+    }
+}
+
+private let runtimeLocaleDefaultState = RuntimeLocaleDefaultState()
 
 func runtimeLocaleBox(from raw: Int) -> RuntimeLocaleBox? {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: raw) else { return nil }
@@ -70,6 +98,57 @@ private func makeRuntimeLocaleBox(language: String, country: String) -> RuntimeL
     )
 }
 
+private func makeRuntimeLocaleBox(languageTag: String) -> RuntimeLocaleBox {
+    let identifier = normalizeLocaleIdentifier(languageTag)
+    let subtags = identifier.split(separator: "-").map(String.init)
+    guard let first = subtags.first else {
+        return RuntimeLocaleBox(identifier: "", language: "", country: "", variant: "", locale: Locale(identifier: ""))
+    }
+
+    var language = first.lowercased()
+    if language == "und" { language = "" }
+    var country = ""
+    var variantParts: [String] = []
+    var script = ""
+    for subtag in subtags.dropFirst() {
+        if subtag.count == 1 { break }
+        if script.isEmpty, subtag.count == 4, subtag.allSatisfy(\.isLetter) {
+            script = subtag.prefix(1).uppercased() + subtag.dropFirst().lowercased()
+        } else if country.isEmpty,
+                  (subtag.count == 2 && subtag.allSatisfy(\.isLetter)) ||
+                    (subtag.count == 3 && subtag.allSatisfy(\.isNumber)) {
+            country = subtag.uppercased()
+        } else {
+            variantParts.append(subtag)
+        }
+    }
+
+    return RuntimeLocaleBox(
+        identifier: identifier,
+        language: language,
+        country: country,
+        variant: variantParts.joined(separator: "_"),
+        script: script,
+        locale: Locale(identifier: identifier)
+    )
+}
+
+private func makeRuntimeLocaleBox(locale: Locale) -> RuntimeLocaleBox {
+    let language = locale.languageCode?.lowercased() ?? ""
+    let country = locale.regionCode?.uppercased() ?? ""
+    return RuntimeLocaleBox(
+        identifier: normalizeLocaleIdentifier(locale.identifier),
+        language: language,
+        country: country,
+        variant: "",
+        locale: locale
+    )
+}
+
+private func runtimeDefaultLocaleBox() -> RuntimeLocaleBox {
+    runtimeLocaleDefaultState.get() ?? makeRuntimeLocaleBox(locale: Locale.current)
+}
+
 func runtimeLocaleToString(_ box: RuntimeLocaleBox) -> String {
     var result = box.language
     if !box.country.isEmpty || (!box.language.isEmpty && !box.variant.isEmpty) {
@@ -77,6 +156,9 @@ func runtimeLocaleToString(_ box: RuntimeLocaleBox) -> String {
     }
     if !box.variant.isEmpty && (!box.language.isEmpty || !box.country.isEmpty) {
         result += "_" + box.variant
+    }
+    if !box.script.isEmpty {
+        result += "_#" + box.script
     }
     return result
 }
@@ -143,4 +225,107 @@ public func __kk_locale_new_language_country_flat(
     return registerRuntimeObject(
         makeRuntimeLocaleBox(language: language, country: country), typeID: runtimeLocaleNominalTypeID
     )
+}
+
+private func requiredRuntimeLocale(_ raw: Int, symbol: String) -> RuntimeLocaleBox {
+    guard let box = runtimeLocaleBox(from: raw) else {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: \(symbol) received invalid Locale handle")
+    }
+    return box
+}
+
+private func runtimeLocaleStringRaw(_ value: String) -> Int {
+    runtimeMakeStringRaw(value)
+}
+
+private func runtimeLocaleDisplayLanguage(_ box: RuntimeLocaleBox, in displayLocale: RuntimeLocaleBox) -> String {
+    guard !box.language.isEmpty else { return "" }
+    return displayLocale.locale.localizedString(forLanguageCode: box.language) ?? box.language
+}
+
+private func runtimeLocaleDisplayCountry(_ box: RuntimeLocaleBox, in displayLocale: RuntimeLocaleBox) -> String {
+    guard !box.country.isEmpty else { return "" }
+    return displayLocale.locale.localizedString(forRegionCode: box.country) ?? box.country
+}
+
+private func runtimeLocaleDisplayName(_ box: RuntimeLocaleBox, in displayLocale: RuntimeLocaleBox) -> String {
+    let language = runtimeLocaleDisplayLanguage(box, in: displayLocale)
+    let country = runtimeLocaleDisplayCountry(box, in: displayLocale)
+    var result: String
+    if !language.isEmpty && !country.isEmpty {
+        result = "\(language) (\(country))"
+    } else {
+        result = language.isEmpty ? country : language
+    }
+    if !box.variant.isEmpty {
+        result += result.isEmpty ? box.variant : " (\(box.variant))"
+    }
+    if !box.script.isEmpty {
+        let script = displayLocale.locale.localizedString(forScriptCode: box.script) ?? box.script
+        result += result.isEmpty ? script : " (\(script))"
+    }
+    return result
+}
+
+@_cdecl("__kk_locale_get_default")
+public func __kk_locale_get_default() -> Int {
+    registerRuntimeObject(runtimeDefaultLocaleBox(), typeID: runtimeLocaleNominalTypeID)
+}
+
+@_cdecl("__kk_locale_set_default")
+public func __kk_locale_set_default(_ localeRaw: Int) {
+    runtimeLocaleDefaultState.set(requiredRuntimeLocale(localeRaw, symbol: "__kk_locale_set_default"))
+}
+
+@_cdecl("__kk_locale_for_language_tag")
+public func __kk_locale_for_language_tag(_ tagRaw: Int) -> Int {
+    guard let languageTag = runtimeStringBox(fromRaw: tagRaw)?.value else {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_locale_for_language_tag received invalid String handle")
+    }
+    return registerRuntimeObject(
+        makeRuntimeLocaleBox(languageTag: languageTag),
+        typeID: runtimeLocaleNominalTypeID
+    )
+}
+
+@_cdecl("__kk_locale_get_language")
+public func __kk_locale_get_language(_ localeRaw: Int) -> Int {
+    runtimeLocaleStringRaw(requiredRuntimeLocale(localeRaw, symbol: "__kk_locale_get_language").language)
+}
+
+@_cdecl("__kk_locale_get_country")
+public func __kk_locale_get_country(_ localeRaw: Int) -> Int {
+    runtimeLocaleStringRaw(requiredRuntimeLocale(localeRaw, symbol: "__kk_locale_get_country").country)
+}
+
+@_cdecl("__kk_locale_get_variant")
+public func __kk_locale_get_variant(_ localeRaw: Int) -> Int {
+    runtimeLocaleStringRaw(requiredRuntimeLocale(localeRaw, symbol: "__kk_locale_get_variant").variant)
+}
+
+@_cdecl("__kk_locale_get_display_name")
+public func __kk_locale_get_display_name(_ localeRaw: Int, _ displayLocaleRaw: Int) -> Int {
+    let locale = requiredRuntimeLocale(localeRaw, symbol: "__kk_locale_get_display_name")
+    let displayLocale = requiredRuntimeLocale(displayLocaleRaw, symbol: "__kk_locale_get_display_name")
+    return runtimeLocaleStringRaw(runtimeLocaleDisplayName(locale, in: displayLocale))
+}
+
+@_cdecl("__kk_locale_get_display_language")
+public func __kk_locale_get_display_language(_ localeRaw: Int, _ displayLocaleRaw: Int) -> Int {
+    let locale = requiredRuntimeLocale(localeRaw, symbol: "__kk_locale_get_display_language")
+    let displayLocale = requiredRuntimeLocale(displayLocaleRaw, symbol: "__kk_locale_get_display_language")
+    return runtimeLocaleStringRaw(runtimeLocaleDisplayLanguage(locale, in: displayLocale))
+}
+
+@_cdecl("__kk_locale_get_display_country")
+public func __kk_locale_get_display_country(_ localeRaw: Int, _ displayLocaleRaw: Int) -> Int {
+    let locale = requiredRuntimeLocale(localeRaw, symbol: "__kk_locale_get_display_country")
+    let displayLocale = requiredRuntimeLocale(displayLocaleRaw, symbol: "__kk_locale_get_display_country")
+    return runtimeLocaleStringRaw(runtimeLocaleDisplayCountry(locale, in: displayLocale))
+}
+
+@_cdecl("__kk_locale_to_language_tag")
+public func __kk_locale_to_language_tag(_ localeRaw: Int) -> Int {
+    let locale = requiredRuntimeLocale(localeRaw, symbol: "__kk_locale_to_language_tag")
+    return runtimeLocaleStringRaw(locale.identifier.replacingOccurrences(of: "_", with: "-"))
 }
