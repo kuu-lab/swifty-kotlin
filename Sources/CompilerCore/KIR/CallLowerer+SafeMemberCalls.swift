@@ -794,9 +794,13 @@ extension CallLowerer {
                     || (calleeStr == "toULong" && nonNullReceiverType == longType && nonNullResultType == ulongType)
                     || (calleeStr == "toInt" && (nonNullReceiverType == byteType || nonNullReceiverType == shortType) && nonNullResultType == intType)
                     || (calleeStr == "toLong" && (nonNullReceiverType == byteType || nonNullReceiverType == shortType) && nonNullResultType == longType)
-            if ["toInt", "toUInt", "toLong", "toULong", "toFloat", "toDouble", "toByte"].contains(calleeStr),
+                    || (calleeStr == "toShort" && nonNullReceiverType == byteType && nonNullResultType == shortType)
+            // Identity conversions have no runtime callee; keep them from
+            // falling through to generic member emission as raw symbols
+            // (`Short?.toShort()`, `UByte?.toUByte()` linked against `_toShort`).
+            if ["toInt", "toUInt", "toLong", "toULong", "toFloat", "toDouble", "toByte", "toShort", "toUByte", "toUShort"].contains(calleeStr),
                nonNullReceiverType == nonNullResultType || isRepresentationPreservingConversion,
-               nonNullReceiverType == intType || nonNullReceiverType == longType || nonNullReceiverType == uintType || nonNullReceiverType == ulongType || nonNullReceiverType == byteType || nonNullReceiverType == shortType || nonNullReceiverType == floatType || nonNullReceiverType == doubleType
+               nonNullReceiverType == intType || nonNullReceiverType == longType || nonNullReceiverType == uintType || nonNullReceiverType == ulongType || nonNullReceiverType == ubyteType || nonNullReceiverType == ushortType || nonNullReceiverType == byteType || nonNullReceiverType == shortType || nonNullReceiverType == floatType || nonNullReceiverType == doubleType
             {
                 instructions.append(.copy(from: loweredReceiverID, to: result))
                 return result
