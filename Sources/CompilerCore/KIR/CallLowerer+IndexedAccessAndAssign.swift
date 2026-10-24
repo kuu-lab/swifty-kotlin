@@ -92,8 +92,9 @@ extension CallLowerer {
            let signature = sema.symbols.functionSignature(for: chosenGet),
            signature.receiverType != nil
         {
-            let loweredIndices = indices.map { indexExpr in
-                driver.lowerExpr(
+            var loweredIndices: [KIRExprID] = []
+            for (position, indexExpr) in indices.enumerated() {
+                let rawIndexID = driver.lowerExpr(
                     indexExpr,
                     ast: ast,
                     sema: sema,
@@ -102,6 +103,12 @@ extension CallLowerer {
                     propertyConstantInitializers: propertyConstantInitializers,
                     instructions: &instructions
                 )
+                let laterIndices = indices.dropFirst(position + 1)
+                let indexID = needsEvaluationOrderFreeze(indexExpr, ast: ast, sema: sema)
+                    && anyExpressionMayMutateState(laterIndices, ast: ast)
+                    ? freezeEvaluationOrderOperand(rawIndexID, arena: arena, instructions: &instructions)
+                    : rawIndexID
+                loweredIndices.append(indexID)
             }
             let normalized = driver.callSupportLowerer.normalizedCallArguments(
                 providedArguments: loweredIndices,
