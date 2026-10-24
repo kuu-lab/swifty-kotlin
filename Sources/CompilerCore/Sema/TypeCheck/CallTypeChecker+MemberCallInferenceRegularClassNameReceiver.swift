@@ -390,6 +390,24 @@ extension CallTypeChecker {
                 sema.bindings.bindExprType(id, type: nestedType)
                 return nestedType
             }
+            // `Outer.I()` reaches here as a classifier qualifier — there is
+            // no containing-class instance on the receiver side, so an inner
+            // class constructor cannot be called this way. Object qualifiers
+            // only reach this path through the value binding above and are
+            // already instances.
+            if isClassNameReceiver,
+               let nestedOwner = nestedOwnerSymbols.first,
+               sema.symbols.symbol(nestedOwner)?.flags.contains(.innerClass) == true
+            {
+                let innerName = sema.symbols.symbol(nestedOwner)
+                    .map { interner.resolve($0.name) } ?? interner.resolve(calleeName)
+                ctx.sema.diagnostics.error(
+                    "KSWIFTK-SEMA-0437",
+                    "constructor of the inner class '\(innerName)' can only be called with a receiver of the containing class.",
+                    range: range
+                )
+                return driver.helpers.bindAndReturnErrorType(id, sema: sema)
+            }
             let nestedCtorFQName = owner.fqName + [calleeName, knownNames.initName]
             var nestedCtorCandidates = sema.symbols.lookupAll(fqName: nestedCtorFQName).filter { candidate in
                 guard let symbol = sema.symbols.symbol(candidate) else {
