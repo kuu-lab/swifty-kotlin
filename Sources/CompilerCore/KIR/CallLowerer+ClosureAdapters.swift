@@ -563,8 +563,14 @@ extension CallLowerer {
         let symbol = sema.symbols.symbol(chosenCallee)
         let isImported = symbol?.flags.contains(.importedLibrary) == true
         let isInline = symbol?.flags.contains(.inlineFunction) == true
+        // Indexed imports keep the inline body as a deferred binding whose
+        // descriptor is only installed by the lowering-time demand scan —
+        // count those pending bodies as available here, or a lambda argument
+        // would be boxed into an adapter that references an isInlineOnly
+        // (never emitted) implementation symbol.
         let hasImportedInlineBody = sema.importedInlineFunctions.descriptors[chosenCallee] != nil
             || sema.importedInlineFunctions.functions[chosenCallee] != nil
+            || sema.importedInlineFunctions.pendingBodySymbols.contains(chosenCallee)
 
         // Synthetic launchers consume a suspend entry reference plus captures,
         // not the boxed function-value ABI used by ordinary Kotlin functions.
