@@ -58,7 +58,7 @@ func primitiveVarargArrayType(
         return nil
     }
     let arrayName = interner.intern(primitive.kotlinName + "Array")
-    guard let arraySymbol = symbols.lookup(fqName: [interner.intern("kotlin"), arrayName]) else {
+    guard let arraySymbol = symbols.lookupNominal(fqName: [interner.intern("kotlin"), arrayName]) else {
         return nil
     }
     return types.make(.classType(ClassType(
@@ -73,7 +73,7 @@ func referenceVarargArrayType(
     sema: SemaModule,
     interner: StringInterner
 ) -> TypeID? {
-    guard let arraySymbol = sema.symbols.lookup(fqName: [
+    guard let arraySymbol = sema.symbols.lookupNominal(fqName: [
         interner.intern("kotlin"),
         interner.intern("Array"),
     ]) else {

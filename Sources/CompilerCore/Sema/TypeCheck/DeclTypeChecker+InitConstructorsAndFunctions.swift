@@ -24,7 +24,7 @@ extension DeclTypeChecker {
         // Local functions use the source-visible generic array directly so
         // their call boundary and body agree on the vararg representation.
         if referenceVarargAsArray,
-           let arraySymbol = sema.symbols.lookup(fqName: [
+           let arraySymbol = sema.symbols.lookupNominal(fqName: [
                interner.intern("kotlin"),
                interner.intern("Array"),
            ])
