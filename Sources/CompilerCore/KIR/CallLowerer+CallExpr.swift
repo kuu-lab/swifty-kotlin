@@ -435,6 +435,7 @@ extension CallLowerer {
                 appendFactoryObjectVtableMethodRegistrations(
                     objectValue: loweredCollectionFactory,
                     nominalSymbol: factoryResultClass,
+                    driver: driver,
                     sema: sema,
                     cache: driver.ctx.nominalDispatchCache,
                     arena: arena,

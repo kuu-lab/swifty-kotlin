@@ -1,3 +1,5 @@
+import RuntimeABI
+
 /// Memoizes the per-nominal dispatch-registration queries KIR lowering runs at
 /// every object construction site. Each result below is a pure function of the
 /// nominal symbol and `sema`, which is immutable during lowering, so entries
@@ -951,6 +953,17 @@ func itableBridgeSymbolForMethod(
         return implementation
     }
     let implementationFn = arena.function(for: implementation)
+    // `external` implementations have no KIR body; their ABI is the runtime
+    // contract, which passes `String` through a raw handle rather than the
+    // flat aggregate the semantic signature suggests. Registering the raw
+    // callee in a source-ABI slot reads the handle word as the aggregate's
+    // first field and spills heap memory into output (KUU-3245).
+    let implementationRuntimeSpec: RuntimeABIFunctionSpec? = {
+        guard implementationFn == nil,
+              let linkName = sema.symbols.externalLinkName(for: implementation)
+        else { return nil }
+        return RuntimeABISpec.byName[linkName]
+    }()
     // Nested singleton initializers register dispatch before their member bodies
     // are lowered. Ordinary source object methods already have their final ABI
     // in Sema, so their erasure bridges can reference the forthcoming definition.
@@ -972,7 +985,9 @@ func itableBridgeSymbolForMethod(
         else { return false }
         return true
     }()
-    guard implementationFn != nil || implementationSignature != nil || hasForwardObjectSignature else {
+    guard implementationFn != nil || implementationSignature != nil || hasForwardObjectSignature
+        || implementationRuntimeSpec != nil
+    else {
         return implementation
     }
     let implementationReturnType = implementationFn?.returnType ?? implSig.returnType
@@ -983,6 +998,12 @@ func itableBridgeSymbolForMethod(
             return true
         }
         return false
+    }
+    // A runtime `external` implementation answers every value through the raw
+    // word/handle ABI: its semantic `String` parameter and result types are
+    // single words, not the flat aggregate source functions pass.
+    func implIsStringAggregate(_ type: TypeID?) -> Bool {
+        isStringAggregate(type) && implementationRuntimeSpec == nil
     }
 
     let memberExtensionOwner = sema.symbols.symbol(interfaceMethod)?.kind == .function
@@ -1069,7 +1090,7 @@ func itableBridgeSymbolForMethod(
 
     var needsBridge = argumentCastTargets.contains { $0 != nil }
         || barrierCheckTypes.contains { $0 != nil }
-    if isStringAggregate(implementationReturnType) != isStringAggregate(interfaceSig.returnType) {
+    if implIsStringAggregate(implementationReturnType) != isStringAggregate(interfaceSig.returnType) {
         needsBridge = true
     }
     func isErasedValueSlot(_ type: TypeID) -> Bool {
@@ -1146,7 +1167,7 @@ func itableBridgeSymbolForMethod(
     }
     if !needsBridge {
         for (implType, ifaceType) in zip(implementationParamTypes, interfaceParamTypes) {
-            if isStringAggregate(implType) != isStringAggregate(ifaceType)
+            if implIsStringAggregate(implType) != isStringAggregate(ifaceType)
                 || needsErasedValueParamAdaptation(implType: implType, ifaceType: ifaceType)
             {
                 needsBridge = true
@@ -1469,36 +1490,47 @@ private func kirCollectionContainsBridgeMethod(
 /// dispatches through a vtable slot the box never had registered and the runtime
 /// lookup traps.
 ///
-/// Unlike `appendObjectVtableMethodRegistrations` this variant runs in driver-less
-/// lowering passes (it only needs `KIRContext`-level services), so it cannot create
-/// `itableBridgeSymbolForMethod` shims; the registered implementations are the
-/// class's own external-link bridges, whose ABI already matches the erased vtable
-/// signature.
+/// Unlike `appendObjectVtableMethodRegistrations` this variant also runs in
+/// driver-less lowering passes (it only needs `KIRContext`-level services).
+/// Implementations whose ABI differs from the slot's source signature — for
+/// example an `external` runtime callee answering `String` as a raw handle —
+/// still register through `itableBridgeSymbolForMethod` so callers never read
+/// a mismatched representation (KUU-3245).
 func appendFactoryObjectVtableMethodRegistrations<C: RangeReplaceableCollection>(
     objectValue: KIRExprID,
     nominalSymbol: SymbolID,
+    driver: KIRLoweringDriver? = nil,
     sema: SemaModule,
     cache: KIRNominalDispatchCache,
     arena: KIRArena,
     interner: StringInterner,
     instructions: inout C
 ) where C.Element == KIRInstruction {
-    var implementationsBySlot: [Int: SymbolID] = [:]
+    var implementationsBySlot: [Int: (dispatchMethod: SymbolID, implementation: SymbolID)] = [:]
     for entry in cache.vtableImplementations(for: nominalSymbol, sema: sema) {
-        implementationsBySlot[entry.slot] = entry.implementation
+        implementationsBySlot[entry.slot] = (entry.dispatchMethod, entry.implementation)
     }
     for entry in cache.vtablePropertyAccessorImplementations(for: nominalSymbol, sema: sema) {
-        implementationsBySlot[entry.slot] = entry.implementation
+        implementationsBySlot[entry.slot] = (entry.dispatchAccessor, entry.implementation)
     }
     guard !implementationsBySlot.isEmpty else { return }
 
     let intType = sema.types.intType
     let registerCallee = interner.intern("kk_object_register_vtable_method")
-    for (slot, implementation) in implementationsBySlot.sorted(by: { $0.key < $1.key }) {
+    for (slot, entry) in implementationsBySlot.sorted(by: { $0.key < $1.key }) {
+        let bridgeSymbol = itableBridgeSymbolForMethod(
+            interfaceMethod: entry.dispatchMethod,
+            implementation: entry.implementation,
+            nominalSymbol: nominalSymbol,
+            driver: driver,
+            arena: arena,
+            sema: sema,
+            interner: interner
+        )
         let slotExpr = arena.appendExpr(.intLiteral(Int64(slot)), type: intType)
         instructions.append(.constValue(result: slotExpr, value: .intLiteral(Int64(slot))))
-        let methodFnExpr = arena.appendExpr(.symbolRef(implementation), type: intType)
-        instructions.append(.constValue(result: methodFnExpr, value: .symbolRef(implementation)))
+        let methodFnExpr = arena.appendExpr(.symbolRef(bridgeSymbol), type: intType)
+        instructions.append(.constValue(result: methodFnExpr, value: .symbolRef(bridgeSymbol)))
         let registerResult = arena.appendTemporary(type: intType)
         instructions.append(.call(
             symbol: nil,
