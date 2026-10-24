@@ -147,7 +147,6 @@ extension CoroutineLoweringPass {
         }
 
         return .call(
-            symbol: nil,
             callee: replacementCallee,
             arguments: [entryPointExpr, functionIDExpr, closureRawExpr],
             result: call.result,
@@ -379,7 +378,6 @@ extension CoroutineLoweringPass {
         )
 
         return .call(
-            symbol: nil,
             callee: newCallee,
             arguments: [entryPointExpr, functionIDExpr, closureRawExpr, launcherArgCountExpr],
             result: call.result,

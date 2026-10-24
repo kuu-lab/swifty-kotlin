@@ -52,12 +52,10 @@ enum InlineErasedLambdaABI {
             let targetType = types.make(.primitive(primitive, .nonNull))
             let unboxed = module.arena.appendTemporary(type: targetType)
             body.append(.call(
-                symbol: nil,
                 callee: ABILoweringPass.primitiveUnboxingCallee(for: primitive, interner: ctx.interner),
                 arguments: [argument],
                 result: unboxed,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
             normalized[index] = unboxed
         }
@@ -90,12 +88,10 @@ enum InlineErasedLambdaABI {
             }
             let boxedArg = module.arena.appendTemporary(type: types.anyType)
             body.append(.call(
-                symbol: nil,
                 callee: ABILoweringPass.primitiveBoxingCallee(for: primitive, interner: ctx.interner),
                 arguments: [loweredArguments[index]],
                 result: boxedArg,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
             boxed[index] = boxedArg
         }
@@ -273,12 +269,10 @@ enum InlineErasedLambdaABI {
             }
             let unboxed = module.arena.appendTemporary(type: parameterType)
             body.append(.call(
-                symbol: nil,
                 callee: ABILoweringPass.primitiveUnboxingCallee(for: primitive, interner: ctx.interner),
                 arguments: [arguments[index]],
                 result: unboxed,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
             normalized[index] = unboxed
         }
@@ -375,12 +369,10 @@ enum InlineErasedLambdaABI {
             case let .primitive(primitive, .nonNull):
                 let boxedResult = module.arena.appendTemporary(type: types.anyType)
                 body.append(.call(
-                    symbol: nil,
                     callee: ABILoweringPass.primitiveBoxingCallee(for: primitive, interner: ctx.interner),
                     arguments: [arguments[index]],
                     result: boxedResult,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ))
                 boxed[index] = boxedResult
             case .stringStruct:
@@ -393,12 +385,10 @@ enum InlineErasedLambdaABI {
                 // the same flat-to-box callee is still correct.
                 let boxedResult = module.arena.appendTemporary(type: types.anyType)
                 body.append(.call(
-                    symbol: nil,
                     callee: ctx.interner.intern("kk_string_from_flat"),
                     arguments: [arguments[index]],
                     result: boxedResult,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ))
                 boxed[index] = boxedResult
             default:
@@ -428,12 +418,10 @@ enum InlineErasedLambdaABI {
         }
         let unboxed = module.arena.appendTemporary(type: resultType)
         body.append(.call(
-            symbol: nil,
             callee: ABILoweringPass.primitiveUnboxingCallee(for: primitive, interner: ctx.interner),
             arguments: [returnedExpr],
             result: unboxed,
-            canThrow: false,
-            thrownResult: nil
+            canThrow: false
         ))
         return unboxed
     }

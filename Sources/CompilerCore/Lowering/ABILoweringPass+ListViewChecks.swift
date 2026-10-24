@@ -96,7 +96,6 @@ extension ABILoweringPass {
         }
         for index in checkedIndices where arguments.indices.contains(index) {
             newBody.append(.call(
-                symbol: nil,
                 callee: checkCallee,
                 arguments: [arguments[index]],
                 result: nil,

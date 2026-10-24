@@ -142,24 +142,20 @@ extension CoroutineLoweringPass {
         let zeroExpr = arena.appendExpr(.intLiteral(0), type: rewrite.intType)
         var instructions: [KIRInstruction] = [
             .call(
-                symbol: nil,
                 callee: rewrite.continuationFactory,
                 arguments: [functionIDExpr],
                 result: continuationExpr,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ),
         ]
 
         func appendLauncherArgSet(_ slot: Int, _ value: KIRExprID) {
             let slotExpr = arena.appendExpr(.intLiteral(Int64(slot)), type: rewrite.intType)
             instructions.append(.call(
-                symbol: nil,
                 callee: rewrite.launcherArgSetCallee,
                 arguments: [continuationExpr, slotExpr, value],
                 result: nil,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
         }
 
@@ -180,7 +176,6 @@ extension CoroutineLoweringPass {
         let scopeSlotExpr = arena.appendExpr(.intLiteral(Int64(scopeSlot)), type: rewrite.intType)
         instructions.append(.constValue(result: entryExpr, value: .symbolRef(entrySymbol)))
         instructions.append(.call(
-            symbol: nil,
             callee: rewrite.ctx.interner.intern(
                 rewrite.ctx.interner.resolve(call.callee) == "__kk_coroutine_scope_launch_context"
                     ? "__kk_coroutine_scope_launch_context_with_cont"

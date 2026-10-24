@@ -117,12 +117,10 @@ extension CallLowerer {
 
         let conditionExpr = arena.appendTemporary(type: boolType)
         instructions.append(.call(
-            symbol: nil,
             callee: lessThanCallee,
             arguments: [indexExpr, sizeExpr],
             result: conditionExpr,
-            canThrow: true,
-            thrownResult: nil
+            canThrow: true
         ))
         instructions.append(.jumpIfEqual(lhs: conditionExpr, rhs: falseExpr, target: exitLabel))
 
@@ -167,8 +165,7 @@ extension CallLowerer {
                     callee: callableInfo.callee,
                     arguments: callableInfo.captureArguments + [indexExpr],
                     result: actionResult,
-                    canThrow: true,
-                    thrownResult: nil
+                    canThrow: true
                 ))
                 lambdaResultExpr = actionResult
             }
@@ -177,23 +174,19 @@ extension CallLowerer {
         if let lambdaResult = lambdaResultExpr {
             let storeResult = arena.appendTemporary(type: unitType)
             instructions.append(.call(
-                symbol: nil,
                 callee: storeAtCallee,
                 arguments: [arrayExpr, indexExpr, lambdaResult],
                 result: storeResult,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
         }
 
         let nextIndexBoxedExpr = arena.appendTemporary(type: intType)
         instructions.append(.call(
-            symbol: nil,
             callee: addCallee,
             arguments: [indexExpr, oneExpr],
             result: nextIndexBoxedExpr,
-            canThrow: true,
-            thrownResult: nil
+            canThrow: true
         ))
         let nextIndexExpr = emitNonThrowingCall(
             callee: unboxIntCallee,

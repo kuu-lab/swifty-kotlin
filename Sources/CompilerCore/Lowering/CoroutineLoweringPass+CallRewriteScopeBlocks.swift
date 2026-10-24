@@ -56,12 +56,10 @@ extension CoroutineLoweringPass {
             value: .intLiteral(Int64(loweredTarget.symbol.rawValue))
         ))
         rewritten.append(.call(
-            symbol: nil,
             callee: rewrite.continuationFactory,
             arguments: [continuationFunctionID],
             result: continuationExpr,
-            canThrow: false,
-            thrownResult: nil
+            canThrow: false
         ))
 
         for (index, argExpr) in extraArgs.enumerated() {
@@ -70,12 +68,10 @@ extension CoroutineLoweringPass {
                 type: rewrite.intType
             )
             rewritten.append(.call(
-                symbol: nil,
                 callee: rewrite.launcherArgSetCallee,
                 arguments: [continuationExpr, slotExpr, argExpr],
                 result: nil,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
         }
 
@@ -84,7 +80,6 @@ extension CoroutineLoweringPass {
             type: rewrite.intType
         )
         rewritten.append(.call(
-            symbol: nil,
             callee: rewrite.runtimeWithContextCallee,
             arguments: [dispatcherExpr, entryPointExpr, continuationExpr],
             result: call.result,
@@ -137,12 +132,10 @@ extension CoroutineLoweringPass {
             if argType != longType, argType != rewrite.intType {
                 let millisExpr = rewrite.module.arena.appendTemporary(type: longType)
                 rewritten.append(.call(
-                    symbol: nil,
                     callee: rewrite.ctx.interner.intern("kk_duration_inWholeMilliseconds"),
                     arguments: [timeMillisExpr],
                     result: millisExpr,
                     canThrow: false,
-                    thrownResult: nil,
                     isSuperCall: false
                 ))
                 timeMillisExpr = millisExpr
@@ -195,12 +188,10 @@ extension CoroutineLoweringPass {
             value: .intLiteral(Int64(loweredTarget.symbol.rawValue))
         ))
         rewritten.append(.call(
-            symbol: nil,
             callee: rewrite.continuationFactory,
             arguments: [continuationFunctionID],
             result: continuationExpr,
-            canThrow: false,
-            thrownResult: nil
+            canThrow: false
         ))
 
         for (index, argExpr) in extraArgs.enumerated() {
@@ -209,12 +200,10 @@ extension CoroutineLoweringPass {
                 type: rewrite.intType
             )
             rewritten.append(.call(
-                symbol: nil,
                 callee: rewrite.launcherArgSetCallee,
                 arguments: [continuationExpr, slotExpr, argExpr],
                 result: nil,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
         }
 
@@ -223,7 +212,6 @@ extension CoroutineLoweringPass {
             type: rewrite.intType
         )
         rewritten.append(.call(
-            symbol: nil,
             callee: runtimeCallee,
             arguments: [timeMillisExpr, entryPointExpr, continuationExpr],
             result: call.result,

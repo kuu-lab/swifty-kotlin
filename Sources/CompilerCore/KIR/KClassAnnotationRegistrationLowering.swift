@@ -80,12 +80,10 @@ func emitRuntimeAnnotationRegistration(
         }
         let registerResult = arena.appendTemporary(type: intType)
         instructions.append(.call(
-            symbol: nil,
             callee: interner.intern(callee),
             arguments: registrationArguments,
             result: registerResult,
-            canThrow: false,
-            thrownResult: nil
+            canThrow: false
         ))
 
         if registerJavaInheritedAnnotations,
@@ -93,12 +91,10 @@ func emitRuntimeAnnotationRegistration(
         {
             let inheritedResult = arena.appendTemporary(type: intType)
             instructions.append(.call(
-                symbol: nil,
                 callee: interner.intern("__kk_java_class_register_inherited_annotation"),
                 arguments: [nameExpr],
                 result: inheritedResult,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
         }
     }

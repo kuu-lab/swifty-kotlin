@@ -84,12 +84,10 @@ final class ReifiedEnumValuesLoweringPass: LoweringPass {
                 }
                 if parameterTokens.contains(arguments[0]), !function.isInline {
                     body.append(.call(
-                        symbol: nil,
                         callee: ctx.interner.intern("kk_enum_values_for_token"),
                         arguments: [arguments[0]],
                         result: result,
-                        canThrow: false,
-                        thrownResult: nil
+                        canThrow: false
                     ))
                     continue
                 }

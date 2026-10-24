@@ -295,8 +295,7 @@ extension CallLowerer {
                     callee: info.callee,
                     arguments: info.captureArguments,
                     result: result,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ))
             } else {
                 emitNonThrowingCall(
@@ -551,12 +550,10 @@ extension CallLowerer {
 
         let result = arena.appendTemporary(type: boundType ?? sema.types.anyType)
         instructions.append(.call(
-            symbol: nil,
             callee: runtimeCallee,
             arguments: loweredArgIDs,
             result: result,
-            canThrow: runtimeCallee == interner.intern("kk_sequence_to_list"),
-            thrownResult: nil
+            canThrow: runtimeCallee == interner.intern("kk_sequence_to_list")
         ))
         return result
     }

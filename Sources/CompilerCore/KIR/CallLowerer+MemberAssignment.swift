@@ -66,12 +66,10 @@ extension CallLowerer {
         {
             let storeLinkName = String(getterLink.dropLast("_load".count)) + "_store"
             instructions.append(.call(
-                symbol: nil,
                 callee: interner.intern(storeLinkName),
                 arguments: [receiverID, valueID],
                 result: nil,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
             let unit = arena.appendExpr(.unit, type: sema.types.unitType)
             instructions.append(.constValue(result: unit, value: .unit))
@@ -113,7 +111,6 @@ extension CallLowerer {
                     arguments: Array(virtualAccessorArguments.dropFirst()),
                     result: result,
                     canThrow: false,
-                    thrownResult: nil,
                     dispatch: dispatch
                 ))
                 let unit = arena.appendExpr(.unit, type: sema.types.unitType)
@@ -132,8 +129,7 @@ extension CallLowerer {
                 callee: interner.intern("set"),
                 arguments: setterArguments,
                 result: result,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
             let unit = arena.appendExpr(.unit, type: sema.types.unitType)
             instructions.append(.constValue(result: unit, value: .unit))
@@ -161,8 +157,7 @@ extension CallLowerer {
                 callee: interner.intern("set"),
                 arguments: setterArguments,
                 result: result,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
             let unit = arena.appendExpr(.unit, type: sema.types.unitType)
             instructions.append(.constValue(result: unit, value: .unit))
@@ -244,7 +239,6 @@ extension CallLowerer {
                     arguments: Array(virtualAccessorArguments.dropFirst()),
                     result: result,
                     canThrow: false,
-                    thrownResult: nil,
                     dispatch: dispatch
                 ))
                 let unit = arena.appendExpr(.unit, type: sema.types.unitType)
@@ -264,12 +258,10 @@ extension CallLowerer {
                     into: &instructions
                 )
                 instructions.append(.call(
-                    symbol: nil,
                     callee: interner.intern("kk_array_set"),
                     arguments: [receiverID, offsetExpr, storedValueID],
                     result: nil,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ))
                 let unit = arena.appendExpr(.unit, type: sema.types.unitType)
                 instructions.append(.constValue(result: unit, value: .unit))
@@ -330,12 +322,10 @@ extension CallLowerer {
            )
         {
             instructions.append(.call(
-                symbol: nil,
                 callee: setterCallee,
                 arguments: [receiverID, valueID],
                 result: arena.appendTemporary(type: sema.types.unitType),
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
             let unit = arena.appendExpr(.unit, type: sema.types.unitType)
             instructions.append(.constValue(result: unit, value: .unit))
@@ -357,8 +347,7 @@ extension CallLowerer {
             callee: setterName,
             arguments: [receiverID, valueID],
             result: result,
-            canThrow: false,
-            thrownResult: nil
+            canThrow: false
         ))
         let unit = arena.appendExpr(.unit, type: sema.types.unitType)
         instructions.append(.constValue(result: unit, value: .unit))
@@ -644,7 +633,6 @@ extension CallLowerer {
                 arguments: Array(virtualAccessorArguments.dropFirst()),
                 result: result,
                 canThrow: false,
-                thrownResult: nil,
                 dispatch: virtualGetterDispatch.dispatch
             ))
             currentValue = result
@@ -670,8 +658,7 @@ extension CallLowerer {
                 callee: interner.intern("get"),
                 arguments: getterArguments,
                 result: result,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
             currentValue = result
         } else if let fieldOffset {
@@ -679,12 +666,10 @@ extension CallLowerer {
             instructions.append(.constValue(result: offsetExpr, value: .intLiteral(Int64(fieldOffset))))
             let result = arena.appendTemporary(type: propType)
             instructions.append(.call(
-                symbol: nil,
                 callee: interner.intern("kk_array_get_inbounds"),
                 arguments: [receiverID, offsetExpr],
                 result: result,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
             currentValue = propertySymbol.map {
                 wrapLateinitReadIfNeeded(
@@ -734,8 +719,7 @@ extension CallLowerer {
                     callee: loweredCalleeName,
                     arguments: [currentValue],
                     result: callResult,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ))
                 return callResult
             }
@@ -795,8 +779,7 @@ extension CallLowerer {
                     callee: loweredCalleeName,
                     arguments: finalArguments,
                     result: callResult,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ))
                 return returnType == sema.types.unitType ? nil : callResult
             }
@@ -855,12 +838,10 @@ extension CallLowerer {
             }
             let result = arena.appendTemporary(type: stringType)
             instructions.append(.call(
-                symbol: nil,
                 callee: interner.intern("__kk_string_concat_flat"),
                 arguments: [effectiveCurrent, effectiveValue],
                 result: result,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
             return result
         }()
@@ -868,12 +849,10 @@ extension CallLowerer {
         if let newValue {
             if let syntheticLinks {
                 instructions.append(.call(
-                    symbol: nil,
                     callee: interner.intern(syntheticLinks.store),
                     arguments: [receiverID, newValue],
                     result: nil,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ))
             } else if isObjectOwned, !storeUsesSetterAccessor, let propertySymbol {
                 let globalRef = arena.appendExpr(.symbolRef(propertySymbol), type: propType)
@@ -906,17 +885,14 @@ extension CallLowerer {
                     arguments: Array(virtualAccessorArguments.dropFirst()),
                     result: setterResult,
                     canThrow: false,
-                    thrownResult: nil,
                     dispatch: virtualSetterDispatch.dispatch
                 ))
             } else if let enumHelperCallees {
                 instructions.append(.call(
-                    symbol: nil,
                     callee: enumHelperCallees.setter,
                     arguments: [receiverID, newValue],
                     result: arena.appendTemporary(type: sema.types.unitType),
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ))
             } else if usesSetterAccessor, let propertySymbol {
                 let setterSymbol = sema.symbols.extensionPropertySetterAccessor(for: propertySymbol)
@@ -931,8 +907,7 @@ extension CallLowerer {
                     callee: interner.intern("set"),
                     arguments: setterArguments,
                     result: setterResult,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ))
             } else if let fieldOffset {
                 let offsetExpr = arena.appendExpr(.intLiteral(Int64(fieldOffset)), type: sema.types.intType)
@@ -945,12 +920,10 @@ extension CallLowerer {
                     into: &instructions
                 )
                 instructions.append(.call(
-                    symbol: nil,
                     callee: interner.intern("kk_array_set"),
                     arguments: [receiverID, offsetExpr, storedValue],
                     result: nil,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ))
             } else {
                 let setterName = loweredMemberCalleeName(
@@ -963,12 +936,10 @@ extension CallLowerer {
                 )
                 let setterResult = arena.appendTemporary(type: sema.types.unitType)
                 instructions.append(.call(
-                    symbol: nil,
                     callee: setterName,
                     arguments: [receiverID, newValue],
                     result: setterResult,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ))
             }
             if ast.arena.incrementDecrementReturnsValue(exprID) {
@@ -1124,7 +1095,6 @@ extension CallLowerer {
             arguments: [loweredValueID],
             result: result,
             canThrow: false,
-            thrownResult: nil,
             dispatch: .itableDynamic(interfaceTypeID: interfaceTypeID, methodSlot: methodSlot)
         ))
         let unit = arena.appendExpr(.unit, type: sema.types.unitType)

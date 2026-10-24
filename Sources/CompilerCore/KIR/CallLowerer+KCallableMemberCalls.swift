@@ -270,8 +270,8 @@ extension CallLowerer {
             let map = driver.exprLowerer.lowerExpr(arg.expr, ast: ast, sema: sema, arena: arena, interner: interner,
                                                 propertyConstantInitializers: propertyConstantInitializers, instructions: &instructions)
             let result = arena.appendTemporary(type: sema.types.anyType)
-            instructions.append(.call(symbol: nil, callee: interner.intern("__kk_kcallable_call_by"), arguments: [receiverID, map],
-                                      result: result, canThrow: true, thrownResult: nil))
+            instructions.append(.call(callee: interner.intern("__kk_kcallable_call_by"), arguments: [receiverID, map],
+                                      result: result, canThrow: true))
             let typed = arena.appendTemporary(type: sema.bindings.exprTypes[exprID])
             instructions.append(.copy(from: result, to: typed))
             return typed
@@ -297,8 +297,8 @@ extension CallLowerer {
             instructions: &instructions
         )
         let raw = arena.appendTemporary(type: sema.types.anyType)
-        instructions.append(.call(symbol: nil, callee: interner.intern("__kk_kcallable_call"), arguments: [receiverID, list],
-                                  result: raw, canThrow: true, thrownResult: nil))
+        instructions.append(.call(callee: interner.intern("__kk_kcallable_call"), arguments: [receiverID, list],
+                                  result: raw, canThrow: true))
         let typed = arena.appendTemporary(type: sema.bindings.exprTypes[exprID])
         instructions.append(.copy(from: raw, to: typed))
         return typed
@@ -350,12 +350,10 @@ extension CallLowerer {
         instructions.append(.constValue(result: methodSlotExpr, value: .intLiteral(Int64(methodSlot))))
         let rawResult = arena.appendTemporary(type: sema.types.anyType)
         instructions.append(.call(
-            symbol: nil,
             callee: interner.intern("__kk_kproperty0_get"),
             arguments: [receiver, interfaceTypeIDExpr, methodSlotExpr],
             result: rawResult,
-            canThrow: true,
-            thrownResult: nil
+            canThrow: true
         ))
         let typedResult = arena.appendTemporary(type: sema.bindings.exprTypes[exprID] ?? sema.types.anyType)
         instructions.append(.copy(from: rawResult, to: typedResult))

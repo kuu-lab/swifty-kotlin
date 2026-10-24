@@ -109,12 +109,10 @@ extension CallLowerer {
 
         let rawGetResult = arena.appendTemporary(type: sema.types.anyType)
         instructions.append(.call(
-            symbol: nil,
             callee: interner.intern("kk_array_get"),
             arguments: [receiverID, indexID],
             result: rawGetResult,
-            canThrow: false,
-            thrownResult: nil
+            canThrow: false
         ))
         let getResult: KIRExprID
         if let elementType = compoundPrimitiveElementType,
@@ -183,12 +181,10 @@ extension CallLowerer {
                 return unit
             }
             instructions.append(.call(
-                symbol: nil,
                 callee: interner.intern("kk_array_set"),
                 arguments: [receiverID, indexID, newElement],
                 result: nil,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
             let unit = arena.appendExpr(.unit, type: sema.types.unitType)
             instructions.append(.constValue(result: unit, value: .unit))
@@ -243,12 +239,10 @@ extension CallLowerer {
                 }
             }
             instructions.append(.call(
-                symbol: nil,
                 callee: interner.intern(opName),
                 arguments: [getResult, valueID],
                 result: opResult,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
         }
         let storedOpResult: KIRExprID
@@ -266,12 +260,10 @@ extension CallLowerer {
             storedOpResult = opResult
         }
         instructions.append(.call(
-            symbol: nil,
             callee: interner.intern("kk_array_set"),
             arguments: [receiverID, indexID, storedOpResult],
             result: nil,
-            canThrow: false,
-            thrownResult: nil
+            canThrow: false
         ))
         let unit = arena.appendExpr(.unit, type: sema.types.unitType)
         instructions.append(.constValue(result: unit, value: .unit))
@@ -471,12 +463,10 @@ extension CallLowerer {
                 )
             let result = arena.appendTemporary(type: stringType)
             instructions.append(.call(
-                symbol: nil,
                 callee: interner.intern("__kk_string_concat_flat"),
                 arguments: [stringCurrent, stringValue],
                 result: result,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
             return result
         }
@@ -527,12 +517,10 @@ extension CallLowerer {
         }
         let opResult = arena.appendTemporary(type: elementType)
         instructions.append(.call(
-            symbol: nil,
             callee: interner.intern(opName),
             arguments: [getResult, effectiveValueID],
             result: opResult,
-            canThrow: false,
-            thrownResult: nil
+            canThrow: false
         ))
 
         return opResult
@@ -583,8 +571,7 @@ extension CallLowerer {
             callee: loweredCalleeName,
             arguments: arguments,
             result: callResult,
-            canThrow: false,
-            thrownResult: nil
+            canThrow: false
         ))
         return binding.kind == .inPlace ? nil : callResult
     }

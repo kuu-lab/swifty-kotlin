@@ -702,64 +702,54 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
             body: [
                 .constValue(result: leftExpr, value: .stringLiteral(left)),
                 .constValue(result: rightExpr, value: .stringLiteral(right)),
-                .call(symbol: nil, callee: interner.intern(try runtimeLinkName("string_concat_flat")), arguments: [leftExpr, rightExpr], result: concatResult, canThrow: false, thrownResult: nil),
+                .call(callee: interner.intern(try runtimeLinkName("string_concat_flat")), arguments: [leftExpr, rightExpr], result: concatResult, canThrow: false),
                 .constValue(result: paddedExpr, value: .stringLiteral(padded)),
-                .call(symbol: nil, callee: interner.intern(try runtimeLinkName("string_trim_flat")), arguments: [paddedExpr], result: trimResult, canThrow: false, thrownResult: nil),
-                .call(symbol: nil, callee: interner.intern(try runtimeLinkName("string_trimStart_flat")), arguments: [paddedExpr], result: trimStartResult, canThrow: false, thrownResult: nil),
-                .call(symbol: nil, callee: interner.intern(try runtimeLinkName("string_trimEnd_flat")), arguments: [paddedExpr], result: trimEndResult, canThrow: false, thrownResult: nil),
-                .call(symbol: nil, callee: interner.intern(try runtimeLinkName("string_lowercase_flat")), arguments: [paddedExpr], result: lowercaseResult, canThrow: false, thrownResult: nil),
-                .call(symbol: nil, callee: interner.intern(try runtimeLinkName("string_uppercase_flat")), arguments: [paddedExpr], result: uppercaseResult, canThrow: false, thrownResult: nil),
+                .call(callee: interner.intern(try runtimeLinkName("string_trim_flat")), arguments: [paddedExpr], result: trimResult, canThrow: false),
+                .call(callee: interner.intern(try runtimeLinkName("string_trimStart_flat")), arguments: [paddedExpr], result: trimStartResult, canThrow: false),
+                .call(callee: interner.intern(try runtimeLinkName("string_trimEnd_flat")), arguments: [paddedExpr], result: trimEndResult, canThrow: false),
+                .call(callee: interner.intern(try runtimeLinkName("string_lowercase_flat")), arguments: [paddedExpr], result: lowercaseResult, canThrow: false),
+                .call(callee: interner.intern(try runtimeLinkName("string_uppercase_flat")), arguments: [paddedExpr], result: uppercaseResult, canThrow: false),
                 .constValue(result: needleExpr, value: .stringLiteral(needle)),
-                .call(symbol: nil, callee: interner.intern(try runtimeLinkName("string_isBlank_flat")), arguments: [trimResult], result: isBlankResult, canThrow: false, thrownResult: nil),
+                .call(callee: interner.intern(try runtimeLinkName("string_isBlank_flat")), arguments: [trimResult], result: isBlankResult, canThrow: false),
                 .constValue(result: localeRaw, value: .intLiteral(0)),
-                .call(symbol: nil, callee: interner.intern(try runtimeLinkName("string_compareTo_locale_flat")), arguments: [trimResult, needleExpr, localeRaw], result: compareLocaleResult, canThrow: false, thrownResult: nil),
+                .call(callee: interner.intern(try runtimeLinkName("string_compareTo_locale_flat")), arguments: [trimResult, needleExpr, localeRaw], result: compareLocaleResult, canThrow: false),
                 .constValue(result: nullStringExpr, value: .null),
-                .call(symbol: nil, callee: interner.intern(try runtimeLinkName("string_isNullOrEmpty_flat")), arguments: [nullStringExpr], result: isNullOrEmptyResult, canThrow: false, thrownResult: nil),
-                .call(symbol: nil, callee: interner.intern(try runtimeLinkName("string_isNullOrBlank_flat")), arguments: [nullStringExpr], result: isNullOrBlankResult, canThrow: false, thrownResult: nil),
-                .call(symbol: nil, callee: interner.intern(try runtimeLinkName("string_equals_flat")), arguments: [trimResult, nullStringExpr], result: equalsResult, canThrow: false, thrownResult: nil),
-                .call(symbol: nil, callee: interner.intern(try runtimeLinkName("print_raw")), arguments: [concatResult], result: nil, canThrow: false, thrownResult: nil),
-                .call(symbol: nil, callee: interner.intern(try runtimeLinkName("coroutine_suspended")), arguments: [], result: suspendedResult, canThrow: false, thrownResult: nil),
+                .call(callee: interner.intern(try runtimeLinkName("string_isNullOrEmpty_flat")), arguments: [nullStringExpr], result: isNullOrEmptyResult, canThrow: false),
+                .call(callee: interner.intern(try runtimeLinkName("string_isNullOrBlank_flat")), arguments: [nullStringExpr], result: isNullOrBlankResult, canThrow: false),
+                .call(callee: interner.intern(try runtimeLinkName("string_equals_flat")), arguments: [trimResult, nullStringExpr], result: equalsResult, canThrow: false),
+                .call(callee: interner.intern(try runtimeLinkName("print_raw")), arguments: [concatResult], result: nil, canThrow: false),
+                .call(callee: interner.intern(try runtimeLinkName("coroutine_suspended")), arguments: [], result: suspendedResult, canThrow: false),
                 .constValue(result: labelValue, value: .intLiteral(7)),
                 .call(
-                    symbol: nil,
                     callee: interner.intern(try runtimeLinkName("coroutine_state_set_label")),
                     arguments: [suspendedResult, labelValue],
                     result: labelResult,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ),
                 .constValue(result: spillSlotValue, value: .intLiteral(0)),
                 .call(
-                    symbol: nil,
                     callee: interner.intern(try runtimeLinkName("coroutine_state_set_spill")),
                     arguments: [suspendedResult, spillSlotValue, labelValue],
                     result: spillStored,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ),
                 .call(
-                    symbol: nil,
                     callee: interner.intern(try runtimeLinkName("coroutine_state_get_spill")),
                     arguments: [suspendedResult, spillSlotValue],
                     result: spillLoaded,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ),
                 .call(
-                    symbol: nil,
                     callee: interner.intern(try runtimeLinkName("coroutine_state_set_completion")),
                     arguments: [suspendedResult, spillLoaded],
                     result: completionStored,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ),
                 .call(
-                    symbol: nil,
                     callee: interner.intern(try runtimeLinkName("coroutine_state_get_completion")),
                     arguments: [suspendedResult],
                     result: completionLoaded,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ),
                 // Control flow for if/when: branch on condition == false
                 .constValue(result: falseConst, value: .boolLiteral(false)),
@@ -769,24 +759,20 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
                 .label(900),
                 .copy(from: completionLoaded, to: whenResult),
                 .label(901),
-                .call(symbol: nil, callee: interner.intern(try runtimeLinkName("print_raw")), arguments: [whenResult], result: nil, canThrow: false, thrownResult: nil),
+                .call(callee: interner.intern(try runtimeLinkName("print_raw")), arguments: [whenResult], result: nil, canThrow: false),
                 .call(
-                    symbol: nil,
                     callee: interner.intern(try runtimeLinkName("coroutine_continuation_new")),
                     arguments: [labelValue],
                     result: continuationResult,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ),
                 .call(
-                    symbol: nil,
                     callee: interner.intern(try runtimeLinkName("coroutine_state_exit")),
                     arguments: [continuationResult, completionLoaded],
                     result: stateExitResult,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ),
-                .call(symbol: nil, callee: interner.intern("external_throwing"), arguments: [], result: throwingResult, canThrow: true, thrownResult: nil),
+                .call(callee: interner.intern("external_throwing"), arguments: [], result: throwingResult, canThrow: true),
                 .returnUnit,
             ],
             isSuspend: false,
@@ -878,7 +864,6 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
             let result = temporary(resultType)
             let thrownResult = canThrow ? temporary(types.intType) : nil
             body.append(.call(
-                symbol: nil,
                 callee: interner.intern(calleeName),
                 arguments: arguments,
                 result: result,
@@ -974,12 +959,10 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
 
         func appendRegexCall(_ calleeName: String, arguments: [KIRExprID]) {
             body.append(.call(
-                symbol: nil,
                 callee: interner.intern(calleeName),
                 arguments: arguments,
                 result: temporary(types.intType),
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
         }
 
@@ -1054,12 +1037,10 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
 
         func appendBuilderCall(_ calleeName: String, arguments: [KIRExprID]) {
             body.append(.call(
-                symbol: nil,
                 callee: interner.intern(calleeName),
                 arguments: arguments,
                 result: temporary(types.intType),
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
         }
 
@@ -1124,12 +1105,10 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
 
         func appendLocaleCall(_ calleeName: String, arguments: [KIRExprID]) {
             body.append(.call(
-                symbol: nil,
                 callee: interner.intern(calleeName),
                 arguments: arguments,
                 result: temporary(types.intType),
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
         }
 
@@ -1198,7 +1177,6 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
             let result = temporary(resultType)
             let thrownResult = canThrow ? temporary(types.intType) : nil
             body.append(.call(
-                symbol: nil,
                 callee: interner.intern(calleeName),
                 arguments: arguments,
                 result: result,
@@ -1269,12 +1247,10 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
 
         func appendPredicateCall(_ calleeName: String, arguments: [KIRExprID]? = nil) {
             body.append(.call(
-                symbol: nil,
                 callee: interner.intern(calleeName),
                 arguments: arguments ?? [textExpr],
                 result: temporary(types.booleanType),
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
         }
 
@@ -1361,12 +1337,10 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
 
         func appendScalarCall(_ calleeName: String, _ arguments: [KIRExprID]) {
             body.append(.call(
-                symbol: nil,
                 callee: interner.intern(calleeName),
                 arguments: arguments,
                 result: temporary(types.intType),
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
         }
 
@@ -1432,12 +1406,10 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
 
         func appendByteArrayCall(_ calleeName: String, _ arguments: [KIRExprID]) {
             body.append(.call(
-                symbol: nil,
                 callee: interner.intern(calleeName),
                 arguments: arguments,
                 result: temporary(types.intType),
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
         }
 

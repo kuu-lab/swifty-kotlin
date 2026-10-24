@@ -428,12 +428,10 @@ final class CallSupportLowerer {
                 body.append(.constValue(result: bitMaskExpr, value: .intLiteral(bitValue)))
                 let selectedExpr = arena.appendTemporary(type: maskType)
                 body.append(.call(
-                    symbol: nil,
                     callee: interner.intern("kk_bitwise_and"),
                     arguments: [defaultMaskExprs[i / DefaultArgumentMask.bitsPerWord], bitMaskExpr],
                     result: selectedExpr,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ))
                 let zeroExpr = arena.appendExpr(.intLiteral(0), type: maskType)
                 body.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
@@ -514,8 +512,7 @@ final class CallSupportLowerer {
             callee: implementationName,
             arguments: callArgs,
             result: result,
-            canThrow: false,
-            thrownResult: nil
+            canThrow: false
         )
         // KUU-655: `a.f()` reached through a base-typed receiver must still
         // dispatch to the *runtime* type's override -- Kotlin/JVM's own
@@ -569,12 +566,10 @@ final class CallSupportLowerer {
                 body.append(.constValue(result: superCallBitMaskExpr, value: .intLiteral(superCallBitValue)))
                 superCallBitExpr = arena.appendTemporary(type: intType)
                 body.append(.call(
-                    symbol: nil,
                     callee: interner.intern("kk_bitwise_and"),
                     arguments: [maskExprs[0], superCallBitMaskExpr],
                     result: superCallBitExpr,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ))
             }
             let superCallOneExpr = arena.appendExpr(.intLiteral(superCallBitValue), type: maskType)
@@ -1230,9 +1225,9 @@ final class CallSupportLowerer {
         if argIndices.count == 1, allSpread, forceSpreadPacking, !listifyResult {
             let copied = arena.appendTemporary(type: resultType ?? anyType)
             instructions.append(.call(
-                symbol: nil, callee: interner.intern("__kk_array_copyOf"),
+                callee: interner.intern("__kk_array_copyOf"),
                 arguments: [providedArguments[argIndices[0]]], result: copied,
-                canThrow: false, thrownResult: nil
+                canThrow: false
             ))
             return copied
         }
@@ -1270,12 +1265,10 @@ final class CallSupportLowerer {
                 let markerIdxExpr = arena.appendExpr(.intLiteral(Int64(pairIdx * 2)), type: intType)
                 instructions.append(.constValue(result: markerIdxExpr, value: .intLiteral(Int64(pairIdx * 2))))
                 instructions.append(.call(
-                    symbol: nil,
                     callee: interner.intern("kk_array_set"),
                     arguments: [pairsArray, markerIdxExpr, markerExpr],
                     result: nil,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ))
                 let valueIdxExpr = arena.appendExpr(.intLiteral(Int64(pairIdx * 2 + 1)), type: intType)
                 instructions.append(.constValue(result: valueIdxExpr, value: .intLiteral(Int64(pairIdx * 2 + 1))))
@@ -1292,24 +1285,20 @@ final class CallSupportLowerer {
                         instructions: &instructions
                     )
                 instructions.append(.call(
-                    symbol: nil,
                     callee: interner.intern("kk_array_set"),
                     arguments: [pairsArray, valueIdxExpr, elementValue],
                     result: nil,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ))
             }
             let pairCountExpr = arena.appendExpr(.intLiteral(Int64(pairsCount)), type: intType)
             instructions.append(.constValue(result: pairCountExpr, value: .intLiteral(Int64(pairsCount))))
             let concatResult = arena.appendTemporary(type: anyType)
             instructions.append(.call(
-                symbol: nil,
                 callee: interner.intern("kk_vararg_spread_concat"),
                 arguments: [pairsArray, pairCountExpr],
                 result: concatResult,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
             // Convert the concatenated array to a list since vararg parameters
             // are typed as List<T>.
@@ -1351,12 +1340,10 @@ final class CallSupportLowerer {
                 )
                 : providedArguments[argIndex]
             instructions.append(.call(
-                symbol: nil,
                 callee: interner.intern("kk_array_set"),
                 arguments: [arrayID, indexExpr, elementValue],
                 result: nil,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
         }
         // Convert the packed array to a list since vararg parameters are typed

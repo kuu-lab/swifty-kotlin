@@ -177,17 +177,14 @@ extension ExprLowerer {
                 callee: calleeName,
                 arguments: [containerID, elementID],
                 result: resultID,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
         } else {
             instructions.append(.call(
-                symbol: nil,
                 callee: interner.intern("kk_op_contains"),
                 arguments: [containerID, elementID],
                 result: resultID,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
         }
     }
@@ -288,12 +285,10 @@ extension ExprLowerer {
     ) {
         func call(_ callee: String, _ arguments: [KIRExprID], _ result: KIRExprID) {
             instructions.append(.call(
-                symbol: nil,
                 callee: interner.intern(callee),
                 arguments: arguments,
                 result: result,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
         }
         func convert(_ callee: String, _ operand: KIRExprID, _ type: TypeID) -> KIRExprID {

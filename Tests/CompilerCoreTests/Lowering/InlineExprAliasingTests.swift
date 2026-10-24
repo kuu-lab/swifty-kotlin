@@ -77,7 +77,7 @@ struct InlineExprAliasingTests {
         let instruction = KIRInstruction.virtualCall(
             symbol: symbol, callee: interner.intern("virtualTarget"),
             receiver: receiver, arguments: [argument], result: result,
-            canThrow: false, thrownResult: nil, dispatch: dispatch
+            canThrow: false, dispatch: dispatch
         )
 
         let rewritten = InlineExprAliasing.rewriteInstruction(

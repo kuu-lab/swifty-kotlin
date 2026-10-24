@@ -169,8 +169,7 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
                         callee: callee.name,
                         arguments: [],
                         result: result,
-                        canThrow: false,
-                        thrownResult: nil
+                        canThrow: false
                     ))
                 }
                 var updated = function
@@ -768,12 +767,10 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
                     )
                     body.append(.constValue(result: offsetExpr, value: .intLiteral(Int64(fieldOffset))))
                     body.append(.call(
-                        symbol: nil,
                         callee: interner.intern("kk_array_get_inbounds"),
                         arguments: [selfRef, offsetExpr],
                         result: resultExpr,
-                        canThrow: false,
-                        thrownResult: nil
+                        canThrow: false
                     ))
                     body.append(.returnValue(resultExpr))
                     appendSyntheticFunctionWithSymbol(
@@ -790,12 +787,10 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
             }
 
             body.append(.call(
-                symbol: nil,
                 callee: interner.intern("kk_abort_unreachable"),
                 arguments: [],
                 result: resultExpr,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
             body.append(.returnValue(resultExpr))
 

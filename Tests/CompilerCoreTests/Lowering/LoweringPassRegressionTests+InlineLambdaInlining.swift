@@ -187,12 +187,10 @@ extension LoweringPassRegressionTests {
                 .constValue(result: lambdaArgExpr, value: .symbolRef(lambdaParamSymbol)),
                 .constValue(result: lambdaTenExpr, value: .intLiteral(10)),
                 .call(
-                    symbol: nil,
                     callee: tc.interner.intern(CompilerCall.opAdd.name),
                     arguments: [lambdaArgExpr, lambdaTenExpr],
                     result: lambdaSumExpr,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ),
                 .returnValue(lambdaSumExpr),
                 .endBlock,
@@ -222,8 +220,7 @@ extension LoweringPassRegressionTests {
                     callee: tc.interner.intern("$lambda_0"),
                     arguments: [inlineXExpr],
                     result: inlineCallResult,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ),
                 .returnValue(inlineCallResult),
             ],
@@ -249,8 +246,7 @@ extension LoweringPassRegressionTests {
                     callee: tc.interner.intern("applyBlock"),
                     arguments: [callerFiveExpr, callerLambdaRef],
                     result: callerResult,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ),
                 .returnValue(callerResult),
             ],
@@ -317,8 +313,7 @@ extension LoweringPassRegressionTests {
                     callee: tc.interner.intern("externalFunc"),
                     arguments: [inlineXExpr],
                     result: inlineCallResult,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ),
                 .returnValue(inlineCallResult),
             ],
@@ -344,8 +339,7 @@ extension LoweringPassRegressionTests {
                     callee: tc.interner.intern("applyBlock"),
                     arguments: [callerArg, callerFuncRef],
                     result: callerResult,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ),
                 .returnValue(callerResult),
             ],
@@ -400,21 +394,17 @@ extension LoweringPassRegressionTests {
                 .constValue(result: lambdaArgExpr, value: .symbolRef(lambdaParamSymbol)),
                 .constValue(result: lambdaTwoExpr, value: .intLiteral(2)),
                 .call(
-                    symbol: nil,
                     callee: tc.interner.intern(CompilerCall.opMul.name),
                     arguments: [lambdaArgExpr, lambdaTwoExpr],
                     result: lambdaDoubledExpr,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ),
                 .constValue(result: lambdaOneExpr, value: .intLiteral(1)),
                 .call(
-                    symbol: nil,
                     callee: tc.interner.intern(CompilerCall.opAdd.name),
                     arguments: [lambdaDoubledExpr, lambdaOneExpr],
                     result: lambdaResultExpr,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ),
                 .returnValue(lambdaResultExpr),
                 .endBlock,
@@ -444,8 +434,7 @@ extension LoweringPassRegressionTests {
                     callee: tc.interner.intern("$lambda_1"),
                     arguments: [inlineXExpr],
                     result: inlineCallResult,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ),
                 .returnValue(inlineCallResult),
             ],
@@ -471,8 +460,7 @@ extension LoweringPassRegressionTests {
                     callee: tc.interner.intern("transform"),
                     arguments: [callerArgExpr, callerLambdaRef],
                     result: callerResult,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ),
                 .returnValue(callerResult),
             ],
@@ -536,12 +524,10 @@ extension LoweringPassRegressionTests {
                 // branch A: return x + 1
                 .constValue(result: lambdaOneExpr, value: .intLiteral(1)),
                 .call(
-                    symbol: nil,
                     callee: tc.interner.intern(CompilerCall.opAdd.name),
                     arguments: [lambdaArgExpr, lambdaOneExpr],
                     result: lambdaSumExpr,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ),
                 .returnValue(lambdaSumExpr),
                 // branch B: return 100
@@ -575,8 +561,7 @@ extension LoweringPassRegressionTests {
                     callee: tc.interner.intern("$lambda_cf"),
                     arguments: [inlineXExpr],
                     result: inlineCallResult,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ),
                 .returnValue(inlineCallResult),
             ],
@@ -602,8 +587,7 @@ extension LoweringPassRegressionTests {
                     callee: tc.interner.intern("applyBlock"),
                     arguments: [callerArgExpr, callerLambdaRef],
                     result: callerResult,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ),
                 .returnValue(callerResult),
             ],
@@ -707,12 +691,10 @@ extension LoweringPassRegressionTests {
                 .constValue(result: lambdaArgExpr, value: .symbolRef(lambdaParamSymbol)),
                 .constValue(result: lambdaTwentyExpr, value: .intLiteral(20)),
                 .call(
-                    symbol: nil,
                     callee: tc.interner.intern(CompilerCall.opAdd.name),
                     arguments: [lambdaArgExpr, lambdaTwentyExpr],
                     result: lambdaSumExpr,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ),
                 .returnValue(lambdaSumExpr),
                 .endBlock,
@@ -742,8 +724,7 @@ extension LoweringPassRegressionTests {
                     callee: tc.interner.intern("$lambda_alias"),
                     arguments: [inlineXExpr],
                     result: inlineCallResult,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ),
                 .returnValue(inlineCallResult),
             ],
@@ -773,8 +754,7 @@ extension LoweringPassRegressionTests {
                     callee: tc.interner.intern("applyBlock"),
                     arguments: [callerArgExpr, callerLambdaRef],
                     result: callerResult,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ),
                 .returnValue(callerResult),
             ],

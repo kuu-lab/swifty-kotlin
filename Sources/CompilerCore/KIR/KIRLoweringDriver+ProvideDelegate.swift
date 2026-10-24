@@ -76,12 +76,10 @@ extension KIRLoweringDriver {
         )
         body.append(
             .call(
-                symbol: nil,
                 callee: interner.intern(stubCalleeName),
                 arguments: stubArguments,
                 result: kPropertyExprID,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             )
         )
         return kPropertyExprID
@@ -147,8 +145,7 @@ extension KIRLoweringDriver {
                 callee: provideDelegateName,
                 arguments: provideDelegateArguments,
                 result: provideDelegateResult,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             )
         )
 

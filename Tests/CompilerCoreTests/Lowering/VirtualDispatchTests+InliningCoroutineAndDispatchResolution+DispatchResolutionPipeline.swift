@@ -140,7 +140,6 @@ extension VirtualDispatchTests {
                     arguments: [arg1, arg2],
                     result: resultExpr,
                     canThrow: false,
-                    thrownResult: nil,
                     dispatch: .vtable(slot: 0)
                 ),
                 .returnUnit,

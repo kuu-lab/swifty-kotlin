@@ -54,12 +54,10 @@ extension CollectionVirtualCallRewriteLoweringPass {
            state.listExprIDs.contains(receiver.rawValue) || state.setExprIDs.contains(receiver.rawValue)
         {
             loweredBody.append(.call(
-                symbol: nil,
                 callee: lookup.kkListIteratorName,
                 arguments: [receiver],
                 result: result,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
             if let result {
                 state.listIteratorExprIDs.insert(result.rawValue)
@@ -89,7 +87,6 @@ extension CollectionVirtualCallRewriteLoweringPass {
                 // thrown channel: it may be read right after this call, and
                 // the 1-arg __kk_iterator_builder_* cdecls cannot accept it.
                 loweredBody.append(.call(
-                    symbol: nil,
                     callee: bridgeCallee,
                     arguments: [receiver] + arguments,
                     result: result,
@@ -150,12 +147,10 @@ extension CollectionVirtualCallRewriteLoweringPass {
            state.listExprIDs.contains(receiver.rawValue) || state.setExprIDs.contains(receiver.rawValue)
         {
             loweredBody.append(.call(
-                symbol: nil,
                 callee: lookup.kkListIteratorName,
                 arguments: [receiver],
                 result: result,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
             if let result {
                 state.listIteratorExprIDs.insert(result.rawValue)
@@ -264,7 +259,6 @@ extension CollectionVirtualCallRewriteLoweringPass {
         let hofResult = module.arena.appendTemporary(type: nil
         )
         loweredBody.append(.call(
-            symbol: nil,
             callee: kkName,
             arguments: [receiver] + arguments,
             result: hofResult,
@@ -548,12 +542,10 @@ extension CollectionVirtualCallRewriteLoweringPass {
             let hofResult = module.arena.appendTemporary(type: nil
             )
             loweredBody.append(.call(
-                symbol: nil,
                 callee: lookup.kkListZipBridgeName,
                 arguments: [receiver] + arguments,
                 result: hofResult,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
             if let result {
                 state.listExprIDs.insert(result.rawValue)
@@ -577,7 +569,6 @@ extension CollectionVirtualCallRewriteLoweringPass {
             let hofResult = module.arena.appendTemporary(type: nil
             )
             loweredBody.append(.call(
-                symbol: nil,
                 callee: lookup.kkListZipTransformBridgeName,
                 arguments: [receiver, otherID, lambdaID, closureRawID],
                 result: hofResult,
@@ -596,12 +587,10 @@ extension CollectionVirtualCallRewriteLoweringPass {
             let hofResult = module.arena.appendTemporary(type: nil
             )
             loweredBody.append(.call(
-                symbol: nil,
                 callee: lookup.kkListZipWithNextBridgeName,
                 arguments: [receiver],
                 result: hofResult,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
             if let result {
                 state.listExprIDs.insert(result.rawValue)
@@ -662,12 +651,10 @@ extension CollectionVirtualCallRewriteLoweringPass {
             let hofResult = module.arena.appendTemporary(type: nil
             )
             loweredBody.append(.call(
-                symbol: nil,
                 callee: lookup.kkListUnzipName,
                 arguments: [receiver],
                 result: hofResult,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
             if let result {
                 loweredBody.append(.copy(from: hofResult, to: result))

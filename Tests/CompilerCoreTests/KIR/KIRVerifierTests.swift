@@ -112,12 +112,10 @@ struct KIRVerifierTests {
         )
         let module = makeModule(arena: arena, interner: interner, body: [
             .call(
-                symbol: nil,
                 callee: unknownRuntimeName,
                 arguments: [],
                 result: nil,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ),
             .returnUnit,
         ])
@@ -143,16 +141,14 @@ struct KIRVerifierTests {
                 callee: interner.intern("get"),
                 arguments: [receiver],
                 result: nil,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ),
             .call(
                 symbol: stubSymbol,
                 callee: interner.intern("indexOf$default"),
                 arguments: [],
                 result: nil,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ),
             .returnUnit,
         ])
@@ -169,12 +165,10 @@ struct KIRVerifierTests {
         let module = makeModule(arena: arena, interner: interner, body: [
             .constValue(result: value, value: .intLiteral(1)),
             .call(
-                symbol: nil,
                 callee: KIRRuntimeFunction.unboxInt.name(in: interner),
                 arguments: [value],
                 result: result,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ),
             .returnValue(result),
         ])

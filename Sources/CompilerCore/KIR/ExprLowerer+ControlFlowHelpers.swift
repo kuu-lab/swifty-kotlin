@@ -42,12 +42,10 @@ extension ExprLowerer {
         instructions.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
         let result = arena.appendTemporary(type: resultType)
         instructions.append(.call(
-            symbol: nil,
             callee: interner.intern("kk_array_get_inbounds"),
             arguments: [cellExpr, zeroExpr],
             result: result,
-            canThrow: false,
-            thrownResult: nil
+            canThrow: false
         ))
         return result
     }
@@ -76,12 +74,10 @@ extension ExprLowerer {
         )
         let setResult = arena.appendTemporary(type: arena.exprType(storedValueID) ?? sema.types.anyType)
         instructions.append(.call(
-            symbol: nil,
             callee: interner.intern("kk_array_set"),
             arguments: [cellExpr, zeroExpr, storedValueID],
             result: setResult,
-            canThrow: false,
-            thrownResult: nil
+            canThrow: false
         ))
         return true
     }
