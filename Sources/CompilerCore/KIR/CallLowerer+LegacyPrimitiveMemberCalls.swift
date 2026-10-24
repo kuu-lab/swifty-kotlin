@@ -443,6 +443,7 @@ extension CallLowerer {
             case ("toUShort", longType, ushortType): interner.intern("kk_long_to_ushort")
             case ("toUShort", uintType, ushortType): interner.intern("kk_uint_to_ushort")
             case ("toUShort", ulongType, ushortType): interner.intern("kk_ulong_to_ushort")
+            case ("toUShort", ubyteType, ushortType): interner.intern("kk_ubyte_to_ushort")
             case ("toChar", charType, charType): nil
             default: nil
             }
