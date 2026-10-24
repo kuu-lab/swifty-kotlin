@@ -223,7 +223,7 @@ struct OperatorConventionModifierTests {
         """
         let ctx = makeContextFromSource(source)
         try runSema(ctx)
-        assertHasDiagnostic("KSWIFTK-SEMA-0436", in: ctx)
+        assertHasDiagnostic("KSWIFTK-SEMA-0439", in: ctx)
         #expect(ctx.diagnostics.hasError)
     }
 
@@ -254,7 +254,7 @@ struct OperatorConventionModifierTests {
         """
         let ctx = makeContextFromSource(source)
         try runSema(ctx)
-        assertNoDiagnostic("KSWIFTK-SEMA-0436", in: ctx)
+        assertNoDiagnostic("KSWIFTK-SEMA-0439", in: ctx)
         #expect(!ctx.diagnostics.hasError, "Got: \(ctx.diagnostics.diagnostics)")
     }
 
@@ -268,7 +268,7 @@ struct OperatorConventionModifierTests {
         """
         let ctx = makeContextFromSource(source)
         try runSema(ctx)
-        let arityErrors = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0436" }
+        let arityErrors = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0439" }
         #expect(arityErrors.count == 2, "\(ctx.diagnostics.diagnostics)")
     }
 

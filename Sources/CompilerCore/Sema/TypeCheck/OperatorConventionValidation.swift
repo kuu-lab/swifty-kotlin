@@ -42,7 +42,7 @@ extension TypeCheckSemaPhase {
         if Self.zeroParameterOperators.contains(name) || isComponentNName(name) {
             if parameterCount != 0 {
                 diagnostics.error(
-                    "KSWIFTK-SEMA-0436",
+                    "KSWIFTK-SEMA-0439",
                     "'\(name)' must have no value parameters.",
                     range: range
                 )
@@ -52,7 +52,7 @@ extension TypeCheckSemaPhase {
         if Self.singleParameterOperators.contains(name) {
             if parameterCount != 1 {
                 diagnostics.error(
-                    "KSWIFTK-SEMA-0436",
+                    "KSWIFTK-SEMA-0439",
                     "'\(name)' must have a single value parameter.",
                     range: range
                 )
@@ -61,7 +61,7 @@ extension TypeCheckSemaPhase {
         }
         if let fixed = Self.fixedParameterCounts[name], parameterCount != fixed {
             diagnostics.error(
-                "KSWIFTK-SEMA-0436",
+                "KSWIFTK-SEMA-0439",
                 "'\(name)' must have exactly \(fixed) value parameters.",
                 range: range
             )
@@ -69,7 +69,7 @@ extension TypeCheckSemaPhase {
         }
         if let minimum = Self.minimumParameterCounts[name], parameterCount < minimum {
             diagnostics.error(
-                "KSWIFTK-SEMA-0436",
+                "KSWIFTK-SEMA-0439",
                 "'\(name)' must have at least \(minimum) value parameter\(minimum == 1 ? "" : "s").",
                 range: range
             )
