@@ -58,6 +58,13 @@ extension BuildASTPhase {
         // whose operand or control-flow branch was cut off by the slice.
         private(set) var hasIncompleteExpression = false
 
+        /// An `else` left over after a completed if expression. A dangling
+        /// `else` binds to the nearest enclosing if that still lacks an else
+        /// branch, so an inner if parser records it and an outer if clears the
+        /// record when it consumes the token as its own else. `parse()`
+        /// diagnoses whatever remains unclaimed.
+        var strayElseToken: Token?
+
         /// Guards `parseExpression` / `parsePrefixUnary` / `parsePrimary` against
         /// unbounded native stack growth on deeply nested untrusted source (a
         /// stack-overflow DoS), mirroring Sema's `maxAliasExpansionDepth` cap.
@@ -146,6 +153,13 @@ extension BuildASTPhase {
                 default:
                     break
                 }
+            }
+            if let strayElseToken {
+                diagnostics?.error(
+                    "KSWIFTK-PARSE-0018",
+                    "Unexpected 'else' after if expression.",
+                    range: strayElseToken.range
+                )
             }
             return expression
         }

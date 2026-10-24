@@ -949,6 +949,7 @@ extension BuildASTPhase.ExpressionParser {
             _ = consume()
         }
         if matches(.keyword(.else)) {
+            strayElseToken = nil
             let elseToken = consume()!
             elseExpr = parseControlFlowBodyExpression()
             if elseExpr == nil {
@@ -958,6 +959,11 @@ extension BuildASTPhase.ExpressionParser {
                     range: current()?.range ?? elseToken.range
                 )
             }
+        }
+        if matches(.keyword(.else)) {
+            strayElseToken = current()
+        } else if matches(.symbol(.semicolon)), peek(1)?.kind == .keyword(.else) {
+            strayElseToken = peek(1)
         }
 
         let end = elseExpr
