@@ -194,6 +194,84 @@ struct OperatorConventionModifierTests {
         #expect(!ctx.diagnostics.hasError, "Got: \(ctx.diagnostics.diagnostics)")
     }
 
+    @Test(arguments: [
+        "operator fun plus(o: C, x: Int) = 1",
+        "operator fun minus(o: C, x: Int) = 1",
+        "operator fun unaryPlus(a: Int) = 1",
+        "operator fun unaryMinus(a: Int) = 1",
+        "operator fun not(a: Int) = false",
+        "operator fun inc(a: Int) = C()",
+        "operator fun dec(a: Int) = C()",
+        "operator fun component1(a: Int) = 1",
+        "operator fun component2(a: Int) = 1",
+        "operator fun compareTo(a: Int, b: Int) = 0",
+        "operator fun contains(a: Int, b: Int) = false",
+        "operator fun iterator(a: Int) = a",
+        "operator fun next(a: Int) = a",
+        "operator fun hasNext(a: Int) = false",
+        "operator fun get() = 0",
+        "operator fun set(i: Int) {}",
+        "operator fun plusAssign(a: Int, b: Int) {}",
+        "operator fun equals(a: Int, b: Int) = false",
+    ])
+    func operatorArityMismatchIsRejected(member: String) throws {
+        let source = """
+        class C {
+            \(member)
+        }
+        fun main() {}
+        """
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+        assertHasDiagnostic("KSWIFTK-SEMA-0436", in: ctx)
+        #expect(ctx.diagnostics.hasError)
+    }
+
+    @Test(arguments: [
+        "operator fun plus(o: C) = 1",
+        "operator fun unaryPlus() = 1",
+        "operator fun inc() = C()",
+        "operator fun component1() = 1",
+        "operator fun compareTo(o: C) = 0",
+        "operator fun contains(x: Int) = false",
+        "operator fun get(i: Int) = i",
+        "operator fun get(i: Int, j: Int) = i",
+        "operator fun get(i: Int, j: Int, k: Int) = i",
+        "operator fun set(i: Int, v: Int) {}",
+        "operator fun set(i: Int, j: Int, v: Int) {}",
+        "operator fun invoke() = 0",
+        "operator fun invoke(a: Int, b: Int, c: Int) = 0",
+        "operator fun plusAssign(x: Int) {}",
+        "operator fun rangeTo(o: C) = o",
+        "operator fun minus(o: C) = 1",
+    ])
+    func matchingOperatorArityIsAccepted(member: String) throws {
+        let source = """
+        class C {
+            \(member)
+        }
+        fun main() {}
+        """
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+        assertNoDiagnostic("KSWIFTK-SEMA-0436", in: ctx)
+        #expect(!ctx.diagnostics.hasError, "Got: \(ctx.diagnostics.diagnostics)")
+    }
+
+    @Test
+    func localOperatorFunctionArityMismatchIsRejected() throws {
+        let source = """
+        fun main() {
+            operator fun unaryPlus(a: Int) = a
+            operator fun String.times(n: Int, m: Int) = n
+        }
+        """
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+        let arityErrors = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0436" }
+        #expect(arityErrors.count == 2, "\(ctx.diagnostics.diagnostics)")
+    }
+
     @Test
     func dataClassDestructuringStaysLegal() throws {
         let source = """
