@@ -731,7 +731,7 @@ extension TypeSystem {
             || actualTypeAliasTargetNominalSymbol(for: rhs, symbols: symbolTable) == lhs
     }
 
-    private func actualTypeAliasTargetNominalSymbol(
+    func actualTypeAliasTargetNominalSymbol(
         for symbolID: SymbolID,
         symbols: SymbolTable
     ) -> SymbolID? {
