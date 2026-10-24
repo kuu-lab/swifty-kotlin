@@ -282,6 +282,7 @@ final class CallSupportLowerer {
         var params: [KIRParameter] = captures.map(\.param)
         var captureArgExprs: [KIRExprID] = []
         var dispatchReceiverBinding: (symbol: SymbolID, exprID: KIRExprID)?
+        var functionReceiverExpr: KIRExprID?
         if let receiverType = signature.receiverType {
             // Member extensions (`fun T.m(...)` declared inside a nominal
             // type) carry a dispatch receiver (`this@Owner`) ahead of the
@@ -311,6 +312,7 @@ final class CallSupportLowerer {
             driver.ctx.setLocalDeclaredType(receiverType, for: receiverSym)
             params.append(KIRParameter(symbol: receiverSym, type: receiverType))
             let receiverExpr = arena.appendExpr(.symbolRef(receiverSym), type: receiverType)
+            functionReceiverExpr = receiverExpr
             driver.ctx.setImplicitReceiver(symbol: receiverSym, exprID: receiverExpr)
             if sema.symbols.memberExtensionOwnerSymbol(for: originalSymbol) == nil,
                let owner = sema.symbols.parentSymbol(for: originalSymbol),
@@ -405,6 +407,11 @@ final class CallSupportLowerer {
             } else {
                 driver.ctx.setLocalValue(captureExpr, for: capture.capturedSymbol)
             }
+            if capture.param.symbol == scopeSnapshot.currentImplicitReceiverSymbol {
+                // Default expressions are lowered in a fresh function scope;
+                // restore a captured outer `this` so implicit member reads use it.
+                driver.ctx.setImplicitReceiver(symbol: capture.param.symbol, exprID: captureExpr)
+            }
             captureArgExprs.append(captureExpr)
         }
 
@@ -489,13 +496,12 @@ final class CallSupportLowerer {
             }
         }
 
-        let receiverExprForCall = driver.ctx.activeImplicitReceiverExprID()
         var callArgs: [KIRExprID] = captureArgExprs
         if let dispatchReceiverBinding {
             callArgs.append(dispatchReceiverBinding.exprID)
         }
-        if let receiverExprForCall {
-            callArgs.append(receiverExprForCall)
+        if let functionReceiverExpr {
+            callArgs.append(functionReceiverExpr)
         }
         callArgs.append(contentsOf: resolvedParamExprs)
         for tokenSym in reifiedTokenSymbols {
@@ -534,7 +540,7 @@ final class CallSupportLowerer {
         // dispatch and reach `originalSymbol` directly. The legacy single-word
         // ABI stores that marker in bit 30; wide masks carry it in an extra
         // trailing word so it cannot overlap a parameter bit.
-        if let receiverExprForCall, signature.receiverType != nil,
+        if let functionReceiverExpr, signature.receiverType != nil,
            let virtualInstruction = driver.callLowerer.tryEmitVirtualDispatch(
                chosenCallee: implementationSymbol,
                calleeName: implementationName,
@@ -542,7 +548,7 @@ final class CallSupportLowerer {
                // Member extensions dispatch on the enclosing owner (the
                // leading `callArgs` entry), not the extension receiver —
                // the extension receiver is an ordinary leading argument.
-               loweredReceiverID: dispatchReceiverBinding?.exprID ?? receiverExprForCall,
+               loweredReceiverID: dispatchReceiverBinding?.exprID ?? functionReceiverExpr,
                isSuperCall: false,
                // `tryEmitVirtualDispatch` strips the leading receiver from
                // `finalArguments` itself (see its `vcArguments.removeFirst()`)
