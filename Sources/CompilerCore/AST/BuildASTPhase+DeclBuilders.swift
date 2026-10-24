@@ -749,7 +749,8 @@ extension BuildASTPhase {
         into parameters: inout [ValueParamDecl],
         interner: StringInterner,
         astArena: ASTArena,
-        allowAnnotationArrays: Bool = false
+        allowAnnotationArrays: Bool = false,
+        allowsImplicitParameterTypes: Bool = false
     ) {
         let split = splitDefaultValue(tokens)
         let withoutDefault = split.withoutDefault
@@ -840,11 +841,15 @@ extension BuildASTPhase {
                 )
             }
         } else {
-            diagnostics?.error(
-                "KSWIFTK-PARSE-0020",
-                "An explicit type is required on a value parameter.",
-                range: nameToken.range
-            )
+            // Anonymous function literals may leave parameter types implicit;
+            // Sema infers them from the expected function type.
+            if !allowsImplicitParameterTypes {
+                diagnostics?.error(
+                    "KSWIFTK-PARSE-0020",
+                    "An explicit type is required on a value parameter.",
+                    range: nameToken.range
+                )
+            }
             typeRef = nil
         }
 
