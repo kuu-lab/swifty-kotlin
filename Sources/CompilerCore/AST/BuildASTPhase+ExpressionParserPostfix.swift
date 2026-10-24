@@ -112,6 +112,16 @@ extension BuildASTPhase.ExpressionParser {
             }
 
             if matches(.symbol(.lParen)) {
+                if case .callableRef = astArena.expr(expr),
+                   !astArena.isParenthesized(expr),
+                   let lParenRange = current()?.range
+                {
+                    diagnostics?.error(
+                        "KSWIFTK-PARSE-0002",
+                        "This syntax is reserved for future use; to call a reference, enclose it in parentheses: (foo::bar)(args).",
+                        range: lParenRange
+                    )
+                }
                 guard let open = consume() else { break }
                 var args = parseCallArguments(implicitLambdaLabel: calleeNameForImplicitLabel(expr))
                 let close = consumeCallArgumentsClose(open: open)
