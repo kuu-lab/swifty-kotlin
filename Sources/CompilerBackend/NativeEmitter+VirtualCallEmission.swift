@@ -98,7 +98,13 @@ extension NativeEmitter.FunctionEmissionContext {
                 let candidateProperty = symbols.propertySymbol(forAccessor: candidate)
                     ?? symbols.accessorOwnerProperty(for: candidate)
                     ?? (symbols.symbol(candidate)?.kind == .property ? candidate : nil)
-                guard symbols.functionSignature(for: candidate) != nil || candidateProperty != nil,
+                // A runtime-builtin root such as `kotlin.Any.toString` has
+                // no emitted Kotlin ABI to recover, so anchoring on it would
+                // type a flat-String override slot as a raw Int handle.
+                let candidateHasEmittedABI = internalFunctions[candidate] != nil
+                    || symbols.externalLinkName(for: candidate)?.hasPrefix("kk_fn_") == true
+                guard candidateProperty != nil
+                    || (symbols.functionSignature(for: candidate) != nil && candidateHasEmittedABI),
                       let candidateOwner = nominalOwner(for: candidate),
                       let distance = distances[candidateOwner]
                 else {
