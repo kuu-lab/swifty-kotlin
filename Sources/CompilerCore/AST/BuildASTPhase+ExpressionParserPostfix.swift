@@ -107,6 +107,26 @@ extension BuildASTPhase.ExpressionParser {
                         ))
                         continue
                     }
+                    if matches(.symbol(.dot)) {
+                        // `expr<Args>.member` — a type-argument-bearing classifier
+                        // qualifier such as `G<Int>.GI()`. Kotlin binds `<...>`
+                        // to the receiver name before the `.`, so keep the type
+                        // arguments on a marked `.call` (the same side-channel
+                        // `callableRef` receivers use) and let Sema decide
+                        // whether the callee chain is a type qualifier or a
+                        // value expression.
+                        let endToken = tokens[index - 1]
+                        let range = mergeRanges(astArena.exprRange(expr), endToken.range, fallback: endToken.range)
+                        let typeReceiver = astArena.appendExpr(.call(
+                            callee: expr,
+                            typeArgs: typeArgs,
+                            args: [],
+                            range: range
+                        ))
+                        astArena.markTypeQualifierCall(typeReceiver)
+                        expr = typeReceiver
+                        continue
+                    }
                 }
                 index = savedIndex
             }
