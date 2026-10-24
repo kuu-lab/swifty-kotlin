@@ -47,6 +47,8 @@ public inline fun UIntArray.forEachIndexed(action: (Int, UInt) -> Unit) {
     }
 }
 
+public fun UIntArray.max(): UInt = maxOrNull() ?: throw NoSuchElementException()
+
 public fun UIntArray.maxOrNull(): UInt? {
     if (this.size == 0) return null
     var max = this[0]
@@ -58,6 +60,8 @@ public fun UIntArray.maxOrNull(): UInt? {
     }
     return max
 }
+
+public fun UIntArray.min(): UInt = minOrNull() ?: throw NoSuchElementException()
 
 public fun UIntArray.minOrNull(): UInt? {
     if (this.size == 0) return null
