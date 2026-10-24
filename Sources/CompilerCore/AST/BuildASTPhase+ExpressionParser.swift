@@ -250,7 +250,15 @@ extension BuildASTPhase {
             guard let opToken = consume() else { return nil }
             let assoc = associativity(of: binOp)
             let nextMin = assoc == .right ? precedence(of: binOp) : precedence(of: binOp) + 1
-            guard let rhs = parseExpression(minPrecedence: nextMin) else { return nil }
+            guard let rhs = parseExpression(minPrecedence: nextMin) else {
+                hasIncompleteExpression = true
+                diagnostics?.error(
+                    "KSWIFTK-PARSE-0001",
+                    "Expected expression.",
+                    range: current()?.range ?? opToken.range
+                )
+                return nil
+            }
             let range = mergeRanges(astArena.exprRange(lhs), astArena.exprRange(rhs), fallback: opToken.range)
             return astArena.appendExpr(.binary(op: binOp, lhs: lhs, rhs: rhs, range: range))
         }
