@@ -27,6 +27,17 @@ extension BuildASTPhase.ExpressionParser {
         return parseExpression(minPrecedence: 0)
     }
 
+    /// Records a trailing `else` (optionally preceded by `;`) that follows a
+    /// completed control-flow expression. An enclosing if may still claim it
+    /// as its dangling else; `parse()` diagnoses it if no if does.
+    private func recordStrayElseIfPresent() {
+        if matches(.keyword(.else)) {
+            strayElseToken = current()
+        } else if matches(.symbol(.semicolon)), peek(1)?.kind == .keyword(.else) {
+            strayElseToken = peek(1)
+        }
+    }
+
     private func parseControlFlowBodyExpression() -> ExprID? {
         if let token = current(), token.kind == .symbol(.semicolon) {
             _ = consume()
@@ -738,6 +749,7 @@ extension BuildASTPhase.ExpressionParser {
             )
             return nil
         }
+        recordStrayElseIfPresent()
         let end = astArena.exprRange(body)?.end ?? forToken.range.end
         let range = SourceRange(start: start ?? forToken.range.start, end: end)
         return astArena.appendExpr(.forExpr(loopVariable: loopVariable, iterable: iterable, body: body, label: label, range: range))
@@ -779,6 +791,7 @@ extension BuildASTPhase.ExpressionParser {
             )
             return nil
         }
+        recordStrayElseIfPresent()
         let end = astArena.exprRange(body)?.end ?? whileToken.range.end
         let range = SourceRange(start: start ?? whileToken.range.start, end: end)
         return astArena.appendExpr(.whileExpr(condition: condition, body: body, label: label, range: range))
@@ -860,6 +873,7 @@ extension BuildASTPhase.ExpressionParser {
                 range: current()?.range ?? doToken.range
             )
         }
+        recordStrayElseIfPresent()
         let end = astArena.exprRange(condition)?.end ?? astArena.exprRange(body)?.end ?? doToken.range.end
         let range = SourceRange(start: start ?? doToken.range.start, end: end)
         return astArena.appendExpr(.doWhileExpr(body: body, condition: condition, label: label, range: range))
@@ -960,11 +974,7 @@ extension BuildASTPhase.ExpressionParser {
                 )
             }
         }
-        if matches(.keyword(.else)) {
-            strayElseToken = current()
-        } else if matches(.symbol(.semicolon)), peek(1)?.kind == .keyword(.else) {
-            strayElseToken = peek(1)
-        }
+        recordStrayElseIfPresent()
 
         let end = elseExpr
             .flatMap { astArena.exprRange($0)?.end }

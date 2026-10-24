@@ -141,6 +141,12 @@ extension BuildASTPhase {
             }
             if expression == nil, let first = tokens.first {
                 switch first.kind {
+                case .keyword(.else):
+                    diagnostics?.error(
+                        "KSWIFTK-PARSE-0018",
+                        "Unexpected 'else' after if expression.",
+                        range: first.range
+                    )
                 case .symbol(.plus), .symbol(.minus), .symbol(.star), .symbol(.slash), .symbol(.percent),
                      .symbol(.equalEqual), .symbol(.bangEqual), .symbol(.tripleEqual), .symbol(.notTripleEqual),
                      .symbol(.lessThan), .symbol(.greaterThan), .symbol(.lessOrEqual), .symbol(.greaterOrEqual),
