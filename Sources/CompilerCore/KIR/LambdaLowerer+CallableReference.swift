@@ -90,7 +90,7 @@ extension LambdaLowerer {
         } else {
             nil
         }
-        let valueArguments = Array(valueRefs.dropFirst(receiverInputCount))
+        var valueArguments = Array(valueRefs.dropFirst(receiverInputCount))
         let callBinding = binding
         let typeVariables = sema.types.makeTypeVarBySymbol(signature?.typeParameterSymbols ?? [])
         var typeSubstitution: [TypeVarID: TypeID] = [:]
@@ -100,6 +100,42 @@ extension LambdaLowerer {
             {
                 guard let variable = typeVariables[symbol] else { continue }
                 typeSubstitution[variable] = binding.substitutedTypeArguments[index]
+            }
+        }
+        if let signature {
+            for (argumentIndex, parameterIndex) in callBinding.parameterMapping {
+                guard valueArguments.indices.contains(argumentIndex),
+                      signature.parameterTypes.indices.contains(parameterIndex),
+                      let sourceType = arena.exprType(valueArguments[argumentIndex])
+                else {
+                    continue
+                }
+                let parameterType = sema.types.substituteTypeParameters(
+                    in: signature.parameterTypes[parameterIndex],
+                    substitution: typeSubstitution,
+                    typeVarBySymbol: typeVariables
+                )
+                switch sema.types.kind(of: sema.types.makeNonNullable(parameterType)) {
+                case .any, .typeParam:
+                    // A contextual function type may pass a primitive (such as
+                    // Char from CharArray.fold) to an erased target parameter
+                    // (such as String.plus(Any?)). Keep its boxed type identity
+                    // across the generated callable-reference adapter.
+                    valueArguments[argumentIndex] = boxValueForAnySlot(
+                        valueArguments[argumentIndex],
+                        sourceType: sourceType,
+                        types: sema.types,
+                        symbols: sema.symbols,
+                        interner: interner,
+                        arena: arena,
+                        resultType: parameterType,
+                        sema: sema,
+                        cache: driver.ctx.nominalDispatchCache,
+                        into: &body
+                    )
+                default:
+                    continue
+                }
             }
         }
         let varargFlags: [Bool] = valueArguments.enumerated().map { argumentIndex, argument in
