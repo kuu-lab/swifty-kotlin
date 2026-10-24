@@ -174,6 +174,32 @@ extension ExprLowerer {
         }
     }
 
+    /// Both sides name the same class once `?` is stripped (`N` vs `N?`).
+    /// The runtime check for such casts only re-verifies the class the
+    /// operand already statically is — but a value class's operand carries
+    /// its unboxed payload, which has no nominal tag for `kk_op_cast` to
+    /// find, so the check must be resolved statically here.
+    private func sameNominalCastClass(_ lhs: TypeID, _ rhs: TypeID, sema: SemaModule) -> Bool {
+        guard case let .classType(lhsClass) = sema.types.kind(of: sema.types.makeNonNullable(lhs)),
+              case let .classType(rhsClass) = sema.types.kind(of: sema.types.makeNonNullable(rhs))
+        else {
+            return false
+        }
+        return lhsClass.classSymbol == rhsClass.classSymbol
+    }
+
+    /// `x as V` on a null operand never throws, whatever `V`'s underlying
+    /// type: kotlinc checkcasts the box, which always admits null, and does
+    /// not insert the `checkNotNull` a non-value-class cast would get.
+    private func isValueClassCastTarget(_ type: TypeID, sema: SemaModule) -> Bool {
+        guard case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(type)),
+              let symbol = sema.symbols.symbol(classType.classSymbol)
+        else {
+            return false
+        }
+        return symbol.flags.contains(.valueType)
+    }
+
     /// A plain T may admit null through its upper bounds even when its type
     /// parameter node has no explicit `?`. Follow dependent bounds as well.
     private func castTypeRequiresNonNull(_ type: TypeID, sema: SemaModule) -> Bool {
@@ -254,6 +280,28 @@ extension ExprLowerer {
            )
         {
             return operandID
+        }
+        // `v as V`, `v as V?`, `v? as V`, `v? as V?` — same nominal class
+        // modulo nullability. A value class's runtime representation is its
+        // unboxed payload, so the nominal `kk_op_cast` check cannot see that
+        // the operand is already an instance of its own class. Only the null
+        // contract remains: `as` to a non-null target asserts non-null,
+        // everything else is a pass-through.
+        if let targetType = sema.bindings.castTargetType(for: exprID),
+           let operandType = sema.bindings.exprType(for: exprToCast),
+           sameNominalCastClass(operandType, targetType, sema: sema)
+        {
+            let result = arena.appendTemporary(type: boundType ?? sema.types.anyType)
+            if !isSafe,
+               castTypeRequiresNonNull(targetType, sema: sema),
+               !castTypeRequiresNonNull(operandType, sema: sema),
+               !isValueClassCastTarget(targetType, sema: sema)
+            {
+                instructions.append(.nullAssert(operand: operandID, result: result))
+            } else {
+                instructions.append(.copy(from: operandID, to: result))
+            }
+            return result
         }
         // Unchecked erasure cast: `as`/`as?` to a non-reified type parameter.
         // Kotlin/JVM still checkcasts against the parameter's erasure — its
