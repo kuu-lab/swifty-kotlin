@@ -148,7 +148,7 @@ extension CallTypeChecker {
             )))
             if nonNullReceiverType == regexType {
                 let listMatchResultType: TypeID
-                if let listSymbol = sema.symbols.lookup(fqName: [
+                if let listSymbol = sema.symbols.lookupNominal(fqName: [
                     interner.intern("kotlin"),
                     interner.intern("collections"),
                     interner.intern("List"),
@@ -205,7 +205,7 @@ extension CallTypeChecker {
                 case ("value", 0):
                     sema.types.stringType
                 case ("groupValues", 0):
-                    if let listSymbol = sema.symbols.lookup(fqName: [
+                    if let listSymbol = sema.symbols.lookupNominal(fqName: [
                         interner.intern("kotlin"),
                         interner.intern("collections"),
                         interner.intern("List"),
@@ -263,7 +263,7 @@ extension CallTypeChecker {
         ]).map {
             sema.types.make(.classType(ClassType(classSymbol: $0, args: [], nullability: .nonNull)))
         }
-        let listStringType: TypeID = if let listSymbol = sema.symbols.lookup(fqName: [
+        let listStringType: TypeID = if let listSymbol = sema.symbols.lookupNominal(fqName: [
             interner.intern("kotlin"),
             interner.intern("collections"),
             interner.intern("List"),
@@ -328,7 +328,7 @@ extension CallTypeChecker {
                     return nil
                 } ?? sema.types.anyType
             }
-            let listType: TypeID = if let listSymbol = sema.symbols.lookup(fqName: [
+            let listType: TypeID = if let listSymbol = sema.symbols.lookupNominal(fqName: [
                 interner.intern("kotlin"),
                 interner.intern("collections"),
                 interner.intern("List"),

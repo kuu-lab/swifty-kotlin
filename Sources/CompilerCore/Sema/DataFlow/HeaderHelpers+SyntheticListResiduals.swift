@@ -20,7 +20,10 @@ extension DataFlowSemaPhase {
     ) -> SymbolID {
         let listName = interner.intern("List")
         let listFQName = kotlinCollectionsPkg + [listName]
-        let listInterfaceSymbol: SymbolID = if let existing = symbols.lookup(fqName: listFQName) {
+        // lookupNominal: `kotlin.collections.List` also names the bundled
+        // `List(size, init)` factory; the factory must never receive nominal
+        // decoration or own the List member shells (KUU-3246).
+        let listInterfaceSymbol: SymbolID = if let existing = symbols.lookupNominal(fqName: listFQName) {
             existing
         } else {
             symbols.define(
@@ -47,20 +50,25 @@ extension DataFlowSemaPhase {
             symbol: listTypeParamSymbol,
             nullability: .nonNull
         )))
-        types.setNominalTypeParameterSymbols([listTypeParamSymbol], for: listInterfaceSymbol)
-        types.setNominalTypeParameterVariances([.out], for: listInterfaceSymbol)
-        symbols.setDirectSupertypes([collectionInterfaceSymbol], for: listInterfaceSymbol)
-        types.setNominalDirectSupertypes([collectionInterfaceSymbol], for: listInterfaceSymbol)
-        symbols.setSupertypeTypeArgs(
-            [.out(listTypeParamType)],
-            for: listInterfaceSymbol,
-            supertype: collectionInterfaceSymbol
-        )
-        types.setNominalSupertypeTypeArgs(
-            [.out(listTypeParamType)],
-            for: listInterfaceSymbol,
-            supertype: collectionInterfaceSymbol
-        )
+        // A source-declared or imported List already carries its real type
+        // parameter and supertype edges; only compiler-owned shells get the
+        // synthetic bootstrap decoration.
+        if !symbols.isSourceBackedSymbol(listInterfaceSymbol) {
+            types.setNominalTypeParameterSymbols([listTypeParamSymbol], for: listInterfaceSymbol)
+            types.setNominalTypeParameterVariances([.out], for: listInterfaceSymbol)
+            symbols.setDirectSupertypes([collectionInterfaceSymbol], for: listInterfaceSymbol)
+            types.setNominalDirectSupertypes([collectionInterfaceSymbol], for: listInterfaceSymbol)
+            symbols.setSupertypeTypeArgs(
+                [.out(listTypeParamType)],
+                for: listInterfaceSymbol,
+                supertype: collectionInterfaceSymbol
+            )
+            types.setNominalSupertypeTypeArgs(
+                [.out(listTypeParamType)],
+                for: listInterfaceSymbol,
+                supertype: collectionInterfaceSymbol
+            )
+        }
 
         registerListGetOperator(
             symbols: symbols,
