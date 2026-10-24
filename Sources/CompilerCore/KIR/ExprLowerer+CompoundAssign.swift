@@ -166,6 +166,24 @@ extension ExprLowerer {
                 arguments: [KIRExprID],
                 result: KIRExprID
             ) {
+                var finalArguments = arguments
+                if sema.symbols.symbol(callBinding.chosenCallee)?.flags.contains(.localFunction) == true {
+                    var captureArguments: [KIRExprID] = []
+                    for capturedSymbol in sema.bindings.localFunctionCaptureSymbols(for: callBinding.chosenCallee) {
+                        guard let captureValue = driver.lambdaLowerer.captureValueExpr(
+                            for: capturedSymbol,
+                            sema: sema,
+                            arena: arena,
+                            interner: interner,
+                            instructions: &instructions
+                        ) else {
+                            assertionFailure("BuildKIRPhase: missing local operator capture '\(capturedSymbol)'")
+                            continue
+                        }
+                        captureArguments.append(captureValue)
+                    }
+                    finalArguments.insert(contentsOf: captureArguments, at: 0)
+                }
                 let resolvedMemberName = sema.symbols.symbol(callBinding.chosenCallee)
                     .map { interner.resolve($0.name) }
                     ?? interner.resolve(calleeName)
@@ -173,7 +191,7 @@ extension ExprLowerer {
                     memberName: resolvedMemberName,
                     receiverType: arena.exprType(lhs) ?? signature.receiverType ?? sema.types.anyType,
                     chosenCallee: callBinding.chosenCallee,
-                    arguments: arguments,
+                    arguments: finalArguments,
                     result: result,
                     sema: sema,
                     arena: arena,
@@ -188,7 +206,7 @@ extension ExprLowerer {
                     receiverExpr: nil,
                     loweredReceiverID: lhs,
                     isSuperCall: false,
-                    finalArguments: arguments,
+                    finalArguments: finalArguments,
                     result: result,
                     sema: sema,
                     arena: arena,
@@ -199,7 +217,7 @@ extension ExprLowerer {
                     instructions.append(.call(
                         symbol: callBinding.chosenCallee,
                         callee: calleeName,
-                        arguments: arguments,
+                        arguments: finalArguments,
                         result: result,
                         canThrow: false,
                         thrownResult: nil
