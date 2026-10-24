@@ -500,6 +500,8 @@ extension CallLowerer {
             createCallee = interner.intern("kk_function_create_4")
         case 5:
             createCallee = interner.intern("kk_function_create_5")
+        case 6:
+            createCallee = interner.intern("kk_function_create_6")
         default:
             return loweredArgID
         }
