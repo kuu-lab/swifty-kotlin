@@ -90,6 +90,33 @@ struct ForLoopReceiverValidationTests {
     }
 
     @Test
+    func rejectsIteratorOperatorReturningNonIteratorType() throws {
+        let ctx = makeContextFromSource("""
+        class C { operator fun iterator() = 1 }
+        fun test() {
+            for (e in C()) {}
+        }
+        """)
+        do { try runSema(ctx) } catch {}
+        let errors = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0172" }
+        #expect(errors.count == 2, "\(ctx.diagnostics.diagnostics)")
+    }
+
+    @Test
+    func rejectsIteratorTypeMissingOnlyNext() throws {
+        let ctx = makeContextFromSource("""
+        class HasNextOnly { operator fun hasNext(): Boolean = false }
+        class C { operator fun iterator(): HasNextOnly = HasNextOnly() }
+        fun test() {
+            for (e in C()) {}
+        }
+        """)
+        do { try runSema(ctx) } catch {}
+        let errors = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0172" }
+        #expect(errors.count == 1, "\(ctx.diagnostics.diagnostics)")
+    }
+
+    @Test
     func acceptsSupportedIterationAndSmartCasts() throws {
         let ctx = makeContextFromSource("""
         class Counter {

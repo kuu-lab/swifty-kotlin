@@ -159,7 +159,25 @@ final class ControlFlowTypeChecker {
         )
 
         guard let hasNextResolution, let nextResolution else {
-            return nil
+            // `iterator()` bound, but its return type does not satisfy the
+            // iterator protocol — kotlinc reports one error per missing
+            // convention method. Returning an error type also keeps the
+            // legacy iterableElementType fallback from re-accepting the loop.
+            if hasNextResolution == nil {
+                ctx.sema.diagnostics.error(
+                    "KSWIFTK-SEMA-0172",
+                    "'hasNext()' cannot be called on 'iterator()'.",
+                    range: range
+                )
+            }
+            if nextResolution == nil {
+                ctx.sema.diagnostics.error(
+                    "KSWIFTK-SEMA-0172",
+                    "'next()' cannot be called on 'iterator()'.",
+                    range: range
+                )
+            }
+            return sema.types.errorType
         }
 
         if let diagnostic = hasNextResolution.call.diagnostic ?? nextResolution.call.diagnostic {
