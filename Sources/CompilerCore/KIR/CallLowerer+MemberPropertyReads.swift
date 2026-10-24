@@ -20,14 +20,13 @@ extension CallLowerer {
             interner: interner,
             instructions: &instructions
         )
-        instructions.append(.call(
-            symbol: getterSymbol,
+        emitNonThrowingCall(
             callee: interner.intern("get"),
             arguments: getterArguments,
             result: result,
-            canThrow: false,
-            thrownResult: nil
-        ))
+            symbol: getterSymbol,
+            into: &instructions
+        )
     }
 
     func appendVirtualPropertyGetterCall(
@@ -393,14 +392,12 @@ extension CallLowerer {
                     ?? sema.symbols.propertyType(for: valueSym)
                     ?? sema.types.anyType
             )
-            instructions.append(.call(
-                symbol: nil,
+            emitNonThrowingCall(
                 callee: runtimeCallee,
                 arguments: [],
                 result: result,
-                canThrow: false,
-                thrownResult: nil
-            ))
+                into: &instructions
+            )
             return result
         }
         // KSP-717: NormalizationForms.NFC/NFD/NFKC/NFKD are plain Kotlin
@@ -556,14 +553,13 @@ extension CallLowerer {
         let resultType = sema.bindings.exprTypes[exprID] ?? sema.symbols.propertyType(for: propertySymbol) ?? sema.types.anyType
         if objectLiteralPropertyUsesAccessor(propertySymbol, ast: ast, sema: sema) {
             let result = arena.appendTemporary(type: resultType)
-            instructions.append(.call(
-                symbol: propertySymbol,
+            emitNonThrowingCall(
                 callee: interner.intern("get"),
                 arguments: [loweredReceiverID],
                 result: result,
-                canThrow: false,
-                thrownResult: nil
-            ))
+                symbol: propertySymbol,
+                into: &instructions
+            )
             return result
         }
 
@@ -588,14 +584,12 @@ extension CallLowerer {
         instructions.append(.constValue(result: offsetExpr, value: .intLiteral(Int64(fieldOffset))))
 
         let result = arena.appendTemporary(type: resultType)
-        instructions.append(.call(
-            symbol: nil,
+        emitNonThrowingCall(
             callee: interner.intern("kk_array_get_inbounds"),
             arguments: [loweredReceiverID, offsetExpr],
             result: result,
-            canThrow: false,
-            thrownResult: nil
-        ))
+            into: &instructions
+        )
         return wrapLateinitReadIfNeeded(
             result,
             symbol: propertySymbol,
@@ -775,14 +769,12 @@ extension CallLowerer {
            )
         {
             let result = arena.appendTemporary(type: resultType)
-            instructions.append(.call(
-                symbol: nil,
+            emitNonThrowingCall(
                 callee: getterPlaceholder,
                 arguments: [loweredReceiverID],
                 result: result,
-                canThrow: false,
-                thrownResult: nil
-            ))
+                into: &instructions
+            )
             return result
         }
         guard ownerInfo.kind == .class || ownerInfo.kind == .interface
@@ -1004,14 +996,12 @@ extension CallLowerer {
             let propertyName = propertyInfo.name
             let helperName = interner.intern("$enumConstructorProperty$\(ownerSymbol.rawValue)$\(interner.resolve(propertyName))")
             let result = arena.appendTemporary(type: resultType)
-            instructions.append(.call(
-                symbol: nil,
+            emitNonThrowingCall(
                 callee: helperName,
                 arguments: [loweredReceiverID],
                 result: result,
-                canThrow: false,
-                thrownResult: nil
-            ))
+                into: &instructions
+            )
             return result
         }
 
@@ -1057,14 +1047,12 @@ extension CallLowerer {
         instructions.append(.constValue(result: offsetExpr, value: .intLiteral(Int64(fieldOffset))))
 
         let result = arena.appendTemporary(type: resultType)
-        instructions.append(.call(
-            symbol: nil,
+        emitNonThrowingCall(
             callee: interner.intern("kk_array_get_inbounds"),
             arguments: [loweredReceiverID, offsetExpr],
             result: result,
-            canThrow: false,
-            thrownResult: nil
-        ))
+            into: &instructions
+        )
         return wrapLateinitReadIfNeeded(
             result,
             symbol: propertySymbol,
@@ -1333,11 +1321,12 @@ extension CallLowerer {
         let endpoint = arena.appendExpr(.intLiteral(member == "start" ? 0 : 1), type: sema.types.intType)
         instructions.append(.constValue(result: endpoint, value: .intLiteral(member == "start" ? 0 : 1)))
         let boxed = arena.appendTemporary(type: sema.types.nullableAnyType)
-        instructions.append(.call(
-            symbol: nil, callee: interner.intern("__kk_floating_range_endpoint_or_null"),
-            arguments: [loweredReceiverID, endpoint], result: boxed,
-            canThrow: false, thrownResult: nil
-        ))
+        emitNonThrowingCall(
+            callee: interner.intern("__kk_floating_range_endpoint_or_null"),
+            arguments: [loweredReceiverID, endpoint],
+            result: boxed,
+            into: &instructions
+        )
         let null = arena.appendExpr(.null, type: sema.types.nullableAnyType)
         instructions.append(.constValue(result: null, value: .null))
         let interfaceLabel = driver.ctx.makeLoopLabel()
@@ -1556,14 +1545,13 @@ extension CallLowerer {
                 sema.symbols.symbol(id).map { $0.kind == .function } ?? false
             }
             let result = arena.appendTemporary(type: resultType)
-            instructions.append(.call(
-                symbol: helperSymbol,
+            emitNonThrowingCall(
                 callee: helperName,
                 arguments: [],
                 result: result,
-                canThrow: false,
-                thrownResult: nil
-            ))
+                symbol: helperSymbol,
+                into: &instructions
+            )
             return result
         }
         if let result = tryLowerEnumBasePropertyRead(
@@ -1611,14 +1599,12 @@ extension CallLowerer {
         // EnumNameAccessLoweringPass rewrites into a real call to that
         // helper once it exists.
         let result = arena.appendTemporary(type: resultType)
-        instructions.append(.call(
-            symbol: nil,
+        emitNonThrowingCall(
             callee: calleeName,
             arguments: [loweredReceiverID],
             result: result,
-            canThrow: false,
-            thrownResult: nil
-        ))
+            into: &instructions
+        )
         return result
     }
 
@@ -1671,14 +1657,13 @@ extension CallLowerer {
         ) {
             propertyReadArguments.insert(dispatchReceiver, at: 0)
         }
-        instructions.append(.call(
-            symbol: propertySymbol,
+        emitNonThrowingCall(
             callee: interner.intern(externalLinkName),
             arguments: propertyReadArguments,
             result: result,
-            canThrow: false,
-            thrownResult: nil
-        ))
+            symbol: propertySymbol,
+            into: &instructions
+        )
         return wrapLateinitReadIfNeeded(
             result,
             symbol: propertySymbol,
@@ -1904,14 +1889,13 @@ extension CallLowerer {
                 if let linkName = sema.symbols.externalLinkName(for: valueSymbolID), !linkName.isEmpty {
                     let resultType = sema.symbols.propertyType(for: valueSymbolID) ?? sema.types.anyType
                     let result = arena.appendTemporary(type: resultType)
-                    instructions.append(.call(
-                        symbol: valueSymbolID,
+                    emitNonThrowingCall(
                         callee: interner.intern(linkName),
                         arguments: [],
                         result: result,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
+                        symbol: valueSymbolID,
+                        into: &instructions
+                    )
                     return result
                 }
                 driver.emitObjectLazyInitGuardIfNeeded(

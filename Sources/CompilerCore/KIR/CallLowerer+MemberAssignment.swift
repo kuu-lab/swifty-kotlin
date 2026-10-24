@@ -65,14 +65,12 @@ extension CallLowerer {
            getterLink.hasSuffix("_load")
         {
             let storeLinkName = String(getterLink.dropLast("_load".count)) + "_store"
-            instructions.append(.call(
-                symbol: nil,
+            emitNonThrowingCall(
                 callee: interner.intern(storeLinkName),
                 arguments: [receiverID, valueID],
                 result: nil,
-                canThrow: false,
-                thrownResult: nil
-            ))
+                into: &instructions
+            )
             let unit = arena.appendExpr(.unit, type: sema.types.unitType)
             instructions.append(.constValue(result: unit, value: .unit))
             return unit
@@ -127,14 +125,13 @@ extension CallLowerer {
                 for: setterSymbol, arguments: [receiverID, valueID], callExprID: exprID,
                 sema: sema, arena: arena, interner: interner, instructions: &instructions
             )
-            instructions.append(.call(
-                symbol: setterSymbol,
+            emitNonThrowingCall(
                 callee: interner.intern("set"),
                 arguments: setterArguments,
                 result: result,
-                canThrow: false,
-                thrownResult: nil
-            ))
+                symbol: setterSymbol,
+                into: &instructions
+            )
             let unit = arena.appendExpr(.unit, type: sema.types.unitType)
             instructions.append(.constValue(result: unit, value: .unit))
             return unit
@@ -156,14 +153,13 @@ extension CallLowerer {
                 for: setterSymbol, arguments: [receiverID, valueID], callExprID: exprID,
                 sema: sema, arena: arena, interner: interner, instructions: &instructions
             )
-            instructions.append(.call(
-                symbol: setterSymbol,
+            emitNonThrowingCall(
                 callee: interner.intern("set"),
                 arguments: setterArguments,
                 result: result,
-                canThrow: false,
-                thrownResult: nil
-            ))
+                symbol: setterSymbol,
+                into: &instructions
+            )
             let unit = arena.appendExpr(.unit, type: sema.types.unitType)
             instructions.append(.constValue(result: unit, value: .unit))
             return unit
@@ -263,14 +259,12 @@ extension CallLowerer {
                     arena: arena,
                     into: &instructions
                 )
-                instructions.append(.call(
-                    symbol: nil,
+                emitNonThrowingCall(
                     callee: interner.intern("kk_array_set"),
                     arguments: [receiverID, offsetExpr, storedValueID],
                     result: nil,
-                    canThrow: false,
-                    thrownResult: nil
-                ))
+                    into: &instructions
+                )
                 let unit = arena.appendExpr(.unit, type: sema.types.unitType)
                 instructions.append(.constValue(result: unit, value: .unit))
                 return unit
@@ -329,14 +323,12 @@ extension CallLowerer {
                interner: interner
            )
         {
-            instructions.append(.call(
-                symbol: nil,
+            emitNonThrowingCall(
                 callee: setterCallee,
                 arguments: [receiverID, valueID],
                 result: arena.appendTemporary(type: sema.types.unitType),
-                canThrow: false,
-                thrownResult: nil
-            ))
+                into: &instructions
+            )
             let unit = arena.appendExpr(.unit, type: sema.types.unitType)
             instructions.append(.constValue(result: unit, value: .unit))
             return unit
@@ -352,14 +344,13 @@ extension CallLowerer {
             interner: interner
         )
         let result = arena.appendTemporary(type: sema.types.unitType)
-        instructions.append(.call(
-            symbol: chosenCallee,
+        emitNonThrowingCall(
             callee: setterName,
             arguments: [receiverID, valueID],
             result: result,
-            canThrow: false,
-            thrownResult: nil
-        ))
+            symbol: chosenCallee,
+            into: &instructions
+        )
         let unit = arena.appendExpr(.unit, type: sema.types.unitType)
         instructions.append(.constValue(result: unit, value: .unit))
         return unit
@@ -665,27 +656,24 @@ extension CallLowerer {
                 for: getterSymbol, arguments: [receiverID], callExprID: exprID,
                 sema: sema, arena: arena, interner: interner, instructions: &instructions
             )
-            instructions.append(.call(
-                symbol: getterSymbol,
+            emitNonThrowingCall(
                 callee: interner.intern("get"),
                 arguments: getterArguments,
                 result: result,
-                canThrow: false,
-                thrownResult: nil
-            ))
+                symbol: getterSymbol,
+                into: &instructions
+            )
             currentValue = result
         } else if let fieldOffset {
             let offsetExpr = arena.appendExpr(.intLiteral(Int64(fieldOffset)), type: sema.types.intType)
             instructions.append(.constValue(result: offsetExpr, value: .intLiteral(Int64(fieldOffset))))
             let result = arena.appendTemporary(type: propType)
-            instructions.append(.call(
-                symbol: nil,
+            emitNonThrowingCall(
                 callee: interner.intern("kk_array_get_inbounds"),
                 arguments: [receiverID, offsetExpr],
                 result: result,
-                canThrow: false,
-                thrownResult: nil
-            ))
+                into: &instructions
+            )
             currentValue = propertySymbol.map {
                 wrapLateinitReadIfNeeded(
                     result, symbol: $0, sema: sema, arena: arena, interner: interner,
@@ -729,14 +717,13 @@ extension CallLowerer {
                     sema.symbols.symbol(callBinding.chosenCallee)?.name ?? interner.intern(operatorName)
                 }
                 let callResult = arena.appendTemporary(type: signature.returnType)
-                instructions.append(.call(
-                    symbol: callBinding.chosenCallee,
+                emitNonThrowingCall(
                     callee: loweredCalleeName,
                     arguments: [currentValue],
                     result: callResult,
-                    canThrow: false,
-                    thrownResult: nil
-                ))
+                    symbol: callBinding.chosenCallee,
+                    into: &instructions
+                )
                 return callResult
             }
 
@@ -790,14 +777,13 @@ extension CallLowerer {
                 ) {
                     return returnType == sema.types.unitType ? nil : callResult
                 }
-                instructions.append(.call(
-                    symbol: callBinding.chosenCallee,
+                emitNonThrowingCall(
                     callee: loweredCalleeName,
                     arguments: finalArguments,
                     result: callResult,
-                    canThrow: false,
-                    thrownResult: nil
-                ))
+                    symbol: callBinding.chosenCallee,
+                    into: &instructions
+                )
                 return returnType == sema.types.unitType ? nil : callResult
             }
 
@@ -854,27 +840,23 @@ extension CallLowerer {
                 )
             }
             let result = arena.appendTemporary(type: stringType)
-            instructions.append(.call(
-                symbol: nil,
+            emitNonThrowingCall(
                 callee: interner.intern("__kk_string_concat_flat"),
                 arguments: [effectiveCurrent, effectiveValue],
                 result: result,
-                canThrow: false,
-                thrownResult: nil
-            ))
+                into: &instructions
+            )
             return result
         }()
 
         if let newValue {
             if let syntheticLinks {
-                instructions.append(.call(
-                    symbol: nil,
+                emitNonThrowingCall(
                     callee: interner.intern(syntheticLinks.store),
                     arguments: [receiverID, newValue],
                     result: nil,
-                    canThrow: false,
-                    thrownResult: nil
-                ))
+                    into: &instructions
+                )
             } else if isObjectOwned, !storeUsesSetterAccessor, let propertySymbol {
                 let globalRef = arena.appendExpr(.symbolRef(propertySymbol), type: propType)
                 instructions.append(.constValue(result: globalRef, value: .symbolRef(propertySymbol)))
@@ -910,14 +892,12 @@ extension CallLowerer {
                     dispatch: virtualSetterDispatch.dispatch
                 ))
             } else if let enumHelperCallees {
-                instructions.append(.call(
-                    symbol: nil,
+                emitNonThrowingCall(
                     callee: enumHelperCallees.setter,
                     arguments: [receiverID, newValue],
                     result: arena.appendTemporary(type: sema.types.unitType),
-                    canThrow: false,
-                    thrownResult: nil
-                ))
+                    into: &instructions
+                )
             } else if usesSetterAccessor, let propertySymbol {
                 let setterSymbol = sema.symbols.extensionPropertySetterAccessor(for: propertySymbol)
                     ?? SyntheticSymbolScheme.propertySetterAccessorSymbol(for: propertySymbol)
@@ -926,14 +906,13 @@ extension CallLowerer {
                     for: setterSymbol, arguments: [receiverID, newValue], callExprID: exprID,
                     sema: sema, arena: arena, interner: interner, instructions: &instructions
                 )
-                instructions.append(.call(
-                    symbol: setterSymbol,
+                emitNonThrowingCall(
                     callee: interner.intern("set"),
                     arguments: setterArguments,
                     result: setterResult,
-                    canThrow: false,
-                    thrownResult: nil
-                ))
+                    symbol: setterSymbol,
+                    into: &instructions
+                )
             } else if let fieldOffset {
                 let offsetExpr = arena.appendExpr(.intLiteral(Int64(fieldOffset)), type: sema.types.intType)
                 instructions.append(.constValue(result: offsetExpr, value: .intLiteral(Int64(fieldOffset))))
@@ -944,14 +923,12 @@ extension CallLowerer {
                     arena: arena,
                     into: &instructions
                 )
-                instructions.append(.call(
-                    symbol: nil,
+                emitNonThrowingCall(
                     callee: interner.intern("kk_array_set"),
                     arguments: [receiverID, offsetExpr, storedValue],
                     result: nil,
-                    canThrow: false,
-                    thrownResult: nil
-                ))
+                    into: &instructions
+                )
             } else {
                 let setterName = loweredMemberCalleeName(
                     chosenCallee: nil,
@@ -962,14 +939,12 @@ extension CallLowerer {
                     interner: interner
                 )
                 let setterResult = arena.appendTemporary(type: sema.types.unitType)
-                instructions.append(.call(
-                    symbol: nil,
+                emitNonThrowingCall(
                     callee: setterName,
                     arguments: [receiverID, newValue],
                     result: setterResult,
-                    canThrow: false,
-                    thrownResult: nil
-                ))
+                    into: &instructions
+                )
             }
             if ast.arena.incrementDecrementReturnsValue(exprID) {
                 return newValue

@@ -173,14 +173,12 @@ extension CallLowerer {
                 loweredArgIDs = []
             }
             let runtimeCallee = interner.intern(args.isEmpty ? "kk_context_cancel_no_cause" : "kk_context_cancel")
-            instructions.append(.call(
-                symbol: nil,
+            emitNonThrowingCall(
                 callee: runtimeCallee,
                 arguments: [loweredReceiverID] + loweredArgIDs,
                 result: nonNullResult,
-                canThrow: false,
-                thrownResult: nil
-            ))
+                into: &instructions
+            )
             instructions.append(.copy(from: nonNullResult, to: nullableResult))
             instructions.append(.label(endLabel))
             return nullableResult
@@ -228,14 +226,12 @@ extension CallLowerer {
                         ),
                     ]
                 }
-                instructions.append(.call(
-                    symbol: nil,
+                emitNonThrowingCall(
                     callee: boolCallee,
                     arguments: [nonNullReceiver] + argumentIDs,
                     result: nonNullResult,
-                    canThrow: false,
-                    thrownResult: nil
-                ))
+                    into: &instructions
+                )
                 instructions.append(.copy(from: nonNullResult, to: nullableResult))
                 instructions.append(.label(endLabel))
                 return nullableResult
@@ -333,14 +329,12 @@ extension CallLowerer {
                 }
 
                 let nonNullResult = arena.appendTemporary(type: resultType)
-                instructions.append(.call(
-                    symbol: nil,
+                emitNonThrowingCall(
                     callee: interner.intern(resultType == doubleType ? "kk_op_dfloor_mod" : "kk_op_ffloor_mod"),
                     arguments: [lhs, rhs],
                     result: nonNullResult,
-                    canThrow: false,
-                    thrownResult: nil
-                ))
+                    into: &instructions
+                )
                 instructions.append(.copy(from: nonNullResult, to: nullableResult))
                 instructions.append(.label(endLabel))
                 return nullableResult
@@ -477,14 +471,12 @@ extension CallLowerer {
                         shared: shared,
                         emit: &instructions
                     )
-                    instructions.append(.call(
-                        symbol: nil,
+                    emitNonThrowingCall(
                         callee: primitiveCallee,
                         arguments: [nonNullReceiver, loweredArgID],
                         result: nonNullResult,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
+                        into: &instructions
+                    )
                     instructions.append(.copy(from: nonNullResult, to: nullableResult))
                     instructions.append(.label(endLabel))
                     return nullableResult
@@ -518,14 +510,12 @@ extension CallLowerer {
                 instructions.append(.label(callLabel))
                 let tagID = arena.appendExpr(.intLiteral(1), type: intType)
                 instructions.append(.constValue(result: tagID, value: .intLiteral(1)))
-                instructions.append(.call(
-                    symbol: nil,
+                emitNonThrowingCall(
                     callee: interner.intern("kk_any_to_string"),
                     arguments: [loweredReceiverID, tagID],
                     result: result,
-                    canThrow: false,
-                    thrownResult: nil
-                ))
+                    into: &instructions
+                )
                 instructions.append(.label(endLabel))
                 return result
             }
@@ -566,14 +556,12 @@ extension CallLowerer {
             instructions.append(.label(callLabel))
             let tagID = arena.appendExpr(.intLiteral(tag), type: intType)
             instructions.append(.constValue(result: tagID, value: .intLiteral(tag)))
-            instructions.append(.call(
-                symbol: nil,
+            emitNonThrowingCall(
                 callee: interner.intern("kk_any_to_string"),
                 arguments: [loweredReceiverID, tagID],
                 result: result,
-                canThrow: false,
-                thrownResult: nil
-            ))
+                into: &instructions
+            )
             instructions.append(.label(endLabel))
             return result
         }
@@ -599,14 +587,12 @@ extension CallLowerer {
             let receiverTag = anyFallbackTag(for: anyFallbackReceiverType, sema: sema)
             let receiverTagID = arena.appendExpr(.intLiteral(receiverTag), type: intType)
             instructions.append(.constValue(result: receiverTagID, value: .intLiteral(receiverTag)))
-            instructions.append(.call(
-                symbol: nil,
+            emitNonThrowingCall(
                 callee: interner.intern("kk_any_hashCode"),
                 arguments: [hashReceiverID, receiverTagID],
                 result: result,
-                canThrow: false,
-                thrownResult: nil
-            ))
+                into: &instructions
+            )
             instructions.append(.label(endLabel))
             return result
         }
@@ -632,14 +618,12 @@ extension CallLowerer {
             instructions.append(.constValue(result: receiverTagID, value: .intLiteral(receiverTag)))
             let argTagID = arena.appendExpr(.intLiteral(argTag), type: intType)
             instructions.append(.constValue(result: argTagID, value: .intLiteral(argTag)))
-            instructions.append(.call(
-                symbol: nil,
+            emitNonThrowingCall(
                 callee: interner.intern("kk_any_equals"),
                 arguments: [loweredReceiverID, receiverTagID, loweredEqualsArg, argTagID],
                 result: result,
-                canThrow: false,
-                thrownResult: nil
-            ))
+                into: &instructions
+            )
             instructions.append(.label(endLabel))
             return result
         }
@@ -777,14 +761,12 @@ extension CallLowerer {
                     arena: arena, instructions: &instructions.instructions
                 ) ?? loweredReceiverID
                 let nonNullResult = arena.appendTemporary(type: nonNullResultType)
-                instructions.append(.call(
-                    symbol: nil,
+                emitNonThrowingCall(
                     callee: callee,
                     arguments: [conversionReceiverID],
                     result: nonNullResult,
-                    canThrow: false,
-                    thrownResult: nil
-                ))
+                    into: &instructions
+                )
                 instructions.append(.copy(from: nonNullResult, to: result))
                 instructions.append(.label(endLabel))
                 return result
@@ -967,14 +949,13 @@ extension CallLowerer {
                     sema: sema
                 ))
                 let nonNullResult = arena.appendTemporary(type: fnType.returnType)
-                instructions.append(.call(
-                    symbol: callSymbol,
+                emitNonThrowingCall(
                     callee: callCallee,
                     arguments: callPrefix,
                     result: nonNullResult,
-                    canThrow: false,
-                    thrownResult: nil
-                ))
+                    symbol: callSymbol,
+                    into: &instructions
+                )
                 instructions.append(.copy(from: nonNullResult, to: result))
                 instructions.append(.label(endLabel))
                 return result
@@ -1067,14 +1048,13 @@ extension CallLowerer {
                interner: interner
            )
         {
-            instructions.append(.call(
-                symbol: propSym,
+            emitNonThrowingCall(
                 callee: interner.intern(extLink),
                 arguments: [loweredReceiverID],
                 result: memberResult,
-                canThrow: false,
-                thrownResult: nil
-            ))
+                symbol: propSym,
+                into: &instructions
+            )
             if memberResult != result {
                 instructions.append(.copy(from: memberResult, to: result))
             }

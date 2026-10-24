@@ -137,6 +137,23 @@ func emitNonThrowingCall<C: RangeReplaceableCollection>(
     ))
 }
 
+func emitNonThrowingCall<C: RangeReplaceableCollection>(
+    callee: InternedString,
+    arguments: [KIRExprID],
+    result: KIRExprID?,
+    symbol: SymbolID? = nil,
+    into instructions: inout C
+) where C.Element == KIRInstruction {
+    instructions.append(.call(
+        symbol: symbol,
+        callee: callee,
+        arguments: arguments,
+        result: result,
+        canThrow: false,
+        thrownResult: nil
+    ))
+}
+
 /// Emits a runtime bridge call whose trailing `outThrown` channel must be
 /// present even when the enclosing Kotlin function has no local catch block.
 /// Try-lowering may route the call to its local exception slot later.
