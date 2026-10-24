@@ -48,7 +48,19 @@ extension ExprLowerer {
         )
         switch op {
         case .unaryPlus:
-            return operandID
+            // `+x` produces x's value, not an alias of its storage: a bare
+            // variable read resolves to that variable's own register, so
+            // forwarding operandID lets a later write through either name
+            // retroactively change the other (`val a = +b` and `var a = +b`
+            // initializers, `+b + b++` binary lhs, `return +b` before a
+            // mutating finally). Snapshot bare reads, same as the
+            // `val a = b` aliasing guard in the `.localDecl` case.
+            guard isBareVariableRead(operandExpr, ast: ast) else {
+                return operandID
+            }
+            let result = arena.appendTemporary(type: boundType ?? arena.exprType(operandID))
+            instructions.append(.copy(from: operandID, to: result))
+            return result
         case .unaryMinus:
             // IEEE floating-point negation must flip the sign bit so that
             // `-(0.0) == -0.0`. Lowering it as `0.0 - x` is wrong because
