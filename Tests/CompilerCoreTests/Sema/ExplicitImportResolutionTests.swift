@@ -587,8 +587,10 @@ struct ExplicitImportResolutionTests {
             """,
             """
             import kotlin.coroutines.Continuation
+            import kotlinx.coroutines.InternalCoroutinesApi
             import kotlinx.coroutines.intrinsics.startCoroutineCancellable
 
+            @OptIn(InternalCoroutinesApi::class)
             fun start(block: suspend () -> Unit, completion: Continuation<Unit>) {
                 block.startCoroutineCancellable(completion)
             }
