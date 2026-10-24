@@ -341,7 +341,15 @@ final class LambdaLowerer {
             lambdaBody.append(.constValue(result: captureExpr, value: .symbolRef(capture.param.symbol)))
             bindCapturedLambdaValue(captureExpr, capture: capture, sema: sema, arena: arena, interner: interner, instructions: &lambdaBody)
             if capture.capturedSymbol == savedReceiverSymbol {
-                driver.ctx.setImplicitReceiver(symbol: capture.param.symbol, exprID: captureExpr)
+                // A receiver lambda's own receiver parameter is the innermost
+                // `this`; a captured enclosing receiver only services outer
+                // member/qualified-this lookups (bindCapturedOuterLambdaReceiver)
+                // and must not take over the implicit receiver slot, or receiver
+                // members such as SequenceScope.yield would bind to the outer
+                // instance (KUU-3075).
+                if !needsExplicitReceiver {
+                    driver.ctx.setImplicitReceiver(symbol: capture.param.symbol, exprID: captureExpr)
+                }
                 driver.ctx.setLocalDeclaredType(capture.declaredType, for: capture.param.symbol)
                 bindCapturedOuterLambdaReceiver(captureExpr, type: capture.param.type, sema: sema, overwriteExisting: false)
                 if capturesRuntimeScopeReceiver {
@@ -383,7 +391,9 @@ final class LambdaLowerer {
         {
             bindCapturedLambdaValue(closureExpr, capture: closureCapture, sema: sema, arena: arena, interner: interner, instructions: &lambdaBody)
             if closureCapture.capturedSymbol == savedReceiverSymbol {
-                driver.ctx.setImplicitReceiver(symbol: closureParam.symbol, exprID: closureExpr)
+                if !needsExplicitReceiver {
+                    driver.ctx.setImplicitReceiver(symbol: closureParam.symbol, exprID: closureExpr)
+                }
                 driver.ctx.setLocalDeclaredType(closureCapture.declaredType, for: closureParam.symbol)
                 bindCapturedOuterLambdaReceiver(closureExpr, type: closureCapture.param.type, sema: sema, overwriteExisting: false)
                 if capturesRuntimeScopeReceiver {
@@ -412,7 +422,9 @@ final class LambdaLowerer {
                 ))
                 bindCapturedLambdaValue(loadedExpr, capture: capture, sema: sema, arena: arena, interner: interner, instructions: &lambdaBody)
                 if capture.capturedSymbol == savedReceiverSymbol {
-                    driver.ctx.setImplicitReceiver(symbol: capture.param.symbol, exprID: loadedExpr)
+                    if !needsExplicitReceiver {
+                        driver.ctx.setImplicitReceiver(symbol: capture.param.symbol, exprID: loadedExpr)
+                    }
                     driver.ctx.setLocalDeclaredType(capture.declaredType, for: capture.param.symbol)
                     bindCapturedOuterLambdaReceiver(loadedExpr, type: capture.param.type, sema: sema, overwriteExisting: false)
                     if capturesRuntimeScopeReceiver {
