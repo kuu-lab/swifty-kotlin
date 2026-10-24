@@ -1613,11 +1613,26 @@ extension DataFlowSemaPhase {
         // Enhanced override detection with signature-aware matching
 
         // Find all potential parent members that could be overridden
-        let allParentMembers = findAllInheritedMembers(
+        var allParentMembers = findAllInheritedMembers(
             named: memberName,
             for: ownerSymbol,
             symbols: ctx.symbols
         )
+
+        // Interfaces never list kotlin.Any in directSupertypes, so the walk
+        // above cannot see toString/hashCode/equals. Every interface still
+        // inherits them, and kotlinc requires `override` to hide them
+        // (KUU-3255). Classes reach Any through the supertype walk already;
+        // keep the extra lookup interface-only so it cannot perturb lazy
+        // materialization order for other decls.
+        let ownerIsInterface = ctx.symbols.symbol(ownerSymbol)?.kind == .interface
+        if ownerIsInterface {
+            let knownMemberIDs = Set(allParentMembers.map(\.memberID))
+            for anyMember in findAnyMembers(named: memberName, ctx: ctx)
+            where !knownMemberIDs.contains(anyMember.memberID) {
+                allParentMembers.append(anyMember)
+            }
+        }
 
         guard !allParentMembers.isEmpty else { return }
 
@@ -1688,6 +1703,45 @@ extension DataFlowSemaPhase {
                 return
             }
         }
+
+        // Interface members hide both parent-interface and inherited Any
+        // members under the same rule; kotlinc reports "hides member of
+        // supertype" for both (KUU-3255).
+        if ownerIsInterface {
+            let parentName = ctx.interner.resolve(matchingParents.first!.ownerName)
+            ctx.diagnostics.error(
+                "KSWIFTK-SEMA-OVERRIDE",
+                "'\(name)' hides member of supertype '\(parentName)' "
+                    + "and needs 'override' modifier.",
+                range: memberRange
+            )
+            return
+        }
+    }
+
+    /// `kotlin.Any` members (`toString`/`hashCode`/`equals`) reachable for
+    /// hiding checks when the supertype walk cannot reach `Any` itself —
+    /// interfaces do not list it in `directSupertypes`.
+    private func findAnyMembers(
+        named memberName: InternedString,
+        ctx: OpenFinalOverrideContext
+    ) -> [OFOInheritedMember] {
+        let anyFQName = [ctx.interner.intern("kotlin"), ctx.interner.intern("Any")]
+        guard let anyID = ctx.symbols.lookupNominal(fqName: anyFQName),
+              let anySymbol = ctx.symbols.symbol(anyID) else { return [] }
+        var results: [OFOInheritedMember] = []
+        for childID in ctx.symbols.children(ofFQName: anySymbol.fqName) {
+            guard let child = ctx.symbols.symbol(childID),
+                  child.name == memberName,
+                  child.kind == .function || child.kind == .property
+            else { continue }
+            results.append(OFOInheritedMember(
+                memberID: childID,
+                ownerName: anySymbol.name,
+                ownerIsInterface: false
+            ))
+        }
+        return results
     }
 
     /// A member is overridable when it belongs to an interface,
