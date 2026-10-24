@@ -251,6 +251,12 @@ public extension RuntimeABISpec {
         ].map {
             bridgeSpec($0, section: "Operator", params: ["nullableRaw", "peerRaw", "peerIsNullable"], isThrowing: false)
         }
+        + [
+            "kk_nullable_double_equals",
+            "kk_nullable_float_equals",
+        ].map {
+            bridgeSpec($0, section: "Operator", params: ["lhs", "rhs"], isThrowing: false)
+        }
 
     static let collectionBridgeFunctions: [RuntimeABIFunctionSpec] =
         collectionBridgeBase

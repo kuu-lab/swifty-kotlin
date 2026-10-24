@@ -657,3 +657,39 @@ public func kk_nullable_primitive_eq(_ nullableRaw: Int, _ peerRaw: Int, _ peerI
 public func kk_nullable_primitive_ne(_ nullableRaw: Int, _ peerRaw: Int, _ peerIsNullable: Int) -> Int {
     runtimeNullablePrimitiveEqualityCheck(nullableRaw: nullableRaw, peerRaw: peerRaw, peerIsNullable: peerIsNullable) ? 0 : 1
 }
+
+/// Null-aware `equals` (not `==`) for a `Double?`/`Float?` operand pair in
+/// synthesized data class `equals`. The sentinel means null and only equals
+/// itself; non-null operands — a registered floating-point box or a raw
+/// (never-boxed) bit pattern — compare with Kotlin `Double.equals`/
+/// `Float.equals` semantics: NaN equals NaN regardless of payload while -0.0
+/// differs from +0.0. `kk_nullable_primitive_eq` is not reusable here: it
+/// applies operator `==` semantics, which on floating point is IEEE-754
+/// (NaN unequal to itself, -0.0 equal to +0.0) — the opposite contract.
+@_cdecl("kk_nullable_double_equals")
+public func kk_nullable_double_equals(_ lhs: Int, _ rhs: Int) -> Int {
+    let lhsNull = lhs == runtimeNullSentinelInt
+    let rhsNull = rhs == runtimeNullSentinelInt
+    if lhsNull || rhsNull {
+        return (lhsNull && rhsNull) ? 1 : 0
+    }
+    let lhsBits = runtimeFloatingBoxBitPattern(lhs) ?? lhs
+    let rhsBits = runtimeFloatingBoxBitPattern(rhs) ?? rhs
+    let a = Double(bitPattern: UInt64(bitPattern: Int64(lhsBits)))
+    let b = Double(bitPattern: UInt64(bitPattern: Int64(rhsBits)))
+    return ((a.isNaN && b.isNaN) || lhsBits == rhsBits) ? 1 : 0
+}
+
+@_cdecl("kk_nullable_float_equals")
+public func kk_nullable_float_equals(_ lhs: Int, _ rhs: Int) -> Int {
+    let lhsNull = lhs == runtimeNullSentinelInt
+    let rhsNull = rhs == runtimeNullSentinelInt
+    if lhsNull || rhsNull {
+        return (lhsNull && rhsNull) ? 1 : 0
+    }
+    let lhsBits = runtimeFloatingBoxBitPattern(lhs) ?? lhs
+    let rhsBits = runtimeFloatingBoxBitPattern(rhs) ?? rhs
+    let a = Float(bitPattern: UInt32(truncatingIfNeeded: lhsBits))
+    let b = Float(bitPattern: UInt32(truncatingIfNeeded: rhsBits))
+    return ((a.isNaN && b.isNaN) || lhsBits == rhsBits) ? 1 : 0
+}

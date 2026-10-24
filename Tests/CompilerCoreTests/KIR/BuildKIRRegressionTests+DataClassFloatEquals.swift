@@ -6,7 +6,7 @@ extension BuildKIRRegressionTests {
     /// Callee names invoked inside the synthesized `equals` body of the named
     /// data class. The synthesized body only exists after `LoweringPhase`
     /// (DataEnumSealedSynthesisPass), so callers must run `runToLowering`.
-    private func dataClassEqualsCalleeNames(
+    func dataClassEqualsCalleeNames(
         of nominalName: String,
         in module: KIRModule,
         sema: SemaModule,
