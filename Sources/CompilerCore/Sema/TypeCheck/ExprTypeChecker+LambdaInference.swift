@@ -352,6 +352,10 @@ extension ExprTypeChecker {
         }
         bodyCtx = bodyCtx.enteringLambdaBody(id)
         bodyCtx.isUnitCoercionContext = lambdaUsesUnitCoercion
+        // The lambda body runs on its own `lambdaLocals` scope, so local
+        // narrowing inside it cannot leak to the enclosing locals — the
+        // conditional-evaluation suppression does not apply within the body.
+        bodyCtx.isConditionallyEvaluated = false
         if let receiverType = ctx.implicitReceiverType,
            let receiverSymbol = locals[ctx.interner.intern("this")]?.symbol,
            bodyCtx.implicitReceiverStack.last?.symbol != receiverSymbol

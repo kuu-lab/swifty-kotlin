@@ -241,7 +241,15 @@ extension ExprTypeChecker {
             )
         } else {
             rhsCtx.isElvisBranchExpectedTypeHint = rhsUsesElvisPeerTypeHint
-            rhs = driver.inferExpr(rhsID, ctx: rhsCtx, locals: &locals, expectedType: rhsExpectedType)
+            if op == .elvis {
+                // The elvis RHS only runs when the LHS is null, so effects it
+                // records on locals (for example `x ?: (y as T)` narrowing y)
+                // must not leak past the join. Check it on a discarded copy.
+                var rhsLocals = locals
+                rhs = driver.inferExpr(rhsID, ctx: rhsCtx, locals: &rhsLocals, expectedType: rhsExpectedType)
+            } else {
+                rhs = driver.inferExpr(rhsID, ctx: rhsCtx, locals: &locals, expectedType: rhsExpectedType)
+            }
         }
         let inferredRhs = rhs
         rhs = sema.types.capturedOperatorReceiverType(of: inferredRhs)

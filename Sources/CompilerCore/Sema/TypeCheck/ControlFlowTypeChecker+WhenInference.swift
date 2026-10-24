@@ -232,12 +232,16 @@ extension ControlFlowTypeChecker {
                 var isNullBranch = false
                 var branchLocals = locals
                 var branchCtx = ctx
+                // The branch runs on its own locals copy, so narrowing inside
+                // cannot leak to the enclosing conditional path.
+                branchCtx.isConditionallyEvaluated = false
                 var trueFlowStates: [DataFlowState] = []
                 var cumulativeFalseState = ctx.flowState.includingMembers(from: locals)
                 var branchConditionKeys: Set<String> = []
 
                 for cond in branch.conditions {
-                    let conditionCtx = ctx.copying(flowState: cumulativeFalseState)
+                    var conditionCtx = ctx.copying(flowState: cumulativeFalseState)
+                    conditionCtx.isConditionallyEvaluated = false
                     let condType = driver.inferExpr(cond, ctx: conditionCtx, locals: &branchLocals)
                     if branch.guard_ == nil, isNullCondition(cond) {
                         hasNullCase = true
@@ -516,6 +520,7 @@ extension ControlFlowTypeChecker {
             for branch in branches {
                 var branchLocals = locals
                 var condCtx = ctx.copying(flowState: cumulativeFalseState)
+                condCtx.isConditionallyEvaluated = false
                 driver.exprChecker.applyFlowStateToLocals(cumulativeFalseState, locals: &branchLocals, sema: sema)
                 var branchCtx = condCtx
                 // Collect all true-states and merge them (join) for the body context,

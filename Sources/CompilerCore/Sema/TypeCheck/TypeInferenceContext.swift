@@ -57,6 +57,13 @@ struct TypeInferenceContext: CustomStringConvertible {
     /// A discarded call may pass Unit to its lambda arguments only in this
     /// context; ordinary statements in non-Unit functions keep natural types.
     var isUnitCoercionContext = false
+    /// The current expression sits on a conditionally-evaluated path within the
+    /// current locals scope (the conditional tail of a `?.` chain). Effects
+    /// recorded unconditionally into `locals` — such as `x as T` narrowing —
+    /// must not leak to code after the conditional point, so they are
+    /// suppressed while this is set. Cleared when a fresh locals scope starts
+    /// (lambda bodies, `if`/`when` branches), where local narrowing cannot leak.
+    var isConditionallyEvaluated = false
     /// Already-checked typed when subjects reused by synthesized is/in conditions.
     /// Keep initializer bindings intact while conditions see the declared variable type.
     var whenSubjectTypes: [ExprID: TypeID] = [:]
