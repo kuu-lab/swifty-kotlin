@@ -119,8 +119,27 @@ struct RuntimeAnyEqualityTests {
         #expect(thrown == 0)
         #expect(boolValue(__kk_objects_equals(doubleNaN, otherDoubleNaN, &thrown)))
         #expect(!boolValue(__kk_objects_equals(floatNaN, doubleNaN, &thrown)))
+        #expect(boolValue(kk_any_equals(floatNaN, 0, otherFloatNaN, 0)))
+        #expect(boolValue(kk_any_equals(doubleNaN, 0, otherDoubleNaN, 0)))
+        #expect(boolValue(kk_any_member_equals(doubleNaN, otherDoubleNaN)))
         #expect(!boolValue(__kk_objects_equals(kk_box_float(0x8000_0000), kk_box_float(0), &thrown)))
         #expect(!boolValue(__kk_objects_equals(kk_box_double_nonnull(Int.min), kk_box_double_nonnull(0), &thrown)))
+    }
+
+    @Test
+    func testAnyEqualsCanonicalizesRawFloatingNaNPayloads() {
+        let doubleNaN = Int(bitPattern: UInt(0x7ff8_0000_0000_0001))
+        let otherDoubleNaN = Int(bitPattern: UInt(0xfff8_0000_0000_0042))
+        let floatNaN = Int(Int32(bitPattern: 0x7fc0_0001))
+        let otherFloatNaN = Int(Int32(bitPattern: 0xffc0_0042))
+
+        #expect(boolValue(kk_any_equals(doubleNaN, 6, otherDoubleNaN, 6)))
+        #expect(boolValue(kk_any_equals(floatNaN, 5, otherFloatNaN, 5)))
+        #expect(boolValue(kk_any_equals(doubleNaN, 6, kk_box_double_nonnull(otherDoubleNaN), 0)))
+        #expect(!boolValue(kk_any_equals(Int.min, 6, 0, 6)))
+        #expect(!boolValue(kk_any_equals(0, 6, 0, 1)))
+        #expect(!boolValue(kk_any_equals(0, 5, 0, 6)))
+        #expect(boolValue(kk_any_equals(runtimeNullSentinelInt, 6, runtimeNullSentinelInt, 6)))
     }
 
     @Test
