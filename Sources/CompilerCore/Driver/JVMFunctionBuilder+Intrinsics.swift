@@ -730,7 +730,7 @@ extension JVMFunctionBuilder {
                 let iteratorOwner = loopBinding?.iteratorCall
                     .flatMap { program.sema.symbols.parentSymbol(for: $0.chosenCallee) }
                     .flatMap { try? program.className($0) }
-                let sequenceSymbol = program.sema.symbols.lookup(fqName: ["kotlin", "sequences", "Sequence"].map(context.interner.intern))
+                let sequenceSymbol = program.sema.symbols.lookupNominal(fqName: ["kotlin", "sequences", "Sequence"].map(context.interner.intern))
                 func isSequence(_ type: TypeID, visited: Set<SymbolID>) -> Bool {
                     switch program.sema.types.kind(of: type) {
                     case let .typeParam(parameter):
@@ -771,7 +771,7 @@ extension JVMFunctionBuilder {
               case let .classType(classType) = program.sema.types.kind(
                   of: program.sema.types.makeNonNullable(semanticType)
               ),
-              let iterableSymbol = program.sema.symbols.lookup(fqName: [
+              let iterableSymbol = program.sema.symbols.lookupNominal(fqName: [
                   interner.intern("kotlin"),
                   interner.intern("collections"),
                   interner.intern("Iterable"),

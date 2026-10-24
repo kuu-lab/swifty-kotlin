@@ -205,7 +205,7 @@ final class CallSupportLowerer {
               primitiveVarargArrayType(elementType: signature.parameterTypes[index], sema: sema, interner: interner) == nil,
               driver.callLowerer.kirIsRuntimeBridgedCallee(functionSymbol, sema: sema),
               !["kk_array_of", "__kk_sequence_of", "kk_atomic_ref_array_of"].contains(sema.symbols.externalLinkName(for: functionSymbol) ?? ""),
-              let list = sema.symbols.lookup(fqName: ["kotlin", "collections", "List"].map(interner.intern))
+              let list = sema.symbols.lookupNominal(fqName: ["kotlin", "collections", "List"].map(interner.intern))
         else { return nil }
         return sema.types.make(.classType(ClassType(classSymbol: list, args: [.invariant(signature.parameterTypes[index])])))
     }

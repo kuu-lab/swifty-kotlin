@@ -658,7 +658,7 @@ final class MemberLowerer {
                         interner.intern("collections"),
                         interner.intern("List"),
                     ]
-                    if let listSymbol = sema.symbols.lookup(fqName: listFQName) {
+                    if let listSymbol = sema.symbols.lookupNominal(fqName: listFQName) {
                         effectiveType = sema.types.make(.classType(ClassType(
                             classSymbol: listSymbol,
                             args: [.invariant(paramType)],
