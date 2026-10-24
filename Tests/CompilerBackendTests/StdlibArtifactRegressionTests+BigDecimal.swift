@@ -107,6 +107,40 @@ extension StdlibArtifactRegressionTests {
             )
         }
     }
+
+    /// KUU-3061: arithmetic and scale rounding work through a fresh stdlib artifact at O0/O2.
+    @Test(arguments: [0, 2])
+    func testBigDecimalArithmeticThroughFreshStdlibArtifact(optLevelRawValue: Int) throws {
+        let optLevel = try #require(OptimizationLevel(rawValue: optLevelRawValue))
+        let artifactPath = try Self.buildStdlibArtifact()
+        let source = try diffCaseSource("big_decimal_arithmetic.kt")
+        let expected = try CompilerTestSupport.repositoryFileSource(
+            "Scripts/diff_cases/big_decimal_arithmetic.expected"
+        )
+
+        try withTemporaryFile(contents: source) { inputPath in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString).path
+            defer { try? FileManager.default.removeItem(atPath: outputBase) }
+            let context = try runCodegenPipeline(
+                inputPath: inputPath,
+                moduleName: "KUU3061_BigDecimalArithmetic_\(optLevel.rawValue)",
+                outputPath: outputBase,
+                optLevel: optLevel,
+                allowDefaultStdlibLibrary: false,
+                stdlibLibraryPath: artifactPath
+            )
+            try assertNoDiagnosticErrors(context)
+            try LinkPhase().run(context)
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            #expect(result.exitCode == 0, "\(optLevel): \(result.stderr)")
+            #expect(result.stderr.isEmpty, "\(optLevel): \(result.stderr)")
+            #expect(
+                result.stdout.replacingOccurrences(of: "\r\n", with: "\n") == expected,
+                "Unexpected output at \(optLevel): \(String(reflecting: result.stdout))"
+            )
+        }
+    }
 }
 
 private func bigDecimalZeroContext(
