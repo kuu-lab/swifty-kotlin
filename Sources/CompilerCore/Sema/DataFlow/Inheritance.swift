@@ -127,6 +127,15 @@ extension DataFlowSemaPhase {
                 interner: interner,
                 reportUnresolved: reportUnresolved
             ) {
+                if superSymbols.contains(resolved.symbol) {
+                    diagnostics.error(
+                        "KSWIFTK-SEMA-0440",
+                        "A supertype appears twice.",
+                        range: (index < superTypeEntries.count ? superTypeEntries[index].range : nil)
+                            ?? symbols.symbol(symbol)?.declSite
+                    )
+                    continue
+                }
                 if index < superTypeEntries.count {
                     let entry = superTypeEntries[index]
                     if !entry.hasConstructorCallSyntax,
