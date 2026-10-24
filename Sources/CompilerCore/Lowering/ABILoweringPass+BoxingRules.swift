@@ -190,6 +190,20 @@ extension ABILoweringPass {
             return false
         }()
 
+        // A nullable-underlying value class has no `kk_box_*` callee: crossing
+        // any reference boundary (including an erased `T` parameter, whose
+        // callee reads the slot as Any) goes through `kk_value_class_box`,
+        // which `emitBoxCallWithValueClassTag` emits for this source kind
+        // (KUU-3115). The interned name is only a marker; the callee table has
+        // no primitive entry for it.
+        if nullableUnderlyingValueClassSymbol(of: rawArgKind, types: types, symbols: symbols) != nil {
+            guard isReferenceBoxingBoundary || ({
+                if case .typeParam = paramKind { return true }
+                return false
+            }()) else { return nil }
+            return interner.intern("kk_value_class_box")
+        }
+
         guard isReferenceBoxingBoundary else {
             if case let .primitive(paramPrimitive, .nullable) = paramKind,
                case let .primitive(argPrimitive, .nonNull) = argKind,

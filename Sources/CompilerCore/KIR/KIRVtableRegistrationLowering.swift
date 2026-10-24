@@ -483,6 +483,19 @@ func anyToStringBridgeSymbolForImplementation(
             arguments: [receiverExpr], result: ordinal, canThrow: false, thrownResult: nil
         ))
         receiverForCall = ordinal
+    } else if let vcSymbol = nullableUnderlyingValueClassSymbol(
+        of: rawReceiverKind, types: sema.types, symbols: sema.symbols
+    ) {
+        // A nullable-underlying value class crosses `Any` as a nominal
+        // `RuntimeObjectBox`; unwrap it so the implementation sees the
+        // payload its unboxed ABI expects (KUU-3115).
+        let unboxedReceiver = arena.appendTemporary(type: receiverType)
+        emitValueClassUnboxCall(
+            value: receiverExpr, classSymbol: vcSymbol, result: unboxedReceiver,
+            resultType: receiverType, types: sema.types, symbols: sema.symbols,
+            interner: interner, arena: arena, into: &body
+        )
+        receiverForCall = unboxedReceiver
     } else if rawReceiverKind != resolvedReceiverKind,
        let unboxCallee = BoxingCalleeTable(interner: interner).unboxCallee(
            for: resolvedReceiverKind,
