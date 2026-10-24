@@ -1374,13 +1374,24 @@ extension DataEnumSealedSynthesisPass {
                         // KUU-3109: data class equals uses Double.equals/
                         // Float.equals semantics — NaN equals NaN regardless of
                         // payload while -0.0 differs from +0.0 — not the raw
-                        // bit-pattern equality kk_op_eq applies. Nullable
-                        // Float?/Double? stay on the existing path (KUU-3108).
+                        // bit-pattern equality kk_op_eq applies.
+                        // KUU-3108: nullable primitives reach the compare as
+                        // registered boxes (or the null sentinel), so kk_op_eq
+                        // only compares box identity. Double?/Float? route to
+                        // the null-aware canonical equals; the remaining
+                        // nullable primitives go through kk_structural_eq's
+                        // null- and box-aware value comparison.
                         switch sema.types.kind(of: propType) {
                         case .primitive(.double, .nonNull):
                             "kk_double_equals"
                         case .primitive(.float, .nonNull):
                             "kk_float_equals"
+                        case .primitive(.double, .nullable):
+                            "kk_nullable_double_equals"
+                        case .primitive(.float, .nullable):
+                            "kk_nullable_float_equals"
+                        case .primitive(_, .nullable):
+                            "kk_structural_eq"
                         default:
                             "kk_op_eq"
                         }
