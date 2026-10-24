@@ -68,6 +68,8 @@ extension DataFlowSemaPhase {
             validateVarianceForClassDecl(classDecl, env: env, outerVarianceMap: outerVarianceMap)
         case let .interfaceDecl(interfaceDecl):
             validateVarianceForInterfaceDecl(interfaceDecl, env: env, outerVarianceMap: outerVarianceMap)
+        case let .objectDecl(objectDecl):
+            validateVarianceForObjectDecl(objectDecl, env: env, outerVarianceMap: outerVarianceMap)
         default:
             break
         }
@@ -85,6 +87,10 @@ extension DataFlowSemaPhase {
                 varianceMap.removeValue(forKey: typeParam.name)
             }
         }
+        validateSuperTypesAndBounds(classDecl.typeParams,
+                                    superTypeRefs: classDecl.superTypeEntries.map(\.typeRef),
+                                    declRange: classDecl.range,
+                                    varianceMap: varianceMap, env: env)
         validateMemberFunctions(classDecl.memberFunctions, varianceMap: varianceMap, env: env)
         validateMemberProperties(classDecl.memberProperties, varianceMap: varianceMap, env: env)
 
@@ -92,6 +98,12 @@ extension DataFlowSemaPhase {
             let nestedIsInner = nestedClassIsInner(nestedDeclID, env: env)
             let outerMap = nestedIsInner ? varianceMap : [:]
             validateVarianceForDecl(declID: nestedDeclID, env: env, outerVarianceMap: outerMap)
+        }
+        for nestedDeclID in classDecl.nestedObjects {
+            validateVarianceForDecl(declID: nestedDeclID, env: env, outerVarianceMap: [:])
+        }
+        if let companionID = classDecl.companionObject {
+            validateVarianceForDecl(declID: companionID, env: env, outerVarianceMap: [:])
         }
     }
 
@@ -107,6 +119,10 @@ extension DataFlowSemaPhase {
                 varianceMap.removeValue(forKey: typeParam.name)
             }
         }
+        validateSuperTypesAndBounds(iface.typeParams,
+                                    superTypeRefs: iface.superTypes,
+                                    declRange: iface.range,
+                                    varianceMap: varianceMap, env: env)
         validateMemberFunctions(iface.memberFunctions, varianceMap: varianceMap, env: env)
         validateMemberProperties(iface.memberProperties, varianceMap: varianceMap, env: env)
 
@@ -114,6 +130,61 @@ extension DataFlowSemaPhase {
             let nestedIsInner = nestedClassIsInner(nestedDeclID, env: env)
             let outerMap = nestedIsInner ? varianceMap : [:]
             validateVarianceForDecl(declID: nestedDeclID, env: env, outerVarianceMap: outerMap)
+        }
+        for nestedDeclID in iface.nestedObjects {
+            validateVarianceForDecl(declID: nestedDeclID, env: env, outerVarianceMap: [:])
+        }
+        if let companionID = iface.companionObject {
+            validateVarianceForDecl(declID: companionID, env: env, outerVarianceMap: [:])
+        }
+    }
+
+    private func validateVarianceForObjectDecl(
+        _ objectDecl: ObjectDecl, env: VarianceCheckEnv,
+        outerVarianceMap: [InternedString: TypeVariance]
+    ) {
+        // Objects cannot declare type parameters; only the enclosing
+        // variance context applies.
+        let varianceMap = outerVarianceMap
+        for superTypeRef in objectDecl.superTypeEntries.map(\.typeRef) {
+            checkTypeRefVariance(superTypeRef, position: .out,
+                                 varianceMap: varianceMap, env: env, memberRange: objectDecl.range)
+        }
+        validateMemberFunctions(objectDecl.memberFunctions, varianceMap: varianceMap, env: env)
+        validateMemberProperties(objectDecl.memberProperties, varianceMap: varianceMap, env: env)
+
+        for nestedDeclID in objectDecl.nestedClasses {
+            let nestedIsInner = nestedClassIsInner(nestedDeclID, env: env)
+            let outerMap = nestedIsInner ? varianceMap : [:]
+            validateVarianceForDecl(declID: nestedDeclID, env: env, outerVarianceMap: outerMap)
+        }
+        for nestedDeclID in objectDecl.nestedObjects {
+            validateVarianceForDecl(declID: nestedDeclID, env: env, outerVarianceMap: [:])
+        }
+    }
+
+    /// Supertypes and type-parameter upper bounds are part of the declared
+    /// signature: a `T` written there sits at the supertype/bound's declared
+    /// variance position, so `class Source<out T> : Sink<T>` illegally places
+    /// `out T` in Sink's `in` position. Delegated supertypes are checked the
+    /// same way — the `by` clause does not exempt the type itself.
+    private func validateSuperTypesAndBounds(
+        _ typeParams: [TypeParamDecl],
+        superTypeRefs: [TypeRefID],
+        declRange: SourceRange,
+        varianceMap: [InternedString: TypeVariance],
+        env: VarianceCheckEnv
+    ) {
+        guard !varianceMap.isEmpty else { return }
+        for typeParam in typeParams {
+            for upperBound in typeParam.upperBounds {
+                checkTypeRefVariance(upperBound, position: .out,
+                                     varianceMap: varianceMap, env: env, memberRange: declRange)
+            }
+        }
+        for superTypeRef in superTypeRefs {
+            checkTypeRefVariance(superTypeRef, position: .out,
+                                 varianceMap: varianceMap, env: env, memberRange: declRange)
         }
     }
 

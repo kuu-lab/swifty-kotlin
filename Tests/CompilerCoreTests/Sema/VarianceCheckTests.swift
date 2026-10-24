@@ -175,6 +175,82 @@ struct VarianceCheckTests {
         }
     }
 
+    @Test(arguments: [
+        ("out", "Sink<T>", 1),
+        ("out", "Cell<T>", 1),
+        ("out", "Source<T>", 0),
+        ("in", "Source<T>", 1),
+        ("in", "Cell<T>", 1),
+        ("in", "Sink<T>", 0),
+        ("out", "Sink<Source<T>>", 1),
+        ("out", "Sink<Sink<T>>", 0),
+        ("in", "Sink<Sink<T>>", 1),
+        ("in", "Sink<Source<T>>", 0),
+        ("out", "Source<T>, Marker", 0),
+        ("out", "Source<Sink<T>>", 1),
+        ("in", "Source<Sink<T>>", 0),
+    ])
+    func supertypeVariance(variance: String, supertype: String, expectedViolations: Int) throws {
+        let source = """
+        interface Source<out E>
+        interface Sink<in E>
+        interface Cell<E>
+        interface Marker
+        interface Subject<\(variance) T> : \(supertype)
+        """
+        try withTemporaryFiles(contents: [source]) { paths in
+            let ctx = makeCompilationContext(inputs: paths, includeStdlib: false)
+            try runSema(ctx)
+            let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+            #expect(errors.count == expectedViolations, "\(errors)")
+            #expect(errors.allSatisfy { $0.code == "KSWIFTK-SEMA-VARIANCE" })
+        }
+    }
+
+    @Test(arguments: [
+        ("out", "Sink<T>", 1),
+        ("out", "Cell<T>", 1),
+        ("out", "Source<T>", 0),
+        ("in", "Sink<T>", 0),
+        ("in", "Source<T>", 1),
+    ])
+    func typeParameterBoundVariance(variance: String, bound: String, expectedViolations: Int) throws {
+        let source = """
+        interface Source<out E>
+        interface Sink<in E>
+        interface Cell<E>
+        class Subject<\(variance) T : \(bound)>
+        """
+        try withTemporaryFiles(contents: [source]) { paths in
+            let ctx = makeCompilationContext(inputs: paths, includeStdlib: false)
+            try runSema(ctx)
+            let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+            #expect(errors.count == expectedViolations, "\(errors)")
+            #expect(errors.allSatisfy { $0.code == "KSWIFTK-SEMA-VARIANCE" })
+        }
+    }
+
+    @Test
+    func innerClassSupertypeUsesOuterVariance() throws {
+        let source = """
+        interface Sink<in E> { fun consume(value: E) }
+        abstract class Outer<out T> {
+            inner class Inner : Sink<T> {
+                override fun consume(value: T) {}
+            }
+        }
+        """
+        try withTemporaryFiles(contents: [source]) { paths in
+            let ctx = makeCompilationContext(inputs: paths, includeStdlib: false)
+            try runSema(ctx)
+            // `Sink<T>` in the supertype and `T` in the consume() parameter are
+            // both `in` positions for `out T` — two violations, matching kotlinc.
+            let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+            #expect(errors.count == 2, "\(errors)")
+            #expect(errors.allSatisfy { $0.code == "KSWIFTK-SEMA-VARIANCE" })
+        }
+    }
+
     @Test
     func unsafeVarianceAnnotationAllowsContravariantUseInCovariantType() throws {
         let source = """
