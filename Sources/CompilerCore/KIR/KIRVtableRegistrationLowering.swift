@@ -1637,14 +1637,22 @@ func appendObjectItableMethodRegistrations<C: RangeReplaceableCollection>(
                 interner: interner
             )
             if implementationSymbol == methodSymbol,
-               sema.symbols.externalLinkName(for: methodSymbol) != nil
+               let methodLinkName = sema.symbols.externalLinkName(for: methodSymbol),
+               methodLinkName.isEmpty
+                   || !CallLowerer.isSourceBackedLinkName(methodLinkName)
+                   || sema.symbols.symbol(methodSymbol)?.flags.contains(.abstractType) == true
             {
                 // No override exists and the interface member itself is a
-                // runtime `__kk_*` bridge: registering it would re-enter the
-                // same runtime op through this very itable slot and recurse.
-                // Leave the slot empty so the op's own fallback answers the
-                // call (e.g. MutableSet's default bulk bodies, or Map members
-                // such as containsKey/containsValue left unimplemented).
+                // runtime `__kk_*` bridge or an abstract stub: registering it
+                // would re-enter the same runtime op through this very itable
+                // slot and recurse. Leave the slot empty so the op's own
+                // fallback answers the call (e.g. MutableSet's default bulk
+                // bodies, or Map members such as containsKey/containsValue
+                // left unimplemented). A source-backed `kk_fn_*` default is a
+                // real compiled body, though: skipping it left no itable
+                // entry, so e.g. `custom.contains(v)` on a `ClosedRange`
+                // implementation inheriting the interface default trapped
+                // with a missing-itable panic (KUU-3258).
                 continue
             }
             let bridgeSymbol = itableBridgeSymbolForMethod(

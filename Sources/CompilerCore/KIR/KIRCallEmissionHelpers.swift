@@ -814,8 +814,14 @@ private func appendEnumBoxItableMethodRegistrations<C: RangeReplaceableCollectio
                       sema.symbols.parentSymbol(for: target) == interfaceSymbol,
                       let targetInfo = sema.symbols.symbol(target),
                       !targetInfo.flags.contains(.abstractType),
-                      !targetInfo.flags.contains(.synthetic),
-                      sema.symbols.externalLinkName(for: target) == nil
+                      // Imported members all carry `.synthetic`, so use the
+                      // stub predicate (imported stdlib + empty link name) —
+                      // a `kk_fn_*` interface default is a real body and must
+                      // register (KUU-3258).
+                      !sema.symbols.isSyntheticStubSymbol(target),
+                      (sema.symbols.externalLinkName(for: target).map {
+                          !$0.isEmpty && CallLowerer.isSourceBackedLinkName($0)
+                      } ?? true)
             {
                 registered = target
             } else {
