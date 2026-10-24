@@ -277,7 +277,7 @@ public fun <T> Array<out T>.sort(fromIndex: Int = 0, toIndex: Int = size): Unit 
 public fun <T : Comparable<T>> Array<out T>.sortDescending(): Unit {
     @Suppress("UNCHECKED_CAST")
     val array = this as Array<T>
-    array.arrayUtilityStableSortWith(Comparator<T> { first, second -> second.compareTo(first) })
+    array.arrayUtilityStableSortWith(object : Comparator<T> { override fun compare(a: T, b: T): Int = b.compareTo(a) })
 }
 
 public fun <T> Array<T>.sortWith(comparator: Comparator<in T>): Unit {
@@ -294,7 +294,7 @@ public fun <T : Comparable<T>> Array<T>.sortedArray(): Array<T> {
 public fun <T : Comparable<T>> Array<T>.sortedArrayDescending(): Array<T> {
     @Suppress("UNCHECKED_CAST")
     val result = java.util.Arrays.copyOf(this, size) as Array<T>
-    result.arrayUtilityStableSortWith(Comparator<T> { first, second -> second.compareTo(first) })
+    result.arrayUtilityStableSortWith(object : Comparator<T> { override fun compare(a: T, b: T): Int = b.compareTo(a) })
     return result
 }
 
