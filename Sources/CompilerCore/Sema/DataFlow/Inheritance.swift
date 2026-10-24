@@ -1150,6 +1150,7 @@ extension DataFlowSemaPhase {
                     ast: ast,
                     symbols: symbols,
                     bindings: bindings,
+                    types: types,
                     diagnostics: diagnostics,
                     interner: interner
                 )
@@ -1809,6 +1810,7 @@ extension DataFlowSemaPhase {
         ast: ASTModule,
         symbols: SymbolTable,
         bindings: BindingTable,
+        types: TypeSystem,
         diagnostics: DiagnosticEngine,
         interner: StringInterner
     ) {
@@ -1858,6 +1860,7 @@ extension DataFlowSemaPhase {
             overriddenNames: overriddenNames,
             delegatedInterfaces: symbols.delegatedInterfaces(forClass: symbol),
             symbols: symbols,
+            types: types,
             interner: interner
         )
         guard !missingMembers.isEmpty else { return }
