@@ -628,6 +628,10 @@ extension JVMFunctionBuilder {
                 interner: context.interner
             )
         }()
+        if withIndexReceiver == nil, source.type.referenceName == "java/util/Map" {
+            try mapEntryLoop(name, iterable, body, id, destructuringNames: destructuringNames, label: loopLabel)
+            return
+        }
         let explicitElementType: TypeID? = {
             guard let semantic = program.sema.bindings.exprType(for: iterable),
                   case let .classType(type) = program.sema.types.kind(of: semantic),

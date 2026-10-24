@@ -162,6 +162,7 @@ extension JVMClasspathIndex {
                 override val size: Int get() = 0
                 override val keys: kotlin.collections.Set<K> get() = null!!
                 override val values: kotlin.collections.Collection<V> get() = null!!
+                override val entries: kotlin.collections.MutableSet<kotlin.collections.MutableMap.MutableEntry<K, V>> get() = null!!
                 override fun get(key: K): V? = null
                 override fun containsKey(key: K): Boolean = false
                 override fun containsValue(value: V): Boolean = false
@@ -195,6 +196,7 @@ extension JVMClasspathIndex {
                 override val size: Int get() = 0
                 override val keys: kotlin.collections.Set<K> get() = null!!
                 override val values: kotlin.collections.Collection<V> get() = null!!
+                override val entries: kotlin.collections.MutableSet<kotlin.collections.MutableMap.MutableEntry<K, V>> get() = null!!
                 override fun get(key: K): V? = null
                 override fun containsKey(key: K): Boolean = false
                 override fun containsValue(value: V): Boolean = false

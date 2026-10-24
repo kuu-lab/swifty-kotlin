@@ -11,7 +11,7 @@ extension JVMClasspathIndex {
         if name == "kotlin/collections/AbstractSet" { return name }
         if ["kotlin/Function", "kotlin/Lazy", "kotlin/LazyThreadSafetyMode", "kotlin/reflect/KProperty", "kotlin/reflect/KMutableProperty", "kotlin/NotImplementedError", "kotlin/UninitializedPropertyAccessException", "kotlin/properties/ReadOnlyProperty", "kotlin/properties/ReadWriteProperty", "kotlin/properties/Delegates"].contains(name) { return name }
         if name.hasPrefix("kotlin/reflect/") || name == "java/lang/Class" { return name }
-        if ["java/util/NoSuchElementException", "java/lang/StackTraceElement", "java/lang/reflect/Method", "java/lang/reflect/InvocationHandler"].contains(name) { return name }
+        if ["java/util/NoSuchElementException", "java/util/Locale", "java/lang/StackTraceElement", "java/lang/reflect/Method", "java/lang/reflect/InvocationHandler"].contains(name) { return name }
         if name == "kotlin/Annotation" { return "java/lang/annotation/Annotation" }
         if name == "kotlin/annotation/AnnotationTarget" || name == "kotlin/annotation/AnnotationRetention" { return name }
         if name == "kotlin/Enum" { return "java/lang/Enum" }
