@@ -160,7 +160,8 @@ extension BuildASTPhase {
             }
             depth.track(token.kind)
             if token.kind == .symbol(.comma), depth.isAtTopLevel {
-                appendValueParameter(from: paramTokens, into: &valueParams, interner: interner, astArena: astArena)
+                appendValueParameter(from: paramTokens, into: &valueParams, interner: interner, astArena: astArena,
+                                     allowsImplicitParameterTypes: isAnonymousFunction)
                 paramTokens.removeAll(keepingCapacity: true)
             } else {
                 paramTokens.append(token)
@@ -168,7 +169,8 @@ extension BuildASTPhase {
             index += 1
         }
         if !paramTokens.isEmpty {
-            appendValueParameter(from: paramTokens, into: &valueParams, interner: interner, astArena: astArena)
+            appendValueParameter(from: paramTokens, into: &valueParams, interner: interner, astArena: astArena,
+                                 allowsImplicitParameterTypes: isAnonymousFunction)
         }
 
         guard index < funTokens.count, funTokens[index].kind == .symbol(.rParen) else {
