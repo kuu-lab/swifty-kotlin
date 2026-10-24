@@ -24,6 +24,7 @@ extension KotlinParser {
             }
         }
         parseLeadingDeclarationPrefix(into: &modifierChildren, range: &modifierRange)
+        companionDispatch: while true {
         let token = stream.peek()
         switch token.kind {
         case .keyword(.class):
@@ -88,7 +89,11 @@ extension KotlinParser {
                     modifierChildren
                 )
             }
-            return parseDeclaration()
+            // `companion` is only valid before `object`; keep the token as a
+            // modifier child and re-dispatch so downstream validation reports
+            // it (e.g. `companion fun f()` → not applicable to 'top level
+            // function'), instead of silently dropping it.
+            continue companionDispatch
         default:
             if !modifierChildren.isEmpty {
                 // `get`/`set` after a modifier prefix is a misplaced accessor
@@ -111,6 +116,7 @@ extension KotlinParser {
                 return arena.appendNode(kind: .statement, range: modifierRange.value ?? invalidRange, modifierChildren)
             }
             return parseStatement(inBlock: false)
+        }
         }
     }
 
