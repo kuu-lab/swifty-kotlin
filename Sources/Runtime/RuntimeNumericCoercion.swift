@@ -18,6 +18,15 @@ public func kk_long_to_uint(_ value: Int) -> Int {
     Int(UInt32(truncatingIfNeeded: value))
 }
 
+/// Identity numeric conversions (`Int.toInt()`, `Byte.toInt()`, `Short.toLong()`, ...)
+/// share one raw register representation, so the conversion returns its operand.
+/// Direct calls lower to a plain copy; this symbol exists for the places that
+/// reach the conversion by name, such as callable references (`Int::toInt`).
+@_cdecl("kk_primitive_identity")
+public func kk_primitive_identity(_ value: Int) -> Int {
+    value
+}
+
 @_cdecl("kk_int_to_long")
 public func kk_int_to_long(_ value: Int) -> Int {
     // value may be a boxed Int (RuntimeIntBox) when converting from a nullable
