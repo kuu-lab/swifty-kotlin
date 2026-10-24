@@ -441,6 +441,23 @@ final class ControlFlowTypeChecker {
             exprID: id, iterableExpr: iterableExpr, iterableType: iterableType,
             range: range, locals: locals, ctx: ctx
         )
+        // An explicit `for (c: T in xs)` annotation must accept the iterator
+        // element type; kotlinc reports an initializer type mismatch.
+        let declaredLoopType = ctx.ast.arena.forVariableTypeRef(for: id).map {
+            driver.helpers.resolveTypeRef(
+                $0, ast: ctx.ast, sema: sema, interner: ctx.interner,
+                scope: ctx.scope, diagnostics: ctx.sema.diagnostics,
+                inferenceContext: ctx, usageRange: range
+            )
+        }
+        if let declaredLoopType {
+            driver.emitSubtypeConstraint(
+                left: elementType, right: declaredLoopType,
+                range: range, solver: ConstraintSolver(),
+                sema: sema, diagnostics: ctx.sema.diagnostics
+            )
+        }
+        let loopValueType = declaredLoopType ?? elementType
         invalidateNullableControlFlowAssignments(id, ctx: ctx, locals: &locals)
         var bodyLocals = locals
         if let loopVariable {
@@ -473,12 +490,12 @@ final class ControlFlowTypeChecker {
                 else { return false }
                 return sym.flags.contains(.valueType) || sym.kind == .enumClass
             }()
-            if case .primitive(_, .nonNull) = sema.types.kind(of: elementType) {
-                sema.symbols.setPropertyType(elementType, for: loopVariableSymbol)
+            if case .primitive(_, .nonNull) = sema.types.kind(of: loopValueType) {
+                sema.symbols.setPropertyType(loopValueType, for: loopVariableSymbol)
             } else if isNominalValueElement {
-                sema.symbols.setPropertyType(elementType, for: loopVariableSymbol)
+                sema.symbols.setPropertyType(loopValueType, for: loopVariableSymbol)
             }
-            bodyLocals[loopVariable] = (elementType, loopVariableSymbol, false, true)
+            bodyLocals[loopVariable] = (loopValueType, loopVariableSymbol, false, true)
             sema.bindings.bindIdentifier(id, symbol: loopVariableSymbol)
         }
         var newLabelStack = ctx.loopLabelStack
