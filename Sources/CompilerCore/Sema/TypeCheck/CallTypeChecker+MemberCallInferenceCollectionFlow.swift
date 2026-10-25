@@ -291,6 +291,11 @@ extension CallTypeChecker {
             activeCollectionHOFNames.formIntersection(Self.mapCollectionHOFNames)
         }
         let calleeStr = interner.resolve(calleeName)
+        if calleeStr == "flatten", !isSequenceReceiver {
+            // Let overload resolution choose between List<List<T>> and
+            // Iterable<Iterable<T>> using the nested receiver's variance.
+            return nil
+        }
         let isPrimitiveOperatorReducerReference: Bool = {
             guard calleeStr == "reduce",
                   explicitTypeArgs.isEmpty,
