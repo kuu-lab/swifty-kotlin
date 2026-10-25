@@ -4,6 +4,33 @@ import Testing
 @Suite
 struct LocalDataClassTests {
     @Test
+    func testExplicitComponentNCallsAreVisible() throws {
+        let source = """
+        fun main() {
+            data class Local(val i: Int, val text: String)
+            val value = Local(1, "a")
+            println(value.component1())
+            println(value.component2())
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+            let sema = try #require(ctx.sema)
+            let owner = try #require(sema.symbols.allSymbols().first {
+                $0.kind == .class && $0.name == ctx.interner.intern("Local")
+            })
+            for name in ["component1", "component2"] {
+                let component = try #require(sema.symbols.lookupAll(
+                    fqName: owner.fqName + [ctx.interner.intern(name)]
+                ).compactMap { sema.symbols.symbol($0) }.first { $0.kind == .function })
+                #expect(component.visibility == .public, "\(name) should be public on a local data class")
+            }
+        }
+    }
+
+    @Test
     func testSyntheticHeadersAndConstructorProperties() throws {
         let source = """
         fun main() {

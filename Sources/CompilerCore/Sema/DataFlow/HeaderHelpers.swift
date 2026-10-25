@@ -1230,7 +1230,8 @@ extension DataFlowSemaPhase {
         scope: Scope,
         interner: StringInterner,
         diagnostics: DiagnosticEngine,
-        localTypeParameters: [InternedString: SymbolID] = [:]
+        localTypeParameters: [InternedString: SymbolID] = [:],
+        ownerIsLocal: Bool = false
     ) {
         let file = ast.file(for: classDecl.range.start.file)
         let parameterTypes = dataClassPrimaryConstructorParameterTypes(
@@ -1273,7 +1274,11 @@ extension DataFlowSemaPhase {
                 name: componentName,
                 fqName: componentFQName,
                 declSite: classDecl.range,
-                visibility: restrictedVisibility(symbols.symbol(ownerSymbol)?.visibility ?? .public, .public),
+                // Local class symbols are private to model their lexical scope;
+                // their generated component functions remain public in that scope.
+                visibility: ownerIsLocal
+                    ? .public
+                    : restrictedVisibility(symbols.symbol(ownerSymbol)?.visibility ?? .public, .public),
                 flags: [.synthetic, .operatorFunction]
             )
             symbols.setParentSymbol(ownerSymbol, for: funcSymbol)
@@ -1387,7 +1392,8 @@ extension DataFlowSemaPhase {
         scope: Scope,
         interner: StringInterner,
         diagnostics: DiagnosticEngine,
-        localTypeParameters: [InternedString: SymbolID] = [:]
+        localTypeParameters: [InternedString: SymbolID] = [:],
+        ownerIsLocal: Bool = false
     ) {
         collectSyntheticDataClassComponentN(
             classDecl: classDecl,
@@ -1400,7 +1406,8 @@ extension DataFlowSemaPhase {
             scope: scope,
             interner: interner,
             diagnostics: diagnostics,
-            localTypeParameters: localTypeParameters
+            localTypeParameters: localTypeParameters,
+            ownerIsLocal: ownerIsLocal
         )
         collectSyntheticDataClassCopy(
             classDecl: classDecl,
