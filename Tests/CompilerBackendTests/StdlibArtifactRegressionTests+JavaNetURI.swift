@@ -125,8 +125,8 @@ extension StdlibArtifactRegressionTests {
                 outputPath: output,
                 optLevel: .O0,
                 allowDefaultStdlibLibrary: false,
-                prepareTestStdlibCache: false,
-                stdlibLibraryPath: library
+                stdlibLibraryPath: library,
+                prepareTestStdlibCache: false
             )
             try assertNoDiagnosticErrors(context)
             try LinkPhase().run(context)
