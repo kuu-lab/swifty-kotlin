@@ -1,6 +1,7 @@
 package java.util
 
 import kotlin.internal.KsSymbolName
+import java.util.function.Supplier
 
 // The runtime owns erased object-method pointers and their exception channel.
 @KsSymbolName("__kk_objects_equals")
@@ -32,6 +33,11 @@ public object Objects {
 
     public fun <T : Any> requireNonNull(value: T?, message: String?): T {
         if (value == null) throw NullPointerException(message)
+        return value
+    }
+
+    public fun <T : Any> requireNonNull(value: T?, messageSupplier: Supplier<out String>): T {
+        if (value == null) throw NullPointerException(messageSupplier.get())
         return value
     }
 
