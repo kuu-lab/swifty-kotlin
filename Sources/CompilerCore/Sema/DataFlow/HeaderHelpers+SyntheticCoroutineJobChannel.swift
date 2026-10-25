@@ -61,85 +61,27 @@ extension DataFlowSemaPhase {
             symbols.setTypeAliasUnderlyingType(receiveChannelUnderlyingType, for: receiveChannelAliasSymbol)
         }
 
+        let jobMembers = coroutineMemberRows(of: jobSymbol, type: jobType, symbols: symbols, interner: interner)
         if !bundledIndex.contains(ownerFQName: coroutinesPkg + [interner.intern("Job")], name: interner.intern("start"), arity: 0) {
-            registerSyntheticCoroutineMember(
-                ownerSymbol: jobSymbol,
-                ownerType: jobType,
-                name: "start",
-                externalLinkName: "kk_job_start",
-                returnType: types.booleanType,
-                symbols: symbols,
-                interner: interner
-            )
+            jobMembers.fn("start", "kk_job_start", ret: types.booleanType)
         }
         if !bundledIndex.contains(ownerFQName: coroutinesPkg + [interner.intern("Job")], name: interner.intern("cancel"), arity: 0) {
-            registerSyntheticCoroutineMember(
-                ownerSymbol: jobSymbol,
-                ownerType: jobType,
-                name: "cancel",
-                externalLinkName: "kk_job_cancel",
-                returnType: types.unitType,
-                symbols: symbols,
-                interner: interner
-            )
+            jobMembers.fn("cancel", "kk_job_cancel", ret: types.unitType)
         }
         if !bundledIndex.contains(ownerFQName: coroutinesPkg + [interner.intern("Job")], name: interner.intern("cancel"), arity: 1) {
-            registerSyntheticCoroutineMember(
-                ownerSymbol: jobSymbol,
-                ownerType: jobType,
-                name: "cancel",
-                externalLinkName: "kk_job_cancel_with_cause",
-                returnType: types.unitType,
-                parameters: [(name: "cause", type: types.nullableAnyType)],
-                symbols: symbols,
-                interner: interner
-            )
+            jobMembers.fn("cancel", "kk_job_cancel_with_cause", [(name: "cause", type: types.nullableAnyType)], ret: types.unitType)
         }
         if !bundledIndex.contains(ownerFQName: coroutinesPkg + [interner.intern("Job")], name: interner.intern("join"), arity: 0) {
-            registerSyntheticCoroutineMember(
-                ownerSymbol: jobSymbol,
-                ownerType: jobType,
-                name: "join",
-                externalLinkName: "kk_job_join",
-                returnType: types.unitType,
-                symbols: symbols,
-                interner: interner
-            )
+            jobMembers.fn("join", "kk_job_join", ret: types.unitType)
         }
         if !bundledIndex.contains(ownerFQName: coroutinesPkg + [interner.intern("Job")], name: interner.intern("awaitCompletion"), arity: 0) {
-            registerSyntheticCoroutineMember(
-                ownerSymbol: jobSymbol,
-                ownerType: jobType,
-                name: "awaitCompletion",
-                externalLinkName: "kk_job_await_completion",
-                returnType: types.unitType,
-                symbols: symbols,
-                interner: interner
-            )
+            jobMembers.fn("awaitCompletion", "kk_job_await_completion", ret: types.unitType)
         }
         if !bundledIndex.contains(ownerFQName: coroutinesPkg + [interner.intern("Job")], name: interner.intern("complete"), arity: 0) {
-            registerSyntheticCoroutineMember(
-                ownerSymbol: jobSymbol,
-                ownerType: jobType,
-                name: "complete",
-                externalLinkName: "kk_job_complete",
-                returnType: types.booleanType,
-                parameters: [(name: "value", type: types.anyType)],
-                symbols: symbols,
-                interner: interner
-            )
+            jobMembers.fn("complete", "kk_job_complete", [(name: "value", type: types.anyType)], ret: types.booleanType)
         }
         if !bundledIndex.contains(ownerFQName: coroutinesPkg + [interner.intern("Job")], name: interner.intern("completeExceptionally"), arity: 1) {
-            registerSyntheticCoroutineMember(
-                ownerSymbol: jobSymbol,
-                ownerType: jobType,
-                name: "completeExceptionally",
-                externalLinkName: "kk_job_complete_exceptionally",
-                returnType: types.booleanType,
-                parameters: [(name: "exception", type: types.nullableAnyType)],
-                symbols: symbols,
-                interner: interner
-            )
+            jobMembers.fn("completeExceptionally", "kk_job_complete_exceptionally", [(name: "exception", type: types.nullableAnyType)], ret: types.booleanType)
         }
 
         // STDLIB-CORO-BUG-04: bare `isActive` reference (no explicit
@@ -233,37 +175,17 @@ extension DataFlowSemaPhase {
         // it through rewriteCoroutineScopeLaunchCall, which threads the receiver through
         // to a dedicated `kk_coroutine_scope_launch(scopeHandle, entryPointRaw,
         // functionID)` runtime entry point.
+        let coroutineScopeMembers = coroutineMemberRows(of: coroutineScopeSymbol, type: coroutineScopeType, symbols: symbols, interner: interner)
         if !bundledIndex.contains(ownerFQName: coroutinesPkg + [interner.intern("CoroutineScope")], name: interner.intern("launch"), arity: 3) {
-            registerSyntheticCoroutineMember(
-                ownerSymbol: coroutineScopeSymbol,
-                ownerType: coroutineScopeType,
-                name: "launch",
-                externalLinkName: "kk_coroutine_scope_launch",
-                returnType: jobType,
-                parameters: [(
-                    name: "block",
-                    type: types.make(.functionType(FunctionType(
-                        receiver: coroutineScopeType,
-                        params: [],
-                        returnType: types.unitType,
-                        isSuspend: true,
-                        nullability: .nonNull
-                    )))
-                )],
-                symbols: symbols,
-                interner: interner
+            coroutineScopeMembers.fn(
+                "launch",
+                "kk_coroutine_scope_launch",
+                [(name: "block", type: types.make(.functionType(FunctionType(receiver: coroutineScopeType, params: [], returnType: types.unitType, isSuspend: true, nullability: .nonNull))))],
+                ret: jobType
             )
         }
         if !bundledIndex.contains(ownerFQName: coroutinesPkg + [interner.intern("CoroutineScope")], name: interner.intern("cancel"), arity: 1) {
-            registerSyntheticCoroutineMember(
-                ownerSymbol: coroutineScopeSymbol,
-                ownerType: coroutineScopeType,
-                name: "cancel",
-                externalLinkName: "kk_coroutine_scope_cancel",
-                returnType: types.unitType,
-                symbols: symbols,
-                interner: interner
-            )
+            coroutineScopeMembers.fn("cancel", "kk_coroutine_scope_cancel", ret: types.unitType)
         }
         if !bundledIndex.contains(ownerFQName: coroutinesPkg + [interner.intern("CoroutineScope")], name: interner.intern("isActive"), arity: 0) {
             registerSyntheticObjectProperty(
@@ -277,38 +199,15 @@ extension DataFlowSemaPhase {
             )
         }
         if !symbols.isSourceBackedSymbol(deferredSymbol) {
-            registerSyntheticCoroutineMember(
-                ownerSymbol: deferredSymbol,
-                ownerType: deferredType,
-                name: "await",
-                externalLinkName: "kk_kxmini_async_await",
-                returnType: types.anyType,
-                symbols: symbols,
-                interner: interner
-            )
+            let deferredMembers = coroutineMemberRows(of: deferredSymbol, type: deferredType, symbols: symbols, interner: interner)
+            deferredMembers.fn("await", "kk_kxmini_async_await", ret: types.anyType)
         }
         // KSP-676: StateFlow / MutableStateFlow and Flow.stateIn are bundled
         // Kotlin source (StateFlow.kt), so no synthetic constructor or member
         // stubs are registered here.
-        registerSyntheticCoroutineMember(
-            ownerSymbol: channelSymbol,
-            ownerType: channelType,
-            name: "send",
-            externalLinkName: "kk_channel_send",
-            returnType: types.unitType,
-            parameters: [(name: "value", type: types.anyType)],
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticCoroutineMember(
-            ownerSymbol: channelSymbol,
-            ownerType: channelType,
-            name: "receive",
-            externalLinkName: "kk_channel_receive",
-            returnType: types.anyType,
-            symbols: symbols,
-            interner: interner
-        )
+        let channelMembers = coroutineMemberRows(of: channelSymbol, type: channelType, symbols: symbols, interner: interner)
+        channelMembers.fn("send", "kk_channel_send", [(name: "value", type: types.anyType)], ret: types.unitType)
+        channelMembers.fn("receive", "kk_channel_receive", ret: types.anyType)
         // KSP-678: Channel.close / isClosedForSend / isClosedForReceive are now
         // provided by bundled Kotlin source
         // (Sources/CompilerCore/Stdlib/kotlin/coroutines/channels/Channels.kt),

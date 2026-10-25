@@ -393,38 +393,11 @@ extension DataFlowSemaPhase {
         symbols.setPropertyType(readerType, for: readerSymbol)
         symbols.setPropertyType(bufferedReaderType, for: bufferedReaderSymbol)
 
-        registerFileMemberFunction(
-            named: "readLine",
-            externalLinkName: "__kk_buffered_reader_readLine",
-            ownerSymbol: bufferedReaderSymbol,
-            ownerType: bufferedReaderType,
-            parameters: [],
-            returnType: nullableStringType,
-            symbols: symbols,
-            interner: interner
-        )
+        let bufferedReaderMembers = fileMemberRows(of: bufferedReaderSymbol, type: bufferedReaderType, symbols: symbols, interner: interner)
+        bufferedReaderMembers.fn("readLine", "__kk_buffered_reader_readLine", ret: nullableStringType)
+        bufferedReaderMembers.fn("readLines", "__kk_buffered_reader_readLines", ret: listOfStringType)
 
-        registerFileMemberFunction(
-            named: "readLines",
-            externalLinkName: "__kk_buffered_reader_readLines",
-            ownerSymbol: bufferedReaderSymbol,
-            ownerType: bufferedReaderType,
-            parameters: [],
-            returnType: listOfStringType,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerFileMemberFunction(
-            named: "close",
-            externalLinkName: "__kk_buffered_reader_close",
-            ownerSymbol: bufferedReaderSymbol,
-            ownerType: bufferedReaderType,
-            parameters: [],
-            returnType: types.unitType,
-            symbols: symbols,
-            interner: interner
-        )
+        bufferedReaderMembers.fn("close", "__kk_buffered_reader_close", ret: types.unitType)
 
         // Register BufferedReader as a Reader/Closeable subtype.
         // - Reader supertype lets `Reader.readText()` (STDLIB-IO-FN-033) resolve
@@ -437,27 +410,8 @@ extension DataFlowSemaPhase {
         symbols.setDirectSupertypes([readerSymbol, readerCloseableSymbol], for: bufferedReaderSymbol)
         types.setNominalDirectSupertypes([readerSymbol, readerCloseableSymbol], for: bufferedReaderSymbol)
 
-        registerFileMemberFunction(
-            named: "read",
-            externalLinkName: "__kk_buffered_reader_read",
-            ownerSymbol: bufferedReaderSymbol,
-            ownerType: bufferedReaderType,
-            parameters: [],
-            returnType: intType,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerFileMemberFunction(
-            named: "ready",
-            externalLinkName: "__kk_buffered_reader_ready",
-            ownerSymbol: bufferedReaderSymbol,
-            ownerType: bufferedReaderType,
-            parameters: [],
-            returnType: types.booleanType,
-            symbols: symbols,
-            interner: interner
-        )
+        bufferedReaderMembers.fn("read", "__kk_buffered_reader_read", ret: intType)
+        bufferedReaderMembers.fn("ready", "__kk_buffered_reader_ready", ret: types.booleanType)
 
         // BufferedReader.iterator() -> Iterator<String>  (STDLIB-IO-FN-022)
         //
@@ -473,16 +427,7 @@ extension DataFlowSemaPhase {
             types: types,
             interner: interner
         )
-        registerFileMemberFunction(
-            named: "iterator",
-            externalLinkName: "__kk_buffered_reader_iterator",
-            ownerSymbol: bufferedReaderSymbol,
-            ownerType: bufferedReaderType,
-            parameters: [],
-            returnType: iteratorOfStringType,
-            symbols: symbols,
-            interner: interner
-        )
+        bufferedReaderMembers.fn("iterator", "__kk_buffered_reader_iterator", ret: iteratorOfStringType)
         // Promote the synthetic iterator member to an operator function so that
         // implicit `for (line in reader)` resolution succeeds. We look up the
         // symbol after registration because `registerFileMemberFunction` does
@@ -533,16 +478,7 @@ extension DataFlowSemaPhase {
             isSuspend: false,
             nullability: .nonNull
         )))
-        registerFileMemberFunction(
-            named: "useLines",
-            externalLinkName: "__kk_buffered_reader_useLines",
-            ownerSymbol: bufferedReaderSymbol,
-            ownerType: bufferedReaderType,
-            parameters: [("block", sequenceOfStringToAnyTypeBR)],
-            returnType: types.anyType,
-            symbols: symbols,
-            interner: interner
-        )
+        bufferedReaderMembers.fn("useLines", "__kk_buffered_reader_useLines", [("block", sequenceOfStringToAnyTypeBR)], ret: types.anyType)
 
         // BufferedReader.forEachLine { line: String -> Unit } (STDLIB-IO-FN-017)
         //
@@ -550,16 +486,7 @@ extension DataFlowSemaPhase {
         // (which `BufferedReader` extends). The lambda receives each line as a `String`
         // and returns `Unit`. We model it as a member of `java.io.BufferedReader`.
         // Unlike `useLines`, the reader is NOT automatically closed after iteration.
-        registerFileMemberFunction(
-            named: "forEachLine",
-            externalLinkName: "__kk_buffered_reader_forEachLine",
-            ownerSymbol: bufferedReaderSymbol,
-            ownerType: bufferedReaderType,
-            parameters: [("action", stringToUnitType)],
-            returnType: types.unitType,
-            symbols: symbols,
-            interner: interner
-        )
+        bufferedReaderMembers.fn("forEachLine", "__kk_buffered_reader_forEachLine", [("action", stringToUnitType)], ret: types.unitType)
 
         let writerSymbol = ensureClassSymbol(
             named: "Writer",
@@ -593,49 +520,12 @@ extension DataFlowSemaPhase {
         symbols.setDirectSupertypes([writerSymbol, writerCloseableSymbol], for: bufferedWriterSymbol)
         types.setNominalDirectSupertypes([writerSymbol, writerCloseableSymbol], for: bufferedWriterSymbol)
 
-        registerFileMemberFunction(
-            named: "write",
-            externalLinkName: "__kk_buffered_writer_write",
-            ownerSymbol: bufferedWriterSymbol,
-            ownerType: bufferedWriterType,
-            parameters: [("text", types.stringType)],
-            returnType: types.unitType,
-            symbols: symbols,
-            interner: interner
-        )
+        let bufferedWriterMembers = fileMemberRows(of: bufferedWriterSymbol, type: bufferedWriterType, symbols: symbols, interner: interner)
+        bufferedWriterMembers.fn("write", "__kk_buffered_writer_write", [("text", types.stringType)], ret: types.unitType)
+        bufferedWriterMembers.fn("newLine", "__kk_buffered_writer_new_line", ret: types.unitType)
 
-        registerFileMemberFunction(
-            named: "newLine",
-            externalLinkName: "__kk_buffered_writer_new_line",
-            ownerSymbol: bufferedWriterSymbol,
-            ownerType: bufferedWriterType,
-            parameters: [],
-            returnType: types.unitType,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerFileMemberFunction(
-            named: "flush",
-            externalLinkName: "__kk_buffered_writer_flush",
-            ownerSymbol: bufferedWriterSymbol,
-            ownerType: bufferedWriterType,
-            parameters: [],
-            returnType: types.unitType,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerFileMemberFunction(
-            named: "close",
-            externalLinkName: "__kk_buffered_writer_close_throwing",
-            ownerSymbol: bufferedWriterSymbol,
-            ownerType: bufferedWriterType,
-            parameters: [],
-            returnType: types.unitType,
-            symbols: symbols,
-            interner: interner
-        )
+        bufferedWriterMembers.fn("flush", "__kk_buffered_writer_flush", ret: types.unitType)
+        bufferedWriterMembers.fn("close", "__kk_buffered_writer_close_throwing", ret: types.unitType)
 
         let javaLangPkg = ensurePackage(
             path: ["java", "lang"],
@@ -793,49 +683,12 @@ extension DataFlowSemaPhase {
                 symbols: symbols, interner: interner)
         }
 
-        registerFileMemberFunction(
-            named: "read",
-            externalLinkName: "__kk_input_stream_read",
-            ownerSymbol: inputStreamSymbol,
-            ownerType: inputStreamType,
-            parameters: [],
-            returnType: intType,
-            symbols: symbols,
-            interner: interner
-        )
+        let inputStreamMembers = fileMemberRows(of: inputStreamSymbol, type: inputStreamType, symbols: symbols, interner: interner)
+        inputStreamMembers.fn("read", "__kk_input_stream_read", ret: intType)
+        inputStreamMembers.fn("available", "__kk_input_stream_available_throwing", ret: intType)
 
-        registerFileMemberFunction(
-            named: "available",
-            externalLinkName: "__kk_input_stream_available_throwing",
-            ownerSymbol: inputStreamSymbol,
-            ownerType: inputStreamType,
-            parameters: [],
-            returnType: intType,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerFileMemberFunction(
-            named: "skip",
-            externalLinkName: "__kk_input_stream_skip",
-            ownerSymbol: inputStreamSymbol,
-            ownerType: inputStreamType,
-            parameters: [("count", intType)],
-            returnType: intType,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerFileMemberFunction(
-            named: "read",
-            externalLinkName: "__kk_input_stream_read_bytes",
-            ownerSymbol: inputStreamSymbol,
-            ownerType: inputStreamType,
-            parameters: [("buffer", listOfIntType)],
-            returnType: intType,
-            symbols: symbols,
-            interner: interner
-        )
+        inputStreamMembers.fn("skip", "__kk_input_stream_skip", [("count", intType)], ret: intType)
+        inputStreamMembers.fn("read", "__kk_input_stream_read_bytes", [("buffer", listOfIntType)], ret: intType)
 
         if let byteArraySymbol = symbols.lookup(fqName: byteArrayFQName) {
             let byteArrayType = types.make(.classType(ClassType(
@@ -867,60 +720,13 @@ extension DataFlowSemaPhase {
         // Note: this extension does NOT close the receiver — callers typically
         // wrap the call in `.use { it.readBytes() }`. Sema only needs to
         // resolve the call shape; the runtime drains the stream.
-        registerFileMemberFunction(
-            named: "readBytes",
-            externalLinkName: "__kk_input_stream_readAllBytes",
-            ownerSymbol: inputStreamSymbol,
-            ownerType: inputStreamType,
-            parameters: [],
-            returnType: byteArrayReturnType,
-            symbols: symbols,
-            interner: interner
-        )
+        inputStreamMembers.fn("readBytes", "__kk_input_stream_readAllBytes", ret: byteArrayReturnType)
+        inputStreamMembers.fn("mark", "__kk_input_stream_mark", [("readLimit", intType)], ret: types.unitType)
 
-        registerFileMemberFunction(
-            named: "mark",
-            externalLinkName: "__kk_input_stream_mark",
-            ownerSymbol: inputStreamSymbol,
-            ownerType: inputStreamType,
-            parameters: [("readLimit", intType)],
-            returnType: types.unitType,
-            symbols: symbols,
-            interner: interner
-        )
+        inputStreamMembers.fn("reset", "__kk_input_stream_reset", ret: types.unitType)
+        inputStreamMembers.fn("markSupported", "__kk_input_stream_mark_supported", ret: types.booleanType)
 
-        registerFileMemberFunction(
-            named: "reset",
-            externalLinkName: "__kk_input_stream_reset",
-            ownerSymbol: inputStreamSymbol,
-            ownerType: inputStreamType,
-            parameters: [],
-            returnType: types.unitType,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerFileMemberFunction(
-            named: "markSupported",
-            externalLinkName: "__kk_input_stream_mark_supported",
-            ownerSymbol: inputStreamSymbol,
-            ownerType: inputStreamType,
-            parameters: [],
-            returnType: types.booleanType,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerFileMemberFunction(
-            named: "close",
-            externalLinkName: "__kk_input_stream_close_throwing",
-            ownerSymbol: inputStreamSymbol,
-            ownerType: inputStreamType,
-            parameters: [],
-            returnType: types.unitType,
-            symbols: symbols,
-            interner: interner
-        )
+        inputStreamMembers.fn("close", "__kk_input_stream_close_throwing", ret: types.unitType)
 
         // Kotlin defines:
         //   public inline fun InputStream.buffered(bufferSize: Int = DEFAULT_BUFFER_SIZE): BufferedInputStream
@@ -948,40 +754,14 @@ extension DataFlowSemaPhase {
 
         // STDLIB-IO-FN-029: BufferedInputStream.readBytes() — delegate to the same
         // runtime entry so that member dispatch resolves without a supertype walk.
-        registerFileMemberFunction(
-            named: "readBytes",
-            externalLinkName: "__kk_input_stream_readAllBytes",
-            ownerSymbol: bufferedInputStreamSymbol,
-            ownerType: bufferedInputStreamType,
-            parameters: [],
-            returnType: byteArrayReturnType,
-            symbols: symbols,
-            interner: interner
-        )
+        let bufferedInputStreamMembers = fileMemberRows(of: bufferedInputStreamSymbol, type: bufferedInputStreamType, symbols: symbols, interner: interner)
+        bufferedInputStreamMembers.fn("readBytes", "__kk_input_stream_readAllBytes", ret: byteArrayReturnType)
 
         // InputStream.buffered() -> BufferedInputStream (uses DEFAULT_BUFFER_SIZE = 8 * 1024)
-        registerFileMemberFunction(
-            named: "buffered",
-            externalLinkName: "__kk_input_stream_buffered_default",
-            ownerSymbol: inputStreamSymbol,
-            ownerType: inputStreamType,
-            parameters: [],
-            returnType: bufferedInputStreamType,
-            symbols: symbols,
-            interner: interner
-        )
+        inputStreamMembers.fn("buffered", "__kk_input_stream_buffered_default", ret: bufferedInputStreamType)
 
         // InputStream.buffered(bufferSize: Int) -> BufferedInputStream
-        registerFileMemberFunction(
-            named: "buffered",
-            externalLinkName: "__kk_input_stream_buffered",
-            ownerSymbol: inputStreamSymbol,
-            ownerType: inputStreamType,
-            parameters: [("bufferSize", intType)],
-            returnType: bufferedInputStreamType,
-            symbols: symbols,
-            interner: interner
-        )
+        inputStreamMembers.fn("buffered", "__kk_input_stream_buffered", [("bufferSize", intType)], ret: bufferedInputStreamType)
 
         // STDLIB-IO-FN-013: InputStream.copyTo(out, bufferSize) -> Long
         //
@@ -1010,75 +790,21 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        registerFileMemberFunction(
-            named: "read",
-            externalLinkName: "__kk_sequence_input_stream_read",
-            ownerSymbol: sequenceInputStreamSymbol,
-            ownerType: sequenceInputStreamType,
-            parameters: [],
-            returnType: intType,
-            symbols: symbols,
-            interner: interner
-        )
+        let sequenceInputStreamMembers = fileMemberRows(of: sequenceInputStreamSymbol, type: sequenceInputStreamType, symbols: symbols, interner: interner)
+        sequenceInputStreamMembers.fn("read", "__kk_sequence_input_stream_read", ret: intType)
+        sequenceInputStreamMembers.fn("available", "__kk_sequence_input_stream_available_throwing", ret: intType)
 
-        registerFileMemberFunction(
-            named: "available",
-            externalLinkName: "__kk_sequence_input_stream_available_throwing",
-            ownerSymbol: sequenceInputStreamSymbol,
-            ownerType: sequenceInputStreamType,
-            parameters: [],
-            returnType: intType,
-            symbols: symbols,
-            interner: interner
-        )
+        sequenceInputStreamMembers.fn("close", "__kk_sequence_input_stream_close_throwing", ret: types.unitType)
 
-        registerFileMemberFunction(
-            named: "close",
-            externalLinkName: "__kk_sequence_input_stream_close_throwing",
-            ownerSymbol: sequenceInputStreamSymbol,
-            ownerType: sequenceInputStreamType,
-            parameters: [],
-            returnType: types.unitType,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerFileMemberFunction(
-            named: "write",
-            externalLinkName: "__kk_output_stream_write_byte",
-            ownerSymbol: outputStreamSymbol,
-            ownerType: outputStreamType,
-            parameters: [("value", intType)],
-            returnType: types.unitType,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerFileMemberFunction(
-            named: "write",
-            externalLinkName: "__kk_output_stream_write_bytes",
-            ownerSymbol: outputStreamSymbol,
-            ownerType: outputStreamType,
-            parameters: [("buffer", listOfIntType)],
-            returnType: types.unitType,
-            symbols: symbols,
-            interner: interner
-        )
+        let outputStreamMembers = fileMemberRows(of: outputStreamSymbol, type: outputStreamType, symbols: symbols, interner: interner)
+        outputStreamMembers.fn("write", "__kk_output_stream_write_byte", [("value", intType)], ret: types.unitType)
+        outputStreamMembers.fn("write", "__kk_output_stream_write_bytes", [("buffer", listOfIntType)], ret: types.unitType)
 
         if let byteArraySymbol = symbols.lookup(fqName: byteArrayFQName) {
             let byteArrayType = types.make(.classType(ClassType(
                 classSymbol: byteArraySymbol, args: [], nullability: .nonNull
             )))
-            registerFileMemberFunction(
-                named: "write",
-                externalLinkName: "__kk_output_stream_write_bytes",
-                ownerSymbol: outputStreamSymbol,
-                ownerType: outputStreamType,
-                parameters: [("buffer", byteArrayType)],
-                returnType: types.unitType,
-                symbols: symbols,
-                interner: interner
-            )
+            outputStreamMembers.fn("write", "__kk_output_stream_write_bytes", [("buffer", byteArrayType)], ret: types.unitType)
             registerFileMemberFunction(
                 named: "write", externalLinkName: "__kk_output_stream_write_range",
                 ownerSymbol: outputStreamSymbol, ownerType: outputStreamType,
@@ -1086,27 +812,8 @@ extension DataFlowSemaPhase {
                 returnType: types.unitType, symbols: symbols, interner: interner)
         }
 
-        registerFileMemberFunction(
-            named: "flush",
-            externalLinkName: "__kk_output_stream_flush",
-            ownerSymbol: outputStreamSymbol,
-            ownerType: outputStreamType,
-            parameters: [],
-            returnType: types.unitType,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerFileMemberFunction(
-            named: "close",
-            externalLinkName: "__kk_output_stream_close_throwing",
-            ownerSymbol: outputStreamSymbol,
-            ownerType: outputStreamType,
-            parameters: [],
-            returnType: types.unitType,
-            symbols: symbols,
-            interner: interner
-        )
+        outputStreamMembers.fn("flush", "__kk_output_stream_flush", ret: types.unitType)
+        outputStreamMembers.fn("close", "__kk_output_stream_close_throwing", ret: types.unitType)
 
         // STDLIB-IO-FN-004: OutputStream.buffered() / buffered(bufferSize) extension members.
         // Returns an OutputStream that wraps the receiver with buffering. The runtime
@@ -1114,51 +821,14 @@ extension DataFlowSemaPhase {
         // already streams through the OS, so the wrapped handle is the same instance.
         // This satisfies Kotlin's `fun OutputStream.buffered(bufferSize: Int = DEFAULT_BUFFER_SIZE): BufferedOutputStream`
         // contract at the Sema surface — callers can chain `.write(...)` / `.flush()` / `.close()` etc.
-        registerFileMemberFunction(
-            named: "buffered",
-            externalLinkName: "__kk_output_stream_buffered",
-            ownerSymbol: outputStreamSymbol,
-            ownerType: outputStreamType,
-            parameters: [],
-            returnType: outputStreamType,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerFileMemberFunction(
-            named: "buffered",
-            externalLinkName: "__kk_output_stream_buffered_sized",
-            ownerSymbol: outputStreamSymbol,
-            ownerType: outputStreamType,
-            parameters: [("bufferSize", intType)],
-            returnType: outputStreamType,
-            symbols: symbols,
-            interner: interner
-        )
+        outputStreamMembers.fn("buffered", "__kk_output_stream_buffered", ret: outputStreamType)
+        outputStreamMembers.fn("buffered", "__kk_output_stream_buffered_sized", [("bufferSize", intType)], ret: outputStreamType)
 
         // ClassLoader resource access functions (STDLIB-IO-093)
 
-        registerFileMemberFunction(
-            named: "getResource",
-            externalLinkName: "__kk_classloader_getResource",
-            ownerSymbol: classLoaderSymbol,
-            ownerType: classLoaderType,
-            parameters: [("name", types.stringType)],
-            returnType: nullableStringType,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerFileMemberFunction(
-            named: "getResourceAsStream",
-            externalLinkName: "__kk_classloader_getResourceAsStream",
-            ownerSymbol: classLoaderSymbol,
-            ownerType: classLoaderType,
-            parameters: [("name", types.stringType)],
-            returnType: nullableInputStreamType,
-            symbols: symbols,
-            interner: interner
-        )
+        let classLoaderMembers = fileMemberRows(of: classLoaderSymbol, type: classLoaderType, symbols: symbols, interner: interner)
+        classLoaderMembers.fn("getResource", "__kk_classloader_getResource", [("name", types.stringType)], ret: nullableStringType)
+        classLoaderMembers.fn("getResourceAsStream", "__kk_classloader_getResourceAsStream", [("name", types.stringType)], ret: nullableInputStreamType)
 
         registerTopLevelResourceFunction(
             packageFQName: javaLangPkg,
@@ -1575,6 +1245,15 @@ extension DataFlowSemaPhase {
             ),
             for: functionSymbol
         )
+    }
+
+    func fileMemberRows(of ownerSymbol: SymbolID, type ownerType: TypeID, symbols: SymbolTable, interner: StringInterner) -> SyntheticMemberRows {
+        SyntheticMemberRows { name, externalLinkName, parameters, returnType in
+            self.registerFileMemberFunction(
+                named: name, externalLinkName: externalLinkName, ownerSymbol: ownerSymbol, ownerType: ownerType,
+                parameters: parameters, returnType: returnType, symbols: symbols, interner: interner
+            )
+        }
     }
 
     func registerFileMemberFunction(

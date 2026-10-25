@@ -133,55 +133,19 @@ extension DataFlowSemaPhase {
         // (Stdlib/kotlinx/coroutines/sync/Sync.kt, KSP-677) delegating to the
         // demoted __kk_mutex_create bridge.
 
-        registerSyntheticCoroutineMember(
-            ownerSymbol: mutexSymbol,
-            ownerType: mutexType,
-            name: "lock",
-            externalLinkName: "kk_mutex_lock",
-            returnType: types.unitType,
-            isSuspend: true,
-            symbols: symbols,
-            interner: interner
-        )
+        let mutexMembers = coroutineMemberRows(of: mutexSymbol, type: mutexType, symbols: symbols, interner: interner)
+        mutexMembers.fn("lock", "kk_mutex_lock", ret: types.unitType, isSuspend: true)
 
         // KUU-1356: upstream `suspend fun lock(owner: Any? = null)` —
         // the owner-token overload bridges to __kk_mutex_lock_owner, which
         // records the token and rejects same-owner re-acquisition.
-        registerSyntheticCoroutineMember(
-            ownerSymbol: mutexSymbol,
-            ownerType: mutexType,
-            name: "lock",
-            externalLinkName: "__kk_mutex_lock_owner",
-            returnType: types.unitType,
-            parameters: [(name: "owner", type: types.nullableAnyType)],
-            isSuspend: true,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticCoroutineMember(
-            ownerSymbol: mutexSymbol,
-            ownerType: mutexType,
-            name: "unlock",
-            externalLinkName: "kk_mutex_unlock",
-            returnType: types.unitType,
-            symbols: symbols,
-            interner: interner
-        )
+        mutexMembers.fn("lock", "__kk_mutex_lock_owner", [(name: "owner", type: types.nullableAnyType)], ret: types.unitType, isSuspend: true)
+        mutexMembers.fn("unlock", "kk_mutex_unlock", ret: types.unitType)
 
         // KUU-1356: upstream `fun unlock(owner: Any? = null)` — the owner
         // overload validates the token by identity and throws
         // IllegalStateException on mismatch.
-        registerSyntheticCoroutineMember(
-            ownerSymbol: mutexSymbol,
-            ownerType: mutexType,
-            name: "unlock",
-            externalLinkName: "__kk_mutex_unlock_owner",
-            returnType: types.unitType,
-            parameters: [(name: "owner", type: types.nullableAnyType)],
-            symbols: symbols,
-            interner: interner
-        )
+        mutexMembers.fn("unlock", "__kk_mutex_unlock_owner", [(name: "owner", type: types.nullableAnyType)], ret: types.unitType)
 
         // Mutex.tryLock is migrated to Kotlin source
         // (Stdlib/kotlinx/coroutines/sync/Sync.kt, KSP-677) delegating to the
@@ -212,26 +176,9 @@ extension DataFlowSemaPhase {
         // (Stdlib/kotlinx/coroutines/sync/Sync.kt, KSP-677) delegating to the
         // demoted __kk_semaphore_create bridge.
 
-        registerSyntheticCoroutineMember(
-            ownerSymbol: semaphoreSymbol,
-            ownerType: semaphoreType,
-            name: "acquire",
-            externalLinkName: "kk_semaphore_acquire",
-            returnType: types.unitType,
-            isSuspend: true,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticCoroutineMember(
-            ownerSymbol: semaphoreSymbol,
-            ownerType: semaphoreType,
-            name: "release",
-            externalLinkName: "kk_semaphore_release",
-            returnType: types.unitType,
-            symbols: symbols,
-            interner: interner
-        )
+        let semaphoreMembers = coroutineMemberRows(of: semaphoreSymbol, type: semaphoreType, symbols: symbols, interner: interner)
+        semaphoreMembers.fn("acquire", "kk_semaphore_acquire", ret: types.unitType, isSuspend: true)
+        semaphoreMembers.fn("release", "kk_semaphore_release", ret: types.unitType)
 
         // Semaphore.tryAcquire is migrated to Kotlin source
         // (Stdlib/kotlinx/coroutines/sync/Sync.kt, KSP-677) delegating to the

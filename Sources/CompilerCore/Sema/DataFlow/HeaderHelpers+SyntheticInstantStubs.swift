@@ -72,97 +72,20 @@ extension DataFlowSemaPhase {
         // compareTo) is defined there as extension properties/functions/
         // operators.
 
-        registerInstantInstanceMethod(
-            named: "__kk_instant_epoch_seconds",
-            externalLinkName: "kk_instant_epoch_seconds",
-            returnType: longType,
-            parameters: [],
-            ownerSymbol: instantSymbol,
-            ownerType: instantType,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerInstantInstanceMethod(
-            named: "__kk_instant_nano_of_second",
-            externalLinkName: "kk_instant_nano_of_second",
-            returnType: intType,
-            parameters: [],
-            ownerSymbol: instantSymbol,
-            ownerType: instantType,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerInstantInstanceMethod(
-            named: "__kk_instant_is_distant_past",
-            externalLinkName: "kk_instant_is_distant_past",
-            returnType: boolType,
-            parameters: [],
-            ownerSymbol: instantSymbol,
-            ownerType: instantType,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerInstantInstanceMethod(
-            named: "__kk_instant_is_distant_future",
-            externalLinkName: "kk_instant_is_distant_future",
-            returnType: boolType,
-            parameters: [],
-            ownerSymbol: instantSymbol,
-            ownerType: instantType,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerInstantInstanceMethod(
-            named: "__kk_instant_plus_duration",
-            externalLinkName: "kk_instant_plus_duration",
-            returnType: instantType,
-            parameters: [(name: "duration", type: durationType)],
-            ownerSymbol: instantSymbol,
-            ownerType: instantType,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerInstantInstanceMethod(
-            named: "__kk_instant_minus_duration",
-            externalLinkName: "kk_instant_minus_duration",
-            returnType: instantType,
-            parameters: [(name: "duration", type: durationType)],
-            ownerSymbol: instantSymbol,
-            ownerType: instantType,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerInstantInstanceMethod(
-            named: "__kk_instant_compare",
-            externalLinkName: "kk_instant_compare",
-            returnType: intType,
-            parameters: [(name: "other", type: instantType)],
-            ownerSymbol: instantSymbol,
-            ownerType: instantType,
-            symbols: symbols,
-            interner: interner
-        )
+        let instantMethods = instantMethodRows(of: instantSymbol, type: instantType, symbols: symbols, interner: interner)
+        instantMethods.fn("__kk_instant_epoch_seconds", "kk_instant_epoch_seconds", ret: longType)
+        instantMethods.fn("__kk_instant_nano_of_second", "kk_instant_nano_of_second", ret: intType)
+        instantMethods.fn("__kk_instant_is_distant_past", "kk_instant_is_distant_past", ret: boolType)
+        instantMethods.fn("__kk_instant_is_distant_future", "kk_instant_is_distant_future", ret: boolType)
+        instantMethods.fn("__kk_instant_plus_duration", "kk_instant_plus_duration", [(name: "duration", type: durationType)], ret: instantType)
+        instantMethods.fn("__kk_instant_minus_duration", "kk_instant_minus_duration", [(name: "duration", type: durationType)], ret: instantType)
+        instantMethods.fn("__kk_instant_compare", "kk_instant_compare", [(name: "other", type: instantType)], ret: intType)
 
         // KUU-1093: kk_instant_until returns the raw Int64 nanosecond
         // payload, but Duration is now a boxed object (Comparable<Duration>),
         // so the bridge is typed `Long` and Kotlin source wraps the result in
         // `Duration(...)`.
-        registerInstantInstanceMethod(
-            named: "__kk_instant_until",
-            externalLinkName: "kk_instant_until",
-            returnType: longType,
-            parameters: [(name: "other", type: instantType)],
-            ownerSymbol: instantSymbol,
-            ownerType: instantType,
-            symbols: symbols,
-            interner: interner
-        )
+        instantMethods.fn("__kk_instant_until", "kk_instant_until", [(name: "other", type: instantType)], ret: longType)
     }
 
     private func ensureInstantCompanionSymbol(
@@ -204,6 +127,15 @@ extension DataFlowSemaPhase {
         symbols.setParentSymbol(ownerSymbol, for: companionSymbol)
         symbols.setCompanionObjectSymbol(companionSymbol, for: ownerSymbol)
         return companionFQName
+    }
+
+    private func instantMethodRows(of ownerSymbol: SymbolID, type ownerType: TypeID, symbols: SymbolTable, interner: StringInterner) -> SyntheticMemberRows {
+        SyntheticMemberRows { name, externalLinkName, parameters, returnType in
+            self.registerInstantInstanceMethod(
+                named: name, externalLinkName: externalLinkName, returnType: returnType, parameters: parameters,
+                ownerSymbol: ownerSymbol, ownerType: ownerType, symbols: symbols, interner: interner
+            )
+        }
     }
 
     private func registerInstantInstanceMethod(
