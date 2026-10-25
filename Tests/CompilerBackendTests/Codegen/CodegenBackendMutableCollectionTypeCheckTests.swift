@@ -1,4 +1,5 @@
 #if canImport(Testing)
+import Foundation
 @testable import CompilerCore
 @testable import CompilerBackend
 @testable import CompilerTestSupport
@@ -6,6 +7,20 @@ import Testing
 
 @Suite
 struct CodegenBackendMutableCollectionTypeCheckTests {
+    @Test
+    func listOfValuesPassJvmErasedMutableListChecks() throws {
+        var root = URL(fileURLWithPath: #filePath)
+        for _ in 0 ..< 4 { root.deleteLastPathComponent() }
+        let source = try String(contentsOf: root.appendingPathComponent(
+            "Scripts/diff_cases/kuu3389_list_of_mutable_list_cast.kt"
+        ), encoding: .utf8)
+        try assertKotlinOutput(
+            source,
+            moduleName: "ListOfMutableListCast",
+            expected: "true\n[1]\ntrue\n[1]\ntrue\nread-only\n"
+        )
+    }
+
     @Test
     func mutableCollectionChecksAndCastsMatchKotlin() throws {
         let source = """

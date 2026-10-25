@@ -353,7 +353,13 @@ public func kk_op_is(_ value: Int, _ typeToken: Int) -> Int {
         }
         if let sourceTypeID = runtimeObjectTypeID(rawValue: value) {
             registerSortedCollectionTypeEdgesOnce()
-            return runtimeIsAssignable(sourceTypeID: sourceTypeID, targetTypeID: payload) ? 1 : 0
+            return runtimeIsAssignable(sourceTypeID: sourceTypeID, targetTypeID: payload)
+                || runtimeIsJvmErasedListAssignable(
+                    rawValue: value,
+                    sourceTypeID: sourceTypeID,
+                    targetTypeID: payload
+                )
+                ? 1 : 0
         }
         guard let ptr = UnsafeMutableRawPointer(bitPattern: value) else {
             return 0
