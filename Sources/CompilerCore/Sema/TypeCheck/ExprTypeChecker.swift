@@ -262,6 +262,9 @@ final class ExprTypeChecker {
                 !ctx.hasLambdaLabel(label)
                     && ctx.enclosingFunctionSymbol.flatMap { sema.symbols.symbol($0)?.name } == label
             } ?? (ctx.lambdaDepth > 0)
+            let targetsEnclosingFunction = label == nil || targetsFunction
+            let isProhibitedPropertyInitializerReturn =
+                ctx.isInPropertyInitializer && targetsEnclosingFunction
             let returnsFromConstructor = ctx.enclosingFunctionSymbol.flatMap {
                 sema.symbols.symbol($0)?.kind == .constructor
             } ?? false
@@ -290,9 +293,17 @@ final class ExprTypeChecker {
                     lambdaPath: Array(ctx.enclosingLambdaExprIDs.dropFirst(targetIndex + 1))
                 )
             }
-            if targetsFunction, let functionSymbol = ctx.enclosingFunctionSymbol {
+            if isProhibitedPropertyInitializerReturn {
+                ctx.sema.diagnostics.error(
+                    "KSWIFTK-SEMA-0042",
+                    "'return' is prohibited here.",
+                    range: range
+                )
+            } else if targetsFunction, let functionSymbol = ctx.enclosingFunctionSymbol {
                 sema.bindings.bindFunctionReturn(id, symbol: functionSymbol, lambdaPath: ctx.enclosingLambdaExprIDs)
-            } else if label == nil, ctx.lambdaDepth > 0, !returnsFromInitBlock {
+            } else if label == nil,
+                      (ctx.lambdaDepth > 0 || ctx.enclosingFunctionSymbol == nil),
+                      !returnsFromInitBlock {
                 ctx.sema.diagnostics.error(
                     "KSWIFTK-SEMA-0042",
                     "'return' does not reference an enclosing function.",
