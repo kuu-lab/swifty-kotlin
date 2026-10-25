@@ -106,6 +106,7 @@ final class ValueClassUnboxingPass: LoweringPass, ParallelLoweringPass {
         }
 
         let interner = ctx.interner
+        let boxingCalleeTable = BoxingCalleeTable(interner: interner)
 
         module.arena.transformFunctions { function in
             var updated = function
@@ -120,6 +121,7 @@ final class ValueClassUnboxingPass: LoweringPass, ParallelLoweringPass {
                 valueClassSymbols: valueClassSymbols,
                 kk_object_new: kk_object_new,
                 kk_array_get_inbounds: kk_array_get_inbounds,
+                boxingCalleeTable: boxingCalleeTable,
                 ctorsRequiringExecution: ctorsRequiringExecution,
                 ctorUnderlyingFieldOffset: ctorUnderlyingFieldOffset,
                 executingCtorThisSymbols: executingCtorThisSymbols,
@@ -171,6 +173,54 @@ final class ValueClassUnboxingPass: LoweringPass, ParallelLoweringPass {
         return false
     }
 
+    /// KUU-3251: a `kk_array_get_inbounds` receiver whose KIR type is a
+    /// *nullable* `V?` (or an erased type-parameter slot bounded by a value
+    /// class) carries the `kk_tag_value_class_box` tagged handle, not the
+    /// unboxed payload. Rewriting the read to a bare copy would alias the box
+    /// itself as the underlying field — `println(s?.x)` then dispatches
+    /// `S.toString` on the box and recurses (`S(x=S(x=…`). Emit the matching
+    /// `kk_unbox_*`/`kk_string_to_flat` payload extraction instead. A
+    /// non-null `V` receiver already holds the unboxed payload, and value
+    /// classes whose underlying type has no boxing callee (reference-type
+    /// payloads) stay on the plain copy — their `V?` slot *is* the payload.
+    private func valueClassPayloadUnboxCallee(
+        for receiver: KIRExprID,
+        arena: KIRArena,
+        types: TypeSystem,
+        symbols: SymbolTable,
+        valueClassSymbols: Set<SymbolID>,
+        boxingCalleeTable: BoxingCalleeTable
+    ) -> InternedString? {
+        guard let receiverType = arena.exprType(receiver) else { return nil }
+        let classSymbol: SymbolID?
+        switch types.kind(of: receiverType) {
+        case let .classType(classType):
+            // Non-null receivers already hold the unboxed payload.
+            guard classType.nullability != .nonNull else { return nil }
+            classSymbol = classType.classSymbol
+        case let .typeParam(typeParameter):
+            // Generic slots are erased, so a type-parameter receiver bounded
+            // by a value class carries the tagged box at any nullability.
+            classSymbol = symbols.typeParameterUpperBounds(for: typeParameter.symbol).compactMap { bound -> SymbolID? in
+                guard case let .classType(boundClass) = types.kind(of: bound),
+                      valueClassSymbols.contains(boundClass.classSymbol)
+                else { return nil }
+                return boundClass.classSymbol
+            }.first
+        default:
+            classSymbol = nil
+        }
+        guard let classSymbol,
+              valueClassSymbols.contains(classSymbol),
+              let underlyingType = symbols.effectiveValueClassUnderlyingType(for: classSymbol)
+        else { return nil }
+        return boxingCalleeTable.unboxCallee(
+            for: types.kind(of: underlyingType),
+            requireNonNull: true,
+            preferStaticPrimitive: true
+        )
+    }
+
     /// KUU-3115: a `V?` receiver of a value class whose underlying payload can
     /// itself be null holds a nominal `RuntimeObjectBox` — the inbounds read
     /// *is* the payload load, so it must be kept rather than rewritten to a
@@ -203,6 +253,7 @@ final class ValueClassUnboxingPass: LoweringPass, ParallelLoweringPass {
         valueClassSymbols: Set<SymbolID>,
         kk_object_new: InternedString,
         kk_array_get_inbounds: InternedString,
+        boxingCalleeTable: BoxingCalleeTable,
         ctorsRequiringExecution: Set<SymbolID>,
         ctorUnderlyingFieldOffset: [SymbolID: Int64],
         executingCtorThisSymbols: Set<SymbolID>,
@@ -441,7 +492,18 @@ final class ValueClassUnboxingPass: LoweringPass, ParallelLoweringPass {
                        arguments[0], arena: arena, types: types, symbols: symbols
                    )
                 {
-                    result.append(.copy(from: arguments[0], to: callResult))
+                    if let unboxCallee = valueClassPayloadUnboxCallee(
+                        for: arguments[0], arena: arena, types: types, symbols: symbols,
+                        valueClassSymbols: valueClassSymbols,
+                        boxingCalleeTable: boxingCalleeTable
+                    ) {
+                        result.append(.call(
+                            symbol: nil, callee: unboxCallee, arguments: [arguments[0]],
+                            result: callResult, canThrow: false, thrownResult: nil
+                        ))
+                    } else {
+                        result.append(.copy(from: arguments[0], to: callResult))
+                    }
                     resultLocations.append(location)
                     continue
                 }
