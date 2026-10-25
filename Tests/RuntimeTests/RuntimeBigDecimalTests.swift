@@ -63,6 +63,33 @@ struct RuntimeBigDecimalTests {
     }
 
     @Test
+    func testDoubleToBigDecimalPreservesExactJvmValue() {
+        let cases: [(Double, String)] = [
+            (1.5, "1.5"),
+            (0.1, "0.1000000000000000055511151231257827021181583404541015625"),
+            (1.0, "1"),
+            (-0.0, "0"),
+            (1e20, "100000000000000000000"),
+        ]
+
+        for (value, expected) in cases {
+            var thrown = 0
+            let raw = __kk_double_toBigDecimal(Int(bitPattern: UInt(value.bitPattern)), &thrown)
+            #expect(thrown == 0)
+            #expect(stringValue(__kk_bignum_toString(raw)) == expected)
+        }
+    }
+
+    @Test
+    func testDoubleToBigDecimalRejectsNonFiniteValues() {
+        for value in [Double.nan, Double.infinity, -Double.infinity] {
+            var thrown = 0
+            _ = __kk_double_toBigDecimal(Int(bitPattern: UInt(value.bitPattern)), &thrown)
+            #expect(thrown != 0)
+        }
+    }
+
+    @Test
     func testStringToBigDecimalOrNullAcceptsScientificNotation() {
         let raw = __kk_string_toBigDecimalOrNull(runtimeString("+.5E-2"))
         #expect(raw != runtimeNullSentinelInt)

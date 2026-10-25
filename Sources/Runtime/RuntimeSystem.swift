@@ -38,6 +38,19 @@ private let runtimeSystemProperties: [String: String] = {
     ]
 }()
 
+private final class RuntimeSystemPropertyState: @unchecked Sendable {
+    let lock = NSLock()
+    var overrides: [String: String] = [:]
+    var cleared: Set<String> = []
+}
+
+private let runtimeSystemPropertyState = RuntimeSystemPropertyState()
+
+private let runtimeSystemEnvironmentEntries: [(key: String, value: String)] =
+    ProcessInfo.processInfo.environment
+        .sorted { $0.key < $1.key }
+        .map { (key: $0.key, value: $0.value) }
+
 private let runtimeSystemOsName: String = {
 #if os(macOS)
     "Mac OS X"
@@ -114,10 +127,94 @@ public func __kk_system_getProperty(_ propertyNameRaw: Int) -> Int {
     guard let propertyName = runtimeStringFromRaw(propertyNameRaw) else {
         return runtimeNullSentinelInt
     }
-    let value = runtimeSystemProperties[propertyName]
-        ?? ProcessInfo.processInfo.environment[propertyName]
+    runtimeSystemPropertyState.lock.lock()
+    let value: String? = if runtimeSystemPropertyState.cleared.contains(propertyName) {
+        nil
+    } else {
+        runtimeSystemPropertyState.overrides[propertyName]
+            ?? runtimeSystemProperties[propertyName]
+            ?? ProcessInfo.processInfo.environment[propertyName]
+    }
+    runtimeSystemPropertyState.lock.unlock()
     guard let value else { return runtimeNullSentinelInt }
     return runtimeMakeStringRaw(value)
+}
+
+@_cdecl("__kk_system_setProperty")
+public func __kk_system_setProperty(_ propertyNameRaw: Int, _ valueRaw: Int) -> Int {
+    guard let propertyName = runtimeStringFromRaw(propertyNameRaw),
+          let value = runtimeStringFromRaw(valueRaw)
+    else {
+        return runtimeNullSentinelInt
+    }
+
+    runtimeSystemPropertyState.lock.lock()
+    let previous: String? = if runtimeSystemPropertyState.cleared.contains(propertyName) {
+        nil
+    } else {
+        runtimeSystemPropertyState.overrides[propertyName]
+            ?? runtimeSystemProperties[propertyName]
+            ?? ProcessInfo.processInfo.environment[propertyName]
+    }
+    runtimeSystemPropertyState.overrides[propertyName] = value
+    runtimeSystemPropertyState.cleared.remove(propertyName)
+    runtimeSystemPropertyState.lock.unlock()
+
+    guard let previous else { return runtimeNullSentinelInt }
+    return runtimeMakeStringRaw(previous)
+}
+
+@_cdecl("__kk_system_clearProperty")
+public func __kk_system_clearProperty(_ propertyNameRaw: Int) -> Int {
+    guard let propertyName = runtimeStringFromRaw(propertyNameRaw) else {
+        return runtimeNullSentinelInt
+    }
+
+    runtimeSystemPropertyState.lock.lock()
+    let previous: String? = if runtimeSystemPropertyState.cleared.contains(propertyName) {
+        nil
+    } else {
+        runtimeSystemPropertyState.overrides[propertyName]
+            ?? runtimeSystemProperties[propertyName]
+            ?? ProcessInfo.processInfo.environment[propertyName]
+    }
+    runtimeSystemPropertyState.overrides.removeValue(forKey: propertyName)
+    runtimeSystemPropertyState.cleared.insert(propertyName)
+    runtimeSystemPropertyState.lock.unlock()
+
+    guard let previous else { return runtimeNullSentinelInt }
+    return runtimeMakeStringRaw(previous)
+}
+
+@_cdecl("__kk_system_getenv")
+public func __kk_system_getenv(_ variableNameRaw: Int) -> Int {
+    guard let variableName = runtimeStringFromRaw(variableNameRaw),
+          let value = ProcessInfo.processInfo.environment[variableName]
+    else {
+        return runtimeNullSentinelInt
+    }
+    return runtimeMakeStringRaw(value)
+}
+
+@_cdecl("__kk_system_envCount")
+public func __kk_system_envCount() -> Int {
+    runtimeSystemEnvironmentEntries.count
+}
+
+@_cdecl("__kk_system_envKeyAt")
+public func __kk_system_envKeyAt(_ index: Int) -> Int {
+    guard runtimeSystemEnvironmentEntries.indices.contains(index) else {
+        return runtimeNullSentinelInt
+    }
+    return runtimeMakeStringRaw(runtimeSystemEnvironmentEntries[index].key)
+}
+
+@_cdecl("__kk_system_envValueAt")
+public func __kk_system_envValueAt(_ index: Int) -> Int {
+    guard runtimeSystemEnvironmentEntries.indices.contains(index) else {
+        return runtimeNullSentinelInt
+    }
+    return runtimeMakeStringRaw(runtimeSystemEnvironmentEntries[index].value)
 }
 
 /// Not monotonic — reads the system real-time clock, which may jump on NTP adjustments.

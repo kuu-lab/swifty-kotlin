@@ -324,7 +324,9 @@ public func kk_list_of(_ arrayRaw: Int, _ count: Int) -> Int {
     if count > 0, let array = runtimeArrayBox(from: arrayRaw) {
         elements = Array(array.elements.prefix(count))
     }
-    return registerRuntimeObject(RuntimeListBox(elements: elements), typeID: listRuntimeTypeID)
+    let list = RuntimeListBox(elements: elements)
+    list.freeze()
+    return registerRuntimeObject(list, typeID: listRuntimeTypeID)
 }
 
 @_cdecl("__kk_array_list_of")

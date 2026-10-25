@@ -19,6 +19,14 @@ public interface SortedMap<K, V> : MutableMap<K, V> {
     @KsSymbolName("__kk_sorted_map_last_key")
     public fun lastKey(): K
 
+    /** A live view of the entries with keys strictly below [toKey]. */
+    @KsSymbolName("__kk_sorted_map_head_map")
+    public fun headMap(toKey: K): SortedMap<K, V>
+
+    /** A live view of the entries with keys at or above [fromKey]. */
+    @KsSymbolName("__kk_sorted_map_tail_map")
+    public fun tailMap(fromKey: K): SortedMap<K, V>
+
     /** A live view starting at [fromKey] and ending before [toKey]. */
     @KsSymbolName("__kk_sorted_map_sub_map")
     public fun subMap(fromKey: K, toKey: K): SortedMap<K, V>

@@ -183,6 +183,9 @@ package struct BundledDeclarationIndex: Sendable {
             guard symbol.flags.contains(.synthetic) else { continue }
             guard !symbol.flags.contains(.importedLibrary) else { continue }
             guard symbol.kind == .function || symbol.kind == .property else { continue }
+            guard !Self.isSyntheticAnnotationClassObjectMethod(symbol, symbols: symbols, interner: interner) else {
+                continue
+            }
             // Header collection represents source-declared property accessors as
             // synthetic function symbols. They are implementation details of the
             // source property, not residual stdlib stubs that a KSP-002 guard
@@ -293,6 +296,33 @@ package struct BundledDeclarationIndex: Sendable {
                 "Synthetic stub '\(memberDisplay)' on '\(ownerDisplay)' (arity \(key.arity)) duplicates bundled stdlib declaration; KSP-002 skip guard missed.",
                 range: nil
             )
+        }
+    }
+
+    /// Annotation classes receive language-required Any overrides during header
+    /// collection. They are not optional synthetic stubs, so bundled metadata
+    /// for the same annotation class does not indicate that KSP-002 missed a skip.
+    private static func isSyntheticAnnotationClassObjectMethod(
+        _ symbol: SemanticSymbol,
+        symbols: SymbolTable,
+        interner: StringInterner
+    ) -> Bool {
+        guard symbol.kind == .function,
+              symbol.flags.contains(.overrideMember),
+              let ownerID = symbols.parentSymbol(for: symbol.id),
+              symbols.symbol(ownerID)?.kind == .annotationClass,
+              let signature = symbols.functionSignature(for: symbol.id)
+        else {
+            return false
+        }
+
+        switch interner.resolve(symbol.name) {
+        case "equals":
+            return signature.parameterTypes.count == 1
+        case "hashCode", "toString":
+            return signature.parameterTypes.isEmpty
+        default:
+            return false
         }
     }
 

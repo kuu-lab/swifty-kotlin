@@ -447,9 +447,11 @@ extension CallTypeChecker {
         // site. `T : Comparable<T>` therefore matches the source-backed
         // `Comparable<T>.compareTo` receiver even when the subtype checker
         // cannot materialize the F-bounded type parameter as a nominal type.
+        // Compare against the original receiver so a nullable bound only admits
+        // a nullable extension, even though the direct check above is non-null.
         if case let .typeParam(actualParam) = sema.types.kind(of: actual),
            sema.symbols.typeParameterUpperBounds(for: actualParam.symbol).contains(where: {
-               sema.types.isSubtype($0, declared)
+               sema.types.isSubtype($0, declaredReceiver)
            })
         {
             return true
@@ -457,6 +459,13 @@ extension CallTypeChecker {
         if case let .typeParam(actualParam) = sema.types.kind(of: actual),
            case let .classType(declaredClass) = sema.types.kind(of: declared),
            sema.symbols.typeParameterUpperBounds(for: actualParam.symbol).contains(where: { bound in
+               // This nominal fallback ignores generic arguments, not nullability.
+               guard sema.types.nullabilitySubtype(
+                   sema.types.nullability(of: bound),
+                   sema.types.nullability(of: declaredReceiver)
+               ) else {
+                   return false
+               }
                guard case let .classType(boundClass) = sema.types.kind(of: sema.types.makeNonNullable(bound)) else {
                    return false
                }

@@ -599,7 +599,7 @@ final class ExprTypeChecker {
                        sema: sema,
                        interner: interner
                    ),
-                   isDefinitelyDisjoint(subject: subjectNonNull, target: targetNonNull, sema: sema)
+                   isDefinitelyDisjoint(subject: subjectNonNull, target: targetNonNull, sema: sema, interner: interner)
                 {
                     if let severity = impossibleIsCheckSeverity(
                         subjectExpr: exprID,
@@ -2260,7 +2260,12 @@ final class ExprTypeChecker {
         }
         let declaredNonNull = sema.types.makeNonNullable(declaredType)
         guard declaredNonNull != narrowedSubjectType,
-              !isDefinitelyDisjoint(subject: declaredNonNull, target: targetType, sema: sema)
+              !isDefinitelyDisjoint(
+                  subject: declaredNonNull,
+                  target: targetType,
+                  sema: sema,
+                  interner: ctx.interner
+              )
         else {
             return .error
         }
@@ -2295,9 +2300,17 @@ final class ExprTypeChecker {
     /// Whether a `subject is target` check can never succeed: neither type
     /// is a subtype of the other and at least one side is a final/value
     /// type (so no subtype could satisfy both).
-    private func isDefinitelyDisjoint(subject: TypeID, target: TypeID, sema: SemaModule) -> Bool {
+    private func isDefinitelyDisjoint(
+        subject: TypeID,
+        target: TypeID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> Bool {
         let types = sema.types
         if types.isSubtype(subject, target) || types.isSubtype(target, subject) {
+            return false
+        }
+        if hasKnownJvmSerializableOverlap(subject: subject, target: target, sema: sema, interner: interner) {
             return false
         }
         // Generic subject shapes and type parameters defeat the nominal
@@ -2311,6 +2324,48 @@ final class ExprTypeChecker {
             return false
         }
         return isFinalForIsCheck(subject, sema: sema) || isFinalForIsCheck(target, sema: sema)
+    }
+
+    /// Kotlin/JVM represents these final Kotlin types as JVM classes that
+    /// implement `java.io.Serializable`; their canonical Sema types are the
+    /// unboxed primitive/String forms, so nominal subtyping alone misses the
+    /// overlap and would incorrectly prove an `is` check impossible.
+    private func hasKnownJvmSerializableOverlap(
+        subject: TypeID,
+        target: TypeID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> Bool {
+        guard sema.requiresResolvedLibraryCalls,
+              let serializableSymbol = sema.symbols.lookup(fqName: ["java", "io", "Serializable"].map(interner.intern)),
+              sema.symbols.symbol(serializableSymbol)?.kind == .interface
+        else {
+            return false
+        }
+
+        func isSerializableInterface(_ type: TypeID) -> Bool {
+            guard case let .classType(classType) = sema.types.kind(of: type) else { return false }
+            return classType.classSymbol == serializableSymbol
+        }
+
+        func isJvmSerializableBuiltin(_ type: TypeID) -> Bool {
+            switch sema.types.kind(of: type) {
+            case .stringStruct:
+                return true
+            case let .primitive(primitive, _):
+                switch primitive {
+                case .boolean, .char, .int, .long, .float, .double, .byte, .short:
+                    return true
+                case .uint, .ulong, .ubyte, .ushort:
+                    return false
+                }
+            default:
+                return false
+            }
+        }
+
+        return isJvmSerializableBuiltin(subject) && isSerializableInterface(target)
+            || isSerializableInterface(subject) && isJvmSerializableBuiltin(target)
     }
 
     /// Range expressions use their element primitive as the Sema type and carry
