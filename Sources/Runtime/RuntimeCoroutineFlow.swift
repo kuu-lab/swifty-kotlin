@@ -8,7 +8,14 @@ private let runtimeFlowCollectStackPthreadKey: pthread_key_t = makePthreadKey()
 /// Wrapper class so the flow collect stack can be stored as a single AnyObject
 /// in the pthread thread-local slot.
 private final class RuntimeFlowCollectStackBox {
-    var stack: [RuntimeFlowCollectContext] = []
+    var stack: [RuntimeFlowCollectStackEntry] = []
+}
+
+private struct RuntimeFlowCollectStackEntry {
+    // A worker can be reused while a coroutine is suspended; only the task
+    // that pushed this thread-local entry may treat it as the active context.
+    let taskKey: RuntimeTaskKey
+    let context: RuntimeFlowCollectContext
 }
 
 /// Runtime flow op tags must be aligned with the lowering/codegen enums in
@@ -182,6 +189,8 @@ final class RuntimeFlowCollectContext {
     // collector is invoked recursively until the stack overflows.
     var invokingCollector = false
     var emitHandler: ((Int) -> Int)?
+    // Restore the enclosing builder when this context is popped after a nested collect.
+    var previousContinuationContext: RuntimeFlowCollectContext?
 
     init() {
         parentEmitContext = runtimeFlowCurrentEmitContext()
@@ -320,19 +329,35 @@ private func runtimeFlowCollectStackBox() -> RuntimeFlowCollectStackBox {
 }
 
 private func runtimeFlowPushCollectContext(_ context: RuntimeFlowCollectContext) {
-    runtimeFlowCollectStackBox().stack.append(context)
+    if let state = RuntimeContinuationState.current {
+        context.previousContinuationContext = state.flowCollectContext
+        state.flowCollectContext = context
+    }
+    runtimeFlowCollectStackBox().stack.append(
+        RuntimeFlowCollectStackEntry(
+            taskKey: RuntimeCoroutineScopeTaskKey.currentTaskKey,
+            context: context
+        )
+    )
 }
 
-private func runtimeFlowPopCollectContext() {
+private func runtimeFlowPopCollectContext(_ context: RuntimeFlowCollectContext) {
     let box = runtimeFlowCollectStackBox()
-    guard !box.stack.isEmpty else {
-        return
+    if let index = box.stack.lastIndex(where: { $0.context === context }) {
+        box.stack.remove(at: index)
     }
-    _ = box.stack.popLast()
+    if let state = RuntimeContinuationState.current, state.flowCollectContext === context {
+        state.flowCollectContext = context.previousContinuationContext
+    }
 }
 
 func runtimeFlowCurrentCollectContext() -> RuntimeFlowCollectContext? {
-    runtimeFlowCollectStackBox().stack.last
+    if let context = RuntimeContinuationState.current?.flowCollectContext {
+        return context
+    }
+    let taskKey = RuntimeCoroutineScopeTaskKey.currentTaskKey
+    return runtimeFlowCollectStackBox().stack.reversed()
+        .first(where: { $0.taskKey == taskKey })?.context
 }
 
 private func runtimeFlowWithContinuationContext<T>(
@@ -349,14 +374,16 @@ private func runtimeFlowWithContinuationContext<T>(
 /// belong to the source being consumed rather than to the builder that is
 /// currently executing `emit`.
 private func runtimeFlowCurrentEmitContext() -> RuntimeFlowCollectContext? {
-    if let context = runtimeFlowCollectStackBox().stack.reversed().first(where: { !$0.invokingCollector }) {
+    var context = RuntimeContinuationState.current?.flowCollectContext
+    if context != nil {
+        while let current = context, current.invokingCollector {
+            context = current.parentEmitContext
+        }
         return context
     }
-    var context = RuntimeContinuationState.current?.flowCollectContext
-    while let current = context, current.invokingCollector {
-        context = current.parentEmitContext
-    }
-    return context
+    let taskKey = RuntimeCoroutineScopeTaskKey.currentTaskKey
+    return runtimeFlowCollectStackBox().stack.reversed()
+        .first(where: { $0.taskKey == taskKey && !$0.context.invokingCollector })?.context
 }
 
 private func runtimeFlowSortEvents(_ events: [RuntimeFlowEvent]) -> [RuntimeFlowEvent] {
@@ -619,7 +646,7 @@ private func runtimeFlowApplyOpsLazy(
             runtimeFlowPushCollectContext(transformCtx)
             var thrown = 0
             _ = transformFn(current, &thrown)
-            runtimeFlowPopCollectContext()
+            runtimeFlowPopCollectContext(transformCtx)
             if thrown != 0 {
                 return .thrown(thrown)
             }
@@ -838,7 +865,7 @@ private func runtimeFlowRunSourceStage(
     runtimeFlowWithContinuationContext(context) {
         runtimeFlowInvokeEmitter(flow, outThrown: &outThrown)
     }
-    runtimeFlowPopCollectContext()
+    runtimeFlowPopCollectContext(context)
 
     if failure == nil, outThrown != 0 {
         failure = outThrown
@@ -1102,7 +1129,7 @@ private func runtimeFlowCollectChannelProducer(
         }
         runtimeFlowPushCollectContext(context)
         let thrown = runtimeFlowWithContinuationContext(context) { body() }
-        runtimeFlowPopCollectContext()
+        runtimeFlowPopCollectContext(context)
         if let thrown, thrown != 0 {
             if case .stopped = delivery, thrown == delivery.completionCause { return delivery }
             return .failed(thrown)
@@ -1529,7 +1556,7 @@ private func runtimeFlowCollectStreaming(
         runtimeFlowWithContinuationContext(context) {
             runtimeFlowInvokeEmitter(flow, outThrown: &outThrown)
         }
-        runtimeFlowPopCollectContext()
+        runtimeFlowPopCollectContext(context)
 
         if outThrown == 0 {
             let processedEvents = runtimeFlowApplyStreamOps(context.emittedEvents, ops: ops) ?? context.emittedEvents
@@ -1606,7 +1633,7 @@ private func runtimeFlowCollectStreaming(
             runtimeFlowPushCollectContext(transformCtx)
             var thrown = 0
             _ = transformFn(preValue, &thrown)
-            runtimeFlowPopCollectContext()
+            runtimeFlowPopCollectContext(transformCtx)
 
             if thrown != 0 {
                 context.failure = thrown
@@ -1681,7 +1708,7 @@ private func runtimeFlowCollectStreaming(
     runtimeFlowWithContinuationContext(context) {
         runtimeFlowInvokeEmitter(flow, outThrown: &outThrown)
     }
-    runtimeFlowPopCollectContext()
+    runtimeFlowPopCollectContext(context)
     return outThrown != 0 ? outThrown : context.failure
 }
 
