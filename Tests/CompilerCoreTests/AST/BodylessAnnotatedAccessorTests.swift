@@ -4,6 +4,16 @@ import Testing
 
 @Suite
 struct BodylessAnnotatedAccessorTests {
+    @Test(arguments: [
+        "fun make() = object { var size = 1\n private set }",
+        "enum class Probe { ENTRY { var size = 1\n private set } }",
+    ])
+    func visibilitySetterRemainsInAnonymousMemberBody(source: String) {
+        let parsed = parse(source)
+        #expect(!parsed.diagnostics.hasError, "\(parsed.diagnostics.diagnostics)")
+        #expect(parsed.arena.nodes.count { $0.kind == .propertyAccessor } == 1)
+    }
+
     @Test(arguments: [("get", ""), ("get", "() = 1"), ("set", ""), ("set", "(value) {}")])
     func accessorKeywordAnnotationNameIsNotAnAccessor(name: String, body: String) throws {
         let (ast, context) = try buildASTModule(from: """

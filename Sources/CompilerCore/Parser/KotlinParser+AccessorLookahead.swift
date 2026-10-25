@@ -3,6 +3,7 @@ extension KotlinParser {
     /// declaration CST node.
     func isPropertyAccessorStart(_ token: Token, allowsBodyless: Bool = true) -> Bool {
         var offset = 0
+        var hasVisibilityModifier = false
         // Skip annotations without consuming them: an annotation on the next
         // declaration must not be absorbed into the preceding property.
         while stream.peek(offset).kind == .symbol(.at) {
@@ -12,7 +13,10 @@ extension KotlinParser {
         visibilityPrefix: while true {
             guard case let .keyword(keyword) = stream.peek(offset).kind else { break }
             switch keyword {
-            case .public, .private, .internal, .protected, .inline:
+            case .public, .private, .internal, .protected:
+                hasVisibilityModifier = true
+                offset += 1
+            case .inline:
                 offset += 1
             default:
                 break visibilityPrefix
@@ -25,7 +29,9 @@ extension KotlinParser {
             }
             // Without an accessor prefix, a bare get/set can be the next
             // statement's ordinary name (notably a lambda's return value).
-            guard allowsBodyless, offset > 0 else { return false }
+            let isLegacyDefaultSetter = hasVisibilityModifier
+                && stream.peek(offset).kind == .softKeyword(.set)
+            guard offset > 0, allowsBodyless || isLegacyDefaultSetter else { return false }
             // A default accessor has no parameter list or body. Annotations
             // may precede either accessor, including `@JvmName(...) get` on
             // an expect property; keep it attached to that property.
