@@ -591,6 +591,14 @@ extension KIRLoweringDriver {
             // from initializers (e.g. `init { println(id) }`) do not recurse.
             body.append(.storeGlobal(value: trueExpr, symbol: flagSymbol))
 
+            // KUU-3225: `$enumEnsureInit$` is the enum class's <clinit> —
+            // on the JVM its supertype companions initialize before any
+            // entry is constructed.
+            emitSupertypeCompanionInitCalls(
+                for: ownerSymbol, sema: sema, arena: arena, interner: interner,
+                instructions: &body.instructions
+            )
+
             let enumType = sema.types.make(.classType(ClassType(
                 classSymbol: ownerSymbol, args: [], nullability: .nonNull
             )))

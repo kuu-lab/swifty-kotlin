@@ -116,6 +116,123 @@ extension KIRLoweringDriver {
         instructions.append(.call(symbol: lazyInitSymbol, callee: lazyInitName, arguments: [], result: result, canThrow: false))
     }
 
+    /// KUU-3225: JVM class-initialization order (JLS 12.4.1; the same order
+    /// Kotlin 2.4.20 native/KLIB adopted for KT-84267/KT-40768).
+    /// Initializing a class runs its supertype initializers first — the
+    /// superclass chain, most distant ancestor first, before the class's
+    /// own companion — followed by superinterfaces that declare a concrete
+    /// (non-abstract) member. Companion-less classes contribute nothing
+    /// themselves but the traversal continues through them, and interfaces
+    /// declaring only abstract members are likewise skipped while their
+    /// superinterfaces still initialize.
+    ///
+    /// Only the nearest companion-owning nominal in each chain gets a call
+    /// emitted here: that ensure-init's own body carries the same
+    /// dependency preamble, so deeper ancestors are covered transitively.
+    /// `visited` deduplicates diamonds and guards malformed cyclic input.
+    func emitSupertypeCompanionInitCalls(
+        for nominalSymbol: SymbolID,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        instructions: inout [KIRInstruction]
+    ) {
+        var visited: Set<SymbolID> = []
+        emitSupertypeCompanionInitCalls(
+            for: nominalSymbol, sema: sema, arena: arena, interner: interner,
+            visited: &visited, instructions: &instructions
+        )
+    }
+
+    private func emitSupertypeCompanionInitCalls(
+        for nominalSymbol: SymbolID,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        visited: inout Set<SymbolID>,
+        instructions: inout [KIRInstruction]
+    ) {
+        let supertypes = sema.symbols.directSupertypes(for: nominalSymbol)
+        // The superclass chain initializes before this class's own
+        // superinterfaces do.
+        for superSymbol in supertypes {
+            guard let kind = sema.symbols.symbol(superSymbol)?.kind,
+                  kind == .class || kind == .enumClass,
+                  superSymbol != sema.types.anyClassSymbol,
+                  visited.insert(superSymbol).inserted
+            else { continue }
+            if let companionSymbol = sema.symbols.companionObjectSymbolIfKnown(for: superSymbol) {
+                emitObjectLazyInitGuardIfNeeded(
+                    objectSymbol: companionSymbol, arena: arena, sema: sema,
+                    interner: interner, instructions: &instructions
+                )
+            } else {
+                emitSupertypeCompanionInitCalls(
+                    for: superSymbol, sema: sema, arena: arena, interner: interner,
+                    visited: &visited, instructions: &instructions
+                )
+            }
+        }
+        for superSymbol in supertypes {
+            guard sema.symbols.symbol(superSymbol)?.kind == .interface else { continue }
+            emitInterfaceCompanionInitCalls(
+                for: superSymbol, sema: sema, arena: arena, interner: interner,
+                visited: &visited, instructions: &instructions
+            )
+        }
+    }
+
+    private func emitInterfaceCompanionInitCalls(
+        for interfaceSymbol: SymbolID,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        visited: inout Set<SymbolID>,
+        instructions: inout [KIRInstruction]
+    ) {
+        guard visited.insert(interfaceSymbol).inserted else { return }
+        if interfaceDeclaresConcreteMember(interfaceSymbol, sema: sema),
+           let companionSymbol = sema.symbols.companionObjectSymbolIfKnown(for: interfaceSymbol)
+        {
+            emitObjectLazyInitGuardIfNeeded(
+                objectSymbol: companionSymbol, arena: arena, sema: sema,
+                interner: interner, instructions: &instructions
+            )
+            return
+        }
+        // Either the interface declares no concrete member — it is not an
+        // initialization dependency — or it declares one without owning a
+        // companion whose <clinit> would carry it. Both cases still recurse
+        // so reachable superinterfaces initialize.
+        for superSymbol in sema.symbols.directSupertypes(for: interfaceSymbol) {
+            guard sema.symbols.symbol(superSymbol)?.kind == .interface else { continue }
+            emitInterfaceCompanionInitCalls(
+                for: superSymbol, sema: sema, arena: arena, interner: interner,
+                visited: &visited, instructions: &instructions
+            )
+        }
+    }
+
+    /// A superinterface is a class-initialization dependency only when it
+    /// declares at least one member with an implementation (a "default"
+    /// method). Companion objects, nested types, and abstract members do
+    /// not count: `interface J : I { companion object {…} }` is skipped
+    /// while `I` still initializes.
+    private func interfaceDeclaresConcreteMember(
+        _ interfaceSymbol: SymbolID,
+        sema: SemaModule
+    ) -> Bool {
+        sema.symbols.children(of: interfaceSymbol).contains { child in
+            guard let info = sema.symbols.symbol(child) else { return false }
+            switch info.kind {
+            case .function, .property:
+                return !info.flags.contains(.abstractType)
+            default:
+                return false
+            }
+        }
+    }
+
     func resolveDeferredObjectLazyInitGuards(arena: KIRArena) {
         let pending = ctx.deferredObjectLazyInitSymbols
         guard !pending.isEmpty else { return }
@@ -418,6 +535,14 @@ extension KIRLoweringDriver {
         // singleton's own init code to read its not-yet-fully-set-up state)
         // sees "already initialized" and does not recurse.
         body.append(.storeGlobal(value: trueExpr, symbol: flagSymbol))
+
+        // KUU-3225: touching the object is an active use of its class — on
+        // the JVM the supertype companions initialize before this object's
+        // own <clinit> body (and before the super-constructor call below).
+        emitSupertypeCompanionInitCalls(
+            for: objectSymbol, sema: sema, arena: arena, interner: interner,
+            instructions: &body.instructions
+        )
 
         emitSingletonLateinitSentinels(objectDecl.memberProperties, shared: shared, body: &body)
         emitNamedObjectSuperConstructorCall(
