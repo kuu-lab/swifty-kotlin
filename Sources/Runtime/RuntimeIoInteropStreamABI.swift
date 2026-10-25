@@ -117,9 +117,17 @@ public func __kk_output_stream_close_throwing(_ stream: Int, _ outThrown: Unsafe
 @_cdecl("__kk_buffered_writer_close_throwing")
 public func __kk_buffered_writer_close_throwing(_ writer: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
-    guard let pointer = UnsafeMutableRawPointer(bitPattern: writer),
-          let box = tryCast(pointer, to: RuntimeBufferedWriterBox.self) else {
-        fatalError("KSwiftK panic: invalid BufferedWriter handle")
+    guard let pointer = UnsafeMutableRawPointer(bitPattern: writer) else {
+        fatalError("KSwiftK panic: invalid Writer handle")
+    }
+    if let stringWriter = tryCast(pointer, to: RuntimeStringWriterBox.self) {
+        do { try stringWriter.closeThrowing() }
+        catch let failure as RuntimeKotlinThrownError { outThrown?.pointee = failure.thrownRaw }
+        catch { outThrown?.pointee = runtimeAllocateIOException(message: error.localizedDescription) }
+        return 0
+    }
+    guard let box = tryCast(pointer, to: RuntimeBufferedWriterBox.self) else {
+        fatalError("KSwiftK panic: invalid Writer handle")
     }
     do { try box.closeThrowing() }
     catch let failure as RuntimeKotlinThrownError { outThrown?.pointee = failure.thrownRaw }

@@ -15,6 +15,15 @@ private let ioBufferedReaderCloseEntry: @convention(c) (Int, UnsafeMutablePointe
     return __kk_buffered_reader_close(raw)
 }
 
+private let ioWriterCloseEntry: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { raw, thrown in
+    __kk_buffered_writer_close_throwing(raw, thrown)
+}
+
+private let ioStringWriterToStringEntry: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { raw, thrown in
+    thrown?.pointee = 0
+    return __kk_string_writer_to_string(raw)
+}
+
 func runtimeRegisterBufferedReaderCloseDispatch(_ objectRaw: Int) {
     let closeEntry = unsafeBitCast(ioBufferedReaderCloseEntry, to: Int.self)
     for (interfaceName, interfaceSlot) in [("kotlin.AutoCloseable", 0), ("kotlin.io.Closeable", 1)] {
@@ -25,6 +34,33 @@ func runtimeRegisterBufferedReaderCloseDispatch(_ objectRaw: Int) {
         )
         _ = kk_object_register_itable_method(objectRaw, interfaceSlot, 0, closeEntry)
     }
+}
+
+func runtimeRegisterJavaWriter(
+    _ object: any RuntimeJavaWriter,
+    fqName: String,
+    parentFQName: String
+) -> Int {
+    let raw = registerRuntimeObject(object, typeID: runtimeStableNominalTypeID(fqName: fqName))
+    let parentID = runtimeStableNominalTypeID(fqName: parentFQName)
+    let nominalID = runtimeStableNominalTypeID(fqName: fqName)
+    let closeNames = ["kotlin.io.Closeable", "java.io.Closeable", "kotlin.AutoCloseable", "java.lang.AutoCloseable"]
+    runtimeStorage.withMetadataLock { state in
+        state.typeParents[nominalID, default: []].insert(parentID)
+        for name in closeNames { state.typeParents[parentID, default: []].insert(runtimeStableNominalTypeID(fqName: name)) }
+    }
+    let closeEntry = unsafeBitCast(ioWriterCloseEntry, to: Int.self)
+    for (interfaceName, interfaceSlot) in [("kotlin.AutoCloseable", 0), ("kotlin.io.Closeable", 1)] {
+        _ = kk_object_register_itable_iface(raw, Int(runtimeStableNominalTypeID(fqName: interfaceName)), interfaceSlot)
+        _ = kk_object_register_itable_method(raw, interfaceSlot, 0, closeEntry)
+    }
+    if object is RuntimeStringWriterBox {
+        _ = kk_object_register_any_to_string(
+            raw,
+            unsafeBitCast(ioStringWriterToStringEntry, to: Int.self)
+        )
+    }
+    return raw
 }
 
 /// Register each allocation after metadata resets; this does not invent class
