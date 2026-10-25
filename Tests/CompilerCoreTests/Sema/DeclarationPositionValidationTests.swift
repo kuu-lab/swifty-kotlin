@@ -497,6 +497,23 @@ struct DeclarationPositionValidationTests {
         assertHasDiagnostic("KSWIFTK-SEMA-0070", in: ctx)
     }
 
+    @Test(arguments: ["public", "private", "internal", "protected"])
+    func visibilityModifierOnValueParameterIsRejected(_ modifier: String) throws {
+        let ctx = try semaContextWithoutStdlib(for: "class C(\(modifier) value: Int)")
+
+        let diagnostics = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0400" }
+        #expect(diagnostics.map(\.message) == [
+            "modifier '\(modifier)' is not applicable to 'value parameter'."
+        ])
+    }
+
+    @Test
+    func visibilityModifierOnConstructorPropertyParameterIsAccepted() throws {
+        let ctx = try semaContextWithoutStdlib(for: "class C(private val value: Int, internal var count: Int)")
+
+        assertNoDiagnostic("KSWIFTK-SEMA-0400", in: ctx)
+    }
+
     // MARK: - Modifier incompatibilities
 
     @Test func finalOpenFunctionIsRejected() throws {
