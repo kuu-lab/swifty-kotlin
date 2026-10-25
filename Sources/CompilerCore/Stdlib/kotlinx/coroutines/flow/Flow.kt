@@ -176,7 +176,7 @@ public fun <T, R> Flow<T>.flatMapMerge(
     transform: suspend (T) -> Flow<R>
 ): Flow<R> {
     require(concurrency > 0) { "Expected positive concurrency level, but had $concurrency" }
-    return flatMapConcat(transform)
+    return map(transform).flattenMerge(concurrency)
 }
 
 public fun <T, R> Flow<T>.flatMapMerge(
@@ -318,11 +318,10 @@ public fun <T, R, V> Flow<T>.combine(
     }
 }
 
-public fun <T> merge(vararg flows: Flow<T>): Flow<T> = flow {
-    for (source in flows) {
-        source.collect { value -> emit(value) }
-    }
-}
+public fun <T> merge(vararg flows: Flow<T>): Flow<T> = mergeInternal(
+    flow { for (source in flows) emit(source) },
+    DEFAULT_CONCURRENCY
+)
 
 @FlowPreview
 public fun <T> Flow<T>.debounce(timeoutMillis: Long): Flow<T> {
