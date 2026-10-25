@@ -670,6 +670,13 @@ extension LocalDeclTypeChecker {
         var typeParameterSymbols: [SymbolID] = []
         var reifiedTypeParameterIndices: Set<Int> = []
         for (index, typeParam) in typeParams.enumerated() {
+            if typeParam.variance != .invariant {
+                sema.diagnostics.error(
+                    "KSWIFTK-SEMA-0443",
+                    "Variance annotations are only allowed for type parameters of classes and interfaces.",
+                    range: range
+                )
+            }
             var flags: SymbolFlags = []
             if typeParam.isReified {
                 flags.insert(.reifiedTypeParameter)

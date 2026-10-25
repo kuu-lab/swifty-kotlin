@@ -1512,6 +1512,7 @@ extension DataFlowSemaPhase {
         interner: StringInterner,
         sourceManager: SourceManager? = nil,
         isInline: Bool,
+        isProperty: Bool = false,
         diagnostics: DiagnosticEngine,
         enclosingTypeParameters: [InternedString: SymbolID] = [:],
         relativeOwnerFQName: [InternedString]? = nil,
@@ -1522,6 +1523,13 @@ extension DataFlowSemaPhase {
         var localTypeParameters: [InternedString: SymbolID] = [:]
         var reifiedIndices: Set<Int> = []
         for (index, typeParam) in typeParams.enumerated() {
+            if !isProperty, typeParam.variance != .invariant {
+                diagnostics.error(
+                    "KSWIFTK-SEMA-0443",
+                    "Variance annotations are only allowed for type parameters of classes and interfaces.",
+                    range: declSite
+                )
+            }
             let typeParamFQName = localNamespaceFQName + [typeParam.name]
             let typeParamFlags: SymbolFlags = typeParam.isReified ? [.reifiedTypeParameter] : []
             let typeParamSymbol = symbols.define(
