@@ -213,6 +213,56 @@ private func runtimeMakeBigDecimal(_ parts: RuntimeBigDecimalParts) throws -> In
     return registerRuntimeObject(RuntimeBigNumberBox(value: value, kind: .decimal))
 }
 
+@_cdecl("__kk_double_toBigDecimal")
+public func __kk_double_toBigDecimal(
+    _ valueRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    let bits = UInt64(bitPattern: Int64(valueRaw))
+    let value = Double(bitPattern: bits)
+    guard value.isFinite else {
+        outThrown?.pointee = runtimeAllocateNumberFormatException(message: "Infinite or NaN")
+        return 0
+    }
+
+    let exponentBits = Int((bits >> 52) & 0x7FF)
+    let fractionBits = bits & 0x000F_FFFF_FFFF_FFFF
+    let significand = exponentBits == 0 ? fractionBits : fractionBits | (1 << 52)
+    let negative = bits & (1 << 63) != 0
+    var digits = String(significand)
+    var scale = 0
+
+    if significand != 0 {
+        let binaryExponent = exponentBits == 0 ? -1074 : exponentBits - 1023 - 52
+        if binaryExponent >= 0 {
+            for _ in 0 ..< binaryExponent {
+                digits = runtimeMultiplyMagnitudeBySmall(digits, 2)
+            }
+        } else {
+            scale = -binaryExponent
+            for _ in 0 ..< scale {
+                digits = runtimeMultiplyMagnitudeBySmall(digits, 5)
+            }
+            while scale > 0, digits.last == "0" {
+                digits.removeLast()
+                scale -= 1
+            }
+        }
+    }
+
+    let parts = RuntimeBigDecimalParts(
+        digits: digits,
+        negative: negative,
+        scale: scale
+    )
+    do {
+        return try runtimeMakeBigDecimal(parts)
+    } catch {
+        return runtimeArithmeticException(error, outThrown: outThrown)
+    }
+}
+
 private func runtimeArithmeticException(_ error: Error, outThrown: UnsafeMutablePointer<Int>?) -> Int {
     let message: String
     if case let RuntimeBigDecimalError.arithmetic(reason) = error {
