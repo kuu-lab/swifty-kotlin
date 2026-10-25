@@ -456,6 +456,20 @@ struct DeclarationBoundaryTests {
     }
 
     @Test
+    func functionDeclarationRejectsByDelegation() {
+        let parsed = parse("""
+        fun f() by lazy { 1 }
+        fun main() {}
+        """)
+
+        #expect(parsed.diagnostics.diagnostics.contains {
+            $0.code == "KSWIFTK-PARSE-0006"
+                && $0.message == "Unexpected 'by' after function signature."
+        })
+        #expect(nodeCount(in: parsed.arena, kind: .funDecl) == 2)
+    }
+
+    @Test
     func testExpressionBodiedPropertyDoesNotAbsorbFollowingModifiedDeclaration() {
         let source = """
         val answer = 42
