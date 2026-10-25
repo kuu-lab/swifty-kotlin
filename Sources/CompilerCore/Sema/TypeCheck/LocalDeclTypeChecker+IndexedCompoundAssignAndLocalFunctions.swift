@@ -981,6 +981,24 @@ extension LocalDeclTypeChecker {
                 locals: &bodyLocals,
                 expectedType: returnTypeRef != nil ? resolvedReturnType : nil
             )
+            if returnTypeRef != nil,
+               !driver.helpers.rangeExprMatchesDeclaredElementType(
+                   bodyExprID: exprID,
+                   bodyType: inferredBodyType,
+                   declaredType: resolvedReturnType,
+                   sema: sema,
+                   interner: interner
+               )
+            {
+                driver.emitSubtypeConstraint(
+                    left: inferredBodyType,
+                    right: resolvedReturnType,
+                    range: range,
+                    solver: driver.solver,
+                    sema: sema,
+                    diagnostics: sema.diagnostics
+                )
+            }
             if returnTypeRef != nil, resolvedReturnType == sema.types.unitType,
                sema.types.makeNonNullable(inferredBodyType) == sema.types.unitType
             {
