@@ -936,25 +936,19 @@ func itableBridgeSymbolForMethod(
     else {
         return implementation
     }
-    // A `kotlin.Any.toString` vtable slot keeps the runtime's raw
-    // (Int) -> Int string-handle ABI: classes without an override dispatch
-    // to `kk_any_member_to_string` through the same slot, so a Kotlin
-    // override returning the flat String aggregate cannot be registered
-    // directly even though its declared return type matches the slot's.
-    // Route it through the same raw bridge used for
-    // `kk_object_register_any_to_string` registration (KUU-3111).
-    if let interfaceInfo = sema.symbols.symbol(interfaceMethod),
-       isSyntheticAnyToStringSymbol(interfaceInfo, interner: interner),
-       let bridge = anyToStringBridgeSymbolForImplementation(
-           implementation,
-           driver: driver,
-           arena: arena,
-           sema: sema,
-           interner: interner
-       )
-    {
-        return bridge
-    }
+    // A vtable slot is invoked through the *declared* slot signature:
+    // `emitVirtualCall` types a `toString` dispatch as the flat String
+    // aggregate (`virtualCallReturnsAggregate`), so the function pointer
+    // stored in the `kotlin.Any.toString` slot must share that flat source
+    // ABI. A Kotlin override therefore registers directly (or through the
+    // generic `kk_itable_bridge_*` synthesized below when the shapes
+    // differ). The raw (Int) -> Int `kk_any_to_string_bridge_*` thunk is
+    // reserved for `kk_object_register_any_to_string`, the erased-Any
+    // stringify map — in the slot, the flat call reads the bridge's single
+    // i64 handle return as the flat String aggregate, so every word past
+    // the first is undefined and the resulting string is corrupt
+    // (KUU-3197; supersedes the KUU-3111 raw-bridge routing, which predated
+    // the flat call ABI).
     let implementationFn = arena.function(for: implementation)
     // `external` implementations have no KIR body; their ABI is the runtime
     // contract, which passes `String` through a raw handle rather than the
