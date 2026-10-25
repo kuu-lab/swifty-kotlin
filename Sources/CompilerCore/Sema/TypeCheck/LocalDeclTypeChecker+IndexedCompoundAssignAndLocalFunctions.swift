@@ -1091,15 +1091,30 @@ extension LocalDeclTypeChecker {
         localFunctionOuterSymbols.formUnion(driver.helpers.lexicalTypeParameterSymbols(in: ctx).filter {
             sema.symbols.symbol($0)?.flags.contains(.reifiedTypeParameter) == true
         })
-        sema.bindings.bindLocalFunctionCaptureSymbols(
-            funSymbol,
-            symbols: driver.captureAnalyzer.collectCapturedOuterSymbols(
-                inBody: body,
+        // Parameter default expressions are evaluated in the lifted function's
+        // scope at call time: an outer local referenced only there
+        // (`fun bar(y: T = x)`) is a real capture the `$default` stub and call
+        // sites must thread through (KUU-3182).
+        var localFunctionCaptureSymbols = driver.captureAnalyzer.collectCapturedOuterSymbols(
+            inBody: body,
+            ast: ast,
+            sema: sema,
+            outerSymbols: localFunctionOuterSymbols,
+            skipNestedClosures: false
+        )
+        for valueParam in valueParams {
+            guard let defaultValue = valueParam.defaultValue else { continue }
+            localFunctionCaptureSymbols.append(contentsOf: driver.captureAnalyzer.collectCapturedOuterSymbols(
+                in: defaultValue,
                 ast: ast,
                 sema: sema,
                 outerSymbols: localFunctionOuterSymbols,
                 skipNestedClosures: false
-            )
+            ))
+        }
+        sema.bindings.bindLocalFunctionCaptureSymbols(
+            funSymbol,
+            symbols: localFunctionCaptureSymbols
         )
 
         let existingLocalIsValue: Bool = {

@@ -515,11 +515,17 @@ extension LambdaLowerer {
             return check(lhs) || check(rhs)
         case let .callableRef(receiver, _, _):
             return receiver.map(check) ?? false
-        case let .localFunDecl(_, receiverType, _, _, body, _, _, _, _):
+        case let .localFunDecl(_, receiverType, valueParams, _, body, _, _, _, _):
             // Nested extensions supply their own implicit receiver. Their lexical
             // value captures are handled by collectBoundIdentifierSymbols.
             if excludingLocalExtensionBodies, receiverType != nil {
                 return false
+            }
+            // Parameter default expressions evaluate in the lifted function's
+            // scope: an implicit member read there captures the enclosing
+            // receiver just like a body read (KUU-3182).
+            if valueParams.contains(where: { $0.defaultValue.map(check) ?? false }) {
+                return true
             }
             return checkFunctionBody(body, check: check)
         case let .forExpr(_, iterable, body, _, _):

@@ -629,7 +629,17 @@ extension LambdaLowerer {
                 collectBoundIdentifierSymbols(in: receiverExpr, ast: ast, sema: sema, referenced: &referenced, seen: &seen)
             }
 
-        case let .localFunDecl(_, _, _, _, functionBody, _, _, _, _):
+        case let .localFunDecl(_, _, valueParams, _, functionBody, _, _, _, _):
+            // Parameter default expressions run inside the lifted function's
+            // scope at call time — an outer local referenced only there
+            // (`fun bar(y: T = x)`) must reach the nested function through the
+            // enclosing callable's environment (KUU-3182).
+            for valueParam in valueParams {
+                guard let defaultValue = valueParam.defaultValue else { continue }
+                collectBoundIdentifierSymbols(
+                    in: defaultValue, ast: ast, sema: sema, referenced: &referenced, seen: &seen
+                )
+            }
             switch functionBody {
             case let .block(exprIDs, _):
                 for nestedExpr in exprIDs {
@@ -940,7 +950,12 @@ extension LambdaLowerer {
             }
             return containsImplicitReceiverReference(in: receiverExpr, ast: ast)
 
-        case let .localFunDecl(_, _, _, _, functionBody, _, _, _, _):
+        case let .localFunDecl(_, _, valueParams, _, functionBody, _, _, _, _):
+            if valueParams.contains(where: {
+                $0.defaultValue.map { containsImplicitReceiverReference(in: $0, ast: ast) } ?? false
+            }) {
+                return true
+            }
             switch functionBody {
             case let .block(exprIDs, _):
                 return exprIDs.contains { containsImplicitReceiverReference(in: $0, ast: ast) }
