@@ -55,13 +55,63 @@ final class ValueClassUnboxingPass: LoweringPass, ParallelLoweringPass {
 
         let kk_object_new = ctx.interner.intern("kk_object_new")
         let kk_array_get_inbounds = ctx.interner.intern("kk_array_get_inbounds")
+        let kk_array_set = ctx.interner.intern("kk_array_set")
+
+        // A value-class constructor whose body does more than store its
+        // underlying field carries observable work (init blocks, parameter
+        // validation) that must survive unboxing. Such ctors keep their
+        // `kk_object_new` + `<init>` call sequence; the pass only appends the
+        // raw-representation copy afterwards.
+        var ctorsRequiringExecution: Set<SymbolID> = []
+        var ctorUnderlyingFieldOffset: [SymbolID: Int64] = [:]
+        var executingCtorThisSymbols: Set<SymbolID> = []
+        // `V()` lowers to `call V$default(alloc, mask)`: the synthetic
+        // default-arg stub's symbol differs from the constructor symbol.
+        var valueClassDefaultStubToCtor: [SymbolID: SymbolID] = [:]
+        for ctorSymbol in valueClassCtors {
+            valueClassDefaultStubToCtor[
+                SyntheticSymbolScheme.defaultStubSymbol(for: ctorSymbol)
+            ] = ctorSymbol
+        }
+        for decl in module.arena.declarations {
+            guard case let .function(function) = decl,
+                  valueClassCtors.contains(function.symbol)
+            else { continue }
+            // constValue result -> literal, so `kk_array_set(this, offset, _)`
+            // can reveal where the underlying field lives.
+            var literalByExpr: [KIRExprID: Int64] = [:]
+            for instruction in function.body {
+                if case let .constValue(resultExpr, value) = instruction,
+                   case let .intLiteral(literal) = value
+                {
+                    literalByExpr[resultExpr] = literal
+                }
+            }
+            for instruction in function.body {
+                if case let .call(_, callee, arguments, _, _, _, _, _) = instruction,
+                   callee == kk_array_set, arguments.count == 3,
+                   let offset = literalByExpr[arguments[1]]
+                {
+                    ctorUnderlyingFieldOffset[function.symbol] = offset
+                }
+            }
+            if function.body.contains(where: {
+                !$0.isPureValueClassFieldInit(kk_array_set: kk_array_set)
+            }) {
+                ctorsRequiringExecution.insert(function.symbol)
+                if let thisParam = function.params.first {
+                    executingCtorThisSymbols.insert(thisParam.symbol)
+                }
+            }
+        }
 
         let interner = ctx.interner
 
         module.arena.transformFunctions { function in
             var updated = function
-            let newBody = self.rewriteBody(
+            let rewritten = self.rewriteBody(
                 function.body,
+                locations: function.instructionLocations,
                 arena: module.arena,
                 interner: interner,
                 types: types,
@@ -69,9 +119,13 @@ final class ValueClassUnboxingPass: LoweringPass, ParallelLoweringPass {
                 valueClassCtors: valueClassCtors,
                 valueClassSymbols: valueClassSymbols,
                 kk_object_new: kk_object_new,
-                kk_array_get_inbounds: kk_array_get_inbounds
+                kk_array_get_inbounds: kk_array_get_inbounds,
+                ctorsRequiringExecution: ctorsRequiringExecution,
+                ctorUnderlyingFieldOffset: ctorUnderlyingFieldOffset,
+                executingCtorThisSymbols: executingCtorThisSymbols,
+                valueClassDefaultStubToCtor: valueClassDefaultStubToCtor
             )
-            updated.replaceBody(newBody, locations: function.instructionLocations)
+            updated.replaceBody(rewritten.instructions, locations: rewritten.locations)
             return updated
         }
 
@@ -117,8 +171,30 @@ final class ValueClassUnboxingPass: LoweringPass, ParallelLoweringPass {
         return false
     }
 
+    /// KUU-3115: a `V?` receiver of a value class whose underlying payload can
+    /// itself be null holds a nominal `RuntimeObjectBox` — the inbounds read
+    /// *is* the payload load, so it must be kept rather than rewritten to a
+    /// bare copy (which would alias the box as the `String?` payload).
+    private func isNullableUnderlyingValueClassReceiver(
+        _ expr: KIRExprID,
+        arena: KIRArena,
+        types: TypeSystem,
+        symbols: SymbolTable
+    ) -> Bool {
+        guard let receiverType = arena.exprType(expr),
+              case let .classType(classType) = types.kind(of: receiverType),
+              classType.nullability != .nonNull
+        else { return false }
+        return nullableUnderlyingValueClassSymbol(
+            of: types.kind(of: types.makeNonNullable(receiverType)),
+            types: types,
+            symbols: symbols
+        ) != nil
+    }
+
     private func rewriteBody(
         _ body: [KIRInstruction],
+        locations: [SourceRange?],
         arena: KIRArena,
         interner: StringInterner,
         types: TypeSystem,
@@ -126,8 +202,12 @@ final class ValueClassUnboxingPass: LoweringPass, ParallelLoweringPass {
         valueClassCtors: Set<SymbolID>,
         valueClassSymbols: Set<SymbolID>,
         kk_object_new: InternedString,
-        kk_array_get_inbounds: InternedString
-    ) -> [KIRInstruction] {
+        kk_array_get_inbounds: InternedString,
+        ctorsRequiringExecution: Set<SymbolID>,
+        ctorUnderlyingFieldOffset: [SymbolID: Int64],
+        executingCtorThisSymbols: Set<SymbolID>,
+        valueClassDefaultStubToCtor: [SymbolID: SymbolID]
+    ) -> (instructions: [KIRInstruction], locations: [SourceRange?]) {
         // The KIR pattern for `val m = Meter(42)` is:
         //   constValue slotCount = 1
         //   constValue classID = ...
@@ -138,6 +218,7 @@ final class ValueClassUnboxingPass: LoweringPass, ParallelLoweringPass {
         var allocExprs: Set<KIRExprID> = []
         var allocConstExprs: Set<KIRExprID> = []
         var classIDExprs: Set<KIRExprID> = []
+        var allocArgsByExpr: [KIRExprID: [KIRExprID]] = [:]
 
         for instruction in body {
             if case let .call(_, callee, arguments, result, _, _, _, _) = instruction,
@@ -149,6 +230,7 @@ final class ValueClassUnboxingPass: LoweringPass, ParallelLoweringPass {
                )
             {
                 allocExprs.insert(result)
+                allocArgsByExpr[result] = arguments
                 // arguments[0] = slotCount, arguments[1] = classID
                 if arguments.count >= 1 {
                     allocConstExprs.insert(arguments[0])
@@ -160,6 +242,38 @@ final class ValueClassUnboxingPass: LoweringPass, ParallelLoweringPass {
             }
         }
 
+        // Allocations feeding a constructor that must still run are kept
+        // together with their constants and registration calls — the
+        // constructor body dereferences `this`.
+        var keptAllocExprs: Set<KIRExprID> = []
+        var keptAllocConstExprs: Set<KIRExprID> = []
+        var keptClassIDExprs: Set<KIRExprID> = []
+        for instruction in body {
+            guard case let .call(symbol, _, arguments, _, _, _, _, _) = instruction,
+                  let symbol,
+                  let alloc = arguments.first, allocExprs.contains(alloc)
+            else { continue }
+            let isStubCall = valueClassDefaultStubToCtor[symbol] != nil
+            let ctorSymbol = valueClassCtors.contains(symbol)
+                ? symbol : valueClassDefaultStubToCtor[symbol]
+            // Receiver-only calls and $default stubs must execute regardless:
+            // the payload is not among the arguments, so eliding the call
+            // loses the value too.
+            guard let ctorSymbol,
+                  ctorsRequiringExecution.contains(ctorSymbol)
+                    || isStubCall
+                    || (arguments.count == 1 && ctorUnderlyingFieldOffset[ctorSymbol] != nil)
+            else { continue }
+            keptAllocExprs.insert(alloc)
+            if let allocArgs = allocArgsByExpr[alloc] {
+                keptAllocConstExprs.formUnion(allocArgs)
+                if allocArgs.count >= 2 {
+                    keptClassIDExprs.insert(allocArgs[1])
+                }
+            }
+        }
+        let elidableClassIDExprs = classIDExprs.subtracting(keptClassIDExprs)
+
         var typeRegisterConstExprs: Set<KIRExprID> = []
         for instruction in body {
             if case let .call(_, callee, arguments, result, _, _, _, _) = instruction,
@@ -169,7 +283,7 @@ final class ValueClassUnboxingPass: LoweringPass, ParallelLoweringPass {
                 if calleeName.hasPrefix("kk_type_register_") {
                     // arguments[0] = childExpr (classID), arguments[1] = parentExpr
                     if arguments.count >= 1 {
-                        for classIDExpr in classIDExprs {
+                        for classIDExpr in elidableClassIDExprs {
                             if let classIDKind = arena.expr(classIDExpr),
                                let childKind = arena.expr(arguments[0]),
                                classIDKind == childKind
@@ -187,20 +301,27 @@ final class ValueClassUnboxingPass: LoweringPass, ParallelLoweringPass {
         }
 
         var result: [KIRInstruction] = []
+        var resultLocations: [SourceRange?] = []
         result.reserveCapacity(body.count)
+        resultLocations.reserveCapacity(body.count)
 
-        for instruction in body {
+        for (index, instruction) in body.enumerated() {
+            let location = index < locations.count ? locations[index] : nil
             switch instruction {
             case let .call(_, callee, _, callResult, _, _, _, _)
                 where callee == kk_object_new
                     && callResult != nil
-                    && allocExprs.contains(callResult!):
+                    && allocExprs.contains(callResult!)
+                    && !keptAllocExprs.contains(callResult!):
                 result.append(.nop)
+                resultLocations.append(location)
                 continue
 
             case let .constValue(constResult, _)
-                where allocConstExprs.contains(constResult):
+                where allocConstExprs.contains(constResult)
+                    && !keptAllocConstExprs.contains(constResult):
                 result.append(.nop)
+                resultLocations.append(location)
                 continue
 
             case let .call(_, callee, arguments, _, _, _, _, _)
@@ -208,7 +329,7 @@ final class ValueClassUnboxingPass: LoweringPass, ParallelLoweringPass {
                     let name = interner.resolve(callee)
                     guard name.hasPrefix("kk_type_register_") else { return false }
                     guard arguments.count >= 1 else { return false }
-                    for classIDExpr in classIDExprs {
+                    for classIDExpr in elidableClassIDExprs {
                         if let classIDKind = arena.expr(classIDExpr),
                            let childKind = arena.expr(arguments[0]),
                            classIDKind == childKind
@@ -219,24 +340,88 @@ final class ValueClassUnboxingPass: LoweringPass, ParallelLoweringPass {
                     return false
                 }():
                 result.append(.nop)
+                resultLocations.append(location)
                 continue
 
             case let .constValue(constResult, _)
                 where typeRegisterConstExprs.contains(constResult):
                 result.append(.nop)
+                resultLocations.append(location)
                 continue
 
             case let .call(symbol, callee, arguments, callResult, canThrow, thrownResult, isSuperCall, qualifiedSuperType):
-                if let symbol, valueClassCtors.contains(symbol),
-                   let callResult
-                {
+                let directCtor = symbol.map { valueClassCtors.contains($0) } ?? false
+                let stubCtorSymbol = symbol.flatMap { valueClassDefaultStubToCtor[$0] }
+                if let symbol, let callResult, let ctorSymbol = directCtor ? symbol : stubCtorSymbol {
+                    let mustExecute = ctorsRequiringExecution.contains(ctorSymbol)
+                    if !directCtor, let alloc = arguments.first, allocExprs.contains(alloc) {
+                        // `V$default(alloc, ...)`: the stub resolves defaults
+                        // internally, so the payload is not among the call
+                        // arguments — keep the call and read the underlying
+                        // field back out of the allocated box.
+                        result.append(instruction)
+                        resultLocations.append(location)
+                        if let offset = ctorUnderlyingFieldOffset[ctorSymbol] {
+                            let offsetExpr = arena.appendExpr(.intLiteral(offset), type: nil)
+                            result.append(.constValue(result: offsetExpr, value: .intLiteral(offset)))
+                            resultLocations.append(location)
+                            result.append(.call(
+                                callee: kk_array_get_inbounds,
+                                arguments: [callResult, offsetExpr],
+                                result: callResult,
+                                canThrow: false
+                            ))
+                            resultLocations.append(location)
+                        }
+                        continue
+                    }
                     if arguments.count == 2, allocExprs.contains(arguments[0]) {
+                        if mustExecute {
+                            // Keep the call so the constructor body (init
+                            // blocks, parameter checks) still runs; then
+                            // overwrite the box result with the raw payload
+                            // so downstream code sees the unboxed repr.
+                            result.append(instruction)
+                            resultLocations.append(location)
+                        }
                         // arguments[0] is the allocated receiver, arguments[1] is the value
                         result.append(.copy(from: arguments[1], to: callResult))
+                        resultLocations.append(location)
+                        continue
+                    } else if arguments.count == 1,
+                              allocExprs.contains(arguments[0]),
+                              let offset = ctorUnderlyingFieldOffset[ctorSymbol]
+                    {
+                        // Receiver-only construction (e.g. a `V()` default-arg
+                        // call): the payload is stored by the constructor
+                        // body itself, so keep the call and read the field
+                        // back out of the box.
+                        result.append(instruction)
+                        resultLocations.append(location)
+                        let offsetExpr = arena.appendExpr(.intLiteral(offset), type: nil)
+                        result.append(.constValue(result: offsetExpr, value: .intLiteral(offset)))
+                        resultLocations.append(location)
+                        result.append(.call(
+                            callee: kk_array_get_inbounds,
+                            arguments: [callResult, offsetExpr],
+                            result: callResult,
+                            canThrow: false
+                        ))
+                        resultLocations.append(location)
+                        continue
+                    } else if arguments.count == 1, mustExecute,
+                              allocExprs.contains(arguments[0])
+                    {
+                        // Field offset unknown, but the body must still run —
+                        // keep the call; its result stays the `this` box and
+                        // `kk_unbox_*` reads resolve the stored field.
+                        result.append(instruction)
+                        resultLocations.append(location)
                         continue
                     } else if arguments.count == 1 {
                         // No explicit receiver
                         result.append(.copy(from: arguments[0], to: callResult))
+                        resultLocations.append(location)
                         continue
                     }
                 }
@@ -244,20 +429,31 @@ final class ValueClassUnboxingPass: LoweringPass, ParallelLoweringPass {
                 if callee == kk_array_get_inbounds,
                    let callResult,
                    arguments.count == 2,
+                   !isExecutingCtorThisExpr(
+                       arguments[0], arena: arena, symbols: executingCtorThisSymbols
+                   ),
                    isValueClassExpr(
                        arguments[0], arena: arena, types: types, symbols: symbols,
                        valueClassSymbols: valueClassSymbols,
                        allowTypeParameterUpperBound: true
+                   ),
+                   !isNullableUnderlyingValueClassReceiver(
+                       arguments[0], arena: arena, types: types, symbols: symbols
                    )
                 {
                     result.append(.copy(from: arguments[0], to: callResult))
+                    resultLocations.append(location)
                     continue
                 }
                 // Remove auxiliary calls that consume the removed value-class
                 // allocation (e.g. kk_object_register_any_to_string): the
                 // unboxed value has no heap object to register.
-                if let objectArg = arguments.first, allocExprs.contains(objectArg) {
+                if let objectArg = arguments.first,
+                   allocExprs.contains(objectArg),
+                   !keptAllocExprs.contains(objectArg)
+                {
                     result.append(.nop)
+                    resultLocations.append(location)
                     continue
                 }
                 result.append(.call(
@@ -270,12 +466,48 @@ final class ValueClassUnboxingPass: LoweringPass, ParallelLoweringPass {
                     isSuperCall: isSuperCall,
                     qualifiedSuperType: qualifiedSuperType
                 ))
+                resultLocations.append(location)
 
             default:
                 result.append(instruction)
+                resultLocations.append(location)
             }
         }
 
-        return result
+        return (result, resultLocations)
+    }
+
+    /// Inside a constructor that still executes, `this` remains a heap box —
+    /// a field read on it must keep the real `kk_array_get_inbounds` call
+    /// instead of degenerating to a copy of the box pointer.
+    private func isExecutingCtorThisExpr(
+        _ expr: KIRExprID,
+        arena: KIRArena,
+        symbols: Set<SymbolID>
+    ) -> Bool {
+        guard !symbols.isEmpty,
+              case let .symbolRef(symbol) = arena.expr(expr)
+        else { return false }
+        return symbols.contains(symbol)
+    }
+}
+
+private extension KIRInstruction {
+    /// Whether this instruction is part of a pure field-initialisation
+    /// prologue: constants, the underlying-field store, and the return of
+    /// `this`. Anything else (init blocks, parameter validation, delegation)
+    /// is observable work the constructor must keep executing.
+    func isPureValueClassFieldInit(
+        kk_array_set: InternedString
+    ) -> Bool {
+        switch self {
+        case .constValue, .nop, .beginBlock, .endBlock,
+             .returnValue, .returnUnit:
+            return true
+        case let .call(_, callee, _, _, _, _, _, _):
+            return callee == kk_array_set
+        default:
+            return false
+        }
     }
 }

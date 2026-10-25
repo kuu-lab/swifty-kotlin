@@ -74,7 +74,6 @@ extension CollectionLiteralConstructionLoweringPass {
                 let hofResult = module.arena.appendTemporary(type: nil
                 )
                 loweredBody.append(.call(
-                    symbol: nil,
                     callee: kkName,
                     arguments: [receiverID],
                     result: hofResult,
@@ -93,12 +92,10 @@ extension CollectionLiteralConstructionLoweringPass {
         let receiverID = arguments[0]
         if state.sequenceExprIDs.contains(receiverID.rawValue) {
             loweredBody.append(.call(
-                symbol: nil,
                 callee: lookup.kkSequenceFlattenName,
                 arguments: [receiverID],
                 result: result,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
             if let result { state.sequenceExprIDs.insert(result.rawValue) }
             return true
@@ -119,12 +116,10 @@ extension CollectionLiteralConstructionLoweringPass {
             )
             let reversedName = lookup.kkRangeReversedName
             loweredBody.append(.call(
-                symbol: nil,
                 callee: reversedName,
                 arguments: [receiverID],
                 result: transformResult,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
             if let result {
                 state.rangeExprIDs.insert(result.rawValue)
@@ -186,12 +181,10 @@ extension CollectionLiteralConstructionLoweringPass {
                 rangeToListCallee = lookup.kkRangeToListName
             }
             loweredBody.append(.call(
-                symbol: nil,
                 callee: rangeToListCallee,
                 arguments: [receiverID],
                 result: toListResult,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
             if let result {
                 state.listExprIDs.insert(result.rawValue)

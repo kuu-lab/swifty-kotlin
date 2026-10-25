@@ -461,6 +461,22 @@ extension CallTypeChecker {
         return inferRegularMemberCall(request, receiverType: receiverType, locals: &locals)
     }
 
+    /// Nominal owners reachable from `root` through real `directSupertypes`
+    /// edges (including `root` itself) — used to keep `kotlin.Any` fallback
+    /// members out of the unqualified-`super` ambiguity count.
+    private func realMemberOwners(
+        of root: SymbolID,
+        sema: SemaModule
+    ) -> Set<SymbolID> {
+        var seen: Set<SymbolID> = []
+        var queue = [root]
+        while let owner = queue.popLast() {
+            guard seen.insert(owner).inserted else { continue }
+            queue.append(contentsOf: sema.symbols.directSupertypes(for: owner))
+        }
+        return seen
+    }
+
     private func resolveSuperMemberReceiverType(
         receiverID: ExprID,
         receiverType: TypeID,
@@ -488,20 +504,29 @@ extension CallTypeChecker {
             let superType = sema.types.make(.classType(ClassType(classSymbol: superSymbol, args: typeArgs)))
             // Supertype selection precedes overload applicability: even different
             // parameter lists require super<T> when both supertypes define the name.
-            let members: [SymbolID]
+            let foundMembers: [SymbolID]
             if isPropertyAccess {
-                members = driver.helpers.lookupMemberProperty(
+                foundMembers = driver.helpers.lookupMemberProperty(
                     named: calleeName,
                     receiverType: superType,
                     sema: sema
                 ).map { [$0.symbol] } ?? []
             } else {
-                members = driver.helpers.collectMemberFunctionCandidates(
+                foundMembers = driver.helpers.collectMemberFunctionCandidates(
                     named: calleeName,
                     receiverType: superType,
                     sema: sema,
                     interner: ctx.interner
                 )
+            }
+            // Ambiguity counts only members the supertype reaches through real
+            // supertype edges. Interface member lookups synthesize `kotlin.Any`
+            // as a fallback owner, but `super.toString()` is not ambiguous just
+            // because every interface can reach `Any` — the callee must live in
+            // the supertype's own member scope (kotlinc diamond rule).
+            let reachableOwners = realMemberOwners(of: superSymbol, sema: sema)
+            let members = foundMembers.filter { member in
+                reachableOwners.contains(sema.symbols.parentSymbol(for: member) ?? member)
             }
             guard !members.isEmpty else { continue }
             memberSupertypes.append(superType)

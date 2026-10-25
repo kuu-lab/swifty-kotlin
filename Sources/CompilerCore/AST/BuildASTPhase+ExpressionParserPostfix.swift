@@ -107,11 +107,41 @@ extension BuildASTPhase.ExpressionParser {
                         ))
                         continue
                     }
+                    if matches(.symbol(.dot)) {
+                        // `expr<Args>.member` — a type-argument-bearing classifier
+                        // qualifier such as `G<Int>.GI()`. Kotlin binds `<...>`
+                        // to the receiver name before the `.`, so keep the type
+                        // arguments on a marked `.call` (the same side-channel
+                        // `callableRef` receivers use) and let Sema decide
+                        // whether the callee chain is a type qualifier or a
+                        // value expression.
+                        let endToken = tokens[index - 1]
+                        let range = mergeRanges(astArena.exprRange(expr), endToken.range, fallback: endToken.range)
+                        let typeReceiver = astArena.appendExpr(.call(
+                            callee: expr,
+                            typeArgs: typeArgs,
+                            args: [],
+                            range: range
+                        ))
+                        astArena.markTypeQualifierCall(typeReceiver)
+                        expr = typeReceiver
+                        continue
+                    }
                 }
                 index = savedIndex
             }
 
             if matches(.symbol(.lParen)) {
+                if case .callableRef = astArena.expr(expr),
+                   !astArena.isParenthesized(expr),
+                   let lParenRange = current()?.range
+                {
+                    diagnostics?.error(
+                        "KSWIFTK-PARSE-0002",
+                        "This syntax is reserved for future use; to call a reference, enclose it in parentheses: (foo::bar)(args).",
+                        range: lParenRange
+                    )
+                }
                 guard let open = consume() else { break }
                 var args = parseCallArguments(implicitLambdaLabel: calleeNameForImplicitLabel(expr))
                 let close = consumeCallArgumentsClose(open: open)
@@ -316,6 +346,7 @@ extension BuildASTPhase.ExpressionParser {
         if !matches(.symbol(.rParen)) {
             while true {
                 let argumentStart = index
+                let diagnosticsBefore = diagnostics?.diagnostics.count ?? 0
                 var missingArgument = false
                 if let argument = parseCallArgument(implicitLambdaLabel: implicitLambdaLabel) {
                     args.append(argument)
@@ -324,11 +355,16 @@ extension BuildASTPhase.ExpressionParser {
                     // `f(,)`), or a label/spread consumed without an expression
                     // (`f(x = ,1)`, `f(x = )`, `f(*)`). Only a trailing comma
                     // after a real argument is legal (Kotlin 1.4+).
-                    diagnostics?.error(
-                        "KSWIFTK-PARSE-0022",
-                        "Expected an argument.",
-                        range: current()?.range
-                    )
+                    // A slot whose expression already diagnosed itself (e.g.
+                    // `f(::)` reporting PARSE-0014 after consuming `::`) is not
+                    // "missing", so skip the redundant report.
+                    if (diagnostics?.diagnostics.count ?? 0) == diagnosticsBefore {
+                        diagnostics?.error(
+                            "KSWIFTK-PARSE-0022",
+                            "Expected an argument.",
+                            range: current()?.range
+                        )
+                    }
                     missingArgument = true
                 }
                 if matches(.symbol(.comma)) {

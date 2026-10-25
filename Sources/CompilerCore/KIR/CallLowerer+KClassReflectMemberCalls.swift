@@ -91,12 +91,10 @@ extension CallLowerer {
         let kClassFallback = sema.types.makeKClassType(argument: classRefTargetType)
         let kclassExpr = arena.appendTemporary(type: kClassFallback)
         instructions.append(.call(
-            symbol: nil,
             callee: interner.intern("__kk_kclass_create"),
             arguments: [tokenExpr, nameHintExpr],
             result: kclassExpr,
-            canThrow: false,
-            thrownResult: nil
+            canThrow: false
         ))
 
         // findAnnotation/findAssociatedObject read from the metadata registry,
@@ -142,12 +140,10 @@ extension CallLowerer {
             let resultType = sema.bindings.exprTypes[exprID] ?? fallbackType
             let result = arena.appendTemporary(type: resultType)
             instructions.append(.call(
-                symbol: nil,
                 callee: interner.intern(callee),
                 arguments: arguments,
                 result: result,
-                canThrow: canThrow,
-                thrownResult: nil
+                canThrow: canThrow
             ))
             return result
         }
@@ -384,12 +380,10 @@ extension CallLowerer {
 
         let registerResult = arena.appendTemporary(type: intType)
         instructions.append(.call(
-            symbol: nil,
             callee: interner.intern("__kk_kclass_register_metadata"),
             arguments: [typeTokenExpr, fqNameExpr, simpleNameExpr, supertypeNameExpr, flagsExpr, fieldCountExpr, memberCountExpr, constructorCountExpr],
             result: registerResult,
-            canThrow: false,
-            thrownResult: nil
+            canThrow: false
         ))
         emitClassTypeParameterMetadataRegistration(
             for: classSymbol,
@@ -450,9 +444,9 @@ extension CallLowerer {
                 let nameExpr = arena.appendExpr(.stringLiteral(name), type: sema.types.stringType)
                 instructions.append(.constValue(result: nameExpr, value: .stringLiteral(name)))
                 instructions.append(.call(
-                    symbol: nil, callee: interner.intern("__kk_kclass_register_sealed_subclass"),
+                    callee: interner.intern("__kk_kclass_register_sealed_subclass"),
                     arguments: [typeTokenExpr, tokenExpr, nameExpr],
-                    result: arena.appendTemporary(type: intType), canThrow: false, thrownResult: nil
+                    result: arena.appendTemporary(type: intType), canThrow: false
                 ))
             }
         }
@@ -568,12 +562,10 @@ extension CallLowerer {
             instructions.append(.constValue(result: flagsExpr, value: .intLiteral(flags)))
 
             instructions.append(.call(
-                symbol: nil,
                 callee: interner.intern("__kk_java_class_register_declared_method"),
                 arguments: [typeTokenExpr, nameExpr, signatureExpr, flagsExpr],
                 result: arena.appendTemporary(type: intType),
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
         }
 
@@ -682,12 +674,10 @@ extension CallLowerer {
                 .constValue(result: isReified, value: .intLiteral(isReifiedOrdinal)),
             ])
             instructions.append(.call(
-                symbol: nil,
                 callee: interner.intern("__kk_kclass_register_type_parameter"),
                 arguments: [typeTokenExpr, indexExpr, identityExpr, nameExpr, varianceExpr, isReified, upperBoundsExpr],
                 result: arena.appendTemporary(type: intType),
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
         }
     }
@@ -859,7 +849,6 @@ extension CallLowerer {
         let memberNameExpr = stringExpression(memberKind == 0 ? nil : memberName)
         let memberSignatureExpr = stringExpression(memberKind == 0 ? nil : memberSignature)
         instructions.append(.call(
-            symbol: nil,
             callee: interner.intern("__kk_kclass_register_enclosing_metadata"),
             arguments: [
                 typeTokenExpr,
@@ -870,8 +859,7 @@ extension CallLowerer {
                 memberSignatureExpr,
             ],
             result: arena.appendTemporary(type: intType),
-            canThrow: false,
-            thrownResult: nil
+            canThrow: false
         ))
     }
 
@@ -935,12 +923,10 @@ extension CallLowerer {
             let fieldNameExpr = arena.appendExpr(.stringLiteral(fieldNameInterned), type: stringType)
             instructions.append(.constValue(result: fieldNameExpr, value: .stringLiteral(fieldNameInterned)))
             instructions.append(.call(
-                symbol: nil,
                 callee: interner.intern("__kk_java_class_register_declared_field"),
                 arguments: [typeTokenExpr, fieldNameExpr],
                 result: arena.appendTemporary(type: intType),
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
 
             emitRuntimeAnnotationRegistration(

@@ -27,25 +27,18 @@ extension ExprLowerer {
         // false. UInt now falls through to the same `appendContainsCall` path as
         // every other range, which resolves to the shared `__kk_range_contains`
         // bridge (safe: UInt always fits the Int64 fields it operates on).
-        let floatingPointCallee = floatingPointRangeContainsCallee(
-            for: rhsExpr, value: lhsExpr, sema: sema, interner: interner
+        let floatingPointPlan = floatingPointRangeContainsPlan(
+            for: rhsExpr, value: lhsExpr, sema: sema, ast: ast, interner: interner
         )
 
         if !negated {
             let result = arena.appendTemporary(type: boundType ?? boolType)
-            if let floatingPointCallee {
-                let floatingPointValueID = floatingPointRangeContainsValueID(
-                    lhsID, valueExpr: lhsExpr, callee: floatingPointCallee,
-                    sema: sema, arena: arena, interner: interner, instructions: &instructions
+            if let floatingPointPlan {
+                emitFloatingPointRangeContains(
+                    floatingPointPlan, rangeID: rhsID, valueID: lhsID,
+                    valueExpr: lhsExpr, resultID: result, sema: sema,
+                    arena: arena, interner: interner, instructions: &instructions
                 )
-                instructions.append(.call(
-                    symbol: nil,
-                    callee: floatingPointCallee,
-                    arguments: [rhsID, floatingPointValueID],
-                    result: result,
-                    canThrow: false,
-                    thrownResult: nil
-                ))
             } else {
                 appendContainsCall(
                     exprID: exprID,
@@ -62,29 +55,13 @@ extension ExprLowerer {
             return result
         }
 
-        let notInContainsCallee: String = if let floatingPointCallee {
-            interner.resolve(floatingPointCallee)
-        } else {
-            "kk_op_contains"
-        }
         let containsResult = arena.appendTemporary(type: boolType)
-        if notInContainsCallee.hasPrefix("__kk_") {
-            let floatingPointValueID: KIRExprID = if let floatingPointCallee {
-                floatingPointRangeContainsValueID(
-                    lhsID, valueExpr: lhsExpr, callee: floatingPointCallee,
-                    sema: sema, arena: arena, interner: interner, instructions: &instructions
-                )
-            } else {
-                lhsID
-            }
-            instructions.append(.call(
-                symbol: nil,
-                callee: interner.intern(notInContainsCallee),
-                arguments: [rhsID, floatingPointValueID],
-                result: containsResult,
-                canThrow: false,
-                thrownResult: nil
-            ))
+        if let floatingPointPlan {
+            emitFloatingPointRangeContains(
+                floatingPointPlan, rangeID: rhsID, valueID: lhsID,
+                valueExpr: lhsExpr, resultID: containsResult, sema: sema,
+                arena: arena, interner: interner, instructions: &instructions
+            )
         } else {
             appendContainsCall(
                 exprID: exprID,
@@ -200,17 +177,14 @@ extension ExprLowerer {
                 callee: calleeName,
                 arguments: [containerID, elementID],
                 result: resultID,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
         } else {
             instructions.append(.call(
-                symbol: nil,
                 callee: interner.intern("kk_op_contains"),
                 arguments: [containerID, elementID],
                 result: resultID,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
         }
     }
@@ -245,12 +219,32 @@ extension ExprLowerer {
         return false
     }
 
-    private func floatingPointRangeContainsCallee(
+    /// How `x in <floating-point range>` must reach the box so the answer
+    /// matches kotlinc/JVM for cross-type operands (KUU-3228).
+    private enum FloatingPointRangeContainsPlan {
+        /// `x in a..b` / `x in a..<b` on a Float range with a Double operand.
+        /// The JVM `in` intrinsic compares the promoted bounds
+        /// (`a.toDouble() <= x && x <= b.toDouble()`), so the operand keeps its
+        /// full Double precision at the boundary — a `value.toFloat()`
+        /// membership check rounds edge Doubles onto the bound and disagrees.
+        case promoteFloatBounds(endExclusive: Bool)
+        /// Any other container expression resolves the
+        /// `ClosedRange<Float>.contains(Double)` (`floatRangeContains`)
+        /// extension semantics on JVM: `contains(value.toFloat())`.
+        case truncateValueToFloat
+        /// `__kk_float_range_contains` with the Float operand passed through.
+        case floatDirect
+        /// `__kk_double_range_contains`; a Float operand is widened first.
+        case doubleDirect
+    }
+
+    private func floatingPointRangeContainsPlan(
         for rangeExpr: ExprID,
         value valueExpr: ExprID,
         sema: SemaModule,
+        ast: ASTModule,
         interner: StringInterner
-    ) -> InternedString? {
+    ) -> FloatingPointRangeContainsPlan? {
         let elementType = sema.bindings.floatingPointRangeElementType(forExpr: rangeExpr)
             ?? sema.bindings.identifierSymbol(for: rangeExpr).flatMap {
                 sema.bindings.floatingPointRangeElementType(forSymbol: $0)
@@ -260,41 +254,91 @@ extension ExprLowerer {
             sema.bindings.exprTypes[valueExpr] ?? sema.types.anyType
         )
         if elementType == sema.types.floatType {
-            guard valueType == sema.types.floatType else { return nil }
-            return interner.intern("__kk_float_range_contains")
+            if valueType == sema.types.floatType {
+                return .floatDirect
+            }
+            guard valueType == sema.types.doubleType else { return nil }
+            if case let .binary(op, _, _, _) = ast.arena.expr(rangeExpr),
+               op == .rangeTo || op == .rangeUntil
+            {
+                return .promoteFloatBounds(endExclusive: op == .rangeUntil)
+            }
+            return .truncateValueToFloat
         }
         if elementType == sema.types.doubleType {
             guard valueType == sema.types.doubleType || valueType == sema.types.floatType else { return nil }
-            return interner.intern("__kk_double_range_contains")
+            return .doubleDirect
         }
         return nil
     }
 
-    private func floatingPointRangeContainsValueID(
-        _ valueID: KIRExprID,
+    private func emitFloatingPointRangeContains(
+        _ plan: FloatingPointRangeContainsPlan,
+        rangeID: KIRExprID,
+        valueID: KIRExprID,
         valueExpr: ExprID,
-        callee: InternedString,
+        resultID: KIRExprID,
         sema: SemaModule,
         arena: KIRArena,
         interner: StringInterner,
         instructions: inout [KIRInstruction]
-    ) -> KIRExprID {
-        guard callee == interner.intern("__kk_double_range_contains"),
-              sema.types.makeNonNullable(sema.bindings.exprTypes[valueExpr] ?? sema.types.anyType)
-                  == sema.types.floatType
-        else {
-            return valueID
+    ) {
+        func call(_ callee: String, _ arguments: [KIRExprID], _ result: KIRExprID) {
+            instructions.append(.call(
+                callee: interner.intern(callee),
+                arguments: arguments,
+                result: result,
+                canThrow: false
+            ))
         }
-        let converted = arena.appendTemporary(type: sema.types.doubleType)
-        instructions.append(.call(
-            symbol: nil,
-            callee: interner.intern("__kk_float_to_double_bits"),
-            arguments: [valueID],
-            result: converted,
-            canThrow: false,
-            thrownResult: nil
-        ))
-        return converted
+        func convert(_ callee: String, _ operand: KIRExprID, _ type: TypeID) -> KIRExprID {
+            let converted = arena.appendTemporary(type: type)
+            call(callee, [operand], converted)
+            return converted
+        }
+        switch plan {
+        case .floatDirect:
+            call("__kk_float_range_contains", [rangeID, valueID], resultID)
+        case .truncateValueToFloat:
+            let floatValue = convert("kk_double_to_float", valueID, sema.types.floatType)
+            call("__kk_float_range_contains", [rangeID, floatValue], resultID)
+        case .doubleDirect:
+            let valueType = sema.types.makeNonNullable(
+                sema.bindings.exprTypes[valueExpr] ?? sema.types.anyType
+            )
+            let doubleValue: KIRExprID = if valueType == sema.types.floatType {
+                convert("__kk_float_to_double_bits", valueID, sema.types.doubleType)
+            } else {
+                valueID
+            }
+            call("__kk_double_range_contains", [rangeID, doubleValue], resultID)
+        case let .promoteFloatBounds(endExclusive):
+            let boolType = sema.types.make(.primitive(.boolean, .nonNull))
+            let floatType = sema.types.floatType
+            let doubleType = sema.types.doubleType
+            let startFloat = arena.appendTemporary(type: floatType)
+            call("__kk_float_range_start", [rangeID], startFloat)
+            let endFloat = arena.appendTemporary(type: floatType)
+            call("__kk_float_range_endInclusive", [rangeID], endFloat)
+            let start = convert("__kk_float_to_double_bits", startFloat, doubleType)
+            let end = convert("__kk_float_to_double_bits", endFloat, doubleType)
+            let aboveStart = arena.appendTemporary(type: boolType)
+            instructions.append(.binary(op: .lessOrEqual, lhs: start, rhs: valueID, result: aboveStart))
+            let belowEnd = arena.appendTemporary(type: boolType)
+            instructions.append(.binary(
+                op: endExclusive ? .lessThan : .lessOrEqual,
+                lhs: valueID,
+                rhs: end,
+                result: belowEnd
+            ))
+            let falseValue = arena.appendExpr(.boolLiteral(false), type: boolType)
+            instructions.append(.constValue(result: falseValue, value: .boolLiteral(false)))
+            instructions.append(.copy(from: falseValue, to: resultID))
+            let endLabel = driver.ctx.makeLoopLabel()
+            instructions.append(.jumpIfEqual(lhs: aboveStart, rhs: falseValue, target: endLabel))
+            instructions.append(.copy(from: belowEnd, to: resultID))
+            instructions.append(.label(endLabel))
+        }
     }
 
 }

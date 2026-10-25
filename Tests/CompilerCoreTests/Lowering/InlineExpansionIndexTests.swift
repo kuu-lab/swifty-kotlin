@@ -37,7 +37,7 @@ struct InlineExpansionIndexTests {
     ) -> KIRInstruction {
         .call(
             symbol: symbol, callee: interner.intern(callee),
-            arguments: [], result: nil, canThrow: false, thrownResult: nil
+            arguments: [], result: nil, canThrow: false
         )
     }
 

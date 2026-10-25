@@ -13,12 +13,10 @@ extension CollectionLiteralConstructionLoweringPass {
         loweredBody.append(.constValue(result: countExpr, value: .intLiteral(Int64(arguments.count))))
         let arrayExpr = module.arena.appendTemporary(type: nil)
         loweredBody.append(.call(
-            symbol: nil,
             callee: lookup.kkArrayNewName,
             arguments: [countExpr],
             result: arrayExpr,
-            canThrow: false,
-            thrownResult: nil
+            canThrow: false
         ))
 
         for (index, argument) in arguments.enumerated() {
@@ -57,12 +55,10 @@ extension CollectionLiteralConstructionLoweringPass {
 
             let setResult = module.arena.appendTemporary(type: nil)
             loweredBody.append(.call(
-                symbol: nil,
                 callee: lookup.kkArraySetName,
                 arguments: [arrayExpr, indexExpr, storedArgument],
                 result: setResult,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
         }
         return (arrayExpr, countExpr)
@@ -131,21 +127,17 @@ extension CollectionLiteralConstructionLoweringPass {
             if count == 0 && callee != lookup.mutableListOfName && callee != lookup.arrayListOfName {
                 if callee == lookup.emptyArrayName {
                     loweredBody.append(.call(
-                        symbol: nil,
                         callee: lookup.kkEmptyArrayName,
                         arguments: [],
                         result: result,
-                        canThrow: false,
-                        thrownResult: nil
+                        canThrow: false
                     ))
                 } else {
                     loweredBody.append(.call(
-                        symbol: nil,
                         callee: lookup.kkEmptyListName,
                         arguments: [],
                         result: result,
-                        canThrow: false,
-                        thrownResult: nil
+                        canThrow: false
                     ))
                 }
             } else if count == 0 {
@@ -158,12 +150,10 @@ extension CollectionLiteralConstructionLoweringPass {
                     ? lookup.kkArrayListOfName
                     : lookup.kkListOfName
                 loweredBody.append(.call(
-                    symbol: nil,
                     callee: runtimeCallee,
                     arguments: [nullExpr, zeroExpr],
                     result: result,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ))
             } else {
                 let (arrayExpr, countExpr) = appendRuntimeArrayStorage(
@@ -179,12 +169,10 @@ extension CollectionLiteralConstructionLoweringPass {
                     ? lookup.kkArrayListOfName
                     : lookup.kkListOfName
                 loweredBody.append(.call(
-                    symbol: nil,
                     callee: runtimeCallee,
                     arguments: [arrayExpr, countExpr],
                     result: result,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ))
             }
             return true
@@ -212,12 +200,10 @@ extension CollectionLiteralConstructionLoweringPass {
                resolvedCopyConstructor
                 || isCollectionCopyConstructorArgument(constructorArguments[0], module: module, ctx: ctx) {
                 loweredBody.append(.call(
-                    symbol: nil,
                     callee: lookup.kkCollectionToArrayListName,
                     arguments: [constructorArguments[0]],
                     result: result,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ))
                 if let result { state.listExprIDs.insert(result.rawValue) }
                 return true
@@ -225,7 +211,6 @@ extension CollectionLiteralConstructionLoweringPass {
 
             if constructorArguments.count == 1 {
                 loweredBody.append(.call(
-                    symbol: nil,
                     callee: ctx.interner.intern("__kk_array_list_new_checked"),
                     arguments: constructorArguments,
                     result: result,
@@ -240,12 +225,10 @@ extension CollectionLiteralConstructionLoweringPass {
             let nullExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
             loweredBody.append(.constValue(result: nullExpr, value: .intLiteral(0)))
             loweredBody.append(.call(
-                symbol: nil,
                 callee: lookup.kkArrayListOfName,
                 arguments: [nullExpr, zeroExpr],
                 result: result,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
             return true
         }
@@ -265,14 +248,12 @@ extension CollectionLiteralConstructionLoweringPass {
             if arguments.count == 1,
                isCollectionCopyConstructorArgument(arguments[0], module: module, ctx: ctx) {
                 loweredBody.append(.call(
-                    symbol: nil,
                     callee: isHashSetConstructor
                         ? lookup.kkIterableToHashSetName
                         : lookup.kkIterableToMutableSetName,
                     arguments: [arguments[0]],
                     result: result,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ))
                 if let result { state.setExprIDs.insert(result.rawValue) }
                 return true
@@ -288,7 +269,6 @@ extension CollectionLiteralConstructionLoweringPass {
                     loweredBody.append(.constValue(result: loadFactor, value: .floatLiteral(0.75)))
                 }
                 loweredBody.append(.call(
-                    symbol: nil,
                     callee: ctx.interner.intern("__kk_hash_set_new_checked"),
                     arguments: [arguments[0], loadFactor],
                     result: result,
@@ -306,14 +286,12 @@ extension CollectionLiteralConstructionLoweringPass {
             // `mutableSetConstructorNames` holds only HashSet and LinkedHashSet,
             // so the non-HashSet case here is LinkedHashSet() / LinkedHashSet(capacity).
             loweredBody.append(.call(
-                symbol: nil,
                 callee: isHashSetConstructor
                     ? lookup.kkHashSetOfName
                     : lookup.kkLinkedHashSetOfName,
                 arguments: [nullExpr, zeroExpr],
                 result: result,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
             return true
         }
@@ -360,32 +338,26 @@ extension CollectionLiteralConstructionLoweringPass {
             }
             if let copyArgument {
                 loweredBody.append(.call(
-                    symbol: nil,
                     callee: constructorCallee,
                     arguments: [nullExpr, nullExpr2, zeroExpr],
                     result: result,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ))
                 let putAllResult = module.arena.appendTemporary(type: nil
                 )
                 loweredBody.append(.call(
-                    symbol: nil,
                     callee: lookup.kkMutableMapPutAllName,
                     arguments: result.map { [$0, copyArgument] } ?? [copyArgument],
                     result: putAllResult,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ))
             } else {
                 // 0 args, capacity arg (Int), or unknown arg type → empty map
                 loweredBody.append(.call(
-                    symbol: nil,
                     callee: constructorCallee,
                     arguments: [nullExpr, nullExpr2, zeroExpr],
                     result: result,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ))
             }
             return true
@@ -435,21 +407,21 @@ extension CollectionLiteralConstructionLoweringPass {
                     callArguments = [zeroExpr]
                 }
                 loweredBody.append(.call(
-                    symbol: nil, callee: lookup.kkTreeSetNewName,
+                    callee: lookup.kkTreeSetNewName,
                     arguments: callArguments, result: result,
-                    canThrow: false, thrownResult: nil
+                    canThrow: false
                 ))
             case .collection:
                 loweredBody.append(.call(
-                    symbol: nil, callee: lookup.kkTreeSetNewCollectionName,
+                    callee: lookup.kkTreeSetNewCollectionName,
                     arguments: Array(arguments.suffix(1)), result: result,
-                    canThrow: false, thrownResult: nil
+                    canThrow: false
                 ))
             case .sortedSet:
                 loweredBody.append(.call(
-                    symbol: nil, callee: lookup.kkTreeSetNewSortedSetName,
+                    callee: lookup.kkTreeSetNewSortedSetName,
                     arguments: Array(arguments.suffix(1)), result: result,
-                    canThrow: false, thrownResult: nil
+                    canThrow: false
                 ))
             }
             if let result {
@@ -476,21 +448,21 @@ extension CollectionLiteralConstructionLoweringPass {
                     callArguments = [zeroExpr]
                 }
                 loweredBody.append(.call(
-                    symbol: nil, callee: lookup.kkTreeMapNewName,
+                    callee: lookup.kkTreeMapNewName,
                     arguments: callArguments, result: result,
-                    canThrow: false, thrownResult: nil
+                    canThrow: false
                 ))
             case .map:
                 loweredBody.append(.call(
-                    symbol: nil, callee: lookup.kkTreeMapNewMapName,
+                    callee: lookup.kkTreeMapNewMapName,
                     arguments: Array(arguments.suffix(1)), result: result,
-                    canThrow: false, thrownResult: nil
+                    canThrow: false
                 ))
             case .sortedMap:
                 loweredBody.append(.call(
-                    symbol: nil, callee: lookup.kkTreeMapNewSortedMapName,
+                    callee: lookup.kkTreeMapNewSortedMapName,
                     arguments: Array(arguments.suffix(1)), result: result,
-                    canThrow: false, thrownResult: nil
+                    canThrow: false
                 ))
             }
             if let result {
@@ -507,12 +479,10 @@ extension CollectionLiteralConstructionLoweringPass {
                 && callee != lookup.hashSetOfName
                 && callee != lookup.linkedSetOfName {
                 loweredBody.append(.call(
-                    symbol: nil,
                     callee: lookup.kkEmptySetName,
                     arguments: [],
                     result: result,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ))
             } else if count == 0 {
                 // Mutable/hash/linked set factories produce a fresh instance via
@@ -525,14 +495,12 @@ extension CollectionLiteralConstructionLoweringPass {
                 let nullExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
                 loweredBody.append(.constValue(result: nullExpr, value: .intLiteral(0)))
                 loweredBody.append(.call(
-                    symbol: nil,
                     callee: callee == lookup.hashSetOfName
                         ? lookup.kkHashSetOfName
                         : lookup.kkLinkedHashSetOfName,
                     arguments: [nullExpr, zeroExpr],
                     result: result,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ))
             } else {
                 let (arrayExpr, countExpr) = appendRuntimeArrayStorage(
@@ -551,12 +519,10 @@ extension CollectionLiteralConstructionLoweringPass {
                     ? lookup.kkLinkedHashSetOfName
                     : lookup.kkSetOfName
                 loweredBody.append(.call(
-                    symbol: nil,
                     callee: runtimeCallee,
                     arguments: [arrayExpr, countExpr],
                     result: result,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ))
             }
             if let result { state.setExprIDs.insert(result.rawValue) }
@@ -571,12 +537,10 @@ extension CollectionLiteralConstructionLoweringPass {
                 && callee != lookup.hashMapOfName
                 && callee != lookup.linkedMapOfName {
                 loweredBody.append(.call(
-                    symbol: nil,
                     callee: lookup.kkEmptyMapName,
                     arguments: [],
                     result: result,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ))
             } else if count == 0 {
                 // KUU-646: `__kk_map_of` is now the read-only `Map` tag used by
@@ -596,12 +560,10 @@ extension CollectionLiteralConstructionLoweringPass {
                     runtimeCallee = lookup.kkLinkedHashMapOfName
                 }
                 loweredBody.append(.call(
-                    symbol: nil,
                     callee: runtimeCallee,
                     arguments: [nullKeysExpr, nullValsExpr, zeroExpr],
                     result: result,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ))
             } else {
                 let countExpr = module.arena.appendExpr(.intLiteral(Int64(count)), type: nil)
@@ -609,22 +571,18 @@ extension CollectionLiteralConstructionLoweringPass {
                 let keysArrayExpr = module.arena.appendTemporary(type: nil
                 )
                 loweredBody.append(.call(
-                    symbol: nil,
                     callee: lookup.kkArrayNewName,
                     arguments: [countExpr],
                     result: keysArrayExpr,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ))
                 let valuesArrayExpr = module.arena.appendTemporary(type: nil
                 )
                 loweredBody.append(.call(
-                    symbol: nil,
                     callee: lookup.kkArrayNewName,
                     arguments: [countExpr],
                     result: valuesArrayExpr,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ))
                 for (i, arg) in arguments.enumerated() {
                     let idxExpr = module.arena.appendExpr(.intLiteral(Int64(i)), type: nil)
@@ -632,46 +590,37 @@ extension CollectionLiteralConstructionLoweringPass {
                     let keyExpr = module.arena.appendTemporary(type: nil
                     )
                     loweredBody.append(.call(
-                        symbol: nil,
                         callee: lookup.kkPairFirstName,
                         arguments: [arg],
                         result: keyExpr,
-                        canThrow: false,
-                        thrownResult: nil
+                        canThrow: false
                     ))
                     let valueExpr = module.arena.appendTemporary(type: nil
                     )
                     loweredBody.append(.call(
-                        symbol: nil,
                         callee: lookup.kkPairSecondName,
                         arguments: [arg],
                         result: valueExpr,
-                        canThrow: false,
-                        thrownResult: nil
+                        canThrow: false
                     ))
                     let setResult = module.arena.appendTemporary(type: nil
                     )
                     loweredBody.append(.call(
-                        symbol: nil,
                         callee: lookup.kkArraySetName,
                         arguments: [keysArrayExpr, idxExpr, keyExpr],
                         result: setResult,
-                        canThrow: false,
-                        thrownResult: nil
+                        canThrow: false
                     ))
                     let setResult2 = module.arena.appendTemporary(type: nil
                     )
                     loweredBody.append(.call(
-                        symbol: nil,
                         callee: lookup.kkArraySetName,
                         arguments: [valuesArrayExpr, idxExpr, valueExpr],
                         result: setResult2,
-                        canThrow: false,
-                        thrownResult: nil
+                        canThrow: false
                     ))
                 }
                 loweredBody.append(.call(
-                    symbol: nil,
                     callee: {
                         if callee == lookup.hashMapOfName {
                             return lookup.kkHashMapOfName
@@ -683,8 +632,7 @@ extension CollectionLiteralConstructionLoweringPass {
                     }(),
                     arguments: [keysArrayExpr, valuesArrayExpr, countExpr],
                     result: result,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ))
             }
             return true

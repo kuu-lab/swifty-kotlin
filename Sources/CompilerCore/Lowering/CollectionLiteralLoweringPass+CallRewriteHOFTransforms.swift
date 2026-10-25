@@ -183,7 +183,6 @@ extension CollectionLiteralLoweringSupport {
                 let hofResult = module.arena.appendTemporary(type: nil
                 )
                 loweredBody.append(.call(
-                    symbol: nil,
                     callee: kkName,
                     arguments: [receiverID, lambdaID, closureRawID],
                     result: hofResult,
@@ -227,12 +226,10 @@ extension CollectionLiteralLoweringSupport {
             let hofResult = module.arena.appendTemporary(type: nil
             )
             loweredBody.append(.call(
-                symbol: nil,
                 callee: runtimeCallee,
                 arguments: [receiverID, destID],
                 result: hofResult,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
             if let result {
                 if state.listExprIDs.contains(destID.rawValue) {
@@ -275,7 +272,6 @@ extension CollectionLiteralLoweringSupport {
             let hofResult = module.arena.appendTemporary(type: nil
             )
             loweredBody.append(.call(
-                symbol: nil,
                 callee: kkName,
                 arguments: [receiverID, destID, lambdaID, closureRawID],
                 result: hofResult,
@@ -308,7 +304,6 @@ extension CollectionLiteralLoweringSupport {
             let hofResult = module.arena.appendTemporary(type: nil
             )
             loweredBody.append(.call(
-                symbol: nil,
                 callee: lookup.kkListWindowedTransformBridgeName,
                 arguments: bridgeArguments,
                 result: hofResult,
@@ -332,12 +327,10 @@ extension CollectionLiteralLoweringSupport {
             let hofResult = module.arena.appendTemporary(type: nil
             )
             loweredBody.append(.call(
-                symbol: nil,
                 callee: lookup.kkListZipBridgeName,
                 arguments: arguments,
                 result: hofResult,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
             if let result {
                 state.listExprIDs.insert(result.rawValue)
@@ -366,7 +359,6 @@ extension CollectionLiteralLoweringSupport {
             let hofResult = module.arena.appendTemporary(type: nil
             )
             loweredBody.append(.call(
-                symbol: nil,
                 callee: lookup.kkListZipTransformBridgeName,
                 arguments: [receiverID, otherID, lambdaID, closureRawID],
                 result: hofResult,
@@ -388,12 +380,10 @@ extension CollectionLiteralLoweringSupport {
             let hofResult = module.arena.appendTemporary(type: nil
             )
             loweredBody.append(.call(
-                symbol: nil,
                 callee: lookup.kkListUnzipName,
                 arguments: arguments,
                 result: hofResult,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
             if let result {
                 loweredBody.append(.copy(from: hofResult, to: result))
@@ -408,12 +398,10 @@ extension CollectionLiteralLoweringSupport {
             let hofResult = module.arena.appendTemporary(type: nil
             )
             loweredBody.append(.call(
-                symbol: nil,
                 callee: lookup.kkListZipWithNextBridgeName,
                 arguments: arguments,
                 result: hofResult,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
             if let result {
                 state.listExprIDs.insert(result.rawValue)
@@ -439,7 +427,6 @@ extension CollectionLiteralLoweringSupport {
             let hofResult = module.arena.appendTemporary(type: nil
             )
             loweredBody.append(.call(
-                symbol: nil,
                 callee: lookup.kkListZipWithNextTransformBridgeName,
                 arguments: [receiverID, lambdaID, closureRawID],
                 result: hofResult,

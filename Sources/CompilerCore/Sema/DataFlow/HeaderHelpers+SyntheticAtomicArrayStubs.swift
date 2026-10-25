@@ -287,17 +287,23 @@ extension DataFlowSemaPhase {
 
     /// Registers `kotlin.concurrent.atomics.AtomicArray<T>` backed by
     /// `kk_atomic_ref_array_*` ABI functions.  CAS uses identity semantics.
+    /// KUU-3059: `className`/`constructorLinkName`/`includeIndexOperators`
+    /// parameterize the same surface for
+    /// `java.util.concurrent.atomic.AtomicReferenceArray<T>`.
     func registerAtomicRefArrayStub(
         packageFQName: [InternedString],
+        className: String = "AtomicArray",
+        constructorLinkName: String? = nil,
+        includeIndexOperators: Bool = false,
         boolType: TypeID,
         unitType: TypeID,
         symbols: SymbolTable,
         interner: StringInterner,
         types: TypeSystem
     ) {
-        let className = interner.intern("AtomicArray")
+        let internedClassName = interner.intern(className)
         let symbol = ensureClassSymbol(
-            named: "AtomicArray",
+            named: className,
             in: packageFQName,
             symbols: symbols,
             interner: interner
@@ -305,7 +311,7 @@ extension DataFlowSemaPhase {
 
         let typeParamSymbol = ensureSyntheticTypeParameterSymbol(
             named: "T",
-            in: packageFQName + [className],
+            in: packageFQName + [internedClassName],
             symbols: symbols,
             interner: interner
         )
@@ -318,6 +324,19 @@ extension DataFlowSemaPhase {
         types.setNominalTypeParameterSymbols([typeParamSymbol], for: symbol)
         types.setNominalTypeParameterVariances([.invariant], for: symbol)
         symbols.setPropertyType(ownerType, for: symbol)
+
+        if let constructorLinkName {
+            registerAtomicConstructor(
+                ownerSymbol: symbol,
+                ownerType: ownerType,
+                externalLinkName: constructorLinkName,
+                paramType: types.intType,
+                typeParameterSymbols: [typeParamSymbol],
+                classTypeParameterCount: 1,
+                symbols: symbols,
+                interner: interner
+            )
+        }
 
         registerAtomicReadOnlyProperty(
             ownerSymbol: symbol,
@@ -353,6 +372,34 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
+        if includeIndexOperators {
+            registerAtomicMember(
+                ownerSymbol: symbol,
+                ownerType: ownerType,
+                name: "get",
+                externalLinkName: "kk_atomic_ref_array_loadAt",
+                returnType: typeParamType,
+                parameters: [(name: "index", type: types.intType)],
+                typeParameterSymbols: [typeParamSymbol],
+                classTypeParameterCount: 1,
+                flags: [.synthetic, .operatorFunction],
+                symbols: symbols,
+                interner: interner
+            )
+            registerAtomicMember(
+                ownerSymbol: symbol,
+                ownerType: ownerType,
+                name: "set",
+                externalLinkName: "kk_atomic_ref_array_storeAt",
+                returnType: unitType,
+                parameters: [(name: "index", type: types.intType), (name: "value", type: typeParamType)],
+                typeParameterSymbols: [typeParamSymbol],
+                classTypeParameterCount: 1,
+                flags: [.synthetic, .operatorFunction],
+                symbols: symbols,
+                interner: interner
+            )
+        }
 
         registerAtomicMember(
             ownerSymbol: symbol,

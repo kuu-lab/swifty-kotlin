@@ -44,7 +44,6 @@ extension VirtualDispatchTests {
                     arguments: [],
                     result: vcResult,
                     canThrow: false,
-                    thrownResult: nil,
                     dispatch: .vtable(slot: 1)
                 ),
                 .returnUnit,
@@ -67,8 +66,7 @@ extension VirtualDispatchTests {
                     callee: interner.intern("inlineHelper"),
                     arguments: [callerArgExpr],
                     result: callResult,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ),
                 .returnUnit,
             ],
@@ -139,8 +137,7 @@ extension VirtualDispatchTests {
                     callee: targetName,
                     arguments: [argExpr],
                     result: resultExpr,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ),
                 .returnUnit,
             ],
@@ -218,8 +215,7 @@ extension VirtualDispatchTests {
                     callee: calleeName,
                     arguments: [],
                     result: callResult,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ),
                 .returnUnit,
             ],
@@ -239,12 +235,10 @@ extension VirtualDispatchTests {
             returnType: anyType,
             body: [
                 .call(
-                    symbol: nil,
                     callee: interner.intern("unrelatedIteratorFixtureMarker"),
                     arguments: [],
                     result: markerResult,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ),
                 .returnValue(markerResult),
             ],
@@ -287,7 +281,6 @@ extension VirtualDispatchTests {
             arguments: [argExpr],
             result: resultExpr,
             canThrow: true,
-            thrownResult: nil,
             dispatch: .vtable(slot: 2)
         )
 
@@ -316,8 +309,7 @@ extension VirtualDispatchTests {
             callee: InternedString(rawValue: 10),
             arguments: [argExpr],
             result: resultExpr,
-            canThrow: false,
-            thrownResult: nil
+            canThrow: false
         )
 
         let pass = CoroutineLoweringPass()
@@ -385,7 +377,6 @@ extension VirtualDispatchTests {
                     arguments: [],
                     result: callResult,
                     canThrow: false,
-                    thrownResult: nil,
                     dispatch: .vtable(slot: 0)
                 ),
                 .returnValue(callResult),
@@ -415,8 +406,7 @@ extension VirtualDispatchTests {
                     callee: interner.intern("outerSuspend"),
                     arguments: [],
                     result: mainResult,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ),
                 .returnUnit,
             ],

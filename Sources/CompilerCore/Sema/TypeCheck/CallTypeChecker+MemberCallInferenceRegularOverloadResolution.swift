@@ -108,6 +108,9 @@ extension CallTypeChecker {
         let isUniqueIteratorSource = memberNameText == "iterator" && candidates.count == 1
         let isListSourceBackedMember: Bool = {
             guard ["get", "indexOf", "lastIndexOf", "subList"].contains(memberNameText),
+                  // `lookup(fqName:)` can return the `List(size, init)` factory
+                  // function that shares this fqName; `lookupNominal` keeps the
+                  // interface so the subtype check compares nominal owners.
                   let listOwner = sema.symbols.lookupNominal(fqName: knownNames.kotlinCollectionsListFQName)
             else { return false }
             return driver.helpers.allNominalSymbols(of: memberLookupType, types: sema.types, symbols: sema.symbols).contains {

@@ -159,6 +159,7 @@ extension DataFlowSemaPhase {
             guard let binding = state.pendingInlineBindings.removeValue(forKey: symbol) else {
                 return nil
             }
+            state.importedInlineFunctions.clearPendingBody(for: symbol)
             if let name = binding.record.fqName.last,
                var siblings = state.pendingInlineSymbolsByName[name]
             {

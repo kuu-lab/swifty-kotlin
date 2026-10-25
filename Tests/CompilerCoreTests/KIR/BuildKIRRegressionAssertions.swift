@@ -23,7 +23,6 @@ enum BuildKIRRuntimeOperation: String {
     case cpointerToKStringFromUtf32 = "cpointer_toKStringFromUtf32"
     case doubleRangeContains = "double_range_contains"
     case doubleRangeIsEmpty = "double_range_isEmpty"
-    case durationTimesInt = "duration_times_int"
     case enumMakeEntriesListCached = "enum_make_entries_list_cached"
     case enumMakeValuesArray = "enum_make_values_array"
     case exceptionNewCause = "exception_new_cause"

@@ -60,12 +60,10 @@ extension KIRLoweringDriver {
 
             let allocatedObject = arena.appendTemporary(type: companionType)
             body.append(.call(
-                symbol: nil,
                 callee: interner.intern("kk_object_new"),
                 arguments: [slotCountExpr, classIDExpr],
                 result: allocatedObject,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
             body.append(.storeGlobal(value: allocatedObject, symbol: companionSymbol))
 
@@ -85,12 +83,10 @@ extension KIRLoweringDriver {
                     interner.intern("kk_type_register_super")
                 }
                 body.append(.call(
-                    symbol: nil,
                     callee: registerCallee,
                     arguments: [classIDExpr, parentExpr],
                     result: registerResult,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ))
             }
             appendObjectItableMethodRegistrations(

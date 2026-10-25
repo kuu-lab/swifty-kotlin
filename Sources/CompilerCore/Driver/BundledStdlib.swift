@@ -2,9 +2,10 @@ import Foundation
 
 /// `.kt` files under `Sources/CompilerCore/Stdlib/` are copied into the
 /// `CompilerCore` resource bundle and injected as virtual `__bundled_*.kt`
-/// source files before compilation. This type enumerates those resources and
-/// computes a stable manifest hash used by incremental builds and stdlib
-/// artifact validation.
+/// source files before compilation. `.kt.tmpl` files are expanded by
+/// `BundledStdlibTemplate` into several such sources first. This type
+/// enumerates those resources and computes a stable manifest hash used by
+/// incremental builds and stdlib artifact validation.
 package enum BundledStdlib {
     /// Errors that can occur while loading bundled stdlib sources from the
     /// resource bundle. These are converted to `KSWIFTK-SOURCE-0101`/`0102`
@@ -14,6 +15,7 @@ package enum BundledStdlib {
         case resourceDirectoryMissing(path: String)
         case enumerationFailed(path: String)
         case readFailed(path: String)
+        case templateExpansionFailed(path: String, reason: String)
 
         var description: String {
             switch self {
@@ -25,6 +27,8 @@ package enum BundledStdlib {
                 return "Failed to enumerate bundled stdlib resources at \(path)."
             case .readFailed(let path):
                 return "Failed to read bundled stdlib source: \(path)"
+            case .templateExpansionFailed(let path, let reason):
+                return "Failed to expand bundled stdlib template \(path): \(reason)"
             }
         }
     }
@@ -51,26 +55,49 @@ package enum BundledStdlib {
         }
 
         var relativePaths: [String] = []
+        var templatePaths: [String] = []
         while let path = enumerator.nextObject() as? String {
-            if path.hasSuffix(".kt"), !path.hasPrefix("jvm/") {
+            guard !path.hasPrefix("jvm/") else { continue }
+            if path.hasSuffix(".kt") {
                 relativePaths.append(String(path.dropLast(3)))
+            } else if path.hasSuffix(BundledStdlibTemplate.fileSuffix) {
+                templatePaths.append(path)
             }
         }
         relativePaths.sort()
+        templatePaths.sort()
 
         var bundledSources: [(path: String, contents: Data)] = []
+        func add(relativePath: String, contents: Data) {
+            if profile != .full,
+               !profile.includes(package: StdlibProfile.declaredPackage(in: contents))
+            {
+                return
+            }
+            bundledSources.append((path: "__bundled_\(relativePath).kt", contents: contents))
+        }
         for relativePath in relativePaths {
-            let bundledPath = "__bundled_\(relativePath).kt"
             let fullPath = (stdlibDir as NSString).appendingPathComponent(relativePath + ".kt")
             guard let data = fm.contents(atPath: fullPath) else {
                 throw LoadError.readFailed(path: fullPath)
             }
-            if profile != .full,
-               !profile.includes(package: StdlibProfile.declaredPackage(in: data))
-            {
-                continue
+            add(relativePath: relativePath, contents: data)
+        }
+        var claimedPaths = Set(relativePaths)
+        for templatePath in templatePaths {
+            let fullPath = (stdlibDir as NSString).appendingPathComponent(templatePath)
+            guard let data = fm.contents(atPath: fullPath) else {
+                throw LoadError.readFailed(path: fullPath)
             }
-            bundledSources.append((path: bundledPath, contents: data))
+            for output in try BundledStdlibTemplate.expand(data, at: templatePath) {
+                guard claimedPaths.insert(output.relativePath).inserted else {
+                    throw LoadError.templateExpansionFailed(
+                        path: templatePath,
+                        reason: "output \(output.relativePath).kt collides with another bundled source"
+                    )
+                }
+                add(relativePath: output.relativePath, contents: output.contents)
+            }
         }
 
         return bundledSources.sorted(by: { $0.path < $1.path })

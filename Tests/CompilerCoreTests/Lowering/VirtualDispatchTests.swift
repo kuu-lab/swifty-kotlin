@@ -133,7 +133,6 @@ import Testing
                     arguments: [],
                     result: resultExpr,
                     canThrow: false,
-                    thrownResult: nil,
                     dispatch: .vtable(slot: 0)
                 ),
                 .returnUnit,
@@ -191,7 +190,6 @@ import Testing
             arguments: [argExpr],
             result: resultExpr,
             canThrow: false,
-            thrownResult: nil,
             dispatch: .vtable(slot: 0)
         )
 
@@ -249,7 +247,6 @@ import Testing
                     arguments: [argExpr],
                     result: resultExpr,
                     canThrow: false,
-                    thrownResult: nil,
                     dispatch: .vtable(slot: 0)
                 ),
                 .returnUnit,

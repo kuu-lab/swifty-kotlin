@@ -101,15 +101,40 @@ public struct SuperTypeEntry: Equatable, Codable {
     /// Arguments of the superclass constructor invocation in the class header.
     /// Empty for interfaces and for `Base()`.
     public let constructorArgs: [CallArgument]
+    /// True when the source wrote the superclass constructor invocation —
+    /// `Base(...)` including `Base()` — rather than a bare `Base` reference.
+    /// Kotlin requires the invocation for class supertypes; interfaces and
+    /// delegated entries list the bare type.
+    public let hasConstructorCallSyntax: Bool
+    /// Range of the entry's type portion (`Base` in `Base(x)`); used for
+    /// supertype diagnostics.
+    public let range: SourceRange?
 
     public init(
         typeRef: TypeRefID,
         delegateExpression: ExprID? = nil,
-        constructorArgs: [CallArgument] = []
+        constructorArgs: [CallArgument] = [],
+        hasConstructorCallSyntax: Bool = false,
+        range: SourceRange? = nil
     ) {
         self.typeRef = typeRef
         self.delegateExpression = delegateExpression
         self.constructorArgs = constructorArgs
+        self.hasConstructorCallSyntax = hasConstructorCallSyntax
+        self.range = range
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case typeRef, delegateExpression, constructorArgs, hasConstructorCallSyntax, range
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        typeRef = try container.decode(TypeRefID.self, forKey: .typeRef)
+        delegateExpression = try container.decodeIfPresent(ExprID.self, forKey: .delegateExpression)
+        constructorArgs = try container.decodeIfPresent([CallArgument].self, forKey: .constructorArgs) ?? []
+        hasConstructorCallSyntax = try container.decodeIfPresent(Bool.self, forKey: .hasConstructorCallSyntax) ?? false
+        range = try container.decodeIfPresent(SourceRange.self, forKey: .range)
     }
 }
 
@@ -739,6 +764,8 @@ public struct ValueParamDecl: Equatable, Codable {
     public let propertyVisibilityModifiers: Modifiers?
     public let hasDefaultValue: Bool
     public let isVararg: Bool
+    /// Source range of the `vararg` modifier, when present.
+    public let varargRange: SourceRange?
     public let isCrossinline: Bool
     public let isNoinline: Bool
     public let defaultValue: ExprID?
@@ -755,6 +782,7 @@ public struct ValueParamDecl: Equatable, Codable {
         propertyVisibilityModifiers: Modifiers? = nil,
         hasDefaultValue: Bool = false,
         isVararg: Bool = false,
+        varargRange: SourceRange? = nil,
         isCrossinline: Bool = false,
         isNoinline: Bool = false,
         defaultValue: ExprID? = nil,
@@ -770,6 +798,7 @@ public struct ValueParamDecl: Equatable, Codable {
         self.propertyVisibilityModifiers = propertyVisibilityModifiers
         self.hasDefaultValue = hasDefaultValue
         self.isVararg = isVararg
+        self.varargRange = varargRange
         self.isCrossinline = isCrossinline
         self.isNoinline = isNoinline
         self.defaultValue = defaultValue
@@ -779,7 +808,7 @@ public struct ValueParamDecl: Equatable, Codable {
     private enum CodingKeys: String, CodingKey {
         case name, type, isProperty, isMutableProperty, isOverrideProperty, isOpenProperty
         case isActualProperty, propertyVisibilityModifiers, hasDefaultValue, isVararg
-        case isCrossinline, isNoinline, defaultValue, annotations
+        case varargRange, isCrossinline, isNoinline, defaultValue, annotations
     }
 
     public init(from decoder: Decoder) throws {
@@ -794,6 +823,7 @@ public struct ValueParamDecl: Equatable, Codable {
         propertyVisibilityModifiers = try container.decodeIfPresent(Modifiers.self, forKey: .propertyVisibilityModifiers)
         hasDefaultValue = try container.decode(Bool.self, forKey: .hasDefaultValue)
         isVararg = try container.decode(Bool.self, forKey: .isVararg)
+        varargRange = try container.decodeIfPresent(SourceRange.self, forKey: .varargRange)
         isCrossinline = try container.decode(Bool.self, forKey: .isCrossinline)
         isNoinline = try container.decode(Bool.self, forKey: .isNoinline)
         defaultValue = try container.decodeIfPresent(ExprID.self, forKey: .defaultValue)

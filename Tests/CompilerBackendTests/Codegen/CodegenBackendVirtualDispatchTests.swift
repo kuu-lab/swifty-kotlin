@@ -251,6 +251,28 @@ struct CodegenBackendVirtualDispatchTests {
     }
 
     @Test
+    func testOpenClassToStringOverrideKeepsFlatStringVtableABI() throws {
+        // The vtable slot's root is the runtime-builtin `Any.toString`, which
+        // has no emitted Kotlin ABI; the virtual call must not adopt its raw
+        // Int return and drop the override's flat String result (as `null`).
+        let source = """
+        open class Base(val value: Int) {
+            override fun toString(): String = "b" + value
+        }
+        class Child(value: Int) : Base(value) {
+            override fun toString(): String = "c" + value
+        }
+        fun main() {
+            println(Base(7))
+            println(Base(7).toString())
+            val widened: Base = Child(8)
+            println(widened)
+        }
+        """
+        try assertKotlinOutput(source, moduleName: "OpenClassToStringVtableABI", expected: "b7\nb7\nc8\n")
+    }
+
+    @Test
     func testSuperCallThroughTwoLevelGenericSuperclassUsesSpecializedOverrideBridge() throws {
         // The matching diff case keeps the exact println/String-concatenation
         // reproducer. This variant skips stdlib setup while exercising dispatch.

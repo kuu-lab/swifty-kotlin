@@ -78,12 +78,10 @@ extension CallLowerer {
             instructions.append(.constValue(result: thrownExpr, value: .intLiteral(0)))
             let result = arena.appendTemporary(type: boundType ?? sema.types.anyType)
             instructions.append(.call(
-                symbol: nil,
                 callee: interner.intern("__kk_string_get_flat"),
                 arguments: [receiverID, indexID],
                 result: result,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
             return result
         }
@@ -164,12 +162,10 @@ extension CallLowerer {
         {
             let boxedResult = arena.appendTemporary(type: sema.types.anyType)
             instructions.append(.call(
-                symbol: nil,
                 callee: interner.intern("kk_array_get"),
                 arguments: [receiverID, indexID],
                 result: boxedResult,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
             emitNonThrowingCall(
                 callee: unboxCallee,
@@ -188,12 +184,10 @@ extension CallLowerer {
             // the raw byte to UByte at the typed read boundary.
             let rawResult = arena.appendTemporary(type: sema.types.intType)
             instructions.append(.call(
-                symbol: nil,
                 callee: interner.intern("kk_array_get"),
                 arguments: [receiverID, indexID],
                 result: rawResult,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
             emitNonThrowingCall(
                 callee: interner.intern("kk_int_to_ubyte"),
@@ -204,12 +198,10 @@ extension CallLowerer {
             return result
         }
         instructions.append(.call(
-            symbol: nil,
             callee: interner.intern("kk_array_get"),
             arguments: [receiverID, indexID],
             result: result,
-            canThrow: false,
-            thrownResult: nil
+            canThrow: false
         ))
         return result
     }
@@ -455,12 +447,10 @@ extension CallLowerer {
             storedValueID = valueID
         }
         instructions.append(.call(
-            symbol: nil,
             callee: interner.intern("kk_array_set"),
             arguments: [receiverID, loweredIndices[0], storedValueID],
             result: nil,
-            canThrow: false,
-            thrownResult: nil
+            canThrow: false
         ))
         let unit = arena.appendExpr(.unit, type: sema.types.unitType)
         instructions.append(.constValue(result: unit, value: .unit))

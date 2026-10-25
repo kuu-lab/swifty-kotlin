@@ -74,12 +74,16 @@ extension BuildASTPhase.ExpressionParser {
 
         if consumeIf(.symbol(.colon)) != nil {
             while true {
+                let typeStart = current()?.range.start ?? objectToken.range.start
                 guard let superType = parseTypeReference(current()?.range ?? objectToken.range) else {
                     break
                 }
+                let typeEnd = index > 0 ? tokens[index - 1].range.end : typeStart
                 superTypes.append(superType)
                 var constructorArgs: [CallArgument] = []
+                var hasConstructorCallSyntax = false
                 if matches(.symbol(.lParen)) {
+                    hasConstructorCallSyntax = true
                     let open = consume()
                     constructorArgs = parseCallArguments()
                     if let open {
@@ -123,7 +127,9 @@ extension BuildASTPhase.ExpressionParser {
                 superTypeEntries.append(SuperTypeEntry(
                     typeRef: superType,
                     delegateExpression: delegateExpression,
-                    constructorArgs: constructorArgs
+                    constructorArgs: constructorArgs,
+                    hasConstructorCallSyntax: hasConstructorCallSyntax,
+                    range: SourceRange(start: typeStart, end: typeEnd)
                 ))
                 if consumeIf(.symbol(.comma)) != nil {
                     continue

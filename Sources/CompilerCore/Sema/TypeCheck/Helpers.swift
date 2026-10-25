@@ -58,6 +58,29 @@ struct TypeCheckHelpers {
         return companionType
     }
 
+    /// A control-flow branch (`try` body, `catch`, `if`/`else` arm, `when`
+    /// branch) whose value-producing expression is a bare class name denotes
+    /// the companion object, not a `ClassType(X)` instance. Without retyping,
+    /// branch joins keep the nominal type and postfix member lookup cannot
+    /// reach companion members (`try { ULong } finally { }.MAX_VALUE`,
+    /// KUU-3232). Unwraps block bodies to their trailing expression.
+    func retypeBranchClassObjectValue(
+        _ exprID: ExprID,
+        currentType: TypeID,
+        ast: ASTModule,
+        sema: SemaModule
+    ) -> TypeID? {
+        var candidate = exprID
+        while case let .blockExpr(_, trailingExpr, _) = ast.arena.expr(candidate),
+              let trailingExpr
+        {
+            candidate = trailingExpr
+        }
+        return retypeClassNameAsCompanionValue(
+            candidate, currentType: currentType, ast: ast, sema: sema
+        )
+    }
+
     /// Per-compilation memoization for opt-in requirement derivation and
     /// annotation-class resolution (see `OptInResolutionCache`). A class, so
     /// copies of this struct and every `driver.helpers` call site share it.
@@ -943,6 +966,28 @@ struct TypeCheckHelpers {
                     }
                     .sorted(by: sourceFirstThenID)
                 }()
+                // KUU-3237: a typealias cannot qualify a nested-classifier
+                // reference (`A2.Nested` is unresolved in Kotlin). The scoped
+                // lookups above walk the alias's own fqName, which has no
+                // children, so every qualified candidate list is empty here —
+                // report the member instead of letting the short-name
+                // fallback resolve `Nested` against an unrelated owner.
+                if path.count > 1,
+                   let scope,
+                   qualifiedScopeCandidates.isEmpty,
+                   fqCandidates.isEmpty,
+                   nestedCandidates.isEmpty,
+                   let qualifierID = scope.lookupClassifier(path[0], matching: isTypeLikeSymbol)
+                       .sorted(by: sourceFirstThenID).first,
+                   sema.symbols.symbol(qualifierID)?.kind == .typeAlias
+                {
+                    diagnostics?.error(
+                        "KSWIFTK-SEMA-0025",
+                        "Unresolved type '\(interner.resolve(shortName))'.",
+                        range: usageRange
+                    )
+                    return sema.types.errorType
+                }
                 // Fall back to short-name lookup so that packaged types
                 // (e.g. `package test; class Foo`) resolve when referenced
                 // by simple name (`Foo`) during type checking.

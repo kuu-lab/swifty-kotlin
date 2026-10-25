@@ -1,3 +1,4 @@
+import TestStdlibCache
 import Testing
 
 // End-to-end (compiled and run) counterpart of the KIR-structural checks in
@@ -166,6 +167,56 @@ extension BundledStdlibExecutionTests {
             }
             """,
             expectedOutput: "derived=Base!\nBase!\nany=Foo(1)\nmethod=Foo(1)\n"
+        )
+    }
+
+    // KUU-3230: a direct `x.toString()` on a class that inherits the
+    // implementation is a vtable call rooted at the synthetic `Any.toString`
+    // declaration. That slot returns a flat String aggregate, but the
+    // root-most symbol links to the raw-handle runtime helper
+    // (`kk_any_member_to_string`), so the indirect call used to be declared
+    // `i64`-returning and miscalled the flat implementation (printing
+    // `null`). Data classes inheriting final `toString`/`hashCode`/`equals`
+    // hit the same path — they keep the inherited implementations instead of
+    // regenerating them.
+    @Test(arguments: [true, false])
+    func testInheritedToStringVirtualCallUsesFlatStringABI(allowDefaultStdlibLibrary: Bool) throws {
+        if allowDefaultStdlibLibrary { TestStdlibCache.shared.prepare() }
+        try compileAndRunKotlin(
+            """
+            open class Base {
+                final override fun toString(): String = "OK"
+                final override fun hashCode(): Int = 42
+                final override fun equals(other: Any?): Boolean = false
+            }
+            data class DataClass(val field: String) : Base()
+
+            abstract class Root {
+                final override fun toString(): String = "ROOT"
+            }
+            abstract class Mid : Root()
+            data class DeepChild(val field: String) : Mid()
+
+            open class OpenBase {
+                override fun toString(): String = "open-base"
+            }
+            data class OpenChild(val field: String) : OpenBase()
+
+            class Plain : Base()
+
+            fun main() {
+                val d = DataClass("x")
+                println(d.toString())
+                println(d.hashCode())
+                println(d.equals(d))
+                println(DeepChild("x").toString())
+                println(OpenChild("x").toString())
+                println(Plain().toString())
+            }
+            """,
+            expectedOutput: "OK\n42\nfalse\nROOT\nOpenChild(field=x)\nOK\n",
+            moduleName: "KUU3230InheritedToString",
+            allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
         )
     }
 }

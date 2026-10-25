@@ -22,7 +22,6 @@ extension CollectionLiteralConstructionLoweringPass {
             let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
             loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
             loweredBody.append(.call(
-                symbol: nil,
                 callee: lookup.kkListSortedWithName,
                 arguments: [receiverID, comparatorExpr, zeroExpr],
                 result: result,

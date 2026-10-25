@@ -1076,6 +1076,18 @@ enum DiagnosticRegistry {
             defaultSeverity: .error,
             summary: "A declaration can have only one companion object."
         ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0438",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "An interface cannot extend a class."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0441",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "Multiple vararg parameters are prohibited."
+        ),
     ]
 
 

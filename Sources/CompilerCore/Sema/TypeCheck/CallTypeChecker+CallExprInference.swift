@@ -32,6 +32,18 @@ extension CallTypeChecker {
         } else {
             qualifiedCalleePath(for: calleeID, ast: ast)
         }
+
+        // `G<Int>.member` wraps `G<Int>` in a marked `.call` so the type
+        // arguments survive parsing. Resolve it as a classifier qualifier
+        // before any callee-name-driven special case can claim the name.
+        if ast.arena.isTypeQualifierCall(id),
+           let qualifierType = inferTypeQualifierCallExpr(
+               id, calleeID: calleeID, range: range, ctx: ctx
+           )
+        {
+            return qualifierType
+        }
+
         if calleeName.map(interner.resolve) == "$annotationArrayLiteral" {
             if expectedType == nil, let boundType = sema.bindings.exprTypes[id],
                sema.bindings.callBindings[id] != nil { return boundType }

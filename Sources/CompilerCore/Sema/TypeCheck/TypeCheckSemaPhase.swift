@@ -100,7 +100,7 @@ final class TypeCheckSemaPhase: CompilerPhase {
             }
         }
 
-        try withSemaSubPhaseTiming("post-validation", ctx: ctx) {
+        withSemaSubPhaseTiming("post-validation", ctx: ctx) {
             let (inlineLambdaArguments, suspendLambdaArguments) = collectInlineLambdaArguments(ast: ast, sema: sema)
             validateTailrecFunctions(
                 ast: ast,
@@ -360,6 +360,14 @@ private final class TypeCheckWork: @unchecked Sendable {
             ast: driver.ast, symbols: driver.sema.symbols, types: driver.sema.types,
             bindings: driver.sema.bindings, diagnostics: driver.diagnostics, interner: driver.interner,
             sourceManager: driver.sourceManager
+        )
+        // Inferred member types are only registered once bodies have been
+        // type-checked; the declaration-site variance check for them has to
+        // run here rather than in DataFlow.
+        DataFlowSemaPhase().validateInferredMemberVariance(
+            ast: driver.ast, symbols: driver.sema.symbols,
+            bindings: driver.sema.bindings, types: driver.sema.types,
+            diagnostics: driver.diagnostics, interner: driver.interner
         )
     }
 }

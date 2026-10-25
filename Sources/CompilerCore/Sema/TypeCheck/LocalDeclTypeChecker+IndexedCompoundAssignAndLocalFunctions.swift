@@ -924,6 +924,11 @@ extension LocalDeclTypeChecker {
             baseLocals: defaultBaseLocals
         )
 
+        // The function's own name stays bound in value position for
+        // recursion-relevant lookups, but a same-named parameter shadows it:
+        // `fun a(a: Any) = a === 1.1` reads the parameter, not the function
+        // (KUU-3210). Calls still see the function through `ctx.scope`.
+        bodyLocals[name] = (funType, funSymbol, false, true)
         for (i, param) in valueParams.enumerated() {
             // Keep element types in the call signature while exposing the
             // source-level array type for reference varargs inside local bodies.
@@ -939,7 +944,6 @@ extension LocalDeclTypeChecker {
                 bodyLocals[parameterName] = (parameter.type, parameter.symbol, false, true)
             }
         }
-        bodyLocals[name] = (funType, funSymbol, false, true)
         let inferredBodyType: TypeID
         switch body {
         case let .block(exprs, _):

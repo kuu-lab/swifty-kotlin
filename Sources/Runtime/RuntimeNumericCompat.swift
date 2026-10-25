@@ -493,18 +493,27 @@ private func runtimeKTypeProjectionHashCode(_ projection: RuntimeKTypeProjection
     return 31 &* varianceHash &+ typeHash
 }
 
+private func runtimeUnboxedAnyKind(_ tag: Int32) -> Int32 {
+    switch tag {
+    case 2, 5, 6:
+        return tag
+    default:
+        return 1
+    }
+}
+
 private func runtimeAnyKind(_ value: Int, _ tag: Int32) -> Int32 {
     if value == runtimeNullSentinelInt {
         return 0
     }
     guard let pointer = UnsafeMutableRawPointer(bitPattern: value) else {
-        return tag == 2 ? 2 : 1
+        return runtimeUnboxedAnyKind(tag)
     }
     let isObjectPointer = runtimeStorage.withGCLock { state in
         state.objectPointers.contains(UInt(bitPattern: pointer))
     }
     guard isObjectPointer else {
-        return tag == 2 ? 2 : 1
+        return runtimeUnboxedAnyKind(tag)
     }
     if let range = tryCast(pointer, to: RuntimeRangeBox.self) {
         // Keep each nominal range type distinct from scalar Any values and
@@ -584,8 +593,23 @@ public func kk_any_equals(_ lhs: Int, _ lhsTag: Int, _ rhs: Int, _ rhsTag: Int) 
     if let lhsRange = runtimeRangeBox(from: lhs), let rhsRange = runtimeRangeBox(from: rhs) {
         return kk_box_bool(runtimeRangesEqual(lhsRange, rhsRange) ? 1 : 0)
     }
-    if runtimeAnyKind(lhs, lhsTag) != runtimeAnyKind(rhs, rhsTag) {
+    let lhsKind = runtimeAnyKind(lhs, lhsTag)
+    let rhsKind = runtimeAnyKind(rhs, rhsTag)
+    if lhsKind != rhsKind {
         return kk_box_bool(0)
+    }
+    // Raw floating-point values retain their static kind through the Any
+    // bridge. Canonicalize NaNs just as boxed floating values do, while
+    // leaving nullable sentinels on the null-aware path.
+    if lhsKind == 5, lhs != runtimeNullSentinelInt, rhs != runtimeNullSentinelInt {
+        let lhsBits = runtimeFloatingBoxBitPattern(lhs) ?? lhs
+        let rhsBits = runtimeFloatingBoxBitPattern(rhs) ?? rhs
+        return kk_box_bool(kk_float_equals(lhsBits, rhsBits))
+    }
+    if lhsKind == 6, lhs != runtimeNullSentinelInt, rhs != runtimeNullSentinelInt {
+        let lhsBits = runtimeFloatingBoxBitPattern(lhs) ?? lhs
+        let rhsBits = runtimeFloatingBoxBitPattern(rhs) ?? rhs
+        return kk_box_bool(kk_double_equals(lhsBits, rhsBits))
     }
     let equal = runtimeAnyObjectEquality(lhs, rhs) ?? runtimeValuesEqual(lhs, rhs)
     return kk_box_bool(equal ? 1 : 0)
@@ -1528,6 +1552,25 @@ public func kk_op_feq(_ lhs: Int, _ rhs: Int) -> Int {
 @_cdecl("kk_op_fne")
 public func kk_op_fne(_ lhs: Int, _ rhs: Int) -> Int {
     kk_bits_to_float(lhs) != kk_bits_to_float(rhs) ? 1 : 0
+}
+
+/// Kotlin `Double.equals`/`Float.equals` equality for synthesized data class
+/// `equals`: like IEEE `==` except NaN equals NaN regardless of payload, while
+/// -0.0 still differs from +0.0 — i.e. canonical doubleToLongBits/floatToIntBits
+/// comparison. kk_op_deq/kk_op_feq implement plain IEEE `==` and kk_op_eq a
+/// raw bit-pattern compare, neither of which matches this contract.
+@_cdecl("kk_double_equals")
+public func kk_double_equals(_ lhs: Int, _ rhs: Int) -> Int {
+    let a = kk_bits_to_double(lhs)
+    let b = kk_bits_to_double(rhs)
+    return (a.isNaN && b.isNaN) || a.bitPattern == b.bitPattern ? 1 : 0
+}
+
+@_cdecl("kk_float_equals")
+public func kk_float_equals(_ lhs: Int, _ rhs: Int) -> Int {
+    let a = kk_bits_to_float(lhs)
+    let b = kk_bits_to_float(rhs)
+    return (a.isNaN && b.isNaN) || a.bitPattern == b.bitPattern ? 1 : 0
 }
 
 @_cdecl("kk_op_flt")
