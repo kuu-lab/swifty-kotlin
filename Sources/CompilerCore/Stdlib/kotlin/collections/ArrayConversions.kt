@@ -442,6 +442,15 @@ public fun BooleanArray.asList(): List<Boolean> = __kkBooleanArrayAsList(this)
 public fun DoubleArray.asList(): List<Double> = __kkDoubleArrayAsList(this)
 public fun FloatArray.asList(): List<Float> = __kkFloatArrayAsList(this)
 
+public fun IntArray.asIterable(): Iterable<Int> = this.asList()
+public fun LongArray.asIterable(): Iterable<Long> = this.asList()
+public fun ShortArray.asIterable(): Iterable<Short> = this.asList()
+public fun ByteArray.asIterable(): Iterable<Byte> = this.asList()
+public fun CharArray.asIterable(): Iterable<Char> = this.asList()
+public fun BooleanArray.asIterable(): Iterable<Boolean> = this.asList()
+public fun DoubleArray.asIterable(): Iterable<Double> = this.asList()
+public fun FloatArray.asIterable(): Iterable<Float> = this.asList()
+
 @Suppress("UNCHECKED_CAST")
 public fun IntArray.toTypedArray(): Array<Int> {
     val length = __kkIntArraySize(this)
