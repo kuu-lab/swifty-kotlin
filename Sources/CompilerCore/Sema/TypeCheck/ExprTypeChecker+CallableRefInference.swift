@@ -1011,6 +1011,18 @@ extension ExprTypeChecker {
             && (unboundClassType == nil || enumCompanionCallableReferenceReceiverType != nil))
             || (isConstructorReference && unboundInnerConstructorReceiverType == nil)
             || isImplicitlyBoundMember
+        let unboundCallableReceiverType: TypeID?
+        if let unboundInnerConstructorReceiverType {
+            unboundCallableReceiverType = unboundInnerConstructorReceiverType
+        } else if !isBoundReceiver, !isConstructorReference {
+            // Keep the explicit type arguments from `Owner<Args>::member`.
+            // The owner type is the function value's first parameter, and its
+            // type arguments also specialize the member's remaining parameters
+            // and return type.
+            unboundCallableReceiverType = unboundClassType
+        } else {
+            unboundCallableReceiverType = nil
+        }
 
         // BUG-164: callable references must also support SAM-conversion to a
         // functional interface expected type, the same way lambda literals do.
@@ -1180,9 +1192,10 @@ extension ExprTypeChecker {
                 guard let signature = sema.symbols.functionSignature(for: candidate) else { return false }
                 return driver.helpers.contextualCallableFunctionType(
                     for: signature,
+                    targetSymbol: candidate,
                     bindReceiver: isBoundReceiver,
                     boundReceiver: boundReceiverType.map { (candidate, $0) },
-                    unboundReceiverType: unboundInnerConstructorReceiverType,
+                    unboundReceiverType: unboundCallableReceiverType,
                     expectedFunctionType: inputType,
                     interner: interner,
                     availableContextReceiverTypes: availableContextReceiverTypes,
@@ -1201,7 +1214,7 @@ extension ExprTypeChecker {
             expectedType: expectedFunctionType ?? expectedType,
             bindReceiver: isBoundReceiver,
             boundReceiverType: boundReceiverType,
-            unboundReceiverType: unboundInnerConstructorReceiverType,
+            unboundReceiverType: unboundCallableReceiverType,
             expectedCallableReferenceReturnType: expectedCallableReferenceReturnType,
             postponedReturnTypeParameter: postponedReturnParameter,
             interner: interner,
@@ -1235,7 +1248,7 @@ extension ExprTypeChecker {
                 for: signature,
                 bindReceiver: isBoundReceiver,
                 boundReceiver: boundReceiverType.map { (chosen, $0) },
-                unboundReceiverType: unboundInnerConstructorReceiverType,
+                unboundReceiverType: unboundCallableReceiverType,
                 targetSymbol: chosen,
                 interner: interner,
                 sema: sema
@@ -1273,7 +1286,7 @@ extension ExprTypeChecker {
                         for: signature,
                         bindReceiver: isBoundReceiver,
                         boundReceiver: boundReceiverType.map { (chosen, $0) },
-                        unboundReceiverType: unboundInnerConstructorReceiverType,
+                        unboundReceiverType: unboundCallableReceiverType,
                         expectedFunctionType: expectedFunctionType,
                         postponedReturnTypeParameter: postponedReturnParameter,
                         interner: interner,
@@ -1294,7 +1307,7 @@ extension ExprTypeChecker {
                           let specialization = driver.helpers.contextualCallableReferenceBinding(
                               for: signature, bindReceiver: isBoundReceiver,
                               boundReceiver: boundReceiverType.map { (chosen, $0) },
-                              unboundReceiverType: unboundInnerConstructorReceiverType,
+                              unboundReceiverType: unboundCallableReceiverType,
                               expectedFunctionType: expectedFunctionType,
                               postponedReturnTypeParameter: postponedReturnParameter,
                               interner: interner,
@@ -1309,7 +1322,7 @@ extension ExprTypeChecker {
                         for: signature,
                         bindReceiver: isBoundReceiver,
                         boundReceiver: boundReceiverType.map { (chosen, $0) },
-                        unboundReceiverType: unboundInnerConstructorReceiverType,
+                        unboundReceiverType: unboundCallableReceiverType,
                         expectedFunctionType: expectedFunctionType,
                         interner: interner,
                         availableContextReceiverTypes: availableContextReceiverTypes,
@@ -1343,7 +1356,7 @@ extension ExprTypeChecker {
                        let specialization = driver.helpers.contextualCallableReferenceBinding(
                            for: signature, bindReceiver: true,
                            boundReceiver: boundReceiverType.map { (chosen, $0) },
-                           unboundReceiverType: unboundInnerConstructorReceiverType,
+                           unboundReceiverType: unboundCallableReceiverType,
                            expectedFunctionType: nil,
                            expectedCallableReferenceReturnType: expectedCallableReferenceReturnType,
                            interner: interner,
@@ -1365,7 +1378,7 @@ extension ExprTypeChecker {
                         for: signature,
                         bindReceiver: isBoundReceiver,
                         boundReceiver: boundReceiverType.map { (chosen, $0) },
-                        unboundReceiverType: unboundInnerConstructorReceiverType,
+                        unboundReceiverType: unboundCallableReceiverType,
                         expectedFunctionType: nil,
                         expectedCallableReferenceReturnType: expectedCallableReferenceReturnType,
                         interner: interner,
