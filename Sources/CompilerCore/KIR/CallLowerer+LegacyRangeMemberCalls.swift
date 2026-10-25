@@ -27,12 +27,10 @@ extension CallLowerer {
                )
             {
                 instructions.append(.call(
-                    symbol: nil,
                     callee: runtimeGetter,
                     arguments: [loweredReceiverID],
                     result: result,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ))
                 return result
             }
@@ -70,12 +68,10 @@ extension CallLowerer {
                             wantLast: calleeText == "last"
                         )
                     instructions.append(.call(
-                        symbol: nil,
                         callee: interner.intern(runtimeName),
                         arguments: [loweredReceiverID],
                         result: result,
-                        canThrow: usesThrowingFunction,
-                        thrownResult: nil
+                        canThrow: usesThrowingFunction
                     ))
                     return result
                 }
@@ -154,12 +150,10 @@ extension CallLowerer {
                 }
                 if let runtimeGetter {
                     instructions.append(.call(
-                        symbol: nil,
                         callee: runtimeGetter,
                         arguments: [loweredReceiverID],
                         result: result,
-                        canThrow: calleeNameStr == "endExclusive",
-                        thrownResult: nil
+                        canThrow: calleeNameStr == "endExclusive"
                     ))
                     return result
                 }
@@ -195,12 +189,10 @@ extension CallLowerer {
                 interner.intern("__kk_range_step")
             }
             instructions.append(.call(
-                symbol: nil,
                 callee: runtimeCallee,
                 arguments: [loweredReceiverID],
                 result: result,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
             return result
         }

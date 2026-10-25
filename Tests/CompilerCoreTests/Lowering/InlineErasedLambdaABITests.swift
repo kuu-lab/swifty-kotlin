@@ -315,12 +315,10 @@ struct InlineErasedLambdaABITests {
         let invokeCallee = LoweringTestRuntime.callee("function_invoke", interner: interner)
         var body = KIRLoweringEmitContext([
             .call(
-                symbol: nil,
                 callee: invokeCallee,
                 arguments: [],
                 result: invokeResult,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ),
         ])
 

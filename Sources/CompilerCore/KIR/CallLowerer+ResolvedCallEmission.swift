@@ -91,12 +91,10 @@ extension CallLowerer {
             canThrow = false
         }
         instructions.append(.call(
-            symbol: nil,
             callee: runtimeCallee,
             arguments: runtimeArgs,
             result: result,
-            canThrow: canThrow,
-            thrownResult: nil
+            canThrow: canThrow
         ))
         // BUG-166: StringBuilder instances bypass the normal kk_object_new
         // construction path (see the BUG-044 comment in RuntimeStringBuilder.swift),
@@ -174,8 +172,7 @@ extension CallLowerer {
             callee: callee,
             arguments: finalArgIDs,
             result: result,
-            canThrow: canThrow,
-            thrownResult: nil
+            canThrow: canThrow
         ))
         appendRuntimeRangeItableRegistrations(
             objectValue: result, factoryName: callee,
@@ -526,12 +523,10 @@ extension CallLowerer {
                     ))
                     let captureSetResult = arena.appendTemporary(type: sema.types.anyType)
                     instructions.append(.call(
-                        symbol: nil,
                         callee: interner.intern("kk_array_set"),
                         arguments: [allocatedObj, captureOffsetExpr, captureValue],
                         result: captureSetResult,
-                        canThrow: true,
-                        thrownResult: nil
+                        canThrow: true
                     ))
                 }
             }
@@ -685,12 +680,10 @@ extension CallLowerer {
             {
                 let receiver = arena.appendTemporary(type: signature.receiverType ?? sema.types.anyType)
                 instructions.append(.call(
-                    symbol: nil,
                     callee: interner.intern("kk_coroutine_current_scope"),
                     arguments: [],
                     result: receiver,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ))
                 implicitReceiver = receiver
             }
@@ -751,12 +744,10 @@ extension CallLowerer {
                     let tagID = arena.appendExpr(.intLiteral(tag), type: intType)
                     instructions.append(.constValue(result: tagID, value: .intLiteral(tag)))
                     instructions.append(.call(
-                        symbol: nil,
                         callee: interner.intern("kk_any_hashCode"),
                         arguments: [hashReceiverID, tagID],
                         result: result,
-                        canThrow: false,
-                        thrownResult: nil
+                        canThrow: false
                     ))
                     return result
                 }
@@ -770,20 +761,16 @@ extension CallLowerer {
                     instructions.append(.constValue(result: argTagID, value: .intLiteral(argTag)))
                     let boxedResult = arena.appendTemporary(type: sema.types.makeNullable(sema.types.booleanType))
                     instructions.append(.call(
-                        symbol: nil,
                         callee: interner.intern("kk_any_equals"),
                         arguments: [extensionReceiver, receiverTagID, loweredArgIDs[0], argTagID],
                         result: boxedResult,
-                        canThrow: false,
-                        thrownResult: nil
+                        canThrow: false
                     ))
                     instructions.append(.call(
-                        symbol: nil,
                         callee: interner.intern("kk_unbox_bool_static"),
                         arguments: [boxedResult],
                         result: result,
-                        canThrow: false,
-                        thrownResult: nil
+                        canThrow: false
                     ))
                     return result
                 }
@@ -1002,8 +989,7 @@ extension CallLowerer {
                 callee: stubName,
                 arguments: finalArgIDs,
                 result: result,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
         } else {
             appendReifiedTypeTokens(
@@ -1185,12 +1171,10 @@ extension CallLowerer {
                     ))
                     taggedResult = arena.appendTemporary(type: boundType ?? arena.exprType(result))
                     instructions.append(.call(
-                        symbol: nil,
                         callee: interner.intern("kk_array_tag_type"),
                         arguments: [callResult, typeIDExpr],
                         result: taggedResult,
-                        canThrow: false,
-                        thrownResult: nil
+                        canThrow: false
                     ))
                 }
                 // Nominal return tagging is existing erased-Array behavior.

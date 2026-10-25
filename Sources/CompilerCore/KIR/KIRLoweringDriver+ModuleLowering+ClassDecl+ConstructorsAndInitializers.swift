@@ -418,7 +418,6 @@ extension KIRLoweringDriver {
                 arguments: arguments,
                 result: resultID,
                 canThrow: false,
-                thrownResult: nil,
                 isSuperCall: false
             ))
             return resultID
@@ -453,8 +452,7 @@ extension KIRLoweringDriver {
             callee: interner.intern(sema.symbols.externalLinkName(for: superCtorSymbol) ?? "<init>"),
             arguments: factoryArgs,
             result: factoryResult,
-            canThrow: sema.symbols.functionSignature(for: superCtorSymbol)?.canThrow ?? false,
-            thrownResult: nil
+            canThrow: sema.symbols.functionSignature(for: superCtorSymbol)?.canThrow ?? false
         ))
         if let messageID = emitHelperCall(
             "__kkThrowableMessage", arguments: [factoryResult], resultType: nullableStringType
@@ -546,12 +544,10 @@ extension KIRLoweringDriver {
 
             let unusedResult = arena.appendTemporary(type: resultType)
             body.append(.call(
-                symbol: nil,
                 callee: callee,
                 arguments: arguments,
                 result: unusedResult,
                 canThrow: false,
-                thrownResult: nil,
                 isSuperCall: false
             ))
         }
@@ -623,12 +619,10 @@ extension KIRLoweringDriver {
 
             let unusedResult = arena.appendTemporary(type: shared.sema.types.anyType)
             body.append(.call(
-                symbol: nil,
                 callee: shared.interner.intern("kk_array_set"),
                 arguments: [receiverID, offsetExpr, delegateValue],
                 result: unusedResult,
                 canThrow: true,
-                thrownResult: nil,
                 isSuperCall: false
             ))
         }
@@ -879,12 +873,10 @@ extension KIRLoweringDriver {
             )
             let unusedResult = arena.appendTemporary(type: sema.types.anyType)
             body.append(.call(
-                symbol: nil,
                 callee: shared.interner.intern("kk_array_set"),
                 arguments: [receiverID, offsetExpr, storedValue],
                 result: unusedResult,
                 canThrow: false,
-                thrownResult: nil,
                 isSuperCall: false
             ))
         } else {
@@ -1051,7 +1043,7 @@ extension KIRLoweringDriver {
         body.append(.call(
             symbol: ctorSymbol, callee: interner.intern("<init>"),
             arguments: [allocatedObj, lambdaFnPtr, modeExpr, lockArgument, initialValueExpr, initialComputedExpr],
-            result: createResult, canThrow: false, thrownResult: nil
+            result: createResult, canThrow: false
         ))
 
         emitFieldStore(
@@ -1114,7 +1106,7 @@ extension KIRLoweringDriver {
             symbol: provideDelegateSymbol, callee: provideDelegateName,
             arguments: provideDelegateArguments,
             result: provideDelegateResult,
-            canThrow: false, thrownResult: nil
+            canThrow: false
         ))
         return provideDelegateResult
     }
@@ -1173,12 +1165,10 @@ extension KIRLoweringDriver {
         let kclassExpr = arena.appendTemporary(type: sema.types.makeKClassType(argument: sema.types.anyType)
         )
         body.append(.call(
-            symbol: nil,
             callee: interner.intern("__kk_kclass_create"),
             arguments: [typeTokenExpr, simpleNameExpr],
             result: kclassExpr,
-            canThrow: false,
-            thrownResult: nil
+            canThrow: false
         ))
 
         let ctorNameInterned = interner.intern("<init>")
@@ -1224,23 +1214,19 @@ extension KIRLoweringDriver {
 
             let registrationResult = arena.appendTemporary(type: intType)
             body.append(.call(
-                symbol: nil,
                 callee: interner.intern("__kk_kconstructor_create"),
                 arguments: [
                     ctorNameExpr, arityExpr, returnTypeExpr, fnPtrExpr, isPrimaryExpr,
                     visibilityExpr, kclassExpr,
                 ],
                 result: registrationResult,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
             body.append(.call(
-                symbol: nil,
                 callee: interner.intern("__kk_kconstructor_set_jvm_visibility"),
                 arguments: [registrationResult, jvmVisibilityExpr],
                 result: nil,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
 
             let reflectedParameterTypes = (ownerInfo.kind == .enumClass
@@ -1264,12 +1250,10 @@ extension KIRLoweringDriver {
                 ))
                 let parameterTypeResult = arena.appendTemporary(type: intType)
                 body.append(.call(
-                    symbol: nil,
                     callee: interner.intern("__kk_kconstructor_set_parameter_type"),
                     arguments: [registrationResult, parameterIndexExpr, parameterTypeTokenExpr],
                     result: parameterTypeResult,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ))
             }
 
@@ -1462,21 +1446,17 @@ extension KIRLoweringDriver {
                 body.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
                 let kfunctionResult = arena.appendTemporary(type: intType)
                 body.append(.call(
-                    symbol: nil,
                     callee: interner.intern("__kk_kfunction_create"),
                     arguments: [fnNameExpr, arityExpr, retTypeExpr, isSuspendExpr, fnPtrExpr, zeroExpr],
                     result: kfunctionResult,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ))
                 let fnRegisterResult = arena.appendTemporary(type: intType)
                 body.append(.call(
-                    symbol: nil,
                     callee: interner.intern("__kk_kclass_register_member"),
                     arguments: [kclassExpr, kfunctionResult],
                     result: fnRegisterResult,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ))
             case .property:
                 let propName = interner.resolve(childSym.name)
@@ -1496,21 +1476,17 @@ extension KIRLoweringDriver {
                 body.append(.constValue(result: propTypeExpr, value: .stringLiteral(propTypeInterned)))
                 let kpropResult = arena.appendTemporary(type: intType)
                 body.append(.call(
-                    symbol: nil,
                     callee: interner.intern("__kk_kproperty_stub_create"),
                     arguments: [propNameExpr, propTypeExpr],
                     result: kpropResult,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ))
                 let propRegisterResult = arena.appendTemporary(type: intType)
                 body.append(.call(
-                    symbol: nil,
                     callee: interner.intern("__kk_kclass_register_member"),
                     arguments: [kclassExpr, kpropResult],
                     result: propRegisterResult,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ))
             default:
                 break

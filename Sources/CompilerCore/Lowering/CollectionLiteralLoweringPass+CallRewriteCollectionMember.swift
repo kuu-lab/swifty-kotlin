@@ -30,7 +30,6 @@ extension CollectionLiteralConstructionLoweringPass {
                     default: callee
                     }
                     loweredBody.append(.call(
-                        symbol: nil,
                         callee: kkName,
                         arguments: [receiverID],
                         result: result,
@@ -47,7 +46,6 @@ extension CollectionLiteralConstructionLoweringPass {
                 let receiverID = arguments[0]
                 if state.listExprIDs.contains(receiverID.rawValue) {
                     loweredBody.append(.call(
-                        symbol: nil,
                         callee: lookup.kkListSizeName,
                         arguments: [receiverID],
                         result: result,
@@ -58,34 +56,28 @@ extension CollectionLiteralConstructionLoweringPass {
                 }
                 if state.mapExprIDs.contains(receiverID.rawValue) {
                     loweredBody.append(.call(
-                        symbol: nil,
                         callee: lookup.kkMapSizeName,
                         arguments: [receiverID],
                         result: result,
-                        canThrow: false,
-                        thrownResult: nil
+                        canThrow: false
                     ))
                     return true
                 }
                 if state.setExprIDs.contains(receiverID.rawValue) {
                     loweredBody.append(.call(
-                        symbol: nil,
                         callee: lookup.kkSetSizeName,
                         arguments: [receiverID],
                         result: result,
-                        canThrow: false,
-                        thrownResult: nil
+                        canThrow: false
                     ))
                     return true
                 }
                 if state.arrayExprIDs.contains(receiverID.rawValue) {
                     loweredBody.append(.call(
-                        symbol: nil,
                         callee: lookup.kkArraySizeName,
                         arguments: [receiverID],
                         result: result,
-                        canThrow: false,
-                        thrownResult: nil
+                        canThrow: false
                     ))
                     return true
                 }
@@ -100,12 +92,10 @@ extension CollectionLiteralConstructionLoweringPass {
                     // isUIntRangeExpr arm was unreachable regardless of that
                     // local helper's own always-false type comparison.
                     loweredBody.append(.call(
-                        symbol: nil,
                         callee: lookup.kkRangeCountName,
                         arguments: [receiverID],
                         result: result,
-                        canThrow: false,
-                        thrownResult: nil
+                        canThrow: false
                     ))
                     return true
                 }
@@ -117,7 +107,6 @@ extension CollectionLiteralConstructionLoweringPass {
                 let receiverID = arguments[0]
                 if state.listExprIDs.contains(receiverID.rawValue) {
                     loweredBody.append(.call(
-                        symbol: nil,
                         callee: lookup.kkListGetName,
                         arguments: arguments,
                         result: result,
@@ -128,7 +117,6 @@ extension CollectionLiteralConstructionLoweringPass {
                 }
                 if state.mapExprIDs.contains(receiverID.rawValue) {
                     loweredBody.append(.call(
-                        symbol: nil,
                         callee: lookup.kkMapGetName,
                         arguments: arguments,
                         result: result,
@@ -145,12 +133,10 @@ extension CollectionLiteralConstructionLoweringPass {
                 let receiverID = arguments[0]
                 if state.setExprIDs.contains(receiverID.rawValue) {
                     loweredBody.append(.call(
-                        symbol: nil,
                         callee: lookup.kkSetContainsName,
                         arguments: arguments,
                         result: result,
-                        canThrow: false,
-                        thrownResult: nil
+                        canThrow: false
                     ))
                     return true
                 }
@@ -162,12 +148,10 @@ extension CollectionLiteralConstructionLoweringPass {
                 let receiverID = arguments[0]
                 if state.setExprIDs.contains(receiverID.rawValue) {
                     loweredBody.append(.call(
-                        symbol: nil,
                         callee: lookup.kkMutableSetAddName,
                         arguments: arguments,
                         result: result,
-                        canThrow: false,
-                        thrownResult: nil
+                        canThrow: false
                     ))
                     return true
                 }
@@ -179,12 +163,10 @@ extension CollectionLiteralConstructionLoweringPass {
                 let receiverID = arguments[0]
                 if state.setExprIDs.contains(receiverID.rawValue) {
                     loweredBody.append(.call(
-                        symbol: nil,
                         callee: lookup.kkMutableSetRemoveName,
                         arguments: arguments,
                         result: result,
-                        canThrow: false,
-                        thrownResult: nil
+                        canThrow: false
                     ))
                     return true
                 }
@@ -196,7 +178,6 @@ extension CollectionLiteralConstructionLoweringPass {
                 let receiverID = arguments[0]
                 if state.listExprIDs.contains(receiverID.rawValue) {
                     loweredBody.append(.call(
-                        symbol: nil,
                         callee: lookup.kkListIsEmptyName,
                         arguments: [receiverID],
                         result: result,
@@ -207,23 +188,19 @@ extension CollectionLiteralConstructionLoweringPass {
                 }
                 if state.setExprIDs.contains(receiverID.rawValue) {
                     loweredBody.append(.call(
-                        symbol: nil,
                         callee: lookup.kkSetIsEmptyName,
                         arguments: [receiverID],
                         result: result,
-                        canThrow: false,
-                        thrownResult: nil
+                        canThrow: false
                     ))
                     return true
                 }
                 if state.mapExprIDs.contains(receiverID.rawValue) {
                     loweredBody.append(.call(
-                        symbol: nil,
                         callee: lookup.kkMapIsEmptyName,
                         arguments: [receiverID],
                         result: result,
-                        canThrow: false,
-                        thrownResult: nil
+                        canThrow: false
                     ))
                     return true
                 }
@@ -234,12 +211,10 @@ extension CollectionLiteralConstructionLoweringPass {
                     }
                     // KSP-1523: see the count() branch above — same unreachable arm.
                     loweredBody.append(.call(
-                        symbol: nil,
                         callee: lookup.kkRangeIsEmptyName,
                         arguments: [receiverID],
                         result: result,
-                        canThrow: false,
-                        thrownResult: nil
+                        canThrow: false
                     ))
                     return true
                 }
@@ -256,12 +231,10 @@ extension CollectionLiteralConstructionLoweringPass {
                     }
                     // KSP-1523: see the count() branch above — same unreachable arm.
                     loweredBody.append(.call(
-                        symbol: nil,
                         callee: lookup.kkRangeSumName,
                         arguments: [receiverID],
                         result: result,
-                        canThrow: false,
-                        thrownResult: nil
+                        canThrow: false
                     ))
                     return true
                 }

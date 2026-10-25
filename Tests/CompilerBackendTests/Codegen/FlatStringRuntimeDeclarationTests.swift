@@ -17,8 +17,8 @@ struct FlatStringRuntimeDeclarationTests {
         let result = arena.appendExpr(.temporary(0), type: types.stringType)
         let addressInstruction = KIRInstruction.constValue(result: address, value: .externSymbolAddress(callee))
         let callInstruction = KIRInstruction.call(
-            symbol: nil, callee: callee, arguments: [handle], result: result,
-            canThrow: false, thrownResult: nil
+            callee: callee, arguments: [handle], result: result,
+            canThrow: false
         )
         // Each body has its own declaration cache, while LLVM functions are
         // shared by the module. Names control the emitter's sorted body order.

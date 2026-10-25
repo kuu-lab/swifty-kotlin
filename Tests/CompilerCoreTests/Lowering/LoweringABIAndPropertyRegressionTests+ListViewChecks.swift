@@ -15,11 +15,11 @@ extension LoweringABIAndPropertyRegressionTests {
             symbol: SymbolID(rawValue: 7900), name: interner.intern("main"), params: [],
             returnType: types.unitType,
             body: [
-                .call(symbol: nil, callee: interner.intern(try loweringRuntimeABI("list_size").name), arguments: [receiver],
+                .call(callee: interner.intern(try loweringRuntimeABI("list_size").name), arguments: [receiver],
                       result: nil, canThrow: false, thrownResult: thrown),
                 .copy(from: thrown, to: forwardedThrown),
                 .jumpIfNotNull(value: forwardedThrown, target: 1),
-                .call(symbol: nil, callee: interner.intern(try loweringRuntimeABI("list_iterator").name), arguments: [receiver],
+                .call(callee: interner.intern(try loweringRuntimeABI("list_iterator").name), arguments: [receiver],
                       result: nil, canThrow: false, thrownResult: thrown),
                 .jumpIfNotNull(value: thrown, target: 1),
                 .label(1),

@@ -225,19 +225,19 @@ struct LoweringPassRegressionTests {
             params: [],
             returnType: TypeSystem().unitType,
             body: [
-                .call(symbol: nil, callee: interner.intern(RuntimeCall.rangeIterator.name), arguments: [v0], result: v3, canThrow: false, thrownResult: nil),
-                .call(symbol: nil, callee: interner.intern(CompilerCall.forLowered.name), arguments: [v3], result: v1, canThrow: false, thrownResult: nil),
+                .call(callee: interner.intern(RuntimeCall.rangeIterator.name), arguments: [v0], result: v3, canThrow: false),
+                .call(callee: interner.intern(CompilerCall.forLowered.name), arguments: [v3], result: v1, canThrow: false),
                 .constValue(result: vFalse, value: .boolLiteral(false)),
                 .jumpIfEqual(lhs: v0, rhs: vFalse, target: 800),
                 .jump(801),
                 .label(800),
                 .copy(from: v2, to: v1),
                 .label(801),
-                .call(symbol: nil, callee: interner.intern("get"), arguments: [v0], result: v1, canThrow: false, thrownResult: nil),
-                .call(symbol: nil, callee: interner.intern("set"), arguments: [v0], result: v1, canThrow: false, thrownResult: nil),
-                .call(symbol: nil, callee: interner.intern("<lambda>"), arguments: [v0], result: v1, canThrow: false, thrownResult: nil),
-                .call(symbol: nil, callee: interner.intern("inlineTarget"), arguments: [], result: v1, canThrow: false, thrownResult: nil),
-                .call(symbol: nil, callee: interner.intern("suspendTarget"), arguments: [v0], result: v1, canThrow: false, thrownResult: nil),
+                .call(callee: interner.intern("get"), arguments: [v0], result: v1, canThrow: false),
+                .call(callee: interner.intern("set"), arguments: [v0], result: v1, canThrow: false),
+                .call(callee: interner.intern("<lambda>"), arguments: [v0], result: v1, canThrow: false),
+                .call(callee: interner.intern("inlineTarget"), arguments: [], result: v1, canThrow: false),
+                .call(callee: interner.intern("suspendTarget"), arguments: [v0], result: v1, canThrow: false),
                 .returnUnit,
             ],
             isSuspend: false,
@@ -258,7 +258,7 @@ struct LoweringPassRegressionTests {
             params: [],
             returnType: TypeSystem().unitType,
             body: [
-                .call(symbol: suspendSym, callee: interner.intern("suspendTarget"), arguments: [], result: v2, canThrow: false, thrownResult: nil),
+                .call(symbol: suspendSym, callee: interner.intern("suspendTarget"), arguments: [], result: v2, canThrow: false),
                 .returnValue(v2),
             ],
             isSuspend: true,
@@ -400,7 +400,7 @@ struct LoweringPassRegressionTests {
         let caller = KIRFunction(
             symbol: SymbolID(rawValue: 950), name: interner.intern("caller"), params: [], returnType: types.unitType,
             body: [
-                .call(symbol: imported, callee: interner.intern(importedLinkName), arguments: [], result: result, canThrow: true, thrownResult: nil),
+                .call(symbol: imported, callee: interner.intern(importedLinkName), arguments: [], result: result, canThrow: true),
                 .returnValue(result),
             ], isSuspend: true, isInline: false
         )
@@ -446,8 +446,8 @@ struct LoweringPassRegressionTests {
             returnType: types.unitType,
             body: [
                 .constValue(result: argValue, value: .intLiteral(42)),
-                .call(symbol: nil, callee: interner.intern("susp"), arguments: [], result: noArgResult, canThrow: false, thrownResult: nil),
-                .call(symbol: nil, callee: interner.intern("susp"), arguments: [argValue], result: oneArgResult, canThrow: false, thrownResult: nil),
+                .call(callee: interner.intern("susp"), arguments: [], result: noArgResult, canThrow: false),
+                .call(callee: interner.intern("susp"), arguments: [argValue], result: oneArgResult, canThrow: false),
                 .returnUnit,
             ],
             isSuspend: false,
@@ -549,7 +549,7 @@ struct LoweringPassRegressionTests {
             returnType: types.unitType,
             body: [
                 .label(10),
-                .call(symbol: suspendSym, callee: interner.intern("suspendTarget"), arguments: [], result: callResult, canThrow: false, thrownResult: nil),
+                .call(symbol: suspendSym, callee: interner.intern("suspendTarget"), arguments: [], result: callResult, canThrow: false),
                 .jumpIfEqual(lhs: lhs, rhs: rhs, target: 20),
                 .returnValue(lhs),
                 .label(20),

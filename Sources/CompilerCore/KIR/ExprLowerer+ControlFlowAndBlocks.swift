@@ -67,12 +67,10 @@ extension ExprLowerer {
             }
             let exception = arena.appendTemporary(type: exceptionType)
             instructions.append(.call(
-                symbol: nil,
                 callee: interner.intern("__kk_kotlin_nothing_value_exception_new"),
                 arguments: [],
                 result: exception,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
             instructions.append(.rethrow(value: exception))
         }

@@ -860,6 +860,12 @@ enum DiagnosticRegistry {
             summary: "Returns are not allowed for functions with expression body."
         ),
         DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0312",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "Returns are not allowed in initializer blocks."
+        ),
+        DiagnosticDescriptor(
             code: "KSWIFTK-SEMA-PLATFORM",
             pass: "SEMA",
             defaultSeverity: .warning,
@@ -1077,6 +1083,18 @@ enum DiagnosticRegistry {
             summary: "A declaration can have only one companion object."
         ),
         DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0436",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "Conflicting type parameter declarations."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0438",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "An interface cannot extend a class."
+        ),
+        DiagnosticDescriptor(
             code: "KSWIFTK-SEMA-0439",
             pass: "SEMA",
             defaultSeverity: .error,
@@ -1089,10 +1107,10 @@ enum DiagnosticRegistry {
             summary: "An enclosing this of a non-inner class cannot back an inner-class supertype."
         ),
         DiagnosticDescriptor(
-            code: "KSWIFTK-SEMA-0438",
+            code: "KSWIFTK-SEMA-0441",
             pass: "SEMA",
             defaultSeverity: .error,
-            summary: "An interface cannot extend a class."
+            summary: "Multiple vararg parameters are prohibited."
         ),
     ]
 

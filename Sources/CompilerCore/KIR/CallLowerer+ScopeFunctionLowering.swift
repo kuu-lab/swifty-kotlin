@@ -86,8 +86,7 @@ extension CallLowerer {
                     // C variable as its explicit receiver parameter.
                     arguments: info.captureArguments + [receiverSymExpr],
                     result: result,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ))
             } else {
                 return nil
@@ -157,8 +156,7 @@ extension CallLowerer {
                 callee: info.callee,
                 arguments: callArgs,
                 result: result,
-                canThrow: true,
-                thrownResult: nil
+                canThrow: true
             ))
 
             // CODE-001: the beginFinallyGuard/endFinallyGuard pair prevents
@@ -230,7 +228,6 @@ extension CallLowerer {
                     arguments: [],
                     result: closeResult,
                     canThrow: true,
-                    thrownResult: nil,
                     dispatch: closeDispatch
                 ))
             } else {
@@ -262,8 +259,7 @@ extension CallLowerer {
                     callee: concreteCloseName,
                     arguments: [loweredReceiverID],
                     result: closeResult,
-                    canThrow: true,
-                    thrownResult: nil
+                    canThrow: true
                 ))
             }
             instructions.append(contentsOf: directCloseInstructions)
@@ -276,8 +272,7 @@ extension CallLowerer {
                     callee: closeFinallyName,
                     arguments: [loweredReceiverID, exceptionSlot],
                     result: closeResult,
-                    canThrow: true,
-                    thrownResult: nil
+                    canThrow: true
                 ))
             } else {
                 // Keep the legacy direct-close fallback for pre-source-backed stdlib
@@ -371,8 +366,7 @@ extension CallLowerer {
                 callee: resolvedCalleeName(for: pinSymbol, fallback: "pin"),
                 arguments: [loweredReceiverID],
                 result: pinnedResult,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
 
             let result = arena.appendTemporary(type: boundType
@@ -437,8 +431,7 @@ extension CallLowerer {
                 callee: info.callee,
                 arguments: callArgs,
                 result: result,
-                canThrow: true,
-                thrownResult: nil
+                canThrow: true
             ))
 
             // CODE-001: guard against an outer try/catch/use re-wrapping this
@@ -472,8 +465,7 @@ extension CallLowerer {
                 callee: resolvedCalleeName(for: unpinSymbol, fallback: "unpin"),
                 arguments: [pinnedResult],
                 result: unpinResult,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
 
             instructions.append(.jumpIfNotNull(value: exceptionSlot, target: rethrowLabel))
@@ -538,12 +530,10 @@ extension CallLowerer {
         } ?? sema.types.anyType
         let scopeResult = arena.appendTemporary(type: memScopeType)
         instructions.append(.call(
-            symbol: nil,
             callee: interner.intern("kk_memscope_new"),
             arguments: [],
             result: scopeResult,
-            canThrow: false,
-            thrownResult: nil
+            canThrow: false
         ))
 
         let result = arena.appendTemporary(type: boundType)
@@ -592,19 +582,16 @@ extension CallLowerer {
                 callee: info.callee,
                 arguments: callArgs,
                 result: result,
-                canThrow: true,
-                thrownResult: nil
+                canThrow: true
             ))
         } else {
             // Non-literal callable value (e.g. a declared `MemScope.() -> R`
             // binding): invoke through the Function1 ABI.
             blockInstructions.append(.call(
-                symbol: nil,
                 callee: interner.intern("kk_function_invoke"),
                 arguments: [loweredLambdaID, scopeResult],
                 result: result,
-                canThrow: true,
-                thrownResult: nil
+                canThrow: true
             ))
         }
 
@@ -629,12 +616,10 @@ extension CallLowerer {
         instructions.append(.label(finallyLabel))
         let clearResult = arena.appendTemporary(type: sema.types.unitType)
         instructions.append(.call(
-            symbol: nil,
             callee: interner.intern("kk_arena_clear"),
             arguments: [scopeResult],
             result: clearResult,
-            canThrow: true,
-            thrownResult: nil
+            canThrow: true
         ))
 
         instructions.append(.jumpIfNotNull(value: exceptionSlot, target: rethrowLabel))

@@ -8,7 +8,7 @@ import Testing
 /// (`HeaderHelpers+SyntheticCollectionFactoryStubs.swift` is deleted).
 ///
 /// `CollectionLiteralLoweringTests` covers the same names, but it hand-builds
-/// `.call(symbol: nil, ...)` KIR against a `KIRContext` without a `SemaModule`.
+/// `.call(...)` KIR against a `KIRContext` without a `SemaModule`.
 /// That short-circuits `isStdlibCollectionFactory` at its
 /// `guard let sym … else { return true }`, so those cases exercise the
 /// name-only fallback rather than the path a real Kotlin input takes. The

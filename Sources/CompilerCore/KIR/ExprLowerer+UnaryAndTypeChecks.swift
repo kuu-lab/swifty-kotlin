@@ -143,12 +143,10 @@ extension ExprLowerer {
         }
         let isResult = arena.appendTemporary(type: boundType ?? boolType)
         instructions.append(.call(
-            symbol: nil,
             callee: interner.intern("kk_op_is"),
             arguments: [operandID, typeToken],
             result: isResult,
-            canThrow: false,
-            thrownResult: nil
+            canThrow: false
         ))
         guard negated else {
             return isResult
@@ -275,12 +273,10 @@ extension ExprLowerer {
             )
             let result = arena.appendTemporary(type: boundType ?? sema.types.anyType)
             instructions.append(.call(
-                symbol: nil,
                 callee: interner.intern(isSafe ? "kk_array_op_safe_cast" : "kk_array_op_cast"),
                 arguments: [operandID, typeToken, componentToken],
                 result: result,
-                canThrow: !isSafe,
-                thrownResult: nil
+                canThrow: !isSafe
             ))
             return result
         }
@@ -347,12 +343,10 @@ extension ExprLowerer {
                     instructions: &instructions
                 )
                 instructions.append(.call(
-                    symbol: nil,
                     callee: interner.intern(isSafe ? "kk_op_safe_cast" : "kk_op_cast"),
                     arguments: [operandID, typeToken],
                     result: result,
-                    canThrow: !isSafe,
-                    thrownResult: nil
+                    canThrow: !isSafe
                 ))
                 return result
             }
@@ -385,12 +379,10 @@ extension ExprLowerer {
         }
         let result = arena.appendTemporary(type: boundType ?? sema.types.anyType)
         instructions.append(.call(
-            symbol: nil,
             callee: interner.intern(isSafe ? "kk_op_safe_cast" : "kk_op_cast"),
             arguments: [operandID, typeToken],
             result: result,
-            canThrow: !isSafe,
-            thrownResult: nil
+            canThrow: !isSafe
         ))
         return result
     }

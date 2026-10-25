@@ -4,6 +4,20 @@ import Testing
 
 @Suite
 struct MissingBinaryOperandParsingTests {
+    @Test
+    func rejectsMissingRightOperandBeforeClosingBrace() throws {
+        let (_, context) = try buildASTModule(
+            from: "fun main() { val x = 1 + }",
+            includeStdlib: false
+        )
+
+        let diagnostic = try #require(context.diagnostics.diagnostics.first {
+            $0.code == "KSWIFTK-PARSE-0001"
+        })
+        #expect(diagnostic.severity == .error)
+        #expect(diagnostic.message == "Expected expression.")
+    }
+
     @Test(arguments: [
         "1 +",
         "1 -",

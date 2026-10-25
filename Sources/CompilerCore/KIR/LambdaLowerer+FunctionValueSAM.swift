@@ -95,7 +95,7 @@ extension LambdaLowerer {
             arguments[index + 1] = adapted
         }
         let result = arena.appendTemporary(type: functionType.returnType)
-        body.append(.call(symbol: nil, callee: invoke, arguments: arguments, result: result, canThrow: true, thrownResult: nil))
+        body.append(.call(callee: invoke, arguments: arguments, result: result, canThrow: true))
         if samFunction.returnType == sema.types.unitType {
             body.append(.returnUnit)
         } else {

@@ -32,15 +32,15 @@ extension ExprLowerer {
             )
             instructions.append(.call(
                 symbol: getter, callee: interner.intern("get"), arguments: arguments,
-                result: value, canThrow: false, thrownResult: nil
+                result: value, canThrow: false
             ))
         } else {
             guard let offset else { return nil }
             let slot = arena.appendExpr(.intLiteral(Int64(offset)), type: sema.types.intType)
             instructions.append(.constValue(result: slot, value: .intLiteral(Int64(offset))))
             instructions.append(.call(
-                symbol: nil, callee: interner.intern("kk_array_get_inbounds"),
-                arguments: [receiver, slot], result: value, canThrow: false, thrownResult: nil
+                callee: interner.intern("kk_array_get_inbounds"),
+                arguments: [receiver, slot], result: value, canThrow: false
             ))
         }
         return (value, receiver)
