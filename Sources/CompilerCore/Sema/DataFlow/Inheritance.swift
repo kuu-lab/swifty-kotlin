@@ -138,7 +138,12 @@ extension DataFlowSemaPhase {
                 symbols: symbols,
                 types: types,
                 interner: interner,
-                reportUnresolved: reportUnresolved
+                reportUnresolved: reportUnresolved,
+                validateProjections: { nominal, arguments in
+                    TypeProjectionValidator(symbols: symbols, types: types, interner: interner,
+                                            diagnostics: diagnostics, range: symbols.symbol(symbol)?.declSite)
+                        .validate(arguments: arguments, of: nominal)
+                }
             ) {
                 if superSymbols.contains(resolved.symbol) {
                     diagnostics.error(
@@ -600,7 +605,8 @@ extension DataFlowSemaPhase {
         symbols: SymbolTable,
         types: TypeSystem,
         interner: StringInterner,
-        reportUnresolved: ((InternedString) -> Void)? = nil
+        reportUnresolved: ((InternedString) -> Void)? = nil,
+        validateProjections: ((SymbolID, [TypeArg]) -> Void)? = nil
     ) -> ResolvedSupertype? {
         guard let typeRef = ast.arena.typeRef(typeRefID) else {
             return nil
@@ -672,6 +678,7 @@ extension DataFlowSemaPhase {
             // KUU-1084: FunctionN declares its type params in Kotlin order
             // [P1..PN, R], so the supertype args carry params then return type.
             let functionArgs: [TypeArg] = paramTypes.map { .in($0) } + [.out(returnType)]
+            validateProjections?(functionSymbol, functionArgs)
             return ResolvedSupertype(symbol: functionSymbol, typeArgs: functionArgs)
         case .intersection:
             return nil
@@ -689,7 +696,8 @@ extension DataFlowSemaPhase {
                 symbols: symbols,
                 types: types,
                 interner: interner,
-                reportUnresolved: reportUnresolved
+                reportUnresolved: reportUnresolved,
+                validateProjections: validateProjections
             )
         }
         guard !path.isEmpty else {
@@ -709,6 +717,7 @@ extension DataFlowSemaPhase {
                 interner: interner,
                 reportUnresolved: reportUnresolved
             )
+            validateProjections?(symbol, resolvedArgs)
             let nominal = self.resolveTypeAliasSupertype(symbol, symbols: symbols, types: types) ?? symbol
             let runtimeNominal = self.resolveActualNominalSupertype(nominal, symbols: symbols)
             return ResolvedSupertype(

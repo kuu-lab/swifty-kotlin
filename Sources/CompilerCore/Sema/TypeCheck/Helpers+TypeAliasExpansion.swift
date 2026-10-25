@@ -55,7 +55,8 @@ extension TypeCheckHelpers {
         sema: SemaModule,
         visited: Set<SymbolID>,
         depth: Int,
-        diagnostics: DiagnosticEngine? = nil
+        diagnostics: DiagnosticEngine? = nil,
+        projectionRange: SourceRange? = nil
     ) -> TypeID? {
         guard !visited.contains(symbolID) else {
             diagnostics?.error(
@@ -83,10 +84,10 @@ extension TypeCheckHelpers {
             sema: sema,
             diagnostics: diagnostics
         )
-        validateVarianceAfterExpansion(
-            expanded, aliasSymbol: symbolID, typeArgs: typeArgs,
-            sema: sema, diagnostics: diagnostics
-        )
+        TypeProjectionValidator(symbols: sema.symbols, types: sema.types,
+                                interner: sema.interner, diagnostics: diagnostics,
+                                range: projectionRange ?? sema.symbols.symbol(symbolID)?.declSite)
+            .validate(arguments: typeArgs, of: symbolID)
         if case let .classType(classType) = sema.types.kind(of: expanded),
            let targetSymbol = sema.symbols.symbol(classType.classSymbol),
            targetSymbol.kind == .typeAlias
@@ -100,7 +101,8 @@ extension TypeCheckHelpers {
                 sema: sema,
                 visited: newVisited,
                 depth: depth + 1,
-                diagnostics: diagnostics
+                diagnostics: diagnostics,
+                projectionRange: projectionRange
             ) {
                 if classType.nullability == .nullable {
                     return applyNullabilityForTypeCheck(resolved, types: sema.types)

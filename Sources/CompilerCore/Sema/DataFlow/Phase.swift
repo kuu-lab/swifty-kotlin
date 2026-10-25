@@ -235,6 +235,16 @@ final class DataFlowSemaPhase: CompilerPhase {
             )
         }
         BundledSyntheticStubRegistration.bundledIndex = previousBundledIndex
+        // Validate before normalization erases projections in function aliases.
+        for alias in symbols.allSymbols() where alias.kind == .typeAlias
+            && !alias.flags.contains(.importedLibrary)
+        {
+            guard alias.declSite != nil,
+                  let underlying = symbols.typeAliasUnderlyingType(for: alias.id) else { continue }
+            TypeProjectionValidator(symbols: symbols, types: types, interner: ctx.interner,
+                                    diagnostics: ctx.diagnostics, range: alias.declSite)
+                .validate(type: underlying)
+        }
         normalizeNestedTypeAliasUnderlyingTypes(symbols: symbols, types: types)
         patchSourceBackedNativeUnhandledExceptionHookContract(
             symbols: symbols,

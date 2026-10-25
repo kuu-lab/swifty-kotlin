@@ -34,9 +34,12 @@ extension DataFlowSemaPhase {
         let companionDeclID: DeclID?
         switch decl {
         case let .classDecl(classDecl):
+            // Aliases and forward signatures need variance before full headers.
+            types.setNominalTypeParameterVariances(classDecl.typeParams.map(\.variance), for: ownerSymbol)
             nestedDecls = classDecl.nestedClasses + classDecl.nestedObjects
             companionDeclID = classDecl.companionObject
         case let .interfaceDecl(interfaceDecl):
+            types.setNominalTypeParameterVariances(interfaceDecl.typeParams.map(\.variance), for: ownerSymbol)
             nestedDecls = interfaceDecl.nestedClasses + interfaceDecl.nestedObjects
             companionDeclID = interfaceDecl.companionObject
         case let .objectDecl(objectDecl):

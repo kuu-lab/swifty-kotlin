@@ -186,6 +186,11 @@ extension DataFlowSemaPhase {
                     recursionDepth: recursionDepth,
                     usageRange: usageRange
                 )
+                if resolved.kind != .typeAlias {
+                    TypeProjectionValidator(symbols: symbols, types: types, interner: interner,
+                                            diagnostics: diagnostics, range: usageRange)
+                        .validate(arguments: resolvedArgs, of: resolved.id)
+                }
                 if resolved.kind == .typeAlias, expandTypeAlias {
                     if let underlying = resolveTypeAliasUnderlying(
                         resolved.id,
@@ -194,7 +199,9 @@ extension DataFlowSemaPhase {
                         typeArgs: resolvedArgs,
                         visited: [],
                         recursionDepth: recursionDepth,
-                        diagnostics: diagnostics
+                        diagnostics: diagnostics,
+                        projectionRange: usageRange,
+                        interner: interner
                     ) {
                         // The alias may have been resolved before an alias it
                         // mentions (declared later) had an underlying type.
@@ -710,7 +717,9 @@ extension DataFlowSemaPhase {
         visited: Set<SymbolID>,
         depth: Int = 0,
         recursionDepth: Int = 0,
-        diagnostics: DiagnosticEngine? = nil
+        diagnostics: DiagnosticEngine? = nil,
+        projectionRange: SourceRange? = nil,
+        interner: StringInterner? = nil
     ) -> TypeID? {
         guard !visited.contains(symbolID) else {
             diagnostics?.error(
@@ -731,6 +740,11 @@ extension DataFlowSemaPhase {
         guard let underlying = symbols.typeAliasUnderlyingType(for: symbolID) else {
             return nil
         }
+        TypeProjectionValidator(symbols: symbols, types: types,
+                                interner: interner,
+                                diagnostics: diagnostics,
+                                range: projectionRange ?? symbols.symbol(symbolID)?.declSite)
+            .validate(arguments: typeArgs, of: symbolID)
         let expanded = substituteTypeAliasParams(
             underlying,
             aliasSymbol: symbolID,
@@ -755,7 +769,9 @@ extension DataFlowSemaPhase {
                 visited: newVisited,
                 depth: depth + 1,
                 recursionDepth: recursionDepth,
-                diagnostics: diagnostics
+                diagnostics: diagnostics,
+                projectionRange: projectionRange,
+                interner: interner
             ) {
                 if classType.nullability == .nullable {
                     return applyNullability(resolved, types: types)
