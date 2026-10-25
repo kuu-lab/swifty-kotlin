@@ -356,7 +356,9 @@ final class ExprTypeChecker {
                 {
                     sema.bindings.markUnitReturnCoercion(value)
                 }
-                lambdaReturnScope?.returnValueTypes[id] = resolved
+                lambdaReturnScope?.returnValueTypes[id] = driver.helpers.retypeClassNameAsCompanionValue(
+                    value, currentType: resolved, ast: ast, sema: sema
+                ) ?? resolved
                 // Range expressions keep their runtime representation separate from the
                 // source-level range interface (they infer as the scalar element type),
                 // so `fun f(): IntRange = a..b` skips the nominal subtype check, matching
@@ -806,7 +808,13 @@ final class ExprTypeChecker {
                 }
                 resultType = sema.types.nothingType
             } else if let trailingExpr {
-                resultType = driver.inferExpr(trailingExpr, ctx: blockCtx, locals: &blockLocals, expectedType: expectedType, isStatementContext: isStatementContext)
+                let tailType = driver.inferExpr(trailingExpr, ctx: blockCtx, locals: &blockLocals, expectedType: expectedType, isStatementContext: isStatementContext)
+                // A bare `ClassName` in the value-producing tail position denotes
+                // the companion object, so the block's own value type is the
+                // companion type (KUU-3232).
+                resultType = driver.helpers.retypeClassNameAsCompanionValue(
+                    trailingExpr, currentType: tailType, ast: ast, sema: sema
+                ) ?? tailType
             } else {
                 resultType = sema.types.unitType
             }
