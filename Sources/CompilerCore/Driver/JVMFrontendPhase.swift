@@ -33,6 +33,7 @@ final class JVMPreparationPhase: CompilerPhase {
         }
         try JVMStdlibCatalog.injectDeclarations(into: ctx)
         try ctx.jvmImports?.injectJDKPlatformDeclarations(into: ctx)
+        try ctx.jvmImports?.injectJDKStreamPlatformDeclarations(into: ctx)
         try ctx.jvmImports?.inject(into: ctx)
     }
 }
