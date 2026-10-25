@@ -1,5 +1,5 @@
 extension KotlinParser {
-    func parseBlock() -> NodeID {
+    func parseBlock(isClassBody: Bool = false) -> NodeID {
         guard enterNesting() else {
             return recoverFromNestingLimit(inBlock: true, kind: .block)
         }
@@ -31,12 +31,11 @@ extension KotlinParser {
                 atBlockStart = false
                 continue
             }
-            if case .keyword(.constructor) = token.kind {
-                children.append(.node(parseConstructorDeclaration()))
-                atBlockStart = false
-                continue
-            }
-            if case .softKeyword(.constructor) = token.kind {
+            // `constructor` is a soft keyword: in executable blocks it is an
+            // ordinary name, and its call must survive into the expression AST.
+            if isClassBody,
+               token.kind == .keyword(.constructor) || token.kind == .softKeyword(.constructor)
+            {
                 children.append(.node(parseConstructorDeclaration()))
                 atBlockStart = false
                 continue
@@ -50,14 +49,16 @@ extension KotlinParser {
             // declaration after it is valid (e.g. `class A { class B { } class C }`).
             let precededBySemicolon = lastConsumedToken?.kind == .symbol(.semicolon)
             let precededByBlockClose = lastConsumedToken?.kind == .symbol(.rBrace)
-            let hasContextDeclarationPrefix: Bool
-            if case .softKeyword(.context) = token.kind {
-                hasContextDeclarationPrefix = declarationPrefixVerdict(at: 0) == .declaration
+            let hasDeclarationPrefix: Bool
+            if token.kind == .softKeyword(.context)
+                || (!isClassBody && token.kind == .symbol(.at))
+            {
+                hasDeclarationPrefix = declarationPrefixVerdict(at: 0) == .declaration
             } else {
-                hasContextDeclarationPrefix = true
+                hasDeclarationPrefix = true
             }
             let isAnonymousFunction = isAnonymousFunctionExpressionStart()
-            if isDeclarationStart(token.kind), hasContextDeclarationPrefix, !isObjectExpressionStart(token),
+            if isDeclarationStart(token.kind), hasDeclarationPrefix, !isObjectExpressionStart(token),
                !isAnonymousFunction,
                hasLeadingNewline(token) || atBlockStart || precededBySemicolon || precededByBlockClose
             {
@@ -1075,7 +1076,8 @@ extension KotlinParser {
         allowsWhereClauseContinuation: Bool = false,
         allowsFunctionWhereClause: Bool = false,
         allowsPropertyDelegation: Bool = false,
-        stopsAtFunctionDelegation: Bool = false
+        stopsAtFunctionDelegation: Bool = false,
+        isClassBody: Bool = false
     ) {
         var progress = false
         var sawAssignment = false
@@ -1140,7 +1142,7 @@ extension KotlinParser {
                 continue
             }
             if case .symbol(.lBrace) = token.kind, atTopLevel {
-                let blockID = parseBlock()
+                let blockID = parseBlock(isClassBody: isClassBody)
                 children.append(.node(blockID))
                 range.append(arena.node(blockID).range)
                 progress = true

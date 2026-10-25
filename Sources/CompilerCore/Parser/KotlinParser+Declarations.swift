@@ -752,7 +752,7 @@ extension KotlinParser {
     ) {
         if case .symbol(.lBrace) = stream.peek().kind {
             if includeBlock {
-                let body = parseBlock()
+                let body = parseBlock(isClassBody: true)
                 children.append(.node(body))
                 range.append(childRange(.node(body)))
             } else {
@@ -778,7 +778,8 @@ extension KotlinParser {
             inBlock: false, into: &children, range: &range,
             allowsClassHeaderColon: allowsClassHeaderColon,
             allowsClassDelegation: allowsClassDelegation,
-            allowsWhereClauseContinuation: allowsWhereClauseContinuation
+            allowsWhereClauseContinuation: allowsWhereClauseContinuation,
+            isClassBody: includeBlock
         )
         // Header scanning may stop at a newline after constructor parameters or
         // supertypes. The following brace still belongs to this declaration,
@@ -790,7 +791,7 @@ extension KotlinParser {
                return arena.node(id).kind == .block
            })
         {
-            let body = parseBlock()
+            let body = parseBlock(isClassBody: true)
             children.append(.node(body))
             range.append(childRange(.node(body)))
         }
