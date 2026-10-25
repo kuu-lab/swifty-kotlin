@@ -111,12 +111,10 @@ extension CallLowerer {
             instructions.append(.constValue(result: kindExpr, value: .intLiteral(kindLiteral)))
             let callResult = arena.appendTemporary(type: sema.types.makeNonNullable(resultType))
             instructions.append(.call(
-                symbol: nil,
                 callee: interner.intern("kk_number_to_primitive"),
                 arguments: [receiverID, slotExpr, kindExpr],
                 result: callResult,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
             instructions.append(.copy(from: callResult, to: result))
             instructions.append(.label(endLabel))
@@ -128,12 +126,10 @@ extension CallLowerer {
         instructions.append(.constValue(result: kindExpr, value: .intLiteral(kindLiteral)))
         let result = arena.appendTemporary(type: resultType)
         instructions.append(.call(
-            symbol: nil,
             callee: interner.intern("kk_number_to_primitive"),
             arguments: [receiverID, slotExpr, kindExpr],
             result: result,
-            canThrow: false,
-            thrownResult: nil
+            canThrow: false
         ))
         return result
     }

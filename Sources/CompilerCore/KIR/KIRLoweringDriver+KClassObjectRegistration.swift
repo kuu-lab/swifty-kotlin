@@ -23,9 +23,9 @@ extension KIRLoweringDriver {
         instructions.append(contentsOf: [
             .loadGlobal(result: objectExpr, symbol: objectSymbol),
             .constValue(result: initializerExpr, value: .symbolRef(ensureInitSymbol)),
-            .call(symbol: nil, callee: interner.intern("__kk_kclass_register_object"),
+            .call(callee: interner.intern("__kk_kclass_register_object"),
                   arguments: [tokenExpr, objectExpr, initializerExpr],
-                  result: arena.appendTemporary(type: sema.types.intType), canThrow: false, thrownResult: nil),
+                  result: arena.appendTemporary(type: sema.types.intType), canThrow: false),
         ])
     }
 }

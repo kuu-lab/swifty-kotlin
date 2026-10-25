@@ -1413,7 +1413,7 @@ extension CallTypeChecker {
             interner.intern("collections"),
             interner.intern("List"),
         ]
-        guard let listSymbol = sema.symbols.lookup(fqName: listFQName) else {
+        guard let listSymbol = sema.symbols.lookupNominal(fqName: listFQName) else {
             return sema.types.anyType
         }
         return sema.types.make(.classType(ClassType(

@@ -134,12 +134,10 @@ func emitKClassCompanionAndNestedRegistration(
         let tokenExpr = nestedTokenExpr(for: nested)
         let nameExpr = nestedNameExpr(for: nested)
         instructions.append(.call(
-            symbol: nil,
             callee: interner.intern(callee),
             arguments: [typeTokenExpr, tokenExpr, nameExpr],
             result: arena.appendTemporary(type: intType),
-            canThrow: false,
-            thrownResult: nil
+            canThrow: false
         ))
     }
 

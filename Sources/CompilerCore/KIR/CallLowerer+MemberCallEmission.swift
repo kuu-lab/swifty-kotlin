@@ -445,8 +445,7 @@ extension CallLowerer {
                 callee: dispatchInfo.name,
                 arguments: arguments,
                 result: result,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
             return true
         }
@@ -527,8 +526,7 @@ extension CallLowerer {
                     callee: handleInfo.name,
                     arguments: [finalArguments[0]],
                     result: scopeHandle,
-                    canThrow: true,
-                    thrownResult: nil
+                    canThrow: true
                 ))
                 finalArguments[0] = scopeHandle
             }
@@ -537,7 +535,7 @@ extension CallLowerer {
             instructions.append(.call(
                 symbol: chosenCallee, callee: interner.intern(scopeBuilderLink),
                 arguments: finalArguments, result: result,
-                canThrow: false, thrownResult: nil
+                canThrow: false
             ))
             return
         }
@@ -712,7 +710,6 @@ extension CallLowerer {
                     arguments: finalArguments,
                     result: result,
                     canThrow: false,
-                    thrownResult: nil,
                     isSuperCall: isSuperCall,
                     qualifiedSuperType: qualifiedSuperType
                 ))
@@ -769,12 +766,29 @@ extension CallLowerer {
             // Double bit pattern and must not be passed through unchanged.
             let converted = arena.appendTemporary(type: sema.types.doubleType)
             instructions.append(.call(
-                symbol: nil,
                 callee: interner.intern("__kk_float_to_double_bits"),
                 arguments: [finalArguments[1]],
                 result: converted,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
+            ))
+            finalArguments[1] = converted
+        }
+        if loweredCalleeText == "__kk_float_range_contains",
+           sourceArgExprs.count == 1,
+           finalArguments.count >= 2,
+           sema.types.makeNonNullable(
+               sema.bindings.exprTypes[sourceArgExprs[0]] ?? sema.types.anyType
+           ) == sema.types.doubleType
+        {
+            // KUU-3228: ClosedRange<Float>.contains(Double) truncates the
+            // argument via `toFloat` — the `floatRangeContains` extension
+            // semantics — before the Float range ABI sees it.
+            let converted = arena.appendTemporary(type: sema.types.floatType)
+            instructions.append(.call(
+                callee: interner.intern("kk_double_to_float"),
+                arguments: [finalArguments[1]],
+                result: converted,
+                canThrow: false
             ))
             finalArguments[1] = converted
         }
@@ -807,8 +821,7 @@ extension CallLowerer {
                 callee: handleInfo.name,
                 arguments: [finalArguments[0]],
                 result: scopeHandle,
-                canThrow: true,
-                thrownResult: nil
+                canThrow: true
             ))
             finalArguments[0] = scopeHandle
         }
@@ -892,7 +905,6 @@ extension CallLowerer {
                 }
                 let thrownResult = arena.appendTemporary(type: sema.types.nullableAnyType)
                 instructions.append(.call(
-                    symbol: nil,
                     callee: floatingRangeCallee,
                     arguments: rangeArguments,
                     result: result,
@@ -1269,7 +1281,6 @@ extension CallLowerer {
                 bridgeArguments[bridgeArguments.count - 1] = split.envPtrExpr
             }
             instructions.append(.call(
-                symbol: nil,
                 callee: bridgeCall.callee,
                 arguments: bridgeArguments,
                 result: result,
@@ -1506,12 +1517,10 @@ extension CallLowerer {
                 instructions.append(.constValue(result: classIDExpr, value: .intLiteral(0)))
                 let closureObjExpr = arena.appendTemporary(type: anyType)
                 instructions.append(.call(
-                    symbol: nil,
                     callee: kkObjectNew,
                     arguments: [slotCountExpr, classIDExpr],
                     result: closureObjExpr,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ))
                 for (captureIndex, captureArg) in callableInfo.captureArguments.enumerated() {
                     let fieldOffset = Int64(captureIndex + 2)
@@ -1519,12 +1528,10 @@ extension CallLowerer {
                     instructions.append(.constValue(result: offsetExpr, value: .intLiteral(fieldOffset)))
                     let unusedResult = arena.appendTemporary(type: anyType)
                     instructions.append(.call(
-                        symbol: nil,
                         callee: kkArraySet,
                         arguments: [closureObjExpr, offsetExpr, captureArg],
                         result: unusedResult,
-                        canThrow: false,
-                        thrownResult: nil
+                        canThrow: false
                     ))
                 }
                 envPtrExpr = closureObjExpr
@@ -1548,22 +1555,18 @@ extension CallLowerer {
             let intType = sema.types.intType
             let fnPtrResult = arena.appendTemporary(type: intType)
             instructions.append(.call(
-                symbol: nil,
                 callee: interner.intern("kk_function_value_fn_ptr"),
                 arguments: [lambdaID],
                 result: fnPtrResult,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
             fnPtrExpr = fnPtrResult
             let closureRawResult = arena.appendTemporary(type: intType)
             instructions.append(.call(
-                symbol: nil,
                 callee: interner.intern("kk_function_value_closure_raw"),
                 arguments: [lambdaID],
                 result: closureRawResult,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
             envPtrExpr = closureRawResult
         }

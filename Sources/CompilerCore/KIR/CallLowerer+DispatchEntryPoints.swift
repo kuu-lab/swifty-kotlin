@@ -81,7 +81,8 @@ extension CallLowerer {
         arena: KIRArena,
         interner: StringInterner,
         propertyConstantInitializers: [SymbolID: KIRExprKind],
-        instructions: inout [KIRInstruction]
+        instructions: inout [KIRInstruction],
+        precomputedReceiverID: KIRExprID? = nil
     ) -> KIRExprID {
         var emit = KIRLoweringEmitContext(instructions)
         let result = lowerSafeMemberCallExpr(
@@ -96,7 +97,8 @@ extension CallLowerer {
                 interner: interner,
                 propertyConstantInitializers: propertyConstantInitializers
             ),
-            emit: &emit
+            emit: &emit,
+            precomputedReceiverID: precomputedReceiverID
         )
         instructions = emit.instructions
         return result

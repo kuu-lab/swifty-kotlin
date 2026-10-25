@@ -44,8 +44,8 @@ extension DataEnumSealedSynthesisPass {
         }
         let bits = module.arena.appendTemporary(type: sema.types.longType)
         body.append(.call(
-            symbol: nil, callee: interner.intern(callee), arguments: [value],
-            result: bits, canThrow: false, thrownResult: nil
+            callee: interner.intern(callee), arguments: [value],
+            result: bits, canThrow: false
         ))
         return bits
     }

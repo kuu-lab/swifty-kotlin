@@ -929,7 +929,8 @@ jobs:
           mkdir -p "$RUNNER_TEMP/wasmtime"
           tar -xJf "$archive" -C "$RUNNER_TEMP/wasmtime" --strip-components=1
           echo "$RUNNER_TEMP/wasmtime" >> "$GITHUB_PATH"
-          wasmtime --version
+          # $GITHUB_PATH applies to subsequent steps only; probe the absolute path here.
+          "$RUNNER_TEMP/wasmtime/wasmtime" --version
       - name: Run kotlinc diff cases through the WASM backend
         id: diff_kotlinc_wasm
         continue-on-error: true
@@ -1216,7 +1217,7 @@ jobs:
   kotlinx-io-apple-candidate:
     name: Darwin SDK and Apple IO focused candidate
     runs-on: macos-26
-    # Existing runner bounds: build 300 + Core 1200 + Runtime 900 + Backend
+    # Existing runner bounds: build 600 + Core 1200 + Runtime 900 + Backend
     # 3600 seconds. Leave setup/upload margin; retried wrapper runs cannot pass the audit.
     timeout-minutes: 120
     env:

@@ -25,8 +25,8 @@ struct CodegenBackendImportedFunctionAddressTests {
             body: [
                 .constValue(result: addressExpr, value: address),
                 .constValue(result: argument, value: .symbolRef(parameter)),
-                .call(symbol: nil, callee: interner.intern(linkName), arguments: [argument],
-                      result: result, canThrow: true, thrownResult: nil),
+                .call(callee: interner.intern(linkName), arguments: [argument],
+                      result: result, canThrow: true),
                 .returnValue(result),
             ],
             isSuspend: false, isInline: false
@@ -155,8 +155,7 @@ struct CodegenBackendImportedFunctionAddressTests {
                     callee: interner.intern("importedString"),
                     arguments: [argument],
                     result: result,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ),
                 .returnValue(result),
             ],

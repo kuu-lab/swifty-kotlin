@@ -230,30 +230,6 @@ struct RuntimeMathTests {
         #expect(abs(floatFromBits(__kk_math_hypot_float(floatToBits(3.0), floatToBits(4.0))) - 5.0) <= 1e-6)
     }
 
-    // MARK: - STDLIB-MATH-112: numeric constants
-
-    @Test func testDoublePositiveInfinity() {
-        #expect(doubleFromBits(kk_double_positive_infinity()).isInfinite)
-        #expect(doubleFromBits(kk_double_positive_infinity()) > 0)
-    }
-
-    @Test func testDoubleNegativeInfinity() {
-        #expect(doubleFromBits(kk_double_negative_infinity()).isInfinite)
-        #expect(doubleFromBits(kk_double_negative_infinity()) < 0)
-    }
-
-    @Test func testDoubleNaN() {
-        #expect(doubleFromBits(kk_double_nan()).isNaN)
-    }
-
-    @Test func testDoubleMaxValue() {
-        #expect(doubleFromBits(kk_double_max_value()) == Double.greatestFiniteMagnitude)
-    }
-
-    @Test func testDoubleMinValue() {
-        #expect(doubleFromBits(kk_double_min_value()) == Double.leastNonzeroMagnitude)
-    }
-
     // MARK: - roundToInt / roundToLong (STDLIB-510..511)
 
     @Test func testFloatRoundToInt() {

@@ -41,7 +41,6 @@ extension CollectionLiteralConstructionLoweringPass {
             let hofResult = ctx.module.arena.appendTemporary(type: nil
             )
             instructions.append(.call(
-                symbol: nil,
                 callee: kkName,
                 arguments: [receiverID, lambdaID, closureRawID],
                 result: hofResult,

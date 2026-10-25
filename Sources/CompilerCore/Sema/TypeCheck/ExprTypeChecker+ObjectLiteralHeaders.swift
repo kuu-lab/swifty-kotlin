@@ -46,10 +46,12 @@ extension ExprTypeChecker {
         }
         sema.symbols.setSourceFileID(ctx.currentFileID, for: objectSymbol)
 
+        let declIsBundledStdlib = driver.sourceManager?
+            .origin(of: ctx.currentFileID)?.isBundledStdlib == true
         var directSuperSymbols: [SymbolID] = []
         directSuperSymbols.reserveCapacity(superTypes.count)
         var directSuperTypeArgs: [SymbolID: [TypeArg]] = [:]
-        for superTypeRef in superTypes {
+        for (index, superTypeRef) in superTypes.enumerated() {
             let resolved = driver.helpers.resolveTypeRef(
                 superTypeRef,
                 ast: ast,
@@ -61,6 +63,20 @@ extension ExprTypeChecker {
             if case let .classType(classType) = sema.types.kind(of: resolved),
                !directSuperSymbols.contains(classType.classSymbol)
             {
+                if index < objectDecl.superTypeEntries.count {
+                    let entry = objectDecl.superTypeEntries[index]
+                    if !entry.hasConstructorCallSyntax,
+                       entry.delegateExpression == nil,
+                       sema.symbols.symbol(classType.classSymbol)?.kind == .class,
+                       !declIsBundledStdlib
+                    {
+                        ctx.sema.diagnostics.error(
+                            "KSWIFTK-SEMA-0436",
+                            "this type has a constructor, so it must be initialized here.",
+                            range: entry.range ?? objectDecl.range
+                        )
+                    }
+                }
                 directSuperSymbols.append(classType.classSymbol)
                 directSuperTypeArgs[classType.classSymbol] = classType.args
             }

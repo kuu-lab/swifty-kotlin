@@ -140,6 +140,28 @@ struct NewlineOperatorTests {
         #expect(statements.count == 2)
     }
 
+    @Test(arguments: ["+", "-"])
+    func cstSeparatesLeadingUnaryAfterBlockBodiedLocalFunction(op: String) {
+        // A `{ }`-bodied local function followed by a newline `+x`/`-x` is two
+        // statements: the declaration, then a prefix-unary expression. The
+        // trailing-lambda continuation `f() { } + x` only applies on the same
+        // line, so the `+`/`-` line must not be absorbed into the declaration.
+        let parsed = parse("fun f() {\n    fun String.unary() { }\n    \(op) \"OK\"\n}")
+        let outerBlockIndex = parsed.arena.nodes.indices.first { index in
+            guard parsed.arena.nodes[index].kind == .block else { return false }
+            return parsed.arena.children(of: NodeID(rawValue: Int32(index))).contains { child in
+                guard case let .node(id) = child else { return false }
+                return parsed.arena.node(id).kind == .funDecl
+            }
+        }!
+        let statementLike = parsed.arena.children(of: NodeID(rawValue: Int32(outerBlockIndex))).filter { child in
+            guard case let .node(id) = child else { return false }
+            return parsed.arena.node(id).kind == .funDecl
+                || parsed.arena.node(id).kind == .statement
+        }
+        #expect(statementLike.count == 2)
+    }
+
     @Test
     func declarationAssignmentContinuationIsContextual() {
         let next = lex("= 2").tokens.dropLast()

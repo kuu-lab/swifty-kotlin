@@ -68,8 +68,7 @@ struct TailrecLoweringTests {
                     callee: interner.intern("fact"),
                     arguments: [subResult, mulResult],
                     result: callResult,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ),
                 .returnValue(callResult),
                 // base case
@@ -152,8 +151,7 @@ struct TailrecLoweringTests {
                     callee: interner.intern("factLike"),
                     arguments: [recursiveArg0, recursiveArg1],
                     result: callResult,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ),
                 .returnValue(callResult),
                 .label(1),
@@ -205,8 +203,7 @@ struct TailrecLoweringTests {
                     callee: interner.intern("regular"),
                     arguments: [],
                     result: callResult,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ),
                 .returnValue(callResult),
                 .endBlock,
@@ -274,8 +271,7 @@ struct TailrecLoweringTests {
                     callee: interner.intern("countdown$default"),
                     arguments: [subResult, sentinelExpr, maskExpr],
                     result: callResult,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ),
                 .returnValue(callResult),
                 // base case
@@ -358,8 +354,7 @@ struct TailrecLoweringTests {
                     callee: interner.intern("fact$default"),
                     arguments: [subResult, mulResult, maskExpr],
                     result: callResult,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ),
                 .returnValue(callResult),
                 // base case
@@ -455,8 +450,7 @@ struct TailrecLoweringTests {
                     callee: interner.intern("countdown$default"),
                     arguments: [subResult, sentinelExpr, maskTemp],
                     result: callResult,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ),
                 .returnValue(callResult),
                 // base case
@@ -541,8 +535,7 @@ struct TailrecLoweringTests {
                     callee: interner.intern("fact$default"),
                     arguments: [subResult, mulResult, maskTemp],
                     result: callResult,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ),
                 .returnValue(callResult),
                 // base case

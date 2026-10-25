@@ -80,7 +80,9 @@ struct ASTIDRemapper {
         SuperTypeEntry(
             typeRef: remap(value.typeRef),
             delegateExpression: value.delegateExpression.map { remap($0) },
-            constructorArgs: value.constructorArgs.map { remap($0) }
+            constructorArgs: value.constructorArgs.map { remap($0) },
+            hasConstructorCallSyntax: value.hasConstructorCallSyntax,
+            range: value.range
         )
     }
 
@@ -263,6 +265,7 @@ struct ASTIDRemapper {
             propertyVisibilityModifiers: value.propertyVisibilityModifiers,
             hasDefaultValue: value.hasDefaultValue,
             isVararg: value.isVararg,
+            varargRange: value.varargRange,
             isCrossinline: value.isCrossinline,
             isNoinline: value.isNoinline,
             defaultValue: value.defaultValue.map { remap($0) },

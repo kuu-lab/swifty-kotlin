@@ -200,7 +200,7 @@ extension DataFlowSemaPhase {
         // EnumEntries<T>-typed receiver instead of reporting "Unresolved
         // member function".
         guard let tParamSymbol = symbols.lookup(fqName: tParamFQName),
-              let listInterfaceSymbol = symbols.lookup(fqName: kotlinCollectionsPkg + [interner.intern("List")])
+              let listInterfaceSymbol = symbols.lookupNominal(fqName: kotlinCollectionsPkg + [interner.intern("List")])
         else {
             return enumEntriesSymbol
         }

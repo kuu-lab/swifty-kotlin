@@ -6,7 +6,21 @@ extension CallTypeChecker {
     /// Callers should fall back to `sema.types.anyType` when the result is nil,
     /// following the error-resilient design principle (never crash on missing symbols).
     func lookupStdlibSymbol(_ name: String, symbols: SymbolTable, interner: StringInterner) -> SymbolID? {
-        symbols.lookupByShortName(interner.intern(name)).first
+        // KUU-3257: `kotlin.collections.List` names both the interface and the
+        // `List(size, init)` factory function. `byShortName` preserves
+        // registration order, and the stdlib sema snapshot registers the
+        // function first — building `List<T>` on the function symbol then
+        // breaks subtype checks (e.g. `sorted().joinToString` left
+        // unbound). Prefer a nominal classifier like `lookupNominal` does.
+        let candidates = symbols.lookupByShortName(interner.intern(name))
+        return candidates.first(where: { id in
+            switch symbols.symbol(id)?.kind {
+            case .class, .interface, .object, .enumClass, .annotationClass:
+                true
+            default:
+                false
+            }
+        }) ?? candidates.first
     }
 
     func preferCollectionToListCandidates(
@@ -263,7 +277,7 @@ extension CallTypeChecker {
         sema: SemaModule,
         interner: StringInterner
     ) -> [SymbolID] {
-        guard let listSymbol = sema.symbols.lookup(fqName: [
+        guard let listSymbol = sema.symbols.lookupNominal(fqName: [
             interner.intern("kotlin"),
             interner.intern("collections"),
             interner.intern("List"),
@@ -325,7 +339,7 @@ extension CallTypeChecker {
             interner.intern("collections"),
             interner.intern("List"),
         ]
-        guard let listSymbol = sema.symbols.lookup(fqName: listFQName),
+        guard let listSymbol = sema.symbols.lookupNominal(fqName: listFQName),
               let receiverNominal = driver.helpers.nominalSymbol(
                   of: sema.types.makeNonNullable(receiverType),
                   types: sema.types

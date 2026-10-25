@@ -107,7 +107,7 @@ public data class MatchGroup(public val value: String, public val range: IntRang
  * as `null`.
  */
 public interface MatchGroupCollection : Collection<MatchGroup?> {
-    public val size: Int
+    public override val size: Int
 
     public operator fun get(index: Int): MatchGroup?
 

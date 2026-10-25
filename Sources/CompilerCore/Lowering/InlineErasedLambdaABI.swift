@@ -52,12 +52,10 @@ enum InlineErasedLambdaABI {
             let targetType = types.make(.primitive(primitive, .nonNull))
             let unboxed = module.arena.appendTemporary(type: targetType)
             body.append(.call(
-                symbol: nil,
                 callee: ABILoweringPass.primitiveUnboxingCallee(for: primitive, interner: ctx.interner),
                 arguments: [argument],
                 result: unboxed,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
             normalized[index] = unboxed
         }
@@ -90,12 +88,10 @@ enum InlineErasedLambdaABI {
             }
             let boxedArg = module.arena.appendTemporary(type: types.anyType)
             body.append(.call(
-                symbol: nil,
                 callee: ABILoweringPass.primitiveBoxingCallee(for: primitive, interner: ctx.interner),
                 arguments: [loweredArguments[index]],
                 result: boxedArg,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
             boxed[index] = boxedArg
         }
@@ -273,12 +269,10 @@ enum InlineErasedLambdaABI {
             }
             let unboxed = module.arena.appendTemporary(type: parameterType)
             body.append(.call(
-                symbol: nil,
                 callee: ABILoweringPass.primitiveUnboxingCallee(for: primitive, interner: ctx.interner),
                 arguments: [arguments[index]],
                 result: unboxed,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
             normalized[index] = unboxed
         }
@@ -367,21 +361,39 @@ enum InlineErasedLambdaABI {
             // still see the concrete class and emit `kk_enum_box_ordinal` /
             // `kk_tag_value_class_box` instead of a tagless primitive box.
             guard isErasedType(inlineTarget.params[index].type, ctx: ctx),
-                  let argType = module.arena.exprType(arguments[index]),
-                  case let .primitive(primitive, .nonNull) = types.kind(of: argType)
+                  let argType = module.arena.exprType(arguments[index])
             else {
                 continue
             }
-            let boxedResult = module.arena.appendTemporary(type: types.anyType)
-            body.append(.call(
-                symbol: nil,
-                callee: ABILoweringPass.primitiveBoxingCallee(for: primitive, interner: ctx.interner),
-                arguments: [arguments[index]],
-                result: boxedResult,
-                canThrow: false,
-                thrownResult: nil
-            ))
-            boxed[index] = boxedResult
+            switch types.kind(of: argType) {
+            case let .primitive(primitive, .nonNull):
+                let boxedResult = module.arena.appendTemporary(type: types.anyType)
+                body.append(.call(
+                    callee: ABILoweringPass.primitiveBoxingCallee(for: primitive, interner: ctx.interner),
+                    arguments: [arguments[index]],
+                    result: boxedResult,
+                    canThrow: false
+                ))
+                boxed[index] = boxedResult
+            case .stringStruct:
+                // String arguments arrive as flat aggregates, but an erased
+                // parameter slot must carry the boxed handle the imported body
+                // unwraps (`kk_string_to_flat` inside e.g. `"x".let { ... }`).
+                // Substituting the aggregate directly smears its fields across
+                // the call's argument registers (KUU-3234). Nullable receivers
+                // reach `?.let` only on the non-null branch, so boxing them via
+                // the same flat-to-box callee is still correct.
+                let boxedResult = module.arena.appendTemporary(type: types.anyType)
+                body.append(.call(
+                    callee: ctx.interner.intern("kk_string_from_flat"),
+                    arguments: [arguments[index]],
+                    result: boxedResult,
+                    canThrow: false
+                ))
+                boxed[index] = boxedResult
+            default:
+                continue
+            }
         }
         return boxed
     }
@@ -406,12 +418,10 @@ enum InlineErasedLambdaABI {
         }
         let unboxed = module.arena.appendTemporary(type: resultType)
         body.append(.call(
-            symbol: nil,
             callee: ABILoweringPass.primitiveUnboxingCallee(for: primitive, interner: ctx.interner),
             arguments: [returnedExpr],
             result: unboxed,
-            canThrow: false,
-            thrownResult: nil
+            canThrow: false
         ))
         return unboxed
     }

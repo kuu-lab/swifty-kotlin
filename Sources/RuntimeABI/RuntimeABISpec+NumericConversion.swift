@@ -2,6 +2,7 @@ private let abi = RuntimeABISectionBuilder("NumericConversion")
 
 public extension RuntimeABISpec {
     static let primitiveNumericConversionFunctions: [RuntimeABIFunctionSpec] = [
+        abi.nt("kk_primitive_identity", "value"),
         abi.nt("kk_int_to_float", "value"),
         abi.nt("kk_int_to_byte", "value"),
         abi.nt("kk_int_to_short", "value"),

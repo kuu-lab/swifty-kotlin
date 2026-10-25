@@ -115,6 +115,88 @@ struct RuntimeBigDecimalTests {
     }
 
     @Test
+    func testBigDecimalArithmeticPreservesPrecisionAndScale() {
+        func box(_ text: String) -> Int {
+            var thrown = 0
+            let raw = withFlatString(text) { data, length, byteCount, hash in
+                __kk_string_toBigDecimal_flat(data, length, byteCount, hash, &thrown)
+            }
+            #expect(thrown == 0)
+            return raw
+        }
+
+        var thrown = 0
+        let sum = __kk_bignum_add(box("12345678901234567890.10"), box("0.20"), &thrown)
+        #expect(thrown == 0)
+        #expect(stringValue(__kk_bignum_toString(sum)) == "12345678901234567890.30")
+
+        let difference = __kk_bignum_subtract(box("5.00"), box("7"), &thrown)
+        #expect(thrown == 0)
+        #expect(stringValue(__kk_bignum_toString(difference)) == "-2.00")
+
+        let product = __kk_bignum_multiply(box("-1.20"), box("3.00"), &thrown)
+        #expect(thrown == 0)
+        #expect(stringValue(__kk_bignum_toString(product)) == "-3.6000")
+        #expect(__kk_bignum_scale(box("1.230")) == 3)
+    }
+
+    @Test
+    func testBigDecimalExactAndRoundedDivision() {
+        func box(_ text: String) -> Int {
+            var thrown = 0
+            let raw = withFlatString(text) { data, length, byteCount, hash in
+                __kk_string_toBigDecimal_flat(data, length, byteCount, hash, &thrown)
+            }
+            #expect(thrown == 0)
+            return raw
+        }
+
+        var thrown = 0
+        let exact = __kk_bignum_divide(box("1.00"), box("2"), &thrown)
+        #expect(thrown == 0)
+        #expect(stringValue(__kk_bignum_toString(exact)) == "0.50")
+
+        let rounded = __kk_bignum_divideAtScale(box("1"), box("8"), 2, 4, &thrown)
+        #expect(thrown == 0)
+        #expect(stringValue(__kk_bignum_toString(rounded)) == "0.13")
+
+        let floored = __kk_bignum_divideAtScale(box("-1"), box("8"), 2, 3, &thrown)
+        #expect(thrown == 0)
+        #expect(stringValue(__kk_bignum_toString(floored)) == "-0.13")
+
+        _ = __kk_bignum_divide(box("1"), box("3"), &thrown)
+        #expect(thrown != 0)
+    }
+
+    @Test
+    func testBigDecimalSetScaleRoundingAndUnnecessaryMode() {
+        func box(_ text: String) -> Int {
+            var thrown = 0
+            let raw = withFlatString(text) { data, length, byteCount, hash in
+                __kk_string_toBigDecimal_flat(data, length, byteCount, hash, &thrown)
+            }
+            #expect(thrown == 0)
+            return raw
+        }
+
+        var thrown = 0
+        let halfUp = __kk_bignum_setScale(box("1.245"), 2, 4, &thrown)
+        #expect(thrown == 0)
+        #expect(stringValue(__kk_bignum_toString(halfUp)) == "1.25")
+
+        let halfEven = __kk_bignum_setScale(box("1.245"), 2, 6, &thrown)
+        #expect(thrown == 0)
+        #expect(stringValue(__kk_bignum_toString(halfEven)) == "1.24")
+
+        let exactScaleChange = __kk_bignum_setScale(box("1000"), -1, 7, &thrown)
+        #expect(thrown == 0)
+        #expect(stringValue(__kk_bignum_toString(exactScaleChange)) == "1.00E+3")
+
+        _ = __kk_bignum_setScale(box("1.234"), 2, 7, &thrown)
+        #expect(thrown != 0)
+    }
+
+    @Test
     func testBigDecimalNumberConversionsMatchJvmNarrowing() {
         func box(_ text: String) -> Int {
             var thrown = 0

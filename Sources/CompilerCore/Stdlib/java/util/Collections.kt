@@ -3,10 +3,13 @@ package java.util
 import kotlin.comparisons.compareValuesUnchecked
 
 public object Collections {
+    @Suppress("UNCHECKED_CAST")
     public fun <T> emptyList(): MutableList<T> = collectionsEmptyList as MutableList<T>
 
+    @Suppress("UNCHECKED_CAST")
     public fun <T> emptySet(): MutableSet<T> = collectionsEmptySet as MutableSet<T>
 
+    @Suppress("UNCHECKED_CAST")
     public fun <K, V> emptyMap(): MutableMap<K, V> = collectionsEmptyMap as MutableMap<K, V>
 
     public fun <T> singletonList(element: T): MutableList<T> =
@@ -123,6 +126,7 @@ public object Collections {
         }
     }
 
+    @Suppress("UNCHECKED_CAST")
     public fun swap(list: MutableList<*>?, first: Int, second: Int) {
         val target = list!! as MutableList<Any?>
         if (first == second) return
@@ -131,6 +135,7 @@ public object Collections {
         target[second] = temporary
     }
 
+    @Suppress("UNCHECKED_CAST")
     public fun rotate(list: MutableList<*>?, distance: Int) {
         val target = list!! as MutableList<Any?>
         val count = target.size
@@ -153,6 +158,7 @@ public object Collections {
         }
     }
 
+    @Suppress("UNCHECKED_CAST")
     public fun reverse(list: MutableList<*>?) {
         val target = list!! as MutableList<Any?>
         var left = 0

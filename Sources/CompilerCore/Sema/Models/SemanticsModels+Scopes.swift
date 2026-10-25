@@ -209,10 +209,12 @@ final class ExplicitImportScope: ImportScope {}
 final class ClassMemberScope: BaseScope {
     private let ownerSymbol: SymbolID
     private let thisType: TypeID?
+    private let memberLookupSymbols: SymbolTable
 
     init(parent: Scope?, symbols: SymbolTable, ownerSymbol: SymbolID, thisType: TypeID?) {
         self.ownerSymbol = ownerSymbol
         self.thisType = thisType
+        self.memberLookupSymbols = symbols
         super.init(parent: parent, symbols: symbols)
     }
 
@@ -222,6 +224,37 @@ final class ClassMemberScope: BaseScope {
 
     var owner: SymbolID {
         ownerSymbol
+    }
+
+    /// Classifiers declared on supertypes are visible by simple name inside
+    /// the class body: `Sub.M` names `Outer.I` through `Sub`'s inherited
+    /// member scope (KUU-3250). Only type-like kinds qualify so value
+    /// lookups keep their existing candidate sets.
+    override func deferredCandidates(for name: InternedString) -> [SymbolID] {
+        var result: [SymbolID] = []
+        var seen: Set<SymbolID> = [ownerSymbol]
+        var queue = [ownerSymbol]
+        var index = 0
+        while index < queue.count {
+            let current = queue[index]
+            index += 1
+            for child in memberLookupSymbols.children(of: current) {
+                guard let info = memberLookupSymbols.symbol(child), info.name == name else { continue }
+                switch info.kind {
+                case .class, .interface, .object, .enumClass, .annotationClass, .typeAlias:
+                    if !result.contains(child) {
+                        result.append(child)
+                    }
+                default:
+                    break
+                }
+            }
+            for superSymbol in memberLookupSymbols.directSupertypes(for: current)
+                where seen.insert(superSymbol).inserted {
+                queue.append(superSymbol)
+            }
+        }
+        return result
     }
 }
 

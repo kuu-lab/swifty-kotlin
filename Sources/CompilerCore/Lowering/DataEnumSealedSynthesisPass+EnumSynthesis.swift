@@ -155,12 +155,10 @@ extension DataEnumSealedSynthesisPass {
         let listExpr = module.arena.appendTemporary(type: returnType
         )
         body.append(.call(
-            symbol: nil,
             callee: interner.intern("kk_enum_make_values_array"),
             arguments: [arrayExpr, countExpr],
             result: listExpr,
-            canThrow: false,
-            thrownResult: nil
+            canThrow: false
         ))
 
         body.append(.returnValue(listExpr))
@@ -273,12 +271,10 @@ extension DataEnumSealedSynthesisPass {
         let listExpr = module.arena.appendTemporary(type: returnType
         )
         body.append(.call(
-            symbol: nil,
             callee: interner.intern("kk_enum_make_entries_list_cached"),
             arguments: [arrayExpr, countExpr, classIDExpr],
             result: listExpr,
-            canThrow: false,
-            thrownResult: nil
+            canThrow: false
         ))
 
         body.append(.returnValue(listExpr))
@@ -311,12 +307,10 @@ extension DataEnumSealedSynthesisPass {
         let arrayExpr = module.arena.appendTemporary(type: sema.types.anyType
         )
         body.append(.call(
-            symbol: nil,
             callee: interner.intern("kk_array_new"),
             arguments: [countExpr],
             result: arrayExpr,
-            canThrow: false,
-            thrownResult: nil
+            canThrow: false
         ))
 
         let stringType = sema.types.stringType
@@ -369,22 +363,18 @@ extension DataEnumSealedSynthesisPass {
                 let nameExpr = module.arena.appendExpr(.stringLiteral(entry.name), type: stringType)
                 body.append(.constValue(result: nameExpr, value: .stringLiteral(entry.name)))
                 body.append(.call(
-                    symbol: nil,
                     callee: boxOrdinalCallee,
                     arguments: [indexExpr, nameExpr, classIDExpr],
                     result: boxedEntry,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ))
             }
 
             body.append(.call(
-                symbol: nil,
                 callee: interner.intern("kk_array_set"),
                 arguments: [arrayExpr, indexExpr, boxedEntry],
                 result: nil,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
         }
 
@@ -449,12 +439,10 @@ extension DataEnumSealedSynthesisPass {
             body.append(.jump(nextLabel))
             body.append(.label(matchLabel))
             body.append(.call(
-                symbol: nil,
                 callee: helperName,
                 arguments: [],
                 result: resultExpr,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
             body.append(.returnValue(resultExpr))
             body.append(.label(nextLabel))
@@ -530,14 +518,29 @@ extension DataEnumSealedSynthesisPass {
             )
             var params = [KIRParameter(symbol: receiverSymbol, type: receiverType)]
             var argumentRefs: [KIRExprID] = []
-            for (parameterSymbol, parameterType) in zip(
+            let isVararg = OverloadResolver.normalizeFlags(
+                signature.valueParameterIsVararg,
+                count: signature.parameterTypes.count
+            )
+            for (index, (parameterSymbol, parameterType)) in zip(
                 signature.valueParameterSymbols,
                 signature.parameterTypes
-            ) {
-                params.append(KIRParameter(symbol: parameterSymbol, type: parameterType))
+            ).enumerated() {
+                // The signature keeps a vararg's element type, but the KIR ABI
+                // carries the packed array — mirror regular function lowering
+                // (KUU-3112: a String vararg would otherwise declare a flat
+                // aggregate parameter while callers pass an i64 array handle).
+                let effectiveType = (index < isVararg.count && isVararg[index])
+                    ? primitiveVarargArrayType(
+                        elementType: parameterType, sema: sema, interner: interner
+                    ) ?? referenceVarargArrayType(
+                        elementType: parameterType, sema: sema, interner: interner
+                    ) ?? parameterType
+                    : parameterType
+                params.append(KIRParameter(symbol: parameterSymbol, type: effectiveType))
                 let parameterRef = module.arena.appendExpr(
                     .symbolRef(parameterSymbol),
-                    type: parameterType
+                    type: effectiveType
                 )
                 argumentRefs.append(parameterRef)
             }
@@ -585,8 +588,7 @@ extension DataEnumSealedSynthesisPass {
                     callee: targetSymbol.name,
                     arguments: [receiverRef] + argumentRefs,
                     result: resultExpr,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ))
                 if let resultExpr {
                     body.append(.returnValue(resultExpr))
@@ -625,12 +627,10 @@ extension DataEnumSealedSynthesisPass {
                     // recursing forever.
                     let nameHelperCallee = NameMangler.enumOrdinalToNameHelperName(for: owner, interner: interner)
                     body.append(.call(
-                        symbol: nil,
                         callee: nameHelperCallee,
                         arguments: [receiverRef],
                         result: fallthroughResult,
-                        canThrow: false,
-                        thrownResult: nil
+                        canThrow: false
                     ))
                 } else {
                     let baseCallee: InternedString = if let linkName = sema.symbols.externalLinkNameIfKnown(for: baseSymbolID),
@@ -645,8 +645,7 @@ extension DataEnumSealedSynthesisPass {
                         callee: baseCallee,
                         arguments: [receiverRef] + argumentRefs,
                         result: fallthroughResult,
-                        canThrow: false,
-                        thrownResult: nil
+                        canThrow: false
                     ))
                 }
                 if let fallthroughResult {
@@ -656,12 +655,10 @@ extension DataEnumSealedSynthesisPass {
                 }
             } else {
                 body.append(.call(
-                    symbol: nil,
                     callee: interner.intern("kk_abort_unreachable"),
                     arguments: [],
                     result: fallthroughResult,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ))
                 if let fallthroughResult {
                     body.append(.returnValue(fallthroughResult))
@@ -742,24 +739,20 @@ extension DataEnumSealedSynthesisPass {
             let boxedCmpResult = module.arena.appendTemporary(type: sema.types.anyType)
             let cmpCallee = interner.intern("__kk_string_equals_flat")
             body.append(.call(
-                symbol: nil,
                 callee: cmpCallee,
                 arguments: [paramRef, entryNameExpr],
                 result: boxedCmpResult,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
 
             let cmpResult = module.arena.appendTemporary(
                 type: sema.types.make(.primitive(.boolean, .nonNull))
             )
             body.append(.call(
-                symbol: nil,
                 callee: interner.intern("kk_unbox_bool"),
                 arguments: [boxedCmpResult],
                 result: cmpResult,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
 
             let falseExpr = module.arena.appendExpr(
@@ -795,24 +788,20 @@ extension DataEnumSealedSynthesisPass {
         let qualifiedNameExpr = module.arena.appendTemporary(type: stringType
         )
         body.append(.call(
-            symbol: nil,
             callee: interner.intern("__kk_string_concat_flat"),
             arguments: [prefixExpr, paramRef],
             result: qualifiedNameExpr,
-            canThrow: false,
-            thrownResult: nil
+            canThrow: false
         ))
 
         let throwCallee = interner.intern("kk_enum_valueOf_throw")
         let throwResult = module.arena.appendTemporary(type: sema.types.nothingType
         )
         body.append(.call(
-            symbol: nil,
             callee: throwCallee,
             arguments: [qualifiedNameExpr],
             result: throwResult,
-            canThrow: true,
-            thrownResult: nil
+            canThrow: true
         ))
         body.append(.returnValue(throwResult))
 
@@ -949,12 +938,10 @@ extension DataEnumSealedSynthesisPass {
         body.append(.constValue(result: valuesCount, value: .intLiteral(Int64(entries.count))))
         let valuesArray = module.arena.appendTemporary(type: sema.types.anyType)
         body.append(.call(
-            symbol: nil,
             callee: interner.intern("kk_array_new"),
             arguments: [valuesCount],
             result: valuesArray,
-            canThrow: false,
-            thrownResult: nil
+            canThrow: false
         ))
         let classID = RuntimeTypeCheckToken.stableNominalTypeID(
             symbol: owner.id,
@@ -974,29 +961,23 @@ extension DataEnumSealedSynthesisPass {
             body.append(.constValue(result: nameExpr, value: .stringLiteral(entry.name)))
             let boxedEntry = module.arena.appendTemporary(type: sema.types.anyType)
             body.append(.call(
-                symbol: nil,
                 callee: interner.intern("kk_enum_box_ordinal"),
                 arguments: [ordinalExpr, nameExpr, classIDExpr],
                 result: boxedEntry,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
             body.append(.call(
-                symbol: nil,
                 callee: interner.intern("kk_array_set"),
                 arguments: [valuesArray, ordinalExpr, boxedEntry],
                 result: nil,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
         }
         body.append(.call(
-            symbol: nil,
             callee: interner.intern("kk_enum_register_values"),
             arguments: [typeTokenExpr, valuesArray, valuesCount],
             result: nil,
-            canThrow: false,
-            thrownResult: nil
+            canThrow: false
         ))
 
         // Register supertype edges so boxed enum values can answer `is`/`as`

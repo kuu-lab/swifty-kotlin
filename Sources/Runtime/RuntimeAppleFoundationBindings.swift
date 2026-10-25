@@ -348,9 +348,11 @@ public func __kk_foundation_runloop_perform(_ handle: Int, _ modes: Int, _ block
     guard names.count == modes.count else { return foundationFailure("Invalid SDK run loop mode", outThrown) }
     let ticket = RuntimeFoundationRunLoopTicket(callback)
     RuntimeFoundationRunLoopTickets.shared.add(ticket, loop: loop)
-    loop.perform(inModes: names.map { .init(rawValue: $0) }) { [weak loop] in
+    // perform runs the block on `loop` itself, so RunLoop.current resolves to the same
+    // CFRunLoop key without capturing the non-Sendable RunLoop (or retaining it).
+    loop.perform(inModes: names.map { .init(rawValue: $0) }) {
         ticket.invoke()
-        if let loop { RuntimeFoundationRunLoopTickets.shared.finish(ticket, loop: loop) }
+        RuntimeFoundationRunLoopTickets.shared.finish(ticket, loop: .current)
     }
     return 0
     #else

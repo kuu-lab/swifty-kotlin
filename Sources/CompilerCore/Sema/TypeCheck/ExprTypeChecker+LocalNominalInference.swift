@@ -231,6 +231,8 @@ extension ExprTypeChecker {
             enclosingClassSymbol: classSymbol
         )
 
+        let declIsBundledStdlib = driver.sourceManager?
+            .origin(of: ctx.currentFileID)?.isBundledStdlib == true
         var directSuperSymbols: [SymbolID] = []
         directSuperSymbols.reserveCapacity(classDecl.superTypeEntries.count)
         var directSuperTypeArgs: [SymbolID: [TypeArg]] = [:]
@@ -253,6 +255,18 @@ extension ExprTypeChecker {
                         range: classDecl.range
                     )
                     continue
+                }
+                if !entry.hasConstructorCallSyntax,
+                   entry.delegateExpression == nil,
+                   sema.symbols.symbol(classType.classSymbol)?.kind == .class,
+                   classDecl.hasPrimaryConstructorSyntax || classDecl.secondaryConstructors.isEmpty,
+                   !declIsBundledStdlib
+                {
+                    ctx.sema.diagnostics.error(
+                        "KSWIFTK-SEMA-0436",
+                        "this type has a constructor, so it must be initialized here.",
+                        range: entry.range ?? classDecl.range
+                    )
                 }
                 directSuperSymbols.append(classType.classSymbol)
                 directSuperTypeArgs[classType.classSymbol] = classType.args
@@ -552,12 +566,17 @@ extension ExprTypeChecker {
 
         // Unlike an object literal (KSP-CAP-018), a local class's superclass
         // constructor arguments are evaluated inside `<init>`, so they infer
-        // against ctor-param + captured locals.
+        // against ctor-param + captured locals. The enclosing receiver tower
+        // (`ctx`, not `classCtx` — that already holds `this@<local class>`)
+        // stays visible so `class Y : C(x)` can resolve `x` on the captured
+        // outer `this`; `excludingEnclosingClassReceiver` inside the
+        // delegation path still hides the local class's own `this`.
         driver.declChecker.typeCheckPrimaryConstructorSuperDelegation(
             classDecl,
             symbol: classSymbol,
             ctx: classCtx,
-            extraLocals: outerLocalsSnapshot
+            extraLocals: outerLocalsSnapshot,
+            outerReceiversToKeep: ctx.outerReceiverTypes
         )
         driver.declChecker.typeCheckPrimaryConstructorDefaultValues(
             classDecl,

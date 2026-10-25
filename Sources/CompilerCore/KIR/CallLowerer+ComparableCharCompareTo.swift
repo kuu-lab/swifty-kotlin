@@ -72,12 +72,10 @@ extension CallLowerer {
         let resultType = sema.types.makeNonNullable(sema.bindings.exprTypes[exprID] ?? sema.types.intType)
         let result = arena.appendTemporary(type: resultType)
         instructions.append(.call(
-            symbol: nil,
             callee: interner.intern("kk_char_compareTo"),
             arguments: [lhsID, rhsID],
             result: result,
-            canThrow: false,
-            thrownResult: nil
+            canThrow: false
         ))
         return result
     }
@@ -126,12 +124,10 @@ extension CallLowerer {
         let argumentID = driver.lowerExpr(args[0].expr, shared: shared, emit: &instructions)
         let nonNullResult = arena.appendTemporary(type: callResultType)
         instructions.append(.call(
-            symbol: nil,
             callee: interner.intern("kk_char_compareTo"),
             arguments: [receiverArgument, argumentID],
             result: nonNullResult,
-            canThrow: false,
-            thrownResult: nil
+            canThrow: false
         ))
         instructions.append(.copy(from: nonNullResult, to: nullableResult))
         instructions.append(.label(endLabel))

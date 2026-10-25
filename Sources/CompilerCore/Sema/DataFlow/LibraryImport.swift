@@ -488,6 +488,7 @@ extension DataFlowSemaPhase {
                record.isInline, !record.mangledName.isEmpty, inlineKIRDir != nil
             {
                 lazyLoaderState.pendingInlineBindings[symbol] = binding
+                lazyLoaderState.importedInlineFunctions.markPendingBody(for: symbol)
                 if let name = record.fqName.last {
                     lazyLoaderState.pendingInlineSymbolsByName[name, default: []].append(symbol)
                 }
@@ -2651,6 +2652,7 @@ final class CachedSemaImportSnapshot {
         for symbol in pendingInlineSymbols {
             if let binding = bindingsBySymbol[symbol] {
                 lazyState.pendingInlineBindings[symbol] = binding
+                lazyState.importedInlineFunctions.markPendingBody(for: symbol)
             }
         }
 

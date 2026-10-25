@@ -205,7 +205,7 @@ final class CallSupportLowerer {
               primitiveVarargArrayType(elementType: signature.parameterTypes[index], sema: sema, interner: interner) == nil,
               driver.callLowerer.kirIsRuntimeBridgedCallee(functionSymbol, sema: sema),
               !["kk_array_of", "__kk_sequence_of", "kk_atomic_ref_array_of"].contains(sema.symbols.externalLinkName(for: functionSymbol) ?? ""),
-              let list = sema.symbols.lookup(fqName: ["kotlin", "collections", "List"].map(interner.intern))
+              let list = sema.symbols.lookupNominal(fqName: ["kotlin", "collections", "List"].map(interner.intern))
         else { return nil }
         return sema.types.make(.classType(ClassType(classSymbol: list, args: [.invariant(signature.parameterTypes[index])])))
     }
@@ -282,6 +282,7 @@ final class CallSupportLowerer {
         var params: [KIRParameter] = captures.map(\.param)
         var captureArgExprs: [KIRExprID] = []
         var dispatchReceiverBinding: (symbol: SymbolID, exprID: KIRExprID)?
+        var functionReceiverExpr: KIRExprID?
         if let receiverType = signature.receiverType {
             // Member extensions (`fun T.m(...)` declared inside a nominal
             // type) carry a dispatch receiver (`this@Owner`) ahead of the
@@ -311,6 +312,7 @@ final class CallSupportLowerer {
             driver.ctx.setLocalDeclaredType(receiverType, for: receiverSym)
             params.append(KIRParameter(symbol: receiverSym, type: receiverType))
             let receiverExpr = arena.appendExpr(.symbolRef(receiverSym), type: receiverType)
+            functionReceiverExpr = receiverExpr
             driver.ctx.setImplicitReceiver(symbol: receiverSym, exprID: receiverExpr)
             if sema.symbols.memberExtensionOwnerSymbol(for: originalSymbol) == nil,
                let owner = sema.symbols.parentSymbol(for: originalSymbol),
@@ -405,6 +407,11 @@ final class CallSupportLowerer {
             } else {
                 driver.ctx.setLocalValue(captureExpr, for: capture.capturedSymbol)
             }
+            if capture.param.symbol == scopeSnapshot.currentImplicitReceiverSymbol {
+                // Default expressions are lowered in a fresh function scope;
+                // restore a captured outer `this` so implicit member reads use it.
+                driver.ctx.setImplicitReceiver(symbol: capture.param.symbol, exprID: captureExpr)
+            }
             captureArgExprs.append(captureExpr)
         }
 
@@ -428,12 +435,10 @@ final class CallSupportLowerer {
                 body.append(.constValue(result: bitMaskExpr, value: .intLiteral(bitValue)))
                 let selectedExpr = arena.appendTemporary(type: maskType)
                 body.append(.call(
-                    symbol: nil,
                     callee: interner.intern("kk_bitwise_and"),
                     arguments: [defaultMaskExprs[i / DefaultArgumentMask.bitsPerWord], bitMaskExpr],
                     result: selectedExpr,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ))
                 let zeroExpr = arena.appendExpr(.intLiteral(0), type: maskType)
                 body.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
@@ -489,13 +494,12 @@ final class CallSupportLowerer {
             }
         }
 
-        let receiverExprForCall = driver.ctx.activeImplicitReceiverExprID()
         var callArgs: [KIRExprID] = captureArgExprs
         if let dispatchReceiverBinding {
             callArgs.append(dispatchReceiverBinding.exprID)
         }
-        if let receiverExprForCall {
-            callArgs.append(receiverExprForCall)
+        if let functionReceiverExpr {
+            callArgs.append(functionReceiverExpr)
         }
         callArgs.append(contentsOf: resolvedParamExprs)
         for tokenSym in reifiedTokenSymbols {
@@ -514,8 +518,7 @@ final class CallSupportLowerer {
             callee: implementationName,
             arguments: callArgs,
             result: result,
-            canThrow: false,
-            thrownResult: nil
+            canThrow: false
         )
         // KUU-655: `a.f()` reached through a base-typed receiver must still
         // dispatch to the *runtime* type's override -- Kotlin/JVM's own
@@ -534,7 +537,7 @@ final class CallSupportLowerer {
         // dispatch and reach `originalSymbol` directly. The legacy single-word
         // ABI stores that marker in bit 30; wide masks carry it in an extra
         // trailing word so it cannot overlap a parameter bit.
-        if let receiverExprForCall, signature.receiverType != nil,
+        if let functionReceiverExpr, signature.receiverType != nil,
            let virtualInstruction = driver.callLowerer.tryEmitVirtualDispatch(
                chosenCallee: implementationSymbol,
                calleeName: implementationName,
@@ -542,7 +545,7 @@ final class CallSupportLowerer {
                // Member extensions dispatch on the enclosing owner (the
                // leading `callArgs` entry), not the extension receiver —
                // the extension receiver is an ordinary leading argument.
-               loweredReceiverID: dispatchReceiverBinding?.exprID ?? receiverExprForCall,
+               loweredReceiverID: dispatchReceiverBinding?.exprID ?? functionReceiverExpr,
                isSuperCall: false,
                // `tryEmitVirtualDispatch` strips the leading receiver from
                // `finalArguments` itself (see its `vcArguments.removeFirst()`)
@@ -569,12 +572,10 @@ final class CallSupportLowerer {
                 body.append(.constValue(result: superCallBitMaskExpr, value: .intLiteral(superCallBitValue)))
                 superCallBitExpr = arena.appendTemporary(type: intType)
                 body.append(.call(
-                    symbol: nil,
                     callee: interner.intern("kk_bitwise_and"),
                     arguments: [maskExprs[0], superCallBitMaskExpr],
                     result: superCallBitExpr,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ))
             }
             let superCallOneExpr = arena.appendExpr(.intLiteral(superCallBitValue), type: maskType)
@@ -1230,9 +1231,9 @@ final class CallSupportLowerer {
         if argIndices.count == 1, allSpread, forceSpreadPacking, !listifyResult {
             let copied = arena.appendTemporary(type: resultType ?? anyType)
             instructions.append(.call(
-                symbol: nil, callee: interner.intern("__kk_array_copyOf"),
+                callee: interner.intern("__kk_array_copyOf"),
                 arguments: [providedArguments[argIndices[0]]], result: copied,
-                canThrow: false, thrownResult: nil
+                canThrow: false
             ))
             return copied
         }
@@ -1270,12 +1271,10 @@ final class CallSupportLowerer {
                 let markerIdxExpr = arena.appendExpr(.intLiteral(Int64(pairIdx * 2)), type: intType)
                 instructions.append(.constValue(result: markerIdxExpr, value: .intLiteral(Int64(pairIdx * 2))))
                 instructions.append(.call(
-                    symbol: nil,
                     callee: interner.intern("kk_array_set"),
                     arguments: [pairsArray, markerIdxExpr, markerExpr],
                     result: nil,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ))
                 let valueIdxExpr = arena.appendExpr(.intLiteral(Int64(pairIdx * 2 + 1)), type: intType)
                 instructions.append(.constValue(result: valueIdxExpr, value: .intLiteral(Int64(pairIdx * 2 + 1))))
@@ -1292,24 +1291,20 @@ final class CallSupportLowerer {
                         instructions: &instructions
                     )
                 instructions.append(.call(
-                    symbol: nil,
                     callee: interner.intern("kk_array_set"),
                     arguments: [pairsArray, valueIdxExpr, elementValue],
                     result: nil,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ))
             }
             let pairCountExpr = arena.appendExpr(.intLiteral(Int64(pairsCount)), type: intType)
             instructions.append(.constValue(result: pairCountExpr, value: .intLiteral(Int64(pairsCount))))
             let concatResult = arena.appendTemporary(type: anyType)
             instructions.append(.call(
-                symbol: nil,
                 callee: interner.intern("kk_vararg_spread_concat"),
                 arguments: [pairsArray, pairCountExpr],
                 result: concatResult,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
             // Convert the concatenated array to a list since vararg parameters
             // are typed as List<T>.
@@ -1351,12 +1346,10 @@ final class CallSupportLowerer {
                 )
                 : providedArguments[argIndex]
             instructions.append(.call(
-                symbol: nil,
                 callee: interner.intern("kk_array_set"),
                 arguments: [arrayID, indexExpr, elementValue],
                 result: nil,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
         }
         // Convert the packed array to a list since vararg parameters are typed

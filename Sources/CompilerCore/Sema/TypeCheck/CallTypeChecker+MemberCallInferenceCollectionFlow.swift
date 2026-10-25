@@ -319,7 +319,7 @@ extension CallTypeChecker {
         // operator references without type arguments use the receiver element
         // context (S = T).
         if calleeStr == "reduce",
-           let listOwner = sema.symbols.lookup(fqName: knownNames.kotlinCollectionsListFQName),
+           let listOwner = sema.symbols.lookupNominal(fqName: knownNames.kotlinCollectionsListFQName),
            driver.helpers.allNominalSymbols(of: receiverType, types: sema.types, symbols: sema.symbols).contains(where: {
                sema.types.isNominalSubtypeSymbol($0, of: listOwner)
            })
@@ -382,7 +382,7 @@ extension CallTypeChecker {
             return nil
         }
         if ["indexOf", "lastIndexOf", "subList"].contains(calleeStr),
-           let listOwner = sema.symbols.lookup(fqName: knownNames.kotlinCollectionsListFQName),
+           let listOwner = sema.symbols.lookupNominal(fqName: knownNames.kotlinCollectionsListFQName),
            driver.helpers.allNominalSymbols(of: receiverType, types: sema.types, symbols: sema.symbols).contains(where: {
                sema.types.isNominalSubtypeSymbol($0, of: listOwner)
            })

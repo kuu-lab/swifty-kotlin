@@ -222,8 +222,7 @@ extension LoweringPassRegressionTests {
                     callee: interner.intern("runAndReturn"),
                     arguments: [callerArg],
                     result: callerResult,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ),
                 .returnValue(callerResult),
             ],
@@ -294,8 +293,7 @@ extension LoweringPassRegressionTests {
                     callee: interner.intern("earlyExit"),
                     arguments: [],
                     result: callerResult,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ),
                 .returnUnit,
             ],
@@ -381,8 +379,7 @@ extension LoweringPassRegressionTests {
                     callee: interner.intern("conditionalReturn"),
                     arguments: [callerArg],
                     result: callerResult,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ),
                 .returnValue(callerResult),
             ],
@@ -453,7 +450,7 @@ extension LoweringPassRegressionTests {
             body: [
                 .constValue(result: inlineArg, value: .symbolRef(inlineParamSym)),
                 .constValue(result: inlineOne, value: .intLiteral(1)),
-                .call(symbol: nil, callee: interner.intern(CompilerCall.opAdd.name), arguments: [inlineArg, inlineOne], result: inlineSum, canThrow: false, thrownResult: nil),
+                .call(callee: interner.intern(CompilerCall.opAdd.name), arguments: [inlineArg, inlineOne], result: inlineSum, canThrow: false),
                 .returnValue(inlineSum),
             ],
             isSuspend: false,
@@ -466,7 +463,7 @@ extension LoweringPassRegressionTests {
             returnType: types.make(.primitive(.int, .nonNull)),
             body: [
                 .constValue(result: callerArg, value: .intLiteral(10)),
-                .call(symbol: inlineSym, callee: interner.intern("addOne"), arguments: [callerArg], result: callerResult, canThrow: false, thrownResult: nil),
+                .call(symbol: inlineSym, callee: interner.intern("addOne"), arguments: [callerArg], result: callerResult, canThrow: false),
                 .returnValue(callerResult),
             ],
             isSuspend: false,
@@ -552,8 +549,7 @@ extension LoweringPassRegressionTests {
                     callee: interner.intern("maybeExit"),
                     arguments: [callerArg],
                     result: callerResult,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ),
                 // Code after the inline call -- should be reachable when
                 // the normal (non-NLR) branch is taken.

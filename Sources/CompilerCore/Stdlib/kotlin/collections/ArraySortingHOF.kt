@@ -209,6 +209,34 @@ public fun LongArray.sortedArrayDescending(): LongArray {
     return result
 }
 
+public fun LongArray.sort() {
+    this.stableSortImpl(false)
+}
+
+public fun LongArray.sort(fromIndex: Int = 0, toIndex: Int = this.size) {
+    this.sortRange(fromIndex, toIndex, false)
+}
+
+public fun LongArray.sortDescending() {
+    this.stableSortImpl(true)
+}
+
+public fun LongArray.sortDescending(fromIndex: Int, toIndex: Int) {
+    this.sortRange(fromIndex, toIndex, true)
+}
+
+private fun LongArray.sortRange(fromIndex: Int, toIndex: Int, descending: Boolean) {
+    checkBinarySearchBounds(this.size, fromIndex, toIndex)
+    if (toIndex - fromIndex <= 1) return
+    val sorted = this.copyOfRange(fromIndex, toIndex)
+    sorted.stableSortImpl(descending)
+    var index = 0
+    while (index < sorted.size) {
+        this[fromIndex + index] = sorted[index]
+        index += 1
+    }
+}
+
 public fun LongArray.binarySearch(element: Long, fromIndex: Int = 0, toIndex: Int = this.size): Int {
     checkBinarySearchBounds(this.size, fromIndex, toIndex)
     var low = fromIndex
@@ -237,6 +265,34 @@ public fun ByteArray.sortedArrayDescending(): ByteArray {
     val result = this.copyOf()
     result.stableSortImpl(true)
     return result
+}
+
+public fun ByteArray.sort() {
+    this.stableSortImpl(false)
+}
+
+public fun ByteArray.sort(fromIndex: Int = 0, toIndex: Int = this.size) {
+    this.sortRange(fromIndex, toIndex, false)
+}
+
+public fun ByteArray.sortDescending() {
+    this.stableSortImpl(true)
+}
+
+public fun ByteArray.sortDescending(fromIndex: Int, toIndex: Int) {
+    this.sortRange(fromIndex, toIndex, true)
+}
+
+private fun ByteArray.sortRange(fromIndex: Int, toIndex: Int, descending: Boolean) {
+    checkBinarySearchBounds(this.size, fromIndex, toIndex)
+    if (toIndex - fromIndex <= 1) return
+    val sorted = this.copyOfRange(fromIndex, toIndex)
+    sorted.stableSortImpl(descending)
+    var index = 0
+    while (index < sorted.size) {
+        this[fromIndex + index] = sorted[index]
+        index += 1
+    }
 }
 
 public fun ByteArray.binarySearch(element: Byte, fromIndex: Int = 0, toIndex: Int = this.size): Int {
@@ -269,6 +325,34 @@ public fun ShortArray.sortedArrayDescending(): ShortArray {
     return result
 }
 
+public fun ShortArray.sort() {
+    this.stableSortImpl(false)
+}
+
+public fun ShortArray.sort(fromIndex: Int = 0, toIndex: Int = this.size) {
+    this.sortRange(fromIndex, toIndex, false)
+}
+
+public fun ShortArray.sortDescending() {
+    this.stableSortImpl(true)
+}
+
+public fun ShortArray.sortDescending(fromIndex: Int, toIndex: Int) {
+    this.sortRange(fromIndex, toIndex, true)
+}
+
+private fun ShortArray.sortRange(fromIndex: Int, toIndex: Int, descending: Boolean) {
+    checkBinarySearchBounds(this.size, fromIndex, toIndex)
+    if (toIndex - fromIndex <= 1) return
+    val sorted = this.copyOfRange(fromIndex, toIndex)
+    sorted.stableSortImpl(descending)
+    var index = 0
+    while (index < sorted.size) {
+        this[fromIndex + index] = sorted[index]
+        index += 1
+    }
+}
+
 public fun ShortArray.binarySearch(element: Short, fromIndex: Int = 0, toIndex: Int = this.size): Int {
     checkBinarySearchBounds(this.size, fromIndex, toIndex)
     var low = fromIndex
@@ -297,6 +381,34 @@ public fun CharArray.sortedArrayDescending(): CharArray {
     val result = this.copyOf()
     result.stableSortImpl(true)
     return result
+}
+
+public fun CharArray.sort() {
+    this.stableSortImpl(false)
+}
+
+public fun CharArray.sort(fromIndex: Int = 0, toIndex: Int = this.size) {
+    this.sortRange(fromIndex, toIndex, false)
+}
+
+public fun CharArray.sortDescending() {
+    this.stableSortImpl(true)
+}
+
+public fun CharArray.sortDescending(fromIndex: Int, toIndex: Int) {
+    this.sortRange(fromIndex, toIndex, true)
+}
+
+private fun CharArray.sortRange(fromIndex: Int, toIndex: Int, descending: Boolean) {
+    checkBinarySearchBounds(this.size, fromIndex, toIndex)
+    if (toIndex - fromIndex <= 1) return
+    val sorted = this.copyOfRange(fromIndex, toIndex)
+    sorted.stableSortImpl(descending)
+    var index = 0
+    while (index < sorted.size) {
+        this[fromIndex + index] = sorted[index]
+        index += 1
+    }
 }
 
 public fun CharArray.binarySearch(element: Char, fromIndex: Int = 0, toIndex: Int = this.size): Int {
@@ -329,6 +441,34 @@ public fun DoubleArray.sortedArrayDescending(): DoubleArray {
     return result
 }
 
+public fun DoubleArray.sort() {
+    this.stableSortImpl(false)
+}
+
+public fun DoubleArray.sort(fromIndex: Int = 0, toIndex: Int = this.size) {
+    this.sortRange(fromIndex, toIndex, false)
+}
+
+public fun DoubleArray.sortDescending() {
+    this.stableSortImpl(true)
+}
+
+public fun DoubleArray.sortDescending(fromIndex: Int, toIndex: Int) {
+    this.sortRange(fromIndex, toIndex, true)
+}
+
+private fun DoubleArray.sortRange(fromIndex: Int, toIndex: Int, descending: Boolean) {
+    checkBinarySearchBounds(this.size, fromIndex, toIndex)
+    if (toIndex - fromIndex <= 1) return
+    val sorted = this.copyOfRange(fromIndex, toIndex)
+    sorted.stableSortImpl(descending)
+    var index = 0
+    while (index < sorted.size) {
+        this[fromIndex + index] = sorted[index]
+        index += 1
+    }
+}
+
 public fun DoubleArray.binarySearch(element: Double, fromIndex: Int = 0, toIndex: Int = this.size): Int {
     checkBinarySearchBounds(this.size, fromIndex, toIndex)
     var low = fromIndex
@@ -359,6 +499,34 @@ public fun FloatArray.sortedArrayDescending(): FloatArray {
     return result
 }
 
+public fun FloatArray.sort() {
+    this.stableSortImpl(false)
+}
+
+public fun FloatArray.sort(fromIndex: Int = 0, toIndex: Int = this.size) {
+    this.sortRange(fromIndex, toIndex, false)
+}
+
+public fun FloatArray.sortDescending() {
+    this.stableSortImpl(true)
+}
+
+public fun FloatArray.sortDescending(fromIndex: Int, toIndex: Int) {
+    this.sortRange(fromIndex, toIndex, true)
+}
+
+private fun FloatArray.sortRange(fromIndex: Int, toIndex: Int, descending: Boolean) {
+    checkBinarySearchBounds(this.size, fromIndex, toIndex)
+    if (toIndex - fromIndex <= 1) return
+    val sorted = this.copyOfRange(fromIndex, toIndex)
+    sorted.stableSortImpl(descending)
+    var index = 0
+    while (index < sorted.size) {
+        this[fromIndex + index] = sorted[index]
+        index += 1
+    }
+}
+
 public fun FloatArray.binarySearch(element: Float, fromIndex: Int = 0, toIndex: Int = this.size): Int {
     checkBinarySearchBounds(this.size, fromIndex, toIndex)
     var low = fromIndex
@@ -377,6 +545,8 @@ public fun FloatArray.binarySearch(element: Float, fromIndex: Int = 0, toIndex: 
     return -(low + 1)
 }
 
+public fun UByteArray.sorted(): List<UByte> = sortedArray().toList()
+
 public fun UByteArray.sortedArray(): UByteArray {
     val result = this.copyOf()
     result.stableSortImpl(false)
@@ -387,6 +557,34 @@ public fun UByteArray.sortedArrayDescending(): UByteArray {
     val result = this.copyOf()
     result.stableSortImpl(true)
     return result
+}
+
+public fun UByteArray.sort() {
+    this.stableSortImpl(false)
+}
+
+public fun UByteArray.sort(fromIndex: Int = 0, toIndex: Int = this.size) {
+    this.sortRange(fromIndex, toIndex, false)
+}
+
+public fun UByteArray.sortDescending() {
+    this.stableSortImpl(true)
+}
+
+public fun UByteArray.sortDescending(fromIndex: Int, toIndex: Int) {
+    this.sortRange(fromIndex, toIndex, true)
+}
+
+private fun UByteArray.sortRange(fromIndex: Int, toIndex: Int, descending: Boolean) {
+    checkBinarySearchBounds(this.size, fromIndex, toIndex)
+    if (toIndex - fromIndex <= 1) return
+    val sorted = this.copyOfRange(fromIndex, toIndex)
+    sorted.stableSortImpl(descending)
+    var index = 0
+    while (index < sorted.size) {
+        this[fromIndex + index] = sorted[index]
+        index += 1
+    }
 }
 
 public fun UByteArray.binarySearch(element: UByte, fromIndex: Int = 0, toIndex: Int = this.size): Int {
@@ -407,6 +605,8 @@ public fun UByteArray.binarySearch(element: UByte, fromIndex: Int = 0, toIndex: 
     return -(low + 1)
 }
 
+public fun UShortArray.sorted(): List<UShort> = sortedArray().toList()
+
 public fun UShortArray.sortedArray(): UShortArray {
     val result = this.copyOf()
     result.stableSortImpl(false)
@@ -417,6 +617,34 @@ public fun UShortArray.sortedArrayDescending(): UShortArray {
     val result = this.copyOf()
     result.stableSortImpl(true)
     return result
+}
+
+public fun UShortArray.sort() {
+    this.stableSortImpl(false)
+}
+
+public fun UShortArray.sort(fromIndex: Int = 0, toIndex: Int = this.size) {
+    this.sortRange(fromIndex, toIndex, false)
+}
+
+public fun UShortArray.sortDescending() {
+    this.stableSortImpl(true)
+}
+
+public fun UShortArray.sortDescending(fromIndex: Int, toIndex: Int) {
+    this.sortRange(fromIndex, toIndex, true)
+}
+
+private fun UShortArray.sortRange(fromIndex: Int, toIndex: Int, descending: Boolean) {
+    checkBinarySearchBounds(this.size, fromIndex, toIndex)
+    if (toIndex - fromIndex <= 1) return
+    val sorted = this.copyOfRange(fromIndex, toIndex)
+    sorted.stableSortImpl(descending)
+    var index = 0
+    while (index < sorted.size) {
+        this[fromIndex + index] = sorted[index]
+        index += 1
+    }
 }
 
 public fun UShortArray.binarySearch(element: UShort, fromIndex: Int = 0, toIndex: Int = this.size): Int {
@@ -451,6 +679,34 @@ public fun UIntArray.sortedArrayDescending(): UIntArray {
     return result
 }
 
+public fun UIntArray.sort() {
+    this.stableSortImpl(false)
+}
+
+public fun UIntArray.sort(fromIndex: Int = 0, toIndex: Int = this.size) {
+    this.sortRange(fromIndex, toIndex, false)
+}
+
+public fun UIntArray.sortDescending() {
+    this.stableSortImpl(true)
+}
+
+public fun UIntArray.sortDescending(fromIndex: Int, toIndex: Int) {
+    this.sortRange(fromIndex, toIndex, true)
+}
+
+private fun UIntArray.sortRange(fromIndex: Int, toIndex: Int, descending: Boolean) {
+    checkBinarySearchBounds(this.size, fromIndex, toIndex)
+    if (toIndex - fromIndex <= 1) return
+    val sorted = this.copyOfRange(fromIndex, toIndex)
+    sorted.stableSortImpl(descending)
+    var index = 0
+    while (index < sorted.size) {
+        this[fromIndex + index] = sorted[index]
+        index += 1
+    }
+}
+
 public fun UIntArray.binarySearch(element: UInt, fromIndex: Int = 0, toIndex: Int = this.size): Int {
     checkBinarySearchBounds(this.size, fromIndex, toIndex)
     var low = fromIndex
@@ -469,6 +725,8 @@ public fun UIntArray.binarySearch(element: UInt, fromIndex: Int = 0, toIndex: In
     return -(low + 1)
 }
 
+public fun ULongArray.sorted(): List<ULong> = sortedArray().toList()
+
 public fun ULongArray.sortedArray(): ULongArray {
     val result = this.copyOf()
     result.stableSortImpl(false)
@@ -479,6 +737,34 @@ public fun ULongArray.sortedArrayDescending(): ULongArray {
     val result = this.copyOf()
     result.stableSortImpl(true)
     return result
+}
+
+public fun ULongArray.sort() {
+    this.stableSortImpl(false)
+}
+
+public fun ULongArray.sort(fromIndex: Int = 0, toIndex: Int = this.size) {
+    this.sortRange(fromIndex, toIndex, false)
+}
+
+public fun ULongArray.sortDescending() {
+    this.stableSortImpl(true)
+}
+
+public fun ULongArray.sortDescending(fromIndex: Int, toIndex: Int) {
+    this.sortRange(fromIndex, toIndex, true)
+}
+
+private fun ULongArray.sortRange(fromIndex: Int, toIndex: Int, descending: Boolean) {
+    checkBinarySearchBounds(this.size, fromIndex, toIndex)
+    if (toIndex - fromIndex <= 1) return
+    val sorted = this.copyOfRange(fromIndex, toIndex)
+    sorted.stableSortImpl(descending)
+    var index = 0
+    while (index < sorted.size) {
+        this[fromIndex + index] = sorted[index]
+        index += 1
+    }
 }
 
 public fun ULongArray.binarySearch(element: ULong, fromIndex: Int = 0, toIndex: Int = this.size): Int {

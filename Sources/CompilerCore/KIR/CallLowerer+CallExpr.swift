@@ -36,6 +36,26 @@ extension CallLowerer {
             return unit
         }
 
+        // `G<Int>.member` wraps `G<Int>` in a marked `.call`; Sema binds its
+        // qualifier's nominal symbol instead of a call binding. The qualifier
+        // is a namespace reference, never a real call — emit the same
+        // class-symbol value a bare `Outer` produces for `Outer.Inner()`.
+        if ast.arena.isTypeQualifierCall(exprID),
+           let qualifierSymbol = sema.bindings.identifierSymbol(for: exprID)
+        {
+            if sema.symbols.symbol(qualifierSymbol)?.kind == .object {
+                driver.emitObjectLazyInitGuardIfNeeded(
+                    objectSymbol: qualifierSymbol, arena: arena, sema: sema,
+                    interner: interner,
+                    instructions: &instructions
+                )
+            }
+            let boundType = sema.bindings.exprTypes[exprID] ?? sema.types.anyType
+            let id = arena.appendExpr(.symbolRef(qualifierSymbol), type: boundType)
+            instructions.append(.constValue(result: id, value: .symbolRef(qualifierSymbol)))
+            return id
+        }
+
         emitCompanionInitializationBeforeConstructorArguments(
             exprID: exprID,
             sema: sema,
@@ -275,8 +295,7 @@ extension CallLowerer {
                     callee: info.callee,
                     arguments: info.captureArguments,
                     result: result,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ))
             } else {
                 emitNonThrowingCall(
@@ -415,6 +434,7 @@ extension CallLowerer {
                 appendFactoryObjectVtableMethodRegistrations(
                     objectValue: loweredCollectionFactory,
                     nominalSymbol: factoryResultClass,
+                    driver: driver,
                     sema: sema,
                     cache: driver.ctx.nominalDispatchCache,
                     arena: arena,
@@ -530,12 +550,10 @@ extension CallLowerer {
 
         let result = arena.appendTemporary(type: boundType ?? sema.types.anyType)
         instructions.append(.call(
-            symbol: nil,
             callee: runtimeCallee,
             arguments: loweredArgIDs,
             result: result,
-            canThrow: runtimeCallee == interner.intern("kk_sequence_to_list"),
-            thrownResult: nil
+            canThrow: runtimeCallee == interner.intern("kk_sequence_to_list")
         ))
         return result
     }

@@ -100,12 +100,12 @@ final class DataFlowSemaPhase: CompilerPhase {
             }
         }
 
-        // KSP-706: when compiling against bundled stdlib source rather than a
-        // prebuilt library artifact, forward-declare `kotlin.Pair`/`kotlin.Triple`
-        // from `Tuples.kt` now, before `registerSyntheticDelegateStubs` below runs
-        // stub registrations that reference `Pair<...>` in their signatures. When
-        // a prebuilt library is used instead, `loadImports` above already defined
-        // the real symbols, so this pass simply finds nothing to do.
+        // When compiling against bundled stdlib source rather than a prebuilt
+        // library artifact, forward-declare the source-backed nominals (`Pair`,
+        // `Set`, `Array`, ...) now, before `registerSyntheticDelegateStubs` below
+        // runs stub registrations that reference them in their signatures. When a
+        // prebuilt library is used instead, `loadImports` above already defined
+        // the real symbols, so these passes simply find nothing to do.
         var predeclaredEarlyHeaders: [DeclID: SymbolID] = [:]
         withSubPhaseTiming("predeclareBundledHeaders", timer: ctx.phaseTimer) {
             // JVM intrinsic nominals own their headers before residual
@@ -117,137 +117,9 @@ final class DataFlowSemaPhase: CompilerPhase {
                     }
                 }
             }
-            predeclareBundledTupleHeaders(
-                ast: ast, fileScopes: fileScopes, symbols: symbols,
-                sourceManager: ctx.sourceManager, diagnostics: ctx.diagnostics,
-                interner: ctx.interner, into: &predeclaredEarlyHeaders
-            )
-            predeclareBundledSetHeaders(
-                ast: ast, fileScopes: fileScopes, symbols: symbols,
-                sourceManager: ctx.sourceManager, diagnostics: ctx.diagnostics,
-                interner: ctx.interner, into: &predeclaredEarlyHeaders
-            )
-            predeclareBundledMapHeaders(
-                ast: ast, fileScopes: fileScopes, symbols: symbols,
-                sourceManager: ctx.sourceManager, diagnostics: ctx.diagnostics,
-                interner: ctx.interner, into: &predeclaredEarlyHeaders
-            )
-            // KSP-1520: `Comparator.kt` is source-backed, but comparator-typed
-            // synthetic signatures are registered before the normal bundled header
-            // collection pass. Predeclare its nominal so those signatures resolve
-            // without a synthetic Comparator anchor.
-            predeclareBundledComparatorHeaders(
-                ast: ast, fileScopes: fileScopes, symbols: symbols,
-                sourceManager: ctx.sourceManager, diagnostics: ctx.diagnostics,
-                interner: ctx.interner, into: &predeclaredEarlyHeaders
-            )
-            // KSP-1517: `Array<T>`/primitive array class shells are source-backed
-            // in `ArrayIntrinsics.kt`, but array-typed synthetic signatures (e.g.
-            // `MutableCollection<T>.addAll(array: Array<out T>)`) are registered
-            // before the normal bundled header collection pass.
-            predeclareBundledArrayHeaders(
+            // Table-driven (`BundledPredeclareRow.early`): the row order fixes SymbolID assignment.
+            predeclareBundledEarlyHeaders(
                 ast: ast, fileScopes: fileScopes, symbols: symbols, types: types,
-                sourceManager: ctx.sourceManager, diagnostics: ctx.diagnostics,
-                interner: ctx.interner, into: &predeclaredEarlyHeaders
-            )
-            // KSP-711: `StringEncoding.kt` owns `Charset`/`Charsets`, but FileIO
-            // extension bridges need the source symbol before synthetic
-            // registration constructs their signatures.
-            predeclareBundledStringEncodingHeaders(
-                ast: ast, fileScopes: fileScopes, symbols: symbols,
-                sourceManager: ctx.sourceManager, diagnostics: ctx.diagnostics,
-                interner: ctx.interner, into: &predeclaredEarlyHeaders
-            )
-            // KSP-717: `Locale.kt` owns `java.util.Locale`.  The source-backed
-            // String.Companion.format(locale, ...) bridge is collected after this
-            // predeclaration, so its signature can resolve the nominal type.
-            predeclareBundledJavaUtilLocaleHeaders(
-                ast: ast, fileScopes: fileScopes, symbols: symbols,
-                sourceManager: ctx.sourceManager, diagnostics: ctx.diagnostics,
-                interner: ctx.interner, into: &predeclaredEarlyHeaders
-            )
-            // KSP-1522: bundled collection and interop headers refer to the
-            // source-backed Random types while synthetic members are registered.
-            // Forward-declare those real nominal headers before the synthetic pass
-            // so this ordering does not require placeholder anchors.
-            predeclareBundledRandomHeaders(
-                ast: ast, fileScopes: fileScopes, symbols: symbols,
-                sourceManager: ctx.sourceManager, diagnostics: ctx.diagnostics,
-                interner: ctx.interner, into: &predeclaredEarlyHeaders
-            )
-            // KSP-1210: Platform.osFamily is typed against the source-backed
-            // OsFamily enum before the native platform property stubs are built.
-            predeclareBundledOsFamilyHeaders(
-                ast: ast, fileScopes: fileScopes, symbols: symbols,
-                sourceManager: ctx.sourceManager, diagnostics: ctx.diagnostics,
-                interner: ctx.interner, into: &predeclaredEarlyHeaders
-            )
-            predeclareBundledMemoryUsageHeaders(
-                ast: ast, fileScopes: fileScopes, symbols: symbols,
-                sourceManager: ctx.sourceManager, diagnostics: ctx.diagnostics,
-                interner: ctx.interner, into: &predeclaredEarlyHeaders
-            )
-            // KSP-1198: Platform.cpuArchitecture is typed against the
-            // source-backed CpuArchitecture enum before native platform stubs run.
-            predeclareBundledCpuArchitectureHeaders(
-                ast: ast, fileScopes: fileScopes, symbols: symbols,
-                sourceManager: ctx.sourceManager, diagnostics: ctx.diagnostics,
-                interner: ctx.interner, into: &predeclaredEarlyHeaders
-            )
-            predeclareBundledAnnotationHeaders(
-                ast: ast, fileScopes: fileScopes, symbols: symbols,
-                sourceManager: ctx.sourceManager, diagnostics: ctx.diagnostics,
-                interner: ctx.interner, into: &predeclaredEarlyHeaders
-            )
-            // KSP-1472: ExperimentalTime is source-backed, but the opt-in bootstrap
-            // registers its constructor and metadata before ordinary bundled headers.
-            // Claim the real annotation header first so that bootstrap can augment it
-            // instead of creating a second annotation class with the same FQName.
-            predeclareBundledExperimentalTimeHeaders(
-                ast: ast, fileScopes: fileScopes, symbols: symbols,
-                sourceManager: ctx.sourceManager, diagnostics: ctx.diagnostics,
-                interner: ctx.interner, into: &predeclaredEarlyHeaders
-            )
-            // KSP-1337: make the source-backed KVariance enum available before
-            // reflection synthetic stubs construct signatures that reference it.
-            predeclareBundledKVarianceHeaders(
-                ast: ast, fileScopes: fileScopes, symbols: symbols,
-                sourceManager: ctx.sourceManager, diagnostics: ctx.diagnostics,
-                interner: ctx.interner, into: &predeclaredEarlyHeaders
-            )
-            // KSP-1334: make the source-backed KTypeProjection nominal available
-            // before reflection synthetic stubs attach its residual properties.
-            predeclareBundledKTypeProjectionHeaders(
-                ast: ast, fileScopes: fileScopes, symbols: symbols,
-                sourceManager: ctx.sourceManager, diagnostics: ctx.diagnostics,
-                interner: ctx.interner, into: &predeclaredEarlyHeaders
-            )
-            // KSP-1323: make the source-backed kotlin.reflect nominal types
-            // available before reflection synthetic stubs attach their residual
-            // constructors, members, and marker-interface supertypes.
-            predeclareBundledReflectTopLevelHeaders(
-                ast: ast, fileScopes: fileScopes, symbols: symbols,
-                sourceManager: ctx.sourceManager, diagnostics: ctx.diagnostics,
-                interner: ctx.interner, into: &predeclaredEarlyHeaders
-            )
-            // KSP-1150: make the source-backed CancellationException nominal
-            // available before coroutine residual stubs are registered. This lets
-            // the residual pass retain its no-stdlib fallback without recreating
-            // the bundled class or its constructors.
-            predeclareBundledCancellationExceptionHeaders(
-                ast: ast, fileScopes: fileScopes, symbols: symbols,
-                sourceManager: ctx.sourceManager, diagnostics: ctx.diagnostics,
-                interner: ctx.interner, into: &predeclaredEarlyHeaders
-            )
-            predeclareBundledGCInfoHeaders(
-                ast: ast, fileScopes: fileScopes, symbols: symbols,
-                sourceManager: ctx.sourceManager, diagnostics: ctx.diagnostics,
-                interner: ctx.interner, into: &predeclaredEarlyHeaders
-            )
-            // KSP-1269: make the source-backed RootSetStatistics nominal available
-            // before NativeRuntime residual stubs register its remaining members.
-            predeclareBundledRootSetStatisticsHeaders(
-                ast: ast, fileScopes: fileScopes, symbols: symbols,
                 sourceManager: ctx.sourceManager, diagnostics: ctx.diagnostics,
                 interner: ctx.interner, into: &predeclaredEarlyHeaders
             )

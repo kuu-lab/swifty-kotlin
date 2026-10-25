@@ -400,8 +400,16 @@ extension BuildASTPhase.ExpressionParser {
     ) -> (name: InternedString, isMutable: Bool, typeAnnotation: TypeRefID?, initializer: ExprID?, endIndex: Int)? {
         var searchIndex = 0
         while let accessorIndex = topLevelAccessorStartIndex(in: tokens, from: searchIndex) {
+            // A `get`/`set` call inside the initializer (`val x = f() > get() { 1 }`)
+            // also matches the accessor heuristic; the truncated prefix is a
+            // speculative parse whose diagnostics must not leak when the real
+            // full-member parse below wins instead.
+            let speculationCheckpoint = diagnostics?.checkpoint()
             if let prefix = parseObjectLiteralLocalDeclPrefix(from: tokens[..<accessorIndex], endIndex: accessorIndex) {
                 return prefix
+            }
+            if let speculationCheckpoint {
+                diagnostics?.rollback(to: speculationCheckpoint)
             }
             // `val name get() = ...` has neither a type nor an initializer, so the
             // local-decl parser rejects the prefix. Without this fallback the whole
@@ -414,8 +422,12 @@ extension BuildASTPhase.ExpressionParser {
         }
 
         if let delegateIndex = topLevelDelegateIndex(in: tokens) {
+            let speculationCheckpoint = diagnostics?.checkpoint()
             if let prefix = parseObjectLiteralLocalDeclPrefix(from: tokens[..<delegateIndex], endIndex: delegateIndex) {
                 return prefix
+            }
+            if let speculationCheckpoint {
+                diagnostics?.rollback(to: speculationCheckpoint)
             }
             if let bareHeader = parseObjectLiteralBareHeader(from: Array(tokens[..<delegateIndex])) {
                 return (bareHeader.name, bareHeader.isMutable, bareHeader.typeAnnotation, nil, delegateIndex)

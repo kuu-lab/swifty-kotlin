@@ -237,7 +237,7 @@ extension CallTypeChecker {
                 return sema.types.errorType
             }
             var resolvedFromLocalShadow = false
-            let localFunctionCandidates = ctx.scope.lookup(calleeName, matching: { candidate in
+            var localFunctionCandidates = ctx.scope.lookup(calleeName, matching: { candidate in
                 guard ctx.cachedSymbol(candidate)?.flags.contains(.localFunction) == true else {
                     return false
                 }
@@ -258,6 +258,21 @@ extension CallTypeChecker {
                     )
                 }
             })
+            // A parameter declared by the local function itself shadows the
+            // function's own name for every reference inside the body —
+            // `fun f(f: () -> R) = f()` invokes the parameter, not the
+            // function (KUU-3210). Same-block `val`/`fun` pairs keep the
+            // KUU-2193 call/value namespace split, so only the owning
+            // function's candidate is dropped.
+            if let shadowingParameter = locals[calleeName]?.symbol {
+                localFunctionCandidates.removeAll { candidate in
+                    guard let signature = sema.symbols.functionSignature(for: candidate) else {
+                        return false
+                    }
+                    return signature.valueParameterSymbols.contains(shadowingParameter)
+                        || signature.contextParameterSymbols.contains(shadowingParameter)
+                }
+            }
             if !localFunctionCandidates.isEmpty {
                 let localReceiverFunctionValueIsApplicable: Bool = {
                     guard explicitTypeArgs.isEmpty,
