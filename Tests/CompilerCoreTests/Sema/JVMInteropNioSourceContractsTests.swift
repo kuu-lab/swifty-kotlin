@@ -544,6 +544,18 @@ struct JVMInteropNioSourceContractsTests {
         #expect(seen == ["__kk_bytearrayinputstream_new", "__kk_bytearray_output_stream_new_default", "__kk_bytearray_output_stream_new"])
     }
 
+    /// KUU-3078: The public PrintStream(OutputStream) constructor accepts a bundled memory stream.
+    @Test
+    func printStreamAcceptsPublicMemoryStreamConstructorInSourceMode() throws {
+        let (ctx, initial) = try context("""
+        import java.io.*
+        fun main() { PrintStream(ByteArrayOutputStream()).print("x") }
+        """, library: false)
+        defer { unchanged(ctx, initial) }
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+    }
+
     @Test(arguments: [false, true])
     func realFileChannelAndOriginalBufferCastProducersBindFromSourceAndArtifact(library: Bool) throws {
         let (ctx, initial) = try context("""

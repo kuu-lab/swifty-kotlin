@@ -1,13 +1,25 @@
 package java.io
 
+import java.io.OutputStream
 import kotlin.internal.KsSymbolName
 
 @KsSymbolName("__kk_printStderr")
 internal external fun __printStderrRaw(message: String): Int
 
 public class PrintStream internal constructor() {
+    private var output: OutputStream? = null
+
+    public constructor(output: OutputStream) : this() {
+        this.output = output
+    }
+
     public fun print(message: String) {
-        __printStderrRaw(message)
+        val target = output
+        if (target == null) {
+            __printStderrRaw(message)
+        } else {
+            target.write(message.toByteArray())
+        }
     }
 
     public fun print(message: Any?) {
