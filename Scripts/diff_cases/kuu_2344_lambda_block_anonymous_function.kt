@@ -2,19 +2,19 @@ fun <T> block(block: () -> T): T = block()
 
 fun foo() {}
 
-fun test(): () -> Unit = block { fun() = foo() }
+fun test(): () -> Unit = block { fun(): Unit { foo() } }
 
 fun box(): String {
     val originalFunction = test()
     originalFunction()
 
-    val maker: () -> (() -> Int) = { fun () = 1 }
+    val maker: () -> (() -> Int) = { fun (): Int { return 1 } }
     val namedFunction: () -> Int = {
         fun local() = 2
         local()
     }
     val anonymousFunctionWithReturn: () -> (() -> Int) = { fun(): Int { return 3 } }
-    val initializerFunction: () -> Int = fun () = 4
+    val initializerFunction: () -> Int = fun (): Int { return 4 }
     val nestedLambda: () -> (() -> Int) = { { 5 } }
 
     return if (

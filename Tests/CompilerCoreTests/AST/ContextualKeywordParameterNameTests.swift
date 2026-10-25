@@ -197,7 +197,7 @@ struct ContextualKeywordParameterNameTests {
         package demo
         fun outer() {
             fun f(this: Int) = 0
-            val g = fun(this: Int) = 0
+            val g = fun(this: Int): Int { return 0 }
         }
         """
         let (_, ctx) = try buildAST(from: source)

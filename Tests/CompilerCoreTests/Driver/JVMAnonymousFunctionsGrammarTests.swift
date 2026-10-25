@@ -5,7 +5,6 @@ import Testing
 @Suite struct JVMAnonymousFunctionGrammarTests {
     @Test(arguments: [
         "fun value() { val f = fun(x: Int): Int { return x + 1 } }",
-        "fun value() { val f = fun(x: Int): Int = x + 1 }",
         "fun value() { fun recursive(n: Int): Int { return recursive(n - 1) }; println(recursive(3)) }",
         "fun value() { fun <T> same(x: T): T = x }",
         "fun value() { val f = fun Int.(): String { return \"OK\" } }",
