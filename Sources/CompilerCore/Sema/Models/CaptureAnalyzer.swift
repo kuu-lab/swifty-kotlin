@@ -316,6 +316,16 @@ struct CaptureAnalyzer {
                 for arg in args {
                     visit(arg.expr)
                 }
+                // `recv.fn(args)` invoking a lexical function-typed `fn` binds
+                // fn's symbol on the call expr itself (Sema synthesizes a
+                // callee nameRef for `CallableValueCallBinding.extensionCallableExpr`
+                // and re-binds it on `request.id` exactly so this pass can see
+                // it). Without recording it, an outer `fn` is never captured
+                // into object literals / local nominals and the invoke lowers
+                // to a raw symbolRef of a parameter that is not in scope.
+                if sema.bindings.callableValueCalls[currentExprID]?.extensionCallableExpr != nil {
+                    recordCapture(for: currentExprID)
+                }
 
             case let .indexedAccess(receiver, indices, _):
                 visit(receiver)
@@ -381,6 +391,12 @@ struct CaptureAnalyzer {
                 visit(receiver)
                 for arg in args {
                     visit(arg.expr)
+                }
+                // Same lexical function-typed callee as `.memberCall` above:
+                // `recv?.fn(args)` binds fn's symbol on the call expr so this
+                // pass can keep it as a capture.
+                if sema.bindings.callableValueCalls[currentExprID]?.extensionCallableExpr != nil {
+                    recordCapture(for: currentExprID)
                 }
 
             case let .compoundAssign(_, _, value, _):
