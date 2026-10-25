@@ -221,6 +221,70 @@ extension ExprLowerer {
         return requiresNonNull(type)
     }
 
+    /// Returns the type parameter from the source-level `T & Any` shape.
+    /// Such a definitely-non-null type retains T's erased runtime bound; the
+    /// `Any` conjunct only adds a null contract and has no runtime classifier.
+    private func definitelyNotNullTypeParameter(of type: TypeID, sema: SemaModule) -> TypeID? {
+        guard case let .intersection(parts) = sema.types.kind(of: type),
+              parts.count == 2,
+              parts.contains(where: { sema.types.kind(of: $0) == .any(.nonNull) }),
+              let typeParameter = parts.first(where: {
+                  if case .typeParam = sema.types.kind(of: $0) { return true }
+                  return false
+              })
+        else {
+            return nil
+        }
+        return typeParameter
+    }
+
+    private func lowerUncheckedTypeParameterCast(
+        operandID: KIRExprID,
+        targetType: TypeID,
+        typeParameterType: TypeID,
+        operandType: TypeID?,
+        isSafe: Bool,
+        resultType: TypeID,
+        sema: SemaModule,
+        interner: StringInterner,
+        arena: KIRArena,
+        instructions: inout [KIRInstruction]
+    ) -> KIRExprID {
+        let result = arena.appendTemporary(type: resultType)
+        let operandIsNonNull = operandType.map { castTypeRequiresNonNull($0, sema: sema) } ?? false
+        if let erasure = checkableCastErasure(of: typeParameterType, sema: sema) {
+            // A statically non-null operand can still reach the runtime as
+            // an unboxed Long.MIN_VALUE — the null sentinel — so its token is
+            // nullable to skip the sentinel branch only, not the classifier.
+            let tokenType = operandIsNonNull || !castTypeRequiresNonNull(targetType, sema: sema)
+                ? sema.types.makeNullable(erasure)
+                : sema.types.makeNonNullable(erasure)
+            let typeToken = lowerTypeCheckTokenExpr(
+                targetType: tokenType,
+                sema: sema,
+                interner: interner,
+                arena: arena,
+                instructions: &instructions
+            )
+            instructions.append(.call(
+                callee: interner.intern(isSafe ? "kk_op_safe_cast" : "kk_op_cast"),
+                arguments: [operandID, typeToken],
+                result: result,
+                canThrow: !isSafe
+            ))
+            return result
+        }
+        // An unbounded T erases to Any, so T & Any needs only a null check.
+        // A safe cast with no runtime classifier is a pass-through: null is
+        // still a valid nullable result of `as?`.
+        if !isSafe, !operandIsNonNull, castTypeRequiresNonNull(targetType, sema: sema) {
+            instructions.append(.nullAssert(operand: operandID, result: result))
+        } else {
+            instructions.append(.copy(from: operandID, to: result))
+        }
+        return result
+    }
+
     func lowerAsCastExpr(
         exprToCast: ExprID,
         typeRefID: TypeRefID,
@@ -318,41 +382,37 @@ extension ExprLowerer {
            let typeParamSymbol = sema.symbols.symbol(typeParam.symbol),
            !typeParamSymbol.flags.contains(.reifiedTypeParameter)
         {
-            let result = arena.appendTemporary(type: boundType ?? sema.types.anyType)
-            let operandIsNonNull = sema.bindings.exprType(for: exprToCast).map {
-                castTypeRequiresNonNull($0, sema: sema)
-            } ?? false
-            if let erasure = checkableCastErasure(of: targetType, sema: sema) {
-                // A statically non-null operand can still reach the runtime as
-                // an unboxed Long.MIN_VALUE — the null sentinel — so its token
-                // is marked nullable to skip the sentinel branch only, not the
-                // classifier check itself.
-                let tokenType = operandIsNonNull || !castTypeRequiresNonNull(targetType, sema: sema)
-                    ? sema.types.makeNullable(erasure)
-                    : sema.types.makeNonNullable(erasure)
-                let typeToken = lowerTypeCheckTokenExpr(
-                    targetType: tokenType,
-                    sema: sema,
-                    interner: interner,
-                    arena: arena,
-                    instructions: &instructions
-                )
-                instructions.append(.call(
-                    callee: interner.intern(isSafe ? "kk_op_safe_cast" : "kk_op_cast"),
-                    arguments: [operandID, typeToken],
-                    result: result,
-                    canThrow: !isSafe
-                ))
-                return result
-            }
-            // A check on a statically non-null value is redundant and can
-            // misread an unboxed Long.MIN_VALUE after inline specialization.
-            if !isSafe, !operandIsNonNull, castTypeRequiresNonNull(targetType, sema: sema) {
-                instructions.append(.nullAssert(operand: operandID, result: result))
-            } else {
-                instructions.append(.copy(from: operandID, to: result))
-            }
-            return result
+            return lowerUncheckedTypeParameterCast(
+                operandID: operandID,
+                targetType: targetType,
+                typeParameterType: targetType,
+                operandType: sema.bindings.exprType(for: exprToCast),
+                isSafe: isSafe,
+                resultType: boundType ?? sema.types.anyType,
+                sema: sema,
+                interner: interner,
+                arena: arena,
+                instructions: &instructions
+            )
+        }
+        if let targetType = sema.bindings.castTargetType(for: exprID),
+           let typeParameterType = definitelyNotNullTypeParameter(of: targetType, sema: sema),
+           case let .typeParam(typeParam) = sema.types.kind(of: typeParameterType),
+           let typeParamSymbol = sema.symbols.symbol(typeParam.symbol),
+           !typeParamSymbol.flags.contains(.reifiedTypeParameter)
+        {
+            return lowerUncheckedTypeParameterCast(
+                operandID: operandID,
+                targetType: targetType,
+                typeParameterType: typeParameterType,
+                operandType: sema.bindings.exprType(for: exprToCast),
+                isSafe: isSafe,
+                resultType: boundType ?? sema.types.anyType,
+                sema: sema,
+                interner: interner,
+                arena: arena,
+                instructions: &instructions
+            )
         }
         let typeToken: KIRExprID = if let targetType = sema.bindings.castTargetType(for: exprID) {
             lowerTypeCheckTokenExpr(

@@ -15,8 +15,11 @@ inline fun <reified T : Any?> reifiedSafeNullable(value: Any?): T? = value as? T
 
 fun <T : Any> valueControl(value: T): T = value as T
 inline fun <T : Any> inlineValueControl(value: T): T = value as T
+fun <T> definitelyNotNull(value: T) = value as (T & Any)
 
 fun main() {
+    println(try { definitelyNotNull<Any?>(null); "FAIL" } catch (e: NullPointerException) { definitelyNotNull("OK") })
+    println(definitelyNotNull("OK"))
     println(try { strict<String>(null); "NO_THROW" } catch (e: NullPointerException) { "NPE" })
     println(explicitNullable<String>(null) == null)
     println(unconstrained<String?>(null) == null)

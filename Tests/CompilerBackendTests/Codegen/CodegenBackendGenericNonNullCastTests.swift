@@ -10,7 +10,7 @@ struct CodegenBackendGenericNonNullCastTests {
     @Test(arguments: [(false, 0), (true, 0), (true, 2)])
     func nullAndValueCasts(useArtifact: Bool, optimizationLevel: Int) throws {
         let source = try diffCaseSource("generic_nonnull_cast.kt", file: #filePath)
-        let expected = "NPE\n" + String(repeating: "true\n", count: 5)
+        let expected = "OK\nOK\nNPE\n" + String(repeating: "true\n", count: 5)
             + "NPE\ntrue\nNPE\n" + String(repeating: "true\n", count: 4)
             + "NPE\n" + String(repeating: "OK\n", count: 15)
             + "-9223372036854775808\n-9223372036854775808\nfalse\nfalse\n0\n0\n"
