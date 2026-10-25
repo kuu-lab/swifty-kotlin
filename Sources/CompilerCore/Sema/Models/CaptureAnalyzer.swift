@@ -430,9 +430,18 @@ struct CaptureAnalyzer {
                     visit(receiver)
                 }
 
-            case let .localFunDecl(_, _, _, _, body, _, _, _, _):
+            case let .localFunDecl(_, _, valueParams, _, body, _, _, _, _):
                 if !skipNestedClosures {
                     visitBody(body)
+                    // Parameter default expressions evaluate in the lifted
+                    // function's scope at call time, so their free variables
+                    // are captures of the nested function that enclosing
+                    // bodies must supply (KUU-3182).
+                    for valueParam in valueParams {
+                        if let defaultValue = valueParam.defaultValue {
+                            visit(defaultValue)
+                        }
+                    }
                 }
 
             case let .blockExpr(statements, trailingExpr, _):

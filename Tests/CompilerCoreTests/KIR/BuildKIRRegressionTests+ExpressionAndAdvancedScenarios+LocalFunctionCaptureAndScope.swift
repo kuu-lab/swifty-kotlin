@@ -381,5 +381,38 @@ extension BuildKIRRegressionTests {
         let module = try #require(ctx.kir)
         #expect(module.functionCount >= 3)
     }
+
+    @Test
+    func testNestedLocalFunctionDefaultParamCapturesOuterLocal() throws {
+        // KUU-3182: `x` is referenced only by `bar`'s default parameter
+        // expression, one nesting level below its declaring scope. Both the
+        // innermost function and every enclosing local function must record
+        // `x` as a capture so the `$default` stub can read it.
+        let source = """
+        fun box(): String {
+            val x = "OK"
+            fun outer(): String {
+                fun bar(y: String = x): String = y
+                return bar()
+            }
+            return outer()
+        }
+        """
+        let ctx = makeContextFromSource(source)
+        try runToKIR(ctx)
+        #expect(!ctx.diagnostics.hasError, "Nested local function default capture should compile: \(ctx.diagnostics.diagnostics.map(\.message))")
+        let sema = try #require(ctx.sema)
+        let xSymbol = try sourceSymbol(named: "x", kind: .local, in: ctx)
+        let outerSymbol = try sourceSymbol(named: "outer", in: ctx)
+        let barSymbol = try sourceSymbol(named: "bar", in: ctx)
+        #expect(
+            sema.bindings.localFunctionCaptureSymbols(for: barSymbol) == [xSymbol],
+            "bar's default expression must register `x` as a capture"
+        )
+        #expect(
+            sema.bindings.localFunctionCaptureSymbols(for: outerSymbol) == [xSymbol],
+            "outer must transitively capture `x` to forward it into bar"
+        )
+    }
 }
 #endif
