@@ -1,7 +1,7 @@
 extension KotlinParser {
     /// Used to absorb newline-separated accessor lines into the property
     /// declaration CST node.
-    func isPropertyAccessorStart(_ token: Token) -> Bool {
+    func isPropertyAccessorStart(_ token: Token, allowsBodyless: Bool = true) -> Bool {
         var offset = 0
         // Skip annotations without consuming them: an annotation on the next
         // declaration must not be absorbed into the preceding property.
@@ -25,7 +25,7 @@ extension KotlinParser {
             }
             // Without an accessor prefix, a bare get/set can be the next
             // statement's ordinary name (notably a lambda's return value).
-            guard offset > 0 else { return false }
+            guard allowsBodyless, offset > 0 else { return false }
             // A default accessor has no parameter list or body. Annotations
             // may precede either accessor, including `@JvmName(...) get` on
             // an expect property; keep it attached to that property.

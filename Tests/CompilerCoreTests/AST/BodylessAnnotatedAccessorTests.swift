@@ -79,12 +79,12 @@ struct BodylessAnnotatedAccessorTests {
         #expect(parsed.arena.nodes.count { $0.kind == .callExpr } == 1)
     }
 
-    @Test(arguments: ["get", "set"])
-    func followingAccessorNamedReferenceRemainsLambdaResult(name: String) throws {
+    @Test(arguments: ["get", "set"], ["", "@Suppress(\"x\") "])
+    func followingAccessorNamedReferenceRemainsLambdaResult(name: String, prefix: String) throws {
         let (ast, context) = try buildASTModule(from: """
         fun result(\(name): Int): Int = run {
             val unused = 0
-            \(name)
+            \(prefix)\(name)
         }
         """, includeStdlib: false)
         #expect(!context.diagnostics.hasError)
