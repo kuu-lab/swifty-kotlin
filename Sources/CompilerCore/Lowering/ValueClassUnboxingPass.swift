@@ -28,6 +28,7 @@ final class ValueClassUnboxingPass: LoweringPass, ParallelLoweringPass {
         let types = sema.types
 
         var valueClassCtors: Set<SymbolID> = []
+        var secondaryValueClassCtors: Set<SymbolID> = []
         var valueClassSymbols: Set<SymbolID> = []
 
         for decl in module.arena.declarations {
@@ -44,6 +45,13 @@ final class ValueClassUnboxingPass: LoweringPass, ParallelLoweringPass {
                 guard let child = symbols.symbol(childID) else { continue }
                 if child.kind == .constructor {
                     valueClassCtors.insert(childID)
+                    if let owner = symbols.parentSymbol(for: childID),
+                       let ownerInfo = symbols.symbol(owner),
+                       let childDeclSite = child.declSite,
+                       childDeclSite != ownerInfo.declSite
+                    {
+                        secondaryValueClassCtors.insert(childID)
+                    }
                 }
             }
         }
@@ -105,6 +113,25 @@ final class ValueClassUnboxingPass: LoweringPass, ParallelLoweringPass {
             }
         }
 
+        // Secondary constructors delegate to the primary constructor, which
+        // writes the one underlying field into the temporary heap box. Reuse
+        // that field's layout offset when extracting the raw value after a
+        // secondary constructor has executed.
+        var underlyingFieldOffsetByOwner: [SymbolID: Int64] = [:]
+        for (ctorSymbol, offset) in ctorUnderlyingFieldOffset
+            where !secondaryValueClassCtors.contains(ctorSymbol)
+        {
+            guard let owner = symbols.parentSymbol(for: ctorSymbol) else { continue }
+            underlyingFieldOffsetByOwner[owner] = offset
+        }
+        for ctorSymbol in secondaryValueClassCtors where ctorUnderlyingFieldOffset[ctorSymbol] == nil {
+            guard let owner = symbols.parentSymbol(for: ctorSymbol),
+                  let offset = underlyingFieldOffsetByOwner[owner]
+            else {
+                continue
+            }
+            ctorUnderlyingFieldOffset[ctorSymbol] = offset
+        }
         let interner = ctx.interner
         let boxingCalleeTable = BoxingCalleeTable(interner: interner)
 
@@ -124,6 +151,7 @@ final class ValueClassUnboxingPass: LoweringPass, ParallelLoweringPass {
                 boxingCalleeTable: boxingCalleeTable,
                 ctorsRequiringExecution: ctorsRequiringExecution,
                 ctorUnderlyingFieldOffset: ctorUnderlyingFieldOffset,
+                secondaryValueClassCtors: secondaryValueClassCtors,
                 executingCtorThisSymbols: executingCtorThisSymbols,
                 valueClassDefaultStubToCtor: valueClassDefaultStubToCtor
             )
@@ -256,6 +284,7 @@ final class ValueClassUnboxingPass: LoweringPass, ParallelLoweringPass {
         boxingCalleeTable: BoxingCalleeTable,
         ctorsRequiringExecution: Set<SymbolID>,
         ctorUnderlyingFieldOffset: [SymbolID: Int64],
+        secondaryValueClassCtors: Set<SymbolID>,
         executingCtorThisSymbols: Set<SymbolID>,
         valueClassDefaultStubToCtor: [SymbolID: SymbolID]
     ) -> (instructions: [KIRInstruction], locations: [SourceRange?]) {
@@ -356,6 +385,40 @@ final class ValueClassUnboxingPass: LoweringPass, ParallelLoweringPass {
         result.reserveCapacity(body.count)
         resultLocations.reserveCapacity(body.count)
 
+        func appendSecondaryValueClassResultExtraction(
+            boxedReceiver: KIRExprID,
+            ctorSymbol: SymbolID,
+            offset: Int64,
+            callResult: KIRExprID,
+            location: SourceRange?
+        ) -> Bool {
+            guard let owner = symbols.parentSymbol(for: ctorSymbol),
+                  let underlyingType = symbols.effectiveValueClassUnderlyingType(for: owner)
+            else {
+                return false
+            }
+
+            // The allocation is still a heap box while the secondary
+            // constructor body runs. Keep its reference representation at the
+            // erased array access boundary; the constructor result becomes the
+            // raw underlying payload below.
+            arena.setExprType(types.nullableAnyType, for: boxedReceiver)
+            let offsetExpr = arena.appendExpr(.intLiteral(offset), type: types.intType)
+            let payloadExpr = arena.appendTemporary(type: underlyingType)
+            result.append(.constValue(result: offsetExpr, value: .intLiteral(offset)))
+            resultLocations.append(location)
+            result.append(.call(
+                callee: kk_array_get_inbounds,
+                arguments: [boxedReceiver, offsetExpr],
+                result: payloadExpr,
+                canThrow: false
+            ))
+            resultLocations.append(location)
+            result.append(.copy(from: payloadExpr, to: callResult))
+            resultLocations.append(location)
+            return true
+        }
+
         for (index, instruction) in body.enumerated() {
             let location = index < locations.count ? locations[index] : nil
             switch instruction {
@@ -406,6 +469,31 @@ final class ValueClassUnboxingPass: LoweringPass, ParallelLoweringPass {
                 if let symbol, let callResult, let ctorSymbol = directCtor ? symbol : stubCtorSymbol {
                     let mustExecute = ctorsRequiringExecution.contains(ctorSymbol)
                     if !directCtor, let alloc = arguments.first, allocExprs.contains(alloc) {
+                        if secondaryValueClassCtors.contains(ctorSymbol),
+                           let offset = ctorUnderlyingFieldOffset[ctorSymbol],
+                           let owner = symbols.parentSymbol(for: ctorSymbol),
+                           symbols.effectiveValueClassUnderlyingType(for: owner) != nil
+                        {
+                            result.append(.call(
+                                symbol: symbol,
+                                callee: callee,
+                                arguments: arguments,
+                                result: nil,
+                                canThrow: canThrow,
+                                thrownResult: thrownResult,
+                                isSuperCall: isSuperCall,
+                                qualifiedSuperType: qualifiedSuperType
+                            ))
+                            resultLocations.append(location)
+                            _ = appendSecondaryValueClassResultExtraction(
+                                boxedReceiver: alloc,
+                                ctorSymbol: ctorSymbol,
+                                offset: offset,
+                                callResult: callResult,
+                                location: location
+                            )
+                            continue
+                        }
                         // `V$default(alloc, ...)`: the stub resolves defaults
                         // internally, so the payload is not among the call
                         // arguments — keep the call and read the underlying
@@ -413,6 +501,17 @@ final class ValueClassUnboxingPass: LoweringPass, ParallelLoweringPass {
                         result.append(instruction)
                         resultLocations.append(location)
                         if let offset = ctorUnderlyingFieldOffset[ctorSymbol] {
+                            if secondaryValueClassCtors.contains(ctorSymbol),
+                               appendSecondaryValueClassResultExtraction(
+                                   boxedReceiver: alloc,
+                                   ctorSymbol: ctorSymbol,
+                                   offset: offset,
+                                   callResult: callResult,
+                                   location: location
+                               )
+                            {
+                                continue
+                            }
                             let offsetExpr = arena.appendExpr(.intLiteral(offset), type: nil)
                             result.append(.constValue(result: offsetExpr, value: .intLiteral(offset)))
                             resultLocations.append(location)
@@ -427,6 +526,31 @@ final class ValueClassUnboxingPass: LoweringPass, ParallelLoweringPass {
                         continue
                     }
                     if arguments.count == 2, allocExprs.contains(arguments[0]) {
+                        if secondaryValueClassCtors.contains(ctorSymbol),
+                           let offset = ctorUnderlyingFieldOffset[ctorSymbol],
+                           let owner = symbols.parentSymbol(for: ctorSymbol),
+                           symbols.effectiveValueClassUnderlyingType(for: owner) != nil
+                        {
+                            result.append(.call(
+                                symbol: symbol,
+                                callee: callee,
+                                arguments: arguments,
+                                result: nil,
+                                canThrow: canThrow,
+                                thrownResult: thrownResult,
+                                isSuperCall: isSuperCall,
+                                qualifiedSuperType: qualifiedSuperType
+                            ))
+                            resultLocations.append(location)
+                            _ = appendSecondaryValueClassResultExtraction(
+                                boxedReceiver: arguments[0],
+                                ctorSymbol: ctorSymbol,
+                                offset: offset,
+                                callResult: callResult,
+                                location: location
+                            )
+                            continue
+                        }
                         if mustExecute {
                             // Keep the call so the constructor body (init
                             // blocks, parameter checks) still runs; then
@@ -443,6 +567,30 @@ final class ValueClassUnboxingPass: LoweringPass, ParallelLoweringPass {
                               allocExprs.contains(arguments[0]),
                               let offset = ctorUnderlyingFieldOffset[ctorSymbol]
                     {
+                        if secondaryValueClassCtors.contains(ctorSymbol),
+                           let owner = symbols.parentSymbol(for: ctorSymbol),
+                           symbols.effectiveValueClassUnderlyingType(for: owner) != nil
+                        {
+                            result.append(.call(
+                                symbol: symbol,
+                                callee: callee,
+                                arguments: arguments,
+                                result: nil,
+                                canThrow: canThrow,
+                                thrownResult: thrownResult,
+                                isSuperCall: isSuperCall,
+                                qualifiedSuperType: qualifiedSuperType
+                            ))
+                            resultLocations.append(location)
+                            _ = appendSecondaryValueClassResultExtraction(
+                                boxedReceiver: arguments[0],
+                                ctorSymbol: ctorSymbol,
+                                offset: offset,
+                                callResult: callResult,
+                                location: location
+                            )
+                            continue
+                        }
                         // Receiver-only construction (e.g. a `V()` default-arg
                         // call): the payload is stored by the constructor
                         // body itself, so keep the call and read the field

@@ -289,19 +289,33 @@ struct ValueClassUnboxingTests {
     }
 
     @Test
-    func testValueClassSecondaryConstructorEmitsDiagnostic() throws {
+    func testValueClassSecondaryConstructorLowersOnNative() throws {
         let source = """
-        value class Bad(val x: Int) {
-            constructor() : this(0)
+        @JvmInline value class Value(val x: Int) {
+            constructor(s: String) : this(s.length)
+        }
+
+        fun main() {
+            Value("abc").x
         }
         """
-        let ctx = makeContextFromSource(source)
-        try runSema(ctx)
+        let path = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString + ".kt").path
+        let ctx = makeCompilationContext(
+            inputs: [path],
+            includeStdlib: false,
+            allowDefaultStdlibLibrary: false
+        )
+        _ = ctx.sourceManager.addFile(path: path, contents: Data(source.utf8))
+        try runToLowering(ctx)
 
-        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
         #expect(
-            errors.contains(where: { $0.message.contains("secondary constructors") }),
-            "Expected diagnostic about secondary constructors for value class"
+            !ctx.diagnostics.diagnostics.contains(where: { $0.code == "KSWIFTK-SEMA-0071" }),
+            "A legal value-class secondary constructor should be accepted on native"
+        )
+        #expect(
+            !ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error && $0.message.contains("KIR verifier") }),
+            "A legal value-class secondary constructor should produce valid KIR"
         )
     }
 }

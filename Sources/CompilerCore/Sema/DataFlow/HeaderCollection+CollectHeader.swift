@@ -308,13 +308,6 @@ extension DataFlowSemaPhase {
                     ) ?? anyType
                     symbols.setValueClassUnderlyingType(underlyingType, for: symbol)
                 }
-                if !classDecl.secondaryConstructors.isEmpty, !ctx.options.emit.isJVM {
-                    diagnostics.error(
-                        "KSWIFTK-SEMA-0071",
-                        "Value class cannot have secondary constructors.",
-                        range: classDecl.range
-                    )
-                }
             }
 
             if declaration.kind == .enumClass {
