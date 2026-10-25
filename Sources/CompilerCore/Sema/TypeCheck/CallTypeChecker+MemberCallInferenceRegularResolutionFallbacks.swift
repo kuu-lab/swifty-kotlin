@@ -401,6 +401,13 @@ extension CallTypeChecker {
             )
             return driver.helpers.bindAndReturnErrorType(id, sema: sema)
         }
+        // Preserve the overload-resolved receivers for member calls. KIR should
+        // not have to rediscover them from generic context parameter types.
+        let selectedContextReceiverSymbols = contextParameterReceiverSymbols(
+            for: chosen,
+            substitution: resolved.substitutedTypeArguments,
+            ctx: ctx
+        )
         if let signature = sema.symbols.functionSignature(for: chosen),
            let varianceResult = sema.types.buildVarianceProjectionSubstitutions(
                receiverType: lookupReceiverType,
@@ -444,6 +451,11 @@ extension CallTypeChecker {
                     uniquingKeysWith: { _, projected in projected }
                 )
             }
+            let projectedContextReceiverSymbols = contextParameterReceiverSymbols(
+                for: chosen,
+                substitution: mergedSubstitution,
+                ctx: ctx
+            )
             sema.bindings.bindCall(
                 id,
                 binding: CallBinding(
@@ -452,7 +464,8 @@ extension CallTypeChecker {
                         .sorted(by: { $0.key.rawValue < $1.key.rawValue })
                         .map(\.value),
                     parameterMapping: resolved.parameterMapping,
-                    defaultArgumentOwner: resolved.defaultArgumentOwner
+                    defaultArgumentOwner: resolved.defaultArgumentOwner,
+                    contextParameterReceiverSymbols: projectedContextReceiverSymbols
                 )
             )
             sema.bindings.bindCallableTarget(id, target: .symbol(chosen))
@@ -473,7 +486,13 @@ extension CallTypeChecker {
 
         contextualizeArrayReduceRightLambda(args: args, resolved: resolved, ctx: ctx, locals: &locals)
         contextualizeResolvedIntegerArguments(args: args, resolved: resolved, ctx: ctx, locals: &locals)
-        let returnType = bindCallAndResolveReturnType(id, chosen: chosen, resolved: resolved, sema: sema)
+        let returnType = bindCallAndResolveReturnType(
+            id,
+            chosen: chosen,
+            resolved: resolved,
+            sema: sema,
+            contextParameterReceiverSymbols: selectedContextReceiverSymbols
+        )
         // STDLIB-592 definite assignment: `x.let { ... }` / `x.apply { ... }` /
         // `x.also { ... }` / `x.run { ... }` resolve as ordinary member calls
         // through this path, so their `callsInPlace` contracts must be applied

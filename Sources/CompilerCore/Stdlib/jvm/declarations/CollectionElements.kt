@@ -32,6 +32,7 @@ inline fun <T> Iterable<T>.single(predicate: (T) -> Boolean): T {
     @Suppress("UNCHECKED_CAST")
     return single as T
 }
+fun <T> List<T>.single(predicate: (T) -> Boolean): T = null!!
 fun <T> Iterable<T>.singleOrNull(): T? = null!!
 fun <T> List<T>.singleOrNull(): T? = null!!
 inline fun <T> Iterable<T>.singleOrNull(predicate: (T) -> Boolean): T? {
@@ -46,6 +47,7 @@ inline fun <T> Iterable<T>.singleOrNull(predicate: (T) -> Boolean): T? {
     }
     return if (found) single else null
 }
+fun <T> List<T>.singleOrNull(predicate: (T) -> Boolean): T? = null
 fun <T> Iterable<T>.elementAt(index: Int): T = null!!
 fun <T> Iterable<T>.elementAtOrElse(index: Int, defaultValue: (Int) -> T): T = null!!
 fun <T> Iterable<T>.elementAtOrNull(index: Int): T? = null!!

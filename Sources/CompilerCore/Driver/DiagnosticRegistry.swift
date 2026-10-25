@@ -102,12 +102,29 @@ enum DiagnosticRegistry {
     private static let suppressionSeverityConstraints: [String: DiagnosticSeverity] = [
         "DEPRECATION": .warning,
         "DEPRECATION_ERROR": .error,
+        // kotlinc K2 splits the "check for instance is always 'false'"
+        // diagnostic by severity: IMPOSSIBLE_IS_CHECK_ERROR is raised when the
+        // subject's declared type is incompatible with the target, while
+        // IMPOSSIBLE_IS_CHECK_WARNING covers checks that are impossible only
+        // under a smart-cast type. Each name suppresses only its severity.
+        "IMPOSSIBLE_IS_CHECK_ERROR": .error,
+        "IMPOSSIBLE_IS_CHECK_DEPRECATION_ERROR": .error,
+        "IMPOSSIBLE_IS_CHECK_WARNING": .warning,
+        "IMPOSSIBLE_IS_CHECK_DEPRECATION": .warning,
     ]
 
     private static let suppressionAliases: [String: [String]] = [
         "UPPER_BOUND_VIOLATED_IN_TYPE_OPERATOR_OR_PARAMETER_BOUNDS_WARNING": ["KSWIFTK-SEMA-BOUND"],
         "UPPER_BOUND_VIOLATED_IN_TYPE_OPERATOR_OR_PARAMETER_BOUNDS_ERROR": ["KSWIFTK-SEMA-BOUND"],
         "UNCHECKED_CAST": ["KSWIFTK-SEMA-UNCHECKED-CAST"],
+        // kotlinc reports an impossible `is` check as IMPOSSIBLE_IS_CHECK_ERROR
+        // (the pre-2.4 name was IMPOSSIBLE_IS_CHECK_DEPRECATION). The K1 name
+        // INCOMPATIBLE_TYPES deliberately does not map here: kotlinc does not
+        // let it suppress IMPOSSIBLE_IS_CHECK_ERROR.
+        "IMPOSSIBLE_IS_CHECK_ERROR": ["KSWIFTK-SEMA-0415"],
+        "IMPOSSIBLE_IS_CHECK_DEPRECATION_ERROR": ["KSWIFTK-SEMA-0415"],
+        "IMPOSSIBLE_IS_CHECK_WARNING": ["KSWIFTK-SEMA-0415"],
+        "IMPOSSIBLE_IS_CHECK_DEPRECATION": ["KSWIFTK-SEMA-0415"],
         "INVISIBLE_MEMBER": ["KSWIFTK-SEMA-0040", "KSWIFTK-SEMA-0041", "KSWIFTK-SEMA-0044"],
         "INVISIBLE_REFERENCE": ["KSWIFTK-SEMA-0040", "KSWIFTK-SEMA-0041", "KSWIFTK-SEMA-0044"],
         "NON_PUBLIC_CALL_FROM_PUBLIC_INLINE": ["KSWIFTK-SEMA-0045"],
@@ -546,6 +563,12 @@ enum DiagnosticRegistry {
             summary: "Invalid is-check on non-class type."
         ),
         DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0057",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "'super' cannot be a callee."
+        ),
+        DiagnosticDescriptor(
             code: "KSWIFTK-SEMA-UNCHECKED-CAST",
             pass: "SEMA",
             defaultSeverity: .warning,
@@ -866,6 +889,12 @@ enum DiagnosticRegistry {
             summary: "Returns are not allowed in initializer blocks."
         ),
         DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0313",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "Suspend property can only be accessed from a coroutine or suspend function."
+        ),
+        DiagnosticDescriptor(
             code: "KSWIFTK-SEMA-PLATFORM",
             pass: "SEMA",
             defaultSeverity: .warning,
@@ -1095,13 +1124,37 @@ enum DiagnosticRegistry {
             summary: "An interface cannot extend a class."
         ),
         DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0439",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "An inner-class supertype requires a receiver of the containing class."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0440",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "An enclosing this of a non-inner class cannot back an inner-class supertype."
+        ),
+        DiagnosticDescriptor(
             code: "KSWIFTK-SEMA-0441",
             pass: "SEMA",
             defaultSeverity: .error,
             summary: "Multiple vararg parameters are prohibited."
         ),
         DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0442",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "Generated data class componentN() conflicts with a supertype member."
+        ),
+        DiagnosticDescriptor(
             code: "KSWIFTK-SEMA-0443",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "Variance annotations are only allowed for type parameters of classes and interfaces."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0444",
             pass: "SEMA",
             defaultSeverity: .error,
             summary: "'val' and 'var' parameters are only allowed in primary constructors."

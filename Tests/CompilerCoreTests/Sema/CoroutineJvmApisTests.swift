@@ -33,10 +33,6 @@ struct CoroutineJvmApisTests {
             val loopWithThread = BlockingEventLoop("main")
         }
 
-        suspend fun testInterruptible(): Int {
-            return runInterruptible { 42 }
-        }
-
         fun testDebugProbes() {
             DebugProbes.install()
             DebugProbes.enableCreationStackTraces = true
@@ -48,10 +44,10 @@ struct CoroutineJvmApisTests {
             DebugProbes.uninstall()
         }
 
-        suspend fun testFutureInterop(d: Deferred, j: Job, cs: CompletionStage<String>, cf: CompletableFuture<Int>) {
+        suspend fun testFutureInterop(d: Deferred<Any?>, j: Job, cs: CompletionStage<String>, cf: CompletableFuture<Int>) {
             val f1: CompletableFuture<Any?> = d.asCompletableFuture()
             val f2: CompletableFuture<Unit> = j.asCompletableFuture()
-            val def: Deferred = cs.asDeferred()
+            val def: Deferred<String> = cs.asDeferred()
             val s: String = cs.await()
             val f3: CompletableFuture<Int> = future { 10 }
         }

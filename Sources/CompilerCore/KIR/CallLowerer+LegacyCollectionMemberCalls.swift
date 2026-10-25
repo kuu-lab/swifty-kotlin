@@ -116,12 +116,7 @@ extension CallLowerer {
                     interner: interner
                 )
                 {
-                    instructions.append(.call(
-                        callee: runtimeCallee,
-                        arguments: [loweredReceiverID],
-                        result: result,
-                        canThrow: false
-                    ))
+                    instructions.append(.call(callee: runtimeCallee, arguments: [loweredReceiverID], result: result, canThrow: false))
                     return result
                 }
             }
@@ -276,12 +271,7 @@ extension CallLowerer {
                     callArguments.append(kindExpr)
                 }
                 let canThrow = runtimeCallee == "kk_list_minBy"
-                instructions.append(.call(
-                    callee: interner.intern(runtimeCallee),
-                    arguments: callArguments,
-                    result: result,
-                    canThrow: canThrow
-                ))
+                instructions.append(.call(callee: interner.intern(runtimeCallee), arguments: callArguments, result: result, canThrow: canThrow))
                 return result
                 }
             }
@@ -299,6 +289,7 @@ extension CallLowerer {
         interner: StringInterner,
         loweredReceiverID: KIRExprID,
         normalizedArgIDs: [KIRExprID],
+        parameterMapping: [Int: Int],
         result: KIRExprID,
         instructions: inout [KIRInstruction]
     ) -> KIRExprID? {
@@ -337,6 +328,33 @@ extension CallLowerer {
                     return expr
                 }
 
+                func argumentID(forParameter parameterIndex: Int, valueArgumentCount: Int) -> KIRExprID? {
+                    let sourceArgumentIndex: Int?
+                    if parameterMapping.isEmpty {
+                        sourceArgumentIndex = parameterIndex < valueArgumentCount ? parameterIndex : nil
+                    } else {
+                        sourceArgumentIndex = parameterMapping.first { $0.value == parameterIndex }?.key
+                    }
+                    guard let sourceArgumentIndex,
+                          normalizedArgIDs.indices.contains(sourceArgumentIndex)
+                    else {
+                        return nil
+                    }
+                    return normalizedArgIDs[sourceArgumentIndex]
+                }
+
+                func windowedRuntimeValueArguments(valueArgumentCount: Int) -> (size: KIRExprID, step: KIRExprID, partial: KIRExprID)? {
+                    guard let size = argumentID(forParameter: 0, valueArgumentCount: valueArgumentCount) else {
+                        return nil
+                    }
+                    // Named arguments can omit `step` while supplying `partialWindows`.
+                    // Select each value by its resolved parameter slot instead of assuming
+                    // that source argument order matches declaration order.
+                    let step = argumentID(forParameter: 1, valueArgumentCount: valueArgumentCount) ?? intLiteral(1)
+                    let partial = argumentID(forParameter: 2, valueArgumentCount: valueArgumentCount) ?? intLiteral(0)
+                    return (size, step, partial)
+                }
+
                 func windowedTransformRuntimeArguments() -> [KIRExprID]? {
                     guard hasHOFLambdaArg else {
                         return nil
@@ -347,10 +365,9 @@ extension CallLowerer {
                     else {
                         return nil
                     }
-
-                    let sizeArg = normalizedArgIDs[0]
-                    let stepArg = valueArgCount >= 2 ? normalizedArgIDs[1] : intLiteral(1)
-                    let partialArg = valueArgCount >= 3 ? normalizedArgIDs[2] : intLiteral(0)
+                    guard let windowedArguments = windowedRuntimeValueArguments(valueArgumentCount: valueArgCount) else {
+                        return nil
+                    }
                     // `normalizedArgIDs[valueArgCount]` is the transform callable
                     // in both shapes (unexpanded lambda, or the fnPtr of an
                     // already-expanded `addCollectionHOFClosureArguments` pair).
@@ -365,7 +382,8 @@ extension CallLowerer {
                         interner: interner,
                         instructions: &instructions
                     )
-                    return [loweredReceiverID, sizeArg, stepArg, partialArg, fnPtrExpr, envPtrExpr]
+                    return [loweredReceiverID, windowedArguments.size, windowedArguments.step,
+                            windowedArguments.partial, fnPtrExpr, envPtrExpr]
                 }
 
                 switch calleeNameStr {
@@ -389,13 +407,14 @@ extension CallLowerer {
                         [loweredReceiverID, normalizedArgIDs[0], fnPtrExpr, envPtrExpr],
                         canThrow: true
                     )
-                case "windowed" where !hasHOFLambdaArg && (1...3).contains(normalizedArgIDs.count):
-                    let sizeArg = normalizedArgIDs[0]
-                    let stepArg = normalizedArgIDs.count >= 2 ? normalizedArgIDs[1] : intLiteral(1)
-                    let partialArg = normalizedArgIDs.count >= 3 ? normalizedArgIDs[2] : intLiteral(0)
+                case "windowed" where !hasHOFLambdaArg && (1...3).contains(args.count):
+                    guard let windowedArguments = windowedRuntimeValueArguments(valueArgumentCount: args.count) else {
+                        break
+                    }
                     return appendBridgeCall(
                         "__kk_list_windowed",
-                        [loweredReceiverID, sizeArg, stepArg, partialArg],
+                        [loweredReceiverID, windowedArguments.size, windowedArguments.step,
+                         windowedArguments.partial],
                         canThrow: true
                     )
                 case "windowed" where hasHOFLambdaArg:
@@ -480,12 +499,7 @@ extension CallLowerer {
                 nil
             }
             if let runtimeCallee {
-                instructions.append(.call(
-                    callee: interner.intern(runtimeCallee),
-                    arguments: [loweredReceiverID],
-                    result: result,
-                    canThrow: false
-                ))
+                instructions.append(.call(callee: interner.intern(runtimeCallee), arguments: [loweredReceiverID], result: result, canThrow: false))
                 return result
             }
         }

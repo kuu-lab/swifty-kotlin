@@ -90,12 +90,7 @@ extension CallLowerer {
             runtimeArgs = []
             canThrow = false
         }
-        instructions.append(.call(
-            callee: runtimeCallee,
-            arguments: runtimeArgs,
-            result: result,
-            canThrow: canThrow
-        ))
+        instructions.append(.call(callee: runtimeCallee, arguments: runtimeArgs, result: result, canThrow: canThrow))
         // BUG-166: StringBuilder instances bypass the normal kk_object_new
         // construction path (see the BUG-044 comment in RuntimeStringBuilder.swift),
         // so they never receive the itable registrations a regular class
@@ -167,13 +162,7 @@ extension CallLowerer {
         // Keep the constructor symbol on the call so ABI lowering can resolve the
         // FunctionSignature (e.g. type-parameter parameters for Pair/Triple) while
         // the runtime factory callee handles allocation directly.
-        instructions.append(.call(
-            symbol: constructorSymbol,
-            callee: callee,
-            arguments: finalArgIDs,
-            result: result,
-            canThrow: canThrow
-        ))
+        instructions.append(.call(symbol: constructorSymbol, callee: callee, arguments: finalArgIDs, result: result, canThrow: canThrow))
         appendRuntimeRangeItableRegistrations(
             objectValue: result, factoryName: callee,
             sema: sema, arena: arena, interner: interner, instructions: &instructions
@@ -291,12 +280,10 @@ extension CallLowerer {
            let signature = sema.symbols.functionSignature(for: chosen),
            !signature.contextParameterTypes.isEmpty
         {
-            let contextArguments = signature.contextParameterTypes.compactMap {
-                contextArgumentValue(
-                    matching: $0, callExprID: exprID, signature: signature,
-                    callBinding: callBinding, sema: sema, arena: arena
-                )
-            }
+            let contextArguments = contextArgumentValues(
+                for: signature, callExprID: exprID, callBinding: callBinding,
+                sema: sema, arena: arena
+            )
             // leadingArguments carry internal-ABI prefixes (e.g. generated-thunk
             // captures); context parameters belong to the callee signature and
             // must be inserted after them.
@@ -597,7 +584,15 @@ extension CallLowerer {
                 if let activeReceiver = driver.ctx.activeImplicitReceiverExprID(),
                    let activeType = arena.exprType(activeReceiver),
                    case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(activeType)),
-                   sema.types.isNominalSubtypeSymbol(classType.classSymbol, of: owner)
+                   sema.types.isNominalSubtypeSymbol(classType.classSymbol, of: owner),
+                   // Kotlin member scope: a `private` member is not inherited,
+                   // so the active receiver can only dispatch it when the
+                   // receiver's own class declares it. On a subtype such as
+                   // `object : X()` the captured `this@X` recorded by Sema (or
+                   // the outer-receiver fallback below) must win instead
+                   // (KUU-3212).
+                   classType.classSymbol == owner
+                       || sema.symbols.symbol(chosen)?.visibility != .private
                 {
                     implicitReceiver = activeReceiver
                 } else if let dispatchReceiver = driver.ctx.capturedOuterReceiverExprID(for: owner)
@@ -679,12 +674,7 @@ extension CallLowerer {
                sema.bindings.isCoroutineScopeImplicitReceiverCall(exprID)
             {
                 let receiver = arena.appendTemporary(type: signature.receiverType ?? sema.types.anyType)
-                instructions.append(.call(
-                    callee: interner.intern("kk_coroutine_current_scope"),
-                    arguments: [],
-                    result: receiver,
-                    canThrow: false
-                ))
+                instructions.append(.call(callee: interner.intern("kk_coroutine_current_scope"), arguments: [], result: receiver, canThrow: false))
                 implicitReceiver = receiver
             }
             // An inner class's active implicit receiver is the inner instance,
@@ -984,13 +974,7 @@ extension CallLowerer {
             )
             let stubName = interner.intern(interner.resolve(sourceCalleeName) + "$default")
             let stubSym = driver.callSupportLowerer.defaultStubSymbol(for: defaultStubOwner)
-            instructions.append(.call(
-                symbol: stubSym,
-                callee: stubName,
-                arguments: finalArgIDs,
-                result: result,
-                canThrow: false
-            ))
+            instructions.append(.call(symbol: stubSym, callee: stubName, arguments: finalArgIDs, result: result, canThrow: false))
         } else {
             appendReifiedTypeTokens(
                 chosenCallee: chosen,

@@ -262,6 +262,9 @@ final class ExprTypeChecker {
                 !ctx.hasLambdaLabel(label)
                     && ctx.enclosingFunctionSymbol.flatMap { sema.symbols.symbol($0)?.name } == label
             } ?? (ctx.lambdaDepth > 0)
+            let targetsEnclosingFunction = label == nil || targetsFunction
+            let isProhibitedPropertyInitializerReturn =
+                ctx.isInPropertyInitializer && targetsEnclosingFunction
             let returnsFromConstructor = ctx.enclosingFunctionSymbol.flatMap {
                 sema.symbols.symbol($0)?.kind == .constructor
             } ?? false
@@ -290,9 +293,17 @@ final class ExprTypeChecker {
                     lambdaPath: Array(ctx.enclosingLambdaExprIDs.dropFirst(targetIndex + 1))
                 )
             }
-            if targetsFunction, let functionSymbol = ctx.enclosingFunctionSymbol {
+            if isProhibitedPropertyInitializerReturn {
+                ctx.sema.diagnostics.error(
+                    "KSWIFTK-SEMA-0042",
+                    "'return' is prohibited here.",
+                    range: range
+                )
+            } else if targetsFunction, let functionSymbol = ctx.enclosingFunctionSymbol {
                 sema.bindings.bindFunctionReturn(id, symbol: functionSymbol, lambdaPath: ctx.enclosingLambdaExprIDs)
-            } else if label == nil, ctx.lambdaDepth > 0, !returnsFromInitBlock {
+            } else if label == nil,
+                      (ctx.lambdaDepth > 0 || ctx.enclosingFunctionSymbol == nil),
+                      !returnsFromInitBlock {
                 ctx.sema.diagnostics.error(
                     "KSWIFTK-SEMA-0042",
                     "'return' does not reference an enclosing function.",
@@ -356,7 +367,9 @@ final class ExprTypeChecker {
                 {
                     sema.bindings.markUnitReturnCoercion(value)
                 }
-                lambdaReturnScope?.returnValueTypes[id] = resolved
+                lambdaReturnScope?.returnValueTypes[id] = driver.helpers.retypeClassNameAsCompanionValue(
+                    value, currentType: resolved, ast: ast, sema: sema
+                ) ?? resolved
                 // Range expressions keep their runtime representation separate from the
                 // source-level range interface (they infer as the scalar element type),
                 // so `fun f(): IntRange = a..b` skips the nominal subtype check, matching
@@ -588,11 +601,21 @@ final class ExprTypeChecker {
                    ),
                    isDefinitelyDisjoint(subject: subjectNonNull, target: targetNonNull, sema: sema)
                 {
-                    ctx.sema.diagnostics.error(
-                        "KSWIFTK-SEMA-0415",
-                        "check for instance is always 'false'.",
-                        range: range
-                    )
+                    if let severity = impossibleIsCheckSeverity(
+                        subjectExpr: exprID,
+                        narrowedSubjectType: subjectNonNull,
+                        targetType: targetNonNull,
+                        locals: locals,
+                        ctx: ctx
+                    ) {
+                        ctx.sema.diagnostics.emit(Diagnostic(
+                            severity: severity,
+                            code: "KSWIFTK-SEMA-0415",
+                            message: "check for instance is always 'false'.",
+                            primaryRange: range,
+                            secondaryRanges: []
+                        ))
+                    }
                 }
             }
             sema.bindings.bindIsCheckTargetType(id, type: targetType)
@@ -806,7 +829,13 @@ final class ExprTypeChecker {
                 }
                 resultType = sema.types.nothingType
             } else if let trailingExpr {
-                resultType = driver.inferExpr(trailingExpr, ctx: blockCtx, locals: &blockLocals, expectedType: expectedType, isStatementContext: isStatementContext)
+                let tailType = driver.inferExpr(trailingExpr, ctx: blockCtx, locals: &blockLocals, expectedType: expectedType, isStatementContext: isStatementContext)
+                // A bare `ClassName` in the value-producing tail position denotes
+                // the companion object, so the block's own value type is the
+                // companion type (KUU-3232).
+                resultType = driver.helpers.retypeClassNameAsCompanionValue(
+                    trailingExpr, currentType: tailType, ast: ast, sema: sema
+                ) ?? tailType
             } else {
                 resultType = sema.types.unitType
             }
@@ -2196,6 +2225,71 @@ final class ExprTypeChecker {
             return []
         }
         return [site]
+    }
+
+    /// Severity for an impossible `subject is target` check after
+    /// `isDefinitelyDisjoint` rejected the subject's current (possibly
+    /// flow-narrowed) type. Mirrors kotlinc's two-phase cast checker: the
+    /// subject's *original* type is checked first, so a disjointness that only
+    /// exists because of a smart cast or an assignment narrowing is
+    /// IMPOSSIBLE_IS_CHECK_WARNING for a stable reference — and unreported for
+    /// an unstable one, whose reads kotlinc treats as the declared type.
+    /// Returns nil when no diagnostic should be emitted.
+    private func impossibleIsCheckSeverity(
+        subjectExpr: ExprID,
+        narrowedSubjectType: TypeID,
+        targetType: TypeID,
+        locals: LocalBindings,
+        ctx: TypeInferenceContext
+    ) -> DiagnosticSeverity? {
+        let sema = ctx.sema
+        guard let reference = ctx.dataFlow.resolveStableReference(
+            subjectExpr,
+            locals: locals,
+            ast: ctx.ast,
+            sema: sema,
+            interner: ctx.interner
+        ),
+        let declaredType = declaredIsCheckSubjectType(
+            for: reference.symbol.properties.last ?? reference.symbol.root,
+            sema: sema
+        ),
+        declaredType != sema.types.errorType
+        else {
+            return .error
+        }
+        let declaredNonNull = sema.types.makeNonNullable(declaredType)
+        guard declaredNonNull != narrowedSubjectType,
+              !isDefinitelyDisjoint(subject: declaredNonNull, target: targetType, sema: sema)
+        else {
+            return .error
+        }
+        return reference.isStable ? .warning : nil
+    }
+
+    /// The declared (un-narrowed) type bound to a `DataFlowReference` symbol:
+    /// `propertyType` covers locals, properties, and synthetic parameters, while
+    /// real value parameters and receiver parameters live on the owning
+    /// function's signature.
+    private func declaredIsCheckSubjectType(for symbol: SymbolID, sema: SemaModule) -> TypeID? {
+        if let type = sema.symbols.propertyType(for: symbol) {
+            return type
+        }
+        guard let owner = sema.symbols.valueParameterOwner(for: symbol)
+            ?? sema.symbols.parentSymbol(for: symbol),
+            let signature = sema.symbols.functionSignature(for: owner)
+        else {
+            return nil
+        }
+        if let index = signature.valueParameterSymbols.firstIndex(of: symbol),
+           index < signature.parameterTypes.count
+        {
+            return signature.parameterTypes[index]
+        }
+        if symbol == SyntheticSymbolScheme.receiverParameterSymbol(for: owner) {
+            return signature.receiverType
+        }
+        return nil
     }
 
     /// Whether a `subject is target` check can never succeed: neither type

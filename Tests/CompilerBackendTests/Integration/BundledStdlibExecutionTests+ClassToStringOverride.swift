@@ -219,4 +219,37 @@ extension BundledStdlibExecutionTests {
             allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
         )
     }
+
+    // KUU-3197: an `object` (or class) inheriting `toString` from an open
+    // superclass dispatches through a per-object vtable slot registered at
+    // construction. The slot must carry the flat String-aggregate
+    // implementation — the raw `kk_any_to_string_bridge_*` thunk belongs only
+    // to the erased-Any stringify map, and storing it in the slot made the
+    // flat indirect call read the bridge's single i64 handle as the flat
+    // String aggregate, so the inherited `toString()` result was corrupt
+    // instead of printing "K".
+    @Test(arguments: [true, false])
+    func testInheritedToStringVtableSlotUsesFlatABI(allowDefaultStdlibLibrary: Bool) throws {
+        if allowDefaultStdlibLibrary { TestStdlibCache.shared.prepare() }
+        try compileAndRunKotlin(
+            """
+            object K : Code("K")
+            open class Code(val x: String) { override fun toString() = x }
+            class O { companion object: Code("O") }
+            class Sub(val y: String) : Code(y)
+            fun box() = O.toString() + K.toString()
+            fun main() {
+                println(box())
+                println(K.toString())
+                println(Sub("S").toString())
+                println(Code("C").toString())
+                val c: Code = Sub("P")
+                println(c.toString())
+            }
+            """,
+            expectedOutput: "OK\nK\nS\nC\nP\n",
+            moduleName: "KUU3197ObjectSuperCtor",
+            allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
+        )
+    }
 }

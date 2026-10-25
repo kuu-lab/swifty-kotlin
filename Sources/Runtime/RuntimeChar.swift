@@ -181,6 +181,26 @@ public func __kk_char_digit_value(_ code: Int) -> Int {
     charDigitValueForRadix(code)
 }
 
+/// Unicode numeric value for Java's Character.getNumericValue; returns -1
+/// when the scalar has no numeric value and -2 when its value is not a
+/// representable non-negative integer.
+@_cdecl("__kk_char_numeric_value")
+public func __kk_char_numeric_value(_ code: Int) -> Int {
+    guard let scalar = runtimeUnicodeScalar(code),
+          let value = scalar.properties.numericValue
+    else {
+        return -1
+    }
+    guard value.isFinite,
+          value >= 0,
+          value == value.rounded(),
+          value <= Double(Int32.max)
+    else {
+        return -2
+    }
+    return Int(value)
+}
+
 public func kk_char_minus(_ lhsRaw: Int, _ rhsRaw: Int) -> Int {
     let lhs = kk_unbox_char(lhsRaw)
     let rhs = kk_unbox_char(rhsRaw)

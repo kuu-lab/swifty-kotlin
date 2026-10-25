@@ -89,6 +89,9 @@ extension BuildASTPhase.ExpressionParser {
                 ).parse()
             }
             if let statement {
+                localFunctionParser.validateLocalFunctionSeparator(
+                    after: statement, in: blockTokens, astArena: astArena
+                )
                 statements.append(statement)
             }
         }

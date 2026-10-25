@@ -306,7 +306,12 @@ extension CallTypeChecker {
         let rangeExtensionLookupType: TypeID? = if !isSuperCall,
                                                   case .primitive = sema.types.kind(of: lookupReceiverType)
         {
-            sourceLevelRangeMemberLookupType(
+            floatingPointRangeArgumentType(
+                receiverID,
+                ast: ast,
+                sema: sema,
+                interner: interner
+            ) ?? sourceLevelRangeMemberLookupType(
                 receiverExpr: receiverID,
                 receiverType: lookupReceiverType,
                 sema: sema,

@@ -116,6 +116,29 @@ extension TypeCheckHelpers {
             params = params.map(specialize)
             returnType = specialize(returnType)
         }
+        if !bindReceiver,
+           let unboundReceiverType,
+           let targetSymbol,
+           let owner = sema.symbols.parentSymbol(for: targetSymbol),
+           sema.symbols.symbol(owner)?.kind == .class || sema.symbols.symbol(owner)?.kind == .interface
+        {
+            // `Comparable<Ranked>::compareTo` is an unbound member reference:
+            // the receiver becomes the first function parameter, and the
+            // remaining signature still needs the explicit owner's type
+            // arguments. Without this substitution a stored reference keeps
+            // the declaration's `T` and cannot adapt to `Comparator<Ranked>`
+            // after generic inference resolves the call site.
+            func specialize(_ type: TypeID) -> TypeID {
+                resolveMemberPropertyType(
+                    type,
+                    receiverType: unboundReceiverType,
+                    ownerSymbol: owner,
+                    sema: sema
+                )
+            }
+            params = params.map(specialize)
+            returnType = specialize(returnType)
+        }
         if packVarargs, let interner {
             for index in params.indices where signature.valueParameterIsVararg.indices.contains(index)
                 && signature.valueParameterIsVararg[index] {

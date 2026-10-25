@@ -48,7 +48,7 @@ struct DeclarationPositionValidationTests {
     ])
     func propertyModifiersOnFunctionParametersAreRejected(source: String, modifier: String) throws {
         let ctx = try semaContextWithoutStdlib(for: source)
-        let diagnostics = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0443" }
+        let diagnostics = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0444" }
 
         #expect(diagnostics.contains {
             $0.message == "'\(modifier)' on function parameter is prohibited."
@@ -58,7 +58,7 @@ struct DeclarationPositionValidationTests {
     @Test
     func primaryConstructorPropertyParametersRemainAccepted() throws {
         let ctx = try semaContextWithoutStdlib(for: "class C(val x: Int, var y: Int)")
-        assertNoDiagnostic("KSWIFTK-SEMA-0443", in: ctx)
+        assertNoDiagnostic("KSWIFTK-SEMA-0444", in: ctx)
     }
 
     // MARK: - Declaration positions
@@ -519,7 +519,52 @@ struct DeclarationPositionValidationTests {
         assertHasDiagnostic("KSWIFTK-SEMA-0070", in: ctx)
     }
 
+    @Test(arguments: ["public", "private", "internal", "protected"])
+    func visibilityModifierOnValueParameterIsRejected(_ modifier: String) throws {
+        let ctx = try semaContextWithoutStdlib(for: "class C(\(modifier) value: Int)")
+
+        let diagnostics = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0400" }
+        #expect(diagnostics.map(\.message) == [
+            "modifier '\(modifier)' is not applicable to 'value parameter'."
+        ])
+    }
+
+    @Test
+    func visibilityModifierOnConstructorPropertyParameterIsAccepted() throws {
+        let ctx = try semaContextWithoutStdlib(for: "class C(private val value: Int, internal var count: Int)")
+
+        assertNoDiagnostic("KSWIFTK-SEMA-0400", in: ctx)
+    }
+
     // MARK: - Modifier incompatibilities
+
+    @Test func conflictingTopLevelFunctionVisibilityModifiersAreRejected() throws {
+        let ctx = try semaContextWithoutStdlib(for: "private public fun f() = 1")
+        let errors = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0402" }
+        #expect(errors.map(\.message) == ["modifier 'private' is incompatible with 'public'."])
+    }
+
+    @Test(arguments: [
+        "private public", "private internal", "private protected",
+        "public internal", "public protected", "internal protected",
+    ])
+    func conflictingMemberVisibilityModifierPairsAreRejected(pair: String) throws {
+        let ctx = try semaContextWithoutStdlib(for: "class C { \(pair) fun f() {} }")
+        let errors = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0402" }
+        let modifiers = pair.split(separator: " ")
+        let expectedMessage = "modifier '\(modifiers[0])' is incompatible with '\(modifiers[1])'."
+        #expect(errors.map(\.message) == [expectedMessage], "Unexpected diagnostics: \(ctx.diagnostics.diagnostics)")
+    }
+
+    @Test(arguments: [
+        "class C private public constructor()",
+        "class C { private public constructor() }",
+    ])
+    func conflictingConstructorVisibilityModifiersAreRejected(source: String) throws {
+        let ctx = try semaContextWithoutStdlib(for: source)
+        let errors = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0402" }
+        #expect(errors.map(\.message) == ["modifier 'private' is incompatible with 'public'."])
+    }
 
     @Test func finalOpenFunctionIsRejected() throws {
         let ctx = try semaContext(for: """

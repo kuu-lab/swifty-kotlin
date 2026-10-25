@@ -19,6 +19,10 @@ struct LinkedExpectActualSuperConstructorTests {
         try runSema(ctx)
 
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(
+            !errors.contains { $0.code == "KSWIFTK-SEMA-0436" },
+            "Expect class supertypes may omit the constructor invocation: \(errors)"
+        )
         #expect(errors.isEmpty, "Linked super constructors should not be ambiguous: \(errors)")
         try expectActualDelegation(from: "Sub", to: "MIE", ctx: ctx)
     }

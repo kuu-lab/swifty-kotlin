@@ -902,14 +902,18 @@ extension DeclTypeChecker {
             else { return }
             driver.deferredInferredReturnFunctions.remove(symbol)
         }
+        let diagnosticCheckpoint = tracksInferredFunction ? diagnostics.checkpoint() : 0
         defer {
             if tracksInferredFunction {
                 driver.checkingInferredReturnFunctions.remove(symbol)
                 // Speculative callers may roll diagnostics back. Declarations
                 // with their own diagnostics need an authoritative recheck.
-                if !diagnostics.hasError,
+                // An unrelated declaration's error must not disable reuse of
+                // this clean body, or shared inference dependencies grow exponentially.
+                let currentDiagnostics = diagnostics.diagnostics
+                if !currentDiagnostics.dropFirst(diagnosticCheckpoint).contains(where: { $0.severity == .error }),
                    !driver.deferredInferredReturnFunctions.contains(symbol),
-                   !diagnostics.diagnostics.contains(where: {
+                   !currentDiagnostics.contains(where: {
                        $0.primaryRange.map(function.range.contains) ?? true
                    })
                 {

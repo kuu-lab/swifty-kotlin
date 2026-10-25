@@ -378,13 +378,16 @@ extension DataFlowSemaPhase {
                 )
             }
 
-            // The native implementation stays E?, while Java callers see E!.
-            // Restrict the compatibility contract to this compiler-owned API;
+            // The native implementations stay E?, while Java callers see E!.
+            // Restrict the compatibility contract to these compiler-owned APIs;
             // user Kotlin declarations in java.util retain normal nullable rules.
+            let javaUtilFQName = ownerFQName.map(interner.resolve)
+            let javaPlatformNullReturningMember =
+                (javaUtilFQName == ["java", "util", "LinkedList"] && funDecl.name == interner.intern("peekLast")) ||
+                (javaUtilFQName == ["java", "util", "PriorityQueue"] && funDecl.name == interner.intern("poll"))
             let callableReturnType: TypeID
             if sourceManager.origin(of: sourceFileID)?.isBundledStdlib == true,
-               ownerFQName == ["java", "util", "LinkedList"].map(interner.intern),
-               funDecl.name == interner.intern("peekLast"),
+               javaPlatformNullReturningMember,
                params.paramTypes.isEmpty,
                case let .typeParam(element) = types.kind(of: returnType),
                element.nullability == .nullable,
@@ -651,6 +654,7 @@ extension DataFlowSemaPhase {
                 declSite: propertyDecl.range,
                 ast: ast, symbols: symbols, types: types,
                 interner: interner, sourceManager: sourceManager, isInline: propertyDecl.allAccessorsAreInline,
+                isProperty: true,
                 diagnostics: diagnostics, enclosingTypeParameters: classLocalTypeParameters,
                 relativeOwnerFQName: ownerFQName, currentPackageFQName: sourcePackageFQName,
                 imports: sourceImports

@@ -249,8 +249,12 @@ struct CaptureAnalyzer {
 
             case let .call(callee, _, args, _):
                 var isLocalFunctionCall = false
-                let calleeSymbol = sema.bindings.callBinding(for: currentExprID)?.chosenCallee
+                let callBinding = sema.bindings.callBinding(for: currentExprID)
+                let calleeSymbol = callBinding?.chosenCallee
                     ?? sema.bindings.identifierSymbol(for: callee)
+                captured.formUnion(callBinding?.contextParameterReceiverSymbols.compactMap { $0 }.filter {
+                    outerSymbols.contains($0)
+                } ?? [])
                 if let calleeSymbol,
                    sema.symbols.symbol(calleeSymbol)?.flags.contains(.localFunction) == true
                 {
@@ -308,9 +312,25 @@ struct CaptureAnalyzer {
                 }
 
             case let .memberCall(receiver, _, _, args, _):
+                let callBinding = sema.bindings.callBinding(for: currentExprID)
+                captured.formUnion(
+                    callBinding?.contextParameterReceiverSymbols.compactMap { $0 }.filter {
+                        outerSymbols.contains($0)
+                    } ?? []
+                )
                 visit(receiver)
                 for arg in args {
                     visit(arg.expr)
+                }
+                // `recv.fn(args)` invoking a lexical function-typed `fn` binds
+                // fn's symbol on the call expr itself (Sema synthesizes a
+                // callee nameRef for `CallableValueCallBinding.extensionCallableExpr`
+                // and re-binds it on `request.id` exactly so this pass can see
+                // it). Without recording it, an outer `fn` is never captured
+                // into object literals / local nominals and the invoke lowers
+                // to a raw symbolRef of a parameter that is not in scope.
+                if sema.bindings.callableValueCalls[currentExprID]?.extensionCallableExpr != nil {
+                    recordCapture(for: currentExprID)
                 }
 
             case let .indexedAccess(receiver, indices, _):
@@ -378,6 +398,12 @@ struct CaptureAnalyzer {
                 for arg in args {
                     visit(arg.expr)
                 }
+                // Same lexical function-typed callee as `.memberCall` above:
+                // `recv?.fn(args)` binds fn's symbol on the call expr so this
+                // pass can keep it as a capture.
+                if sema.bindings.callableValueCalls[currentExprID]?.extensionCallableExpr != nil {
+                    recordCapture(for: currentExprID)
+                }
 
             case let .compoundAssign(_, _, value, _):
                 recordCapture(for: currentExprID)
@@ -426,9 +452,18 @@ struct CaptureAnalyzer {
                     visit(receiver)
                 }
 
-            case let .localFunDecl(_, _, _, _, body, _, _, _, _):
+            case let .localFunDecl(_, _, valueParams, _, body, _, _, _, _):
                 if !skipNestedClosures {
                     visitBody(body)
+                    // Parameter default expressions evaluate in the lifted
+                    // function's scope at call time, so their free variables
+                    // are captures of the nested function that enclosing
+                    // bodies must supply (KUU-3182).
+                    for valueParam in valueParams {
+                        if let defaultValue = valueParam.defaultValue {
+                            visit(defaultValue)
+                        }
+                    }
                 }
 
             case let .blockExpr(statements, trailingExpr, _):

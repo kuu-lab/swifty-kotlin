@@ -167,7 +167,8 @@ extension BuildASTPhase {
                     let result = parseInlineAccessors(
                         from: collectTokens(from: childID, in: arena),
                         nodeRange: arena.node(childID).range,
-                        interner: interner, astArena: astArena
+                        interner: interner, astArena: astArena,
+                        isAccessorNode: true
                     )
                     if getter == nil { getter = result.getter }
                     if setter == nil { setter = result.setter }
@@ -401,7 +402,8 @@ extension BuildASTPhase {
         from allTokens: [Token],
         nodeRange: SourceRange,
         interner: StringInterner,
-        astArena: ASTArena
+        astArena: ASTArena,
+        isAccessorNode: Bool = false
     ) -> (getter: PropertyAccessorDecl?, setter: PropertyAccessorDecl?) {
         var getter: PropertyAccessorDecl?
         var setter: PropertyAccessorDecl?
@@ -420,22 +422,27 @@ extension BuildASTPhase {
                 continue
             }
 
-            // A default setter may omit its parameter list: `private set`.
-            // Preserve it as an accessor so downstream checks can observe its
-            // explicit visibility even though it has no custom body.
+            // Dedicated CST accessor nodes can contain a bodyless getter or
+            // setter. Preserve their annotations even without a parameter list.
+            // Flat property tokens still need the default-setter shape check
+            // so an ordinary name in a type or expression is not an accessor.
             let hasParameterList = startIdx + 1 < remaining.endIndex
                 && remaining[startIdx + 1].kind == .symbol(.lParen)
             let explicitAccessorVisibility = accessorVisibility(in: tokensBeforeAccessor)
-            if kind == .setter, !hasParameterList,
-               explicitAccessorVisibility != nil || isBareDefaultSetter(in: remaining, at: startIdx)
+            if !hasParameterList,
+               isAccessorNode || (kind == .setter
+                   && (explicitAccessorVisibility != nil || isBareDefaultSetter(in: remaining, at: startIdx)))
             {
                 let accessor = PropertyAccessorDecl(
                     range: nodeRange,
-                    kind: .setter,
+                    kind: kind,
                     annotations: annotations,
                     visibility: explicitAccessorVisibility
                 )
-                if setter == nil { setter = accessor }
+                switch kind {
+                case .getter: if getter == nil { getter = accessor }
+                case .setter: if setter == nil { setter = accessor }
+                }
                 remaining = remaining[(startIdx + 1)...]
                 continue
             }

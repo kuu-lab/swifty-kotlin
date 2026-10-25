@@ -2,6 +2,15 @@ extension KotlinLexer {
     func symbolKind() -> Symbol? {
         guard offset < byteCount() else { return nil }
         let ch = byte(at: offset)
+        // `!is` and `!in` take precedence over a `!!` token when the second
+        // exclamation mark starts one of those operators. Kotlin rejects
+        // `!!is`/`!!in` without trivia, while `!! is`/`!! in` remain valid.
+        if (starts(with: "!!is", at: offset) || starts(with: "!!in", at: offset)),
+           !isIdentifierContinue(byte(at: offset + 4))
+        {
+            offset += 1
+            return .bang
+        }
         // Preserve the double colon after a nullable callable-reference type;
         // `?::` is a question mark followed by `::`, not Elvis plus a colon.
         if starts(with: [0x3F, 0x3A, 0x3A], at: offset) {

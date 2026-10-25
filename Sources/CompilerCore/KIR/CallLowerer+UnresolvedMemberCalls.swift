@@ -314,13 +314,7 @@ extension CallLowerer {
         let thrownResult = canThrow
             ? arena.appendTemporary(type: sema.types.nullableAnyType)
             : nil
-        instructions.append(.call(
-            callee: runtimeCallee,
-            arguments: runtimeArguments,
-            result: result,
-            canThrow: canThrow,
-            thrownResult: thrownResult
-        ))
+        instructions.append(.call(callee: runtimeCallee, arguments: runtimeArguments, result: result, canThrow: canThrow, thrownResult: thrownResult))
         if let thrownResult,
            shouldRethrowThrownChannelResult(calleeName: runtimeCallee, interner: interner)
         {

@@ -90,12 +90,7 @@ extension CallLowerer {
                     let kkName = calleeStr == "firstOrNull" ? "__kk_string_firstOrNull_flat"
                         : calleeStr == "lastOrNull" ? "__kk_string_lastOrNull_flat"
                         : "__kk_string_singleOrNull_flat"
-                    instructions.append(.call(
-                        callee: interner.intern(kkName),
-                        arguments: [loweredReceiverID],
-                        result: result,
-                        canThrow: false
-                    ))
+                    instructions.append(.call(callee: interner.intern(kkName), arguments: [loweredReceiverID], result: result, canThrow: false))
                     return result
                 }
             }

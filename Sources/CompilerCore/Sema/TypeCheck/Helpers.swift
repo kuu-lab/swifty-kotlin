@@ -1119,9 +1119,25 @@ struct TypeCheckHelpers {
                     // Qualified inner-class references (`Outer<V>.Inner`) supply the
                     // qualifier's arguments; route through the nominal split so they
                     // land in enclosingTypeArgs rather than the class's own args.
+                    // A bare name supplies none, so the implicit enclosing instance
+                    // fills those slots (`KeySet` inside `CIM<Value>` spells
+                    // `CIM<Value>.KeySet`).
+                    var nominalArgs = resolvedArgs
+                    let enclosingCount = sema.types.enclosingTypeParameterSymbols(for: symbolID).count
+                    if enclosingCount > 0 {
+                        let implicitEnclosing = sema.types.implicitInnerClassEnclosingArgs(
+                            for: symbolID,
+                            enclosingInstanceTypes: inferenceContext?.implicitReceiverMemberLookupTypes() ?? []
+                        )
+                        if path.count == 1 {
+                            nominalArgs = implicitEnclosing + resolvedArgs
+                        } else if resolvedArgs.count < enclosingCount {
+                            nominalArgs = Array(implicitEnclosing.prefix(enclosingCount - resolvedArgs.count)) + resolvedArgs
+                        }
+                    }
                     return sema.types.make(.classType(sema.types.classType(
                         for: symbolID,
-                        arguments: resolvedArgs,
+                        arguments: nominalArgs,
                         nullability: nullability
                     )))
                 }

@@ -20,4 +20,16 @@ public interface SortedSet<E> : MutableSet<E> {
     /** The highest element; throws `NoSuchElementException` when the set is empty. */
     @KsSymbolName("__kk_sorted_set_last")
     public fun last(): E
+
+    /** A live view of the elements strictly below [toElement]. */
+    @KsSymbolName("__kk_sorted_set_head_set")
+    public fun headSet(toElement: E): SortedSet<E>
+
+    /** A live view of the elements at or above [fromElement]. */
+    @KsSymbolName("__kk_sorted_set_tail_set")
+    public fun tailSet(fromElement: E): SortedSet<E>
+
+    /** A live view starting at [fromElement] and ending before [toElement]. */
+    @KsSymbolName("__kk_sorted_set_sub_set")
+    public fun subSet(fromElement: E, toElement: E): SortedSet<E>
 }

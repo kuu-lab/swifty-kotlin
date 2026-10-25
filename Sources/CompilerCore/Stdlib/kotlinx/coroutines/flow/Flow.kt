@@ -16,9 +16,11 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.cancel
 import kotlinx.coroutines.channels.close
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.channels.receiveCatching
+import kotlinx.coroutines.selects.select
 
 public interface Flow<out T>
 
@@ -325,8 +327,83 @@ public fun <T> merge(vararg flows: Flow<T>): Flow<T> = mergeInternal(
 
 @FlowPreview
 public fun <T> Flow<T>.debounce(timeoutMillis: Long): Flow<T> {
+    require(timeoutMillis >= 0L) { "Debounce timeout should not be negative" }
     val source = this
-    return flow { source.collect { value -> emit(value) } }
+    if (timeoutMillis == 0L) return source
+    return flow {
+        coroutineScope {
+            val values = Channel<T>(Channel.CONFLATED)
+            val upstream = launch {
+                try {
+                    source.collect { value -> values.send(value) }
+                    values.close()
+                } catch (failure: Throwable) {
+                    values.close(failure)
+                    throw failure
+                }
+            }
+
+            var pending = false
+            var last: T? = null
+            var timeoutJob: Job? = null
+            try {
+                var open = true
+                while (open) {
+                    if (pending) {
+                        val timer = timeoutJob
+                        select<Unit> {
+                            values.onReceiveCatching { result ->
+                                if (result.isSuccess) {
+                                    last = result.getOrThrow()
+                                    timeoutJob?.cancel()
+                                    timeoutJob = if (timeoutMillis == Long.MAX_VALUE) null else launch {
+                                        delay(timeoutMillis)
+                                    }
+                                } else {
+                                    val failure = result.exceptionOrNull()
+                                    if (failure != null) throw failure
+                                    @Suppress("UNCHECKED_CAST")
+                                    emit(last as T)
+                                    pending = false
+                                    last = null
+                                    timeoutJob?.cancel()
+                                    timeoutJob = null
+                                    open = false
+                                }
+                            }
+                            if (timer != null) {
+                                timer.onJoin {
+                                    @Suppress("UNCHECKED_CAST")
+                                    emit(last as T)
+                                    pending = false
+                                    last = null
+                                    timeoutJob = null
+                                }
+                            }
+                        }
+                    } else {
+                        val result = values.receiveCatching()
+                        if (result.isSuccess) {
+                            last = result.getOrThrow()
+                            pending = true
+                            timeoutJob?.cancel()
+                            timeoutJob = if (timeoutMillis == Long.MAX_VALUE) null else launch {
+                                delay(timeoutMillis)
+                            }
+                        } else {
+                            val failure = result.exceptionOrNull()
+                            if (failure != null) throw failure
+                            open = false
+                        }
+                    }
+                }
+            } finally {
+                timeoutJob?.cancel()
+                upstream.cancel()
+                values.cancel()
+            }
+        }
+    }
 }
 
 // Buffering and context operators use a per-collection channel. Their fused

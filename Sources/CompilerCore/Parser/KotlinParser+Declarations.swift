@@ -1,5 +1,5 @@
 extension KotlinParser {
-    func parseDeclaration() -> NodeID {
+    func parseDeclaration(isLocal: Bool = false) -> NodeID {
         guard enterNesting() else {
             return recoverFromNestingLimit(inBlock: true)
         }
@@ -56,7 +56,10 @@ extension KotlinParser {
             }
             return parseFunctionDeclaration(leadingChildren: modifierChildren, leadingRange: modifierRange.value)
         case .keyword(.val), .keyword(.var):
-            return parsePropertyDeclaration(leadingChildren: modifierChildren, leadingRange: modifierRange.value)
+            return parsePropertyDeclaration(
+                leadingChildren: modifierChildren, leadingRange: modifierRange.value,
+                allowsBodylessAccessors: !isLocal
+            )
         case .keyword(.typealias):
             return parseTypeAliasDeclaration(leadingChildren: modifierChildren, leadingRange: modifierRange.value)
         case .keyword(.enum):
@@ -331,7 +334,8 @@ extension KotlinParser {
                 into: &children,
                 range: &range,
                 allowsDeclarationAssignment: true,
-                allowsFunctionWhereClause: hasTypeParameters
+                allowsFunctionWhereClause: hasTypeParameters,
+                stopsAtFunctionDelegation: true
             )
             // A block on the next line still belongs to a function whose
             // header has no expression body or explicit terminator.
@@ -372,7 +376,8 @@ extension KotlinParser {
 
     func parsePropertyDeclaration(
         leadingChildren: [SyntaxChild] = [],
-        leadingRange: SourceRange? = nil
+        leadingRange: SourceRange? = nil,
+        allowsBodylessAccessors: Bool = true
     ) -> NodeID {
         var children: [SyntaxChild] = leadingChildren
         var range = RangeAccumulator(value: leadingRange)
@@ -428,7 +433,9 @@ extension KotlinParser {
             // declarations on the next line are part of the property declaration.
             // After parseTail stops at a newline, absorb trailing accessor and
             // explicit field lines into dedicated CST nodes.
-            while isPropertyAccessorStart(stream.peek()) || isExplicitBackingFieldStart(stream.peek()) {
+            while isPropertyAccessorStart(stream.peek(), allowsBodyless: allowsBodylessAccessors)
+                || isExplicitBackingFieldStart(stream.peek())
+            {
                 if isExplicitBackingFieldStart(stream.peek()) {
                     parseExplicitBackingField(into: &children, range: &range)
                 } else {
@@ -751,7 +758,7 @@ extension KotlinParser {
     ) {
         if case .symbol(.lBrace) = stream.peek().kind {
             if includeBlock {
-                let body = parseBlock()
+                let body = parseBlock(isClassBody: true)
                 children.append(.node(body))
                 range.append(childRange(.node(body)))
             } else {
@@ -777,7 +784,8 @@ extension KotlinParser {
             inBlock: false, into: &children, range: &range,
             allowsClassHeaderColon: allowsClassHeaderColon,
             allowsClassDelegation: allowsClassDelegation,
-            allowsWhereClauseContinuation: allowsWhereClauseContinuation
+            allowsWhereClauseContinuation: allowsWhereClauseContinuation,
+            isClassBody: includeBlock
         )
         // Header scanning may stop at a newline after constructor parameters or
         // supertypes. The following brace still belongs to this declaration,
@@ -789,7 +797,7 @@ extension KotlinParser {
                return arena.node(id).kind == .block
            })
         {
-            let body = parseBlock()
+            let body = parseBlock(isClassBody: true)
             children.append(.node(body))
             range.append(childRange(.node(body)))
         }

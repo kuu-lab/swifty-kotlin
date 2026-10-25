@@ -101,11 +101,7 @@ public fun <C : MutableCollection<in Char>> CharSequence.toCollection(destinatio
     return destination
 }
 
-public fun CharSequence.toHashSet(): HashSet<Char> {
-    val result = HashSet<Char>()
-    for (element in this) result.add(element)
-    return result
-}
+public fun CharSequence.toHashSet(): HashSet<Char> = asIterable().toHashSet()
 
 public fun CharSequence.toSet(): Set<Char> {
     val result = mutableSetOf<Char>()

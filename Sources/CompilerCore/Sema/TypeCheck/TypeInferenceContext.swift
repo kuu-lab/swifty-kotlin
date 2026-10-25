@@ -142,6 +142,11 @@ struct TypeInferenceContext: CustomStringConvertible {
     /// bodies, where reading the property's own name is a normal (if recursive)
     /// property access rather than a use-before-init.
     var initializingPropertySymbol: SymbolID?
+    /// True only while checking the property initializer itself. Nested named
+    /// functions replace `currentDeclSymbol` and retain their own return target.
+    var isInPropertyInitializer: Bool {
+        initializingPropertySymbol != nil && initializingPropertySymbol == currentDeclSymbol
+    }
     var enclosingClassSymbol: SymbolID?
     let visibilityChecker: VisibilityChecker
     /// `symbol` is the enclosing function's receiver parameter when the entry's

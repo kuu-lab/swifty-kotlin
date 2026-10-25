@@ -74,15 +74,11 @@ extension CallTypeChecker {
             )
             guard let function = driver.helpers.samFunctionType(for: interfaceType, sema: sema) else { continue }
             let functionType = sema.types.make(.functionType(function))
-            let compatibleFunctionType = sema.types.withNullability(
-                sema.types.nullability(of: interfaceType),
-                for: functionType
-            )
-            let compatibleSourceType = sema.types.suspendConversionType(
-                from: sourceType,
-                to: compatibleFunctionType
-            ) ?? sourceType
-            guard sema.types.isSubtype(compatibleSourceType, compatibleFunctionType) else { continue }
+            // Resolution has already selected this argument through the SAM
+            // function signature. Do not repeat the compatibility check after
+            // generic substitution: if it suppresses this binding, KIR passes
+            // the raw KFunction as a Comparator and its later compare dispatch
+            // has no Comparator itable slot.
             sema.bindings.markSamConversion(argument.expr)
             sema.bindings.bindSamUnderlyingFunctionType(argument.expr, type: functionType)
             sema.bindings.bindSamInterfaceType(argument.expr, type: interfaceType)

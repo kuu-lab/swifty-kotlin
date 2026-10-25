@@ -560,6 +560,18 @@ extension BuildASTPhase {
             switch token.kind {
             case .symbol(.plusPlus), .symbol(.minusMinus), .symbol(.question):
                 return true
+            case .symbol(.bang):
+                // The lexer splits adjacent `!!is`/`!!in` so the second bang
+                // remains the start of `!is`/`!in`. Do not silently discard
+                // the first bang after an otherwise complete expression.
+                guard let secondBang = peek(1), secondBang.kind == .symbol(.bang),
+                      let negatedOperator = peek(2),
+                      negatedOperator.kind == .keyword(.is) || negatedOperator.kind == .keyword(.in)
+                else {
+                    return false
+                }
+                return token.range.end.offset == secondBang.range.start.offset
+                    && secondBang.range.end.offset == negatedOperator.range.start.offset
             default:
                 return expressionEnd == token.range.start.offset && isInfixIdentifierToken(token)
             }

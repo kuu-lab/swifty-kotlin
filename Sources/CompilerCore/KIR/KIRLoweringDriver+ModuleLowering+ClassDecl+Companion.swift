@@ -82,12 +82,7 @@ extension KIRLoweringDriver {
                 } else {
                     interner.intern("kk_type_register_super")
                 }
-                body.append(.call(
-                    callee: registerCallee,
-                    arguments: [classIDExpr, parentExpr],
-                    result: registerResult,
-                    canThrow: false
-                ))
+                body.append(.call(callee: registerCallee, arguments: [classIDExpr, parentExpr], result: registerResult, canThrow: false))
             }
             appendObjectItableMethodRegistrations(
                 objectValue: allocatedObject,
@@ -138,6 +133,7 @@ extension KIRLoweringDriver {
 
         declIDs.append(contentsOf: synthesizeCompanionLazyInit(
             companionDecl,
+            ownerSymbol: ownerSymbol,
             companionSymbol: companionSymbol,
             companionType: companionType,
             needsDispatchObject: needsDispatchObject,
@@ -180,6 +176,7 @@ extension KIRLoweringDriver {
     /// its own (now-removed) super-constructor-call argument.
     private func synthesizeCompanionLazyInit(
         _ companionDecl: ObjectDecl,
+        ownerSymbol: SymbolID,
         companionSymbol: SymbolID,
         companionType: TypeID,
         needsDispatchObject: Bool,
@@ -221,6 +218,18 @@ extension KIRLoweringDriver {
         let alreadyInitializedLabel = ctx.makeLoopLabel()
         body.append(.jumpIfEqual(lhs: flagLoadExpr, rhs: trueExpr, target: alreadyInitializedLabel))
         body.append(.storeGlobal(value: trueExpr, symbol: flagSymbol))
+
+        // KUU-3225: this ensure-init is the owner class's <clinit>. On the
+        // JVM its supertype companions initialize first — the superclass
+        // chain before the owner's own superinterfaces — so emit those
+        // entry-point calls before the companion's super-constructor call
+        // and body. The companion's own supertype chain (for
+        // `companion object : Base()`) is initialized by that delegation's
+        // constructor guard.
+        emitSupertypeCompanionInitCalls(
+            for: ownerSymbol, sema: sema, arena: arena, interner: interner,
+            instructions: &body.instructions
+        )
 
         emitSingletonLateinitSentinels(companionDecl.memberProperties, shared: shared, body: &body)
         emitNamedObjectSuperConstructorCall(

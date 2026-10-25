@@ -353,6 +353,65 @@ public func __kk_java_class_get_name(_ classRaw: Int) -> Int {
     return runtimeMakeStringRaw(runtimeJavaClassName(javaClass))
 }
 
+@_cdecl("__kk_class_simple_name")
+public func __kk_class_simple_name(_ classRaw: Int) -> Int {
+    guard let javaClass = resolveRuntimeHandle(classRaw, as: RuntimeJavaClassBox.self) else {
+        runtimeStructuredPanic("invalid Java Class handle")
+    }
+
+    if let metadata = runtimeKClassMetadataRegistry.lookup(typeToken: javaClass.typeToken), metadata.isLocal {
+        return runtimeMakeStringRaw(metadata.simpleName)
+    }
+
+    let displayText = javaClass.displayText
+    let className: String
+    if displayText.hasPrefix("class ") {
+        className = String(displayText.dropFirst("class ".count))
+    } else if displayText.hasPrefix("interface ") {
+        className = String(displayText.dropFirst("interface ".count))
+    } else {
+        className = javaClass.javaNameOverride ?? runtimeJavaClassName(javaClass)
+    }
+
+    if let arraySimpleName = runtimeJavaArraySimpleName(className) {
+        return runtimeMakeStringRaw(arraySimpleName)
+    }
+    return runtimeMakeStringRaw(runtimeJavaSimpleClassName(className))
+}
+
+private func runtimeJavaSimpleClassName(_ className: String) -> String {
+    className.split(whereSeparator: { $0 == "." || $0 == "$" }).last.map(String.init) ?? className
+}
+
+private func runtimeJavaArraySimpleName(_ descriptor: String) -> String? {
+    var component = descriptor[...]
+    var dimensions = 0
+    while component.first == "[" {
+        dimensions += 1
+        component = component.dropFirst()
+    }
+    guard dimensions > 0, let componentCode = component.first else { return nil }
+
+    let componentName: String
+    switch componentCode {
+    case "Z": componentName = "boolean"
+    case "B": componentName = "byte"
+    case "C": componentName = "char"
+    case "D": componentName = "double"
+    case "F": componentName = "float"
+    case "I": componentName = "int"
+    case "J": componentName = "long"
+    case "S": componentName = "short"
+    case "L":
+        guard component.last == ";" else { return nil }
+        let binaryName = String(component.dropFirst().dropLast())
+        componentName = runtimeJavaSimpleClassName(binaryName)
+    default:
+        return nil
+    }
+    return componentName + String(repeating: "[]", count: dimensions)
+}
+
 private func runtimeJavaClassName(_ javaClass: RuntimeJavaClassBox) -> String {
     if let override = javaClass.javaNameOverride { return override }
     let base = Int64(javaClass.typeToken) & RuntimeTypeTokenEncoding.baseMask

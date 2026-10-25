@@ -98,16 +98,10 @@ extension DataFlowSemaPhase {
 
         }
 
-        registerSyntheticCoroutineMember(
-            ownerSymbol: dispatcherSymbol,
-            ownerType: dispatcherType,
-            name: "interceptContinuation",
-            externalLinkName: "kk_continuation_interceptor_intercept_continuation",
-            returnType: continuationType,
-            parameters: [(name: "continuation", type: continuationType)],
-            typeParameterSymbols: [continuationTypeParameterSymbol],
-            symbols: symbols,
-            interner: interner
+        let dispatcherMembers = coroutineMemberRows(of: dispatcherSymbol, type: dispatcherType, symbols: symbols, interner: interner)
+        dispatcherMembers.fn(
+            "interceptContinuation", "kk_continuation_interceptor_intercept_continuation", [(name: "continuation", type: continuationType)],
+            ret: continuationType, typeParameterSymbols: [continuationTypeParameterSymbol]
         )
         registerSyntheticCoroutineTopLevelFunction(
             named: "async",

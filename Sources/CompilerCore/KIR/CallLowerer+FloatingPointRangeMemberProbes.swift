@@ -72,12 +72,7 @@ extension CallLowerer {
         let probeArguments = [receiverID] + explicitArguments.prefix(arity)
 
         let probed = arena.appendTemporary(type: sema.types.nullableAnyType)
-        instructions.append(.call(
-            callee: interner.intern(probeName),
-            arguments: probeArguments,
-            result: probed,
-            canThrow: false
-        ))
+        instructions.append(.call(callee: interner.intern(probeName), arguments: probeArguments, result: probed, canThrow: false))
         let null = arena.appendExpr(.null, type: sema.types.nullableAnyType)
         instructions.append(.constValue(result: null, value: .null))
         let interfaceLabel = driver.ctx.makeLoopLabel()

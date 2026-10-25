@@ -215,6 +215,63 @@ struct CodegenBackendIncrementExpressionPositionTests {
     }
 
     @Test
+    func testIncrementDecrementExtensionOperatorWithDefaultArgument() throws {
+        // KUU-3192: the synthesized `++`/`--` call carries no explicit
+        // arguments, so an `inc`/`dec` whose parameters are all optional must
+        // go through the `<name>$default` stub with a default mask. Emitting a
+        // direct call to the original symbol passed an incomplete argument
+        // list and crashed at runtime.
+        let source = """
+        var result = "fail"
+
+        class A
+
+        operator fun A.inc(s: String = "OK"): A { result = s; return this }
+        operator fun A.dec(s: String = "KO"): A { result = s; return this }
+
+        fun main() {
+            var a = A()
+            a++
+            ++a
+            println(result)
+            a--
+            --a
+            println(result)
+        }
+        """
+        try assertKotlinOutput(
+            source,
+            moduleName: "ExtensionIncDecDefaultArg",
+            expected: "OK\nKO\n"
+        )
+    }
+
+    @Test
+    func testIncrementDecrementLocalOperatorCapturingDefaultArgument() throws {
+        // The `$default` stub for a local operator evaluates the omitted
+        // default expression itself, so it needs the same lifted capture
+        // environment the original function object carries.
+        let source = """
+        var result = "fail"
+
+        class A
+
+        fun main() {
+            val tag = "OK"
+            operator fun A.inc(s: String = tag): A { result = s; return this }
+            var a = A()
+            a++
+            println(result)
+        }
+        """
+        try assertKotlinOutput(
+            source,
+            moduleName: "LocalIncDefaultCapture",
+            expected: "OK\n"
+        )
+    }
+
+    @Test
     func testPostfixIncrementPassesCapturesToLocalExtensionOperator() throws {
         let source = """
         fun box(): String {

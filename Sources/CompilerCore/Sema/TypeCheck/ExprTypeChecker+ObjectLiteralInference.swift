@@ -175,6 +175,43 @@ extension ExprTypeChecker {
         let directSuperSymbols = sema.symbols.directSupertypes(for: objectSymbol)
         let inheritance = DataFlowSemaPhase()
 
+        var lexicalEnclosingFQNames: [[InternedString]] = []
+        var lexicalScope: Scope? = ctx.scope
+        while let scope = lexicalScope as? BaseScope {
+            if let memberScope = scope as? ClassMemberScope,
+               let owner = sema.symbols.symbol(memberScope.owner) {
+                lexicalEnclosingFQNames.append(owner.fqName)
+            }
+            lexicalScope = scope.parent
+        }
+        let enclosingClassScopes = Array(lexicalEnclosingFQNames.reversed())
+        // The implicit receivers an anonymous object may capture, including
+        // an extension receiver of the enclosing function.
+        var lexicalReceiverSymbols = Set(ctx.outerReceiverTypes.compactMap(\.symbol))
+        lexicalReceiverSymbols.formUnion(ctx.implicitReceiverStack.map(\.symbol))
+        if let implicitReceiverType = ctx.implicitReceiverType,
+           let receiverSymbol = driver.helpers.nominalSymbol(
+               of: sema.types.makeNonNullable(implicitReceiverType),
+               types: sema.types
+           ) {
+            lexicalReceiverSymbols.insert(receiverSymbol)
+        }
+        for superSymbol in directSuperSymbols {
+            inheritance.validateInnerClassSupertypeReceiver(
+                resolvedSymbol: superSymbol,
+                context: .lexical,
+                declRange: objectDecl.range,
+                declSymbol: objectSymbol,
+                enclosingClassScopes: enclosingClassScopes,
+                lexicalReceiverSymbols: lexicalReceiverSymbols,
+                symbols: sema.symbols,
+                types: sema.types,
+                diagnostics: sema.diagnostics,
+                sourceManager: ctx.visibilityChecker.sourceManager,
+                interner: interner
+            )
+        }
+
         // Delegate expressions run in the enclosing scope, before the anonymous
         // object's receiver and members become available.
         for entry in objectDecl.superTypeEntries {
@@ -260,16 +297,7 @@ extension ExprTypeChecker {
                 interner: interner
             )
 
-            var lexicalEnclosingFQNames: [[InternedString]] = []
-            var lexicalScope: Scope? = ctx.scope
-            while let scope = lexicalScope as? BaseScope {
-                if let memberScope = scope as? ClassMemberScope,
-                   let owner = sema.symbols.symbol(memberScope.owner) {
-                    lexicalEnclosingFQNames.append(owner.fqName)
-                }
-                lexicalScope = scope.parent
-            }
-            var nestedEnclosingClassScopes = Array(lexicalEnclosingFQNames.reversed())
+            var nestedEnclosingClassScopes = enclosingClassScopes
             nestedEnclosingClassScopes.append(objectSymbolFQName)
             if let sourceFile = ast.file(for: ctx.currentFileID) {
                 for nestedDeclID in objectDecl.nestedClasses + objectDecl.nestedObjects {

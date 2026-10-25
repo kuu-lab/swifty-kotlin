@@ -125,9 +125,19 @@ extension KIRLoweringDriver {
         ctx.beginCallableLoweringScope()
         var initInstructions: KIRLoweringEmitContext = []
         let initValue = lowerExpr(explicitField.initializer, shared: shared, emit: &initInstructions)
-        let globalRef = arena.appendExpr(.symbolRef(backingFieldSymbol), type: backingFieldType)
-        initInstructions.append(.constValue(result: globalRef, value: .symbolRef(backingFieldSymbol)))
-        initInstructions.append(.copy(from: initValue, to: globalRef))
+        // Write the field's storage directly. A `.copy` targeting the
+        // backing field symbol is rewritten by PropertyLoweringPass into a
+        // setter accessor call whenever the property also emits a setter —
+        // but Kotlin initializers always write the field directly and never
+        // dispatch through accessors.
+        let storedValueID = normalizedValueForNullablePrimitiveSlot(
+            initValue,
+            slotType: backingFieldType,
+            types: sema.types,
+            arena: arena,
+            into: &initInstructions
+        )
+        initInstructions.append(.storeGlobal(value: storedValueID, symbol: backingFieldSymbol))
         allTopLevelInitInstructions.appendRelocatingLabels(contentsOf: initInstructions)
         declIDs.append(contentsOf: ctx.drainGeneratedCallableDecls())
     }
@@ -539,11 +549,7 @@ extension KIRLoweringDriver {
             let registerCallee = sema.symbols.symbol(superSymbol)?.kind == .interface
                 ? interner.intern("kk_type_register_iface")
                 : interner.intern("kk_type_register_super")
-            instructions.append(.call(
-                callee: registerCallee,
-                arguments: [childExpr, parentExpr],
-                result: registerResult, canThrow: false
-            ))
+            instructions.append(.call(callee: registerCallee, arguments: [childExpr, parentExpr], result: registerResult, canThrow: false))
         }
         appendObjectItableMethodRegistrations(
             objectValue: allocatedObj, nominalSymbol: ownerSymbol,

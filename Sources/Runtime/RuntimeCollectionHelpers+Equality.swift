@@ -388,9 +388,10 @@ func runtimeNonNullValuesEqual(_ lhs: Int, _ rhs: Int) -> Bool {
        let rhsMap = tryCast(rhsPtr, to: RuntimeMapBox.self)
     {
         guard lhsMap.keys.count == rhsMap.keys.count else { return false }
-        for (i, lhsKey) in lhsMap.keys.enumerated() {
-            guard let rhsIdx = rhsMap.index(ofRawKey: lhsKey),
-                  let lhsValue = lhsMap.rawValue(at: i),
+        for lhsKey in lhsMap.keys {
+            guard let lhsIdx = lhsMap.index(ofRawKey: lhsKey),
+                  let rhsIdx = rhsMap.index(ofRawKey: lhsKey),
+                  let lhsValue = lhsMap.rawValue(at: lhsIdx),
                   let rhsValue = rhsMap.rawValue(at: rhsIdx)
             else {
                 return false

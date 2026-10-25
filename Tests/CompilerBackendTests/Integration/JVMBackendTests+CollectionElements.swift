@@ -6,6 +6,16 @@ import Testing
 
 extension JVMBackendTests {
     @Test(arguments: [EmitMode.jvmClass, .jvmJar])
+    func iterableElementAndSingleAccessorsMatchStdlib(mode: EmitMode) throws {
+        let fixtures = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("Fixtures/JVMOwnStdlib")
+        let source = try String(contentsOf: fixtures.appendingPathComponent("iterableElementAndSingleAccessors.kt"), encoding: .utf8)
+        let expected = try String(contentsOf: fixtures.appendingPathComponent("iterableElementAndSingleAccessors.out"), encoding: .utf8)
+        try withWorkspace { root in
+            try runRuntimeParity(source, expected: expected, mode: mode, root: root)
+        }
+    }
+
+    @Test(arguments: [EmitMode.jvmClass, .jvmJar])
     func collectionElementAccessPreservesEmptyAndIteratorContracts(mode: EmitMode) throws {
         let fixtures = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("Fixtures")
         let source = try String(contentsOf: fixtures.appendingPathComponent("JVMOwnStdlib/collectionElementAccessContracts.kt"), encoding: .utf8)

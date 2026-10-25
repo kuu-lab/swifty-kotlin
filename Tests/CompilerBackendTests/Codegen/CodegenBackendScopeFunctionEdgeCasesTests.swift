@@ -8,6 +8,58 @@ import Testing
 @Suite
 struct CodegenBackendScopeFunctionEdgeCasesTests {
 
+    @Test
+    func testNamedArgumentCallKeepsMultipleContextParameters() throws {
+        let source = """
+        import kotlin.ExperimentalContextParameters
+
+        @OptIn(ExperimentalContextParameters::class)
+        context(a: String, b: Int)
+        fun f(x: Int = 0) = "$a$b$x"
+
+        @OptIn(ExperimentalContextParameters::class)
+        fun main() {
+            with("S") { with(4) { println(f(x = 2)) } }
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "NamedArgumentMultipleContextParameters",
+            expected: "S42\n"
+        )
+    }
+
+    @Test
+    func testGenericMemberContextParametersUseSubstitutedClassTypeArguments() throws {
+        let source = """
+        import kotlin.ExperimentalContextParameters
+
+        class Box<E>(val x: E)
+
+        @OptIn(ExperimentalContextParameters::class)
+        class A<X, Y : Number> {
+            context(box: Box<X>, y: Y)
+            fun foo(): String = box.x.toString() + y.toString()
+        }
+
+        @OptIn(ExperimentalContextParameters::class)
+        fun main() {
+            with(Box("OK")) {
+                with(56) {
+                    println(A<String, Int>().foo())
+                }
+            }
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "GenericMemberContextParameters",
+            expected: "OK56\n"
+        )
+    }
+
     @Test(arguments: [true, false])
     func testTailPositionLabeledReturnPropagatesValue(defaultStdlib: Bool) throws {
         let source = """

@@ -34,5 +34,39 @@ struct ForLoopVariableTypeAnnotationTests {
         let ctx = try semaContext(for: source)
         assertNoDiagnostic("KSWIFTK-TYPE-0001", in: ctx)
     }
+
+    @Test
+    func annotationBeforeLoopVariablePreservesBindingAndAnnotation() throws {
+        let ctx = try semaContext(for: #"""
+        fun main() {
+            for (@Suppress("p") i in 1..3) {
+                i
+            }
+        }
+        """#)
+        let ast = try #require(ctx.ast)
+        let loopIndex = try #require(ast.arena.exprs.indices.first { index in
+            if case .forExpr = ast.arena.exprs[index] { return true }
+            return false
+        })
+        let loopID = ExprID(rawValue: Int32(loopIndex))
+        guard case let .forExpr(loopVariable, _, _, _, _) = ast.arena.expr(loopID) else {
+            Issue.record("Expected a for-loop expression")
+            return
+        }
+        #expect(loopVariable.map { ctx.interner.resolve($0) } == "i")
+        #expect(ast.arena.expressionAnnotations(for: loopID).map(\.name) == ["Suppress"])
+        #expect(ast.arena.expressionAnnotations(for: loopID).first?.arguments == [#""p""#])
+
+        let bodyReferenceIndex = try #require(ast.arena.exprs.indices.first { index in
+            guard case let .nameRef(name, _) = ast.arena.exprs[index] else { return false }
+            return ctx.interner.resolve(name) == "i"
+        })
+        let sema = try #require(ctx.sema)
+        #expect(sema.bindings.identifierSymbol(for: ExprID(rawValue: Int32(bodyReferenceIndex))) != nil)
+        #expect(!ctx.diagnostics.diagnostics.contains {
+            $0.code == "KSWIFTK-SEMA-0013" && $0.message.contains("Unresolved local variable 'i'")
+        })
+    }
 }
 #endif

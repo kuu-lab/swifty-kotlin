@@ -18,17 +18,23 @@ extension DeclTypeChecker {
                   driver.checkingInferredProperties.insert(symbol).inserted
             else { return }
         }
+        let diagnosticCheckpoint = tracksPendingProperty || tracksInferredProperty ? diagnostics.checkpoint() : 0
         defer {
-            if tracksPendingProperty, !diagnostics.hasError,
+            let currentDiagnostics = tracksPendingProperty || tracksInferredProperty ? diagnostics.diagnostics : []
+            let hasNewErrors = currentDiagnostics.dropFirst(diagnosticCheckpoint).contains { $0.severity == .error }
+            let hasOwnErrors = currentDiagnostics.contains {
+                $0.severity == .error && ($0.primaryRange.map(property.range.contains) ?? true)
+            }
+            if tracksPendingProperty, !hasNewErrors, !hasOwnErrors,
                !driver.deferredInferredProperties.contains(symbol)
             {
                 driver.pendingPropertyTypes.remove(symbol)
             }
             if tracksInferredProperty {
                 driver.checkingInferredProperties.remove(symbol)
-                if !diagnostics.hasError,
+                if !hasNewErrors,
                    !driver.deferredInferredProperties.contains(symbol),
-                   !diagnostics.diagnostics.contains(where: {
+                   !currentDiagnostics.contains(where: {
                        $0.primaryRange.map(property.range.contains) ?? true
                    })
                 {

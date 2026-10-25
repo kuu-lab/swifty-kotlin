@@ -75,10 +75,7 @@ struct CollectionClassificationTests {
         }
 
         func call(_ name: String, arguments: [KIRExprID] = [], result: KIRExprID) -> KIRInstruction {
-            .call(
-                callee: interner.intern(name), arguments: arguments,
-                result: result, canThrow: false
-            )
+            .call(callee: interner.intern(name), arguments: arguments, result: result, canThrow: false)
         }
 
         func scan(_ function: KIRFunction) -> State {

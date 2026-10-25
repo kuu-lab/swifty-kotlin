@@ -108,13 +108,23 @@ extension ABILoweringPass {
         // Interface dispatch and abstract Enum properties require a tagged
         // enum box. Generic extension receivers have the same erased ABI as
         // generic value parameters; substituting a raw ordinal here bypasses
-        // the enum metadata needed by the extension body.
+        // the enum metadata needed by the extension body. `Any`/`Any?` (and
+        // intersection-erased) receivers are the same reference boundary:
+        // without the box, `is` checks and entry equality inside the body see
+        // a bare ordinal and never match (KUU-3224).
         func enumReceiverNeedsBoxing(_ type: TypeID) -> Bool {
             switch types.kind(of: type) {
             case .typeParam:
                 return boxTypeParamArguments
+            case .any, .intersection:
+                return true
             case let .classType(classType):
                 guard let info = symbols?.symbol(classType.classSymbol) else { return false }
+                if info.kind == .enumClass {
+                    // A nullable enum receiver holds the box-or-sentinel
+                    // form, so a raw non-null ordinal must still be boxed.
+                    return classType.nullability != .nonNull
+                }
                 return info.kind == .interface
                     || info.fqName == ["kotlin", "Enum"].map(interner.intern)
             default:

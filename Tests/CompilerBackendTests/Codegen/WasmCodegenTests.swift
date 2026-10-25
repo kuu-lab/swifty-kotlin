@@ -32,12 +32,7 @@ struct WasmCodegenTests {
         let mainSymbol = SymbolID(rawValue: 1)
         let s = arena.appendExpr(.unit)
         let strExpr = KIRExprKind.stringLiteral(interner.intern("wasm hello"))
-        let call = KIRInstruction.call(
-            callee: interner.intern("__kk_println_raw"),
-            arguments: [s],
-            result: nil,
-            canThrow: false
-        )
+        let call = KIRInstruction.call(callee: interner.intern("__kk_println_raw"), arguments: [s], result: nil, canThrow: false)
         let body: [KIRInstruction] = [
             .constValue(result: s, value: strExpr),
             call,

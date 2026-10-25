@@ -137,7 +137,7 @@ struct DeclarationPositionValidator {
         for parameter in valueParams where parameter.isProperty {
             let modifier = parameter.isMutableProperty ? "var" : "val"
             diagnostics?.error(
-                "KSWIFTK-SEMA-0443",
+                "KSWIFTK-SEMA-0444",
                 "'\(modifier)' on function parameter is prohibited.",
                 range: range
             )
@@ -152,6 +152,7 @@ struct DeclarationPositionValidator {
         )
 
         let modifiers = decl.modifiers
+        validateVisibilityModifierConflicts(modifiers, range: decl.range)
         let target = functionTargetName(site: site)
 
         validateDuplicateTypeParamNames(decl.typeParams, range: decl.range)
@@ -254,6 +255,7 @@ struct DeclarationPositionValidator {
     }
 
     private func validateProperty(_ decl: PropertyDecl, site: OwnerSite) {
+        validateVisibilityModifierConflicts(decl.modifiers, range: decl.range)
         // Primary-constructor `val`/`var` parameters are materialized as
         // member properties; their restrictions are checked on the class.
         if decl.isSynthesizedPrimaryConstructorProperty {
@@ -587,6 +589,11 @@ struct DeclarationPositionValidator {
         validateDuplicateTypeParamNames(decl.typeParams, range: decl.range)
 
         let modifiers = decl.modifiers
+        validateVisibilityModifierConflicts(modifiers, range: decl.range)
+        validateVisibilityModifierConflicts(decl.primaryConstructorModifiers, range: decl.range)
+        for constructor in decl.secondaryConstructors {
+            validateVisibilityModifierConflicts(constructor.modifiers, range: constructor.range)
+        }
         let isEnum = modifiers.contains(.enumModifier)
         let isAnnotation = modifiers.contains(.annotationClass)
         // `inline class` is the deprecated spelling of `value class`, so it
@@ -674,6 +681,15 @@ struct DeclarationPositionValidator {
 
         if site == .file, modifiers.contains(.protected) {
             emitNotApplicable("protected", to: "top level class", range: decl.range)
+        }
+
+        // Visibility modifiers apply to constructor parameters only when they declare a property.
+        for param in decl.primaryConstructorParams where !param.isProperty {
+            let parameterModifiers = param.propertyVisibilityModifiers ?? []
+            for (modifier, name) in Self.constructorParameterVisibilityModifiers
+            where parameterModifiers.contains(modifier) {
+                emitNotApplicable(name, to: "value parameter", range: decl.range)
+            }
         }
 
         validateInnerPosition(modifiers, site: site, target: kindName, range: decl.range)
@@ -821,6 +837,7 @@ struct DeclarationPositionValidator {
         validateDuplicateTypeParamNames(decl.typeParams, range: decl.range)
 
         let modifiers = decl.modifiers
+        validateVisibilityModifierConflicts(modifiers, range: decl.range)
 
         for (modifier, name) in Self.interfaceForbiddenModifiers where modifiers.contains(modifier) {
             emitNotApplicable(name, to: "interface", range: decl.range)
@@ -883,6 +900,7 @@ struct DeclarationPositionValidator {
 
     private func validateObject(_ decl: ObjectDecl, site: OwnerSite) {
         let modifiers = decl.modifiers
+        validateVisibilityModifierConflicts(modifiers, range: decl.range)
         let kindName = site == .function ? "local object" : "standalone object"
 
         for (modifier, name) in Self.objectImpossibleModifiers where modifiers.contains(modifier) {
@@ -964,6 +982,7 @@ struct DeclarationPositionValidator {
     }
 
     private func validateTypeAlias(_ decl: TypeAliasDecl, site: OwnerSite) {
+        validateVisibilityModifierConflicts(decl.modifiers, range: decl.range)
         validateDuplicateTypeParamNames(decl.typeParams, range: decl.range)
         for (modifier, name) in Self.typeAliasForbiddenModifiers where decl.modifiers.contains(modifier) {
             emitNotApplicable(name, to: "typealias", range: decl.range)
@@ -1055,6 +1074,21 @@ struct DeclarationPositionValidator {
                 )
             }
         }
+    }
+
+    private func validateVisibilityModifierConflicts(_ modifiers: Modifiers, range: SourceRange) {
+        emitIncompatiblePairs(
+            modifiers,
+            pairs: [
+                (.private, "private", .public, "public"),
+                (.private, "private", .internal, "internal"),
+                (.private, "private", .protected, "protected"),
+                (.public, "public", .internal, "internal"),
+                (.public, "public", .protected, "protected"),
+                (.internal, "internal", .protected, "protected"),
+            ],
+            range: range
+        )
     }
 
     private func validateDuplicateTypeParamNames(_ typeParams: [TypeParamDecl], range: SourceRange) {
@@ -1353,5 +1387,9 @@ struct DeclarationPositionValidator {
         (.operator, "operator"), (.infix, "infix"), (.external, "external"),
         (.override, "override"), (.funModifier, "fun"), (.vararg, "vararg"),
         (.crossinline, "crossinline"), (.noinline, "noinline"),
+    ]
+
+    private static let constructorParameterVisibilityModifiers: [(Modifiers, String)] = [
+        (.public, "public"), (.private, "private"), (.internal, "internal"), (.protected, "protected"),
     ]
 }

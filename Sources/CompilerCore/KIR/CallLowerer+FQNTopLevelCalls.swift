@@ -54,13 +54,7 @@ extension CallLowerer {
                let getter = sema.symbols.extensionPropertyGetterAccessor(for: symbolID)
             {
                 let result = arena.appendTemporary(type: resultType)
-                instructions.append(.call(
-                    symbol: getter,
-                    callee: interner.intern("get"),
-                    arguments: [],
-                    result: result,
-                    canThrow: false
-                ))
+                instructions.append(.call(symbol: getter, callee: interner.intern("get"), arguments: [], result: result, canThrow: false))
                 return result
             }
             let result = arena.appendExpr(.symbolRef(symbolID), type: resultType)

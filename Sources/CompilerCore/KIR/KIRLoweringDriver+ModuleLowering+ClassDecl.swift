@@ -618,13 +618,7 @@ extension KIRLoweringDriver {
                 isSuperCall: false
             ))
         } else {
-            body.append(.call(
-                callee: interner.intern("kk_abort_unreachable"),
-                arguments: [],
-                result: nil,
-                canThrow: false,
-                isSuperCall: false
-            ))
+            body.append(.call(callee: interner.intern("kk_abort_unreachable"), arguments: [], result: nil, canThrow: false, isSuperCall: false))
         }
         body.append(.jump(endLabel))
         body.append(.label(endLabel))
@@ -1179,21 +1173,10 @@ extension KIRLoweringDriver {
                interner: shared.interner
            )
         {
-            body.append(.call(
-                callee: populateCallee,
-                arguments: argIDs,
-                result: result,
-                canThrow: false
-            ))
+            body.append(.call(callee: populateCallee, arguments: argIDs, result: result, canThrow: false))
             return
         }
-        body.append(.call(
-            symbol: target,
-            callee: shared.interner.intern("<init>"),
-            arguments: argIDs,
-            result: result,
-            canThrow: false
-        ))
+        body.append(.call(symbol: target, callee: shared.interner.intern("<init>"), arguments: argIDs, result: result, canThrow: false))
     }
 
     /// Resolves the enclosing `declaredOuterSymbol` instance for an

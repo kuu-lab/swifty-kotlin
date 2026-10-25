@@ -284,12 +284,7 @@ extension ExprLowerer {
         instructions: inout [KIRInstruction]
     ) {
         func call(_ callee: String, _ arguments: [KIRExprID], _ result: KIRExprID) {
-            instructions.append(.call(
-                callee: interner.intern(callee),
-                arguments: arguments,
-                result: result,
-                canThrow: false
-            ))
+            instructions.append(.call(callee: interner.intern(callee), arguments: arguments, result: result, canThrow: false))
         }
         func convert(_ callee: String, _ operand: KIRExprID, _ type: TypeID) -> KIRExprID {
             let converted = arena.appendTemporary(type: type)

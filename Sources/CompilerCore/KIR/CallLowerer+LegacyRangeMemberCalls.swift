@@ -16,7 +16,16 @@ extension CallLowerer {
             let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
             let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
             let calleeText = calleeNameStr
-            if (calleeText == "start" || calleeText == "endInclusive"),
+            if calleeText == "endExclusive",
+               let chosen = sema.bindings.callBindings[exprID]?.chosenCallee,
+               sema.symbols.symbol(chosen)?.kind == .function,
+               sema.symbols.accessorOwnerProperty(for: chosen) == nil,
+               sema.symbols.parentSymbol(for: chosen).flatMap(sema.symbols.symbol)?.kind != .property
+            {
+                // A same-named extension function is not the endpoint property.
+                return nil
+            }
+            if (calleeText == "start" || calleeText == "endInclusive" || calleeText == "endExclusive"),
                let runtimeGetter = closedRangeInterfaceRuntimeName(
                    memberName: calleeText,
                    receiverExpr: receiverExpr,
@@ -26,12 +35,7 @@ extension CallLowerer {
                    interner: interner
                )
             {
-                instructions.append(.call(
-                    callee: runtimeGetter,
-                    arguments: [loweredReceiverID],
-                    result: result,
-                    canThrow: false
-                ))
+                instructions.append(.call(callee: runtimeGetter, arguments: [loweredReceiverID], result: result, canThrow: false))
                 return result
             }
             // Property `.first`/`.last` keep the non-throwing getters. Explicit
@@ -188,12 +192,7 @@ extension CallLowerer {
             } else {
                 interner.intern("__kk_range_step")
             }
-            instructions.append(.call(
-                callee: runtimeCallee,
-                arguments: [loweredReceiverID],
-                result: result,
-                canThrow: false
-            ))
+            instructions.append(.call(callee: runtimeCallee, arguments: [loweredReceiverID], result: result, canThrow: false))
             return result
         }
         return nil

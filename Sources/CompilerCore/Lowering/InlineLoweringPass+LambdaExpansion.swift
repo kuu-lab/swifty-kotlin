@@ -23,17 +23,11 @@ extension InlineLoweringPass {
         body.append(.constValue(result: count, value: .intLiteral(Int64(resolved.count + 2))))
         body.append(.constValue(result: classID, value: .intLiteral(0)))
         let environment = arena.appendTemporary(type: types.anyType)
-        body.append(.call(
-            callee: ctx.interner.intern("kk_object_new"), arguments: [count, classID],
-            result: environment, canThrow: false
-        ))
+        body.append(.call(callee: ctx.interner.intern("kk_object_new"), arguments: [count, classID], result: environment, canThrow: false))
         for (index, capture) in resolved.enumerated() {
             let offset = arena.appendExpr(.intLiteral(Int64(index + 2)), type: types.intType)
             body.append(.constValue(result: offset, value: .intLiteral(Int64(index + 2))))
-            body.append(.call(
-                callee: ctx.interner.intern("kk_array_set"), arguments: [environment, offset, capture],
-                result: nil, canThrow: false
-            ))
+            body.append(.call(callee: ctx.interner.intern("kk_array_set"), arguments: [environment, offset, capture], result: nil, canThrow: false))
         }
         return [environment]
     }
@@ -205,8 +199,11 @@ extension InlineLoweringPass {
         lowered.instructions.reserveCapacity(lambdaFunction.body.count)
         for param in lambdaFunction.params {
             guard let argument = lambdaParamValues[param.symbol] else { continue }
-            lambdaParamValues[param.symbol] = InlineErasedLambdaABI.bindEnumArgumentToInterfaceParameter(
+            let bound = InlineErasedLambdaABI.bindEnumArgumentToInterfaceParameter(
                 argument, parameterType: param.type, module: module, ctx: ctx, into: &lowered
+            )
+            lambdaParamValues[param.symbol] = InlineErasedLambdaABI.bindStringArgumentToErasedParameter(
+                bound, parameterType: param.type, module: module, ctx: ctx, into: &lowered
             )
         }
         var returnedExpr: KIRExprID?

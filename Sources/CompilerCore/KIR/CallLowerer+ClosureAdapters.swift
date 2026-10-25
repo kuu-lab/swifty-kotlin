@@ -59,10 +59,7 @@ extension CallLowerer {
             return ref
         }
         let scope = arena.appendTemporary(type: receiverType)
-        body.append(.call(
-            callee: interner.intern("kk_coroutine_current_scope"),
-            arguments: [], result: scope, canThrow: false
-        ))
+        body.append(.call(callee: interner.intern("kk_coroutine_current_scope"), arguments: [], result: scope, canThrow: false))
         // Literal launcher lambdas are receiver-first; stored values are capture-first.
         let receiverFirst = sourceArgExprs.contains { sema.bindings.isCoroutineLauncherLambdaExpr($0) }
         let callArguments = callable == nil
@@ -111,12 +108,7 @@ extension CallLowerer {
                 body.append(.constValue(result: offsetExpr, value: .intLiteral(Int64(captureIndex + 2))))
                 let loadedExpr = arena.appendTemporary(type: captureType
                 )
-                body.append(.call(
-                    callee: arrayGet,
-                    arguments: [closureExpr, offsetExpr],
-                    result: loadedExpr,
-                    canThrow: false
-                ))
+                body.append(.call(callee: arrayGet, arguments: [closureExpr, offsetExpr], result: loadedExpr, canThrow: false))
                 callArguments.append(loadedExpr)
             }
         } else if !callableInfo.captureArguments.isEmpty {
@@ -509,12 +501,7 @@ extension CallLowerer {
             instructions: &instructions
         )
         let materialized = arena.appendTemporary(type: sema.types.make(.functionType(functionType)))
-        instructions.append(.call(
-            callee: createCallee,
-            arguments: [fnPtrExpr, closureRaw],
-            result: materialized,
-            canThrow: false
-        ))
+        instructions.append(.call(callee: createCallee, arguments: [fnPtrExpr, closureRaw], result: materialized, canThrow: false))
         instructions.append(.call(
             callee: interner.intern("__kk_function_copy_description"),
             arguments: [loweredArgID, materialized],

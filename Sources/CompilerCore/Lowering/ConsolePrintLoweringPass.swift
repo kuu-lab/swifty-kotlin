@@ -277,13 +277,7 @@ final class ConsolePrintLoweringPass: LoweringPass, ParallelLoweringPass {
         rawPrintCallee: InternedString,
         to body: inout KIRLoweringEmitContext
     ) {
-        body.append(.call(
-            callee: rawPrintCallee,
-            arguments: [value],
-            result: nil,
-            canThrow: false,
-            isSuperCall: false
-        ))
+        body.append(.call(callee: rawPrintCallee, arguments: [value], result: nil, canThrow: false, isSuperCall: false))
     }
 
     private func appendUnitResult(_ result: KIRExprID?, to body: inout KIRLoweringEmitContext) {
@@ -327,13 +321,7 @@ final class ConsolePrintLoweringPass: LoweringPass, ParallelLoweringPass {
                 return nil
             }
             let boxed = arena.appendTemporary(type: intType)
-            newBody.append(.call(
-                callee: boxCallee,
-                arguments: [argument],
-                result: boxed,
-                canThrow: false,
-                isSuperCall: false
-            ))
+            newBody.append(.call(callee: boxCallee, arguments: [argument], result: boxed, canThrow: false, isSuperCall: false))
             return appendAnyToString(
                 argument: boxed,
                 tag: 1,
@@ -360,13 +348,7 @@ final class ConsolePrintLoweringPass: LoweringPass, ParallelLoweringPass {
         let tagExpr = arena.appendExpr(.intLiteral(tag), type: intType)
         newBody.append(.constValue(result: tagExpr, value: .intLiteral(tag)))
         let result = arena.appendTemporary(type: stringType)
-        newBody.append(.call(
-            callee: anyToStringCallee,
-            arguments: [argument, tagExpr],
-            result: result,
-            canThrow: false,
-            isSuperCall: false
-        ))
+        newBody.append(.call(callee: anyToStringCallee, arguments: [argument, tagExpr], result: result, canThrow: false, isSuperCall: false))
         return result
     }
 

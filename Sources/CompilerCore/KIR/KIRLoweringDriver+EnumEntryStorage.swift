@@ -591,6 +591,14 @@ extension KIRLoweringDriver {
             // from initializers (e.g. `init { println(id) }`) do not recurse.
             body.append(.storeGlobal(value: trueExpr, symbol: flagSymbol))
 
+            // KUU-3225: `$enumEnsureInit$` is the enum class's <clinit> —
+            // on the JVM its supertype companions initialize before any
+            // entry is constructed.
+            emitSupertypeCompanionInitCalls(
+                for: ownerSymbol, sema: sema, arena: arena, interner: interner,
+                instructions: &body.instructions
+            )
+
             let enumType = sema.types.make(.classType(ClassType(
                 classSymbol: ownerSymbol, args: [], nullability: .nonNull
             )))
@@ -725,13 +733,7 @@ extension KIRLoweringDriver {
 
         func emitEnsureInit(_ body: inout KIRLoweringEmitContext) {
             let result = arena.appendTemporary(type: sema.types.unitType)
-            body.append(.call(
-                symbol: ensureInitSymbol,
-                callee: ensureInitName,
-                arguments: [],
-                result: result,
-                canThrow: false
-            ))
+            body.append(.call(symbol: ensureInitSymbol, callee: ensureInitName, arguments: [], result: result, canThrow: false))
         }
 
         let entryCount = classDecl.enumEntries.count
@@ -754,13 +756,7 @@ extension KIRLoweringDriver {
                     let entryValue = arena.appendExpr(.symbolRef(entrySymbols[ordinal]), type: enumType)
                     body.append(.constValue(result: entryValue, value: .symbolRef(entrySymbols[ordinal])))
                     let result = arena.appendTemporary(type: property.type)
-                    body.append(.call(
-                        symbol: getterSymbol,
-                        callee: getterName,
-                        arguments: [entryValue],
-                        result: result,
-                        canThrow: true
-                    ))
+                    body.append(.call(symbol: getterSymbol, callee: getterName, arguments: [entryValue], result: result, canThrow: true))
                     return result
                 }
                 guard let slotSymbol = slot(for: property.name, ordinal: ordinal) else { return nil }

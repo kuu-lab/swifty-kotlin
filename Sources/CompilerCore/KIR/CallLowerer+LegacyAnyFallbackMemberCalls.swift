@@ -111,12 +111,7 @@ extension CallLowerer {
                 result: boxedResult,
                 canThrow: false
             ))
-            instructions.append(.call(
-                callee: interner.intern("kk_unbox_bool_static"),
-                arguments: [boxedResult],
-                result: result,
-                canThrow: false
-            ))
+            instructions.append(.call(callee: interner.intern("kk_unbox_bool_static"), arguments: [boxedResult], result: result, canThrow: false))
             return result
         }
         return nil

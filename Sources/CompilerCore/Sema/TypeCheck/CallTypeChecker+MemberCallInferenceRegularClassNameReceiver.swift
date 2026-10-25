@@ -546,6 +546,7 @@ extension CallTypeChecker {
                         explicitTypeArgs: explicitTypeArgs,
                         calleeName: calleeName,
                         candidates: visibleNested,
+                        locals: locals,
                         withContextExpectedLambdaType: nil,
                         expectedTypeOverrides: &expectedTypeOverrides,
                         lambdaContextOverrides: &lambdaContextOverrides

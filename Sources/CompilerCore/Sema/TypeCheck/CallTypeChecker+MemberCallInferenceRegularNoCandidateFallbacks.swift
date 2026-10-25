@@ -1322,11 +1322,19 @@ extension CallTypeChecker {
             let receiverTypeForCheck = safeCall
                 ? sema.types.makeNonNullable(lookupReceiverType)
                 : lookupReceiverType
-            let oldType = sema.types.makeNonNullable(argTypes[0])
-            let newType = sema.types.makeNonNullable(argTypes[1])
+            let oldType = argTypes[0]
+            let newType = argTypes[1]
+            // This is a compatibility fallback for older stdlib artifacts that
+            // may not expose the bundled replace declarations. Keep it limited
+            // to the two real overload shapes. In particular, an erroneous
+            // argument type is considered a subtype of every type by the type
+            // system; accepting it here can synthesize a call to the nonexistent
+            // replace(Char, String) ABI instead of preserving the overload error.
+            let hasSupportedArgumentShape =
+                (oldType == sema.types.stringType && newType == sema.types.stringType)
+                    || (oldType == sema.types.charType && newType == sema.types.charType)
             if sema.types.isSubtype(receiverTypeForCheck, sema.types.stringType),
-               sema.types.isSubtype(oldType, sema.types.stringType),
-               sema.types.isSubtype(newType, sema.types.stringType)
+               hasSupportedArgumentShape
             {
                 let finalType = safeCall ? sema.types.makeNullable(sema.types.stringType) : sema.types.stringType
                 sema.bindings.bindExprType(id, type: finalType)

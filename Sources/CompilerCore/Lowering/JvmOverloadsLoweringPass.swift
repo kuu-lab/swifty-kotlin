@@ -210,24 +210,12 @@ final class JvmOverloadsLoweringPass: LoweringPass {
         let stubSymbol = SyntheticSymbolScheme.defaultStubSymbol(for: originalFunction.symbol)
         let stubName = interner.intern(interner.resolve(originalFunction.name) + "$default")
         if originalFunction.returnType == unitType {
-            body.append(.call(
-                symbol: stubSymbol,
-                callee: stubName,
-                arguments: forwardedArgs,
-                result: nil,
-                canThrow: false
-            ))
+            body.append(.call(symbol: stubSymbol, callee: stubName, arguments: forwardedArgs, result: nil, canThrow: false))
             body.append(.returnUnit)
         } else {
             let callResult = arena.appendTemporary(type: originalFunction.returnType
             )
-            body.append(.call(
-                symbol: stubSymbol,
-                callee: stubName,
-                arguments: forwardedArgs,
-                result: callResult,
-                canThrow: false
-            ))
+            body.append(.call(symbol: stubSymbol, callee: stubName, arguments: forwardedArgs, result: callResult, canThrow: false))
             body.append(.returnValue(callResult))
         }
 

@@ -167,9 +167,15 @@ extension LocalDeclTypeChecker {
             sema.bindings.bindIndexedCompoundAssignElementOperator(id, binding: binding)
         }
 
-        let resultType = elementOperator?.resultType ?? compoundOpResultType(
-            assignOp: op, elementType: elementType, valueType: valueType, sema: sema
-        )
+        let resultType = if isBuiltinNumericIncrement {
+            // Built-in inc/dec writes its wrapped result back to the element
+            // type, even when ordinary binary arithmetic promotes that type.
+            elementType
+        } else {
+            elementOperator?.resultType ?? compoundOpResultType(
+                assignOp: op, elementType: elementType, valueType: valueType, sema: sema
+            )
+        }
 
         // KSWIFTK-BUG: the write-back half of `a[i] op= v` must go through the
         // same custom operator `set()` that a plain `a[i] = v` would resolve,
@@ -272,23 +278,39 @@ extension LocalDeclTypeChecker {
         let sema = ctx.sema
         let interner = ctx.interner
         let nonNullElement = sema.types.makeNonNullable(elementType)
-        if elementType == sema.types.errorType || nonNullElement == sema.types.stringType {
-            return .builtin
-        }
-        if case .primitive = sema.types.kind(of: nonNullElement),
-           nonNullElement != sema.types.charType,
-           sema.types.makeNonNullable(valueType) != sema.types.charType
-        {
+        if elementType == sema.types.errorType {
             return .builtin
         }
         let exprChecker = driver.exprChecker
 
         if ctx.ast.arena.isIncrementDecrement(id) {
+            // `a[i]++` / `a[i]--` must apply the element's `inc()` / `dec()`,
+            // mirroring `inferIncrementDecrementIfNeeded` for non-indexed
+            // targets. Checking before the String/primitive early-outs matters:
+            // a String element otherwise fell into the builtin `+1` concat path
+            // even when `String.inc` is in scope, so statement-position
+            // `a[i]++` silently diverged from the expression-position desugar.
+            // Char is primitive: `collectOperatorCandidates` never returns
+            // extension `inc`/`dec` for it, so `charArr[i]++` must keep the
+            // builtin Char arithmetic path — matching how `c++` on a Char
+            // local also lowers through builtin Char arithmetic.
+            if exprChecker.isBuiltinNumericIncrementDecrementTarget(nonNullElement, sema: sema)
+                || nonNullElement == sema.types.charType
+            {
+                return .builtin
+            }
             let name = interner.intern(op == .plusAssign ? "inc" : "dec")
             guard let (call, returnType) = resolveElementOperatorCall(
                 names: [name], args: [], elementType: elementType, range: range, locals: locals, ctx: ctx
             ) else {
-                return .builtin
+                // Non-numeric elements have no builtin `++`/`--`; a missing
+                // inc()/dec() is an error, like the non-indexed path reports.
+                ctx.sema.diagnostics.error(
+                    "KSWIFTK-SEMA-0002",
+                    "No viable overload found for operator '\(interner.resolve(name))'.",
+                    range: range
+                )
+                return .failed
             }
             guard sema.types.isSubtype(returnType, elementType) else {
                 ctx.sema.diagnostics.error(
@@ -301,6 +323,16 @@ extension LocalDeclTypeChecker {
             return .resolved(IndexedCompoundAssignElementOperatorBinding(
                 call: call, kind: .incrementDecrement, elementType: elementType, resultType: returnType
             ))
+        }
+
+        if nonNullElement == sema.types.stringType {
+            return .builtin
+        }
+        if case .primitive = sema.types.kind(of: nonNullElement),
+           nonNullElement != sema.types.charType,
+           sema.types.makeNonNullable(valueType) != sema.types.charType
+        {
+            return .builtin
         }
 
         let assignNames = exprChecker.operatorFunctionNames(for: op, interner: interner)
@@ -664,6 +696,13 @@ extension LocalDeclTypeChecker {
         var typeParameterSymbols: [SymbolID] = []
         var reifiedTypeParameterIndices: Set<Int> = []
         for (index, typeParam) in typeParams.enumerated() {
+            if typeParam.variance != .invariant {
+                sema.diagnostics.error(
+                    "KSWIFTK-SEMA-0443",
+                    "Variance annotations are only allowed for type parameters of classes and interfaces.",
+                    range: range
+                )
+            }
             var flags: SymbolFlags = []
             if typeParam.isReified {
                 flags.insert(.reifiedTypeParameter)
@@ -968,6 +1007,24 @@ extension LocalDeclTypeChecker {
                 locals: &bodyLocals,
                 expectedType: returnTypeRef != nil ? resolvedReturnType : nil
             )
+            if returnTypeRef != nil,
+               !driver.helpers.rangeExprMatchesDeclaredElementType(
+                   bodyExprID: exprID,
+                   bodyType: inferredBodyType,
+                   declaredType: resolvedReturnType,
+                   sema: sema,
+                   interner: interner
+               )
+            {
+                driver.emitSubtypeConstraint(
+                    left: inferredBodyType,
+                    right: resolvedReturnType,
+                    range: range,
+                    solver: driver.solver,
+                    sema: sema,
+                    diagnostics: sema.diagnostics
+                )
+            }
             if returnTypeRef != nil, resolvedReturnType == sema.types.unitType,
                sema.types.makeNonNullable(inferredBodyType) == sema.types.unitType
             {
@@ -1052,15 +1109,30 @@ extension LocalDeclTypeChecker {
         localFunctionOuterSymbols.formUnion(driver.helpers.lexicalTypeParameterSymbols(in: ctx).filter {
             sema.symbols.symbol($0)?.flags.contains(.reifiedTypeParameter) == true
         })
-        sema.bindings.bindLocalFunctionCaptureSymbols(
-            funSymbol,
-            symbols: driver.captureAnalyzer.collectCapturedOuterSymbols(
-                inBody: body,
+        // Parameter default expressions are evaluated in the lifted function's
+        // scope at call time: an outer local referenced only there
+        // (`fun bar(y: T = x)`) is a real capture the `$default` stub and call
+        // sites must thread through (KUU-3182).
+        var localFunctionCaptureSymbols = driver.captureAnalyzer.collectCapturedOuterSymbols(
+            inBody: body,
+            ast: ast,
+            sema: sema,
+            outerSymbols: localFunctionOuterSymbols,
+            skipNestedClosures: false
+        )
+        for valueParam in valueParams {
+            guard let defaultValue = valueParam.defaultValue else { continue }
+            localFunctionCaptureSymbols.append(contentsOf: driver.captureAnalyzer.collectCapturedOuterSymbols(
+                in: defaultValue,
                 ast: ast,
                 sema: sema,
                 outerSymbols: localFunctionOuterSymbols,
                 skipNestedClosures: false
-            )
+            ))
+        }
+        sema.bindings.bindLocalFunctionCaptureSymbols(
+            funSymbol,
+            symbols: localFunctionCaptureSymbols
         )
 
         let existingLocalIsValue: Bool = {

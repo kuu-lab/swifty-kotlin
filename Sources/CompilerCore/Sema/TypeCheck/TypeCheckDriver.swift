@@ -40,6 +40,9 @@ final class TypeCheckDriver {
     var isCheckingAnnotationConstruction = false
     /// Lexical boundaries retained until overload and lambda inference finish.
     var callSuspensionContexts: [ExprID: SuspensionContext] = [:]
+    /// Reads of the restricted `kotlin.coroutines.coroutineContext` property
+    /// need the same post-inference suspension-context validation as calls.
+    var coroutineContextPropertySuspensionContexts: [ExprID: SuspensionContext] = [:]
     /// Properties whose types were inferred in a safe module pre-pass so earlier
     /// files can use them without running the property checker a second time.
     var precheckedPropertyDecls: Set<DeclID> = []
@@ -68,6 +71,7 @@ final class TypeCheckDriver {
     let useUnrestrictedBuilderInference: Bool
     let useProperTypeInferenceConstraintsProcessing: Bool
     let globalOptInMarkerNames: [String]
+    private let superReceiverExprIDs: Set<ExprID>
 
     // Delegates (lazy to break initialization ordering; each holds unowned back-reference)
     private(set) lazy var exprChecker = ExprTypeChecker(driver: self)
@@ -113,6 +117,57 @@ final class TypeCheckDriver {
         self.useUnrestrictedBuilderInference = useUnrestrictedBuilderInference
         self.useProperTypeInferenceConstraintsProcessing = useProperTypeInferenceConstraintsProcessing
         self.globalOptInMarkerNames = globalOptInMarkerNames
+        self.superReceiverExprIDs = Self.collectSuperReceiverExprIDs(in: ast)
+    }
+
+    func isSuperReceiverExpression(_ id: ExprID) -> Bool {
+        superReceiverExprIDs.contains(id)
+    }
+
+    /// Finds `super` references used as explicit dispatch receivers in the AST.
+    /// Operator expressions are included when Kotlin desugars them to receiver calls.
+    private static func collectSuperReceiverExprIDs(in ast: ASTModule) -> Set<ExprID> {
+        var result: Set<ExprID> = []
+
+        func insertIfSuper(_ id: ExprID) {
+            guard case .superRef? = ast.arena.expr(id) else { return }
+            result.insert(id)
+        }
+
+        for index in ast.arena.exprs.indices {
+            let id = ExprID(rawValue: Int32(index))
+            guard let expr = ast.arena.expr(id) else { continue }
+            switch expr {
+            case let .memberAssign(receiver, _, _, _),
+                 let .safeMemberAssign(receiver, _, _, _),
+                 let .memberCall(receiver, _, _, _, _),
+                 let .safeMemberCall(receiver, _, _, _, _),
+                 let .indexedAssign(receiver, _, _, _),
+                 let .indexedAccess(receiver, _, _),
+                 let .indexedCompoundAssign(_, receiver, _, _, _),
+                 let .memberCompoundAssign(_, receiver, _, _, _):
+                insertIfSuper(receiver)
+            case let .binary(op, lhs, _, _):
+                switch op {
+                case .add, .subtract, .multiply, .divide, .modulo,
+                     .lessThan, .lessOrEqual, .greaterThan, .greaterOrEqual,
+                     .rangeTo, .rangeUntil, .downTo, .step,
+                     .bitwiseAnd, .bitwiseOr, .bitwiseXor, .shl, .shr, .ushr:
+                    insertIfSuper(lhs)
+                case .equal, .notEqual, .identityEqual, .notIdentityEqual,
+                     .logicalAnd, .logicalOr, .elvis:
+                    break
+                }
+            case let .unaryExpr(_, operand, _):
+                insertIfSuper(operand)
+            case let .inExpr(_, rhs, _), let .notInExpr(_, rhs, _):
+                insertIfSuper(rhs)
+            default:
+                break
+            }
+        }
+
+        return result
     }
 
     func inferExpr(
@@ -146,8 +201,32 @@ final class TypeCheckDriver {
         if !suspendingCallNames(for: id).isEmpty {
             callSuspensionContexts[id] = ctx.suspensionContext
         }
+        if isCoroutineContextPropertyRead(id) {
+            coroutineContextPropertySuspensionContexts[id] = ctx.suspensionContext
+        }
         checkInlineCallVisibility(id, ctx: ctx)
         return type
+    }
+
+    func isCoroutineContextPropertyRead(_ id: ExprID) -> Bool {
+        let isPropertyReadSyntax: Bool
+        switch ast.arena.expr(id) {
+        case .nameRef?:
+            isPropertyReadSyntax = true
+        case let .memberCall(_, _, _, args, _)? where args.isEmpty && !ast.arena.isExplicitCall(id):
+            isPropertyReadSyntax = true
+        default:
+            isPropertyReadSyntax = false
+        }
+        guard isPropertyReadSyntax,
+              let symbolID = sema.bindings.identifierSymbol(for: id),
+              let symbol = sema.symbols.symbol(symbolID),
+              symbol.kind == .property
+        else {
+            return false
+        }
+        let coroutineContextFQName = ["kotlin", "coroutines", "coroutineContext"].map(interner.intern)
+        return symbol.fqName == coroutineContextFQName
     }
 
     func diagnoseLocalValueOrClassifierRedeclaration(

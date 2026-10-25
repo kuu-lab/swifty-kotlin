@@ -1559,6 +1559,14 @@ public extension RuntimeABISpec {
             section: "String"
         ),
         RuntimeABIFunctionSpec(
+            name: "__kk_char_numeric_value",
+            parameters: [
+                RuntimeABIParameter(name: "code", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "String"
+        ),
+        RuntimeABIFunctionSpec(
             name: "kk_char_isJavaIdentifierPart",
             parameters: [
                 RuntimeABIParameter(name: "value", type: .intptr),

@@ -10,6 +10,7 @@ extension CallLowerer {
         callExprID: ExprID?,
         signature: FunctionSignature? = nil,
         callBinding: CallBinding? = nil,
+        preferredReceiverSymbol: SymbolID? = nil,
         sema: SemaModule,
         arena: KIRArena
     ) -> KIRExprID? {
@@ -28,6 +29,13 @@ extension CallLowerer {
                 typeVarBySymbol: typeVariables
             )
         }
+        // The binding's receiver came from overload resolution; prefer it over
+        // re-matching an erased or generic context type during lowering.
+        if let preferredReceiverSymbol,
+           let value = driver.ctx.localValue(for: preferredReceiverSymbol)
+        {
+            return value
+        }
         if let value = driver.ctx.contextReceiverValue(matching: resolvedType, sema: sema) {
             return value
         }
@@ -41,6 +49,33 @@ extension CallLowerer {
         return candidates.first { candidate in
             guard let candidateType = arena.exprType(candidate) else { return false }
             return sema.types.isSubtype(sema.types.makeNonNullable(candidateType), target)
+        }
+    }
+
+    func contextArgumentValues(
+        for signature: FunctionSignature,
+        callExprID: ExprID?,
+        callBinding: CallBinding?,
+        sema: SemaModule,
+        arena: KIRArena
+    ) -> [KIRExprID] {
+        signature.contextParameterTypes.enumerated().compactMap { index, type in
+            let receiverSymbol: SymbolID? = if let receiverSymbols = callBinding?.contextParameterReceiverSymbols,
+                                               receiverSymbols.indices.contains(index)
+            {
+                receiverSymbols[index]
+            } else {
+                nil
+            }
+            return contextArgumentValue(
+                matching: type,
+                callExprID: callExprID,
+                signature: signature,
+                callBinding: callBinding,
+                preferredReceiverSymbol: receiverSymbol,
+                sema: sema,
+                arena: arena
+            )
         }
     }
 
@@ -166,12 +201,10 @@ extension CallLowerer {
         if let signature = sema.symbols.functionSignature(for: accessor),
            !signature.contextParameterTypes.isEmpty
         {
-            let contextArguments = signature.contextParameterTypes.compactMap {
-                contextArgumentValue(
-                    matching: $0, callExprID: callExprID, signature: signature,
-                    callBinding: binding, sema: sema, arena: arena
-                )
-            }
+            let contextArguments = contextArgumentValues(
+                for: signature, callExprID: callExprID, callBinding: binding,
+                sema: sema, arena: arena
+            )
             let receiverCount = (signature.receiverType == nil ? 0 : 1)
                 + (memberExtensionOwnerSymbol(for: accessor, sema: sema) == nil ? 0 : 1)
             result.insert(contentsOf: contextArguments, at: min(receiverCount, result.count))
@@ -440,13 +473,7 @@ extension CallLowerer {
            !dispatchSignature.isSuspend,
            arguments.first == receiver.loweredID
         {
-            instructions.append(.call(
-                symbol: dispatchSymbol,
-                callee: dispatchInfo.name,
-                arguments: arguments,
-                result: result,
-                canThrow: false
-            ))
+            instructions.append(.call(symbol: dispatchSymbol, callee: dispatchInfo.name, arguments: arguments, result: result, canThrow: false))
             return true
         }
         return false
@@ -489,12 +516,10 @@ extension CallLowerer {
            let signature = sema.symbols.functionSignature(for: chosenCallee),
            !signature.contextParameterTypes.isEmpty
         {
-            let contextArguments = signature.contextParameterTypes.compactMap {
-                contextArgumentValue(
-                    matching: $0, callExprID: callExprID, signature: signature,
-                    callBinding: callBinding, sema: sema, arena: arena
-                )
-            }
+            let contextArguments = contextArgumentValues(
+                for: signature, callExprID: callExprID, callBinding: callBinding,
+                sema: sema, arena: arena
+            )
             let receiverCount = (signature.receiverType == nil ? 0 : 1)
                 + (memberExtensionDispatchReceiver == nil ? 0 : 1)
             finalArguments.insert(contentsOf: contextArguments, at: min(receiverCount, finalArguments.count))
@@ -692,7 +717,7 @@ extension CallLowerer {
                     if effectiveMasks.count > 1 {
                         effectiveMasks[effectiveMasks.count - 1] = 1
                     } else {
-                        effectiveMasks[0] |= Int64(1) << 30
+                        effectiveMasks[0] |= Int64(1) << DefaultArgumentMask.superCallMarkerBitIndex
                     }
                 }
                 appendDefaultMaskArguments(
@@ -1516,12 +1541,7 @@ extension CallLowerer {
                 let classIDExpr = arena.appendExpr(.intLiteral(0), type: intType)
                 instructions.append(.constValue(result: classIDExpr, value: .intLiteral(0)))
                 let closureObjExpr = arena.appendTemporary(type: anyType)
-                instructions.append(.call(
-                    callee: kkObjectNew,
-                    arguments: [slotCountExpr, classIDExpr],
-                    result: closureObjExpr,
-                    canThrow: false
-                ))
+                instructions.append(.call(callee: kkObjectNew, arguments: [slotCountExpr, classIDExpr], result: closureObjExpr, canThrow: false))
                 for (captureIndex, captureArg) in callableInfo.captureArguments.enumerated() {
                     let fieldOffset = Int64(captureIndex + 2)
                     let offsetExpr = arena.appendExpr(.intLiteral(fieldOffset), type: intType)

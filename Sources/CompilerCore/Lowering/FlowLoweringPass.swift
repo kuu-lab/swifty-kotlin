@@ -240,12 +240,7 @@ final class FlowLoweringPass: LoweringPass, ParallelLoweringPass {
                        arguments.count == 1
                     {
                         let continuation = appendIntConstant(0)
-                        loweredBody.append(.call(
-                            callee: kkFlowCreateName,
-                            arguments: [arguments[0], continuation],
-                            result: result,
-                            canThrow: false
-                        ))
+                        loweredBody.append(.call(callee: kkFlowCreateName, arguments: [arguments[0], continuation], result: result, canThrow: false))
                         if let result {
                             flowExprIDs.insert(result.rawValue)
                             activeFlowExpr = result
@@ -269,12 +264,7 @@ final class FlowLoweringPass: LoweringPass, ParallelLoweringPass {
                             RuntimeFlowTag.map.rawValue
                         }
                         let tag = appendIntConstant(tagValue)
-                        loweredBody.append(.call(
-                            callee: kkFlowEmitName,
-                            arguments: [flowExpr, arguments[0], tag],
-                            result: result,
-                            canThrow: false
-                        ))
+                        loweredBody.append(.call(callee: kkFlowEmitName, arguments: [flowExpr, arguments[0], tag], result: result, canThrow: false))
                         if let result {
                             flowExprIDs.insert(result.rawValue)
                             activeFlowExpr = result
@@ -307,12 +297,7 @@ final class FlowLoweringPass: LoweringPass, ParallelLoweringPass {
                            )
                         {
                             let boxedValueExpr = module.arena.appendTemporary(type: sema.types.anyType)
-                            loweredBody.append(.call(
-                                callee: boxCallee,
-                                arguments: [valueExpr],
-                                result: boxedValueExpr,
-                                canThrow: false
-                            ))
+                            loweredBody.append(.call(callee: boxCallee, arguments: [valueExpr], result: boxedValueExpr, canThrow: false))
                             emittedValueExpr = boxedValueExpr
                         }
                         let tag = appendIntConstant(RuntimeFlowTag.emit.rawValue)
@@ -354,12 +339,7 @@ final class FlowLoweringPass: LoweringPass, ParallelLoweringPass {
                         }
                         let tag = appendIntConstant(tagValue)
                         let payload = arguments[1]
-                        loweredBody.append(.call(
-                            callee: kkFlowEmitName,
-                            arguments: [arguments[0], payload, tag],
-                            result: result,
-                            canThrow: false
-                        ))
+                        loweredBody.append(.call(callee: kkFlowEmitName, arguments: [arguments[0], payload, tag], result: result, canThrow: false))
                         if let result {
                             flowExprIDs.insert(result.rawValue)
                             activeFlowExpr = result
@@ -530,12 +510,7 @@ final class FlowLoweringPass: LoweringPass, ParallelLoweringPass {
                             RuntimeFlowTag.take.rawValue
                         }
                         let tag = appendIntConstant(tagValue)
-                        loweredBody.append(.call(
-                            callee: kkFlowEmitName,
-                            arguments: [receiver, arguments[0], tag],
-                            result: result,
-                            canThrow: false
-                        ))
+                        loweredBody.append(.call(callee: kkFlowEmitName, arguments: [receiver, arguments[0], tag], result: result, canThrow: false))
                         if let result {
                             flowExprIDs.insert(result.rawValue)
                             activeFlowExpr = result

@@ -99,7 +99,8 @@ extension CallTypeChecker {
         chosen initialCallee: SymbolID,
         resolved: ResolvedCall,
         sema: SemaModule,
-        dispatchReceiverSymbol: SymbolID? = nil
+        dispatchReceiverSymbol: SymbolID? = nil,
+        contextParameterReceiverSymbols: [SymbolID?] = []
     ) -> TypeID {
         let chosen = nullableConsoleCallee(id, chosen: initialCallee, sema: sema)
         bindResolvedFunctionValueSamArguments(id, chosen: chosen, resolved: resolved, sema: sema)
@@ -114,7 +115,8 @@ extension CallTypeChecker {
                     .map(\.value),
                 parameterMapping: resolved.parameterMapping,
                 defaultArgumentOwner: resolved.defaultArgumentOwner,
-                dispatchReceiverSymbol: resolvedDispatchReceiver
+                dispatchReceiverSymbol: resolvedDispatchReceiver,
+                contextParameterReceiverSymbols: contextParameterReceiverSymbols
             )
         )
         sema.bindings.bindCallableTarget(id, target: .symbol(chosen))

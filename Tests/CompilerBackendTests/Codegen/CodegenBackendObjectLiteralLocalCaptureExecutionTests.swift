@@ -327,6 +327,71 @@ struct CodegenBackendObjectLiteralLocalCaptureExecutionTests {
         )
     }
 
+    // KUU-3181 (JetBrains classes/kt1918): `recv.fn()` / `recv?.fn()` where
+    // `fn` is an outer function-typed parameter of extension-function type
+    // binds `fn`'s symbol on the member-call expr through
+    // `CallableValueCallBinding.extensionCallableExpr`, not a `.nameRef` child.
+    // `CaptureAnalyzer` never read that binding, so the object literal's (and
+    // a local class's) capture set missed `fn` and the invoke lowered to a raw
+    // `symbolRef` of a parameter not in scope — "Invalid function value".
+    @Test
+    func testCodegenObjectLiteralMemberFunctionInvokesCapturedExtensionLambda() throws {
+        let source = """
+        interface Foo {
+            fun xyzzy(x: Any?): String
+        }
+        class Bar
+
+        fun buildFoo(bar: Bar.() -> Unit): Foo = object : Foo {
+            override fun xyzzy(x: Any?): String {
+                (x as? Bar)?.bar()
+                return "OK"
+            }
+        }
+
+        fun main() {
+            println(buildFoo({ println("invoked") }).xyzzy(Bar()))
+        }
+        """
+        try assertKotlinOutput(
+            source,
+            moduleName: "ObjectLiteralSafeCallExtensionLambdaCaptureExecution",
+            expected: "invoked\nOK\n"
+        )
+    }
+
+    @Test
+    func testCodegenLocalNominalMemberFunctionInvokesCapturedExtensionLambda() throws {
+        let source = """
+        interface Foo {
+            fun run(x: Any?): String
+        }
+        class Bar
+
+        fun buildFoo(bar: Bar.() -> Unit): Foo {
+            class LocalFoo : Foo {
+                override fun run(x: Any?): String {
+                    val b = Bar()
+                    b.bar()
+                    val nb: Bar? = Bar()
+                    nb?.bar()
+                    return "OK"
+                }
+            }
+            return LocalFoo()
+        }
+
+        fun main() {
+            println(buildFoo({ println("invoked") }).run(Bar()))
+        }
+        """
+        try assertKotlinOutput(
+            source,
+            moduleName: "LocalNominalExtensionLambdaCaptureExecution",
+            expected: "invoked\ninvoked\nOK\n"
+        )
+    }
+
     @Test
     func testCodegenObjectLiteralMultipleInstancesCaptureIndependentMutableState() throws {
         // Two separate makeCounter() calls must not share the same captured

@@ -59,12 +59,7 @@ extension KIRLoweringDriver {
                 let token = makeTypeTokenExpr(for: type)
                 let mask = integer(RuntimeTypeCheckToken.nullableFlag)
                 let nullable = arena.appendTemporary(type: intType)
-                instructions.append(.call(
-                    callee: interner.intern("kk_bitwise_and"),
-                    arguments: [token, mask],
-                    result: nullable,
-                    canThrow: false
-                ))
+                instructions.append(.call(callee: interner.intern("kk_bitwise_and"), arguments: [token, mask], result: nullable, canThrow: false))
                 return nullable
             }
 

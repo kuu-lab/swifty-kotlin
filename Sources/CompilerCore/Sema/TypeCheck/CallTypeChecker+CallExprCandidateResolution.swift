@@ -515,12 +515,18 @@ extension CallTypeChecker {
                 candidates: [chosen],
                 ctx: ctx
             )[chosen]
+            let contextParameterReceiverSymbols = contextParameterReceiverSymbols(
+                for: chosen,
+                substitution: resolved.substitutedTypeArguments,
+                ctx: ctx
+            )
             let returnType = bindCallAndResolveReturnType(
                 id,
                 chosen: chosen,
                 resolved: resolved,
                 sema: sema,
-                dispatchReceiverSymbol: importedDispatchReceiver
+                dispatchReceiverSymbol: importedDispatchReceiver,
+                contextParameterReceiverSymbols: contextParameterReceiverSymbols
             )
             if sema.wellKnownSymbols.isContractIntrinsic(for: chosen) {
                 // The contract DSL is compiler-only, but only after ordinary
@@ -552,6 +558,30 @@ extension CallTypeChecker {
                sema.types.isNominalSubtypeSymbol(receiverClass.classSymbol, of: owner)
             {
                 sema.bindings.markImplicitReceiverMember(id, name: calleeName)
+            }
+            // Kotlin member scope: a `private` member is not inherited, so a
+            // bare call reaching it from a subtype body (e.g. `object : X()`
+            // nested in `X`) dispatches on the enclosing instance that
+            // declares it — `this@X` — never the subtype's `this`. The scope
+            // chain still surfaces the callee; pin that outer receiver so KIR
+            // lowering reads the captured `this@X` instead of the active
+            // receiver, whose inherited same-named slot would shadow the
+            // enclosing value (KUU-3212).
+            if let chosenInfo = sema.symbols.symbol(chosen),
+               chosenInfo.kind == .function,
+               chosenInfo.visibility == .private,
+               sema.symbols.memberExtensionOwnerSymbol(for: chosen) == nil,
+               sema.bindings.implicitReceiverOuterReceiver(for: id) == nil,
+               let owner = sema.symbols.parentSymbol(for: chosen),
+               let outerEntry = ctx.implicitReceiverMemberLookupEntries().first(where: { entry in
+                   driver.helpers.nominalSymbol(
+                       of: sema.types.makeNonNullable(entry.type),
+                       types: sema.types
+                   ) == owner
+               }),
+               let receiverSymbol = outerEntry.symbol
+            {
+                sema.bindings.markImplicitReceiverOuterReceiver(id, symbol: receiverSymbol)
             }
             // Scope lookup can resolve an outer member or package extension
             // before the receiver tower fallback runs. Preserve the selected
@@ -642,5 +672,47 @@ extension CallTypeChecker {
             return adjustedReturnType
         }
         return nil
+    }
+
+    func contextParameterReceiverSymbols(
+        for callee: SymbolID,
+        substitution: [TypeVarID: TypeID],
+        ctx: TypeInferenceContext
+    ) -> [SymbolID?] {
+        guard let signature = ctx.sema.symbols.functionSignature(for: callee),
+              !signature.contextParameterTypes.isEmpty
+        else {
+            return []
+        }
+
+        var candidates: [(type: TypeID, symbol: SymbolID)] = []
+        if let enclosingFunction = ctx.enclosingFunctionSymbol ?? ctx.currentDeclSymbol,
+           let enclosingSignature = ctx.sema.symbols.functionSignature(for: enclosingFunction)
+        {
+            candidates.append(contentsOf: zip(
+                enclosingSignature.contextParameterTypes,
+                enclosingSignature.contextParameterSymbols
+            ).map { (type: $0.0, symbol: $0.1) })
+        }
+        candidates.append(contentsOf: ctx.implicitReceiverStack.reversed())
+        candidates.append(contentsOf: ctx.outerReceiverTypes.reversed().compactMap { receiver in
+            receiver.symbol.map { (type: receiver.type, symbol: $0) }
+        })
+
+        let typeVariables = ctx.sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
+        return signature.contextParameterTypes.map { requestedType in
+            let resolvedType = ctx.sema.types.substituteTypeParameters(
+                in: requestedType,
+                substitution: substitution,
+                typeVarBySymbol: typeVariables
+            )
+            let targetType = ctx.sema.types.makeNonNullable(resolvedType)
+            return candidates.first { candidate in
+                ctx.sema.types.isSubtype(
+                    ctx.sema.types.makeNonNullable(candidate.type),
+                    targetType
+                )
+            }?.symbol
+        }
     }
 }

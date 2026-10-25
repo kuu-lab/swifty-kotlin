@@ -65,12 +65,7 @@ extension CallLowerer {
            getterLink.hasSuffix("_load")
         {
             let storeLinkName = String(getterLink.dropLast("_load".count)) + "_store"
-            instructions.append(.call(
-                callee: interner.intern(storeLinkName),
-                arguments: [receiverID, valueID],
-                result: nil,
-                canThrow: false
-            ))
+            instructions.append(.call(callee: interner.intern(storeLinkName), arguments: [receiverID, valueID], result: nil, canThrow: false))
             let unit = arena.appendExpr(.unit, type: sema.types.unitType)
             instructions.append(.constValue(result: unit, value: .unit))
             return unit
@@ -342,13 +337,7 @@ extension CallLowerer {
             interner: interner
         )
         let result = arena.appendTemporary(type: sema.types.unitType)
-        instructions.append(.call(
-            symbol: chosenCallee,
-            callee: setterName,
-            arguments: [receiverID, valueID],
-            result: result,
-            canThrow: false
-        ))
+        instructions.append(.call(symbol: chosenCallee, callee: setterName, arguments: [receiverID, valueID], result: result, canThrow: false))
         let unit = arena.appendExpr(.unit, type: sema.types.unitType)
         instructions.append(.constValue(result: unit, value: .unit))
         return unit
@@ -709,22 +698,23 @@ extension CallLowerer {
                let signature = sema.symbols.functionSignature(for: callBinding.chosenCallee),
                signature.receiverType != nil
             {
-                let operatorName = op == .plusAssign ? "inc" : "dec"
-                let loweredCalleeName: InternedString = if let externalLinkName = sema.symbols.externalLinkName(for: callBinding.chosenCallee),
-                                                            !externalLinkName.isEmpty
-                {
-                    interner.intern(externalLinkName)
-                } else {
-                    sema.symbols.symbol(callBinding.chosenCallee)?.name ?? interner.intern(operatorName)
-                }
                 let callResult = arena.appendTemporary(type: signature.returnType)
-                instructions.append(.call(
-                    symbol: callBinding.chosenCallee,
-                    callee: loweredCalleeName,
-                    arguments: [currentValue],
+                // `++`/`--` invoke `inc()`/`dec()` with no explicit arguments,
+                // so defaulted parameters must ride the `<name>$default` stub
+                // just like an explicit `a.inc()` call.
+                emitIncrementDecrementOperatorCall(
+                    callBinding: callBinding,
+                    operatorName: op == .plusAssign ? "inc" : "dec",
+                    receiverArgument: currentValue,
+                    callExprID: exprID,
                     result: callResult,
-                    canThrow: false
-                ))
+                    ast: ast,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    propertyConstantInitializers: propertyConstantInitializers,
+                    instructions: &instructions
+                )
                 return callResult
             }
 
@@ -939,12 +929,7 @@ extension CallLowerer {
                     interner: interner
                 )
                 let setterResult = arena.appendTemporary(type: sema.types.unitType)
-                instructions.append(.call(
-                    callee: setterName,
-                    arguments: [receiverID, newValue],
-                    result: setterResult,
-                    canThrow: false
-                ))
+                instructions.append(.call(callee: setterName, arguments: [receiverID, newValue], result: setterResult, canThrow: false))
             }
             if ast.arena.incrementDecrementReturnsValue(exprID) {
                 return newValue

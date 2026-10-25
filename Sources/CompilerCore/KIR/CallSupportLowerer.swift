@@ -5,14 +5,27 @@ struct DefaultArgumentMask: Equatable, Sendable {
     // Generated default-stub mask words use Kotlin Long to preserve all bits.
     static let bitsPerWord = Int64.bitWidth
 
+    /// In-band `super.f(...)` marker bit of the single-word ABI. It stays
+    /// clear of parameter bits only while every parameter index sits below
+    /// it — a stub whose signature can hold index 30 must carry the marker
+    /// in a separate trailing word instead.
+    static let superCallMarkerBitIndex = 30
+
+    private let parameterCount: Int
+
     private(set) var words: [Int64]
 
     init(parameterCount: Int) {
+        self.parameterCount = parameterCount
         let wordCount = max(1, (parameterCount + Self.bitsPerWord - 1) / Self.bitsPerWord)
         words = Array(repeating: 0, count: wordCount)
     }
 
     init(words: [Int64]) {
+        // Words alone cannot report the declared parameter count, so treat
+        // every bit of their capacity as occupiable — the super-call marker
+        // then moves to a trailing word whenever it could overlap index 30.
+        parameterCount = words.count * Self.bitsPerWord
         self.words = words.isEmpty ? [0] : words
     }
 
@@ -21,9 +34,13 @@ struct DefaultArgumentMask: Equatable, Sendable {
     }
 
     /// Wide default stubs use a separate trailing word for the super-call
-    /// marker so it never shares a bit with a default parameter.
+    /// marker so it never shares a bit with a default parameter. "Wide"
+    /// starts where a parameter can occupy the marker's in-band position —
+    /// index 30, well before the second mask word.
     var stubWords: [Int64] {
-        words.count > 1 ? words + [0] : words
+        words.count > 1 || parameterCount > Self.superCallMarkerBitIndex
+            ? words + [0]
+            : words
     }
 
     func contains(_ parameterIndex: Int) -> Bool {
@@ -567,7 +584,7 @@ final class CallSupportLowerer {
                 superCallBitValue = 1
                 superCallBitExpr = maskExprs[maskExprs.count - 1]
             } else {
-                superCallBitValue = Int64(1) << 30
+                superCallBitValue = Int64(1) << DefaultArgumentMask.superCallMarkerBitIndex
                 let superCallBitMaskExpr = arena.appendExpr(.intLiteral(superCallBitValue), type: maskType)
                 body.append(.constValue(result: superCallBitMaskExpr, value: .intLiteral(superCallBitValue)))
                 superCallBitExpr = arena.appendTemporary(type: intType)

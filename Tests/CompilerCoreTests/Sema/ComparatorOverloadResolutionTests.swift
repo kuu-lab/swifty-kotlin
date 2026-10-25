@@ -685,5 +685,59 @@ struct ComparatorOverloadResolutionTests {
             #expect(errors.isEmpty, "Expected implicit `it` to resolve in both lambdas, got: \(errors)")
         }
     }
+
+    @Test func compareValuesByTrailingSelectorInfersInputFromComparedValues() throws {
+        let source = """
+        fun main() {
+            compareValuesBy("a", "bb") { it.length }
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+            #expect(errors.isEmpty, "Expected the compared strings to type implicit `it`, got: \(errors)")
+
+            let sema = try #require(ctx.sema)
+            let ast = try #require(ctx.ast)
+            let names = KnownCompilerNames(interner: ctx.interner)
+            let callID = try #require(firstExprID(in: ast, path: path, ctx: ctx) { _, expr in
+                guard case let .call(callee, _, _, _) = expr,
+                      case let .nameRef(name, _) = ast.arena.expr(callee)
+                else { return false }
+                return name == names.compareValuesBy
+            })
+            let binding = try #require(sema.bindings.callBinding(for: callID))
+            #expect(binding.substitutedTypeArguments == [sema.types.stringType])
+
+            guard case let .call(_, _, args, _) = ast.arena.expr(callID),
+                  let selector = args.last?.expr,
+                  let selectorType = sema.bindings.exprType(for: selector),
+                  case let .functionType(functionType) = sema.types.kind(of: selectorType)
+            else {
+                Issue.record("Expected the trailing selector to have an inferred function type")
+                return
+            }
+            #expect(functionType.params == [sema.types.stringType])
+        }
+    }
+
+    @Test func testCompareByDescendingGetsContextFromGenericConstructorArgument() throws {
+        let source = """
+        import java.util.*
+
+        fun main() {
+            val pq = PriorityQueue<String>(compareByDescending { it.length })
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+            #expect(errors.isEmpty, "Expected the constructor's Comparator<String> parameter to type implicit `it`, got: \(errors)")
+        }
+    }
 }
 #endif

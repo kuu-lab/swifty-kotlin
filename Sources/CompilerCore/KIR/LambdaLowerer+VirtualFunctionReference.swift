@@ -127,12 +127,7 @@ extension LambdaLowerer {
             let continuationLabel = driver.ctx.makeLoopLabel()
             body.append(.jumpIfNotNull(value: thrownResult, target: rethrowLabel))
             let result = arena.appendTemporary(type: signature.returnType)
-            body.append(.call(
-                callee: interner.intern("kk_unbox_bool_static"),
-                arguments: [boxedResult],
-                result: result,
-                canThrow: false
-            ))
+            body.append(.call(callee: interner.intern("kk_unbox_bool_static"), arguments: [boxedResult], result: result, canThrow: false))
             body.append(.jump(continuationLabel))
             body.append(.label(rethrowLabel))
             body.append(.rethrow(value: thrownResult))

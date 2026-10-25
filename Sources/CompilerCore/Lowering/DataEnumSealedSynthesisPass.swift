@@ -164,13 +164,7 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
                 var initInstructions: [KIRInstruction] = []
                 for callee in callees {
                     let result = module.arena.appendTemporary(type: unitType)
-                    initInstructions.append(.call(
-                        symbol: callee.symbol,
-                        callee: callee.name,
-                        arguments: [],
-                        result: result,
-                        canThrow: false
-                    ))
+                    initInstructions.append(.call(symbol: callee.symbol, callee: callee.name, arguments: [], result: result, canThrow: false))
                 }
                 var updated = function
                 let initLocations = Array(repeating: SourceRange?.none, count: initInstructions.count)
@@ -786,12 +780,7 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
                 }
             }
 
-            body.append(.call(
-                callee: interner.intern("kk_abort_unreachable"),
-                arguments: [],
-                result: resultExpr,
-                canThrow: false
-            ))
+            body.append(.call(callee: interner.intern("kk_abort_unreachable"), arguments: [], result: resultExpr, canThrow: false))
             body.append(.returnValue(resultExpr))
 
             appendSyntheticFunctionWithSymbol(

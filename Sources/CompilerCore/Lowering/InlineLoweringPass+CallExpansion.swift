@@ -77,8 +77,11 @@ extension InlineLoweringPass {
         lowered.instructions.reserveCapacity(inlineTarget.body.count)
         for param in inlineTarget.params {
             guard let argument = parameterValues[param.symbol] else { continue }
-            parameterValues[param.symbol] = InlineErasedLambdaABI.bindEnumArgumentToInterfaceParameter(
+            let bound = InlineErasedLambdaABI.bindEnumArgumentToInterfaceParameter(
                 argument, parameterType: param.type, module: module, ctx: ctx, into: &lowered
+            )
+            parameterValues[param.symbol] = InlineErasedLambdaABI.bindStringArgumentToErasedParameter(
+                bound, parameterType: param.type, module: module, ctx: ctx, into: &lowered
             )
         }
 
@@ -607,12 +610,7 @@ extension InlineLoweringPass {
                         isSuperCall: isSuperCall,
                         qualifiedSuperType: qualifiedSuperType
                     ))
-                    lowered.append(.call(
-                        callee: unboxCallee,
-                        arguments: [boxedResult],
-                        result: loweredResult,
-                        canThrow: false
-                    ))
+                    lowered.append(.call(callee: unboxCallee, arguments: [boxedResult], result: loweredResult, canThrow: false))
                     break
                 }
                 let normalizedArgs = erasedExpansionABI

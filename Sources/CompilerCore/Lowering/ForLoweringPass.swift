@@ -33,19 +33,8 @@ final class ForLoweringPass: LoweringPass, ParallelLoweringPass {
 
                 didRewrite = true
                 let hasNextResult = module.arena.appendTemporary()
-                rewrittenBody.append(.call(
-                    callee: hasNext,
-                    arguments: [iteratorValue],
-                    result: hasNextResult,
-                    canThrow: false
-                ))
-                rewrittenBody.append(.call(
-                    symbol: symbol,
-                    callee: next,
-                    arguments: [iteratorValue],
-                    result: result,
-                    canThrow: false
-                ))
+                rewrittenBody.append(.call(callee: hasNext, arguments: [iteratorValue], result: hasNextResult, canThrow: false))
+                rewrittenBody.append(.call(symbol: symbol, callee: next, arguments: [iteratorValue], result: result, canThrow: false))
             }
 
             if didRewrite {

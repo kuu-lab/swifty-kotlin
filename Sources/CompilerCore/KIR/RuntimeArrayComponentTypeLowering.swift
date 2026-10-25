@@ -85,10 +85,7 @@ private func boundedRuntimeArrayComponentTypeExpr<Instructions: RangeReplaceable
     }
     let token = integer(RuntimeTypeCheckToken.encode(type: erased, sema: sema, interner: interner))
     let descriptor = arena.appendTemporary(type: sema.types.intType)
-    instructions.append(.call(
-        callee: interner.intern("__kk_array_component_type"),
-        arguments: [token, nested], result: descriptor, canThrow: false
-    ))
+    instructions.append(.call(callee: interner.intern("__kk_array_component_type"), arguments: [token, nested], result: descriptor, canThrow: false))
     return descriptor
 }
 
@@ -116,10 +113,7 @@ func appendRuntimeArrayComponentTag<Instructions: RangeReplaceableCollection>(
     let typeIDExpr = arena.appendExpr(.intLiteral(typeID), type: sema.types.intType)
     instructions.append(.constValue(result: typeIDExpr, value: .intLiteral(typeID)))
     let nominallyTagged = arena.appendTemporary(type: arrayType)
-    instructions.append(.call(
-        callee: interner.intern("kk_array_tag_type"),
-        arguments: [array, typeIDExpr], result: nominallyTagged, canThrow: false
-    ))
+    instructions.append(.call(callee: interner.intern("kk_array_tag_type"), arguments: [array, typeIDExpr], result: nominallyTagged, canThrow: false))
     guard let element = referenceArrayElementType(arrayType, sema: sema, interner: interner) else { return nominallyTagged }
     let component = runtimeArrayComponentTypeExpr(
         for: element, context: context, sema: sema, arena: arena, interner: interner, instructions: &instructions

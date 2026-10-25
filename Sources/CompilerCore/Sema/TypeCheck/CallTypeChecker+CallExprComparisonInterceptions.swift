@@ -1,6 +1,86 @@
 // swiftlint:disable file_length function_body_length cyclomatic_complexity
 
 extension CallTypeChecker {
+    /// Use a constructor's comparator parameter to type a nested compareBy
+    /// selector even when unrelated constructor overloads have other parameter
+    /// types. The normal shared-argument path requires every overload to agree.
+    func prepareCompareByExpectedTypeOverrides(
+        args: [CallArgument],
+        callRange: SourceRange,
+        candidates: [SymbolID],
+        explicitTypeArgs: [TypeID],
+        locals: LocalBindings,
+        ctx: TypeInferenceContext,
+        expectedTypeOverrides: inout [Int: TypeID]
+    ) {
+        let ast = ctx.ast
+        let sema = ctx.sema
+        let interner = ctx.interner
+        let knownNames = KnownCompilerNames(interner: interner)
+        guard let comparatorSymbol = sema.symbols.lookup(fqName: knownNames.kotlinComparatorFQName) else {
+            return
+        }
+
+        for (argumentIndex, argument) in args.enumerated() {
+            guard expectedTypeOverrides[argumentIndex] == nil,
+                  case let .call(calleeID, typeArgs, _, _) = ast.arena.expr(argument.expr),
+                  typeArgs.isEmpty,
+                  case let .nameRef(nestedCalleeName, _) = ast.arena.expr(calleeID),
+                  (nestedCalleeName == knownNames.compareBy || nestedCalleeName == knownNames.compareByDescending),
+                  locals[nestedCalleeName] == nil,
+                  sourceOrSyntheticStdlibFunctionSymbol(
+                      nestedCalleeName,
+                      fqComponents: ["kotlin", "comparisons", interner.resolve(nestedCalleeName)],
+                      ctx: ctx
+                  ) != nil
+            else {
+                continue
+            }
+
+            var comparatorParameterTypes: Set<TypeID> = []
+            for candidate in candidates {
+                guard let signature = sema.symbols.functionSignature(for: candidate),
+                      let parameterMapping = parameterMappingForCallArguments(
+                          args, in: signature, callRange: callRange, ctx: ctx
+                      ),
+                      let parameterIndex = parameterMapping[argumentIndex],
+                      let declaredParameterType = contextualCallArgumentType(
+                          argument, parameterIndex: parameterIndex, in: signature, ctx: ctx
+                      )
+                else {
+                    continue
+                }
+
+                let parameterType = sema.types.makeNonNullable(applyExplicitTypeArgs(
+                    to: declaredParameterType,
+                    signature: signature,
+                    candidate: candidate,
+                    explicitTypeArgs: explicitTypeArgs,
+                    sema: sema
+                ))
+                guard case let .classType(classType) = sema.types.kind(of: parameterType),
+                      classType.classSymbol == comparatorSymbol
+                else {
+                    continue
+                }
+                let typeVarBySymbol = sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
+                guard !ctx.resolver.containsTypeVariable(
+                    parameterType,
+                    typeVarBySymbol: typeVarBySymbol,
+                    typeSystem: sema.types
+                )
+                else {
+                    continue
+                }
+                comparatorParameterTypes.insert(parameterType)
+            }
+
+            if comparatorParameterTypes.count == 1, let parameterType = comparatorParameterTypes.first {
+                expectedTypeOverrides[argumentIndex] = parameterType
+            }
+        }
+    }
+
     func inferMinMaxOfCall(
         _ id: ExprID,
         args: [CallArgument],
@@ -622,7 +702,7 @@ extension CallTypeChecker {
 
         if let calleeName,
            calleeName == knownNames.compareValuesBy,
-           args.count >= 4,
+           args.count >= 3,
            locals[calleeName] == nil,
            sourceOrSyntheticStdlibFunctionSymbol(
                calleeName,
@@ -698,7 +778,10 @@ extension CallTypeChecker {
                     return sema.types.intType
                 }
             }
-            if args.count >= 4 {
+            // The one-selector overload has three source arguments (including
+            // a trailing lambda). Infer T from both compared values before
+            // contextualizing its selector, just as the multi-selector path does.
+            if args.count >= 3 {
                 let elementCandidates = [firstType, secondType].filter { $0 != sema.types.errorType }.map {
                     sema.types.makeNonNullable($0)
                 }

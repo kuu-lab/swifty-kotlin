@@ -174,12 +174,7 @@ extension CallLowerer {
                 loweredArgIDs = []
             }
             let runtimeCallee = interner.intern(args.isEmpty ? "kk_context_cancel_no_cause" : "kk_context_cancel")
-            instructions.append(.call(
-                callee: runtimeCallee,
-                arguments: [loweredReceiverID] + loweredArgIDs,
-                result: nonNullResult,
-                canThrow: false
-            ))
+            instructions.append(.call(callee: runtimeCallee, arguments: [loweredReceiverID] + loweredArgIDs, result: nonNullResult, canThrow: false))
             instructions.append(.copy(from: nonNullResult, to: nullableResult))
             instructions.append(.label(endLabel))
             return nullableResult
@@ -227,12 +222,7 @@ extension CallLowerer {
                         ),
                     ]
                 }
-                instructions.append(.call(
-                    callee: boolCallee,
-                    arguments: [nonNullReceiver] + argumentIDs,
-                    result: nonNullResult,
-                    canThrow: false
-                ))
+                instructions.append(.call(callee: boolCallee, arguments: [nonNullReceiver] + argumentIDs, result: nonNullResult, canThrow: false))
                 instructions.append(.copy(from: nonNullResult, to: nullableResult))
                 instructions.append(.label(endLabel))
                 return nullableResult
@@ -762,12 +752,7 @@ extension CallLowerer {
                     arena: arena, instructions: &instructions.instructions
                 ) ?? loweredReceiverID
                 let nonNullResult = arena.appendTemporary(type: nonNullResultType)
-                instructions.append(.call(
-                    callee: callee,
-                    arguments: [conversionReceiverID],
-                    result: nonNullResult,
-                    canThrow: false
-                ))
+                instructions.append(.call(callee: callee, arguments: [conversionReceiverID], result: nonNullResult, canThrow: false))
                 instructions.append(.copy(from: nonNullResult, to: result))
                 instructions.append(.label(endLabel))
                 return result
@@ -974,13 +959,7 @@ extension CallLowerer {
                     sema: sema
                 ))
                 let nonNullResult = arena.appendTemporary(type: fnType.returnType)
-                instructions.append(.call(
-                    symbol: callSymbol,
-                    callee: callCallee,
-                    arguments: callPrefix,
-                    result: nonNullResult,
-                    canThrow: false
-                ))
+                instructions.append(.call(symbol: callSymbol, callee: callCallee, arguments: callPrefix, result: nonNullResult, canThrow: false))
                 instructions.append(.copy(from: nonNullResult, to: result))
                 instructions.append(.label(endLabel))
                 return result
@@ -1337,7 +1316,7 @@ extension CallLowerer {
                 if effectiveMasks.count > 1 {
                     effectiveMasks[effectiveMasks.count - 1] = 1
                 } else {
-                    effectiveMasks[0] |= Int64(1) << 30
+                    effectiveMasks[0] |= Int64(1) << DefaultArgumentMask.superCallMarkerBitIndex
                 }
             }
             appendDefaultMaskArguments(

@@ -7,6 +7,7 @@ class StringBuilder: CharSequence {
     override val length: Int get() = 0
     override operator fun get(index: Int): Char = null!!
     operator fun set(index: Int, value: Char) {}
+    fun getChars(srcBegin: Int, srcEnd: Int, dst: CharArray, dstBegin: Int) {}
     fun setCharAt(index: Int, value: Char) {}
     override fun subSequence(startIndex: Int, endIndex: Int): CharSequence = null!!
     override fun toString(): String = null!!

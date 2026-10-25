@@ -18,4 +18,8 @@ public interface SortedMap<K, V> : MutableMap<K, V> {
     /** The highest key; throws `NoSuchElementException` when the map is empty. */
     @KsSymbolName("__kk_sorted_map_last_key")
     public fun lastKey(): K
+
+    /** A live view starting at [fromKey] and ending before [toKey]. */
+    @KsSymbolName("__kk_sorted_map_sub_map")
+    public fun subMap(fromKey: K, toKey: K): SortedMap<K, V>
 }

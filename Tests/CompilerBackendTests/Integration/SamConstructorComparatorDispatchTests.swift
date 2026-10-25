@@ -24,4 +24,29 @@ struct SamConstructorComparatorDispatchTests {
             expectedStderr: ""
         )
     }
+
+    @Test
+    func comparableMethodReferenceDispatchesInsideNullsFirst() throws {
+        let source = """
+        class Ranked(val value: Int) : Comparable<Ranked> {
+            override fun compareTo(other: Ranked): Int = other.value - value
+        }
+
+        fun main() {
+            val cmp = Comparable<Ranked>::compareTo
+            val comparator = nullsFirst(cmp)
+            println(comparator.compare(Ranked(1), Ranked(2)) > 0)
+            println(comparator.compare(Ranked(2), Ranked(1)) < 0)
+            println(comparator.compare(Ranked(2), Ranked(2)) == 0)
+            println(comparator.compare(null, Ranked(1)) == -1)
+            println(comparator.compare(Ranked(1), null) == 1)
+        }
+        """
+        try compileAndRunKotlin(
+            source,
+            expectedOutput: "true\ntrue\ntrue\ntrue\ntrue\n",
+            moduleName: "KUU3293ComparableCallableReferenceNullsFirst",
+            expectedStderr: ""
+        )
+    }
 }

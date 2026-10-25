@@ -151,13 +151,7 @@ extension CallLowerer {
             } else {
                 callArgs = info.captureArguments + [loweredReceiverID]
             }
-            blockInstructions.append(.call(
-                symbol: info.symbol,
-                callee: info.callee,
-                arguments: callArgs,
-                result: result,
-                canThrow: true
-            ))
+            blockInstructions.append(.call(symbol: info.symbol, callee: info.callee, arguments: callArgs, result: result, canThrow: true))
 
             // CODE-001: the beginFinallyGuard/endFinallyGuard pair prevents
             // an outer try/catch/use from re-wrapping this already-routed
@@ -426,13 +420,7 @@ extension CallLowerer {
             } else {
                 callArgs = info.captureArguments + [pinnedResult]
             }
-            blockInstructions.append(.call(
-                symbol: info.symbol,
-                callee: info.callee,
-                arguments: callArgs,
-                result: result,
-                canThrow: true
-            ))
+            blockInstructions.append(.call(symbol: info.symbol, callee: info.callee, arguments: callArgs, result: result, canThrow: true))
 
             // CODE-001: guard against an outer try/catch/use re-wrapping this
             // already-routed call if `usePinned` is itself nested inside one
@@ -529,12 +517,7 @@ extension CallLowerer {
             )))
         } ?? sema.types.anyType
         let scopeResult = arena.appendTemporary(type: memScopeType)
-        instructions.append(.call(
-            callee: interner.intern("kk_memscope_new"),
-            arguments: [],
-            result: scopeResult,
-            canThrow: false
-        ))
+        instructions.append(.call(callee: interner.intern("kk_memscope_new"), arguments: [], result: scopeResult, canThrow: false))
 
         let result = arena.appendTemporary(type: boundType)
         let intType = sema.types.make(.primitive(.int, .nonNull))
@@ -577,13 +560,7 @@ extension CallLowerer {
             }
             let callArgs: [KIRExprID] = closureRawArg.map { [$0, scopeResult] }
                 ?? info.captureArguments + [scopeResult]
-            blockInstructions.append(.call(
-                symbol: info.symbol,
-                callee: info.callee,
-                arguments: callArgs,
-                result: result,
-                canThrow: true
-            ))
+            blockInstructions.append(.call(symbol: info.symbol, callee: info.callee, arguments: callArgs, result: result, canThrow: true))
         } else {
             // Non-literal callable value (e.g. a declared `MemScope.() -> R`
             // binding): invoke through the Function1 ABI.
@@ -615,12 +592,7 @@ extension CallLowerer {
         // kk_arena_clear, matching Kotlin finally semantics.
         instructions.append(.label(finallyLabel))
         let clearResult = arena.appendTemporary(type: sema.types.unitType)
-        instructions.append(.call(
-            callee: interner.intern("kk_arena_clear"),
-            arguments: [scopeResult],
-            result: clearResult,
-            canThrow: true
-        ))
+        instructions.append(.call(callee: interner.intern("kk_arena_clear"), arguments: [scopeResult], result: clearResult, canThrow: true))
 
         instructions.append(.jumpIfNotNull(value: exceptionSlot, target: rethrowLabel))
         instructions.append(.jump(endLabel))

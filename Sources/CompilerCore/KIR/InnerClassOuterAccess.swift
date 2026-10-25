@@ -92,31 +92,103 @@ func resolveOuterChainValue(
             ))
             return capturedValue
         }
-        guard currentClassSymbol.flags.contains(.innerClass),
-              let outerFieldSymbol = sema.symbols.outerInstanceFieldSymbol(for: currentClassSymbol.id),
-              let outerOffset = sema.symbols.nominalLayout(for: currentClassSymbol.id)?.fieldOffsets[outerFieldSymbol],
-              let rawOuterOwnerSymbol = sema.symbols.parentSymbol(for: currentClassSymbol.id),
-              let outerOwnerSymbol = receiverClassSymbol(for: rawOuterOwnerSymbol)
-        else {
-            return nil
+        if currentClassSymbol.flags.contains(.innerClass),
+           let outerFieldSymbol = sema.symbols.outerInstanceFieldSymbol(for: currentClassSymbol.id),
+           let outerOffset = sema.symbols.nominalLayout(for: currentClassSymbol.id)?.fieldOffsets[outerFieldSymbol],
+           let rawOuterOwnerSymbol = sema.symbols.parentSymbol(for: currentClassSymbol.id),
+           let outerOwnerSymbol = receiverClassSymbol(for: rawOuterOwnerSymbol)
+        {
+            let outerType = sema.types.make(.classType(ClassType(classSymbol: outerOwnerSymbol, args: [], nullability: .nonNull)))
+            let offsetExpr = arena.appendExpr(.intLiteral(Int64(outerOffset)), type: sema.types.intType)
+            instructions.append(.constValue(result: offsetExpr, value: .intLiteral(Int64(outerOffset))))
+            let nextValue = arena.appendTemporary(type: outerType)
+            instructions.append(.call(
+                callee: interner.intern("kk_array_get_inbounds"),
+                arguments: [currentValue, offsetExpr],
+                result: nextValue,
+                canThrow: false
+            ))
+            currentValue = nextValue
+            currentType = outerType
+            hops += 1
+            // An inner-class nesting chain this deep would already have failed
+            // elsewhere; guards against an (impossible, but not worth trusting
+            // blindly) parentSymbol cycle turning this into an infinite loop.
+            if hops > 64 { return nil }
+            continue
         }
-        let outerType = sema.types.make(.classType(ClassType(classSymbol: outerOwnerSymbol, args: [], nullability: .nonNull)))
-        let offsetExpr = arena.appendExpr(.intLiteral(Int64(outerOffset)), type: sema.types.intType)
-        instructions.append(.constValue(result: offsetExpr, value: .intLiteral(Int64(outerOffset))))
-        let nextValue = arena.appendTemporary(type: outerType)
-        instructions.append(.call(
-            callee: interner.intern("kk_array_get_inbounds"),
-            arguments: [currentValue, offsetExpr],
-            result: nextValue,
-            canThrow: false
-        ))
-        currentValue = nextValue
-        currentType = outerType
-        hops += 1
-        // An inner-class nesting chain this deep would already have failed
-        // elsewhere; guards against an (impossible, but not worth trusting
-        // blindly) parentSymbol cycle turning this into an infinite loop.
-        if hops > 64 { return nil }
+        // KUU-3213: anonymous objects and named local nominals are not
+        // `.innerClass` — they have no `$outer` field, so the hop above
+        // never fires for them. Their captured enclosing instances live in
+        // fields keyed by a *receiver* symbol (an enclosing function's
+        // synthetic receiver parameter via `implicitReceiverOuterReceiver`,
+        // or a nominal class symbol), so the `contains(target)` probe above
+        // misses whenever `target` is the owner class rather than that key.
+        // A receiver-keyed capture whose recorded type already is `target`
+        // (or a subtype of it, when subtype matching is allowed) is the
+        // instance the chain is looking for — treat it as the terminal
+        // link. Ordinary captured locals stay excluded: a local that
+        // merely shares `target`'s type would hand back the wrong
+        // instance, while a receiver capture is always the enclosing
+        // `this` itself.
+        if let targetClassSymbol, let targetType {
+            let captureSymbols = sema.bindings.objectLiteralCaptureSymbols(for: currentClassSymbol.id)
+            func capturedReceiverValue(_ capturedSymbol: SymbolID, allowSubtype: Bool) -> KIRExprID? {
+                let capturedType: TypeID?
+                if SyntheticSymbolScheme.receiverParameterOwner(for: capturedSymbol) != nil {
+                    capturedType = sema.bindings.capturedLocalType(for: capturedSymbol)
+                } else if let capturedKind = sema.symbols.symbol(capturedSymbol)?.kind,
+                          [.class, .object, .interface, .enumClass].contains(capturedKind)
+                {
+                    capturedType = sema.bindings.capturedLocalType(for: capturedSymbol)
+                        ?? sema.types.make(.classType(ClassType(
+                            classSymbol: capturedSymbol, args: [], nullability: .nonNull
+                        )))
+                } else {
+                    capturedType = nil
+                }
+                guard let capturedType,
+                      let captureOffset = sema.symbols.nominalLayout(for: currentClassSymbol.id)?
+                          .fieldOffsets[capturedSymbol],
+                      let (_, capturedClassSymbol) = resolveClassTypeSymbol(
+                          sema.types.makeNonNullable(capturedType), sema: sema
+                      ),
+                      capturedClassSymbol.id == targetClassSymbol
+                          || (allowSubtype
+                              && sema.types.isSubtype(
+                                  sema.types.makeNonNullable(capturedType), targetType
+                              ))
+                else {
+                    return nil
+                }
+                let offsetExpr = arena.appendExpr(.intLiteral(Int64(captureOffset)), type: sema.types.intType)
+                instructions.append(.constValue(result: offsetExpr, value: .intLiteral(Int64(captureOffset))))
+                let capturedValue = arena.appendTemporary(type: sema.types.makeNonNullable(capturedType))
+                instructions.append(.call(
+                    callee: interner.intern("kk_array_get_inbounds"),
+                    arguments: [currentValue, offsetExpr],
+                    result: capturedValue,
+                    canThrow: false
+                ))
+                return capturedValue
+            }
+            // An exact nominal match always wins over a subtype-relaxed one:
+            // a captured receiver of a *subtype* is a different instance than
+            // the receiver whose declared type is `target`.
+            for capturedSymbol in captureSymbols {
+                if let capturedValue = capturedReceiverValue(capturedSymbol, allowSubtype: false) {
+                    return capturedValue
+                }
+            }
+            if allowSubtypeMatch {
+                for capturedSymbol in captureSymbols {
+                    if let capturedValue = capturedReceiverValue(capturedSymbol, allowSubtype: true) {
+                        return capturedValue
+                    }
+                }
+            }
+        }
+        return nil
     }
 }
 
@@ -619,13 +691,7 @@ extension CallLowerer {
             ))
             return result
         }
-        instructions.append(.call(
-            symbol: chosenCtor,
-            callee: calleeName,
-            arguments: finalArguments,
-            result: result,
-            canThrow: true
-        ))
+        instructions.append(.call(symbol: chosenCtor, callee: calleeName, arguments: finalArguments, result: result, canThrow: true))
         return result
     }
 }

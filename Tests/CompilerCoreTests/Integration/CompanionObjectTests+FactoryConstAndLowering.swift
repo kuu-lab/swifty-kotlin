@@ -276,11 +276,22 @@ extension CompanionObjectTests {
                 return name == expectedInitName ? function : nil
             }.first
             let initBody = try #require(companionInitFn, "Expected companion lazy init function").body
-            let hasCopy = initBody.contains { instruction in
-                if case .copy = instruction { return true }
-                return false
+            // Property initializers write the backing field directly via
+            // `storeGlobal`; the former `.copy` into a backing-field symbol
+            // was rewritten as a receiver-less setter call. Filter out the
+            // `$initialized` flag store so the assertion pins the property
+            // store itself.
+            let sema = try #require(ctx.sema)
+            let ownerSymbol = try #require(sema.symbols.lookup(fqName: [ctx.interner.intern("Config")]))
+            let companionSymbol = try #require(sema.symbols.companionObjectSymbol(for: ownerSymbol))
+            let flagFQName = (sema.symbols.symbol(companionSymbol)?.fqName ?? [])
+                + [ctx.interner.intern("$initialized")]
+            let flagSymbol = sema.symbols.lookup(fqName: flagFQName)
+            let hasBackingFieldStore = initBody.contains { instruction in
+                guard case let .storeGlobal(_, symbol) = instruction else { return false }
+                return symbol != flagSymbol
             }
-            #expect(hasCopy, "Expected copy instruction in companion lazy init body for property initialization")
+            #expect(hasBackingFieldStore, "Expected storeGlobal in companion lazy init body for property initialization")
         }
     }
 

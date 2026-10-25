@@ -8,6 +8,9 @@ public struct CallBinding {
     /// Most call sites track this separately by expression; synthetic calls
     /// such as for-in convention calls carry it with the binding instead.
     public let dispatchReceiverSymbol: SymbolID?
+    /// Receiver values selected for the callee's context parameters, in declaration order.
+    /// A nil entry falls back to the lowering context's context and implicit receiver lookup.
+    public let contextParameterReceiverSymbols: [SymbolID?]
     /// Whether lowering must wrap this reference to adapt its function shape,
     /// including its arity, receiver, or return type, to the selected type.
     public let isCallableReferenceAdapter: Bool
@@ -21,6 +24,7 @@ public struct CallBinding {
         parameterMapping: [Int: Int],
         defaultArgumentOwner: SymbolID? = nil,
         dispatchReceiverSymbol: SymbolID? = nil,
+        contextParameterReceiverSymbols: [SymbolID?] = [],
         isCallableReferenceAdapter: Bool = false,
         boundContextParameterTypes: [TypeID] = []
     ) {
@@ -29,6 +33,7 @@ public struct CallBinding {
         self.parameterMapping = parameterMapping
         self.defaultArgumentOwner = defaultArgumentOwner
         self.dispatchReceiverSymbol = dispatchReceiverSymbol
+        self.contextParameterReceiverSymbols = contextParameterReceiverSymbols
         self.isCallableReferenceAdapter = isCallableReferenceAdapter
         self.boundContextParameterTypes = boundContextParameterTypes
     }

@@ -439,6 +439,13 @@ extension CallLowerer {
                 instructions: &instructions
             )
         }()
+        let callBinding = recoverMemberCallBinding(
+            exprID: exprID,
+            receiverExpr: receiverExpr,
+            calleeName: calleeName,
+            argumentExprs: args.map(\.expr),
+            sema: sema
+        ) ?? sema.bindings.callBindings[exprID]
         let result = arena.appendTemporary(type: boundType ?? sema.types.anyType)
         let chosenBase64Callee: SymbolID? = {
             guard let selected = sema.bindings.callBindings[exprID]?.chosenCallee, selected != .invalid else {
@@ -790,6 +797,7 @@ extension CallLowerer {
                 interner: interner,
                 loweredReceiverID: loweredReceiverID,
                 normalizedArgIDs: normalizedArgIDs,
+                parameterMapping: callBinding?.parameterMapping ?? [:],
                 result: result,
                 instructions: &instructions
             ) {
@@ -855,13 +863,6 @@ extension CallLowerer {
             qualifiedSuperType = classType.classSymbol
         }
 
-        let callBinding = recoverMemberCallBinding(
-            exprID: exprID,
-            receiverExpr: receiverExpr,
-            calleeName: calleeName,
-            argumentExprs: args.map(\.expr),
-            sema: sema
-        ) ?? sema.bindings.callBindings[exprID]
         let chosen: SymbolID? = if let chosenCallee = callBinding?.chosenCallee, chosenCallee != .invalid {
             chosenCallee
         } else {

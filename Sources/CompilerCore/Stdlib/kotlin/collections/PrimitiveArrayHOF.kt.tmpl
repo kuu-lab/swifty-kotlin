@@ -19,7 +19,7 @@ package kotlin.collections
 
 //@ body
 //@ note The unsigned arrays carry extra accessors ahead of the shared HOFs; UInt alone also has
-//@ note indexOf, forEachIndexed, maxOrNull and minOrNull.
+//@ note indexOf, forEachIndexed, max, min, maxOrNull and minOrNull.
 //@ only UByte UShort UInt ULong
 public fun {{T}}Array.elementAt(index: Int): {{T}} = this[index]
 
@@ -70,6 +70,8 @@ public inline fun {{T}}Array.forEachIndexed(action: (Int, {{T}}) -> Unit) {
     }
 }
 
+public fun {{T}}Array.max(): {{T}} = maxOrNull() ?: throw NoSuchElementException()
+
 public fun {{T}}Array.maxOrNull(): {{T}}? {
     if (this.size == 0) return null
     var max = this[0]
@@ -81,6 +83,8 @@ public fun {{T}}Array.maxOrNull(): {{T}}? {
     }
     return max
 }
+
+public fun {{T}}Array.min(): {{T}} = minOrNull() ?: throw NoSuchElementException()
 
 public fun {{T}}Array.minOrNull(): {{T}}? {
     if (this.size == 0) return null

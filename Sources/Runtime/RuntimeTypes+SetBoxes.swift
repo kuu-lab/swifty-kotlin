@@ -15,6 +15,9 @@ final class RuntimeSetBox {
     private let backingMapRaw: Int?
     private let backingMapViewKind: MapViewKind
     private let viewParent: RuntimeSetBox?
+    private let rangeView: RuntimeSortedRange?
+    private let rangeBounds: RuntimeSortedBounds?
+    private let isDescendingView: Bool
     /// KUU-1361: java.util.TreeSet ordering — `sorted` selects comparator
     /// order over insertion order, `comparatorRaw` holds the user
     /// `Comparator` object (0 = natural `Comparable` order), and
@@ -70,7 +73,12 @@ final class RuntimeSetBox {
     var values: [RuntimeValue] {
         get {
             if let viewParent {
-                return viewParent.values.reversed()
+                var viewValues = viewParent.values
+                if isDescendingView { viewValues.reverse() }
+                guard let rangeView else { return viewValues }
+                return viewValues.filter {
+                    rangeView.contains($0.legacyRawValue, using: sortedCompare)
+                }
             }
             if let backingMapRaw,
                let map = runtimeMapBox(from: backingMapRaw) {
@@ -119,6 +127,9 @@ final class RuntimeSetBox {
         self.backingMapRaw = nil
         self.backingMapViewKind = .entries
         self.viewParent = nil
+        self.rangeView = nil
+        self.rangeBounds = nil
+        self.isDescendingView = false
         self.sorted = false
         self.comparatorRaw = 0
         self.invertCompare = false
@@ -131,6 +142,9 @@ final class RuntimeSetBox {
         self.backingMapRaw = nil
         self.backingMapViewKind = .entries
         self.viewParent = nil
+        self.rangeView = nil
+        self.rangeBounds = nil
+        self.isDescendingView = false
         self.sorted = false
         self.comparatorRaw = 0
         self.invertCompare = false
@@ -143,6 +157,9 @@ final class RuntimeSetBox {
         self.backingMapRaw = mapRaw
         self.backingMapViewKind = .entries
         self.viewParent = nil
+        self.rangeView = nil
+        self.rangeBounds = nil
+        self.isDescendingView = false
         self.sorted = false
         self.comparatorRaw = 0
         self.invertCompare = false
@@ -154,6 +171,9 @@ final class RuntimeSetBox {
         self.backingMapRaw = mapRaw
         self.backingMapViewKind = .keys
         self.viewParent = nil
+        self.rangeView = nil
+        self.rangeBounds = nil
+        self.isDescendingView = false
         self.sorted = false
         self.comparatorRaw = 0
         self.invertCompare = false
@@ -165,14 +185,32 @@ final class RuntimeSetBox {
         self.backingMapRaw = nil
         self.backingMapViewKind = .entries
         self.viewParent = parent
+        self.rangeView = nil
+        self.rangeBounds = parent.rangeBounds?.reversed()
+        self.isDescendingView = true
         self.sorted = true
         self.comparatorRaw = parent.comparatorRaw
         self.invertCompare = !parent.invertCompare
     }
 
+    init(rangeViewOf parent: RuntimeSetBox, range: RuntimeSortedRange) {
+        self.storage = []
+        self.index = [:]
+        self.backingMapRaw = nil
+        self.backingMapViewKind = .entries
+        self.viewParent = parent
+        self.rangeView = range
+        self.rangeBounds = parent.rangeBounds?.intersecting(range, using: parent.sortedCompare)
+            ?? RuntimeSortedBounds(range)
+        self.isDescendingView = false
+        self.sorted = true
+        self.comparatorRaw = parent.comparatorRaw
+        self.invertCompare = parent.invertCompare
+    }
+
     var count: Int {
         if let viewParent {
-            return viewParent.count
+            return values.count
         }
         if let backingMapRaw,
            let map = runtimeMapBox(from: backingMapRaw) {
@@ -183,7 +221,7 @@ final class RuntimeSetBox {
 
     var isEmpty: Bool {
         if let viewParent {
-            return viewParent.isEmpty
+            return values.isEmpty
         }
         if let backingMapRaw,
            let map = runtimeMapBox(from: backingMapRaw) {
@@ -203,14 +241,11 @@ final class RuntimeSetBox {
         return value
     }
 
-    /// Returns an element in insertion order without materializing the set.
-    /// Map-entry views retain their existing materialized entry representation.
+    /// Returns an element in the set's current iteration order.
     func rawValue(at index: Int) -> Int? {
         if let viewParent {
-            guard index >= 0, index < viewParent.count else {
-                return nil
-            }
-            return viewParent.rawValue(at: viewParent.count - 1 - index)
+            guard values.indices.contains(index) else { return nil }
+            return values[index].legacyRawValue
         }
         if let backingMapRaw,
            let map = runtimeMapBox(from: backingMapRaw) {
@@ -239,7 +274,7 @@ final class RuntimeSetBox {
 
     func contains(rawValue: Int) -> Bool {
         if let viewParent {
-            return viewParent.contains(rawValue: rawValue)
+            return isWithinView(rawValue) && viewParent.contains(rawValue: rawValue)
         }
         if let backingMapRaw,
            let map = runtimeMapBox(from: backingMapRaw) {
@@ -299,6 +334,7 @@ final class RuntimeSetBox {
     @discardableResult
     func insert(value: RuntimeValue) -> Bool {
         if let viewParent {
+            guard isWithinView(value.legacyRawValue) else { return false }
             return viewParent.insert(value: value)
         }
         guard backingMapRaw == nil, !isReadOnly else { return false }
@@ -325,6 +361,7 @@ final class RuntimeSetBox {
     @discardableResult
     func remove(rawValue: Int) -> Bool {
         if let viewParent {
+            guard isWithinView(rawValue) else { return false }
             return viewParent.remove(rawValue: rawValue)
         }
         if let backingMapRaw {
@@ -380,7 +417,11 @@ final class RuntimeSetBox {
     @discardableResult
     func removeAll(keepingCapacity: Bool = false) -> Bool {
         if let viewParent {
-            return viewParent.removeAll(keepingCapacity: keepingCapacity)
+            var removed = false
+            for value in values {
+                removed = viewParent.remove(rawValue: value.legacyRawValue) || removed
+            }
+            return removed
         }
         if let backingMapRaw,
            let map = runtimeMapBox(from: backingMapRaw) {
@@ -429,6 +470,22 @@ final class RuntimeSetBox {
         return true
     }
 
+    func acceptsInsertion(rawValue: Int) -> Bool {
+        isWithinView(rawValue) && (viewParent?.acceptsInsertion(rawValue: rawValue) ?? true)
+    }
+
+    func acceptsRangeView(_ range: RuntimeSortedRange) -> Bool {
+        if let lower = range.lowerBoundRaw, let upper = range.upperBoundRaw,
+           sortedCompare(lower, upper) > 0 {
+            return false
+        }
+        return rangeBounds?.acceptsRange(range, using: sortedCompare) ?? true
+    }
+
+    private func isWithinView(_ rawValue: Int) -> Bool {
+        rangeView?.contains(rawValue, using: sortedCompare) ?? true
+    }
+
     private func rebuildIndex() {
         guard !sorted else { return }
         index.removeAll(keepingCapacity: true)
@@ -449,6 +506,9 @@ final class RuntimeSetBox {
         self.backingMapRaw = nil
         self.backingMapViewKind = .entries
         self.viewParent = nil
+        self.rangeView = nil
+        self.rangeBounds = nil
+        self.isDescendingView = false
         self.sorted = false
         self.comparatorRaw = 0
         self.invertCompare = false

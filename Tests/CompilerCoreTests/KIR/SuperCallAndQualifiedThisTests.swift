@@ -515,5 +515,59 @@ struct SuperCallAndQualifiedThisTests {
         #expect(dumpOutput.contains("qualifiedSuper="),
                       "Expected KIR dump to contain 'qualifiedSuper=' for qualified super call, got:\n\(dumpOutput)")
     }
+
+    // KUU-3220: `add` reaches the synthetic collection-member fallback, which
+    // binds the callee without recording the super-call marker. The lowering
+    // then emitted a `.virtualCall` that re-dispatched to the override on
+    // `this`, recursing forever instead of calling `ArrayList.add`.
+    @Test(arguments: [false, true])
+    func testSuperCallOnArrayListMemberStaysDirectCall(fullyLowered: Bool) throws {
+        let ctx = makeContextFromSource("""
+        class N : ArrayList<Any>() {
+            override fun add(el: Any): Boolean {
+                return super<ArrayList>.add(el)
+            }
+            fun addUnqualified(el: Any): Boolean {
+                return super.add(el)
+            }
+        }
+        """)
+        if fullyLowered {
+            try runToLowering(ctx)
+        } else {
+            try runToKIR(ctx)
+        }
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics.map(\.message))")
+
+        let module = try #require(ctx.kir)
+        let sema = try #require(ctx.sema)
+        var qualifiedSuperCalls = 0
+        var unqualifiedSuperCalls = 0
+        for body in findAllKIRFunctionBodies(named: "add", in: module, interner: ctx.interner)
+            + findAllKIRFunctionBodies(named: "addUnqualified", in: module, interner: ctx.interner)
+        {
+            for instruction in body {
+                switch instruction {
+                case let .virtualCall(_, callee, _, _, _, _, _, _):
+                    // Virtual dispatch re-invokes `N.add` on `this` and
+                    // recurses; a super call must stay a direct `.call`.
+                    #expect(ctx.interner.resolve(callee) != "add")
+                case let .call(_, _, _, _, _, _, true, qualifiedSuperType):
+                    if let qualifier = qualifiedSuperType {
+                        qualifiedSuperCalls += 1
+                        let qualifierName = sema.symbols.symbol(qualifier)
+                            .map { ctx.interner.resolve($0.name) }
+                        #expect(qualifierName == "ArrayList")
+                    } else {
+                        unqualifiedSuperCalls += 1
+                    }
+                default:
+                    continue
+                }
+            }
+        }
+        #expect(qualifiedSuperCalls == 1)
+        #expect(unqualifiedSuperCalls == 1)
+    }
 }
 #endif

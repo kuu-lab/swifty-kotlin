@@ -452,12 +452,7 @@ final class ValueClassUnboxingPass: LoweringPass, ParallelLoweringPass {
                         let offsetExpr = arena.appendExpr(.intLiteral(offset), type: nil)
                         result.append(.constValue(result: offsetExpr, value: .intLiteral(offset)))
                         resultLocations.append(location)
-                        result.append(.call(
-                            callee: kk_array_get_inbounds,
-                            arguments: [callResult, offsetExpr],
-                            result: callResult,
-                            canThrow: false
-                        ))
+                        result.append(.call(callee: kk_array_get_inbounds, arguments: [callResult, offsetExpr], result: callResult, canThrow: false))
                         resultLocations.append(location)
                         continue
                     } else if arguments.count == 1, mustExecute,

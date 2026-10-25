@@ -90,9 +90,9 @@ struct CodegenBackendCoroutineDispatcherTests {
         false
         false
         false
-        true
-        true
-        true
+        false
+        false
+        false
         false
         false
         executed
@@ -101,6 +101,50 @@ struct CodegenBackendCoroutineDispatcherTests {
         44
 
         """, allowDefaultStdlibLibrary: allowDefaultStdlibLibrary)
+    }
+
+    @Test
+    func executorAdaptersDispatchRunnableWork() throws {
+        try assertKotlinOutput("""
+        import java.lang.Runnable
+        import java.util.concurrent.Executor
+        import kotlin.coroutines.CoroutineContext
+        import kotlinx.coroutines.*
+
+        class RecordingExecutor : Executor {
+            var executions: Int = 0
+            override fun execute(command: Runnable) {
+                executions += 1
+                command.run()
+            }
+        }
+
+        class RecordingDispatcher : CoroutineDispatcher() {
+            override fun dispatch(context: CoroutineContext, block: Runnable) {
+                println("dispatcher dispatched")
+                block.run()
+            }
+        }
+
+        fun main() {
+            val executor = RecordingExecutor()
+            val dispatcher = executor.asCoroutineDispatcher()
+            runBlocking {
+                println(withContext(dispatcher) { "executor dispatched" })
+            }
+            println(executor.executions > 0)
+
+            RecordingDispatcher().asExecutor().execute(Runnable {
+                println("adapter ran")
+            })
+        }
+        """, moduleName: "CoroutineExecutorAdapters", expected: """
+        executor dispatched
+        true
+        dispatcher dispatched
+        adapter ran
+
+        """)
     }
 
     @Test

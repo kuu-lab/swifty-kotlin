@@ -190,12 +190,7 @@ extension CallLowerer {
             // ByteArray.asUByteArray() preserves signed storage, so normalize
             // the raw byte to UByte at the typed read boundary.
             let rawResult = arena.appendTemporary(type: sema.types.intType)
-            instructions.append(.call(
-                callee: interner.intern("kk_array_get"),
-                arguments: [receiverID, indexID],
-                result: rawResult,
-                canThrow: false
-            ))
+            instructions.append(.call(callee: interner.intern("kk_array_get"), arguments: [receiverID, indexID], result: rawResult, canThrow: false))
             emitNonThrowingCall(
                 callee: interner.intern("kk_int_to_ubyte"),
                 arg: rawResult,
@@ -204,12 +199,7 @@ extension CallLowerer {
             )
             return result
         }
-        instructions.append(.call(
-            callee: interner.intern("kk_array_get"),
-            arguments: [receiverID, indexID],
-            result: result,
-            canThrow: false
-        ))
+        instructions.append(.call(callee: interner.intern("kk_array_get"), arguments: [receiverID, indexID], result: result, canThrow: false))
         return result
     }
 

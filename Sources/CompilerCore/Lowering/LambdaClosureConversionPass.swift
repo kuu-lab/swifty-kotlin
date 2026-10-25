@@ -347,12 +347,7 @@ final class LambdaClosureConversionPass: LoweringPass {
 
             let captureType = lambdaInfo.captureParams[captureIndex].type
             let loadedExpr = makeTemporaryExpr(arena: arena, nextTempID: &nextTempID, type: captureType)
-            invokeBody.append(.call(
-                callee: kk_array_get,
-                arguments: [closureObjExpr, offsetExpr],
-                result: loadedExpr,
-                canThrow: false
-            ))
+            invokeBody.append(.call(callee: kk_array_get, arguments: [closureObjExpr, offsetExpr], result: loadedExpr, canThrow: false))
             let normalizedLoadedExpr = normalizePrimitiveClosureCapture(
                 loadedExpr,
                 type: captureType,
@@ -469,12 +464,7 @@ final class LambdaClosureConversionPass: LoweringPass {
                     loweredBody.append(.constValue(result: classIDExpr, value: .intLiteral(classID)))
 
                     let closureObjExpr = makeTemporaryExpr(arena: arena, nextTempID: &nextTempID, type: anyType)
-                    loweredBody.append(.call(
-                        callee: kk_object_new,
-                        arguments: [slotCountExpr, classIDExpr],
-                        result: closureObjExpr,
-                        canThrow: false
-                    ))
+                    loweredBody.append(.call(callee: kk_object_new, arguments: [slotCountExpr, classIDExpr], result: closureObjExpr, canThrow: false))
 
                     for (captureIndex, captureArg) in captureArgs.enumerated() {
                         let fieldOffset = Int64(captureIndex + 2)

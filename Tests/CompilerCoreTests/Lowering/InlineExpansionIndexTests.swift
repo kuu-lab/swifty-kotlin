@@ -35,10 +35,7 @@ struct InlineExpansionIndexTests {
         callee: String,
         interner: StringInterner
     ) -> KIRInstruction {
-        .call(
-            symbol: symbol, callee: interner.intern(callee),
-            arguments: [], result: nil, canThrow: false
-        )
+        .call(symbol: symbol, callee: interner.intern(callee), arguments: [], result: nil, canThrow: false)
     }
 
     // MARK: - Classification

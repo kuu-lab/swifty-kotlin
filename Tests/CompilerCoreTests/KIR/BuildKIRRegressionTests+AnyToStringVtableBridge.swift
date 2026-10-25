@@ -50,12 +50,16 @@ extension BuildKIRRegressionTests {
         return Int64(slot)
     }
 
-    // KUU-3111: the `kotlin.Any.toString` vtable slot carries the runtime's
-    // raw (Int) -> Int string-handle ABI, so a Kotlin override returning the
-    // flat String aggregate must be registered through the generated raw
-    // bridge — never as the implementation's own function pointer.
+    // KUU-3197: a vtable slot is invoked through its declared signature —
+    // `emitVirtualCall` types a `toString` dispatch as the flat String
+    // aggregate, so the `kotlin.Any.toString` slot must register the flat-ABI
+    // Kotlin implementation (or a flat `kk_itable_bridge_*`). Storing the raw
+    // (Int) -> Int `kk_any_to_string_bridge_*` thunk there makes the flat
+    // call read the single i64 handle as the flat String aggregate, leaving
+    // every word past the first undefined. The raw bridge belongs only to
+    // `kk_object_register_any_to_string`, the erased-Any stringify map.
     @Test
-    func toStringOverrideRegistersRawBridgeInVtableSlot() throws {
+    func toStringOverrideRegistersFlatImplementationInVtableSlot() throws {
         TestStdlibCache.shared.prepare()
         let context = makeContextFromSource("""
         open class Base {
@@ -79,41 +83,32 @@ extension BuildKIRRegressionTests {
             .filter { $0.slot == slot }
         #expect(!slotRegistrations.isEmpty)
 
-        let aggregateImplementations = Set(
+        let flatImplementations = Set(
             ["Base", "Child"].flatMap { owner in
                 sema.symbols.lookupAll(fqName: [
                     interner.intern(owner), interner.intern("toString"),
                 ]).filter { sema.symbols.symbol($0)?.kind == .function }
             }
         )
-        for registration in slotRegistrations {
-            #expect(
-                !aggregateImplementations.contains(registration.method),
-                "aggregate-ABI toString must not be stored in the raw-ABI slot"
-            )
-        }
+        #expect(
+            slotRegistrations.contains { flatImplementations.contains($0.method) },
+            "the flat-ABI Kotlin toString must be stored in the vtable slot"
+        )
 
-        let bridgeNames = slotRegistrations.compactMap {
+        let registeredFunctionNames = slotRegistrations.compactMap {
             module.arena.function(for: $0.method).map { interner.resolve($0.name) }
         }
         #expect(
-            bridgeNames.contains { $0.hasPrefix("kk_any_to_string_bridge_") },
-            "expected the raw string-handle bridge among \(bridgeNames)"
+            !registeredFunctionNames.contains { $0.hasPrefix("kk_any_to_string_bridge_") },
+            "the raw Any-dispatch bridge must not be stored in the vtable slot: \(registeredFunctionNames)"
         )
-        if let bridgeSymbol = slotRegistrations.first(where: {
-            module.arena.function(for: $0.method).map {
-                interner.resolve($0.name).hasPrefix("kk_any_to_string_bridge_")
-            } == true
-        })?.method,
-           let bridge = module.arena.function(for: bridgeSymbol)
-        {
-            #expect(bridge.returnType == sema.types.intType)
-        }
     }
 
     // A class that does not override `toString` keeps the runtime
-    // `kotlin.Any.toString` entry registered directly — its ABI is already
-    // the raw one the slot contract expects.
+    // `kotlin.Any.toString` entry registered directly. Direct `.toString()`
+    // calls on such receivers never emit a vtable dispatch (the
+    // `kk_any_member_to_string` fallback handles them), so the raw runtime
+    // ABI is never reached through the flat-typed indirect call.
     @Test
     func inheritedToStringKeepsRuntimeSymbolInVtableSlot() throws {
         TestStdlibCache.shared.prepare()

@@ -23,10 +23,7 @@ enum SmallIntegerWrap {
         default: return nil
         }
         let wrapped = arena.appendTemporary(type: type)
-        instructions.append(.call(
-            callee: interner.intern(calleeName), arguments: [value], result: wrapped,
-            canThrow: false
-        ))
+        instructions.append(.call(callee: interner.intern(calleeName), arguments: [value], result: wrapped, canThrow: false))
         return wrapped
     }
 }

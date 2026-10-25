@@ -2,6 +2,16 @@ import Testing
 
 extension BundledStdlibExecutionTests {
     @Test(arguments: [true, false])
+    func testPriorityQueueEmptyPollUsesPlatformReturn(allowDefaultStdlibLibrary: Bool) throws {
+        try compileAndRunKotlin(
+            try diffCaseSource("java_util_priority_queue_platform_poll.kt", file: #filePath),
+            expectedOutput: "nullable-check:true\nnpe:local\nnpe:unbox\nnullable-element:null:0\n",
+            moduleName: "KUU3373PriorityQueuePlatformPoll",
+            allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
+        )
+    }
+
+    @Test(arguments: [true, false])
     func testPriorityQueueMinimalReproducer(allowDefaultStdlibLibrary: Bool) throws {
         try compileAndRunKotlin(
             try diffCaseSource("kuu1897_priority_queue_minimal.kt", file: #filePath),

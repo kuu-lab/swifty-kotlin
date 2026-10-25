@@ -68,6 +68,34 @@ struct SuspendCallContextTests {
     }
 
     @Test
+    func coroutineContextPropertyRequiresSuspensionContext() throws {
+        let result = try diagnostics("""
+        fun main() { println(kotlin.coroutines.coroutineContext != null) }
+        """, includeStdlib: true)
+        let errors = result.diagnostics.filter { $0.severity == .error }
+        #expect(errors.count == 1, "\(result.diagnostics)")
+        #expect(errors.first?.code == "KSWIFTK-SEMA-0313")
+        #expect(errors.first?.message == "Suspend property 'val coroutineContext: CoroutineContext' can only be accessed from a coroutine or suspend function.")
+    }
+
+    @Test
+    func coroutineContextPropertyIsAllowedInSuspendContextAndShadowingIsUnaffected() throws {
+        let result = try diagnostics("""
+        import kotlin.coroutines.coroutineContext
+        suspend fun currentContext() = coroutineContext
+        fun shadowed(coroutineContext: Int) = coroutineContext
+        class Holder(val coroutineContext: Int) {
+            fun read() = coroutineContext
+        }
+        fun localShadowed() {
+            val coroutineContext = 1
+            println(coroutineContext)
+        }
+        """, includeStdlib: true)
+        #expect(!result.hasError, "\(result.diagnostics)")
+    }
+
+    @Test
     func suspendSamLambdaSuppliesItsOwnSuspensionContext() throws {
         let result = try diagnostics("""
         suspend fun sf() = 1
