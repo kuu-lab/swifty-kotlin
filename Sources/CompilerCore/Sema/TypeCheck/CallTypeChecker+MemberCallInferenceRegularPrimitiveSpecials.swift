@@ -356,6 +356,14 @@ extension CallTypeChecker {
         }
 
         if interner.resolve(calleeName) == "equals", args.count == 1, allowsAnyFallback {
+            if !safeCall, sema.types.nullability(of: lookupReceiverType) == .nullable {
+                sema.diagnostics.error(
+                    "KSWIFTK-SEMA-0026",
+                    "Only safe (?.) or non-null asserted (!!.) calls are allowed on a nullable receiver.",
+                    range: range
+                )
+                return driver.helpers.bindAndReturnErrorType(id, sema: sema)
+            }
             let finalType = safeCall ? sema.types.makeNullable(sema.types.booleanType) : sema.types.booleanType
             sema.bindings.bindExprType(id, type: finalType)
             return finalType
