@@ -7,7 +7,6 @@ symbol fq=__local_5.z[kind=local;type=Char;origin=fixture] kind=local vis=privat
 symbol fq=golden.sema.charFromInt[kind=fun;params=;ret=Unit;origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
 symbol fq=golden.sema.charFromUShort[kind=fun;params=;ret=Unit;origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
 symbol fq=golden.sema.makeCharArray[kind=fun;params=;ret=kotlin.CharArray;origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[] ret=kotlin.CharArray
-symbol fq=kotlin.text.code[kind=fun;recv=Char;params=;ret=Int;origin=unknown] kind=function vis=public flags=synthetic sig=recv=Char params=[] ret=Int
 file fstdlib_kotlin_n_Char package=golden.sema
   decl golden.sema.charFromInt[kind=fun;params=;ret=Unit;origin=fixture] fun charFromInt sym=golden.sema.charFromInt[kind=fun;params=;ret=Unit;origin=fixture]
   decl golden.sema.charFromUShort[kind=fun;params=;ret=Unit;origin=fixture] fun charFromUShort sym=golden.sema.charFromUShort[kind=fun;params=;ret=Unit;origin=fixture]
@@ -22,13 +21,13 @@ expr e@6:20 int(65535) type=Int
 expr e@6:15 call callee=e@6:15#1 args=[_:e@6:20] type=Char call=kotlin.Char[kind=fun;params=Int;ret=Char;names=[code]]
 expr e@6:5 localDecl max mutable=0 type=_ init=e@6:15 type=Unit ref=__local_2.max[kind=local;type=Char;origin=fixture]
 expr e@7:13 name(a) type=Char ref=__local_0.a[kind=local;type=Char;origin=fixture]
-expr e@7:13#1 memberCall recv=e@7:13 callee=code args=[] type=Int call=kotlin.text.code[kind=fun;recv=Char;params=;ret=Int;origin=unknown]
+expr e@7:13#1 memberCall recv=e@7:13 callee=code args=[] type=Int call=kotlin.text.code[kind=fun;recv=Char;params=;ret=Int]
 expr e@7:5 call callee=e@7:5#1 args=[_:e@7:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
 expr e@8:13 name(b) type=Char ref=__local_1.b[kind=local;type=Char;origin=fixture]
-expr e@8:13#1 memberCall recv=e@8:13 callee=code args=[] type=Int call=kotlin.text.code[kind=fun;recv=Char;params=;ret=Int;origin=unknown]
+expr e@8:13#1 memberCall recv=e@8:13 callee=code args=[] type=Int call=kotlin.text.code[kind=fun;recv=Char;params=;ret=Int]
 expr e@8:5 call callee=e@8:5#1 args=[_:e@8:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
 expr e@9:13 name(max) type=Char ref=__local_2.max[kind=local;type=Char;origin=fixture]
-expr e@9:13#1 memberCall recv=e@9:13 callee=code args=[] type=Int call=kotlin.text.code[kind=fun;recv=Char;params=;ret=Int;origin=unknown]
+expr e@9:13#1 memberCall recv=e@9:13 callee=code args=[] type=Int call=kotlin.text.code[kind=fun;recv=Char;params=;ret=Int]
 expr e@9:5 call callee=e@9:5#1 args=[_:e@9:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
 expr e@13:18 int(0) type=Int
 expr e@13:18#1 memberCall recv=e@13:18 callee=toUShort args=[] type=UShort
@@ -43,13 +42,13 @@ expr e@15:18#1 memberCall recv=e@15:18 callee=toUShort args=[] type=UShort
 expr e@15:13 call callee=e@15:13#1 args=[_:e@15:18#1] type=Char call=kotlin.Char[kind=fun;params=UShort;ret=Char;names=[code]]
 expr e@15:5 localDecl z mutable=0 type=_ init=e@15:13 type=Unit ref=__local_5.z[kind=local;type=Char;origin=fixture]
 expr e@16:13 name(x) type=Char ref=__local_3.x[kind=local;type=Char;origin=fixture]
-expr e@16:13#1 memberCall recv=e@16:13 callee=code args=[] type=Int call=kotlin.text.code[kind=fun;recv=Char;params=;ret=Int;origin=unknown]
+expr e@16:13#1 memberCall recv=e@16:13 callee=code args=[] type=Int call=kotlin.text.code[kind=fun;recv=Char;params=;ret=Int]
 expr e@16:5 call callee=e@16:5#1 args=[_:e@16:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
 expr e@17:13 name(y) type=Char ref=__local_4.y[kind=local;type=Char;origin=fixture]
-expr e@17:13#1 memberCall recv=e@17:13 callee=code args=[] type=Int call=kotlin.text.code[kind=fun;recv=Char;params=;ret=Int;origin=unknown]
+expr e@17:13#1 memberCall recv=e@17:13 callee=code args=[] type=Int call=kotlin.text.code[kind=fun;recv=Char;params=;ret=Int]
 expr e@17:5 call callee=e@17:5#1 args=[_:e@17:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
 expr e@18:13 name(z) type=Char ref=__local_5.z[kind=local;type=Char;origin=fixture]
-expr e@18:13#1 memberCall recv=e@18:13 callee=code args=[] type=Int call=kotlin.text.code[kind=fun;recv=Char;params=;ret=Int;origin=unknown]
+expr e@18:13#1 memberCall recv=e@18:13 callee=code args=[] type=Int call=kotlin.text.code[kind=fun;recv=Char;params=;ret=Int]
 expr e@18:5 call callee=e@18:5#1 args=[_:e@18:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
 expr e@21:46 char(97) type=Char
 expr e@21:51 char(946) type=Char

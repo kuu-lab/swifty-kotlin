@@ -12,10 +12,6 @@ symbol fq=__local_6.completion[kind=local;type=kotlin.coroutines.Continuation<In
 symbol fq=__local_7.successful[kind=local;type=kotlin.coroutines.Continuation<Unit>;origin=fixture] kind=local vis=private flags=_ type=kotlin.coroutines.Continuation<Unit>
 symbol fq=__local_8.failed[kind=local;type=kotlin.coroutines.Continuation<Unit>;origin=fixture] kind=local vis=private flags=_ type=kotlin.coroutines.Continuation<Unit>
 symbol fq=completedValue[kind=fun;params=;ret=Int;susp;origin=fixture] kind=function vis=private flags=suspendFunction sig=recv=_ params=[] ret=Int suspend=1
-symbol fq=kotlin.coroutines.Continuation.$factory.T[kind=tparam;origin=unknown] kind=typeParameter vis=private flags=synthetic
-symbol fq=kotlin.coroutines.Continuation.$factoryContext[kind=vparam;origin=unknown] kind=valueParameter vis=private flags=synthetic
-symbol fq=kotlin.coroutines.Continuation.$factoryResumeWith[kind=vparam;origin=unknown] kind=valueParameter vis=private flags=synthetic
-symbol fq=kotlin.coroutines.Continuation[kind=fun;params=kotlin.coroutines.CoroutineContext,fn{p=kotlin.Result<T0>;ret=Unit};ret=kotlin.coroutines.Continuation<T0>;gen=1;names=[context,resumeWith];origin=unknown] kind=function vis=public flags=synthetic sig=recv=_ params=[kotlin.coroutines.CoroutineContext,(kotlin.Result<kotlin.coroutines.Continuation.$factory.T>) -> Unit] ret=kotlin.coroutines.Continuation<kotlin.coroutines.Continuation.$factory.T>
 symbol fq=main[kind=fun;params=;ret=Unit;origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
 file fstdlib_kotlin_coroutines_Continuation_Continuation_n package=_
   decl Probe[kind=class;origin=fixture] class Probe sym=Probe[kind=class;origin=fixture]
@@ -33,13 +29,13 @@ expr e@22:45 int(42) type=Int
 expr e@25:56 name(EmptyCoroutineContext) type=kotlin.coroutines.EmptyCoroutineContext ref=kotlin.coroutines.EmptyCoroutineContext[kind=obj]
 expr e@25:80 blockExpr stmts=[] trailing=_ type=Unit
 expr e@25:79 lambda params=[] body=e@25:80 label=Continuation type=(kotlin.Result<Int>) -> Unit
-expr e@25:38 call callee=e@25:38#1 args=[_:e@25:56,_:e@25:79] type=kotlin.coroutines.Continuation<Int> call=kotlin.coroutines.Continuation[kind=fun;params=kotlin.coroutines.CoroutineContext,fn{p=kotlin.Result<T0>;ret=Unit};ret=kotlin.coroutines.Continuation<T0>;gen=1;names=[context,resumeWith];origin=unknown] targs=[Int]
+expr e@25:38 call callee=e@25:38#1 args=[_:e@25:56,_:e@25:79] type=kotlin.coroutines.Continuation<Int> call=kotlin.coroutines.Continuation[kind=fun;params=kotlin.coroutines.CoroutineContext,fn{p=kotlin.Result<T0>;ret=Unit};ret=kotlin.coroutines.Continuation<T0>;gen=1;names=[context,resumeWith]] targs=[Int]
 expr e@25:5 localDecl created mutable=0 type=Continuation<Int> init=e@25:38 type=Unit ref=__local_0.created[kind=local;type=kotlin.coroutines.Continuation<Int>;origin=fixture]
 expr e@26:44 name(created) type=kotlin.coroutines.Continuation<Int> ref=__local_0.created[kind=local;type=kotlin.coroutines.Continuation<Int>;origin=fixture]
 expr e@26:44#1 memberCall recv=e@26:44 callee=context args=[] type=kotlin.coroutines.CoroutineContext ref=kotlin.coroutines.Continuation.context[kind=prop;type=kotlin.coroutines.CoroutineContext]
 expr e@26:5 localDecl createdContext mutable=0 type=CoroutineContext init=e@26:44#1 type=Unit ref=__local_1.createdContext[kind=local;type=kotlin.coroutines.CoroutineContext;origin=fixture]
 expr e@27:5 name(created) type=kotlin.coroutines.Continuation<Int> ref=__local_0.created[kind=local;type=kotlin.coroutines.Continuation<Int>;origin=fixture]
-expr e@27:24 name(Result) type=kotlin.Result.Companion ref=kotlin.Result[kind=class;gen=1;variance=[o];type=kotlin.Result<T0>]
+expr e@27:24 name(Result) type=kotlin.Result.Companion ref=kotlin.Result[kind=class;gen=1;variance=[o]]
 expr e@27:39 int(7) type=Int
 expr e@27:24#1 memberCall recv=e@27:24 callee=success args=[_:e@27:39] type=kotlin.Result<Int> call=kotlin.success[kind=fun;recv=kotlin.Result.Companion;params=T0;ret=kotlin.Result<T0>;gen=1;names=[value]] targs=[Int]
 expr e@27:5#1 memberCall recv=e@27:5 callee=resumeWith args=[_:e@27:24#1] type=Unit call=kotlin.coroutines.Continuation.resumeWith[kind=fun;recv=kotlin.coroutines.Continuation<T0>;params=kotlin.Result<T0>;ret=Unit;gen=1;classGen=1;names=[result]] targs=[Int]
@@ -49,7 +45,7 @@ expr e@30:43 name(source) type=kotlin.coroutines.Continuation<Int> ref=__local_2
 expr e@30:43#1 memberCall recv=e@30:43 callee=context args=[] type=kotlin.coroutines.CoroutineContext ref=kotlin.coroutines.Continuation.context[kind=prop;type=kotlin.coroutines.CoroutineContext]
 expr e@30:5 localDecl sourceContext mutable=0 type=CoroutineContext init=e@30:43#1 type=Unit ref=__local_3.sourceContext[kind=local;type=kotlin.coroutines.CoroutineContext;origin=fixture]
 expr e@31:5 name(source) type=kotlin.coroutines.Continuation<Int> ref=__local_2.source[kind=local;type=kotlin.coroutines.Continuation<Int>;origin=fixture]
-expr e@31:23 name(Result) type=kotlin.Result.Companion ref=kotlin.Result[kind=class;gen=1;variance=[o];type=kotlin.Result<T0>]
+expr e@31:23 name(Result) type=kotlin.Result.Companion ref=kotlin.Result[kind=class;gen=1;variance=[o]]
 expr e@31:38 int(11) type=Int
 expr e@31:23#1 memberCall recv=e@31:23 callee=success args=[_:e@31:38] type=kotlin.Result<Int> call=kotlin.success[kind=fun;recv=kotlin.Result.Companion;params=T0;ret=kotlin.Result<T0>;gen=1;names=[value]] targs=[Int]
 expr e@31:5#1 memberCall recv=e@31:5 callee=resumeWith args=[_:e@31:23#1] type=Unit call=kotlin.coroutines.Continuation.resumeWith[kind=fun;recv=kotlin.coroutines.Continuation<T0>;params=kotlin.Result<T0>;ret=Unit;gen=1;classGen=1;names=[result]] targs=[Int]
@@ -68,7 +64,7 @@ expr e@36:5 localDecl throwingContext mutable=0 type=CoroutineContext init=e@36:
 expr e@38:59 name(EmptyCoroutineContext) type=kotlin.coroutines.EmptyCoroutineContext ref=kotlin.coroutines.EmptyCoroutineContext[kind=obj]
 expr e@38:83 blockExpr stmts=[] trailing=_ type=Unit
 expr e@38:82 lambda params=[] body=e@38:83 label=Continuation type=(kotlin.Result<Int>) -> Unit
-expr e@38:41 call callee=e@38:41#1 args=[_:e@38:59,_:e@38:82] type=kotlin.coroutines.Continuation<Int> call=kotlin.coroutines.Continuation[kind=fun;params=kotlin.coroutines.CoroutineContext,fn{p=kotlin.Result<T0>;ret=Unit};ret=kotlin.coroutines.Continuation<T0>;gen=1;names=[context,resumeWith];origin=unknown] targs=[Int]
+expr e@38:41 call callee=e@38:41#1 args=[_:e@38:59,_:e@38:82] type=kotlin.coroutines.Continuation<Int> call=kotlin.coroutines.Continuation[kind=fun;params=kotlin.coroutines.CoroutineContext,fn{p=kotlin.Result<T0>;ret=Unit};ret=kotlin.coroutines.Continuation<T0>;gen=1;names=[context,resumeWith]] targs=[Int]
 expr e@38:5 localDecl completion mutable=0 type=Continuation<Int> init=e@38:41 type=Unit ref=__local_6.completion[kind=local;type=kotlin.coroutines.Continuation<Int>;origin=fixture]
 expr e@39:43 callableRef recv=_ member=completedValue type=suspend () -> Int ref=completedValue[kind=fun;params=;ret=Int;susp;origin=fixture]
 expr e@39:90 name(completion) type=kotlin.coroutines.Continuation<Int> ref=__local_6.completion[kind=local;type=kotlin.coroutines.Continuation<Int>;origin=fixture]

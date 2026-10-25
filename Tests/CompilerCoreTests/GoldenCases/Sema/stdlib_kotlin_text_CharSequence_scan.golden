@@ -11,7 +11,6 @@ symbol fq=inspectNullable.$1.source[kind=vparam;origin=fixture] kind=valueParame
 symbol fq=inspectNullable[kind=fun;params=kotlin.CharSequence?;ret=Unit;names=[source];origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.CharSequence?] ret=Unit
 symbol fq=inspectScan.$2.source[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
 symbol fq=inspectScan[kind=fun;params=kotlin.CharSequence;ret=Unit;names=[source];origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.CharSequence] ret=Unit
-symbol fq=kotlin.text.code[kind=fun;recv=Char;params=;ret=Int;origin=unknown] kind=function vis=public flags=synthetic sig=recv=Char params=[] ret=Int
 file fstdlib_kotlin_text_CharSequence_scan package=_
   decl inspectScan[kind=fun;params=kotlin.CharSequence;ret=Unit;names=[source];origin=fixture] fun inspectScan sym=inspectScan[kind=fun;params=kotlin.CharSequence;ret=Unit;names=[source];origin=fixture]
   decl inspectNullable[kind=fun;params=kotlin.CharSequence?;ret=Unit;names=[source];origin=fixture] fun inspectNullable sym=inspectNullable[kind=fun;params=kotlin.CharSequence?;ret=Unit;names=[source];origin=fixture]
@@ -20,7 +19,7 @@ expr e@2:30 name(source) type=kotlin.CharSequence ref=inspectScan.$2.source[kind
 expr e@2:42 int(0) type=Int
 expr e@2:61 name(acc) type=Int ref=s-0
 expr e@2:67 name(value) type=Char ref=s-1
-expr e@2:67#1 memberCall recv=e@2:67 callee=code args=[] type=Int call=kotlin.text.code[kind=fun;recv=Char;params=;ret=Int;origin=unknown]
+expr e@2:67#1 memberCall recv=e@2:67 callee=code args=[] type=Int call=kotlin.text.code[kind=fun;recv=Char;params=;ret=Int]
 expr e@2:61#1 binary(add) lhs=e@2:61 rhs=e@2:67#1 type=Int
 expr e@2:45 lambda params=[acc,value] body=e@2:61#1 label=scan type=(Int, Char) -> Int
 expr e@2:30#1 memberCall recv=e@2:30 callee=scan args=[_:e@2:42,_:e@2:45] type=kotlin.collections.List<Int> call=kotlin.text.scan[kind=fun;recv=kotlin.CharSequence;params=T0,fn{p=T0,Char;ret=T0};ret=kotlin.collections.List<T0>;gen=1;names=[initial,operation]] targs=[Int]
@@ -69,7 +68,7 @@ expr e@20:19 name(source) type=kotlin.CharSequence ref=inspectNamed.$0.source[ki
 expr e@20:41 name(seed) type=Int ref=inspectNamed.$0.seed[kind=vparam;origin=fixture]
 expr e@20:75 name(acc) type=Int ref=s-9
 expr e@20:81 name(value) type=Char ref=s-10
-expr e@20:81#1 memberCall recv=e@20:81 callee=code args=[] type=Int call=kotlin.text.code[kind=fun;recv=Char;params=;ret=Int;origin=unknown]
+expr e@20:81#1 memberCall recv=e@20:81 callee=code args=[] type=Int call=kotlin.text.code[kind=fun;recv=Char;params=;ret=Int]
 expr e@20:75#1 binary(add) lhs=e@20:75 rhs=e@20:81#1 type=Int
 expr e@20:59 lambda params=[acc,value] body=e@20:75#1 label=scan type=(Int, Char) -> Int
 expr e@20:19#1 memberCall recv=e@20:19 callee=scan args=[initial:e@20:41,operation:e@20:59] type=kotlin.collections.List<Int> call=kotlin.text.scan[kind=fun;recv=kotlin.CharSequence;params=T0,fn{p=T0,Char;ret=T0};ret=kotlin.collections.List<T0>;gen=1;names=[initial,operation]] targs=[Int]
