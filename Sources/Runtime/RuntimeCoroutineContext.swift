@@ -862,6 +862,7 @@ func runtimeIsNativeDispatcher(_ receiver: Int) -> Bool {
     let isDispatcherObject = isRegisteredRuntimeObjectPointer(receiver)
         && UnsafeMutableRawPointer(bitPattern: receiver).flatMap { tryCast($0, to: RuntimeDispatcher.self) } != nil
     return isDispatcherTag(receiver) || isDispatcherObject
+        || runtimeIsSourceCoroutineDispatcher(receiver)
 }
 
 @_cdecl("__kk_job_is_runtime")
@@ -1329,6 +1330,10 @@ func resolveToCoroutineContext(_ raw: Int) -> RuntimeCoroutineContext {
     if isDispatcherTag(raw) {
         return RuntimeCoroutineContext(dispatcher: raw)
     }
+    if runtimeIsSourceCoroutineDispatcher(raw) {
+        runtimePinHeapObjectIfNeeded(raw)
+        return RuntimeCoroutineContext(dispatcher: raw, dispatcherHandleRaw: raw)
+    }
     guard let ptr = UnsafeMutableRawPointer(bitPattern: raw) else {
         return RuntimeCoroutineContext()
     }
@@ -1715,6 +1720,9 @@ private func runtimeEnsureMainImmediatePeer() {
 
 /// Returns the Default dispatcher for unrecognized values.
 func runtimeResolveDispatcher(from raw: Int) -> RuntimeDispatcher {
+    if let sourceDispatcher = runtimeSourceCoroutineDispatcher(from: raw) {
+        return sourceDispatcher
+    }
     if isRegisteredRuntimeObjectPointer(raw),
        let ptr = UnsafeMutableRawPointer(bitPattern: raw),
        let dispatcher = tryCast(ptr, to: RuntimeDispatcher.self) {
