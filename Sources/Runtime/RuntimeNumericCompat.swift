@@ -495,8 +495,28 @@ private func runtimeKTypeProjectionHashCode(_ projection: RuntimeKTypeProjection
 
 private func runtimeUnboxedAnyKind(_ tag: Int32) -> Int32 {
     switch tag {
-    case 2, 5, 6:
-        return tag
+    case 2:
+        return 2 // Boolean
+    case 4:
+        return 7 // Char
+    case 5:
+        return 5 // Float
+    case 6:
+        return 6 // Double
+    case 7:
+        return 10 // ULong
+    case 8:
+        return 4 // Long
+    case 9:
+        return 12 // UInt
+    case 10:
+        return 13 // UByte
+    case 11:
+        return 14 // UShort
+    case 12:
+        return 15 // Byte
+    case 13:
+        return 16 // Short
     default:
         return 1
     }
@@ -527,8 +547,23 @@ private func runtimeAnyKind(_ value: Int, _ tag: Int32) -> Int32 {
     if tryCast(pointer, to: RuntimeStringBox.self) != nil {
         return 3
     }
-    if tryCast(pointer, to: RuntimeIntBox.self) != nil {
-        return 1
+    if let intBox = tryCast(pointer, to: RuntimeIntBox.self) {
+        switch intBox.primitiveTypeBase {
+        case RuntimeTypeTokenEncoding.uintBase:
+            return 12
+        case RuntimeTypeTokenEncoding.ubyteBase:
+            return 13
+        case RuntimeTypeTokenEncoding.ushortBase:
+            return 14
+        case RuntimeTypeTokenEncoding.byteBase:
+            return 15
+        case RuntimeTypeTokenEncoding.shortBase:
+            return 16
+        default:
+            // Enum ordinals deliberately share the Int kind here. Their
+            // nominal identity is checked by runtimeValuesEqual below.
+            return 1
+        }
     }
     if tryCast(pointer, to: RuntimeLongBox.self) != nil {
         return 4
