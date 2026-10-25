@@ -98,6 +98,17 @@ public fun String.encodeToByteArray(startIndex: Int = 0, endIndex: Int = this.le
     return this.__kk_string_encodeToByteArray_range_flat(startIndex, endIndex)
 }
 
+// JVM-style `java.lang.String.getBytes` overloads. The native default charset
+// is always UTF-8 (docs/stdlib-pipeline.md), matching encodeToByteArray().
+public fun String.getBytes(): ByteArray =
+    this.__kk_string_encodeToByteArray_flat()
+
+public fun String.getBytes(charset: Charset): ByteArray =
+    this.__kk_string_encodeToByteArray_charset_flat(charset.tag)
+
+public fun String.getBytes(charsetName: String): ByteArray =
+    getBytes(java.nio.charset.Charset.forName(charsetName))
+
 public fun ByteArray.decodeToString(): String =
     this.__kk_bytearray_decodeToString()
 
