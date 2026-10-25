@@ -149,6 +149,11 @@ enum MemberRuntimeDispatch {
         sema: SemaModule,
         interner: StringInterner
     ) -> MemberDispatchReceiverKind? {
+        // Floating-point ranges retain a scalar handle type during inference,
+        // but their runtime boxes do not support integer progression operations.
+        guard !sema.bindings.isFloatingPointRangeExpr(receiverExpr) else {
+            return nil
+        }
         if let nominalKind = rangeReceiverKind(for: receiverType, sema: sema, interner: interner) {
             return nominalKind
         }
