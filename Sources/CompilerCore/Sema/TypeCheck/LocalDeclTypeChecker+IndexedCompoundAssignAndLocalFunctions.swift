@@ -278,23 +278,39 @@ extension LocalDeclTypeChecker {
         let sema = ctx.sema
         let interner = ctx.interner
         let nonNullElement = sema.types.makeNonNullable(elementType)
-        if elementType == sema.types.errorType || nonNullElement == sema.types.stringType {
-            return .builtin
-        }
-        if case .primitive = sema.types.kind(of: nonNullElement),
-           nonNullElement != sema.types.charType,
-           sema.types.makeNonNullable(valueType) != sema.types.charType
-        {
+        if elementType == sema.types.errorType {
             return .builtin
         }
         let exprChecker = driver.exprChecker
 
         if ctx.ast.arena.isIncrementDecrement(id) {
+            // `a[i]++` / `a[i]--` must apply the element's `inc()` / `dec()`,
+            // mirroring `inferIncrementDecrementIfNeeded` for non-indexed
+            // targets. Checking before the String/primitive early-outs matters:
+            // a String element otherwise fell into the builtin `+1` concat path
+            // even when `String.inc` is in scope, so statement-position
+            // `a[i]++` silently diverged from the expression-position desugar.
+            // Char is primitive: `collectOperatorCandidates` never returns
+            // extension `inc`/`dec` for it, so `charArr[i]++` must keep the
+            // builtin Char arithmetic path — matching how `c++` on a Char
+            // local also lowers through builtin Char arithmetic.
+            if exprChecker.isBuiltinNumericIncrementDecrementTarget(nonNullElement, sema: sema)
+                || nonNullElement == sema.types.charType
+            {
+                return .builtin
+            }
             let name = interner.intern(op == .plusAssign ? "inc" : "dec")
             guard let (call, returnType) = resolveElementOperatorCall(
                 names: [name], args: [], elementType: elementType, range: range, locals: locals, ctx: ctx
             ) else {
-                return .builtin
+                // Non-numeric elements have no builtin `++`/`--`; a missing
+                // inc()/dec() is an error, like the non-indexed path reports.
+                ctx.sema.diagnostics.error(
+                    "KSWIFTK-SEMA-0002",
+                    "No viable overload found for operator '\(interner.resolve(name))'.",
+                    range: range
+                )
+                return .failed
             }
             guard sema.types.isSubtype(returnType, elementType) else {
                 ctx.sema.diagnostics.error(
@@ -307,6 +323,16 @@ extension LocalDeclTypeChecker {
             return .resolved(IndexedCompoundAssignElementOperatorBinding(
                 call: call, kind: .incrementDecrement, elementType: elementType, resultType: returnType
             ))
+        }
+
+        if nonNullElement == sema.types.stringType {
+            return .builtin
+        }
+        if case .primitive = sema.types.kind(of: nonNullElement),
+           nonNullElement != sema.types.charType,
+           sema.types.makeNonNullable(valueType) != sema.types.charType
+        {
+            return .builtin
         }
 
         let assignNames = exprChecker.operatorFunctionNames(for: op, interner: interner)
