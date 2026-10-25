@@ -129,7 +129,28 @@ struct DeclarationPositionValidator {
         }
     }
 
+    static func validateFunctionValueParameters(
+        _ valueParams: [ValueParamDecl],
+        range: SourceRange,
+        diagnostics: DiagnosticEngine?
+    ) {
+        for parameter in valueParams where parameter.isProperty {
+            let modifier = parameter.isMutableProperty ? "var" : "val"
+            diagnostics?.error(
+                "KSWIFTK-SEMA-0444",
+                "'\(modifier)' on function parameter is prohibited.",
+                range: range
+            )
+        }
+    }
+
     private func validateFunction(_ decl: FunDecl, site: OwnerSite) {
+        Self.validateFunctionValueParameters(
+            decl.valueParams,
+            range: decl.range,
+            diagnostics: diagnostics
+        )
+
         let modifiers = decl.modifiers
         validateVisibilityModifierConflicts(modifiers, range: decl.range)
         let target = functionTargetName(site: site)

@@ -1153,6 +1153,12 @@ enum DiagnosticRegistry {
             defaultSeverity: .error,
             summary: "Variance annotations are only allowed for type parameters of classes and interfaces."
         ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0444",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "'val' and 'var' parameters are only allowed in primary constructors."
+        ),
     ]
 
 

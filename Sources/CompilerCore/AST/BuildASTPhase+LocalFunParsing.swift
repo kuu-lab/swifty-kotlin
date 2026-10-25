@@ -215,6 +215,12 @@ extension BuildASTPhase {
             diagnostics: diagnostics
         )
 
+        DeclarationPositionValidator.validateFunctionValueParameters(
+            valueParams,
+            range: head.range,
+            diagnostics: diagnostics
+        )
+
         guard index < funTokens.count, funTokens[index].kind == .symbol(.rParen) else {
             return nil
         }

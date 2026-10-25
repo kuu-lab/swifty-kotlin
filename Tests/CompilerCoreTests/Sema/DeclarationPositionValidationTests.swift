@@ -39,6 +39,28 @@ struct DeclarationPositionValidationTests {
         #expect(!ctx.diagnostics.diagnostics.contains { $0.severity == .error })
     }
 
+    @Test(arguments: [
+        ("fun f(val x: Int) = x", "val"),
+        ("fun f(var x: Int) = x", "var"),
+        ("class C { fun f(val x: Int) = x }", "val"),
+        ("fun outer() { fun f(var x: Int) = x }", "var"),
+        ("val f = fun(val x: Int): Int = x", "val"),
+    ])
+    func propertyModifiersOnFunctionParametersAreRejected(source: String, modifier: String) throws {
+        let ctx = try semaContextWithoutStdlib(for: source)
+        let diagnostics = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0444" }
+
+        #expect(diagnostics.contains {
+            $0.message == "'\(modifier)' on function parameter is prohibited."
+        })
+    }
+
+    @Test
+    func primaryConstructorPropertyParametersRemainAccepted() throws {
+        let ctx = try semaContextWithoutStdlib(for: "class C(val x: Int, var y: Int)")
+        assertNoDiagnostic("KSWIFTK-SEMA-0444", in: ctx)
+    }
+
     // MARK: - Declaration positions
 
     @Test func constValInsideClassIsRejected() throws {
