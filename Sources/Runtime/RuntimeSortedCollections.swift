@@ -484,6 +484,36 @@ public func kk_sorted_map_sub_map(
     )
 }
 
+@_cdecl("__kk_sorted_map_head_map")
+public func kk_sorted_map_head_map(
+    _ mapRaw: Int,
+    _ toKey: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    let range = RuntimeSortedRange(lowerBoundRaw: nil, upperBoundRaw: toKey)
+    if let map = runtimeMapBox(from: mapRaw), !map.acceptsRangeView(range) {
+        runtimeSetThrown(outThrown, runtimeAllocateIllegalArgumentException(message: "Range endpoint outside existing view"))
+        return runtimeNullSentinelInt
+    }
+    return runtimeSortedMapRangeView(mapRaw: mapRaw, range: range)
+}
+
+@_cdecl("__kk_sorted_map_tail_map")
+public func kk_sorted_map_tail_map(
+    _ mapRaw: Int,
+    _ fromKey: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    let range = RuntimeSortedRange(lowerBoundRaw: fromKey, upperBoundRaw: nil)
+    if let map = runtimeMapBox(from: mapRaw), !map.acceptsRangeView(range) {
+        runtimeSetThrown(outThrown, runtimeAllocateIllegalArgumentException(message: "Range endpoint outside existing view"))
+        return runtimeNullSentinelInt
+    }
+    return runtimeSortedMapRangeView(mapRaw: mapRaw, range: range)
+}
+
 /// Binary-search a navigable key bound over the map's key order — same
 /// lower/floor vs ceiling/higher parameterization as `runtimeSortedSetBound`.
 private func runtimeSortedMapBound(
