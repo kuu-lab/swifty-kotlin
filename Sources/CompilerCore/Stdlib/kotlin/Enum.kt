@@ -18,7 +18,7 @@ public abstract class Enum<T : Enum<T>> protected constructor(
     name: String,
     ordinal: Int
 ) : Comparable<T> {
-    @KsSymbolName("__kk_comparable_compareTo")
+    @KsSymbolName("kk_enum_compareTo")
     public final override external operator fun compareTo(other: T): Int
 
     @KsSymbolName("kk_any_member_equals")
