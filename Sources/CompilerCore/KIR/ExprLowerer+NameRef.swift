@@ -1183,13 +1183,24 @@ extension ExprLowerer {
                         instructions: &instructions
                     )
                 }
-                // A custom setter gives an object property a distinct backing
-                // field. Its compiler-provided getter reads that field, so a
-                // bare imported property reference must do the same.
+                // A custom setter or an explicit `field = ...` declaration
+                // (Kotlin 2.x backing field) gives the property a distinct
+                // backing field. Its compiler-provided default accessors
+                // read/write that field, so a bare storage reference must do
+                // the same — for package-owned properties just as for the
+                // object-owned ones this already handled. A property whose
+                // reads dispatch to a real getter accessor keeps loading its
+                // own symbol here so PropertyLoweringPass can rewrite the load
+                // into the emitted getter call.
                 let storageSymbol: SymbolID
                 if sym.kind == .property,
-                   sema.symbols.parentSymbol(for: symbol).flatMap({ sema.symbols.symbol($0) })?.kind == .object,
-                   let backingField = sema.symbols.backingFieldSymbol(for: symbol)
+                   let backingField = sema.symbols.backingFieldSymbol(for: symbol),
+                   {
+                       let parentIsObject = sema.symbols.parentSymbol(for: symbol)
+                           .flatMap({ sema.symbols.symbol($0) })?.kind == .object
+                       return parentIsObject
+                           || !driver.callLowerer.memberPropertyUsesAccessor(symbol, ast: ast, sema: sema)
+                   }()
                 {
                     storageSymbol = backingField
                 } else {

@@ -465,9 +465,22 @@ extension ExprLowerer {
                     )
                 }
                 let propType = sema.symbols.propertyType(for: symbol) ?? sema.types.anyType
-                let backingFieldSymbol = isObjectOwnedProperty
+                // Package- and object-owned properties share module-global
+                // storage. When a property has a distinct backing field (a
+                // custom accessor or an explicit `field = ...` declaration),
+                // its compiler-provided default accessors read/write that
+                // field, so direct storage access must target it rather than
+                // the property's own global. The read side keeps the property
+                // symbol whenever a real getter accessor exists so
+                // PropertyLoweringPass can rewrite the load into the emitted
+                // getter call (object owners dispatch the getter through
+                // objectReceiver in the branch below instead).
+                let usesGetterAccessor = isObjectOwnedProperty
+                    && driver.callLowerer.memberPropertyUsesAccessor(symbol, ast: ast, sema: sema)
+                let readBackingFieldSymbol = !driver.callLowerer.memberPropertyUsesAccessor(symbol, ast: ast, sema: sema)
                     ? sema.symbols.backingFieldSymbol(for: symbol)
                     : nil
+                let writeBackingFieldSymbol = sema.symbols.backingFieldSymbol(for: symbol)
                 let objectReceiver: KIRExprID? = {
                     guard isObjectOwnedProperty, let ownerSymbol else { return nil }
                     let ownerType = sema.types.make(.classType(ClassType(
@@ -477,8 +490,6 @@ extension ExprLowerer {
                     instructions.append(.constValue(result: receiver, value: .symbolRef(ownerSymbol)))
                     return receiver
                 }()
-                let usesGetterAccessor = isObjectOwnedProperty
-                    && driver.callLowerer.memberPropertyUsesAccessor(symbol, ast: ast, sema: sema)
                 let setterSymbol: SymbolID? = if sema.symbols.symbol(symbol)?.kind == .property,
                                                  (parentKind == nil || parentKind == .package || isObjectOwnedProperty),
                                                  driver.callLowerer.memberPropertyUsesSetterAccessor(symbol, ast: ast, sema: sema)
@@ -489,7 +500,7 @@ extension ExprLowerer {
                     nil
                 }
                 let globalRef: KIRExprID?
-                if setterSymbol == nil && backingFieldSymbol == nil {
+                if setterSymbol == nil && writeBackingFieldSymbol == nil {
                     let ref = arena.appendExpr(.symbolRef(symbol), type: propType)
                     instructions.append(.constValue(result: ref, value: .symbolRef(symbol)))
                     globalRef = ref
@@ -525,7 +536,7 @@ extension ExprLowerer {
                     )
                     loadedValue = result
                 } else {
-                    let storageSymbol = backingFieldSymbol ?? symbol
+                    let storageSymbol = readBackingFieldSymbol ?? symbol
                     loadedValue = arena.appendExpr(.symbolRef(storageSymbol), type: propType)
                     instructions.append(.loadGlobal(result: loadedValue, symbol: storageSymbol))
                 }
@@ -552,15 +563,15 @@ extension ExprLowerer {
                             result: arena.appendTemporary(type: sema.types.unitType),
                             canThrow: false
                         ))
-                    } else if let backingFieldSymbol {
+                    } else if let writeBackingFieldSymbol {
                         let storedValue = normalizedValueForNullablePrimitiveSlot(
                             value,
-                            slotType: sema.symbols.propertyType(for: backingFieldSymbol) ?? propType,
+                            slotType: sema.symbols.propertyType(for: writeBackingFieldSymbol) ?? propType,
                             types: sema.types,
                             arena: arena,
                             into: &instructions
                         )
-                        instructions.append(.storeGlobal(value: storedValue, symbol: backingFieldSymbol))
+                        instructions.append(.storeGlobal(value: storedValue, symbol: writeBackingFieldSymbol))
                     } else if let globalRef {
                         instructions.append(.copy(from: value, to: globalRef))
                     }
