@@ -1078,7 +1078,45 @@ extension DataFlowSemaPhase {
                     interner: interner,
                     reportUnresolved: reportUnresolved
                 )
-                return types.make(.classType(ClassType(classSymbol: nominalSymbol, args: resolvedArgs, nullability: nullability)))
+                // A bare inner-class name supplies no enclosing arguments, so
+                // the implicit enclosing instance fills those slots (`KeySet`
+                // inside `CIM<Value>` spells `CIM<Value>.KeySet`).
+                var nominalArgs = resolvedArgs
+                let enclosingCount = types.enclosingTypeParameterSymbols(for: nominalSymbol).count
+                if enclosingCount > 0 {
+                    var instanceTypes: [TypeID] = []
+                    for scope in enclosingClassScopes.reversed() {
+                        guard let ownerID = symbols.lookup(fqName: scope),
+                              let owner = symbols.symbol(ownerID),
+                              self.isNominalTypeSymbol(owner.kind)
+                        else {
+                            continue
+                        }
+                        instanceTypes.append(contentsOf: self.lexicalOwnerInstanceTypes(
+                            forOwnerID: ownerID,
+                            ownerFQName: scope,
+                            ast: ast,
+                            symbols: symbols,
+                            types: types,
+                            interner: interner,
+                            currentPackageFQName: currentPackage,
+                            imports: imports
+                        ))
+                        guard owner.flags.contains(.innerClass) else {
+                            break
+                        }
+                    }
+                    let implicitEnclosing = types.implicitInnerClassEnclosingArgs(
+                        for: nominalSymbol,
+                        enclosingInstanceTypes: instanceTypes
+                    )
+                    if path.count == 1 {
+                        nominalArgs = implicitEnclosing + resolvedArgs
+                    } else if resolvedArgs.count < enclosingCount {
+                        nominalArgs = Array(implicitEnclosing.prefix(enclosingCount - resolvedArgs.count)) + resolvedArgs
+                    }
+                }
+                return types.make(.classType(types.classType(for: nominalSymbol, arguments: nominalArgs, nullability: nullability)))
             }
             // Enclosing class scopes also contribute member classifiers
             // inherited through their supertypes (e.g. `I` -> `Outer.I`
