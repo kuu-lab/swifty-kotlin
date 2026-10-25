@@ -164,6 +164,7 @@ extension CallLowerer {
                 elementOperator,
                 element: getResult,
                 valueID: valueID,
+                callExprID: exprID,
                 ast: ast,
                 sema: sema,
                 arena: arena,
@@ -371,6 +372,7 @@ extension CallLowerer {
                 elementOperator,
                 element: getResult,
                 valueID: valueID,
+                callExprID: exprID,
                 ast: ast,
                 sema: sema,
                 arena: arena,
@@ -547,6 +549,7 @@ extension CallLowerer {
         _ binding: IndexedCompoundAssignElementOperatorBinding,
         element: KIRExprID,
         valueID: KIRExprID,
+        callExprID: ExprID?,
         ast: ASTModule,
         sema: SemaModule,
         arena: KIRArena,
@@ -555,13 +558,18 @@ extension CallLowerer {
         instructions: inout [KIRInstruction]
     ) -> KIRExprID? {
         let callee = binding.call.chosenCallee
-        var arguments = [element]
-        if binding.kind != .incrementDecrement {
-            let normalized = driver.callSupportLowerer.normalizedCallArguments(
-                providedArguments: [valueID],
+        if binding.kind == .incrementDecrement {
+            // `++`/`--` invoke `inc()`/`dec()` with no explicit arguments, so
+            // defaulted parameters must ride the `<name>$default` stub just
+            // like an explicit `a.inc()` call.
+            let callResult = arena.appendTemporary(type: binding.resultType)
+            emitIncrementDecrementOperatorCall(
                 callBinding: binding.call,
-                chosenCallee: callee,
-                spreadFlags: [false],
+                operatorName: sema.symbols.symbol(callee)
+                    .map { interner.resolve($0.name) } ?? "inc",
+                receiverArgument: element,
+                callExprID: callExprID,
+                result: callResult,
                 ast: ast,
                 sema: sema,
                 arena: arena,
@@ -569,8 +577,22 @@ extension CallLowerer {
                 propertyConstantInitializers: propertyConstantInitializers,
                 instructions: &instructions
             )
-            arguments.append(contentsOf: normalized.arguments)
+            return callResult
         }
+        var arguments = [element]
+        let normalized = driver.callSupportLowerer.normalizedCallArguments(
+            providedArguments: [valueID],
+            callBinding: binding.call,
+            chosenCallee: callee,
+            spreadFlags: [false],
+            ast: ast,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            propertyConstantInitializers: propertyConstantInitializers,
+            instructions: &instructions
+        )
+        arguments.append(contentsOf: normalized.arguments)
         let loweredCalleeName: InternedString = if let externalLinkName = sema.symbols.externalLinkName(for: callee),
                                                    !externalLinkName.isEmpty
         {
