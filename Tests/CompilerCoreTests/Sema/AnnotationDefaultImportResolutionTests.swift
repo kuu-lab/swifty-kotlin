@@ -26,8 +26,10 @@ struct AnnotationDefaultImportResolutionTests {
         let interner = StringInterner()
         let symbols = SymbolTable()
         define("kotlin.jvm.Volatile", symbols: symbols, interner: interner)
+        if kind == "lexical" { define("client.Owner", kind: .class, symbols: symbols, interner: interner) }
         let expected = kind == "package" ? "client.Volatile"
-            : kind == "lexical" ? "client.Owner.Volatile" : "custom.Volatile"
+            : kind == "lexical" ? "client.Owner.Volatile"
+            : kind == "alias" ? "custom.Marker" : "custom.Volatile"
         define(expected, symbols: symbols, interner: interner)
         let imports: [ImportDecl]
         switch kind {
@@ -35,15 +37,15 @@ struct AnnotationDefaultImportResolutionTests {
             let location = SourceLocation(file: .invalid, offset: 0)
             imports = [ImportDecl(
                 range: SourceRange(start: location, end: location),
-                path: (kind == "wildcard" ? ["custom"] : ["custom", "Volatile"]).map(interner.intern),
-                alias: kind == "alias" ? interner.intern("Mark") : nil,
+                path: (kind == "wildcard" ? ["custom"] : ["custom", kind == "alias" ? "Marker" : "Volatile"]).map(interner.intern),
+                alias: kind == "alias" ? interner.intern("Volatile") : nil,
                 isWildcard: kind == "wildcard"
             )]
         default:
             imports = []
         }
         let resolved = resolveAnnotationSymbol(
-            named: kind == "alias" ? "Mark" : "Volatile",
+            named: "Volatile",
             in: makeFile(package: "client", imports: imports, interner: interner),
             symbols: symbols, interner: interner,
             enclosingFQName: kind == "lexical" ? ["client", "Owner"].map(interner.intern) : []
@@ -52,9 +54,15 @@ struct AnnotationDefaultImportResolutionTests {
     }
 
     @discardableResult
-    private func define(_ name: String, symbols: SymbolTable, interner: StringInterner) -> SymbolID {
+    private func define(_ name: String, kind: SymbolKind = .annotationClass, symbols: SymbolTable, interner: StringInterner) -> SymbolID {
         let path = name.split(separator: ".").map { interner.intern(String($0)) }
-        return symbols.define(kind: .annotationClass, name: path.last!, fqName: path, declSite: nil, visibility: .public)
+        for count in 1..<path.count {
+            let prefix = Array(path.prefix(count))
+            if symbols.lookup(fqName: prefix) == nil {
+                _ = symbols.define(kind: .package, name: prefix.last!, fqName: prefix, declSite: nil, visibility: .public)
+            }
+        }
+        return symbols.define(kind: kind, name: path.last!, fqName: path, declSite: nil, visibility: .public)
     }
 
     private func makeFile(package: String, imports: [ImportDecl] = [], interner: StringInterner) -> ASTFile {
