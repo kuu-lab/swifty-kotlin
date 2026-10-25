@@ -260,4 +260,90 @@ struct InnerClassTypeParameterScopeTests {
             #expect(sema.symbols.propertyType(for: property) == sema.types.make(.typeParam(TypeParamType(symbol: parameter))))
         }
     }
+
+    @Test
+    func unqualifiedInnerClassTypeSpellsCapturedOuterArguments() throws {
+        // KUU-3240: `KeySet` inside `CIM<Value>` must spell `CIM<Value>.KeySet`
+        // so constructor results match properties, locals and return types.
+        try withTemporaryFile(contents: """
+        class CIM<Value> {
+            private var cached: KeySet? = null
+            fun f() {
+                cached = KeySet()
+                val s: KeySet = KeySet()
+            }
+            fun g(): KeySet = KeySet()
+            private inner class KeySet {
+                fun h(): KeySet = KeySet()
+            }
+        }
+        """) { path in
+            let ctx = makeCompilationContext(inputs: [path], includeStdlib: false)
+            try runSema(ctx)
+            #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+            let sema = try #require(ctx.sema)
+            let outer = try #require(sema.symbols.lookup(fqName: ["CIM"].map(ctx.interner.intern)))
+            let keySet = try #require(sema.symbols.lookup(fqName: ["CIM", "KeySet"].map(ctx.interner.intern)))
+            let outerParameter = try #require(sema.types.nominalTypeParameterSymbols(for: outer).first)
+            let captured: [TypeArg] = [.invariant(sema.types.make(.typeParam(TypeParamType(symbol: outerParameter))))]
+            let expected = sema.types.make(.classType(sema.types.classType(for: keySet, arguments: captured)))
+            let property = try #require(sema.symbols.lookup(fqName: ["CIM", "cached"].map(ctx.interner.intern)))
+            #expect(sema.symbols.propertyType(for: property) == sema.types.makeNullable(expected))
+            let gSymbol = try #require(sema.symbols.lookup(fqName: ["CIM", "g"].map(ctx.interner.intern)))
+            let g = try #require(sema.symbols.functionSignature(for: gSymbol))
+            #expect(g.returnType == expected)
+            let hSymbol = try #require(sema.symbols.lookup(fqName: ["CIM", "KeySet", "h"].map(ctx.interner.intern)))
+            let h = try #require(sema.symbols.functionSignature(for: hSymbol))
+            #expect(h.returnType == expected)
+        }
+    }
+
+    @Test
+    func unqualifiedInnerClassTypeStillResolvesWithoutGenericOuter() throws {
+        try withTemporaryFile(contents: """
+        class Outer {
+            private var cached: KeySet? = null
+            fun f() {
+                cached = KeySet()
+                val s: KeySet = KeySet()
+            }
+            fun g(): KeySet = KeySet()
+            inner class KeySet
+        }
+        """) { path in
+            let ctx = makeCompilationContext(inputs: [path], includeStdlib: false)
+            try runSema(ctx)
+            #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+        }
+    }
+
+    @Test
+    func inheritedInnerClassTypeLiftsOuterArgumentsFromReceiver() throws {
+        // `KeySet` inside `Sub : CIM<Int>` spells `CIM<Int>.KeySet`, matching
+        // the constructor result lifted through `Sub`'s inherited instance.
+        try withTemporaryFile(contents: """
+        open class CIM<Value> {
+            inner class KeySet
+        }
+        class Sub : CIM<Int>() {
+            fun f() {
+                val s: KeySet = KeySet()
+            }
+            fun g(): KeySet = KeySet()
+        }
+        """) { path in
+            let ctx = makeCompilationContext(inputs: [path], includeStdlib: false)
+            try runSema(ctx)
+            #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+            let sema = try #require(ctx.sema)
+            let sub = try #require(sema.symbols.lookup(fqName: ["Sub"].map(ctx.interner.intern)))
+            let cim = try #require(sema.symbols.lookup(fqName: ["CIM"].map(ctx.interner.intern)))
+            let keySet = try #require(sema.symbols.lookup(fqName: ["CIM", "KeySet"].map(ctx.interner.intern)))
+            let liftedArgs = sema.symbols.supertypeTypeArgs(for: sub, supertype: cim)
+            let expected = sema.types.make(.classType(sema.types.classType(for: keySet, arguments: liftedArgs)))
+            let gSymbol = try #require(sema.symbols.lookup(fqName: ["Sub", "g"].map(ctx.interner.intern)))
+            let g = try #require(sema.symbols.functionSignature(for: gSymbol))
+            #expect(g.returnType == expected)
+        }
+    }
 }

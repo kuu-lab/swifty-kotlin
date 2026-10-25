@@ -644,6 +644,42 @@ public final class TypeSystem {
         enclosingTypeParameterSymbols(for: nominal) + nominalTypeParameterSymbols(for: nominal)
     }
 
+    /// The enclosing-instance type arguments a bare reference to an inner
+    /// class implies. `KeySet` inside `CIM<Value>` spells `CIM<Value>.KeySet`,
+    /// so a resolved class type must carry the enclosing owner's arguments in
+    /// `enclosingTypeArgs`; a qualified reference (`CIM<Int>.KeySet`)
+    /// supplies them explicitly.
+    ///
+    /// `enclosingInstanceTypes` lists the lexical receiver/owner types that
+    /// can back the implicit enclosing instance, innermost first. A self
+    /// type such as `CIM<Value>` lifts to `[Value]` directly; inside
+    /// `Sub : CIM<Int>` the instance is a `Sub`, so lifting it to `CIM`
+    /// yields `[Int]` rather than `CIM`'s own type parameter. When no
+    /// candidate lifts — e.g. a member of a non-`inner` nested class, whose
+    /// context has no enclosing instance — the reference keeps its bare
+    /// shape (empty `enclosingTypeArgs`), matching the previous behavior.
+    public func implicitInnerClassEnclosingArgs(
+        for nominal: SymbolID,
+        enclosingInstanceTypes: [TypeID] = []
+    ) -> [TypeArg] {
+        let enclosingParameters = enclosingTypeParameterSymbols(for: nominal)
+        guard !enclosingParameters.isEmpty,
+              let outerOwner = symbolTable?.parentSymbol(for: nominal)
+        else {
+            return []
+        }
+        for instanceType in enclosingInstanceTypes {
+            guard case let .classType(receiverClass) = kind(of: makeNonNullable(instanceType)),
+                  let lifted = liftedNominalSupertypeArgs(from: receiverClass, to: outerOwner),
+                  lifted.count == enclosingParameters.count
+            else {
+                continue
+            }
+            return lifted
+        }
+        return []
+    }
+
     public func enclosingTypeParameterVariances(for nominal: SymbolID) -> [TypeVariance] {
         guard let symbolTable,
               symbolTable.symbol(nominal)?.flags.contains(.innerClass) == true

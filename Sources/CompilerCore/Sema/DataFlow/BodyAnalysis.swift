@@ -245,9 +245,33 @@ extension DataFlowSemaPhase {
                 // Qualified inner-class references (`Outer<V>.Inner`) supply
                 // the qualifier's arguments; route through the nominal split so
                 // they land in enclosingTypeArgs rather than the class's own args.
+                // A bare name supplies none, so the implicit enclosing instance
+                // fills those slots (`KeySet` inside `CIM<Value>` spells
+                // `CIM<Value>.KeySet`).
+                var nominalArgs = resolvedArgs
+                let enclosingCount = types.enclosingTypeParameterSymbols(for: resolved.id).count
+                if enclosingCount > 0 {
+                    let implicitEnclosing = types.implicitInnerClassEnclosingArgs(
+                        for: resolved.id,
+                        enclosingInstanceTypes: lexicalOwnerSelfTypes(
+                            relativeOwnerFQName: relativeOwnerFQName,
+                            ast: ast,
+                            symbols: symbols,
+                            types: types,
+                            interner: interner,
+                            currentPackageFQName: currentPackageFQName,
+                            imports: imports
+                        )
+                    )
+                    if path.count == 1 {
+                        nominalArgs = implicitEnclosing + resolvedArgs
+                    } else if resolvedArgs.count < enclosingCount {
+                        nominalArgs = Array(implicitEnclosing.prefix(enclosingCount - resolvedArgs.count)) + resolvedArgs
+                    }
+                }
                 return types.make(.classType(types.classType(
                     for: resolved.id,
-                    arguments: resolvedArgs,
+                    arguments: nominalArgs,
                     nullability: nullability
                 )))
             }
@@ -416,6 +440,214 @@ extension DataFlowSemaPhase {
                 diagnostics: diagnostics,
                 range: usageRange
             )
+        }
+    }
+
+    /// Self types of the lexical nominal owners enclosing a type reference,
+    /// innermost first, together with each owner's inherited-instance views
+    /// (`CIM<Int>` for `Sub : CIM<Int>`). An inner class reference resolves
+    /// its implicit enclosing instance from this chain: inside `Sub` the
+    /// instance is a `Sub` lifted through its declared `CIM<Int>` supertype.
+    ///
+    /// The chain mirrors the implicit receiver tower: a non-`inner` nested
+    /// owner (class/object/interface) does not capture an enclosing instance,
+    /// so the walk stops there; an `inner` class passes its parent's instance
+    /// through.
+    private func lexicalOwnerSelfTypes(
+        relativeOwnerFQName: [InternedString]?,
+        ast: ASTModule,
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner,
+        currentPackageFQName: [InternedString]?,
+        imports: [ImportDecl]
+    ) -> [TypeID] {
+        var ownerPath = relativeOwnerFQName ?? []
+        var selfTypes: [TypeID] = []
+        while !ownerPath.isEmpty {
+            guard let ownerID = symbols.lookup(fqName: ownerPath),
+                  let owner = symbols.symbol(ownerID),
+                  isNominalTypeSymbol(owner.kind)
+            else {
+                ownerPath.removeLast()
+                continue
+            }
+            selfTypes.append(contentsOf: lexicalOwnerInstanceTypes(
+                forOwnerID: ownerID,
+                ownerFQName: ownerPath,
+                ast: ast,
+                symbols: symbols,
+                types: types,
+                interner: interner,
+                currentPackageFQName: currentPackageFQName,
+                imports: imports
+            ))
+            ownerPath.removeLast()
+            guard owner.flags.contains(.innerClass) else {
+                break
+            }
+        }
+        return selfTypes
+    }
+
+    /// The candidate enclosing-instance types one lexical owner contributes:
+    /// its self type (e.g. `Sub` or `CIM<Value>`) followed by the types its
+    /// declared supertype clause resolves to (`CIM<Int>` for `Sub : CIM<Int>`).
+    func lexicalOwnerInstanceTypes(
+        forOwnerID ownerID: SymbolID,
+        ownerFQName: [InternedString],
+        ast: ASTModule,
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner,
+        currentPackageFQName: [InternedString]?,
+        imports: [ImportDecl]
+    ) -> [TypeID] {
+        let parameters = types.allTypeParameterSymbols(for: ownerID)
+        let arguments = parameters.map { parameter in
+            TypeArg.invariant(types.make(.typeParam(TypeParamType(symbol: parameter))))
+        }
+        return [types.make(.classType(types.classType(for: ownerID, arguments: arguments)))]
+            + declaredSupertypeInstanceTypes(
+                of: ownerID,
+                ownerFQName: ownerFQName,
+                ast: ast,
+                symbols: symbols,
+                types: types,
+                interner: interner,
+                currentPackageFQName: currentPackageFQName,
+                imports: imports,
+                visited: [ownerID]
+            )
+    }
+
+    /// Nominal types an owner's declared supertype clause resolves to, with
+    /// transitive supertypes flattened. Supertype-argument maps only exist
+    /// after `bindInheritanceEdges` runs, so header-time resolution walks the
+    /// written clauses instead: `Sub : CIM<Int>` supplies `CIM<Int>` directly.
+    private func declaredSupertypeInstanceTypes(
+        of ownerID: SymbolID,
+        ownerFQName: [InternedString],
+        ast: ASTModule,
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner,
+        currentPackageFQName: [InternedString]?,
+        imports: [ImportDecl],
+        visited: Set<SymbolID>,
+        depth: Int = 0
+    ) -> [TypeID] {
+        guard depth < DataFlowSemaPhase.maxStructuralRecursionDepth,
+              let declID = nominalDeclID(forFQName: ownerFQName, ast: ast),
+              let decl = ast.arena.decl(declID)
+        else {
+            return []
+        }
+        let superTypeRefs: [TypeRefID]
+        switch decl {
+        case let .classDecl(classDecl):
+            superTypeRefs = classDecl.superTypeEntries.map(\.typeRef)
+        case let .interfaceDecl(interfaceDecl):
+            superTypeRefs = interfaceDecl.superTypes
+        case let .objectDecl(objectDecl):
+            superTypeRefs = objectDecl.superTypes
+        default:
+            return []
+        }
+        var clauseTypeParameters: [InternedString: SymbolID] = [:]
+        for parameter in types.allTypeParameterSymbols(for: ownerID) {
+            if let name = symbols.symbol(parameter)?.name {
+                clauseTypeParameters[name] = parameter
+            }
+        }
+        var visited = visited
+        var instanceTypes: [TypeID] = []
+        for typeRefID in superTypeRefs {
+            guard let resolved = resolveTypeRef(
+                typeRefID,
+                ast: ast,
+                symbols: symbols,
+                types: types,
+                interner: interner,
+                localTypeParameters: clauseTypeParameters,
+                relativeOwnerFQName: ownerFQName,
+                currentPackageFQName: currentPackageFQName,
+                imports: imports,
+                recursionDepth: depth + 1
+            ), case let .classType(superClass) = types.kind(of: types.makeNonNullable(resolved))
+            else {
+                continue
+            }
+            instanceTypes.append(types.makeNonNullable(resolved))
+            guard visited.insert(superClass.classSymbol).inserted else {
+                continue
+            }
+            instanceTypes.append(contentsOf: declaredSupertypeInstanceTypes(
+                of: superClass.classSymbol,
+                ownerFQName: symbols.symbol(superClass.classSymbol)?.fqName ?? ownerFQName,
+                ast: ast,
+                symbols: symbols,
+                types: types,
+                interner: interner,
+                currentPackageFQName: currentPackageFQName,
+                imports: imports,
+                visited: visited,
+                depth: depth + 1
+            ))
+        }
+        return instanceTypes
+    }
+
+    /// The decl carrying `fqName`, located by walking the file's nested-type
+    /// containers. Local declarations and synthetic members not reachable
+    /// through the tree return nil, which simply skips the supertype lookup.
+    private func nominalDeclID(
+        forFQName fqName: [InternedString],
+        ast: ASTModule
+    ) -> DeclID? {
+        for file in ast.sortedFiles {
+            guard fqName.starts(with: file.packageFQName) else { continue }
+            let segments = Array(fqName.dropFirst(file.packageFQName.count))
+            guard !segments.isEmpty else { continue }
+            var candidates = file.topLevelDecls
+            for (index, segment) in segments.enumerated() {
+                guard let match = candidates.first(where: { declID in
+                    guard let decl = ast.arena.decl(declID) else { return false }
+                    return nominalDeclName(of: decl) == segment
+                }) else {
+                    break
+                }
+                if index == segments.count - 1 {
+                    return match
+                }
+                guard let decl = ast.arena.decl(match) else { break }
+                candidates = nestedNominalDecls(of: decl)
+            }
+        }
+        return nil
+    }
+
+    private func nominalDeclName(of decl: Decl) -> InternedString? {
+        switch decl {
+        case let .classDecl(classDecl): classDecl.name
+        case let .interfaceDecl(interfaceDecl): interfaceDecl.name
+        case let .objectDecl(objectDecl): objectDecl.name
+        case let .enumEntryDecl(enumEntryDecl): enumEntryDecl.name
+        case let .typeAliasDecl(typeAliasDecl): typeAliasDecl.name
+        case .funDecl, .propertyDecl: nil
+        }
+    }
+
+    private func nestedNominalDecls(of decl: Decl) -> [DeclID] {
+        switch decl {
+        case let .classDecl(classDecl):
+            classDecl.nestedClasses + classDecl.nestedObjects + (classDecl.companionObject.map { [$0] } ?? [])
+        case let .interfaceDecl(interfaceDecl):
+            interfaceDecl.nestedClasses + interfaceDecl.nestedObjects + (interfaceDecl.companionObject.map { [$0] } ?? [])
+        case let .objectDecl(objectDecl):
+            objectDecl.nestedClasses + objectDecl.nestedObjects
+        default:
+            []
         }
     }
 
