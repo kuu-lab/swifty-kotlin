@@ -898,6 +898,7 @@ extension LocalDeclTypeChecker {
             enclosingFunctionSymbol: funSymbol,
             enclosingFunctionProhibitsExpressionBodyReturn: body.isExpressionBody
                 && returnTypeRef == nil,
+            returnTargetIsInitBlock: false,
             enclosingLambdaExprIDs: [],
             flowState: DataFlowState(),
             currentDeclSymbol: receiverType != nil ? funSymbol : ctx.currentDeclSymbol

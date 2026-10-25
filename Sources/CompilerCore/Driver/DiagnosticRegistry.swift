@@ -860,6 +860,12 @@ enum DiagnosticRegistry {
             summary: "Returns are not allowed for functions with expression body."
         ),
         DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0312",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "Returns are not allowed in initializer blocks."
+        ),
+        DiagnosticDescriptor(
             code: "KSWIFTK-SEMA-PLATFORM",
             pass: "SEMA",
             defaultSeverity: .warning,
