@@ -8,6 +8,28 @@ import Testing
 @Suite
 struct CodegenBackendScopeFunctionEdgeCasesTests {
 
+    @Test
+    func testNamedArgumentCallKeepsMultipleContextParameters() throws {
+        let source = """
+        import kotlin.ExperimentalContextParameters
+
+        @OptIn(ExperimentalContextParameters::class)
+        context(a: String, b: Int)
+        fun f(x: Int = 0) = "$a$b$x"
+
+        @OptIn(ExperimentalContextParameters::class)
+        fun main() {
+            with("S") { with(4) { println(f(x = 2)) } }
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "NamedArgumentMultipleContextParameters",
+            expected: "S42\n"
+        )
+    }
+
     @Test(arguments: [true, false])
     func testTailPositionLabeledReturnPropagatesValue(defaultStdlib: Bool) throws {
         let source = """

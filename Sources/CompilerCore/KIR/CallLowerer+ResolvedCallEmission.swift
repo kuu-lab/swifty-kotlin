@@ -291,12 +291,10 @@ extension CallLowerer {
            let signature = sema.symbols.functionSignature(for: chosen),
            !signature.contextParameterTypes.isEmpty
         {
-            let contextArguments = signature.contextParameterTypes.compactMap {
-                contextArgumentValue(
-                    matching: $0, callExprID: exprID, signature: signature,
-                    callBinding: callBinding, sema: sema, arena: arena
-                )
-            }
+            let contextArguments = contextArgumentValues(
+                for: signature, callExprID: exprID, callBinding: callBinding,
+                sema: sema, arena: arena
+            )
             // leadingArguments carry internal-ABI prefixes (e.g. generated-thunk
             // captures); context parameters belong to the callee signature and
             // must be inserted after them.
