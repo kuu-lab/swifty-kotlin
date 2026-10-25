@@ -702,7 +702,7 @@ extension CallTypeChecker {
 
         if let calleeName,
            calleeName == knownNames.compareValuesBy,
-           args.count >= 4,
+           args.count >= 3,
            locals[calleeName] == nil,
            sourceOrSyntheticStdlibFunctionSymbol(
                calleeName,
@@ -778,7 +778,10 @@ extension CallTypeChecker {
                     return sema.types.intType
                 }
             }
-            if args.count >= 4 {
+            // The one-selector overload has three source arguments (including
+            // a trailing lambda). Infer T from both compared values before
+            // contextualizing its selector, just as the multi-selector path does.
+            if args.count >= 3 {
                 let elementCandidates = [firstType, secondType].filter { $0 != sema.types.errorType }.map {
                     sema.types.makeNonNullable($0)
                 }
