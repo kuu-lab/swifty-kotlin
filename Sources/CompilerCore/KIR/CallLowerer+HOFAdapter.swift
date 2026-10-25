@@ -219,6 +219,18 @@ extension CallLowerer {
         expectedReturnType: TypeID,
         sema: SemaModule
     ) -> TypeID? {
+        if nullableUnderlyingValueClassSymbol(
+            of: sema.types.kind(of: concreteReturnType),
+            types: sema.types,
+            symbols: sema.symbols
+        ) != nil,
+            isErasedRepresentationType(expectedReturnType, sema: sema)
+        {
+            // A nullable-underlying value class uses its payload as the direct
+            // representation, so an erased callback result needs the nominal
+            // box to preserve the wrapper's non-null identity.
+            return sema.types.anyType
+        }
         // Unit also needs a value across an erased return boundary. Keeping
         // the adapter void would discard the lambda's boxed Unit singleton.
         guard sema.types.kind(of: concreteReturnType) == .unit

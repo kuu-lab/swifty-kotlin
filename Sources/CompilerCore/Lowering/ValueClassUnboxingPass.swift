@@ -635,7 +635,33 @@ final class ValueClassUnboxingPass: LoweringPass, ParallelLoweringPass {
                        arguments[0], arena: arena, types: types, symbols: symbols
                    )
                 {
-                    if let unboxCallee = valueClassPayloadUnboxCallee(
+                    if let receiverType = arena.exprType(arguments[0]),
+                       let classSymbol = nullableUnderlyingValueClassSymbol(
+                           of: types.kind(of: receiverType), types: types, symbols: symbols
+                       )
+                    {
+                        // A non-null nullable-underlying value class already
+                        // carries its payload directly. Keep that payload's
+                        // underlying type visible to ABI lowering: a plain
+                        // copy from the value-class-typed receiver would look
+                        // like V -> Any and re-box the payload as V.
+                        let classID = RuntimeTypeCheckToken.stableNominalTypeID(
+                            symbol: classSymbol, symbols: symbols, interner: interner
+                        )
+                        let classIDExpr = arena.appendExpr(
+                            .intLiteral(classID), type: types.intType
+                        )
+                        result.append(.constValue(
+                            result: classIDExpr, value: .intLiteral(classID)
+                        ))
+                        resultLocations.append(location)
+                        result.append(.call(
+                            callee: interner.intern("kk_value_class_unbox"),
+                            arguments: [arguments[0], classIDExpr],
+                            result: callResult,
+                            canThrow: false
+                        ))
+                    } else if let unboxCallee = valueClassPayloadUnboxCallee(
                         for: arguments[0], arena: arena, types: types, symbols: symbols,
                         valueClassSymbols: valueClassSymbols,
                         boxingCalleeTable: boxingCalleeTable
