@@ -406,10 +406,12 @@ extension CallTypeChecker {
         )
 
         var samFactoryCandidates: [SymbolID]?
-        if let calleeName,
+        let samConstructorName = calleeName ?? calleePath?.last
+        if let samConstructorName,
            let samCallType = inferSamConvertedCallExpr(
                id,
-               calleeName: calleeName,
+               calleeName: samConstructorName,
+               qualifiedName: calleePath,
                args: args,
                range: range,
                ctx: ctx,

@@ -687,6 +687,23 @@ extension CallLowerer {
             propertyConstantInitializers: propertyConstantInitializers,
             instructions: &instructions.instructions
         ) { return typeQualifiedConstructorResult }
+        // A fully-qualified SAM constructor is parsed as a package-qualified
+        // member call. Like an unqualified SAM constructor, it lowers to the
+        // converted lambda itself and has no ordinary call binding.
+        if args.count == 1,
+           sema.bindings.isSamConversion(args[0].expr),
+           sema.bindings.callBinding(for: exprID) == nil
+        {
+            return driver.lowerExpr(
+                args[0].expr,
+                ast: ast,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                propertyConstantInitializers: propertyConstantInitializers,
+                instructions: &instructions.instructions
+            )
+        }
         if let objProp = tryLowerObjectMemberPropertyRead(
             exprID, receiverExpr: receiverExpr, args: args, ast: ast, sema: sema, arena: arena, interner: interner,
             propertyConstantInitializers: propertyConstantInitializers,

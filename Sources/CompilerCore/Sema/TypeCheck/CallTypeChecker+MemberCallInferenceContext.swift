@@ -310,6 +310,27 @@ extension CallTypeChecker {
             guard let symbol = ctx.cachedSymbol(candidate) else { return false }
             return symbol.kind == .function || symbol.kind == .constructor
         }
+        if samConstructorTarget(named: calleeName, qualifiedName: fqnPath, ctx: ctx) != nil {
+            var samFactoryCandidates: [SymbolID]?
+            if let samType = inferSamConvertedCallExpr(
+                id,
+                calleeName: calleeName,
+                qualifiedName: fqnPath,
+                args: args,
+                range: range,
+                ctx: ctx,
+                locals: &locals,
+                expectedType: request.expectedType,
+                explicitTypeArgs: explicitTypeArgs,
+                samFactoryCandidates: &samFactoryCandidates
+            ) {
+                sema.bindings.markFQNTopLevelCallExpr(id)
+                return samType
+            }
+            if let samFactoryCandidates {
+                fqnCandidates = samFactoryCandidates
+            }
+        }
         if let classSymbolID = sema.symbols.lookupAll(fqName: fqnPath).first(where: {
             guard let symbol = ctx.cachedSymbol($0) else { return false }
             guard symbol.kind == .class || symbol.kind == .enumClass || symbol.kind == .annotationClass else {
