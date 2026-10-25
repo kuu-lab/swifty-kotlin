@@ -548,7 +548,7 @@ extension KotlinParser {
 
         while !stream.atEOF() {
             let token = stream.peek()
-            if depth.paren == 0, depth.bracket == 0 {
+            if depth.paren == 0, depth.bracket == 0, depth.brace == 0 {
                 if token.kind == .symbol(.comma) || token.kind == .symbol(.arrow) || token.kind == .symbol(.rBrace) {
                     break
                 }
