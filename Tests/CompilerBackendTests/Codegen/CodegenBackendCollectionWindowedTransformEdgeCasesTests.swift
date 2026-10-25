@@ -32,6 +32,34 @@ struct CodegenBackendCollectionWindowedTransformEdgeCasesTests {
     }
 
     @Test
+    func testCodegenCollectionWindowedNamedPartialWindowsArguments() throws {
+        let source = """
+        fun main() {
+            val numbers = listOf(1, 2, 3, 4, 5)
+            println(numbers.windowed(size = 3, partialWindows = true))
+            println(numbers.windowed(size = 3, step = 2, partialWindows = true))
+            println(numbers.windowed(size = 3, step = 2, partialWindows = false))
+            println(listOf(1, 2).windowed(size = 3, partialWindows = true))
+            println(emptyList<Int>().windowed(size = 3, partialWindows = true))
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "CollectionWindowedNamedPartialWindowsArguments",
+            expected:
+                """
+                [[1, 2, 3], [2, 3, 4], [3, 4, 5], [4, 5], [5]]
+                [[1, 2, 3], [3, 4, 5], [5]]
+                [[1, 2, 3], [3, 4, 5]]
+                [[1, 2], [2]]
+                []
+                """
+                + "\n"
+        )
+    }
+
+    @Test
     func testCodegenCollectionWindowedHandlesCollectionAndSetReceivers() throws {
         let source = """
         fun main() {
