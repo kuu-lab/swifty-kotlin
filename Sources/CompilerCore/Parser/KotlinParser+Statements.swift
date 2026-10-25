@@ -62,7 +62,7 @@ extension KotlinParser {
                !isAnonymousFunction,
                hasLeadingNewline(token) || atBlockStart || precededBySemicolon || precededByBlockClose
             {
-                children.append(.node(parseDeclaration()))
+                children.append(.node(parseDeclaration(isLocal: !isClassBody)))
                 atBlockStart = false
             } else if !shouldStopStatementBefore(token, inBlock: true) {
                 children.append(.node(parseStatement(inBlock: true)))
