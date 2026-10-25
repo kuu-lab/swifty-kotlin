@@ -246,6 +246,132 @@ public fun <T> Iterable<T>.lastOrNull(): T? {
 
 public fun <T> List<T>.lastOrNull(): T? = if (this.isEmpty()) null else this[this.size - 1]
 
+public fun <T> Iterable<T>.elementAt(index: Int): T {
+    if (this is List<*>) {
+        if (index < 0 || index >= this.size) {
+            throw IndexOutOfBoundsException("Index $index out of bounds for length ${this.size}")
+        }
+        return this[index] as T
+    }
+    return elementAtOrElse(index) {
+        throw IndexOutOfBoundsException("Collection doesn't contain element at index $index.")
+    }
+}
+
+public fun <T> Iterable<T>.elementAtOrElse(index: Int, defaultValue: (Int) -> T): T {
+    if (this is List<*>) {
+        if (index >= 0 && index < this.size) return this[index] as T
+        return defaultValue(index)
+    }
+    if (index < 0) return defaultValue(index)
+    val iterator = iterator()
+    var count = 0
+    while (iterator.hasNext()) {
+        val element = iterator.next()
+        if (index == count++) return element
+    }
+    return defaultValue(index)
+}
+
+public fun <T> Iterable<T>.elementAtOrNull(index: Int): T? {
+    if (this is List<*>) {
+        if (index >= 0 && index < this.size) return this[index] as T
+        return null
+    }
+    if (index < 0) return null
+    val iterator = iterator()
+    var count = 0
+    while (iterator.hasNext()) {
+        val element = iterator.next()
+        if (index == count++) return element
+    }
+    return null
+}
+
+public fun <T> Iterable<T>.single(): T {
+    if (this is List<*>) return (this as List<T>).single()
+    val iterator = iterator()
+    if (!iterator.hasNext()) throw NoSuchElementException("Collection is empty.")
+    val result = iterator.next()
+    if (iterator.hasNext()) throw IllegalArgumentException("Collection has more than one element.")
+    return result
+}
+
+public fun <T> List<T>.single(): T {
+    if (this.size == 1) return this[0]
+    if (this.size == 0) throw NoSuchElementException("Collection is empty.")
+    throw IllegalArgumentException("Collection has more than one element.")
+}
+
+public inline fun <T> Iterable<T>.single(predicate: (T) -> Boolean): T {
+    if (this is List<*>) return (this as List<T>).single(predicate)
+    var result: T? = null
+    var found = false
+    for (element in this) {
+        if (predicate(element)) {
+            if (found) throw IllegalArgumentException("Collection contains more than one matching element.")
+            result = element
+            found = true
+        }
+    }
+    if (!found) throw NoSuchElementException("Collection contains no element matching the predicate.")
+    @Suppress("UNCHECKED_CAST")
+    return result as T
+}
+
+public inline fun <T> List<T>.single(predicate: (T) -> Boolean): T {
+    var result: T? = null
+    var found = false
+    for (element in this) {
+        if (predicate(element)) {
+            if (found) throw IllegalArgumentException("Collection contains more than one matching element.")
+            result = element
+            found = true
+        }
+    }
+    if (!found) throw NoSuchElementException("Collection contains no element matching the predicate.")
+    @Suppress("UNCHECKED_CAST")
+    return result as T
+}
+
+public fun <T> Iterable<T>.singleOrNull(): T? {
+    if (this is List<*>) return (this as List<T>).singleOrNull()
+    val iterator = iterator()
+    if (!iterator.hasNext()) return null
+    val result = iterator.next()
+    if (iterator.hasNext()) return null
+    return result
+}
+
+public fun <T> List<T>.singleOrNull(): T? = if (this.size == 1) this[0] else null
+
+public inline fun <T> Iterable<T>.singleOrNull(predicate: (T) -> Boolean): T? {
+    if (this is List<*>) return (this as List<T>).singleOrNull(predicate)
+    var result: T? = null
+    var found = false
+    for (element in this) {
+        if (predicate(element)) {
+            if (found) return null
+            result = element
+            found = true
+        }
+    }
+    return if (found) result else null
+}
+
+public inline fun <T> List<T>.singleOrNull(predicate: (T) -> Boolean): T? {
+    var result: T? = null
+    var found = false
+    for (element in this) {
+        if (predicate(element)) {
+            if (found) return null
+            result = element
+            found = true
+        }
+    }
+    return if (found) result else null
+}
+
 fun <T> collectionSizeOrDefault(value: Iterable<T>, defaultValue: Int): Int = if (value is Collection<*>) value.size else defaultValue
 fun <T> collectionSizeOrNull(value: Iterable<T>): Int? = if (value is Collection<*>) value.size else null
 fun <T> Iterable<T>.sortedWith(comparator: Comparator<in T>): List<T> {
