@@ -68,6 +68,7 @@ final class TypeCheckDriver {
     let useUnrestrictedBuilderInference: Bool
     let useProperTypeInferenceConstraintsProcessing: Bool
     let globalOptInMarkerNames: [String]
+    private let superReceiverExprIDs: Set<ExprID>
 
     // Delegates (lazy to break initialization ordering; each holds unowned back-reference)
     private(set) lazy var exprChecker = ExprTypeChecker(driver: self)
@@ -113,6 +114,57 @@ final class TypeCheckDriver {
         self.useUnrestrictedBuilderInference = useUnrestrictedBuilderInference
         self.useProperTypeInferenceConstraintsProcessing = useProperTypeInferenceConstraintsProcessing
         self.globalOptInMarkerNames = globalOptInMarkerNames
+        self.superReceiverExprIDs = Self.collectSuperReceiverExprIDs(in: ast)
+    }
+
+    func isSuperReceiverExpression(_ id: ExprID) -> Bool {
+        superReceiverExprIDs.contains(id)
+    }
+
+    /// Finds `super` references used as explicit dispatch receivers in the AST.
+    /// Operator expressions are included when Kotlin desugars them to receiver calls.
+    private static func collectSuperReceiverExprIDs(in ast: ASTModule) -> Set<ExprID> {
+        var result: Set<ExprID> = []
+
+        func insertIfSuper(_ id: ExprID) {
+            guard case .superRef? = ast.arena.expr(id) else { return }
+            result.insert(id)
+        }
+
+        for index in ast.arena.exprs.indices {
+            let id = ExprID(rawValue: Int32(index))
+            guard let expr = ast.arena.expr(id) else { continue }
+            switch expr {
+            case let .memberAssign(receiver, _, _, _),
+                 let .safeMemberAssign(receiver, _, _, _),
+                 let .memberCall(receiver, _, _, _, _),
+                 let .safeMemberCall(receiver, _, _, _, _),
+                 let .indexedAssign(receiver, _, _, _),
+                 let .indexedAccess(receiver, _, _),
+                 let .indexedCompoundAssign(_, receiver, _, _, _),
+                 let .memberCompoundAssign(_, receiver, _, _, _):
+                insertIfSuper(receiver)
+            case let .binary(op, lhs, _, _):
+                switch op {
+                case .add, .subtract, .multiply, .divide, .modulo,
+                     .lessThan, .lessOrEqual, .greaterThan, .greaterOrEqual,
+                     .rangeTo, .rangeUntil, .downTo, .step,
+                     .bitwiseAnd, .bitwiseOr, .bitwiseXor, .shl, .shr, .ushr:
+                    insertIfSuper(lhs)
+                case .equal, .notEqual, .identityEqual, .notIdentityEqual,
+                     .logicalAnd, .logicalOr, .elvis:
+                    break
+                }
+            case let .unaryExpr(_, operand, _):
+                insertIfSuper(operand)
+            case let .inExpr(_, rhs, _), let .notInExpr(_, rhs, _):
+                insertIfSuper(rhs)
+            default:
+                break
+            }
+        }
+
+        return result
     }
 
     func inferExpr(
