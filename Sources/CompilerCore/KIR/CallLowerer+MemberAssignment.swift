@@ -427,12 +427,6 @@ extension CallLowerer {
             propertyConstantInitializers: propertyConstantInitializers,
             instructions: &instructions
         )
-        let valueID = driver.lowerExpr(
-            valueExpr,
-            ast: ast, sema: sema, arena: arena, interner: interner,
-            propertyConstantInitializers: propertyConstantInitializers,
-            instructions: &instructions
-        )
 
         let propertySymbol = sema.bindings.identifierSymbol(for: exprID)
         let declaredPropType = propertySymbol.flatMap { sema.symbols.propertyType(for: $0) }
@@ -458,7 +452,6 @@ extension CallLowerer {
         }()
         let stringType = sema.types.stringType
         let nullableStringType = sema.types.makeNullable(stringType)
-        let valueType = arena.exprType(valueID)
         // `String += Any?` is the language-level concatenation operation, not
         // an ordinary receiver call. Sema may bind the desugared expression to
         // the bundled `String?.plus` extension, but passing the loaded field as
@@ -695,6 +688,17 @@ extension CallLowerer {
             )
             currentValue = result
         }
+
+        // Kotlin reads the left-hand property before evaluating the RHS. The
+        // RHS can call code that mutates this same property, so lowering it
+        // before the load would make the compound operation use the new value.
+        let valueID = driver.lowerExpr(
+            valueExpr,
+            ast: ast, sema: sema, arena: arena, interner: interner,
+            propertyConstantInitializers: propertyConstantInitializers,
+            instructions: &instructions
+        )
+        let valueType = arena.exprType(valueID)
 
         // `newValue == nil` means a Unit-returning `plusAssign`-style operator
         // already mutated the loaded value in place, so no store is needed —
