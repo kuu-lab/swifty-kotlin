@@ -3,8 +3,24 @@ package kotlinx.coroutines
 import kotlin.coroutines.ContinuationInterceptor
 import kotlin.coroutines.CoroutineContext
 import kotlin.internal.KsSymbolName
+import java.lang.Runnable
 
-public abstract class CoroutineDispatcher : CoroutineContext.Element, ContinuationInterceptor {
+/**
+ * Runtime bridge used to route coroutine resumptions through source-defined
+ * dispatchers on the native backend.
+ */
+public interface CoroutineDispatcherRuntimeBridge {
+    public fun dispatch(context: CoroutineContext, block: Runnable)
+}
+
+@KsSymbolName("__kk_dispatcher_default_execute")
+internal external fun __dispatcherDefaultExecute(block: Runnable)
+
+public abstract class CoroutineDispatcher :
+    CoroutineContext.Element,
+    ContinuationInterceptor,
+    CoroutineDispatcherRuntimeBridge
+{
     // KUU-1395: `CoroutineDispatcher`/`CoroutineDispatcher.Key` evaluates to a
     // runtime key singleton so `ctx[CoroutineDispatcher]` resolves the
     // context's dispatcher element (kotlinx's Key is a sub-key of
@@ -12,6 +28,11 @@ public abstract class CoroutineDispatcher : CoroutineContext.Element, Continuati
     @KsSymbolName("kk_coroutine_dispatcher_key")
     public companion object Key : CoroutineContext.Key<CoroutineDispatcher>
     public override val key: CoroutineContext.Key<*> get() = ContinuationInterceptor.Key
+
+    /** Dispatches a runnable. The default implementation uses the shared pool. */
+    public open override fun dispatch(context: CoroutineContext, block: Runnable) {
+        __dispatcherDefaultExecute(block)
+    }
 }
 
 // KUU-2687: dispatcher views resolve in the runtime — the returned handle is a
