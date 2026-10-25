@@ -3,12 +3,8 @@
 import Foundation
 import Testing
 
-/// KUU-3026: the stdlib `sema.snapshot` is the only place deferred inline
-/// body descriptors survive a prebuilt `.kklib`. Snapshots written without
-/// them (schema 1) make consumers emit raw `kk_fn_*` calls for `lazy`/`run`/
-/// `map`/… that then fail to link, so `load` must reject them and the import
-/// must fall back to the compact-index lazy path — and `write` must emit a
-/// descriptor for every deferred inline binding.
+/// Legacy snapshot archive coverage. Normal stdlib artifacts now use
+/// compact-indexed lazy imports and do not emit or consume this archive.
 @Suite
 struct StdlibSemaSnapshotArchiveTests {
     private let target = TargetTriple.hostDefault()

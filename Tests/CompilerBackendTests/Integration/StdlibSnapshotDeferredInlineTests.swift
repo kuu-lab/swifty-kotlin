@@ -3,10 +3,8 @@ import TestStdlibCache
 import Testing
 
 /// KUU-3026: stdlib inline functions whose bodies stay unparsed in the
-/// compact index (`lazy`, `run`, `map`, …) must reach consumer compiles
-/// through the artifact's `sema.snapshot`. Snapshots written before the
-/// deferred descriptors were registered (schema 1) made codegen emit raw
-/// `kk_fn_*` calls that failed to link.
+/// compact index (`lazy`, `run`, `map`, …) must reach consumer compiles through
+/// lazy metadata loading so codegen does not emit unresolved `kk_fn_*` calls.
 @Suite(.serialized)
 struct StdlibSnapshotDeferredInlineTests {
     @Test
