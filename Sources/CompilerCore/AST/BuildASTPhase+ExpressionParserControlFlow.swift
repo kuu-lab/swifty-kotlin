@@ -674,6 +674,30 @@ extension BuildASTPhase.ExpressionParser {
     }
 
     private func parseForExpressionFallback(forToken: Token, label: InternedString? = nil, start: SourceLocation? = nil) -> ExprID? {
+        var loopVariableAnnotations: [AnnotationNode] = []
+        while let annotationToken = current(), annotationToken.kind == .symbol(.at) {
+            let remaining = Array(tokens[index...])
+            guard let parsed = AnnotationParsingSupport.parseAnnotation(
+                from: remaining, start: 0, interner: interner, allowUseSiteTarget: false
+            ), parsed.nextIndex > 0 else {
+                diagnostics?.error(
+                    "KSWIFTK-PARSE-0001",
+                    "Expected annotation name after '@'.",
+                    range: annotationToken.range
+                )
+                break
+            }
+            if let range = parsed.invalidUseSiteTargetRange {
+                diagnostics?.error(
+                    "KSWIFTK-PARSE-ANNOTATION-TARGET",
+                    "Use-site targets are not allowed on for-loop variable annotations.",
+                    range: range
+                )
+            }
+            loopVariableAnnotations.append(parsed.annotation)
+            index += parsed.nextIndex
+        }
+
         var loopVariable: InternedString?
         var loopVariableTypeRef: TypeRefID?
         if let token = current(),
@@ -786,6 +810,12 @@ extension BuildASTPhase.ExpressionParser {
         let end = astArena.exprRange(body)?.end ?? forToken.range.end
         let range = SourceRange(start: start ?? forToken.range.start, end: end)
         let exprID = astArena.appendExpr(.forExpr(loopVariable: loopVariable, iterable: iterable, body: body, label: label, range: range))
+        if !loopVariableAnnotations.isEmpty {
+            // The loop variable is represented by its enclosing forExpr in the
+            // current AST model, so retain its annotations there. Sema's
+            // expression-annotation pass then validates and applies @Suppress.
+            astArena.prependExpressionAnnotations(loopVariableAnnotations, for: exprID)
+        }
         if let loopVariableTypeRef {
             astArena.setForVariableTypeRef(loopVariableTypeRef, for: exprID)
         }
