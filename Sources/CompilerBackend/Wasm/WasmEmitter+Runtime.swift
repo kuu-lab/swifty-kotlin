@@ -269,6 +269,33 @@ enum WasmRuntimeHelpers {
         // Generic iterator entry points dispatch on the iterator type ID.
         "kk_iterator_hasNext",
         "kk_iterator_next",
+        // Signed range/progression boxes `{first@16, last@24, step@32}` plus
+        // the compiler-lowered for-in iterator `{cur@16, last@24, step@32}`
+        // (RuntimeRangeAndDispatch.swift equivalents).
+        "__kk_op_rangeTo",
+        "__kk_long_rangeTo",
+        "__kk_char_rangeTo",
+        "__kk_op_rangeUntil",
+        "__kk_long_rangeUntil",
+        "__kk_char_rangeUntil",
+        "__kk_op_downTo",
+        "__kk_op_step",
+        "__kk_char_range_step",
+        "__kk_int_progression_fromClosedRange",
+        "__kk_long_progression_fromClosedRange",
+        "__kk_char_progression_fromClosedRange",
+        "__kk_int_range_induction_le",
+        "__kk_int_range_induction_add",
+        "__kk_range_first",
+        "__kk_range_last",
+        "__kk_range_for_in_iterator",
+        "__kk_range_for_in_hasNext",
+        "__kk_range_for_in_next",
+        "__kk_range_to_list",
+        // Array component-tag intrinsics: component identity is a pass-through
+        // on wasm until reflection needs the installed tag.
+        "__kk_array_component_type",
+        "__kk_array_tag_component",
     ]
 
     /// True when `name` has an emitted wasm helper body — used by callee
@@ -627,6 +654,102 @@ enum WasmRuntimeHelpers {
         case "kk_iterator_next":
             extraLocals = 1
             emitGenericIteratorDispatch(&code, ctx: ctx, methodSlot: 1)
+        case "__kk_op_rangeTo", "__kk_long_rangeTo", "__kk_char_rangeTo":
+            extraLocals = 1
+            emitRangeBoxBody(
+                &code, ctx: ctx,
+                typeID: Self.rangeBoxTypeID(for: name),
+                objectLocal: argumentCount,
+                emitFirst: { $0.localGet(0) },
+                emitLast: { $0.localGet(1) },
+                emitStep: { $0.i64Const(1) }
+            )
+        case "__kk_op_rangeUntil", "__kk_long_rangeUntil", "__kk_char_rangeUntil":
+            extraLocals = 1
+            emitRangeBoxBody(
+                &code, ctx: ctx,
+                typeID: Self.rangeBoxTypeID(for: name),
+                objectLocal: argumentCount,
+                emitFirst: { $0.localGet(0) },
+                emitLast: { code in
+                    // `until` end is exclusive: last = rhs - 1. Guard the
+                    // Int64.min boundary so the decrement can't wrap into a
+                    // non-empty range.
+                    code.localGet(1)
+                    code.i64Const(Int64.min)
+                    code.op(WasmOpcode.i64Eq)
+                    code.openIf(result: .i64)
+                    code.localGet(0)
+                    code.i64Const(1)
+                    code.op(WasmOpcode.i64Sub)
+                    code.elseBranch()
+                    code.localGet(1)
+                    code.i64Const(1)
+                    code.op(WasmOpcode.i64Sub)
+                    code.end()
+                },
+                emitStep: { $0.i64Const(1) }
+            )
+        case "__kk_op_downTo":
+            extraLocals = 1
+            emitRangeBoxBody(
+                &code, ctx: ctx,
+                typeID: Self.rangeBoxTypeID(for: name),
+                objectLocal: argumentCount,
+                emitFirst: { $0.localGet(0) },
+                emitLast: { $0.localGet(1) },
+                emitStep: { $0.i64Const(-1) }
+            )
+        case "__kk_op_step", "__kk_char_range_step":
+            extraLocals = 3
+            emitRangeStepBody(&code, ctx: ctx, name: name, argumentCount: argumentCount)
+        case "__kk_int_progression_fromClosedRange",
+             "__kk_long_progression_fromClosedRange",
+             "__kk_char_progression_fromClosedRange":
+            extraLocals = 1
+            emitRangeBoxBody(
+                &code, ctx: ctx,
+                typeID: Self.rangeBoxTypeID(for: name),
+                objectLocal: argumentCount,
+                emitFirst: { $0.localGet(0) },
+                emitLast: { $0.localGet(1) },
+                emitStep: { $0.localGet(2) }
+            )
+        case "__kk_int_range_induction_le":
+            extraLocals = 0
+            code.localGet(0)
+            code.localGet(1)
+            code.op(WasmOpcode.i64LeS)
+            code.i64ExtendFromComparison()
+        case "__kk_int_range_induction_add":
+            extraLocals = 0
+            code.localGet(0)
+            code.localGet(1)
+            code.op(WasmOpcode.i64Add)
+        case "__kk_range_first":
+            extraLocals = 0
+            emitLoadAt(&code, baseLocal: 0, byteOffset: 16)
+        case "__kk_range_last":
+            extraLocals = 0
+            emitLoadAt(&code, baseLocal: 0, byteOffset: 24)
+        case "__kk_range_for_in_iterator":
+            extraLocals = 1
+            emitRangeForInIteratorBody(&code, ctx: ctx, argumentCount: argumentCount)
+        case "__kk_range_for_in_hasNext":
+            extraLocals = 0
+            emitRangeHasNextExpr(&code)
+            code.i64ExtendFromComparison()
+        case "__kk_range_for_in_next":
+            extraLocals = 2
+            emitRangeForInNextBody(&code, argumentCount: argumentCount)
+        case "__kk_range_to_list":
+            extraLocals = 6
+            emitRangeToListBody(&code, ctx: ctx, argumentCount: argumentCount)
+        case "__kk_array_component_type", "__kk_array_tag_component":
+            // Both are pass-throughs: the component descriptor isn't consumed
+            // by wasm iteration and arrays carry no installable tag slot yet.
+            extraLocals = 0
+            code.localGet(0)
         default:
             return emittedThrowableBody(for: name, argumentCount: argumentCount, context: ctx)
         }
@@ -701,6 +824,359 @@ enum WasmRuntimeHelpers {
         emitAddress(&code, baseLocal: baseLocal, byteOffset: byteOffset)
         code.i64Const(value)
         code.i64Store(offset: 0)
+    }
+
+    // MARK: Range helpers
+
+    /// Nominal tag for the `{first@16, last@24, step@32}` box each range
+    /// factory produces — `downTo`/`step` yield progressions, `..`/`until`
+    /// yield the closed ranges, so `is IntRange`/`is CharProgression` checks
+    /// see the same tags the native `RuntimeRangeBox.kind` encodes.
+    private static func rangeBoxTypeID(for name: String) -> Int64 {
+        switch name {
+        case "__kk_op_rangeTo", "__kk_op_rangeUntil":
+            return stableNominalTypeID("kotlin.ranges.IntRange")
+        case "__kk_long_rangeTo", "__kk_long_rangeUntil":
+            return stableNominalTypeID("kotlin.ranges.LongRange")
+        case "__kk_char_rangeTo", "__kk_char_rangeUntil":
+            return stableNominalTypeID("kotlin.ranges.CharRange")
+        case "__kk_op_downTo", "__kk_op_step",
+             "__kk_int_progression_fromClosedRange":
+            return stableNominalTypeID("kotlin.ranges.IntProgression")
+        case "__kk_long_progression_fromClosedRange":
+            return stableNominalTypeID("kotlin.ranges.LongProgression")
+        case "__kk_char_range_step", "__kk_char_progression_fromClosedRange":
+            return stableNominalTypeID("kotlin.ranges.CharProgression")
+        default:
+            return stableNominalTypeID("kotlin.ranges.IntProgression")
+        }
+    }
+
+    /// Allocates a 5-slot range box and stores first/last/step into slots
+    /// 2/3/4. Leaves the box handle on the stack.
+    private static func emitRangeBoxBody(
+        _ code: inout WasmCode,
+        ctx: WasmModuleContext,
+        typeID: Int64,
+        objectLocal: Int,
+        emitFirst: (inout WasmCode) -> Void,
+        emitLast: (inout WasmCode) -> Void,
+        emitStep: (inout WasmCode) -> Void
+    ) {
+        code.i64Const(5)
+        code.i64Const(typeID)
+        code.call(ctx.emittedHelperIndex(for: "kk_object_new", argumentCount: 2))
+        code.localSet(objectLocal)
+        emitAddress(&code, baseLocal: objectLocal, byteOffset: 16)
+        emitFirst(&code)
+        code.i64Store(offset: 0)
+        emitAddress(&code, baseLocal: objectLocal, byteOffset: 24)
+        emitLast(&code)
+        code.i64Store(offset: 0)
+        emitAddress(&code, baseLocal: objectLocal, byteOffset: 32)
+        emitStep(&code)
+        code.i64Store(offset: 0)
+        code.localGet(objectLocal)
+    }
+
+    /// Pushes the i32 `hasNext` predicate for a `{cur@16,last@24,step@32}`
+    /// state: `step>0 ? cur<=last : step<0 ? cur>=last : false`. Shared by
+    /// `__kk_range_for_in_hasNext` and the advance path of `..._next`; zeroing
+    /// step on overflow makes the recomputation a stable stop.
+    private static func emitRangeHasNextExpr(_ code: inout WasmCode) {
+        emitLoadAt(&code, baseLocal: 0, byteOffset: 32)
+        code.i64Const(0)
+        code.op(WasmOpcode.i64GtS)
+        code.openIf(result: .i32)
+        emitLoadAt(&code, baseLocal: 0, byteOffset: 16)
+        emitLoadAt(&code, baseLocal: 0, byteOffset: 24)
+        code.op(WasmOpcode.i64LeS)
+        code.elseBranch()
+        emitLoadAt(&code, baseLocal: 0, byteOffset: 32)
+        code.i64Const(0)
+        code.op(WasmOpcode.i64LtS)
+        code.openIf(result: .i32)
+        emitLoadAt(&code, baseLocal: 0, byteOffset: 16)
+        emitLoadAt(&code, baseLocal: 0, byteOffset: 24)
+        code.op(WasmOpcode.i64GeS)
+        code.elseBranch()
+        code.i32Const(0)
+        code.end()
+        code.end()
+    }
+
+    /// `__kk_range_for_in_iterator(range)` — copies `{first,last,step}` off the
+    /// range box into a fresh iterator box `{cur,last,step}`.
+    private static func emitRangeForInIteratorBody(
+        _ code: inout WasmCode,
+        ctx: WasmModuleContext,
+        argumentCount: Int
+    ) {
+        code.i64Const(5)
+        code.i64Const(L.rangeForInIteratorTypeID)
+        code.call(ctx.emittedHelperIndex(for: "kk_object_new", argumentCount: 2))
+        code.localSet(argumentCount)
+        for offset in [Int64(16), 24, 32] {
+            emitAddress(&code, baseLocal: argumentCount, byteOffset: offset)
+            emitLoadAt(&code, baseLocal: 0, byteOffset: offset)
+            code.i64Store(offset: 0)
+        }
+        code.localGet(argumentCount)
+    }
+
+    /// `__kk_range_for_in_next(it)` — returns `cur` then advances by `step`.
+    /// An exhausted iterator returns `cur` unchanged; a wrapped add (the only
+    /// way `cur+step` can leave the i64 range, since step's sign is fixed)
+    /// zeroes `step` so the next `hasNext` is false — mirroring the native
+    /// `RuntimeSignedRangeForInIteratorBox.advance()` overflow stop.
+    private static func emitRangeForInNextBody(_ code: inout WasmCode, argumentCount: Int) {
+        let cur = argumentCount
+        let cand = argumentCount + 1
+        emitLoadAt(&code, baseLocal: 0, byteOffset: 16)
+        code.localSet(cur)
+        emitRangeHasNextExpr(&code)
+        code.openIf(result: .i64)
+        code.localGet(cur)
+        emitLoadAt(&code, baseLocal: 0, byteOffset: 32)
+        code.op(WasmOpcode.i64Add)
+        code.localSet(cand)
+        // Overflow check per direction: step>0 wrapped iff cand<cur, step<0
+        // iff cand>cur.
+        emitLoadAt(&code, baseLocal: 0, byteOffset: 32)
+        code.i64Const(0)
+        code.op(WasmOpcode.i64GtS)
+        code.openIf(result: .i32)
+        code.localGet(cand)
+        code.localGet(cur)
+        code.op(WasmOpcode.i64LtS)
+        code.elseBranch()
+        code.localGet(cand)
+        code.localGet(cur)
+        code.op(WasmOpcode.i64GtS)
+        code.end()
+        code.openIf(result: .i64)
+        emitStoreAtConst(&code, baseLocal: 0, byteOffset: 32, value: 0)
+        code.localGet(cur)
+        code.elseBranch()
+        emitStoreAt(&code, baseLocal: 0, byteOffset: 16, valueLocal: cand)
+        code.localGet(cur)
+        code.end()
+        code.elseBranch()
+        code.localGet(cur)
+        code.end()
+    }
+
+    /// `__kk_op_step(range, step)` — validates `step > 0` (throws
+    /// IllegalArgumentException through `thrownGlobal` otherwise, mirroring
+    /// STDLIB-022), keeps the source direction's sign, and aligns `last` down
+    /// to the final element the step actually lands on, matching the native
+    /// `getProgressionLastElement` adjustment.
+    private static func emitRangeStepBody(
+        _ code: inout WasmCode,
+        ctx: WasmModuleContext,
+        name: String,
+        argumentCount: Int
+    ) {
+        let obj = argumentCount
+        let nextStep = argumentCount + 1
+        let aligned = argumentCount + 2
+        code.localGet(1)
+        code.i64Const(0)
+        code.op(WasmOpcode.i64LeS)
+        code.openIf(result: .i64)
+        emitLiteralString(&code, ctx: ctx, "Step must be positive.")
+        code.call(ctx.emittedHelperIndex(
+            for: "__kk_illegal_argument_exception_new_message",
+            argumentCount: 1
+        ))
+        code.globalSet(ctx.thrownGlobal)
+        code.localGet(0)
+        code.elseBranch()
+        // nextStep = oldStep < 0 ? -step : step
+        emitLoadAt(&code, baseLocal: 0, byteOffset: 32)
+        code.i64Const(0)
+        code.op(WasmOpcode.i64LtS)
+        code.openIf(result: .i64)
+        code.i64Const(0)
+        code.localGet(1)
+        code.op(WasmOpcode.i64Sub)
+        code.elseBranch()
+        code.localGet(1)
+        code.end()
+        code.localSet(nextStep)
+        // alignedLast: positive → first<=last ? last - urem(last-first, step)
+        //              : last; negative → first>=last ? last + urem(first-last,
+        //              -step) : last. Empty progressions keep `last` like the
+        //              native path.
+        code.localGet(nextStep)
+        code.i64Const(0)
+        code.op(WasmOpcode.i64GtS)
+        code.openIf(result: .i64)
+        emitLoadAt(&code, baseLocal: 0, byteOffset: 16)
+        emitLoadAt(&code, baseLocal: 0, byteOffset: 24)
+        code.op(WasmOpcode.i64LeS)
+        code.openIf(result: .i64)
+        emitLoadAt(&code, baseLocal: 0, byteOffset: 24)
+        emitLoadAt(&code, baseLocal: 0, byteOffset: 24)
+        emitLoadAt(&code, baseLocal: 0, byteOffset: 16)
+        code.op(WasmOpcode.i64Sub)
+        code.localGet(nextStep)
+        code.op(WasmOpcode.i64RemU)
+        code.op(WasmOpcode.i64Sub)
+        code.elseBranch()
+        emitLoadAt(&code, baseLocal: 0, byteOffset: 24)
+        code.end()
+        code.elseBranch()
+        emitLoadAt(&code, baseLocal: 0, byteOffset: 16)
+        emitLoadAt(&code, baseLocal: 0, byteOffset: 24)
+        code.op(WasmOpcode.i64GeS)
+        code.openIf(result: .i64)
+        emitLoadAt(&code, baseLocal: 0, byteOffset: 24)
+        emitLoadAt(&code, baseLocal: 0, byteOffset: 16)
+        emitLoadAt(&code, baseLocal: 0, byteOffset: 24)
+        code.op(WasmOpcode.i64Sub)
+        code.i64Const(0)
+        code.localGet(nextStep)
+        code.op(WasmOpcode.i64Sub)
+        code.op(WasmOpcode.i64RemU)
+        code.op(WasmOpcode.i64Add)
+        code.elseBranch()
+        emitLoadAt(&code, baseLocal: 0, byteOffset: 24)
+        code.end()
+        code.end()
+        code.localSet(aligned)
+        emitRangeBoxBody(
+            &code, ctx: ctx,
+            typeID: Self.rangeBoxTypeID(for: name),
+            objectLocal: obj,
+            emitFirst: { code in emitLoadAt(&code, baseLocal: 0, byteOffset: 16) },
+            emitLast: { $0.localGet(aligned) },
+            emitStep: { $0.localGet(nextStep) }
+        )
+        code.end()
+    }
+
+    /// `__kk_range_to_list(range)` — materializes `{first,last,step}` into a
+    /// read-only list box (`toList()` on a range/progression). Counts first so
+    /// the backing array is exact, then fills it with the same boundary
+    /// predicate the for-in iterator uses.
+    private static func emitRangeToListBody(
+        _ code: inout WasmCode,
+        ctx: WasmModuleContext,
+        argumentCount: Int
+    ) {
+        let arr = argumentCount
+        let count = argumentCount + 1
+        let cur = argumentCount + 2
+        let idx = argumentCount + 3
+        let listObj = argumentCount + 4
+        let step = argumentCount + 5
+        emitLoadAt(&code, baseLocal: 0, byteOffset: 32)
+        code.localSet(step)
+        // count = step>0 ? (first<=last ? (last-first)/step+1 : 0)
+        //        : step<0 ? (first>=last ? (first-last)/(-step)+1 : 0) : 0
+        code.localGet(step)
+        code.i64Const(0)
+        code.op(WasmOpcode.i64GtS)
+        code.openIf(result: .i64)
+        emitLoadAt(&code, baseLocal: 0, byteOffset: 16)
+        emitLoadAt(&code, baseLocal: 0, byteOffset: 24)
+        code.op(WasmOpcode.i64LeS)
+        code.openIf(result: .i64)
+        emitLoadAt(&code, baseLocal: 0, byteOffset: 24)
+        emitLoadAt(&code, baseLocal: 0, byteOffset: 16)
+        code.op(WasmOpcode.i64Sub)
+        code.localGet(step)
+        code.op(WasmOpcode.i64DivS)
+        code.i64Const(1)
+        code.op(WasmOpcode.i64Add)
+        code.elseBranch()
+        code.i64Const(0)
+        code.end()
+        code.elseBranch()
+        code.localGet(step)
+        code.i64Const(0)
+        code.op(WasmOpcode.i64LtS)
+        code.openIf(result: .i64)
+        emitLoadAt(&code, baseLocal: 0, byteOffset: 16)
+        emitLoadAt(&code, baseLocal: 0, byteOffset: 24)
+        code.op(WasmOpcode.i64GeS)
+        code.openIf(result: .i64)
+        emitLoadAt(&code, baseLocal: 0, byteOffset: 16)
+        emitLoadAt(&code, baseLocal: 0, byteOffset: 24)
+        code.op(WasmOpcode.i64Sub)
+        code.i64Const(0)
+        code.localGet(step)
+        code.op(WasmOpcode.i64Sub)
+        code.op(WasmOpcode.i64DivS)
+        code.i64Const(1)
+        code.op(WasmOpcode.i64Add)
+        code.elseBranch()
+        code.i64Const(0)
+        code.end()
+        code.elseBranch()
+        code.i64Const(0)
+        code.end()
+        code.end()
+        code.localSet(count)
+        code.localGet(count)
+        code.call(ctx.emittedHelperIndex(for: "kk_array_new", argumentCount: 1))
+        code.localSet(arr)
+        emitLoadAt(&code, baseLocal: 0, byteOffset: 16)
+        code.localSet(cur)
+        code.i64Const(0)
+        code.localSet(idx)
+        code.openBlock()
+        code.openLoop()
+        // hasNext: step>0 ? cur<=last : step<0 ? cur>=last : false
+        code.localGet(step)
+        code.i64Const(0)
+        code.op(WasmOpcode.i64GtS)
+        code.openIf(result: .i32)
+        code.localGet(cur)
+        emitLoadAt(&code, baseLocal: 0, byteOffset: 24)
+        code.op(WasmOpcode.i64LeS)
+        code.elseBranch()
+        code.localGet(step)
+        code.i64Const(0)
+        code.op(WasmOpcode.i64LtS)
+        code.openIf(result: .i32)
+        code.localGet(cur)
+        emitLoadAt(&code, baseLocal: 0, byteOffset: 24)
+        code.op(WasmOpcode.i64GeS)
+        code.elseBranch()
+        code.i32Const(0)
+        code.end()
+        code.end()
+        code.op(WasmOpcode.i32Eqz)
+        code.brIf(1)
+        // arr[idx] = cur — elements sit at base + idx*8 (meta is at base-16).
+        code.localGet(arr)
+        code.op(WasmOpcode.i32WrapI64)
+        code.localGet(idx)
+        code.op(WasmOpcode.i32WrapI64)
+        code.i32Const(8)
+        code.op(WasmOpcode.i32Mul)
+        code.op(WasmOpcode.i32Add)
+        code.localGet(cur)
+        code.i64Store(offset: 0)
+        code.localGet(cur)
+        code.localGet(step)
+        code.op(WasmOpcode.i64Add)
+        code.localSet(cur)
+        code.localGet(idx)
+        code.i64Const(1)
+        code.op(WasmOpcode.i64Add)
+        code.localSet(idx)
+        code.br(0)
+        code.end()
+        code.end()
+        emitListBoxBody(
+            &code, ctx: ctx,
+            typeID: L.listTypeID, readOnly: true,
+            arrayLocal: arr, countLocal: count, objectLocal: listObj
+        )
+        code.localGet(listObj)
     }
 
     // MARK: Helper bodies

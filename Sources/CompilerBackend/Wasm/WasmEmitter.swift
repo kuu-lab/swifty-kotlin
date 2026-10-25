@@ -112,6 +112,8 @@ final class WasmModuleContext {
         static let mapIteratorTypeID: Int64 = -9_013
         /// `kk_mutable_map_iterator` result box.
         static let mutableMapIteratorTypeID: Int64 = -9_014
+        /// `__kk_range_for_in_iterator` result box: `{cur@16, last@24, step@32}`.
+        static let rangeForInIteratorTypeID: Int64 = -9_015
         /// Set boxes share the list layout `{array@16, count@24, flags@32}`
         /// so `kk_list_iterator` iterates them unchanged. Concrete nominal
         /// tags come from `stableNominalTypeID` so `is` checks work.
@@ -265,6 +267,19 @@ final class WasmModuleContext {
                 switch components[2] {
                 case "toList":
                     return argumentCount == 1 ? "__kk_list_to_list" : nil
+                default: break
+                }
+            }
+            // `kotlin.ranges` member/extension calls whose kklib bodies can't
+            // run forward onto the range-box helpers — every nominal tag
+            // shares the `{first@16, last@24, step@32}` layout.
+            if components.count >= 2, components[1] == "ranges" {
+                switch member {
+                case "until": return "__kk_op_rangeUntil"
+                case "downTo": return "__kk_op_downTo"
+                case "step": return "__kk_op_step"
+                case "rangeTo": return "__kk_op_rangeTo"
+                case "toList": return "__kk_range_to_list"
                 default: break
                 }
             }

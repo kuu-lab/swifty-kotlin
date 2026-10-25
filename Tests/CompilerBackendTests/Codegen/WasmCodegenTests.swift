@@ -735,4 +735,147 @@ struct WasmCodegenTests {
         #expect(run?.status == 0)
         #expect(run?.stdout == "2\n9\n1\n7\n2\n9\n3\n1\n0\n")
     }
+
+    @Test
+    func runsRangeIntrinsicsUnderNodeWASI() throws {
+        guard nodePath() != nil else { return }
+        // __kk_op_rangeTo(1,5)      → for_in loop prints 1..5; first/last -> 1,5
+        // __kk_op_downTo(5,1) step 2 → for_in prints 5,3,1
+        // __kk_op_rangeUntil(0,3)   → for_in prints 0,1,2
+        // __kk_char_rangeTo(a,c)    → for_in prints a,b,c (tag 4)
+        // __kk_range_to_list(1..4)  → size 4
+        // induction_add(3,2)=5, induction_le(3,5)=1
+        let arena = KIRArena()
+        let mainSymbol = SymbolID(rawValue: 1)
+        func e(_ kind: KIRExprKind = .unit) -> KIRExprID { arena.appendExpr(kind) }
+        let zero = e(), one = e(), two = e(), three = e(), four = e(), five = e()
+        let charA = e(), charC = e(), tagChar = e()
+        let range1 = e(), range2 = e(), range3 = e(), range4 = e(), stepped = e()
+        let iter = e(), hasNext = e(), falseE = e(), v = e(), s = e()
+        let first = e(), last = e(), list = e(), size = e(), sum = e(), le = e()
+        let loop1: Int32 = 70, done1: Int32 = 71
+        let loop2: Int32 = 72, done2: Int32 = 73
+        let loop3: Int32 = 74, done3: Int32 = 75
+        let loop4: Int32 = 76, done4: Int32 = 77
+        func rangeLoop(_ rangeExpr: KIRExprID, loop: Int32, done: Int32,
+                       taggedChar: Bool = false) -> [KIRInstruction] {
+            var ins: [KIRInstruction] = [
+                .call(symbol: nil, callee: interner.intern("__kk_range_for_in_iterator"),
+                      arguments: [rangeExpr], result: iter,
+                      canThrow: false, thrownResult: nil),
+                .label(loop),
+                .call(symbol: nil, callee: interner.intern("__kk_range_for_in_hasNext"),
+                      arguments: [iter], result: hasNext,
+                      canThrow: false, thrownResult: nil),
+                .constValue(result: falseE, value: .boolLiteral(false)),
+                .jumpIfEqual(lhs: hasNext, rhs: falseE, target: done),
+                .call(symbol: nil, callee: interner.intern("__kk_range_for_in_next"),
+                      arguments: [iter], result: v,
+                      canThrow: false, thrownResult: nil),
+            ]
+            if taggedChar {
+                ins.append(contentsOf: [
+                    .constValue(result: tagChar, value: .intLiteral(4)),
+                    .call(symbol: nil, callee: interner.intern("kk_any_to_string"),
+                          arguments: [v, tagChar], result: s,
+                          canThrow: false, thrownResult: nil),
+                ])
+            } else {
+                ins.append(.call(symbol: nil, callee: interner.intern("kk_any_to_string"),
+                                 arguments: [v], result: s,
+                                 canThrow: false, thrownResult: nil))
+            }
+            ins.append(contentsOf: [
+                println(interner.intern("__kk_println_raw"), s),
+                .jump(loop),
+                .label(done),
+            ])
+            return ins
+        }
+        var body: [KIRInstruction] = [
+            .constValue(result: one, value: .intLiteral(1)),
+            .constValue(result: five, value: .intLiteral(5)),
+            .call(symbol: nil, callee: interner.intern("__kk_op_rangeTo"),
+                  arguments: [one, five], result: range1,
+                  canThrow: false, thrownResult: nil),
+            .call(symbol: nil, callee: interner.intern("__kk_range_first"),
+                  arguments: [range1], result: first,
+                  canThrow: false, thrownResult: nil),
+            .call(symbol: nil, callee: interner.intern("kk_any_to_string"),
+                  arguments: [first], result: s,
+                  canThrow: false, thrownResult: nil),
+            println(interner.intern("__kk_println_raw"), s),
+            .call(symbol: nil, callee: interner.intern("__kk_range_last"),
+                  arguments: [range1], result: last,
+                  canThrow: false, thrownResult: nil),
+            .call(symbol: nil, callee: interner.intern("kk_any_to_string"),
+                  arguments: [last], result: s,
+                  canThrow: false, thrownResult: nil),
+            println(interner.intern("__kk_println_raw"), s),
+        ]
+        body.append(contentsOf: rangeLoop(range1, loop: loop1, done: done1))
+        body.append(contentsOf: [
+            .constValue(result: two, value: .intLiteral(2)),
+            .call(symbol: nil, callee: interner.intern("__kk_op_downTo"),
+                  arguments: [five, one], result: range2,
+                  canThrow: false, thrownResult: nil),
+            .call(symbol: nil, callee: interner.intern("__kk_op_step"),
+                  arguments: [range2, two], result: stepped,
+                  canThrow: false, thrownResult: nil),
+        ])
+        body.append(contentsOf: rangeLoop(stepped, loop: loop2, done: done2))
+        body.append(contentsOf: [
+            .constValue(result: zero, value: .intLiteral(0)),
+            .constValue(result: three, value: .intLiteral(3)),
+            .call(symbol: nil, callee: interner.intern("__kk_op_rangeUntil"),
+                  arguments: [zero, three], result: range3,
+                  canThrow: false, thrownResult: nil),
+        ])
+        body.append(contentsOf: rangeLoop(range3, loop: loop3, done: done3))
+        body.append(contentsOf: [
+            .constValue(result: charA, value: .charLiteral(97)),
+            .constValue(result: charC, value: .charLiteral(99)),
+            .call(symbol: nil, callee: interner.intern("__kk_char_rangeTo"),
+                  arguments: [charA, charC], result: range4,
+                  canThrow: false, thrownResult: nil),
+        ])
+        body.append(contentsOf: rangeLoop(range4, loop: loop4, done: done4, taggedChar: true))
+        body.append(contentsOf: [
+            .constValue(result: four, value: .intLiteral(4)),
+            .call(symbol: nil, callee: interner.intern("__kk_op_rangeTo"),
+                  arguments: [one, four], result: range1,
+                  canThrow: false, thrownResult: nil),
+            .call(symbol: nil, callee: interner.intern("__kk_range_to_list"),
+                  arguments: [range1], result: list,
+                  canThrow: false, thrownResult: nil),
+            .call(symbol: nil, callee: interner.intern("__kk_list_size"),
+                  arguments: [list], result: size,
+                  canThrow: false, thrownResult: nil),
+            .call(symbol: nil, callee: interner.intern("kk_any_to_string"),
+                  arguments: [size], result: s,
+                  canThrow: false, thrownResult: nil),
+            println(interner.intern("__kk_println_raw"), s),
+            .call(symbol: nil, callee: interner.intern("__kk_int_range_induction_add"),
+                  arguments: [three, two], result: sum,
+                  canThrow: false, thrownResult: nil),
+            .call(symbol: nil, callee: interner.intern("kk_any_to_string"),
+                  arguments: [sum], result: s,
+                  canThrow: false, thrownResult: nil),
+            println(interner.intern("__kk_println_raw"), s),
+            .call(symbol: nil, callee: interner.intern("__kk_int_range_induction_le"),
+                  arguments: [three, five], result: le,
+                  canThrow: false, thrownResult: nil),
+            .call(symbol: nil, callee: interner.intern("kk_any_to_string"),
+                  arguments: [le], result: s,
+                  canThrow: false, thrownResult: nil),
+            println(interner.intern("__kk_println_raw"), s),
+            .returnUnit,
+        ])
+        let main = makeFunction(symbol: mainSymbol, name: "main", params: [], body: body)
+        let declID = arena.appendDecl(.function(main))
+        let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [declID])], arena: arena)
+        let run = try runUnderNode(try emit(module, entry: mainSymbol))
+        #expect(run?.status == 0)
+        #expect(run?.stdout == "1\n5\n1\n2\n3\n4\n5\n5\n3\n1\n0\n1\n2\na\nb\nc\n4\n5\n1\n")
+    }
 }
