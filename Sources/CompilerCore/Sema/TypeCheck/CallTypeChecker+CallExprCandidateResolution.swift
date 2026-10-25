@@ -515,12 +515,18 @@ extension CallTypeChecker {
                 candidates: [chosen],
                 ctx: ctx
             )[chosen]
+            let contextParameterReceiverSymbols = contextParameterReceiverSymbols(
+                for: chosen,
+                substitution: resolved.substitutedTypeArguments,
+                ctx: ctx
+            )
             let returnType = bindCallAndResolveReturnType(
                 id,
                 chosen: chosen,
                 resolved: resolved,
                 sema: sema,
-                dispatchReceiverSymbol: importedDispatchReceiver
+                dispatchReceiverSymbol: importedDispatchReceiver,
+                contextParameterReceiverSymbols: contextParameterReceiverSymbols
             )
             if sema.wellKnownSymbols.isContractIntrinsic(for: chosen) {
                 // The contract DSL is compiler-only, but only after ordinary
@@ -642,5 +648,47 @@ extension CallTypeChecker {
             return adjustedReturnType
         }
         return nil
+    }
+
+    private func contextParameterReceiverSymbols(
+        for callee: SymbolID,
+        substitution: [TypeVarID: TypeID],
+        ctx: TypeInferenceContext
+    ) -> [SymbolID?] {
+        guard let signature = ctx.sema.symbols.functionSignature(for: callee),
+              !signature.contextParameterTypes.isEmpty
+        else {
+            return []
+        }
+
+        var candidates: [(type: TypeID, symbol: SymbolID)] = []
+        if let enclosingFunction = ctx.enclosingFunctionSymbol ?? ctx.currentDeclSymbol,
+           let enclosingSignature = ctx.sema.symbols.functionSignature(for: enclosingFunction)
+        {
+            candidates.append(contentsOf: zip(
+                enclosingSignature.contextParameterTypes,
+                enclosingSignature.contextParameterSymbols
+            ).map { (type: $0.0, symbol: $0.1) })
+        }
+        candidates.append(contentsOf: ctx.implicitReceiverStack.reversed())
+        candidates.append(contentsOf: ctx.outerReceiverTypes.reversed().compactMap { receiver in
+            receiver.symbol.map { (type: receiver.type, symbol: $0) }
+        })
+
+        let typeVariables = ctx.sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
+        return signature.contextParameterTypes.map { requestedType in
+            let resolvedType = ctx.sema.types.substituteTypeParameters(
+                in: requestedType,
+                substitution: substitution,
+                typeVarBySymbol: typeVariables
+            )
+            let targetType = ctx.sema.types.makeNonNullable(resolvedType)
+            return candidates.first { candidate in
+                ctx.sema.types.isSubtype(
+                    ctx.sema.types.makeNonNullable(candidate.type),
+                    targetType
+                )
+            }?.symbol
+        }
     }
 }

@@ -249,8 +249,12 @@ struct CaptureAnalyzer {
 
             case let .call(callee, _, args, _):
                 var isLocalFunctionCall = false
-                let calleeSymbol = sema.bindings.callBinding(for: currentExprID)?.chosenCallee
+                let callBinding = sema.bindings.callBinding(for: currentExprID)
+                let calleeSymbol = callBinding?.chosenCallee
                     ?? sema.bindings.identifierSymbol(for: callee)
+                captured.formUnion(callBinding?.contextParameterReceiverSymbols.compactMap { $0 }.filter {
+                    outerSymbols.contains($0)
+                } ?? [])
                 if let calleeSymbol,
                    sema.symbols.symbol(calleeSymbol)?.flags.contains(.localFunction) == true
                 {
