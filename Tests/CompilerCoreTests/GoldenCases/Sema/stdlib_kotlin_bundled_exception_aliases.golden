@@ -1,0 +1,24 @@
+symbol fq=golden.sema.deprecatedNullPointerAlias[kind=fun;params=;ret=kotlin.NullPointerException;origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[] ret=kotlin.NullPointerException
+symbol fq=golden.sema.messageIllegalAccess.$0.message[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.messageIllegalAccess[kind=fun;params=String?;ret=kotlin.Exception;names=[message];origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[String?] ret=kotlin.Exception
+symbol fq=golden.sema.messageInterrupted.$1.message[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.messageInterrupted[kind=fun;params=String?;ret=kotlin.Exception;names=[message];origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[String?] ret=kotlin.Exception
+symbol fq=golden.sema.noArgIllegalAccess[kind=fun;params=;ret=kotlin.Exception;origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[] ret=kotlin.Exception
+symbol fq=golden.sema.noArgInterrupted[kind=fun;params=;ret=kotlin.Exception;origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[] ret=kotlin.Exception
+symbol fq=golden.sema.stringBufferAlias[kind=fun;params=;ret=kotlin.text.StringBuilder;origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[] ret=kotlin.text.StringBuilder
+file fstdlib_kotlin_bundled_exception_aliases package=golden.sema
+  decl golden.sema.noArgIllegalAccess[kind=fun;params=;ret=kotlin.Exception;origin=fixture] fun noArgIllegalAccess sym=golden.sema.noArgIllegalAccess[kind=fun;params=;ret=kotlin.Exception;origin=fixture]
+  decl golden.sema.messageIllegalAccess[kind=fun;params=String?;ret=kotlin.Exception;names=[message];origin=fixture] fun messageIllegalAccess sym=golden.sema.messageIllegalAccess[kind=fun;params=String?;ret=kotlin.Exception;names=[message];origin=fixture]
+  decl golden.sema.noArgInterrupted[kind=fun;params=;ret=kotlin.Exception;origin=fixture] fun noArgInterrupted sym=golden.sema.noArgInterrupted[kind=fun;params=;ret=kotlin.Exception;origin=fixture]
+  decl golden.sema.messageInterrupted[kind=fun;params=String?;ret=kotlin.Exception;names=[message];origin=fixture] fun messageInterrupted sym=golden.sema.messageInterrupted[kind=fun;params=String?;ret=kotlin.Exception;names=[message];origin=fixture]
+  decl golden.sema.deprecatedNullPointerAlias[kind=fun;params=;ret=kotlin.NullPointerException;origin=fixture] fun deprecatedNullPointerAlias sym=golden.sema.deprecatedNullPointerAlias[kind=fun;params=;ret=kotlin.NullPointerException;origin=fixture]
+  decl golden.sema.stringBufferAlias[kind=fun;params=;ret=kotlin.text.StringBuilder;origin=fixture] fun stringBufferAlias sym=golden.sema.stringBufferAlias[kind=fun;params=;ret=kotlin.text.StringBuilder;origin=fixture]
+expr e@3:39 call callee=e@3:39#1 args=[] type=kotlin.IllegalAccessException call=kotlin.IllegalAccessException.<init>[kind=ctor;recv=kotlin.IllegalAccessException;params=;ret=kotlin.IllegalAccessException]
+expr e@4:80 name(message) type=String? ref=golden.sema.messageIllegalAccess.$0.message[kind=vparam;origin=fixture]
+expr e@4:57 call callee=e@4:57#1 args=[_:e@4:80] type=kotlin.IllegalAccessException call=kotlin.IllegalAccessException.<init>[kind=ctor;recv=kotlin.IllegalAccessException;params=String?;ret=kotlin.IllegalAccessException;names=[message]]
+expr e@6:37 call callee=e@6:37#1 args=[] type=kotlin.InterruptedException call=kotlin.InterruptedException.<init>[kind=ctor;recv=kotlin.InterruptedException;params=;ret=kotlin.InterruptedException]
+expr e@7:76 name(message) type=String? ref=golden.sema.messageInterrupted.$1.message[kind=vparam;origin=fixture]
+expr e@7:55 call callee=e@7:55#1 args=[_:e@7:76] type=kotlin.InterruptedException call=kotlin.InterruptedException.<init>[kind=ctor;recv=kotlin.InterruptedException;params=String?;ret=kotlin.InterruptedException;names=[message]]
+expr e@9:58 call callee=e@9:58#1 args=[] type=kotlin.NullPointerException call=kotlin.NullPointerException.<init>[kind=ctor;recv=kotlin.NullPointerException;params=;ret=kotlin.NullPointerException]
+expr e@11:67 string(x) type=String
+expr e@11:54 call callee=e@11:54#1 args=[_:e@11:67] type=kotlin.text.StringBuilder call=kotlin.text.StringBuilder.<init>[kind=ctor;recv=kotlin.text.StringBuilder;params=String;ret=kotlin.text.StringBuilder;names=[content]]
