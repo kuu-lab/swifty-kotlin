@@ -264,6 +264,13 @@ private func runtimeUnboxedAnyHashCode(_ value: Int, _ tag: Int32) -> Int {
     }
 }
 
+/// Hash Unit through its canonical box so raw and Any-erased values share one identity hash.
+private func runtimeUnitHashCode() -> Int {
+    let identityHash = kk_native_identityHashCode(kk_box_unit(0))
+    let hash = Int(Int32(truncatingIfNeeded: identityHash))
+    return hash == 0 ? 1 : hash
+}
+
 private func runtimeStoredValueHash(_ value: RuntimeValue) -> Int {
     kk_any_hashCode(value.legacyRawValue, Int(value.anyFallbackTag))
 }
@@ -346,7 +353,7 @@ private func runtimeAnyHashCode(_ value: Int, _ tag: Int32) -> Int {
         return charBox.value
     }
     if runtimeIsUnitBox(value) {
-        return 0
+        return runtimeUnitHashCode()
     }
     // Result is represented by a runtime box while the source-backed stdlib
     // still models it as a class. Preserve Kotlin's public value-class
@@ -638,7 +645,11 @@ public func kk_any_member_to_string(_ raw: Int) -> UnsafeMutableRawPointer {
 
 @_cdecl("kk_any_member_hashCode")
 public func kk_any_member_hashCode(_ raw: Int) -> Int {
-    kk_any_hashCode(raw, 1)
+    // Direct Unit values use raw zero, while reference receivers are boxed.
+    if raw == 0 {
+        return runtimeUnitHashCode()
+    }
+    return kk_any_hashCode(raw, 1)
 }
 
 @_cdecl("kk_any_member_equals")
