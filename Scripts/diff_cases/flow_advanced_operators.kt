@@ -34,7 +34,9 @@ fun main() = runBlocking {
             emit(value + 200)
         }
     }.toList()
-    println(mergedFlat)
+    var mergedFlatSum = 0
+    for (value in mergedFlat) mergedFlatSum += value
+    println("${mergedFlat.size}:$mergedFlatSum")
 
     val latestFlat = flow<Int> {
         emit(1)
@@ -59,8 +61,12 @@ fun main() = runBlocking {
     }
 
     println(left.zip(right) { a, b -> a + b }.toList())
-    println(left.combine(right) { a, b -> a * b }.toList())
-    println(merge(left, right).toList())
+    // Single values keep this case independent of combine's racing snapshots.
+    println(flowOf(1).combine(flowOf(10)) { a, b -> a * b }.toList())
+    val mergedInputs = merge(left, right).toList()
+    var mergedInputsSum = 0
+    for (value in mergedInputs) mergedInputsSum += value
+    println("${mergedInputs.size}:$mergedInputsSum")
 
     val buffered = flow<Int> {
         emit(5)

@@ -112,12 +112,10 @@ struct KIRVerifierTests {
         )
         let module = makeModule(arena: arena, interner: interner, body: [
             .call(
-                symbol: nil,
                 callee: unknownRuntimeName,
                 arguments: [],
                 result: nil,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ),
             .returnUnit,
         ])
@@ -143,16 +141,14 @@ struct KIRVerifierTests {
                 callee: interner.intern("get"),
                 arguments: [receiver],
                 result: nil,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ),
             .call(
                 symbol: stubSymbol,
                 callee: interner.intern("indexOf$default"),
                 arguments: [],
                 result: nil,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ),
             .returnUnit,
         ])
@@ -169,12 +165,10 @@ struct KIRVerifierTests {
         let module = makeModule(arena: arena, interner: interner, body: [
             .constValue(result: value, value: .intLiteral(1)),
             .call(
-                symbol: nil,
                 callee: KIRRuntimeFunction.unboxInt.name(in: interner),
                 arguments: [value],
                 result: result,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ),
             .returnValue(result),
         ])
@@ -196,6 +190,39 @@ struct KIRVerifierTests {
         }
         #expect(kirDiagnostics.isEmpty, "unexpected KIR verifier failures: \(kirDiagnostics)")
         #expect(!ctx.diagnostics.hasError)
+    }
+
+    @Test
+    func nestedBigArityFunctionTypedCallsDoNotReportUnresolvableCallee() throws {
+        let source = """
+        interface A
+        object O : A
+
+        typealias F<T> = (A, A, A, A, A, A, A, A, A, A, A, A, A, A, A, A, A, A, A, A, A, A, A, A, T) -> String
+
+        fun test(f: F<F<String>>): String =
+            f(O, O, O, O, O, O, O, O, O, O, O, O, O, O, O, O, O, O, O, O, O, O, O, O) {
+                _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, s ->
+                s
+            }
+
+        fun box(): String {
+            return test {
+                _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, f ->
+                f(O, O, O, O, O, O, O, O, O, O, O, O, O, O, O, O, O, O, O, O, O, O, O, O, "OK")
+            }
+        }
+        """
+        let ctx = makeContextFromSource(source, moduleName: "KIRVerifierNestedBigArity")
+        try runToLowering(ctx)
+        let kirDiagnostics = ctx.diagnostics.diagnostics.filter {
+            $0.code == "KSWIFTK-KIR-0003"
+        }
+        #expect(kirDiagnostics.isEmpty, "unexpected KIR verifier failures: \(kirDiagnostics)")
+        let otherErrors = ctx.diagnostics.diagnostics.filter {
+            $0.severity == .error && $0.code != "KSWIFTK-KIR-0003"
+        }
+        #expect(otherErrors.isEmpty, "unexpected compiler errors: \(otherErrors)")
     }
 
     @Test

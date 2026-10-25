@@ -134,9 +134,37 @@ final class RuntimeStringBox {
             return cachedFlatStorage
         }
         let storage = RuntimeFlatStringStorage(value)
-        runtimeRegisterFlatStringStorage(storage, canonicalBox: self)
+        runtimeRegisterFlatStringStorage(storage, canonicalBox: canonicalFlatStringBox())
         cachedFlatStorage = storage
         return storage
+    }
+
+    /// A `kk_tag_value_class_box` tag lives in the side-table nominal-type
+    /// registry, not in the box itself. Using `self` as the storage's
+    /// canonical box would make every later `kk_string_from_flat` of this
+    /// payload return the value-class box again — `x.toString` inside
+    /// `S(x=…)` would then re-dispatch `S.toString` and recurse (KUU-3251).
+    /// Tagged clones carry `untaggedCanonicalAlias` back to the payload box
+    /// they were cloned from so the bridge preserves object identity; any
+    /// other nominally-typed box resolves to a fresh untagged peer instead.
+    var untaggedCanonicalAlias: RuntimeStringBox?
+
+    private func canonicalFlatStringBox() -> RuntimeStringBox {
+        if let untaggedCanonicalAlias {
+            return untaggedCanonicalAlias
+        }
+        let raw = Int(bitPattern: Unmanaged.passUnretained(self).toOpaque())
+        // The nominal type can sit on either this exact handle (in-place tag)
+        // or its primitive-tag-bits handle (registerTaggedPrimitiveBox clone).
+        let taggedPrimitiveRaw = Int(bitPattern: UInt(bitPattern: raw) | runtimePrimitiveBoxTag)
+        guard runtimeObjectTypeID(rawValue: raw) != nil
+                || runtimeObjectTypeID(rawValue: taggedPrimitiveRaw) != nil
+        else {
+            return self
+        }
+        let untagged = RuntimeStringBox(value)
+        _ = registerRuntimeObject(untagged)
+        return untagged
     }
 }
 

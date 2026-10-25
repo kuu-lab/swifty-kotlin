@@ -74,7 +74,6 @@ struct InlineThrowReroutingTests {
             arguments: [KIRExprID(rawValue: 3)],
             result: KIRExprID(rawValue: 4),
             canThrow: false,
-            thrownResult: nil,
             dispatch: dispatch
         )
         var labels = InlineLabelAllocator(callerBody: [KIRInstruction]())

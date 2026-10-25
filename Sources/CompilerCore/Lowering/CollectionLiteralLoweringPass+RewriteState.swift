@@ -473,7 +473,6 @@ extension CollectionLiteralLoweringSupport {
     ) -> KIRExprID {
         let callResult = module.arena.appendTemporary(type: nil)
         loweredBody.append(.call(
-            symbol: nil,
             callee: callee,
             arguments: arguments,
             result: callResult,

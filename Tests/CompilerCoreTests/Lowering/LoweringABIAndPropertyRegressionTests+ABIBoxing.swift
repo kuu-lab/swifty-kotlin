@@ -67,7 +67,7 @@ extension LoweringABIAndPropertyRegressionTests {
                     params: [KIRParameter(symbol: receiverSymbol, type: receiverType)],
                     returnType: types.unitType,
                     body: [
-                        .call(symbol: targetSymbol, callee: targetName, arguments: [receiver, argument], result: nil, canThrow: false, thrownResult: nil),
+                        .call(symbol: targetSymbol, callee: targetName, arguments: [receiver, argument], result: nil, canThrow: false),
                         .returnUnit,
                     ],
                     isSuspend: false,
@@ -164,7 +164,7 @@ extension LoweringABIAndPropertyRegressionTests {
             params: [],
             returnType: types.unitType,
             body: [
-                .call(symbol: targetSym, callee: targetName, arguments: [argExpr], result: resultExpr, canThrow: false, thrownResult: nil),
+                .call(symbol: targetSym, callee: targetName, arguments: [argExpr], result: resultExpr, canThrow: false),
                 .returnUnit,
             ],
             isSuspend: false,
@@ -227,7 +227,7 @@ extension LoweringABIAndPropertyRegressionTests {
             params: [],
             returnType: types.unitType,
             body: [
-                .call(symbol: targetSym, callee: targetName, arguments: [argExpr], result: resultExpr, canThrow: false, thrownResult: nil),
+                .call(symbol: targetSym, callee: targetName, arguments: [argExpr], result: resultExpr, canThrow: false),
                 .returnUnit,
             ],
             isSuspend: false,
@@ -290,7 +290,7 @@ extension LoweringABIAndPropertyRegressionTests {
             params: [],
             returnType: types.unitType,
             body: [
-                .call(symbol: targetSym, callee: targetName, arguments: [argExpr], result: resultExpr, canThrow: false, thrownResult: nil),
+                .call(symbol: targetSym, callee: targetName, arguments: [argExpr], result: resultExpr, canThrow: false),
                 .returnUnit,
             ],
             isSuspend: false,
@@ -351,7 +351,7 @@ extension LoweringABIAndPropertyRegressionTests {
             params: [],
             returnType: types.unitType,
             body: [
-                .call(symbol: targetSym, callee: targetName, arguments: [], result: resultExpr, canThrow: false, thrownResult: nil),
+                .call(symbol: targetSym, callee: targetName, arguments: [], result: resultExpr, canThrow: false),
                 .returnUnit,
             ],
             isSuspend: false,
@@ -414,7 +414,7 @@ extension LoweringABIAndPropertyRegressionTests {
             params: [],
             returnType: types.unitType,
             body: [
-                .call(symbol: targetSym, callee: targetName, arguments: [], result: resultExpr, canThrow: false, thrownResult: nil),
+                .call(symbol: targetSym, callee: targetName, arguments: [], result: resultExpr, canThrow: false),
                 .returnUnit,
             ],
             isSuspend: false,
@@ -651,8 +651,7 @@ extension LoweringABIAndPropertyRegressionTests {
                     callee: interner.intern("inner"),
                     arguments: [capExpr, kExpr, cExpr],
                     result: callResult,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ),
                 .returnUnit,
             ],
@@ -719,7 +718,7 @@ extension LoweringABIAndPropertyRegressionTests {
             params: [],
             returnType: types.unitType,
             body: [
-                .call(symbol: targetSym, callee: targetName, arguments: [receiverExpr], result: resultExpr, canThrow: false, thrownResult: nil),
+                .call(symbol: targetSym, callee: targetName, arguments: [receiverExpr], result: resultExpr, canThrow: false),
                 .returnUnit,
             ],
             isSuspend: false,

@@ -12,14 +12,13 @@ extension BundledStdlibExecutionTests {
                 println(flowOf(flowOf(1, 2), flowOf(3, 4)).flattenConcat().toList())
                 println(flowOf(flowOf(1), emptyFlow<Int>(), flowOf(2)).flattenConcat().toList())
                 println(emptyFlow<Flow<Int>>().flattenConcat().toList())
-                // Sequential cold-flow model: merge collects each flow in order.
-                println(listOf(flowOf(1, 2), flowOf(3, 4)).merge().toList())
+                println(merge(flowOf(1, 2), flowOf(3, 4)).toList().sorted())
                 println(listOf(flowOf(1, 2), flowOf(3, 4)).merge().toList().sorted())
                 println(flow<Int> { emit(4); emit(3); emit(2); emit(1) }.toList().sorted())
                 println(listOf(flowOf(2, 1)).merge().toList().sorted())
                 println(listOf(flowOf(1, 3, 2)).merge().toList().sortedDescending())
                 println(emptyList<Flow<Int>>().merge().toList())
-                println(flowOf(flowOf(1, 2), flowOf(3, 4)).flattenMerge().toList())
+                println(flowOf(flowOf(1, 2), flowOf(3, 4)).flattenMerge().toList().sorted())
                 println(flowOf(flowOf(1, 2), flowOf(3, 4)).flattenMerge(1).toList())
                 try {
                     flowOf(flowOf(1)).flattenMerge(0).toList()
@@ -43,6 +42,121 @@ extension BundledStdlibExecutionTests {
             [1, 2, 3, 4]
             flattenMerge(0)
             true
+
+            """,
+            allowDefaultStdlibLibrary: artifact
+        )
+    }
+
+    @Test(arguments: [true, false])
+    func testFlowMergeOperatorsCollectConcurrentlyAndLimitConcurrency(artifact: Bool) throws {
+        try compileAndRunKotlin(
+            """
+            import kotlinx.coroutines.*
+            import kotlinx.coroutines.channels.Channel
+            import kotlinx.coroutines.channels.tryReceive
+            import kotlinx.coroutines.flow.*
+
+            fun gated(value: Int, started: Channel<Unit>, proceed: Channel<Unit>): Flow<Int> = flow {
+                emit(value)
+                started.send(Unit)
+                proceed.receive()
+                emit(value + 10)
+            }
+
+            suspend fun verifyConcurrent(
+                factory: (Channel<Unit>, Channel<Unit>) -> Flow<Int>
+            ): String = coroutineScope {
+                val started = Channel<Unit>(0)
+                val proceed = Channel<Unit>(0)
+                val release = launch {
+                    started.receive()
+                    started.receive()
+                    proceed.send(Unit)
+                    proceed.send(Unit)
+                }
+                val values = withTimeout(2_000) { factory(started, proceed).toList() }
+                release.join()
+                var checksum = 0
+                for (value in values) checksum += value
+                "${values.size}:$checksum"
+            }
+
+            fun main() = runBlocking {
+                println(verifyConcurrent { started, proceed ->
+                    flowOf(gated(1, started, proceed), gated(2, started, proceed)).flattenMerge(2)
+                })
+                println(verifyConcurrent { started, proceed ->
+                    flowOf(1, 2).flatMapMerge(2) { value -> gated(value, started, proceed) }
+                })
+                println(verifyConcurrent { started, proceed ->
+                    listOf(gated(1, started, proceed), gated(2, started, proceed)).merge()
+                })
+                println(verifyConcurrent { started, proceed ->
+                    merge(gated(1, started, proceed), gated(2, started, proceed))
+                })
+
+                val starts = Channel<Int>(Channel.UNLIMITED)
+                val proceed = Channel<Unit>(Channel.UNLIMITED)
+                var exceededLimit = false
+                val limited = flowOf(1, 2, 3).flatMapMerge(2) { value ->
+                    flow {
+                        starts.send(value)
+                        proceed.receive()
+                        emit(value)
+                    }
+                }
+                val controller = launch {
+                    starts.receive()
+                    starts.receive()
+                    exceededLimit = starts.tryReceive().isSuccess
+                    proceed.send(Unit)
+                    starts.receive()
+                    proceed.send(Unit)
+                    proceed.send(Unit)
+                }
+                val limitedValues = withTimeout(2_000) { limited.toList() }
+                controller.join()
+                var limitedSum = 0
+                for (value in limitedValues) limitedSum += value
+                println("$exceededLimit:${limitedValues.size}:$limitedSum")
+
+                val entered = Channel<Unit>(0)
+                val never = Channel<Unit>(0)
+                val cancelled = Channel<Unit>(Channel.UNLIMITED)
+                val failing = flowOf(1, 2).flatMapMerge(2) { value ->
+                    if (value == 1) {
+                        flow {
+                            try {
+                                entered.send(Unit)
+                                never.receive()
+                            } finally {
+                                cancelled.trySend(Unit)
+                            }
+                        }
+                    } else {
+                        flow {
+                            entered.receive()
+                            throw IllegalStateException("inner failed")
+                        }
+                    }
+                }
+                var failureMessage = "none"
+                try {
+                    withTimeout(2_000) { failing.toList() }
+                } catch (failure: IllegalStateException) {
+                    failureMessage = failure.message ?: "missing message"
+                }
+                println("$failureMessage:${cancelled.tryReceive().isSuccess}")
+            }
+            """,
+            expectedOutput: """
+            4:26
+            4:26
+            4:26
+            4:26
+            false:3:6
+            inner failed:true
 
             """,
             allowDefaultStdlibLibrary: artifact
@@ -336,8 +450,9 @@ extension BundledStdlibExecutionTests {
                 println(pipeline.toList())
 
                 // 3. flatMapMerge with default concurrency and custom concurrency
-                println(flowOf(1, 2).flatMapMerge { flowOf(it, it * 100) }.toList())
-                println(flowOf(1, 2).flatMapMerge(2) { flowOf(it, it * 100) }.toList())
+                println(flowOf(1, 2).flatMapMerge { flowOf(it, it * 100) }.toList().sorted())
+                println(flowOf(1, 2).flatMapMerge(2) { flowOf(it, it * 100) }.toList().sorted())
+                println(flowOf(1, 2).flatMapMerge(1) { flowOf(it, it * 100) }.toList())
                 try {
                     flowOf(1).flatMapMerge(0) { flowOf(it) }.toList()
                 } catch (e: IllegalArgumentException) {
@@ -353,7 +468,8 @@ extension BundledStdlibExecutionTests {
             [10, 20]
             touched after: 2
             [mapped-a-1, mapped-b-1, mapped-a-2, mapped-b-2]
-            [1, 100, 2, 200]
+            [1, 2, 100, 200]
+            [1, 2, 100, 200]
             [1, 100, 2, 200]
             invalid concurrency
             [5, 10]

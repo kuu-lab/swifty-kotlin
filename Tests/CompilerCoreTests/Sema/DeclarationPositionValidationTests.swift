@@ -48,7 +48,7 @@ struct DeclarationPositionValidationTests {
     ])
     func propertyModifiersOnFunctionParametersAreRejected(source: String, modifier: String) throws {
         let ctx = try semaContextWithoutStdlib(for: source)
-        let diagnostics = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0441" }
+        let diagnostics = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0443" }
 
         #expect(diagnostics.contains {
             $0.message == "'\(modifier)' on function parameter is prohibited."
@@ -58,7 +58,7 @@ struct DeclarationPositionValidationTests {
     @Test
     func primaryConstructorPropertyParametersRemainAccepted() throws {
         let ctx = try semaContextWithoutStdlib(for: "class C(val x: Int, var y: Int)")
-        assertNoDiagnostic("KSWIFTK-SEMA-0441", in: ctx)
+        assertNoDiagnostic("KSWIFTK-SEMA-0443", in: ctx)
     }
 
     // MARK: - Declaration positions
@@ -99,6 +99,32 @@ struct DeclarationPositionValidationTests {
             class C { companion object { } }
             """)
         assertNoDiagnostic("KSWIFTK-SEMA-0435", in: ctx)
+    }
+
+    @Test(arguments: [
+        "class C<T, T> { }",
+        "class C<T, T, T> { }",
+        "fun <T, T> f() = 1",
+        "interface I<K, K> {}",
+        "typealias M<T, T> = T",
+        "enum class E<T, T> { A }",
+    ])
+    func duplicateTypeParameterNamesAreRejected(_ source: String) throws {
+        let ctx = try semaContextWithoutStdlib(for: source)
+        assertHasDiagnostic("KSWIFTK-SEMA-0436", in: ctx)
+    }
+
+    @Test(arguments: [
+        "class C<T> { }",
+        "class C<T, U> { }",
+        "fun <T, U> f() = 1",
+        "interface I<K, V> {}",
+        "typealias M<T, U> = T",
+        "class Outer<T> { class Inner<T> { } }",
+    ])
+    func distinctTypeParameterNamesAreAccepted(_ source: String) throws {
+        let ctx = try semaContextWithoutStdlib(for: source)
+        assertNoDiagnostic("KSWIFTK-SEMA-0436", in: ctx)
     }
 
     @Test(arguments: [
@@ -343,6 +369,27 @@ struct DeclarationPositionValidationTests {
     func infixFunctionsSatisfyingRequirementsAreAccepted(source: String) throws {
         let ctx = try semaContextWithoutStdlib(for: source)
         assertNoDiagnostic("KSWIFTK-SEMA-0431", in: ctx)
+    }
+
+    // MARK: - vararg parameter requirements (KUU-2998)
+
+    @Test(arguments: [
+        "fun f(vararg a: Int, vararg b: Int) = a",
+        "fun outer() { fun f(vararg a: Int, vararg b: Int) = a }",
+        "val f = fun(vararg a: Int, vararg b: Int) = a",
+        "class C(vararg a: Int, vararg b: Int)",
+        "class C { constructor(vararg a: Int, vararg b: Int) }",
+    ])
+    func multipleVarargParametersAreRejected(source: String) throws {
+        let ctx = try semaContextWithoutStdlib(for: source)
+        let diagnostics = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0441" }
+        #expect(diagnostics.count == 2, "Expected one diagnostic per vararg modifier, got: \(diagnostics)")
+
+        let expectedOffsets = [source.range(of: "vararg")!, source.range(of: "vararg", options: .backwards)!]
+            .map { source.distance(from: source.startIndex, to: $0.lowerBound) }
+            .sorted()
+        let actualOffsets = diagnostics.compactMap { $0.primaryRange?.start.offset }.sorted()
+        #expect(actualOffsets == expectedOffsets)
     }
 
     // MARK: - Annotation classes

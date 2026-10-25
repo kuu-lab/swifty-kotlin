@@ -68,12 +68,10 @@ extension ExprLowerer {
             let result = arena.appendTemporary(type: boundType ?? kClassFallback
             )
             instructions.append(.call(
-                symbol: nil,
                 callee: interner.intern(boundReceiver == nil ? "__kk_kclass_create" : "__kk_kclass_of"),
                 arguments: (boundReceiver.map { [$0] } ?? []) + [tokenExpr, nameHintExpr],
                 result: result,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
 
             // STDLIB-REFLECT-067: A standalone `T::class` box may later be

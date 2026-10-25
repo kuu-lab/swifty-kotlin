@@ -888,6 +888,14 @@ package struct KnownCompilerNames {
             [kotlin, kotlinConcurrent, kotlinConcurrentAtomics, atomicLongArrayName],
             [kotlin, kotlinConcurrent, kotlinConcurrentAtomics, atomicArrayName],
             [java, util, javaConcurrent, javaAtomic, javaAtomicIntegerName],
+            // KUU-3059: the rest of the java.util.concurrent.atomic surface
+            // shares the same runtime box factories.
+            [java, util, javaConcurrent, javaAtomic, atomicLongName],
+            [java, util, javaConcurrent, javaAtomic, atomicBooleanName],
+            [java, util, javaConcurrent, javaAtomic, atomicReferenceName],
+            [java, util, javaConcurrent, javaAtomic, interner.intern("AtomicIntegerArray")],
+            [java, util, javaConcurrent, javaAtomic, interner.intern("AtomicLongArray")],
+            [java, util, javaConcurrent, javaAtomic, interner.intern("AtomicReferenceArray")],
         ]
 
         // KUU-556: LinkedHashMap is a real HashMap subclass (its own symbol),

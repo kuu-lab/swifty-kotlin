@@ -12,6 +12,8 @@ import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.cancel
+import kotlinx.coroutines.channels.close
+import kotlinx.coroutines.channels.receiveCatching
 import kotlinx.coroutines.channels.tryReceive
 import kotlinx.coroutines.channels.trySend
 import kotlinx.coroutines.coroutineScope
@@ -135,18 +137,59 @@ public fun <T> Flow<Flow<T>>.flattenConcat(): Flow<T> {
     }
 }
 
-// Sequential cold-flow model: `merge` collects each flow in order instead of
-// merging concurrently (same caveat family as flatMapMerge, KUU-1350).
 public fun <T> Iterable<Flow<T>>.merge(): Flow<T> {
     val sources = this
-    return flow {
-        for (source in sources) {
-            source.collect { value -> emit(value) }
-        }
-    }
+    return mergeInternal(flow { for (source in sources) emit(source) }, DEFAULT_CONCURRENCY)
 }
 
 public fun <T> Flow<Flow<T>>.flattenMerge(concurrency: Int = DEFAULT_CONCURRENCY): Flow<T> {
     require(concurrency > 0) { "Expected positive concurrency level, but had $concurrency" }
-    return flattenConcat()
+    return mergeInternal(this, concurrency)
+}
+
+internal fun <T> mergeInternal(sources: Flow<Flow<T>>, concurrency: Int): Flow<T> = flow {
+    coroutineScope {
+        val emissions = Channel<T>(Channel.BUFFERED)
+        val completed = Channel<Unit>(concurrency)
+        val producer = launch {
+            try {
+                coroutineScope {
+                    var inFlight = 0
+                    sources.collect { source ->
+                        if (inFlight == concurrency) {
+                            completed.receive()
+                            inFlight -= 1
+                        }
+                        inFlight += 1
+                        launch {
+                            try {
+                                source.collect { value -> emissions.send(value) }
+                            } finally {
+                                completed.trySend(Unit)
+                            }
+                        }
+                    }
+                }
+                emissions.close()
+            } catch (failure: Throwable) {
+                emissions.close(failure)
+                throw failure
+            }
+        }
+
+        try {
+            while (true) {
+                val received = emissions.receiveCatching()
+                if (!received.isSuccess) {
+                    val failure = received.exceptionOrNull()
+                    if (failure != null) throw failure
+                    break
+                }
+                emit(received.getOrThrow())
+            }
+        } finally {
+            emissions.cancel()
+            producer.cancel()
+        }
+    }
 }

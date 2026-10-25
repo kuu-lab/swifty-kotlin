@@ -860,6 +860,12 @@ enum DiagnosticRegistry {
             summary: "Returns are not allowed for functions with expression body."
         ),
         DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0312",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "Returns are not allowed in initializer blocks."
+        ),
+        DiagnosticDescriptor(
             code: "KSWIFTK-SEMA-PLATFORM",
             pass: "SEMA",
             defaultSeverity: .warning,
@@ -1077,6 +1083,12 @@ enum DiagnosticRegistry {
             summary: "A declaration can have only one companion object."
         ),
         DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0436",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "Conflicting type parameter declarations."
+        ),
+        DiagnosticDescriptor(
             code: "KSWIFTK-SEMA-0438",
             pass: "SEMA",
             defaultSeverity: .error,
@@ -1084,6 +1096,12 @@ enum DiagnosticRegistry {
         ),
         DiagnosticDescriptor(
             code: "KSWIFTK-SEMA-0441",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "Multiple vararg parameters are prohibited."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0443",
             pass: "SEMA",
             defaultSeverity: .error,
             summary: "'val' and 'var' parameters are only allowed in primary constructors."

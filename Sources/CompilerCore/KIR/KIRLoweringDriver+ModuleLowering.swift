@@ -479,12 +479,10 @@ extension KIRLoweringDriver {
             )
             allTopLevelInitInstructions.append(
                 .call(
-                    symbol: nil,
                     callee: interner.intern(externalLinkName),
                     arguments: getterArguments,
                     result: result,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 )
             )
             allTopLevelInitInstructions.append(
@@ -513,8 +511,7 @@ extension KIRLoweringDriver {
                     callee: interner.intern(externalLinkName),
                     arguments: [],
                     result: result,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 )
             )
         }
@@ -592,8 +589,7 @@ extension KIRLoweringDriver {
                     callee: initializer.name,
                     arguments: [],
                     result: result,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 )
             )
         }

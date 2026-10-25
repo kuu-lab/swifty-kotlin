@@ -33,12 +33,10 @@ struct WasmCodegenTests {
         let s = arena.appendExpr(.unit)
         let strExpr = KIRExprKind.stringLiteral(interner.intern("wasm hello"))
         let call = KIRInstruction.call(
-            symbol: nil,
             callee: interner.intern("__kk_println_raw"),
             arguments: [s],
             result: nil,
-            canThrow: false,
-            thrownResult: nil
+            canThrow: false
         )
         let body: [KIRInstruction] = [
             .constValue(result: s, value: strExpr),
@@ -147,12 +145,10 @@ struct WasmCodegenTests {
         let body: [KIRInstruction] = [
             .constValue(result: arg, value: .intLiteral(1)),
             .call(
-                symbol: nil,
                 callee: interner.intern("kk_some_missing_runtime_fn"),
                 arguments: [arg],
                 result: nil,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ),
             .returnUnit,
         ]

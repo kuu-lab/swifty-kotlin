@@ -34,7 +34,7 @@ extension CallTypeChecker {
             interner.intern("collections"),
             interner.intern("Collection"),
         ]),
-        let iterableSymbol = sema.symbols.lookup(fqName: [
+        let iterableSymbol = sema.symbols.lookupNominal(fqName: [
             interner.intern("kotlin"),
             interner.intern("collections"),
             interner.intern("Iterable"),
@@ -282,7 +282,7 @@ extension CallTypeChecker {
             interner.intern("collections"),
             interner.intern("List"),
         ]),
-        let iterableSymbol = sema.symbols.lookup(fqName: [
+        let iterableSymbol = sema.symbols.lookupNominal(fqName: [
             interner.intern("kotlin"),
             interner.intern("collections"),
             interner.intern("Iterable"),

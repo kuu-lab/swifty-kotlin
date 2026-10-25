@@ -69,24 +69,20 @@ extension CollectionLiteralConstructionLoweringPass {
         // yields an empty sequence (BUG with primitive Array.asSequence pipelines).
         if state.arrayExprIDs.contains(receiverID.rawValue) {
             loweredBody.append(.call(
-                symbol: nil,
                 callee: lookup.kkArrayAsSequenceName,
                 arguments: [receiverID],
                 result: result,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
             if let result { state.sequenceExprIDs.insert(result.rawValue) }
             return true
         }
         if state.listExprIDs.contains(receiverID.rawValue) {
             loweredBody.append(.call(
-                symbol: nil,
                 callee: lookup.kkListAsSequenceName,
                 arguments: [receiverID],
                 result: result,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
             if let result { state.sequenceExprIDs.insert(result.rawValue) }
             return true
@@ -111,12 +107,10 @@ extension CollectionLiteralConstructionLoweringPass {
         let receiverID = arguments[0]
         if state.sequenceExprIDs.contains(receiverID.rawValue) {
             loweredBody.append(.call(
-                symbol: nil,
                 callee: lookup.kkSequenceConstrainOnceName,
                 arguments: [receiverID],
                 result: result,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
             if let result { state.sequenceExprIDs.insert(result.rawValue) }
             return true
@@ -128,12 +122,10 @@ extension CollectionLiteralConstructionLoweringPass {
     if callee == lookup.requireNoNullsName, arguments.count == 1,
        let kkName = lookup.collectionHOFRuntimeName(ownerKind: .sequence, callee: callee, arity: 0) {
         loweredBody.append(.call(
-            symbol: nil,
             callee: kkName,
             arguments: arguments,
             result: result,
-            canThrow: false,
-            thrownResult: nil
+            canThrow: false
         ))
         if let result { state.sequenceExprIDs.insert(result.rawValue) }
         return true
@@ -154,12 +146,10 @@ extension CollectionLiteralConstructionLoweringPass {
                 loweredBody: &loweredBody
             )
             loweredBody.append(.call(
-                symbol: nil,
                 callee: kkName,
                 arguments: [receiverID, expanded.fnPtr, expanded.closureRaw],
                 result: result,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
             if let result { state.sequenceExprIDs.insert(result.rawValue) }
             return true
@@ -182,12 +172,10 @@ extension CollectionLiteralConstructionLoweringPass {
                 loweredBody: &loweredBody
             )
             loweredBody.append(.call(
-                symbol: nil,
                 callee: kkName,
                 arguments: [receiverID, expanded.fnPtr, expanded.closureRaw],
                 result: result,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
             if let result { state.sequenceExprIDs.insert(result.rawValue) }
             return true
@@ -200,12 +188,10 @@ extension CollectionLiteralConstructionLoweringPass {
         let receiverID = arguments[0]
         if state.sequenceExprIDs.contains(receiverID.rawValue) {
             loweredBody.append(.call(
-                symbol: nil,
                 callee: lookup.kkSequenceFlatMapName,
                 arguments: arguments,
                 result: result,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
             if let result { state.sequenceExprIDs.insert(result.rawValue) }
             return true
@@ -218,12 +204,10 @@ extension CollectionLiteralConstructionLoweringPass {
         let receiverID = arguments[0]
         if state.sequenceExprIDs.contains(receiverID.rawValue) {
             loweredBody.append(.call(
-                symbol: nil,
                 callee: lookup.kkSequenceFlatMapIndexedName,
                 arguments: arguments,
                 result: result,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
             if let result { state.sequenceExprIDs.insert(result.rawValue) }
             return true
@@ -237,12 +221,10 @@ extension CollectionLiteralConstructionLoweringPass {
                 ? lookup.kkSequenceShuffledRandomName
                 : lookup.kkSequenceShuffledName
             loweredBody.append(.call(
-                symbol: nil,
                 callee: kkName,
                 arguments: arguments,
                 result: result,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
             if let result { state.sequenceExprIDs.insert(result.rawValue) }
             return true
@@ -283,12 +265,10 @@ extension CollectionLiteralConstructionLoweringPass {
         let receiverID = arguments[0]
         if state.sequenceExprIDs.contains(receiverID.rawValue) {
             loweredBody.append(.call(
-                symbol: nil,
                 callee: lookup.kkSequencePlusElementName,
                 arguments: arguments,
                 result: result,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
             if let result { state.sequenceExprIDs.insert(result.rawValue) }
             return true

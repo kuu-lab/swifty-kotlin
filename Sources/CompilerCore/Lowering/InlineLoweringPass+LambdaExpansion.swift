@@ -24,15 +24,15 @@ extension InlineLoweringPass {
         body.append(.constValue(result: classID, value: .intLiteral(0)))
         let environment = arena.appendTemporary(type: types.anyType)
         body.append(.call(
-            symbol: nil, callee: ctx.interner.intern("kk_object_new"), arguments: [count, classID],
-            result: environment, canThrow: false, thrownResult: nil
+            callee: ctx.interner.intern("kk_object_new"), arguments: [count, classID],
+            result: environment, canThrow: false
         ))
         for (index, capture) in resolved.enumerated() {
             let offset = arena.appendExpr(.intLiteral(Int64(index + 2)), type: types.intType)
             body.append(.constValue(result: offset, value: .intLiteral(Int64(index + 2))))
             body.append(.call(
-                symbol: nil, callee: ctx.interner.intern("kk_array_set"), arguments: [environment, offset, capture],
-                result: nil, canThrow: false, thrownResult: nil
+                callee: ctx.interner.intern("kk_array_set"), arguments: [environment, offset, capture],
+                result: nil, canThrow: false
             ))
         }
         return [environment]

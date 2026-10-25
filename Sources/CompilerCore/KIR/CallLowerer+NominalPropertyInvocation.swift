@@ -21,7 +21,7 @@ extension CallLowerer {
             let result = arena.appendTemporary(type: property.propertyType)
             instructions.instructions.append(.call(
                 symbol: property.property, callee: shared.interner.intern(bridge),
-                arguments: [receiver], result: result, canThrow: false, thrownResult: nil
+                arguments: [receiver], result: result, canThrow: false
             ))
             propertyValue = result
         } else {

@@ -63,9 +63,9 @@ extension CallLowerer {
                     let flag = arena.appendExpr(.intLiteral(flagValue), type: intType)
                     instructions.append(.constValue(result: flag, value: .intLiteral(flagValue)))
                     let adjustedToken = arena.appendTemporary(type: intType)
-                    instructions.append(.call(symbol: nil, callee: interner.intern("kk_bitwise_or"),
+                    instructions.append(.call(callee: interner.intern("kk_bitwise_or"),
                                               arguments: [tokenExpr, flag], result: adjustedToken,
-                                              canThrow: false, thrownResult: nil))
+                                              canThrow: false))
                     arguments.append(adjustedToken)
                 } else {
                     arguments.append(tokenExpr)
