@@ -65,6 +65,7 @@ public extension RuntimeABISpec {
         abiReflection.th("__kk_java_class_get_annotations_typed", "classRaw outThrown"),
         abiReflection.nt("__kk_java_class_register_inherited_annotation", "annotationNameRaw"),
         abi.nt("__kk_java_class_get_name", "classRaw"),
+        abi.nt("__kk_class_simple_name", "classRaw"),
         abi.nt("__kk_java_class_register_declared_method", "typeToken methodNameRaw signatureRaw flags"),
         abi.nt("__kk_java_class_register_declared_field", "typeToken fieldNameRaw"),
         RuntimeABIFunctionSpec(
