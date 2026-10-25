@@ -141,6 +141,40 @@ extension StdlibArtifactRegressionTests {
             )
         }
     }
+
+    /// KUU-3400: primitive numbers convert to BigDecimal through the bundled stdlib.
+    @Test(arguments: [0, 2])
+    func testPrimitiveToBigDecimalThroughFreshStdlibArtifact(optLevelRawValue: Int) throws {
+        let optLevel = try #require(OptimizationLevel(rawValue: optLevelRawValue))
+        let artifactPath = try Self.buildStdlibArtifact()
+        let source = try diffCaseSource("kuu_3400_primitive_to_big_decimal.kt")
+        let expected = try CompilerTestSupport.repositoryFileSource(
+            "Scripts/diff_cases/kuu_3400_primitive_to_big_decimal.expected"
+        )
+
+        try withTemporaryFile(contents: source) { inputPath in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString).path
+            defer { try? FileManager.default.removeItem(atPath: outputBase) }
+            let context = try runCodegenPipeline(
+                inputPath: inputPath,
+                moduleName: "KUU3400_PrimitiveBigDecimal_\(optLevel.rawValue)",
+                outputPath: outputBase,
+                optLevel: optLevel,
+                allowDefaultStdlibLibrary: false,
+                stdlibLibraryPath: artifactPath
+            )
+            try assertNoDiagnosticErrors(context)
+            try LinkPhase().run(context)
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            #expect(result.exitCode == 0, "\(optLevel): \(result.stderr)")
+            #expect(result.stderr.isEmpty, "\(optLevel): \(result.stderr)")
+            #expect(
+                result.stdout.replacingOccurrences(of: "\r\n", with: "\n") == expected,
+                "Unexpected output at \(optLevel): \(String(reflecting: result.stdout))"
+            )
+        }
+    }
 }
 
 private func bigDecimalZeroContext(
