@@ -91,6 +91,56 @@ struct JavaLangSystemGetPropertyTests {
     }
 
     @Test(arguments: [0, 2])
+    func environmentPropertiesAndClockFunctionsAreAvailable(optimization: Int) throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let consumerPath = directory.appendingPathComponent("consumer.kt").path
+        let outputPath = directory.appendingPathComponent("consumer").path
+        let source = """
+        fun main() {
+            println(java.lang.System.getenv("KSWIFTK_KUU3342_ENV"))
+            println(java.lang.System.getenv()["KSWIFTK_KUU3342_ENV"])
+            println(java.lang.System.setProperty("kuu3342.key", "first") == null)
+            println(java.lang.System.getProperty("kuu3342.key"))
+            println(java.lang.System.setProperty("kuu3342.key", "second"))
+            println(java.lang.System.clearProperty("kuu3342.key"))
+            println(java.lang.System.getProperty("kuu3342.key") == null)
+            println(java.lang.System.currentTimeMillis() != 0L)
+            println(java.lang.System.nanoTime() != 0L)
+        }
+        """
+        try source.write(toFile: consumerPath, atomically: true, encoding: .utf8)
+
+        let options = CompilerOptions(
+            moduleName: "KUU3342SystemApis",
+            inputs: [consumerPath],
+            outputPath: outputPath,
+            emit: .executable,
+            target: defaultTargetTriple(),
+            optLevel: try #require(OptimizationLevel(rawValue: optimization)),
+            stdlibLibraryPath: try testStdlibArtifactPath(),
+            allowDefaultStdlibLibrary: false
+        )
+        try assertCompilationSucceeded(makeTestDriver().runForTesting(options: options))
+
+        let result = try CommandRunner.run(
+            executable: "/usr/bin/env",
+            arguments: [
+                "-u", "KSWIFTK_KUU3342_ENV",
+                "KSWIFTK_KUU3342_ENV=configured",
+                outputPath,
+            ]
+        )
+        #expect(result.exitCode == 0, "stderr: \(result.stderr)")
+        #expect(
+            result.stdout == "configured\nconfigured\ntrue\nfirst\nfirst\nsecond\ntrue\ntrue\ntrue\n"
+        )
+        #expect(result.stderr.isEmpty, "stderr: \(result.stderr)")
+    }
+
+    @Test(arguments: [0, 2])
     func standardSystemPropertiesAndLineSeparatorAreAvailable(optimization: Int) throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
