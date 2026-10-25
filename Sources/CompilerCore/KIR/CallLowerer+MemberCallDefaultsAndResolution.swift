@@ -695,7 +695,9 @@ extension CallLowerer {
                         ? "__kk_float_range_start"
                         : "__kk_double_range_start"
                 )
-            case "endInclusive":
+            case "endInclusive", "endExclusive":
+                // Floating-point boxes store the original upper bound in
+                // `last` for both closed and half-open ranges.
                 return interner.intern(
                     floatingPointElementType == sema.types.floatType
                         ? "__kk_float_range_endInclusive"

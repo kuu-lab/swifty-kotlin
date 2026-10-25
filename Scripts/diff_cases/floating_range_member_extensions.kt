@@ -18,6 +18,10 @@ fun main() {
     println(open.start)
     println(open.endExclusive)
     println(3.0 in open)
+    val floatOpen = 1f..<3f
+    println(floatOpen.start)
+    println(floatOpen.endExclusive)
+    println(3f in floatOpen)
     println((1..3).toList())
     println((1L..3L).toList())
 }

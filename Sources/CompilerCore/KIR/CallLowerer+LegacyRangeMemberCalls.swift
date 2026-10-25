@@ -16,7 +16,7 @@ extension CallLowerer {
             let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
             let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
             let calleeText = calleeNameStr
-            if (calleeText == "start" || calleeText == "endInclusive"),
+            if (calleeText == "start" || calleeText == "endInclusive" || calleeText == "endExclusive"),
                let runtimeGetter = closedRangeInterfaceRuntimeName(
                    memberName: calleeText,
                    receiverExpr: receiverExpr,
