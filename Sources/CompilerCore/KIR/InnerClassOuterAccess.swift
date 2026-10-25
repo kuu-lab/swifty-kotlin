@@ -619,13 +619,7 @@ extension CallLowerer {
             ))
             return result
         }
-        instructions.append(.call(
-            symbol: chosenCtor,
-            callee: calleeName,
-            arguments: finalArguments,
-            result: result,
-            canThrow: true
-        ))
+        instructions.append(.call(symbol: chosenCtor, callee: calleeName, arguments: finalArguments, result: result, canThrow: true))
         return result
     }
 }

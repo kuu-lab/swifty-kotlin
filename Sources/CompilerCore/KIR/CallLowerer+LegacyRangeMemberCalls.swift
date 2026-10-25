@@ -35,12 +35,7 @@ extension CallLowerer {
                    interner: interner
                )
             {
-                instructions.append(.call(
-                    callee: runtimeGetter,
-                    arguments: [loweredReceiverID],
-                    result: result,
-                    canThrow: false
-                ))
+                instructions.append(.call(callee: runtimeGetter, arguments: [loweredReceiverID], result: result, canThrow: false))
                 return result
             }
             // Property `.first`/`.last` keep the non-throwing getters. Explicit
@@ -197,12 +192,7 @@ extension CallLowerer {
             } else {
                 interner.intern("__kk_range_step")
             }
-            instructions.append(.call(
-                callee: runtimeCallee,
-                arguments: [loweredReceiverID],
-                result: result,
-                canThrow: false
-            ))
+            instructions.append(.call(callee: runtimeCallee, arguments: [loweredReceiverID], result: result, canThrow: false))
             return result
         }
         return nil

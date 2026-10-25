@@ -127,12 +127,7 @@ extension CoroutineLoweringPass {
 
         var wrapperBody = KIRLoweringEmitContext()
         wrapperBody.append(
-            .call(
-                callee: rewrite.continuationFactory,
-                arguments: [loweredFunctionIDExpr],
-                result: continuationExpr,
-                canThrow: false
-            )
+            .call(callee: rewrite.continuationFactory, arguments: [loweredFunctionIDExpr], result: continuationExpr, canThrow: false)
         )
 
         let entryPointSymbol: SymbolID
@@ -185,12 +180,7 @@ extension CoroutineLoweringPass {
                 type: parameter.type
             )
             wrapperBody.append(
-                .call(
-                    callee: rewrite.launcherArgSetCallee,
-                    arguments: [continuationExpr, slotExpr, argumentExpr],
-                    result: nil,
-                    canThrow: false
-                )
+                .call(callee: rewrite.launcherArgSetCallee, arguments: [continuationExpr, slotExpr, argumentExpr], result: nil, canThrow: false)
             )
         }
     }

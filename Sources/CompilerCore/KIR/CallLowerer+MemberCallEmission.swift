@@ -471,13 +471,7 @@ extension CallLowerer {
            !dispatchSignature.isSuspend,
            arguments.first == receiver.loweredID
         {
-            instructions.append(.call(
-                symbol: dispatchSymbol,
-                callee: dispatchInfo.name,
-                arguments: arguments,
-                result: result,
-                canThrow: false
-            ))
+            instructions.append(.call(symbol: dispatchSymbol, callee: dispatchInfo.name, arguments: arguments, result: result, canThrow: false))
             return true
         }
         return false
@@ -1545,12 +1539,7 @@ extension CallLowerer {
                 let classIDExpr = arena.appendExpr(.intLiteral(0), type: intType)
                 instructions.append(.constValue(result: classIDExpr, value: .intLiteral(0)))
                 let closureObjExpr = arena.appendTemporary(type: anyType)
-                instructions.append(.call(
-                    callee: kkObjectNew,
-                    arguments: [slotCountExpr, classIDExpr],
-                    result: closureObjExpr,
-                    canThrow: false
-                ))
+                instructions.append(.call(callee: kkObjectNew, arguments: [slotCountExpr, classIDExpr], result: closureObjExpr, canThrow: false))
                 for (captureIndex, captureArg) in callableInfo.captureArguments.enumerated() {
                     let fieldOffset = Int64(captureIndex + 2)
                     let offsetExpr = arena.appendExpr(.intLiteral(fieldOffset), type: intType)

@@ -154,12 +154,7 @@ extension DataEnumSealedSynthesisPass {
 
         let listExpr = module.arena.appendTemporary(type: returnType
         )
-        body.append(.call(
-            callee: interner.intern("kk_enum_make_values_array"),
-            arguments: [arrayExpr, countExpr],
-            result: listExpr,
-            canThrow: false
-        ))
+        body.append(.call(callee: interner.intern("kk_enum_make_values_array"), arguments: [arrayExpr, countExpr], result: listExpr, canThrow: false))
 
         body.append(.returnValue(listExpr))
 
@@ -306,12 +301,7 @@ extension DataEnumSealedSynthesisPass {
 
         let arrayExpr = module.arena.appendTemporary(type: sema.types.anyType
         )
-        body.append(.call(
-            callee: interner.intern("kk_array_new"),
-            arguments: [countExpr],
-            result: arrayExpr,
-            canThrow: false
-        ))
+        body.append(.call(callee: interner.intern("kk_array_new"), arguments: [countExpr], result: arrayExpr, canThrow: false))
 
         let stringType = sema.types.stringType
         let boxOrdinalCallee = interner.intern("kk_enum_box_ordinal")
@@ -362,20 +352,10 @@ extension DataEnumSealedSynthesisPass {
             } else {
                 let nameExpr = module.arena.appendExpr(.stringLiteral(entry.name), type: stringType)
                 body.append(.constValue(result: nameExpr, value: .stringLiteral(entry.name)))
-                body.append(.call(
-                    callee: boxOrdinalCallee,
-                    arguments: [indexExpr, nameExpr, classIDExpr],
-                    result: boxedEntry,
-                    canThrow: false
-                ))
+                body.append(.call(callee: boxOrdinalCallee, arguments: [indexExpr, nameExpr, classIDExpr], result: boxedEntry, canThrow: false))
             }
 
-            body.append(.call(
-                callee: interner.intern("kk_array_set"),
-                arguments: [arrayExpr, indexExpr, boxedEntry],
-                result: nil,
-                canThrow: false
-            ))
+            body.append(.call(callee: interner.intern("kk_array_set"), arguments: [arrayExpr, indexExpr, boxedEntry], result: nil, canThrow: false))
         }
 
         return (arrayExpr, countExpr, classIDExpr)
@@ -438,12 +418,7 @@ extension DataEnumSealedSynthesisPass {
             body.append(.jumpIfEqual(lhs: unboxedOrdinalRef, rhs: ordinalExpr, target: matchLabel))
             body.append(.jump(nextLabel))
             body.append(.label(matchLabel))
-            body.append(.call(
-                callee: helperName,
-                arguments: [],
-                result: resultExpr,
-                canThrow: false
-            ))
+            body.append(.call(callee: helperName, arguments: [], result: resultExpr, canThrow: false))
             body.append(.returnValue(resultExpr))
             body.append(.label(nextLabel))
         }
@@ -626,12 +601,7 @@ extension DataEnumSealedSynthesisPass {
                     // would route straight back into this dispatch helper,
                     // recursing forever.
                     let nameHelperCallee = NameMangler.enumOrdinalToNameHelperName(for: owner, interner: interner)
-                    body.append(.call(
-                        callee: nameHelperCallee,
-                        arguments: [receiverRef],
-                        result: fallthroughResult,
-                        canThrow: false
-                    ))
+                    body.append(.call(callee: nameHelperCallee, arguments: [receiverRef], result: fallthroughResult, canThrow: false))
                 } else {
                     let baseCallee: InternedString = if let linkName = sema.symbols.externalLinkNameIfKnown(for: baseSymbolID),
                                                         !linkName.isEmpty
@@ -654,12 +624,7 @@ extension DataEnumSealedSynthesisPass {
                     body.append(.returnUnit)
                 }
             } else {
-                body.append(.call(
-                    callee: interner.intern("kk_abort_unreachable"),
-                    arguments: [],
-                    result: fallthroughResult,
-                    canThrow: false
-                ))
+                body.append(.call(callee: interner.intern("kk_abort_unreachable"), arguments: [], result: fallthroughResult, canThrow: false))
                 if let fallthroughResult {
                     body.append(.returnValue(fallthroughResult))
                 } else {
@@ -738,22 +703,12 @@ extension DataEnumSealedSynthesisPass {
 
             let boxedCmpResult = module.arena.appendTemporary(type: sema.types.anyType)
             let cmpCallee = interner.intern("__kk_string_equals_flat")
-            body.append(.call(
-                callee: cmpCallee,
-                arguments: [paramRef, entryNameExpr],
-                result: boxedCmpResult,
-                canThrow: false
-            ))
+            body.append(.call(callee: cmpCallee, arguments: [paramRef, entryNameExpr], result: boxedCmpResult, canThrow: false))
 
             let cmpResult = module.arena.appendTemporary(
                 type: sema.types.make(.primitive(.boolean, .nonNull))
             )
-            body.append(.call(
-                callee: interner.intern("kk_unbox_bool"),
-                arguments: [boxedCmpResult],
-                result: cmpResult,
-                canThrow: false
-            ))
+            body.append(.call(callee: interner.intern("kk_unbox_bool"), arguments: [boxedCmpResult], result: cmpResult, canThrow: false))
 
             let falseExpr = module.arena.appendExpr(
                 .boolLiteral(false),
@@ -797,12 +752,7 @@ extension DataEnumSealedSynthesisPass {
         let throwCallee = interner.intern("kk_enum_valueOf_throw")
         let throwResult = module.arena.appendTemporary(type: sema.types.nothingType
         )
-        body.append(.call(
-            callee: throwCallee,
-            arguments: [qualifiedNameExpr],
-            result: throwResult,
-            canThrow: true
-        ))
+        body.append(.call(callee: throwCallee, arguments: [qualifiedNameExpr], result: throwResult, canThrow: true))
         body.append(.returnValue(throwResult))
 
         let isCompanionMember = owner.kind == .object
@@ -937,12 +887,7 @@ extension DataEnumSealedSynthesisPass {
         let valuesCount = module.arena.appendExpr(.intLiteral(Int64(entries.count)), type: intType)
         body.append(.constValue(result: valuesCount, value: .intLiteral(Int64(entries.count))))
         let valuesArray = module.arena.appendTemporary(type: sema.types.anyType)
-        body.append(.call(
-            callee: interner.intern("kk_array_new"),
-            arguments: [valuesCount],
-            result: valuesArray,
-            canThrow: false
-        ))
+        body.append(.call(callee: interner.intern("kk_array_new"), arguments: [valuesCount], result: valuesArray, canThrow: false))
         let classID = RuntimeTypeCheckToken.stableNominalTypeID(
             symbol: owner.id,
             symbols: sema.symbols,

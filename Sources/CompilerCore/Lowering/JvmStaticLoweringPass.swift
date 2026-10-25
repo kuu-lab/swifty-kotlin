@@ -200,13 +200,7 @@ final class JvmStaticLoweringPass: LoweringPass {
         }
 
         if originalFunction.returnType == unitType {
-            body.append(.call(
-                symbol: originalFunction.symbol,
-                callee: originalFunction.name,
-                arguments: forwardedArgs,
-                result: nil,
-                canThrow: false
-            ))
+            body.append(.call(symbol: originalFunction.symbol, callee: originalFunction.name, arguments: forwardedArgs, result: nil, canThrow: false))
             body.append(.returnUnit)
         } else {
             let callResult = arena.appendTemporary(type: originalFunction.returnType

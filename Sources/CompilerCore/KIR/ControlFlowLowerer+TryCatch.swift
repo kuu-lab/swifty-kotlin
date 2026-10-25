@@ -524,12 +524,7 @@ extension ControlFlowLowerer {
         ))
 
         let runtimeResult = arena.appendTemporary(type: boolType)
-        instructions.append(.call(
-            callee: interner.intern("kk_op_is"),
-            arguments: [exceptionSlot, tokenExpr],
-            result: runtimeResult,
-            canThrow: false
-        ))
+        instructions.append(.call(callee: interner.intern("kk_op_is"), arguments: [exceptionSlot, tokenExpr], result: runtimeResult, canThrow: false))
         instructions.append(.copy(from: runtimeResult, to: matchResult))
         instructions.append(.jump(doneLabel))
 
@@ -631,12 +626,7 @@ extension ControlFlowLowerer {
                     nil
                 }
                 if let unboxCallee {
-                    instructions.append(.call(
-                        callee: unboxCallee,
-                        arguments: [notNullResult],
-                        result: result,
-                        canThrow: false
-                    ))
+                    instructions.append(.call(callee: unboxCallee, arguments: [notNullResult], result: result, canThrow: false))
                 } else {
                     instructions.append(.copy(from: notNullResult, to: result))
                 }

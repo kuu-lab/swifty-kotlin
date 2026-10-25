@@ -20,13 +20,7 @@ extension CallLowerer {
             interner: interner,
             instructions: &instructions
         )
-        instructions.append(.call(
-            symbol: getterSymbol,
-            callee: interner.intern("get"),
-            arguments: getterArguments,
-            result: result,
-            canThrow: false
-        ))
+        instructions.append(.call(symbol: getterSymbol, callee: interner.intern("get"), arguments: getterArguments, result: result, canThrow: false))
     }
 
     func appendVirtualPropertyGetterCall(
@@ -91,11 +85,7 @@ extension CallLowerer {
               let helperInfo = sema.symbols.symbol(helperSymbol),
               let result = existingResult ?? arena?.appendTemporary(type: resultType)
         else { return nil }
-        instructions.append(.call(
-            symbol: helperSymbol, callee: helperInfo.name,
-            arguments: [loweredReceiverID], result: result,
-            canThrow: true
-        ))
+        instructions.append(.call(symbol: helperSymbol, callee: helperInfo.name, arguments: [loweredReceiverID], result: result, canThrow: true))
         return result
     }
 
@@ -122,11 +112,7 @@ extension CallLowerer {
         let helperInfo = sema.symbols.symbol(helperSymbol)
         else { return nil }
         guard let result = existingResult ?? arena?.appendTemporary(type: resultType) else { return nil }
-        instructions.append(.call(
-            symbol: helperSymbol, callee: helperInfo.name,
-            arguments: [loweredReceiverID], result: result,
-            canThrow: true
-        ))
+        instructions.append(.call(symbol: helperSymbol, callee: helperInfo.name, arguments: [loweredReceiverID], result: result, canThrow: true))
         return result
     }
 
@@ -391,12 +377,7 @@ extension CallLowerer {
                     ?? sema.symbols.propertyType(for: valueSym)
                     ?? sema.types.anyType
             )
-            instructions.append(.call(
-                callee: runtimeCallee,
-                arguments: [],
-                result: result,
-                canThrow: false
-            ))
+            instructions.append(.call(callee: runtimeCallee, arguments: [], result: result, canThrow: false))
             return result
         }
         // KSP-717: NormalizationForms.NFC/NFD/NFKC/NFKD are plain Kotlin
@@ -768,12 +749,7 @@ extension CallLowerer {
            )
         {
             let result = arena.appendTemporary(type: resultType)
-            instructions.append(.call(
-                callee: getterPlaceholder,
-                arguments: [loweredReceiverID],
-                result: result,
-                canThrow: false
-            ))
+            instructions.append(.call(callee: getterPlaceholder, arguments: [loweredReceiverID], result: result, canThrow: false))
             return result
         }
         guard ownerInfo.kind == .class || ownerInfo.kind == .interface
@@ -994,12 +970,7 @@ extension CallLowerer {
             let propertyName = propertyInfo.name
             let helperName = interner.intern("$enumConstructorProperty$\(ownerSymbol.rawValue)$\(interner.resolve(propertyName))")
             let result = arena.appendTemporary(type: resultType)
-            instructions.append(.call(
-                callee: helperName,
-                arguments: [loweredReceiverID],
-                result: result,
-                canThrow: false
-            ))
+            instructions.append(.call(callee: helperName, arguments: [loweredReceiverID], result: result, canThrow: false))
             return result
         }
 
@@ -1553,13 +1524,7 @@ extension CallLowerer {
                 sema.symbols.symbol(id).map { $0.kind == .function } ?? false
             }
             let result = arena.appendTemporary(type: resultType)
-            instructions.append(.call(
-                symbol: helperSymbol,
-                callee: helperName,
-                arguments: [],
-                result: result,
-                canThrow: false
-            ))
+            instructions.append(.call(symbol: helperSymbol, callee: helperName, arguments: [], result: result, canThrow: false))
             return result
         }
         if let result = tryLowerEnumBasePropertyRead(
@@ -1607,12 +1572,7 @@ extension CallLowerer {
         // EnumNameAccessLoweringPass rewrites into a real call to that
         // helper once it exists.
         let result = arena.appendTemporary(type: resultType)
-        instructions.append(.call(
-            callee: calleeName,
-            arguments: [loweredReceiverID],
-            result: result,
-            canThrow: false
-        ))
+        instructions.append(.call(callee: calleeName, arguments: [loweredReceiverID], result: result, canThrow: false))
         return result
     }
 

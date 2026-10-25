@@ -108,12 +108,7 @@ extension CallLowerer {
             : nil
 
         let rawGetResult = arena.appendTemporary(type: sema.types.anyType)
-        instructions.append(.call(
-            callee: interner.intern("kk_array_get"),
-            arguments: [receiverID, indexID],
-            result: rawGetResult,
-            canThrow: false
-        ))
+        instructions.append(.call(callee: interner.intern("kk_array_get"), arguments: [receiverID, indexID], result: rawGetResult, canThrow: false))
         let getResult: KIRExprID
         if let elementType = compoundPrimitiveElementType,
            let unboxCallee = boxingTable.unboxCallee(for: elementType, types: sema.types, requireNonNull: true)
@@ -241,12 +236,7 @@ extension CallLowerer {
                 case .modAssign: isUnsignedElement ? "kk_op_urem" : "kk_op_mod"
                 }
             }
-            instructions.append(.call(
-                callee: interner.intern(opName),
-                arguments: [getResult, valueID],
-                result: opResult,
-                canThrow: false
-            ))
+            instructions.append(.call(callee: interner.intern(opName), arguments: [getResult, valueID], result: opResult, canThrow: false))
         }
         let elementTypeForWriteBack = compoundPrimitiveElementType ?? receiverElementType
         let wrappedOpResult: KIRExprID
@@ -538,12 +528,7 @@ extension CallLowerer {
             effectiveValueID = valueID
         }
         let opResult = arena.appendTemporary(type: elementType)
-        instructions.append(.call(
-            callee: interner.intern(opName),
-            arguments: [getResult, effectiveValueID],
-            result: opResult,
-            canThrow: false
-        ))
+        instructions.append(.call(callee: interner.intern(opName), arguments: [getResult, effectiveValueID], result: opResult, canThrow: false))
         return SmallIntegerWrap.append(
             opResult,
             type: elementType,
@@ -594,13 +579,7 @@ extension CallLowerer {
             sema.symbols.symbol(callee)?.name ?? interner.intern("plus")
         }
         let callResult = arena.appendTemporary(type: binding.resultType)
-        instructions.append(.call(
-            symbol: callee,
-            callee: loweredCalleeName,
-            arguments: arguments,
-            result: callResult,
-            canThrow: false
-        ))
+        instructions.append(.call(symbol: callee, callee: loweredCalleeName, arguments: arguments, result: callResult, canThrow: false))
         return binding.kind == .inPlace ? nil : callResult
     }
 

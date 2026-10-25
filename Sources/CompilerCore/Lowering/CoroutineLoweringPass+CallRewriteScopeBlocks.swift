@@ -55,12 +55,7 @@ extension CoroutineLoweringPass {
             result: continuationFunctionID,
             value: .intLiteral(Int64(loweredTarget.symbol.rawValue))
         ))
-        rewritten.append(.call(
-            callee: rewrite.continuationFactory,
-            arguments: [continuationFunctionID],
-            result: continuationExpr,
-            canThrow: false
-        ))
+        rewritten.append(.call(callee: rewrite.continuationFactory, arguments: [continuationFunctionID], result: continuationExpr, canThrow: false))
 
         for (index, argExpr) in extraArgs.enumerated() {
             let slotExpr = rewrite.module.arena.appendExpr(
@@ -187,12 +182,7 @@ extension CoroutineLoweringPass {
             result: continuationFunctionID,
             value: .intLiteral(Int64(loweredTarget.symbol.rawValue))
         ))
-        rewritten.append(.call(
-            callee: rewrite.continuationFactory,
-            arguments: [continuationFunctionID],
-            result: continuationExpr,
-            canThrow: false
-        ))
+        rewritten.append(.call(callee: rewrite.continuationFactory, arguments: [continuationFunctionID], result: continuationExpr, canThrow: false))
 
         for (index, argExpr) in extraArgs.enumerated() {
             let slotExpr = rewrite.module.arena.appendExpr(

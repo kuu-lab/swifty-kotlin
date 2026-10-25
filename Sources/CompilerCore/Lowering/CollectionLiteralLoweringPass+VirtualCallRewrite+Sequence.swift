@@ -41,12 +41,7 @@ extension CollectionVirtualCallRewriteLoweringPass {
         // hasNext(), so the runtime pipeline step (which sets outThrown) is kept.
         if callee == lookup.requireNoNullsName, arguments.isEmpty,
            let kkName = lookup.collectionHOFRuntimeName(ownerKind: .sequence, callee: callee, arity: 0) {
-            loweredBody.append(.call(
-                callee: kkName,
-                arguments: [receiver],
-                result: result,
-                canThrow: false
-            ))
+            loweredBody.append(.call(callee: kkName, arguments: [receiver], result: result, canThrow: false))
             state.tagResult(.sequence, result)
             return true
         }
@@ -57,12 +52,7 @@ extension CollectionVirtualCallRewriteLoweringPass {
         if callee == lookup.asSequenceName, arguments.isEmpty,
            state.contains(.list, receiver)
         {
-            loweredBody.append(.call(
-                callee: lookup.kkListAsSequenceName,
-                arguments: [receiver],
-                result: result,
-                canThrow: false
-            ))
+            loweredBody.append(.call(callee: lookup.kkListAsSequenceName, arguments: [receiver], result: result, canThrow: false))
             state.tagResult(.sequence, result)
             return true
         }
@@ -71,12 +61,7 @@ extension CollectionVirtualCallRewriteLoweringPass {
             if state.contains(.sequence, receiver) {
                 let kkName = callee == lookup.mapName
                     ? lookup.kkSequenceMapName : lookup.kkSequenceFilterName
-                loweredBody.append(.call(
-                    callee: kkName,
-                    arguments: [receiver] + arguments,
-                    result: result,
-                    canThrow: false
-                ))
+                loweredBody.append(.call(callee: kkName, arguments: [receiver] + arguments, result: result, canThrow: false))
                 state.tagResult(.sequence, result)
                 return true
             }
@@ -86,12 +71,7 @@ extension CollectionVirtualCallRewriteLoweringPass {
             if state.contains(.sequence, receiver) {
                 let kkName = callee == lookup.flatMapName
                     ? lookup.kkSequenceFlatMapName : lookup.kkSequenceFlatMapIndexedName
-                loweredBody.append(.call(
-                    callee: kkName,
-                    arguments: [receiver] + arguments,
-                    result: result,
-                    canThrow: false
-                ))
+                loweredBody.append(.call(callee: kkName, arguments: [receiver] + arguments, result: result, canThrow: false))
                 state.tagResult(.sequence, result)
                 return true
             }
@@ -231,12 +211,7 @@ extension CollectionVirtualCallRewriteLoweringPass {
             let kkName = arguments.isEmpty
                 ? lookup.kkSequenceShuffledName
                 : lookup.kkSequenceShuffledRandomName
-            loweredBody.append(.call(
-                callee: kkName,
-                arguments: [receiver] + arguments,
-                result: result,
-                canThrow: false
-            ))
+            loweredBody.append(.call(callee: kkName, arguments: [receiver] + arguments, result: result, canThrow: false))
             state.tagResult(.sequence, result)
             return true
         }
@@ -246,33 +221,18 @@ extension CollectionVirtualCallRewriteLoweringPass {
                 if let result {
                     let toListResult = module.arena.appendTemporary(type: nil
                     )
-                    loweredBody.append(.call(
-                        callee: lookup.kkSequenceToListName,
-                        arguments: [receiver],
-                        result: toListResult,
-                        canThrow: true
-                    ))
+                    loweredBody.append(.call(callee: lookup.kkSequenceToListName, arguments: [receiver], result: toListResult, canThrow: true))
                     state.tagListResult(result, temporary: toListResult)
                     loweredBody.append(.copy(from: toListResult, to: result))
                 } else {
-                    loweredBody.append(.call(
-                        callee: lookup.kkSequenceToListName,
-                        arguments: [receiver],
-                        result: nil,
-                        canThrow: true
-                    ))
+                    loweredBody.append(.call(callee: lookup.kkSequenceToListName, arguments: [receiver], result: nil, canThrow: true))
                 }
                 return true
             }
         }
 
         if callee == lookup.constrainOnceName, arguments.isEmpty, state.contains(.sequence, receiver) {
-            loweredBody.append(.call(
-                callee: lookup.kkSequenceConstrainOnceName,
-                arguments: [receiver],
-                result: result,
-                canThrow: false
-            ))
+            loweredBody.append(.call(callee: lookup.kkSequenceConstrainOnceName, arguments: [receiver], result: result, canThrow: false))
             state.tagResult(.sequence, result)
             return true
         }
@@ -280,12 +240,7 @@ extension CollectionVirtualCallRewriteLoweringPass {
         if callee == lookup.toSetName, arguments.isEmpty, state.contains(.sequence, receiver) {
             let toSetResult = module.arena.appendTemporary(type: nil
             )
-            loweredBody.append(.call(
-                callee: lookup.kkSequenceToSetName,
-                arguments: [receiver],
-                result: toSetResult,
-                canThrow: false
-            ))
+            loweredBody.append(.call(callee: lookup.kkSequenceToSetName, arguments: [receiver], result: toSetResult, canThrow: false))
             if let result {
                 state.tagResult(.set, result, temporary: toSetResult)
                 loweredBody.append(.copy(from: toSetResult, to: result))
@@ -337,12 +292,7 @@ extension CollectionVirtualCallRewriteLoweringPass {
         }
 
         if callee == lookup.flattenName, arguments.isEmpty, state.contains(.sequence, receiver) {
-            loweredBody.append(.call(
-                callee: lookup.kkSequenceFlattenName,
-                arguments: [receiver],
-                result: result,
-                canThrow: false
-            ))
+            loweredBody.append(.call(callee: lookup.kkSequenceFlattenName, arguments: [receiver], result: result, canThrow: false))
             state.tagResult(.sequence, result)
             return true
         }
@@ -415,12 +365,7 @@ extension CollectionVirtualCallRewriteLoweringPass {
         }
 
         if callee == lookup.plusElementName, arguments.count == 1, state.contains(.sequence, receiver) {
-            loweredBody.append(.call(
-                callee: lookup.kkSequencePlusElementName,
-                arguments: [receiver, arguments[0]],
-                result: result,
-                canThrow: false
-            ))
+            loweredBody.append(.call(callee: lookup.kkSequencePlusElementName, arguments: [receiver, arguments[0]], result: result, canThrow: false))
             state.tagResult(.sequence, result)
             return true
         }

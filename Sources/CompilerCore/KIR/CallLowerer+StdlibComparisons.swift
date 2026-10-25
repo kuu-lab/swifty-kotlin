@@ -284,12 +284,7 @@ extension CallLowerer {
             let candidateExpr = loweredArgIDs[argIndex]
             if case let .floatingPoint(runtimeCallee) = comparisonStrategy {
                 let newCurrent = arena.appendTemporary(type: resultType)
-                instructions.append(.call(
-                    callee: runtimeCallee,
-                    arguments: [candidateExpr, currentExpr],
-                    result: newCurrent,
-                    canThrow: false
-                ))
+                instructions.append(.call(callee: runtimeCallee, arguments: [candidateExpr, currentExpr], result: newCurrent, canThrow: false))
                 currentExpr = newCurrent
                 continue
             }
@@ -581,19 +576,9 @@ extension CallLowerer {
         if let floatingPointRuntimeCallee {
             let calleeID = interner.intern(floatingPointRuntimeCallee)
             let tmp = arena.appendTemporary(type: resultType)
-            instructions.append(.call(
-                callee: calleeID,
-                arguments: [aExpr, bExpr],
-                result: tmp,
-                canThrow: false
-            ))
+            instructions.append(.call(callee: calleeID, arguments: [aExpr, bExpr], result: tmp, canThrow: false))
             let result = arena.appendTemporary(type: resultType)
-            instructions.append(.call(
-                callee: calleeID,
-                arguments: [tmp, cExpr],
-                result: result,
-                canThrow: false
-            ))
+            instructions.append(.call(callee: calleeID, arguments: [tmp, cExpr], result: result, canThrow: false))
             return result
         }
 

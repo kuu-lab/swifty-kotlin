@@ -139,12 +139,7 @@ extension CallLowerer {
         ) -> KIRExprID {
             let resultType = sema.bindings.exprTypes[exprID] ?? fallbackType
             let result = arena.appendTemporary(type: resultType)
-            instructions.append(.call(
-                callee: interner.intern(callee),
-                arguments: arguments,
-                result: result,
-                canThrow: canThrow
-            ))
+            instructions.append(.call(callee: interner.intern(callee), arguments: arguments, result: result, canThrow: canThrow))
             return result
         }
 

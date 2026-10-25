@@ -56,24 +56,14 @@ func emitSequencePlusMinusRewrite<C: RangeReplaceableCollection>(
             )
             effectiveArgument = wrappedArgument
         }
-        instructions.append(.call(
-            callee: callees.plus,
-            arguments: [receiver, effectiveArgument],
-            result: result,
-            canThrow: false
-        ))
+        instructions.append(.call(callee: callees.plus, arguments: [receiver, effectiveArgument], result: result, canThrow: false))
         return .emitted
 
     case .minus:
         guard !argumentIsCollection else {
             return .unsupportedCollectionMinus
         }
-        instructions.append(.call(
-            callee: callees.minus,
-            arguments: [receiver, argument],
-            result: result,
-            canThrow: false
-        ))
+        instructions.append(.call(callee: callees.minus, arguments: [receiver, argument], result: result, canThrow: false))
         return .emitted
     }
 }

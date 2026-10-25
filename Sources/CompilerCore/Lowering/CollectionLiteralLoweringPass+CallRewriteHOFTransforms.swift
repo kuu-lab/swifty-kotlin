@@ -225,12 +225,7 @@ extension CollectionLiteralLoweringSupport {
         if let runtimeCallee {
             let hofResult = module.arena.appendTemporary(type: nil
             )
-            loweredBody.append(.call(
-                callee: runtimeCallee,
-                arguments: [receiverID, destID],
-                result: hofResult,
-                canThrow: false
-            ))
+            loweredBody.append(.call(callee: runtimeCallee, arguments: [receiverID, destID], result: hofResult, canThrow: false))
             if let result {
                 if state.listExprIDs.contains(destID.rawValue) {
                     state.listExprIDs.insert(result.rawValue)
@@ -326,12 +321,7 @@ extension CollectionLiteralLoweringSupport {
         if state.listExprIDs.contains(receiverID.rawValue) {
             let hofResult = module.arena.appendTemporary(type: nil
             )
-            loweredBody.append(.call(
-                callee: lookup.kkListZipBridgeName,
-                arguments: arguments,
-                result: hofResult,
-                canThrow: false
-            ))
+            loweredBody.append(.call(callee: lookup.kkListZipBridgeName, arguments: arguments, result: hofResult, canThrow: false))
             if let result {
                 state.listExprIDs.insert(result.rawValue)
                 state.listExprIDs.insert(hofResult.rawValue)
@@ -379,12 +369,7 @@ extension CollectionLiteralLoweringSupport {
         if state.listExprIDs.contains(receiverID.rawValue) {
             let hofResult = module.arena.appendTemporary(type: nil
             )
-            loweredBody.append(.call(
-                callee: lookup.kkListUnzipName,
-                arguments: arguments,
-                result: hofResult,
-                canThrow: false
-            ))
+            loweredBody.append(.call(callee: lookup.kkListUnzipName, arguments: arguments, result: hofResult, canThrow: false))
             if let result {
                 loweredBody.append(.copy(from: hofResult, to: result))
             }
@@ -397,12 +382,7 @@ extension CollectionLiteralLoweringSupport {
         if state.listExprIDs.contains(receiverID.rawValue) {
             let hofResult = module.arena.appendTemporary(type: nil
             )
-            loweredBody.append(.call(
-                callee: lookup.kkListZipWithNextBridgeName,
-                arguments: arguments,
-                result: hofResult,
-                canThrow: false
-            ))
+            loweredBody.append(.call(callee: lookup.kkListZipWithNextBridgeName, arguments: arguments, result: hofResult, canThrow: false))
             if let result {
                 state.listExprIDs.insert(result.rawValue)
                 state.listExprIDs.insert(hofResult.rawValue)

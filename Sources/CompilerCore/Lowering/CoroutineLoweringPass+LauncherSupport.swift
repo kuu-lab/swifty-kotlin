@@ -191,12 +191,7 @@ extension CoroutineLoweringPass {
             let argResult = module.arena.appendTemporary(type: suspendFunction.params[paramIndex].type
             )
             thunkBody.append(
-                .call(
-                    callee: launcherArgGetCallee,
-                    arguments: [contRef, slotExpr],
-                    result: argResult,
-                    canThrow: false
-                )
+                .call(callee: launcherArgGetCallee, arguments: [contRef, slotExpr], result: argResult, canThrow: false)
             )
             callArgExprs.append(argResult)
         }
@@ -205,13 +200,7 @@ extension CoroutineLoweringPass {
         let callResult = module.arena.appendTemporary(type: contType
         )
         thunkBody.append(
-            .call(
-                symbol: loweredTarget.symbol,
-                callee: loweredTarget.name,
-                arguments: callArgExprs,
-                result: callResult,
-                canThrow: true
-            )
+            .call(symbol: loweredTarget.symbol, callee: loweredTarget.name, arguments: callArgExprs, result: callResult, canThrow: true)
         )
         thunkBody.append(.returnValue(callResult))
         return thunkBody
@@ -615,12 +604,7 @@ extension CoroutineLoweringPass {
                 type: rewrite.intType
             )
             rewritten.append(
-                .call(
-                    callee: rewrite.launcherArgSetCallee,
-                    arguments: [continuationExpr, slotExpr, argExpr],
-                    result: nil,
-                    canThrow: false
-                )
+                .call(callee: rewrite.launcherArgSetCallee, arguments: [continuationExpr, slotExpr, argExpr], result: nil, canThrow: false)
             )
         }
 
@@ -628,12 +612,7 @@ extension CoroutineLoweringPass {
         )
         rewritten.append(.constValue(result: thunkRefExpr, value: .symbolRef(thunk.symbol)))
         rewritten.append(
-            .call(
-                callee: runtimeCallee,
-                arguments: [thunkRefExpr, continuationExpr, dispatcherExpr],
-                result: call.result,
-                canThrow: call.canThrow
-            )
+            .call(callee: runtimeCallee, arguments: [thunkRefExpr, continuationExpr, dispatcherExpr], result: call.result, canThrow: call.canThrow)
         )
         return rewritten
     }
@@ -912,12 +891,7 @@ extension CoroutineLoweringPass {
                 type: rewrite.intType
             )
             rewritten.append(
-                .call(
-                    callee: rewrite.launcherArgSetCallee,
-                    arguments: [continuationExpr, slotExpr, argExpr],
-                    result: nil,
-                    canThrow: false
-                )
+                .call(callee: rewrite.launcherArgSetCallee, arguments: [continuationExpr, slotExpr, argExpr], result: nil, canThrow: false)
             )
         }
 
@@ -1020,12 +994,7 @@ extension CoroutineLoweringPass {
                 type: rewrite.intType
             )
             rewritten.append(
-                .call(
-                    callee: rewrite.launcherArgSetCallee,
-                    arguments: [continuationExpr, slotExpr, argExpr],
-                    result: nil,
-                    canThrow: false
-                )
+                .call(callee: rewrite.launcherArgSetCallee, arguments: [continuationExpr, slotExpr, argExpr], result: nil, canThrow: false)
             )
         }
 
@@ -1075,12 +1044,7 @@ extension CoroutineLoweringPass {
                 type: rewrite.intType
             )
             rewritten.append(
-                .call(
-                    callee: rewrite.launcherArgSetCallee,
-                    arguments: [continuationExpr, slotExpr, argExpr],
-                    result: nil,
-                    canThrow: false
-                )
+                .call(callee: rewrite.launcherArgSetCallee, arguments: [continuationExpr, slotExpr, argExpr], result: nil, canThrow: false)
             )
         }
 
@@ -1241,12 +1205,7 @@ extension CoroutineLoweringPass {
                 type: rewrite.intType
             )
             rewritten.append(
-                .call(
-                    callee: rewrite.launcherArgSetCallee,
-                    arguments: [continuationExpr, slotExpr, argExpr],
-                    result: nil,
-                    canThrow: false
-                )
+                .call(callee: rewrite.launcherArgSetCallee, arguments: [continuationExpr, slotExpr, argExpr], result: nil, canThrow: false)
             )
         }
 
@@ -1374,12 +1333,7 @@ extension CoroutineLoweringPass {
                 type: rewrite.intType
             )
             rewritten.append(
-                .call(
-                    callee: rewrite.launcherArgSetCallee,
-                    arguments: [continuationExpr, slotExpr, value],
-                    result: nil,
-                    canThrow: false
-                )
+                .call(callee: rewrite.launcherArgSetCallee, arguments: [continuationExpr, slotExpr, value], result: nil, canThrow: false)
             )
         }
 

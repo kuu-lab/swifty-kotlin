@@ -55,30 +55,15 @@ extension CollectionLiteralConstructionLoweringPass {
                     return true
                 }
                 if state.mapExprIDs.contains(receiverID.rawValue) {
-                    loweredBody.append(.call(
-                        callee: lookup.kkMapSizeName,
-                        arguments: [receiverID],
-                        result: result,
-                        canThrow: false
-                    ))
+                    loweredBody.append(.call(callee: lookup.kkMapSizeName, arguments: [receiverID], result: result, canThrow: false))
                     return true
                 }
                 if state.setExprIDs.contains(receiverID.rawValue) {
-                    loweredBody.append(.call(
-                        callee: lookup.kkSetSizeName,
-                        arguments: [receiverID],
-                        result: result,
-                        canThrow: false
-                    ))
+                    loweredBody.append(.call(callee: lookup.kkSetSizeName, arguments: [receiverID], result: result, canThrow: false))
                     return true
                 }
                 if state.arrayExprIDs.contains(receiverID.rawValue) {
-                    loweredBody.append(.call(
-                        callee: lookup.kkArraySizeName,
-                        arguments: [receiverID],
-                        result: result,
-                        canThrow: false
-                    ))
+                    loweredBody.append(.call(callee: lookup.kkArraySizeName, arguments: [receiverID], result: result, canThrow: false))
                     return true
                 }
                 if state.rangeExprIDs.contains(receiverID.rawValue) {
@@ -91,12 +76,7 @@ extension CollectionLiteralConstructionLoweringPass {
                     // added to state.rangeExprIDs during PreScan, so the old
                     // isUIntRangeExpr arm was unreachable regardless of that
                     // local helper's own always-false type comparison.
-                    loweredBody.append(.call(
-                        callee: lookup.kkRangeCountName,
-                        arguments: [receiverID],
-                        result: result,
-                        canThrow: false
-                    ))
+                    loweredBody.append(.call(callee: lookup.kkRangeCountName, arguments: [receiverID], result: result, canThrow: false))
                     return true
                 }
             }
@@ -132,12 +112,7 @@ extension CollectionLiteralConstructionLoweringPass {
             if arguments.count == 2 {
                 let receiverID = arguments[0]
                 if state.setExprIDs.contains(receiverID.rawValue) {
-                    loweredBody.append(.call(
-                        callee: lookup.kkSetContainsName,
-                        arguments: arguments,
-                        result: result,
-                        canThrow: false
-                    ))
+                    loweredBody.append(.call(callee: lookup.kkSetContainsName, arguments: arguments, result: result, canThrow: false))
                     return true
                 }
             }
@@ -147,12 +122,7 @@ extension CollectionLiteralConstructionLoweringPass {
             if arguments.count == 2 {
                 let receiverID = arguments[0]
                 if state.setExprIDs.contains(receiverID.rawValue) {
-                    loweredBody.append(.call(
-                        callee: lookup.kkMutableSetAddName,
-                        arguments: arguments,
-                        result: result,
-                        canThrow: false
-                    ))
+                    loweredBody.append(.call(callee: lookup.kkMutableSetAddName, arguments: arguments, result: result, canThrow: false))
                     return true
                 }
             }
@@ -162,12 +132,7 @@ extension CollectionLiteralConstructionLoweringPass {
             if arguments.count == 2 {
                 let receiverID = arguments[0]
                 if state.setExprIDs.contains(receiverID.rawValue) {
-                    loweredBody.append(.call(
-                        callee: lookup.kkMutableSetRemoveName,
-                        arguments: arguments,
-                        result: result,
-                        canThrow: false
-                    ))
+                    loweredBody.append(.call(callee: lookup.kkMutableSetRemoveName, arguments: arguments, result: result, canThrow: false))
                     return true
                 }
             }
@@ -187,21 +152,11 @@ extension CollectionLiteralConstructionLoweringPass {
                     return true
                 }
                 if state.setExprIDs.contains(receiverID.rawValue) {
-                    loweredBody.append(.call(
-                        callee: lookup.kkSetIsEmptyName,
-                        arguments: [receiverID],
-                        result: result,
-                        canThrow: false
-                    ))
+                    loweredBody.append(.call(callee: lookup.kkSetIsEmptyName, arguments: [receiverID], result: result, canThrow: false))
                     return true
                 }
                 if state.mapExprIDs.contains(receiverID.rawValue) {
-                    loweredBody.append(.call(
-                        callee: lookup.kkMapIsEmptyName,
-                        arguments: [receiverID],
-                        result: result,
-                        canThrow: false
-                    ))
+                    loweredBody.append(.call(callee: lookup.kkMapIsEmptyName, arguments: [receiverID], result: result, canThrow: false))
                     return true
                 }
                 if state.rangeExprIDs.contains(receiverID.rawValue) {
@@ -210,12 +165,7 @@ extension CollectionLiteralConstructionLoweringPass {
                         return false
                     }
                     // KSP-1523: see the count() branch above — same unreachable arm.
-                    loweredBody.append(.call(
-                        callee: lookup.kkRangeIsEmptyName,
-                        arguments: [receiverID],
-                        result: result,
-                        canThrow: false
-                    ))
+                    loweredBody.append(.call(callee: lookup.kkRangeIsEmptyName, arguments: [receiverID], result: result, canThrow: false))
                     return true
                 }
             }
@@ -230,12 +180,7 @@ extension CollectionLiteralConstructionLoweringPass {
                         return false
                     }
                     // KSP-1523: see the count() branch above — same unreachable arm.
-                    loweredBody.append(.call(
-                        callee: lookup.kkRangeSumName,
-                        arguments: [receiverID],
-                        result: result,
-                        canThrow: false
-                    ))
+                    loweredBody.append(.call(callee: lookup.kkRangeSumName, arguments: [receiverID], result: result, canThrow: false))
                     return true
                 }
             }

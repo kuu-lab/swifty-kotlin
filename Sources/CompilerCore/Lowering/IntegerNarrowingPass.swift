@@ -134,10 +134,7 @@ final class IntegerNarrowingPass: LoweringPass, ParallelLoweringPass {
                 func appendWrappedCall(opCallee: InternedString, wrapCallee: InternedString, result: KIRExprID, fallbackType: TypeID? = nil) {
                     let rawResult = arena.appendTemporary(type: arena.exprType(result) ?? fallbackType)
                     appendCall(callee: opCallee, result: rawResult)
-                    newBody.append(.call(
-                        callee: wrapCallee, arguments: [rawResult], result: result,
-                        canThrow: false
-                    ))
+                    newBody.append(.call(callee: wrapCallee, arguments: [rawResult], result: result, canThrow: false))
                 }
 
                 if callee == invCallee, let result, let resultKind,

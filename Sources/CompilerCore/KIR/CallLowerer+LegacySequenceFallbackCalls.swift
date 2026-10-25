@@ -315,12 +315,7 @@ extension CallLowerer {
                     )
                     runtimeArguments = [loweredReceiverID, normalizedArgIDs[0], fnPtrExpr, envPtrExpr]
                 }
-                instructions.append(.call(
-                    callee: interner.intern(runtimeCallee),
-                    arguments: runtimeArguments,
-                    result: result,
-                    canThrow: canThrow
-                ))
+                instructions.append(.call(callee: interner.intern(runtimeCallee), arguments: runtimeArguments, result: result, canThrow: canThrow))
                 return result
             }
         }
@@ -466,12 +461,7 @@ extension CallLowerer {
                     || runtimeCallee == seqLastOrNullCallee
                     || runtimeCallee == seqCountCallee
                     || runtimeCallee == seqToListCallee
-                instructions.append(.call(
-                    callee: runtimeCallee,
-                    arguments: [loweredReceiverID],
-                    result: result,
-                    canThrow: canThrow
-                ))
+                instructions.append(.call(callee: runtimeCallee, arguments: [loweredReceiverID], result: result, canThrow: canThrow))
                 return result
             }
         }

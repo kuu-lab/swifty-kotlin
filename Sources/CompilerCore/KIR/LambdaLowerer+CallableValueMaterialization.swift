@@ -102,12 +102,7 @@ extension LambdaLowerer {
             let offsetExpr = arena.appendExpr(.intLiteral(Int64(captureIndex + 2)), type: sema.types.intType)
             body.append(.constValue(result: offsetExpr, value: .intLiteral(Int64(captureIndex + 2))))
             let loadedExpr = arena.appendTemporary(type: captureType)
-            body.append(.call(
-                callee: arrayGet,
-                arguments: [closureExpr, offsetExpr],
-                result: loadedExpr,
-                canThrow: false
-            ))
+            body.append(.call(callee: arrayGet, arguments: [closureExpr, offsetExpr], result: loadedExpr, canThrow: false))
             let normalizedLoadedExpr = normalizeHOFPrimitiveParameter(
                 loadedExpr,
                 type: captureType,
@@ -233,12 +228,7 @@ extension LambdaLowerer {
         let adapterExpr = arena.appendExpr(.symbolRef(adapterSymbol), type: sema.types.intType)
         instructions.append(.constValue(result: adapterExpr, value: .symbolRef(adapterSymbol)))
         let materializedExpr = arena.appendTemporary(type: sema.types.make(.functionType(functionType)))
-        instructions.append(.call(
-            callee: createCallee,
-            arguments: [adapterExpr, closureObj],
-            result: materializedExpr,
-            canThrow: false
-        ))
+        instructions.append(.call(callee: createCallee, arguments: [adapterExpr, closureObj], result: materializedExpr, canThrow: false))
         driver.ctx.registerCallableValue(
             materializedExpr,
             symbol: adapterSymbol,

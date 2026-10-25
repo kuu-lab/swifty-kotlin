@@ -134,12 +134,7 @@ struct LambdaLowererDirectCoverageTests {
             .stringTemplate(parts: [.literal(fixture.interner.intern("prefix")), .expression(lhs)], range: range)
         )
         let callExpr = fixture.astArena.appendExpr(
-            .call(
-                callee: receiver,
-                typeArgs: [],
-                args: [CallArgument(expr: rhs)],
-                range: range
-            )
+            .call(callee: receiver, typeArgs: [], args: [CallArgument(expr: rhs)], range: range)
         )
         let memberCallExpr = fixture.astArena.appendExpr(
             .memberCall(

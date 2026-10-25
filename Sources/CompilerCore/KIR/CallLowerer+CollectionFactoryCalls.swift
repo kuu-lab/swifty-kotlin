@@ -444,12 +444,7 @@ extension CallLowerer {
                 into: &instructions
             )
 
-            instructions.append(.call(
-                callee: interner.intern("kk_array_set"),
-                arguments: [keysArray, indexExpr, key],
-                result: nil,
-                canThrow: false
-            ))
+            instructions.append(.call(callee: interner.intern("kk_array_set"), arguments: [keysArray, indexExpr, key], result: nil, canThrow: false))
             instructions.append(.call(
                 callee: interner.intern("kk_array_set"),
                 arguments: [valuesArray, indexExpr, value],
@@ -473,12 +468,7 @@ extension CallLowerer {
         interner: StringInterner,
         instructions: inout [KIRInstruction]
     ) {
-        instructions.append(.call(
-            callee: interner.intern(callee),
-            arguments: [],
-            result: result,
-            canThrow: false
-        ))
+        instructions.append(.call(callee: interner.intern(callee), arguments: [], result: result, canThrow: false))
     }
 
     private func emitNullArrayCountCall(
@@ -499,12 +489,7 @@ extension CallLowerer {
             arguments.append(nullArray)
         }
         arguments.append(zero)
-        instructions.append(.call(
-            callee: interner.intern(callee),
-            arguments: arguments,
-            result: result,
-            canThrow: false
-        ))
+        instructions.append(.call(callee: interner.intern(callee), arguments: arguments, result: result, canThrow: false))
     }
 
     private func emitRuntimeCollectionFactory(
@@ -515,11 +500,6 @@ extension CallLowerer {
         interner: StringInterner,
         instructions: inout [KIRInstruction]
     ) {
-        instructions.append(.call(
-            callee: interner.intern(callee),
-            arguments: [array, count],
-            result: result,
-            canThrow: false
-        ))
+        instructions.append(.call(callee: interner.intern(callee), arguments: [array, count], result: result, canThrow: false))
     }
 }

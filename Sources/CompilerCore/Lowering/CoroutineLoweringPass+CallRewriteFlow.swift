@@ -307,23 +307,13 @@ extension CoroutineLoweringPass {
         let classIDExpr = rewrite.module.arena.appendExpr(.intLiteral(0), type: rewrite.intType)
         instructions.append(.constValue(result: classIDExpr, value: .intLiteral(0)))
         let closureObjExpr = rewrite.module.arena.appendTemporary(type: rewrite.anyType)
-        instructions.append(.call(
-            callee: kkObjectNew,
-            arguments: [slotCountExpr, classIDExpr],
-            result: closureObjExpr,
-            canThrow: false
-        ))
+        instructions.append(.call(callee: kkObjectNew, arguments: [slotCountExpr, classIDExpr], result: closureObjExpr, canThrow: false))
         for (captureIndex, captureArg) in captureArguments.enumerated() {
             let fieldOffset = Int64(captureIndex + 2)
             let offsetExpr = rewrite.module.arena.appendExpr(.intLiteral(fieldOffset), type: rewrite.intType)
             instructions.append(.constValue(result: offsetExpr, value: .intLiteral(fieldOffset)))
             let unusedResult = rewrite.module.arena.appendTemporary(type: rewrite.anyType)
-            instructions.append(.call(
-                callee: kkArraySet,
-                arguments: [closureObjExpr, offsetExpr, captureArg],
-                result: unusedResult,
-                canThrow: false
-            ))
+            instructions.append(.call(callee: kkArraySet, arguments: [closureObjExpr, offsetExpr, captureArg], result: unusedResult, canThrow: false))
         }
         return closureObjExpr
     }

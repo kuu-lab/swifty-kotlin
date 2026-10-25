@@ -53,12 +53,7 @@ extension ExprLowerer {
            ]
         {
             let result = arena.appendTemporary(type: boundType ?? sema.types.anyType)
-            instructions.append(.call(
-                callee: interner.intern("kk_coroutine_current_context"),
-                arguments: [],
-                result: result,
-                canThrow: false
-            ))
+            instructions.append(.call(callee: interner.intern("kk_coroutine_current_context"), arguments: [], result: result, canThrow: false))
             return result
         }
         // BUG-B/BUG-C: an enum value has no stored-field object layout
@@ -98,12 +93,7 @@ extension ExprLowerer {
                 )
             }
             let result = arena.appendTemporary(type: resultType)
-            instructions.append(.call(
-                callee: symInfo.name,
-                arguments: [receiverExprID],
-                result: result,
-                canThrow: false
-            ))
+            instructions.append(.call(callee: symInfo.name, arguments: [receiverExprID], result: result, canThrow: false))
             return result
         }
         if let symbol = sema.bindings.identifierSymbols[exprID]
@@ -142,12 +132,7 @@ extension ExprLowerer {
             let helperName = interner.intern(
                 "$enumConstructorProperty$\(ownerSymbol.rawValue)$\(interner.resolve(symInfo.name))"
             )
-            instructions.append(.call(
-                callee: helperName,
-                arguments: [receiverExprID],
-                result: result,
-                canThrow: false
-            ))
+            instructions.append(.call(callee: helperName, arguments: [receiverExprID], result: result, canThrow: false))
             return result
         }
         // Enum-entry properties are owned by their entry field in Sema, but
@@ -213,12 +198,7 @@ extension ExprLowerer {
             if let getterPlaceholder = driver.callLowerer.enumPropertyGetterPlaceholder(
                 for: symbol, sema: sema, interner: interner
             ) {
-                instructions.append(.call(
-                    callee: getterPlaceholder,
-                    arguments: [receiverExprID],
-                    result: result,
-                    canThrow: false
-                ))
+                instructions.append(.call(callee: getterPlaceholder, arguments: [receiverExprID], result: result, canThrow: false))
                 return result
             }
         }
@@ -299,13 +279,7 @@ extension ExprLowerer {
                 // Facade callees are package-level extension functions —
                 // statically dispatched with the implicit receiver as the
                 // first argument.
-                instructions.append(.call(
-                    symbol: chosenCallee,
-                    callee: loweredCallee,
-                    arguments: [receiverExprID],
-                    result: result,
-                    canThrow: true
-                ))
+                instructions.append(.call(symbol: chosenCallee, callee: loweredCallee, arguments: [receiverExprID], result: result, canThrow: true))
                 return result
             }
             if let enumProperty = driver.callLowerer.tryLowerEnumBasePropertyRead(
@@ -340,12 +314,7 @@ extension ExprLowerer {
                         into: &instructions
                     )
                 } else {
-                    instructions.append(.call(
-                        callee: memberName,
-                        arguments: [receiverExprID],
-                        result: result,
-                        canThrow: false
-                    ))
+                    instructions.append(.call(callee: memberName, arguments: [receiverExprID], result: result, canThrow: false))
                 }
                 return result
             }
@@ -1242,13 +1211,7 @@ extension ExprLowerer {
             {
                 let resultType = boundType ?? sema.symbols.propertyType(for: symbol) ?? sema.types.anyType
                 let result = arena.appendTemporary(type: resultType)
-                instructions.append(.call(
-                    symbol: symbol,
-                    callee: interner.intern(externalLinkName),
-                    arguments: [],
-                    result: result,
-                    canThrow: false
-                ))
+                instructions.append(.call(symbol: symbol, callee: interner.intern(externalLinkName), arguments: [], result: result, canThrow: false))
                 return result
             }
             // BUG-274: this is the generic bare-name fallback -- reached

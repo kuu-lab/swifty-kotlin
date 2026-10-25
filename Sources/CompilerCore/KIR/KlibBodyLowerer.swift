@@ -465,10 +465,7 @@ final class KlibBodyLowerer {
         }
         let result = arena.appendTemporary(type: signature.returnType)
         let name = symbols.symbol(symbol)?.name ?? interner.intern("<klib>")
-        let directCall = KIRInstruction.call(
-            symbol: symbol, callee: name, arguments: forwarded,
-            result: result, canThrow: true
-        )
+        let directCall = KIRInstruction.call(symbol: symbol, callee: name, arguments: forwarded, result: result, canThrow: true)
         if let receiver = thisExpr,
            symbols.symbol(symbol)?.kind != .constructor,
            let dispatch = resolveVirtualDispatchKind(
@@ -754,10 +751,7 @@ final class KlibBodyLowerer {
         guard let value = valueExprs[index] else { return nil }
         let count = appendIntegerConstant(1, into: &body)
         let cell = arena.appendTemporary(type: types.anyType)
-        body.append(.call(
-            callee: interner.intern("kk_array_new"), arguments: [count],
-            result: cell, canThrow: false
-        ))
+        body.append(.call(callee: interner.intern("kk_array_new"), arguments: [count], result: cell, canThrow: false))
         storeCell(value, cell: cell, into: &body)
         mutableCells[index] = cell
         return cell
@@ -766,20 +760,14 @@ final class KlibBodyLowerer {
     private func loadCell(_ cell: KIRExprID, type: TypeID, into body: inout KIRLoweringEmitContext) -> KIRExprID {
         let zero = appendIntegerConstant(0, into: &body)
         let value = arena.appendTemporary(type: type)
-        body.append(.call(
-            callee: interner.intern("kk_array_get_inbounds"), arguments: [cell, zero],
-            result: value, canThrow: false
-        ))
+        body.append(.call(callee: interner.intern("kk_array_get_inbounds"), arguments: [cell, zero], result: value, canThrow: false))
         return value
     }
 
     private func storeCell(_ value: KIRExprID, cell: KIRExprID, into body: inout KIRLoweringEmitContext) {
         let zero = appendIntegerConstant(0, into: &body)
         let result = arena.appendTemporary(type: types.anyType)
-        body.append(.call(
-            callee: interner.intern("kk_array_set"), arguments: [cell, zero, value],
-            result: result, canThrow: false
-        ))
+        body.append(.call(callee: interner.intern("kk_array_set"), arguments: [cell, zero, value], result: result, canThrow: false))
     }
 
     private static func isTerminator(_ instruction: KIRInstruction) -> Bool {
@@ -954,10 +942,7 @@ final class KlibBodyLowerer {
             returnType: types.unitType, body: eager.instructions, isSuspend: false, isInline: false
         ))))
         let eagerResult = arena.appendTemporary(type: types.unitType)
-        eagerObjectInit.append(.call(
-            symbol: eagerSymbol, callee: eagerName, arguments: [],
-            result: eagerResult, canThrow: false
-        ))
+        eagerObjectInit.append(.call(symbol: eagerSymbol, callee: eagerName, arguments: [], result: eagerResult, canThrow: false))
 
         let flagName = interner.intern("$initialized")
         let flagSymbol = symbols.define(
@@ -984,11 +969,7 @@ final class KlibBodyLowerer {
            symbols.functionSignature(for: ctorSymbol)?.parameterTypes.isEmpty == true
         {
             let initResult = arena.appendTemporary(type: types.unitType)
-            lazy.append(.call(
-                symbol: ctorSymbol, callee: interner.intern("<init>"),
-                arguments: [handle], result: initResult,
-                canThrow: true
-            ))
+            lazy.append(.call(symbol: ctorSymbol, callee: interner.intern("<init>"), arguments: [handle], result: initResult, canThrow: true))
         } else {
             reportUnsupported("object without a no-arg primary constructor")
         }
@@ -1495,10 +1476,7 @@ final class KlibBodyLowerer {
             }
             let count = appendIntegerConstant(1, into: &body)
             let cell = arena.appendTemporary(type: types.anyType)
-            body.append(.call(
-                callee: interner.intern("kk_array_new"), arguments: [count],
-                result: cell, canThrow: false
-            ))
+            body.append(.call(callee: interner.intern("kk_array_new"), arguments: [count], result: cell, canThrow: false))
             storeCell(values[0], cell: cell, into: &body)
             return cell
         }
@@ -1593,11 +1571,7 @@ final class KlibBodyLowerer {
             let nullValue = arena.appendExpr(.null, type: fieldType)
             body.append(.constValue(result: nullValue, value: .null))
             let result = arena.appendTemporary(type: types.anyType)
-            body.append(.call(
-                callee: interner.intern("kk_array_set"),
-                arguments: [receiver, offset, nullValue], result: result,
-                canThrow: true
-            ))
+            body.append(.call(callee: interner.intern("kk_array_set"), arguments: [receiver, offset, nullValue], result: result, canThrow: true))
         }
     }
 
@@ -1619,11 +1593,7 @@ final class KlibBodyLowerer {
         let classIDExpr = arena.appendExpr(.intLiteral(classIDValue), type: intType)
         body.append(.constValue(result: classIDExpr, value: .intLiteral(classIDValue)))
         let allocated = arena.appendTemporary(type: objectType)
-        body.append(.call(
-            callee: interner.intern("kk_object_new"),
-            arguments: [slotCountExpr, classIDExpr],
-            result: allocated, canThrow: false
-        ))
+        body.append(.call(callee: interner.intern("kk_object_new"), arguments: [slotCountExpr, classIDExpr], result: allocated, canThrow: false))
 
         if symbols.symbol(classSymbol)?.flags.contains(.dataType) == true {
             let registerResult = arena.appendTemporary(type: intType)
@@ -1720,11 +1690,7 @@ final class KlibBodyLowerer {
                 continue
             }
             let result = arena.appendTemporary(type: types.anyType)
-            body.append(.call(
-                callee: interner.intern("kk_array_set"),
-                arguments: [thisExpr, offset, value], result: result,
-                canThrow: true
-            ))
+            body.append(.call(callee: interner.intern("kk_array_set"), arguments: [thisExpr, offset, value], result: result, canThrow: true))
         }
         for bodyIndex in initInfo.anonymousInitBodyIndices {
             if let statement = try? ir.body(bodyIndex, fileIndex: fileIndex) {
@@ -1876,11 +1842,7 @@ final class KlibBodyLowerer {
                 return errorExpr(type: resultType, into: &body)
             }
             let result = arena.appendTemporary(type: resultType)
-            body.append(.call(
-                callee: interner.intern("kk_array_get_inbounds"),
-                arguments: [receiver, offset], result: result,
-                canThrow: false
-            ))
+            body.append(.call(callee: interner.intern("kk_array_get_inbounds"), arguments: [receiver, offset], result: result, canThrow: false))
             return result
         }
         let result = arena.appendTemporary(type: resultType)
@@ -1905,11 +1867,7 @@ final class KlibBodyLowerer {
                 return lowered
             }
             let result = arena.appendTemporary(type: types.anyType)
-            body.append(.call(
-                callee: interner.intern("kk_array_set"),
-                arguments: [receiver, offset, lowered], result: result,
-                canThrow: true
-            ))
+            body.append(.call(callee: interner.intern("kk_array_set"), arguments: [receiver, offset, lowered], result: result, canThrow: true))
         } else {
             body.append(.storeGlobal(value: lowered, symbol: fieldSymbol))
         }
@@ -1964,11 +1922,7 @@ final class KlibBodyLowerer {
         var accumulated = partIDs[0]
         for part in partIDs.dropFirst() {
             let next = arena.appendTemporary(type: stringType)
-            body.append(.call(
-                callee: interner.intern("__kk_string_concat_flat"),
-                arguments: [accumulated, part], result: next,
-                canThrow: false
-            ))
+            body.append(.call(callee: interner.intern("__kk_string_concat_flat"), arguments: [accumulated, part], result: next, canThrow: false))
             accumulated = next
         }
         return accumulated
@@ -1992,11 +1946,7 @@ final class KlibBodyLowerer {
             )
             let boolType = types.booleanType
             let isResult = arena.appendTemporary(type: boolType)
-            body.append(.call(
-                callee: interner.intern("kk_op_is"),
-                arguments: [operand, token], result: isResult,
-                canThrow: false
-            ))
+            body.append(.call(callee: interner.intern("kk_op_is"), arguments: [operand, token], result: isResult, canThrow: false))
             if op == .is { return isResult }
             let falseExpr = arena.appendExpr(.boolLiteral(false), type: boolType)
             body.append(.constValue(result: falseExpr, value: .boolLiteral(false)))
@@ -2060,11 +2010,7 @@ final class KlibBodyLowerer {
         let sizeExpr = arena.appendExpr(.intLiteral(Int64(elements.count)), type: intType)
         body.append(.constValue(result: sizeExpr, value: .intLiteral(Int64(elements.count))))
         let array = arena.appendTemporary(type: resultType)
-        body.append(.call(
-            callee: interner.intern("kk_array_new"),
-            arguments: [sizeExpr], result: array,
-            canThrow: false
-        ))
+        body.append(.call(callee: interner.intern("kk_array_new"), arguments: [sizeExpr], result: array, canThrow: false))
         for (index, element) in elements.enumerated() {
             switch element {
             case .expression(let elementExpr):
@@ -2072,11 +2018,7 @@ final class KlibBodyLowerer {
                 let indexExpr = arena.appendExpr(.intLiteral(Int64(index)), type: intType)
                 body.append(.constValue(result: indexExpr, value: .intLiteral(Int64(index))))
                 let store = arena.appendTemporary(type: types.anyType)
-                body.append(.call(
-                    callee: interner.intern("kk_array_set"),
-                    arguments: [array, indexExpr, value], result: store,
-                    canThrow: true
-                ))
+                body.append(.call(callee: interner.intern("kk_array_set"), arguments: [array, indexExpr, value], result: store, canThrow: true))
             case .spread(let spread, _, _):
                 reportUnsupported("vararg spread")
                 _ = translateExpression(spread, into: &body)
@@ -2138,10 +2080,7 @@ final class KlibBodyLowerer {
            ]), let linkName = symbols.externalLinkName(for: bridge) {
             let arguments = intrinsicArguments(memberAccess, into: &body)
             let result = arena.appendTemporary(type: resultType)
-            body.append(.call(
-                symbol: bridge, callee: interner.intern(linkName), arguments: arguments,
-                result: result, canThrow: false
-            ))
+            body.append(.call(symbol: bridge, callee: interner.intern(linkName), arguments: arguments, result: result, canThrow: false))
             return result
         }
 
@@ -2244,11 +2183,7 @@ final class KlibBodyLowerer {
         }
         guard let opName else { return nil }
         let result = arena.appendTemporary(type: resultType)
-        body.append(.call(
-            callee: interner.intern(opName),
-            arguments: loweredArguments, result: result,
-            canThrow: false
-        ))
+        body.append(.call(callee: interner.intern(opName), arguments: loweredArguments, result: result, canThrow: false))
         return result
     }
 
@@ -2422,11 +2357,7 @@ final class KlibBodyLowerer {
     /// so a successfully-linked program can never silently observe the value.
     private func errorExpr(type: TypeID, into body: inout KIRLoweringEmitContext) -> KIRExprID {
         let result = arena.appendTemporary(type: type)
-        body.append(.call(
-            callee: interner.intern("kk_abort_unreachable"),
-            arguments: [], result: result,
-            canThrow: true
-        ))
+        body.append(.call(callee: interner.intern("kk_abort_unreachable"), arguments: [], result: result, canThrow: true))
         return result
     }
 

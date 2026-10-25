@@ -60,12 +60,7 @@ extension CallLowerer {
 
         let suspendedExpr = arena.appendTemporary(type: sema.types.anyType
         )
-        instructions.append(.call(
-            callee: interner.intern("kk_coroutine_suspended"),
-            arguments: [],
-            result: suspendedExpr,
-            canThrow: false
-        ))
+        instructions.append(.call(callee: interner.intern("kk_coroutine_suspended"), arguments: [], result: suspendedExpr, canThrow: false))
 
         let suspendLabel = driver.ctx.makeLoopLabel()
         let resumeLabel = driver.ctx.makeLoopLabel()

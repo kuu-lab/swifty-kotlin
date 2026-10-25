@@ -607,12 +607,7 @@ extension InlineLoweringPass {
                         isSuperCall: isSuperCall,
                         qualifiedSuperType: qualifiedSuperType
                     ))
-                    lowered.append(.call(
-                        callee: unboxCallee,
-                        arguments: [boxedResult],
-                        result: loweredResult,
-                        canThrow: false
-                    ))
+                    lowered.append(.call(callee: unboxCallee, arguments: [boxedResult], result: loweredResult, canThrow: false))
                     break
                 }
                 let normalizedArgs = erasedExpansionABI

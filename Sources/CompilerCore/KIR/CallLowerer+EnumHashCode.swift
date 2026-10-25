@@ -35,21 +35,11 @@ extension CallLowerer {
 
         let intType = sema.types.make(.primitive(.int, .nonNull))
         let ordinal = arena.appendTemporary(type: intType)
-        instructions.append(.call(
-            callee: interner.intern("kk_unbox_int"),
-            arguments: [receiver.loweredID],
-            result: ordinal,
-            canThrow: false
-        ))
+        instructions.append(.call(callee: interner.intern("kk_unbox_int"), arguments: [receiver.loweredID], result: ordinal, canThrow: false))
 
         let classIDExpr = arena.appendExpr(.intLiteral(classID), type: intType)
         instructions.append(.constValue(result: classIDExpr, value: .intLiteral(classID)))
-        instructions.append(.call(
-            callee: interner.intern("kk_enum_hash_code"),
-            arguments: [ordinal, classIDExpr],
-            result: result,
-            canThrow: false
-        ))
+        instructions.append(.call(callee: interner.intern("kk_enum_hash_code"), arguments: [ordinal, classIDExpr], result: result, canThrow: false))
         return true
     }
 }

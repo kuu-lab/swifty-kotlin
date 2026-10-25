@@ -127,13 +127,7 @@ func emitNonThrowingCall<C: RangeReplaceableCollection>(
     symbol: SymbolID? = nil,
     into instructions: inout C
 ) where C.Element == KIRInstruction {
-    instructions.append(.call(
-        symbol: symbol,
-        callee: callee,
-        arguments: [arg],
-        result: result,
-        canThrow: false
-    ))
+    instructions.append(.call(symbol: symbol, callee: callee, arguments: [arg], result: result, canThrow: false))
 }
 
 /// Emits a runtime bridge call whose trailing `outThrown` channel must be
@@ -145,12 +139,7 @@ func emitThrowingCall<C: RangeReplaceableCollection>(
     result: KIRExprID,
     into instructions: inout C
 ) where C.Element == KIRInstruction {
-    instructions.append(.call(
-        callee: callee,
-        arguments: [arg],
-        result: result,
-        canThrow: true
-    ))
+    instructions.append(.call(callee: callee, arguments: [arg], result: result, canThrow: true))
 }
 
 /// External members lower to their runtime link name; the resolved symbol is
@@ -255,13 +244,7 @@ extension CallLowerer {
             instructions.append(virtualInstruction)
             return
         }
-        instructions.append(.call(
-            symbol: symbol,
-            callee: callee,
-            arguments: arguments,
-            result: result,
-            canThrow: false
-        ))
+        instructions.append(.call(symbol: symbol, callee: callee, arguments: arguments, result: result, canThrow: false))
     }
 }
 
@@ -530,11 +513,7 @@ func emitValueClassBoxCall<C: RangeReplaceableCollection>(
     let intType = types.make(.primitive(.int, .nonNull))
     let classIDExpr = arena.appendExpr(.intLiteral(classID), type: intType)
     instructions.append(.constValue(result: classIDExpr, value: .intLiteral(classID)))
-    instructions.append(.call(
-        callee: interner.intern("kk_value_class_box"),
-        arguments: [value, classIDExpr],
-        result: result, canThrow: false
-    ))
+    instructions.append(.call(callee: interner.intern("kk_value_class_box"), arguments: [value, classIDExpr], result: result, canThrow: false))
 }
 
 /// Emits `kk_value_class_unbox(value, classID) -> result` — unwraps a
@@ -558,11 +537,7 @@ func emitValueClassUnboxCall<C: RangeReplaceableCollection>(
     let intType = types.make(.primitive(.int, .nonNull))
     let classIDExpr = arena.appendExpr(.intLiteral(classID), type: intType)
     instructions.append(.constValue(result: classIDExpr, value: .intLiteral(classID)))
-    instructions.append(.call(
-        callee: interner.intern("kk_value_class_unbox"),
-        arguments: [value, classIDExpr],
-        result: result, canThrow: false
-    ))
+    instructions.append(.call(callee: interner.intern("kk_value_class_unbox"), arguments: [value, classIDExpr], result: result, canThrow: false))
 }
 
 /// Value classes are unboxed to their underlying primitive everywhere
@@ -595,10 +570,7 @@ func emitBoxCallWithValueClassTag<C: RangeReplaceableCollection>(
     into instructions: inout C
 ) where C.Element == KIRInstruction {
     func emitPlainBoxCall() {
-        instructions.append(.call(
-            callee: boxCallee, arguments: [value],
-            result: result, canThrow: false
-        ))
+        instructions.append(.call(callee: boxCallee, arguments: [value], result: result, canThrow: false))
     }
     guard case let .classType(classType) = rawSourceKind,
           classType.nullability == .nonNull,
@@ -658,18 +630,12 @@ func emitBoxCallWithValueClassTag<C: RangeReplaceableCollection>(
         return
     }
     let boxedTemp = arena.appendTemporary(type: resultType)
-    instructions.append(.call(
-        callee: boxCallee, arguments: [value],
-        result: boxedTemp, canThrow: false
-    ))
+    instructions.append(.call(callee: boxCallee, arguments: [value], result: boxedTemp, canThrow: false))
     let intType = types.make(.primitive(.int, .nonNull))
     let classIDExpr = arena.appendExpr(.intLiteral(classID), type: intType)
     instructions.append(.constValue(result: classIDExpr, value: .intLiteral(classID)))
     let tagCallee = interner.intern("kk_tag_value_class_box")
-    instructions.append(.call(
-        callee: tagCallee, arguments: [boxedTemp, classIDExpr],
-        result: result, canThrow: false
-    ))
+    instructions.append(.call(callee: tagCallee, arguments: [boxedTemp, classIDExpr], result: result, canThrow: false))
 }
 
 /// True when `emitEnumOrdinalBoxCall` can resolve the entry name for this
@@ -738,10 +704,7 @@ func emitEnumOrdinalBoxCall<C: RangeReplaceableCollection>(
     // ordinal, so a reboxed enum cannot contain another handle as its value.
     let intType = types.make(.primitive(.int, .nonNull))
     let normalizedOrdinal = arena.appendTemporary(type: intType)
-    instructions.append(.call(
-        callee: interner.intern("kk_unbox_int"), arguments: [ordinal],
-        result: normalizedOrdinal, canThrow: false
-    ))
+    instructions.append(.call(callee: interner.intern("kk_unbox_int"), arguments: [ordinal], result: normalizedOrdinal, canThrow: false))
 
     // Master registers overridden toString implementations separately for
     // erased rendering, while enum.name continues to use the declared entry name.
@@ -750,10 +713,7 @@ func emitEnumOrdinalBoxCall<C: RangeReplaceableCollection>(
         symbols.symbol(id).map { $0.kind == .function } ?? false
     }
     let nameResult = arena.appendTemporary(type: types.stringType)
-    instructions.append(.call(
-        symbol: helperSymbol, callee: nameHelperCallee, arguments: [normalizedOrdinal],
-        result: nameResult, canThrow: false
-    ))
+    instructions.append(.call(symbol: helperSymbol, callee: nameHelperCallee, arguments: [normalizedOrdinal], result: nameResult, canThrow: false))
 
     let classID = RuntimeTypeCheckToken.stableNominalTypeID(
         symbol: classSymbol, symbols: symbols, interner: interner

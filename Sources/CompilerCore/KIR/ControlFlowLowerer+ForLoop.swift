@@ -29,12 +29,7 @@ extension ControlFlowLowerer {
         instructions: inout [KIRInstruction]
     ) {
         if let runtimeCalleeOverride {
-            instructions.append(.call(
-                callee: interner.intern(runtimeCalleeOverride),
-                arguments: [receiverID],
-                result: result,
-                canThrow: false
-            ))
+            instructions.append(.call(callee: interner.intern(runtimeCalleeOverride), arguments: [receiverID], result: result, canThrow: false))
             return
         }
         let calleeName = resolvedLoopCallee(for: callBinding, sema: sema, interner: interner, fallback: fallback)
@@ -75,13 +70,7 @@ extension ControlFlowLowerer {
             ) {
                 instructions.append(virtualInstruction)
             } else {
-                instructions.append(.call(
-                    symbol: chosenCallee,
-                    callee: calleeName,
-                    arguments: arguments,
-                    result: result,
-                    canThrow: false
-                ))
+                instructions.append(.call(symbol: chosenCallee, callee: calleeName, arguments: arguments, result: result, canThrow: false))
             }
             return
         }
@@ -111,13 +100,7 @@ extension ControlFlowLowerer {
         ) {
             instructions.append(virtualInstruction)
         } else {
-            instructions.append(.call(
-                symbol: callBinding.chosenCallee,
-                callee: calleeName,
-                arguments: [receiverID],
-                result: result,
-                canThrow: false
-            ))
+            instructions.append(.call(symbol: callBinding.chosenCallee, callee: calleeName, arguments: [receiverID], result: result, canThrow: false))
         }
     }
 
@@ -336,12 +319,7 @@ extension ControlFlowLowerer {
                 instructions: &instructions
             )
         } else {
-            instructions.append(.call(
-                callee: defaultIteratorCallee,
-                arguments: [iterableID],
-                result: iteratorID,
-                canThrow: false
-            ))
+            instructions.append(.call(callee: defaultIteratorCallee, arguments: [iterableID], result: iteratorID, canThrow: false))
         }
 
         let continueLabel = driver.ctx.makeLoopLabel()
@@ -366,12 +344,7 @@ extension ControlFlowLowerer {
                 instructions: &instructions
             )
         } else {
-            instructions.append(.call(
-                callee: defaultHasNextCallee,
-                arguments: [iteratorID],
-                result: hasNextID,
-                canThrow: false
-            ))
+            instructions.append(.call(callee: defaultHasNextCallee, arguments: [iteratorID], result: hasNextID, canThrow: false))
         }
         let falseID = arena.appendExpr(.boolLiteral(false), type: boolType)
         instructions.append(.constValue(result: falseID, value: .boolLiteral(false)))
@@ -403,12 +376,7 @@ extension ControlFlowLowerer {
             // The map-entry bridge carries an outThrown channel so
             // ConcurrentModificationException propagates instead of degrading
             // to a sentinel element (__kk_range_next has no thrown channel).
-            instructions.append(.call(
-                callee: defaultNextCallee,
-                arguments: [iteratorID],
-                result: nextValueID,
-                canThrow: isMapElementIteration
-            ))
+            instructions.append(.call(callee: defaultNextCallee, arguments: [iteratorID], result: nextValueID, canThrow: isMapElementIteration))
         }
         if let loopVariableSymbol {
             driver.ctx.setLocalValue(nextValueID, for: loopVariableSymbol)
@@ -1329,12 +1297,7 @@ extension ControlFlowLowerer {
                 instructions: &instructions
             )
         } else {
-            instructions.append(.call(
-                callee: interner.intern("__kk_range_iterator"),
-                arguments: [iterableID],
-                result: iteratorID,
-                canThrow: true
-            ))
+            instructions.append(.call(callee: interner.intern("__kk_range_iterator"), arguments: [iterableID], result: iteratorID, canThrow: true))
         }
 
         let continueLabel = driver.ctx.makeLoopLabel()

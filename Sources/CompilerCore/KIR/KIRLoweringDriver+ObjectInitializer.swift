@@ -113,13 +113,7 @@ extension KIRLoweringDriver {
             )
         }
         let result = arena.appendTemporary(type: sema.types.unitType)
-        instructions.append(.call(
-            symbol: lazyInitSymbol,
-            callee: lazyInitName,
-            arguments: [],
-            result: result,
-            canThrow: false
-        ))
+        instructions.append(.call(symbol: lazyInitSymbol, callee: lazyInitName, arguments: [], result: result, canThrow: false))
     }
 
     func resolveDeferredObjectLazyInitGuards(arena: KIRArena) {

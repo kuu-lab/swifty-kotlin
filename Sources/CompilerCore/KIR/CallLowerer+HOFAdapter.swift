@@ -106,12 +106,7 @@ extension CallLowerer {
                 continue
             }
             let unboxedExpr = arena.appendTemporary(type: lambdaParamType)
-            body.append(.call(
-                callee: unboxCallee,
-                arguments: [paramExpr],
-                result: unboxedExpr,
-                canThrow: false
-            ))
+            body.append(.call(callee: unboxCallee, arguments: [paramExpr], result: unboxedExpr, canThrow: false))
             callArguments.append(unboxedExpr)
         }
 
@@ -144,13 +139,7 @@ extension CallLowerer {
         // emitted callable ABI also preserves that distinction here.
         let callResult = arena.appendTemporary(type: callableReturnType)
         let canThrow = callableRequiresThrownChannel(callableInfo.symbol, arena: arena)
-        body.append(.call(
-            symbol: callableInfo.symbol,
-            callee: callableInfo.callee,
-            arguments: callArguments,
-            result: callResult,
-            canThrow: canThrow
-        ))
+        body.append(.call(symbol: callableInfo.symbol, callee: callableInfo.callee, arguments: callArguments, result: callResult, canThrow: canThrow))
 
         switch sema.types.kind(of: adapterReturnType) {
         case .unit, .nothing(.nonNull):

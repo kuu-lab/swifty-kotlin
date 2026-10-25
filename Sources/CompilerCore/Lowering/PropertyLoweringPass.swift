@@ -115,13 +115,7 @@ final class PropertyLoweringPass: LoweringPass {
                         let getterSymbol = SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: sym)
                         if function.symbol != getterSymbol {
                             loweredBody.append(
-                                .call(
-                                    symbol: getterSymbol,
-                                    callee: getterName,
-                                    arguments: [],
-                                    result: lgResult,
-                                    canThrow: false
-                                )
+                                .call(symbol: getterSymbol, callee: getterName, arguments: [], result: lgResult, canThrow: false)
                             )
                             continue
                         }
@@ -144,13 +138,7 @@ final class PropertyLoweringPass: LoweringPass {
                         let getterSymbol = SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: sym)
                         if function.symbol != getterSymbol {
                             loweredBody.append(
-                                .call(
-                                    symbol: getterSymbol,
-                                    callee: getterName,
-                                    arguments: [],
-                                    result: lgResult,
-                                    canThrow: false
-                                )
+                                .call(symbol: getterSymbol, callee: getterName, arguments: [], result: lgResult, canThrow: false)
                             )
                             continue
                         }
@@ -164,12 +152,7 @@ final class PropertyLoweringPass: LoweringPass {
                             for: sym, sema: sema, arena: module.arena, into: &loweredBody
                         )
                         loweredBody.append(
-                            .call(
-                                callee: externalCallee,
-                                arguments: getterArguments,
-                                result: lgResult,
-                                canThrow: false
-                            )
+                            .call(callee: externalCallee, arguments: getterArguments, result: lgResult, canThrow: false)
                         )
                         continue
                     }
@@ -191,13 +174,7 @@ final class PropertyLoweringPass: LoweringPass {
                         let getterSymbol = SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: sym)
                         if function.symbol != getterSymbol {
                             loweredBody.append(
-                                .call(
-                                    symbol: getterSymbol,
-                                    callee: getterName,
-                                    arguments: [],
-                                    result: cvResult,
-                                    canThrow: false
-                                )
+                                .call(symbol: getterSymbol, callee: getterName, arguments: [], result: cvResult, canThrow: false)
                             )
                             continue
                         }
@@ -212,12 +189,7 @@ final class PropertyLoweringPass: LoweringPass {
                             for: sym, sema: sema, arena: module.arena, into: &loweredBody
                         )
                         loweredBody.append(
-                            .call(
-                                callee: externalCallee,
-                                arguments: getterArguments,
-                                result: cvResult,
-                                canThrow: false
-                            )
+                            .call(callee: externalCallee, arguments: getterArguments, result: cvResult, canThrow: false)
                         )
                         continue
                     }
@@ -279,13 +251,7 @@ final class PropertyLoweringPass: LoweringPass {
                                 sema: sema, arena: module.arena, loweredBody: &loweredBody
                             )
                             loweredBody.append(
-                                .call(
-                                    symbol: setterSymbol,
-                                    callee: setterName,
-                                    arguments: callArguments,
-                                    result: nil,
-                                    canThrow: false
-                                )
+                                .call(symbol: setterSymbol, callee: setterName, arguments: callArguments, result: nil, canThrow: false)
                             )
                             continue
                         }
