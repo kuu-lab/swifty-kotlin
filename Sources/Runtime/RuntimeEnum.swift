@@ -71,6 +71,12 @@ public func kk_enum_hash_code(_ ordinal: Int, _ classID: Int) -> Int {
     runtimeEnumIdentityHashCode(ordinal, Int64(classID))
 }
 
+/// Kotlin's `Enum.compareTo` returns the difference between enum ordinals.
+@_cdecl("kk_enum_compareTo")
+public func kk_enum_compareTo(_ lhsRaw: Int, _ rhsRaw: Int) -> Int {
+    kk_unbox_int(lhsRaw) - kk_unbox_int(rhsRaw)
+}
+
 /// Reads the declared entry name after the concrete enum type is erased.
 /// Erased toString rendering is registered independently, so this metadata
 /// remains the declaration name even when the enum overrides toString.
