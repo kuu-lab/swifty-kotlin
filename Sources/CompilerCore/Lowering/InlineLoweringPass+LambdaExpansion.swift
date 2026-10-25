@@ -205,8 +205,11 @@ extension InlineLoweringPass {
         lowered.instructions.reserveCapacity(lambdaFunction.body.count)
         for param in lambdaFunction.params {
             guard let argument = lambdaParamValues[param.symbol] else { continue }
-            lambdaParamValues[param.symbol] = InlineErasedLambdaABI.bindEnumArgumentToInterfaceParameter(
+            let bound = InlineErasedLambdaABI.bindEnumArgumentToInterfaceParameter(
                 argument, parameterType: param.type, module: module, ctx: ctx, into: &lowered
+            )
+            lambdaParamValues[param.symbol] = InlineErasedLambdaABI.bindStringArgumentToErasedParameter(
+                bound, parameterType: param.type, module: module, ctx: ctx, into: &lowered
             )
         }
         var returnedExpr: KIRExprID?

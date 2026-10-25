@@ -313,6 +313,39 @@ enum InlineErasedLambdaABI {
         )
     }
 
+    /// Binds a String argument to an erased (type-parameter or `Any`)
+    /// parameter of a spliced body by boxing its flat aggregate into the raw
+    /// handle the body's erased slots carry. Substituting the aggregate
+    /// directly smears its four fields across the argument registers of
+    /// erased consumers such as `kk_function_invoke` adapters and
+    /// `kk_any_to_string` (KUU-3195) — the same hazard KUU-3234 fixed for
+    /// imported bodies in `boxPrimitiveArgumentsForErasedParameters`, which
+    /// already boxes `.stringStruct` arguments through this same
+    /// `kk_string_from_flat` bridge before the expansion runs.
+    static func bindStringArgumentToErasedParameter(
+        _ argument: KIRExprID,
+        parameterType: TypeID,
+        module: KIRModule,
+        ctx: KIRContext,
+        into body: inout KIRLoweringEmitContext
+    ) -> KIRExprID {
+        guard isErasedType(parameterType, ctx: ctx),
+              let types = ctx.sema?.types,
+              let argumentType = module.arena.exprType(argument),
+              case .stringStruct = types.kind(of: argumentType)
+        else {
+            return argument
+        }
+        let boxed = module.arena.appendTemporary(type: types.anyType)
+        body.append(.call(
+            callee: ctx.interner.intern("kk_string_from_flat"),
+            arguments: [argument],
+            result: boxed,
+            canThrow: false
+        ))
+        return boxed
+    }
+
     /// Binds a non-null enum argument to an interface-typed parameter of a
     /// spliced body through a parameter-typed `copy`, so ABILoweringPass boxes
     /// it (`kk_enum_box_ordinal` + itable registration) the way it boxes the
