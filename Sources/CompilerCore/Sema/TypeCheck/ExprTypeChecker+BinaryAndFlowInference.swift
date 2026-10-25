@@ -1220,7 +1220,7 @@ extension ExprTypeChecker {
         }
     }
 
-    private func equalityOperandType(_ expr: ExprID, inferred: TypeID, ctx: TypeInferenceContext) -> TypeID {
+    func equalityOperandType(_ expr: ExprID, inferred: TypeID, ctx: TypeInferenceContext) -> TypeID {
         let sema = ctx.sema
         let declared = equalityDeclaredType(expr, inferred: inferred, sema: sema)
         // Range literals and their local references can carry a scalar element
@@ -1304,7 +1304,7 @@ extension ExprTypeChecker {
     // String is involved. Ordinary classes may implement cross-type equals.
     // Type-parameter bounds and enum/value-class diagnostics have additional
     // warning rules and remain on the existing path.
-    private func equalityHasIncompatibleBuiltinTypes(_ lhs: TypeID, _ rhs: TypeID, sema: SemaModule) -> Bool {
+    func equalityHasIncompatibleBuiltinTypes(_ lhs: TypeID, _ rhs: TypeID, sema: SemaModule) -> Bool {
         func erasedOperand(_ type: TypeID) -> TypeID? {
             let nonNull = sema.types.makeNonNullable(type)
             switch sema.types.kind(of: nonNull) {
