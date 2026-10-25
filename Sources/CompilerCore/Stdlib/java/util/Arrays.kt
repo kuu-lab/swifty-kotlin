@@ -14,9 +14,42 @@ import kotlin.collections.fill
 import kotlin.collections.sort
 import kotlin.collections.stableSortImpl
 import kotlin.internal.__valuesEqual
+import java.util.stream.DoubleStream
+import java.util.stream.IntStream
+import java.util.stream.LongStream
+import java.util.stream.Stream
 
 public object Arrays {
     public fun <T> asList(vararg elements: T): List<T> = elements.asList()
+
+    public fun <T> stream(array: Array<out T>?): Stream<T> =
+        Stream.of(*(array ?: throw NullPointerException()))
+
+    public fun <T> stream(array: Array<out T>?, startInclusive: Int, endExclusive: Int): Stream<T> {
+        val values = array ?: throw NullPointerException()
+        if (startInclusive < 0 || endExclusive > values.size || startInclusive > endExclusive) {
+            throw ArrayIndexOutOfBoundsException()
+        }
+        val selected = mutableListOf<T>()
+        var index = startInclusive
+        while (index < endExclusive) {
+            selected.add(values[index])
+            index++
+        }
+        return Stream.of(*selected.toTypedArray())
+    }
+
+    public fun stream(array: IntArray?): IntStream = IntStream.of(*(array ?: throw NullPointerException()))
+    public fun stream(array: IntArray?, startInclusive: Int, endExclusive: Int): IntStream =
+        IntStream.of(*streamRange(array ?: throw NullPointerException(), startInclusive, endExclusive))
+
+    public fun stream(array: LongArray?): LongStream = LongStream.of(*(array ?: throw NullPointerException()))
+    public fun stream(array: LongArray?, startInclusive: Int, endExclusive: Int): LongStream =
+        LongStream.of(*streamRange(array ?: throw NullPointerException(), startInclusive, endExclusive))
+
+    public fun stream(array: DoubleArray?): DoubleStream = DoubleStream.of(*(array ?: throw NullPointerException()))
+    public fun stream(array: DoubleArray?, startInclusive: Int, endExclusive: Int): DoubleStream =
+        DoubleStream.of(*streamRange(array ?: throw NullPointerException(), startInclusive, endExclusive))
 
     public fun equals(first: Array<out Any?>?, second: Array<out Any?>?): Boolean =
         first.contentEquals(second)
@@ -472,4 +505,25 @@ private fun mismatchDoubles(first: DoubleArray, second: DoubleArray): Int {
     var index = 0
     while (index < length) { if (!__valuesEqual(first[index], second[index])) return index; index++ }
     return if (first.size == second.size) -1 else length
+}
+
+private fun streamRange(array: IntArray, startInclusive: Int, endExclusive: Int): IntArray {
+    checkStreamRange(array.size, startInclusive, endExclusive)
+    return array.copyOfRange(startInclusive, endExclusive)
+}
+
+private fun streamRange(array: LongArray, startInclusive: Int, endExclusive: Int): LongArray {
+    checkStreamRange(array.size, startInclusive, endExclusive)
+    return array.copyOfRange(startInclusive, endExclusive)
+}
+
+private fun streamRange(array: DoubleArray, startInclusive: Int, endExclusive: Int): DoubleArray {
+    checkStreamRange(array.size, startInclusive, endExclusive)
+    return array.copyOfRange(startInclusive, endExclusive)
+}
+
+private fun checkStreamRange(size: Int, startInclusive: Int, endExclusive: Int) {
+    if (startInclusive < 0 || endExclusive > size || startInclusive > endExclusive) {
+        throw IndexOutOfBoundsException("Range [$startInclusive, $endExclusive) out of bounds for length $size")
+    }
 }
