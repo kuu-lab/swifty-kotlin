@@ -650,6 +650,23 @@ extension CallLowerer {
         if let floatingPointElementType,
            floatingPointElementType == sema.types.floatType || floatingPointElementType == sema.types.doubleType
         {
+            if memberName == "endExclusive" {
+                if let chosenCallee {
+                    let property = sema.symbols.accessorOwnerProperty(for: chosenCallee)
+                        ?? (sema.symbols.symbol(chosenCallee)?.kind == .property ? chosenCallee : nil)
+                        ?? sema.symbols.parentSymbol(for: chosenCallee).flatMap { parent in
+                            sema.symbols.symbol(parent)?.kind == .property ? parent : nil
+                        }
+                    guard let property,
+                          let owner = sema.symbols.parentSymbol(for: property).flatMap(sema.symbols.symbol),
+                          owner.fqName.map(interner.resolve) == ["kotlin", "ranges", "OpenEndRange"]
+                    else { return nil }
+                } else if !sema.bindings.isOpenFloatingPointRangeExpr(receiverExpr),
+                          nominalFloatingPointElementType == nil
+                {
+                    return nil
+                }
+            }
             let chosenContainsArgumentIsPrimitive: Bool = if let chosenCallee,
                                                                let signature = sema.symbols.functionSignature(for: chosenCallee),
                                                                let argumentType = signature.parameterTypes.first

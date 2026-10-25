@@ -16,6 +16,15 @@ extension CallLowerer {
             let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
             let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
             let calleeText = calleeNameStr
+            if calleeText == "endExclusive",
+               let chosen = sema.bindings.callBindings[exprID]?.chosenCallee,
+               sema.symbols.symbol(chosen)?.kind == .function,
+               sema.symbols.accessorOwnerProperty(for: chosen) == nil,
+               sema.symbols.parentSymbol(for: chosen).flatMap(sema.symbols.symbol)?.kind != .property
+            {
+                // A same-named extension function is not the endpoint property.
+                return nil
+            }
             if (calleeText == "start" || calleeText == "endInclusive" || calleeText == "endExclusive"),
                let runtimeGetter = closedRangeInterfaceRuntimeName(
                    memberName: calleeText,

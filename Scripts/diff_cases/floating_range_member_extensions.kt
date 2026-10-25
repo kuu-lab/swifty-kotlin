@@ -1,4 +1,7 @@
 fun ClosedFloatingPointRange<Double>.toList(): List<Double> = listOf(start, endInclusive)
+fun ClosedFloatingPointRange<Double>.endExclusive(dummy: Int): Double = 42.0
+fun OpenEndRange<Double>.endExclusive(dummy: Int): Double = 43.0
+fun OpenEndRange<Double>.endExclusive(): Double = 44.0
 
 fun main() {
     val doubles = 1.0..3.0
@@ -22,6 +25,9 @@ fun main() {
     println(floatOpen.start)
     println(floatOpen.endExclusive)
     println(3f in floatOpen)
+    println(doubles.endExclusive(1))
+    println(open.endExclusive(1))
+    println(open.endExclusive())
     println((1..3).toList())
     println((1L..3L).toList())
 }
