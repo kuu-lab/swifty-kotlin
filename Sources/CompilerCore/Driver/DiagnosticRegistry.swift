@@ -1112,6 +1112,12 @@ enum DiagnosticRegistry {
             defaultSeverity: .error,
             summary: "Multiple vararg parameters are prohibited."
         ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0442",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "Generated data class componentN() conflicts with a supertype member."
+        ),
     ]
 
 

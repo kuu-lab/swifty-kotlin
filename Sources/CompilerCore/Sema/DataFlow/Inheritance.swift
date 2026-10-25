@@ -2000,27 +2000,12 @@ extension DataFlowSemaPhase {
         // Every inherited abstract member this class still owes an
         // implementation for. CLASS-008: members from an interface satisfied
         // through `by` delegation are excluded.
-        var overriddenNames = collectOverriddenMemberNames(
+        let overriddenNames = collectOverriddenMemberNames(
             for: symbol,
             decl: decl,
             ast: ast,
             symbols: symbols
         )
-        // A data object synthesizes `toString()` unless a final inherited implementation wins.
-        if symbolInfo.kind == .object,
-           symbolInfo.flags.contains(.dataType),
-           let toStringName = symbols.children(ofFQName: symbolInfo.fqName).compactMap({ memberID -> InternedString? in
-               guard let member = symbols.symbol(memberID),
-                     member.kind == .function,
-                     member.name == interner.intern("toString"),
-                     member.flags.contains(.synthetic)
-               else {
-                   return nil
-               }
-               return member.name
-           }).first {
-            overriddenNames.insert(toStringName)
-        }
         let missingMembers = unimplementedAbstractMembers(
             for: symbol,
             overriddenNames: overriddenNames,
@@ -2028,7 +2013,31 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             types: types,
             interner: interner
-        )
+        ).filter { missingMember in
+            // Data classes and data objects synthesize `componentN()`,
+            // `copy`, `toString()`, `hashCode()` and `equals()` unless a final
+            // inherited implementation wins. A generated member with the same
+            // name and arity implements the abstract member — or, when its
+            // signature cannot validly override, the conflict is already
+            // reported by the generated-member conflict check
+            // (KSWIFTK-SEMA-0436).
+            guard symbolInfo.flags.contains(.dataType),
+                  let missingSymbol = symbols.symbol(missingMember),
+                  let missingSignature = symbols.functionSignature(for: missingMember)
+            else { return true }
+            return !symbols.children(ofFQName: symbolInfo.fqName).contains { memberID in
+                guard let member = symbols.symbol(memberID),
+                      member.kind == .function,
+                      member.flags.contains(.synthetic),
+                      member.name == missingSymbol.name,
+                      symbols.functionSignature(for: memberID)?.parameterTypes.count
+                        == missingSignature.parameterTypes.count
+                else {
+                    return false
+                }
+                return true
+            }
+        }
         guard !missingMembers.isEmpty else { return }
 
         let className = symbolInfo.fqName.map { interner.resolve($0) }.joined(separator: ".")
