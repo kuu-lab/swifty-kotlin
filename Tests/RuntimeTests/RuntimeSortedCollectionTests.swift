@@ -275,6 +275,47 @@ struct RuntimeSortedCollectionTests {
     }
 
     @Test
+    func sortedMapHeadAndTailRangeViewsStayLive() {
+        let map = makeTreeMap([(1, 10), (2, 20), (4, 40), (6, 60)])
+        var thrown = 0
+
+        let headMap = kk_sorted_map_head_map(map, 4, &thrown)
+        #expect(thrown == 0)
+        #expect(mapKeys(headMap) == [1, 2])
+
+        let tailMap = kk_sorted_map_tail_map(map, 4, &thrown)
+        #expect(thrown == 0)
+        #expect(mapKeys(tailMap) == [4, 6])
+
+        _ = kk_mutable_map_put(map, 3, 30, &thrown)
+        #expect(thrown == 0)
+        #expect(mapKeys(headMap) == [1, 2, 3])
+        #expect(mapKeys(tailMap) == [4, 6])
+
+        _ = kk_mutable_map_put(headMap, 4, 40, &thrown)
+        #expect(thrown != 0)
+        thrown = 0
+        _ = kk_mutable_map_put(tailMap, 3, 30, &thrown)
+        #expect(thrown != 0)
+
+        thrown = 0
+        let subMap = kk_sorted_map_sub_map(map, 2, 6, &thrown)
+        #expect(thrown == 0)
+        let nestedHeadMap = kk_sorted_map_head_map(subMap, 6, &thrown)
+        #expect(thrown == 0)
+        #expect(mapKeys(nestedHeadMap) == [2, 3, 4])
+        let nestedTailMap = kk_sorted_map_tail_map(subMap, 2, &thrown)
+        #expect(thrown == 0)
+        #expect(mapKeys(nestedTailMap) == [2, 3, 4])
+
+        _ = kk_sorted_map_head_map(subMap, 7, &thrown)
+        #expect(thrown != 0)
+        thrown = 0
+        _ = kk_sorted_map_tail_map(subMap, 1, &thrown)
+        #expect(thrown != 0)
+    }
+
+    @Test
     func sortedMapNestedRangeViewsValidateParentEndpoints() {
         let map = makeTreeMap([(1, 10), (2, 20), (4, 40), (6, 60)])
         var thrown = 0

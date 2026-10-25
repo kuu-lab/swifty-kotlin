@@ -27,6 +27,8 @@ public extension RuntimeABISpec {
         abi.th("__kk_sorted_map_comparator", "mapRaw"),
         abi.th("__kk_sorted_map_first_key", "mapRaw outThrown"),
         abi.th("__kk_sorted_map_last_key", "mapRaw outThrown"),
+        abi.th("__kk_sorted_map_head_map", "mapRaw toKey outThrown"),
+        abi.th("__kk_sorted_map_tail_map", "mapRaw fromKey outThrown"),
         abi.th("__kk_sorted_map_sub_map", "mapRaw fromKey toKey outThrown"),
         abi.th("__kk_sorted_map_lower_key", "mapRaw key"),
         abi.th("__kk_sorted_map_floor_key", "mapRaw key"),
