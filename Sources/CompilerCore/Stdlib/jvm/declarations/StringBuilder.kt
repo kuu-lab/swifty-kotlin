@@ -14,6 +14,9 @@ class StringBuilder: CharSequence {
     fun append(value: CharSequence?, startIndex: Int, endIndex: Int): StringBuilder = this
     fun append(value: CharArray, offset: Int, len: Int): StringBuilder = this
     fun appendCodePoint(codePoint: Int): StringBuilder = this
+    fun codePointAt(index: Int): Int = 0
+    fun codePointBefore(index: Int): Int = 0
+    fun codePointCount(beginIndex: Int, endIndex: Int): Int = 0
     fun substring(startIndex: Int): String = null!!
     fun substring(startIndex: Int, endIndex: Int): String = null!!
     fun indexOf(str: String): Int = 0

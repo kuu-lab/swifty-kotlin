@@ -55,6 +55,51 @@ public class StringBuilder : Appendable, CharSequence, Comparable<StringBuilder>
         return this
     }
 
+    fun codePointAt(index: Int): Int {
+        if (index < 0 || index >= length) {
+            throw java.lang.StringIndexOutOfBoundsException(index)
+        }
+        val first = this[index]
+        if (first.isHighSurrogate() && index < length - 1) {
+            val second = this[index + 1]
+            if (second.isLowSurrogate()) {
+                return ((first.code - 0xD800) shl 10) + (second.code - 0xDC00) + 0x10000
+            }
+        }
+        return first.code
+    }
+
+    fun codePointBefore(index: Int): Int {
+        if (index <= 0 || index > length) {
+            throw java.lang.StringIndexOutOfBoundsException(index)
+        }
+        val first = this[index - 1]
+        if (first.isLowSurrogate() && index > 1) {
+            val second = this[index - 2]
+            if (second.isHighSurrogate()) {
+                return ((second.code - 0xD800) shl 10) + (first.code - 0xDC00) + 0x10000
+            }
+        }
+        return first.code
+    }
+
+    fun codePointCount(beginIndex: Int, endIndex: Int): Int {
+        if (beginIndex < 0 || endIndex > length || beginIndex > endIndex) {
+            throw java.lang.StringIndexOutOfBoundsException(beginIndex)
+        }
+        var count = 0
+        var index = beginIndex
+        while (index < endIndex) {
+            val first = this[index]
+            index++
+            if (first.isHighSurrogate() && index < endIndex && this[index].isLowSurrogate()) {
+                index++
+            }
+            count++
+        }
+        return count
+    }
+
     fun append(value: Long): StringBuilder =
         __kk_string_builder_append_obj(value.toString())
 
