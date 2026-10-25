@@ -9,7 +9,6 @@ package kotlinx.coroutines.flow
 
 import kotlin.time.Duration
 import kotlin.time.DurationUnit
-import kotlin.time.TimeSource
 import kotlin.time.inWholeMilliseconds
 import kotlin.time.toDuration
 import kotlinx.coroutines.FlowPreview
@@ -17,11 +16,14 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.InternalCoroutinesApi
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.job
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.channels.cancel
 import kotlinx.coroutines.channels.produce
 import kotlinx.coroutines.selects.select
 
@@ -113,22 +115,66 @@ public fun <T> Flow<T>.sample(period: Duration): Flow<T> {
     return sample(rounded)
 }
 
-// Sequential cold-flow approximation of upstream `timeout` (operators/Delay.kt):
-// the timeout window covers the gap between the end of one downstream emit and
-// the arrival of the next upstream value — downstream delay does not count.
 public fun <T> Flow<T>.timeout(timeout: Duration): Flow<T> {
     val source = this
     return flow {
         if (timeout <= Duration.ZERO) {
             throw TimeoutCancellationException("Timed out immediately")
         }
-        var windowStart = TimeSource.Monotonic.markNow()
-        source.collect { value ->
-            if (windowStart.elapsedNow() > timeout) {
-                throw TimeoutCancellationException("Timed out waiting for $timeout")
+        val wholeMillis = timeout.inWholeMilliseconds
+        val timeoutMillis = if (wholeMillis == Long.MAX_VALUE) wholeMillis
+            else if (timeout > wholeMillis.toDuration(DurationUnit.MILLISECONDS)) wholeMillis + 1L
+            else wholeMillis
+
+        coroutineScope {
+            val values = Channel<T>(Channel.BUFFERED)
+            val upstream = launch {
+                try {
+                    source.collect { value -> values.send(value) }
+                    values.close()
+                } catch (failure: Throwable) {
+                    values.close(failure)
+                    throw failure
+                }
             }
-            emit(value)
-            windowStart = TimeSource.Monotonic.markNow()
+
+            var timeoutJob: Job? = null
+
+            try {
+                var open = true
+                timeoutJob = if (timeoutMillis == Long.MAX_VALUE) null else launch {
+                    delay(timeoutMillis)
+                }
+                while (open) {
+                    val timer = timeoutJob
+                    select<Unit> {
+                        values.onReceiveCatching { result ->
+                            if (result.isSuccess) {
+                                timeoutJob?.cancel()
+                                emit(result.getOrThrow())
+                                timeoutJob = if (timeoutMillis == Long.MAX_VALUE) null else launch {
+                                    delay(timeoutMillis)
+                                }
+                            } else {
+                                val failure = result.exceptionOrNull()
+                                if (failure != null) throw failure
+                                timeoutJob?.cancel()
+                                timeoutJob = null
+                                open = false
+                            }
+                        }
+                        if (timer != null) {
+                            timer.onJoin {
+                                throw TimeoutCancellationException("Timed out waiting for $timeout")
+                            }
+                        }
+                    }
+                }
+            } finally {
+                timeoutJob?.cancel()
+                upstream.cancel()
+                values.cancel()
+            }
         }
     }
 }
