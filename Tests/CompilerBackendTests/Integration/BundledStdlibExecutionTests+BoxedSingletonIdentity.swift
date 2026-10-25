@@ -135,4 +135,61 @@ extension BundledStdlibExecutionTests {
             allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
         )
     }
+
+    /// KUU-3224: a raw enum ordinal passed to an erased `Any`/`Any?`
+    /// (or nullable enum) extension receiver must be boxed first. Without the
+    /// box, `is` checks and entry equality inside the body never match, so a
+    /// nested `when` on the smart-cast value falls through to the outer `else`.
+    @Test(arguments: [true, false])
+    func testEnumBoxingAtErasedExtensionReceivers(allowDefaultStdlibLibrary: Bool) throws {
+        try compileAndRunKotlin(
+            """
+            enum class Level { O, K }
+
+            private fun Any?.doTheThing(): String {
+                when (this) {
+                    is String -> return this
+                    is Level -> {
+                        when (this) {
+                            Level.O -> return Level.O.name
+                            Level.K -> return Level.K.name
+                        }
+                    }
+                    else -> return "fail"
+                }
+            }
+
+            private fun Any?.describe(tag: String = "d"): String = when (this) {
+                Level.O -> "O-$tag"
+                Level.K -> "K-$tag"
+                else -> "other-$tag"
+            }
+
+            private fun Level?.nullableRecv(): String = when (this) {
+                Level.O -> "O-null"
+                null -> "is-null"
+                else -> "other-null"
+            }
+
+            private fun Any?.isLevelRecv(): Boolean = this is Level
+
+            fun main() {
+                println(Level.O.doTheThing())
+                println(Level.K.doTheThing())
+                println("str".doTheThing())
+                println(null.doTheThing())
+                println(Level.O.describe())
+                println(Level.O.describe("x9"))
+                println(Level.O.nullableRecv())
+                val n: Level? = null
+                println(n.nullableRecv())
+                println(Level.O.isLevelRecv())
+                println("s".isLevelRecv())
+            }
+            """,
+            expectedOutput: "O\nK\nstr\nfail\nO-d\nO-x9\nO-null\nis-null\ntrue\nfalse\n",
+            moduleName: "EnumErasedExtReceiver",
+            allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
+        )
+    }
 }

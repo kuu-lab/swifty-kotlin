@@ -180,11 +180,28 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
         )
 
         var signatureByName: [InternedString: FunctionSignature] = [:]
+        // `$default` stubs are synthetic symbols outside the symbol table, so
+        // `signatureByName` never contains them: a stub call arrives with
+        // `symbol: nil` and `signature == nil`, leaving every slot unboxed.
+        // The stub's own KIR declaration carries the real ABI parameter list —
+        // dispatch/extension receivers as ordinary leading params, then
+        // defaults, then mask words — so positional argument boxing applies
+        // once the signature is recovered by link name (KUU-3224).
+        var stubSignatureByName: [InternedString: FunctionSignature] = [:]
         if let symbols {
             for decl in module.arena.declarations {
                 guard case let .function(fn) = decl else { continue }
                 if let sig = symbols.functionSignature(for: fn.symbol) {
                     signatureByName[fn.name] = sig
+                }
+                if SyntheticSymbolScheme.isSyntheticCallTarget(fn.symbol),
+                   !SyntheticSymbolScheme.isLikelySyntheticPropertyAccessor(fn.symbol)
+                {
+                    stubSignatureByName[fn.name] = FunctionSignature(
+                        parameterTypes: fn.params.map(\.type),
+                        returnType: fn.returnType,
+                        isSuspend: fn.isSuspend
+                    )
                 }
             }
         }
@@ -613,6 +630,9 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                 if signature == nil {
                     signature = signatureByName[effectiveCallee]
                 }
+                if signature == nil {
+                    signature = stubSignatureByName[effectiveCallee]
+                }
                 // Default stubs do not have Sema signatures. Their KIR params
                 // include the receiver as an ordinary argument, so recover the
                 // concrete signature when an enum slot needs ABI adaptation.
@@ -680,7 +700,11 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                         boxingCalleeTable: boxingCalleeTable,
                         callee: effectiveCallee,
                         interner: ctx.interner,
-                        boxTypeParamArguments: isKotlinSourceCallee(effectiveCallSymbol, symbols: symbols),
+                        // A name-recovered `$default` stub is a source-generated
+                        // Kotlin function, so its type-parameter slots carry
+                        // the same boxed values as any Kotlin-source callee.
+                        boxTypeParamArguments: isKotlinSourceCallee(effectiveCallSymbol, symbols: symbols)
+                            || stubSignatureByName[effectiveCallee] != nil,
                         sema: ctx.sema,
                         cache: ctx.nominalDispatchCache,
                         newBody: &newBody
