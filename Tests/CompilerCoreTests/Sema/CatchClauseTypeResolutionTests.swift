@@ -17,6 +17,8 @@ private let qualifiedCatchTypeNames = [
     "kotlin.UninitializedPropertyAccessException",
     "kotlin.RuntimeException",
     "kotlin.Throwable",
+    "java.lang.Exception",
+    "java.lang.RuntimeException",
     "java.io.IOException",
     "kotlinx.io.EOFException",
 ]
@@ -229,9 +231,17 @@ struct CatchClauseTypeResolutionTests {
             return
         }
         #expect(parsedPath.map { ctx.interner.resolve($0) } == expectedPath)
-        let expectedClassPath = typeName == "java.io.IOException"
-            ? ["kotlinx", "io", "IOException"]
-            : expectedPath
+        let expectedClassPath: [String]
+        switch typeName {
+        case "java.io.IOException":
+            expectedClassPath = ["kotlinx", "io", "IOException"]
+        case "java.lang.Exception":
+            expectedClassPath = ["kotlin", "Exception"]
+        case "java.lang.RuntimeException":
+            expectedClassPath = ["kotlin", "RuntimeException"]
+        default:
+            expectedClassPath = expectedPath
+        }
         #expect(try catchParamClassSymbol(in: ctx, path: path) == requireClassSymbol(expectedClassPath, in: ctx))
         #expect(diagnosticsForPath(path, in: ctx).filter { $0.severity == .error }.isEmpty)
     }
@@ -240,6 +250,8 @@ struct CatchClauseTypeResolutionTests {
         "NonExistentException",
         "kotlin.NonExistentException",
         "missing.IllegalStateException",
+        "missing.Exception",
+        "missing.RuntimeException",
         "missing.io.IOException",
     ])
     func testUnresolvedCatchTypeStillEmitsSema0085(typeName: String) throws {
