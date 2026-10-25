@@ -889,6 +889,12 @@ enum DiagnosticRegistry {
             summary: "Returns are not allowed in initializer blocks."
         ),
         DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0313",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "Suspend property can only be accessed from a coroutine or suspend function."
+        ),
+        DiagnosticDescriptor(
             code: "KSWIFTK-SEMA-PLATFORM",
             pass: "SEMA",
             defaultSeverity: .warning,

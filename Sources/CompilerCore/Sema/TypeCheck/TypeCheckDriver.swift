@@ -40,6 +40,9 @@ final class TypeCheckDriver {
     var isCheckingAnnotationConstruction = false
     /// Lexical boundaries retained until overload and lambda inference finish.
     var callSuspensionContexts: [ExprID: SuspensionContext] = [:]
+    /// Reads of the restricted `kotlin.coroutines.coroutineContext` property
+    /// need the same post-inference suspension-context validation as calls.
+    var coroutineContextPropertySuspensionContexts: [ExprID: SuspensionContext] = [:]
     /// Properties whose types were inferred in a safe module pre-pass so earlier
     /// files can use them without running the property checker a second time.
     var precheckedPropertyDecls: Set<DeclID> = []
@@ -198,8 +201,32 @@ final class TypeCheckDriver {
         if !suspendingCallNames(for: id).isEmpty {
             callSuspensionContexts[id] = ctx.suspensionContext
         }
+        if isCoroutineContextPropertyRead(id) {
+            coroutineContextPropertySuspensionContexts[id] = ctx.suspensionContext
+        }
         checkInlineCallVisibility(id, ctx: ctx)
         return type
+    }
+
+    func isCoroutineContextPropertyRead(_ id: ExprID) -> Bool {
+        let isPropertyReadSyntax: Bool
+        switch ast.arena.expr(id) {
+        case .nameRef?:
+            isPropertyReadSyntax = true
+        case let .memberCall(_, _, _, args, _)? where args.isEmpty && !ast.arena.isExplicitCall(id):
+            isPropertyReadSyntax = true
+        default:
+            isPropertyReadSyntax = false
+        }
+        guard isPropertyReadSyntax,
+              let symbolID = sema.bindings.identifierSymbol(for: id),
+              let symbol = sema.symbols.symbol(symbolID),
+              symbol.kind == .property
+        else {
+            return false
+        }
+        let coroutineContextFQName = ["kotlin", "coroutines", "coroutineContext"].map(interner.intern)
+        return symbol.fqName == coroutineContextFQName
     }
 
     func diagnoseLocalValueOrClassifierRedeclaration(
