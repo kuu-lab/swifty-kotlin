@@ -7,6 +7,36 @@ import TestStdlibCache
 
 extension StdlibArtifactRegressionTests {
 
+    /// KUU-3469: a bound reference to Map.size must keep using the runtime
+    /// bridge instead of dispatching through a nonexistent object vtable.
+    @Test
+    func testBoundMapSizePropertyReferenceGetsValue() throws {
+        TestStdlibCache.shared.prepare()
+        let artifactPath = try #require(
+            CompilerOptions.defaultStdlibLibraryPath,
+            "Expected the content-addressed fresh stdlib artifact"
+        )
+        let source = """
+        fun main() {
+            val map = mapOf(1 to "a")
+            println(map.size)
+            val reference = map::size
+            println(reference.get())
+        }
+        """
+
+        let output = try runBoundCallableReferenceReceiver(
+            source,
+            moduleName: "KUU3469BoundMapSize",
+            stdlibLibraryPath: artifactPath,
+            optLevel: .O0
+        )
+        #expect(
+            output == "1\n1\n",
+            "Unexpected output: \(String(reflecting: output))"
+        )
+    }
+
     /// KUU-2304: a bound callable reference used as a generic extension
     /// receiver must retain its function type when the extension lambda is
     /// checked.
