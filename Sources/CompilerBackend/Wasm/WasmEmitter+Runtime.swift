@@ -292,6 +292,17 @@ enum WasmRuntimeHelpers {
         "__kk_range_for_in_hasNext",
         "__kk_range_for_in_next",
         "__kk_range_to_list",
+        "__kk_range_count",
+        "__kk_range_isEmpty",
+        "__kk_range_sum",
+        "__kk_range_reversed",
+        "__kk_range_contains",
+        "__kk_list_index_of",
+        "__kk_list_last_index_of",
+        "__kk_list_first",
+        "__kk_list_last",
+        "__kk_list_is_empty",
+        "__kk_string_joinToString",
         // Array component-tag intrinsics: component identity is a pass-through
         // on wasm until reflection needs the installed tag.
         "__kk_array_component_type",
@@ -745,6 +756,47 @@ enum WasmRuntimeHelpers {
         case "__kk_range_to_list":
             extraLocals = 6
             emitRangeToListBody(&code, ctx: ctx, argumentCount: argumentCount)
+        case "__kk_range_count":
+            extraLocals = 0
+            emitRangeCountBody(&code)
+        case "__kk_range_isEmpty":
+            extraLocals = 0
+            emitRangeIsEmptyBody(&code)
+        case "__kk_range_sum":
+            extraLocals = 3
+            emitRangeSumBody(&code)
+        case "__kk_range_reversed":
+            extraLocals = 1
+            emitRangeReversedBody(&code, ctx: ctx, argumentCount: argumentCount)
+        case "__kk_range_contains":
+            extraLocals = 0
+            emitRangeContainsBody(&code)
+        case "__kk_list_index_of":
+            extraLocals = 4
+            emitListIndexOfBody(&code, ctx: ctx, argumentCount: argumentCount)
+        case "__kk_list_last_index_of":
+            extraLocals = 4
+            emitListLastIndexOfBody(&code, ctx: ctx, argumentCount: argumentCount)
+        case "__kk_list_first":
+            extraLocals = 0
+            code.localGet(0)
+            code.i64Const(0)
+            code.call(ctx.emittedHelperIndex(for: "__kk_list_get", argumentCount: 2))
+        case "__kk_list_last":
+            extraLocals = 0
+            code.localGet(0)
+            emitLoadAt(&code, baseLocal: 0, byteOffset: L.listCountOffset)
+            code.i64Const(1)
+            code.op(WasmOpcode.i64Sub)
+            code.call(ctx.emittedHelperIndex(for: "__kk_list_get", argumentCount: 2))
+        case "__kk_list_is_empty":
+            extraLocals = 0
+            emitLoadAt(&code, baseLocal: 0, byteOffset: L.listCountOffset)
+            code.op(WasmOpcode.i64Eqz)
+            code.i64ExtendFromComparison()
+        case "__kk_string_joinToString":
+            extraLocals = 6
+            emitJoinToStringBody(&code, ctx: ctx, argumentCount: argumentCount)
         case "__kk_array_component_type", "__kk_array_tag_component":
             // Both are pass-throughs: the component descriptor isn't consumed
             // by wasm iteration and arrays carry no installable tag slot yet.
@@ -921,6 +973,14 @@ enum WasmRuntimeHelpers {
             emitLoadAt(&code, baseLocal: 0, byteOffset: offset)
             code.i64Store(offset: 0)
         }
+        // `range.iterator()` (routed member) returns this box — generic
+        // `kk_iterator_hasNext`/`_next` must find the dedicated helpers via
+        // the Iterator itable rather than re-dispatching themselves.
+        emitIteratorItableRegistration(
+            &code, ctx: ctx, objectLocal: argumentCount,
+            hasNextHelper: "__kk_range_for_in_hasNext",
+            nextHelper: "__kk_range_for_in_next"
+        )
         code.localGet(argumentCount)
     }
 
@@ -1177,6 +1237,357 @@ enum WasmRuntimeHelpers {
             arrayLocal: arr, countLocal: count, objectLocal: listObj
         )
         code.localGet(listObj)
+    }
+
+    /// `__kk_range_count(range)` — element count with the native wrapping
+    /// arithmetic: `(last &- first) / step &+ 1` (i64 sub/add wrap naturally).
+    private static func emitRangeCountBody(_ code: inout WasmCode) {
+        emitLoadAt(&code, baseLocal: 0, byteOffset: 32)
+        code.i64Const(0)
+        code.op(WasmOpcode.i64GtS)
+        code.openIf(result: .i64)
+        emitLoadAt(&code, baseLocal: 0, byteOffset: 16)
+        emitLoadAt(&code, baseLocal: 0, byteOffset: 24)
+        code.op(WasmOpcode.i64LeS)
+        code.openIf(result: .i64)
+        emitLoadAt(&code, baseLocal: 0, byteOffset: 24)
+        emitLoadAt(&code, baseLocal: 0, byteOffset: 16)
+        code.op(WasmOpcode.i64Sub)
+        emitLoadAt(&code, baseLocal: 0, byteOffset: 32)
+        code.op(WasmOpcode.i64DivS)
+        code.i64Const(1)
+        code.op(WasmOpcode.i64Add)
+        code.elseBranch()
+        code.i64Const(0)
+        code.end()
+        code.elseBranch()
+        emitLoadAt(&code, baseLocal: 0, byteOffset: 32)
+        code.i64Const(0)
+        code.op(WasmOpcode.i64LtS)
+        code.openIf(result: .i64)
+        emitLoadAt(&code, baseLocal: 0, byteOffset: 16)
+        emitLoadAt(&code, baseLocal: 0, byteOffset: 24)
+        code.op(WasmOpcode.i64GeS)
+        code.openIf(result: .i64)
+        emitLoadAt(&code, baseLocal: 0, byteOffset: 16)
+        emitLoadAt(&code, baseLocal: 0, byteOffset: 24)
+        code.op(WasmOpcode.i64Sub)
+        code.i64Const(0)
+        emitLoadAt(&code, baseLocal: 0, byteOffset: 32)
+        code.op(WasmOpcode.i64Sub)
+        code.op(WasmOpcode.i64DivS)
+        code.i64Const(1)
+        code.op(WasmOpcode.i64Add)
+        code.elseBranch()
+        code.i64Const(0)
+        code.end()
+        code.elseBranch()
+        code.i64Const(0)
+        code.end()
+        code.end()
+    }
+
+    /// `__kk_range_isEmpty(range)` — `step>0 ? first>last : step<0 ?
+    /// first<last : true`, matching `kk_range_isEmpty`.
+    private static func emitRangeIsEmptyBody(_ code: inout WasmCode) {
+        emitLoadAt(&code, baseLocal: 0, byteOffset: 32)
+        code.i64Const(0)
+        code.op(WasmOpcode.i64GtS)
+        code.openIf(result: .i32)
+        emitLoadAt(&code, baseLocal: 0, byteOffset: 16)
+        emitLoadAt(&code, baseLocal: 0, byteOffset: 24)
+        code.op(WasmOpcode.i64GtS)
+        code.elseBranch()
+        emitLoadAt(&code, baseLocal: 0, byteOffset: 32)
+        code.i64Const(0)
+        code.op(WasmOpcode.i64LtS)
+        code.openIf(result: .i32)
+        emitLoadAt(&code, baseLocal: 0, byteOffset: 16)
+        emitLoadAt(&code, baseLocal: 0, byteOffset: 24)
+        code.op(WasmOpcode.i64LtS)
+        code.elseBranch()
+        code.i32Const(1)
+        code.end()
+        code.end()
+        code.i64ExtendFromComparison()
+    }
+
+    /// `__kk_range_sum(range)` — wraps at i64 (Kotlin's Long-type sum for
+    /// Long progressions; the Int 32-bit wrap is an accepted gap until wasm
+    /// gains a tagged element type).
+    private static func emitRangeSumBody(_ code: inout WasmCode) {
+        let cur = 1
+        let sum = 2
+        emitLoadAt(&code, baseLocal: 0, byteOffset: 16)
+        code.localSet(cur)
+        code.i64Const(0)
+        code.localSet(sum)
+        code.openBlock()
+        code.openLoop()
+        // hasNext on the *advancing* cursor: step>0 ? cur<=last : cur>=last
+        // (step==0 falls to false via the i32Const(0) arm).
+        emitLoadAt(&code, baseLocal: 0, byteOffset: 32)
+        code.i64Const(0)
+        code.op(WasmOpcode.i64GtS)
+        code.openIf(result: .i32)
+        code.localGet(cur)
+        emitLoadAt(&code, baseLocal: 0, byteOffset: 24)
+        code.op(WasmOpcode.i64LeS)
+        code.elseBranch()
+        emitLoadAt(&code, baseLocal: 0, byteOffset: 32)
+        code.i64Const(0)
+        code.op(WasmOpcode.i64LtS)
+        code.openIf(result: .i32)
+        code.localGet(cur)
+        emitLoadAt(&code, baseLocal: 0, byteOffset: 24)
+        code.op(WasmOpcode.i64GeS)
+        code.elseBranch()
+        code.i32Const(0)
+        code.end()
+        code.end()
+        code.op(WasmOpcode.i32Eqz)
+        code.brIf(1)
+        code.localGet(sum)
+        code.localGet(cur)
+        code.op(WasmOpcode.i64Add)
+        code.localSet(sum)
+        code.localGet(cur)
+        emitLoadAt(&code, baseLocal: 0, byteOffset: 32)
+        code.op(WasmOpcode.i64Add)
+        code.localSet(cur)
+        code.br(0)
+        code.end()
+        code.end()
+        code.localGet(sum)
+    }
+
+    /// `__kk_range_reversed(range)` — `{last, first, -step}` progression box.
+    /// The tag approximates `IntProgression` for all element kinds until the
+    /// helper learns the source nominal (documented gap vs `is CharProgression`).
+    private static func emitRangeReversedBody(
+        _ code: inout WasmCode,
+        ctx: WasmModuleContext,
+        argumentCount: Int
+    ) {
+        emitRangeBoxBody(
+            &code, ctx: ctx,
+            typeID: Self.stableNominalTypeID("kotlin.ranges.IntProgression"),
+            objectLocal: argumentCount,
+            emitFirst: { code in emitLoadAt(&code, baseLocal: 0, byteOffset: 24) },
+            emitLast: { code in emitLoadAt(&code, baseLocal: 0, byteOffset: 16) },
+            emitStep: { code in
+                code.i64Const(0)
+                emitLoadAt(&code, baseLocal: 0, byteOffset: 32)
+                code.op(WasmOpcode.i64Sub)
+            }
+        )
+    }
+
+    /// `__kk_range_contains(range, value)` — bounds plus step congruence,
+    /// matching `runtimeRangeContains`: step>0 → first<=v<=last &&
+    /// (v-first)%step==0; step<0 → last<=v<=first && (first-v)%(-step)==0.
+    private static func emitRangeContainsBody(_ code: inout WasmCode) {
+        emitLoadAt(&code, baseLocal: 0, byteOffset: 32)
+        code.i64Const(0)
+        code.op(WasmOpcode.i64GtS)
+        code.openIf(result: .i32)
+        // v >= first && v <= last && (v-first) % step == 0
+        code.localGet(1)
+        emitLoadAt(&code, baseLocal: 0, byteOffset: 16)
+        code.op(WasmOpcode.i64GeS)
+        code.localGet(1)
+        emitLoadAt(&code, baseLocal: 0, byteOffset: 24)
+        code.op(WasmOpcode.i64LeS)
+        code.op(WasmOpcode.i32And)
+        code.localGet(1)
+        emitLoadAt(&code, baseLocal: 0, byteOffset: 16)
+        code.op(WasmOpcode.i64Sub)
+        emitLoadAt(&code, baseLocal: 0, byteOffset: 32)
+        code.op(WasmOpcode.i64RemS)
+        code.op(WasmOpcode.i64Eqz)
+        code.op(WasmOpcode.i32And)
+        code.elseBranch()
+        emitLoadAt(&code, baseLocal: 0, byteOffset: 32)
+        code.i64Const(0)
+        code.op(WasmOpcode.i64LtS)
+        code.openIf(result: .i32)
+        // v <= first && v >= last && (first-v) % (-step) == 0
+        code.localGet(1)
+        emitLoadAt(&code, baseLocal: 0, byteOffset: 16)
+        code.op(WasmOpcode.i64LeS)
+        code.localGet(1)
+        emitLoadAt(&code, baseLocal: 0, byteOffset: 24)
+        code.op(WasmOpcode.i64GeS)
+        code.op(WasmOpcode.i32And)
+        emitLoadAt(&code, baseLocal: 0, byteOffset: 16)
+        code.localGet(1)
+        code.op(WasmOpcode.i64Sub)
+        code.i64Const(0)
+        emitLoadAt(&code, baseLocal: 0, byteOffset: 32)
+        code.op(WasmOpcode.i64Sub)
+        code.op(WasmOpcode.i64RemS)
+        code.op(WasmOpcode.i64Eqz)
+        code.op(WasmOpcode.i32And)
+        code.elseBranch()
+        code.i32Const(0)
+        code.end()
+        code.end()
+        code.i64ExtendFromComparison()
+    }
+
+    /// `__kk_list_index_of(list, elem)` — linear scan with `__kk_wasm_elem_eq`
+    /// over the shared `{array@16,count@24}` box; -1 when absent. Source-List
+    /// overrides can't dispatch (no kklib bodies), matching the box fast path.
+    private static func emitListIndexOfBody(
+        _ code: inout WasmCode,
+        ctx: WasmModuleContext,
+        argumentCount: Int
+    ) {
+        let arr = argumentCount
+        let count = argumentCount + 1
+        let i = argumentCount + 2
+        emitLoadAt(&code, baseLocal: 0, byteOffset: 16)
+        code.localSet(arr)
+        emitLoadAt(&code, baseLocal: 0, byteOffset: 24)
+        code.localSet(count)
+        code.i64Const(0)
+        code.localSet(i)
+        code.openBlock()
+        code.openLoop()
+        code.localGet(i)
+        code.localGet(count)
+        code.op(WasmOpcode.i64GeS)
+        code.brIf(1)
+        // elem_eq(arr[i], element)
+        code.localGet(arr)
+        code.localGet(i)
+        code.call(ctx.emittedHelperIndex(for: "kk_array_get_inbounds", argumentCount: 2))
+        code.localGet(1)
+        code.call(ctx.emittedHelperIndex(for: "__kk_wasm_elem_eq", argumentCount: 2))
+        code.i64Const(0)
+        code.op(WasmOpcode.i64Ne)
+        code.openIf()
+        code.localGet(i)
+        code.op(WasmOpcode.return)
+        code.end()
+        code.localGet(i)
+        code.i64Const(1)
+        code.op(WasmOpcode.i64Add)
+        code.localSet(i)
+        code.br(0)
+        code.end()
+        code.end()
+        code.i64Const(-1)
+    }
+
+    /// `__kk_list_last_index_of(list, elem)` — same scan from the tail.
+    private static func emitListLastIndexOfBody(
+        _ code: inout WasmCode,
+        ctx: WasmModuleContext,
+        argumentCount: Int
+    ) {
+        let arr = argumentCount
+        let i = argumentCount + 1
+        emitLoadAt(&code, baseLocal: 0, byteOffset: 16)
+        code.localSet(arr)
+        emitLoadAt(&code, baseLocal: 0, byteOffset: 24)
+        code.i64Const(1)
+        code.op(WasmOpcode.i64Sub)
+        code.localSet(i)
+        code.openBlock()
+        code.openLoop()
+        code.localGet(i)
+        code.i64Const(0)
+        code.op(WasmOpcode.i64LtS)
+        code.brIf(1)
+        code.localGet(arr)
+        code.localGet(i)
+        code.call(ctx.emittedHelperIndex(for: "kk_array_get_inbounds", argumentCount: 2))
+        code.localGet(1)
+        code.call(ctx.emittedHelperIndex(for: "__kk_wasm_elem_eq", argumentCount: 2))
+        code.i64Const(0)
+        code.op(WasmOpcode.i64Ne)
+        code.openIf()
+        code.localGet(i)
+        code.op(WasmOpcode.return)
+        code.end()
+        code.localGet(i)
+        code.i64Const(1)
+        code.op(WasmOpcode.i64Sub)
+        code.localSet(i)
+        code.br(0)
+        code.end()
+        code.end()
+        code.i64Const(-1)
+    }
+
+    /// `__kk_string_joinToString(list, sep, prefix, postfix)` — joins the
+    /// shared-layout box into a flat string. Zero args pick the Kotlin
+    /// defaults (`", "`, `""`, `""`); `limit`/`truncated`/`transform` params
+    /// beyond arity 4 are ignored (documented gap). Elements stringify via
+    /// `kk_any_to_string(elem, 1)` — heap objects render as flat strings,
+    /// primitives as ints; object `toString` overrides can't dispatch yet.
+    private static func emitJoinToStringBody(
+        _ code: inout WasmCode,
+        ctx: WasmModuleContext,
+        argumentCount: Int
+    ) {
+        let res = argumentCount
+        let i = argumentCount + 1
+        let count = argumentCount + 2
+        let arr = argumentCount + 3
+        let sepObj = argumentCount + 4
+        let postObj = argumentCount + 5
+        // defaults-for-zero on separator/prefix/postfix
+        for (arg, fallback) in [(1, ", "), (2, ""), (3, "")] {
+            code.localGet(arg)
+            code.op(WasmOpcode.i64Eqz)
+            code.openIf(result: .i64)
+            emitLiteralString(&code, ctx: ctx, fallback)
+            code.elseBranch()
+            code.localGet(arg)
+            code.end()
+            code.localSet(arg == 1 ? sepObj : (arg == 2 ? res : postObj))
+        }
+        emitLoadAt(&code, baseLocal: 0, byteOffset: 16)
+        code.localSet(arr)
+        emitLoadAt(&code, baseLocal: 0, byteOffset: 24)
+        code.localSet(count)
+        code.i64Const(0)
+        code.localSet(i)
+        code.openBlock()
+        code.openLoop()
+        code.localGet(i)
+        code.localGet(count)
+        code.op(WasmOpcode.i64GeS)
+        code.brIf(1)
+        code.localGet(i)
+        code.i64Const(0)
+        code.op(WasmOpcode.i64GtS)
+        code.openIf()
+        code.localGet(res)
+        code.localGet(sepObj)
+        code.call(ctx.emittedHelperIndex(for: "__kk_string_concat_flat", argumentCount: 2))
+        code.localSet(res)
+        code.end()
+        code.localGet(res)
+        code.localGet(arr)
+        code.localGet(i)
+        code.call(ctx.emittedHelperIndex(for: "kk_array_get_inbounds", argumentCount: 2))
+        code.i64Const(1)
+        code.call(ctx.emittedHelperIndex(for: "kk_any_to_string", argumentCount: 2))
+        code.call(ctx.emittedHelperIndex(for: "__kk_string_concat_flat", argumentCount: 2))
+        code.localSet(res)
+        code.localGet(i)
+        code.i64Const(1)
+        code.op(WasmOpcode.i64Add)
+        code.localSet(i)
+        code.br(0)
+        code.end()
+        code.end()
+        code.localGet(res)
+        code.localGet(postObj)
+        code.call(ctx.emittedHelperIndex(for: "__kk_string_concat_flat", argumentCount: 2))
     }
 
     // MARK: Helper bodies
@@ -2008,6 +2419,32 @@ enum WasmRuntimeHelpers {
         code.localGet(0)
         code.op(WasmOpcode.return)
         code.end()
+        // Heap string object (tag-agnostic): aligned pointers inside
+        // [dataEnd, heap) carrying the string typeID are already their own
+        // string — covers tag-1 dispatch of collection string elements
+        // (`setOf("a","b").joinToString("+")` → "a+b", not raw addresses).
+        code.localGet(0)
+        code.globalGet(ctx.dataEndGlobal)
+        code.op(WasmOpcode.i64GeU)
+        code.localGet(0)
+        code.globalGet(ctx.heapGlobal)
+        code.op(WasmOpcode.i64LtU)
+        code.op(WasmOpcode.i32And)
+        code.openIf()
+        code.localGet(0)
+        code.i64Const(7)
+        code.op(WasmOpcode.i64And)
+        code.op(WasmOpcode.i64Eqz)
+        code.openIf()
+        emitLoadAt(&code, baseLocal: 0, byteOffset: L.typeIDOffset)
+        code.i64Const(L.stringTypeID)
+        code.op(WasmOpcode.i64Eq)
+        code.openIf()
+        code.localGet(0)
+        code.op(WasmOpcode.return)
+        code.end()
+        code.end()
+        code.end()
         // tag == 2 → "true"/"false".
         code.localGet(1)
         code.i64Const(2)
@@ -2249,7 +2686,8 @@ enum WasmRuntimeHelpers {
         readOnly: Bool,
         arrayLocal: Int,
         countLocal: Int?,
-        objectLocal: Int
+        objectLocal: Int,
+        listItables: Bool = true
     ) {
         // Slots 0/1 are object metadata; slots 2/3/4 hold array, count, flags.
         code.i64Const(5)
@@ -2271,6 +2709,55 @@ enum WasmRuntimeHelpers {
         // `maybeRegisterCollectionIterableItable` table so interface-typed
         // receivers (`MutableSet.iterator()`, `Iterable.for`) dispatch here.
         emitIterableItableRegistration(&code, ctx: ctx, objectLocal: objectLocal)
+        if listItables {
+            emitListItableRegistrations(&code, ctx: ctx, objectLocal: objectLocal)
+        }
+    }
+
+    /// Registers the `kotlin.collections.List` (iface slot 3) and
+    /// `kotlin.collections.MutableList` (iface slot 4) itables on a list box.
+    /// Method slots follow the pinned source-dispatch table in
+    /// `LayoutSynthesis.orderedOwnMethods` — unregistered slots stay 0 so a
+    /// miss traps at the call site rather than misdispatching.
+    private static func emitListItableRegistrations(
+        _ code: inout WasmCode,
+        ctx: WasmModuleContext,
+        objectLocal: Int
+    ) {
+        let regIface = ctx.emittedHelperIndex(
+            for: "kk_object_register_itable_iface", argumentCount: 3
+        )
+        let regMethod = ctx.emittedHelperIndex(
+            for: "kk_object_register_itable_method", argumentCount: 4
+        )
+        func reg(_ fqName: String, slot: Int64) {
+            code.localGet(objectLocal)
+            code.i64Const(stableNominalTypeID(fqName))
+            code.i64Const(slot)
+            code.call(regIface)
+            code.op(WasmOpcode.drop)
+        }
+        func method(_ slot: Int64, _ methodSlot: Int64, _ helper: String, arity: Int) {
+            code.localGet(objectLocal)
+            code.i64Const(slot)
+            code.i64Const(methodSlot)
+            code.i64Const(Int64(ctx.module.tableSlot(
+                forFunction: ctx.emittedHelperIndex(for: helper, argumentCount: arity)
+            )))
+            code.call(regMethod)
+            code.op(WasmOpcode.drop)
+        }
+        reg("kotlin.collections.List", slot: 3)
+        method(3, 0, "__kk_list_get", arity: 2)
+        method(3, 3, "kk_list_iterator", arity: 1)
+        method(3, 4, "__kk_list_is_empty", arity: 1)
+        method(3, 5, "kk_list_iterator", arity: 1)
+        method(3, 6, "__kk_list_index_of", arity: 2)
+        method(3, 7, "__kk_list_last_index_of", arity: 2)
+        // size getter slot = vtableSize (9) + 0 per kirInterfacePropertyGetterSlots.
+        method(3, 9, "__kk_list_size", arity: 1)
+        reg("kotlin.collections.MutableList", slot: 4)
+        method(4, 2, "__kk_mutable_list_add", arity: 2)
     }
 
     /// Registers `iterator()` (method slot 0) under `kotlin.collections.Iterable`
@@ -2910,7 +3397,8 @@ enum WasmRuntimeHelpers {
         emitListBoxBody(
             &code, ctx: ctx,
             typeID: setTypeID(for: name), readOnly: false,
-            arrayLocal: uniqArr, countLocal: uniqCount, objectLocal: boxL
+            arrayLocal: uniqArr, countLocal: uniqCount, objectLocal: boxL,
+            listItables: false
         )
         emitCollectionItableRegistrations(&code, ctx: ctx, objectLocal: boxL, set: true, entry: false)
         code.localGet(boxL)

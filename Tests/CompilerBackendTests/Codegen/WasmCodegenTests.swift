@@ -878,4 +878,118 @@ struct WasmCodegenTests {
         #expect(run?.status == 0)
         #expect(run?.stdout == "1\n5\n1\n2\n3\n4\n5\n5\n3\n1\n0\n1\n2\na\nb\nc\n4\n5\n1\n")
     }
+
+    @Test
+    func runsCollectionHOFIntrinsicsUnderNodeWASI() throws {
+        guard nodePath() != nil else { return }
+        // __kk_list_of([7,8,8])   → indexOf(8)=1, lastIndexOf(8)=2,
+        //                           List-itable indexOf dispatch = 1
+        // __kk_string_joinToString → "[7-8-8]"; joinToString$default → "7, 8, 8"
+        // setOf("a","b") join "+" → "a+b" (heap-string elements, tag 1)
+        // kk_any_to_string(strObj, 1) → "hi" (heap string, not its address)
+        let arena = KIRArena()
+        let mainSymbol = SymbolID(rawValue: 1)
+        func e(_ kind: KIRExprKind = .unit) -> KIRExprID { arena.appendExpr(kind) }
+        let zero = e(), one = e(), two = e(), three = e(), seven = e(), eight = e()
+        let arr = e(), list = e(), idx = e(), s = e()
+        let sep = e(), prefix = e(), postfix = e(), mask = e(), joined = e()
+        let strA = e(), strB = e(), strHi = e(), tag1 = e()
+        let setArr = e(), set = e()
+        let body: [KIRInstruction] = [
+            .constValue(result: three, value: .intLiteral(3)),
+            .call(symbol: nil, callee: interner.intern("kk_array_new"),
+                  arguments: [three], result: arr,
+                  canThrow: false, thrownResult: nil),
+            .constValue(result: zero, value: .intLiteral(0)),
+            .constValue(result: one, value: .intLiteral(1)),
+            .constValue(result: two, value: .intLiteral(2)),
+            .constValue(result: seven, value: .intLiteral(7)),
+            .constValue(result: eight, value: .intLiteral(8)),
+            .call(symbol: nil, callee: interner.intern("kk_array_set"),
+                  arguments: [arr, zero, seven], result: nil,
+                  canThrow: false, thrownResult: nil),
+            .call(symbol: nil, callee: interner.intern("kk_array_set"),
+                  arguments: [arr, one, eight], result: nil,
+                  canThrow: false, thrownResult: nil),
+            .call(symbol: nil, callee: interner.intern("kk_array_set"),
+                  arguments: [arr, two, eight], result: nil,
+                  canThrow: false, thrownResult: nil),
+            .call(symbol: nil, callee: interner.intern("__kk_list_of"),
+                  arguments: [arr, three], result: list,
+                  canThrow: false, thrownResult: nil),
+            .call(symbol: nil, callee: interner.intern("__kk_list_index_of"),
+                  arguments: [list, eight], result: idx,
+                  canThrow: false, thrownResult: nil),
+            .call(symbol: nil, callee: interner.intern("kk_any_to_string"),
+                  arguments: [idx], result: s,
+                  canThrow: false, thrownResult: nil),
+            println(interner.intern("__kk_println_raw"), s),
+            .call(symbol: nil, callee: interner.intern("__kk_list_last_index_of"),
+                  arguments: [list, eight], result: idx,
+                  canThrow: false, thrownResult: nil),
+            .call(symbol: nil, callee: interner.intern("kk_any_to_string"),
+                  arguments: [idx], result: s,
+                  canThrow: false, thrownResult: nil),
+            println(interner.intern("__kk_println_raw"), s),
+            // `l.indexOf(8)` through the `kotlin.collections.List` itable —
+            // the runtime-box registrations must answer slot 6 like the
+            // source-dispatch table in LayoutSynthesis.
+            .virtualCall(symbol: nil, callee: interner.intern("indexOf"),
+                         receiver: list, arguments: [eight], result: idx,
+                         canThrow: false, thrownResult: nil,
+                         dispatch: .itableDynamic(
+                            interfaceTypeID: 21424414924382307, methodSlot: 6)),
+            .call(symbol: nil, callee: interner.intern("kk_any_to_string"),
+                  arguments: [idx], result: s,
+                  canThrow: false, thrownResult: nil),
+            println(interner.intern("__kk_println_raw"), s),
+            .constValue(result: sep, value: .stringLiteral(interner.intern("-"))),
+            .constValue(result: prefix, value: .stringLiteral(interner.intern("["))),
+            .constValue(result: postfix, value: .stringLiteral(interner.intern("]"))),
+            .call(symbol: nil, callee: interner.intern("__kk_string_joinToString"),
+                  arguments: [list, sep, prefix, postfix], result: joined,
+                  canThrow: false, thrownResult: nil),
+            println(interner.intern("__kk_println_raw"), joined),
+            // The symbol-less `$default` forwarder routes by name; zero args
+            // pick the Kotlin defaults.
+            .constValue(result: mask, value: .intLiteral(31)),
+            .call(symbol: nil, callee: interner.intern("joinToString$default"),
+                  arguments: [list, zero, zero, zero, zero, zero, mask], result: joined,
+                  canThrow: false, thrownResult: nil),
+            println(interner.intern("__kk_println_raw"), joined),
+            .constValue(result: two, value: .intLiteral(2)),
+            .call(symbol: nil, callee: interner.intern("kk_array_new"),
+                  arguments: [two], result: setArr,
+                  canThrow: false, thrownResult: nil),
+            .constValue(result: strA, value: .stringLiteral(interner.intern("a"))),
+            .constValue(result: strB, value: .stringLiteral(interner.intern("b"))),
+            .call(symbol: nil, callee: interner.intern("kk_array_set"),
+                  arguments: [setArr, zero, strA], result: nil,
+                  canThrow: false, thrownResult: nil),
+            .call(symbol: nil, callee: interner.intern("kk_array_set"),
+                  arguments: [setArr, one, strB], result: nil,
+                  canThrow: false, thrownResult: nil),
+            .call(symbol: nil, callee: interner.intern("__kk_set_of"),
+                  arguments: [setArr, two], result: set,
+                  canThrow: false, thrownResult: nil),
+            .constValue(result: sep, value: .stringLiteral(interner.intern("+"))),
+            .call(symbol: nil, callee: interner.intern("__kk_string_joinToString"),
+                  arguments: [set, sep, zero, zero], result: joined,
+                  canThrow: false, thrownResult: nil),
+            println(interner.intern("__kk_println_raw"), joined),
+            .constValue(result: strHi, value: .stringLiteral(interner.intern("hi"))),
+            .constValue(result: tag1, value: .intLiteral(1)),
+            .call(symbol: nil, callee: interner.intern("kk_any_to_string"),
+                  arguments: [strHi, tag1], result: s,
+                  canThrow: false, thrownResult: nil),
+            println(interner.intern("__kk_println_raw"), s),
+            .returnUnit,
+        ]
+        let main = makeFunction(symbol: mainSymbol, name: "main", params: [], body: body)
+        let declID = arena.appendDecl(.function(main))
+        let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [declID])], arena: arena)
+        let run = try runUnderNode(try emit(module, entry: mainSymbol))
+        #expect(run?.status == 0)
+        #expect(run?.stdout == "1\n2\n1\n[7-8-8]\n7, 8, 8\na+b\nhi\n")
+    }
 }
