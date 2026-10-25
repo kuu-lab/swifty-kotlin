@@ -147,11 +147,16 @@ extension TypeCheckDriver {
 
     func diagnoseRecursiveInferredReturnType(for symbol: SymbolID) {
         guard checkingInferredReturnFunctions.contains(symbol),
-              let declaration = inferredReturnFunctions[symbol],
-              !diagnostics.diagnostics.contains(where: {
-                  $0.code == "KSWIFTK-SEMA-INFER" && $0.primaryRange == declaration.function.range
-              })
+              let declaration = inferredReturnFunctions[symbol]
         else { return }
+        // Every active dependent must remain retryable even when the same
+        // recursive diagnostic was already emitted and will be deduplicated.
+        // A speculative caller can still roll that diagnostic back later.
+        deferredInferredReturnFunctions.formUnion(checkingInferredReturnFunctions)
+        deferredInferredProperties.formUnion(checkingInferredProperties)
+        guard !diagnostics.diagnostics.contains(where: {
+            $0.code == "KSWIFTK-SEMA-INFER" && $0.primaryRange == declaration.function.range
+        }) else { return }
         diagnostics.error(
             "KSWIFTK-SEMA-INFER",
             "Recursive return type inference requires an explicit return type.",

@@ -109,6 +109,9 @@ extension DataFlowSemaPhase {
         /// Package prefixes the index contributes, with the constructor
         /// exclusion applied (eager `syntheticPackagePaths` parity).
         private var packagePrefixes: Set<Substring> = []
+        /// The package set is immutable after map construction. Cache misses as
+        /// well as matches so repeated class-scope lookups never rescan it.
+        private var childPackagePrefixesByParent: [String: [[InternedString]]] = [:]
         /// Nominal type-parameter signatures by owner FQ name, populated the
         /// same way the removed eager pre-pass populated them.
         private(set) var nominalTypeParametersByFQName: [String: String] = [:]
@@ -263,7 +266,9 @@ extension DataFlowSemaPhase {
         /// package shells the eager pass registered.
         func packagePrefixes(under parentFQName: [InternedString]) -> [[InternedString]] {
             buildMapsIfNeeded()
-            let prefix = render(parentFQName) + "."
+            let parent = render(parentFQName)
+            if let cached = childPackagePrefixesByParent[parent] { return cached }
+            let prefix = parent + "."
             var result: [[InternedString]] = []
             for packagePrefix in packagePrefixes {
                 guard packagePrefix.hasPrefix(prefix) else { continue }
@@ -273,7 +278,9 @@ extension DataFlowSemaPhase {
             }
             // `packagePrefixes` is a set; sort so claim order — and therefore
             // byFQName order — is deterministic.
-            return result.sorted { render($0) < render($1) }
+            let sorted = result.sorted { render($0) < render($1) }
+            childPackagePrefixesByParent[parent] = sorted
+            return sorted
         }
 
         func packageModuleFQN(for fqName: [InternedString]) -> InternedString? {
