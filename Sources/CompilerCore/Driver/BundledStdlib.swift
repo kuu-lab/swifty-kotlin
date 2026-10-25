@@ -35,7 +35,8 @@ package enum BundledStdlib {
 
     internal static func collectBundledStdlibSources(
         resourcePath: String? = Bundle.module.resourcePath,
-        profile: StdlibProfile = .full
+        profile: StdlibProfile = .full,
+        forWasmTarget: Bool = false
     ) throws -> [(path: String, contents: Data)] {
         guard let resourcePath else {
             throw LoadError.resourcePathMissing
@@ -57,8 +58,12 @@ package enum BundledStdlib {
         var relativePaths: [String] = []
         var templatePaths: [String] = []
         while let path = enumerator.nextObject() as? String {
-            guard !path.hasPrefix("jvm/") else { continue }
-            if path.hasSuffix(".kt") {
+            // `jvm/` holds JVM-backend declaration stubs; `wasm/` holds the
+            // wasm-target source set (kotlin.wasm APIs). Each is compiled only
+            // for its own target.
+            if path.hasSuffix(".kt"), !path.hasPrefix("jvm/"),
+               forWasmTarget || !path.hasPrefix("wasm/")
+            {
                 relativePaths.append(String(path.dropLast(3)))
             } else if path.hasSuffix(BundledStdlibTemplate.fileSuffix) {
                 templatePaths.append(path)

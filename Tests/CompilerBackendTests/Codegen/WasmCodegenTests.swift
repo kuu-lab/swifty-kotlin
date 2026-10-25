@@ -197,8 +197,19 @@ struct WasmCodegenTests {
 
     @Test
     func runsHelloUnderNodeWASI() throws {
-        guard let node = nodePath() else { return }
+        guard nodePath() != nil else { return }
         let (module, entry) = makeHelloModule()
+        let bytes = try emit(module, entry: entry)
+        let run = try runUnderNode(bytes)
+        #expect(run?.status == 0)
+        #expect(run?.stdout.contains("wasm hello") == true)
+    }
+
+    // MARK: - M2: objects, vtables, is/as, exceptions (end-to-end)
+
+    /// Emits `module` with `entrySymbol` for wasm32-wasi and asserts clean
+    /// diagnostics.
+    private func emit(_ module: KIRModule, entry: SymbolID) throws -> [UInt8] {
         let diagnostics = DiagnosticEngine()
         let result = try WasmEmitter().emitModule(
             module: module,
@@ -210,23 +221,29 @@ struct WasmCodegenTests {
             diagnostics: diagnostics
         )
         #expect(!diagnostics.hasError)
+        return result.bytes
+    }
 
+    /// Runs a wasm module under `node:wasi`; returns stdout, stderr, and exit
+    /// status, or nil when Node isn't installed.
+    private func runUnderNode(_ bytes: [UInt8]) throws -> (stdout: String, stderr: String, status: Int32)? {
+        guard let node = nodePath() else { return nil }
         let dir = FileManager.default.temporaryDirectory
             .appendingPathComponent("wasm-e2e-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: dir) }
         let wasmPath = dir.appendingPathComponent("test.wasm").path
         let runnerPath = dir.appendingPathComponent("run.mjs").path
-        try Data(result.bytes).write(to: URL(fileURLWithPath: wasmPath))
+        try Data(bytes).write(to: URL(fileURLWithPath: wasmPath))
         let runner = """
         import { WASI } from "node:wasi";
         import fs from "node:fs";
-        const wasi = new WASI({ version: "preview1", args: [], env: {} });
+        const wasi = new WASI({ version: "preview1", args: [], env: {}, returnOnExit: true });
         const { instance } = await WebAssembly.instantiate(
           fs.readFileSync(process.argv[2]),
           { wasi_snapshot_preview1: wasi.wasiImport }
         );
-        wasi.start(instance);
+        process.exit(wasi.start(instance) ?? 0);
         """
         try runner.write(toFile: runnerPath, atomically: true, encoding: .utf8)
 
@@ -234,11 +251,488 @@ struct WasmCodegenTests {
         process.executableURL = URL(fileURLWithPath: node)
         process.arguments = [runnerPath, wasmPath]
         let outPipe = Pipe()
+        let errPipe = Pipe()
         process.standardOutput = outPipe
+        process.standardError = errPipe
         try process.run()
         process.waitUntilExit()
         let stdout = String(decoding: outPipe.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
-        #expect(process.terminationStatus == 0)
-        #expect(stdout.contains("wasm hello"))
+        let stderr = String(decoding: errPipe.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
+        return (stdout, stderr, process.terminationStatus)
+    }
+
+    private func makeFunction(
+        symbol: SymbolID,
+        name: String,
+        params: [KIRParameter],
+        body: [KIRInstruction]
+    ) -> KIRFunction {
+        KIRFunction(
+            symbol: symbol,
+            name: interner.intern(name),
+            params: params,
+            returnType: TypeID(rawValue: 0),
+            body: body,
+            isSuspend: false,
+            isInline: false
+        )
+    }
+
+    private func println(_ callee: InternedString, _ arg: KIRExprID) -> KIRInstruction {
+        .call(
+            symbol: nil,
+            callee: callee,
+            arguments: [arg],
+            result: nil,
+            canThrow: false,
+            thrownResult: nil
+        )
+    }
+
+    @Test
+    func runsObjectFieldsAndIsCheckUnderNodeWASI() throws {
+        guard nodePath() != nil else { return }
+        // obj = kk_object_new(3, typeID 100); obj[2] = 42; println(obj[2])
+        // kk_type_register_super(100, 200); println(kk_op_is(obj, (200<<9)|6))
+        let arena = KIRArena()
+        let mainSymbol = SymbolID(rawValue: 1)
+        func e(_ kind: KIRExprKind = .unit) -> KIRExprID { arena.appendExpr(kind) }
+        let words = e(), typeID = e(), obj = e(), slot = e(), value = e()
+        let field = e(), s1 = e(), child = e(), parent = e()
+        let token = e(), isResult = e(), s2 = e()
+        let nominalToken = Int64(200) << 9 | 6
+        let body: [KIRInstruction] = [
+            .constValue(result: words, value: .intLiteral(3)),
+            .constValue(result: typeID, value: .intLiteral(100)),
+            .call(symbol: nil, callee: interner.intern("kk_object_new"),
+                  arguments: [words, typeID], result: obj,
+                  canThrow: false, thrownResult: nil),
+            .constValue(result: slot, value: .intLiteral(2)),
+            .constValue(result: value, value: .intLiteral(42)),
+            .call(symbol: nil, callee: interner.intern("kk_array_set"),
+                  arguments: [obj, slot, value], result: nil,
+                  canThrow: false, thrownResult: nil),
+            .call(symbol: nil, callee: interner.intern("kk_array_get_inbounds"),
+                  arguments: [obj, slot], result: field,
+                  canThrow: false, thrownResult: nil),
+            .call(symbol: nil, callee: interner.intern("kk_any_to_string"),
+                  arguments: [field], result: s1,
+                  canThrow: false, thrownResult: nil),
+            println(interner.intern("__kk_println_raw"), s1),
+            .constValue(result: child, value: .intLiteral(100)),
+            .constValue(result: parent, value: .intLiteral(200)),
+            .call(symbol: nil, callee: interner.intern("kk_type_register_super"),
+                  arguments: [child, parent], result: nil,
+                  canThrow: false, thrownResult: nil),
+            .constValue(result: token, value: .intLiteral(nominalToken)),
+            .call(symbol: nil, callee: interner.intern("kk_op_is"),
+                  arguments: [obj, token], result: isResult,
+                  canThrow: false, thrownResult: nil),
+            .call(symbol: nil, callee: interner.intern("kk_any_to_string"),
+                  arguments: [isResult], result: s2,
+                  canThrow: false, thrownResult: nil),
+            println(interner.intern("__kk_println_raw"), s2),
+            .returnUnit,
+        ]
+        let function = makeFunction(symbol: mainSymbol, name: "main", params: [], body: body)
+        let declID = arena.appendDecl(.function(function))
+        let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [declID])], arena: arena)
+        let run = try runUnderNode(try emit(module, entry: mainSymbol))
+        #expect(run?.status == 0)
+        #expect(run?.stdout.contains("42") == true)
+        #expect(run?.stdout.contains("1") == true)
+    }
+
+    @Test
+    func runsVirtualDispatchUnderNodeWASI() throws {
+        guard nodePath() != nil else { return }
+        // target(x) = 7; obj = kk_object_new(3, 100);
+        // kk_object_register_vtable_method(obj, 0, target);
+        // println(virtualCall obj.vtable[0]())
+        let arena = KIRArena()
+        let mainSymbol = SymbolID(rawValue: 1)
+        let targetSymbol = SymbolID(rawValue: 2)
+        let paramSymbol = SymbolID(rawValue: 3)
+        func e(_ kind: KIRExprKind = .unit) -> KIRExprID { arena.appendExpr(kind) }
+        let seven = e(.intLiteral(7))
+        let target = makeFunction(
+            symbol: targetSymbol,
+            name: "target",
+            params: [KIRParameter(symbol: paramSymbol, type: TypeID(rawValue: 0))],
+            body: [.constValue(result: seven, value: .intLiteral(7)), .returnValue(seven)]
+        )
+        let words = e(), typeID = e(), obj = e(), slot = e(), fref = e()
+        let r = e(), s = e()
+        let body: [KIRInstruction] = [
+            .constValue(result: words, value: .intLiteral(3)),
+            .constValue(result: typeID, value: .intLiteral(100)),
+            .call(symbol: nil, callee: interner.intern("kk_object_new"),
+                  arguments: [words, typeID], result: obj,
+                  canThrow: false, thrownResult: nil),
+            .constValue(result: slot, value: .intLiteral(0)),
+            .constValue(result: fref, value: .symbolRef(targetSymbol)),
+            .call(symbol: nil, callee: interner.intern("kk_object_register_vtable_method"),
+                  arguments: [obj, slot, fref], result: nil,
+                  canThrow: false, thrownResult: nil),
+            .virtualCall(symbol: nil, callee: interner.intern("target"),
+                         receiver: obj, arguments: [], result: r,
+                         canThrow: false, thrownResult: nil, dispatch: .vtable(slot: 0)),
+            .call(symbol: nil, callee: interner.intern("kk_any_to_string"),
+                  arguments: [r], result: s,
+                  canThrow: false, thrownResult: nil),
+            println(interner.intern("__kk_println_raw"), s),
+            .returnUnit,
+        ]
+        let main = makeFunction(symbol: mainSymbol, name: "main", params: [], body: body)
+        let d1 = arena.appendDecl(.function(main))
+        let d2 = arena.appendDecl(.function(target))
+        let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [d1, d2])], arena: arena)
+        let run = try runUnderNode(try emit(module, entry: mainSymbol))
+        #expect(run?.status == 0)
+        #expect(run?.stdout.contains("7") == true)
+    }
+
+    @Test
+    func runsThrowCatchUnderNodeWASI() throws {
+        guard nodePath() != nil else { return }
+        // boom(): e = __kk_exception_new_message("x"); rethrow e
+        // main: call boom (canThrow, thrownResult=exc); jumpIfNotNull exc -> catch
+        let arena = KIRArena()
+        let mainSymbol = SymbolID(rawValue: 1)
+        let boomSymbol = SymbolID(rawValue: 2)
+        func e(_ kind: KIRExprKind = .unit) -> KIRExprID { arena.appendExpr(kind) }
+        let msg = e(), exc = e()
+        let boom = makeFunction(
+            symbol: boomSymbol,
+            name: "boom",
+            params: [],
+            body: [
+                .constValue(result: msg, value: .stringLiteral(interner.intern("x"))),
+                .call(symbol: nil, callee: interner.intern("__kk_exception_new_message"),
+                      arguments: [msg], result: exc,
+                      canThrow: false, thrownResult: nil),
+                .rethrow(value: exc),
+            ]
+        )
+        let ret = e(), slot = e(), sMiss = e(), sCaught = e(), sAfter = e()
+        let catchLabel: Int32 = 50, doneLabel: Int32 = 51
+        let body: [KIRInstruction] = [
+            .call(symbol: nil, callee: interner.intern("boom"),
+                  arguments: [], result: ret,
+                  canThrow: true, thrownResult: slot),
+            .jumpIfNotNull(value: slot, target: catchLabel),
+            .constValue(result: sMiss, value: .stringLiteral(interner.intern("miss"))),
+            println(interner.intern("__kk_println_raw"), sMiss),
+            .jump(doneLabel),
+            .label(catchLabel),
+            .constValue(result: sCaught, value: .stringLiteral(interner.intern("caught"))),
+            println(interner.intern("__kk_println_raw"), sCaught),
+            .label(doneLabel),
+            .constValue(result: sAfter, value: .stringLiteral(interner.intern("after"))),
+            println(interner.intern("__kk_println_raw"), sAfter),
+            .returnUnit,
+        ]
+        let main = makeFunction(symbol: mainSymbol, name: "main", params: [], body: body)
+        let d1 = arena.appendDecl(.function(main))
+        let d2 = arena.appendDecl(.function(boom))
+        let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [d1, d2])], arena: arena)
+        let run = try runUnderNode(try emit(module, entry: mainSymbol))
+        #expect(run?.status == 0)
+        #expect(run?.stdout.contains("caught") == true)
+        #expect(run?.stdout.contains("after") == true)
+    }
+
+    @Test
+    func runsArrayIntrinsicsUnderNodeWASI() throws {
+        guard nodePath() != nil else { return }
+        // arr = kk_array_new(3); arr[1] = 8;
+        // packed = kk_array_of(arr, 3); println(kk_array_get(packed, 1));
+        // println(kk_array_size(packed))
+        let arena = KIRArena()
+        let mainSymbol = SymbolID(rawValue: 1)
+        func e(_ kind: KIRExprKind = .unit) -> KIRExprID { arena.appendExpr(kind) }
+        let count = e(), arr = e(), idx = e(), value = e(), packed = e()
+        let elem = e(), s1 = e(), size = e(), s2 = e()
+        let body: [KIRInstruction] = [
+            .constValue(result: count, value: .intLiteral(3)),
+            .call(symbol: nil, callee: interner.intern("kk_array_new"),
+                  arguments: [count], result: arr,
+                  canThrow: false, thrownResult: nil),
+            .constValue(result: idx, value: .intLiteral(1)),
+            .constValue(result: value, value: .intLiteral(8)),
+            .call(symbol: nil, callee: interner.intern("kk_array_set"),
+                  arguments: [arr, idx, value], result: nil,
+                  canThrow: false, thrownResult: nil),
+            .call(symbol: nil, callee: interner.intern("kk_array_of"),
+                  arguments: [arr, count], result: packed,
+                  canThrow: false, thrownResult: nil),
+            .call(symbol: nil, callee: interner.intern("kk_array_get"),
+                  arguments: [packed, idx], result: elem,
+                  canThrow: false, thrownResult: nil),
+            .call(symbol: nil, callee: interner.intern("kk_any_to_string"),
+                  arguments: [elem], result: s1,
+                  canThrow: false, thrownResult: nil),
+            println(interner.intern("__kk_println_raw"), s1),
+            .call(symbol: nil, callee: interner.intern("__kk_array_size"),
+                  arguments: [packed], result: size,
+                  canThrow: false, thrownResult: nil),
+            .call(symbol: nil, callee: interner.intern("kk_any_to_string"),
+                  arguments: [size], result: s2,
+                  canThrow: false, thrownResult: nil),
+            println(interner.intern("__kk_println_raw"), s2),
+            .returnUnit,
+        ]
+        let main = makeFunction(symbol: mainSymbol, name: "main", params: [], body: body)
+        let declID = arena.appendDecl(.function(main))
+        let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [declID])], arena: arena)
+        let run = try runUnderNode(try emit(module, entry: mainSymbol))
+        #expect(run?.status == 0)
+        #expect(run?.stdout.contains("8") == true)
+        #expect(run?.stdout.contains("3") == true)
+    }
+
+    @Test
+    func reportsUncaughtExceptionOnStderrUnderNodeWASI() throws {
+        guard nodePath() != nil else { return }
+        // main: e = __kk_exception_new_message("kaboom"); rethrow e
+        // No catch — _start must print the throwable to stderr and exit 70.
+        let arena = KIRArena()
+        let mainSymbol = SymbolID(rawValue: 1)
+        func e(_ kind: KIRExprKind = .unit) -> KIRExprID { arena.appendExpr(kind) }
+        let msg = e(), exc = e()
+        let main = makeFunction(
+            symbol: mainSymbol,
+            name: "main",
+            params: [],
+            body: [
+                .constValue(result: msg, value: .stringLiteral(interner.intern("kaboom"))),
+                .call(symbol: nil, callee: interner.intern("__kk_exception_new_message"),
+                      arguments: [msg], result: exc,
+                      canThrow: false, thrownResult: nil),
+                .rethrow(value: exc),
+            ]
+        )
+        let declID = arena.appendDecl(.function(main))
+        let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [declID])], arena: arena)
+        let run = try runUnderNode(try emit(module, entry: mainSymbol))
+        #expect(run?.status == 70)
+        #expect(run?.stderr.contains("Uncaught Kotlin exception: kotlin.Exception: kaboom") == true)
+    }
+
+    @Test
+    func runsListIntrinsicsUnderNodeWASI() throws {
+        guard nodePath() != nil else { return }
+        // packed = kk_array_new(2); packed[0]=1; packed[1]=2
+        // list = __kk_array_list_of(packed, 2)
+        // __kk_mutable_list_add(list, 3)
+        // println(__kk_list_size(list))   -> 3
+        // println(__kk_list_get(list, 1)) -> 2
+        // iterate -> 1 2 3
+        let arena = KIRArena()
+        let mainSymbol = SymbolID(rawValue: 1)
+        func e(_ kind: KIRExprKind = .unit) -> KIRExprID { arena.appendExpr(kind) }
+        let zero = e(), one = e(), two = e(), three = e(), packed = e()
+        let list = e(), addOk = e(), size = e(), s1 = e(), idx = e(), elem = e(), s2 = e()
+        let iter = e(), hasNext = e(), falseE = e(), next = e(), s3 = e()
+        let loop: Int32 = 60, done: Int32 = 61
+        let body: [KIRInstruction] = [
+            .constValue(result: two, value: .intLiteral(2)),
+            .call(symbol: nil, callee: interner.intern("kk_array_new"),
+                  arguments: [two], result: packed,
+                  canThrow: false, thrownResult: nil),
+            .constValue(result: zero, value: .intLiteral(0)),
+            .constValue(result: one, value: .intLiteral(1)),
+            .call(symbol: nil, callee: interner.intern("kk_array_set"),
+                  arguments: [packed, zero, one], result: nil,
+                  canThrow: false, thrownResult: nil),
+            .call(symbol: nil, callee: interner.intern("kk_array_set"),
+                  arguments: [packed, one, two], result: nil,
+                  canThrow: false, thrownResult: nil),
+            .call(symbol: nil, callee: interner.intern("__kk_array_list_of"),
+                  arguments: [packed, two], result: list,
+                  canThrow: false, thrownResult: nil),
+            .constValue(result: three, value: .intLiteral(3)),
+            .call(symbol: nil, callee: interner.intern("__kk_mutable_list_add"),
+                  arguments: [list, three], result: addOk,
+                  canThrow: false, thrownResult: nil),
+            .call(symbol: nil, callee: interner.intern("__kk_list_size"),
+                  arguments: [list], result: size,
+                  canThrow: false, thrownResult: nil),
+            .call(symbol: nil, callee: interner.intern("kk_any_to_string"),
+                  arguments: [size], result: s1,
+                  canThrow: false, thrownResult: nil),
+            println(interner.intern("__kk_println_raw"), s1),
+            .constValue(result: idx, value: .intLiteral(1)),
+            .call(symbol: nil, callee: interner.intern("__kk_list_get"),
+                  arguments: [list, idx], result: elem,
+                  canThrow: false, thrownResult: nil),
+            .call(symbol: nil, callee: interner.intern("kk_any_to_string"),
+                  arguments: [elem], result: s2,
+                  canThrow: false, thrownResult: nil),
+            println(interner.intern("__kk_println_raw"), s2),
+            .call(symbol: nil, callee: interner.intern("kk_list_iterator"),
+                  arguments: [list], result: iter,
+                  canThrow: false, thrownResult: nil),
+            .label(loop),
+            .call(symbol: nil, callee: interner.intern("kk_list_iterator_hasNext"),
+                  arguments: [iter], result: hasNext,
+                  canThrow: false, thrownResult: nil),
+            .constValue(result: falseE, value: .boolLiteral(false)),
+            .jumpIfEqual(lhs: hasNext, rhs: falseE, target: done),
+            .call(symbol: nil, callee: interner.intern("kk_list_iterator_next"),
+                  arguments: [iter], result: next,
+                  canThrow: false, thrownResult: nil),
+            .call(symbol: nil, callee: interner.intern("kk_any_to_string"),
+                  arguments: [next], result: s3,
+                  canThrow: false, thrownResult: nil),
+            println(interner.intern("__kk_println_raw"), s3),
+            .jump(loop),
+            .label(done),
+            .returnUnit,
+        ]
+        let main = makeFunction(symbol: mainSymbol, name: "main", params: [], body: body)
+        let declID = arena.appendDecl(.function(main))
+        let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [declID])], arena: arena)
+        let run = try runUnderNode(try emit(module, entry: mainSymbol))
+        #expect(run?.status == 0)
+        #expect(run?.stdout == "3\n2\n1\n2\n3\n")
+    }
+
+    @Test
+    func runsMapSetIntrinsicsUnderNodeWASI() throws {
+        guard nodePath() != nil else { return }
+        // keys = kk_array_new(1); vals = kk_array_new(1); keys[0]=1; vals[0]=7
+        // map = __kk_linked_hash_map_of(keys, vals, 1)
+        // __kk_mutable_map_put(map, 2, 9)
+        // println(__kk_map_size(map)) -> 2
+        // println(__kk_map_get(map, 2)) -> 9
+        // iterate entries via generic kk_iterator_* -> key\nvalue per entry
+        // set = __kk_linked_hash_set_of([1,2,2], 3)
+        // __kk_mutable_set_add(set, 3); println(size)=3; contains(2)=1; contains(9)=0
+        let arena = KIRArena()
+        let mainSymbol = SymbolID(rawValue: 1)
+        func e(_ kind: KIRExprKind = .unit) -> KIRExprID { arena.appendExpr(kind) }
+        let zero = e(), one = e(), two = e(), three = e(), seven = e(), nine = e()
+        let keys = e(), vals = e(), map = e(), size = e(), got = e(), s = e()
+        let setElems = e(), set = e(), ok = e(), setSize = e(), c1 = e(), c2 = e()
+        let iter = e(), hasNext = e(), falseE = e(), entry = e()
+        let entK = e(), entV = e(), sk = e(), sv = e(), ss = e(), sc = e()
+        let loop: Int32 = 60, done: Int32 = 61
+        let body: [KIRInstruction] = [
+            .constValue(result: one, value: .intLiteral(1)),
+            .call(symbol: nil, callee: interner.intern("kk_array_new"),
+                  arguments: [one], result: keys,
+                  canThrow: false, thrownResult: nil),
+            .call(symbol: nil, callee: interner.intern("kk_array_new"),
+                  arguments: [one], result: vals,
+                  canThrow: false, thrownResult: nil),
+            .constValue(result: zero, value: .intLiteral(0)),
+            .constValue(result: seven, value: .intLiteral(7)),
+            .call(symbol: nil, callee: interner.intern("kk_array_set"),
+                  arguments: [keys, zero, one], result: nil,
+                  canThrow: false, thrownResult: nil),
+            .call(symbol: nil, callee: interner.intern("kk_array_set"),
+                  arguments: [vals, zero, seven], result: nil,
+                  canThrow: false, thrownResult: nil),
+            .call(symbol: nil, callee: interner.intern("__kk_linked_hash_map_of"),
+                  arguments: [keys, vals, one], result: map,
+                  canThrow: false, thrownResult: nil),
+            .constValue(result: two, value: .intLiteral(2)),
+            .constValue(result: nine, value: .intLiteral(9)),
+            .call(symbol: nil, callee: interner.intern("__kk_mutable_map_put"),
+                  arguments: [map, two, nine], result: nil,
+                  canThrow: false, thrownResult: nil),
+            .call(symbol: nil, callee: interner.intern("__kk_map_size"),
+                  arguments: [map], result: size,
+                  canThrow: false, thrownResult: nil),
+            .call(symbol: nil, callee: interner.intern("kk_any_to_string"),
+                  arguments: [size], result: s,
+                  canThrow: false, thrownResult: nil),
+            println(interner.intern("__kk_println_raw"), s),
+            .call(symbol: nil, callee: interner.intern("__kk_map_get"),
+                  arguments: [map, two], result: got,
+                  canThrow: false, thrownResult: nil),
+            .call(symbol: nil, callee: interner.intern("kk_any_to_string"),
+                  arguments: [got], result: s,
+                  canThrow: false, thrownResult: nil),
+            println(interner.intern("__kk_println_raw"), s),
+            .call(symbol: nil, callee: interner.intern("__kk_mutable_map_iterator"),
+                  arguments: [map], result: iter,
+                  canThrow: false, thrownResult: nil),
+            .label(loop),
+            .call(symbol: nil, callee: interner.intern("kk_iterator_hasNext"),
+                  arguments: [iter], result: hasNext,
+                  canThrow: false, thrownResult: nil),
+            .constValue(result: falseE, value: .boolLiteral(false)),
+            .jumpIfEqual(lhs: hasNext, rhs: falseE, target: done),
+            .call(symbol: nil, callee: interner.intern("kk_iterator_next"),
+                  arguments: [iter], result: entry,
+                  canThrow: false, thrownResult: nil),
+            .call(symbol: nil, callee: interner.intern("__kk_pair_first"),
+                  arguments: [entry], result: entK,
+                  canThrow: false, thrownResult: nil),
+            .call(symbol: nil, callee: interner.intern("__kk_pair_second"),
+                  arguments: [entry], result: entV,
+                  canThrow: false, thrownResult: nil),
+            .call(symbol: nil, callee: interner.intern("kk_any_to_string"),
+                  arguments: [entK], result: sk,
+                  canThrow: false, thrownResult: nil),
+            println(interner.intern("__kk_println_raw"), sk),
+            .call(symbol: nil, callee: interner.intern("kk_any_to_string"),
+                  arguments: [entV], result: sv,
+                  canThrow: false, thrownResult: nil),
+            println(interner.intern("__kk_println_raw"), sv),
+            .jump(loop),
+            .label(done),
+            // set = linkedHashSetOf(1, 2, 2) — packed array already dedups to
+            // two elements at KIR level? No: the helper dedups → size 2.
+            .constValue(result: three, value: .intLiteral(3)),
+            .call(symbol: nil, callee: interner.intern("kk_array_new"),
+                  arguments: [three], result: setElems,
+                  canThrow: false, thrownResult: nil),
+            .call(symbol: nil, callee: interner.intern("kk_array_set"),
+                  arguments: [setElems, zero, one], result: nil,
+                  canThrow: false, thrownResult: nil),
+            .call(symbol: nil, callee: interner.intern("kk_array_set"),
+                  arguments: [setElems, one, two], result: nil,
+                  canThrow: false, thrownResult: nil),
+            .call(symbol: nil, callee: interner.intern("kk_array_set"),
+                  arguments: [setElems, two, two], result: nil,
+                  canThrow: false, thrownResult: nil),
+            .call(symbol: nil, callee: interner.intern("__kk_linked_hash_set_of"),
+                  arguments: [setElems, three], result: set,
+                  canThrow: false, thrownResult: nil),
+            .call(symbol: nil, callee: interner.intern("__kk_mutable_set_add"),
+                  arguments: [set, three], result: ok,
+                  canThrow: false, thrownResult: nil),
+            .call(symbol: nil, callee: interner.intern("__kk_set_size"),
+                  arguments: [set], result: setSize,
+                  canThrow: false, thrownResult: nil),
+            .call(symbol: nil, callee: interner.intern("kk_any_to_string"),
+                  arguments: [setSize], result: ss,
+                  canThrow: false, thrownResult: nil),
+            println(interner.intern("__kk_println_raw"), ss),
+            .call(symbol: nil, callee: interner.intern("__kk_set_contains"),
+                  arguments: [set, two], result: c1,
+                  canThrow: false, thrownResult: nil),
+            .call(symbol: nil, callee: interner.intern("kk_any_to_string"),
+                  arguments: [c1], result: sc,
+                  canThrow: false, thrownResult: nil),
+            println(interner.intern("__kk_println_raw"), sc),
+            .call(symbol: nil, callee: interner.intern("__kk_set_contains"),
+                  arguments: [set, nine], result: c2,
+                  canThrow: false, thrownResult: nil),
+            .call(symbol: nil, callee: interner.intern("kk_any_to_string"),
+                  arguments: [c2], result: sc,
+                  canThrow: false, thrownResult: nil),
+            println(interner.intern("__kk_println_raw"), sc),
+            .returnUnit,
+        ]
+        let main = makeFunction(symbol: mainSymbol, name: "main", params: [], body: body)
+        let declID = arena.appendDecl(.function(main))
+        let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [declID])], arena: arena)
+        let run = try runUnderNode(try emit(module, entry: mainSymbol))
+        #expect(run?.status == 0)
+        #expect(run?.stdout == "2\n9\n1\n7\n2\n9\n3\n1\n0\n")
     }
 }
