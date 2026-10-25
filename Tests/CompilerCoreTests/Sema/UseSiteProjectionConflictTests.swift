@@ -106,6 +106,61 @@ struct UseSiteProjectionConflictTests {
         }
     }
 
+    @Test
+    func importAliasCanShadowBuiltinName() throws {
+        try withTemporaryFiles(contents: [
+            "package custom\nclass Source<out T>",
+            "package client\nimport custom.Source as Double\nfun use(value: Double<in Int>) {}",
+        ]) { paths in
+            let context = makeCompilationContext(inputs: paths, includeStdlib: false)
+            try runSema(context)
+            #expect(context.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-SEMA-PROJECTION-CONFLICT" },
+                    "\(context.diagnostics.diagnostics)")
+        }
+    }
+
+    @Test(arguments: ["unrelated", "client"])
+    func invisibleClassifierDoesNotReplaceBuiltin(package: String) throws {
+        let visibility = package == "client" ? "private " : ""
+        try withTemporaryFiles(contents: [
+            "package \(package)\n\(visibility)class Double<T>",
+            "package client\nfun use(value: Double) {}",
+        ]) { paths in
+            let context = makeCompilationContext(inputs: paths, includeStdlib: false)
+            try runSema(context)
+            #expect(!context.diagnostics.hasError, "\(context.diagnostics.diagnostics)")
+            let sema = try #require(context.sema)
+            let function = try #require(sema.symbols.lookup(fqName: [context.interner.intern("client"), context.interner.intern("use")]))
+            #expect(sema.symbols.functionSignature(for: function)?.parameterTypes == [sema.types.doubleType])
+        }
+    }
+
+    @Test(arguments: ["explicit", "wildcard", "root"])
+    func builtinRetainsItsImportPriority(kind: String) throws {
+        var sources: [String] = []
+        let imports: String
+        switch kind {
+        case "explicit":
+            sources.append("package client\nclass Double<T>")
+            imports = "import kotlin.Double"
+        case "wildcard":
+            sources.append("package custom\nclass Double<T>")
+            imports = "import custom.*"
+        default:
+            sources.append("class Double<T>")
+            imports = ""
+        }
+        sources.append("package client\n\(imports)\nfun use(value: Double) {}")
+        try withTemporaryFiles(contents: sources) { paths in
+            let context = makeCompilationContext(inputs: paths, includeStdlib: false)
+            try runSema(context)
+            #expect(!context.diagnostics.hasError, "\(context.diagnostics.diagnostics)")
+            let sema = try #require(context.sema)
+            let function = try #require(sema.symbols.lookup(fqName: [context.interner.intern("client"), context.interner.intern("use")]))
+            #expect(sema.symbols.functionSignature(for: function)?.parameterTypes == [sema.types.doubleType])
+        }
+    }
+
     private func check(_ source: String) throws -> [Diagnostic] {
         var diagnostics: [Diagnostic] = []
         try withTemporaryFile(contents: source) { path in

@@ -16,4 +16,5 @@ fun main() {
     val consume: Consumer<in Int> = { println(it) }
     val produce: Producer<out Int> = { 9 }
     consume(produce())
+    println(java.lang.Math.PI > 3.0)
 }

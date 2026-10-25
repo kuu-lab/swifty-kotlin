@@ -72,16 +72,60 @@ extension DataFlowSemaPhase {
                 return types.make(.typeParam(TypeParamType(symbol: typeParamSymbol, nullability: nullability)))
             }
 
+            var builtinShadow: SemanticSymbol?
             if let builtinType = builtinTypeNames(interner: interner).resolveBuiltinType(
                 shortName,
                 nullability: nullability,
                 types: types
             ) {
-                return builtinType
+                let kotlinRoot = interner.intern("kotlin")
+                let mayShadow = path.count == 1 && (
+                    imports.contains { !$0.isWildcard && ($0.alias == shortName || $0.path.last == shortName) }
+                        || symbols.lookupByShortName(shortName).contains { id in
+                            guard let symbol = symbols.symbol(id) else { return false }
+                            return isNominalTypeSymbol(symbol.kind) && symbol.fqName.first != kotlinRoot
+                        }
+                )
+                if mayShadow {
+                    func accessible(_ symbol: SemanticSymbol) -> Bool {
+                        guard isNominalTypeSymbol(symbol.kind) else { return false }
+                        if symbol.visibility == .private, let file = usageRange?.start.file,
+                           let declarationFile = symbols.sourceFileID(for: symbol.id) ?? symbol.declSite?.start.file,
+                           declarationFile != file
+                        { return false }
+                        return true
+                    }
+                    let relative = relativeOwnerFQName.map {
+                        resolveRelativeNominalCandidates(named: shortName, relativeTo: $0,
+                                                         currentPackageFQName: currentPackageFQName, symbols: symbols)
+                    } ?? []
+                    builtinShadow = relative.first(where: accessible)
+                    let explicitImports = imports.filter {
+                        !$0.isWildcard && ($0.alias == shortName || ($0.alias == nil && $0.path.last == shortName))
+                    }
+                    if builtinShadow == nil {
+                        if explicitImports.contains(where: { $0.path == [kotlinRoot, shortName] }) {
+                            return builtinType
+                        }
+                        builtinShadow = explicitImports.lazy.flatMap { declaration in
+                            symbols.lookupAll(fqName: declaration.path).compactMap { symbols.symbol($0) }
+                        }.first(where: accessible)
+                    }
+                    if builtinShadow == nil {
+                        let package = currentPackageFQName ?? usageRange.flatMap { ast.file(for: $0.start.file)?.packageFQName } ?? []
+                        builtinShadow = symbols.lookupAll(fqName: package + [shortName])
+                            .compactMap { symbols.symbol($0) }.first(where: accessible)
+                    }
+                }
+                // Named imports and same-package declarations can shadow a
+                // builtin; wildcard imports and root fallbacks cannot.
+                if builtinShadow == nil || builtinShadow?.fqName.first == kotlinRoot { return builtinType }
             }
 
             let candidates: [SemanticSymbol]
-            if let relativeOwnerFQName
+            if let builtinShadow {
+                candidates = [builtinShadow]
+            } else if let relativeOwnerFQName
             {
                 // Resolve the lexical root before walking a qualified nested name.
                 // For example, Slot.Task inside Ch refers to Ch.Slot.Task.
