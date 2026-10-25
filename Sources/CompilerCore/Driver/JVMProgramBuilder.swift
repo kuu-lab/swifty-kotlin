@@ -103,10 +103,26 @@ final class JVMProgramBuilder {
             throw JVMFrontendError(message: "JVM M6 requires ASCII identifiers for the source filename and package.")
         }
         var facade = String(stem.prefix(1)).uppercased() + stem.dropFirst() + "Kt"
-        guard file.annotations.count <= 1 else {
+        // Other file annotations have independent Sema effects. Resolve only
+        // possible JvmName spellings here and keep unsupported aliases strict.
+        var jvmNameSpellings: Set<String> = ["kotlin.jvm.JvmName", "JvmName"]
+        for imported in file.imports {
+            let importPath = imported.path.map(context.interner.resolve).joined(separator: ".")
+            if importPath == "kotlin.jvm.JvmName", let name = imported.alias ?? imported.path.last {
+                jvmNameSpellings.insert(context.interner.resolve(name))
+            } else if importPath == "kotlin.jvm", imported.isWildcard {
+                jvmNameSpellings.insert("JvmName")
+            } else if importPath == "kotlin.jvm", let alias = imported.alias {
+                jvmNameSpellings.insert(context.interner.resolve(alias) + ".JvmName")
+            }
+        }
+        let jvmNameAnnotations = file.annotations.filter { annotation in
+            jvmNameSpellings.contains(annotation.name)
+        }
+        guard jvmNameAnnotations.count <= 1 else {
             throw JVMFrontendError(message: "JVM supports one fully qualified @file:kotlin.jvm.JvmName annotation.")
         }
-        if let annotation = file.annotations.first {
+        if let annotation = jvmNameAnnotations.first {
             guard annotation.useSiteTarget == "file", annotation.name == "kotlin.jvm.JvmName", annotation.arguments.count == 1,
                   let raw = annotation.arguments.first?.components(separatedBy: "=").last?.trimmingCharacters(in: .whitespacesAndNewlines),
                   let data = ("[" + raw + "]").data(using: .utf8), let names = try? JSONSerialization.jsonObject(with: data) as? [String],
