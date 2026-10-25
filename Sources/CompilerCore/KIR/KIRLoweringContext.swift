@@ -115,6 +115,11 @@ final class KIRLoweringContext {
     var emittedObjectLiteralExprIDs: Set<ExprID> = []
     /// Caches itable ABI bridge symbols keyed by the interface/implementation pair.
     var itableBridgeSymbolsByKey: [String: SymbolID] = [:]
+    /// Shared runtime class identity for SAM-conversion wrappers, keyed by the
+    /// fun interface symbol (KUU-3227). Every `SAM(...)` wrapper of one
+    /// interface reports the same `::class`, matching the JVM model where
+    /// each SAM interface has exactly one generated wrapper class.
+    var samWrapperClassIdentitySymbols: [SymbolID: SymbolID] = [:]
     /// Caches raw-returning bridges used by runtime Any.toString dispatch.
     var anyToStringBridgeSymbolsByImplementation: [SymbolID: SymbolID] = [:]
     /// Caches raw-returning bridges registered in the Throwable `message` vtable slot.
