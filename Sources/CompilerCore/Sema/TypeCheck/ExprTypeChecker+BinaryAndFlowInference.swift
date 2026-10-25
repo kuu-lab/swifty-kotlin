@@ -457,9 +457,15 @@ extension ExprTypeChecker {
         default:
             false
         }
-        let isBuiltinComparisonPair = sema.types.isBuiltinArithmeticOperand(lhs)
+        // Boolean is not an arithmetic operand, but `kotlin.Boolean` implements
+        // `Comparable<Boolean>` (`true > false` is legal): its 0/1
+        // representation lets the same machine-compare path serve the
+        // relational operators, so pair it with itself as a builtin
+        // comparison (KUU-3490).
+        let isBuiltinComparisonPair = (sema.types.isBuiltinArithmeticOperand(lhs)
             && sema.types.isBuiltinArithmeticOperand(rhs)
-            && ((lhs == charType) == (rhs == charType))
+            && ((lhs == charType) == (rhs == charType)))
+            || (lhs == boolType && rhs == boolType)
         let isNullablePrimitiveReceiver: Bool = if case .primitive(_, .nullable) = sema.types.kind(of: lhs) {
             true
         } else {
