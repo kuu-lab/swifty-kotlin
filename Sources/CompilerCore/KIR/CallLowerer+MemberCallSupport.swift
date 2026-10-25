@@ -278,7 +278,7 @@ func resolveClassOwnToStringCallee(
     return (callee, toStringSymbolID)
 }
 
-func isSyntheticAnyToStringSymbol(_ sym: SemanticSymbol, interner: StringInterner) -> Bool {
+public func isSyntheticAnyToStringSymbol(_ sym: SemanticSymbol, interner: StringInterner) -> Bool {
     guard sym.flags.contains(.synthetic) else { return false }
     let anyToStringFQName: [InternedString] = [interner.intern("kotlin"), interner.intern("Any"), interner.intern("toString")]
     return sym.fqName == anyToStringFQName

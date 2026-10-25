@@ -1,6 +1,28 @@
 import RuntimeABI
 import CompilerCore
 
+/// Declaring nominal (class/object/enum/annotation/interface) of a vtable
+/// member symbol, used to recover the slot's layout owner at virtual-call
+/// sites.
+private func virtualCallNominalOwner(for member: SymbolID, symbols: SymbolTable) -> SymbolID? {
+    let property = symbols.propertySymbol(forAccessor: member)
+        ?? symbols.accessorOwnerProperty(for: member)
+    var current = symbols.parentSymbol(for: property ?? member)
+    var visited: Set<SymbolID> = []
+    while let currentSymbol = current, visited.insert(currentSymbol).inserted {
+        guard let info = symbols.symbol(currentSymbol) else {
+            return nil
+        }
+        switch info.kind {
+        case .class, .object, .enumClass, .annotationClass, .interface:
+            return currentSymbol
+        default:
+            current = symbols.parentSymbol(for: currentSymbol)
+        }
+    }
+    return nil
+}
+
 extension NativeEmitter.FunctionEmissionContext {
 
     func emitVirtualCall(
@@ -35,26 +57,7 @@ extension NativeEmitter.FunctionEmissionContext {
                 return nil
             }
 
-            func nominalOwner(for member: SymbolID) -> SymbolID? {
-                let property = symbols.propertySymbol(forAccessor: member)
-                    ?? symbols.accessorOwnerProperty(for: member)
-                var current = symbols.parentSymbol(for: property ?? member)
-                var visited: Set<SymbolID> = []
-                while let currentSymbol = current, visited.insert(currentSymbol).inserted {
-                    guard let info = symbols.symbol(currentSymbol) else {
-                        return nil
-                    }
-                    switch info.kind {
-                    case .class, .object, .enumClass, .annotationClass, .interface:
-                        return currentSymbol
-                    default:
-                        current = symbols.parentSymbol(for: currentSymbol)
-                    }
-                }
-                return nil
-            }
-
-            guard let owner = nominalOwner(for: symbol),
+            guard let owner = virtualCallNominalOwner(for: symbol, symbols: symbols),
                   let layout = symbols.nominalLayout(for: owner)
             else {
                 return nil
@@ -105,7 +108,7 @@ extension NativeEmitter.FunctionEmissionContext {
                     || symbols.externalLinkName(for: candidate)?.hasPrefix("kk_fn_") == true
                 guard candidateProperty != nil
                     || (symbols.functionSignature(for: candidate) != nil && candidateHasEmittedABI),
-                      let candidateOwner = nominalOwner(for: candidate),
+                      let candidateOwner = virtualCallNominalOwner(for: candidate, symbols: symbols),
                       let distance = distances[candidateOwner]
                 else {
                     return nil
@@ -173,6 +176,46 @@ extension NativeEmitter.FunctionEmissionContext {
                 return false
             }
             return symbols.throwableMessageGetterSlot(for: owner, interner: interner) == slot
+        }()
+        // The `kotlin.Any.toString` vtable slot likewise keeps the
+        // runtime's raw `Int` string-handle ABI: classes without an
+        // override leave `kk_any_member_to_string` registered in it and
+        // Kotlin overrides register a `kk_any_to_string_bridge_*` raw
+        // bridge, so the slot never holds a flat-aggregate function
+        // pointer. The indirect call must therefore use the
+        // `(Int, Int*) -> Int` shape and bridge the returned handle back
+        // to the flat String aggregate (KUU-3111 / KUU-3214).
+        let isAnyToStringRawABISlot: Bool = {
+            guard case let .vtable(slot) = dispatch,
+                  let symbols
+            else {
+                return false
+            }
+            func slotHasAnyToString(in nominal: SymbolID) -> Bool {
+                guard let layout = symbols.nominalLayout(for: nominal) else {
+                    return false
+                }
+                return layout.vtableSlots.contains { candidate, candidateSlot in
+                    candidateSlot == slot
+                        && symbols.symbol(candidate).map {
+                            isSyntheticAnyToStringSymbol($0, interner: interner)
+                        } == true
+                }
+            }
+            if let typeSystem,
+               let receiverType = module.arena.exprType(receiver),
+               case let .classType(receiverClass) = typeSystem.kind(of: receiverType),
+               slotHasAnyToString(in: receiverClass.classSymbol)
+            {
+                return true
+            }
+            guard let symbol,
+                  symbol != .invalid,
+                  let owner = virtualCallNominalOwner(for: symbol, symbols: symbols)
+            else {
+                return false
+            }
+            return slotHasAnyToString(in: owner)
         }()
         // A vtable slot whose root-most declaration returns a String
         // aggregate (`toString`, `message` getters, `componentN`, ...) is
@@ -285,6 +328,7 @@ extension NativeEmitter.FunctionEmissionContext {
         // that source-backed ABI (KSP-712).
         let shouldAppendThrownChannel = usesThrownChannel
             || isThrowableMessageVirtualGetter
+            || isAnyToStringRawABISlot
             || isInternalCall
             || sourceExternalCallSignature != nil
             || virtualSourceCallSignature != nil
@@ -357,6 +401,16 @@ extension NativeEmitter.FunctionEmissionContext {
             declareExternalFunction(
                 named: "__kk_throwable_message__vslot",
                 argumentCount: 1,
+                appendThrownChannel: true
+            )
+        } else if isAnyToStringRawABISlot {
+            // The `kotlin.Any.toString` slot's registered entries all use
+            // the runtime's raw `(Int, Int*) -> Int` handle ABI — either
+            // `kk_any_member_to_string` or a `kk_any_to_string_bridge_*`
+            // raw bridge — so only the indirect-call type matters here.
+            declareExternalFunction(
+                named: "__kk_any_toString__vslot",
+                argumentCount: argumentValues.count,
                 appendThrownChannel: true
             )
         } else if let effectiveABISymbol,
@@ -751,6 +805,18 @@ extension NativeEmitter.FunctionEmissionContext {
                 ? stringAggregateBridge.bridgeRuntimeRawToStringAggregate(
                     vCallValue,
                     suffix: "\(instructionIndex)_virtual_throwable_message"
+                ) ?? vCallValue
+                : vCallValue
+        } else if isAnyToStringRawABISlot,
+           let result,
+           let vCallValue
+        {
+            // The raw slot returned an `Int` string handle; a
+            // String-typed result needs the flat aggregate.
+            mergedValue = isStringAggregateExpr(result)
+                ? stringAggregateBridge.bridgeRuntimeRawToStringAggregate(
+                    vCallValue,
+                    suffix: "\(instructionIndex)_virtual_any_toString"
                 ) ?? vCallValue
                 : vCallValue
         } else if isRuntimeCallbackRawABIVirtualCall,
