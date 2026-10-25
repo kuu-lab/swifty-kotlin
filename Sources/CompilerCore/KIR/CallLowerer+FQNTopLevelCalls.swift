@@ -46,8 +46,7 @@ extension CallLowerer {
                     callee: interner.intern(externalLinkName),
                     arguments: [],
                     result: result,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ))
                 return result
             }
@@ -60,8 +59,7 @@ extension CallLowerer {
                     callee: interner.intern("get"),
                     arguments: [],
                     result: result,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ))
                 return result
             }
@@ -96,7 +94,7 @@ extension CallLowerer {
                 let result = arena.appendTemporary(type: resultType)
                 instructions.append(.call(
                     symbol: valueSymbol, callee: interner.intern(externalLinkName),
-                    arguments: [], result: result, canThrow: false, thrownResult: nil
+                    arguments: [], result: result, canThrow: false
                 ))
                 return result
             }

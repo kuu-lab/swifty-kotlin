@@ -37,12 +37,10 @@ struct ImportedInlineKIRMaterializerTests {
                 body: [
                     .constValue(result: producerExpr, value: .symbolRef(callbackSymbol)),
                     .call(
-                        symbol: nil,
                         callee: invoke,
                         arguments: [producerExpr],
                         result: producerResult,
-                        canThrow: false,
-                        thrownResult: nil
+                        canThrow: false
                     ),
                     .returnValue(producerResult),
                 ],
@@ -121,12 +119,10 @@ struct ImportedInlineKIRMaterializerTests {
                 body: [
                     .constValue(result: callbackExpr, value: .symbolRef(callbackSymbol)),
                     .call(
-                        symbol: nil,
                         callee: invoke,
                         arguments: [callbackExpr],
                         result: resultExpr,
-                        canThrow: false,
-                        thrownResult: nil
+                        canThrow: false
                     ),
                     redefinition(callbackExpr, resultExpr),
                     .returnValue(resultExpr),
@@ -149,13 +145,11 @@ struct ImportedInlineKIRMaterializerTests {
             },
             symbols[3]: makeFunction(symbol: symbols[3]) { source, result in
                 .virtualCall(
-                    symbol: nil,
                     callee: interner.intern("redefinition"),
                     receiver: source,
                     arguments: [],
                     result: result,
                     canThrow: false,
-                    thrownResult: nil,
                     dispatch: .vtable(slot: 0)
                 )
             },

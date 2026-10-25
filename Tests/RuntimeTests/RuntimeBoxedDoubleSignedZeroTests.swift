@@ -66,15 +66,29 @@ struct RuntimeBoxedDoubleSignedZeroTests {
     }
 
     @Test
-    func testBoxedDoubleEqualityUsesBitPattern() {
+    func testBoxedDoubleEqualityCanonicalizesNaNAndPreservesSignedZero() {
         let negativeZero = kk_box_double_nonnull(bits(-0.0))
         let positiveZero = kk_box_double_nonnull(bits(0.0))
-        let firstNaN = kk_box_double_nonnull(bits(Double.nan))
-        let secondNaN = kk_box_double_nonnull(bits(Double.nan))
+        let canonicalNaN = kk_box_double_nonnull(bits(Double.nan))
+        let positivePayloadNaN = kk_box_double_nonnull(Int(bitPattern: UInt(0x7ff8_0000_0000_0001)))
+        let negativePayloadNaN = kk_box_double_nonnull(Int(bitPattern: UInt(0xfff8_0000_0000_0042)))
 
         #expect(!runtimeValuesEqual(negativeZero, positiveZero))
-        #expect(runtimeValuesEqual(firstNaN, secondNaN))
+        #expect(runtimeValuesEqual(canonicalNaN, positivePayloadNaN))
+        #expect(runtimeValuesEqual(canonicalNaN, negativePayloadNaN))
+        #expect(runtimeValuesEqual(positivePayloadNaN, bits(Double(bitPattern: 0xfff8_0000_0000_0042))))
         #expect(runtimeValuesEqual(negativeZero, kk_box_double_nonnull(bits(-0.0))))
+    }
+
+    @Test
+    func testBoxedFloatEqualityCanonicalizesNaNPayloads() {
+        let firstNaN = kk_box_float(0x7fc0_0001)
+        let secondNaN = kk_box_float(Int(Int32(bitPattern: 0xffc0_0042)))
+        let rawNegativeNaN = Int(Int32(bitPattern: 0xffc0_0042))
+
+        #expect(runtimeValuesEqual(firstNaN, secondNaN))
+        #expect(runtimeValuesEqual(firstNaN, rawNegativeNaN))
+        #expect(!runtimeValuesEqual(kk_box_float(Int(Int32.min)), kk_box_float(0)))
     }
 
     /// A bare `Int64.min` word reaching equality is treated as null, not as a

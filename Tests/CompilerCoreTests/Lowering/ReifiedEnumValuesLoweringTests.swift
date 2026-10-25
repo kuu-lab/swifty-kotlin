@@ -35,28 +35,28 @@ struct ReifiedEnumValuesLoweringTests {
             let offset = arena.appendExpr(.intLiteral(2), type: types.intType)
             let packed = arena.appendTemporary(type: types.anyType)
             body.append(.constValue(result: offset, value: .intLiteral(2)))
-            body.append(.call(symbol: nil, callee: interner.intern("kk_array_get_inbounds"),
-                              arguments: [root, offset], result: packed, canThrow: false, thrownResult: nil))
+            body.append(.call(callee: interner.intern("kk_array_get_inbounds"),
+                              arguments: [root, offset], result: packed, canThrow: false))
             input = packed
         } else if source == .localPair {
             input = arena.appendTemporary(type: types.anyType)
             let value = arena.appendExpr(.intLiteral(0), type: types.intType)
             body.append(.constValue(result: value, value: .intLiteral(0)))
-            body.append(.call(symbol: nil, callee: interner.intern("__kk_pair_new"),
-                              arguments: [value, value], result: input, canThrow: false, thrownResult: nil))
+            body.append(.call(callee: interner.intern("__kk_pair_new"),
+                              arguments: [value, value], result: input, canThrow: false))
         }
         if source == .parameter || source == .packedValue {
             body.append(.copy(from: input, to: extracted))
         } else {
             let callee = source == .unrelatedCall ? "unrelated" :
                 source == .componentToken ? "__kk_pair_second" : "__kk_pair_first"
-            body.append(.call(symbol: nil, callee: interner.intern(callee), arguments: [input],
-                              result: extracted, canThrow: false, thrownResult: nil))
+            body.append(.call(callee: interner.intern(callee), arguments: [input],
+                              result: extracted, canThrow: false))
         }
         // Copies after capture extraction must preserve the token's provenance.
         body.append(.copy(from: extracted, to: token))
         body.append(.call(symbol: enumValues, callee: interner.intern("enumValues"), arguments: [token],
-                          result: result, canThrow: false, thrownResult: nil))
+                          result: result, canThrow: false))
         body.append(.returnValue(result))
         let functionID = arena.appendDecl(.function(KIRFunction(
             symbol: SymbolID(rawValue: 101), name: interner.intern("factoryLambda"),

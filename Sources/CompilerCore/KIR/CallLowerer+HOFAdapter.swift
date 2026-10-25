@@ -107,12 +107,10 @@ extension CallLowerer {
             }
             let unboxedExpr = arena.appendTemporary(type: lambdaParamType)
             body.append(.call(
-                symbol: nil,
                 callee: unboxCallee,
                 arguments: [paramExpr],
                 result: unboxedExpr,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
             callArguments.append(unboxedExpr)
         }
@@ -151,8 +149,7 @@ extension CallLowerer {
             callee: callableInfo.callee,
             arguments: callArguments,
             result: callResult,
-            canThrow: canThrow,
-            thrownResult: nil
+            canThrow: canThrow
         ))
 
         switch sema.types.kind(of: adapterReturnType) {

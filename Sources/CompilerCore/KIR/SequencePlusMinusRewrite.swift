@@ -57,12 +57,10 @@ func emitSequencePlusMinusRewrite<C: RangeReplaceableCollection>(
             effectiveArgument = wrappedArgument
         }
         instructions.append(.call(
-            symbol: nil,
             callee: callees.plus,
             arguments: [receiver, effectiveArgument],
             result: result,
-            canThrow: false,
-            thrownResult: nil
+            canThrow: false
         ))
         return .emitted
 
@@ -71,12 +69,10 @@ func emitSequencePlusMinusRewrite<C: RangeReplaceableCollection>(
             return .unsupportedCollectionMinus
         }
         instructions.append(.call(
-            symbol: nil,
             callee: callees.minus,
             arguments: [receiver, argument],
             result: result,
-            canThrow: false,
-            thrownResult: nil
+            canThrow: false
         ))
         return .emitted
     }

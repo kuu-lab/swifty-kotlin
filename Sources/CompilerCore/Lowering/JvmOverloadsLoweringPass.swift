@@ -215,8 +215,7 @@ final class JvmOverloadsLoweringPass: LoweringPass {
                 callee: stubName,
                 arguments: forwardedArgs,
                 result: nil,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
             body.append(.returnUnit)
         } else {
@@ -227,8 +226,7 @@ final class JvmOverloadsLoweringPass: LoweringPass {
                 callee: stubName,
                 arguments: forwardedArgs,
                 result: callResult,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
             body.append(.returnValue(callResult))
         }

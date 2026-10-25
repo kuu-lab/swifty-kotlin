@@ -60,12 +60,10 @@ extension KIRLoweringDriver {
                 let mask = integer(RuntimeTypeCheckToken.nullableFlag)
                 let nullable = arena.appendTemporary(type: intType)
                 instructions.append(.call(
-                    symbol: nil,
                     callee: interner.intern("kk_bitwise_and"),
                     arguments: [token, mask],
                     result: nullable,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ))
                 return nullable
             }
@@ -123,12 +121,10 @@ extension KIRLoweringDriver {
             let isReified = integer(info?.flags.contains(.reifiedTypeParameter) == true ? 1 : 0)
             let classifier = arena.appendTemporary(type: sema.types.anyType)
             instructions.append(.call(
-                symbol: nil,
                 callee: interner.intern("__kk_ktypeparameter_create"),
                 arguments: [identity, name, variance, isReified],
                 result: classifier,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
 
             if initializedTypeParameters.insert(symbol).inserted {
@@ -137,12 +133,10 @@ extension KIRLoweringDriver {
                 let boundTypes = bounds.map { lowerKTypeExpr(for: $0) }
                 let boundsList = list(boundTypes)
                 instructions.append(.call(
-                    symbol: nil,
                     callee: interner.intern("__kk_ktypeparameter_set_upper_bounds"),
                     arguments: [classifier, boundsList],
                     result: nil,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ))
             }
             return classifier
@@ -196,12 +190,10 @@ extension KIRLoweringDriver {
                 let variance = integer(varianceOrdinal)
                 let result = arena.appendTemporary(type: sema.types.anyType)
                 instructions.append(.call(
-                    symbol: nil,
                     callee: interner.intern("__kk_ktypeprojection_create"),
                     arguments: [projectedType, variance],
                     result: result,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ))
                 return result
             }
@@ -252,21 +244,17 @@ extension KIRLoweringDriver {
             if let typeParameter {
                 let classifier = makeTypeParameterClassifier(typeParameter)
                 instructions.append(.call(
-                    symbol: nil,
                     callee: interner.intern("__kk_ktype_create"),
                     arguments: [classifier, argumentList, nullability],
                     result: ktype,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ))
             } else {
                 instructions.append(.call(
-                    symbol: nil,
                     callee: interner.intern("kk_typeof"),
                     arguments: [tokenExpr, makeNameHintExpr(for: type), argumentList, nullability],
                     result: ktype,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ))
             }
             return ktype

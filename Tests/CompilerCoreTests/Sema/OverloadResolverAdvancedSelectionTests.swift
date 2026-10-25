@@ -149,7 +149,7 @@ extension OverloadResolverTests {
         #expect(resolved.parameterMapping == [0: 0, 1: 0, 2: 0, 3: 0])
     }
 
-    @Test func testResolveCallSpreadArgumentOnVarargParameter() {
+    @Test func testResolveCallRejectsNonArraySpreadArgumentOnVarargParameter() {
         let (resolver, types, symbols, interner, ctx) = makeEnv()
 
         let intType = types.make(.primitive(.int, .nonNull))
@@ -172,8 +172,8 @@ extension OverloadResolverTests {
             args: [CallArg(isSpread: true, type: intType)]
         )
         let resolved = resolver.resolveCall(candidates: [fn], call: call, expectedType: nil, ctx: ctx)
-        #expect(resolved.chosenCallee == fn)
-        #expect(resolved.diagnostic == nil)
+        #expect(resolved.chosenCallee == nil)
+        #expect(resolved.diagnostic?.code == "KSWIFTK-SEMA-0002")
     }
 
     @Test func testResolveCallVarargWithTypeMismatch() {

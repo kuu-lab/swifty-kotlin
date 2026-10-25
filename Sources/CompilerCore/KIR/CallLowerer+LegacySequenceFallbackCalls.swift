@@ -316,12 +316,10 @@ extension CallLowerer {
                     runtimeArguments = [loweredReceiverID, normalizedArgIDs[0], fnPtrExpr, envPtrExpr]
                 }
                 instructions.append(.call(
-                    symbol: nil,
                     callee: interner.intern(runtimeCallee),
                     arguments: runtimeArguments,
                     result: result,
-                    canThrow: canThrow,
-                    thrownResult: nil
+                    canThrow: canThrow
                 ))
                 return result
             }
@@ -455,12 +453,10 @@ extension CallLowerer {
                     let zeroExpr = arena.appendExpr(.intLiteral(0), type: nil)
                     instructions.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
                     instructions.append(.call(
-                        symbol: nil,
                         callee: runtimeCallee,
                         arguments: [loweredReceiverID, zeroExpr, zeroExpr],
                         result: result,
-                        canThrow: false,
-                        thrownResult: nil
+                        canThrow: false
                     ))
                     return result
                 }
@@ -471,12 +467,10 @@ extension CallLowerer {
                     || runtimeCallee == seqCountCallee
                     || runtimeCallee == seqToListCallee
                 instructions.append(.call(
-                    symbol: nil,
                     callee: runtimeCallee,
                     arguments: [loweredReceiverID],
                     result: result,
-                    canThrow: canThrow,
-                    thrownResult: nil
+                    canThrow: canThrow
                 ))
                 return result
             }

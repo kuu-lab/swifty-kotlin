@@ -132,8 +132,7 @@ func emitNonThrowingCall<C: RangeReplaceableCollection>(
         callee: callee,
         arguments: [arg],
         result: result,
-        canThrow: false,
-        thrownResult: nil
+        canThrow: false
     ))
 }
 
@@ -147,12 +146,10 @@ func emitThrowingCall<C: RangeReplaceableCollection>(
     into instructions: inout C
 ) where C.Element == KIRInstruction {
     instructions.append(.call(
-        symbol: nil,
         callee: callee,
         arguments: [arg],
         result: result,
-        canThrow: true,
-        thrownResult: nil
+        canThrow: true
     ))
 }
 
@@ -263,8 +260,7 @@ extension CallLowerer {
             callee: callee,
             arguments: arguments,
             result: result,
-            canThrow: false,
-            thrownResult: nil
+            canThrow: false
         ))
     }
 }
@@ -535,9 +531,9 @@ func emitValueClassBoxCall<C: RangeReplaceableCollection>(
     let classIDExpr = arena.appendExpr(.intLiteral(classID), type: intType)
     instructions.append(.constValue(result: classIDExpr, value: .intLiteral(classID)))
     instructions.append(.call(
-        symbol: nil, callee: interner.intern("kk_value_class_box"),
+        callee: interner.intern("kk_value_class_box"),
         arguments: [value, classIDExpr],
-        result: result, canThrow: false, thrownResult: nil
+        result: result, canThrow: false
     ))
 }
 
@@ -563,9 +559,9 @@ func emitValueClassUnboxCall<C: RangeReplaceableCollection>(
     let classIDExpr = arena.appendExpr(.intLiteral(classID), type: intType)
     instructions.append(.constValue(result: classIDExpr, value: .intLiteral(classID)))
     instructions.append(.call(
-        symbol: nil, callee: interner.intern("kk_value_class_unbox"),
+        callee: interner.intern("kk_value_class_unbox"),
         arguments: [value, classIDExpr],
-        result: result, canThrow: false, thrownResult: nil
+        result: result, canThrow: false
     ))
 }
 
@@ -600,8 +596,8 @@ func emitBoxCallWithValueClassTag<C: RangeReplaceableCollection>(
 ) where C.Element == KIRInstruction {
     func emitPlainBoxCall() {
         instructions.append(.call(
-            symbol: nil, callee: boxCallee, arguments: [value],
-            result: result, canThrow: false, thrownResult: nil
+            callee: boxCallee, arguments: [value],
+            result: result, canThrow: false
         ))
     }
     guard case let .classType(classType) = rawSourceKind,
@@ -663,16 +659,16 @@ func emitBoxCallWithValueClassTag<C: RangeReplaceableCollection>(
     }
     let boxedTemp = arena.appendTemporary(type: resultType)
     instructions.append(.call(
-        symbol: nil, callee: boxCallee, arguments: [value],
-        result: boxedTemp, canThrow: false, thrownResult: nil
+        callee: boxCallee, arguments: [value],
+        result: boxedTemp, canThrow: false
     ))
     let intType = types.make(.primitive(.int, .nonNull))
     let classIDExpr = arena.appendExpr(.intLiteral(classID), type: intType)
     instructions.append(.constValue(result: classIDExpr, value: .intLiteral(classID)))
     let tagCallee = interner.intern("kk_tag_value_class_box")
     instructions.append(.call(
-        symbol: nil, callee: tagCallee, arguments: [boxedTemp, classIDExpr],
-        result: result, canThrow: false, thrownResult: nil
+        callee: tagCallee, arguments: [boxedTemp, classIDExpr],
+        result: result, canThrow: false
     ))
 }
 
@@ -743,8 +739,8 @@ func emitEnumOrdinalBoxCall<C: RangeReplaceableCollection>(
     let intType = types.make(.primitive(.int, .nonNull))
     let normalizedOrdinal = arena.appendTemporary(type: intType)
     instructions.append(.call(
-        symbol: nil, callee: interner.intern("kk_unbox_int"), arguments: [ordinal],
-        result: normalizedOrdinal, canThrow: false, thrownResult: nil
+        callee: interner.intern("kk_unbox_int"), arguments: [ordinal],
+        result: normalizedOrdinal, canThrow: false
     ))
 
     // Master registers overridden toString implementations separately for
@@ -756,7 +752,7 @@ func emitEnumOrdinalBoxCall<C: RangeReplaceableCollection>(
     let nameResult = arena.appendTemporary(type: types.stringType)
     instructions.append(.call(
         symbol: helperSymbol, callee: nameHelperCallee, arguments: [normalizedOrdinal],
-        result: nameResult, canThrow: false, thrownResult: nil
+        result: nameResult, canThrow: false
     ))
 
     let classID = RuntimeTypeCheckToken.stableNominalTypeID(
@@ -766,9 +762,9 @@ func emitEnumOrdinalBoxCall<C: RangeReplaceableCollection>(
     instructions.append(.constValue(result: classIDExpr, value: .intLiteral(classID)))
 
     instructions.append(.call(
-        symbol: nil, callee: interner.intern("kk_enum_box_ordinal"),
+        callee: interner.intern("kk_enum_box_ordinal"),
         arguments: [normalizedOrdinal, nameResult, classIDExpr],
-        result: result, canThrow: false, thrownResult: nil
+        result: result, canThrow: false
     ))
 
     if let sema {
@@ -827,9 +823,9 @@ func appendEnumAnyToStringRegistration<C: RangeReplaceableCollection>(
     instructions.append(.call(
         // This ABI registers raw-string renderers by nominal ID, independent
         // of whether their payload is a value-class primitive or enum ordinal.
-        symbol: nil, callee: interner.intern("kk_value_class_register_any_to_string"),
+        callee: interner.intern("kk_value_class_register_any_to_string"),
         arguments: [classIDExpr, bridgeExpr], result: registerResult,
-        canThrow: false, thrownResult: nil
+        canThrow: false
     ))
 }
 
@@ -871,12 +867,10 @@ private func appendEnumBoxItableRegistrations<C: RangeReplaceableCollection>(
         instructions.append(.constValue(result: ifaceSlotExpr, value: .intLiteral(Int64(ifaceSlot))))
         let registerResult = arena.appendTemporary(type: intType)
         instructions.append(.call(
-            symbol: nil,
             callee: interner.intern("kk_object_register_itable_iface"),
             arguments: [boxedValue, interfaceTypeExpr, ifaceSlotExpr],
             result: registerResult,
-            canThrow: false,
-            thrownResult: nil
+            canThrow: false
         ))
     }
 
@@ -1006,12 +1000,10 @@ private func appendEnumBoxItableMethodRegistrations<C: RangeReplaceableCollectio
             instructions.append(.constValue(result: methodFnExpr, value: .symbolRef(registered)))
             let registerResult = arena.appendTemporary(type: intType)
             instructions.append(.call(
-                symbol: nil,
                 callee: registerCallee,
                 arguments: [boxedValue, ifaceSlotExpr, methodSlotExpr, methodFnExpr],
                 result: registerResult,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
         }
     }

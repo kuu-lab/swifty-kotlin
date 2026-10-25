@@ -159,12 +159,10 @@ extension DataEnumSealedSynthesisPass {
         let allocatedObjectExpr = module.arena.appendTemporary(type: receiverType
         )
         body.append(.call(
-            symbol: nil,
             callee: interner.intern("kk_object_new"),
             arguments: [slotCountExpr, classIDExpr],
             result: allocatedObjectExpr,
-            canThrow: false,
-            thrownResult: nil
+            canThrow: false
         ))
 
         // A local data class restores enclosing captures from its instance
@@ -187,15 +185,15 @@ extension DataEnumSealedSynthesisPass {
                         ?? sema.symbols.propertyType(for: capturedSymbol) ?? sema.types.anyType)
                 let value = module.arena.appendTemporary(type: captureType)
                 body.append(.call(
-                    symbol: nil, callee: interner.intern("kk_array_get_inbounds"),
+                    callee: interner.intern("kk_array_get_inbounds"),
                     arguments: [selfRef, offsetExpr], result: value,
-                    canThrow: false, thrownResult: nil
+                    canThrow: false
                 ))
                 let stored = module.arena.appendTemporary(type: sema.types.unitType)
                 body.append(.call(
-                    symbol: nil, callee: interner.intern("kk_array_set"),
+                    callee: interner.intern("kk_array_set"),
                     arguments: [allocatedObjectExpr, offsetExpr, value], result: stored,
-                    canThrow: false, thrownResult: nil
+                    canThrow: false
                 ))
             }
         }
@@ -207,8 +205,7 @@ extension DataEnumSealedSynthesisPass {
             callee: initName,
             arguments: [allocatedObjectExpr] + ctorArgExprs,
             result: resultExpr,
-            canThrow: false,
-            thrownResult: nil
+            canThrow: false
         ))
         body.append(.returnValue(resultExpr))
 
@@ -320,12 +317,10 @@ extension DataEnumSealedSynthesisPass {
             let maskedExpr = module.arena.appendTemporary(type: maskType
             )
             body.append(.call(
-                symbol: nil,
                 callee: interner.intern("kk_bitwise_and"),
                 arguments: [maskRefs[index / DefaultArgumentMask.bitsPerWord], bitExpr],
                 result: maskedExpr,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
 
             let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: maskType)
@@ -346,12 +341,10 @@ extension DataEnumSealedSynthesisPass {
                     let offsetExpr = module.arena.appendExpr(.intLiteral(Int64(fieldOffset)), type: intType)
                     body.append(.constValue(result: offsetExpr, value: .intLiteral(Int64(fieldOffset))))
                     body.append(.call(
-                        symbol: nil,
                         callee: interner.intern("kk_array_get_inbounds"),
                         arguments: [selfRef, offsetExpr],
                         result: resolvedExpr,
-                        canThrow: false,
-                        thrownResult: nil
+                        canThrow: false
                     ))
                 } else {
                     body.append(.copy(from: providedExpr, to: resolvedExpr))
@@ -374,8 +367,7 @@ extension DataEnumSealedSynthesisPass {
             callee: name,
             arguments: [selfRef] + resolvedArgs,
             result: resultExpr,
-            canThrow: false,
-            thrownResult: nil
+            canThrow: false
         ))
         body.append(.returnValue(resultExpr))
 
@@ -579,12 +571,10 @@ extension DataEnumSealedSynthesisPass {
             .constValue(result: receiverRef, value: .symbolRef(receiverParam.symbol)),
             .constValue(result: otherRef, value: .symbolRef(paramSymbol)),
             .call(
-                symbol: nil,
                 callee: interner.intern("kk_op_eq"),
                 arguments: [receiverRef, otherRef],
                 result: resultExpr,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ),
             .returnValue(resultExpr),
         ]
@@ -685,21 +675,19 @@ extension DataEnumSealedSynthesisPass {
                 let fieldValueExpr = module.arena.appendTemporary(type: propType
                 )
                 body.append(.call(
-                    symbol: nil,
                     callee: interner.intern("kk_array_get_inbounds"),
                     arguments: [receiverRef, fieldOffsetExpr],
                     result: fieldValueExpr,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ))
 
                 let propHashExpr = module.arena.appendTemporary(type: intType
                 )
                 if owner.kind == .annotationClass, isAnnotationArrayType(propType, sema: sema, interner: interner) {
                     body.append(.call(
-                        symbol: nil, callee: interner.intern("__kk_array_contentDeepHashCode"),
+                        callee: interner.intern("__kk_array_contentDeepHashCode"),
                         arguments: [fieldValueExpr], result: propHashExpr,
-                        canThrow: false, thrownResult: nil
+                        canThrow: false
                     ))
                 } else if let arrayHashSymbol = dataClassArrayContentHashSymbol(
                     for: propType, sema: sema, interner: interner
@@ -711,8 +699,7 @@ extension DataEnumSealedSynthesisPass {
                         callee: callee,
                         arguments: [fieldValueExpr],
                         result: propHashExpr,
-                        canThrow: false,
-                        thrownResult: nil
+                        canThrow: false
                     ))
                 } else {
                     let tagValue = computeAnyFallbackTag(for: propType, sema: sema)
@@ -738,12 +725,10 @@ extension DataEnumSealedSynthesisPass {
                         )
                     }
                     body.append(.call(
-                        symbol: nil,
                         callee: hashCodeCallee,
                         arguments: [hashValue, tagExpr],
                         result: propHashExpr,
-                        canThrow: false,
-                        thrownResult: nil
+                        canThrow: false
                     ))
                 }
 
@@ -756,17 +741,17 @@ extension DataEnumSealedSynthesisPass {
                     body.append(.constValue(result: nameExpr, value: .intLiteral(Int64(127 &* nameHash))))
                     let memberHash = module.arena.appendTemporary(type: intType)
                     body.append(.call(
-                        symbol: nil, callee: interner.intern("kk_bitwise_xor"),
+                        callee: interner.intern("kk_bitwise_xor"),
                         arguments: [nameExpr, propHashExpr], result: memberHash,
-                        canThrow: false, thrownResult: nil
+                        canThrow: false
                     ))
                     if index == 0 {
                         resultExpr = memberHash
                     } else {
                         let sum = module.arena.appendTemporary(type: intType)
                         body.append(.call(
-                            symbol: nil, callee: addCallee, arguments: [resultExpr, memberHash],
-                            result: sum, canThrow: false, thrownResult: nil
+                            callee: addCallee, arguments: [resultExpr, memberHash],
+                            result: sum, canThrow: false
                         ))
                         resultExpr = sum
                     }
@@ -780,23 +765,19 @@ extension DataEnumSealedSynthesisPass {
                     let mulExpr = module.arena.appendTemporary(type: intType
                     )
                     body.append(.call(
-                        symbol: nil,
                         callee: mulCallee,
                         arguments: [thirtyOneExpr, resultExpr],
                         result: mulExpr,
-                        canThrow: false,
-                        thrownResult: nil
+                        canThrow: false
                     ))
 
                     let addExpr = module.arena.appendTemporary(type: intType
                     )
                     body.append(.call(
-                        symbol: nil,
                         callee: addCallee,
                         arguments: [mulExpr, propHashExpr],
                         result: addExpr,
-                        canThrow: false,
-                        thrownResult: nil
+                        canThrow: false
                     ))
 
                     resultExpr = addExpr
@@ -806,8 +787,8 @@ extension DataEnumSealedSynthesisPass {
                 // Member sums wrap in Kotlin's signed 32-bit Int domain.
                 let normalized = module.arena.appendTemporary(type: intType)
                 body.append(.call(
-                    symbol: nil, callee: interner.intern("kk_long_to_int"),
-                    arguments: [resultExpr!], result: normalized, canThrow: false, thrownResult: nil
+                    callee: interner.intern("kk_long_to_int"),
+                    arguments: [resultExpr!], result: normalized, canThrow: false
                 ))
                 resultExpr = normalized
             }
@@ -958,12 +939,10 @@ extension DataEnumSealedSynthesisPass {
         let builderExpr = module.arena.appendTemporary(type: builderType
         )
         body.append(.call(
-            symbol: nil,
             callee: interner.intern("__kk_string_builder_new_from_string_flat"),
             arguments: [prefixExpr],
             result: builderExpr,
-            canThrow: false,
-            thrownResult: nil
+            canThrow: false
         ))
 
         for (index, property) in properties.enumerated() {
@@ -975,12 +954,10 @@ extension DataEnumSealedSynthesisPass {
             body.append(.constValue(result: labelExpr, value: .stringLiteral(labelInterned)))
 
             body.append(.call(
-                symbol: nil,
                 callee: interner.intern("__kk_string_builder_append_obj"),
                 arguments: [builderExpr, labelExpr],
                 result: builderExpr,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
 
             // Read the constructor-backed field directly so data-class synthesis
@@ -1002,21 +979,17 @@ extension DataEnumSealedSynthesisPass {
                 let offsetExpr = module.arena.appendExpr(.intLiteral(Int64(fieldOffset)), type: intType)
                 body.append(.constValue(result: offsetExpr, value: .intLiteral(Int64(fieldOffset))))
                 body.append(.call(
-                    symbol: nil,
                     callee: interner.intern("kk_array_get_inbounds"),
                     arguments: [receiverRef, offsetExpr],
                     result: propValue,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ))
             } else {
                 body.append(.call(
-                    symbol: nil,
                     callee: interner.intern("kk_abort_unreachable"),
                     arguments: [],
                     result: propValue,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ))
             }
 
@@ -1036,8 +1009,8 @@ extension DataEnumSealedSynthesisPass {
             // construct a CallLowerer).
             if owner.kind == .annotationClass, isAnnotationArrayType(propType, sema: sema, interner: interner) {
                 body.append(.call(
-                    symbol: nil, callee: interner.intern("__kk_array_contentDeepToString"),
-                    arguments: [propValue], result: propStr, canThrow: false, thrownResult: nil
+                    callee: interner.intern("__kk_array_contentDeepToString"),
+                    arguments: [propValue], result: propStr, canThrow: false
                 ))
             } else if let arrayToStringSymbol = dataClassArrayContentToStringSymbol(
                 for: propType, sema: sema, interner: interner
@@ -1049,8 +1022,7 @@ extension DataEnumSealedSynthesisPass {
                     callee: callee,
                     arguments: [propValue],
                     result: propStr,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ))
             } else if let nameHelper = resolveEnumOrdinalToNameCallee(for: propType, sema: sema, interner: interner) {
                 body.append(.call(
@@ -1058,8 +1030,7 @@ extension DataEnumSealedSynthesisPass {
                     callee: nameHelper.callee,
                     arguments: [propValue],
                     result: propStr,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ))
             } else if let classToString = resolveClassOwnToStringCallee(for: propType, sema: sema, interner: interner) {
                 // KUU-3110: `toString` dispatch must go through the
@@ -1101,18 +1072,15 @@ extension DataEnumSealedSynthesisPass {
                             arguments: [],
                             result: result,
                             canThrow: false,
-                            thrownResult: nil,
                             dispatch: .vtable(slot: toStringVtableSlot)
                         )
                     }
                     if let toStringTagExpr {
                         return .call(
-                            symbol: nil,
                             callee: interner.intern("kk_any_to_string"),
                             arguments: [propValue, toStringTagExpr],
                             result: result,
-                            canThrow: false,
-                            thrownResult: nil
+                            canThrow: false
                         )
                     }
                     return .call(
@@ -1120,8 +1088,7 @@ extension DataEnumSealedSynthesisPass {
                         callee: classToString.callee,
                         arguments: [propValue],
                         result: result,
-                        canThrow: false,
-                        thrownResult: nil
+                        canThrow: false
                     )
                 }
                 if propIsNullable {
@@ -1167,34 +1134,28 @@ extension DataEnumSealedSynthesisPass {
                     body.append(.label(nonNullLabel))
                     let innerPropStr = module.arena.appendTemporary(type: stringType)
                     body.append(.call(
-                        symbol: nil,
                         callee: interner.intern("kk_any_to_string"),
                         arguments: [propValue, tagExpr],
                         result: innerPropStr,
-                        canThrow: false,
-                        thrownResult: nil
+                        canThrow: false
                     ))
                     body.append(.copy(from: innerPropStr, to: propStr))
                     body.append(.label(endLabel))
                 } else {
                     body.append(.call(
-                        symbol: nil,
                         callee: interner.intern("kk_any_to_string"),
                         arguments: [propValue, tagExpr],
                         result: propStr,
-                        canThrow: false,
-                        thrownResult: nil
+                        canThrow: false
                     ))
                 }
             }
 
             body.append(.call(
-                symbol: nil,
                 callee: interner.intern("__kk_string_builder_append_obj"),
                 arguments: [builderExpr, propStr],
                 result: builderExpr,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
         }
 
@@ -1204,23 +1165,19 @@ extension DataEnumSealedSynthesisPass {
         body.append(.constValue(result: suffixExpr, value: .stringLiteral(suffixStr)))
 
         body.append(.call(
-            symbol: nil,
             callee: interner.intern("__kk_string_builder_append_obj"),
             arguments: [builderExpr, suffixExpr],
             result: builderExpr,
-            canThrow: false,
-            thrownResult: nil
+            canThrow: false
         ))
 
         let resultExpr = module.arena.appendTemporary(type: stringType
         )
         body.append(.call(
-            symbol: nil,
             callee: interner.intern("__kk_string_builder_toString"),
             arguments: [builderExpr],
             result: resultExpr,
-            canThrow: false,
-            thrownResult: nil
+            canThrow: false
         ))
         body.append(.returnValue(resultExpr))
 
@@ -1310,12 +1267,10 @@ extension DataEnumSealedSynthesisPass {
 
             // With no value properties, equality falls back to reference equality.
             body.append(.call(
-                symbol: nil,
                 callee: interner.intern("kk_op_eq"),
                 arguments: [receiverRef, otherRef],
                 result: resultExpr,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
             body.append(.returnValue(resultExpr))
         } else {
@@ -1333,12 +1288,10 @@ extension DataEnumSealedSynthesisPass {
             let isSameTypeExpr = module.arena.appendTemporary(type: boolType
             )
             body.append(.call(
-                symbol: nil,
                 callee: interner.intern("kk_op_is"),
                 arguments: [otherAnyRef, typeTokenExpr],
                 result: isSameTypeExpr,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
 
             let returnFalseLabel = allocateLabel()
@@ -1347,12 +1300,10 @@ extension DataEnumSealedSynthesisPass {
             let otherTypedRef = module.arena.appendTemporary(type: receiverType
             )
             body.append(.call(
-                symbol: nil,
                 callee: interner.intern("kk_op_safe_cast"),
                 arguments: [otherAnyRef, typeTokenExpr],
                 result: otherTypedRef,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
 
             for property in properties {
@@ -1371,37 +1322,29 @@ extension DataEnumSealedSynthesisPass {
                     let offsetExpr = module.arena.appendExpr(.intLiteral(Int64(fieldOffset)), type: intType)
                     body.append(.constValue(result: offsetExpr, value: .intLiteral(Int64(fieldOffset))))
                     body.append(.call(
-                        symbol: nil,
                         callee: interner.intern("kk_array_get_inbounds"),
                         arguments: [selfRef, offsetExpr],
                         result: selfProp,
-                        canThrow: false,
-                        thrownResult: nil
+                        canThrow: false
                     ))
                     body.append(.call(
-                        symbol: nil,
                         callee: interner.intern("kk_array_get_inbounds"),
                         arguments: [otherTypedRef, offsetExpr],
                         result: otherProp,
-                        canThrow: false,
-                        thrownResult: nil
+                        canThrow: false
                     ))
                 } else {
                     body.append(.call(
-                        symbol: nil,
                         callee: interner.intern("kk_abort_unreachable"),
                         arguments: [],
                         result: selfProp,
-                        canThrow: false,
-                        thrownResult: nil
+                        canThrow: false
                     ))
                     body.append(.call(
-                        symbol: nil,
                         callee: interner.intern("kk_abort_unreachable"),
                         arguments: [],
                         result: otherProp,
-                        canThrow: false,
-                        thrownResult: nil
+                        canThrow: false
                     ))
                 }
 
@@ -1462,18 +1405,16 @@ extension DataEnumSealedSynthesisPass {
                 let callResult = eqCallee == "__kk_array_contentDeepEquals"
                     ? module.arena.appendTemporary(type: sema.types.anyType) : cmpResult
                 body.append(.call(
-                    symbol: nil,
                     callee: interner.intern(eqCallee),
                     arguments: [lhsValue, rhsValue],
                     result: callResult,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ))
                 if callResult != cmpResult {
                     body.append(.call(
-                        symbol: nil, callee: interner.intern("kk_unbox_bool"),
+                        callee: interner.intern("kk_unbox_bool"),
                         arguments: [callResult], result: cmpResult,
-                        canThrow: false, thrownResult: nil
+                        canThrow: false
                     ))
                 }
 

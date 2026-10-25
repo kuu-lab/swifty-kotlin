@@ -1,7 +1,20 @@
 import Testing
+import TestStdlibCache
 
 @Suite(.serialized)
 struct CallableReferenceAdaptationExecutionTests {
+    @Test func stringPlusCallableReferenceConcatenatesCharArrayFoldElements() throws {
+        TestStdlibCache.shared.prepare()
+        try compileAndRunKotlin(
+            """
+            fun box() = charArrayOf('O', 'K').fold("", String::plus)
+            fun main() { println(box()) }
+            """,
+            expectedOutput: "OK\n",
+            moduleName: "KUU2936StringPlusCallableReferenceFold"
+        )
+    }
+
     @Test func adaptsVarargAndTrailingDefaultArgumentsAtRuntime() throws {
         try compileAndRunKotlin(
             """

@@ -493,18 +493,27 @@ private func runtimeKTypeProjectionHashCode(_ projection: RuntimeKTypeProjection
     return 31 &* varianceHash &+ typeHash
 }
 
+private func runtimeUnboxedAnyKind(_ tag: Int32) -> Int32 {
+    switch tag {
+    case 2, 5, 6:
+        return tag
+    default:
+        return 1
+    }
+}
+
 private func runtimeAnyKind(_ value: Int, _ tag: Int32) -> Int32 {
     if value == runtimeNullSentinelInt {
         return 0
     }
     guard let pointer = UnsafeMutableRawPointer(bitPattern: value) else {
-        return tag == 2 ? 2 : 1
+        return runtimeUnboxedAnyKind(tag)
     }
     let isObjectPointer = runtimeStorage.withGCLock { state in
         state.objectPointers.contains(UInt(bitPattern: pointer))
     }
     guard isObjectPointer else {
-        return tag == 2 ? 2 : 1
+        return runtimeUnboxedAnyKind(tag)
     }
     if let range = tryCast(pointer, to: RuntimeRangeBox.self) {
         // Keep each nominal range type distinct from scalar Any values and
@@ -584,8 +593,23 @@ public func kk_any_equals(_ lhs: Int, _ lhsTag: Int, _ rhs: Int, _ rhsTag: Int) 
     if let lhsRange = runtimeRangeBox(from: lhs), let rhsRange = runtimeRangeBox(from: rhs) {
         return kk_box_bool(runtimeRangesEqual(lhsRange, rhsRange) ? 1 : 0)
     }
-    if runtimeAnyKind(lhs, lhsTag) != runtimeAnyKind(rhs, rhsTag) {
+    let lhsKind = runtimeAnyKind(lhs, lhsTag)
+    let rhsKind = runtimeAnyKind(rhs, rhsTag)
+    if lhsKind != rhsKind {
         return kk_box_bool(0)
+    }
+    // Raw floating-point values retain their static kind through the Any
+    // bridge. Canonicalize NaNs just as boxed floating values do, while
+    // leaving nullable sentinels on the null-aware path.
+    if lhsKind == 5, lhs != runtimeNullSentinelInt, rhs != runtimeNullSentinelInt {
+        let lhsBits = runtimeFloatingBoxBitPattern(lhs) ?? lhs
+        let rhsBits = runtimeFloatingBoxBitPattern(rhs) ?? rhs
+        return kk_box_bool(kk_float_equals(lhsBits, rhsBits))
+    }
+    if lhsKind == 6, lhs != runtimeNullSentinelInt, rhs != runtimeNullSentinelInt {
+        let lhsBits = runtimeFloatingBoxBitPattern(lhs) ?? lhs
+        let rhsBits = runtimeFloatingBoxBitPattern(rhs) ?? rhs
+        return kk_box_bool(kk_double_equals(lhsBits, rhsBits))
     }
     let equal = runtimeAnyObjectEquality(lhs, rhs) ?? runtimeValuesEqual(lhs, rhs)
     return kk_box_bool(equal ? 1 : 0)

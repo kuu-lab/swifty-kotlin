@@ -28,7 +28,9 @@ extension DataFlowSemaPhase {
 
         let sequenceName = interner.intern("Sequence")
         let sequenceFQName = kotlinSequencesPkg + [sequenceName]
-        let sequenceSymbol: SymbolID = if let existing = symbols.lookup(fqName: sequenceFQName) {
+        // lookupNominal: `kotlin.sequences.Sequence` also names the bundled
+        // `Sequence(iterator)` factory (KUU-3246).
+        let sequenceSymbol: SymbolID = if let existing = symbols.lookupNominal(fqName: sequenceFQName) {
             existing
         } else {
             symbols.define(
@@ -51,8 +53,12 @@ extension DataFlowSemaPhase {
             symbol: typeParamSymbol,
             nullability: .nonNull
         )))
-        types.setNominalTypeParameterSymbols([typeParamSymbol], for: sequenceSymbol)
-        types.setNominalTypeParameterVariances([.out], for: sequenceSymbol)
+        // Source-declared or imported Sequence keeps its own type parameter;
+        // only the synthetic fallback shell is decorated.
+        if !symbols.isSourceBackedSymbol(sequenceSymbol) {
+            types.setNominalTypeParameterSymbols([typeParamSymbol], for: sequenceSymbol)
+            types.setNominalTypeParameterVariances([.out], for: sequenceSymbol)
+        }
 
         let receiverType = types.make(.classType(ClassType(
             classSymbol: sequenceSymbol,
@@ -236,7 +242,7 @@ extension DataFlowSemaPhase {
             interner.intern("collections"),
             interner.intern("Iterable"),
         ]
-        guard let iterableSymbol = symbols.lookup(fqName: iterableFQName) else {
+        guard let iterableSymbol = symbols.lookupNominal(fqName: iterableFQName) else {
             return types.anyType
         }
         return types.make(.classType(ClassType(

@@ -151,7 +151,7 @@ struct ReceiverClassifier {
         }
         // User-defined classes implementing Iterable must use the generic
         // Iterable source extensions rather than unresolved member fallbacks.
-        guard let iterableSymbol = sema.symbols.lookup(fqName: iterableFQName) else {
+        guard let iterableSymbol = sema.symbols.lookupNominal(fqName: iterableFQName) else {
             return false
         }
         return sema.types.isNominalSubtypeSymbol(classType.classSymbol, of: iterableSymbol)
@@ -173,7 +173,7 @@ struct ReceiverClassifier {
         if symbol.name == interner.intern("Iterable") || symbol.fqName == iterableFQName {
             return true
         }
-        guard let iterableSymbol = sema.symbols.lookup(fqName: iterableFQName) else {
+        guard let iterableSymbol = sema.symbols.lookupNominal(fqName: iterableFQName) else {
             return false
         }
         return sema.types.isNominalSubtypeSymbol(classType.classSymbol, of: iterableSymbol)

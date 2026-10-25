@@ -227,7 +227,6 @@ final class FlowLoweringPass: LoweringPass, ParallelLoweringPass {
                         // collector references.
                         let collectorFunctionID = appendIntConstant(0)
                         loweredBody.append(.call(
-                            symbol: nil,
                             callee: kkFlowCollectName,
                             arguments: [flowExpr, arguments[0], collectorFunctionID],
                             result: result,
@@ -242,12 +241,10 @@ final class FlowLoweringPass: LoweringPass, ParallelLoweringPass {
                     {
                         let continuation = appendIntConstant(0)
                         loweredBody.append(.call(
-                            symbol: nil,
                             callee: kkFlowCreateName,
                             arguments: [arguments[0], continuation],
                             result: result,
-                            canThrow: false,
-                            thrownResult: nil
+                            canThrow: false
                         ))
                         if let result {
                             flowExprIDs.insert(result.rawValue)
@@ -273,12 +270,10 @@ final class FlowLoweringPass: LoweringPass, ParallelLoweringPass {
                         }
                         let tag = appendIntConstant(tagValue)
                         loweredBody.append(.call(
-                            symbol: nil,
                             callee: kkFlowEmitName,
                             arguments: [flowExpr, arguments[0], tag],
                             result: result,
-                            canThrow: false,
-                            thrownResult: nil
+                            canThrow: false
                         ))
                         if let result {
                             flowExprIDs.insert(result.rawValue)
@@ -313,23 +308,19 @@ final class FlowLoweringPass: LoweringPass, ParallelLoweringPass {
                         {
                             let boxedValueExpr = module.arena.appendTemporary(type: sema.types.anyType)
                             loweredBody.append(.call(
-                                symbol: nil,
                                 callee: boxCallee,
                                 arguments: [valueExpr],
                                 result: boxedValueExpr,
-                                canThrow: false,
-                                thrownResult: nil
+                                canThrow: false
                             ))
                             emittedValueExpr = boxedValueExpr
                         }
                         let tag = appendIntConstant(RuntimeFlowTag.emit.rawValue)
                         loweredBody.append(.call(
-                            symbol: nil,
                             callee: kkFlowEmitName,
                             arguments: [flowHandleExpr, emittedValueExpr, tag],
                             result: result,
-                            canThrow: false,
-                            thrownResult: nil
+                            canThrow: false
                         ))
                         if let result {
                             activeFlowExpr = result
@@ -364,12 +355,10 @@ final class FlowLoweringPass: LoweringPass, ParallelLoweringPass {
                         let tag = appendIntConstant(tagValue)
                         let payload = arguments[1]
                         loweredBody.append(.call(
-                            symbol: nil,
                             callee: kkFlowEmitName,
                             arguments: [arguments[0], payload, tag],
                             result: result,
-                            canThrow: false,
-                            thrownResult: nil
+                            canThrow: false
                         ))
                         if let result {
                             flowExprIDs.insert(result.rawValue)
@@ -387,7 +376,6 @@ final class FlowLoweringPass: LoweringPass, ParallelLoweringPass {
                         // collector references.
                         let collectorFunctionID = appendIntConstant(0)
                         loweredBody.append(.call(
-                            symbol: nil,
                             callee: kkFlowCollectName,
                             arguments: [arguments[0], arguments[1], collectorFunctionID],
                             result: result,
@@ -405,12 +393,10 @@ final class FlowLoweringPass: LoweringPass, ParallelLoweringPass {
                        flowExprIDs.contains(arguments[0].rawValue)
                     {
                         loweredBody.append(.call(
-                            symbol: nil,
                             callee: kkFlowToListName,
                             arguments: [arguments[0], appendIntConstant(0)],
                             result: result,
-                            canThrow: false,
-                            thrownResult: nil
+                            canThrow: false
                         ))
                         continue
                     }
@@ -420,12 +406,10 @@ final class FlowLoweringPass: LoweringPass, ParallelLoweringPass {
                        flowExprIDs.contains(arguments[0].rawValue)
                     {
                         loweredBody.append(.call(
-                            symbol: nil,
                             callee: kkFlowFirstName,
                             arguments: [arguments[0], appendIntConstant(0)],
                             result: result,
-                            canThrow: false,
-                            thrownResult: nil
+                            canThrow: false
                         ))
                         continue
                     }
@@ -435,12 +419,10 @@ final class FlowLoweringPass: LoweringPass, ParallelLoweringPass {
                        flowExprIDs.contains(arguments[0].rawValue)
                     {
                         loweredBody.append(.call(
-                            symbol: nil,
                             callee: kkFlowSingleName,
                             arguments: [arguments[0], appendIntConstant(0)],
                             result: result,
-                            canThrow: true,
-                            thrownResult: nil
+                            canThrow: true
                         ))
                         continue
                     }
@@ -514,12 +496,10 @@ final class FlowLoweringPass: LoweringPass, ParallelLoweringPass {
                         }
                         let tag = appendIntConstant(RuntimeFlowTag.emit.rawValue)
                         loweredBody.append(.call(
-                            symbol: nil,
                             callee: kkFlowEmitName,
                             arguments: [flowHandleExpr, valueExpr, tag],
                             result: result,
-                            canThrow: false,
-                            thrownResult: nil
+                            canThrow: false
                         ))
                         if let result {
                             activeFlowExpr = result
@@ -551,12 +531,10 @@ final class FlowLoweringPass: LoweringPass, ParallelLoweringPass {
                         }
                         let tag = appendIntConstant(tagValue)
                         loweredBody.append(.call(
-                            symbol: nil,
                             callee: kkFlowEmitName,
                             arguments: [receiver, arguments[0], tag],
                             result: result,
-                            canThrow: false,
-                            thrownResult: nil
+                            canThrow: false
                         ))
                         if let result {
                             flowExprIDs.insert(result.rawValue)
@@ -574,7 +552,6 @@ final class FlowLoweringPass: LoweringPass, ParallelLoweringPass {
                         // collector references.
                         let collectorFunctionID = appendIntConstant(0)
                         loweredBody.append(.call(
-                            symbol: nil,
                             callee: kkFlowCollectName,
                             arguments: [receiver, arguments[0], collectorFunctionID],
                             result: result,
@@ -590,12 +567,10 @@ final class FlowLoweringPass: LoweringPass, ParallelLoweringPass {
                        flowExprIDs.contains(receiver.rawValue)
                     {
                         loweredBody.append(.call(
-                            symbol: nil,
                             callee: kkFlowToListName,
                             arguments: [receiver, appendIntConstant(0)],
                             result: result,
-                            canThrow: false,
-                            thrownResult: nil
+                            canThrow: false
                         ))
                         continue
                     }
@@ -605,12 +580,10 @@ final class FlowLoweringPass: LoweringPass, ParallelLoweringPass {
                        flowExprIDs.contains(receiver.rawValue)
                     {
                         loweredBody.append(.call(
-                            symbol: nil,
                             callee: kkFlowFirstName,
                             arguments: [receiver, appendIntConstant(0)],
                             result: result,
-                            canThrow: false,
-                            thrownResult: nil
+                            canThrow: false
                         ))
                         continue
                     }
@@ -620,12 +593,10 @@ final class FlowLoweringPass: LoweringPass, ParallelLoweringPass {
                        flowExprIDs.contains(receiver.rawValue)
                     {
                         loweredBody.append(.call(
-                            symbol: nil,
                             callee: kkFlowSingleName,
                             arguments: [receiver, appendIntConstant(0)],
                             result: result,
-                            canThrow: true,
-                            thrownResult: nil
+                            canThrow: true
                         ))
                         continue
                     }

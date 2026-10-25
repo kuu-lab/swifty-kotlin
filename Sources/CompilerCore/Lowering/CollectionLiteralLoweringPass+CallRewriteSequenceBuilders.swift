@@ -86,12 +86,10 @@ extension CollectionLiteralConstructionLoweringPass {
                 storedValue = valueArg
             }
             loweredBody.append(.call(
-                symbol: nil,
                 callee: lookup.kkSequenceBuilderYieldName,
                 arguments: [builderArg, storedValue],
                 result: result,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
             return true
         }
@@ -102,7 +100,6 @@ extension CollectionLiteralConstructionLoweringPass {
            isSequenceScopeBuilderMethod(symbol, named: lookup.yieldAllName, ctx: ctx)
         {
             loweredBody.append(.call(
-                symbol: nil,
                 callee: lookup.kkSequenceBuilderYieldAllName,
                 arguments: arguments,
                 result: result,

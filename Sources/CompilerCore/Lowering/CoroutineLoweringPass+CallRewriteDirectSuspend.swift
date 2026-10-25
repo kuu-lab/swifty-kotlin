@@ -32,9 +32,9 @@ extension CoroutineLoweringPass {
             .constValue(result: entry, value: .symbolRef(entryPointSymbol)),
             .constValue(result: arityExpr, value: .intLiteral(Int64(arity))),
             .call(
-                symbol: nil, callee: rewrite.ctx.interner.intern("kk_suspend_function_create"),
+                callee: rewrite.ctx.interner.intern("kk_suspend_function_create"),
                 arguments: call.arguments + [arityExpr, entry], result: call.result,
-                canThrow: false, thrownResult: nil
+                canThrow: false
             ),
         ]
     }
@@ -71,12 +71,10 @@ extension CoroutineLoweringPass {
                     value: .intLiteral(Int64(loweredTarget.symbol.rawValue))
                 ),
                 .call(
-                    symbol: nil,
                     callee: rewrite.continuationFactory,
                     arguments: [continuationFunctionID],
                     result: continuationTemp,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ),
             ]
             let entryPointSymbol: SymbolID
@@ -98,12 +96,10 @@ extension CoroutineLoweringPass {
                     )
                     instructions.append(
                         .call(
-                            symbol: nil,
                             callee: rewrite.launcherArgSetCallee,
                             arguments: [continuationTemp, slotExpr, argumentExpr],
                             result: nil,
-                            canThrow: false,
-                            thrownResult: nil
+                            canThrow: false
                         )
                     )
                 }
@@ -114,7 +110,6 @@ extension CoroutineLoweringPass {
             )
             instructions.append(
                 .call(
-                    symbol: nil,
                     callee: rewrite.ctx.interner.intern("kk_coroutine_call_suspend_wrapper"),
                     arguments: [entryPointExpr, continuationTemp],
                     result: call.result,
@@ -138,12 +133,10 @@ extension CoroutineLoweringPass {
                 value: .intLiteral(Int64(loweredTarget.symbol.rawValue))
             ),
             .call(
-                symbol: nil,
                 callee: rewrite.continuationFactory,
                 arguments: [continuationFunctionID],
                 result: childContinuationTemp,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ),
         ]
 
@@ -170,12 +163,10 @@ extension CoroutineLoweringPass {
                 )
                 instructions.append(
                     .call(
-                        symbol: nil,
                         callee: rewrite.launcherArgSetCallee,
                         arguments: [childContinuationTemp, slotExpr, argumentExpr],
                         result: nil,
-                        canThrow: false,
-                        thrownResult: nil
+                        canThrow: false
                     )
                 )
             }
@@ -191,7 +182,6 @@ extension CoroutineLoweringPass {
         )
         instructions.append(
             .call(
-                symbol: nil,
                 callee: rewrite.directSuspendCallCallee,
                 arguments: [entryPointExpr, childContinuationTemp, callerContinuationExpr],
                 result: call.result,

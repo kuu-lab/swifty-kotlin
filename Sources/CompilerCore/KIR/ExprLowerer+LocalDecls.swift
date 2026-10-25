@@ -73,6 +73,8 @@ extension ExprLowerer {
             case .unit:
                 break
             }
+            // Default expressions are evaluated in the lifted function's lexical scope too.
+            captureBodyExprIDs.append(contentsOf: localFunValueParams.compactMap(\.defaultValue))
 
             var referencedSymbols: [SymbolID] = []
             var seenSymbols: Set<SymbolID> = []
@@ -93,10 +95,16 @@ extension ExprLowerer {
                 if localFunParamSymbols.contains(sym) { return false }
                 if sym == symbol { return false }
                 if driver.ctx.localDelegateStorage(for: sym) != nil { return true }
-                if driver.ctx.localValue(for: sym) != nil { return true }
                 if sym == driver.ctx.activeImplicitReceiverSymbol(),
                    driver.ctx.activeImplicitReceiverExprID() != nil { return true }
-                return false
+                guard let referencedSymbol = sema.symbols.symbol(sym),
+                      referencedSymbol.kind == .local
+                        || referencedSymbol.kind == .valueParameter
+                        || referencedSymbol.flags.contains(.localFunction)
+                else {
+                    return false
+                }
+                return driver.ctx.localValue(for: sym) != nil
             }
 
             // Explicit this/super and implicit member accesses do not

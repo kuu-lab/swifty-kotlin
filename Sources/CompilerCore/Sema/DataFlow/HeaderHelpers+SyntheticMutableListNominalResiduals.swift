@@ -16,7 +16,9 @@ extension DataFlowSemaPhase {
         let listTypeParamName = interner.intern("E")
         let mutableListName = interner.intern("MutableList")
         let mutableListFQName = kotlinCollectionsPkg + [mutableListName]
-        let mutableListInterfaceSymbol: SymbolID = if let existing = symbols.lookup(fqName: mutableListFQName) {
+        // lookupNominal: `kotlin.collections.MutableList` also names the
+        // bundled `MutableList(size, init)` factory (KUU-3246).
+        let mutableListInterfaceSymbol: SymbolID = if let existing = symbols.lookupNominal(fqName: mutableListFQName) {
             existing
         } else {
             symbols.define(
@@ -40,22 +42,28 @@ extension DataFlowSemaPhase {
         let mlTypeParamType = types.make(.typeParam(TypeParamType(
             symbol: mlTypeParamSymbol, nullability: .nonNull
         )))
-        types.setNominalTypeParameterSymbols([mlTypeParamSymbol], for: mutableListInterfaceSymbol)
-        types.setNominalTypeParameterVariances([.invariant], for: mutableListInterfaceSymbol)
-        symbols.setDirectSupertypes(
-            [listInterfaceSymbol, mutableCollectionInterfaceSymbol, mutableIterableInterfaceSymbol],
-            for: mutableListInterfaceSymbol
-        )
-        types.setNominalDirectSupertypes(
-            [listInterfaceSymbol, mutableCollectionInterfaceSymbol, mutableIterableInterfaceSymbol],
-            for: mutableListInterfaceSymbol
-        )
-        symbols.setSupertypeTypeArgs([.out(mlTypeParamType)], for: mutableListInterfaceSymbol, supertype: listInterfaceSymbol)
-        types.setNominalSupertypeTypeArgs([.out(mlTypeParamType)], for: mutableListInterfaceSymbol, supertype: listInterfaceSymbol)
-        symbols.setSupertypeTypeArgs([.invariant(mlTypeParamType)], for: mutableListInterfaceSymbol, supertype: mutableCollectionInterfaceSymbol)
-        types.setNominalSupertypeTypeArgs([.invariant(mlTypeParamType)], for: mutableListInterfaceSymbol, supertype: mutableCollectionInterfaceSymbol)
-        symbols.setSupertypeTypeArgs([.invariant(mlTypeParamType)], for: mutableListInterfaceSymbol, supertype: mutableIterableInterfaceSymbol)
-        types.setNominalSupertypeTypeArgs([.invariant(mlTypeParamType)], for: mutableListInterfaceSymbol, supertype: mutableIterableInterfaceSymbol)
+        // Source-declared or imported MutableList keeps its real type
+        // parameter and supertype edges; only the synthetic fallback shell
+        // is decorated here (patchSourceBackedMutableListSupertypes applies
+        // the residual MutableIterable edge for the imported case).
+        if !symbols.isSourceBackedSymbol(mutableListInterfaceSymbol) {
+            types.setNominalTypeParameterSymbols([mlTypeParamSymbol], for: mutableListInterfaceSymbol)
+            types.setNominalTypeParameterVariances([.invariant], for: mutableListInterfaceSymbol)
+            symbols.setDirectSupertypes(
+                [listInterfaceSymbol, mutableCollectionInterfaceSymbol, mutableIterableInterfaceSymbol],
+                for: mutableListInterfaceSymbol
+            )
+            types.setNominalDirectSupertypes(
+                [listInterfaceSymbol, mutableCollectionInterfaceSymbol, mutableIterableInterfaceSymbol],
+                for: mutableListInterfaceSymbol
+            )
+            symbols.setSupertypeTypeArgs([.out(mlTypeParamType)], for: mutableListInterfaceSymbol, supertype: listInterfaceSymbol)
+            types.setNominalSupertypeTypeArgs([.out(mlTypeParamType)], for: mutableListInterfaceSymbol, supertype: listInterfaceSymbol)
+            symbols.setSupertypeTypeArgs([.invariant(mlTypeParamType)], for: mutableListInterfaceSymbol, supertype: mutableCollectionInterfaceSymbol)
+            types.setNominalSupertypeTypeArgs([.invariant(mlTypeParamType)], for: mutableListInterfaceSymbol, supertype: mutableCollectionInterfaceSymbol)
+            symbols.setSupertypeTypeArgs([.invariant(mlTypeParamType)], for: mutableListInterfaceSymbol, supertype: mutableIterableInterfaceSymbol)
+            types.setNominalSupertypeTypeArgs([.invariant(mlTypeParamType)], for: mutableListInterfaceSymbol, supertype: mutableIterableInterfaceSymbol)
+        }
 
         _ = registerSyntheticAbstractMutableListStub(
             symbols: symbols,
@@ -82,7 +90,7 @@ extension DataFlowSemaPhase {
         guard let mutableListSymbol = symbols.lookupNominal(fqName: collectionsPackage + [mutableListName]),
               let mutableListInfo = symbols.symbol(mutableListSymbol),
               !mutableListInfo.flags.contains(.synthetic),
-              let mutableIterableSymbol = symbols.lookup(fqName: collectionsPackage + [mutableIterableName])
+              let mutableIterableSymbol = symbols.lookupNominal(fqName: collectionsPackage + [mutableIterableName])
         else {
             return
         }

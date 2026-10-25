@@ -187,6 +187,18 @@ extension KotlinParser {
                 range.append(childRange(last))
             }
         }
+        if kind != .classDecl, case .symbol(.lParen) = stream.peek().kind {
+            diagnostics.error(
+                "KSWIFTK-PARSE-0006",
+                "Object and interface declarations cannot have primary constructor parameters.",
+                range: stream.peek().range
+            )
+            let parameters = parseBalancedGroup(
+                opening: .lParen, closing: .rParen, allowsValueParameters: true
+            )
+            children.append(.node(parameters))
+            range.append(childRange(.node(parameters)))
+        }
         // A primary-constructor annotation may start on the next line. Prove
         // that the prefix ends in `constructor (` before consuming it, so a
         // following annotated declaration remains outside this class.

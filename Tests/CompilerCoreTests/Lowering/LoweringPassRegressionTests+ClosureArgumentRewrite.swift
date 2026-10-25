@@ -32,12 +32,10 @@ extension LoweringPassRegressionTests {
             returnType: TypeSystem().unitType,
             body: [
                 .call(
-                    symbol: nil,
                     callee: interner.intern(RuntimeCall.bufferedReaderUseLines.name),
                     arguments: [readerExpr, lambdaExpr],
                     result: resultExpr,
-                    canThrow: true,
-                    thrownResult: nil
+                    canThrow: true
                 ),
                 .returnUnit,
             ],
@@ -86,12 +84,10 @@ extension LoweringPassRegressionTests {
             returnType: TypeSystem().unitType,
             body: [
                 .call(
-                    symbol: nil,
                     callee: interner.intern(RuntimeCall.bufferedReaderForEachLine.name),
                     arguments: [readerExpr, actionExpr],
                     result: resultExpr,
-                    canThrow: true,
-                    thrownResult: nil
+                    canThrow: true
                 ),
                 .returnUnit,
             ],

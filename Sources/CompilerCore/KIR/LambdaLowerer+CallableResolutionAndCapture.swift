@@ -12,12 +12,10 @@ extension LambdaLowerer {
         }
         let receiver = arena.appendTemporary(type: receiverType)
         instructions.append(.call(
-            symbol: nil,
             callee: interner.intern("kk_coroutine_current_scope"),
             arguments: [],
             result: receiver,
-            canThrow: false,
-            thrownResult: nil
+            canThrow: false
         ))
         let symbol = SyntheticSymbolScheme.lambdaReceiverSymbol(for: exprID)
         driver.ctx.setImplicitReceiver(symbol: symbol, exprID: receiver)
@@ -779,9 +777,9 @@ extension LambdaLowerer {
                let componentValue = driver.ctx.localValue(for: componentSymbol) {
                 let pair = arena.appendTemporary(type: sema.types.anyType)
                 instructions.append(.call(
-                    symbol: nil, callee: interner.intern("__kk_pair_new"),
+                    callee: interner.intern("__kk_pair_new"),
                     arguments: [tokenValue, componentValue], result: pair,
-                    canThrow: false, thrownResult: nil
+                    canThrow: false
                 ))
                 return pair
             }
@@ -862,12 +860,10 @@ extension LambdaLowerer {
             instructions.append(.constValue(result: offsetExpr, value: .intLiteral(Int64(fieldOffset))))
             let valueExpr = arena.appendTemporary(type: symbolType)
             instructions.append(.call(
-                symbol: nil,
                 callee: interner.intern("kk_array_get_inbounds"),
                 arguments: [fieldReceiverExprID, offsetExpr],
                 result: valueExpr,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
             return valueExpr
         }

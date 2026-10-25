@@ -42,12 +42,10 @@ extension CollectionVirtualCallRewriteLoweringPass {
         if callee == lookup.requireNoNullsName, arguments.isEmpty,
            let kkName = lookup.collectionHOFRuntimeName(ownerKind: .sequence, callee: callee, arity: 0) {
             loweredBody.append(.call(
-                symbol: nil,
                 callee: kkName,
                 arguments: [receiver],
                 result: result,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
             state.tagResult(.sequence, result)
             return true
@@ -60,12 +58,10 @@ extension CollectionVirtualCallRewriteLoweringPass {
            state.contains(.list, receiver)
         {
             loweredBody.append(.call(
-                symbol: nil,
                 callee: lookup.kkListAsSequenceName,
                 arguments: [receiver],
                 result: result,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
             state.tagResult(.sequence, result)
             return true
@@ -76,12 +72,10 @@ extension CollectionVirtualCallRewriteLoweringPass {
                 let kkName = callee == lookup.mapName
                     ? lookup.kkSequenceMapName : lookup.kkSequenceFilterName
                 loweredBody.append(.call(
-                    symbol: nil,
                     callee: kkName,
                     arguments: [receiver] + arguments,
                     result: result,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ))
                 state.tagResult(.sequence, result)
                 return true
@@ -93,12 +87,10 @@ extension CollectionVirtualCallRewriteLoweringPass {
                 let kkName = callee == lookup.flatMapName
                     ? lookup.kkSequenceFlatMapName : lookup.kkSequenceFlatMapIndexedName
                 loweredBody.append(.call(
-                    symbol: nil,
                     callee: kkName,
                     arguments: [receiver] + arguments,
                     result: result,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ))
                 state.tagResult(.sequence, result)
                 return true
@@ -110,12 +102,10 @@ extension CollectionVirtualCallRewriteLoweringPass {
             let transformResult = module.arena.appendTemporary(type: nil
             )
             loweredBody.append(.call(
-                symbol: nil,
                 callee: lookup.kkListChunkedBridgeName,
                 arguments: [receiver] + arguments,
                 result: transformResult,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
             if let result {
                 state.tagListResult(result, temporary: transformResult)
@@ -130,7 +120,6 @@ extension CollectionVirtualCallRewriteLoweringPass {
             )
             let thrownExpr = origThrownResult ?? module.arena.appendTemporary(type: nil)
             loweredBody.append(.call(
-                symbol: nil,
                 callee: lookup.kkListChunkedTransformBridgeName,
                 arguments: [receiver] + arguments,
                 result: transformResult,
@@ -152,12 +141,10 @@ extension CollectionVirtualCallRewriteLoweringPass {
             let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
             loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
             loweredBody.append(.call(
-                symbol: nil,
                 callee: lookup.kkListWindowedBridgeName,
                 arguments: [receiver, arguments[0], oneExpr, zeroExpr],
                 result: transformResult,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
             if let result {
                 state.tagListResult(result, temporary: transformResult)
@@ -172,12 +159,10 @@ extension CollectionVirtualCallRewriteLoweringPass {
             let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
             loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
             loweredBody.append(.call(
-                symbol: nil,
                 callee: lookup.kkListWindowedBridgeName,
                 arguments: [receiver, arguments[0], arguments[1], zeroExpr],
                 result: transformResult,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
             if let result {
                 state.tagListResult(result, temporary: transformResult)
@@ -193,12 +178,10 @@ extension CollectionVirtualCallRewriteLoweringPass {
                 let transformResult = module.arena.appendTemporary(type: nil
                 )
                 loweredBody.append(.call(
-                    symbol: nil,
                     callee: lookup.kkListWindowedBridgeName,
                     arguments: [receiver] + arguments,
                     result: transformResult,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ))
                 if let result {
                     state.tagListResult(result, temporary: transformResult)
@@ -228,7 +211,6 @@ extension CollectionVirtualCallRewriteLoweringPass {
             )
             let thrownExpr = origThrownResult ?? module.arena.appendTemporary(type: nil)
             loweredBody.append(.call(
-                symbol: nil,
                 callee: lookup.kkListWindowedTransformBridgeName,
                 arguments: bridgeArguments,
                 result: transformResult,
@@ -250,12 +232,10 @@ extension CollectionVirtualCallRewriteLoweringPass {
                 ? lookup.kkSequenceShuffledName
                 : lookup.kkSequenceShuffledRandomName
             loweredBody.append(.call(
-                symbol: nil,
                 callee: kkName,
                 arguments: [receiver] + arguments,
                 result: result,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
             state.tagResult(.sequence, result)
             return true
@@ -267,23 +247,19 @@ extension CollectionVirtualCallRewriteLoweringPass {
                     let toListResult = module.arena.appendTemporary(type: nil
                     )
                     loweredBody.append(.call(
-                        symbol: nil,
                         callee: lookup.kkSequenceToListName,
                         arguments: [receiver],
                         result: toListResult,
-                        canThrow: true,
-                        thrownResult: nil
+                        canThrow: true
                     ))
                     state.tagListResult(result, temporary: toListResult)
                     loweredBody.append(.copy(from: toListResult, to: result))
                 } else {
                     loweredBody.append(.call(
-                        symbol: nil,
                         callee: lookup.kkSequenceToListName,
                         arguments: [receiver],
                         result: nil,
-                        canThrow: true,
-                        thrownResult: nil
+                        canThrow: true
                     ))
                 }
                 return true
@@ -292,12 +268,10 @@ extension CollectionVirtualCallRewriteLoweringPass {
 
         if callee == lookup.constrainOnceName, arguments.isEmpty, state.contains(.sequence, receiver) {
             loweredBody.append(.call(
-                symbol: nil,
                 callee: lookup.kkSequenceConstrainOnceName,
                 arguments: [receiver],
                 result: result,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
             state.tagResult(.sequence, result)
             return true
@@ -307,12 +281,10 @@ extension CollectionVirtualCallRewriteLoweringPass {
             let toSetResult = module.arena.appendTemporary(type: nil
             )
             loweredBody.append(.call(
-                symbol: nil,
                 callee: lookup.kkSequenceToSetName,
                 arguments: [receiver],
                 result: toSetResult,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
             if let result {
                 state.tagResult(.set, result, temporary: toSetResult)
@@ -326,7 +298,6 @@ extension CollectionVirtualCallRewriteLoweringPass {
             )
             let thrownExpr = origThrownResult ?? module.arena.appendTemporary(type: nil)
             loweredBody.append(.call(
-                symbol: nil,
                 callee: lookup.kkSequenceToMapName,
                 arguments: [receiver],
                 result: toMapResult,
@@ -353,7 +324,6 @@ extension CollectionVirtualCallRewriteLoweringPass {
             let hofResult = module.arena.appendTemporary(type: nil
             )
             loweredBody.append(.call(
-                symbol: nil,
                 callee: kkName,
                 arguments: [receiver],
                 result: hofResult,
@@ -368,12 +338,10 @@ extension CollectionVirtualCallRewriteLoweringPass {
 
         if callee == lookup.flattenName, arguments.isEmpty, state.contains(.sequence, receiver) {
             loweredBody.append(.call(
-                symbol: nil,
                 callee: lookup.kkSequenceFlattenName,
                 arguments: [receiver],
                 result: result,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
             state.tagResult(.sequence, result)
             return true
@@ -448,12 +416,10 @@ extension CollectionVirtualCallRewriteLoweringPass {
 
         if callee == lookup.plusElementName, arguments.count == 1, state.contains(.sequence, receiver) {
             loweredBody.append(.call(
-                symbol: nil,
                 callee: lookup.kkSequencePlusElementName,
                 arguments: [receiver, arguments[0]],
                 result: result,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
             state.tagResult(.sequence, result)
             return true

@@ -18,12 +18,10 @@ extension LambdaLowerer {
         let nameExpr = arena.appendExpr(.stringLiteral(name), type: sema.types.stringType)
         instructions.append(.constValue(result: nameExpr, value: .stringLiteral(name)))
         instructions.append(.call(
-            symbol: nil,
             callee: interner.intern("__kk_function_set_enclosing_class"),
             arguments: [value, nameExpr],
             result: nil,
-            canThrow: false,
-            thrownResult: nil
+            canThrow: false
         ))
     }
 
@@ -43,12 +41,10 @@ extension LambdaLowerer {
         let flagExpr = arena.appendExpr(.intLiteral(flag), type: sema.types.intType)
         instructions.append(.constValue(result: flagExpr, value: .intLiteral(flag)))
         instructions.append(.call(
-            symbol: nil,
             callee: interner.intern("__kk_function_set_description"),
             arguments: [value, textExpr, flagExpr],
             result: nil,
-            canThrow: false,
-            thrownResult: nil
+            canThrow: false
         ))
     }
 

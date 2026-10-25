@@ -70,7 +70,7 @@ struct LoweringFeatureRescanTests {
             var updated = fn
             updated.replaceBody(
                 [
-                    .call(symbol: nil, callee: callee, arguments: [], result: result, canThrow: false, thrownResult: nil),
+                    .call(callee: callee, arguments: [], result: result, canThrow: false),
                     .returnUnit,
                 ],
                 locations: [nil, nil]
