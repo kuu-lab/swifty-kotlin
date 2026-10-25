@@ -35,6 +35,43 @@ struct RuntimeJvmClassMappingTests {
         #expect(__kk_class_kotlin(__kk_any_javaClass(kk_box_int(42))) == __kk_kclass_create(3, 0))
     }
 
+    @Test func javaClassHandlesShareConcreteCollectionAndArrayTypes() {
+        let twoElementListA = registerRuntimeObject(
+            RuntimeListBox(elements: [kk_box_int(1), kk_box_int(2)]),
+            typeID: listRuntimeTypeID
+        )
+        let twoElementListB = registerRuntimeObject(
+            RuntimeListBox(elements: [kk_box_int(3), kk_box_int(4)]),
+            typeID: listRuntimeTypeID
+        )
+        let oneElementList = registerRuntimeObject(
+            RuntimeListBox(elements: [kk_box_int(5)]),
+            typeID: listRuntimeTypeID
+        )
+        let twoElementListClassA = __kk_any_javaClass(twoElementListA)
+        let twoElementListClassB = __kk_any_javaClass(twoElementListB)
+        let oneElementListClass = __kk_any_javaClass(oneElementList)
+        #expect(twoElementListClassA == twoElementListClassB)
+        #expect(twoElementListClassA != oneElementListClass)
+
+        let arrayTypeID = runtimeStableNominalTypeID(fqName: "kotlin.Array")
+        func genericArray(componentToken: Int) -> Int {
+            let array = kk_array_new(1)
+            _ = kk_array_tag_type(array, Int(truncatingIfNeeded: arrayTypeID))
+            let component = __kk_array_component_type(componentToken, 0)
+            _ = __kk_array_tag_component(array, component)
+            return array
+        }
+        let stringArrayA = genericArray(componentToken: Int(RuntimeTypeTokenEncoding.stringBase))
+        let stringArrayB = genericArray(componentToken: Int(RuntimeTypeTokenEncoding.stringBase))
+        let intArray = genericArray(componentToken: Int(RuntimeTypeTokenEncoding.intBase))
+        let stringArrayClassA = __kk_any_javaClass(stringArrayA)
+        let stringArrayClassB = __kk_any_javaClass(stringArrayB)
+        let intArrayClass = __kk_any_javaClass(intArray)
+        #expect(stringArrayClassA == stringArrayClassB)
+        #expect(stringArrayClassA != intArrayClass)
+    }
+
     @Test func kClassJavaMappingPreservesRepresentedClassifier() {
         let kclass = __kk_kclass_create(0x123406, runtimeMakeStringRaw("test.Sample"))
         let javaClass = __kk_any_javaClass(kclass)

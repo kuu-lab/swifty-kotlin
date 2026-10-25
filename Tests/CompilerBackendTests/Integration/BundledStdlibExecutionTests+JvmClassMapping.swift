@@ -38,6 +38,17 @@ extension BundledStdlibExecutionTests {
         )
     }
 
+    @Test
+    func javaClassHandlesAreInternedForSameRuntimeType() throws {
+        try compileAndRunKotlin(
+            try diffCaseSource("kuu_3274_java_class_identity.kt", file: #filePath),
+            expectedOutput: String(repeating: "true\n", count: 6),
+            moduleName: "KUU3274JavaClassIdentity",
+            allowDefaultStdlibLibrary: true,
+            optLevel: .O0
+        )
+    }
+
     @Test(arguments: [false, true], [0, 2])
     func jvmClassForNameIssue2379(fromArtifact: Bool, optimization: Int) throws {
         let optLevel = try #require(OptimizationLevel(rawValue: optimization))

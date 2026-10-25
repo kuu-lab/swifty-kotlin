@@ -125,16 +125,35 @@ final class RuntimeJavaClassBox: @unchecked Sendable {
 }
 
 func runtimeJavaClassHandle(typeToken: Int, nameHint: @autoclosure () -> Int) -> Int {
-    if let cached = runtimeStorage.withMetadataLock({ $0.javaClassCache[typeToken] }) {
+    runtimeJavaClassHandle(
+        cacheKey: JavaClassCacheKey(typeToken: typeToken),
+        typeToken: typeToken,
+        nameHint: nameHint
+    )
+}
+
+private func runtimeJavaClassHandle(
+    cacheKey: JavaClassCacheKey,
+    typeToken: Int,
+    nameHint: () -> Int,
+    enclosingClassName: String? = nil,
+    displayText: (() -> String)? = nil
+) -> Int {
+    if let cached = runtimeStorage.withMetadataLock({ $0.javaClassCache[cacheKey] }) {
         return cached
     }
     let raw = registerRuntimeObject(
-        RuntimeJavaClassBox(typeToken: typeToken, nameHint: nameHint()),
+        RuntimeJavaClassBox(
+            typeToken: typeToken,
+            nameHint: nameHint(),
+            enclosingClassName: enclosingClassName,
+            displayText: displayText?()
+        ),
         typeID: runtimeStableNominalTypeID(fqName: "java.lang.Class")
     )
     let winner = runtimeStorage.withMetadataLock { state -> Int in
-        if let cached = state.javaClassCache[typeToken] { return cached }
-        state.javaClassCache[typeToken] = raw
+        if let cached = state.javaClassCache[cacheKey] { return cached }
+        state.javaClassCache[cacheKey] = raw
         return raw
     }
     if winner != raw { _ = runtimeReleaseObject(raw) }
@@ -151,24 +170,29 @@ public func __kk_any_javaClass(_ receiverRaw: Int) -> Int {
     }
     // KClass-sourced lookups canonicalize through javaClassCache so
     // Class.forName and KClass.java agree on identity, matching JVM Class
-    // interning. Object receivers keep per-receiver boxes: array and
-    // collection runtimes report JVM implementation names derived from the
-    // receiver, and functions carry a receiver-specific enclosing class.
+    // interning. Object receivers use the same classifier cache, with a
+    // runtime-class discriminator for arrays, collection implementations,
+    // and generated functions.
     if runtimeKClassBox(from: receiverRaw) != nil {
         return runtimeJavaClassHandle(typeToken: classifier.typeToken, nameHint: classifier.nameHint)
     }
-    return registerRuntimeObject(
-        RuntimeJavaClassBox(
-            typeToken: classifier.typeToken,
-            nameHint: classifier.nameHint,
-            enclosingClassName: runtimeFunctionEnclosingClassName(for: receiverRaw),
-            displayText: runtimeJavaClassDisplayText(
+    let cacheKey = runtimeJavaClassCacheKey(
+        receiverRaw: receiverRaw,
+        typeToken: classifier.typeToken,
+        nameHint: classifier.nameHint
+    )
+    return runtimeJavaClassHandle(
+        cacheKey: cacheKey,
+        typeToken: classifier.typeToken,
+        nameHint: { classifier.nameHint },
+        enclosingClassName: runtimeFunctionEnclosingClassName(for: receiverRaw),
+        displayText: {
+            runtimeJavaClassDisplayText(
                 receiverRaw: receiverRaw,
                 typeToken: classifier.typeToken,
                 nameHint: classifier.nameHint
             )
-        ),
-        typeID: runtimeStableNominalTypeID(fqName: "java.lang.Class")
+        }
     )
 }
 

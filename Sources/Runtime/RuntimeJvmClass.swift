@@ -57,6 +57,40 @@ func runtimeJavaClassDisplayText(receiverRaw: Int, typeToken: Int, nameHint: Int
     return "\(kind) \(binaryName)"
 }
 
+func runtimeJavaClassCacheKey(receiverRaw: Int, typeToken: Int, nameHint: Int) -> JavaClassCacheKey {
+    if let arrayName = runtimeJavaArrayClassName(rawValue: receiverRaw) {
+        let genericArrayToken = runtimeNominalTypeToken(
+            runtimeStableNominalTypeID(fqName: "kotlin.Array")
+        )
+        if typeToken == genericArrayToken {
+            return JavaClassCacheKey(typeToken: typeToken, runtimeClassName: arrayName)
+        }
+    }
+
+    if runtimeListBox(from: receiverRaw) != nil
+        || runtimeSetBox(from: receiverRaw) != nil
+        || runtimeMapBox(from: receiverRaw) != nil
+    {
+        let qualifiedName = runtimeJavaQualifiedName(typeToken: typeToken, nameHint: nameHint)
+        if let implementationName = runtimeJavaCollectionImplementationName(
+            receiverRaw: receiverRaw,
+            qualifiedName: qualifiedName
+        ) {
+            return JavaClassCacheKey(typeToken: typeToken, runtimeClassName: implementationName)
+        }
+    }
+
+    if let function = runtimeFunctionValueBox(from: receiverRaw) {
+        return JavaClassCacheKey(
+            typeToken: typeToken,
+            functionIdentity: function.fnPtr,
+            enclosingClassName: runtimeFunctionEnclosingClassName(for: receiverRaw)
+        )
+    }
+
+    return JavaClassCacheKey(typeToken: typeToken)
+}
+
 func runtimeJavaPrimitiveClassDisplayText(typeToken: Int) -> String {
     return switch Int64(truncatingIfNeeded: typeToken) & RuntimeTypeTokenEncoding.baseMask {
     case RuntimeTypeTokenEncoding.booleanBase: "boolean"
