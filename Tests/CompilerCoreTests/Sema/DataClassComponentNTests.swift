@@ -211,7 +211,7 @@ struct DataClassComponentNTests {
     // KUU-3254: a generated componentN() must be able to override the
     // closest superclass member with the same name and arity. A member that
     // is effectively final, or whose return type is incompatible with the
-    // generated one, reports KSWIFTK-SEMA-0436 at the data class. Interface,
+    // generated one, reports KSWIFTK-SEMA-0442 at the data class. Interface,
     // abstract and private members never conflict.
     @Test
     func testComponentNSupertypeConflictDiagnostics() throws {
@@ -362,12 +362,12 @@ struct DataClassComponentNTests {
 
             func componentConflicts(_ path: String) -> [CompilerCore.Diagnostic] {
                 diagnosticsForPath(path, in: ctx).filter {
-                    $0.severity == .error && $0.code == "KSWIFTK-SEMA-0436"
+                    $0.severity == .error && $0.code == "KSWIFTK-SEMA-0442"
                 }
             }
             func otherErrors(_ path: String) -> [CompilerCore.Diagnostic] {
                 diagnosticsForPath(path, in: ctx).filter {
-                    $0.severity == .error && $0.code != "KSWIFTK-SEMA-0436"
+                    $0.severity == .error && $0.code != "KSWIFTK-SEMA-0442"
                 }
             }
 
@@ -378,14 +378,14 @@ struct DataClassComponentNTests {
                 let errors = componentConflicts(paths[index])
                 #expect(
                     errors.count == 1,
-                    "Source \(index) should report exactly one KSWIFTK-SEMA-0436, got: \(diagnosticsForPath(paths[index], in: ctx).map { "\($0.code): \($0.message)" })"
+                    "Source \(index) should report exactly one KSWIFTK-SEMA-0442, got: \(diagnosticsForPath(paths[index], in: ctx).map { "\($0.code): \($0.message)" })"
                 )
             }
             for index in clean {
                 let errors = componentConflicts(paths[index])
                 #expect(
                     errors.isEmpty,
-                    "Source \(index) should not report KSWIFTK-SEMA-0436, got: \(diagnosticsForPath(paths[index], in: ctx).map { "\($0.code): \($0.message)" })"
+                    "Source \(index) should not report KSWIFTK-SEMA-0442, got: \(diagnosticsForPath(paths[index], in: ctx).map { "\($0.code): \($0.message)" })"
                 )
             }
 

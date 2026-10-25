@@ -860,6 +860,12 @@ enum DiagnosticRegistry {
             summary: "Returns are not allowed for functions with expression body."
         ),
         DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0312",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "Returns are not allowed in initializer blocks."
+        ),
+        DiagnosticDescriptor(
             code: "KSWIFTK-SEMA-PLATFORM",
             pass: "SEMA",
             defaultSeverity: .warning,
@@ -1080,7 +1086,7 @@ enum DiagnosticRegistry {
             code: "KSWIFTK-SEMA-0436",
             pass: "SEMA",
             defaultSeverity: .error,
-            summary: "Generated data class componentN() conflicts with a supertype member."
+            summary: "Conflicting type parameter declarations."
         ),
         DiagnosticDescriptor(
             code: "KSWIFTK-SEMA-0438",
@@ -1093,6 +1099,12 @@ enum DiagnosticRegistry {
             pass: "SEMA",
             defaultSeverity: .error,
             summary: "Multiple vararg parameters are prohibited."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0442",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "Generated data class componentN() conflicts with a supertype member."
         ),
     ]
 

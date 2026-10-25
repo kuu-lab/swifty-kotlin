@@ -971,7 +971,7 @@ extension DataFlowSemaPhase {
                 let supertypeName = member.fqName.dropLast()
                     .map { interner.resolve($0) }.joined(separator: ".")
                 diagnostics.error(
-                    "KSWIFTK-SEMA-0436",
+                    "KSWIFTK-SEMA-0442",
                     "Function 'fun \(interner.resolve(componentName))(): \(generatedReturnName)' generated for the data class conflicts with the supertype member 'fun \(interner.resolve(componentName))(): \(types.renderType(memberSignature.returnType))' defined in '\(supertypeName)'.",
                     range: classDecl.range
                 )

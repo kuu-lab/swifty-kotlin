@@ -80,6 +80,32 @@ struct DeclarationPositionValidationTests {
     }
 
     @Test(arguments: [
+        "class C<T, T> { }",
+        "class C<T, T, T> { }",
+        "fun <T, T> f() = 1",
+        "interface I<K, K> {}",
+        "typealias M<T, T> = T",
+        "enum class E<T, T> { A }",
+    ])
+    func duplicateTypeParameterNamesAreRejected(_ source: String) throws {
+        let ctx = try semaContextWithoutStdlib(for: source)
+        assertHasDiagnostic("KSWIFTK-SEMA-0436", in: ctx)
+    }
+
+    @Test(arguments: [
+        "class C<T> { }",
+        "class C<T, U> { }",
+        "fun <T, U> f() = 1",
+        "interface I<K, V> {}",
+        "typealias M<T, U> = T",
+        "class Outer<T> { class Inner<T> { } }",
+    ])
+    func distinctTypeParameterNamesAreAccepted(_ source: String) throws {
+        let ctx = try semaContextWithoutStdlib(for: source)
+        assertNoDiagnostic("KSWIFTK-SEMA-0436", in: ctx)
+    }
+
+    @Test(arguments: [
         "companion fun f() = 1",
         "private companion fun f() = 1",
         "companion val x = 1",
