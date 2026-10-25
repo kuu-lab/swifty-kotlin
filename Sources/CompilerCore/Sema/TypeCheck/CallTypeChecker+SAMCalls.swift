@@ -29,6 +29,19 @@ extension CallTypeChecker {
         return samConstructorTarget(named: calleeName, ctx: ctx)?.interfaceSymbol
     }
 
+    func samConstructorLambdaArgument(_ exprID: ExprID, ctx: TypeInferenceContext) -> ExprID? {
+        guard let expr = ctx.ast.arena.expr(exprID),
+              case let .call(_, typeArgs, args, _) = expr,
+              typeArgs.isEmpty,
+              args.count == 1,
+              isSamConvertibleArgument(args[0].expr, ast: ctx.ast),
+              inferableSamConstructorSymbol(exprID, ctx: ctx) != nil
+        else {
+            return nil
+        }
+        return args[0].expr
+    }
+
     func inferSamConvertedCallExpr(
         _ id: ExprID,
         calleeName: InternedString,
@@ -120,17 +133,33 @@ extension CallTypeChecker {
             }
             return driver.helpers.samFunctionType(for: signature.parameterTypes[samArgIndex], sema: ctx.sema) != nil
         }
+        var inferredNonSamArgTypes: [Int: TypeID] = [:]
         let narrowedSamCandidates = narrowSamCandidates(
             samCompatibleCandidates,
             args: args,
             samArgIndex: samArgIndex,
             ctx: ctx,
-            locals: &locals
+            locals: &locals,
+            inferredNonSamArgTypes: &inferredNonSamArgTypes
         )
 
         if narrowedSamCandidates.count == 1,
            let signature = ctx.sema.symbols.functionSignature(for: narrowedSamCandidates[0])
         {
+            let contextualSamExpectedType: TypeID? = {
+                guard case .lambdaLiteral = ctx.ast.arena.expr(samArgExpr) else { return nil }
+                return lambdaLiteralExpectedType(
+                    at: samArgIndex,
+                    args: args,
+                    callRange: range,
+                    candidates: narrowedSamCandidates,
+                    explicitTypeArgs: explicitTypeArgs,
+                    inferredNonLambdaArgTypes: inferredNonSamArgTypes,
+                    resolver: ctx.resolver,
+                    sema: ctx.sema,
+                    ctx: ctx
+                ).type
+            }()
             var argTypes: [CallArg] = []
             argTypes.reserveCapacity(args.count)
             for (index, argument) in args.enumerated() {
@@ -139,7 +168,9 @@ extension CallTypeChecker {
                     argument.expr,
                     ctx: ctx,
                     locals: &locals,
-                    expectedType: parameterExpectedType
+                    expectedType: index == samArgIndex
+                        ? contextualSamExpectedType ?? parameterExpectedType
+                        : parameterExpectedType
                 )
                 let resolutionType = ctx.sema.bindings.isSamConversion(argument.expr)
                     ? ctx.sema.bindings.samUnderlyingFunctionType(for: argument.expr) ?? inferredType
@@ -269,15 +300,19 @@ extension CallTypeChecker {
         args: [CallArgument],
         samArgIndex: Int,
         ctx: TypeInferenceContext,
-        locals: inout LocalBindings
+        locals: inout LocalBindings,
+        inferredNonSamArgTypes: inout [Int: TypeID]
     ) -> [SymbolID] {
-        guard candidates.count > 1 else {
+        guard !candidates.isEmpty else {
             return candidates
         }
-
-        var inferredNonSamArgTypes: [Int: TypeID] = [:]
         for (index, argument) in args.enumerated() where index != samArgIndex {
-            inferredNonSamArgTypes[index] = driver.inferExpr(argument.expr, ctx: ctx, locals: &locals)
+            if inferredNonSamArgTypes[index] == nil {
+                inferredNonSamArgTypes[index] = driver.inferExpr(argument.expr, ctx: ctx, locals: &locals)
+            }
+        }
+        guard candidates.count > 1 else {
+            return candidates
         }
 
         let narrowed = candidates.filter { candidate in
@@ -504,7 +539,10 @@ extension CallTypeChecker {
         )
 
         sema.bindings.markSamConversion(argExpr)
-        sema.bindings.bindSamUnderlyingFunctionType(argExpr, type: samFTTypeID)
+        sema.bindings.bindSamUnderlyingFunctionType(
+            argExpr,
+            type: sema.bindings.samUnderlyingFunctionType(for: argExpr) ?? samFTTypeID
+        )
         sema.bindings.bindSamInterfaceType(argExpr, type: interfaceType)
 
         sema.bindings.bindExprType(id, type: interfaceType)
