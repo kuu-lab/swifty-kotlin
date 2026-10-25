@@ -216,8 +216,20 @@ extension LambdaLowerer {
         let slotCount = Int64(max(2 + captureFieldSymbols.count, 1))
         let slotCountExpr = arena.appendExpr(.intLiteral(slotCount), type: sema.types.intType)
         instructions.append(.constValue(result: slotCountExpr, value: .intLiteral(slotCount)))
+        // KUU-3227: the runtime class tag comes from a shared per-interface
+        // identity, not the per-site `wrapperSymbol` (which still owns layout
+        // and vtable/itable dispatch). JVM emits exactly one SAM wrapper
+        // class per fun interface, so `(SAM { ... } as Any)::class` must agree
+        // across call sites; per-site class IDs interned distinct KClass
+        // boxes and broke equality.
+        let identitySymbol = samWrapperClassIdentitySymbol(
+            for: interfaceSymbol,
+            interfaceType: interfaceType,
+            sema: sema,
+            interner: interner
+        )
         let classIDValue = RuntimeTypeCheckToken.stableNominalTypeID(
-            symbol: wrapperSymbol,
+            symbol: identitySymbol,
             sema: sema,
             interner: interner
         )
@@ -266,6 +278,30 @@ extension LambdaLowerer {
             instructions: &instructions
         )
 
+        // Give the shared wrapper identity a stable KClass name so `::class`
+        // on a SAM instance resolves simpleName/qualifiedName/supertypes
+        // instead of reporting "Unknown". Registration is idempotent, so
+        // emitting it per construction site is safe.
+        let identityToken = RuntimeTypeCheckToken.encode(
+            base: RuntimeTypeCheckToken.nominalBase,
+            nullable: false,
+            payload: classIDValue
+        )
+        let identityTokenExpr = arena.appendExpr(.intLiteral(identityToken), type: sema.types.intType)
+        instructions.append(.constValue(result: identityTokenExpr, value: .intLiteral(identityToken)))
+        driver.callLowerer.emitClassLiteralMetadataRegistration(
+            classRefTargetType: sema.types.make(.classType(ClassType(
+                classSymbol: identitySymbol,
+                args: [],
+                nullability: .nonNull
+            ))),
+            typeTokenExpr: identityTokenExpr,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            instructions: &instructions
+        )
+
         appendObjectItableMethodRegistrations(
             objectValue: wrapperValue,
             nominalSymbol: wrapperSymbol,
@@ -304,6 +340,53 @@ extension LambdaLowerer {
         }
 
         return wrapperValue
+    }
+
+    /// Returns the shared class-identity symbol for SAM-conversion wrappers
+    /// of `interfaceSymbol`, creating it on first use (KUU-3227). The JVM
+    /// emits one wrapper class per fun interface; every `SAM(...)` instance
+    /// must therefore report the same `::class`. This symbol carries only the
+    /// type identity used for the object header tag and KClass metadata —
+    /// instance layout and dispatch stay on the per-site `wrapperSymbol`.
+    private func samWrapperClassIdentitySymbol(
+        for interfaceSymbol: SymbolID,
+        interfaceType: ClassType,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> SymbolID {
+        if let cached = driver.ctx.samWrapperClassIdentitySymbols[interfaceSymbol] {
+            return cached
+        }
+        let interfaceFQName = (sema.symbols.symbol(interfaceSymbol)?.fqName ?? [])
+            .map { interner.resolve($0) }
+            .joined(separator: ".")
+        // The `$` keeps the name outside the source-declarable identifier
+        // space, and the single-component fqName keeps the symbol on the
+        // same "top-level synthetic" pruning path as the per-site
+        // `kk_sam_wrapper_*` layouts (see MetadataSerializer+Encoder).
+        let identityName = interner.intern("kk_sam_wrapper_class$\(interfaceFQName)")
+        let identityFQName = [identityName]
+        if let existing = sema.symbols.lookup(fqName: identityFQName),
+           sema.symbols.symbol(existing)?.kind == .class {
+            driver.ctx.samWrapperClassIdentitySymbols[interfaceSymbol] = existing
+            return existing
+        }
+        let identitySymbol = sema.symbols.define(
+            kind: .class,
+            name: identityName,
+            fqName: identityFQName,
+            declSite: nil,
+            visibility: .private,
+            flags: [.synthetic]
+        )
+        // Report the fun interface as the wrapper's only supertype so
+        // reflection (`supertypes`, `isInstance`) sees the real shape.
+        sema.symbols.setDirectSupertypes([interfaceSymbol], for: identitySymbol)
+        sema.types.setNominalDirectSupertypes([interfaceSymbol], for: identitySymbol)
+        sema.symbols.setSupertypeTypeArgs(interfaceType.args, for: identitySymbol, supertype: interfaceSymbol)
+        sema.types.setNominalSupertypeTypeArgs(interfaceType.args, for: identitySymbol, supertype: interfaceSymbol)
+        driver.ctx.samWrapperClassIdentitySymbols[interfaceSymbol] = identitySymbol
+        return identitySymbol
     }
 
     private func samMethodSymbolAndSignature(
