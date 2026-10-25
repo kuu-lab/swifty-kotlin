@@ -9,6 +9,7 @@ struct RuntimeJavaMethodMetadata: Hashable {
     let flags: Int
 
     var isSynthetic: Bool { flags & 1 != 0 }
+    var isPublic: Bool { flags & 2 != 0 }
 
     init?(name: String, signature: String, flags: Int) {
         let parts = signature.split(separator: "|", maxSplits: 2, omittingEmptySubsequences: false)
@@ -156,7 +157,46 @@ public func __kk_java_class_get_declared_methods(_ classRaw: Int) -> Int {
         runtimeStructuredPanic("invalid Java Class handle")
     }
 
-    let methods = runtimeJavaMethodRegistry.methods(for: javaClass.typeToken)
+    return runtimeJavaMethodArray(runtimeJavaMethodRegistry.methods(for: javaClass.typeToken))
+}
+
+@_cdecl("__kk_java_class_get_methods")
+public func __kk_java_class_get_methods(_ classRaw: Int) -> Int {
+    guard let javaClass = resolveRuntimeHandle(classRaw, as: RuntimeJavaClassBox.self) else {
+        runtimeStructuredPanic("invalid Java Class handle")
+    }
+    return runtimeJavaMethodArray(runtimeJavaPublicMethods(typeToken: javaClass.typeToken))
+}
+
+private func runtimeJavaPublicMethods(typeToken: Int) -> [RuntimeJavaMethodMetadata] {
+    var visitedTypes: Set<Int> = []
+    var visitedSignatures: Set<String> = []
+    var methods: [RuntimeJavaMethodMetadata] = []
+
+    func visit(_ currentTypeToken: Int) {
+        guard visitedTypes.insert(currentTypeToken).inserted else { return }
+
+        for method in runtimeJavaMethodRegistry.methods(for: currentTypeToken) where method.isPublic {
+            let key = "\(method.name)(\(method.parameterTypeTokens.map(String.init).joined(separator: ",")))"
+            if visitedSignatures.insert(key).inserted {
+                methods.append(method)
+            }
+        }
+
+        guard let metadata = runtimeKClassMetadataRegistry.lookup(typeToken: currentTypeToken) else { return }
+        for displayName in metadata.supertypeDisplayNames {
+            let name = String(displayName.prefix { $0 != "<" })
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !name.isEmpty else { continue }
+            visit(Int(truncatingIfNeeded: runtimeTypeToken(forQualifiedName: name)))
+        }
+    }
+
+    visit(typeToken)
+    return methods
+}
+
+private func runtimeJavaMethodArray(_ methods: [RuntimeJavaMethodMetadata]) -> Int {
     let array = RuntimeArrayBox(length: methods.count)
     let arrayRaw = registerRuntimeObject(array)
     let methodTypeID = runtimeStableNominalTypeID(fqName: "java.lang.reflect.Method")

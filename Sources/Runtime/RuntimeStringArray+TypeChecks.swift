@@ -79,6 +79,28 @@ private struct RuntimePrimitiveNominalTypeIDs {
     }
 }
 
+func runtimePrimitiveNominalTypeID(forTypeTokenBase base: Int64) -> Int64? {
+    let ids = RuntimePrimitiveNominalTypeIDs.shared
+    let typeID: Int64? = switch base {
+    case RuntimeTypeTokenEncoding.byteBase: ids.byte
+    case RuntimeTypeTokenEncoding.shortBase: ids.short
+    case RuntimeTypeTokenEncoding.intBase: ids.int
+    case RuntimeTypeTokenEncoding.longBase: ids.long
+    case RuntimeTypeTokenEncoding.floatBase: ids.float
+    case RuntimeTypeTokenEncoding.doubleBase: ids.double
+    case RuntimeTypeTokenEncoding.uintBase: ids.uint
+    case RuntimeTypeTokenEncoding.ulongBase: ids.ulong
+    case RuntimeTypeTokenEncoding.ubyteBase: ids.ubyte
+    case RuntimeTypeTokenEncoding.ushortBase: ids.ushort
+    case RuntimeTypeTokenEncoding.charBase: ids.char
+    case RuntimeTypeTokenEncoding.booleanBase: ids.boolean
+    default: nil
+    }
+    guard let typeID else { return nil }
+    ids.registerEdgesOnce()
+    return typeID
+}
+
 /// The nominal type ID of the boxed primitive `ptr` represents (Int, Double,
 /// UInt, Char, ...), or `nil` when `ptr` is not a registered primitive box.
 /// An enum-ordinal `RuntimeIntBox` (`enumClassID != nil`) is excluded: its
