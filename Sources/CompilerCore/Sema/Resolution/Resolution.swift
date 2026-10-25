@@ -1568,7 +1568,7 @@ extension OverloadResolver {
 
             if arg.label != nil, isVararg[paramIndex] {
                 // A named vararg argument supplies the whole array, even without `*`.
-                guard let elementType = namedVarargArgumentElementType(
+                guard let elementType = varargArrayArgumentElementType(
                     argType, parameterType: paramType, sema: sema
                 ) else {
                     return false
@@ -1582,20 +1582,20 @@ extension OverloadResolver {
                 ))
                 continue
             }
-            // Recover spread element types to distinguish array overloads.
-            // Keep the historical unconstrained fallback for synthetic or
-            // incomplete test types whose array shape cannot be recovered.
             if arg.isSpread, isVararg[paramIndex] {
-                if let elementType = spreadArgumentElementType(argType, sema: sema) {
-                    let decomposed = decomposeSubtypeConstraint(
-                        subtype: elementType,
-                        supertype: paramType,
-                        typeVarBySymbol: typeVarBySymbol,
-                        typeSystem: typeSystem,
-                        blameRange: call.range
-                    )
-                    constraints.append(contentsOf: decomposed)
+                guard let elementType = varargArrayArgumentElementType(
+                    argType, parameterType: paramType, sema: sema
+                ) else {
+                    return false
                 }
+                let decomposed = decomposeSubtypeConstraint(
+                    subtype: elementType,
+                    supertype: paramType,
+                    typeVarBySymbol: typeVarBySymbol,
+                    typeSystem: typeSystem,
+                    blameRange: call.range
+                )
+                constraints.append(contentsOf: decomposed)
                 continue
             }
 
@@ -1679,7 +1679,10 @@ extension OverloadResolver {
         return nil
     }
 
-    private func namedVarargArgumentElementType(
+    /// Validates a whole-array vararg argument before exposing its element type.
+    /// Primitive varargs require their matching primitive array, while other
+    /// varargs require a reference array whose element can satisfy the parameter.
+    private func varargArrayArgumentElementType(
         _ type: TypeID,
         parameterType: TypeID,
         sema: SemaModule
@@ -1704,16 +1707,18 @@ extension OverloadResolver {
         return spreadArgumentElementType(type, sema: sema)
     }
 
-    /// Generic `Array<T>`/collection types carry the element in their first type
-    /// argument; primitive arrays require the interner to identify the class.
+    /// Reference arrays carry the element in their first type argument;
+    /// primitive arrays require the interner to identify the class.
     private func spreadArgumentElementType(_ type: TypeID, sema: SemaModule) -> TypeID? {
         guard let (classType, symbol) = resolveClassTypeSymbol(type, sema: sema) else {
             return nil
         }
         if let firstArgument = classType.args.first {
             switch firstArgument {
-            case let .invariant(element), let .out(element), let .in(element):
+            case let .invariant(element), let .out(element):
                 return element
+            case .in:
+                return nil
             case .star:
                 return sema.types.nullableAnyType
             }

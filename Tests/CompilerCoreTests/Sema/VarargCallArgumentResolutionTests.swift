@@ -24,7 +24,8 @@ struct VarargCallArgumentResolutionTests {
         """)
         try runSema(ctx)
 
-        #expect(!ctx.diagnostics.hasError, "Unexpected diagnostics: \(ctx.diagnostics.diagnostics)")
+        let hasError = ctx.diagnostics.hasError
+        #expect(!hasError, "Expected compatible vararg array arguments to resolve")
         let ast = try #require(ctx.ast)
         let sema = try #require(ctx.sema)
         let call = try #require(namedCall(
@@ -35,6 +36,43 @@ struct VarargCallArgumentResolutionTests {
         ))
         let binding = try #require(sema.bindings.callBinding(for: call))
         #expect(binding.parameterMapping == [0: 0, 1: 1, 2: 2])
+    }
+
+    @Test
+    func primitiveVarargAcceptsIntArraySpreadExpressions() throws {
+        let ctx = makeContextFromSource("""
+        fun vi(vararg xs: Int) = xs.size
+        fun mkIA(): IntArray = intArrayOf(9)
+        fun main() {
+            println(vi(*intArrayOf(1, 2)))
+            println(vi(*mkIA()))
+            println(vi(*intArrayOf(1).copyOf()))
+            println(vi(*IntArray(2) { it }))
+            val ia = intArrayOf(1)
+            println(vi(*ia))
+            println(vi(*listOf(1).toIntArray()))
+        }
+        """)
+        try runSema(ctx)
+
+        let hasError = ctx.diagnostics.hasError
+        #expect(!hasError, "Expected primitive IntArray spreads to be accepted")
+    }
+
+    @Test
+    func referenceArrayVariableCannotSpreadIntoPrimitiveVararg() throws {
+        let ctx = makeContextFromSource("""
+        fun vi(vararg xs: Int) = xs.size
+        fun invalid() {
+            val ai: Array<Int> = arrayOf(1)
+            vi(*ai)
+            vi(*arrayOf(1))
+        }
+        """)
+        try runSema(ctx)
+
+        let hasError = ctx.diagnostics.hasError
+        #expect(hasError, "Expected Array<Int> to be rejected for vararg Int")
     }
 
     @Test
