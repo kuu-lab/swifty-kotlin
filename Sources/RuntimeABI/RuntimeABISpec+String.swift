@@ -1,5 +1,7 @@
 // swiftlint:disable file_length
 
+private let bigDecimalABI = RuntimeABISectionBuilder("String")
+
 public extension RuntimeABISpec {
     static let stringFromUtf8Spec: RuntimeABIFunctionSpec = RuntimeABIFunctionSpec(
         name: "kk_string_from_utf8",
@@ -1620,6 +1622,13 @@ public extension RuntimeABISpec {
             section: "String",
             isThrowing: false
         ),
+        bigDecimalABI.th("__kk_bignum_add", "lhsRaw rhsRaw outThrown"),
+        bigDecimalABI.th("__kk_bignum_subtract", "lhsRaw rhsRaw outThrown"),
+        bigDecimalABI.th("__kk_bignum_multiply", "lhsRaw rhsRaw outThrown"),
+        bigDecimalABI.th("__kk_bignum_divide", "lhsRaw rhsRaw outThrown"),
+        bigDecimalABI.th("__kk_bignum_divideAtScale", "lhsRaw rhsRaw scale roundingMode outThrown"),
+        bigDecimalABI.th("__kk_bignum_setScale", "valueRaw scale roundingMode outThrown"),
+        bigDecimalABI.nt("__kk_bignum_scale", "valueRaw"),
         RuntimeABIFunctionSpec(
             name: "__kk_bignum_toDouble",
             parameters: [RuntimeABIParameter(name: "numRaw", type: .intptr)],

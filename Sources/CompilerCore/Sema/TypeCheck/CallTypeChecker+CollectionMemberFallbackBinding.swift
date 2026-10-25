@@ -654,7 +654,7 @@ extension CallTypeChecker {
         let kotlinCollections = knownNames.kotlinCollectionsPackage
         let kotlinSequences = knownNames.kotlinSequencesPackage
         let iterableFQName = knownNames.kotlinCollectionsIterableFQName
-        guard let iterableSymbol = sema.symbols.lookup(fqName: iterableFQName) else {
+        guard let iterableSymbol = sema.symbols.lookupNominal(fqName: iterableFQName) else {
             return []
         }
         return sema.symbols.lookupByShortName(calleeName).filter { candidate in
@@ -819,7 +819,7 @@ extension CallTypeChecker {
         let knownNames = KnownCompilerNames(interner: interner)
         let iterableFQName = knownNames.kotlinCollectionsIterableFQName
 
-        guard let iterableSymbol = sema.symbols.lookup(fqName: iterableFQName) else {
+        guard let iterableSymbol = sema.symbols.lookupNominal(fqName: iterableFQName) else {
             return nil
         }
 

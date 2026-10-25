@@ -26,12 +26,10 @@ extension CollectionLiteralConstructionLoweringPass {
         {
             let copiedArray = module.arena.appendTemporary(type: argumentType)
             loweredBody.append(.call(
-                symbol: nil,
                 callee: lookup.kkArrayCopyOfName,
                 arguments: [arguments[0]],
                 result: copiedArray,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
             let taggedArray = tagArrayValueIfNeeded(
                 copiedArray,
@@ -75,7 +73,6 @@ extension CollectionLiteralConstructionLoweringPass {
         if callee == lookup.kkListIteratorName, arguments.count == 1 {
             if let result { state.listIteratorExprIDs.insert(result.rawValue) }
             loweredBody.append(.call(
-                symbol: nil,
                 callee: callee,
                 arguments: arguments,
                 result: result,
@@ -90,23 +87,19 @@ extension CollectionLiteralConstructionLoweringPass {
             if state.ulongRangeExprIDs.contains(argID.rawValue) {
                 if let result { state.ulongRangeIteratorExprIDs.insert(result.rawValue) }
                 loweredBody.append(.call(
-                    symbol: nil,
                     callee: lookup.kkULongRangeIteratorName,
                     arguments: arguments,
                     result: result,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ))
                 return true
             }
             if module.arena.exprType(argID) == ctx.sema?.types.uintType {
                 loweredBody.append(.call(
-                    symbol: nil,
                     callee: ctx.interner.intern("__kk_uint_range_iterator"),
                     arguments: arguments,
                     result: result,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ))
                 return true
             }
@@ -117,7 +110,6 @@ extension CollectionLiteralConstructionLoweringPass {
             if state.listExprIDs.contains(argID.rawValue) || state.setExprIDs.contains(argID.rawValue) {
                 if let result { state.listIteratorExprIDs.insert(result.rawValue) }
                 loweredBody.append(.call(
-                    symbol: nil,
                     callee: lookup.kkListIteratorName,
                     arguments: arguments,
                     result: result,
@@ -129,12 +121,10 @@ extension CollectionLiteralConstructionLoweringPass {
             if state.mapExprIDs.contains(argID.rawValue) {
                 if let result { state.mapIteratorExprIDs.insert(result.rawValue) }
                 loweredBody.append(.call(
-                    symbol: nil,
                     callee: lookup.kkMapIteratorName,
                     arguments: arguments,
                     result: result,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ))
                 return true
             }
@@ -152,12 +142,10 @@ extension CollectionLiteralConstructionLoweringPass {
             let argID = arguments[0]
             if state.ulongRangeIteratorExprIDs.contains(argID.rawValue) {
                 loweredBody.append(.call(
-                    symbol: nil,
                     callee: lookup.kkULongRangeHasNextName,
                     arguments: arguments,
                     result: result,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ))
                 return true
             }
@@ -171,30 +159,25 @@ extension CollectionLiteralConstructionLoweringPass {
             let argID = arguments[0]
             if state.listIteratorExprIDs.contains(argID.rawValue) {
                 loweredBody.append(.call(
-                    symbol: nil,
                     callee: lookup.kkListIteratorHasNextName,
                     arguments: arguments,
                     result: result,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ))
                 return true
             }
             if state.mapIteratorExprIDs.contains(argID.rawValue) {
                 loweredBody.append(.call(
-                    symbol: nil,
                     callee: lookup.kkMapIteratorHasNextName,
                     arguments: arguments,
                     result: result,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ))
                 return true
             }
             // Builder producers can throw from hasNext as well as next.
             if state.iteratorBuilderExprIDs.contains(argID.rawValue) {
                 loweredBody.append(.call(
-                    symbol: nil,
                     callee: lookup.kkIteratorBuilderHasNextName,
                     arguments: arguments,
                     result: result,
@@ -209,12 +192,10 @@ extension CollectionLiteralConstructionLoweringPass {
             let argID = arguments[0]
             if state.ulongRangeIteratorExprIDs.contains(argID.rawValue) {
                 loweredBody.append(.call(
-                    symbol: nil,
                     callee: lookup.kkULongRangeNextName,
                     arguments: arguments,
                     result: result,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ))
                 return true
             }
@@ -237,7 +218,6 @@ extension CollectionLiteralConstructionLoweringPass {
             }
             if state.mapIteratorExprIDs.contains(argID.rawValue) {
                 loweredBody.append(.call(
-                    symbol: nil,
                     callee: lookup.kkMapIteratorNextName,
                     arguments: arguments,
                     result: result,
@@ -257,7 +237,6 @@ extension CollectionLiteralConstructionLoweringPass {
                     // outThrown, so rewriting to it orphaned the tail's reads
                     // (KSWIFTK-KIR-0003) and downgraded exhaustion to a panic.
                     loweredBody.append(.call(
-                        symbol: nil,
                         callee: callee,
                         arguments: arguments,
                         result: result,
@@ -266,12 +245,10 @@ extension CollectionLiteralConstructionLoweringPass {
                     ))
                 } else {
                     loweredBody.append(.call(
-                        symbol: nil,
                         callee: lookup.kkIteratorBuilderNextName,
                         arguments: arguments,
                         result: result,
-                        canThrow: false,
-                        thrownResult: nil
+                        canThrow: false
                     ))
                 }
                 return true
@@ -283,7 +260,6 @@ extension CollectionLiteralConstructionLoweringPass {
             if state.listExprIDs.contains(receiverID.rawValue) {
                 if let result { state.listIteratorExprIDs.insert(result.rawValue) }
                 loweredBody.append(.call(
-                    symbol: nil,
                     callee: lookup.kkListIteratorName,
                     arguments: [receiverID],
                     result: result,
@@ -299,7 +275,6 @@ extension CollectionLiteralConstructionLoweringPass {
             if state.listExprIDs.contains(receiverID.rawValue) || state.setExprIDs.contains(receiverID.rawValue) {
                 if let result { state.listIteratorExprIDs.insert(result.rawValue) }
                 loweredBody.append(.call(
-                    symbol: nil,
                     callee: lookup.kkListIteratorName,
                     arguments: [receiverID],
                     result: result,
@@ -326,12 +301,10 @@ extension CollectionLiteralConstructionLoweringPass {
                 lookup.kkListIteratorPreviousIndexName
             }
             loweredBody.append(.call(
-                symbol: nil,
                 callee: runtimeCallee,
                 arguments: arguments,
                 result: result,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
             return true
         }
@@ -356,12 +329,10 @@ extension CollectionLiteralConstructionLoweringPass {
         loweredBody.append(.constValue(result: typeIDExpr, value: .intLiteral(typeID)))
         let taggedArray = module.arena.appendTemporary(type: module.arena.exprType(array))
         loweredBody.append(.call(
-            symbol: nil,
             callee: ctx.interner.intern("kk_array_tag_type"),
             arguments: [array, typeIDExpr],
             result: taggedArray,
-            canThrow: false,
-            thrownResult: nil
+            canThrow: false
         ))
         return appendRuntimeArrayComponentTag(
             taggedArray, arrayType: type, sema: sema, arena: module.arena,
@@ -394,7 +365,6 @@ extension CollectionLiteralConstructionLoweringPass {
             let tempBoxed = module.arena.appendTemporary(type: nil
             )
             loweredBody.append(.call(
-                symbol: nil,
                 callee: callee,
                 arguments: arguments,
                 result: tempBoxed,
@@ -409,7 +379,6 @@ extension CollectionLiteralConstructionLoweringPass {
             )
         } else {
             loweredBody.append(.call(
-                symbol: nil,
                 callee: callee,
                 arguments: arguments,
                 result: result,

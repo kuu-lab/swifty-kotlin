@@ -11,6 +11,24 @@ struct DeclarationPositionValidator {
     var fullValueClassesEnabled: Bool = false
     var jvmInlineAnnotationNames: Set<String> = ["JvmInline", "kotlin.jvm.JvmInline"]
 
+    static func validateMultipleVarargParameters(
+        _ parameters: [ValueParamDecl],
+        fallbackRange: SourceRange,
+        diagnostics: DiagnosticEngine?
+    ) {
+        let varargParameters = parameters.filter(\.isVararg)
+        guard varargParameters.count > 1 else {
+            return
+        }
+        for parameter in varargParameters {
+            diagnostics?.error(
+                "KSWIFTK-SEMA-0441",
+                "multiple vararg parameters are prohibited.",
+                range: parameter.varargRange ?? fallbackRange
+            )
+        }
+    }
+
     enum OwnerSite: Equatable {
         case file
         case function
@@ -115,6 +133,8 @@ struct DeclarationPositionValidator {
         let modifiers = decl.modifiers
         validateVisibilityModifierConflicts(modifiers, range: decl.range)
         let target = functionTargetName(site: site)
+
+        validateDuplicateTypeParamNames(decl.typeParams, range: decl.range)
 
         for (modifier, name) in Self.funImpossibleModifiers where modifiers.contains(modifier) {
             emitNotApplicable(name, to: target, range: decl.range)
@@ -545,6 +565,8 @@ struct DeclarationPositionValidator {
     }
 
     private func validateClass(_ decl: ClassDecl, site: OwnerSite) {
+        validateDuplicateTypeParamNames(decl.typeParams, range: decl.range)
+
         let modifiers = decl.modifiers
         validateVisibilityModifierConflicts(modifiers, range: decl.range)
         validateVisibilityModifierConflicts(decl.primaryConstructorModifiers, range: decl.range)
@@ -782,6 +804,8 @@ struct DeclarationPositionValidator {
     }
 
     private func validateInterface(_ decl: InterfaceDecl, site: OwnerSite) {
+        validateDuplicateTypeParamNames(decl.typeParams, range: decl.range)
+
         let modifiers = decl.modifiers
         validateVisibilityModifierConflicts(modifiers, range: decl.range)
 
@@ -929,6 +953,7 @@ struct DeclarationPositionValidator {
 
     private func validateTypeAlias(_ decl: TypeAliasDecl, site: OwnerSite) {
         validateVisibilityModifierConflicts(decl.modifiers, range: decl.range)
+        validateDuplicateTypeParamNames(decl.typeParams, range: decl.range)
         for (modifier, name) in Self.typeAliasForbiddenModifiers where decl.modifiers.contains(modifier) {
             emitNotApplicable(name, to: "typealias", range: decl.range)
         }
@@ -1034,6 +1059,21 @@ struct DeclarationPositionValidator {
             ],
             range: range
         )
+    }
+
+    private func validateDuplicateTypeParamNames(_ typeParams: [TypeParamDecl], range: SourceRange) {
+        var seen: Set<InternedString> = []
+        var reported: Set<InternedString> = []
+        for param in typeParams where !seen.insert(param.name).inserted {
+            if reported.insert(param.name).inserted {
+                let name = interner.resolve(param.name)
+                diagnostics?.error(
+                    "KSWIFTK-SEMA-0436",
+                    "conflicting declarations: \(name), \(name).",
+                    range: range
+                )
+            }
+        }
     }
 
     private func emitNotApplicable(_ name: String, to target: String, range: SourceRange) {

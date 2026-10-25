@@ -1582,20 +1582,25 @@ extension OverloadResolver {
                 ))
                 continue
             }
-            // Recover spread element types to distinguish array overloads.
-            // Keep the historical unconstrained fallback for synthetic or
-            // incomplete test types whose array shape cannot be recovered.
+            // A spread argument supplies an array, so reject candidate types
+            // whose array element type cannot be recovered.
             if arg.isSpread, isVararg[paramIndex] {
-                if let elementType = spreadArgumentElementType(argType, sema: sema) {
-                    let decomposed = decomposeSubtypeConstraint(
-                        subtype: elementType,
-                        supertype: paramType,
-                        typeVarBySymbol: typeVarBySymbol,
-                        typeSystem: typeSystem,
-                        blameRange: call.range
-                    )
-                    constraints.append(contentsOf: decomposed)
+                // Preserve error recovery for a spread expression that already
+                // has a root diagnostic; it has no meaningful type to check.
+                if argType == typeSystem.errorType {
+                    continue
                 }
+                guard let elementType = spreadArgumentElementType(argType, sema: sema) else {
+                    return false
+                }
+                let decomposed = decomposeSubtypeConstraint(
+                    subtype: elementType,
+                    supertype: paramType,
+                    typeVarBySymbol: typeVarBySymbol,
+                    typeSystem: typeSystem,
+                    blameRange: call.range
+                )
+                constraints.append(contentsOf: decomposed)
                 continue
             }
 

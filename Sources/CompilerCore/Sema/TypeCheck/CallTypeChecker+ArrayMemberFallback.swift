@@ -111,7 +111,7 @@ extension CallTypeChecker {
 
     private static let arraySourceBackedNames: Set<String> = [
         "sliceArray", "reversedArray", "asList", "toTypedArray",
-        "asIterable", "sumOf",
+        "asIterable", "sumOf", "joinToString",
         "take", "takeLast", "takeWhile", "drop", "dropLast", "dropWhile", "slice",
         "elementAt", "elementAtOrNull", "elementAtOrElse", "getOrElse",
         "single", "singleOrNull", "random",

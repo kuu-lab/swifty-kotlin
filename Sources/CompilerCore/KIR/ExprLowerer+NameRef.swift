@@ -54,12 +54,10 @@ extension ExprLowerer {
         {
             let result = arena.appendTemporary(type: boundType ?? sema.types.anyType)
             instructions.append(.call(
-                symbol: nil,
                 callee: interner.intern("kk_coroutine_current_context"),
                 arguments: [],
                 result: result,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
             return result
         }
@@ -101,12 +99,10 @@ extension ExprLowerer {
             }
             let result = arena.appendTemporary(type: resultType)
             instructions.append(.call(
-                symbol: nil,
                 callee: symInfo.name,
                 arguments: [receiverExprID],
                 result: result,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
             return result
         }
@@ -147,12 +143,10 @@ extension ExprLowerer {
                 "$enumConstructorProperty$\(ownerSymbol.rawValue)$\(interner.resolve(symInfo.name))"
             )
             instructions.append(.call(
-                symbol: nil,
                 callee: helperName,
                 arguments: [receiverExprID],
                 result: result,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
             return result
         }
@@ -220,12 +214,10 @@ extension ExprLowerer {
                 for: symbol, sema: sema, interner: interner
             ) {
                 instructions.append(.call(
-                    symbol: nil,
                     callee: getterPlaceholder,
                     arguments: [receiverExprID],
                     result: result,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ))
                 return result
             }
@@ -312,8 +304,7 @@ extension ExprLowerer {
                     callee: loweredCallee,
                     arguments: [receiverExprID],
                     result: result,
-                    canThrow: true,
-                    thrownResult: nil
+                    canThrow: true
                 ))
                 return result
             }
@@ -350,12 +341,10 @@ extension ExprLowerer {
                     )
                 } else {
                     instructions.append(.call(
-                        symbol: nil,
                         callee: memberName,
                         arguments: [receiverExprID],
                         result: result,
-                        canThrow: false,
-                        thrownResult: nil
+                        canThrow: false
                     ))
                 }
                 return result
@@ -413,7 +402,6 @@ extension ExprLowerer {
                     arguments: Array(virtualAccessorArguments.dropFirst()),
                     result: result,
                     canThrow: false,
-                    thrownResult: nil,
                     dispatch: dispatch
                 ))
                 return result
@@ -519,8 +507,7 @@ extension ExprLowerer {
                     callee: interner.intern("get"),
                     arguments: [receiverExprID],
                     result: result,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ))
                 return result
             }
@@ -541,12 +528,10 @@ extension ExprLowerer {
                 let offsetExpr = arena.appendExpr(.intLiteral(Int64(fieldOffset)), type: sema.types.intType)
                 instructions.append(.constValue(result: offsetExpr, value: .intLiteral(Int64(fieldOffset))))
                 instructions.append(.call(
-                    symbol: nil,
                     callee: interner.intern("kk_array_get_inbounds"),
                     arguments: [fieldReceiverExprID, offsetExpr],
                     result: result,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ))
                 return wrapLateinitReadIfNeeded(
                     result,
@@ -569,8 +554,7 @@ extension ExprLowerer {
                     callee: interner.intern(externalLinkName),
                     arguments: [receiverExprID],
                     result: result,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ))
                 return result
             }
@@ -618,7 +602,6 @@ extension ExprLowerer {
                     arguments: Array(virtualAccessorArguments.dropFirst()),
                     result: result,
                     canThrow: false,
-                    thrownResult: nil,
                     dispatch: .vtable(slot: getterSlot)
                 ))
                 return result
@@ -678,12 +661,10 @@ extension ExprLowerer {
                 let offsetExpr = arena.appendExpr(.intLiteral(Int64(fieldOffset)), type: sema.types.intType)
                 instructions.append(.constValue(result: offsetExpr, value: .intLiteral(Int64(fieldOffset))))
                 instructions.append(.call(
-                    symbol: nil,
                     callee: interner.intern("kk_array_get_inbounds"),
                     arguments: [fieldReceiverExprID, offsetExpr],
                     result: result,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ))
                 return wrapLateinitReadIfNeeded(
                     result,
@@ -878,8 +859,7 @@ extension ExprLowerer {
                     callee: interner.intern(externalLinkName),
                     arguments: getterArguments,
                     result: result,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ))
                 return result
             }
@@ -902,8 +882,7 @@ extension ExprLowerer {
                     callee: interner.intern(externalLinkName),
                     arguments: [receiverExprID],
                     result: result,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ))
                 return result
             }
@@ -968,12 +947,10 @@ extension ExprLowerer {
                 instructions.append(.constValue(result: offsetExpr, value: .intLiteral(Int64(fieldOffset))))
                 let result = arena.appendTemporary(type: resultType)
                 instructions.append(.call(
-                    symbol: nil,
                     callee: interner.intern("kk_array_get_inbounds"),
                     arguments: [fieldReceiverExprID, offsetExpr],
                     result: result,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ))
                 return wrapLateinitReadIfNeeded(
                     result,
@@ -1045,7 +1022,6 @@ extension ExprLowerer {
                         arguments: Array(virtualAccessorArguments.dropFirst()),
                         result: result,
                         canThrow: false,
-                        thrownResult: nil,
                         dispatch: .vtable(slot: getterSlot)
                     ))
                     return result
@@ -1063,8 +1039,7 @@ extension ExprLowerer {
                         callee: interner.intern("get"),
                         arguments: getterArguments,
                         result: result,
-                        canThrow: false,
-                        thrownResult: nil
+                        canThrow: false
                     ))
                     return result
                 }
@@ -1108,8 +1083,7 @@ extension ExprLowerer {
                     callee: interner.intern("get"),
                     arguments: getterArguments,
                     result: result,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ))
                 return result
             }
@@ -1144,8 +1118,7 @@ extension ExprLowerer {
                     callee: interner.intern("get"),
                     arguments: getterArguments,
                     result: result,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ))
                 return result
             }
@@ -1180,8 +1153,7 @@ extension ExprLowerer {
                     callee: interner.intern("get"),
                     arguments: getterArguments,
                     result: result,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ))
                 return result
             }
@@ -1275,8 +1247,7 @@ extension ExprLowerer {
                     callee: interner.intern(externalLinkName),
                     arguments: [],
                     result: result,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ))
                 return result
             }

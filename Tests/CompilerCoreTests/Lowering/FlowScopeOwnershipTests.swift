@@ -83,8 +83,8 @@ struct FlowScopeOwnershipTests {
         let callback = arena.appendExpr(.intLiteral(0))
         let symbol = SymbolID(rawValue: 1)
         var body: [KIRInstruction] = [
-            .call(symbol: nil, callee: LoweringTestRuntime.callee("flow_create", interner: interner), arguments: [callback],
-                  result: root, canThrow: false, thrownResult: nil),
+            .call(callee: LoweringTestRuntime.callee("flow_create", interner: interner), arguments: [callback],
+                  result: root, canThrow: false),
             .copy(from: root, to: alias),
         ]
         if escapes { body.append(.storeGlobal(value: alias, symbol: SymbolID(rawValue: 2))) }
@@ -108,11 +108,11 @@ struct FlowScopeOwnershipTests {
         let value = arena.appendExpr(.intLiteral(7))
         var body = KIRLoweringEmitContext()
         if emitOwnedFlow {
-            body.append(.call(symbol: nil, callee: LoweringTestRuntime.callee("flow_create", interner: interner), arguments: [zero, zero],
-                              result: root, canThrow: false, thrownResult: nil))
+            body.append(.call(callee: LoweringTestRuntime.callee("flow_create", interner: interner), arguments: [zero, zero],
+                              result: root, canThrow: false))
         }
-        body.append(.call(symbol: nil, callee: LoweringTestRuntime.callee("flow_emit", interner: interner), arguments: [zero, emitOwnedFlow ? root : value, zero],
-                          result: emitted, canThrow: false, thrownResult: nil))
+        body.append(.call(callee: LoweringTestRuntime.callee("flow_emit", interner: interner), arguments: [zero, emitOwnedFlow ? root : value, zero],
+                          result: emitted, canThrow: false))
         body.append(.returnUnit)
         let module = KIRModule(files: [], arena: arena)
         let cleaned = CoroutineLoweringPass().cleanUpOwnedFlows(
@@ -155,8 +155,8 @@ struct FlowScopeOwnershipTests {
         if symbolBacked {
             body.append(.constValue(result: use, value: .symbolRef(SymbolID(rawValue: 99))))
         }
-        let create = KIRInstruction.call(symbol: nil, callee: interner.intern("flow"), arguments: [callback], result: handle, canThrow: false, thrownResult: nil)
-        let collect = KIRInstruction.call(symbol: nil, callee: interner.intern("collect"), arguments: [use, callback], result: nil, canThrow: true, thrownResult: collectorFailure ? nil : thrown)
+        let create = KIRInstruction.call(callee: interner.intern("flow"), arguments: [callback], result: handle, canThrow: false)
+        let collect = KIRInstruction.call(callee: interner.intern("collect"), arguments: [use, callback], result: nil, canThrow: true, thrownResult: collectorFailure ? nil : thrown)
         func appendCreate() {
             body.append(create)
             if alias { body.append(.copy(from: handle, to: use)) }
@@ -170,7 +170,7 @@ struct FlowScopeOwnershipTests {
         if createInLoop { appendCreate() }
         body.append(collect)
         if implicitFailure {
-            body.append(.call(symbol: nil, callee: interner.intern("fail"), arguments: [], result: nil, canThrow: true, thrownResult: nil))
+            body.append(.call(callee: interner.intern("fail"), arguments: [], result: nil, canThrow: true))
         }
         if let earlyExit {
             body.append(earlyExit == .normal ? .returnUnit : .rethrow(value: thrown))
@@ -182,9 +182,9 @@ struct FlowScopeOwnershipTests {
         case .nonLocalReturned: body.append(.nonLocalReturn(use, target: .function(SymbolID(rawValue: 1))))
         case .global: body.append(.storeGlobal(value: use, symbol: SymbolID(rawValue: 100)))
         case .captured:
-            body.append(.call(symbol: nil, callee: LoweringTestRuntime.callee("coroutine_launcher_arg_set", interner: interner), arguments: [callback, zero, use], result: nil, canThrow: false, thrownResult: nil))
+            body.append(.call(callee: LoweringTestRuntime.callee("coroutine_launcher_arg_set", interner: interner), arguments: [callback, zero, use], result: nil, canThrow: false))
         case .unknownCall:
-            body.append(.call(symbol: nil, callee: interner.intern("save"), arguments: [use], result: nil, canThrow: false, thrownResult: nil))
+            body.append(.call(callee: interner.intern("save"), arguments: [use], result: nil, canThrow: false))
         case nil: break
         }
         body.append(.returnUnit)

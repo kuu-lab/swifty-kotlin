@@ -26,13 +26,11 @@ extension CallLowerer {
         }
         let result = arena.appendTemporary(type: resultType)
         instructions.append(.call(
-            symbol: nil,
             callee: interner.intern(property.name == interner.intern("name")
                 ? "__kk_enum_name" : "kk_unbox_int"),
             arguments: [receiver],
             result: result,
-            canThrow: false,
-            thrownResult: nil
+            canThrow: false
         ))
         return result
     }

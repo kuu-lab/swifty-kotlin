@@ -609,6 +609,7 @@ extension CallTypeChecker {
                         return .invariant(resolved)
                     }
                 }
+                let expandedClassType: ClassType?
                 if let expanded = driver.helpers.expandTypeAlias(
                     aliasSym,
                     typeArgs: aliasTypeArgs,
@@ -616,9 +617,21 @@ extension CallTypeChecker {
                     visited: [],
                     depth: 0,
                     diagnostics: ctx.sema.diagnostics
-                ),
-                   case let .classType(classType) = sema.types.kind(of: expanded)
-                {
+                ) {
+                    switch sema.types.kind(of: expanded) {
+                    case let .classType(classType):
+                        expandedClassType = classType
+                    case .any:
+                        // `kotlin.Any` has a special type representation, but
+                        // its constructor is registered on the nominal class symbol.
+                        expandedClassType = sema.types.anyClassSymbol.map { ClassType(classSymbol: $0) }
+                    default:
+                        expandedClassType = nil
+                    }
+                } else {
+                    expandedClassType = nil
+                }
+                if let classType = expandedClassType {
                     let constructorOwner = sema.symbols.actualSymbol(for: classType.classSymbol)
                         ?? classType.classSymbol
                     if let underlyingSymbol = ctx.cachedSymbol(constructorOwner) {

@@ -117,7 +117,6 @@ extension LambdaLowerer {
             let thrownResult = arena.appendTemporary(type: sema.types.nullableAnyType)
             body.append(.constValue(result: thrownResult, value: .null))
             body.append(.call(
-                symbol: nil,
                 callee: runtimeBackedListCallee,
                 arguments: [receiverExpr] + argExprs,
                 result: boxedResult,
@@ -129,12 +128,10 @@ extension LambdaLowerer {
             body.append(.jumpIfNotNull(value: thrownResult, target: rethrowLabel))
             let result = arena.appendTemporary(type: signature.returnType)
             body.append(.call(
-                symbol: nil,
                 callee: interner.intern("kk_unbox_bool_static"),
                 arguments: [boxedResult],
                 result: result,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
             body.append(.jump(continuationLabel))
             body.append(.label(rethrowLabel))
@@ -160,7 +157,6 @@ extension LambdaLowerer {
                 arguments: argExprs,
                 result: result,
                 canThrow: false,
-                thrownResult: nil,
                 dispatch: dispatch
             ))
             if let probeEndLabel {

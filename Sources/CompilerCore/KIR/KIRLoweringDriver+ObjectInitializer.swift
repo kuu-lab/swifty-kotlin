@@ -118,8 +118,7 @@ extension KIRLoweringDriver {
             callee: lazyInitName,
             arguments: [],
             result: result,
-            canThrow: false,
-            thrownResult: nil
+            canThrow: false
         ))
     }
 
@@ -219,12 +218,10 @@ extension KIRLoweringDriver {
         let allocatedObj = arena.appendTemporary(type: objectType)
         let externalLink = sema.symbols.externalLinkNameIfKnown(for: objectSymbol)
         body.append(.call(
-            symbol: nil,
             callee: interner.intern(externalLink ?? "kk_object_new"),
             arguments: externalLink == nil ? [slotCountExpr, classIDExpr] : [],
             result: allocatedObj,
-            canThrow: false,
-            thrownResult: nil
+            canThrow: false
         ))
 
         body.append(.storeGlobal(value: allocatedObj, symbol: objectSymbol))
@@ -254,12 +251,10 @@ extension KIRLoweringDriver {
                 body.append(.constValue(result: ifaceSlotExpr, value: .intLiteral(ifaceSlot)))
                 let registerIfaceResult = arena.appendTemporary(type: intType)
                 body.append(.call(
-                    symbol: nil,
                     callee: interner.intern("kk_object_register_itable_iface"),
                     arguments: [allocatedObj, interfaceTypeExpr, ifaceSlotExpr],
                     result: registerIfaceResult,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ))
 
                 for (methodSymbol, methodSlotInt) in kirItableMethodEntries(
@@ -290,12 +285,10 @@ extension KIRLoweringDriver {
                     body.append(.constValue(result: methodFnExpr, value: .symbolRef(bridgeSymbol)))
                     let registerMethodResult = arena.appendTemporary(type: intType)
                     body.append(.call(
-                        symbol: nil,
                         callee: interner.intern("kk_object_register_itable_method"),
                         arguments: [allocatedObj, ifaceSlotExpr, methodSlotExpr, methodFnExpr],
                         result: registerMethodResult,
-                        canThrow: false,
-                        thrownResult: nil
+                        canThrow: false
                     ))
                 }
             }

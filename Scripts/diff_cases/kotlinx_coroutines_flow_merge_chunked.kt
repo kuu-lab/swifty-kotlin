@@ -1,8 +1,33 @@
-import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.*
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.*
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
+
+suspend fun verifyConcurrent(
+    factory: (Channel<Unit>, Channel<Unit>) -> Flow<Int>
+): String = coroutineScope {
+    val started = Channel<Unit>(0)
+    val proceed = Channel<Unit>(0)
+    val release = launch {
+        started.receive()
+        started.receive()
+        proceed.send(Unit)
+        proceed.send(Unit)
+    }
+    val values = withTimeout(2_000) { factory(started, proceed).toList() }
+    release.join()
+    var checksum = 0
+    for (value in values) checksum += value
+    "${values.size}:$checksum"
+}
+
+fun gated(value: Int, started: Channel<Unit>, proceed: Channel<Unit>): Flow<Int> = flow {
+    emit(value)
+    started.send(Unit)
+    proceed.receive()
+    emit(value + 10)
+}
 
 fun main() = runBlocking {
     // flattenConcat is sequential upstream, so the order is deterministic.
@@ -20,6 +45,19 @@ fun main() = runBlocking {
     println(listOf(flowOf(1, 2)).merge().toList())
     println(listOf(flowOf(1, 2), flowOf(3, 4)).merge().toList().sorted())
     println(merge(flowOf(1), flowOf(2), flowOf(3)).toList().sorted())
+    println(verifyConcurrent { started, proceed ->
+        flowOf(gated(1, started, proceed), gated(2, started, proceed)).flattenMerge(2)
+    })
+    println(verifyConcurrent { started, proceed ->
+        flowOf(1, 2).flatMapMerge(2) { value -> gated(value, started, proceed) }
+    })
+    println(flowOf(1, 2).flatMapMerge(1) { flowOf(it, it * 10) }.toList())
+    println(verifyConcurrent { started, proceed ->
+        listOf(gated(1, started, proceed), gated(2, started, proceed)).merge()
+    })
+    println(verifyConcurrent { started, proceed ->
+        merge(gated(1, started, proceed), gated(2, started, proceed))
+    })
 
     println(flowOf(1, 2, 3, 4, 5).chunked(2).toList())
     println(flowOf(1, 2).chunked(5).toList())

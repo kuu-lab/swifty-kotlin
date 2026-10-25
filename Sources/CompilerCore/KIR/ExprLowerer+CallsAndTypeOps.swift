@@ -175,8 +175,8 @@ extension ExprLowerer {
         instructions.append(.constValue(result: flag, value: .intLiteral(RuntimeTypeCheckToken.nullableFlag)))
         let result = arena.appendTemporary(type: intType)
         instructions.append(.call(
-            symbol: nil, callee: interner.intern("kk_bitwise_or"), arguments: [token, flag],
-            result: result, canThrow: false, thrownResult: nil
+            callee: interner.intern("kk_bitwise_or"), arguments: [token, flag],
+            result: result, canThrow: false
         ))
         return result
     }

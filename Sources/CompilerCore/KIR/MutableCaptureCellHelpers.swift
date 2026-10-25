@@ -61,12 +61,10 @@ func emitMutableCaptureCellInitialization(
 
     let setResult = arena.appendTemporary(type: sema.types.anyType)
     instructions.append(.call(
-        symbol: nil,
         callee: interner.intern("kk_array_set"),
         arguments: [cellExpr, zeroExpr, currentValue],
         result: setResult,
-        canThrow: false,
-        thrownResult: nil
+        canThrow: false
     ))
 
     driver.ctx.setMutableCaptureCell(cellExpr, for: symbol)

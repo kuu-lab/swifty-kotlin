@@ -128,12 +128,10 @@ extension CoroutineLoweringPass {
         var wrapperBody = KIRLoweringEmitContext()
         wrapperBody.append(
             .call(
-                symbol: nil,
                 callee: rewrite.continuationFactory,
                 arguments: [loweredFunctionIDExpr],
                 result: continuationExpr,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             )
         )
 
@@ -161,12 +159,10 @@ extension CoroutineLoweringPass {
         )
         wrapperBody.append(
             .call(
-                symbol: nil,
                 callee: rewrite.ctx.interner.intern("kk_coroutine_call_suspend_wrapper"),
                 arguments: [entryPointExpr, continuationExpr],
                 result: callResult,
-                canThrow: true,
-                thrownResult: nil
+                canThrow: true
             )
         )
         wrapperBody.append(.returnValue(callResult))
@@ -190,12 +186,10 @@ extension CoroutineLoweringPass {
             )
             wrapperBody.append(
                 .call(
-                    symbol: nil,
                     callee: rewrite.launcherArgSetCallee,
                     arguments: [continuationExpr, slotExpr, argumentExpr],
                     result: nil,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 )
             )
         }

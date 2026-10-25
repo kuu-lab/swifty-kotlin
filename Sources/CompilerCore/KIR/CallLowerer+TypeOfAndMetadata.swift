@@ -157,12 +157,10 @@ extension CallLowerer {
 
         let registerResult = arena.appendTemporary(type: intType)
         instructions.append(.call(
-            symbol: nil,
             callee: interner.intern("__kk_kclass_register_metadata"),
             arguments: [typeTokenExpr, fqNameExpr, simpleNameExpr, supertypeNameExpr, flagsExpr, fieldCountExpr, memberCountExpr, constructorCountExpr],
             result: registerResult,
-            canThrow: false,
-            thrownResult: nil
+            canThrow: false
         ))
         emitKClassDisplayNameRegistration(
             symbol: objectSymbol, typeTokenExpr: typeTokenExpr,

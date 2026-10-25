@@ -288,7 +288,6 @@ extension CallLowerer {
             canThrow: isIteratorNextName(interner.resolve(calleeName))
                 || isIteratorNextName(interner.resolve(virtualCalleeName))
                 || sema.symbols.externalLinkName(for: dispatchCallee).map(isIteratorNextName) == true,
-            thrownResult: nil,
             dispatch: dispatchKind
         )
     }

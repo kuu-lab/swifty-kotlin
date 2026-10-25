@@ -386,12 +386,10 @@ extension KIRLoweringDriver {
         }
         let fallbackResult = arena.appendTemporary(type: trapResultType ?? sema.types.unitType)
         body.append(.call(
-            symbol: nil,
             callee: interner.intern("kk_abort_unreachable"),
             arguments: [],
             result: fallbackResult,
             canThrow: false,
-            thrownResult: nil,
             isSuperCall: false
         ))
         if trapResultType != nil {
@@ -702,8 +700,7 @@ extension KIRLoweringDriver {
                     callee: companionLazyInit.ensureInitName,
                     arguments: [],
                     result: companionInitResult,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ))
             }
 
@@ -733,8 +730,7 @@ extension KIRLoweringDriver {
                 callee: ensureInitName,
                 arguments: [],
                 result: result,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
         }
 
@@ -763,8 +759,7 @@ extension KIRLoweringDriver {
                         callee: getterName,
                         arguments: [entryValue],
                         result: result,
-                        canThrow: true,
-                        thrownResult: nil
+                        canThrow: true
                     ))
                     return result
                 }
@@ -1091,8 +1086,7 @@ extension KIRLoweringDriver {
                         callee: enumLazyInit.name,
                         arguments: [],
                         result: arena.appendTemporary(type: unitType),
-                        canThrow: false,
-                        thrownResult: nil
+                        canThrow: false
                     ))
                     newLocations.append(location)
                 }
@@ -1103,8 +1097,7 @@ extension KIRLoweringDriver {
                             callee: lazyInit.name,
                             arguments: [],
                             result: arena.appendTemporary(type: unitType),
-                            canThrow: false,
-                            thrownResult: nil
+                            canThrow: false
                         ))
                         newLocations.append(location)
                     }
@@ -1116,8 +1109,7 @@ extension KIRLoweringDriver {
                             callee: companionInit.name,
                             arguments: [],
                             result: arena.appendTemporary(type: unitType),
-                            canThrow: false,
-                            thrownResult: nil
+                            canThrow: false
                         ))
                         newLocations.append(location)
                     }
