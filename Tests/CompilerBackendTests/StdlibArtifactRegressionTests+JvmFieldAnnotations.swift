@@ -38,7 +38,7 @@ extension StdlibArtifactRegressionTests {
                     let symbol = try #require(sema.symbols.lookup(fqName: ["FieldFlags", property].map(context.interner.intern)))
                     #expect(sema.symbols.annotations(for: symbol).contains {
                         $0.annotationFQName == "kotlin.jvm.\(annotation)"
-                    })
+                    }, "\(property), artifact=\(library != nil): \(sema.symbols.annotations(for: symbol))")
                 }
                 try LinkPhase().run(context)
                 let result = try CommandRunner.run(executable: output, arguments: [])
