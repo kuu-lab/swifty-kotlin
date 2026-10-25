@@ -736,9 +736,8 @@ struct TypeCheckScopeBuilder {
         return false
     }
 
-    /// Keep Java's `Long` and `Double` wrappers available by their qualified
-    /// names, but do not let the `java.lang.*` default import shadow Kotlin's
-    /// primitive types in ordinary source.
+    /// Keep Java's primitive wrappers available by their qualified names, but
+    /// do not let the `java.lang.*` default import shadow Kotlin primitive types.
     private func shouldSkipPrimitiveWrapperDefaultImport(
         _ symbolID: SymbolID,
         sema: SemaModule,
@@ -750,7 +749,10 @@ struct TypeCheckScopeBuilder {
             return false
         }
         let fqName = symbol.fqName.map { interner.resolve($0) }
-        return fqName == ["java", "lang", "Long"] || fqName == ["java", "lang", "Double"]
+        guard fqName.count == 3, fqName[0] == "java", fqName[1] == "lang" else {
+            return false
+        }
+        return ["Boolean", "Byte", "Double", "Float", "Long", "Short"].contains(fqName[2])
     }
 
     func makeDefaultImportPackages(interner: StringInterner) -> [[InternedString]] {

@@ -9,7 +9,7 @@ import kotlin.internal.KsSymbolName
 private external fun <T> __classToString(type: Class<T>): String
 
 @KsSymbolName("__kk_assertions_enabled")
-private external fun __assertionsEnabled(): Boolean
+private external fun __assertionsEnabled(): kotlin.Boolean
 
 @KsSymbolName("__kk_java_class_get_constructor")
 private external fun <T> __getConstructor(
@@ -64,7 +64,7 @@ public class Class<T> {
      * Assertions default to disabled. KK_ASSERTIONS_ENABLED takes precedence over
      * KOTLIN_ASSERTIONS_ENABLED; neither class nor package overrides are modeled.
      */
-    public fun desiredAssertionStatus(): Boolean = __assertionsEnabled()
+    public fun desiredAssertionStatus(): kotlin.Boolean = __assertionsEnabled()
 
     /** Returns runtime-retained annotations declared on this class or inherited from its superclass. */
     public val annotations: Array<Annotation>
@@ -96,9 +96,9 @@ public class Class<T> {
         get() = __classSimpleName(this)
 
     @KsSymbolName("__kk_java_class_isInstance")
-    private external fun __isInstance(value: Any?): Boolean
+    private external fun __isInstance(value: Any?): kotlin.Boolean
 
-    public fun isInstance(value: Any?): Boolean = __isInstance(value)
+    public fun isInstance(value: Any?): kotlin.Boolean = __isInstance(value)
 
     @KsSymbolName("__kk_class_get_enclosing_class")
     private external fun __classGetEnclosingClass(): Class<*>?
