@@ -1055,6 +1055,11 @@ struct TypeCheckHelpers {
                         argRefs, ast: ast, sema: sema, interner: interner,
                         scope: scope, diagnostics: diagnostics, inferenceContext: inferenceContext, usageRange: usageRange
                     )
+                    if sema.symbols.symbol(symbolID)?.kind != .typeAlias {
+                        TypeProjectionValidator(symbols: sema.symbols, types: sema.types,
+                                                interner: interner, diagnostics: diagnostics, range: usageRange)
+                            .validate(arguments: resolvedArgs, of: symbolID)
+                    }
                     if let sym = sema.symbols.symbol(symbolID), sym.kind == .typeAlias {
                         let aliasTypeArgs: [TypeArg]
                         // Bare generic aliases erase their omitted parameters in runtime checks and casts.
@@ -1075,7 +1080,8 @@ struct TypeCheckHelpers {
                             sema: sema,
                             visited: [],
                             depth: 0,
-                            diagnostics: diagnostics
+                            diagnostics: diagnostics,
+                            projectionRange: usageRange
                         ) {
                             if nullability == .nullable {
                                 return applyNullabilityForTypeCheck(expanded, types: sema.types)

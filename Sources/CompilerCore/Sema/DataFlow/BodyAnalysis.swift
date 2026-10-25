@@ -72,16 +72,60 @@ extension DataFlowSemaPhase {
                 return types.make(.typeParam(TypeParamType(symbol: typeParamSymbol, nullability: nullability)))
             }
 
+            var builtinShadow: SemanticSymbol?
             if let builtinType = builtinTypeNames(interner: interner).resolveBuiltinType(
                 shortName,
                 nullability: nullability,
                 types: types
             ) {
-                return builtinType
+                let kotlinRoot = interner.intern("kotlin")
+                let mayShadow = path.count == 1 && (
+                    imports.contains { !$0.isWildcard && ($0.alias == shortName || $0.path.last == shortName) }
+                        || symbols.lookupByShortName(shortName).contains { id in
+                            guard let symbol = symbols.symbol(id) else { return false }
+                            return isNominalTypeSymbol(symbol.kind) && symbol.fqName.first != kotlinRoot
+                        }
+                )
+                if mayShadow {
+                    func accessible(_ symbol: SemanticSymbol) -> Bool {
+                        guard isNominalTypeSymbol(symbol.kind) else { return false }
+                        if symbol.visibility == .private, let file = usageRange?.start.file,
+                           let declarationFile = symbols.sourceFileID(for: symbol.id) ?? symbol.declSite?.start.file,
+                           declarationFile != file
+                        { return false }
+                        return true
+                    }
+                    let relative = relativeOwnerFQName.map {
+                        resolveRelativeNominalCandidates(named: shortName, relativeTo: $0,
+                                                         currentPackageFQName: currentPackageFQName, symbols: symbols)
+                    } ?? []
+                    builtinShadow = relative.first(where: accessible)
+                    let explicitImports = imports.filter {
+                        !$0.isWildcard && ($0.alias == shortName || ($0.alias == nil && $0.path.last == shortName))
+                    }
+                    if builtinShadow == nil {
+                        if explicitImports.contains(where: { $0.path == [kotlinRoot, shortName] }) {
+                            return builtinType
+                        }
+                        builtinShadow = explicitImports.lazy.flatMap { declaration in
+                            symbols.lookupAll(fqName: declaration.path).compactMap { symbols.symbol($0) }
+                        }.first(where: accessible)
+                    }
+                    if builtinShadow == nil {
+                        let package = currentPackageFQName ?? usageRange.flatMap { ast.file(for: $0.start.file)?.packageFQName } ?? []
+                        builtinShadow = symbols.lookupAll(fqName: package + [shortName])
+                            .compactMap { symbols.symbol($0) }.first(where: accessible)
+                    }
+                }
+                // Named imports and same-package declarations can shadow a
+                // builtin; wildcard imports and root fallbacks cannot.
+                if builtinShadow == nil || builtinShadow?.fqName.first == kotlinRoot { return builtinType }
             }
 
             let candidates: [SemanticSymbol]
-            if let relativeOwnerFQName
+            if let builtinShadow {
+                candidates = [builtinShadow]
+            } else if let relativeOwnerFQName
             {
                 // Resolve the lexical root before walking a qualified nested name.
                 // For example, Slot.Task inside Ch refers to Ch.Slot.Task.
@@ -186,6 +230,11 @@ extension DataFlowSemaPhase {
                     recursionDepth: recursionDepth,
                     usageRange: usageRange
                 )
+                if resolved.kind != .typeAlias {
+                    TypeProjectionValidator(symbols: symbols, types: types, interner: interner,
+                                            diagnostics: diagnostics, range: usageRange)
+                        .validate(arguments: resolvedArgs, of: resolved.id)
+                }
                 if resolved.kind == .typeAlias, expandTypeAlias {
                     if let underlying = resolveTypeAliasUnderlying(
                         resolved.id,
@@ -194,7 +243,9 @@ extension DataFlowSemaPhase {
                         typeArgs: resolvedArgs,
                         visited: [],
                         recursionDepth: recursionDepth,
-                        diagnostics: diagnostics
+                        diagnostics: diagnostics,
+                        projectionRange: usageRange,
+                        interner: interner
                     ) {
                         // The alias may have been resolved before an alias it
                         // mentions (declared later) had an underlying type.
@@ -942,7 +993,9 @@ extension DataFlowSemaPhase {
         visited: Set<SymbolID>,
         depth: Int = 0,
         recursionDepth: Int = 0,
-        diagnostics: DiagnosticEngine? = nil
+        diagnostics: DiagnosticEngine? = nil,
+        projectionRange: SourceRange? = nil,
+        interner: StringInterner? = nil
     ) -> TypeID? {
         guard !visited.contains(symbolID) else {
             diagnostics?.error(
@@ -963,6 +1016,11 @@ extension DataFlowSemaPhase {
         guard let underlying = symbols.typeAliasUnderlyingType(for: symbolID) else {
             return nil
         }
+        TypeProjectionValidator(symbols: symbols, types: types,
+                                interner: interner,
+                                diagnostics: diagnostics,
+                                range: projectionRange ?? symbols.symbol(symbolID)?.declSite)
+            .validate(arguments: typeArgs, of: symbolID)
         let expanded = substituteTypeAliasParams(
             underlying,
             aliasSymbol: symbolID,
@@ -987,7 +1045,9 @@ extension DataFlowSemaPhase {
                 visited: newVisited,
                 depth: depth + 1,
                 recursionDepth: recursionDepth,
-                diagnostics: diagnostics
+                diagnostics: diagnostics,
+                projectionRange: projectionRange,
+                interner: interner
             ) {
                 if classType.nullability == .nullable {
                     return applyNullability(resolved, types: types)
