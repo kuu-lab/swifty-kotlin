@@ -264,6 +264,15 @@ extension CallLowerer {
         interner: StringInterner,
         instructions: inout [KIRInstruction]
     ) {
+        if let classType = resolveClassType(classRefTargetType, sema: sema) {
+            appendTypeAncestryRegistrations(
+                rootSymbol: classType.classSymbol,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            )
+        }
         var visitedClassSymbols: Set<SymbolID> = []
         emitClassLiteralMetadataRegistrationImpl(
             classRefTargetType: classRefTargetType,
@@ -569,12 +578,15 @@ extension CallLowerer {
             switch child.kind {
             case .function:
                 guard let signature = sema.symbols.functionSignature(for: childID) else { continue }
+                let visibilityFlags: Int64 = child.visibility == .public || child.visibility == .internal ? 2 : 0
                 register(
                     name: interner.resolve(child.name),
-                    signature: descriptor(parameterTypes: signature.parameterTypes, returnType: signature.returnType)
+                    signature: descriptor(parameterTypes: signature.parameterTypes, returnType: signature.returnType),
+                    flags: visibilityFlags
                 )
             case .property:
                 guard let propertyType = sema.symbols.propertyType(for: childID) else { continue }
+                let visibilityFlags: Int64 = child.visibility == .public || child.visibility == .internal ? 2 : 0
                 let propertyName = interner.resolve(child.name)
                 let getterName: String
                 if propertyName.hasPrefix("is"),
@@ -586,7 +598,11 @@ extension CallLowerer {
                 } else {
                     getterName = "get"
                 }
-                register(name: getterName, signature: descriptor(parameterTypes: [], returnType: propertyType))
+                register(
+                    name: getterName,
+                    signature: descriptor(parameterTypes: [], returnType: propertyType),
+                    flags: visibilityFlags
+                )
 
                 let hasRuntimePropertyAnnotation = sema.symbols.annotations(for: childID).contains { annotation in
                     annotation.useSiteTarget == nil
@@ -596,7 +612,7 @@ extension CallLowerer {
                     register(
                         name: "\(getterName)$annotations",
                         signature: descriptor(parameterTypes: [], returnType: sema.types.unitType),
-                        flags: 1
+                        flags: visibilityFlags | 1
                     )
                 }
             default:

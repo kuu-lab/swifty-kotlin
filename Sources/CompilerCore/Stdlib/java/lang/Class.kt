@@ -26,6 +26,10 @@ private external fun <T> __declaredConstructor(
 ): Constructor<T>
 @KsSymbolName("__kk_java_class_get_declared_methods")
 private external fun __classGetDeclaredMethods(type: Class<*>): Array<Method>
+@KsSymbolName("__kk_java_class_get_methods")
+private external fun __classGetMethods(type: Class<*>): Array<Method>
+@KsSymbolName("__kk_java_class_is_assignable_from")
+private external fun __classIsAssignableFrom(type: Class<*>, other: Class<*>): Boolean
 @KsSymbolName("__kk_class_canonical_name")
 private external fun <T> __classCanonicalName(type: Class<T>): String?
 
@@ -78,6 +82,10 @@ public class Class<T> {
         __declaredConstructor(this, parameterTypes)
 
     public fun getDeclaredMethods(): Array<Method> = __classGetDeclaredMethods(this)
+
+    public fun getMethods(): Array<Method> = __classGetMethods(this)
+
+    public fun isAssignableFrom(other: Class<*>): Boolean = __classIsAssignableFrom(this, other)
 
     public fun getDeclaredMethod(name: String, vararg parameterTypes: Class<*>): Method =
         __classGetDeclaredMethod(this, name, parameterTypes)
