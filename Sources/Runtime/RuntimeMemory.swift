@@ -137,6 +137,9 @@ private func runtimeJavaClassHandle(
     typeToken: Int,
     nameHint: () -> Int,
     enclosingClassName: String? = nil,
+    javaNameOverride: String? = nil,
+    canonicalNameOverride: String? = nil,
+    className: String? = nil,
     displayText: (() -> String)? = nil
 ) -> Int {
     if let cached = runtimeStorage.withMetadataLock({ $0.javaClassCache[cacheKey] }) {
@@ -146,6 +149,9 @@ private func runtimeJavaClassHandle(
         RuntimeJavaClassBox(
             typeToken: typeToken,
             nameHint: nameHint(),
+            javaNameOverride: javaNameOverride,
+            canonicalNameOverride: canonicalNameOverride,
+            className: className,
             enclosingClassName: enclosingClassName,
             displayText: displayText?()
         ),
@@ -158,6 +164,52 @@ private func runtimeJavaClassHandle(
     }
     if winner != raw { _ = runtimeReleaseObject(raw) }
     return winner
+}
+
+private func runtimeJavaWrapperClassName(typeToken: Int, kclassRaw: Int) -> String? {
+    let name = extractString(from: UnsafeMutableRawPointer(bitPattern: __kk_kclass_qualified_name(kclassRaw)))
+    if name == "java.lang.Void" || name == "kotlin.Nothing" {
+        return "java.lang.Void"
+    }
+
+    switch Int64(truncatingIfNeeded: typeToken) & RuntimeTypeTokenEncoding.baseMask {
+    case RuntimeTypeTokenEncoding.booleanBase: return "java.lang.Boolean"
+    case RuntimeTypeTokenEncoding.byteBase: return "java.lang.Byte"
+    case RuntimeTypeTokenEncoding.shortBase: return "java.lang.Short"
+    case RuntimeTypeTokenEncoding.intBase: return "java.lang.Integer"
+    case RuntimeTypeTokenEncoding.longBase: return "java.lang.Long"
+    case RuntimeTypeTokenEncoding.charBase: return "java.lang.Character"
+    case RuntimeTypeTokenEncoding.floatBase: return "java.lang.Float"
+    case RuntimeTypeTokenEncoding.doubleBase: return "java.lang.Double"
+    default:
+        return nil
+    }
+}
+
+@_cdecl("__kk_kclass_java_object_type")
+public func __kk_kclass_java_object_type(_ kclassRaw: Int) -> Int {
+    guard let classifier = runtimeKClassBox(from: kclassRaw) else {
+        runtimeStructuredPanic("invalid KClass handle")
+    }
+    guard let wrapperClassName = runtimeJavaWrapperClassName(
+        typeToken: classifier.typeToken,
+        kclassRaw: kclassRaw
+    ) else {
+        return runtimeJavaClassHandle(typeToken: classifier.typeToken, nameHint: classifier.nameHint)
+    }
+
+    return runtimeJavaClassHandle(
+        cacheKey: JavaClassCacheKey(
+            typeToken: classifier.typeToken,
+            runtimeClassName: wrapperClassName
+        ),
+        typeToken: classifier.typeToken,
+        nameHint: { classifier.nameHint },
+        javaNameOverride: wrapperClassName,
+        canonicalNameOverride: wrapperClassName,
+        className: wrapperClassName,
+        displayText: { "class \(wrapperClassName)" }
+    )
 }
 
 @_cdecl("__kk_any_javaClass")

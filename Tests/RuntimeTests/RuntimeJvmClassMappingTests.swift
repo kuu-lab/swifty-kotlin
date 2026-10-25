@@ -27,6 +27,41 @@ struct RuntimeJvmClassMappingTests {
         #expect(__kk_class_kotlin(javaClass) == kclass)
     }
 
+    @Test func javaObjectTypeUsesPrimitiveWrappersAndIsInterned() {
+        let cases: [(Int, String)] = [
+            (Int(RuntimeTypeTokenEncoding.booleanBase), "java.lang.Boolean"),
+            (Int(RuntimeTypeTokenEncoding.byteBase), "java.lang.Byte"),
+            (Int(RuntimeTypeTokenEncoding.shortBase), "java.lang.Short"),
+            (Int(RuntimeTypeTokenEncoding.intBase), "java.lang.Integer"),
+            (Int(RuntimeTypeTokenEncoding.longBase), "java.lang.Long"),
+            (Int(RuntimeTypeTokenEncoding.charBase), "java.lang.Character"),
+            (Int(RuntimeTypeTokenEncoding.floatBase), "java.lang.Float"),
+            (Int(RuntimeTypeTokenEncoding.doubleBase), "java.lang.Double"),
+        ]
+        for (token, expectedName) in cases {
+            let kclass = __kk_kclass_create(token, 0)
+            let javaClass = __kk_kclass_java_object_type(kclass)
+            #expect(javaClass != __kk_kclass_java_class(kclass))
+            #expect(__kk_kclass_java_object_type(kclass) == javaClass)
+            #expect(__kk_class_kotlin(javaClass) == kclass)
+            #expect(extractString(from: UnsafeMutableRawPointer(bitPattern: __kk_class_get_name(javaClass))) == expectedName)
+            #expect(extractString(from: UnsafeMutableRawPointer(bitPattern: __kk_class_canonical_name(javaClass))) == expectedName)
+            #expect(runtimeJavaClassToStringText(javaClass) == "class \(expectedName)")
+        }
+    }
+
+    @Test func javaObjectTypePreservesReferenceClassHandle() {
+        let kclass = __kk_kclass_create(Int(RuntimeTypeTokenEncoding.stringBase), 0)
+        #expect(__kk_kclass_java_object_type(kclass) == __kk_kclass_java_class(kclass))
+    }
+
+    @Test func nothingJavaObjectTypeUsesJavaVoidClass() {
+        let kclass = __kk_kclass_create(0, runtimeMakeStringRaw("kotlin.Nothing"))
+        let javaClass = __kk_kclass_java_object_type(kclass)
+        #expect(extractString(from: UnsafeMutableRawPointer(bitPattern: __kk_class_canonical_name(javaClass))) == "java.lang.Void")
+        #expect(__kk_class_kotlin(javaClass) == kclass)
+    }
+
     @Test func objectJavaClassMapsToItsRuntimeClassifier() {
         let value = runtimeMakeStringRaw("value")
         let javaClass = __kk_any_javaClass(value)
@@ -122,7 +157,11 @@ struct RuntimeJvmClassMappingTests {
         parameterTypes[0] = stringClass
         let parameterTypesRaw = registerRuntimeObject(parameterTypes)
 
-        #expect(__kk_class_declared_constructor(javaClass, parameterTypesRaw) == stringConstructor)
+        let reflectedConstructor = __kk_class_declared_constructor(javaClass, parameterTypesRaw)
+        #expect(
+            resolveRuntimeHandle(reflectedConstructor, as: RuntimeJavaConstructorBox.self)?.callableRaw
+                == stringConstructor
+        )
     }
 
     @Test func lambdaJavaClassRetainsItsEnclosingFileFacade() {

@@ -773,6 +773,7 @@ struct RuntimeABIExternalLinkValidationTests {
         runtimeABIName(.withTimeout): 4,
         runtimeABIName(.withTimeoutOrNull): 3,
         runtimeABIName(.withTimeoutOrNullThrowing): 4,
+        "__kk_flow_flat_map_latest_external": 3,
     ]
     /// Link names whose declared signatures the test's signature scanner
     /// cannot linearize into an expected ABI return type: a parenthesized
@@ -799,6 +800,12 @@ struct RuntimeABIExternalLinkValidationTests {
         ],
         runtimeABIName(.withTimeoutOrNullThrowing): [
             RuntimeABICType.intptr.rawValue,
+            RuntimeABICType.intptr.rawValue,
+            RuntimeABICType.intptr.rawValue,
+        ],
+        // The latest-flow bridge receives its suspend mapper as one boxed
+        // function handle and appends the runtime outThrown slot.
+        "__kk_flow_flat_map_latest_external": [
             RuntimeABICType.intptr.rawValue,
             RuntimeABICType.intptr.rawValue,
         ],
