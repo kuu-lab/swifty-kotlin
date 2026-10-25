@@ -59,6 +59,9 @@ extension DeclTypeChecker {
         diagnostics: DiagnosticEngine,
         baseLocals: LocalBindings = [:]
     ) -> TypeID? {
+        // A bodyless accessor uses the property's default getter. It does not
+        // have a Unit-valued function body to constrain against the property.
+        guard getter.body != .unit else { return inferredPropertyType }
         let accessorCtx = driver.helpers.accessorOptInContext(annotations: getter.annotations, ctx: accessorCtx)
         let sema = accessorCtx.sema
         let interner = accessorCtx.interner

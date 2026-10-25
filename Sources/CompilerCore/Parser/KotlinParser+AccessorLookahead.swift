@@ -3,7 +3,6 @@ extension KotlinParser {
     /// declaration CST node.
     func isPropertyAccessorStart(_ token: Token) -> Bool {
         var offset = 0
-        var hasVisibilityModifier = false
         // Skip annotations without consuming them: an annotation on the next
         // declaration must not be absorbed into the preceding property.
         while stream.peek(offset).kind == .symbol(.at) {
@@ -13,10 +12,7 @@ extension KotlinParser {
         visibilityPrefix: while true {
             guard case let .keyword(keyword) = stream.peek(offset).kind else { break }
             switch keyword {
-            case .public, .private, .internal, .protected:
-                hasVisibilityModifier = true
-                offset += 1
-            case .inline:
+            case .public, .private, .internal, .protected, .inline:
                 offset += 1
             default:
                 break visibilityPrefix
@@ -27,16 +23,17 @@ extension KotlinParser {
             if isAccessorHeaderFollowedByBody(at: offset) {
                 return true
             }
-            guard hasVisibilityModifier,
-                  stream.peek(offset).kind == .softKeyword(.set)
-            else {
-                return false
-            }
-            let afterSetter = stream.peek(offset + 1)
-            return afterSetter.kind == .eof
-                || afterSetter.kind == .symbol(.semicolon)
-                || afterSetter.kind == .symbol(.rBrace)
-                || hasLeadingNewline(afterSetter)
+            // Without an accessor prefix, a bare get/set can be the next
+            // statement's ordinary name (notably a lambda's return value).
+            guard offset > 0 else { return false }
+            // A default accessor has no parameter list or body. Annotations
+            // may precede either accessor, including `@JvmName(...) get` on
+            // an expect property; keep it attached to that property.
+            let afterAccessor = stream.peek(offset + 1)
+            return afterAccessor.kind == .eof
+                || afterAccessor.kind == .symbol(.semicolon)
+                || afterAccessor.kind == .symbol(.rBrace)
+                || hasLeadingNewline(afterAccessor)
         default:
             return false
         }
