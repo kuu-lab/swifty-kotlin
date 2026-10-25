@@ -256,6 +256,38 @@ extension CallTypeChecker {
         }
 
         let memberName = interner.resolve(calleeName)
+        if memberName == "replace", args.count == 2 {
+            let firstType = sema.bindings.exprType(for: args[0].expr)
+                ?? driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals)
+            let secondType = sema.bindings.exprType(for: args[1].expr)
+                ?? driver.inferExpr(args[1].expr, ctx: ctx, locals: &locals)
+            let firstIsCharLiteral: Bool
+            if case .charLiteral? = ctx.ast.arena.expr(args[0].expr) {
+                firstIsCharLiteral = true
+            } else {
+                firstIsCharLiteral = false
+            }
+            let secondIsCharLiteral: Bool
+            if case .charLiteral? = ctx.ast.arena.expr(args[1].expr) {
+                secondIsCharLiteral = true
+            } else {
+                secondIsCharLiteral = false
+            }
+            let firstIsChar = sema.types.makeNonNullable(firstType) == sema.types.charType
+                || firstIsCharLiteral
+            let secondIsChar = sema.types.makeNonNullable(secondType) == sema.types.charType
+                || secondIsCharLiteral
+            if firstIsChar || secondIsChar {
+                // The Char overload takes two Chars. Do not let this generic
+                // result-type fallback swallow an inapplicable mixed overload
+                // such as replace(Char, String) after candidate resolution fails.
+                guard firstType == sema.types.charType,
+                      secondType == sema.types.charType
+                else {
+                    return nil
+                }
+            }
+        }
         let regexType = sema.symbols.lookup(fqName: [
             interner.intern("kotlin"),
             interner.intern("text"),
