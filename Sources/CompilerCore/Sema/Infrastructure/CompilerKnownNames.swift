@@ -6,6 +6,7 @@ package enum KnownCompilerAnnotation: CaseIterable {
     case replaceWith
     case metadata
     case requiresOptIn
+    case repeatable
     case target
     case experimentalStdlibApi
     case experimentalVersionOverloading
@@ -48,6 +49,8 @@ package enum KnownCompilerAnnotation: CaseIterable {
             "Metadata"
         case .requiresOptIn:
             "RequiresOptIn"
+        case .repeatable:
+            "Repeatable"
         case .target:
             "Target"
         case .experimentalStdlibApi:
@@ -121,6 +124,8 @@ package enum KnownCompilerAnnotation: CaseIterable {
             "kotlin.Metadata"
         case .requiresOptIn:
             "kotlin.RequiresOptIn"
+        case .repeatable:
+            "kotlin.annotation.Repeatable"
         case .target:
             "kotlin.annotation.Target"
         case .experimentalStdlibApi:

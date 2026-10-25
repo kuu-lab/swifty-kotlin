@@ -230,7 +230,12 @@ extension DataFlowSemaPhase {
             } else {
                 isFunctionLiteral = ast.arena.isAnonymousFunction(exprID)
             }
-            for annotation in annotationsByExpr[exprID] ?? [] {
+            let annotations = annotationsByExpr[exprID] ?? []
+            validateAnnotationRepeatability(
+                annotations: annotations, file: file, symbols: symbols,
+                diagnostics: diagnostics, interner: interner, resolutionContext: resolutionContext
+            )
+            for annotation in annotations {
                 if let usageID = annotation.usageID, !seenAnnotationUsages.insert(usageID).inserted {
                     continue
                 }
@@ -378,6 +383,10 @@ extension DataFlowSemaPhase {
             return
         }
 
+        validateAnnotationRepeatability(
+            annotations: file.annotations, file: file, symbols: symbols,
+            diagnostics: diagnostics, interner: interner, resolutionContext: resolutionContext
+        )
         for annotation in file.annotations {
             validateAnnotationTarget(
                 annotation: annotation,
@@ -417,6 +426,17 @@ extension DataFlowSemaPhase {
             resolutionContext.enclosingFQName = Array(ownerSymbol.fqName.dropLast())
         }
         let memberResolutionContext = resolutionContext.within(ownerSymbol?.fqName ?? [])
+
+        validateAnnotationRepeatability(
+            annotations: decl.annotations, file: file, symbols: symbols,
+            diagnostics: diagnostics, interner: interner, resolutionContext: resolutionContext
+        )
+        for typeParam in annotationTypeParameters(in: decl) {
+            validateAnnotationRepeatability(
+                annotations: typeParam.annotations, file: file, symbols: symbols,
+                diagnostics: diagnostics, interner: interner, resolutionContext: resolutionContext
+            )
+        }
 
         if !resolutionContext.hasInferredBodies, !decl.annotations.isEmpty,
            case let .propertyDecl(property) = decl,
@@ -491,6 +511,10 @@ extension DataFlowSemaPhase {
                     resolutionContext: memberResolutionContext
                 )
             }
+            validateAnnotationRepeatability(
+                annotations: classDecl.primaryConstructorAnnotations, file: file, symbols: symbols,
+                diagnostics: diagnostics, interner: interner, resolutionContext: memberResolutionContext
+            )
             for annotation in classDecl.primaryConstructorAnnotations {
                 validateAnnotationTarget(
                     annotation: annotation,
@@ -514,6 +538,10 @@ extension DataFlowSemaPhase {
                 )
             }
             for ctor in classDecl.secondaryConstructors {
+                validateAnnotationRepeatability(
+                    annotations: ctor.annotations, file: file, symbols: symbols,
+                    diagnostics: diagnostics, interner: interner, resolutionContext: memberResolutionContext
+                )
                 for annotation in ctor.annotations {
                     validateAnnotationTarget(
                         annotation: annotation,
@@ -538,6 +566,10 @@ extension DataFlowSemaPhase {
                 }
             }
             for entry in classDecl.enumEntries {
+                validateAnnotationRepeatability(
+                    annotations: entry.annotations, file: file, symbols: symbols,
+                    diagnostics: diagnostics, interner: interner, resolutionContext: memberResolutionContext
+                )
                 for annotation in entry.annotations {
                     validateAnnotationTarget(
                         annotation: annotation,
@@ -601,6 +633,10 @@ extension DataFlowSemaPhase {
             }
         case let .propertyDecl(property):
             for accessor in [property.getter, property.setter].compactMap({ $0 }) {
+                validateAnnotationRepeatability(
+                    annotations: accessor.annotations, file: file, symbols: symbols,
+                    diagnostics: diagnostics, interner: interner, resolutionContext: resolutionContext
+                )
                 for annotation in accessor.annotations {
                     validateAnnotationTarget(
                         annotation: annotation,
@@ -634,6 +670,10 @@ extension DataFlowSemaPhase {
         filesByID: [Int32: ASTFile],
         resolutionContext: AnnotationTargetResolutionContext
     ) {
+        validateAnnotationRepeatability(
+            annotations: param.annotations, file: file, symbols: symbols,
+            diagnostics: diagnostics, interner: interner, resolutionContext: resolutionContext
+        )
         for annotation in param.annotations {
             let site: AnnotationUsageSite
             switch annotation.useSiteTarget?.lowercased() {
@@ -693,6 +733,65 @@ extension DataFlowSemaPhase {
                 filesByID: filesByID,
                 resolutionContext: resolutionContext
             )
+        }
+    }
+
+    private func annotationTypeParameters(in decl: Decl) -> [TypeParamDecl] {
+        switch decl {
+        case let .classDecl(classDecl):
+            classDecl.typeParams
+        case let .interfaceDecl(interfaceDecl):
+            interfaceDecl.typeParams
+        case let .funDecl(function):
+            function.typeParams
+        case let .propertyDecl(property):
+            property.typeParams
+        case let .typeAliasDecl(typeAlias):
+            typeAlias.typeParams
+        case .objectDecl, .enumEntryDecl:
+            []
+        }
+    }
+
+    private func validateAnnotationRepeatability(
+        annotations: [AnnotationNode],
+        file: ASTFile,
+        symbols: SymbolTable,
+        diagnostics: DiagnosticEngine,
+        interner: StringInterner,
+        resolutionContext: AnnotationTargetResolutionContext
+    ) {
+        guard annotations.count > 1 else { return }
+
+        // A property and its accessors are separate annotation sites.
+        var seenUseSitesByAnnotation: [SymbolID: Set<String>] = [:]
+        for annotation in annotations {
+            guard let annotationSymbolID = resolveAnnotationSymbol(
+                named: annotation.name,
+                in: file,
+                symbols: symbols,
+                interner: interner,
+                types: resolutionContext.types,
+                enclosingFQName: resolutionContext.enclosingFQName,
+                lexicalEnclosingFQNames: resolutionContext.lexicalEnclosingFQNames
+            ), symbols.symbol(annotationSymbolID)?.kind == .annotationClass else {
+                continue
+            }
+
+            let useSiteTarget = annotation.useSiteTarget?.lowercased() ?? ""
+            guard seenUseSitesByAnnotation[annotationSymbolID, default: []].insert(useSiteTarget).inserted else {
+                let isRepeatable = symbols.annotations(for: annotationSymbolID).contains {
+                    KnownCompilerAnnotation.repeatable.matches($0.annotationFQName)
+                }
+                if !isRepeatable {
+                    diagnostics.error(
+                        "KSWIFTK-SEMA-ANNOTATION-NOT-REPEATABLE",
+                        "This annotation is not repeatable.",
+                        range: annotation.constructionTokens?.first?.range
+                    )
+                }
+                continue
+            }
         }
     }
 
@@ -1294,6 +1393,10 @@ private extension DataFlowSemaPhase {
                 validateTypeAnnotationTargets(typeRefID: part, ownerRange: ownerRange, file: file, ast: ast, symbols: symbols, diagnostics: diagnostics, interner: interner, filesByID: filesByID, resolutionContext: resolutionContext)
             }
         case let .annotated(base, annotations):
+            validateAnnotationRepeatability(
+                annotations: annotations, file: file, symbols: symbols,
+                diagnostics: diagnostics, interner: interner, resolutionContext: resolutionContext
+            )
             for annotation in annotations {
                 validateAnnotationTarget(
                     annotation: annotation,
