@@ -31,5 +31,29 @@ struct IndexedNumericArrayIncrementTests {
 
         assertHasDiagnostic("KSWIFTK-TYPE-0001", in: ctx)
     }
+
+    @Test
+    func indexedSmallIntegerArrayIncrementAndDecrementTypecheck() throws {
+        let ctx = makeContextFromSource("""
+        @OptIn(ExperimentalUnsignedTypes::class)
+        fun main() {
+            val bytes = byteArrayOf(127, -128)
+            bytes[0]++
+            bytes[1]--
+            val shorts = shortArrayOf(32767, -32768)
+            shorts[0]++
+            shorts[1]--
+            val ubytes = ubyteArrayOf(255u, 0u)
+            ubytes[0]++
+            ubytes[1]--
+            val ushorts = ushortArrayOf(65535u, 0u)
+            ushorts[0]++
+            ushorts[1]--
+        }
+        """)
+        try runSema(ctx)
+
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+    }
 }
 #endif

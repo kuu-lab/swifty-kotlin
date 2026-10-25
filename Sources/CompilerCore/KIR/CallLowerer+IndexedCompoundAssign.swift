@@ -205,7 +205,10 @@ extension CallLowerer {
                 sema: sema, arena: arena, interner: interner, instructions: &instructions
             )
         } else {
-            opResult = arena.appendTemporary(type: sema.types.anyType)
+            // Preserve the array element type on the arithmetic result so
+            // IntegerNarrowingPass can apply Int/UInt/Char overflow semantics.
+            let operationResultType = compoundPrimitiveElementType ?? receiverElementType ?? sema.types.anyType
+            opResult = arena.appendTemporary(type: operationResultType)
             // exprID's bound type is always unitType for compound assign, so we
             // derive the element type from the receiver's array type instead.
             let stringType = sema.types.stringType
@@ -251,19 +254,35 @@ extension CallLowerer {
                 thrownResult: nil
             ))
         }
+        let elementTypeForWriteBack = compoundPrimitiveElementType ?? receiverElementType
+        let wrappedOpResult: KIRExprID
+        if let elementTypeForWriteBack,
+           let wrapped = SmallIntegerWrap.append(
+               opResult,
+               type: elementTypeForWriteBack,
+               sema: sema,
+               arena: arena,
+               interner: interner,
+               instructions: &instructions
+           )
+        {
+            wrappedOpResult = wrapped
+        } else {
+            wrappedOpResult = opResult
+        }
         let storedOpResult: KIRExprID
         if let elementType = compoundPrimitiveElementType,
            let boxCallee = boxingTable.boxCallee(for: elementType, types: sema.types, requireNonNull: false)
         {
             storedOpResult = emitNonThrowingCall(
                 callee: boxCallee,
-                arg: opResult,
+                arg: wrappedOpResult,
                 resultType: sema.types.anyType,
                 arena: arena,
                 into: &instructions
             )
         } else {
-            storedOpResult = opResult
+            storedOpResult = wrappedOpResult
         }
         instructions.append(.call(
             symbol: nil,
@@ -534,8 +553,14 @@ extension CallLowerer {
             canThrow: false,
             thrownResult: nil
         ))
-
-        return opResult
+        return SmallIntegerWrap.append(
+            opResult,
+            type: elementType,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            instructions: &instructions
+        ) ?? opResult
     }
 
     /// Mirrors the direct-call pattern of lowerMemberCompoundAssignExpr: the
