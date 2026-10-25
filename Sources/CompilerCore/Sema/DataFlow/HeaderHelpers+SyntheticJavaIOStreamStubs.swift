@@ -494,6 +494,8 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
+        // Writer is an abstract Java base class for source-backed writers.
+        symbols.insertFlags([.abstractType], for: writerSymbol)
         let bufferedWriterSymbol = ensureClassSymbol(
             named: "BufferedWriter",
             in: javaIOPkg,
