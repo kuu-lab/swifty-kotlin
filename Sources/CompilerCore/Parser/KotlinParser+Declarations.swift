@@ -331,7 +331,8 @@ extension KotlinParser {
                 into: &children,
                 range: &range,
                 allowsDeclarationAssignment: true,
-                allowsFunctionWhereClause: hasTypeParameters
+                allowsFunctionWhereClause: hasTypeParameters,
+                stopsAtFunctionDelegation: true
             )
             // A block on the next line still belongs to a function whose
             // header has no expression body or explicit terminator.
