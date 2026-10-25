@@ -54,21 +54,32 @@ extension DataFlowSemaPhase {
         let superTypeRefs: [TypeRefID]
         let superTypeEntries: [SuperTypeEntry]
         let nestedDecls: [DeclID]
+        // A bare class supertype is only illegal when the class has a primary
+        // constructor to initialize it. Without a primary constructor, Kotlin
+        // requires the written form without `()` — each secondary constructor
+        // delegates via `super(...)` instead (kotlinc rejects `Base()` there
+        // with "supertype initialization is impossible without a primary
+        // constructor"). Objects always have an implicit primary constructor.
+        let classHasPrimaryConstructor: Bool
         switch decl {
         case let .classDecl(classDecl):
             superTypeRefs = classDecl.superTypeEntries.map(\.typeRef)
             superTypeEntries = classDecl.superTypeEntries
             nestedDecls = classDecl.nestedClasses + classDecl.nestedObjects
                 + (classDecl.companionObject.map { [$0] } ?? [])
+            classHasPrimaryConstructor = classDecl.hasPrimaryConstructorSyntax
+                || classDecl.secondaryConstructors.isEmpty
         case let .interfaceDecl(interfaceDecl):
             superTypeRefs = interfaceDecl.superTypes
             superTypeEntries = []
             nestedDecls = interfaceDecl.nestedClasses + interfaceDecl.nestedObjects
                 + (interfaceDecl.companionObject.map { [$0] } ?? [])
+            classHasPrimaryConstructor = false
         case let .objectDecl(objectDecl):
             superTypeRefs = objectDecl.superTypes
             superTypeEntries = objectDecl.superTypeEntries
             nestedDecls = objectDecl.nestedClasses + objectDecl.nestedObjects
+            classHasPrimaryConstructor = true
         default:
             return
         }
@@ -127,11 +138,21 @@ extension DataFlowSemaPhase {
                 interner: interner,
                 reportUnresolved: reportUnresolved
             ) {
+                if superSymbols.contains(resolved.symbol) {
+                    diagnostics.error(
+                        "KSWIFTK-SEMA-0440",
+                        "A supertype appears twice.",
+                        range: (index < superTypeEntries.count ? superTypeEntries[index].range : nil)
+                            ?? symbols.symbol(symbol)?.declSite
+                    )
+                    continue
+                }
                 if index < superTypeEntries.count {
                     let entry = superTypeEntries[index]
                     if !entry.hasConstructorCallSyntax,
                        entry.delegateExpression == nil,
                        symbols.symbol(resolved.symbol)?.kind == .class,
+                       classHasPrimaryConstructor,
                        !isBundledStdlibDecl
                     {
                         diagnostics.error(
@@ -1150,6 +1171,7 @@ extension DataFlowSemaPhase {
                     ast: ast,
                     symbols: symbols,
                     bindings: bindings,
+                    types: types,
                     diagnostics: diagnostics,
                     interner: interner
                 )
@@ -1809,6 +1831,7 @@ extension DataFlowSemaPhase {
         ast: ASTModule,
         symbols: SymbolTable,
         bindings: BindingTable,
+        types: TypeSystem,
         diagnostics: DiagnosticEngine,
         interner: StringInterner
     ) {
@@ -1858,6 +1881,7 @@ extension DataFlowSemaPhase {
             overriddenNames: overriddenNames,
             delegatedInterfaces: symbols.delegatedInterfaces(forClass: symbol),
             symbols: symbols,
+            types: types,
             interner: interner
         )
         guard !missingMembers.isEmpty else { return }

@@ -120,8 +120,7 @@ final class PropertyLoweringPass: LoweringPass {
                                     callee: getterName,
                                     arguments: [],
                                     result: lgResult,
-                                    canThrow: false,
-                                    thrownResult: nil
+                                    canThrow: false
                                 )
                             )
                             continue
@@ -150,8 +149,7 @@ final class PropertyLoweringPass: LoweringPass {
                                     callee: getterName,
                                     arguments: [],
                                     result: lgResult,
-                                    canThrow: false,
-                                    thrownResult: nil
+                                    canThrow: false
                                 )
                             )
                             continue
@@ -167,12 +165,10 @@ final class PropertyLoweringPass: LoweringPass {
                         )
                         loweredBody.append(
                             .call(
-                                symbol: nil,
                                 callee: externalCallee,
                                 arguments: getterArguments,
                                 result: lgResult,
-                                canThrow: false,
-                                thrownResult: nil
+                                canThrow: false
                             )
                         )
                         continue
@@ -200,8 +196,7 @@ final class PropertyLoweringPass: LoweringPass {
                                     callee: getterName,
                                     arguments: [],
                                     result: cvResult,
-                                    canThrow: false,
-                                    thrownResult: nil
+                                    canThrow: false
                                 )
                             )
                             continue
@@ -218,12 +213,10 @@ final class PropertyLoweringPass: LoweringPass {
                         )
                         loweredBody.append(
                             .call(
-                                symbol: nil,
                                 callee: externalCallee,
                                 arguments: getterArguments,
                                 result: cvResult,
-                                canThrow: false,
-                                thrownResult: nil
+                                canThrow: false
                             )
                         )
                         continue
@@ -291,8 +284,7 @@ final class PropertyLoweringPass: LoweringPass {
                                     callee: setterName,
                                     arguments: callArguments,
                                     result: nil,
-                                    canThrow: false,
-                                    thrownResult: nil
+                                    canThrow: false
                                 )
                             )
                             continue

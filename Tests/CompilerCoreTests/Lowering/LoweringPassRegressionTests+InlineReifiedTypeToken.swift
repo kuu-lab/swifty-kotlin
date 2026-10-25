@@ -88,8 +88,7 @@ extension LoweringPassRegressionTests {
                     callee: inlineName,
                     arguments: [callerTokenExpr],
                     result: callerResultExpr,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ),
                 .returnValue(callerResultExpr),
             ],

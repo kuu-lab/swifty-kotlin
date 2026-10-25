@@ -160,7 +160,8 @@ extension BuildASTPhase {
             }
             depth.track(token.kind)
             if token.kind == .symbol(.comma), depth.isAtTopLevel {
-                appendValueParameter(from: paramTokens, into: &valueParams, interner: interner, astArena: astArena)
+                appendValueParameter(from: paramTokens, into: &valueParams, interner: interner, astArena: astArena,
+                                     allowsImplicitParameterTypes: isAnonymousFunction)
                 paramTokens.removeAll(keepingCapacity: true)
             } else {
                 paramTokens.append(token)
@@ -168,8 +169,14 @@ extension BuildASTPhase {
             index += 1
         }
         if !paramTokens.isEmpty {
-            appendValueParameter(from: paramTokens, into: &valueParams, interner: interner, astArena: astArena)
+            appendValueParameter(from: paramTokens, into: &valueParams, interner: interner, astArena: astArena,
+                                 allowsImplicitParameterTypes: isAnonymousFunction)
         }
+        DeclarationPositionValidator.validateMultipleVarargParameters(
+            valueParams,
+            fallbackRange: head.range,
+            diagnostics: diagnostics
+        )
 
         guard index < funTokens.count, funTokens[index].kind == .symbol(.rParen) else {
             return nil
@@ -198,6 +205,25 @@ extension BuildASTPhase {
                 "KSWIFTK-SEMA-0431",
                 "'infix' modifier is inapplicable to this function.",
                 range: leadingModifiers.first(where: { $0.name == "infix" })?.range ?? head.range
+            )
+        }
+
+        // KUU-3149: kotlinc also checks `operator` arity/eligibility on local
+        // functions; a local function is never a member, so it qualifies only
+        // through an extension receiver.
+        if hasOperator,
+           let violation = DeclarationPositionValidator.operatorEligibilityViolation(
+               name: interner.resolve(name),
+               isMember: false,
+               isExtension: receiverType != nil,
+               isSuspend: isSuspend,
+               valueParams: valueParams
+           )
+        {
+            diagnostics?.error(
+                "KSWIFTK-SEMA-0439",
+                "'operator' modifier is not applicable: \(violation).",
+                range: leadingModifiers.first(where: { $0.name == "operator" })?.range ?? head.range
             )
         }
 

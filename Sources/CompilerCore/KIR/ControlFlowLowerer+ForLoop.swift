@@ -30,12 +30,10 @@ extension ControlFlowLowerer {
     ) {
         if let runtimeCalleeOverride {
             instructions.append(.call(
-                symbol: nil,
                 callee: interner.intern(runtimeCalleeOverride),
                 arguments: [receiverID],
                 result: result,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
             return
         }
@@ -82,8 +80,7 @@ extension ControlFlowLowerer {
                     callee: calleeName,
                     arguments: arguments,
                     result: result,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ))
             }
             return
@@ -119,8 +116,7 @@ extension ControlFlowLowerer {
                 callee: calleeName,
                 arguments: [receiverID],
                 result: result,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
         }
     }
@@ -341,12 +337,10 @@ extension ControlFlowLowerer {
             )
         } else {
             instructions.append(.call(
-                symbol: nil,
                 callee: defaultIteratorCallee,
                 arguments: [iterableID],
                 result: iteratorID,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
         }
 
@@ -373,12 +367,10 @@ extension ControlFlowLowerer {
             )
         } else {
             instructions.append(.call(
-                symbol: nil,
                 callee: defaultHasNextCallee,
                 arguments: [iteratorID],
                 result: hasNextID,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
         }
         let falseID = arena.appendExpr(.boolLiteral(false), type: boolType)
@@ -412,12 +404,10 @@ extension ControlFlowLowerer {
             // ConcurrentModificationException propagates instead of degrading
             // to a sentinel element (__kk_range_next has no thrown channel).
             instructions.append(.call(
-                symbol: nil,
                 callee: defaultNextCallee,
                 arguments: [iteratorID],
                 result: nextValueID,
-                canThrow: isMapElementIteration,
-                thrownResult: nil
+                canThrow: isMapElementIteration
             ))
         }
         if let loopVariableSymbol {
@@ -647,12 +637,10 @@ extension ControlFlowLowerer {
         // icmp/add instructions and are never emitted as runtime calls.
         let hasMoreID = arena.appendTemporary(type: boolType)
         instructions.append(.call(
-            symbol: nil,
             callee: interner.intern("__kk_int_range_induction_le"),
             arguments: [currentSlot, lastSnapshotID],
             result: hasMoreID,
-            canThrow: false,
-            thrownResult: nil
+            canThrow: false
         ))
         instructions.append(.jumpIfEqual(lhs: hasMoreID, rhs: falseID, target: breakLabel))
 
@@ -671,12 +659,10 @@ extension ControlFlowLowerer {
         instructions.append(.constValue(result: oneID, value: .intLiteral(1)))
         let nextValueID = arena.appendTemporary(type: intType)
         instructions.append(.call(
-            symbol: nil,
             callee: interner.intern("__kk_int_range_induction_add"),
             arguments: [currentSlot, oneID],
             result: nextValueID,
-            canThrow: false,
-            thrownResult: nil
+            canThrow: false
         ))
         instructions.append(.copy(from: nextValueID, to: currentSlot))
         instructions.append(.jump(bodyLabel))
@@ -875,12 +861,10 @@ extension ControlFlowLowerer {
             ?? sema.types.anyType
         let elementID = arena.appendTemporary(type: loopVarType)
         instructions.append(.call(
-            symbol: nil,
             callee: interner.intern("kk_array_get_inbounds"),
             arguments: [arrayID, indexSlot],
             result: elementID,
-            canThrow: false,
-            thrownResult: nil
+            canThrow: false
         ))
 
         let oneID = arena.appendExpr(.intLiteral(1), type: intType)
@@ -965,7 +949,7 @@ extension ControlFlowLowerer {
                   sema: sema,
                   interner: interner
               ) == nil,
-              let iterableSymbol = sema.symbols.lookup(fqName: [
+              let iterableSymbol = sema.symbols.lookupNominal(fqName: [
                   interner.intern("kotlin"),
                   interner.intern("collections"),
                   interner.intern("Iterable"),
@@ -1010,7 +994,6 @@ extension ControlFlowLowerer {
         let iteratorID = arena.appendTemporary(type: sema.types.anyType)
         let thrownResult = arena.appendTemporary(type: sema.types.nullableAnyType)
         instructions.append(.call(
-            symbol: nil,
             callee: interner.intern("kk_iterable_iterator"),
             arguments: [iterableID],
             result: iteratorID,
@@ -1347,12 +1330,10 @@ extension ControlFlowLowerer {
             )
         } else {
             instructions.append(.call(
-                symbol: nil,
                 callee: interner.intern("__kk_range_iterator"),
                 arguments: [iterableID],
                 result: iteratorID,
-                canThrow: true,
-                thrownResult: nil
+                canThrow: true
             ))
         }
 
@@ -1379,12 +1360,10 @@ extension ControlFlowLowerer {
             )
         } else {
             instructions.append(.call(
-                symbol: nil,
                 callee: interner.intern(dynamicIterator ? "kk_iterator_hasNext" : "__kk_range_hasNext"),
                 arguments: [iteratorID],
                 result: hasNextID,
-                canThrow: dynamicIterator,
-                thrownResult: nil
+                canThrow: dynamicIterator
             ))
         }
         let falseID = arena.appendExpr(.boolLiteral(false), type: boolType)
@@ -1410,12 +1389,10 @@ extension ControlFlowLowerer {
             )
         } else {
             instructions.append(.call(
-                symbol: nil,
                 callee: interner.intern(dynamicIterator ? "kk_iterator_next" : "__kk_range_next"),
                 arguments: [iteratorID],
                 result: nextValueID,
-                canThrow: dynamicIterator,
-                thrownResult: nil
+                canThrow: dynamicIterator
             ))
         }
 
@@ -1463,23 +1440,19 @@ extension ControlFlowLowerer {
                 instructions.append(.copy(from: nextValueID, to: componentResult))
             } else if isMapIteration, namedMapProperty == interner.intern("value") {
                 instructions.append(.call(
-                    symbol: nil,
                     callee: interner.intern("__kk_map_get"),
                     arguments: [iterableID, nextValueID],
                     result: componentResult,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ))
             } else if isMapIteration, propertyBinding == nil, componentIndex == 1 {
                 instructions.append(.copy(from: nextValueID, to: componentResult))
             } else if isMapIteration, propertyBinding == nil, componentIndex == 2 {
                 instructions.append(.call(
-                    symbol: nil,
                     callee: interner.intern("__kk_map_get"),
                     arguments: [iterableID, nextValueID],
                     result: componentResult,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ))
             } else if let propertyBinding {
                 let propertyResult = driver.callLowerer.lowerDestructuringPropertyRead(

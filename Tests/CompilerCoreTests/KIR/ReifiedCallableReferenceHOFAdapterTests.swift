@@ -28,8 +28,8 @@ struct ReifiedCallableReferenceHOFAdapterTests {
             params: [fixture.types.anyType, fixture.types.intType, fixture.types.intType, fixture.types.stringType].map {
                 KIRParameter(symbol: fixture.driver.ctx.allocateSyntheticGeneratedSymbol(), type: $0)
             }, returnType: fixture.types.stringType,
-            body: [.beginBlock, .call(symbol: nil, callee: fixture.interner.intern("throwingTarget"),
-                                     arguments: [], result: result, canThrow: true, thrownResult: nil),
+            body: [.beginBlock, .call(callee: fixture.interner.intern("throwingTarget"),
+                                     arguments: [], result: result, canThrow: true),
                    .returnValue(result), .endBlock], isSuspend: false, isInline: false
         )))
         fixture.driver.ctx.registerCallableValue(

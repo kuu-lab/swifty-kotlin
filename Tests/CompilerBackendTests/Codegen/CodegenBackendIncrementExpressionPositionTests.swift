@@ -215,6 +215,25 @@ struct CodegenBackendIncrementExpressionPositionTests {
     }
 
     @Test
+    func testPostfixIncrementPassesCapturesToLocalExtensionOperator() throws {
+        let source = """
+        fun box(): String {
+            val sb = StringBuilder()
+            operator fun String.inc(): String {
+                sb.append(this)
+                return this
+            }
+            var s = "A"
+            s++
+            return sb.toString()!!
+        }
+
+        fun main() { println(box()) }
+        """
+        try assertKotlinOutput(source, moduleName: "LocalExtensionIncrementCapture", expected: "A\n")
+    }
+
+    @Test
     func testLocalInitializedFromVariableSnapshotsValue() throws {
         let source = """
         fun main() {

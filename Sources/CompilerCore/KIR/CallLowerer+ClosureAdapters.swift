@@ -60,8 +60,8 @@ extension CallLowerer {
         }
         let scope = arena.appendTemporary(type: receiverType)
         body.append(.call(
-            symbol: nil, callee: interner.intern("kk_coroutine_current_scope"),
-            arguments: [], result: scope, canThrow: false, thrownResult: nil
+            callee: interner.intern("kk_coroutine_current_scope"),
+            arguments: [], result: scope, canThrow: false
         ))
         // Literal launcher lambdas are receiver-first; stored values are capture-first.
         let receiverFirst = sourceArgExprs.contains { sema.bindings.isCoroutineLauncherLambdaExpr($0) }
@@ -72,7 +72,7 @@ extension CallLowerer {
         body.append(.call(
             symbol: callable?.symbol,
             callee: callable?.callee ?? interner.intern("kk_suspend_function_invoke"),
-            arguments: callArguments, result: result, canThrow: true, thrownResult: nil
+            arguments: callArguments, result: result, canThrow: true
         ))
         body.append(.returnValue(result))
         body.append(.endBlock)
@@ -112,12 +112,10 @@ extension CallLowerer {
                 let loadedExpr = arena.appendTemporary(type: captureType
                 )
                 body.append(.call(
-                    symbol: nil,
                     callee: arrayGet,
                     arguments: [closureExpr, offsetExpr],
                     result: loadedExpr,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ))
                 callArguments.append(loadedExpr)
             }
@@ -148,12 +146,10 @@ extension CallLowerer {
             let closureObjExpr = arena.appendTemporary(type: sema.types.anyType
             )
             instructions.append(.call(
-                symbol: nil,
                 callee: interner.intern("kk_object_new"),
                 arguments: [slotCountExpr, classIDExpr],
                 result: closureObjExpr,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
             for (captureIndex, captureArg) in callableInfo.captureArguments.enumerated() {
                 let offsetExpr = arena.appendExpr(
@@ -167,12 +163,10 @@ extension CallLowerer {
                 let unusedResult = arena.appendTemporary(type: sema.types.anyType
                 )
                 instructions.append(.call(
-                    symbol: nil,
                     callee: interner.intern("kk_array_set"),
                     arguments: [closureObjExpr, offsetExpr, captureArg],
                     result: unusedResult,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ))
             }
             return [closureObjExpr]
@@ -230,21 +224,17 @@ extension CallLowerer {
             let intType = sema.types.intType
             let fnPtrResult = arena.appendTemporary(type: intType)
             instructions.append(.call(
-                symbol: nil,
                 callee: interner.intern("kk_function_value_fn_ptr"),
                 arguments: [lambdaID],
                 result: fnPtrResult,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
             let closureRawResult = arena.appendTemporary(type: intType)
             instructions.append(.call(
-                symbol: nil,
                 callee: interner.intern("kk_function_value_closure_raw"),
                 arguments: [lambdaID],
                 result: closureRawResult,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
             finalArgs.append(fnPtrResult)
             finalArgs.append(closureRawResult)
@@ -500,6 +490,8 @@ extension CallLowerer {
             createCallee = interner.intern("kk_function_create_4")
         case 5:
             createCallee = interner.intern("kk_function_create_5")
+        case 6:
+            createCallee = interner.intern("kk_function_create_6")
         default:
             return loweredArgID
         }
@@ -518,20 +510,16 @@ extension CallLowerer {
         )
         let materialized = arena.appendTemporary(type: sema.types.make(.functionType(functionType)))
         instructions.append(.call(
-            symbol: nil,
             callee: createCallee,
             arguments: [fnPtrExpr, closureRaw],
             result: materialized,
-            canThrow: false,
-            thrownResult: nil
+            canThrow: false
         ))
         instructions.append(.call(
-            symbol: nil,
             callee: interner.intern("__kk_function_copy_description"),
             arguments: [loweredArgID, materialized],
             result: nil,
-            canThrow: false,
-            thrownResult: nil
+            canThrow: false
         ))
         driver.ctx.registerCallableValue(
             materialized,
@@ -563,8 +551,14 @@ extension CallLowerer {
         let symbol = sema.symbols.symbol(chosenCallee)
         let isImported = symbol?.flags.contains(.importedLibrary) == true
         let isInline = symbol?.flags.contains(.inlineFunction) == true
+        // Indexed imports keep the inline body as a deferred binding whose
+        // descriptor is only installed by the lowering-time demand scan —
+        // count those pending bodies as available here, or a lambda argument
+        // would be boxed into an adapter that references an isInlineOnly
+        // (never emitted) implementation symbol.
         let hasImportedInlineBody = sema.importedInlineFunctions.descriptors[chosenCallee] != nil
             || sema.importedInlineFunctions.functions[chosenCallee] != nil
+            || sema.importedInlineFunctions.pendingBodySymbols.contains(chosenCallee)
 
         // Synthetic launchers consume a suspend entry reference plus captures,
         // not the boxed function-value ABI used by ordinary Kotlin functions.
@@ -914,7 +908,6 @@ extension CallLowerer {
             let result = arena.appendTemporary(type: sema.types.nullableAnyType)
             let thrown = arena.appendTemporary(type: sema.types.nullableAnyType)
             body.append(.call(
-                symbol: nil,
                 callee: interner.intern(valueParameterCount == 0 ? "kk_function_invoke_0" : "kk_function_invoke"),
                 arguments: arguments,
                 result: result,
@@ -1193,8 +1186,7 @@ extension CallLowerer {
                     callee: seedCallableInfo.callee,
                     arguments: seedCallableInfo.captureArguments,
                     result: seedResult,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ))
                 seedArgument = seedResult
             }

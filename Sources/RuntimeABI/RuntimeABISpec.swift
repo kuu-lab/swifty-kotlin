@@ -110,6 +110,7 @@ public enum RuntimeABISpec {
         coroutineDebugProbesFunctions,
         coroutineFunctions,
         dateFormatFunctions,
+        dateTimeFunctions,
         deepRecursiveFunctions,
         delegateFunctions,
         dispatchBridgeFunctions,

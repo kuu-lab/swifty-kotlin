@@ -20,7 +20,7 @@ struct OperatorAndForLoweringTests {
         let v1 = arena.appendExpr(.temporary(1))
         let (module, declID) = makeModule(
             body: [
-                .call(symbol: nil, callee: interner.intern("println"), arguments: [v0], result: v1, canThrow: false, thrownResult: nil),
+                .call(callee: interner.intern("println"), arguments: [v0], result: v1, canThrow: false),
 
                 .returnUnit
             ],
@@ -47,7 +47,7 @@ struct OperatorAndForLoweringTests {
         let result = arena.appendExpr(.temporary(1), type: types.unitType)
         let (module, declID) = makeModule(
             body: [
-                .call(symbol: nil, callee: interner.intern("println"), arguments: [arg], result: result, canThrow: false, thrownResult: nil),
+                .call(callee: interner.intern("println"), arguments: [arg], result: result, canThrow: false),
 
                 .returnUnit
             ],
@@ -283,8 +283,8 @@ struct OperatorAndForLoweringTests {
         let v2 = arena.appendExpr(.temporary(2))
         let (module, declID) = makeModule(
             body: [
-                .call(symbol: nil, callee: LoweringTestRuntime.callee("range_iterator", interner: interner), arguments: [v0], result: v1, canThrow: false, thrownResult: nil),
-                .call(symbol: nil, callee: interner.intern(LoweringTestRuntime.intrinsic("for_lowered")), arguments: [v1], result: v2, canThrow: false, thrownResult: nil),
+                .call(callee: LoweringTestRuntime.callee("range_iterator", interner: interner), arguments: [v0], result: v1, canThrow: false),
+                .call(callee: interner.intern(LoweringTestRuntime.intrinsic("for_lowered")), arguments: [v1], result: v2, canThrow: false),
 
                 .returnUnit
             ],
@@ -315,7 +315,7 @@ struct OperatorAndForLoweringTests {
             params: [],
             returnType: TypeSystem().unitType,
             body: [
-                .call(symbol: nil, callee: interner.intern("someFunction"), arguments: [v0], result: v1, canThrow: false, thrownResult: nil),
+                .call(callee: interner.intern("someFunction"), arguments: [v0], result: v1, canThrow: false),
 
                 .returnUnit
             ],
@@ -341,7 +341,7 @@ struct OperatorAndForLoweringTests {
             params: [],
             returnType: TypeSystem().unitType,
             body: [
-                .call(symbol: nil, callee: interner.intern(LoweringTestRuntime.intrinsic("for_lowered")), arguments: [v0], result: v1, canThrow: false, thrownResult: nil)
+                .call(callee: interner.intern(LoweringTestRuntime.intrinsic("for_lowered")), arguments: [v0], result: v1, canThrow: false)
             ],
             isSuspend: false,
             isInline: false
@@ -404,7 +404,7 @@ struct OperatorAndForLoweringTests {
         let (module, declID) = makeModule(
             body: [
                 .beginBlock,
-                .call(symbol: nil, callee: interner.intern("foo"), arguments: [v0], result: v1, canThrow: false, thrownResult: nil),
+                .call(callee: interner.intern("foo"), arguments: [v0], result: v1, canThrow: false),
                 .endBlock,
 
                 .returnUnit

@@ -83,8 +83,8 @@ extension LambdaLowerer {
                 integer(Int(RuntimeTypeCheckToken.encode(type: reflectedType, sema: sema, interner: interner))),
                 integer(Int((targetSymbol ?? callableSymbol).rawValue) * 2 + (isSetter ? 1 : 0) + 1)]
                 let result = arena.appendTemporary(type: sema.types.anyType)
-                instructions.append(.call(symbol: nil, callee: interner.intern("__kk_kparameter_create_typed"), arguments: args,
-                                          result: result, canThrow: false, thrownResult: nil))
+                instructions.append(.call(callee: interner.intern("__kk_kparameter_create_typed"), arguments: args,
+                                          result: result, canThrow: false))
                 if vararg, let declarationType,
                    primitiveVarargArrayType(elementType: declarationType, sema: sema, interner: interner) == nil {
                     let component = runtimeArrayComponentTypeExpr(
@@ -92,9 +92,9 @@ extension LambdaLowerer {
                         arena: arena, interner: interner, instructions: &instructions
                     )
                     instructions.append(.call(
-                        symbol: nil, callee: interner.intern("__kk_kparameter_set_array_component"),
+                        callee: interner.intern("__kk_kparameter_set_array_component"),
                         arguments: [result, component], result: nil,
-                        canThrow: false, thrownResult: nil
+                        canThrow: false
                     ))
                 }
                 elements.append(result)
@@ -143,15 +143,15 @@ extension LambdaLowerer {
                     let boundType = arena.appendTemporary(type: sema.types.anyType)
                     let arguments = [integer(0), string(sema.types.displayName(of: bound, symbols: sema.symbols, interner: interner)),
                                      list([]), integer(sema.types.makeNonNullable(bound) != bound ? 1 : 0)]
-                    instructions.append(.call(symbol: nil, callee: interner.intern("kk_typeof"), arguments: arguments,
-                                              result: boundType, canThrow: false, thrownResult: nil))
+                    instructions.append(.call(callee: interner.intern("kk_typeof"), arguments: arguments,
+                                              result: boundType, canThrow: false))
                     boundValues.append(boundType)
                 }
                 let parameter = arena.appendTemporary(type: sema.symbols.functionSignature(for: factory)?.returnType)
                 let arguments = [string(interner.resolve(parameterInfo.name)), list(boundValues), integer(0),
                                  integer(parameterInfo.flags.contains(.reifiedTypeParameter) ? 1 : 0)]
                 instructions.append(.call(symbol: factory, callee: callableTargetName(for: factory, sema: sema, interner: interner),
-                                          arguments: arguments, result: parameter, canThrow: true, thrownResult: nil))
+                                          arguments: arguments, result: parameter, canThrow: true))
                 typeParameterValues.append(parameter)
             }
         }
@@ -183,9 +183,9 @@ extension LambdaLowerer {
             setterParameters = list([])
         }
         instructions.append(.call(
-            symbol: nil, callee: interner.intern("__kk_kcallable_register"),
+            callee: interner.intern("__kk_kcallable_register"),
             arguments: [value, invoker, environment, parameterList, typeParameterList, integer(flags), integer(visibility), setter, setterParameters],
-            result: nil, canThrow: false, thrownResult: nil
+            result: nil, canThrow: false
         ))
         let returnTypeKType = driver.lowerKTypeExpr(
             for: returnType,
@@ -195,12 +195,10 @@ extension LambdaLowerer {
             instructions: &instructions
         )
         instructions.append(.call(
-            symbol: nil,
             callee: interner.intern("__kk_kcallable_register_return_type"),
             arguments: [value, returnTypeKType],
             result: nil,
-            canThrow: false,
-            thrownResult: nil
+            canThrow: false
         ))
         if let targetSymbol {
             emitKClassAnnotationRegistration(
@@ -354,8 +352,8 @@ extension LambdaLowerer {
                 let offset = arena.appendExpr(.intLiteral(Int64(index)), type: sema.types.intType)
                 body.append(.constValue(result: offset, value: .intLiteral(Int64(index))))
                 let raw = arena.appendTemporary(type: sema.types.anyType)
-                body.append(.call(symbol: nil, callee: interner.intern("__kk_list_get"), arguments: [list, offset],
-                                  result: raw, canThrow: true, thrownResult: nil))
+                body.append(.call(callee: interner.intern("__kk_list_get"), arguments: [list, offset],
+                                  result: raw, canThrow: true))
                 let valueIndex = index - receiverCount
                 let isVararg = valueParameters && packsValueVarargs
                     && signature?.valueParameterIsVararg.indices.contains(valueIndex) == true
@@ -387,8 +385,8 @@ extension LambdaLowerer {
                     if keepsArray {
                         body.append(.copy(from: raw, to: packed))
                     } else {
-                        body.append(.call(symbol: nil, callee: interner.intern("__kk_array_toList"),
-                                          arguments: [raw], result: packed, canThrow: false, thrownResult: nil))
+                        body.append(.call(callee: interner.intern("__kk_array_toList"),
+                                          arguments: [raw], result: packed, canThrow: false))
                     }
                     return packed
                 }
@@ -445,12 +443,10 @@ extension LambdaLowerer {
         ) -> [KIRExprID] {
             let widened = arena.appendTemporary(type: sema.types.longType)
             instructions.append(.call(
-                symbol: nil,
                 callee: interner.intern("kk_int_to_long"),
                 arguments: [first],
                 result: widened,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
             var words = [widened]
             let wordCount = DefaultArgumentMask(parameterCount: parameterCount).stubWords.count
@@ -474,10 +470,10 @@ extension LambdaLowerer {
                        result: result, sema: sema, arena: arena, interner: interner
                    ), case let .virtualCall(symbol, callee, receiver, args, result, _, _, dispatch) = virtual {
                     body.append(.virtualCall(symbol: symbol, callee: callee, receiver: receiver, arguments: args,
-                                             result: result, canThrow: true, thrownResult: nil, dispatch: dispatch))
+                                             result: result, canThrow: true, dispatch: dispatch))
                 } else {
                     body.append(.call(symbol: packedFunctionTarget, callee: targetName, arguments: arguments,
-                                      result: result, canThrow: true, thrownResult: nil))
+                                      result: result, canThrow: true))
                 }
             }
             if signature?.valueParameterHasDefaultValues.contains(true) == true {
@@ -495,7 +491,7 @@ extension LambdaLowerer {
                 )
                 body.append(.call(symbol: driver.callSupportLowerer.defaultStubSymbol(for: owner),
                                   callee: interner.intern(interner.resolve(ownerName) + "$default"),
-                                  arguments: arguments + masks, result: result, canThrow: true, thrownResult: nil))
+                                  arguments: arguments + masks, result: result, canThrow: true))
                 body.append(.jump(done))
                 body.append(.label(normal))
                 emitNormalPackedCall()
@@ -541,7 +537,7 @@ extension LambdaLowerer {
                 symbol: constructorSymbol, name: constructorName, params: wrapper.params + [params[2]], returnType: wrapper.returnType,
                 body: constructorBody, isSuspend: false, isInline: false))))
             body.append(.call(symbol: constructorSymbol, callee: constructorName, arguments: arguments + [refs[2]],
-                              result: result, canThrow: true, thrownResult: nil))
+                              result: result, canThrow: true))
         } else if let targetSymbol, signature?.valueParameterHasDefaultValues.contains(true) == true,
            sema.symbols.symbol(targetSymbol)?.kind != .constructor {
             let zero = arena.appendExpr(.intLiteral(0), type: sema.types.intType)
@@ -558,15 +554,15 @@ extension LambdaLowerer {
             )
             body.append(.call(symbol: driver.callSupportLowerer.defaultStubSymbol(for: owner),
                               callee: interner.intern(interner.resolve(targetName) + "$default"),
-                              arguments: arguments + masks, result: result, canThrow: true, thrownResult: nil))
+                              arguments: arguments + masks, result: result, canThrow: true))
             body.append(.jump(done))
             body.append(.label(normal))
             body.append(.call(symbol: callableSymbol, callee: callableName, arguments: arguments,
-                              result: result, canThrow: true, thrownResult: nil))
+                              result: result, canThrow: true))
             body.append(.label(done))
         } else {
             body.append(.call(symbol: callableSymbol, callee: callableName, arguments: arguments,
-                              result: result, canThrow: true, thrownResult: nil))
+                              result: result, canThrow: true))
         }
         let boxed: KIRExprID
         if case .unit = sema.types.kind(of: returnType) {

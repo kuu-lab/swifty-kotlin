@@ -69,12 +69,10 @@ extension ExprLowerer {
                 {
                     // Emit before try lowering, just like the context + path.
                     instructions.append(.call(
-                        symbol: nil,
                         callee: interner.intern("__kk_context_plus_dispatch"),
                         arguments: [lhs, rhs],
                         result: resultID,
-                        canThrow: true,
-                        thrownResult: nil
+                        canThrow: true
                     ))
                 } else {
                     instructions.append(.binary(op: kirOp, lhs: lhs, rhs: rhs, result: resultID))
@@ -120,12 +118,10 @@ extension ExprLowerer {
 
             let resultID = arena.appendTemporary(type: stringType)
             instructions.append(.call(
-                symbol: nil,
                 callee: interner.intern("__kk_string_concat_flat"),
                 arguments: [effectiveLHS, effectiveRHS],
                 result: resultID,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
             return resultID
         }
@@ -166,6 +162,24 @@ extension ExprLowerer {
                 arguments: [KIRExprID],
                 result: KIRExprID
             ) {
+                var finalArguments = arguments
+                if sema.symbols.symbol(callBinding.chosenCallee)?.flags.contains(.localFunction) == true {
+                    var captureArguments: [KIRExprID] = []
+                    for capturedSymbol in sema.bindings.localFunctionCaptureSymbols(for: callBinding.chosenCallee) {
+                        guard let captureValue = driver.lambdaLowerer.captureValueExpr(
+                            for: capturedSymbol,
+                            sema: sema,
+                            arena: arena,
+                            interner: interner,
+                            instructions: &instructions
+                        ) else {
+                            assertionFailure("BuildKIRPhase: missing local operator capture '\(capturedSymbol)'")
+                            continue
+                        }
+                        captureArguments.append(captureValue)
+                    }
+                    finalArguments.insert(contentsOf: captureArguments, at: 0)
+                }
                 let resolvedMemberName = sema.symbols.symbol(callBinding.chosenCallee)
                     .map { interner.resolve($0.name) }
                     ?? interner.resolve(calleeName)
@@ -173,7 +187,7 @@ extension ExprLowerer {
                     memberName: resolvedMemberName,
                     receiverType: arena.exprType(lhs) ?? signature.receiverType ?? sema.types.anyType,
                     chosenCallee: callBinding.chosenCallee,
-                    arguments: arguments,
+                    arguments: finalArguments,
                     result: result,
                     sema: sema,
                     arena: arena,
@@ -188,7 +202,7 @@ extension ExprLowerer {
                     receiverExpr: nil,
                     loweredReceiverID: lhs,
                     isSuperCall: false,
-                    finalArguments: arguments,
+                    finalArguments: finalArguments,
                     result: result,
                     sema: sema,
                     arena: arena,
@@ -199,10 +213,9 @@ extension ExprLowerer {
                     instructions.append(.call(
                         symbol: callBinding.chosenCallee,
                         callee: calleeName,
-                        arguments: arguments,
+                        arguments: finalArguments,
                         result: result,
-                        canThrow: false,
-                        thrownResult: nil
+                        canThrow: false
                     ))
                 }
             }
@@ -350,12 +363,10 @@ extension ExprLowerer {
                 emitNonThrowingCall(callee: getterCallee, arg: receiverExprID, result: loadedValue, into: &instructions)
                 func storeViaSetter(_ value: KIRExprID) {
                     instructions.append(.call(
-                        symbol: nil,
                         callee: setterCallee,
                         arguments: [receiverExprID, value],
                         result: arena.appendTemporary(type: sema.types.unitType),
-                        canThrow: false,
-                        thrownResult: nil
+                        canThrow: false
                     ))
                 }
                 let rhsID = lowerRHS()
@@ -413,8 +424,7 @@ extension ExprLowerer {
                         callee: interner.intern("set"),
                         arguments: setterArguments,
                         result: setResultExprID,
-                        canThrow: false,
-                        thrownResult: nil
+                        canThrow: false
                     ))
                 }
                 let rhsID = lowerRHS()
@@ -540,8 +550,7 @@ extension ExprLowerer {
                             callee: interner.intern("set"),
                             arguments: setterArguments,
                             result: arena.appendTemporary(type: sema.types.unitType),
-                            canThrow: false,
-                            thrownResult: nil
+                            canThrow: false
                         ))
                     } else if let backingFieldSymbol {
                         let storedValue = normalizedValueForNullablePrimitiveSlot(
@@ -617,12 +626,10 @@ extension ExprLowerer {
                 instructions.append(.constValue(result: offsetExpr, value: .intLiteral(Int64(fieldOffset))))
                 let loadedValue = arena.appendTemporary(type: propType)
                 instructions.append(.call(
-                    symbol: nil,
                     callee: interner.intern("kk_array_get_inbounds"),
                     arguments: [fieldReceiverExprID, offsetExpr],
                     result: loadedValue,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ))
                 func storeFieldResult(_ value: KIRExprID) {
                     let storedValue = normalizedValueForNullablePrimitiveSlot(
@@ -633,12 +640,10 @@ extension ExprLowerer {
                         into: &instructions
                     )
                     instructions.append(.call(
-                        symbol: nil,
                         callee: interner.intern("kk_array_set"),
                         arguments: [fieldReceiverExprID, offsetExpr, storedValue],
                         result: nil,
-                        canThrow: false,
-                        thrownResult: nil
+                        canThrow: false
                     ))
                 }
                 let rhsID = lowerRHS()
@@ -725,12 +730,10 @@ extension ExprLowerer {
                 instructions.append(.constValue(result: offsetExpr, value: .intLiteral(Int64(fieldOffset))))
                 let rawLoadedValue = arena.appendTemporary(type: fieldType)
                 instructions.append(.call(
-                    symbol: nil,
                     callee: interner.intern("kk_array_get_inbounds"),
                     arguments: [receiverExprID, offsetExpr],
                     result: rawLoadedValue,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ))
                 let loadedValue = wrapLateinitReadIfNeeded(
                     rawLoadedValue,
@@ -749,12 +752,10 @@ extension ExprLowerer {
                         into: &instructions
                     )
                     instructions.append(.call(
-                        symbol: nil,
                         callee: interner.intern("kk_array_set"),
                         arguments: [receiverExprID, offsetExpr, storedValue],
                         result: nil,
-                        canThrow: false,
-                        thrownResult: nil
+                        canThrow: false
                     ))
                 }
                 let rhsID = lowerRHS()

@@ -337,9 +337,6 @@ struct RuntimeABIExternalLinkValidationTests {
             "kk_uint",
             "kk_ulong",
             "kk_unknown_callable",
-            // A Sema-only conversion sentinel: CallLowerer turns the bound
-            // primitive call into .copy before an external call is emitted.
-            "kk_primitive_identity",
             // CoroutineStart.isLazy const-folds to a Boolean literal in
             // CallRewriting and is never emitted as a call.
             "kk_coroutine_start_is_lazy",

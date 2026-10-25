@@ -19,6 +19,18 @@ extension JVMFunctionBuilder {
     }
 
     func binary(_ op: BinaryOp, _ lhs: ExprID, _ rhs: ExprID, _ id: ExprID) throws -> JVMValue? {
+        if op == .step {
+            if let symbol = program.sema.bindings.callBinding(for: id)?.chosenCallee,
+               program.inlineDeclarations[symbol] != nil || program.references[symbol] != nil || program.methods[symbol] != nil {
+                let args = [CallArgument(expr: rhs)]
+                if let call = try inlineCall(args, receiver: lhs, id: id)
+                    ?? sourceCall(args, receiver: lhs, id: id) { return call.value }
+            }
+            guard let result = try rangeStepCall(receiver: lhs, step: rhs) else {
+                throw fail("JVM step expressions currently support Int, Long, and Char progressions.", id)
+            }
+            return result
+        }
         if op == .rangeTo {
             if let symbol = program.sema.bindings.callBinding(for: id)?.chosenCallee,
                program.inlineDeclarations[symbol] != nil || program.references[symbol] != nil || program.methods[symbol] != nil {
@@ -347,5 +359,62 @@ extension JVMFunctionBuilder {
         mark(nullCase); instructions.append(.binary(.equal, a, b, result)); mark(end)
         if op == .notEqual { instructions.append(.unary(.not, result, result)) }
         return result
+    }
+
+    func rangeStepCall(receiver: ExprID, step: ExprID) throws -> JVMValue? {
+        let bindings = program.sema.bindings
+        let resolvedReceiverType = bindings.exprType(for: receiver).flatMap { try? program.type($0) }
+        let progressionName: String
+        let stepType: JVMValueType
+        switch resolvedReceiverType?.referenceName {
+        case "kotlin/ranges/IntRange", "kotlin/ranges/IntProgression":
+            progressionName = "IntProgression"
+            stepType = .int
+        case "kotlin/ranges/LongRange", "kotlin/ranges/LongProgression":
+            progressionName = "LongProgression"
+            stepType = .long
+        case "kotlin/ranges/CharRange", "kotlin/ranges/CharProgression":
+            progressionName = "CharProgression"
+            stepType = .int
+        default:
+            if bindings.isCharRangeExpr(receiver) {
+                progressionName = "CharProgression"
+                stepType = .int
+            } else if bindings.isULongRangeExpr(receiver) || bindings.isUIntRangeExpr(receiver) {
+                return nil
+            } else if bindings.isRangeExpr(receiver) {
+                if resolvedReceiverType == .long {
+                    progressionName = "LongProgression"
+                    stepType = .long
+                } else {
+                    progressionName = "IntProgression"
+                    stepType = .int
+                }
+            } else {
+                return nil
+            }
+        }
+
+        let progressionType = JVMValueType.reference("kotlin/ranges/\(progressionName)", nullable: false)
+        return try jdkCall(
+            "kotlin/ranges/RangesKt",
+            "step",
+            [progressionType, stepType],
+            progressionType,
+            arguments: [try requireValue(receiver), try rangeStepArgument(step, as: stepType)]
+        )
+    }
+
+    func rangeStepArgument(_ id: ExprID, as type: JVMValueType) throws -> JVMValue {
+        if case let .intLiteral(number, _) = arena.expr(id) {
+            if type == .long { return try constant(.long(number), .long) }
+            guard let value = Int32(exactly: number) else { throw fail("JVM range step is outside the Int range.", id) }
+            return try constant(.int(value), .int)
+        }
+        if case let .longLiteral(number, _) = arena.expr(id) {
+            guard type == .long else { throw fail("JVM range step requires an Int value.", id) }
+            return try constant(.long(number), .long)
+        }
+        return try convert(requireValue(id), to: type)
     }
 }

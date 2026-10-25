@@ -58,6 +58,29 @@ struct TypeCheckHelpers {
         return companionType
     }
 
+    /// A control-flow branch (`try` body, `catch`, `if`/`else` arm, `when`
+    /// branch) whose value-producing expression is a bare class name denotes
+    /// the companion object, not a `ClassType(X)` instance. Without retyping,
+    /// branch joins keep the nominal type and postfix member lookup cannot
+    /// reach companion members (`try { ULong } finally { }.MAX_VALUE`,
+    /// KUU-3232). Unwraps block bodies to their trailing expression.
+    func retypeBranchClassObjectValue(
+        _ exprID: ExprID,
+        currentType: TypeID,
+        ast: ASTModule,
+        sema: SemaModule
+    ) -> TypeID? {
+        var candidate = exprID
+        while case let .blockExpr(_, trailingExpr, _) = ast.arena.expr(candidate),
+              let trailingExpr
+        {
+            candidate = trailingExpr
+        }
+        return retypeClassNameAsCompanionValue(
+            candidate, currentType: currentType, ast: ast, sema: sema
+        )
+    }
+
     /// Per-compilation memoization for opt-in requirement derivation and
     /// annotation-class resolution (see `OptInResolutionCache`). A class, so
     /// copies of this struct and every `driver.helpers` call site share it.
@@ -440,7 +463,7 @@ struct TypeCheckHelpers {
         sema: SemaModule,
         interner: StringInterner
     ) -> Bool {
-        guard let charSequenceSymbol = sema.symbols.lookup(fqName: [
+        guard let charSequenceSymbol = sema.symbols.lookupNominal(fqName: [
             interner.intern("kotlin"),
             interner.intern("CharSequence"),
         ]) else {
@@ -463,7 +486,7 @@ struct TypeCheckHelpers {
             sema.types.makeNonNullable(iterableType),
             sema: sema
         ),
-            let iterableSymbol = sema.symbols.lookup(fqName: [
+            let iterableSymbol = sema.symbols.lookupNominal(fqName: [
                 interner.intern("kotlin"),
                 interner.intern("collections"),
                 interner.intern("Iterable"),

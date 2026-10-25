@@ -56,7 +56,7 @@ extension LoweringABIAndPropertyRegressionTests {
                 params: [],
                 returnType: types.unitType,
                 body: [
-                    .call(symbol: targetSym, callee: targetName, arguments: [argExpr], result: resultExpr, canThrow: false, thrownResult: nil),
+                    .call(symbol: targetSym, callee: targetName, arguments: [argExpr], result: resultExpr, canThrow: false),
                     .returnUnit,
                 ],
                 isSuspend: false,

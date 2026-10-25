@@ -175,7 +175,7 @@ public final class LoadSourcesPhase: CompilerPhase {
                     error.description,
                     range: nil
                 )
-            case .enumerationFailed, .readFailed:
+            case .enumerationFailed, .readFailed, .templateExpansionFailed:
                 ctx.diagnostics.error(
                     "KSWIFTK-SOURCE-0102",
                     error.description,

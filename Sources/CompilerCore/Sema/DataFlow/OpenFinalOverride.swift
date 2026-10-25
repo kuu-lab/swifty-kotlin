@@ -790,16 +790,25 @@ extension DataFlowSemaPhase {
             )
         }
         guard let parent else {
-            if isFunction,
-               !isMemberExtension,
-               findInheritedFunction(
-                   named: memberName,
-                   for: ownerSymbol,
-                   childMember: memberSymbol,
-                   requireMatchingSignature: true,
-                   ctx: ctx
-               ) == nil,
-               hasSourceBackedInheritedFunction(named: memberName, for: ownerSymbol, ctx: ctx) {
+            if isFunction, !isMemberExtension {
+                if findInheritedFunction(
+                    named: memberName,
+                    for: ownerSymbol,
+                    childMember: memberSymbol,
+                    requireMatchingSignature: true,
+                    ctx: ctx
+                ) == nil,
+                   hasSourceBackedInheritedFunction(named: memberName, for: ownerSymbol, ctx: ctx)
+                       || (hasCompleteInheritedMemberIndex(for: ownerSymbol, ctx: ctx)
+                           && !hasInheritedFunctionNamesake(named: memberName, for: ownerSymbol, ctx: ctx)) {
+                    diagnoseOverrideNothing(memberName: memberName, memberRange: memberRange, ctx: ctx)
+                }
+            } else if hasCompleteInheritedMemberIndex(for: ownerSymbol, ctx: ctx) {
+                // memberExtension: the name-level findInheritedFunction scan
+                // found no same-named function. property: the name-level
+                // findInheritedMember scan found no same-named member. A
+                // missing namesake is only proof of 'overrides nothing' when
+                // every reachable supertype's member list is complete.
                 diagnoseOverrideNothing(memberName: memberName, memberRange: memberRange, ctx: ctx)
             }
             return
@@ -892,6 +901,63 @@ extension DataFlowSemaPhase {
             queue.append(contentsOf: ctx.symbols.directSupertypes(for: current))
         }
         return false
+    }
+
+    /// A namesake scan is only exhaustive when every reachable supertype
+    /// exposes its full member list. Source-backed declarations (including
+    /// imported library records) do; the synthetic kotlin.Any stub has a
+    /// fixed, known member set. Synthetic shells and nominals with pending
+    /// imported metadata may hide members the BFS cannot see, so an absent
+    /// namesake is not proof that the member overrides nothing.
+    private func hasCompleteInheritedMemberIndex(
+        for ownerSymbol: SymbolID,
+        ctx: OpenFinalOverrideContext
+    ) -> Bool {
+        var visited: Set<SymbolID> = [ownerSymbol]
+        var queue = ctx.symbols.directSupertypes(for: ownerSymbol)
+        while !queue.isEmpty {
+            let current = queue.removeFirst()
+            guard visited.insert(current).inserted else { continue }
+            if current != ctx.types.anyClassSymbol,
+               !ctx.symbols.isSourceBackedSymbol(current)
+                   || ctx.symbols.isUnmaterializedImportedShell(current)
+                   || ctx.symbols.hasPendingImportedNominalMetadata(for: current)
+                   || ctx.symbols.hasPendingImportedMetadata(for: current) {
+                return false
+            }
+            queue.append(contentsOf: ctx.symbols.directSupertypes(for: current))
+        }
+        return true
+    }
+
+    /// True when any supertype declares a function with `memberName`,
+    /// regardless of backing. `hasSourceBackedInheritedFunction` proves the
+    /// signature-mismatch case; when no namesake exists at all the override
+    /// target is missing outright (kotlinc: 'X' overrides nothing).
+    private func hasInheritedFunctionNamesake(
+        named memberName: InternedString,
+        for ownerSymbol: SymbolID,
+        ctx: OpenFinalOverrideContext
+    ) -> Bool {
+        if findAllInheritedMembers(named: memberName, for: ownerSymbol, symbols: ctx.symbols)
+            .contains(where: { ctx.symbols.symbol($0.memberID)?.kind == .function }) {
+            return true
+        }
+        // kotlin.Any is an implicit supertype of every class, but the
+        // directSupertypes BFS does not always reach it (for example a class
+        // whose only declared supertype is an interface). Probe it directly so
+        // 'equals'/'hashCode'/'toString' overrides are not reported as
+        // overriding nothing.
+        let anyFQName = [ctx.interner.intern("kotlin"), ctx.interner.intern("Any")]
+        guard let anyID = ctx.symbols.lookupNominal(fqName: anyFQName),
+              let anySym = ctx.symbols.symbol(anyID) else { return false }
+        return ctx.symbols.children(ofFQName: anySym.fqName).contains { childID in
+            guard let child = ctx.symbols.symbol(childID) else { return false }
+            return child.kind == .function
+                && child.name == memberName
+                && child.fqName == anySym.fqName + [child.name]
+                && !child.flags.contains(.extensionMemberAlias)
+        }
     }
 
     private func diagnoseOverrideNothing(

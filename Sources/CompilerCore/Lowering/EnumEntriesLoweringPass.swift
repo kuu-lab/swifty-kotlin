@@ -90,8 +90,7 @@ final class EnumEntriesLoweringPass: LoweringPass, ParallelLoweringPass {
             callee: entriesGetName,
             arguments: [],
             result: targetResult,
-            canThrow: false,
-            thrownResult: nil
+            canThrow: false
         )
     }
 
@@ -125,8 +124,7 @@ final class EnumEntriesLoweringPass: LoweringPass, ParallelLoweringPass {
             callee: entriesGetName,
             arguments: [],
             result: cvResult,
-            canThrow: false,
-            thrownResult: nil
+            canThrow: false
         )
     }
 
@@ -164,8 +162,7 @@ final class EnumEntriesLoweringPass: LoweringPass, ParallelLoweringPass {
             callee: entriesGetName,
             arguments: [],
             result: normalizedResult,
-            canThrow: false,
-            thrownResult: nil
+            canThrow: false
         )
     }
 

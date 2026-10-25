@@ -25,8 +25,7 @@ extension CallLowerer {
             callee: interner.intern("get"),
             arguments: getterArguments,
             result: result,
-            canThrow: false,
-            thrownResult: nil
+            canThrow: false
         ))
     }
 
@@ -59,7 +58,6 @@ extension CallLowerer {
             arguments: Array(getterArguments.dropFirst()),
             result: result,
             canThrow: false,
-            thrownResult: nil,
             dispatch: .vtable(slot: getterSlot)
         ))
     }
@@ -96,7 +94,7 @@ extension CallLowerer {
         instructions.append(.call(
             symbol: helperSymbol, callee: helperInfo.name,
             arguments: [loweredReceiverID], result: result,
-            canThrow: true, thrownResult: nil
+            canThrow: true
         ))
         return result
     }
@@ -127,7 +125,7 @@ extension CallLowerer {
         instructions.append(.call(
             symbol: helperSymbol, callee: helperInfo.name,
             arguments: [loweredReceiverID], result: result,
-            canThrow: true, thrownResult: nil
+            canThrow: true
         ))
         return result
     }
@@ -394,12 +392,10 @@ extension CallLowerer {
                     ?? sema.types.anyType
             )
             instructions.append(.call(
-                symbol: nil,
                 callee: runtimeCallee,
                 arguments: [],
                 result: result,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
             return result
         }
@@ -561,8 +557,7 @@ extension CallLowerer {
                 callee: interner.intern("get"),
                 arguments: [loweredReceiverID],
                 result: result,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
             return result
         }
@@ -589,12 +584,10 @@ extension CallLowerer {
 
         let result = arena.appendTemporary(type: resultType)
         instructions.append(.call(
-            symbol: nil,
             callee: interner.intern("kk_array_get_inbounds"),
             arguments: [loweredReceiverID, offsetExpr],
             result: result,
-            canThrow: false,
-            thrownResult: nil
+            canThrow: false
         ))
         return wrapLateinitReadIfNeeded(
             result,
@@ -714,7 +707,7 @@ extension CallLowerer {
                 instructions.append(.virtualCall(
                     symbol: getter, callee: interner.intern("get"), receiver: dispatchReceiver,
                     arguments: [loweredReceiverID], result: result, canThrow: false,
-                    thrownResult: nil, dispatch: .itableDynamic(interfaceTypeID: typeID, methodSlot: slot)
+                    dispatch: .itableDynamic(interfaceTypeID: typeID, methodSlot: slot)
                 ))
             } else if !isSuperQualifiedReceiver,
                let (accessor, dispatch) = resolvePropertyAccessorVirtualDispatch(
@@ -728,7 +721,7 @@ extension CallLowerer {
                 instructions.append(.virtualCall(
                     symbol: accessor, callee: interner.intern("get"), receiver: arguments[0],
                     arguments: Array(arguments.dropFirst()), result: result, canThrow: false,
-                    thrownResult: nil, dispatch: dispatch
+                    dispatch: dispatch
                 ))
             } else {
                 appendPropertyGetterCall(
@@ -776,12 +769,10 @@ extension CallLowerer {
         {
             let result = arena.appendTemporary(type: resultType)
             instructions.append(.call(
-                symbol: nil,
                 callee: getterPlaceholder,
                 arguments: [loweredReceiverID],
                 result: result,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
             return result
         }
@@ -891,9 +882,9 @@ extension CallLowerer {
             instructions.append(.constValue(result: slot, value: .intLiteral(Int64(getterSlot))))
             let result = arena.appendTemporary(type: resultType)
             instructions.append(.call(
-                symbol: nil, callee: interner.intern("__kk_dispatcher_immediate"),
+                callee: interner.intern("__kk_dispatcher_immediate"),
                 arguments: [loweredReceiverID, slot], result: result,
-                canThrow: true, thrownResult: nil
+                canThrow: true
             ))
             return result
         }
@@ -956,7 +947,6 @@ extension CallLowerer {
                     arguments: Array(virtualAccessorArguments.dropFirst()),
                     result: result,
                     canThrow: false,
-                    thrownResult: nil,
                     dispatch: dispatch
                 ))
                 return result
@@ -1005,12 +995,10 @@ extension CallLowerer {
             let helperName = interner.intern("$enumConstructorProperty$\(ownerSymbol.rawValue)$\(interner.resolve(propertyName))")
             let result = arena.appendTemporary(type: resultType)
             instructions.append(.call(
-                symbol: nil,
                 callee: helperName,
                 arguments: [loweredReceiverID],
                 result: result,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
             return result
         }
@@ -1041,7 +1029,6 @@ extension CallLowerer {
                 arguments: Array(virtualAccessorArguments.dropFirst()),
                 result: result,
                 canThrow: false,
-                thrownResult: nil,
                 dispatch: dispatch
             ))
             return result
@@ -1058,12 +1045,10 @@ extension CallLowerer {
 
         let result = arena.appendTemporary(type: resultType)
         instructions.append(.call(
-            symbol: nil,
             callee: interner.intern("kk_array_get_inbounds"),
             arguments: [loweredReceiverID, offsetExpr],
             result: result,
-            canThrow: false,
-            thrownResult: nil
+            canThrow: false
         ))
         return wrapLateinitReadIfNeeded(
             result,
@@ -1179,7 +1164,6 @@ extension CallLowerer {
             arguments: [],
             result: result,
             canThrow: false,
-            thrownResult: nil,
             dispatch: .itableDynamic(interfaceTypeID: interfaceTypeID, methodSlot: methodSlot)
         ))
         if let runtimeKTypeParameterNameEndLabel {
@@ -1273,14 +1257,14 @@ extension CallLowerer {
         // Native reads must materialize producer-owned annotation instances.
         // The legacy entry points return metadata boxes and cannot satisfy
         // typed casts, property getters, or annotation equality.
-        instructions.append(.call(symbol: nil, callee: interner.intern("__kk_kclass_get_annotations_typed"),
+        instructions.append(.call(callee: interner.intern("__kk_kclass_get_annotations_typed"),
                                   arguments: [loweredReceiverID], result: result,
-                                  canThrow: true, thrownResult: nil))
+                                  canThrow: true))
         instructions.append(.jump(endLabel))
         instructions.append(.label(callableLabel))
-        instructions.append(.call(symbol: nil, callee: interner.intern("__kk_kcallable_get_annotations_typed"),
+        instructions.append(.call(callee: interner.intern("__kk_kcallable_get_annotations_typed"),
                                   arguments: [loweredReceiverID], result: result,
-                                  canThrow: true, thrownResult: nil))
+                                  canThrow: true))
         instructions.append(.jump(endLabel))
         instructions.append(.label(interfaceLabel))
         return endLabel
@@ -1334,9 +1318,9 @@ extension CallLowerer {
         instructions.append(.constValue(result: endpoint, value: .intLiteral(member == "start" ? 0 : 1)))
         let boxed = arena.appendTemporary(type: sema.types.nullableAnyType)
         instructions.append(.call(
-            symbol: nil, callee: interner.intern("__kk_floating_range_endpoint_or_null"),
+            callee: interner.intern("__kk_floating_range_endpoint_or_null"),
             arguments: [loweredReceiverID, endpoint], result: boxed,
-            canThrow: false, thrownResult: nil
+            canThrow: false
         ))
         let null = arena.appendExpr(.null, type: sema.types.nullableAnyType)
         instructions.append(.constValue(result: null, value: .null))
@@ -1411,11 +1395,10 @@ extension CallLowerer {
         if let index = metadataMembers.firstIndex(of: member) {
             let ordinal = arena.appendExpr(.intLiteral(Int64(index)), type: sema.types.intType)
             instructions.append(.constValue(result: ordinal, value: .intLiteral(Int64(index))))
-            instructions.append(.call(symbol: nil,
-                                      callee: interner.intern(member == "annotations"
+            instructions.append(.call(callee: interner.intern(member == "annotations"
                                           ? "__kk_kcallable_get_annotations_typed" : "__kk_kcallable_get_metadata"),
                                       arguments: member == "annotations" ? [loweredReceiverID] : [loweredReceiverID, ordinal],
-                                      result: result, canThrow: member == "annotations", thrownResult: nil))
+                                      result: result, canThrow: member == "annotations"))
         } else {
             emitNonThrowingCall(callee: getNameCallee, arg: loweredReceiverID, result: result, into: &instructions)
         }
@@ -1487,7 +1470,6 @@ extension CallLowerer {
                 arguments: Array(virtualAccessorArguments.dropFirst()),
                 result: result,
                 canThrow: false,
-                thrownResult: nil,
                 dispatch: dispatch
             ))
             return result
@@ -1548,6 +1530,21 @@ extension CallLowerer {
            isEnumEntryField(entrySym, sema: sema),
            let entryInfo = sema.symbols.symbol(entrySym)
         {
+            // KUU-3196: `E.OK.name` is a compile-time constant on the JVM
+            // (intrinsic const evaluation) — the enum entry is never loaded,
+            // so the enum's <clinit> does not run. Drop the receiver's
+            // now-dead materialization: keeping its `.symbolRef` constValue /
+            // loadGlobal would let insertEnumLazyInitTriggers emit a
+            // `$enumEnsureInit$` call whose init blocks then run. `.ordinal`
+            // is not const-folded by kotlinc — its entry load (and <clinit>)
+            // must stay.
+            if calleeStr == "name" {
+                dropDeadEnumEntryMaterialization(
+                    of: loweredReceiverID,
+                    entrySymbol: entrySym,
+                    instructions: &instructions
+                )
+            }
             let helperName = calleeStr == "name"
                 ? NameMangler.enumEntryNameHelperName(for: entryInfo, interner: interner)
                 : NameMangler.enumEntryOrdinalHelperName(for: entryInfo, interner: interner)
@@ -1561,8 +1558,7 @@ extension CallLowerer {
                 callee: helperName,
                 arguments: [],
                 result: result,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
             return result
         }
@@ -1612,14 +1608,43 @@ extension CallLowerer {
         // helper once it exists.
         let result = arena.appendTemporary(type: resultType)
         instructions.append(.call(
-            symbol: nil,
             callee: calleeName,
             arguments: [loweredReceiverID],
             result: result,
-            canThrow: false,
-            thrownResult: nil
+            canThrow: false
         ))
         return result
+    }
+
+    /// Removes the instruction that materialized a compile-time-known enum
+    /// entry (`constValue .symbolRef(entry)` / `loadGlobal entry`) when a
+    /// `name` read folds it away. This mirrors the JVM's intrinsic const
+    /// evaluation of `E.OK.name`, which never loads the entry field and
+    /// therefore never runs the enum's `<clinit>`
+    /// (`insertEnumLazyInitTriggers` keys its `$enumEnsureInit$` insertion off
+    /// that symbol reference).
+    ///
+    /// Only a *trailing* producer is dropped — one this read's own receiver
+    /// lowering just emitted. A `.symbolRef` produced earlier is the value a
+    /// `val`/parameter/smart-cast slot itself holds (locals bind their
+    /// initializer's expr id directly via `setLocalValue`), so dropping it
+    /// would also erase a real `E.OK` load whose `<clinit>` the JVM does run.
+    private func dropDeadEnumEntryMaterialization(
+        of exprID: KIRExprID,
+        entrySymbol: SymbolID,
+        instructions: inout [KIRInstruction]
+    ) {
+        guard let last = instructions.last else { return }
+        let isProducer = switch last {
+        case let .constValue(result, .symbolRef(symbol)),
+             let .loadGlobal(result, symbol):
+            result == exprID && symbol == entrySymbol
+        default:
+            false
+        }
+        if isProducer {
+            instructions.removeLast()
+        }
     }
 
     func tryLowerExternalMemberPropertyRead(
@@ -1676,8 +1701,7 @@ extension CallLowerer {
             callee: interner.intern(externalLinkName),
             arguments: propertyReadArguments,
             result: result,
-            canThrow: false,
-            thrownResult: nil
+            canThrow: false
         ))
         return wrapLateinitReadIfNeeded(
             result,
@@ -1909,8 +1933,7 @@ extension CallLowerer {
                         callee: interner.intern(linkName),
                         arguments: [],
                         result: result,
-                        canThrow: false,
-                        thrownResult: nil
+                        canThrow: false
                     ))
                     return result
                 }

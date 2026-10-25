@@ -1,4 +1,14 @@
 extension DataFlowSemaPhase {
+    /// Which subset of the variance surface a pass inspects. Declared type
+    /// references are validated in DataFlow before type checking; inferred
+    /// member types exist only after TypeCheckSemaPhase has registered the
+    /// member signatures, so they are validated in a second pass invoked at
+    /// the end of type checking.
+    private enum VarianceCheckPhase {
+        case explicit
+        case inferred
+    }
+
     /// Kotlin rules:
     /// - `out T` (covariant): T may only appear in out positions (return types, val property types).
     /// - `in T` (contravariant): T may only appear in in positions (function parameters).
@@ -12,11 +22,43 @@ extension DataFlowSemaPhase {
         diagnostics: DiagnosticEngine,
         interner: StringInterner
     ) {
+        validateDeclarationSiteVariance(
+            ast: ast, symbols: symbols, bindings: bindings, types: types,
+            diagnostics: diagnostics, interner: interner, phase: .explicit
+        )
+    }
+
+    /// Second pass for inferred member types — expression-body functions and
+    /// annotation-less properties. Must run after member signatures and
+    /// property types are registered (end of TypeCheckSemaPhase).
+    func validateInferredMemberVariance(
+        ast: ASTModule,
+        symbols: SymbolTable,
+        bindings: BindingTable,
+        types: TypeSystem,
+        diagnostics: DiagnosticEngine,
+        interner: StringInterner
+    ) {
+        validateDeclarationSiteVariance(
+            ast: ast, symbols: symbols, bindings: bindings, types: types,
+            diagnostics: diagnostics, interner: interner, phase: .inferred
+        )
+    }
+
+    private func validateDeclarationSiteVariance(
+        ast: ASTModule,
+        symbols: SymbolTable,
+        bindings: BindingTable,
+        types: TypeSystem,
+        diagnostics: DiagnosticEngine,
+        interner: StringInterner,
+        phase: VarianceCheckPhase
+    ) {
         let env = VarianceCheckEnv(ast: ast, symbols: symbols, bindings: bindings,
                                    types: types, diagnostics: diagnostics, interner: interner)
         for file in ast.sortedFiles {
             for declID in file.topLevelDecls {
-                validateVarianceForDecl(declID: declID, env: env)
+                validateVarianceForDecl(declID: declID, env: env, phase: phase)
             }
         }
     }
@@ -51,33 +93,70 @@ extension DataFlowSemaPhase {
         let diagnostics: DiagnosticEngine
         let interner: StringInterner
         var ownerFQName: [InternedString] = []
+        var ownerSymbol: SymbolID?
     }
 
     private func validateVarianceForDecl(
         declID: DeclID, env: VarianceCheckEnv,
-        outerVarianceMap: [InternedString: TypeVariance] = [:]
+        outerVarianceMap: [InternedString: TypeVariance] = [:],
+        outerVarianceSymbolMap: [SymbolID: TypeVariance] = [:],
+        phase: VarianceCheckPhase
     ) {
         guard let decl = env.ast.arena.decl(declID) else { return }
         var env = env
-        if let symbolID = env.bindings.declSymbol(for: declID),
+        if let symbolID = env.bindings.declSymbol(for: declID) ?? nominalSymbolID(atDeclSite: declRange(decl), env: env),
            let symbol = env.symbols.symbol(symbolID) {
             env.ownerFQName = symbol.fqName
+            env.ownerSymbol = symbolID
         }
         switch decl {
         case let .classDecl(classDecl):
-            validateVarianceForClassDecl(classDecl, env: env, outerVarianceMap: outerVarianceMap)
+            validateVarianceForClassDecl(classDecl, env: env, outerVarianceMap: outerVarianceMap,
+                                         outerVarianceSymbolMap: outerVarianceSymbolMap, phase: phase)
         case let .interfaceDecl(interfaceDecl):
-            validateVarianceForInterfaceDecl(interfaceDecl, env: env, outerVarianceMap: outerVarianceMap)
+            validateVarianceForInterfaceDecl(interfaceDecl, env: env, outerVarianceMap: outerVarianceMap,
+                                             outerVarianceSymbolMap: outerVarianceSymbolMap, phase: phase)
         case let .objectDecl(objectDecl):
-            validateVarianceForObjectDecl(objectDecl, env: env, outerVarianceMap: outerVarianceMap)
+            validateVarianceForObjectDecl(objectDecl, env: env, outerVarianceMap: outerVarianceMap,
+                                          outerVarianceSymbolMap: outerVarianceSymbolMap, phase: phase)
         default:
             break
         }
     }
 
+    private func declRange(_ decl: Decl) -> SourceRange? {
+        switch decl {
+        case let .classDecl(d): d.range
+        case let .interfaceDecl(d): d.range
+        case let .objectDecl(d): d.range
+        default: nil
+        }
+    }
+
+    /// Mirrors `varianceMap` with type-parameter *symbols* as keys. Inferred
+    /// member types resolve type parameters to symbols, and a member can
+    /// redeclare the enclosing parameter's name (`fun <T> leak() = item`
+    /// still returns the class's `T`), so name-keyed lookup cannot
+    /// distinguish the two. Built lazily — nominal parameter symbols only
+    /// exist once the inferred pass runs.
+    private func varianceSymbolMap(
+        typeParams: [TypeParamDecl],
+        outerVarianceSymbolMap: [SymbolID: TypeVariance],
+        env: VarianceCheckEnv
+    ) -> [SymbolID: TypeVariance] {
+        var map = outerVarianceSymbolMap
+        guard let owner = env.ownerSymbol else { return map }
+        for (typeParam, symbol) in zip(typeParams, env.types.nominalTypeParameterSymbols(for: owner)) {
+            map[symbol] = typeParam.variance == .invariant ? nil : typeParam.variance
+        }
+        return map
+    }
+
     private func validateVarianceForClassDecl(
         _ classDecl: ClassDecl, env: VarianceCheckEnv,
-        outerVarianceMap: [InternedString: TypeVariance] = [:]
+        outerVarianceMap: [InternedString: TypeVariance] = [:],
+        outerVarianceSymbolMap: [SymbolID: TypeVariance] = [:],
+        phase: VarianceCheckPhase
     ) {
         var varianceMap = outerVarianceMap
         for typeParam in classDecl.typeParams {
@@ -87,29 +166,41 @@ extension DataFlowSemaPhase {
                 varianceMap.removeValue(forKey: typeParam.name)
             }
         }
-        validateSuperTypesAndBounds(classDecl.typeParams,
-                                    superTypeRefs: classDecl.superTypeEntries.map(\.typeRef),
-                                    declRange: classDecl.range,
-                                    varianceMap: varianceMap, env: env)
-        validateMemberFunctions(classDecl.memberFunctions, varianceMap: varianceMap, env: env)
-        validateMemberProperties(classDecl.memberProperties, varianceMap: varianceMap, env: env)
+        let varianceSymbolMap = phase == .inferred
+            ? varianceSymbolMap(typeParams: classDecl.typeParams,
+                                outerVarianceSymbolMap: outerVarianceSymbolMap, env: env)
+            : [:]
+        if phase == .explicit {
+            validateSuperTypesAndBounds(classDecl.typeParams,
+                                        superTypeRefs: classDecl.superTypeEntries.map(\.typeRef),
+                                        declRange: classDecl.range,
+                                        varianceMap: varianceMap, env: env)
+        }
+        validateMemberFunctions(classDecl.memberFunctions, varianceMap: varianceMap,
+                                varianceSymbolMap: varianceSymbolMap, env: env, phase: phase)
+        validateMemberProperties(classDecl.memberProperties, varianceMap: varianceMap,
+                                 varianceSymbolMap: varianceSymbolMap, env: env, phase: phase)
 
         for nestedDeclID in classDecl.nestedClasses {
             let nestedIsInner = nestedClassIsInner(nestedDeclID, env: env)
             let outerMap = nestedIsInner ? varianceMap : [:]
-            validateVarianceForDecl(declID: nestedDeclID, env: env, outerVarianceMap: outerMap)
+            let outerSymbolMap = nestedIsInner ? varianceSymbolMap : [:]
+            validateVarianceForDecl(declID: nestedDeclID, env: env, outerVarianceMap: outerMap,
+                                    outerVarianceSymbolMap: outerSymbolMap, phase: phase)
         }
         for nestedDeclID in classDecl.nestedObjects {
-            validateVarianceForDecl(declID: nestedDeclID, env: env, outerVarianceMap: [:])
+            validateVarianceForDecl(declID: nestedDeclID, env: env, outerVarianceMap: [:], phase: phase)
         }
         if let companionID = classDecl.companionObject {
-            validateVarianceForDecl(declID: companionID, env: env, outerVarianceMap: [:])
+            validateVarianceForDecl(declID: companionID, env: env, outerVarianceMap: [:], phase: phase)
         }
     }
 
     private func validateVarianceForInterfaceDecl(
         _ iface: InterfaceDecl, env: VarianceCheckEnv,
-        outerVarianceMap: [InternedString: TypeVariance] = [:]
+        outerVarianceMap: [InternedString: TypeVariance] = [:],
+        outerVarianceSymbolMap: [SymbolID: TypeVariance] = [:],
+        phase: VarianceCheckPhase
     ) {
         var varianceMap = outerVarianceMap
         for typeParam in iface.typeParams {
@@ -119,47 +210,65 @@ extension DataFlowSemaPhase {
                 varianceMap.removeValue(forKey: typeParam.name)
             }
         }
-        validateSuperTypesAndBounds(iface.typeParams,
-                                    superTypeRefs: iface.superTypes,
-                                    declRange: iface.range,
-                                    varianceMap: varianceMap, env: env)
-        validateMemberFunctions(iface.memberFunctions, varianceMap: varianceMap, env: env)
-        validateMemberProperties(iface.memberProperties, varianceMap: varianceMap, env: env)
+        let varianceSymbolMap = phase == .inferred
+            ? varianceSymbolMap(typeParams: iface.typeParams,
+                                outerVarianceSymbolMap: outerVarianceSymbolMap, env: env)
+            : [:]
+        if phase == .explicit {
+            validateSuperTypesAndBounds(iface.typeParams,
+                                        superTypeRefs: iface.superTypes,
+                                        declRange: iface.range,
+                                        varianceMap: varianceMap, env: env)
+        }
+        validateMemberFunctions(iface.memberFunctions, varianceMap: varianceMap,
+                                varianceSymbolMap: varianceSymbolMap, env: env, phase: phase)
+        validateMemberProperties(iface.memberProperties, varianceMap: varianceMap,
+                                 varianceSymbolMap: varianceSymbolMap, env: env, phase: phase)
 
         for nestedDeclID in iface.nestedClasses {
             let nestedIsInner = nestedClassIsInner(nestedDeclID, env: env)
             let outerMap = nestedIsInner ? varianceMap : [:]
-            validateVarianceForDecl(declID: nestedDeclID, env: env, outerVarianceMap: outerMap)
+            let outerSymbolMap = nestedIsInner ? varianceSymbolMap : [:]
+            validateVarianceForDecl(declID: nestedDeclID, env: env, outerVarianceMap: outerMap,
+                                    outerVarianceSymbolMap: outerSymbolMap, phase: phase)
         }
         for nestedDeclID in iface.nestedObjects {
-            validateVarianceForDecl(declID: nestedDeclID, env: env, outerVarianceMap: [:])
+            validateVarianceForDecl(declID: nestedDeclID, env: env, outerVarianceMap: [:], phase: phase)
         }
         if let companionID = iface.companionObject {
-            validateVarianceForDecl(declID: companionID, env: env, outerVarianceMap: [:])
+            validateVarianceForDecl(declID: companionID, env: env, outerVarianceMap: [:], phase: phase)
         }
     }
 
     private func validateVarianceForObjectDecl(
         _ objectDecl: ObjectDecl, env: VarianceCheckEnv,
-        outerVarianceMap: [InternedString: TypeVariance]
+        outerVarianceMap: [InternedString: TypeVariance],
+        outerVarianceSymbolMap: [SymbolID: TypeVariance],
+        phase: VarianceCheckPhase
     ) {
         // Objects cannot declare type parameters; only the enclosing
         // variance context applies.
         let varianceMap = outerVarianceMap
-        for superTypeRef in objectDecl.superTypeEntries.map(\.typeRef) {
-            checkTypeRefVariance(superTypeRef, position: .out,
-                                 varianceMap: varianceMap, env: env, memberRange: objectDecl.range)
+        if phase == .explicit {
+            for superTypeRef in objectDecl.superTypeEntries.map(\.typeRef) {
+                checkTypeRefVariance(superTypeRef, position: .out,
+                                     varianceMap: varianceMap, env: env, memberRange: objectDecl.range)
+            }
         }
-        validateMemberFunctions(objectDecl.memberFunctions, varianceMap: varianceMap, env: env)
-        validateMemberProperties(objectDecl.memberProperties, varianceMap: varianceMap, env: env)
+        validateMemberFunctions(objectDecl.memberFunctions, varianceMap: varianceMap,
+                                varianceSymbolMap: outerVarianceSymbolMap, env: env, phase: phase)
+        validateMemberProperties(objectDecl.memberProperties, varianceMap: varianceMap,
+                                 varianceSymbolMap: outerVarianceSymbolMap, env: env, phase: phase)
 
         for nestedDeclID in objectDecl.nestedClasses {
             let nestedIsInner = nestedClassIsInner(nestedDeclID, env: env)
             let outerMap = nestedIsInner ? varianceMap : [:]
-            validateVarianceForDecl(declID: nestedDeclID, env: env, outerVarianceMap: outerMap)
+            let outerSymbolMap = nestedIsInner ? outerVarianceSymbolMap : [:]
+            validateVarianceForDecl(declID: nestedDeclID, env: env, outerVarianceMap: outerMap,
+                                    outerVarianceSymbolMap: outerSymbolMap, phase: phase)
         }
         for nestedDeclID in objectDecl.nestedObjects {
-            validateVarianceForDecl(declID: nestedDeclID, env: env, outerVarianceMap: [:])
+            validateVarianceForDecl(declID: nestedDeclID, env: env, outerVarianceMap: [:], phase: phase)
         }
     }
 
@@ -191,28 +300,34 @@ extension DataFlowSemaPhase {
     private func validateMemberFunctions(
         _ funDeclIDs: [DeclID],
         varianceMap: [InternedString: TypeVariance],
-        env: VarianceCheckEnv
+        varianceSymbolMap: [SymbolID: TypeVariance],
+        env: VarianceCheckEnv,
+        phase: VarianceCheckPhase
     ) {
         for funDeclID in funDeclIDs {
             guard let funDecl = env.ast.arena.decl(funDeclID),
                   case let .funDecl(fun) = funDecl,
                   !fun.modifiers.contains(.private)
             else { continue }
-            validateFunctionVariance(fun, varianceMap: varianceMap, env: env)
+            validateFunctionVariance(fun, varianceMap: varianceMap,
+                                     varianceSymbolMap: varianceSymbolMap, env: env, phase: phase)
         }
     }
 
     private func validateMemberProperties(
         _ propDeclIDs: [DeclID],
         varianceMap: [InternedString: TypeVariance],
-        env: VarianceCheckEnv
+        varianceSymbolMap: [SymbolID: TypeVariance],
+        env: VarianceCheckEnv,
+        phase: VarianceCheckPhase
     ) {
         for propDeclID in propDeclIDs {
             guard let propDecl = env.ast.arena.decl(propDeclID),
                   case let .propertyDecl(prop) = propDecl,
                   !prop.modifiers.contains(.private)
             else { continue }
-            validatePropertyVariance(prop, varianceMap: varianceMap, env: env)
+            validatePropertyVariance(prop, varianceMap: varianceMap,
+                                     varianceSymbolMap: varianceSymbolMap, env: env, phase: phase)
         }
     }
 
@@ -222,48 +337,104 @@ extension DataFlowSemaPhase {
         return classDecl.isInner
     }
 
+    /// Member declarations are lazily bound and never enter `declSymbols`;
+    /// the decl-site index is how member symbols are recovered (the same
+    /// pattern the constructor checkers use).
+    private func memberSymbolID(
+        atDeclSite range: SourceRange, kind: SymbolKind, env: VarianceCheckEnv
+    ) -> SymbolID? {
+        env.symbols.symbols(atDeclSite: range).first {
+            env.symbols.symbol($0)?.kind == kind
+        }
+    }
+
+    /// Nested nominal declarations are likewise absent from `declSymbols`;
+    /// recover the nominal symbol through the decl-site index when binding
+    /// lookup fails.
+    private func nominalSymbolID(atDeclSite range: SourceRange?, env: VarianceCheckEnv) -> SymbolID? {
+        guard let range else { return nil }
+        return env.symbols.symbols(atDeclSite: range).first {
+            switch env.symbols.symbol($0)?.kind {
+            case .class, .interface, .enumClass, .annotationClass, .object: true
+            default: false
+            }
+        }
+    }
+
     private func validateFunctionVariance(
         _ funDecl: FunDecl,
         varianceMap: [InternedString: TypeVariance],
-        env: VarianceCheckEnv
+        varianceSymbolMap: [SymbolID: TypeVariance],
+        env: VarianceCheckEnv,
+        phase: VarianceCheckPhase
     ) {
         var effectiveMap = varianceMap
         for typeParam in funDecl.typeParams {
             effectiveMap.removeValue(forKey: typeParam.name)
         }
-        guard !effectiveMap.isEmpty else { return }
-        for valueParam in funDecl.valueParams {
-            if let typeRefID = valueParam.type {
-                checkTypeRefVariance(typeRefID, position: .contravariant,
+        if phase == .explicit {
+            guard !effectiveMap.isEmpty else { return }
+            for valueParam in funDecl.valueParams {
+                if let typeRefID = valueParam.type {
+                    checkTypeRefVariance(typeRefID, position: .contravariant,
+                                         varianceMap: effectiveMap, env: env, memberRange: funDecl.range)
+                }
+            }
+            if let receiverTypeRef = funDecl.receiverType {
+                checkTypeRefVariance(receiverTypeRef, position: .contravariant,
                                      varianceMap: effectiveMap, env: env, memberRange: funDecl.range)
             }
         }
-        if let receiverTypeRef = funDecl.receiverType {
-            checkTypeRefVariance(receiverTypeRef, position: .contravariant,
-                                 varianceMap: effectiveMap, env: env, memberRange: funDecl.range)
-        }
         if let returnTypeRef = funDecl.returnType {
+            guard phase == .explicit else { return }
             checkTypeRefVariance(returnTypeRef, position: .out,
                                  varianceMap: effectiveMap, env: env, memberRange: funDecl.range)
+        } else if phase == .inferred, !varianceSymbolMap.isEmpty,
+                  let symbolID = memberSymbolID(atDeclSite: funDecl.range, kind: .function, env: env),
+                  let returnType = env.symbols.functionSignature(for: symbolID)?.returnType {
+            // Expression-body functions publish an inferred return type; it
+            // still leaks the declaration-site parameter into an `out`
+            // position (`fun leak() = item` on `Sink<in T>`). The signature's
+            // own type-parameter symbols are distinct from the enclosing
+            // class's, so shadowed names (`fun <T> …`) resolve correctly.
+            checkTypeIDVariance(returnType, position: .out,
+                                varianceSymbolMap: varianceSymbolMap, env: env, memberRange: funDecl.range)
         }
     }
 
     private func validatePropertyVariance(
         _ propertyDecl: PropertyDecl,
         varianceMap: [InternedString: TypeVariance],
-        env: VarianceCheckEnv
+        varianceSymbolMap: [SymbolID: TypeVariance],
+        env: VarianceCheckEnv,
+        phase: VarianceCheckPhase
     ) {
-        if let receiverTypeRef = propertyDecl.receiverType {
+        if phase == .explicit, let receiverTypeRef = propertyDecl.receiverType {
             checkTypeRefVariance(receiverTypeRef, position: .contravariant,
                                  varianceMap: varianceMap, env: env, memberRange: propertyDecl.range)
         }
-        guard let typeRefID = propertyDecl.type else { return }
-        if propertyDecl.isVar {
-            checkTypeRefVariance(typeRefID, position: .contravariant,
+        if let typeRefID = propertyDecl.type {
+            guard phase == .explicit else { return }
+            if propertyDecl.isVar {
+                checkTypeRefVariance(typeRefID, position: .contravariant,
+                                     varianceMap: varianceMap, env: env, memberRange: propertyDecl.range)
+            }
+            checkTypeRefVariance(typeRefID, position: .out,
                                  varianceMap: varianceMap, env: env, memberRange: propertyDecl.range)
+            return
         }
-        checkTypeRefVariance(typeRefID, position: .out,
-                             varianceMap: varianceMap, env: env, memberRange: propertyDecl.range)
+        guard phase == .inferred, !varianceSymbolMap.isEmpty,
+              let symbolID = memberSymbolID(atDeclSite: propertyDecl.range, kind: .property, env: env),
+              let inferredType = env.symbols.propertyType(for: symbolID) else { return }
+        // Annotation-less `val x get() = …` / `var x = …` infer their public
+        // type from the initializer or getter; check the inferred type at the
+        // same positions a declared one occupies.
+        if propertyDecl.isVar {
+            checkTypeIDVariance(inferredType, position: .contravariant,
+                                varianceSymbolMap: varianceSymbolMap, env: env, memberRange: propertyDecl.range)
+        }
+        checkTypeIDVariance(inferredType, position: .out,
+                            varianceSymbolMap: varianceSymbolMap, env: env, memberRange: propertyDecl.range)
     }
 
     private func checkTypeRefVariance(
@@ -352,6 +523,75 @@ extension DataFlowSemaPhase {
             guard let refID = innerRefID else { continue }
             checkTypeRefVariance(refID, position: innerPosition,
                                  varianceMap: varianceMap, env: env, memberRange: memberRange)
+        }
+    }
+
+    /// TypeID-level twin of `checkTypeRefVariance` for inferred member types —
+    /// expression-body functions and annotation-less properties have no
+    /// TypeRef, but their inferred signatures are equally part of the
+    /// declaration's public surface. Keys are type-parameter symbols, so a
+    /// member redeclaring the parameter's name cannot hide a class `T` that
+    /// leaks into the inferred type.
+    private func checkTypeIDVariance(
+        _ typeID: TypeID,
+        position: VariancePosition,
+        varianceSymbolMap: [SymbolID: TypeVariance],
+        env: VarianceCheckEnv,
+        memberRange: SourceRange,
+        depth: Int = 0
+    ) {
+        guard depth <= Self.maxStructuralRecursionDepth else { return }
+        switch env.types.kind(of: typeID) {
+        case let .typeParam(typeParam):
+            guard let declaredVariance = varianceSymbolMap[typeParam.symbol] else { return }
+            let paramName = env.symbols.symbol(typeParam.symbol)
+                .map { env.interner.resolve($0.name) } ?? "T"
+            emitVarianceViolation(paramName: paramName,
+                                  declaredVariance: declaredVariance,
+                                  position: position, diagnostics: env.diagnostics, range: memberRange)
+        case let .classType(nominal):
+            let declaredVariances = env.types.nominalTypeParameterVariances(for: nominal.classSymbol)
+            for (index, argument) in nominal.args.enumerated() {
+                let declaredVariance = index < declaredVariances.count ? declaredVariances[index] : .invariant
+                switch argument {
+                case let .invariant(type):
+                    checkTypeIDVariance(type, position: position.composed(with: declaredVariance),
+                                        varianceSymbolMap: varianceSymbolMap, env: env, memberRange: memberRange, depth: depth + 1)
+                case let .out(type):
+                    checkTypeIDVariance(type, position: position,
+                                        varianceSymbolMap: varianceSymbolMap, env: env, memberRange: memberRange, depth: depth + 1)
+                case let .in(type):
+                    checkTypeIDVariance(type, position: position.flipped,
+                                        varianceSymbolMap: varianceSymbolMap, env: env, memberRange: memberRange, depth: depth + 1)
+                case .star:
+                    break
+                }
+            }
+        case let .functionType(function):
+            for contextReceiver in function.contextReceivers {
+                checkTypeIDVariance(contextReceiver, position: position.flipped,
+                                    varianceSymbolMap: varianceSymbolMap, env: env, memberRange: memberRange, depth: depth + 1)
+            }
+            if let receiver = function.receiver {
+                checkTypeIDVariance(receiver, position: position.flipped,
+                                    varianceSymbolMap: varianceSymbolMap, env: env, memberRange: memberRange, depth: depth + 1)
+            }
+            for param in function.params {
+                checkTypeIDVariance(param, position: position.flipped,
+                                    varianceSymbolMap: varianceSymbolMap, env: env, memberRange: memberRange, depth: depth + 1)
+            }
+            checkTypeIDVariance(function.returnType, position: position,
+                                varianceSymbolMap: varianceSymbolMap, env: env, memberRange: memberRange, depth: depth + 1)
+        case let .intersection(parts):
+            for part in parts {
+                checkTypeIDVariance(part, position: position,
+                                    varianceSymbolMap: varianceSymbolMap, env: env, memberRange: memberRange, depth: depth + 1)
+            }
+        case let .kClassType(kClass):
+            checkTypeIDVariance(kClass.argument, position: position,
+                                varianceSymbolMap: varianceSymbolMap, env: env, memberRange: memberRange, depth: depth + 1)
+        default:
+            break
         }
     }
 

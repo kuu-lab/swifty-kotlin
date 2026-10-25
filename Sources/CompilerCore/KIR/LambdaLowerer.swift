@@ -411,12 +411,10 @@ final class LambdaLowerer {
                 lambdaBody.append(.constValue(result: offsetExpr, value: .intLiteral(fieldOffset)))
                 let loadedExpr = arena.appendTemporary(type: capture.param.type)
                 lambdaBody.append(.call(
-                    symbol: nil,
                     callee: kkArrayGet,
                     arguments: [closureObjExpr, offsetExpr],
                     result: loadedExpr,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ))
                 bindCapturedLambdaValue(loadedExpr, capture: capture, sema: sema, arena: arena, interner: interner, instructions: &lambdaBody)
                 if capture.capturedSymbol == savedReceiverSymbol {
@@ -720,12 +718,12 @@ final class LambdaLowerer {
             let classToken = arena.appendTemporary(type: sema.types.intType)
             let componentToken = arena.appendTemporary(type: sema.types.intType)
             instructions.append(.call(
-                symbol: nil, callee: interner.intern("__kk_pair_first"), arguments: [capturedValue],
-                result: classToken, canThrow: false, thrownResult: nil
+                callee: interner.intern("__kk_pair_first"), arguments: [capturedValue],
+                result: classToken, canThrow: false
             ))
             instructions.append(.call(
-                symbol: nil, callee: interner.intern("__kk_pair_second"), arguments: [capturedValue],
-                result: componentToken, canThrow: false, thrownResult: nil
+                callee: interner.intern("__kk_pair_second"), arguments: [capturedValue],
+                result: componentToken, canThrow: false
             ))
             driver.ctx.setLocalValue(classToken, for: tokenSymbol)
             driver.ctx.setLocalDeclaredType(sema.types.intType, for: tokenSymbol)
@@ -744,6 +742,13 @@ final class LambdaLowerer {
         driver.ctx.setLocalValue(receiver, for: classType.classSymbol)
         if let owner = sema.symbols.symbol(classType.classSymbol) {
             driver.ctx.setQualifiedThisReceiver(receiver, for: owner.name)
+        }
+    }
+
+    private func isFloatingPointValueType(_ type: TypeID, sema: SemaModule) -> Bool {
+        switch sema.types.kind(of: type) {
+        case .primitive(.double, .nonNull), .primitive(.float, .nonNull): true
+        default: false
         }
     }
 
@@ -926,6 +931,44 @@ final class LambdaLowerer {
             captureArguments: [],
             hasClosureParam: false
         )
+
+        // The body of a lambda taking a `Double`/`Float` reads that parameter as raw
+        // bits, while a consumer that only sees a type-parameter function type
+        // (`(T) -> R`) passes a boxed handle. A direct argument is wrapped where the
+        // lambda is known, but a value that leaves through a factory return, a
+        // property, a field or `id(f)` reaches that consumer unwrapped, so build the
+        // box-tolerant function value where the lambda is created, as for a
+        // capturing lambda.
+        if !hasNonLocalReturn,
+           !allowsNonLocalReturn,
+           !isSamConversion,
+           !sema.bindings.isCoroutineLauncherLambdaExpr(exprID),
+           !sema.bindings.rawSuspendEntryLambdaExprIDs.contains(exprID),
+           lambdaParameterTypes.contains(where: { isFloatingPointValueType($0, sema: sema) }),
+           let functionType
+        {
+            let functionValueType = sema.bindings.functionValueExpectedType(for: exprID)
+                .flatMap { typeID -> FunctionType? in
+                    guard case let .functionType(expectedType) = sema.types.kind(of: typeID) else {
+                        return nil
+                    }
+                    return expectedType
+                } ?? functionType
+            if let materialized = materializeEscapingCallableValue(
+                exprID: exprID,
+                lambdaSymbol: lambdaSymbol,
+                lambdaName: lambdaName,
+                lambdaReturnType: lambdaReturnType,
+                functionType: functionValueType,
+                captureArguments: [],
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            ) {
+                return materialized
+            }
+        }
 
         if !hasNonLocalReturn, let functionType {
             emitRawFunctionArityTag(

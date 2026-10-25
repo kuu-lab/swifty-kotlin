@@ -41,10 +41,12 @@ struct KIRVerifier {
     ) -> [KIRVerificationFailure] {
         var moduleFunctionNames: Set<InternedString> = []
         var moduleFunctionSymbols: Set<SymbolID> = []
+        var moduleFunctionParameterSymbols: Set<SymbolID> = []
         for decl in module.arena.declarations {
             guard case let .function(function) = decl else { continue }
             moduleFunctionNames.insert(function.name)
             moduleFunctionSymbols.insert(function.symbol)
+            moduleFunctionParameterSymbols.formUnion(function.params.map(\.symbol))
         }
         let runtimeCalleeNames = Set(RuntimeABISpec.allFunctions.lazy.map(\.name))
             .union(RuntimeABISpec.compilerInternalNonThrowingCalleeNames)
@@ -58,6 +60,7 @@ struct KIRVerifier {
                 module: module,
                 moduleFunctionNames: moduleFunctionNames,
                 moduleFunctionSymbols: moduleFunctionSymbols,
+                moduleFunctionParameterSymbols: moduleFunctionParameterSymbols,
                 runtimeCalleeNames: runtimeCalleeNames,
                 symbols: symbols,
                 interner: interner,
@@ -72,6 +75,7 @@ struct KIRVerifier {
         module: KIRModule,
         moduleFunctionNames: Set<InternedString>,
         moduleFunctionSymbols: Set<SymbolID>,
+        moduleFunctionParameterSymbols: Set<SymbolID>,
         runtimeCalleeNames: Set<String>,
         symbols: SymbolTable?,
         interner: StringInterner,
@@ -169,6 +173,7 @@ struct KIRVerifier {
                 if !isResolvableCallee(
                     callee: callee,
                     symbol: symbol,
+                    moduleFunctionParameterSymbols: moduleFunctionParameterSymbols,
                     moduleFunctionNames: moduleFunctionNames,
                     moduleFunctionSymbols: moduleFunctionSymbols,
                     runtimeCalleeNames: runtimeCalleeNames,
@@ -231,6 +236,7 @@ struct KIRVerifier {
     private static func isResolvableCallee(
         callee: InternedString,
         symbol: SymbolID?,
+        moduleFunctionParameterSymbols: Set<SymbolID>,
         moduleFunctionNames: Set<InternedString>,
         moduleFunctionSymbols: Set<SymbolID>,
         runtimeCalleeNames: Set<String>,
@@ -240,6 +246,12 @@ struct KIRVerifier {
         if moduleFunctionNames.contains(callee) { return true }
         if let symbol {
             if moduleFunctionSymbols.contains(symbol) { return true }
+            // Inline expansion and generated adapters can retain a source
+            // lambda parameter symbol in a copied body, even when that body
+            // is not the KIR function that originally declared the parameter.
+            // Such symbols are absent from Sema's table but still resolve to
+            // local function values in the generated code.
+            if moduleFunctionParameterSymbols.contains(symbol) { return true }
             if let linkName = symbols?.externalLinkName(for: symbol), !linkName.isEmpty {
                 return true
             }

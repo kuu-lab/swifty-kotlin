@@ -120,8 +120,8 @@ struct InlineNestedCaptureTests {
         let visit = function(visitSymbol, "visit", [valueParam, actionParam], [
             .constValue(result: value, value: .symbolRef(valueParam)),
             .constValue(result: action, value: .symbolRef(actionParam)),
-            .call(symbol: nil, callee: LoweringTestRuntime.callee("function_invoke", interner: interner),
-                  arguments: [action, value], result: visitResult, canThrow: false, thrownResult: nil),
+            .call(callee: LoweringTestRuntime.callee("function_invoke", interner: interner),
+                  arguments: [action, value], result: visitResult, canThrow: false),
             .returnValue(visitResult),
         ], inline: true, bodyless: bodylessSnapshot)
         let seven = arena.appendExpr(.intLiteral(7), type: types.intType)
@@ -134,7 +134,7 @@ struct InlineNestedCaptureTests {
             .constValue(result: eleven, value: .intLiteral(11)),
             .constValue(result: lambdaRef, value: .symbolRef(lambdaSymbol)),
             .call(symbol: visitSymbol, callee: visit.name, arguments: [eleven, lambdaRef],
-                  result: result, canThrow: false, thrownResult: nil),
+                  result: result, canThrow: false),
             .returnValue(result),
         ])
         let callerID = arena.appendDecl(.function(caller))
@@ -173,8 +173,8 @@ struct InlineNestedCaptureTests {
             arena.appendExpr(.symbolRef(symbol), type: types.intType)
         }
         func invoke(_ args: [KIRExprID], result: KIRExprID) -> KIRInstruction {
-            .call(symbol: nil, callee: LoweringTestRuntime.callee("function_invoke", interner: interner),
-                  arguments: args, result: result, canThrow: false, thrownResult: nil)
+            .call(callee: LoweringTestRuntime.callee("function_invoke", interner: interner),
+                  arguments: args, result: result, canThrow: false)
         }
         func function(
             _ symbol: SymbolID, _ name: String, _ params: [SymbolID],
@@ -215,7 +215,7 @@ struct InlineNestedCaptureTests {
             .constValue(result: outerValue, value: .symbolRef(outerParam)),
             .constValue(result: innerRef, value: .symbolRef(innerSymbol)),
             .call(symbol: offsetSymbol, callee: withOffset.name, arguments: [innerRef],
-                  result: outerResult, canThrow: false, thrownResult: nil),
+                  result: outerResult, canThrow: false),
             .returnValue(outerResult),
         ])
 
@@ -239,9 +239,9 @@ struct InlineNestedCaptureTests {
             .constValue(result: eleven, value: .intLiteral(11)),
             .constValue(result: outerRef, value: .symbolRef(outerSymbol)),
             .call(symbol: visitSymbol, callee: visit.name, arguments: [seven, outerRef],
-                  result: firstResult, canThrow: false, thrownResult: nil),
+                  result: firstResult, canThrow: false),
             .call(symbol: visitSymbol, callee: visit.name, arguments: [eleven, outerRef],
-                  result: secondResult, canThrow: false, thrownResult: nil),
+                  result: secondResult, canThrow: false),
             .returnValue(secondResult),
         ])
         let callerID = arena.appendDecl(.function(caller))

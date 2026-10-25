@@ -8,10 +8,12 @@ struct ContravariantContinuationConstraintTests {
     func testBundledCancellableStartAcceptsAnyNullableCompletion(useLibrary: Bool) throws {
         if useLibrary { TestStdlibCache.shared.prepare() }
         let calls = """
+        @OptIn(InternalCoroutinesApi::class)
         internal fun <R> (suspend () -> R).ff() {
             this.startCoroutineCancellable(NO_CB)
             this.startCoroutineCancellable<R>(NO_CB)
         }
+        @OptIn(InternalCoroutinesApi::class)
         fun <R> typed(block: suspend () -> R, completion: Continuation<Any?>) {
             block.startCoroutineCancellable(completion)
             block.startCoroutineCancellable<R>(completion)
@@ -32,6 +34,7 @@ struct ContravariantContinuationConstraintTests {
             return """
             package sample\(index)
             import kotlin.coroutines.*
+            import kotlinx.coroutines.InternalCoroutinesApi
             import kotlinx.coroutines.intrinsics.startCoroutineCancellable
 
             \(completionDeclaredFirst ? completion : calls)

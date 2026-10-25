@@ -283,7 +283,7 @@ extension CallTypeChecker {
                     elementType: elementType
                 )
             }
-            if let iterableSymbol = sema.symbols.lookup(fqName: knownNames.kotlinCollectionsIterableFQName) {
+            if let iterableSymbol = sema.symbols.lookupNominal(fqName: knownNames.kotlinCollectionsIterableFQName) {
                 return sema.types.make(.classType(ClassType(
                     classSymbol: iterableSymbol,
                     args: [.out(elementType)],
@@ -718,7 +718,7 @@ extension CallTypeChecker {
         }
 
         if memberName == knownNames.withIndex,
-           let iterableSymbol = sema.symbols.lookup(fqName: knownNames.kotlinCollectionsIterableFQName),
+           let iterableSymbol = sema.symbols.lookupNominal(fqName: knownNames.kotlinCollectionsIterableFQName),
            let indexedValueSymbol = sema.symbols.lookup(fqName: knownNames.kotlinCollectionsIndexedValueFQName)
         {
             let indexedValueType = sema.types.make(.classType(ClassType(

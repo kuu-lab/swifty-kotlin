@@ -20,17 +20,17 @@ public fun <K, V> mapOf(pair: Pair<K, V>): Map<K, V> = __jvmSingletonMap(pair.fi
 public fun <K, V> mapOf(vararg pairs: Pair<K, V>): Map<K, V> {
     if (pairs.size == 0) return emptyMap<K, V>()
     val result = __jvmNewMap<K, V>()
-    for (pair in pairs) result[pair.first] = pair.second
+    for (pair in pairs) result.put(pair.first, pair.second)
     return result
 }
 public fun <K, V> mutableMapOf(vararg pairs: Pair<K, V>): MutableMap<K, V> {
     val result = __jvmNewMap<K, V>()
-    for (pair in pairs) result[pair.first] = pair.second
+    for (pair in pairs) result.put(pair.first, pair.second)
     return result
 }
 public fun <K, V> linkedMapOf(vararg pairs: Pair<K, V>): java.util.LinkedHashMap<K, V> {
     val result = java.util.LinkedHashMap<K, V>()
-    for (pair in pairs) result[pair.first] = pair.second
+    for (pair in pairs) result.put(pair.first, pair.second)
     return result
 }
 
@@ -72,7 +72,7 @@ public fun <K, V> Map<out K, V>.toMap(): Map<K, V> {
 
 public fun <K, V> sortedMapOf(vararg pairs: Pair<K, V>): java.util.SortedMap<K, V> {
     val result = java.util.TreeMap<K, V>()
-    for (pair in pairs) result[pair.first] = pair.second
+    for (pair in pairs) result.put(pair.first, pair.second)
     return result
 }
 
@@ -81,7 +81,7 @@ public fun <K, V> sortedMapOf(
     vararg pairs: Pair<K, V>
 ): java.util.SortedMap<K, V> {
     val result = java.util.TreeMap<K, V>(comparator)
-    for (pair in pairs) result[pair.first] = pair.second
+    for (pair in pairs) result.put(pair.first, pair.second)
     return result
 }
 

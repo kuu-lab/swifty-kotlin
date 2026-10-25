@@ -112,6 +112,7 @@ extension StdlibArtifactRegressionTests {
         npe:function
         npe:unary
         npe:boolean
+        npe:boolean-not
         npe:condition
         npe:when
         short-circuit:false:true

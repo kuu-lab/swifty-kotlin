@@ -108,6 +108,7 @@ retain the stdout diff, KIR, crash diagnostics, and a reproduction script.
 - `java_nio_files.kt`: 管理下 fixture の `Files.readAllBytes`、`Paths.get` の相対パス・複数セグメント、IOException 捕捉の parity（KUU-2015）。空・バイナリ file と source / fresh `.kklib` × O0/O2 は `testJavaNioFilesAcrossSourceAndFreshLibrary` がカバーする。
 - `java_nio_bytebuffer_typed.kt`: `ByteBuffer` の型付き相対・絶対 get/put、BIG_ENDIAN/LITTLE_ENDIAN、型付き値の round-trip parity（KUU-3064）。source / fresh `.kklib` × O0/O2 は `testJavaNioByteBufferTypedAccessorsAcrossSourceAndFreshLibrary` がカバーする。
 - `member_compound_assign.kt`: 明示的レシーバ経由のフィールド複合代入・インクリメント/デクリメント（`obj.field += x` / `obj.field++` / `obj.field--`、暗黙 `this` 経由・ネストレシーバ・関数引数レシーバ・レシーバ式の単一評価）の parity
+- `member_compound_assign_evaluation_order.kt`: 明示レシーバのプロパティ複合代入が RHS より前に更新前の値を読み、RHS による同一プロパティ変更を受けないこと（通常フィールド・custom accessor・virtual accessor の順序）を確認
 - `val_member_compound_assign_error.kt`: 明示的レシーバ経由の `val` フィールドへの複合代入（`obj.field += x`）が compile error になる parity
 - `custom_getter_setter_var.kt`: KUU-595 の `var` に custom getter と setter を同居させた場合も、読み取りが getter を呼び、setter と対称な計算値を返す parity
 - `custom_getter_field_access.kt`: カスタム getter のみを持つプロパティ（`set(value) {}` ブロック無し）の通常初期化子、および getter 本体内での `field = ...` 書き込み（lazy caching パターン）が実インスタンスストレージに反映される parity

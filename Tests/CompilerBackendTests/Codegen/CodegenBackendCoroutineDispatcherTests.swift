@@ -40,15 +40,29 @@ struct CodegenBackendCoroutineDispatcherTests {
         try assertKotlinOutput("""
         import kotlinx.coroutines.*
         import java.lang.Runnable
+        import java.util.concurrent.Callable
         import java.util.concurrent.Executor
         import java.util.concurrent.ExecutorService
+        import java.util.concurrent.Future
+        import java.util.concurrent.FutureTask
+        import java.util.concurrent.TimeUnit
 
         class Service : ExecutorService {
             override fun execute(command: Runnable) { command.run() }
             override fun shutdown() {}
             override fun shutdownNow(): List<Runnable> = emptyList()
-            override fun isShutdown(): Boolean = false
-            override fun isTerminated(): Boolean = false
+            override val isShutdown: Boolean = false
+            override val isTerminated: Boolean = false
+            override fun awaitTermination(timeout: Long, unit: TimeUnit): Boolean = true
+            override fun <T> submit(task: Callable<T>): Future<T> = FutureTask(task)
+            override fun submit(task: Runnable): Future<*> =
+                FutureTask<Unit>(Callable { task.run() })
+            override fun <T> submit(task: Runnable, result: T): Future<T> =
+                FutureTask(Callable { task.run(); result })
+            override fun <T> invokeAll(tasks: Collection<Callable<T>>): List<Future<T>> =
+                tasks.map { submit(it) }
+            override fun <T> invokeAny(tasks: Collection<Callable<T>>): T =
+                submit(tasks.first()).get()
         }
 
         fun main() {

@@ -32,7 +32,7 @@ final class OperatorLoweringPass: LoweringPass, ParallelLoweringPass {
                     case .unaryPlus: ctx.interner.intern("kk_op_uplus")
                     case .unaryMinus: ctx.interner.intern("kk_op_uminus")
                     }
-                    newBody.append(.call(symbol: nil, callee: callee, arguments: [operand], result: result, canThrow: false, thrownResult: nil))
+                    newBody.append(.call(callee: callee, arguments: [operand], result: result, canThrow: false))
                 case let .nullAssert(operand, result):
                     lowerNullAssertInstruction(
                         operand: operand,
@@ -65,12 +65,10 @@ final class OperatorLoweringPass: LoweringPass, ParallelLoweringPass {
         let notNullResult = arena.appendTemporary(type: arena.exprType(result))
         newBody.append(
             .call(
-                symbol: nil,
                 callee: interner.intern("kk_op_notnull"),
                 arguments: [operand],
                 result: notNullResult,
-                canThrow: true,
-                thrownResult: nil
+                canThrow: true
             )
         )
 
@@ -82,12 +80,10 @@ final class OperatorLoweringPass: LoweringPass, ParallelLoweringPass {
         if let unboxCallee = unboxCallee(for: types.kind(of: resultType), interner: interner) {
             newBody.append(
                 .call(
-                    symbol: nil,
                     callee: unboxCallee,
                     arguments: [notNullResult],
                     result: result,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 )
             )
         } else {
@@ -133,7 +129,7 @@ final class OperatorLoweringPass: LoweringPass, ParallelLoweringPass {
             || isCoroutineContextType(rhs, arena: arena, types: types, interner: interner)
         {
             let callee = interner.intern("__kk_context_plus_dispatch")
-            newBody.append(.call(symbol: nil, callee: callee, arguments: [lhs, rhs], result: result, canThrow: true, thrownResult: nil))
+            newBody.append(.call(callee: callee, arguments: [lhs, rhs], result: result, canThrow: true))
             return
         }
 
@@ -241,8 +237,8 @@ final class OperatorLoweringPass: LoweringPass, ParallelLoweringPass {
                 newBody.append(.constValue(result: flagExpr, value: .intLiteral(flagValue)))
                 let callee = interner.intern(op == .equal ? "kk_nullable_primitive_eq" : "kk_nullable_primitive_ne")
                 newBody.append(.call(
-                    symbol: nil, callee: callee, arguments: [nullableSide, peerSide, flagExpr],
-                    result: result, canThrow: false, thrownResult: nil
+                    callee: callee, arguments: [nullableSide, peerSide, flagExpr],
+                    result: result, canThrow: false
                 ))
                 return
             }
@@ -325,7 +321,7 @@ final class OperatorLoweringPass: LoweringPass, ParallelLoweringPass {
         case .logicalAnd: interner.intern("kk_op_and")
         case .logicalOr: interner.intern("kk_op_or")
         }
-        newBody.append(.call(symbol: nil, callee: callee, arguments: [effectiveLhs, effectiveRhs], result: result, canThrow: false, thrownResult: nil))
+        newBody.append(.call(callee: callee, arguments: [effectiveLhs, effectiveRhs], result: result, canThrow: false))
     }
 
     /// A raw Double/Float word has no runtime type tag. Box it before comparing
@@ -353,12 +349,10 @@ final class OperatorLoweringPass: LoweringPass, ParallelLoweringPass {
 
         let boxed = arena.appendTemporary(type: types.nullableAnyType)
         newBody.append(.call(
-            symbol: nil,
             callee: boxCallee,
             arguments: [operand],
             result: boxed,
-            canThrow: false,
-            thrownResult: nil
+            canThrow: false
         ))
         return boxed
     }

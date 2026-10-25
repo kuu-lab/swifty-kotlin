@@ -52,8 +52,7 @@ final class ObjectLiteralLowerer {
             callee: symbols.constructorName,
             arguments: [],
             result: objectValue,
-            canThrow: false,
-            thrownResult: nil
+            canThrow: false
         ))
         return objectValue
     }
@@ -269,12 +268,10 @@ final class ObjectLiteralLowerer {
 
         let objectValue = arena.appendTemporary(type: objectValueType)
         instructions.append(.call(
-            symbol: nil,
             callee: interner.intern("kk_object_new"),
             arguments: [slotCountExpr, classIDExpr],
             result: objectValue,
-            canThrow: false,
-            thrownResult: nil
+            canThrow: false
         ))
 
         registerObjectLiteralSupertypes(
@@ -335,12 +332,10 @@ final class ObjectLiteralLowerer {
             instructions.append(.constValue(result: offsetExpr, value: .intLiteral(Int64(fieldOffset))))
             let unusedResult = arena.appendTemporary(type: sema.types.anyType)
             instructions.append(.call(
-                symbol: nil,
                 callee: interner.intern("kk_array_set"),
                 arguments: [objectValue, offsetExpr, nullExpr],
                 result: unusedResult,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
         }
         // KSP-CAP-001: materialize outer locals/parameters and any enclosing
@@ -368,12 +363,10 @@ final class ObjectLiteralLowerer {
             instructions.append(.constValue(result: captureOffsetExpr, value: .intLiteral(Int64(fieldOffset))))
             let captureSetResult = arena.appendTemporary(type: sema.types.anyType)
             instructions.append(.call(
-                symbol: nil,
                 callee: interner.intern("kk_array_set"),
                 arguments: [objectValue, captureOffsetExpr, captureValue],
                 result: captureSetResult,
-                canThrow: true,
-                thrownResult: nil
+                canThrow: true
             ))
         }
 
@@ -527,12 +520,10 @@ final class ObjectLiteralLowerer {
             instructions.append(.constValue(result: offsetExpr, value: .intLiteral(Int64(fieldOffset))))
             let unusedResult = arena.appendTemporary(type: sema.types.anyType)
             instructions.append(.call(
-                symbol: nil,
                 callee: interner.intern("kk_array_set"),
                 arguments: [objectValue, offsetExpr, initializerValue],
                 result: unusedResult,
-                canThrow: true,
-                thrownResult: nil
+                canThrow: true
             ))
         }
 
@@ -711,12 +702,10 @@ final class ObjectLiteralLowerer {
             instructions.append(.constValue(result: offsetExpr, value: .intLiteral(Int64(fieldOffset))))
             let loadedExpr = arena.appendTemporary(type: loadedType)
             instructions.append(.call(
-                symbol: nil,
                 callee: interner.intern("kk_array_get_inbounds"),
                 arguments: [receiverExprID, offsetExpr],
                 result: loadedExpr,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
             if isDelegatedLocal {
                 driver.ctx.setLocalDelegateStorage(loadedExpr, for: capturedSymbol)
@@ -731,21 +720,17 @@ final class ObjectLiteralLowerer {
                 let componentSymbol = SyntheticSymbolScheme.reifiedArrayComponentTokenSymbol(for: capturedSymbol)
                 let classToken = arena.appendTemporary(type: intType)
                 instructions.append(.call(
-                    symbol: nil,
                     callee: interner.intern("__kk_pair_first"),
                     arguments: [loadedExpr],
                     result: classToken,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ))
                 let componentToken = arena.appendTemporary(type: intType)
                 instructions.append(.call(
-                    symbol: nil,
                     callee: interner.intern("__kk_pair_second"),
                     arguments: [loadedExpr],
                     result: componentToken,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ))
                 driver.ctx.setLocalValue(classToken, for: tokenSymbol)
                 driver.ctx.setLocalDeclaredType(intType, for: tokenSymbol)
@@ -978,12 +963,10 @@ final class ObjectLiteralLowerer {
 
         let registerResult = arena.appendTemporary(type: intType)
         instructions.append(.call(
-            symbol: nil,
             callee: interner.intern("__kk_kclass_register_metadata"),
             arguments: [typeTokenExpr, fqNameExpr, simpleNameExpr, supertypeNameExpr, flagsExpr, fieldCountExpr, memberCountExpr, constructorCountExpr],
             result: registerResult,
-            canThrow: false,
-            thrownResult: nil
+            canThrow: false
         ))
         driver.callLowerer.emitClassEnclosingMetadataRegistration(
             for: objectSymbol,
@@ -1309,12 +1292,10 @@ final class ObjectLiteralLowerer {
         body.append(.constValue(result: slotCountExpr, value: .intLiteral(Int64(storageSlotCount))))
         body.append(.constValue(result: classIDExpr, value: .intLiteral(0)))
         body.append(.call(
-            symbol: nil,
             callee: interner.intern("kk_object_new"),
             arguments: [slotCountExpr, classIDExpr],
             result: objectEntityExpr,
-            canThrow: false,
-            thrownResult: nil
+            canThrow: false
         ))
         appendObjectVtableMethodRegistrations(
             objectValue: objectEntityExpr,
