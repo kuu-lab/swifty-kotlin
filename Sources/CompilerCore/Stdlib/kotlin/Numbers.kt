@@ -35,6 +35,13 @@ public fun Char.toInt(): Int = this.code
 @DeprecatedSinceKotlin(warningSince = "1.5")
 public fun Char.toLong(): Long = this.code.toLong()
 
+@Deprecated(
+    "Conversion of Char to Number is deprecated. Use Char.code property instead.",
+    ReplaceWith("this.code.toFloat()")
+)
+@DeprecatedSinceKotlin(warningSince = "1.5")
+public fun Char.toFloat(): Float = this.code.toFloat()
+
 // KSP-642: rotateLeft / rotateRight は shl / ushr / or の合成だけで表現でき、
 // ランタイムブリッジを必要としない。
 // shl / shr / ushr は Kotlin 本家と同じくシフト量を Int で 5bit・Long で 6bit に
