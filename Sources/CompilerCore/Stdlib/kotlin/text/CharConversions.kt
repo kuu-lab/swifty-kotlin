@@ -33,6 +33,10 @@ internal external fun __charTitlecaseCode(code: Int): Int
 @KsSymbolName("__kk_char_digit_value")
 internal external fun __charDigitValue(code: Int): Int
 
+/// Java Character.getNumericValue semantics for Unicode numeric symbols.
+@KsSymbolName("__kk_char_numeric_value")
+internal external fun __charNumericValue(code: Int): Int
+
 @KsSymbolName("__kk_char_uppercase_locale")
 internal external fun __charUppercaseLocale(code: Int, locale: java.util.Locale): String
 

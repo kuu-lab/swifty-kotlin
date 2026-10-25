@@ -14,7 +14,13 @@ extension StdlibArtifactRegressionTests {
             + Array(0...16) + Array(18...30) + [19, 0, 0, 1, 2, 6, 16, 18, 0]
         let expected = (numericOutput.map(String.init)
             + Array(repeating: "true", count: 10) + Array(repeating: "false", count: 10)
-            + ["true", "true", "true", "false", "true", "65", "0"])
+            + ["true", "true", "true", "false", "true", "65", "0"]
+            + [
+                "true", "true", "true", "true", "true", "true", "false",
+                "true", "true", "true", "A", "a", "65", "97", "A", "65",
+                "9", "9", "-1", "-1", "9", "z", "true", "9", "10", "50",
+                "-2", "-1", "true", "true", "false", "true", "true", "true",
+            ])
             .joined(separator: "\n") + "\n"
         let artifactPath = try Self.buildStdlibArtifact()
         for (surface, libraryPath) in [("source", nil), ("artifact", artifactPath)] {
