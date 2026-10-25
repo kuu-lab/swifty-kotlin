@@ -546,6 +546,12 @@ enum DiagnosticRegistry {
             summary: "Invalid is-check on non-class type."
         ),
         DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0057",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "'super' cannot be a callee."
+        ),
+        DiagnosticDescriptor(
             code: "KSWIFTK-SEMA-UNCHECKED-CAST",
             pass: "SEMA",
             defaultSeverity: .warning,
