@@ -100,12 +100,23 @@ extension KIRLoweringDriver {
         let sema = shared.sema
         var body: KIRLoweringEmitContext = [.beginBlock]
         // Constructing a class is an active use of that class on the JVM.
-        // Run its companion initializer before superclass or instance init code.
+        // Its companion initializer — whose own body first runs the
+        // supertype companion initializers (KUU-3225) — executes before
+        // superclass or instance init code. A companion-less class still
+        // owes its supertype chain's initialization.
         if let companionSymbol = sema.symbols.companionObjectSymbol(for: ownerSymbol) {
             emitObjectLazyInitGuardIfNeeded(
                 objectSymbol: companionSymbol,
                 arena: shared.arena,
                 sema: sema,
+                interner: shared.interner,
+                instructions: &body.instructions
+            )
+        } else {
+            emitSupertypeCompanionInitCalls(
+                for: ownerSymbol,
+                sema: sema,
+                arena: shared.arena,
                 interner: shared.interner,
                 instructions: &body.instructions
             )
