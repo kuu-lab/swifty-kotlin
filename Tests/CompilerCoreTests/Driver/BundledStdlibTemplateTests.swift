@@ -166,9 +166,11 @@ struct BundledStdlibTemplateTests {
         // IntArray.map alone has no blank line before mapIndexed.
         #expect(ints.contains("}\npublic fun <R> IntArray.mapIndexed("))
         #expect(ints.contains("}\n\npublic fun <R> LongArray.mapIndexed("))
-        // Unsigned arrays carry extra accessors; UInt alone has four more.
+        // Unsigned arrays carry extra accessors; UInt alone has six more.
         #expect(unsignedSmall.contains("UByteArray.elementAt(") && !unsignedSmall.contains("UByteArray.forEachIndexed("))
         #expect(unsignedWide.contains("UIntArray.forEachIndexed(") && unsignedWide.contains("UIntArray.maxOrNull("))
+        #expect(unsignedWide.contains("public fun UIntArray.max(): UInt") && unsignedWide.contains("public fun UIntArray.min(): UInt"))
+        #expect(!unsignedWide.contains("public fun ULongArray.max()") && !unsignedWide.contains("public fun ULongArray.min()"))
         #expect(unsignedWide.contains("ULongArray.elementAt(") && !unsignedWide.contains("ULongArray.indexOf("))
     }
 
