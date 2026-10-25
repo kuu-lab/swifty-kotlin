@@ -89,6 +89,7 @@ extension CallTypeChecker {
         explicitTypeArgs: [TypeID],
         calleeName: InternedString?,
         candidates: [SymbolID],
+        locals: LocalBindings,
         preInferredArgumentTypes: [Int: TypeID] = [:],
         withContextExpectedLambdaType: TypeID?,
         expectedTypeOverrides: inout [Int: TypeID],
@@ -580,6 +581,15 @@ extension CallTypeChecker {
                 expectedTypeOverrides[index] = substitutedType
             }
         }
+        prepareCompareByExpectedTypeOverrides(
+            args: args,
+            callRange: callRange,
+            candidates: candidates,
+            explicitTypeArgs: explicitTypeArgs,
+            locals: locals,
+            ctx: ctx,
+            expectedTypeOverrides: &expectedTypeOverrides
+        )
         // With multiple candidates, their parameter types may differ and must
         // not steer a shared argument toward one overload.
         prepareUnambiguousNestedCallExpectedTypes(
