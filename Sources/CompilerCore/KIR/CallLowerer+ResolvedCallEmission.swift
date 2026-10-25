@@ -595,7 +595,15 @@ extension CallLowerer {
                 if let activeReceiver = driver.ctx.activeImplicitReceiverExprID(),
                    let activeType = arena.exprType(activeReceiver),
                    case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(activeType)),
-                   sema.types.isNominalSubtypeSymbol(classType.classSymbol, of: owner)
+                   sema.types.isNominalSubtypeSymbol(classType.classSymbol, of: owner),
+                   // Kotlin member scope: a `private` member is not inherited,
+                   // so the active receiver can only dispatch it when the
+                   // receiver's own class declares it. On a subtype such as
+                   // `object : X()` the captured `this@X` recorded by Sema (or
+                   // the outer-receiver fallback below) must win instead
+                   // (KUU-3212).
+                   classType.classSymbol == owner
+                       || sema.symbols.symbol(chosen)?.visibility != .private
                 {
                     implicitReceiver = activeReceiver
                 } else if let dispatchReceiver = driver.ctx.capturedOuterReceiverExprID(for: owner)
