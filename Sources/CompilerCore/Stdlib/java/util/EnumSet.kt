@@ -10,12 +10,16 @@ import kotlin.reflect.isInstance
 @KsSymbolName("__kk_enum_set_class")
 private external fun __kkEnumSetClass(elementType: Class<*>): KClass<*>?
 
+@KsSymbolName("__kk_enum_set_values")
+private external fun <E : Enum<E>> __kkEnumSetValues(elementType: Class<E>): Array<E>?
+
 // Enum values are boxed ordinals at erased collection boundaries.
 @KsSymbolName("kk_unbox_int")
 private external fun __kkEnumSetOrdinal(element: Enum<*>): Int
 
 /** A mutable set of one enum type, iterated in declaration order. */
 public class EnumSet<E : Enum<E>> private constructor(
+    private val elementType: Class<E>,
     private val elementClass: KClass<*>
 ) : AbstractMutableSet<E>() {
     private val elements: MutableList<E> = ArrayList<E>()
@@ -57,7 +61,58 @@ public class EnumSet<E : Enum<E>> private constructor(
         public fun <E : Enum<E>> noneOf(elementType: Class<E>?): EnumSet<E> {
             if (elementType == null) throw NullPointerException()
             val elementClass = __kkEnumSetClass(elementType) ?: throw ClassCastException()
-            return EnumSet<E>(elementClass)
+            return EnumSet<E>(elementType, elementClass)
+        }
+
+        public fun <E : Enum<E>> of(first: E, vararg rest: E): EnumSet<E> {
+            val result = noneOf(first.javaClass)
+            result.add(first)
+            for (element in rest) result.add(element)
+            return result
+        }
+
+        public fun <E : Enum<E>> allOf(elementType: Class<E>?): EnumSet<E> {
+            val result = noneOf(elementType)
+            val values = __kkEnumSetValues(elementType ?: throw NullPointerException())
+                ?: throw ClassCastException()
+            for (element in values) result.add(element)
+            return result
+        }
+
+        public fun <E : Enum<E>> copyOf(source: EnumSet<E>?): EnumSet<E> {
+            val nonNullSource = source ?: throw NullPointerException()
+            val result = noneOf(nonNullSource.elementType)
+            for (element in nonNullSource) result.add(element)
+            return result
+        }
+
+        public fun <E : Enum<E>> copyOf(source: Collection<E>?): EnumSet<E> {
+            val nonNullSource = source ?: throw NullPointerException()
+            val iterator = nonNullSource.iterator()
+            if (!iterator.hasNext()) throw IllegalArgumentException("Collection is empty")
+            val first = iterator.next()
+            val result = noneOf(first.javaClass)
+            result.add(first)
+            while (iterator.hasNext()) result.add(iterator.next())
+            return result
+        }
+
+        public fun <E : Enum<E>> complementOf(source: EnumSet<E>?): EnumSet<E> {
+            val nonNullSource = source ?: throw NullPointerException()
+            val result = allOf(nonNullSource.elementType)
+            for (element in nonNullSource) result.remove(element)
+            return result
+        }
+
+        public fun <E : Enum<E>> range(from: E, to: E): EnumSet<E> {
+            if (from.javaClass != to.javaClass) throw ClassCastException()
+            if (from.ordinal > to.ordinal) throw IllegalArgumentException("fromIndex must be <= toIndex")
+            val result = noneOf(from.javaClass)
+            val values = __kkEnumSetValues(from.javaClass) ?: throw ClassCastException()
+            for (element in values) {
+                if (element.ordinal >= from.ordinal && element.ordinal <= to.ordinal) result.add(element)
+            }
+            return result
         }
     }
 }

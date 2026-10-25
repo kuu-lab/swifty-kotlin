@@ -8,6 +8,10 @@ import java.util.function.Supplier
 private external fun objectsEquals(a: Any, b: Any?): Boolean
 
 public object Objects {
+    public fun <T> compare(a: T, b: T, comparator: Comparator<in T>?): Int {
+        return (comparator ?: throw NullPointerException()).compare(a, b)
+    }
+
     public fun equals(a: Any?, b: Any?): Boolean {
         if (a === b) return true
         if (a == null || b == null) return false
