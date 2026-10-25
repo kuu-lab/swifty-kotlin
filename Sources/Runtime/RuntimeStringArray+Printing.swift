@@ -182,6 +182,9 @@ func runtimeRenderAnyForPrint(_ value: Int) -> String {
     if let rendered = runtimeJobWrapperDebugString(value) {
         return rendered
     }
+    if let rendered = runtimeDefaultObjectIdentityToString(value) {
+        return rendered
+    }
     return "<object \(raw)>"
 }
 
