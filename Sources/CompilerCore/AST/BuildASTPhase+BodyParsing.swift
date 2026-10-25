@@ -498,22 +498,37 @@ extension BuildASTPhase {
         // keyword. Assignment and expression statements keep the unstripped
         // head so leading annotations still attach to the parsed expression —
         // dropping them would also drop unresolved-annotation diagnostics.
+        //
+        // Every probe is speculative: a failing attempt (e.g. an assignment
+        // scan that parses `do x` as a compound-assign LHS) can emit
+        // diagnostics for a parse the group is then reparsed without. Roll
+        // those back; only the winning parse keeps its diagnostics.
+        let speculationCheckpoint = diagnostics?.checkpoint()
+        func undoFailedSpeculation() {
+            if let speculationCheckpoint {
+                diagnostics?.rollback(to: speculationCheckpoint)
+            }
+        }
         if let expr = Self.parseLocalNominalDeclExpr(
             from: raw, interner: interner, astArena: astArena, diagnostics: diagnostics
         ) {
             return expr
         }
+        undoFailedSpeculation()
         let strippedRaw = Self.skipLeadingLocalAnnotations(raw, interner: interner)
         let strippedFiltered = Self.skipLeadingLocalAnnotations(filtered, interner: interner)
         if let expr = parseLocalFunDeclExpr(from: strippedRaw, interner: interner, astArena: astArena) {
             return expr
         }
+        undoFailedSpeculation()
         if let expr = parseLocalDeclarationExpr(from: strippedFiltered, interner: interner, astArena: astArena) {
             return expr
         }
+        undoFailedSpeculation()
         if let expr = parseLocalAssignmentExpr(from: filtered, interner: interner, astArena: astArena) {
             return expr
         }
+        undoFailedSpeculation()
         let parser = ExpressionParser(
             tokens: filtered, interner: interner, astArena: astArena, diagnostics: diagnostics
         )

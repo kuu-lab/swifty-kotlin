@@ -130,37 +130,154 @@ extension CallLowerer {
                 return literalID
             }
         }
-        let rawLhsID = driver.lowerExpr(
-            lhs,
-            ast: ast,
-            sema: sema,
-            arena: arena,
-            interner: interner,
-            propertyConstantInitializers: propertyConstantInitializers,
-            instructions: &instructions
-        )
-        // Freeze lhs before lowering rhs: a bare mutable-local lhs (e.g. `x`
-        // in `x + x++`) must observe its value at the point it was
-        // evaluated, not any mutation rhs performs on the same variable.
-        // Only worth doing when rhs could actually perform a mutation
-        // (e.g. `result + 22` cannot touch `result`, so freezing here
-        // would only add a dead copy some optimization levels don't fold
-        // away). See freezeEvaluationOrderOperand / needsEvaluationOrderFreeze
-        // / expressionMayMutateState.
-        let lhsID = needsEvaluationOrderFreeze(lhs, ast: ast, sema: sema)
-            && expressionMayMutateState(rhs, ast: ast)
-            ? freezeEvaluationOrderOperand(rawLhsID, arena: arena, instructions: &instructions)
-            : rawLhsID
-        let rhsID = driver.lowerExpr(
-            rhs,
-            ast: ast,
-            sema: sema,
-            arena: arena,
-            interner: interner,
-            propertyConstantInitializers: propertyConstantInitializers,
-            instructions: &instructions
-        )
+        // KUU-3174: `a?.b == c` / `c == a?.b` hoist the `?.` receiver's null
+        // check over the entire comparison. `lhs?.equals(rhs) ?: (rhs === null)`
+        // folds to `false` when the safe-call operand is null and the other
+        // operand is statically non-nullable, so the other operand must not
+        // be evaluated on the null path. Identity equality (`===`) is a
+        // primitive reference compare outside the `equals` continuation —
+        // kotlinc still evaluates both operands, so it is excluded here.
+        func isSafeChainOperand(_ e: ExprID) -> Bool {
+            guard let kind = ast.arena.expr(e), case .safeMemberCall = kind else { return false }
+            return true
+        }
+        func isStaticallyNonNullableOperand(_ e: ExprID) -> Bool {
+            guard let type = sema.bindings.exprTypes[e] else { return false }
+            if case .typeParam = sema.types.kind(of: type) { return false }
+            return sema.types.nullability(of: type) == .nonNull
+        }
         let result = arena.appendTemporary(type: boundType)
+        var deferredEqualityEndLabel: Int32? = nil
+        defer {
+            if let endLabel = deferredEqualityEndLabel {
+                instructions.append(.label(endLabel))
+            }
+        }
+        let isEqualityOp = op == .equal || op == .notEqual
+        let lhsIsSafeChainOperand = isEqualityOp && isSafeChainOperand(lhs)
+        let rhsIsSafeChainOperand = isEqualityOp && isSafeChainOperand(rhs)
+        let rawLhsID: KIRExprID
+        let lhsID: KIRExprID
+        let rhsID: KIRExprID
+        if lhsIsSafeChainOperand, !rhsIsSafeChainOperand,
+           isStaticallyNonNullableOperand(rhs)
+        {
+            rawLhsID = driver.lowerExpr(
+                lhs,
+                ast: ast,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                propertyConstantInitializers: propertyConstantInitializers,
+                instructions: &instructions
+            )
+            lhsID = needsEvaluationOrderFreeze(lhs, ast: ast, sema: sema)
+                && expressionMayMutateState(rhs, ast: ast)
+                ? freezeEvaluationOrderOperand(rawLhsID, arena: arena, instructions: &instructions)
+                : rawLhsID
+            let nonNullLabel = driver.ctx.makeLoopLabel()
+            let endLabel = driver.ctx.makeLoopLabel()
+            deferredEqualityEndLabel = endLabel
+            instructions.append(.jumpIfNotNull(value: lhsID, target: nonNullLabel))
+            instructions.append(.constValue(
+                result: result,
+                value: .boolLiteral(op == .notEqual)
+            ))
+            instructions.append(.jump(endLabel))
+            instructions.append(.label(nonNullLabel))
+            rhsID = driver.lowerExpr(
+                rhs,
+                ast: ast,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                propertyConstantInitializers: propertyConstantInitializers,
+                instructions: &instructions
+            )
+        } else if rhsIsSafeChainOperand, !lhsIsSafeChainOperand,
+                  isStaticallyNonNullableOperand(lhs),
+                  case let .safeMemberCall(safeReceiverExpr, safeCalleeName, _, safeArgs, _)
+                      = ast.arena.expr(rhs)
+        {
+            // `e == b?.x`: kotlinc's `b?.let { e == it.x } ?: (e === null)`
+            // evaluates `e` inside the `?.` continuation — after the
+            // receiver's null check but before the member access. Lower the
+            // receiver standalone so `e` can sit between the check and the
+            // access, preserving that order.
+            let receiverID = driver.lowerExpr(
+                safeReceiverExpr,
+                ast: ast,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                propertyConstantInitializers: propertyConstantInitializers,
+                instructions: &instructions
+            )
+            let nonNullLabel = driver.ctx.makeLoopLabel()
+            let endLabel = driver.ctx.makeLoopLabel()
+            deferredEqualityEndLabel = endLabel
+            instructions.append(.jumpIfNotNull(value: receiverID, target: nonNullLabel))
+            instructions.append(.constValue(
+                result: result,
+                value: .boolLiteral(op == .notEqual)
+            ))
+            instructions.append(.jump(endLabel))
+            instructions.append(.label(nonNullLabel))
+            rawLhsID = driver.lowerExpr(
+                lhs,
+                ast: ast,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                propertyConstantInitializers: propertyConstantInitializers,
+                instructions: &instructions
+            )
+            lhsID = rawLhsID
+            rhsID = lowerSafeMemberCallExpr(
+                rhs,
+                receiverExpr: safeReceiverExpr,
+                calleeName: safeCalleeName,
+                args: safeArgs,
+                ast: ast,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                propertyConstantInitializers: propertyConstantInitializers,
+                instructions: &instructions,
+                precomputedReceiverID: receiverID
+            )
+        } else {
+            rawLhsID = driver.lowerExpr(
+                lhs,
+                ast: ast,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                propertyConstantInitializers: propertyConstantInitializers,
+                instructions: &instructions
+            )
+            // Freeze lhs before lowering rhs: a bare mutable-local lhs (e.g. `x`
+            // in `x + x++`) must observe its value at the point it was
+            // evaluated, not any mutation rhs performs on the same variable.
+            // Only worth doing when rhs could actually perform a mutation
+            // (e.g. `result + 22` cannot touch `result`, so freezing here
+            // would only add a dead copy some optimization levels don't fold
+            // away). See freezeEvaluationOrderOperand / needsEvaluationOrderFreeze
+            // / expressionMayMutateState.
+            lhsID = needsEvaluationOrderFreeze(lhs, ast: ast, sema: sema)
+                && expressionMayMutateState(rhs, ast: ast)
+                ? freezeEvaluationOrderOperand(rawLhsID, arena: arena, instructions: &instructions)
+                : rawLhsID
+            rhsID = driver.lowerExpr(
+                rhs,
+                ast: ast,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                propertyConstantInitializers: propertyConstantInitializers,
+                instructions: &instructions
+            )
+        }
         let genericFloatingPointArithmeticOp: KIRBinaryOp? = switch op {
         case .add: .add
         case .subtract: .subtract
@@ -237,7 +354,7 @@ extension CallLowerer {
             {
                 instructions.append(.constValue(
                     result: result,
-                    value: .boolLiteral(op == .notEqual || op == .notIdentityEqual)
+                    value: .boolLiteral(op == .notEqual)
                 ))
                 return result
             }
@@ -250,12 +367,10 @@ extension CallLowerer {
            isCoroutineContextReceiverType(boundType, sema: sema, interner: interner)
         {
             instructions.append(.call(
-                symbol: nil,
                 callee: interner.intern("__kk_context_plus_dispatch"),
                 arguments: [lhsID, rhsID],
                 result: result,
-                canThrow: true,
-                thrownResult: nil
+                canThrow: true
             ))
             return result
         }
@@ -266,12 +381,10 @@ extension CallLowerer {
                 ? interner.intern(op == .rangeTo ? "__kk_float_rangeTo" : "__kk_float_rangeUntil")
                 : interner.intern(op == .rangeTo ? "__kk_double_rangeTo" : "__kk_double_rangeUntil")
             instructions.append(.call(
-                symbol: nil,
                 callee: callee,
                 arguments: [lhsID, rhsID],
                 result: result,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
             return result
         }
@@ -315,12 +428,10 @@ extension CallLowerer {
             )
         if isKClassEquality {
             instructions.append(.call(
-                symbol: nil,
                 callee: interner.intern(op == .equal ? "kk_structural_eq" : "kk_structural_ne"),
                 arguments: [lhsID, rhsID],
                 result: result,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
             return result
         }
@@ -333,12 +444,10 @@ extension CallLowerer {
             // compare pointer bits. Preserve Kotlin's nominal range value
             // equality through the runtime structural bridge instead.
             instructions.append(.call(
-                symbol: nil,
                 callee: interner.intern(op == .equal ? "kk_structural_eq" : "kk_structural_ne"),
                 arguments: [lhsID, rhsID],
                 result: result,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
             return result
         }
@@ -363,10 +472,9 @@ extension CallLowerer {
             let prefix = primitive == .double ? "d" : "f"
             let suffix = op == .identityEqual ? "eq" : "ne"
             instructions.append(.call(
-                symbol: nil,
                 callee: interner.intern("kk_op_\(prefix)\(suffix)"),
                 arguments: [lhsID, rhsID], result: result,
-                canThrow: false, thrownResult: nil
+                canThrow: false
             ))
             return result
         }
@@ -393,9 +501,9 @@ extension CallLowerer {
                 if isString {
                     handle = arena.appendTemporary(type: sema.types.nullableAnyType)
                     instructions.append(.call(
-                        symbol: nil, callee: interner.intern("kk_string_from_flat"),
+                        callee: interner.intern("kk_string_from_flat"),
                         arguments: [id], result: handle,
-                        canThrow: false, thrownResult: nil
+                        canThrow: false
                     ))
                 }
                 let normalized = arena.appendTemporary(type: sema.types.nullableAnyType)
@@ -410,10 +518,9 @@ extension CallLowerer {
                 handles.append(normalized)
             }
             instructions.append(.call(
-                symbol: nil,
                 callee: interner.intern(op == .identityEqual ? "kk_op_eq" : "kk_op_ne"),
                 arguments: handles, result: result,
-                canThrow: false, thrownResult: nil
+                canThrow: false
             ))
             return result
         }
@@ -448,20 +555,17 @@ extension CallLowerer {
                     }
                     let boxed = arena.appendTemporary(type: sema.types.nullableAnyType)
                     instructions.append(.call(
-                        symbol: nil,
                         callee: boxCallee,
                         arguments: [operandIDs[index]],
                         result: boxed,
-                        canThrow: false,
-                        thrownResult: nil
+                        canThrow: false
                     ))
                     operandIDs[index] = boxed
                 }
                 instructions.append(.call(
-                    symbol: nil,
                     callee: interner.intern(op == .identityEqual ? "kk_op_eq" : "kk_op_ne"),
                     arguments: operandIDs, result: result,
-                    canThrow: false, thrownResult: nil
+                    canThrow: false
                 ))
                 return result
             }
@@ -532,12 +636,10 @@ extension CallLowerer {
                     let rhsIsString = rhsTypeForCompare == stringType || rhsTypeForCompare == nullableString
                     if lhsIsString, rhsIsString {
                         instructions.append(.call(
-                            symbol: nil,
                             callee: interner.intern("kk_string_compareTo_flat"),
                             arguments: [lhsID, rhsID],
                             result: callResult,
-                            canThrow: false,
-                            thrownResult: nil
+                            canThrow: false
                         ))
                         let zeroExpr = arena.appendExpr(.intLiteral(0), type: intType)
                         instructions.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
@@ -601,8 +703,7 @@ extension CallLowerer {
                         callee: stubName,
                         arguments: finalArguments,
                         result: callResult,
-                        canThrow: false,
-                        thrownResult: nil
+                        canThrow: false
                     ))
                 } else {
                     let sourceBackedHashSetEquality = (op == .equal || op == .notEqual)
@@ -646,8 +747,7 @@ extension CallLowerer {
                             callee: loweredCalleeName,
                             arguments: finalArguments,
                             result: callResult,
-                            canThrow: false,
-                            thrownResult: nil
+                            canThrow: false
                         ))
                     }
                 }
@@ -741,12 +841,10 @@ extension CallLowerer {
             }
             instructions.append(
                 .call(
-                    symbol: nil,
                     callee: interner.intern("__kk_string_concat_flat"),
                     arguments: [effectiveLHS, effectiveRHS],
                     result: result,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 )
             )
             return result
@@ -769,12 +867,10 @@ extension CallLowerer {
                 let actualLhsID = resolvedStringID(for: lhsID, isNull: lhsIsNullLiteral)
                 let actualRhsID = resolvedStringID(for: rhsID, isNull: rhsIsNullLiteral)
                 instructions.append(.call(
-                    symbol: nil,
                     callee: interner.intern("__kk_string_equals_flat"),
                     arguments: [actualLhsID, actualRhsID],
                     result: result,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ))
                 return result
             case .notEqual:
@@ -782,24 +878,20 @@ extension CallLowerer {
                 let actualRhsID = resolvedStringID(for: rhsID, isNull: rhsIsNullLiteral)
                 let eqResult = arena.appendTemporary(type: boolType)
                 instructions.append(.call(
-                    symbol: nil,
                     callee: interner.intern("__kk_string_equals_flat"),
                     arguments: [actualLhsID, actualRhsID],
                     result: eqResult,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ))
                 instructions.append(.unary(op: .not, operand: eqResult, result: result))
                 return result
             case .lessThan, .lessOrEqual, .greaterThan, .greaterOrEqual:
                 let compareResult = arena.appendTemporary(type: intType)
                 instructions.append(.call(
-                    symbol: nil,
                     callee: interner.intern("kk_string_compareTo_flat"),
                     arguments: [lhsID, rhsID],
                     result: compareResult,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ))
                 let zeroExpr = arena.appendExpr(.intLiteral(0), type: intType)
                 instructions.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
@@ -888,12 +980,10 @@ extension CallLowerer {
                 default: fatalError("Unreachable: switch only reached for relational ops and notEqual")
                 }
                 instructions.append(.call(
-                    symbol: nil,
                     callee: interner.intern("kk_op_\(prefix)\(suffix)"),
                     arguments: [effectiveLhsID, effectiveRhsID],
                     result: result,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ))
                 return result
             }
@@ -921,12 +1011,10 @@ extension CallLowerer {
                 default: fatalError("Unreachable: switch only reached for relational ops")
                 }
                 instructions.append(.call(
-                    symbol: nil,
                     callee: interner.intern("kk_op_\(suffix)"),
                     arguments: [lhsID, rhsID],
                     result: result,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ))
                 return result
             }
@@ -951,12 +1039,10 @@ extension CallLowerer {
                               ?? arena.exprType(rhsID) ?? sema.bindings.exprTypes[rhs]
             if let typeID = unsignedTypeID, sema.types.isUnsigned(typeID) {
                 instructions.append(.call(
-                    symbol: nil,
                     callee: interner.intern(op == .divide ? "kk_op_udiv" : "kk_op_urem"),
                     arguments: [lhsID, rhsID],
                     result: result,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ))
                 return result
             }
@@ -966,12 +1052,10 @@ extension CallLowerer {
         if let runtimeCallee = driver.callSupportLowerer.builtinBinaryRuntimeCallee(for: op, interner: interner) {
             instructions.append(
                 .call(
-                    symbol: nil,
                     callee: runtimeCallee,
                     arguments: [lhsID, rhsID],
                     result: result,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 )
             )
             return result
@@ -993,12 +1077,10 @@ extension CallLowerer {
                 kirOp = .divide
             } else {
                 instructions.append(.call(
-                    symbol: nil,
                     callee: interner.intern("kk_op_div"),
                     arguments: [lhsID, rhsID],
                     result: result,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ))
                 return result
             }
@@ -1008,12 +1090,10 @@ extension CallLowerer {
                 kirOp = .modulo
             } else {
                 instructions.append(.call(
-                    symbol: nil,
                     callee: interner.intern("kk_op_mod"),
                     arguments: [lhsID, rhsID],
                     result: result,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ))
                 return result
             }
@@ -1068,12 +1148,10 @@ extension CallLowerer {
                 rangeToCallee = interner.intern("__kk_op_rangeTo")
             }
             instructions.append(.call(
-                symbol: nil,
                 callee: rangeToCallee,
                 arguments: [lhsID, rhsID],
                 result: result,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
             appendRuntimeRangeItableRegistrations(
                 objectValue: result, factoryName: rangeToCallee,
@@ -1106,12 +1184,10 @@ extension CallLowerer {
                 rangeUntilCallee = interner.intern("__kk_op_rangeUntil")
             }
             instructions.append(.call(
-                symbol: nil,
                 callee: rangeUntilCallee,
                 arguments: [lhsID, rhsID],
                 result: result,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
             appendRuntimeRangeItableRegistrations(
                 objectValue: result, factoryName: rangeUntilCallee,
@@ -1128,12 +1204,10 @@ extension CallLowerer {
                 downToCallee = interner.intern("__kk_op_downTo")
             }
             instructions.append(.call(
-                symbol: nil,
                 callee: downToCallee,
                 arguments: [lhsID, rhsID],
                 result: result,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
             return result
         case .step:
@@ -1152,12 +1226,10 @@ extension CallLowerer {
             // thrown channel and can short-circuit on an invalid step.
             let stepCanThrow = stepCallee == interner.intern("__kk_op_step")
             instructions.append(.call(
-                symbol: nil,
                 callee: stepCallee,
                 arguments: [lhsID, rhsID],
                 result: result,
-                canThrow: stepCanThrow,
-                thrownResult: nil
+                canThrow: stepCanThrow
             ))
             return result
         case .bitwiseAnd, .bitwiseOr, .bitwiseXor, .shl, .shr, .ushr:
@@ -1305,12 +1377,10 @@ extension CallLowerer {
         let stringTag = arena.appendExpr(.intLiteral(3), type: intType)
         instructions.append(.constValue(result: stringTag, value: .intLiteral(3)))
         instructions.append(.call(
-            symbol: nil,
             callee: interner.intern("kk_any_to_string"),
             arguments: [valueID, stringTag],
             result: result,
-            canThrow: false,
-            thrownResult: nil
+            canThrow: false
         ))
     }
 
@@ -1357,12 +1427,10 @@ extension CallLowerer {
             guard toDouble, nonNullType == types.floatType else { return operandID }
             let widened = arena.appendTemporary(type: types.doubleType)
             instructions.append(.call(
-                symbol: nil,
                 callee: interner.intern("__kk_float_to_double_bits"),
                 arguments: [operandID],
                 result: widened,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
             return widened
         }
@@ -1379,12 +1447,10 @@ extension CallLowerer {
         }
         let widened = arena.appendTemporary(type: toDouble ? types.doubleType : types.floatType)
         instructions.append(.call(
-            symbol: nil,
             callee: calleeName,
             arguments: [operandID],
             result: widened,
-            canThrow: false,
-            thrownResult: nil
+            canThrow: false
         ))
         return widened
     }
@@ -1421,6 +1487,19 @@ extension CallLowerer {
         // Member-access const reads (`O.OC`) never reach `constExprValue`;
         // resolve them the same way tryLowerObjectMemberPropertyRead does,
         // restricted to `.constValue` symbols so a plain `val` can never fold.
+        // An unqualified member `const val` read inside its owner (e.g. `a`
+        // in `object A { const val a = "$"; val s = "1234$a" }`) reaches here
+        // as a `.nameRef` — it is likewise a compile-time constant on the JVM
+        // even though Sema does not bind `constExprValue` for it (KUU-3180).
+        if case .nameRef? = ast.arena.expr(exprID),
+           let refSymbol = sema.bindings.identifierSymbol(for: exprID),
+           let symbol = sema.symbols.accessorOwnerProperty(for: refSymbol) ?? refSymbol as SymbolID?,
+           let info = sema.symbols.symbol(symbol),
+           info.flags.contains(.constValue),
+           !isEnumEntry(symbol, sema: sema)
+        {
+            return sema.symbols.constValueExprKind(for: symbol)
+        }
         guard case .memberCall(let receiver, _, _, let args, _)? = ast.arena.expr(exprID),
               args.isEmpty,
               let chosen = sema.bindings.callBindings[exprID]?.chosenCallee

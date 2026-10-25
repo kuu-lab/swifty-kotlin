@@ -87,6 +87,8 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
             ctx.interner.intern("kk_op_fle"),
             ctx.interner.intern("kk_op_fgt"),
             ctx.interner.intern("kk_op_fge"),
+            ctx.interner.intern("kk_double_equals"),
+            ctx.interner.intern("kk_float_equals"),
         ]
         let unitEqualityCallees: Set<InternedString> = [
             ctx.interner.intern("kk_op_eq"),
@@ -1331,8 +1333,8 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                preferStaticPrimitive: true
            )
         {
-            return [.call(symbol: nil, callee: unboxCallee, arguments: [from],
-                         result: to, canThrow: false, thrownResult: nil)]
+            return [.call(callee: unboxCallee, arguments: [from],
+                         result: to, canThrow: false)]
         }
         return nil
     }

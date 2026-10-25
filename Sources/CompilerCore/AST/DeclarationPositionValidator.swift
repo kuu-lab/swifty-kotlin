@@ -11,6 +11,24 @@ struct DeclarationPositionValidator {
     var fullValueClassesEnabled: Bool = false
     var jvmInlineAnnotationNames: Set<String> = ["JvmInline", "kotlin.jvm.JvmInline"]
 
+    static func validateMultipleVarargParameters(
+        _ parameters: [ValueParamDecl],
+        fallbackRange: SourceRange,
+        diagnostics: DiagnosticEngine?
+    ) {
+        let varargParameters = parameters.filter(\.isVararg)
+        guard varargParameters.count > 1 else {
+            return
+        }
+        for parameter in varargParameters {
+            diagnostics?.error(
+                "KSWIFTK-SEMA-0441",
+                "multiple vararg parameters are prohibited.",
+                range: parameter.varargRange ?? fallbackRange
+            )
+        }
+    }
+
     enum OwnerSite: Equatable {
         case file
         case function
@@ -25,6 +43,15 @@ struct DeclarationPositionValidator {
             case .nominal(let site):
                 return site.name
             }
+        }
+
+        /// `true` when the declaration is a nominal member, i.e. has a
+        /// dispatch receiver in kotlinc's operator-eligibility terms.
+        var isNominalMemberSite: Bool {
+            if case .nominal = self {
+                return true
+            }
+            return false
         }
     }
 
@@ -106,6 +133,8 @@ struct DeclarationPositionValidator {
         let modifiers = decl.modifiers
         let target = functionTargetName(site: site)
 
+        validateDuplicateTypeParamNames(decl.typeParams, range: decl.range)
+
         for (modifier, name) in Self.funImpossibleModifiers where modifiers.contains(modifier) {
             emitNotApplicable(name, to: target, range: decl.range)
         }
@@ -133,14 +162,27 @@ struct DeclarationPositionValidator {
             // (KSWIFTK-SEMA-0410), which verifies expect-pairing directly.
         }
 
-        if modifiers.contains(.operator),
-           !Self.isLegalOperatorName(interner.resolve(decl.name))
-        {
-            diagnostics?.error(
-                "KSWIFTK-SEMA-0416",
-                "'operator' modifier is not applicable: illegal function name.",
-                range: decl.range
-            )
+        if modifiers.contains(.operator) {
+            let name = interner.resolve(decl.name)
+            if !Self.isLegalOperatorName(name) {
+                diagnostics?.error(
+                    "KSWIFTK-SEMA-0416",
+                    "'operator' modifier is not applicable: illegal function name.",
+                    range: decl.range
+                )
+            } else if let violation = Self.operatorEligibilityViolation(
+                name: name,
+                isMember: site.isNominalMemberSite,
+                isExtension: decl.receiverType != nil,
+                isSuspend: decl.isSuspend,
+                valueParams: decl.valueParams
+            ) {
+                diagnostics?.error(
+                    "KSWIFTK-SEMA-0439",
+                    "'operator' modifier is not applicable: \(violation).",
+                    range: decl.range
+                )
+            }
         }
 
         if modifiers.contains(.infix) {
@@ -521,6 +563,8 @@ struct DeclarationPositionValidator {
     }
 
     private func validateClass(_ decl: ClassDecl, site: OwnerSite) {
+        validateDuplicateTypeParamNames(decl.typeParams, range: decl.range)
+
         let modifiers = decl.modifiers
         let isEnum = modifiers.contains(.enumModifier)
         let isAnnotation = modifiers.contains(.annotationClass)
@@ -753,6 +797,8 @@ struct DeclarationPositionValidator {
     }
 
     private func validateInterface(_ decl: InterfaceDecl, site: OwnerSite) {
+        validateDuplicateTypeParamNames(decl.typeParams, range: decl.range)
+
         let modifiers = decl.modifiers
 
         for (modifier, name) in Self.interfaceForbiddenModifiers where modifiers.contains(modifier) {
@@ -897,6 +943,7 @@ struct DeclarationPositionValidator {
     }
 
     private func validateTypeAlias(_ decl: TypeAliasDecl, site: OwnerSite) {
+        validateDuplicateTypeParamNames(decl.typeParams, range: decl.range)
         for (modifier, name) in Self.typeAliasForbiddenModifiers where decl.modifiers.contains(modifier) {
             emitNotApplicable(name, to: "typealias", range: decl.range)
         }
@@ -989,6 +1036,21 @@ struct DeclarationPositionValidator {
         }
     }
 
+    private func validateDuplicateTypeParamNames(_ typeParams: [TypeParamDecl], range: SourceRange) {
+        var seen: Set<InternedString> = []
+        var reported: Set<InternedString> = []
+        for param in typeParams where !seen.insert(param.name).inserted {
+            if reported.insert(param.name).inserted {
+                let name = interner.resolve(param.name)
+                diagnostics?.error(
+                    "KSWIFTK-SEMA-0436",
+                    "conflicting declarations: \(name), \(name).",
+                    range: range
+                )
+            }
+        }
+    }
+
     private func emitNotApplicable(_ name: String, to target: String, range: SourceRange) {
         diagnostics?.error(
             "KSWIFTK-SEMA-0400",
@@ -1032,23 +1094,153 @@ struct DeclarationPositionValidator {
         if legalOperatorNames.contains(name) {
             return true
         }
-        if name.hasPrefix("component"),
-           let suffix = Int(name.dropFirst("component".count)),
-           suffix >= 1
-        {
-            return true
-        }
-        return false
+        // kotlinc's component convention accepts `component\d+`, so
+        // `component0` and arbitrarily large suffixes are legal names.
+        return isLegalComponentName(name)
     }
 
     private static let legalOperatorNames: Set<String> = [
-        "unaryPlus", "unaryMinus", "not", "inc", "dec",
-        "plus", "minus", "times", "div", "rem", "mod",
-        "plusAssign", "minusAssign", "timesAssign", "divAssign", "remAssign", "modAssign",
+        "unaryPlus", "unaryMinus", "not", "inv", "inc", "dec",
+        "plus", "minus", "times", "div", "rem",
+        "plusAssign", "minusAssign", "timesAssign", "divAssign", "remAssign",
         "rangeTo", "rangeUntil", "contains",
         "get", "set", "invoke", "iterator", "next", "hasNext",
         "compareTo", "equals", "provideDelegate", "getValue", "setValue",
     ]
+
+    /// KUU-3149: per-name `operator` eligibility rules mirroring the check
+    /// order of kotlinc 2.4.20's `OperatorFunctionChecks`, so the first
+    /// reported violation matches the JVM diagnostic. Legs that need resolved
+    /// types (return-type predicates, the `KProperty` parameter of the
+    /// delegate operators, the inc/dec receiver-subsumption check) are not
+    /// reproduced here.
+    static func operatorEligibilityViolation(
+        name: String,
+        isMember: Bool,
+        isExtension: Bool,
+        isSuspend: Bool,
+        valueParams: [ValueParamDecl]
+    ) -> String? {
+        guard let rules = operatorEligibilityRules(for: name) else {
+            return nil
+        }
+        for rule in rules {
+            if let violation = rule.violation(
+                isMember: isMember,
+                isExtension: isExtension,
+                isSuspend: isSuspend,
+                valueParams: valueParams
+            ) {
+                return violation
+            }
+        }
+        return nil
+    }
+
+    private static func operatorEligibilityRules(for name: String) -> [OperatorEligibilityRule]? {
+        switch name {
+        case "get":
+            [.memberOrExtension, .atLeast(1)]
+        case "set":
+            [.memberOrExtension, .atLeast(2), .lastParamNoDefaultOrVararg]
+        case "getValue":
+            [.memberOrExtension, .noDefaultAndVarargs, .atLeast(2), .atMost(2), .nonSuspend]
+        case "setValue":
+            [.memberOrExtension, .noDefaultAndVarargs, .atLeast(3), .atMost(3), .nonSuspend]
+        case "provideDelegate":
+            [.memberOrExtension, .noDefaultAndVarargs, .exactly(2), .nonSuspend]
+        case "invoke":
+            [.memberOrExtension]
+        case "contains":
+            [.memberOrExtension, .singleParam, .noDefaultAndVarargs]
+        case "iterator", "next", "hasNext":
+            [.memberOrExtension, .noParams]
+        case "rangeTo", "rangeUntil", "compareTo",
+             "plus", "minus", "times", "div", "rem",
+             "plusAssign", "minusAssign", "timesAssign", "divAssign", "remAssign":
+            [.memberOrExtension, .singleParam, .noDefaultAndVarargs]
+        case "unaryPlus", "unaryMinus", "not", "inv":
+            [.memberOrExtension, .noParams]
+        case "inc", "dec":
+            [.memberOrExtension]
+        case "equals":
+            [.member, .overridesAnyEquals]
+        default:
+            isLegalComponentName(name) ? [.memberOrExtension, .noParams] : nil
+        }
+    }
+
+    private static func isLegalComponentName(_ name: String) -> Bool {
+        guard name.hasPrefix("component") else {
+            return false
+        }
+        let suffix = name.dropFirst("component".count)
+        return !suffix.isEmpty && suffix.allSatisfy { ("0" ... "9").contains($0) }
+    }
+
+    enum OperatorEligibilityRule {
+        case memberOrExtension
+        case member
+        case noParams
+        case singleParam
+        case atLeast(Int)
+        case atMost(Int)
+        case exactly(Int)
+        case noDefaultAndVarargs
+        case lastParamNoDefaultOrVararg
+        case nonSuspend
+        /// kotlinc verifies that `equals` overrides `Any.equals`; the
+        /// arity-visible half of that check needs exactly one value
+        /// parameter — any other count can never override it.
+        case overridesAnyEquals
+
+        func violation(
+            isMember: Bool,
+            isExtension: Bool,
+            isSuspend: Bool,
+            valueParams: [ValueParamDecl]
+        ) -> String? {
+            switch self {
+            case .memberOrExtension:
+                return (isMember || isExtension) ? nil : "must be a member or an extension function"
+            case .member:
+                return isMember ? nil : "must be a member function"
+            case .noParams:
+                return valueParams.isEmpty ? nil : "must have no value parameters"
+            case .singleParam:
+                return valueParams.count == 1 ? nil : "must have a single value parameter"
+            case .atLeast(let minimum):
+                return valueParams.count >= minimum
+                    ? nil
+                    : "must have at least \(minimum) value parameter" + (minimum > 1 ? "s" : "")
+            case .atMost(let maximum):
+                return valueParams.count <= maximum
+                    ? nil
+                    : "must have at most \(maximum) value parameter" + (maximum > 1 ? "s" : "")
+            case .exactly(let count):
+                return valueParams.count == count ? nil : "must have exactly \(count) value parameters"
+            case .noDefaultAndVarargs:
+                for param in valueParams {
+                    if param.hasDefaultValue {
+                        return "must not have parameters with default values"
+                    }
+                    if param.isVararg {
+                        return "must not have varargs"
+                    }
+                }
+                return nil
+            case .lastParamNoDefaultOrVararg:
+                if let last = valueParams.last, last.hasDefaultValue || last.isVararg {
+                    return "last parameter must not have a default value or be a vararg"
+                }
+                return nil
+            case .nonSuspend:
+                return isSuspend ? "must not be suspend" : nil
+            case .overridesAnyEquals:
+                return valueParams.count == 1 ? nil : "must override 'equals()' in Any"
+            }
+        }
+    }
 
     private static let funImpossibleModifiers: [(Modifiers, String)] = [
         (.data, "data"), (.sealed, "sealed"), (.inner, "inner"),

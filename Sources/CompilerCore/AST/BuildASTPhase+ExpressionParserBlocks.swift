@@ -49,26 +49,47 @@ extension BuildASTPhase.ExpressionParser {
             let strippedGroup = BuildASTPhase.skipLeadingLocalAnnotations(
                 Array(group), interner: interner
             )
-            if let localFun = localFunctionParser.parseLocalFunDeclExpr(
+            // Each attempt is speculative: a failing probe (e.g. an assign
+            // scan that parses `do x` as a compound-assign LHS) may emit
+            // diagnostics for a parse the group is then reparsed without.
+            // Roll those back; only the winning parse keeps its diagnostics.
+            let speculationCheckpoint = diagnostics?.checkpoint()
+            func undoFailedSpeculation() {
+                if let speculationCheckpoint {
+                    diagnostics?.rollback(to: speculationCheckpoint)
+                }
+            }
+            var statement: ExprID? = localFunctionParser.parseLocalFunDeclExpr(
                 from: strippedGroup, interner: interner, astArena: astArena
-            ) {
-                statements.append(localFun)
-            } else if let localDecl = parseLocalDeclFromSlice(group) {
-                statements.append(localDecl)
-            } else if rangeIndex == ranges.count - 1,
-                      let postfixExpr = parseTrailingScalarPostfixMutation(strippedGroup[...])
-            {
-                statements.append(postfixExpr)
-            } else if let localAssign = parseLocalAssignFromSlice(group) {
-                statements.append(localAssign)
-            } else if let nominalDecl = BuildASTPhase.parseLocalNominalDeclExpr(
-                from: Array(group), interner: interner, astArena: astArena, diagnostics: diagnostics
-            ) {
-                statements.append(nominalDecl)
-            } else if let expr = BuildASTPhase.ExpressionParser(
-                tokens: group, interner: interner, astArena: astArena, diagnostics: diagnostics
-            ).parse() {
-                statements.append(expr)
+            )
+            if statement == nil {
+                undoFailedSpeculation()
+                statement = parseLocalDeclFromSlice(group)
+            }
+            if statement == nil {
+                undoFailedSpeculation()
+                if rangeIndex == ranges.count - 1 {
+                    statement = parseTrailingScalarPostfixMutation(strippedGroup[...])
+                }
+            }
+            if statement == nil {
+                undoFailedSpeculation()
+                statement = parseLocalAssignFromSlice(group)
+            }
+            if statement == nil {
+                undoFailedSpeculation()
+                statement = BuildASTPhase.parseLocalNominalDeclExpr(
+                    from: Array(group), interner: interner, astArena: astArena, diagnostics: diagnostics
+                )
+            }
+            if statement == nil {
+                undoFailedSpeculation()
+                statement = BuildASTPhase.ExpressionParser(
+                    tokens: group, interner: interner, astArena: astArena, diagnostics: diagnostics
+                ).parse()
+            }
+            if let statement {
+                statements.append(statement)
             }
         }
 

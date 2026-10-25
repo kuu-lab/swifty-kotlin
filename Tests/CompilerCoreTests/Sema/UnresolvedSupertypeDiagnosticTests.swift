@@ -205,6 +205,51 @@ struct UnresolvedSupertypeDiagnosticTests {
         }
     }
 
+    @Test func duplicateSupertypeIsRejected() throws {
+        // KUU-3120: kotlinc reports "a supertype appears twice" when the same
+        // resolved classifier is listed more than once.
+        try withSemaContext("""
+        interface I
+        class C : I, I
+        """) { ctx in
+            #expect(errorCodes(ctx).contains("KSWIFTK-SEMA-0440"),
+                    "Expected KSWIFTK-SEMA-0440, got: \(ctx.diagnostics.diagnostics)")
+        }
+    }
+
+    @Test func duplicateInterfaceSupertypeIsRejected() throws {
+        try withSemaContext("""
+        interface I
+        interface J : I, I
+        """) { ctx in
+            #expect(errorCodes(ctx).contains("KSWIFTK-SEMA-0440"),
+                    "Expected KSWIFTK-SEMA-0440, got: \(ctx.diagnostics.diagnostics)")
+        }
+    }
+
+    @Test func duplicateSupertypeThroughTypealiasIsRejected() throws {
+        try withSemaContext("""
+        interface I
+        typealias TI = I
+        class C : I, TI
+        """) { ctx in
+            #expect(errorCodes(ctx).contains("KSWIFTK-SEMA-0440"),
+                    "Expected KSWIFTK-SEMA-0440, got: \(ctx.diagnostics.diagnostics)")
+        }
+    }
+
+    @Test func distinctSupertypesStayLegal() throws {
+        try withSemaContext("""
+        interface A
+        interface B
+        open class Base
+        class C : Base(), A, B
+        """) { ctx in
+            #expect(!errorCodes(ctx).contains("KSWIFTK-SEMA-0440"),
+                    "Unexpected KSWIFTK-SEMA-0440, got: \(ctx.diagnostics.diagnostics)")
+        }
+    }
+
     @Test func qualifiedNestedSupertypeStillResolves() throws {
         try withSemaContext("""
         open class Outer { open class Nested }

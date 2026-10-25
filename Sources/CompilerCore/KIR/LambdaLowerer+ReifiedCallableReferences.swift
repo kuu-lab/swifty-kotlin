@@ -48,7 +48,7 @@ extension LambdaLowerer {
         body.append(.call(
             symbol: targetSymbol,
             callee: callableTargetName(for: targetSymbol, sema: sema, interner: interner),
-            arguments: arguments, result: result, canThrow: true, thrownResult: nil
+            arguments: arguments, result: result, canThrow: true
         ))
         switch sema.types.kind(of: functionType.returnType) {
         case .unit, .nothing(.nonNull), .nothing(.nullable): body.append(.returnUnit)

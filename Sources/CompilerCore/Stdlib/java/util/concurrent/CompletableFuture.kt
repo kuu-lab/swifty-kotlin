@@ -1,5 +1,8 @@
+@file:OptIn(kotlinx.atomicfu.locks.ExperimentalThreadBlockingApi::class)
+
 package java.util.concurrent
 
+import kotlinx.atomicfu.locks.ParkingSupport
 import kotlinx.coroutines.CancellationException
 
 public open class CompletableFuture<T> : Future<T>, CompletionStage<T> {
@@ -36,8 +39,8 @@ public open class CompletableFuture<T> : Future<T>, CompletionStage<T> {
         return true
     }
 
-    public override fun isCancelled(): Boolean = isCancelledFlag
-    public override fun isDone(): Boolean = isCompleted
+    public override val isCancelled: Boolean get() = isCancelledFlag
+    public override val isDone: Boolean get() = isCompleted
 
     @Suppress("UNCHECKED_CAST")
     public override fun get(): T {
@@ -49,6 +52,22 @@ public open class CompletableFuture<T> : Future<T>, CompletionStage<T> {
             throw ex
         }
         return result as T
+    }
+
+    // KUU-3059: the JVM get(timeout, unit) contract — block until the future
+    // completes or the deadline passes, then TimeoutException. Waiting uses
+    // the per-thread atomicfu parker woken from the completion handlers.
+    public override fun get(timeout: Long, unit: TimeUnit): T {
+        if (isCompleted) return get()
+        val handle = ParkingSupport.currentThreadHandle()
+        val deadline = jucDeadlineNanos(unit.toNanos(timeout))
+        addCompletionHandler { _, _ -> ParkingSupport.unpark(handle) }
+        while (true) {
+            if (isCompleted) return get()
+            val left = jucNanosLeft(deadline)
+            if (left <= 0L) throw TimeoutException()
+            jucPark(if (deadline < 0L) -1L else left)
+        }
     }
 
     public open fun join(): T = get()
@@ -163,7 +182,7 @@ public open class CompletableFuture<T> : Future<T>, CompletionStage<T> {
                 erasedFuture.addCompletionHandler { _, failure ->
                     if (failure != null && firstFailure == null) {
                         firstFailure = failure
-                        cancelled = erasedFuture.isCancelled()
+                        cancelled = erasedFuture.isCancelled
                     }
                     remaining -= 1
                     if (remaining == 0) {
@@ -189,7 +208,7 @@ public open class CompletableFuture<T> : Future<T>, CompletionStage<T> {
                 erasedFuture.addCompletionHandler { value, failure ->
                     if (failure == null) {
                         result.complete(value)
-                    } else if (erasedFuture.isCancelled()) {
+                    } else if (erasedFuture.isCancelled) {
                         result.cancel(false)
                     } else {
                         result.completeExceptionally(failure)

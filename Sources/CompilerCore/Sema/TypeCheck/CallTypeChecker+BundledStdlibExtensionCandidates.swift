@@ -66,7 +66,13 @@ extension CallTypeChecker {
              "kotlin.concurrent.AtomicReference",
              "kotlin.concurrent.AtomicIntArray",
              "kotlin.concurrent.AtomicLongArray",
-             "java.util.concurrent.atomic.AtomicInteger":
+             "java.util.concurrent.atomic.AtomicInteger",
+             "java.util.concurrent.atomic.AtomicLong",
+             "java.util.concurrent.atomic.AtomicBoolean",
+             "java.util.concurrent.atomic.AtomicReference",
+             "java.util.concurrent.atomic.AtomicIntegerArray",
+             "java.util.concurrent.atomic.AtomicLongArray",
+             "java.util.concurrent.atomic.AtomicReferenceArray":
             return true
         default:
             return false

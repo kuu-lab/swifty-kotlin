@@ -348,12 +348,10 @@ final class LambdaClosureConversionPass: LoweringPass {
             let captureType = lambdaInfo.captureParams[captureIndex].type
             let loadedExpr = makeTemporaryExpr(arena: arena, nextTempID: &nextTempID, type: captureType)
             invokeBody.append(.call(
-                symbol: nil,
                 callee: kk_array_get,
                 arguments: [closureObjExpr, offsetExpr],
                 result: loadedExpr,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
             let normalizedLoadedExpr = normalizePrimitiveClosureCapture(
                 loadedExpr,
@@ -379,8 +377,7 @@ final class LambdaClosureConversionPass: LoweringPass {
             callee: lambdaInfo.function.name,
             arguments: loadedCaptureExprs + valueParamExprs,
             result: callResultExpr,
-            canThrow: true,
-            thrownResult: nil
+            canThrow: true
         ))
         invokeBody.append(.returnValue(callResultExpr))
         invokeBody.append(.endBlock)
@@ -473,12 +470,10 @@ final class LambdaClosureConversionPass: LoweringPass {
 
                     let closureObjExpr = makeTemporaryExpr(arena: arena, nextTempID: &nextTempID, type: anyType)
                     loweredBody.append(.call(
-                        symbol: nil,
                         callee: kk_object_new,
                         arguments: [slotCountExpr, classIDExpr],
                         result: closureObjExpr,
-                        canThrow: false,
-                        thrownResult: nil
+                        canThrow: false
                     ))
 
                     for (captureIndex, captureArg) in captureArgs.enumerated() {
@@ -488,12 +483,10 @@ final class LambdaClosureConversionPass: LoweringPass {
 
                         let unusedResult = makeTemporaryExpr(arena: arena, nextTempID: &nextTempID, type: anyType)
                         loweredBody.append(.call(
-                            symbol: nil,
                             callee: kk_array_set,
                             arguments: [closureObjExpr, offsetExpr, captureArg],
                             result: unusedResult,
-                            canThrow: false,
-                            thrownResult: nil
+                            canThrow: false
                         ))
                     }
 

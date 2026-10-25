@@ -74,6 +74,23 @@ func runtimeFloatingBoxBitPattern(_ raw: Int) -> Int? {
     return nil
 }
 
+/// Compares a boxed floating-point value with a raw value of the same static
+/// primitive type, using Kotlin boxed `equals` semantics.
+func runtimeFloatingBoxEqualsRaw(_ boxed: Int, rawBits: Int) -> Bool? {
+    guard let boxedBits = runtimeFloatingBoxBitPattern(boxed),
+          let pointer = UnsafeMutableRawPointer(bitPattern: boxed)
+    else {
+        return nil
+    }
+    if tryCast(pointer, to: RuntimeDoubleBox.self) != nil {
+        return kk_double_equals(boxedBits, rawBits) != 0
+    }
+    if tryCast(pointer, to: RuntimeFloatBox.self) != nil {
+        return kk_float_equals(boxedBits, rawBits) != 0
+    }
+    return nil
+}
+
 private func runtimeKTypeDescriptor(_ box: RuntimeKTypeBox) -> String? {
     guard box.typeNameRaw != 0,
           box.typeNameRaw != runtimeNullSentinelInt,
@@ -195,14 +212,13 @@ func runtimeNonNullValuesEqual(_ lhs: Int, _ rhs: Int) -> Bool {
         rhsPtr.map { state.objectPointers.contains(UInt(bitPattern: $0)) } ?? false
     }
     if lhsIsObjectPointer != rhsIsObjectPointer {
-        // Boxed Double/Float vs a raw floating-point word: compare bit
-        // patterns, matching Kotlin's boxed `equals` (NaN equals NaN,
-        // -0.0 does not equal 0.0). maybeUnbox leaves those boxes as
-        // pointers, so it would report every such pair unequal.
+        // Boxed Double/Float vs a raw floating-point word follows Kotlin's
+        // boxed `equals` semantics. maybeUnbox leaves those boxes as pointers,
+        // so it would report every such pair unequal.
         let boxedSide = lhsIsObjectPointer ? lhs : rhs
         let rawSide = lhsIsObjectPointer ? rhs : lhs
-        if let bitPattern = runtimeFloatingBoxBitPattern(boxedSide) {
-            return bitPattern == rawSide
+        if let equal = runtimeFloatingBoxEqualsRaw(boxedSide, rawBits: rawSide) {
+            return equal
         }
         // An enum-tagged box never equals a bare scalar carrying the same
         // ordinal: JVM `Enum.equals` is final reference identity, so
@@ -300,17 +316,19 @@ func runtimeNonNullValuesEqual(_ lhs: Int, _ rhs: Int) -> Bool {
         return lhsULong.value == rhsULong.value
     }
     // Boxed floating-point equality follows Kotlin's `Double.equals`/
-    // `Float.equals` (bit pattern), not IEEE `==`: NaN equals NaN and
-    // -0.0 does not equal 0.0.
+    // `Float.equals`, not IEEE `==`: all NaNs compare equal, while -0.0 and
+    // +0.0 remain distinct.
     if let lhsFloat = tryCast(lhsPtr, to: RuntimeFloatBox.self),
        let rhsFloat = tryCast(rhsPtr, to: RuntimeFloatBox.self)
     {
-        return lhsFloat.value.bitPattern == rhsFloat.value.bitPattern
+        return (lhsFloat.value.isNaN && rhsFloat.value.isNaN)
+            || lhsFloat.value.bitPattern == rhsFloat.value.bitPattern
     }
     if let lhsDouble = tryCast(lhsPtr, to: RuntimeDoubleBox.self),
        let rhsDouble = tryCast(rhsPtr, to: RuntimeDoubleBox.self)
     {
-        return lhsDouble.value.bitPattern == rhsDouble.value.bitPattern
+        return (lhsDouble.value.isNaN && rhsDouble.value.isNaN)
+            || lhsDouble.value.bitPattern == rhsDouble.value.bitPattern
     }
     if let lhsChar = tryCast(lhsPtr, to: RuntimeCharBox.self),
        let rhsChar = tryCast(rhsPtr, to: RuntimeCharBox.self)
@@ -656,4 +674,40 @@ public func kk_nullable_primitive_eq(_ nullableRaw: Int, _ peerRaw: Int, _ peerI
 @_cdecl("kk_nullable_primitive_ne")
 public func kk_nullable_primitive_ne(_ nullableRaw: Int, _ peerRaw: Int, _ peerIsNullable: Int) -> Int {
     runtimeNullablePrimitiveEqualityCheck(nullableRaw: nullableRaw, peerRaw: peerRaw, peerIsNullable: peerIsNullable) ? 0 : 1
+}
+
+/// Null-aware `equals` (not `==`) for a `Double?`/`Float?` operand pair in
+/// synthesized data class `equals`. The sentinel means null and only equals
+/// itself; non-null operands — a registered floating-point box or a raw
+/// (never-boxed) bit pattern — compare with Kotlin `Double.equals`/
+/// `Float.equals` semantics: NaN equals NaN regardless of payload while -0.0
+/// differs from +0.0. `kk_nullable_primitive_eq` is not reusable here: it
+/// applies operator `==` semantics, which on floating point is IEEE-754
+/// (NaN unequal to itself, -0.0 equal to +0.0) — the opposite contract.
+@_cdecl("kk_nullable_double_equals")
+public func kk_nullable_double_equals(_ lhs: Int, _ rhs: Int) -> Int {
+    let lhsNull = lhs == runtimeNullSentinelInt
+    let rhsNull = rhs == runtimeNullSentinelInt
+    if lhsNull || rhsNull {
+        return (lhsNull && rhsNull) ? 1 : 0
+    }
+    let lhsBits = runtimeFloatingBoxBitPattern(lhs) ?? lhs
+    let rhsBits = runtimeFloatingBoxBitPattern(rhs) ?? rhs
+    let a = Double(bitPattern: UInt64(bitPattern: Int64(lhsBits)))
+    let b = Double(bitPattern: UInt64(bitPattern: Int64(rhsBits)))
+    return ((a.isNaN && b.isNaN) || lhsBits == rhsBits) ? 1 : 0
+}
+
+@_cdecl("kk_nullable_float_equals")
+public func kk_nullable_float_equals(_ lhs: Int, _ rhs: Int) -> Int {
+    let lhsNull = lhs == runtimeNullSentinelInt
+    let rhsNull = rhs == runtimeNullSentinelInt
+    if lhsNull || rhsNull {
+        return (lhsNull && rhsNull) ? 1 : 0
+    }
+    let lhsBits = runtimeFloatingBoxBitPattern(lhs) ?? lhs
+    let rhsBits = runtimeFloatingBoxBitPattern(rhs) ?? rhs
+    let a = Float(bitPattern: UInt32(truncatingIfNeeded: lhsBits))
+    let b = Float(bitPattern: UInt32(truncatingIfNeeded: rhsBits))
+    return ((a.isNaN && b.isNaN) || lhsBits == rhsBits) ? 1 : 0
 }

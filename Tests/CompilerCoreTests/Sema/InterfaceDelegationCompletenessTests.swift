@@ -146,6 +146,81 @@ import Testing
         assertHasDiagnostic("KSWIFTK-TYPE-0001", in: ctx)
     }
 
+    @Test func directDelegationSatisfiesSiblingInterfaceAbstractMember() throws {
+        // KUU-3248: a `by`-delegated implementation supplies `foo()` for every
+        // supertype with a compatible signature, including sibling interfaces
+        // that are not part of the delegated interface's closure.
+        let ctx = makeContextFromSource("""
+        interface A { fun foo(): Int }
+        interface B { fun foo(): Int }
+        class Z(private val a: A) : A by a, B
+        interface CovA { fun cov(): Int }
+        interface CovB { fun cov(): Number }
+        class CovZ(private val a: CovA) : CovA by a, CovB
+        interface NullA { fun nullable(): Int }
+        interface NullB { fun nullable(): Int? }
+        class NullZ(private val a: NullA) : NullA by a, NullB
+        interface PropA { val prop: Int }
+        interface PropB { val prop: Int }
+        class PropZ(private val a: PropA) : PropA by a, PropB
+        interface VarA { var v: Int }
+        interface VarB { var v: Int }
+        class VarZ(private val a: VarA) : VarA by a, VarB
+        interface GenA<T> { fun pick(t: T): Int }
+        interface GenB { fun pick(t: String): Int }
+        interface GenC<T> { fun pick(t: T): Int }
+        class GenZ(private val a: GenA<String>) : GenA<String> by a, GenB
+        class GenericZ<T>(private val a: GenA<T>) : GenA<T> by a, GenC<T>
+        open class Mid(private val a: A) : A by a
+        class InheritedZ(a: A) : Mid(a), B
+        class Impl : A { override fun foo(): Int = 1 }
+        class ExplicitZ(private val a: A) : A by a, B {
+            override fun foo(): Int = 2
+        }
+        fun runAll(z: Z, c: CovZ, n: NullZ, p: PropZ, v: VarZ, g: GenZ, h: GenericZ<String>, i: InheritedZ, e: ExplicitZ): Int =
+            z.foo() + c.cov() + (n.nullable() ?: 0) + p.prop + v.v + g.pick("x") + h.pick("y") + i.foo() + e.foo()
+        fun runLiteral(): Int {
+            val literal = object : A by Impl(), B {}
+            return literal.foo()
+        }
+        """)
+        try runSema(ctx)
+
+        assertNoDiagnostic("KSWIFTK-SEMA-ABSTRACT", in: ctx)
+        #expect(!ctx.diagnostics.hasError, "Got: \(ctx.diagnostics.diagnostics)")
+    }
+
+    @Test func delegationDoesNotSatisfySiblingWithIncompatibleSignature() throws {
+        // The delegated implementation only covers a sibling's abstract member
+        // when the substituted signatures agree: arity, parameter types,
+        // return-type covariance, and `var` invariance must all hold.
+        let ctx = makeContextFromSource("""
+        interface A { fun foo(): Int }
+        interface ArityB { fun foo(n: Int): Int }
+        class ArityZ(private val a: A) : A by a, ArityB
+        interface RetB { fun foo(): String }
+        class RetZ(private val a: A) : A by a, RetB
+        interface WideA { fun wide(): Number }
+        interface NarrowB { fun wide(): Int }
+        class NarrowZ(private val a: WideA) : WideA by a, NarrowB
+        interface ParamA { fun takes(n: Int): Int }
+        interface ParamB { fun takes(s: String): Int }
+        class ParamZ(private val a: ParamA) : ParamA by a, ParamB
+        interface ValA { val prop: Int }
+        interface VarB { var prop: Int }
+        class ValZ(private val a: ValA) : ValA by a, VarB
+        interface VarPropA { var n: Int }
+        interface VarWideB { var n: Number }
+        class VarWideZ(private val a: VarPropA) : VarPropA by a, VarWideB
+        class NoImpl(val x: Int) : B2
+        interface B2 { fun bar(): Int }
+        """)
+        try runSema(ctx)
+
+        let abstractErrors = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-ABSTRACT" }
+        #expect(abstractErrors.count == 7, "Got: \(abstractErrors)")
+    }
+
     @Test func nestedGenericDelegatingConstructorSubstitutesItsResult() throws {
         let ctx = makeContextFromSource("""
         interface Parent<T> { fun read(): T }

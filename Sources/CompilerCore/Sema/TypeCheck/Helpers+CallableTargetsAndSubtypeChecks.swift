@@ -525,6 +525,32 @@ extension TypeCheckHelpers {
                             ?? elementType
                     }
                 }
+                var requiresErasedPrimitiveInputAdapter = false
+                if case let .functionType(expectedFunction) = types.kind(of: expectedFunctionType) {
+                    let expectedInputs = (expectedFunction.receiver.map { [$0] } ?? []) + expectedFunction.params
+                    for sourceParameterIndex in 0 ..< sourceParameterCount {
+                        let shapeIndex = receiverOffset + sourceParameterIndex
+                        let expectedIndex = receiverOffset + sourceParameterIndex
+                        guard params.indices.contains(shapeIndex),
+                              expectedInputs.indices.contains(expectedIndex)
+                        else {
+                            continue
+                        }
+                        let expectedType = expectedInputs[expectedIndex]
+                        let targetKind = types.kind(of: types.makeNonNullable(params[shapeIndex]))
+                        let expectedKind = types.kind(of: types.makeNonNullable(expectedType))
+                        let targetIsErased: Bool = switch targetKind {
+                        case .any, .typeParam: true
+                        default: false
+                        }
+                        guard targetIsErased, case .primitive = expectedKind else { continue }
+                        // A contravariant reference from an erased parameter to
+                        // a primitive input needs a wrapper so the input is
+                        // boxed before the referenced function receives it.
+                        params[shapeIndex] = expectedType
+                        requiresErasedPrimitiveInputAdapter = true
+                    }
+                }
                 let functionType = types.make(.functionType(FunctionType(
                     contextReceivers: contextArgumentTypes.isEmpty ? base.contextReceivers : [],
                     receiver: base.receiver,
@@ -539,7 +565,7 @@ extension TypeCheckHelpers {
                     functionType: functionType,
                     parameterMapping: mapping,
                     requiresAdapter: scalarVarargCount != nil || sourceParameterCount != parameterCount
-                        || !contextArgumentTypes.isEmpty,
+                        || !contextArgumentTypes.isEmpty || requiresErasedPrimitiveInputAdapter,
                     contextArgumentTypes: contextArgumentTypes,
                     boundContextParameterTypes: contextArgumentTypes.isEmpty ? [] : base.contextReceivers
                 )

@@ -56,7 +56,6 @@ extension LoweringPassRegressionTests {
             body: [
                 .constValue(result: argExpr, value: .intLiteral(42)),
                 .call(
-                    symbol: nil,
                     callee: interner.intern("runBlocking"),
                     arguments: [funcRefExpr, argExpr],
                     result: launcherResult,
@@ -135,12 +134,10 @@ extension LoweringPassRegressionTests {
             returnType: types.nullableAnyType,
             body: [
                 .call(
-                    symbol: nil,
                     callee: interner.intern("runBlocking"),
                     arguments: [funcRefExpr],
                     result: launcherResult,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ),
                 .returnValue(launcherResult),
             ],
@@ -202,12 +199,10 @@ extension LoweringPassRegressionTests {
                 .constValue(result: blockExpr, value: .symbolRef(blockSymbol)),
                 .constValue(result: zeroExpr, value: .intLiteral(0)),
                 .call(
-                    symbol: nil,
                     callee: interner.intern("kk_channel_flow_create"),
                     arguments: [blockExpr, zeroExpr],
                     result: createResult,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ),
                 .returnValue(createResult),
             ],
@@ -280,12 +275,10 @@ extension LoweringPassRegressionTests {
                 .constValue(result: exprB, value: .symbolRef(symbolB)),
                 .copy(from: exprA, to: exprB),
                 .call(
-                    symbol: nil,
                     callee: interner.intern("map"),
                     arguments: [exprB, lambdaExpr],
                     result: mapResult,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ),
                 .returnValue(mapResult),
             ],
@@ -331,12 +324,10 @@ extension LoweringPassRegressionTests {
             returnType: types.nullableAnyType,
             body: [
                 .call(
-                    symbol: nil,
                     callee: interner.intern("createCoroutineUnintercepted"),
                     arguments: [functionRefExpr, completionExpr],
                     result: callResult,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ),
                 .returnValue(callResult),
             ],
@@ -392,12 +383,10 @@ extension LoweringPassRegressionTests {
             returnType: types.nullableAnyType,
             body: [
                 .call(
-                    symbol: nil,
                     callee: interner.intern("createCoroutine"),
                     arguments: [functionRefExpr, completionExpr],
                     result: callResult,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ),
                 .returnValue(callResult),
             ],
@@ -452,12 +441,10 @@ extension LoweringPassRegressionTests {
             returnType: types.nullableAnyType,
             body: [
                 .call(
-                    symbol: nil,
                     callee: interner.intern("createCoroutineUnintercepted"),
                     arguments: [functionRefExpr, receiverExpr, completionExpr],
                     result: callResult,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ),
                 .returnValue(callResult),
             ],
@@ -513,12 +500,10 @@ extension LoweringPassRegressionTests {
             returnType: types.nullableAnyType,
             body: [
                 .call(
-                    symbol: nil,
                     callee: interner.intern("startCoroutineUninterceptedOrReturn"),
                     arguments: [functionRefExpr, completionExpr],
                     result: callResult,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ),
                 .returnValue(callResult),
             ],
@@ -574,12 +559,10 @@ extension LoweringPassRegressionTests {
             returnType: types.nullableAnyType,
             body: [
                 .call(
-                    symbol: nil,
                     callee: interner.intern("startCoroutineUninterceptedOrReturn"),
                     arguments: [functionRefExpr, receiverExpr, completionExpr],
                     result: callResult,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ),
                 .returnValue(callResult),
             ],
@@ -633,12 +616,10 @@ extension LoweringPassRegressionTests {
             returnType: types.unitType,
             body: [
                 .call(
-                    symbol: nil,
                     callee: interner.intern("startCoroutine"),
                     arguments: [functionRefExpr, completionExpr],
                     result: nil,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ),
                 .returnUnit,
             ],
@@ -695,12 +676,10 @@ extension LoweringPassRegressionTests {
             returnType: types.unitType,
             body: [
                 .call(
-                    symbol: nil,
                     callee: interner.intern("startCoroutine"),
                     arguments: [functionRefExpr, receiverExpr, completionExpr],
                     result: nil,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ),
                 .returnUnit,
             ],
@@ -763,12 +742,10 @@ extension LoweringPassRegressionTests {
                 .constValue(result: captureValueExpr, value: .intLiteral(42)),
                 .constValue(result: lambdaRefExpr, value: .symbolRef(lambdaSymbol)),
                 .call(
-                    symbol: nil,
                     callee: interner.intern("runBlocking"),
                     arguments: [lambdaRefExpr, captureValueExpr],
                     result: launcherResult,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ),
                 .returnValue(launcherResult),
             ],
@@ -838,12 +815,10 @@ extension LoweringPassRegressionTests {
             body: [
                 .constValue(result: lambdaRefExpr, value: .symbolRef(lambdaSymbol)),
                 .call(
-                    symbol: nil,
                     callee: interner.intern("runBlocking"),
                     arguments: [lambdaRefExpr],
                     result: launcherResult,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ),
                 .returnValue(launcherResult),
             ],
@@ -902,12 +877,10 @@ extension LoweringPassRegressionTests {
                 .constValue(result: captureValueExpr, value: .intLiteral(10)),
                 .constValue(result: lambdaRefExpr, value: .symbolRef(lambdaSymbol)),
                 .call(
-                    symbol: nil,
                     callee: interner.intern("launch"),
                     arguments: [lambdaRefExpr, captureValueExpr],
                     result: launcherResult,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ),
                 .returnValue(launcherResult),
             ],
@@ -978,12 +951,10 @@ extension LoweringPassRegressionTests {
                 .constValue(result: suspendRefExpr, value: .symbolRef(suspendSymbol)),
                 .constValue(result: packedEnvironmentExpr, value: .intLiteral(77)),
                 .call(
-                    symbol: nil,
                     callee: interner.intern(RuntimeCall.produceLaunch.name),
                     arguments: [channelExpr, suspendRefExpr] + (hasPackedEnvironment ? [packedEnvironmentExpr] : []),
                     result: produceResult,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ),
                 .returnValue(produceResult),
             ],
@@ -1081,12 +1052,10 @@ extension LoweringPassRegressionTests {
                 .constValue(result: suspendRefExpr, value: .symbolRef(suspendSymbol)),
                 .constValue(result: environmentExpr, value: .intLiteral(17)),
                 .call(
-                    symbol: nil,
                     callee: interner.intern(RuntimeCall.produceLaunch.name),
                     arguments: [channelExpr, suspendRefExpr] + (hasExplicitEnvironment ? [environmentExpr] : []),
                     result: produceResult,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ),
                 .returnValue(produceResult),
             ],

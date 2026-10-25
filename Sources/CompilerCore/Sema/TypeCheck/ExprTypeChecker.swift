@@ -265,6 +265,7 @@ final class ExprTypeChecker {
             let returnsFromConstructor = ctx.enclosingFunctionSymbol.flatMap {
                 sema.symbols.symbol($0)?.kind == .constructor
             } ?? false
+            let returnsFromInitBlock = ctx.returnTargetIsInitBlock && (label == nil || targetsFunction)
             let hasForbiddenConstructorReturnValue = returnsFromConstructor
                 && value != nil
                 && (label == nil || targetsFunction)
@@ -272,6 +273,13 @@ final class ExprTypeChecker {
                 sema.diagnostics.error(
                     "KSWIFTK-SEMA-0042",
                     "'return' with a value is not allowed in a constructor.",
+                    range: range
+                )
+            }
+            if returnsFromInitBlock {
+                sema.diagnostics.error(
+                    "KSWIFTK-SEMA-0312",
+                    "Returns are not allowed in initializer blocks.",
                     range: range
                 )
             }
@@ -284,7 +292,7 @@ final class ExprTypeChecker {
             }
             if targetsFunction, let functionSymbol = ctx.enclosingFunctionSymbol {
                 sema.bindings.bindFunctionReturn(id, symbol: functionSymbol, lambdaPath: ctx.enclosingLambdaExprIDs)
-            } else if label == nil, ctx.lambdaDepth > 0 {
+            } else if label == nil, ctx.lambdaDepth > 0, !returnsFromInitBlock {
                 ctx.sema.diagnostics.error(
                     "KSWIFTK-SEMA-0042",
                     "'return' does not reference an enclosing function.",

@@ -62,12 +62,10 @@ extension CallLowerer {
             instructions.append(.constValue(result: offsetExpr, value: .intLiteral(Int64(fieldOffset))))
             let loaded = arena.appendTemporary(type: propertyType)
             instructions.append(.call(
-                symbol: nil,
                 callee: interner.intern("kk_array_get_inbounds"),
                 arguments: [instanceExpr, offsetExpr],
                 result: loaded,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
             storageExpr = loaded
         } else {

@@ -21,7 +21,7 @@ struct IntegerNarrowingPassTests {
         let result = arena.appendExpr(.temporary(2), type: intType)
         let (module, declID) = makeModule(
             body: [
-                .call(symbol: nil, callee: try loweringCompilerCallee("op_add", interner: interner), arguments: [lhs, rhs], result: result, canThrow: false, thrownResult: nil),
+                .call(callee: try loweringCompilerCallee("op_add", interner: interner), arguments: [lhs, rhs], result: result, canThrow: false),
                 .returnUnit,
             ],
             interner: interner,
@@ -61,7 +61,7 @@ struct IntegerNarrowingPassTests {
         let result = arena.appendExpr(.temporary(2), type: longType)
         let (module, declID) = makeModule(
             body: [
-                .call(symbol: nil, callee: try loweringCompilerCallee("op_add", interner: interner), arguments: [lhs, rhs], result: result, canThrow: false, thrownResult: nil),
+                .call(callee: try loweringCompilerCallee("op_add", interner: interner), arguments: [lhs, rhs], result: result, canThrow: false),
                 .returnUnit,
             ],
             interner: interner,
@@ -94,7 +94,7 @@ struct IntegerNarrowingPassTests {
         let result = arena.appendTemporary(type: type)
         let (module, declID) = makeModule(
             body: [
-                .call(symbol: nil, callee: try loweringCompilerCallee("op_inv", interner: interner), arguments: [value], result: result, canThrow: false, thrownResult: nil),
+                .call(callee: try loweringCompilerCallee("op_inv", interner: interner), arguments: [value], result: result, canThrow: false),
                 .returnUnit,
             ],
             interner: interner,
@@ -147,7 +147,7 @@ struct IntegerNarrowingPassTests {
         let result = arena.appendExpr(.temporary(2), type: sema.types.charType)
         let (module, declID) = makeModule(
             body: [
-                .call(symbol: nil, callee: try loweringCompilerCallee(calleeName, interner: interner), arguments: [lhs, rhs], result: result, canThrow: false, thrownResult: nil),
+                .call(callee: try loweringCompilerCallee(calleeName, interner: interner), arguments: [lhs, rhs], result: result, canThrow: false),
                 .returnUnit,
             ],
             interner: interner,
@@ -183,7 +183,7 @@ struct IntegerNarrowingPassTests {
         let result = arena.appendExpr(.temporary(2), type: sema.types.uintType)
         let (module, declID) = makeModule(
             body: [
-                .call(symbol: nil, callee: try loweringCompilerCallee("op_add", interner: interner), arguments: [lhs, rhs], result: result, canThrow: false, thrownResult: nil),
+                .call(callee: try loweringCompilerCallee("op_add", interner: interner), arguments: [lhs, rhs], result: result, canThrow: false),
                 .returnUnit,
             ],
             interner: interner,
@@ -223,7 +223,7 @@ struct IntegerNarrowingPassTests {
         let result = arena.appendExpr(.temporary(2), type: intType)
         let (module, declID) = makeModule(
             body: [
-                .call(symbol: nil, callee: try loweringCompilerCallee("op_shl", interner: interner), arguments: [value, distance], result: result, canThrow: false, thrownResult: nil),
+                .call(callee: try loweringCompilerCallee("op_shl", interner: interner), arguments: [value, distance], result: result, canThrow: false),
                 .returnUnit,
             ],
             interner: interner,
@@ -255,7 +255,7 @@ struct IntegerNarrowingPassTests {
         let result = arena.appendExpr(.temporary(2), type: longType)
         let (module, declID) = makeModule(
             body: [
-                .call(symbol: nil, callee: try loweringCompilerCallee("op_shl", interner: interner), arguments: [value, distance], result: result, canThrow: false, thrownResult: nil),
+                .call(callee: try loweringCompilerCallee("op_shl", interner: interner), arguments: [value, distance], result: result, canThrow: false),
                 .returnUnit,
             ],
             interner: interner,
@@ -292,7 +292,7 @@ struct IntegerNarrowingPassTests {
         let result = arena.appendExpr(.temporary(2), type: uintType)
         let (module, declID) = makeModule(
             body: [
-                .call(symbol: nil, callee: try loweringCompilerCallee(shift.0, interner: interner), arguments: [value, distance], result: result, canThrow: false, thrownResult: nil),
+                .call(callee: try loweringCompilerCallee(shift.0, interner: interner), arguments: [value, distance], result: result, canThrow: false),
                 .returnUnit,
             ],
             interner: interner,
@@ -331,7 +331,7 @@ struct IntegerNarrowingPassTests {
         let result = arena.appendExpr(.temporary(2), type: ulongType)
         let (module, declID) = makeModule(
             body: [
-                .call(symbol: nil, callee: try loweringCompilerCallee(shift.0, interner: interner), arguments: [value, distance], result: result, canThrow: false, thrownResult: nil),
+                .call(callee: try loweringCompilerCallee(shift.0, interner: interner), arguments: [value, distance], result: result, canThrow: false),
                 .returnUnit,
             ],
             interner: interner,
@@ -363,7 +363,7 @@ struct IntegerNarrowingPassTests {
         let result = arena.appendExpr(.temporary(2), type: uintType)
         let (module, declID) = makeModule(
             body: [
-                .call(symbol: nil, callee: try loweringCompilerCallee("op_add", interner: interner), arguments: [lhs, rhs], result: result, canThrow: false, thrownResult: nil),
+                .call(callee: try loweringCompilerCallee("op_add", interner: interner), arguments: [lhs, rhs], result: result, canThrow: false),
                 .returnUnit,
             ],
             interner: interner,
@@ -402,7 +402,7 @@ struct IntegerNarrowingPassTests {
         let result = arena.appendExpr(.temporary(2), type: ulongType)
         let (module, declID) = makeModule(
             body: [
-                .call(symbol: nil, callee: try loweringCompilerCallee("op_add", interner: interner), arguments: [lhs, rhs], result: result, canThrow: false, thrownResult: nil),
+                .call(callee: try loweringCompilerCallee("op_add", interner: interner), arguments: [lhs, rhs], result: result, canThrow: false),
                 .returnUnit,
             ],
             interner: interner,
@@ -434,7 +434,7 @@ struct IntegerNarrowingPassTests {
         let v1 = arena.appendExpr(.temporary(1))
         let (module, _) = makeModule(
             body: [
-                .call(symbol: nil, callee: try loweringCompilerCallee("print_raw", interner: interner), arguments: [v0], result: v1, canThrow: false, thrownResult: nil),
+                .call(callee: try loweringCompilerCallee("print_raw", interner: interner), arguments: [v0], result: v1, canThrow: false),
                 .returnUnit,
             ],
             interner: interner,
@@ -453,7 +453,7 @@ struct IntegerNarrowingPassTests {
         let v2 = arena.appendExpr(.temporary(2))
         let (module, _) = makeModule(
             body: [
-                .call(symbol: nil, callee: try loweringCompilerCallee("op_add", interner: interner), arguments: [v0, v1], result: v2, canThrow: false, thrownResult: nil),
+                .call(callee: try loweringCompilerCallee("op_add", interner: interner), arguments: [v0, v1], result: v2, canThrow: false),
                 .returnUnit,
             ],
             interner: interner,

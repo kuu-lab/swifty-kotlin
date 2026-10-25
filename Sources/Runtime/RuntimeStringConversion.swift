@@ -683,7 +683,7 @@ public func __kk_bignum_toString(_ numRaw: Int) -> Int {
     return runtimeMakeStringRaw(box.value)
 }
 
-private func runtimeBigDecimalValue(_ numRaw: Int, caller: String) -> String {
+func runtimeBigDecimalValue(_ numRaw: Int, caller: String) -> String {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: numRaw),
           let box = tryCast(ptr, to: RuntimeBigNumberBox.self),
           box.kind == .decimal

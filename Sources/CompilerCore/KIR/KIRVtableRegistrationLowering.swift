@@ -269,12 +269,10 @@ func appendObjectVtableMethodRegistrations<C: RangeReplaceableCollection>(
             instructions.append(.constValue(result: methodFnExpr, value: .symbolRef(bridgeSymbol)))
             let registerResult = arena.appendTemporary(type: intType)
             instructions.append(.call(
-                symbol: nil,
                 callee: registerCallee,
                 arguments: [objectValue, slotExpr, methodFnExpr],
                 result: registerResult,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
         }
     }
@@ -349,12 +347,10 @@ private func appendObjectAnyHashCodeOverrideRegistration<C: RangeReplaceableColl
     instructions.append(.constValue(result: methodFnExpr, value: .symbolRef(implementation)))
     let registerResult = arena.appendTemporary(type: intType)
     instructions.append(.call(
-        symbol: nil,
         callee: interner.intern("kk_object_register_hashcode_override"),
         arguments: [objectValue, methodFnExpr],
         result: registerResult,
-        canThrow: false,
-        thrownResult: nil
+        canThrow: false
     ))
 }
 
@@ -399,12 +395,10 @@ private func appendObjectAnyEqualsOverrideRegistration<C: RangeReplaceableCollec
     instructions.append(.constValue(result: methodFnExpr, value: .symbolRef(implementation)))
     let registerResult = arena.appendTemporary(type: intType)
     instructions.append(.call(
-        symbol: nil,
         callee: interner.intern("kk_object_register_equals_override"),
         arguments: [objectValue, methodFnExpr],
         result: registerResult,
-        canThrow: false,
-        thrownResult: nil
+        canThrow: false
     ))
 }
 
@@ -480,9 +474,8 @@ func anyToStringBridgeSymbolForImplementation(
         // Enum overrides consume ordinals; erased dispatch supplies a tagged box.
         let ordinal = arena.appendTemporary(type: receiverType)
         body.append(.call(
-            symbol: nil,
             callee: ABILoweringPass.primitiveUnboxingCallee(for: .int, interner: interner),
-            arguments: [receiverExpr], result: ordinal, canThrow: false, thrownResult: nil
+            arguments: [receiverExpr], result: ordinal, canThrow: false
         ))
         receiverForCall = ordinal
     } else if let vcSymbol = nullableUnderlyingValueClassSymbol(
@@ -508,12 +501,10 @@ func anyToStringBridgeSymbolForImplementation(
             type: sema.types.make(resolvedReceiverKind)
         )
         body.append(.call(
-            symbol: nil,
             callee: unboxCallee,
             arguments: [receiverExpr],
             result: unboxedReceiver,
-            canThrow: false,
-            thrownResult: nil
+            canThrow: false
         ))
         receiverForCall = unboxedReceiver
     } else {
@@ -598,12 +589,10 @@ func appendObjectAnyToStringRegistration<C: RangeReplaceableCollection>(
     instructions.append(.constValue(result: bridgeExpr, value: .symbolRef(bridge)))
     let registerResult = arena.appendTemporary(type: intType)
     instructions.append(.call(
-        symbol: nil,
         callee: interner.intern("kk_object_register_any_to_string"),
         arguments: [objectValue, bridgeExpr],
         result: registerResult,
-        canThrow: false,
-        thrownResult: nil
+        canThrow: false
     ))
 }
 
@@ -645,12 +634,10 @@ func appendValueClassAnyToStringRegistration<C: RangeReplaceableCollection>(
     instructions.append(.constValue(result: bridgeExpr, value: .symbolRef(bridge)))
     let registerResult = arena.appendTemporary(type: intType)
     instructions.append(.call(
-        symbol: nil,
         callee: interner.intern("kk_value_class_register_any_to_string"),
         arguments: [classIDExpr, bridgeExpr],
         result: registerResult,
-        canThrow: false,
-        thrownResult: nil
+        canThrow: false
     ))
 }
 
@@ -834,12 +821,10 @@ func appendObjectVtablePropertyAccessorRegistrations<C: RangeReplaceableCollecti
         instructions.append(.constValue(result: accessorFnExpr, value: .symbolRef(accessorFn)))
         let registerResult = arena.appendTemporary(type: intType)
         instructions.append(.call(
-            symbol: nil,
             callee: registerCallee,
             arguments: [objectValue, slotExpr, accessorFnExpr],
             result: registerResult,
-            canThrow: false,
-            thrownResult: nil
+            canThrow: false
         ))
     }
 }
@@ -879,8 +864,7 @@ private func throwableMessageGetterBridgeSymbol(
             callee: interner.intern("get"),
             arguments: [receiverExpr],
             result: callResult,
-            canThrow: false,
-            thrownResult: nil
+            canThrow: false
         ),
         .returnValue(callResult),
         .endBlock,
@@ -951,6 +935,25 @@ func itableBridgeSymbolForMethod(
           let implSig = implementationSignature ?? sema.symbols.functionSignature(for: implementation)
     else {
         return implementation
+    }
+    // A `kotlin.Any.toString` vtable slot keeps the runtime's raw
+    // (Int) -> Int string-handle ABI: classes without an override dispatch
+    // to `kk_any_member_to_string` through the same slot, so a Kotlin
+    // override returning the flat String aggregate cannot be registered
+    // directly even though its declared return type matches the slot's.
+    // Route it through the same raw bridge used for
+    // `kk_object_register_any_to_string` registration (KUU-3111).
+    if let interfaceInfo = sema.symbols.symbol(interfaceMethod),
+       isSyntheticAnyToStringSymbol(interfaceInfo, interner: interner),
+       let bridge = anyToStringBridgeSymbolForImplementation(
+           implementation,
+           driver: driver,
+           arena: arena,
+           sema: sema,
+           interner: interner
+       )
+    {
+        return bridge
     }
     let implementationFn = arena.function(for: implementation)
     // `external` implementations have no KIR body; their ABI is the runtime
@@ -1236,12 +1239,10 @@ func itableBridgeSymbolForMethod(
             body.append(.constValue(result: tokenExpr, value: .intLiteral(token)))
             let isResult = arena.appendTemporary(type: sema.types.booleanType)
             body.append(.call(
-                symbol: nil,
                 callee: interner.intern("kk_op_is"),
                 arguments: [bridgeParamExprs[index], tokenExpr],
                 result: isResult,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
             let zeroExpr = arena.appendExpr(.intLiteral(0), type: sema.types.intType)
             body.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
@@ -1262,12 +1263,10 @@ func itableBridgeSymbolForMethod(
             let boolType = sema.types.make(.primitive(.boolean, .nonNull))
             let typeMatches = arena.appendTemporary(type: boolType)
             body.append(.call(
-                symbol: nil,
                 callee: interner.intern("kk_op_is"),
                 arguments: [bridgeParamExprs[index], tokenExpr],
                 result: typeMatches,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
             let falseValue = arena.appendExpr(.boolLiteral(false), type: boolType)
             body.append(.constValue(result: falseValue, value: .boolLiteral(false)))
@@ -1279,7 +1278,6 @@ func itableBridgeSymbolForMethod(
         let checked = arena.appendTemporary(type: interfaceParamTypes[index])
         let thrown = arena.appendTemporary(type: sema.types.nullableAnyType)
         body.append(.call(
-            symbol: nil,
             callee: interner.intern("kk_op_cast"),
             arguments: [bridgeParamExprs[index], tokenExpr],
             result: checked,
@@ -1298,12 +1296,10 @@ func itableBridgeSymbolForMethod(
     if needsEnumReceiverUnboxing, let implReceiver = implementationParamTypes.first {
         let ordinal = arena.appendTemporary(type: implReceiver)
         body.append(.call(
-            symbol: nil,
             callee: ABILoweringPass.primitiveUnboxingCallee(for: .int, interner: interner),
             arguments: [bridgeParamExprs[0]],
             result: ordinal,
-            canThrow: false,
-            thrownResult: nil
+            canThrow: false
         ))
         forwardedArgExprs[0] = ordinal
     }
@@ -1315,12 +1311,10 @@ func itableBridgeSymbolForMethod(
         else { continue }
         let unboxed = arena.appendTemporary(type: implType)
         body.append(.call(
-            symbol: nil,
             callee: unboxCallee,
             arguments: [forwardedArgExprs[index]],
             result: unboxed,
-            canThrow: false,
-            thrownResult: nil
+            canThrow: false
         ))
         forwardedArgExprs[index] = unboxed
     }
@@ -1394,12 +1388,10 @@ func itableBridgeSymbolForMethod(
     {
         let unboxed = arena.appendTemporary(type: interfaceSig.returnType)
         body.append(.call(
-            symbol: nil,
             callee: unboxCallee,
             arguments: [callResult],
             result: unboxed,
-            canThrow: false,
-            thrownResult: nil
+            canThrow: false
         ))
         bridgeResult = unboxed
     } else {
@@ -1533,12 +1525,10 @@ func appendFactoryObjectVtableMethodRegistrations<C: RangeReplaceableCollection>
         instructions.append(.constValue(result: methodFnExpr, value: .symbolRef(bridgeSymbol)))
         let registerResult = arena.appendTemporary(type: intType)
         instructions.append(.call(
-            symbol: nil,
             callee: registerCallee,
             arguments: [objectValue, slotExpr, methodFnExpr],
             result: registerResult,
-            canThrow: false,
-            thrownResult: nil
+            canThrow: false
         ))
     }
 }
@@ -1599,12 +1589,10 @@ func appendNominalSupertypeEdgeRegistrations<C: RangeReplaceableCollection>(
                 interner.intern("kk_type_register_super")
             }
             instructions.append(.call(
-                symbol: nil,
                 callee: registerCallee,
                 arguments: [currentExpr, parentExpr],
                 result: registerResult,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
         }
     }
@@ -1651,12 +1639,10 @@ func appendObjectItableMethodRegistrations<C: RangeReplaceableCollection>(
 
         let registerIfaceResult = arena.appendTemporary(type: intType)
         instructions.append(.call(
-            symbol: nil,
             callee: interner.intern("kk_object_register_itable_iface"),
             arguments: [objectValue, interfaceTypeExpr, ifaceSlotExpr],
             result: registerIfaceResult,
-            canThrow: false,
-            thrownResult: nil
+            canThrow: false
         ))
 
         // Sorted by slot number for deterministic codegen: vtableSlots is a
@@ -1682,14 +1668,22 @@ func appendObjectItableMethodRegistrations<C: RangeReplaceableCollection>(
                 interner: interner
             )
             if implementationSymbol == methodSymbol,
-               sema.symbols.externalLinkName(for: methodSymbol) != nil
+               let methodLinkName = sema.symbols.externalLinkName(for: methodSymbol),
+               methodLinkName.isEmpty
+                   || !CallLowerer.isSourceBackedLinkName(methodLinkName)
+                   || sema.symbols.symbol(methodSymbol)?.flags.contains(.abstractType) == true
             {
                 // No override exists and the interface member itself is a
-                // runtime `__kk_*` bridge: registering it would re-enter the
-                // same runtime op through this very itable slot and recurse.
-                // Leave the slot empty so the op's own fallback answers the
-                // call (e.g. MutableSet's default bulk bodies, or Map members
-                // such as containsKey/containsValue left unimplemented).
+                // runtime `__kk_*` bridge or an abstract stub: registering it
+                // would re-enter the same runtime op through this very itable
+                // slot and recurse. Leave the slot empty so the op's own
+                // fallback answers the call (e.g. MutableSet's default bulk
+                // bodies, or Map members such as containsKey/containsValue
+                // left unimplemented). A source-backed `kk_fn_*` default is a
+                // real compiled body, though: skipping it left no itable
+                // entry, so e.g. `custom.contains(v)` on a `ClosedRange`
+                // implementation inheriting the interface default trapped
+                // with a missing-itable panic (KUU-3258).
                 continue
             }
             let bridgeSymbol = itableBridgeSymbolForMethod(
@@ -1711,12 +1705,10 @@ func appendObjectItableMethodRegistrations<C: RangeReplaceableCollection>(
 
             let registerMethodResult = arena.appendTemporary(type: intType)
             instructions.append(.call(
-                symbol: nil,
                 callee: interner.intern("kk_object_register_itable_method"),
                 arguments: [objectValue, ifaceSlotExpr, methodSlotExpr, methodFnExpr],
                 result: registerMethodResult,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
         }
     }

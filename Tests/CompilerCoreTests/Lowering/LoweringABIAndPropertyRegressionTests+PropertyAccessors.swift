@@ -37,8 +37,7 @@ extension LoweringABIAndPropertyRegressionTests {
                     callee: interner.intern("get"),
                     arguments: [receiver],
                     result: result,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ),
                 .returnUnit,
             ],
@@ -95,8 +94,7 @@ extension LoweringABIAndPropertyRegressionTests {
                     callee: interner.intern("set"),
                     arguments: [receiver, value],
                     result: result,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ),
                 .returnUnit,
             ],
@@ -138,12 +136,10 @@ extension LoweringABIAndPropertyRegressionTests {
             returnType: types.unitType,
             body: [
                 .call(
-                    symbol: nil,
                     callee: interner.intern("get"),
                     arguments: [receiver],
                     result: result,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ),
                 .returnUnit,
             ],
@@ -161,12 +157,10 @@ extension LoweringABIAndPropertyRegressionTests {
         // ABI lowering conservatively marks unresolved calls as throwing.
         let expectedBody: [KIRInstruction] = [
             .call(
-                symbol: nil,
                 callee: KnownCompilerNames(interner: interner).get,
                 arguments: [receiver],
                 result: result,
-                canThrow: true,
-                thrownResult: nil
+                canThrow: true
             ),
             .returnUnit,
         ]

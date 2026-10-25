@@ -1096,6 +1096,16 @@ final class ControlFlowTypeChecker {
                     ctx.sema.diagnostics.rollback(to: retryCheckpoint)
                 }
             }
+            if let companionType = driver.helpers.retypeBranchClassObjectValue(
+                thenExpr, currentType: thenType, ast: ast, sema: sema
+            ) {
+                thenType = companionType
+            }
+            if let companionType = driver.helpers.retypeBranchClassObjectValue(
+                elseExpr, currentType: elseType, ast: ast, sema: sema
+            ) {
+                elseType = companionType
+            }
             let joinedRangeType = bindJoinedRangeExpressionMetadata(
                 id,
                 thenExpr: thenExpr,
@@ -1358,10 +1368,15 @@ final class ControlFlowTypeChecker {
         branchCtx.isConditionallyEvaluated = false
 
         var tryBodyLocals = preTryLocals
-        let tryBodyType = driver.inferExpr(
+        var tryBodyType = driver.inferExpr(
             body, ctx: branchCtx, locals: &tryBodyLocals,
             expectedType: branchExpectedType, isStatementContext: isStatementContext
         )
+        if let companionType = driver.helpers.retypeBranchClassObjectValue(
+            body, currentType: tryBodyType, ast: ctx.ast, sema: sema
+        ) {
+            tryBodyType = companionType
+        }
         branchTypes.append(tryBodyType)
         if tryBodyType != sema.types.nothingType {
             normalCompletionLocals.append(tryBodyLocals)
@@ -1394,10 +1409,15 @@ final class ControlFlowTypeChecker {
                 clause.body,
                 binding: CatchClauseBinding(parameterSymbol: catchParamSymbol, parameterType: catchParamType)
             )
-            let catchType = driver.inferExpr(
+            var catchType = driver.inferExpr(
                 clause.body, ctx: branchCtx, locals: &catchLocals,
                 expectedType: branchExpectedType, isStatementContext: isStatementContext
             )
+            if let companionType = driver.helpers.retypeBranchClassObjectValue(
+                clause.body, currentType: catchType, ast: ctx.ast, sema: sema
+            ) {
+                catchType = companionType
+            }
             branchTypes.append(catchType)
             if catchType != sema.types.nothingType {
                 normalCompletionLocals.append(catchLocals)

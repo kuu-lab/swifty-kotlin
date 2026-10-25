@@ -207,8 +207,13 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // java.util.concurrent.atomic.AtomicInteger is a live compatibility
-        // surface backed by the same box as kotlin.concurrent.AtomicInt.
+        // java.util.concurrent.atomic.* is a live compatibility surface
+        // backed by the same boxes as the kotlin.concurrent atomics.
+        // KUU-3059: register the remaining scalar/array families next to
+        // AtomicInteger. AtomicBoolean/AtomicReference have no
+        // kk_atomic_*_compareAndSet export — their CAS lives in the bundled
+        // java/util/concurrent/atomic source extensions like
+        // kotlin.concurrent's do in AtomicMigration.kt.
         let javaAtomicPkg = ensurePackage(
             path: ["java", "util", "concurrent", "atomic"],
             symbols: symbols,
@@ -231,6 +236,98 @@ extension DataFlowSemaPhase {
             includeDecrementAndGetAlias: true,
             includeAddAndGetAlias: true,
             compareAndSetLinkName: "kk_atomic_int_compareAndSet",
+            symbols: symbols,
+            interner: interner,
+            types: types
+        )
+        registerAtomicScalarFamily(
+            packageFQName: javaAtomicPkg,
+            className: "AtomicLong",
+            constructorLinkName: "kk_atomic_long_create",
+            valueType: longType,
+            boolType: boolType,
+            unitType: unitType,
+            prefix: "__kk_atomic_long",
+            includeArithmetic: true,
+            includeIncrementAndGetAlias: true,
+            includeGetAndIncrementAlias: true,
+            includeGetAndDecrementAlias: true,
+            includeGetAndSetAlias: true,
+            includeGetAndAddAlias: true,
+            includeDecrementAndGetAlias: true,
+            includeAddAndGetAlias: true,
+            compareAndSetLinkName: "kk_atomic_long_compareAndSet",
+            symbols: symbols,
+            interner: interner,
+            types: types
+        )
+        registerAtomicScalarFamily(
+            packageFQName: javaAtomicPkg,
+            className: "AtomicBoolean",
+            constructorLinkName: "kk_atomic_bool_create",
+            valueType: boolType,
+            boolType: boolType,
+            unitType: unitType,
+            prefix: "__kk_atomic_bool",
+            includeArithmetic: false,
+            includeGetAndSetAlias: true,
+            includeCompareAndSet: false,
+            symbols: symbols,
+            interner: interner,
+            types: types
+        )
+        registerAtomicReferenceStubs(
+            ownerPackage: javaAtomicPkg,
+            ownerPackageSymbol: symbols.lookup(fqName: javaAtomicPkg) ?? .invalid,
+            symbols: symbols,
+            types: types,
+            interner: interner,
+            constructorLinkName: "kk_atomic_ref_create",
+            externalLinkPrefix: "__kk_atomic_ref",
+            includeGetAndSetAlias: true
+        )
+        // The int/long array runtime bridges are `__kk_atomic_*_array_load`/
+        // `store`/`exchange`/`compareAndExchange`/`fetchAndAdd`/`addAndFetch`
+        // (no `At` suffix, no compareAndSet). Only the constructor and `size`
+        // link names registered here are real; every `*At` member is claimed
+        // by the bundled source extensions in
+        // `Stdlib/java/util/concurrent/atomic/` like the kotlin.concurrent
+        // family does in `AtomicArrayCompatMigration.kt`.
+        registerAtomicArrayFamily(
+            packageFQName: javaAtomicPkg,
+            className: "AtomicIntegerArray",
+            constructorLinkName: "kk_atomic_int_array_create",
+            valueType: intType,
+            boolType: boolType,
+            unitType: unitType,
+            prefix: "kk_atomic_int_array",
+            includeArithmetic: false,
+            includeIndexOperators: false,
+            symbols: symbols,
+            interner: interner,
+            types: types
+        )
+        registerAtomicArrayFamily(
+            packageFQName: javaAtomicPkg,
+            className: "AtomicLongArray",
+            constructorLinkName: "kk_atomic_long_array_create",
+            valueType: longType,
+            boolType: boolType,
+            unitType: unitType,
+            prefix: "kk_atomic_long_array",
+            includeArithmetic: false,
+            includeIndexOperators: false,
+            symbols: symbols,
+            interner: interner,
+            types: types
+        )
+        registerAtomicRefArrayStub(
+            packageFQName: javaAtomicPkg,
+            className: "AtomicReferenceArray",
+            constructorLinkName: "kk_atomic_ref_array_new",
+            includeIndexOperators: true,
+            boolType: boolType,
+            unitType: unitType,
             symbols: symbols,
             interner: interner,
             types: types

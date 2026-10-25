@@ -764,6 +764,8 @@ public struct ValueParamDecl: Equatable, Codable {
     public let propertyVisibilityModifiers: Modifiers?
     public let hasDefaultValue: Bool
     public let isVararg: Bool
+    /// Source range of the `vararg` modifier, when present.
+    public let varargRange: SourceRange?
     public let isCrossinline: Bool
     public let isNoinline: Bool
     public let defaultValue: ExprID?
@@ -780,6 +782,7 @@ public struct ValueParamDecl: Equatable, Codable {
         propertyVisibilityModifiers: Modifiers? = nil,
         hasDefaultValue: Bool = false,
         isVararg: Bool = false,
+        varargRange: SourceRange? = nil,
         isCrossinline: Bool = false,
         isNoinline: Bool = false,
         defaultValue: ExprID? = nil,
@@ -795,6 +798,7 @@ public struct ValueParamDecl: Equatable, Codable {
         self.propertyVisibilityModifiers = propertyVisibilityModifiers
         self.hasDefaultValue = hasDefaultValue
         self.isVararg = isVararg
+        self.varargRange = varargRange
         self.isCrossinline = isCrossinline
         self.isNoinline = isNoinline
         self.defaultValue = defaultValue
@@ -804,7 +808,7 @@ public struct ValueParamDecl: Equatable, Codable {
     private enum CodingKeys: String, CodingKey {
         case name, type, isProperty, isMutableProperty, isOverrideProperty, isOpenProperty
         case isActualProperty, propertyVisibilityModifiers, hasDefaultValue, isVararg
-        case isCrossinline, isNoinline, defaultValue, annotations
+        case varargRange, isCrossinline, isNoinline, defaultValue, annotations
     }
 
     public init(from decoder: Decoder) throws {
@@ -819,6 +823,7 @@ public struct ValueParamDecl: Equatable, Codable {
         propertyVisibilityModifiers = try container.decodeIfPresent(Modifiers.self, forKey: .propertyVisibilityModifiers)
         hasDefaultValue = try container.decode(Bool.self, forKey: .hasDefaultValue)
         isVararg = try container.decode(Bool.self, forKey: .isVararg)
+        varargRange = try container.decodeIfPresent(SourceRange.self, forKey: .varargRange)
         isCrossinline = try container.decode(Bool.self, forKey: .isCrossinline)
         isNoinline = try container.decode(Bool.self, forKey: .isNoinline)
         defaultValue = try container.decodeIfPresent(ExprID.self, forKey: .defaultValue)

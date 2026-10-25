@@ -151,20 +151,17 @@ extension CoroutineLoweringPass {
         )
         return [
             .call(
-                symbol: nil,
                 callee: launcherArgGetCallee,
                 arguments: [contRef, builderSlotExpr],
                 result: builderResult,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ),
             .call(
                 symbol: loweredTarget.symbol,
                 callee: loweredTarget.name,
                 arguments: [builderResult, contRef],
                 result: callResult,
-                canThrow: true,
-                thrownResult: nil
+                canThrow: true
             ),
             .returnValue(callResult),
         ]
@@ -195,12 +192,10 @@ extension CoroutineLoweringPass {
             )
             thunkBody.append(
                 .call(
-                    symbol: nil,
                     callee: launcherArgGetCallee,
                     arguments: [contRef, slotExpr],
                     result: argResult,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 )
             )
             callArgExprs.append(argResult)
@@ -215,8 +210,7 @@ extension CoroutineLoweringPass {
                 callee: loweredTarget.name,
                 arguments: callArgExprs,
                 result: callResult,
-                canThrow: true,
-                thrownResult: nil
+                canThrow: true
             )
         )
         thunkBody.append(.returnValue(callResult))
@@ -581,7 +575,6 @@ extension CoroutineLoweringPass {
             .constValue(result: entryPointExpr, value: .symbolRef(loweredTarget.symbol)),
             .constValue(result: entryFunctionID, value: .intLiteral(Int64(loweredTarget.symbol.rawValue))),
             .call(
-                symbol: nil,
                 callee: runtimeCallee,
                 arguments: [entryPointExpr, entryFunctionID, dispatcherExpr],
                 result: call.result,
@@ -609,12 +602,10 @@ extension CoroutineLoweringPass {
 
         var rewritten: [KIRInstruction] = [
             .call(
-                symbol: nil,
                 callee: rewrite.continuationFactory,
                 arguments: [loweredFunctionIDExpr],
                 result: continuationExpr,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ),
         ]
 
@@ -625,12 +616,10 @@ extension CoroutineLoweringPass {
             )
             rewritten.append(
                 .call(
-                    symbol: nil,
                     callee: rewrite.launcherArgSetCallee,
                     arguments: [continuationExpr, slotExpr, argExpr],
                     result: nil,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 )
             )
         }
@@ -640,12 +629,10 @@ extension CoroutineLoweringPass {
         rewritten.append(.constValue(result: thunkRefExpr, value: .symbolRef(thunk.symbol)))
         rewritten.append(
             .call(
-                symbol: nil,
                 callee: runtimeCallee,
                 arguments: [thunkRefExpr, continuationExpr, dispatcherExpr],
                 result: call.result,
-                canThrow: call.canThrow,
-                thrownResult: nil
+                canThrow: call.canThrow
             )
         )
         return rewritten
@@ -912,12 +899,10 @@ extension CoroutineLoweringPass {
 
         var rewritten: [KIRInstruction] = [
             .call(
-                symbol: nil,
                 callee: rewrite.continuationFactory,
                 arguments: [loweredFunctionIDExpr],
                 result: continuationExpr,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ),
         ]
 
@@ -928,12 +913,10 @@ extension CoroutineLoweringPass {
             )
             rewritten.append(
                 .call(
-                    symbol: nil,
                     callee: rewrite.launcherArgSetCallee,
                     arguments: [continuationExpr, slotExpr, argExpr],
                     result: nil,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 )
             )
         }
@@ -943,7 +926,6 @@ extension CoroutineLoweringPass {
         rewritten.append(.constValue(result: thunkRefExpr, value: .symbolRef(thunk.symbol)))
         rewritten.append(
             .call(
-                symbol: nil,
                 callee: runtimeCallee,
                 arguments: [scopeExpr, thunkRefExpr, continuationExpr],
                 result: call.result,
@@ -969,7 +951,6 @@ extension CoroutineLoweringPass {
             .constValue(result: entryPointExpr, value: .symbolRef(loweredTarget.symbol)),
             .constValue(result: entryFunctionID, value: .intLiteral(Int64(loweredTarget.symbol.rawValue))),
             .call(
-                symbol: nil,
                 callee: rewrite.coroutineScopeLaunchCallee,
                 arguments: [scopeExpr, entryPointExpr, entryFunctionID],
                 result: call.result,
@@ -997,7 +978,6 @@ extension CoroutineLoweringPass {
             .constValue(result: entryPointExpr, value: .symbolRef(loweredTarget.symbol)),
             .constValue(result: entryFunctionID, value: .intLiteral(Int64(loweredTarget.symbol.rawValue))),
             .call(
-                symbol: nil,
                 callee: runtimeLauncherCallee,
                 arguments: [entryPointExpr, entryFunctionID],
                 result: call.result,
@@ -1027,12 +1007,10 @@ extension CoroutineLoweringPass {
 
         var rewritten: [KIRInstruction] = [
             .call(
-                symbol: nil,
                 callee: rewrite.continuationFactory,
                 arguments: [loweredFunctionIDExpr],
                 result: continuationExpr,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ),
         ]
 
@@ -1043,12 +1021,10 @@ extension CoroutineLoweringPass {
             )
             rewritten.append(
                 .call(
-                    symbol: nil,
                     callee: rewrite.launcherArgSetCallee,
                     arguments: [continuationExpr, slotExpr, argExpr],
                     result: nil,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 )
             )
         }
@@ -1058,7 +1034,6 @@ extension CoroutineLoweringPass {
         rewritten.append(.constValue(result: thunkRefExpr, value: .symbolRef(thunk.symbol)))
         rewritten.append(
             .call(
-                symbol: nil,
                 callee: runtimeWithContCallee,
                 arguments: [thunkRefExpr, continuationExpr],
                 result: call.result,
@@ -1086,12 +1061,10 @@ extension CoroutineLoweringPass {
 
         var rewritten: [KIRInstruction] = [
             .call(
-                symbol: nil,
                 callee: rewrite.continuationFactory,
                 arguments: [loweredFunctionIDExpr],
                 result: continuationExpr,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ),
         ]
 
@@ -1103,12 +1076,10 @@ extension CoroutineLoweringPass {
             )
             rewritten.append(
                 .call(
-                    symbol: nil,
                     callee: rewrite.launcherArgSetCallee,
                     arguments: [continuationExpr, slotExpr, argExpr],
                     result: nil,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 )
             )
         }
@@ -1118,7 +1089,6 @@ extension CoroutineLoweringPass {
         rewritten.append(.constValue(result: thunkRefExpr, value: .symbolRef(thunk.symbol)))
         rewritten.append(
             .call(
-                symbol: nil,
                 callee: runtimeWithContCallee,
                 arguments: [thunkRefExpr, continuationExpr],
                 result: call.result,
@@ -1255,12 +1225,10 @@ extension CoroutineLoweringPass {
 
         var rewritten: [KIRInstruction] = [
             .call(
-                symbol: nil,
                 callee: rewrite.continuationFactory,
                 arguments: [loweredFunctionIDExpr],
                 result: continuationExpr,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ),
         ]
 
@@ -1274,12 +1242,10 @@ extension CoroutineLoweringPass {
             )
             rewritten.append(
                 .call(
-                    symbol: nil,
                     callee: rewrite.launcherArgSetCallee,
                     arguments: [continuationExpr, slotExpr, argExpr],
                     result: nil,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 )
             )
         }
@@ -1289,7 +1255,6 @@ extension CoroutineLoweringPass {
         rewritten.append(.constValue(result: thunkRefExpr, value: .symbolRef(thunk.symbol)))
         rewritten.append(
             .call(
-                symbol: nil,
                 callee: rewrite.ctx.interner.intern("__kk_produce_launch_with_cont"),
                 arguments: [channelExpr, thunkRefExpr, continuationExpr],
                 result: call.result,
@@ -1396,12 +1361,10 @@ extension CoroutineLoweringPass {
 
         var rewritten: [KIRInstruction] = [
             .call(
-                symbol: nil,
                 callee: rewrite.continuationFactory,
                 arguments: [loweredFunctionIDExpr],
                 result: continuationExpr,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ),
         ]
 
@@ -1412,12 +1375,10 @@ extension CoroutineLoweringPass {
             )
             rewritten.append(
                 .call(
-                    symbol: nil,
                     callee: rewrite.launcherArgSetCallee,
                     arguments: [continuationExpr, slotExpr, value],
                     result: nil,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 )
             )
         }
@@ -1444,7 +1405,6 @@ extension CoroutineLoweringPass {
         rewritten.append(.constValue(result: thunkRefExpr, value: .symbolRef(thunk.symbol)))
         rewritten.append(
             .call(
-                symbol: nil,
                 callee: rewrite.ctx.interner.intern("kk_test_run_blocking_with_cont"),
                 arguments: [contextExpr, timeoutExpr, thunkRefExpr, continuationExpr, scopeSlotExpr],
                 result: call.result,
@@ -1537,12 +1497,10 @@ extension CoroutineLoweringPass {
         instructions.append(.constValue(result: classIDExpr, value: .intLiteral(0)))
         let envExpr = arena.appendTemporary(type: rewrite.intType)
         instructions.append(.call(
-            symbol: nil,
             callee: interner.intern("kk_object_new"),
             arguments: [slotCountExpr, classIDExpr],
             result: envExpr,
-            canThrow: false,
-            thrownResult: nil
+            canThrow: false
         ))
         for (index, captureExpr) in captures.enumerated() {
             let offsetExpr = arena.appendExpr(
@@ -1555,12 +1513,10 @@ extension CoroutineLoweringPass {
             ))
             let storeResult = arena.appendTemporary(type: rewrite.intType)
             instructions.append(.call(
-                symbol: nil,
                 callee: interner.intern("kk_array_set"),
                 arguments: [envExpr, offsetExpr, captureExpr],
                 result: storeResult,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
         }
         return envExpr

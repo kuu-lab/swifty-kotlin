@@ -213,6 +213,54 @@ extension BuildKIRRegressionTests {
         #expect(getArgCounts.allSatisfy { $0 >= 2 }, "Expected both indices to reach get(), got argument counts: \(getArgCounts)")
     }
 
+    @Test func testMultiIndexGetAndCompoundAssignFreezeEarlierMutableIndices() throws {
+        let ctx = makeContextFromSource("""
+        class Grid {
+            operator fun get(a: Int, b: Int): Int = a * 10 + b
+            operator fun set(a: Int, b: Int, value: Int) {}
+        }
+
+        fun use(grid: Grid) {
+            var i = 0
+            val read = grid[i, ++i]
+            i = 0
+            grid[i, ++i] += 2
+        }
+        """)
+        try runToKIR(ctx)
+
+        let module = try #require(ctx.kir)
+        let body = try findKIRFunctionBody(named: "use", in: module, interner: ctx.interner)
+        let names = KnownCompilerNames(interner: ctx.interner)
+        let getArguments = body.compactMap { instruction -> [KIRExprID]? in
+            guard case let .call(_, callee, arguments, _, _, _, _, _) = instruction,
+                  callee == names.get
+            else { return nil }
+            return arguments
+        }
+        let setArguments = body.compactMap { instruction -> [KIRExprID]? in
+            guard case let .call(_, callee, arguments, _, _, _, _, _) = instruction,
+                  callee == names.sbSet
+            else { return nil }
+            return arguments
+        }
+        let copiedValues = body.compactMap { instruction -> KIRExprID? in
+            guard case let .copy(_, to) = instruction else { return nil }
+            return to
+        }
+
+        #expect(getArguments.count == 2, "Expected one indexed read and one compound-assignment read, got: \(getArguments)")
+        #expect(setArguments.count == 1, "Expected one compound-assignment write, got: \(setArguments)")
+        let firstIndices = getArguments.compactMap { $0.count > 1 ? $0[1] : nil }
+        #expect(firstIndices.count == 2)
+        #expect(firstIndices.allSatisfy(copiedValues.contains), "Earlier mutable indices must be snapshotted before ++i, got: \(firstIndices)")
+        if let compoundGetIndex = firstIndices.last,
+           let compoundSetIndex = setArguments.first.flatMap({ $0.count > 1 ? $0[1] : nil })
+        {
+            #expect(compoundGetIndex == compoundSetIndex, "get() and set() must use the same evaluated first index")
+        }
+    }
+
     @Test func testBuildKIRUsesCustomIteratorOperatorsInForLoops() throws {
         let source = """
         class Entry(val first: Int, val second: Int) {

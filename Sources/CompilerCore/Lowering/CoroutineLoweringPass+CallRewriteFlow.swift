@@ -72,21 +72,17 @@ extension CoroutineLoweringPass {
             // ordinary collection HOF arguments.
             let fnPtrResult = rewrite.module.arena.appendTemporary(type: rewrite.intType)
             prefixInstructions.append(.call(
-                symbol: nil,
                 callee: rewrite.ctx.interner.intern("kk_function_value_fn_ptr"),
                 arguments: [collectorExpr],
                 result: fnPtrResult,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
             let closureRawResult = rewrite.module.arena.appendTemporary(type: rewrite.intType)
             prefixInstructions.append(.call(
-                symbol: nil,
                 callee: rewrite.ctx.interner.intern("kk_function_value_closure_raw"),
                 arguments: [collectorExpr],
                 result: closureRawResult,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
             collectorEntryPoint = fnPtrResult
             collectorEnvPtr = closureRawResult
@@ -158,12 +154,10 @@ extension CoroutineLoweringPass {
         )
         var rewritten: [KIRInstruction] = [
             .call(
-                symbol: nil,
                 callee: rewrite.continuationFactory,
                 arguments: [loweredFunctionIDExpr],
                 result: continuationExpr,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ),
         ]
 
@@ -173,12 +167,10 @@ extension CoroutineLoweringPass {
                 type: rewrite.intType
             )
             rewritten.append(.call(
-                symbol: nil,
                 callee: rewrite.launcherArgSetCallee,
                 arguments: [continuationExpr, slotExpr, argExpr],
                 result: nil,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
         }
 
@@ -249,12 +241,10 @@ extension CoroutineLoweringPass {
         )
         var rewritten: [KIRInstruction] = [
             .call(
-                symbol: nil,
                 callee: rewrite.continuationFactory,
                 arguments: [continuationFunctionID],
                 result: continuationExpr,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ),
         ]
 
@@ -266,12 +256,10 @@ extension CoroutineLoweringPass {
                 type: rewrite.intType
             )
             rewritten.append(.call(
-                symbol: nil,
                 callee: rewrite.launcherArgSetCallee,
                 arguments: [continuationExpr, slotExpr, argExpr],
                 result: nil,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
         }
 
@@ -320,12 +308,10 @@ extension CoroutineLoweringPass {
         instructions.append(.constValue(result: classIDExpr, value: .intLiteral(0)))
         let closureObjExpr = rewrite.module.arena.appendTemporary(type: rewrite.anyType)
         instructions.append(.call(
-            symbol: nil,
             callee: kkObjectNew,
             arguments: [slotCountExpr, classIDExpr],
             result: closureObjExpr,
-            canThrow: false,
-            thrownResult: nil
+            canThrow: false
         ))
         for (captureIndex, captureArg) in captureArguments.enumerated() {
             let fieldOffset = Int64(captureIndex + 2)
@@ -333,12 +319,10 @@ extension CoroutineLoweringPass {
             instructions.append(.constValue(result: offsetExpr, value: .intLiteral(fieldOffset)))
             let unusedResult = rewrite.module.arena.appendTemporary(type: rewrite.anyType)
             instructions.append(.call(
-                symbol: nil,
                 callee: kkArraySet,
                 arguments: [closureObjExpr, offsetExpr, captureArg],
                 result: unusedResult,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
         }
         return closureObjExpr

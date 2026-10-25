@@ -939,7 +939,10 @@ extension ExprTypeChecker {
             // the lhs value is proven non-null, so a null-capable type
             // parameter needs its definitely-non-null form (KUU-2693).
             let nonNullLhs = sema.types.definitelyNonNullForm(of: lhs)
-            type = sema.types.lub([nonNullLhs, rhs])
+            let elvisRhs = driver.helpers.retypeBranchClassObjectValue(
+                rhsID, currentType: rhs, ast: ast, sema: sema
+            ) ?? rhs
+            type = sema.types.lub([nonNullLhs, elvisRhs])
             // Smart cast: `x ?: return` / `x ?: throw` narrows x to non-null (P5-66)
             if let rhsExpr = ast.arena.expr(rhsID),
                driver.helpers.isTerminatingExpr(rhsExpr)
@@ -954,6 +957,30 @@ extension ExprTypeChecker {
                 }
             }
         case .rangeTo, .rangeUntil, .downTo:
+            // kotlinc requires a matching stdlib overload for the operand pair:
+            // the signed integers pair with each other, while Char, each
+            // unsigned type, and the floating-point types only pair with
+            // themselves (and no floating-point `downTo` exists at all). The
+            // builtin fallback otherwise accepts every builtin-arithmetic pair
+            // such as `'a'..1.5` (KUU-3121).
+            let isValidBuiltinRangePair: Bool = switch op {
+            case .downTo:
+                (lhsIsSigned && rhsIsSigned)
+                    || (lhs == rhs && lhs != sema.types.doubleType && lhs != sema.types.floatType)
+            default:
+                (lhsIsSigned && rhsIsSigned) || lhs == rhs
+            }
+            if !isValidBuiltinRangePair,
+               lhs != sema.types.nothingType, rhs != sema.types.nothingType
+            {
+                ctx.sema.diagnostics.error(
+                    "KSWIFTK-TYPE-0001",
+                    "Argument type mismatch: actual type is '\(sema.types.renderType(rhs))', but '\(sema.types.renderType(lhs))' was expected.",
+                    range: ast.arena.exprRange(rhsID) ?? range
+                )
+                sema.bindings.bindExprType(id, type: sema.types.errorType)
+                return sema.types.errorType
+            }
             if lhs == longType || rhs == longType {
                 type = longType
             } else if lhs == ulongType || rhs == ulongType {

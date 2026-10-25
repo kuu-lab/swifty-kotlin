@@ -172,7 +172,10 @@ extension JVMClasspathIndex {
                 override fun remove(key: K): V? = null
                 override fun clear() {}
             }
-            """, 0x0001, "java/util/HashMap", [method("java/util/LinkedHashMap", "<init>", [], .reference("java/util/LinkedHashMap", nullable: false))]),
+            """, 0x0001, "java/util/HashMap", [
+                method("java/util/LinkedHashMap", "<init>", [], .reference("java/util/LinkedHashMap", nullable: false)),
+                method("java/util/LinkedHashMap", "put", [object, object], object),
+            ]),
             ("java/util/SortedMap", """
             package java.util
             interface SortedMap<K, V> : kotlin.collections.MutableMap<K, V> {
@@ -185,6 +188,12 @@ extension JVMClasspathIndex {
                 method("java/util/SortedMap", "firstKey", [], object, interface: true),
                 method("java/util/SortedMap", "lastKey", [], object, interface: true),
             ]),
+            ("java/util/Locale", """
+            package java.util
+            open class Locale {
+                companion object { val ROOT: Locale get() = null!! }
+            }
+            """, 0x0001, "java/lang/Object", []),
             ("java/util/TreeMap", """
             package java.util
             open class TreeMap<K, V> : SortedMap<K, V> {
@@ -209,6 +218,7 @@ extension JVMClasspathIndex {
             """, 0x0001, "java/util/AbstractMap", [
                 method("java/util/TreeMap", "<init>", [], .reference("java/util/TreeMap", nullable: false)),
                 method("java/util/TreeMap", "<init>", [.reference("java/util/Comparator", nullable: true)], .reference("java/util/TreeMap", nullable: false)),
+                method("java/util/TreeMap", "put", [object, object], object),
             ]),
             ("java/util/Collections", """
             package java.util

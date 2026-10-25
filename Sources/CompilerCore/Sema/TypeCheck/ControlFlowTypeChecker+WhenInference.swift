@@ -368,17 +368,13 @@ extension ControlFlowTypeChecker {
                     }
                 }
 
-                let branchBodyType = driver.inferExpr(
-                    branch.body, ctx: branchCtx, locals: &branchLocals,
-                    expectedType: expectedType, isStatementContext: isStatementContext
-                )
-                // A bare `ClassName` branch denotes the companion object; keep
-                // the companion value type through the join (KUU-3232).
-                branchTypes.append(
-                    driver.helpers.retypeClassNameAsCompanionValue(
-                        branch.body, currentType: branchBodyType, ast: ast, sema: sema
-                    ) ?? branchBodyType
-                )
+                var branchBodyType = driver.inferExpr(branch.body, ctx: branchCtx, locals: &branchLocals, expectedType: expectedType, isStatementContext: isStatementContext)
+                if let companionType = driver.helpers.retypeBranchClassObjectValue(
+                    branch.body, currentType: branchBodyType, ast: ctx.ast, sema: ctx.sema
+                ) {
+                    branchBodyType = companionType
+                }
+                branchTypes.append(branchBodyType)
                 allBranchLocals.append(branchLocals)
             }
 
@@ -403,15 +399,13 @@ extension ControlFlowTypeChecker {
                         elseCtx = elseCtx.copying(implicitReceiverType: narrowedType)
                     }
                 }
-                let elseBodyType = driver.inferExpr(
-                    elseExpr, ctx: elseCtx, locals: &elseLocals,
-                    expectedType: expectedType, isStatementContext: isStatementContext
-                )
-                branchTypes.append(
-                    driver.helpers.retypeClassNameAsCompanionValue(
-                        elseExpr, currentType: elseBodyType, ast: ast, sema: sema
-                    ) ?? elseBodyType
-                )
+                var elseBodyType = driver.inferExpr(elseExpr, ctx: elseCtx, locals: &elseLocals, expectedType: expectedType, isStatementContext: isStatementContext)
+                if let companionType = driver.helpers.retypeBranchClassObjectValue(
+                    elseExpr, currentType: elseBodyType, ast: ctx.ast, sema: ctx.sema
+                ) {
+                    elseBodyType = companionType
+                }
+                branchTypes.append(elseBodyType)
                 allBranchLocals.append(elseLocals)
             }
 
@@ -592,9 +586,13 @@ extension ControlFlowTypeChecker {
                     }
                 }
 
-                branchTypes.append(
-                    driver.inferExpr(branch.body, ctx: branchCtx, locals: &branchLocals, expectedType: expectedType, isStatementContext: isStatementContext)
-                )
+                var branchBodyType = driver.inferExpr(branch.body, ctx: branchCtx, locals: &branchLocals, expectedType: expectedType, isStatementContext: isStatementContext)
+                if let companionType = driver.helpers.retypeBranchClassObjectValue(
+                    branch.body, currentType: branchBodyType, ast: ctx.ast, sema: ctx.sema
+                ) {
+                    branchBodyType = companionType
+                }
+                branchTypes.append(branchBodyType)
                 allBranchLocals.append(branchLocals)
             }
 
@@ -602,9 +600,13 @@ extension ControlFlowTypeChecker {
                 var elseLocals = locals
                 let elseCtx = ctx.copying(flowState: cumulativeFalseState)
                 driver.exprChecker.applyFlowStateToLocals(cumulativeFalseState, locals: &elseLocals, sema: sema)
-                branchTypes.append(
-                    driver.inferExpr(elseExpr, ctx: elseCtx, locals: &elseLocals, expectedType: expectedType, isStatementContext: isStatementContext)
-                )
+                var elseBodyType = driver.inferExpr(elseExpr, ctx: elseCtx, locals: &elseLocals, expectedType: expectedType, isStatementContext: isStatementContext)
+                if let companionType = driver.helpers.retypeBranchClassObjectValue(
+                    elseExpr, currentType: elseBodyType, ast: ctx.ast, sema: ctx.sema
+                ) {
+                    elseBodyType = companionType
+                }
+                branchTypes.append(elseBodyType)
                 allBranchLocals.append(elseLocals)
             }
 
