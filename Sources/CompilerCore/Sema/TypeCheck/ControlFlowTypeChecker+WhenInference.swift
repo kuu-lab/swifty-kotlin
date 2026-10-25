@@ -243,6 +243,32 @@ extension ControlFlowTypeChecker {
                     var conditionCtx = ctx.copying(flowState: cumulativeFalseState)
                     conditionCtx.isConditionallyEvaluated = false
                     let condType = driver.inferExpr(cond, ctx: conditionCtx, locals: &branchLocals)
+                    let isTypeOrMembershipCondition: Bool = switch ast.arena.expr(cond) {
+                    case .isCheck, .inExpr, .notInExpr:
+                        true
+                    default:
+                        false
+                    }
+                    if !isTypeOrMembershipCondition,
+                       subjectType != sema.types.errorType,
+                       condType != sema.types.errorType
+                    {
+                        let equalitySubjectType = driver.exprChecker.equalityOperandType(
+                            subjectID, inferred: subjectType, ctx: conditionCtx
+                        )
+                        let equalityConditionType = driver.exprChecker.equalityOperandType(
+                            cond, inferred: condType, ctx: conditionCtx
+                        )
+                        if driver.exprChecker.equalityHasIncompatibleBuiltinTypes(
+                            equalitySubjectType, equalityConditionType, sema: sema
+                        ) {
+                            ctx.sema.diagnostics.error(
+                                "KSWIFTK-SEMA-0002",
+                                "Operator '==' cannot be applied to unrelated types.",
+                                range: ast.arena.exprRange(cond)
+                            )
+                        }
+                    }
                     if branch.guard_ == nil, isNullCondition(cond) {
                         hasNullCase = true
                         isNullBranch = true
