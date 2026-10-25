@@ -14,5 +14,6 @@ public extension RuntimeABISpec {
         abi.nt("__kk_string_toBooleanStrictOrNull", "strRaw"),
         abi.th("__kk_string_toBigDecimal", "strRaw outThrown"),
         abi.th("__kk_string_toBigDecimalOrNull", "strRaw"),
+        abi.th("__kk_double_toBigDecimal", "value outThrown"),
     ]
 }

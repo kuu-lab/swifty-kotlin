@@ -93,6 +93,7 @@ public extension RuntimeABISpec {
         abi.th("__kk_flow_flat_map_concat", "flowHandle transformFnPtr continuation"),
         abi.th("__kk_flow_flat_map_merge", "flowHandle transformFnPtr continuation"),
         abi.th("__kk_flow_flat_map_latest", "flowHandle transformFnPtr continuation"),
+        abi.th("__kk_flow_flat_map_latest_external", "flowHandle mapperFnPtr mapperEnvPtr outThrown"),
         abi.th("kk_dispatcher_main"),
         abi.th("__kk_dispatcher_named", "kind"),
         abi.th("__kk_dispatcher_immediate", "dispatcher getterSlot outThrown"),
