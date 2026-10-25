@@ -2,6 +2,7 @@
 @testable import CompilerCore
 import Foundation
 import Testing
+import TestStdlibCache
 
 @Suite
 struct FullyQualifiedTypeAliasConstructorTests {
@@ -58,8 +59,9 @@ struct FullyQualifiedTypeAliasConstructorTests {
     }
 
     @Test func resolvesConstructorCallsThroughQualifiedLibraryTypeAliases() throws {
+        TestStdlibCache.shared.prepare()
         let path = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".kt").path
-        let ctx = makeCompilationContext(inputs: [path])
+        let ctx = makeCompilationContext(inputs: [path], allowDefaultStdlibLibrary: true)
         _ = ctx.sourceManager.addFile(path: path, contents: Data("""
         fun makeFailure() = java.io.IOException("failure")
         """.utf8))
@@ -75,6 +77,38 @@ struct FullyQualifiedTypeAliasConstructorTests {
         #expect(sema.symbols.symbol(binding.chosenCallee)?.kind == .constructor)
         let owner = try #require(sema.symbols.parentSymbol(for: binding.chosenCallee))
         #expect(sema.symbols.symbol(owner)?.fqName.map(ctx.interner.resolve) == ["kotlinx", "io", "IOException"])
+    }
+
+    @Test func resolvesGenericAndAnyConstructorsThroughQualifiedJavaTypeAliases() throws {
+        TestStdlibCache.shared.prepare()
+        let path = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".kt").path
+        let ctx = makeCompilationContext(inputs: [path], allowDefaultStdlibLibrary: true)
+        _ = ctx.sourceManager.addFile(path: path, contents: Data("""
+        fun main() {
+            println(java.util.ArrayList<Int>())
+            val value = java.lang.Object()
+        }
+        """.utf8))
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let arrayListCall = try #require(memberCallExprIDs(
+            named: "ArrayList", in: ast, path: path, ctx: ctx, interner: ctx.interner
+        ).first)
+        let objectCall = try #require(memberCallExprIDs(
+            named: "Object", in: ast, path: path, ctx: ctx, interner: ctx.interner
+        ).first)
+        for (call, expectedOwner) in [
+            (arrayListCall, ["kotlin", "collections", "ArrayList"]),
+            (objectCall, ["kotlin", "Any"]),
+        ] {
+            let binding = try #require(sema.bindings.callBinding(for: call))
+            #expect(sema.symbols.symbol(binding.chosenCallee)?.kind == .constructor)
+            let owner = try #require(sema.symbols.parentSymbol(for: binding.chosenCallee))
+            #expect(sema.symbols.symbol(owner)?.fqName.map(ctx.interner.resolve) == expectedOwner)
+        }
     }
 }
 #endif
