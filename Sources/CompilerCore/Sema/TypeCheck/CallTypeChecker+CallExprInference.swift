@@ -540,24 +540,20 @@ extension CallTypeChecker {
         var argumentContextCandidates = candidates
         var argumentContextReceiverType = callImplicitReceiverType
         var preInferredCallableCalleeType: TypeID?
-        let isCallChainValueCallee: Bool
-        if let calleeExpr {
-            switch calleeExpr {
-            case .call, .indexedAccess:
-                isCallChainValueCallee = true
-            default:
-                isCallChainValueCallee = false
-            }
-        } else {
-            isCallChainValueCallee = false
-        }
         // A call whose callee is another call or indexed access can be an
         // implicit `invoke` chain. Resolve its receiver type before checking
         // trailing lambdas so the selected operator's parameter supplies their
         // expected type (including a receiver function type's `this`). Keep
         // named calls on the ordinary candidate path so constructor and
         // companion `invoke` precedence remains unchanged.
-        if candidates.isEmpty, calleeName == nil, isCallChainValueCallee {
+        // Other nameless callees are inferred here too: Kotlin evaluates the
+        // callee before the arguments, so a cast inside it — `(a as String)(a)`
+        // — must already narrow the receiver for argument checking. Lambdas
+        // and callable references still need the contextual type built from
+        // the argument list, so they stay on the deferred path inside
+        // `inferCallableValueCall`.
+        if candidates.isEmpty, calleeName == nil,
+           let calleeExpr, !calleeExpr.isLambdaOrCallableRef {
             let calleeType = driver.inferExpr(calleeID, ctx: ctx, locals: &locals)
             let invokeCandidates = implicitInvokeOperatorCandidates(for: calleeType, ctx: ctx)
             if !invokeCandidates.isEmpty {
@@ -694,7 +690,8 @@ extension CallTypeChecker {
             expectedType: expectedType,
             explicitTypeArgs: explicitTypeArgs,
             calleeName: calleeName,
-            argTypes: argTypes
+            argTypes: argTypes,
+            calleeScopeLocals: originalArgumentLocals
         ) {
             return inferred
         }

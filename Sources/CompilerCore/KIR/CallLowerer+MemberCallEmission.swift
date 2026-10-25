@@ -175,6 +175,31 @@ extension CallLowerer {
             instructions.append(.constValue(result: receiver, value: .symbolRef(owner)))
             return receiver
         }
+        // A smartcast on the implicit `this` (`when (this) { is Bob -> bar() }`)
+        // narrows it to the member extension's owner type in Sema, but the
+        // lowered receiver value keeps its declared type, so the
+        // `resolveToOwner` probes above cannot prove it reaches `owner`.
+        // Sema leaves the receiver marks empty exactly when the innermost
+        // implicit receiver supplied both receivers — the same value
+        // `activeImplicitReceiverExprID` materializes — so a declared
+        // extension receiver that is a subtype of `owner` proves `this`
+        // already is a valid dispatch receiver.
+        if boundDispatchReceiverSymbol == nil,
+           callExprID.flatMap({ sema.bindings.implicitExtensionReceiver(for: $0) }) == nil,
+           callExprID.flatMap({ sema.bindings.implicitReceiverOuterReceiver(for: $0) }) == nil,
+           let declaredReceiver = sema.symbols.functionSignature(for: callee)?.receiverType,
+           let activeReceiver = driver.ctx.activeImplicitReceiverExprID()
+        {
+            let ownerType = sema.types.make(.classType(ClassType(
+                classSymbol: owner, args: [], nullability: .nonNull
+            )))
+            if sema.types.isSubtype(
+                sema.types.makeNonNullable(declaredReceiver),
+                ownerType
+            ) {
+                return activeReceiver
+            }
+        }
         return nil
     }
 
