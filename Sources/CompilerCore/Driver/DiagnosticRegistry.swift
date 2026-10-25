@@ -1083,6 +1083,12 @@ enum DiagnosticRegistry {
             summary: "A declaration can have only one companion object."
         ),
         DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0436",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "Conflicting type parameter declarations."
+        ),
+        DiagnosticDescriptor(
             code: "KSWIFTK-SEMA-0438",
             pass: "SEMA",
             defaultSeverity: .error,
