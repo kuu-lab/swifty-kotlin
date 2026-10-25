@@ -149,6 +149,49 @@ extension OverloadResolverTests {
         #expect(resolved.parameterMapping == [0: 0, 1: 0, 2: 0, 3: 0])
     }
 
+    @Test func testResolveCallSpreadArgumentOnVarargParameter() {
+        let (resolver, types, symbols, interner, base) = makeEnv()
+        let ctx = SemaModule(
+            symbols: symbols,
+            types: types,
+            bindings: base.bindings,
+            diagnostics: base.diagnostics,
+            interner: interner
+        )
+
+        let intType = types.make(.primitive(.int, .nonNull))
+        let intArraySymbol = symbols.define(
+            kind: .class,
+            name: interner.intern("IntArray"),
+            fqName: [interner.intern("kotlin"), interner.intern("IntArray")],
+            declSite: nil,
+            visibility: .public,
+            flags: []
+        )
+        let intArrayType = types.make(.classType(ClassType(classSymbol: intArraySymbol, args: [])))
+
+        let fn = defineSymbol(kind: .function, name: "spreadVararg", suffix: "spreadVararg", symbols: symbols, interner: interner)
+        let paramX = defineSymbol(kind: .valueParameter, name: "x", suffix: "spreadVararg_x", symbols: symbols, interner: interner)
+        symbols.setFunctionSignature(
+            FunctionSignature(
+                parameterTypes: [intType],
+                returnType: intType,
+                valueParameterSymbols: [paramX],
+                valueParameterIsVararg: [true]
+            ),
+            for: fn
+        )
+
+        let call = CallExpr(
+            range: makeRange(start: 591, end: 605),
+            calleeName: interner.intern("spreadVararg"),
+            args: [CallArg(isSpread: true, type: intArrayType)]
+        )
+        let resolved = resolver.resolveCall(candidates: [fn], call: call, expectedType: nil, ctx: ctx)
+        #expect(resolved.chosenCallee == fn)
+        #expect(resolved.diagnostic == nil)
+    }
+
     @Test func testResolveCallRejectsNonArraySpreadArgumentOnVarargParameter() {
         let (resolver, types, symbols, interner, ctx) = makeEnv()
 
