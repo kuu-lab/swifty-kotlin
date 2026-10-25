@@ -22,7 +22,7 @@ struct LocalFunctionReturnTypeTests {
         "fun value(): Long = 1",
         "fun value(): Int? = null",
         "fun value() = null",
-        "fun value(): Unit = Unit",
+        "fun empty() {}\nfun value(): Unit = empty()",
         "fun value(): Unit { 1 }",
         "fun <T> value(x: T): T = x",
         "fun value(): Int = return 1",
