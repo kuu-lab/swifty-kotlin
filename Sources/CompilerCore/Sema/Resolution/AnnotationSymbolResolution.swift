@@ -110,6 +110,12 @@ func resolveAnnotationSymbol(
         }
     }
 
+    // Match expression/type lookup before considering unrelated declarations
+    // with the same short name (e.g. kotlin.concurrent.Volatile).
+    for package in TypeCheckScopeBuilder().makeDefaultImportPackages(interner: interner) {
+        if let symbol = annotationClass(at: package + [shortName]) { return symbol }
+    }
+
     guard allowGlobalShortNameFallback else { return nil }
     return symbols.lookupByShortName(shortName).first(where: { symbols.symbol($0)?.kind == .annotationClass })
 }

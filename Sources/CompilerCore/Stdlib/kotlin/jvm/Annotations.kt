@@ -23,6 +23,16 @@ public annotation class JvmStatic
 @Target(AnnotationTarget.FUNCTION, AnnotationTarget.CONSTRUCTOR)
 public annotation class JvmOverloads
 
+@Target(AnnotationTarget.FIELD)
+@Retention(AnnotationRetention.SOURCE)
+@MustBeDocumented
+public annotation class Volatile
+
+@Target(AnnotationTarget.FIELD)
+@Retention(AnnotationRetention.SOURCE)
+@MustBeDocumented
+public annotation class Transient
+
 @Target(
     AnnotationTarget.CLASS,
     AnnotationTarget.FUNCTION,
