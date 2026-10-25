@@ -16,3 +16,12 @@ public val <T : Any> Class<T>.kotlin: KClass<T>
 
 public val <T : Any> KClass<T>.javaPrimitiveType: Class<T>?
     get() = primitiveJavaClass(this)
+
+/**
+ * Returns the Java class of the enum declaration that owns this entry.
+ *
+ * The enum value is boxed at this generic boundary, preserving its declared
+ * enum type even when the entry has a class body.
+ */
+public val <E : Enum<E>> Enum<E>.declaringJavaClass: Class<E>
+    get() = this.javaClass() as Class<E>

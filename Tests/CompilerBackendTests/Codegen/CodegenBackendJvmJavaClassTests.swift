@@ -21,6 +21,16 @@ struct CodegenBackendJvmJavaClassTests {
     }
 
     @Test
+    func testEnumDeclaringJavaClassReturnsDeclarationForEntriesAndGenericReceivers() throws {
+        let source = try diffCaseSource("kuu_3074_enum_declaring_java_class.kt", file: #filePath)
+        try assertKotlinOutput(
+            source,
+            moduleName: "JvmEnumDeclaringJavaClassTest",
+            expected: "Direction\nDirection\nDirection\n"
+        )
+    }
+
+    @Test
     func testLambdaJavaClassEnclosingMetadataMatchesFileFacade() throws {
         let source = """
         val l: Any = {}
