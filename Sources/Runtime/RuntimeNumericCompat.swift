@@ -1319,6 +1319,26 @@ public func __kk_math_nextTowards_float(_ from: Int, _ to: Int) -> Int {
     return kk_float_to_bits(nextafterf(rawFrom, rawTo))
 }
 
+@_cdecl("__kk_math_scalb")
+public func __kk_math_scalb(_ value: Int, _ scaleFactor: Int) -> Int {
+    kk_double_to_bits(scalbn(kk_bits_to_double(value), Int32(clamping: scaleFactor)))
+}
+
+@_cdecl("__kk_math_scalb_float")
+public func __kk_math_scalb_float(_ value: Int, _ scaleFactor: Int) -> Int {
+    kk_float_to_bits(scalbnf(kk_bits_to_float(value), Int32(clamping: scaleFactor)))
+}
+
+@_cdecl("__kk_math_fma")
+public func __kk_math_fma(_ a: Int, _ b: Int, _ c: Int) -> Int {
+    kk_double_to_bits(fma(kk_bits_to_double(a), kk_bits_to_double(b), kk_bits_to_double(c)))
+}
+
+@_cdecl("__kk_math_fma_float")
+public func __kk_math_fma_float(_ a: Int, _ b: Int, _ c: Int) -> Int {
+    kk_float_to_bits(fmaf(kk_bits_to_float(a), kk_bits_to_float(b), kk_bits_to_float(c)))
+}
+
 @_cdecl("kk_bitwise_and")
 public func kk_bitwise_and(_ lhs: Int, _ rhs: Int) -> Int {
     lhs & rhs

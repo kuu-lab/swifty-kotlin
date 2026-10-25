@@ -6,6 +6,12 @@ public extension RuntimeABISpec {
     static let systemFunctions: [RuntimeABIFunctionSpec] = [
         abi.nt("__kk_system_in"),
         abi.nt("__kk_system_getProperty", "propertyName"),
+        abi.nt("__kk_system_setProperty", "propertyName value"),
+        abi.nt("__kk_system_clearProperty", "propertyName"),
+        abi.nt("__kk_system_getenv", "variableName"),
+        abi.nt("__kk_system_envCount"),
+        abi.nt("__kk_system_envKeyAt", "index"),
+        abi.nt("__kk_system_envValueAt", "index"),
         // Compiler-only startup bridge: argc is the C int32 ABI and argv is
         // a borrowed pointer to a null-terminated C-string pointer vector.
         abi.nt("__kk_process_args_from_argv", "argc:int32 argv:nullableConstRawPointer"),
