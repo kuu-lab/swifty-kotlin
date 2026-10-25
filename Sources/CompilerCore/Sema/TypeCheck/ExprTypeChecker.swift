@@ -591,7 +591,8 @@ final class ExprTypeChecker {
             if subjectType != sema.types.errorType, targetType != sema.types.errorType {
                 let nullEscape = sema.types.nullability(of: subjectType) == .nullable
                     && sema.types.nullability(of: targetType) == .nullable
-                if !nullEscape,
+                if !negated,
+                   !nullEscape,
                    !isRangeRepresentationCompatible(
                        subjectExpr: exprID,
                        subjectType: subjectNonNull,
@@ -619,7 +620,6 @@ final class ExprTypeChecker {
                 }
             }
             sema.bindings.bindIsCheckTargetType(id, type: targetType)
-            _ = negated
             _ = targetType
             sema.bindings.bindExprType(id, type: boolType)
             return boolType
@@ -2313,6 +2313,11 @@ final class ExprTypeChecker {
         if hasKnownJvmSerializableOverlap(subject: subject, target: target, sema: sema, interner: interner) {
             return false
         }
+        if hasKnownJvmNumericOverlap(subject: subject, target: target, sema: sema, interner: interner)
+            || hasKnownJvmAppendableOverlap(subject: subject, target: target, sema: sema, interner: interner)
+        {
+            return false
+        }
         // Generic subject shapes and type parameters defeat the nominal
         // disjointness argument. A target with only star projections still has
         // a known runtime classifier, so a final subject can be rejected when
@@ -2366,6 +2371,93 @@ final class ExprTypeChecker {
 
         return isJvmSerializableBuiltin(subject) && isSerializableInterface(target)
             || isSerializableInterface(subject) && isJvmSerializableBuiltin(target)
+    }
+
+    /// A `Number` value may hold any numeric runtime class even when the
+    /// imported `Number` symbol differs from the TypeSystem's cached symbol.
+    private func hasKnownJvmNumericOverlap(
+        subject: TypeID,
+        target: TypeID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> Bool {
+        guard sema.requiresResolvedLibraryCalls else { return false }
+
+        func isKotlinNumber(_ type: TypeID) -> Bool {
+            guard case let .classType(classType) = sema.types.kind(of: type),
+                  let symbol = sema.symbols.symbol(classType.classSymbol)
+            else {
+                return false
+            }
+            return symbol.fqName == [interner.intern("kotlin"), interner.intern("Number")]
+        }
+
+        func isJvmNumericType(_ type: TypeID) -> Bool {
+            switch sema.types.kind(of: type) {
+            case let .primitive(primitive, _):
+                switch primitive {
+                case .byte, .short, .int, .long, .float, .double:
+                    return true
+                case .boolean, .char, .uint, .ulong, .ubyte, .ushort:
+                    return false
+                }
+            case let .classType(classType):
+                guard let symbol = sema.symbols.symbol(classType.classSymbol),
+                      symbol.fqName.count == 2,
+                      [interner.intern("kotlin"), interner.intern("java")].contains(symbol.fqName[0])
+                else {
+                    return false
+                }
+                switch interner.resolve(symbol.fqName[1]) {
+                case "Byte", "Short", "Int", "Integer", "Long", "Float", "Double":
+                    return true
+                default:
+                    return false
+                }
+            default:
+                return false
+            }
+        }
+
+        return isKotlinNumber(subject) && isJvmNumericType(target)
+            || isKotlinNumber(target) && isJvmNumericType(subject)
+    }
+
+    /// Kotlin/JVM maps `kotlin.text.StringBuilder` to the platform builder,
+    /// which implements `java.lang.Appendable` outside the Sema hierarchy.
+    private func hasKnownJvmAppendableOverlap(
+        subject: TypeID,
+        target: TypeID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> Bool {
+        guard sema.requiresResolvedLibraryCalls,
+              let appendableSymbol = sema.symbols.lookup(
+                  fqName: ["java", "lang", "Appendable"].map(interner.intern)
+              ),
+              sema.symbols.symbol(appendableSymbol)?.kind == .interface
+        else {
+            return false
+        }
+
+        func isAppendable(_ type: TypeID) -> Bool {
+            guard case let .classType(classType) = sema.types.kind(of: type) else { return false }
+            return classType.classSymbol == appendableSymbol
+        }
+
+        func isKotlinStringBuilder(_ type: TypeID) -> Bool {
+            guard case let .classType(classType) = sema.types.kind(of: type),
+                  let symbol = sema.symbols.symbol(classType.classSymbol)
+            else {
+                return false
+            }
+            return symbol.fqName == [
+                interner.intern("kotlin"), interner.intern("text"), interner.intern("StringBuilder"),
+            ]
+        }
+
+        return isKotlinStringBuilder(subject) && isAppendable(target)
+            || isAppendable(subject) && isKotlinStringBuilder(target)
     }
 
     /// Range expressions use their element primitive as the Sema type and carry
