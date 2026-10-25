@@ -59,16 +59,22 @@ extension CallTypeChecker {
         expectedType: TypeID?,
         explicitTypeArgs: [TypeID],
         calleeName: InternedString?,
-        argTypes: [TypeID]
+        argTypes: [TypeID],
+        calleeScopeLocals: LocalBindings? = nil
     ) -> TypeID? {
         let ast = ctx.ast
         let sema = ctx.sema
         let interner = ctx.interner
         let calleeExpr = ast.arena.expr(calleeID)
+        // Arguments are checked before this function runs, so `locals` can
+        // carry narrowings they introduced (`a(a as String)`). Kotlin
+        // evaluates the callee first, though: its declared/pre-argument flow
+        // state decides which `invoke` overload applies.
+        var calleeLocals = calleeScopeLocals ?? locals
         var callableTarget: CallableTarget?
         var callableCalleeType: TypeID?
         if let calleeName,
-           let local = locals[calleeName]
+           let local = calleeLocals[calleeName]
         {
             if !local.isInitialized,
                ctx.cachedSymbol(local.symbol)?.flags.contains(.lateinitProperty) != true
@@ -91,7 +97,7 @@ extension CallTypeChecker {
                 callableCalleeType = driver.inferExpr(
                     calleeID,
                     ctx: ctx,
-                    locals: &locals,
+                    locals: &calleeLocals,
                     expectedType: nil
                 )
                 callableTarget = driver.helpers.callableTargetForCalleeExpr(calleeID, sema: sema)
@@ -116,7 +122,7 @@ extension CallTypeChecker {
                 callableCalleeType = driver.inferExpr(
                     calleeID,
                     ctx: ctx,
-                    locals: &locals,
+                    locals: &calleeLocals,
                     expectedType: nil
                 )
                 callableTarget = driver.helpers.callableTargetForCalleeExpr(calleeID, sema: sema)
