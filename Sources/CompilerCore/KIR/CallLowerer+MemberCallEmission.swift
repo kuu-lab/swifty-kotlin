@@ -29,12 +29,14 @@ extension CallLowerer {
                 typeVarBySymbol: typeVariables
             )
         }
-        if let value = driver.ctx.contextReceiverValue(matching: resolvedType, sema: sema) {
-            return value
-        }
+        // The binding's receiver came from overload resolution; prefer it over
+        // re-matching an erased or generic context type during lowering.
         if let preferredReceiverSymbol,
            let value = driver.ctx.localValue(for: preferredReceiverSymbol)
         {
+            return value
+        }
+        if let value = driver.ctx.contextReceiverValue(matching: resolvedType, sema: sema) {
             return value
         }
 

@@ -650,7 +650,7 @@ extension CallTypeChecker {
         return nil
     }
 
-    private func contextParameterReceiverSymbols(
+    func contextParameterReceiverSymbols(
         for callee: SymbolID,
         substitution: [TypeVarID: TypeID],
         ctx: TypeInferenceContext
