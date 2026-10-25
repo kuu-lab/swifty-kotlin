@@ -685,5 +685,22 @@ struct ComparatorOverloadResolutionTests {
             #expect(errors.isEmpty, "Expected implicit `it` to resolve in both lambdas, got: \(errors)")
         }
     }
+
+    @Test func testCompareByDescendingGetsContextFromGenericConstructorArgument() throws {
+        let source = """
+        import java.util.*
+
+        fun main() {
+            val pq = PriorityQueue<String>(compareByDescending { it.length })
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+            #expect(errors.isEmpty, "Expected the constructor's Comparator<String> parameter to type implicit `it`, got: \(errors)")
+        }
+    }
 }
 #endif

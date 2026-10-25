@@ -327,6 +327,7 @@ extension CallTypeChecker {
             explicitTypeArgs: argumentContextTypeArgs,
             calleeName: calleeName,
             candidates: candidates,
+            locals: locals,
             preInferredArgumentTypes: cachedNonLambdaArgTypes,
             withContextExpectedLambdaType: nil,
             expectedTypeOverrides: &argumentExpectedTypeOverrides,

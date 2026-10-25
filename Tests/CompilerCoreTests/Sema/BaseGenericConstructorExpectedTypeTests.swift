@@ -217,7 +217,7 @@ struct BaseGenericConstructorExpectedTypeTests {
         driver.callChecker.prepareCallExprArgumentContexts(
             args: [CallArgument(expr: nestedCall)], callRange: callRange, ctx: ctx, expectedType: expected,
             explicitTypeArgs: [], calleeName: compilation.interner.intern("Child"),
-            candidates: candidates, withContextExpectedLambdaType: nil,
+            candidates: candidates, locals: [:], withContextExpectedLambdaType: nil,
             expectedTypeOverrides: &overrides, lambdaContextOverrides: &lambdaContexts
         )
         if agree {
