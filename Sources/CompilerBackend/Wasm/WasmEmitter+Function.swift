@@ -333,9 +333,15 @@ final class WasmFunctionEmission {
 
     private func emitThrownCheck(thrownResult: KIRExprID?) {
         if let thrownResult, let local = localIndexByExpr[thrownResult.rawValue] {
+            // Consume the channel into the slot and continue: the lowered
+            // jumpIfNotNull routes to the catch handler or a rethrow.
             code.globalGet(ctx.thrownGlobal)
             code.localSet(local)
+            code.i64Const(0)
+            code.globalSet(ctx.thrownGlobal)
+            return
         }
+        // No local handler — propagate the thrown value to the caller.
         code.globalGet(ctx.thrownGlobal)
         code.op(WasmOpcode.i64Eqz)
         code.openIf()
@@ -448,7 +454,17 @@ final class WasmFunctionEmission {
 
         case let .rethrow(value):
             resolveValue(value)
+            code.localTee(scratchLocal)
+            code.op(WasmOpcode.i64Eqz)
+            code.openIf()
+            // A 0 thrown value means the exception object came from a stubbed
+            // constructor; substitute a marker so the throw isn't swallowed.
+            code.i64Const(1)
             code.globalSet(ctx.thrownGlobal)
+            code.elseBranch()
+            code.localGet(scratchLocal)
+            code.globalSet(ctx.thrownGlobal)
+            code.end()
             code.i64Const(0)
             code.op(WasmOpcode.return)
 
@@ -619,11 +635,20 @@ final class WasmFunctionEmission {
                     + methodSlot
             )
         case let .itableDynamic(interfaceTypeID, methodSlot):
-            // Resolve the interface slot from the object's iface map.
+            // Resolve the interface slot from the object's iface map. A
+            // lookup miss yields table index 0 — trap rather than call
+            // whatever funcref happens to live there (native's
+            // kk_dispatch_error equivalent).
             resolveValue(receiver)
             code.i64Const(interfaceTypeID)
             code.i64Const(Int64(methodSlot))
             code.call(ctx.emittedHelperIndex(for: "__kk_wasm_itable_lookup", argumentCount: 3))
+            code.localTee(scratchLocal)
+            code.op(WasmOpcode.i64Eqz)
+            code.openIf()
+            code.op(WasmOpcode.unreachable)
+            code.end()
+            code.localGet(scratchLocal)
             code.op(WasmOpcode.i32WrapI64)
         }
 
@@ -634,14 +659,18 @@ final class WasmFunctionEmission {
     }
 
     /// Pushes `vtable[slot]` of the receiver as a funcref-table index (i32).
-    /// Negative header offsets are applied with explicit i32 arithmetic since
-    /// memarg offsets are unsigned.
+    /// The vtable pointer lives in body slot 1 (base+8); a null vtable traps
+    /// instead of silently calling a wrong table entry.
     private func emitVtableIndex(receiver: KIRExprID, slot: Int) {
         resolveValue(receiver)
         code.op(WasmOpcode.i32WrapI64)
-        code.i32Const(-8)
-        code.op(WasmOpcode.i32Add)
-        code.i64Load(offset: 0)
+        code.i64Load(offset: UInt64(WasmModuleContext.WasmLayout.vtableSlotOffset))
+        code.localTee(scratchLocal)
+        code.op(WasmOpcode.i64Eqz)
+        code.openIf()
+        code.op(WasmOpcode.unreachable)
+        code.end()
+        code.localGet(scratchLocal)
         code.op(WasmOpcode.i32WrapI64)
         code.i64Load(offset: UInt64(slot * 8))
         code.op(WasmOpcode.i32WrapI64)

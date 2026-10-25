@@ -161,7 +161,8 @@ public final class LoadSourcesPhase: CompilerPhase {
         do {
             let sources = try BundledStdlib.collectBundledStdlibSources(
                 resourcePath: resourcePath,
-                profile: ctx.options.stdlibProfile
+                profile: ctx.options.stdlibProfile,
+                forWasmTarget: ctx.options.target.isWasm
             )
             for source in sources {
                 guard !ctx.sourceManager.containsFile(path: source.path) else { continue }
