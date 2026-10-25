@@ -23,17 +23,8 @@ extension DataFlowSemaPhase {
         if !bundledIndex.containsNominal(fqName: flowPkg + [interner.intern("Flow")]),
            !symbols.isSourceBackedSymbol(flowInterfaceSymbol)
         {
-            registerSyntheticCoroutineMember(
-                ownerSymbol: flowInterfaceSymbol,
-                ownerType: flowRawType,
-                name: "collect",
-                externalLinkName: "kk_flow_collect",
-                returnType: types.unitType,
-                parameters: [(name: "collector", type: flowCollectorType)],
-                isSuspend: true,
-                symbols: symbols,
-                interner: interner
-            )
+            let flowInterfaceMembers = coroutineMemberRows(of: flowInterfaceSymbol, type: flowRawType, symbols: symbols, interner: interner)
+            flowInterfaceMembers.fn("collect", "kk_flow_collect", [(name: "collector", type: flowCollectorType)], ret: types.unitType, isSuspend: true)
             // KUU-1351: `onErrorReturn`/`onErrorResume`/`delayEach` do not exist
             // on `kotlinx.coroutines.flow.Flow`; no synthetic members are
             // registered for them so calls stay unresolved like on the JVM.
