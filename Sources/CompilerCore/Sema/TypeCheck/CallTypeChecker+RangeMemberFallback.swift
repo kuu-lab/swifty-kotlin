@@ -209,6 +209,11 @@ extension CallTypeChecker {
             sema.bindings.bindExprType(id, type: floatingPointResult)
             return floatingPointResult
         }
+        // Only endpoint and membership operations above apply to floating-point
+        // ranges. Leave other names to ordinary member/extension resolution.
+        guard !sema.bindings.isFloatingPointRangeExpr(receiverID) else {
+            return nil
+        }
         if isOpenEndRangeReceiver,
            let sourceType = bindSourceOpenEndRangeContainsCall(
             id,
