@@ -395,6 +395,74 @@ struct LibraryMetadataImportIntegrationTests {
     }
 
     @Test
+    func testAnnotationClassSyntheticObjectMethodsDoNotWarnAgainstBundledDeclaration() throws {
+        let artifact = try testStdlibArtifactPath()
+        let source = """
+        package kotlinx.io
+
+        @kotlin.RequiresOptIn(level = kotlin.RequiresOptIn.Level.WARNING)
+        public annotation class DelicateIoApi
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(
+                inputs: [path],
+                moduleName: "KotlinxIoAnnotationShadow",
+                emit: .kirDump,
+                includeStdlib: false,
+                stdlibLibraryPath: artifact,
+                allowDefaultStdlibLibrary: false
+            )
+            try runToKIR(ctx)
+
+            #expect(!ctx.diagnostics.hasError, "Unexpected errors: \(ctx.diagnostics.diagnostics)")
+            let duplicateWarnings = ctx.diagnostics.diagnostics.filter {
+                $0.code == "KSWIFTK-SEMA-0102"
+            }
+            #expect(duplicateWarnings.isEmpty, "Unexpected duplicate-stub warnings: \(duplicateWarnings)")
+        }
+    }
+
+    @Test
+    func testKotlinxIoUpstreamAnnotationSourcesDoNotEmitSyntheticObjectMethodWarnings() throws {
+        let artifact = try testStdlibArtifactPath()
+        let coreAnnotations = """
+        package kotlinx.io
+
+        @kotlin.RequiresOptIn(level = kotlin.RequiresOptIn.Level.WARNING)
+        public annotation class DelicateIoApi
+
+        @kotlin.RequiresOptIn(level = kotlin.RequiresOptIn.Level.ERROR)
+        public annotation class InternalIoApi
+
+        @kotlin.RequiresOptIn(level = kotlin.RequiresOptIn.Level.WARNING)
+        public annotation class UnsafeIoApi
+        """
+        let byteStringAnnotations = """
+        package kotlinx.io.bytestring.unsafe
+
+        @kotlin.RequiresOptIn(level = kotlin.RequiresOptIn.Level.ERROR)
+        public annotation class UnsafeByteStringApi
+        """
+        try CompilerTestSupport.withTemporaryFiles(contents: [coreAnnotations, byteStringAnnotations]) { paths in
+            let ctx = makeCompilationContext(
+                inputs: paths,
+                moduleName: "KotlinxIoUpstreamAnnotations",
+                emit: .kirDump,
+                includeStdlib: false,
+                stdlibLibraryPath: artifact,
+                allowDefaultStdlibLibrary: false
+            )
+            try runToKIR(ctx)
+
+            #expect(!ctx.diagnostics.hasError, "Unexpected errors: \(ctx.diagnostics.diagnostics)")
+            let duplicateWarnings = ctx.diagnostics.diagnostics.filter {
+                $0.code == "KSWIFTK-SEMA-0102"
+            }
+            #expect(duplicateWarnings.isEmpty, "Unexpected duplicate-stub warnings: \(duplicateWarnings)")
+        }
+    }
+
+    @Test
     func testShortTargetMetadataSurvivesKklibImport() throws {
         let librarySource = """
         package targetprobe
