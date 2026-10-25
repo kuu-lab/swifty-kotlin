@@ -140,6 +140,7 @@ final class ValueClassUnboxingPass: LoweringPass, ParallelLoweringPass {
             let rewritten = self.rewriteBody(
                 function.body,
                 locations: function.instructionLocations,
+                module: module,
                 arena: module.arena,
                 interner: interner,
                 types: types,
@@ -273,6 +274,7 @@ final class ValueClassUnboxingPass: LoweringPass, ParallelLoweringPass {
     private func rewriteBody(
         _ body: [KIRInstruction],
         locations: [SourceRange?],
+        module: KIRModule,
         arena: KIRArena,
         interner: StringInterner,
         types: TypeSystem,
@@ -645,6 +647,19 @@ final class ValueClassUnboxingPass: LoweringPass, ParallelLoweringPass {
                             result: callResult, canThrow: false, thrownResult: nil
                         ))
                     } else {
+                        // A non-null value class whose underlying representation can
+                        // itself be null already stores the raw payload. Preserve this
+                        // property read as a representation-only copy; ABI lowering
+                        // would otherwise mistake X -> Any? for boxing X itself.
+                        if let receiverType = arena.exprType(arguments[0]),
+                           let classSymbol = nullableUnderlyingValueClassSymbol(
+                               of: types.kind(of: receiverType), types: types, symbols: symbols
+                           ),
+                           symbols.effectiveValueClassUnderlyingType(for: classSymbol)
+                               == arena.exprType(callResult)
+                        {
+                            module.markRawValueClassPayloadCopyTarget(callResult)
+                        }
                         result.append(.copy(from: arguments[0], to: callResult))
                     }
                     resultLocations.append(location)
