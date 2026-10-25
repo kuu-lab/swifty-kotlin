@@ -993,6 +993,10 @@ public func kk_mutable_collection_addAll_throwing(
         return kk_box_bool(1)
     }
     if let set = runtimeSetBox(from: collectionRaw) {
+        for value in values where !set.acceptsInsertion(rawValue: value.legacyRawValue) {
+            runtimeSetThrown(outThrown, runtimeAllocateIllegalArgumentException(message: "Element outside range view"))
+            return kk_box_bool(0)
+        }
         var modified = false
         for value in values {
             if set.insert(value: value) {

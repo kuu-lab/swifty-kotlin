@@ -8,6 +8,121 @@
 // `Sources/CompilerCore/Stdlib/java/util/`.
 
 
+/// Half-open key/element bounds used by live SortedSet/SortedMap range views.
+/// A nil lower or upper bound leaves that side unbounded.
+struct RuntimeSortedRange {
+    let lowerBoundRaw: Int?
+    let upperBoundRaw: Int?
+
+    func contains(_ rawValue: Int, using compare: (Int, Int) -> Int) -> Bool {
+        if let lowerBoundRaw, compare(rawValue, lowerBoundRaw) < 0 { return false }
+        if let upperBoundRaw, compare(rawValue, upperBoundRaw) >= 0 { return false }
+        return true
+    }
+}
+
+/// The effective range of a view in that view's comparator order. Descending
+/// views swap the endpoints and their inclusivity while inverting ordering.
+struct RuntimeSortedBounds {
+    let lowerBoundRaw: Int?
+    let lowerBoundInclusive: Bool
+    let upperBoundRaw: Int?
+    let upperBoundInclusive: Bool
+
+    init(_ range: RuntimeSortedRange) {
+        self.lowerBoundRaw = range.lowerBoundRaw
+        self.lowerBoundInclusive = range.lowerBoundRaw != nil
+        self.upperBoundRaw = range.upperBoundRaw
+        self.upperBoundInclusive = false
+    }
+
+    func reversed() -> RuntimeSortedBounds {
+        RuntimeSortedBounds(
+            lowerBoundRaw: upperBoundRaw,
+            lowerBoundInclusive: upperBoundInclusive,
+            upperBoundRaw: lowerBoundRaw,
+            upperBoundInclusive: lowerBoundInclusive
+        )
+    }
+
+    func intersecting(
+        _ range: RuntimeSortedRange,
+        using compare: (Int, Int) -> Int
+    ) -> RuntimeSortedBounds {
+        let lower: (raw: Int?, inclusive: Bool)
+        switch (lowerBoundRaw, range.lowerBoundRaw) {
+        case (nil, .some(let requested)):
+            lower = (requested, true)
+        case (.some(let existing), nil):
+            lower = (existing, lowerBoundInclusive)
+        case (.some(let existing), .some(let requested)):
+            let ordering = compare(existing, requested)
+            if ordering < 0 {
+                lower = (requested, true)
+            } else if ordering > 0 {
+                lower = (existing, lowerBoundInclusive)
+            } else {
+                lower = (existing, lowerBoundInclusive)
+            }
+        case (nil, nil):
+            lower = (nil, false)
+        }
+
+        let upper: (raw: Int?, inclusive: Bool)
+        switch (upperBoundRaw, range.upperBoundRaw) {
+        case (nil, .some(let requested)):
+            upper = (requested, false)
+        case (.some(let existing), nil):
+            upper = (existing, upperBoundInclusive)
+        case (.some(let existing), .some(let requested)):
+            let ordering = compare(existing, requested)
+            if ordering < 0 {
+                upper = (existing, upperBoundInclusive)
+            } else if ordering > 0 {
+                upper = (requested, false)
+            } else {
+                upper = (existing, false)
+            }
+        case (nil, nil):
+            upper = (nil, false)
+        }
+        return RuntimeSortedBounds(
+            lowerBoundRaw: lower.raw,
+            lowerBoundInclusive: lower.inclusive,
+            upperBoundRaw: upper.raw,
+            upperBoundInclusive: upper.inclusive
+        )
+    }
+
+    func acceptsRange(_ range: RuntimeSortedRange, using compare: (Int, Int) -> Int) -> Bool {
+        if let lower = range.lowerBoundRaw, let upper = range.upperBoundRaw,
+           compare(lower, upper) > 0 {
+            return false
+        }
+        if let endpoint = range.lowerBoundRaw {
+            if let lowerBoundRaw, compare(endpoint, lowerBoundRaw) < 0 { return false }
+            if let upperBoundRaw, compare(endpoint, upperBoundRaw) > 0 { return false }
+        }
+        if let endpoint = range.upperBoundRaw {
+            if let lowerBoundRaw, compare(endpoint, lowerBoundRaw) < 0 { return false }
+            if let upperBoundRaw, compare(endpoint, upperBoundRaw) > 0 { return false }
+        }
+        return true
+    }
+
+    private init(
+        lowerBoundRaw: Int?,
+        lowerBoundInclusive: Bool,
+        upperBoundRaw: Int?,
+        upperBoundInclusive: Bool
+    ) {
+        self.lowerBoundRaw = lowerBoundRaw
+        self.lowerBoundInclusive = lowerBoundInclusive
+        self.upperBoundRaw = upperBoundRaw
+        self.upperBoundInclusive = upperBoundInclusive
+    }
+}
+
 private func runtimeSortedSetBoxCreate(comparatorRaw: Int) -> RuntimeSetBox {
     let box = RuntimeSetBox(elements: [])
     box.enableSorted(comparatorRaw: comparatorRaw)
@@ -142,6 +257,77 @@ public func kk_sorted_set_last(_ setRaw: Int, _ outThrown: UnsafeMutablePointer<
     return last.legacyRawValue
 }
 
+private func runtimeSortedSetRangeView(
+    setRaw: Int,
+    range: RuntimeSortedRange
+) -> Int {
+    guard let set = runtimeSetBox(from: setRaw) else {
+        return registerRuntimeObject(
+            runtimeSortedSetBoxCreate(comparatorRaw: 0),
+            typeID: navigableSetRuntimeTypeID
+        )
+    }
+    return registerRuntimeObject(
+        RuntimeSetBox(rangeViewOf: set, range: range),
+        typeID: navigableSetRuntimeTypeID
+    )
+}
+
+@_cdecl("__kk_sorted_set_head_set")
+public func kk_sorted_set_head_set(
+    _ setRaw: Int,
+    _ toElement: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    let range = RuntimeSortedRange(lowerBoundRaw: nil, upperBoundRaw: toElement)
+    if let set = runtimeSetBox(from: setRaw), !set.acceptsRangeView(range) {
+        runtimeSetThrown(outThrown, runtimeAllocateIllegalArgumentException(message: "Range endpoint outside existing view"))
+        return runtimeNullSentinelInt
+    }
+    return runtimeSortedSetRangeView(
+        setRaw: setRaw,
+        range: range
+    )
+}
+
+@_cdecl("__kk_sorted_set_tail_set")
+public func kk_sorted_set_tail_set(
+    _ setRaw: Int,
+    _ fromElement: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    let range = RuntimeSortedRange(lowerBoundRaw: fromElement, upperBoundRaw: nil)
+    if let set = runtimeSetBox(from: setRaw), !set.acceptsRangeView(range) {
+        runtimeSetThrown(outThrown, runtimeAllocateIllegalArgumentException(message: "Range endpoint outside existing view"))
+        return runtimeNullSentinelInt
+    }
+    return runtimeSortedSetRangeView(
+        setRaw: setRaw,
+        range: range
+    )
+}
+
+@_cdecl("__kk_sorted_set_sub_set")
+public func kk_sorted_set_sub_set(
+    _ setRaw: Int,
+    _ fromElement: Int,
+    _ toElement: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    let range = RuntimeSortedRange(lowerBoundRaw: fromElement, upperBoundRaw: toElement)
+    if let set = runtimeSetBox(from: setRaw), !set.acceptsRangeView(range) {
+        runtimeSetThrown(outThrown, runtimeAllocateIllegalArgumentException(message: "Range endpoints outside existing view"))
+        return runtimeNullSentinelInt
+    }
+    return runtimeSortedSetRangeView(
+        setRaw: setRaw,
+        range: range
+    )
+}
+
 @_cdecl("__kk_sorted_set_lower")
 public func kk_sorted_set_lower(_ setRaw: Int, _ element: Int) -> Int {
     guard let set = runtimeSetBox(from: setRaw),
@@ -261,6 +447,41 @@ private func runtimeSortedMapCopyEntries(from mapRaw: Int, into box: RuntimeMapB
             value: runtimeSourceMapGet(mapRaw, key: key.legacyRawValue) ?? runtimeNullSentinelInt
         )
     }
+}
+
+private func runtimeSortedMapRangeView(
+    mapRaw: Int,
+    range: RuntimeSortedRange
+) -> Int {
+    guard let map = runtimeMapBox(from: mapRaw) else {
+        return registerRuntimeObject(
+            RuntimeMapBox(keys: [], values: []),
+            typeID: navigableMapRuntimeTypeID
+        )
+    }
+    return registerRuntimeObject(
+        RuntimeMapBox(rangeViewOf: map, range: range),
+        typeID: navigableMapRuntimeTypeID
+    )
+}
+
+@_cdecl("__kk_sorted_map_sub_map")
+public func kk_sorted_map_sub_map(
+    _ mapRaw: Int,
+    _ fromKey: Int,
+    _ toKey: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    let range = RuntimeSortedRange(lowerBoundRaw: fromKey, upperBoundRaw: toKey)
+    if let map = runtimeMapBox(from: mapRaw), !map.acceptsRangeView(range) {
+        runtimeSetThrown(outThrown, runtimeAllocateIllegalArgumentException(message: "Range endpoints outside existing view"))
+        return runtimeNullSentinelInt
+    }
+    return runtimeSortedMapRangeView(
+        mapRaw: mapRaw,
+        range: range
+    )
 }
 
 /// Binary-search a navigable key bound over the map's key order — same

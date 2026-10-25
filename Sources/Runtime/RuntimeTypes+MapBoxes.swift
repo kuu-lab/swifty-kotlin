@@ -4,6 +4,9 @@ final class RuntimeMapBox {
     private var keyStorage: [RuntimeValue]
     private var valueStorage: [RuntimeValue]
     private let backingMap: RuntimeMapBox?
+    private let rangeView: RuntimeSortedRange?
+    private let rangeBounds: RuntimeSortedBounds?
+    private let isDescendingView: Bool
     private enum Key: Hashable {
         case structural(RuntimeElementKey)
         case identity(Int)
@@ -75,8 +78,8 @@ final class RuntimeMapBox {
 
     var keyValues: [RuntimeValue] {
         get {
-            if let backingMap {
-                return invertCompare ? backingMap.keyValues.reversed() : backingMap.keyValues
+            if backingMap != nil {
+                return orderedEntries.map { $0.0 }
             }
             return keyStorage
         }
@@ -99,8 +102,8 @@ final class RuntimeMapBox {
 
     var entryValues: [RuntimeValue] {
         get {
-            if let backingMap {
-                return invertCompare ? backingMap.entryValues.reversed() : backingMap.entryValues
+            if backingMap != nil {
+                return orderedEntries.map { $0.1 }
             }
             return valueStorage
         }
@@ -143,6 +146,9 @@ final class RuntimeMapBox {
         self.keyStorage = keys.map { RuntimeValue(raw: $0) }
         self.valueStorage = values.map { RuntimeValue(raw: $0) }
         self.backingMap = backingMap
+        self.rangeView = nil
+        self.rangeBounds = nil
+        self.isDescendingView = false
         self.usesReferenceEquality = backingMap?.usesReferenceEquality ?? usesReferenceEquality
         self.keyIndex = [:]
         self.defaultValueFnPtr = defaultValueFnPtr
@@ -157,6 +163,9 @@ final class RuntimeMapBox {
         self.keyStorage = []
         self.valueStorage = []
         self.backingMap = parent
+        self.rangeView = nil
+        self.rangeBounds = parent.rangeBounds?.reversed()
+        self.isDescendingView = true
         self.usesReferenceEquality = parent.usesReferenceEquality
         self.keyIndex = [:]
         self.defaultValueFnPtr = 0
@@ -166,16 +175,50 @@ final class RuntimeMapBox {
         self.invertCompare = !parent.invertCompare
     }
 
+    init(rangeViewOf parent: RuntimeMapBox, range: RuntimeSortedRange) {
+        self.keyStorage = []
+        self.valueStorage = []
+        self.backingMap = parent
+        self.rangeView = range
+        self.rangeBounds = parent.rangeBounds?.intersecting(range, using: parent.sortedCompare)
+            ?? RuntimeSortedBounds(range)
+        self.isDescendingView = false
+        self.usesReferenceEquality = parent.usesReferenceEquality
+        self.keyIndex = [:]
+        self.defaultValueFnPtr = 0
+        self.defaultValueClosureRaw = 0
+        self.sorted = true
+        self.comparatorRaw = parent.comparatorRaw
+        self.invertCompare = parent.invertCompare
+    }
+
+    private var orderedEntries: [(RuntimeValue, RuntimeValue)] {
+        guard let backingMap else {
+            return Array(zip(keyStorage, valueStorage))
+        }
+        var entries = Array(zip(backingMap.keyValues, backingMap.entryValues))
+        if isDescendingView { entries.reverse() }
+        guard let rangeView else { return entries }
+        return entries.filter {
+            rangeView.contains($0.0.legacyRawValue, using: sortedCompare)
+        }
+    }
+
     var count: Int {
-        backingMap?.count ?? keyStorage.count
+        guard let backingMap else { return keyStorage.count }
+        return rangeView == nil ? backingMap.count : orderedEntries.count
     }
 
     var isEmpty: Bool {
-        backingMap?.isEmpty ?? keyStorage.isEmpty
+        guard let backingMap else { return keyStorage.isEmpty }
+        return rangeView == nil ? backingMap.isEmpty : orderedEntries.isEmpty
     }
 
     func index(ofRawKey key: Int) -> Int? {
         if let backingMap {
+            if let rangeView, !rangeView.contains(key, using: sortedCompare) {
+                return nil
+            }
             return backingMap.index(ofRawKey: key)
         }
         if sorted {
@@ -228,6 +271,7 @@ final class RuntimeMapBox {
 
     func appendEntry(key: RuntimeValue, value: RuntimeValue) {
         if let backingMap {
+            guard acceptsInsertion(rawKey: key.legacyRawValue) else { return }
             backingMap.appendEntry(key: key, value: value)
             return
         }
@@ -261,6 +305,7 @@ final class RuntimeMapBox {
     @discardableResult
     func put(key: RuntimeValue, value: RuntimeValue) -> RuntimeValue? {
         if let backingMap {
+            guard acceptsInsertion(rawKey: key.legacyRawValue) else { return nil }
             return backingMap.put(key: key, value: value)
         }
         guard !isReadOnly else { return nil }
@@ -289,6 +334,7 @@ final class RuntimeMapBox {
     @discardableResult
     func remove(key: Int) -> Int? {
         if let backingMap {
+            guard rangeView?.contains(key, using: sortedCompare) ?? true else { return nil }
             return backingMap.remove(key: key)
         }
         guard !isReadOnly, let index = index(ofRawKey: key) else {
@@ -303,7 +349,9 @@ final class RuntimeMapBox {
 
     func removeAll() {
         if let backingMap {
-            backingMap.removeAll()
+            for key in keyValues {
+                _ = backingMap.remove(key: key.legacyRawValue)
+            }
             return
         }
         guard !isReadOnly else { return }
@@ -311,6 +359,19 @@ final class RuntimeMapBox {
         valueStorage.removeAll()
         keyIndex.removeAll()
         directModCount += 1
+    }
+
+    func acceptsInsertion(rawKey: Int) -> Bool {
+        (rangeView?.contains(rawKey, using: sortedCompare) ?? true)
+            && (backingMap?.acceptsInsertion(rawKey: rawKey) ?? true)
+    }
+
+    func acceptsRangeView(_ range: RuntimeSortedRange) -> Bool {
+        if let lower = range.lowerBoundRaw, let upper = range.upperBoundRaw,
+           sortedCompare(lower, upper) > 0 {
+            return false
+        }
+        return rangeBounds?.acceptsRange(range, using: sortedCompare) ?? true
     }
 
     private func rebuildKeyIndex() {
@@ -331,6 +392,9 @@ final class RuntimeMapBox {
         self.keyStorage = []
         self.valueStorage = []
         self.backingMap = nil
+        self.rangeView = nil
+        self.rangeBounds = nil
+        self.isDescendingView = false
         self.usesReferenceEquality = false
         self.keyIndex = [:]
         self.keyStorage.reserveCapacity(max(0, capacity))
