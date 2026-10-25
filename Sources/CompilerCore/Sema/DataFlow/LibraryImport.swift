@@ -42,10 +42,6 @@ extension DataFlowSemaPhase {
         /// parsed and version-gated, container and decoded IR kept open for
         /// the body materialization that runs during KIR lowering.
         let klibModules: [LoadedKlibModule]
-        /// The stdlib snapshot already contains the synthetic delegate bootstrap
-        /// that normally runs after import.
-        let loadedStdlibSemaSnapshot: Bool
-
         init(
             pendingSupertypeEdges: [(subtype: SymbolID, superFQName: [InternedString])],
             importedBindings: [ImportedLibraryBinding],
@@ -55,8 +51,7 @@ extension DataFlowSemaPhase {
             stdlibHasPrecomputedSyntheticStubs: Bool = false,
             stdlibMemberKeys: Set<BundledMemberKey>? = nil,
             importedExternalLinkNames: [String: SymbolID] = [:],
-            importedSymbolsByFQName: [String: SymbolID] = [:],
-            loadedStdlibSemaSnapshot: Bool = false
+            importedSymbolsByFQName: [String: SymbolID] = [:]
         ) {
             self.pendingSupertypeEdges = pendingSupertypeEdges
             self.importTimeBindings = importedBindings
@@ -67,7 +62,6 @@ extension DataFlowSemaPhase {
             self.stdlibMemberKeys = stdlibMemberKeys
             self.importedExternalLinkNames = importedExternalLinkNames
             self.importedSymbolsByFQName = importedSymbolsByFQName
-            self.loadedStdlibSemaSnapshot = loadedStdlibSemaSnapshot
         }
 
         /// Every binding registered so far — on-demand index providers keep
@@ -214,7 +208,6 @@ extension DataFlowSemaPhase {
         var providerRegisteredSymbols: Set<SymbolID> = []
         var indexedSources: [IndexedLibrarySource] = []
         var stdlibIndexSource: IndexedLibrarySource?
-        var loadedStdlibSemaSnapshot = false
         /// Phantom type-parameter bookkeeping (BUG-KSP-1217). These maps grow
         /// incrementally inside `appendImportedBinding` because index-provider
         /// entries keep registering after the tail pass runs; the resolver
@@ -652,72 +645,8 @@ extension DataFlowSemaPhase {
             if stdlibArtifact {
                 lazyLoaderState.stdlibMemberIndex = precomputedMemberIndex
             }
-            if stdlibArtifact,
-               let snapshot = StdlibSemaSnapshotArchive.load(
-                   from: libraryDir,
-                   metadataPath: manifestInfo.metadataPath,
-                   target: options.target,
-                   moduleName: manifestInfo.moduleName
-               ) {
-                loadedStdlibSemaSnapshot = true
-                let symbolMap = symbols.registerSemaSnapshotSymbols(snapshot.symbols, interner: interner)
-                let typeMap = types.restoreSemaSnapshot(
-                    snapshot.types,
-                    symbolMap: symbolMap
-                )
-                symbols.restoreSemaSnapshotState(
-                    snapshot.symbols,
-                    symbolMap: symbolMap,
-                    typeMap: typeMap,
-                    interner: interner
-                )
-
-                let origin = manifestInfo.moduleName ?? libraryDir
-                for entry in snapshot.symbols.symbols {
-                    let symbol = symbolMap[entry.id] ?? entry.id
-                    guard entry.flags.contains(.importedLibrary) else { continue }
-                    boundSymbolOrigins[symbol] = (origin: origin, metadataPath: manifestInfo.metadataPath)
-                    let fqName = entry.fqName.joined(separator: ".")
-                    if !fqName.isEmpty { importedSymbolByFQName[fqName] = symbol }
-                    switch entry.kind {
-                    case .function, .constructor:
-                        let components = entry.fqName.map(interner.intern)
-                        functionBindingCountByFQName[components, default: 0] += 1
-                    case .typeParameter:
-                        if entry.fqName.count >= 3,
-                           entry.fqName[entry.fqName.count - 2].hasPrefix("$")
-                        {
-                            let owner = entry.fqName.dropLast(2).map(interner.intern)
-                            typeParameterBindingSymbolsByOwnerFQName[owner, default: []].append(symbol)
-                        }
-                    default:
-                        break
-                    }
-                }
-                for (oldSymbol, linkName) in snapshot.symbols.externalLinkNames {
-                    externalLinkNameToSymbol[linkName] = symbolMap[oldSymbol] ?? oldSymbol
-                }
-                for descriptor in snapshot.inlineFunctions {
-                    let symbol = symbolMap[descriptor.symbol] ?? descriptor.symbol
-                    let path = URL(fileURLWithPath: libraryDir)
-                        .appendingPathComponent(descriptor.relativePath)
-                        .standardizedFileURL.path
-                    let signature = descriptor.signature.map {
-                        remapSnapshotSignature($0, symbols: symbolMap, types: typeMap)
-                    }
-                    importedInlineFunctions.register(
-                        ImportedInlineFunctionStore.Descriptor(
-                            path: path,
-                            signature: signature,
-                            name: interner.intern(descriptor.name),
-                            reifiedComponentTokens: descriptor.reifiedComponentTokens,
-                            packedValueParameterTypes: descriptor.packedValueParameterTypes?.map { typeMap[$0] ?? $0 }
-                        ),
-                        for: symbol
-                    )
-                }
-                continue
-            }
+            // The full Sema snapshot costs more to decode and restore than the
+            // compact metadata index does to hydrate lazily during compilation.
             let indexedFile = withSubPhaseTiming("indexDecode", timer: phaseTimer) {
                 cache?.cachedIndexedMetadataFile(metadataPath: metadataPath)
                     ?? KklibBatchSession.cachedIndexedFile(metadataPath: metadataPath)
@@ -1481,8 +1410,7 @@ extension DataFlowSemaPhase {
             stdlibHasPrecomputedSyntheticStubs: stdlibHasPrecomputedSyntheticStubs,
             stdlibMemberKeys: stdlibIndexSource?.memberKeys(),
             importedExternalLinkNames: externalLinkNameToSymbol,
-            importedSymbolsByFQName: importedSymbolByFQName,
-            loadedStdlibSemaSnapshot: loadedStdlibSemaSnapshot
+            importedSymbolsByFQName: importedSymbolByFQName
         )
     }
 

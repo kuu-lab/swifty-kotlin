@@ -158,25 +158,23 @@ final class DataFlowSemaPhase: CompilerPhase {
                 }
             }
         }
-        if !importDeferredWork.loadedStdlibSemaSnapshot {
-            withSubPhaseTiming("registerSyntheticDelegateStubs", timer: ctx.phaseTimer) {
-                if importDeferredWork.stdlibHasPrecomputedSyntheticStubs,
-                   restorePrecomputedStdlibSyntheticTypeSymbols(
-                       symbols: symbols,
-                       types: types,
-                       interner: ctx.interner
-                   )
-                {
-                    // The artifact owns these records; the registry would rebuild
-                    // the same symbols and re-decode their lazy metadata here.
-                } else {
-                    registerSyntheticDelegateStubs(
-                        symbols: symbols,
-                        types: types,
-                        interner: ctx.interner,
-                        bundledIndex: bundledIndex
-                    )
-                }
+        withSubPhaseTiming("registerSyntheticDelegateStubs", timer: ctx.phaseTimer) {
+            if importDeferredWork.stdlibHasPrecomputedSyntheticStubs,
+               restorePrecomputedStdlibSyntheticTypeSymbols(
+                   symbols: symbols,
+                   types: types,
+                   interner: ctx.interner
+               )
+            {
+                // The artifact owns these records; the registry would rebuild
+                // the same symbols and re-decode their lazy metadata here.
+            } else {
+                registerSyntheticDelegateStubs(
+                    symbols: symbols,
+                    types: types,
+                    interner: ctx.interner,
+                    bundledIndex: bundledIndex
+                )
             }
         }
         // Apply imported class/interface layouts after synthetic bootstrap

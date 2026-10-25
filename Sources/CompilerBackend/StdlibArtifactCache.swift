@@ -619,7 +619,6 @@ public enum StdlibArtifactBuilder {
         if includeRuntimePrelink {
             attachRuntimePrelinkIfAvailable(outputBase: artifactPath, target: target)
         }
-        try StdlibSemaSnapshotArchive.write(forArtifactAt: artifactPath, target: target, profile: profile)
         return artifactPath
     }
 

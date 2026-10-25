@@ -51,9 +51,8 @@ func remapSnapshotSignature(
     )
 }
 
-/// Persists the fully materialized stdlib Sema state beside its `.kklib`.
-/// The archive is read from a memory-mapped `Data`; semantic IDs are relocated
-/// into each consumer's SymbolTable and TypeSystem after decoding.
+/// Legacy support for serializing a fully materialized stdlib Sema state.
+/// The normal artifact builder and importer now use compact-indexed lazy loading.
 public enum StdlibSemaSnapshotArchive {
     static let fileName = "sema.snapshot"
     // v2: snapshots written by schema 1 omitted the deferred inline-body
@@ -65,8 +64,7 @@ public enum StdlibSemaSnapshotArchive {
     static let schemaVersion = 2
 
     /// Builds a clean import context and writes its complete Sema state into
-    /// the artifact. This runs once while producing an artifact, not during a
-    /// consumer compilation.
+    /// the artifact. This is retained for archive tests and explicit tooling.
     public static func write(
         forArtifactAt artifactPath: String,
         target: TargetTriple,
