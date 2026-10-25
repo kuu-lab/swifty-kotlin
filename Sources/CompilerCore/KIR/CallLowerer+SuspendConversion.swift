@@ -46,7 +46,7 @@ extension CallLowerer {
         let result = arena.appendTemporary(type: sourceFunction.returnType)
         let thrown = arena.appendTemporary(type: sema.types.nullableAnyType)
         body.append(.call(
-            symbol: nil, callee: invoke, arguments: callArguments,
+            callee: invoke, arguments: callArguments,
             result: result, canThrow: true, thrownResult: thrown
         ))
         let success = driver.ctx.makeLoopLabel()

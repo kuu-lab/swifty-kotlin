@@ -293,7 +293,7 @@ extension CoroutineLoweringPass {
             nextLabel += 1
             let slot = slots[root]!
             result.append(.jumpIfEqual(lhs: slot, rhs: null, target: skip))
-            result.append(.call(symbol: nil, callee: release, arguments: [slot], result: nil, canThrow: false, thrownResult: nil))
+            result.append(.call(callee: release, arguments: [slot], result: nil, canThrow: false))
             result.append(.copy(from: null, to: slot))
             result.append(.label(skip))
         }

@@ -15,12 +15,10 @@ extension CallLowerer {
             let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
             if sema.types.isSubtype(nonNullReceiverType, sema.types.stringType) {
                 instructions.append(.call(
-                    symbol: nil,
                     callee: interner.intern("__kk_string_struct_get_length"),
                     arguments: [loweredReceiverID],
                     result: result,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ))
                 return result
             }
@@ -49,34 +47,28 @@ extension CallLowerer {
                 let calleeStr = calleeNameStr
                 if calleeStr == "lowercase" {
                     instructions.append(.call(
-                        symbol: nil,
                         callee: interner.intern("kk_string_lowercase_flat"),
                         arguments: [loweredReceiverID],
                         result: result,
-                        canThrow: false,
-                        thrownResult: nil
+                        canThrow: false
                     ))
                     return result
                 }
                 if calleeStr == "uppercase" {
                     instructions.append(.call(
-                        symbol: nil,
                         callee: interner.intern("kk_string_uppercase_flat"),
                         arguments: [loweredReceiverID],
                         result: result,
-                        canThrow: false,
-                        thrownResult: nil
+                        canThrow: false
                     ))
                     return result
                 }
                 if calleeStr == "toRegex" {
                     instructions.append(.call(
-                        symbol: nil,
                         callee: interner.intern("__kk_string_toRegex_flat"),
                         arguments: [loweredReceiverID],
                         result: result,
-                        canThrow: false,
-                        thrownResult: nil
+                        canThrow: false
                     ))
                     return result
                 }
@@ -87,12 +79,10 @@ extension CallLowerer {
                         : calleeStr == "last" ? "__kk_string_last_flat"
                         : "__kk_string_single_flat"
                     instructions.append(.call(
-                        symbol: nil,
                         callee: interner.intern(kkName),
                         arguments: [loweredReceiverID, thrownExpr],
                         result: result,
-                        canThrow: true,
-                        thrownResult: nil
+                        canThrow: true
                     ))
                     return result
                 }
@@ -101,12 +91,10 @@ extension CallLowerer {
                         : calleeStr == "lastOrNull" ? "__kk_string_lastOrNull_flat"
                         : "__kk_string_singleOrNull_flat"
                     instructions.append(.call(
-                        symbol: nil,
                         callee: interner.intern(kkName),
                         arguments: [loweredReceiverID],
                         result: result,
-                        canThrow: false,
-                        thrownResult: nil
+                        canThrow: false
                     ))
                     return result
                 }
@@ -163,12 +151,10 @@ extension CallLowerer {
                     ? "kk_charsequence_ifBlank"
                     : "kk_charsequence_ifEmpty"
                 instructions.append(.call(
-                    symbol: nil,
                     callee: interner.intern(runtimeCallee),
                     arguments: [loweredReceiverID, fnPtrExpr, envPtrExpr],
                     result: result,
-                    canThrow: true,
-                    thrownResult: nil
+                    canThrow: true
                 ))
                 return result
             }
@@ -186,12 +172,10 @@ extension CallLowerer {
                         ? "__kk_string_toRegex_with_options_flat"
                         : "__kk_string_toRegex_with_option_flat"
                     instructions.append(.call(
-                        symbol: nil,
                         callee: interner.intern(rtName),
                         arguments: [loweredReceiverID, loweredArgIDs[0]],
                         result: result,
-                        canThrow: false,
-                        thrownResult: nil
+                        canThrow: false
                     ))
                     return result
                 }
@@ -231,7 +215,6 @@ extension CallLowerer {
                         || calleeStr == "ifEmpty"
                     let stringHOFThrownResult: KIRExprID? = nil
                     instructions.append(.call(
-                        symbol: nil,
                         callee: interner.intern(runtimeCall.callee),
                         arguments: runtimeCall.arguments,
                         result: result,
@@ -286,12 +269,10 @@ extension CallLowerer {
             }
             if let runtimeCallee {
                 instructions.append(.call(
-                    symbol: nil,
                     callee: interner.intern(runtimeCallee),
                     arguments: [loweredReceiverID] + normalizedArgIDs,
                     result: result,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ))
                 return result
             }
@@ -359,12 +340,10 @@ extension CallLowerer {
                     )
                 }
                 instructions.append(.call(
-                    symbol: nil,
                     callee: interner.intern("__kk_string_format_flat"),
                     arguments: [loweredReceiverID, packedArgs],
                     result: result,
-                    canThrow: true,
-                    thrownResult: nil
+                    canThrow: true
                 ))
                 return result
             }

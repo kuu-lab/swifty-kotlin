@@ -19,10 +19,10 @@ extension LoweringABIAndPropertyRegressionTests {
             symbol: SymbolID(rawValue: 7190), name: interner.intern("main"), params: [],
             returnType: types.unitType,
             body: [
-                .call(symbol: nil, callee: fieldGet, arguments: [receiver, offset],
-                      result: fieldValue, canThrow: false, thrownResult: nil),
-                .call(symbol: nil, callee: compare, arguments: [fieldValue, literal],
-                      result: comparison, canThrow: false, thrownResult: nil),
+                .call(callee: fieldGet, arguments: [receiver, offset],
+                      result: fieldValue, canThrow: false),
+                .call(callee: compare, arguments: [fieldValue, literal],
+                      result: comparison, canThrow: false),
                 .returnUnit,
             ], isSuspend: false, isInline: false
         )
@@ -83,8 +83,8 @@ extension LoweringABIAndPropertyRegressionTests {
                 .call(symbol: hasSymbol ? getSymbol : nil, callee: getCallee,
                       arguments: [list, index], result: element, canThrow: true, thrownResult: thrown),
                 .jumpIfNotNull(value: thrown, target: 1),
-                .call(symbol: nil, callee: consumeCallee, arguments: [element],
-                      result: nil, canThrow: false, thrownResult: nil),
+                .call(callee: consumeCallee, arguments: [element],
+                      result: nil, canThrow: false),
                 .label(1),
                 .returnUnit,
             ], isSuspend: false, isInline: false
@@ -132,8 +132,8 @@ extension LoweringABIAndPropertyRegressionTests {
             symbol: SymbolID(rawValue: 7210), name: interner.intern("main"), params: [],
             returnType: types.unitType,
             body: results.map { result in
-                .call(symbol: nil, callee: getCallee, arguments: [list, index],
-                      result: result, canThrow: true, thrownResult: nil)
+                .call(callee: getCallee, arguments: [list, index],
+                      result: result, canThrow: true)
             } + [.returnUnit], isSuspend: false, isInline: false
         )
         let decl = arena.appendDecl(.function(function))

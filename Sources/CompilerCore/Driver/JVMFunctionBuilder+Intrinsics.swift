@@ -771,7 +771,7 @@ extension JVMFunctionBuilder {
               case let .classType(classType) = program.sema.types.kind(
                   of: program.sema.types.makeNonNullable(semanticType)
               ),
-              let iterableSymbol = program.sema.symbols.lookup(fqName: [
+              let iterableSymbol = program.sema.symbols.lookupNominal(fqName: [
                   interner.intern("kotlin"),
                   interner.intern("collections"),
                   interner.intern("Iterable"),

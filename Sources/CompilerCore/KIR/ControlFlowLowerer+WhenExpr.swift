@@ -223,12 +223,10 @@ extension ControlFlowLowerer {
 
             let isResult = arena.appendTemporary(type: boolType)
             instructions.append(.call(
-                symbol: nil,
                 callee: interner.intern("kk_op_is"),
                 arguments: [loweredSubjectID, typeToken],
                 result: isResult,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
             guard negated else {
                 return isResult

@@ -34,7 +34,7 @@ struct CollectionLiteralLoweringTests {
         let (module, declID) = makeModule(body: [
             .call(symbol: constructor, callee: interner.intern("<init>"),
                   arguments: kind == "empty" ? [receiver] : [receiver, argument],
-                  result: result, canThrow: true, thrownResult: nil),
+                  result: result, canThrow: true),
             .returnUnit,
         ], interner: interner, arena: arena)
         try runPass(module: module, kirCtx: ctx)
@@ -72,10 +72,9 @@ struct CollectionLiteralLoweringTests {
         let iterator = arena.appendExpr(.temporary(2))
         let (module, declID) = makeModule(body: [
             .call(symbol: includeSymbol ? constructor : nil, callee: interner.intern(name),
-                  arguments: [receiver], result: result, canThrow: true, thrownResult: nil),
-            .virtualCall(symbol: nil, callee: interner.intern("iterator"), receiver: result,
-                         arguments: [], result: iterator, canThrow: true, thrownResult: nil,
-                         dispatch: .vtable(slot: 0)),
+                  arguments: [receiver], result: result, canThrow: true),
+            .virtualCall(callee: interner.intern("iterator"), receiver: result,
+                         arguments: [], result: iterator, canThrow: true, dispatch: .vtable(slot: 0)),
             .returnUnit,
         ], interner: interner, arena: arena)
         let originalBody = bodyInDecl(declID, module: module)
@@ -89,7 +88,7 @@ struct CollectionLiteralLoweringTests {
         let v0 = arena.appendExpr(.temporary(0))
         let v1 = arena.appendExpr(.temporary(1))
         return makeModule(body: [
-            .call(symbol: nil, callee: callee, arguments: [v0], result: v1, canThrow: false, thrownResult: nil),
+            .call(callee: callee, arguments: [v0], result: v1, canThrow: false),
             .returnUnit,
         ], interner: interner, arena: arena)
     }
@@ -97,7 +96,7 @@ struct CollectionLiteralLoweringTests {
     private func makeModuleWithZeroArgCall(callee: InternedString, interner: StringInterner, arena: KIRArena) -> (KIRModule, KIRDeclID) {
         let result = arena.appendExpr(.temporary(0))
         return makeModule(body: [
-            .call(symbol: nil, callee: callee, arguments: [], result: result, canThrow: false, thrownResult: nil),
+            .call(callee: callee, arguments: [], result: result, canThrow: false),
             .returnUnit,
         ], interner: interner, arena: arena)
     }
@@ -113,20 +112,16 @@ struct CollectionLiteralLoweringTests {
         let result = arena.appendExpr(.temporary(3))
         return makeModule(body: [
             .call(
-                symbol: nil,
                 callee: interner.intern(try loweringRuntimeABI("op_rangeTo").name),
                 arguments: [start, end],
                 result: range,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ),
             .call(
-                symbol: nil,
                 callee: callee,
                 arguments: [range],
                 result: result,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ),
             .returnUnit,
         ], interner: interner, arena: arena)
@@ -154,12 +149,10 @@ struct CollectionLiteralLoweringTests {
             body: [
                 .constValue(result: parameterExpr, value: .symbolRef(parameterSymbol)),
                 .call(
-                    symbol: nil,
                     callee: interner.intern(try loweringRuntimeABI("range_iterator").name),
                     arguments: [parameterExpr],
                     result: iteratorExpr,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ),
                 .returnUnit,
             ],
@@ -230,15 +223,12 @@ struct CollectionLiteralLoweringTests {
         let (module, declID) = makeModule(
             body: [
                 .call(
-                    symbol: nil,
                     callee: interner.intern(try loweringRuntimeABI("list_iterator").name),
                     arguments: [list],
                     result: iterator,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ),
                 .call(
-                    symbol: nil,
                     callee: interner.intern(try loweringRuntimeABI("iterator_hasNext").name),
                     arguments: [iterator],
                     result: hasNext,
@@ -246,7 +236,6 @@ struct CollectionLiteralLoweringTests {
                     thrownResult: arena.appendTemporary(type: types.anyType)
                 ),
                 .call(
-                    symbol: nil,
                     callee: interner.intern(try loweringRuntimeABI("iterator_next").name),
                     arguments: [iterator],
                     result: next,
@@ -351,7 +340,7 @@ struct CollectionLiteralLoweringTests {
             params: [],
             returnType: TypeSystem().unitType,
             body: [
-                .call(symbol: nil, callee: interner.intern("mapOf"), arguments: [v0, v1, v2, v3], result: v3, canThrow: false, thrownResult: nil),
+                .call(callee: interner.intern("mapOf"), arguments: [v0, v1, v2, v3], result: v3, canThrow: false),
                 .returnUnit,
             ],
             isSuspend: false,
@@ -380,7 +369,7 @@ struct CollectionLiteralLoweringTests {
             params: [],
             returnType: TypeSystem().unitType,
             body: [
-                .call(symbol: nil, callee: interner.intern("linkedMapOf"), arguments: [pair], result: result, canThrow: false, thrownResult: nil),
+                .call(callee: interner.intern("linkedMapOf"), arguments: [pair], result: result, canThrow: false),
                 .returnUnit,
             ],
             isSuspend: false,
@@ -411,7 +400,7 @@ struct CollectionLiteralLoweringTests {
             params: [],
             returnType: TypeSystem().unitType,
             body: [
-                .call(symbol: nil, callee: interner.intern("hashMapOf"), arguments: [pair], result: result, canThrow: false, thrownResult: nil),
+                .call(callee: interner.intern("hashMapOf"), arguments: [pair], result: result, canThrow: false),
                 .returnUnit,
             ],
             isSuspend: false,
@@ -489,20 +478,16 @@ struct CollectionLiteralLoweringTests {
             returnType: TypeSystem().unitType,
             body: [
                 .call(
-                    symbol: nil,
                     callee: interner.intern("mapOf"),
                     arguments: [entry0, entry1, entry2, entry3],
                     result: mapExpr,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ),
                 .call(
-                    symbol: nil,
                     callee: interner.intern("count"),
                     arguments: [mapExpr, lambda, closureRaw],
                     result: countResult,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ),
                 .returnUnit,
             ],
@@ -539,20 +524,16 @@ struct CollectionLiteralLoweringTests {
             returnType: TypeSystem().unitType,
             body: [
                 .call(
-                    symbol: nil,
                     callee: interner.intern("mapOf"),
                     arguments: [entry0, entry1, entry2, entry3],
                     result: mapExpr,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ),
                 .call(
-                    symbol: nil,
                     callee: interner.intern("any"),
                     arguments: [mapExpr, lambda],
                     result: anyResult,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ),
                 .returnUnit,
             ],
@@ -594,20 +575,16 @@ struct CollectionLiteralLoweringTests {
             returnType: TypeSystem().unitType,
             body: [
                 .call(
-                    symbol: nil,
                     callee: interner.intern("mapOf"),
                     arguments: [entry0, entry1, entry2, entry3],
                     result: mapExpr,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ),
                 .call(
-                    symbol: nil,
                     callee: interner.intern("all"),
                     arguments: [mapExpr, lambda],
                     result: allResult,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ),
                 .returnUnit,
             ],
@@ -645,20 +622,16 @@ struct CollectionLiteralLoweringTests {
             returnType: TypeSystem().unitType,
             body: [
                 .call(
-                    symbol: nil,
                     callee: interner.intern("mapOf"),
                     arguments: [entry0, entry1, entry2, entry3],
                     result: mapExpr,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ),
                 .call(
-                    symbol: nil,
                     callee: interner.intern("none"),
                     arguments: [mapExpr, lambda],
                     result: noneResult,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ),
                 .returnUnit,
             ],
@@ -900,7 +873,7 @@ struct CollectionLiteralLoweringTests {
             params: [],
             returnType: TypeSystem().unitType,
             body: [
-                .call(symbol: nil, callee: interner.intern("setOf"), arguments: [v0, v1], result: v2, canThrow: false, thrownResult: nil),
+                .call(callee: interner.intern("setOf"), arguments: [v0, v1], result: v2, canThrow: false),
                 .returnUnit,
             ],
             isSuspend: false,
@@ -1006,12 +979,10 @@ struct CollectionLiteralLoweringTests {
             returnType: TypeSystem().unitType,
             body: [
                 .call(
-                    symbol: nil,
                     callee: interner.intern("buildList"),
                     arguments: [arg0, arg1],
                     result: result,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ),
                 .returnUnit,
             ],
@@ -1056,12 +1027,10 @@ struct CollectionLiteralLoweringTests {
             returnType: TypeSystem().unitType,
             body: [
                 .call(
-                    symbol: nil,
                     callee: interner.intern("buildStringBuilder"),
                     arguments: [arg0, arg1],
                     result: result,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ),
                 .returnUnit,
             ],
@@ -1114,12 +1083,10 @@ struct CollectionLiteralLoweringTests {
             returnType: TypeSystem().unitType,
             body: [
                 .call(
-                    symbol: nil,
                     callee: interner.intern("buildSet"),
                     arguments: [arg0, arg1],
                     result: result,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ),
                 .returnUnit,
             ],
@@ -1158,12 +1125,10 @@ struct CollectionLiteralLoweringTests {
             returnType: TypeSystem().unitType,
             body: [
                 .call(
-                    symbol: nil,
                     callee: interner.intern("buildMap"),
                     arguments: arguments,
                     result: result,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ),
                 .returnUnit,
             ],
@@ -1231,20 +1196,16 @@ struct CollectionLiteralLoweringTests {
             returnType: TypeSystem().unitType,
             body: [
                 .call(
-                    symbol: nil,
                     callee: interner.intern(try loweringRuntimeABI("op_rangeTo").name),
                     arguments: [start, end],
                     result: range,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ),
                 .call(
-                    symbol: nil,
                     callee: interner.intern("asReversed"),
                     arguments: [range],
                     result: result,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ),
                 .returnUnit,
             ],
@@ -1435,13 +1396,11 @@ struct CollectionLiteralLoweringTests {
             bodyInstructions.append(.constValue(result: argExpr, value: .intLiteral(Int64(i))))
         }
         bodyInstructions.append(.virtualCall(
-            symbol: nil,
             callee: interner.intern(callee),
             receiver: paramExpr,
             arguments: argExprs,
             result: resultExpr,
             canThrow: false,
-            thrownResult: nil,
             dispatch: .vtable(slot: 0)
         ))
         bodyInstructions.append(.returnUnit)
@@ -1643,13 +1602,11 @@ struct CollectionLiteralLoweringTests {
             body: [
                 .constValue(result: paramExpr, value: .symbolRef(SymbolID(rawValue: 100))),
                 .virtualCall(
-                    symbol: nil,
                     callee: interner.intern("size"),
                     receiver: paramExpr,
                     arguments: [],
                     result: resultExpr,
                     canThrow: false,
-                    thrownResult: nil,
                     dispatch: .vtable(slot: 0)
                 ),
                 .returnUnit,

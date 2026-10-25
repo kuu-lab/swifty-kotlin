@@ -51,12 +51,10 @@ func appendTypeAncestryRegistrations<Instructions: RangeReplaceableCollection>(
                 interner.intern("kk_type_register_super")
             }
             instructions.append(.call(
-                symbol: nil,
                 callee: registerCallee,
                 arguments: [childExpr, parentExpr],
                 result: registerResult,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
             stack.append(superSymbol)
         }

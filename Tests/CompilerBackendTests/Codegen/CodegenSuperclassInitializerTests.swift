@@ -40,6 +40,15 @@ struct CodegenSuperclassInitializerTests {
     }
 
     @Test
+    func testAbstractOverrideDispatchDuringSuperclassInit() throws {
+        try assertKotlinOutput(
+            try diffCaseSource("kuu_2914_virtual_call_during_super_init.kt"),
+            moduleName: "KUU2914VirtualCallDuringSuperclassInit",
+            expected: "anonymous\nlocal\n"
+        )
+    }
+
+    @Test
     func testSecondaryConstructorRunsClassBodyInitializers() throws {
         let source = """
         open class Counter {

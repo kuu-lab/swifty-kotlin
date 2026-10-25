@@ -608,12 +608,10 @@ extension InlineLoweringPass {
                         qualifiedSuperType: qualifiedSuperType
                     ))
                     lowered.append(.call(
-                        symbol: nil,
                         callee: unboxCallee,
                         arguments: [boxedResult],
                         result: loweredResult,
-                        canThrow: false,
-                        thrownResult: nil
+                        canThrow: false
                     ))
                     break
                 }

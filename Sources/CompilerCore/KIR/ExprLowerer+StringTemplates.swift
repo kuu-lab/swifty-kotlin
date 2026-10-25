@@ -81,12 +81,10 @@ extension ExprLowerer {
         for i in 1 ..< partIDs.count {
             let concatResult = arena.appendTemporary(type: stringType)
             instructions.append(.call(
-                symbol: nil,
                 callee: interner.intern("__kk_string_concat_flat"),
                 arguments: [accumulated, partIDs[i]],
                 result: concatResult,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
             accumulated = concatResult
         }

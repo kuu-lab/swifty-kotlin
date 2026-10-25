@@ -29,7 +29,7 @@ extension BundledStdlibExecutionTests {
                     CompletableFuture.completedFuture(2)
                 )
                 all.await()
-                println(all.isDone())
+                println(all.isDone)
                 println(CompletableFuture.anyOf(CompletableFuture.completedFuture("first")).await())
 
                 val deferred = CompletableDeferred<Int>()
@@ -65,14 +65,14 @@ extension BundledStdlibExecutionTests {
                 val cancelledDeferred = CompletableDeferred<Int>()
                 val cancelledFuture = cancelledDeferred.asCompletableFuture()
                 cancelledDeferred.cancel()
-                println(cancelledFuture.isCancelled())
+                println(cancelledFuture.isCancelled)
 
                 val job = CompletableJob()
                 val jobFuture = job.asCompletableFuture()
                 val jobCompleter = future { job.complete(); Unit }
                 jobFuture.await()
                 jobCompleter.await()
-                println(jobFuture.isDone())
+                println(jobFuture.isDone)
 
                 val failedJob = CompletableJob()
                 failedJob.completeExceptionally(IllegalStateException("job-boom"))
@@ -84,7 +84,7 @@ extension BundledStdlibExecutionTests {
                 val cancelledJob = CompletableJob()
                 val cancelledJobFuture = cancelledJob.asCompletableFuture()
                 cancelledJob.cancel()
-                println(cancelledJobFuture.isCancelled())
+                println(cancelledJobFuture.isCancelled)
 
                 println(future { 20 + 22 }.await())
                 println("done")

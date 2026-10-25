@@ -1582,7 +1582,14 @@ extension OverloadResolver {
                 ))
                 continue
             }
+            // A spread argument supplies an array, so reject candidate types
+            // whose array element type cannot be recovered.
             if arg.isSpread, isVararg[paramIndex] {
+                // Preserve error recovery for a spread expression that already
+                // has a root diagnostic; it has no meaningful type to check.
+                if argType == typeSystem.errorType {
+                    continue
+                }
                 guard let elementType = varargArrayArgumentElementType(
                     argType, parameterType: paramType, sema: sema
                 ) else {

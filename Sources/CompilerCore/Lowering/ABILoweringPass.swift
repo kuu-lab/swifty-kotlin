@@ -1333,8 +1333,8 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                preferStaticPrimitive: true
            )
         {
-            return [.call(symbol: nil, callee: unboxCallee, arguments: [from],
-                         result: to, canThrow: false, thrownResult: nil)]
+            return [.call(callee: unboxCallee, arguments: [from],
+                         result: to, canThrow: false)]
         }
         return nil
     }

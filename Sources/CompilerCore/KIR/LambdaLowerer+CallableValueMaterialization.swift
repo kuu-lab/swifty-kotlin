@@ -13,12 +13,10 @@ extension LambdaLowerer {
         instructions.append(.constValue(result: arityExpr, value: .intLiteral(arity)))
         // Preserve the raw symbol and capture ABI for inline/HOF/coroutine lowering.
         instructions.append(.call(
-            symbol: nil,
             callee: interner.intern("kk_function_value_tag_arity"),
             arguments: [callableExpr, arityExpr],
             result: nil,
-            canThrow: false,
-            thrownResult: nil
+            canThrow: false
         ))
     }
 
@@ -105,12 +103,10 @@ extension LambdaLowerer {
             body.append(.constValue(result: offsetExpr, value: .intLiteral(Int64(captureIndex + 2))))
             let loadedExpr = arena.appendTemporary(type: captureType)
             body.append(.call(
-                symbol: nil,
                 callee: arrayGet,
                 arguments: [closureExpr, offsetExpr],
                 result: loadedExpr,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
             let normalizedLoadedExpr = normalizeHOFPrimitiveParameter(
                 loadedExpr,
@@ -217,24 +213,20 @@ extension LambdaLowerer {
         instructions.append(.constValue(result: classIDExpr, value: .intLiteral(0)))
         let closureObj = arena.appendTemporary(type: sema.types.intType)
         instructions.append(.call(
-            symbol: nil,
             callee: interner.intern("kk_object_new"),
             arguments: [slotCountExpr, classIDExpr],
             result: closureObj,
-            canThrow: false,
-            thrownResult: nil
+            canThrow: false
         ))
         for (captureIndex, captureExpr) in captureArguments.enumerated() {
             let offsetExpr = arena.appendExpr(.intLiteral(Int64(captureIndex + 2)), type: sema.types.intType)
             instructions.append(.constValue(result: offsetExpr, value: .intLiteral(Int64(captureIndex + 2))))
             let setResult = arena.appendTemporary(type: sema.types.anyType)
             instructions.append(.call(
-                symbol: nil,
                 callee: interner.intern("kk_array_set"),
                 arguments: [closureObj, offsetExpr, captureExpr],
                 result: setResult,
-                canThrow: true,
-                thrownResult: nil
+                canThrow: true
             ))
         }
 
@@ -242,12 +234,10 @@ extension LambdaLowerer {
         instructions.append(.constValue(result: adapterExpr, value: .symbolRef(adapterSymbol)))
         let materializedExpr = arena.appendTemporary(type: sema.types.make(.functionType(functionType)))
         instructions.append(.call(
-            symbol: nil,
             callee: createCallee,
             arguments: [adapterExpr, closureObj],
             result: materializedExpr,
-            canThrow: false,
-            thrownResult: nil
+            canThrow: false
         ))
         driver.ctx.registerCallableValue(
             materializedExpr,

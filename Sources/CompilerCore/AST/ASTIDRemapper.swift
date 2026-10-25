@@ -265,6 +265,7 @@ struct ASTIDRemapper {
             propertyVisibilityModifiers: value.propertyVisibilityModifiers,
             hasDefaultValue: value.hasDefaultValue,
             isVararg: value.isVararg,
+            varargRange: value.varargRange,
             isCrossinline: value.isCrossinline,
             isNoinline: value.isNoinline,
             defaultValue: value.defaultValue.map { remap($0) },

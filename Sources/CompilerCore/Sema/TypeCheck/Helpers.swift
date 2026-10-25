@@ -463,7 +463,7 @@ struct TypeCheckHelpers {
         sema: SemaModule,
         interner: StringInterner
     ) -> Bool {
-        guard let charSequenceSymbol = sema.symbols.lookup(fqName: [
+        guard let charSequenceSymbol = sema.symbols.lookupNominal(fqName: [
             interner.intern("kotlin"),
             interner.intern("CharSequence"),
         ]) else {
@@ -486,7 +486,7 @@ struct TypeCheckHelpers {
             sema.types.makeNonNullable(iterableType),
             sema: sema
         ),
-            let iterableSymbol = sema.symbols.lookup(fqName: [
+            let iterableSymbol = sema.symbols.lookupNominal(fqName: [
                 interner.intern("kotlin"),
                 interner.intern("collections"),
                 interner.intern("Iterable"),

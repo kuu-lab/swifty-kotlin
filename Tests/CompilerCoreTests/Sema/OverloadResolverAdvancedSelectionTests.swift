@@ -192,6 +192,33 @@ extension OverloadResolverTests {
         #expect(resolved.diagnostic == nil)
     }
 
+    @Test func testResolveCallRejectsNonArraySpreadArgumentOnVarargParameter() {
+        let (resolver, types, symbols, interner, ctx) = makeEnv()
+
+        let intType = types.make(.primitive(.int, .nonNull))
+
+        let fn = defineSymbol(kind: .function, name: "spreadVararg", suffix: "spreadVararg", symbols: symbols, interner: interner)
+        let paramX = defineSymbol(kind: .valueParameter, name: "x", suffix: "spreadVararg_x", symbols: symbols, interner: interner)
+        symbols.setFunctionSignature(
+            FunctionSignature(
+                parameterTypes: [intType],
+                returnType: intType,
+                valueParameterSymbols: [paramX],
+                valueParameterIsVararg: [true]
+            ),
+            for: fn
+        )
+
+        let call = CallExpr(
+            range: makeRange(start: 591, end: 605),
+            calleeName: interner.intern("spreadVararg"),
+            args: [CallArg(isSpread: true, type: intType)]
+        )
+        let resolved = resolver.resolveCall(candidates: [fn], call: call, expectedType: nil, ctx: ctx)
+        #expect(resolved.chosenCallee == nil)
+        #expect(resolved.diagnostic?.code == "KSWIFTK-SEMA-0002")
+    }
+
     @Test func testResolveCallVarargWithTypeMismatch() {
         let (resolver, types, symbols, interner, ctx) = makeEnv()
 

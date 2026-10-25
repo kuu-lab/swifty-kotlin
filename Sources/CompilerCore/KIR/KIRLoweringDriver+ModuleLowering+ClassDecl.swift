@@ -237,12 +237,10 @@ extension KIRLoweringDriver {
             )
             let delegateReceiverExprID = dispatchReceiverExprID ?? ctx.activeImplicitReceiverExprID()!
             body.append(.call(
-                symbol: nil,
                 callee: shared.interner.intern("kk_array_get"),
                 arguments: [delegateReceiverExprID, offsetExpr],
                 result: delegateResultID,
                 canThrow: true,
-                thrownResult: nil,
                 isSuperCall: false
             ))
 
@@ -302,7 +300,6 @@ extension KIRLoweringDriver {
                     arguments: [delegateResultID] + callArgExprs,
                     result: resultExprID,
                     canThrow: false,
-                    thrownResult: nil,
                     isSuperCall: false
                 ))
                 body.append(.jump(endLabel))
@@ -328,7 +325,6 @@ extension KIRLoweringDriver {
                     arguments: callArgExprs,
                     result: resultExprID,
                     canThrow: false,
-                    thrownResult: nil,
                     dispatch: .itableDynamic(interfaceTypeID: interfaceTypeID, methodSlot: methodSlot)
                 ))
             } else if let fallbackMethodSymbol {
@@ -345,17 +341,14 @@ extension KIRLoweringDriver {
                     arguments: [delegateResultID] + callArgExprs,
                     result: resultExprID,
                     canThrow: false,
-                    thrownResult: nil,
                     isSuperCall: false
                 ))
             } else {
                 body.append(.call(
-                    symbol: nil,
                     callee: shared.interner.intern("kk_abort_unreachable"),
                     arguments: [],
                     result: nil,
                     canThrow: false,
-                    thrownResult: nil,
                     isSuperCall: false
                 ))
             }
@@ -493,12 +486,10 @@ extension KIRLoweringDriver {
             type: sema.symbols.propertyType(for: info.fieldSymbol) ?? sema.types.anyType
         )
         body.append(.call(
-            symbol: nil,
             callee: interner.intern("kk_array_get"),
             arguments: [ctx.activeImplicitReceiverExprID()!, offsetExpr],
             result: delegateResultID,
             canThrow: true,
-            thrownResult: nil,
             isSuperCall: false
         ))
 
@@ -553,7 +544,6 @@ extension KIRLoweringDriver {
                 arguments: callArgs,
                 result: resultExprID,
                 canThrow: false,
-                thrownResult: nil,
                 isSuperCall: false
             ))
             body.append(.jump(endLabel))
@@ -568,12 +558,10 @@ extension KIRLoweringDriver {
             // keys/values/entries → kk_map_*) have no concrete accessor to
             // dispatch to; call the runtime bridge on the delegate directly.
             body.append(.call(
-                symbol: nil,
                 callee: interner.intern(externalLinkName),
                 arguments: callArgs,
                 result: resultExprID,
                 canThrow: false,
-                thrownResult: nil,
                 isSuperCall: false
             ))
         } else if let fallbackAccessorSymbol,
@@ -588,7 +576,6 @@ extension KIRLoweringDriver {
                 arguments: callArgs,
                 result: resultExprID,
                 canThrow: false,
-                thrownResult: nil,
                 isSuperCall: false
             ))
         } else if accessorKind == .getter,
@@ -616,7 +603,6 @@ extension KIRLoweringDriver {
                 arguments: [],
                 result: resultExprID,
                 canThrow: false,
-                thrownResult: nil,
                 dispatch: .itableDynamic(
                     interfaceTypeID: interfaceTypeID,
                     methodSlot: methodSlot
@@ -629,17 +615,14 @@ extension KIRLoweringDriver {
                 arguments: callArgs,
                 result: resultExprID,
                 canThrow: false,
-                thrownResult: nil,
                 isSuperCall: false
             ))
         } else {
             body.append(.call(
-                symbol: nil,
                 callee: interner.intern("kk_abort_unreachable"),
                 arguments: [],
                 result: nil,
                 canThrow: false,
-                thrownResult: nil,
                 isSuperCall: false
             ))
         }
@@ -1124,12 +1107,10 @@ extension KIRLoweringDriver {
             body.append(.constValue(result: offsetExpr, value: .intLiteral(Int64(outerOffset))))
             let storeResult = arena.appendTemporary(type: sema.types.anyType)
             body.append(.call(
-                symbol: nil,
                 callee: shared.interner.intern("kk_array_set"),
                 arguments: [receiver, offsetExpr, outerValue],
                 result: storeResult,
-                canThrow: true,
-                thrownResult: nil
+                canThrow: true
             ))
         }
         var defaultMaskWords: [Int64] = [0]
@@ -1176,8 +1157,7 @@ extension KIRLoweringDriver {
                 callee: shared.interner.intern(shared.interner.resolve(ownerName) + "$default"),
                 arguments: argIDs,
                 result: result,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
             return
         }
@@ -1200,12 +1180,10 @@ extension KIRLoweringDriver {
            )
         {
             body.append(.call(
-                symbol: nil,
                 callee: populateCallee,
                 arguments: argIDs,
                 result: result,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
             return
         }
@@ -1214,8 +1192,7 @@ extension KIRLoweringDriver {
             callee: shared.interner.intern("<init>"),
             arguments: argIDs,
             result: result,
-            canThrow: false,
-            thrownResult: nil
+            canThrow: false
         ))
     }
 

@@ -50,7 +50,6 @@ extension CallLowerer {
             arena.appendTemporary(type: sema.types.nullableAnyType)
         }
         instructions.append(.call(
-            symbol: nil,
             callee: interner.intern(runtimeCall.runtimeLinkName),
             arguments: [loweredReceiverID] + memberArguments,
             result: result,
