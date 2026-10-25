@@ -1804,6 +1804,13 @@ extension DataFlowSemaPhase {
         if isMemberExtension {
             forwardingFlags.insert(.memberExtension)
         }
+        // The forwarder must keep the interface member's convention modifiers:
+        // without `operator` a delegated `get`/`contains` can no longer serve
+        // `x[i]`/`x in c` syntax (KUU-3260), and dropping `infix`/`suspend`
+        // likewise breaks call sites that rely on them.
+        forwardingFlags.formUnion(
+            methodSym.flags.intersection([.operatorFunction, .infixFunction, .suspendFunction])
+        )
         let forwardingSymbol = symbols.define(
             kind: .function,
             name: methodName,

@@ -146,6 +146,20 @@ import Testing
         assertHasDiagnostic("KSWIFTK-TYPE-0001", in: ctx)
     }
 
+    @Test func delegatedOperatorMembersKeepConventionFlags() throws {
+        let ctx = makeContextFromSource("""
+        interface Indexed {
+            operator fun get(i: Int): Int
+            operator fun contains(x: Int): Boolean
+        }
+        class C(val d: Indexed) : Indexed by d
+        fun use(c: C): Int = c[3]
+        fun has(c: C, x: Int): Boolean = x in c
+        """)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "Got: \(ctx.diagnostics.diagnostics)")
+    }
+
     @Test func directDelegationSatisfiesSiblingInterfaceAbstractMember() throws {
         // KUU-3248: a `by`-delegated implementation supplies `foo()` for every
         // supertype with a compatible signature, including sibling interfaces
