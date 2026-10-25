@@ -4,6 +4,24 @@ import Testing
 
 @Suite
 struct WhenSubjectConditionTypeCompatibilityTests {
+    @Test func rejectsDoubleLiteralForIntWhenSubject() throws {
+        let ctx = makeContextFromSource("""
+        fun main() {
+            val x = 1
+            when (x) {
+                1.0 -> println("double")
+                else -> println("else")
+            }
+        }
+        """)
+        try runSema(ctx)
+
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.count == 1, "Got: \(errors)")
+        #expect(errors.first?.code == "KSWIFTK-SEMA-0002")
+        #expect(errors.first?.message.contains("unrelated types") == true)
+    }
+
     @Test func rejectsConditionsIncompatibleWithTheSubjectType() throws {
         let ctx = makeContextFromSource("""
         fun main() {
