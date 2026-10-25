@@ -30,6 +30,36 @@ struct CodegenBackendScopeFunctionEdgeCasesTests {
         )
     }
 
+    @Test
+    func testGenericMemberContextParametersUseSubstitutedClassTypeArguments() throws {
+        let source = """
+        import kotlin.ExperimentalContextParameters
+
+        class Box<E>(val x: E)
+
+        @OptIn(ExperimentalContextParameters::class)
+        class A<X, Y : Number> {
+            context(box: Box<X>, y: Y)
+            fun foo(): String = box.x.toString() + y.toString()
+        }
+
+        @OptIn(ExperimentalContextParameters::class)
+        fun main() {
+            with(Box("OK")) {
+                with(56) {
+                    println(A<String, Int>().foo())
+                }
+            }
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "GenericMemberContextParameters",
+            expected: "OK56\n"
+        )
+    }
+
     @Test(arguments: [true, false])
     func testTailPositionLabeledReturnPropagatesValue(defaultStdlib: Bool) throws {
         let source = """

@@ -312,6 +312,12 @@ struct CaptureAnalyzer {
                 }
 
             case let .memberCall(receiver, _, _, args, _):
+                let callBinding = sema.bindings.callBinding(for: currentExprID)
+                captured.formUnion(
+                    callBinding?.contextParameterReceiverSymbols.compactMap { $0 }.filter {
+                        outerSymbols.contains($0)
+                    } ?? []
+                )
                 visit(receiver)
                 for arg in args {
                     visit(arg.expr)
