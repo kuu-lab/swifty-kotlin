@@ -35,7 +35,7 @@ struct ImportedInlineKIRPrivateDependencyTests {
             symbol: SymbolID(rawValue: -999_999), name: interner.intern("public$default"),
             params: [], returnType: types.unitType,
             body: [.call(symbol: helper, callee: interner.intern("helper"), arguments: [],
-                         result: nil, canThrow: false, thrownResult: nil)],
+                         result: nil, canThrow: false)],
             isSuspend: false, isInline: true
         )))
         let required = InlineMetadataDependencies.collect(module: KIRModule(files: [], arena: arena), sema: sema)

@@ -64,8 +64,7 @@ extension ExprLowerer {
                     callee: interner.intern("set"),
                     arguments: [receiver, valueID],
                     result: nil,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ))
             } else if let symInfo = sema.symbols.symbol(symbol), symInfo.kind == .backingField, {
                 let parent = sema.symbols.parentSymbol(for: symbol)
@@ -126,8 +125,7 @@ extension ExprLowerer {
                     callee: interner.intern("set"),
                     arguments: setterArguments,
                     result: arena.appendTemporary(type: sema.types.unitType),
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ))
             } else if let symInfo = sema.symbols.symbol(symbol), symInfo.kind == .property || symInfo.kind == .field, {
                 let p = sema.symbols.parentSymbol(for: symbol)
@@ -187,12 +185,10 @@ extension ExprLowerer {
                       let receiverExprID = driver.ctx.activeImplicitReceiverExprID()
             {
                 instructions.append(.call(
-                    symbol: nil,
                     callee: setterCallee,
                     arguments: [receiverExprID, valueID],
                     result: arena.appendTemporary(type: sema.types.unitType),
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ))
             } else if storeMutableCaptureCellValue(
                 valueID,
@@ -241,12 +237,10 @@ extension ExprLowerer {
                     into: &instructions
                 )
                 instructions.append(.call(
-                    symbol: nil,
                     callee: interner.intern("kk_array_set"),
                     arguments: [fieldReceiverExprID, offsetExpr, storedValueID],
                     result: nil,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ))
             } else if let receiverExprID = driver.objectLiteralLowerer.implicitReceiverExprID(
                 forProperty: symbol,
@@ -286,8 +280,7 @@ extension ExprLowerer {
                         callee: interner.intern("set"),
                         arguments: setterArguments,
                         result: nil,
-                        canThrow: false,
-                        thrownResult: nil
+                        canThrow: false
                     ))
                 } else if let backingFieldSym = sema.symbols.backingFieldSymbol(for: symbol) {
                     // Deliberately `.storeGlobal`, not `.copy(to: .symbolRef(...))`:

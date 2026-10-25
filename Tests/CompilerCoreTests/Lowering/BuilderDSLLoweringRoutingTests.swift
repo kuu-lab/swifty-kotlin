@@ -14,7 +14,7 @@ import Testing
 /// the shared Builder DSL lookup entry point.
 ///
 /// `CollectionLiteralLoweringTests` covers the same three names, but every one
-/// of those cases hand-builds `.call(symbol: nil, ...)` KIR against a
+/// of those cases hand-builds `.call(...)` KIR against a
 /// `KIRContext` without a `SemaModule`, which short-circuits
 /// the old symbol guard.
 /// They therefore prove only that the rewrite still exists — never that any

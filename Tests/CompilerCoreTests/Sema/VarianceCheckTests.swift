@@ -269,6 +269,96 @@ struct VarianceCheckTests {
         }
     }
 
+    @Test(arguments: [
+        ("in", "fun leak() = item", 1),
+        ("in", "val value get() = item", 1),
+        ("in", "var x = item", 1),
+        ("in", "fun take() = box", 1),
+        ("out", "fun leak() = item", 0),
+        ("out", "val value get() = item", 0),
+        ("out", "fun take() = box", 0),
+        ("out", "fun takeSink() = sink", 1),
+        ("in", "fun takeSink() = sink", 0),
+        ("in", "private fun leak() = item", 0),
+        ("in", "private val value get() = item", 0),
+        ("in", "fun <T> echo(x: T) = x", 0),
+        ("in", "fun <T> leak() = item", 1),
+        ("out", "var x = item", 1),
+    ])
+    func inferredMemberTypeVariance(variance: String, member: String, expectedViolations: Int) throws {
+        let source = """
+        interface Box<out E>
+        interface Sink<in E>
+        class Subject<\(variance) T>(
+            private val item: T,
+            private val box: Box<T>,
+            private val sink: Sink<T>
+        ) {
+            \(member)
+        }
+        """
+        try withTemporaryFiles(contents: [source]) { paths in
+            let ctx = makeCompilationContext(inputs: paths, includeStdlib: false)
+            try runSema(ctx)
+            let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+            #expect(errors.count == expectedViolations, "\(errors)")
+            #expect(errors.allSatisfy { $0.code == "KSWIFTK-SEMA-VARIANCE" })
+        }
+    }
+
+    @Test
+    func inferredMemberTypesRejectOutPositionUseOfContravariantParameter() throws {
+        let source = """
+        class Sink<in T>(private val item: T) {
+            fun leak() = item
+            val value get() = item
+        }
+        """
+        try withTemporaryFiles(contents: [source]) { paths in
+            let ctx = makeCompilationContext(inputs: paths, includeStdlib: false)
+            try runSema(ctx)
+            let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+            #expect(errors.count == 2, "\(errors)")
+            #expect(errors.allSatisfy { $0.code == "KSWIFTK-SEMA-VARIANCE" })
+        }
+    }
+
+    @Test
+    func localFunctionsAreNotCheckedAsMembers() throws {
+        let source = """
+        class Sink<in T>(private val item: T) {
+            fun report() {
+                fun local() = item
+                local()
+            }
+        }
+        """
+        try withTemporaryFiles(contents: [source]) { paths in
+            let ctx = makeCompilationContext(inputs: paths, includeStdlib: false)
+            try runSema(ctx)
+            let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+            #expect(errors.isEmpty, "\(errors)")
+        }
+    }
+
+    @Test
+    func innerClassInferredMemberUsesOuterVariance() throws {
+        let source = """
+        class Outer<in T>(private val item: T) {
+            inner class Inner {
+                fun leak() = this@Outer.item
+            }
+        }
+        """
+        try withTemporaryFiles(contents: [source]) { paths in
+            let ctx = makeCompilationContext(inputs: paths, includeStdlib: false)
+            try runSema(ctx)
+            let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+            #expect(errors.count == 1, "\(errors)")
+            #expect(errors.allSatisfy { $0.code == "KSWIFTK-SEMA-VARIANCE" })
+        }
+    }
+
     // kotlin.UnsafeVariance targets AnnotationTarget.TYPE in Kotlin 2.3.10, so
     // placing it on a value parameter is rejected with an annotation-target
     // error and the variance violation is reported unsuppressed — matching

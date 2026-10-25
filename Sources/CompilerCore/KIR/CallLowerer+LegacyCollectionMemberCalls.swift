@@ -43,12 +43,10 @@ extension CallLowerer {
                !isSequenceLikeType(nonNullReceiverType, sema: sema, interner: interner)
             {
                 instructions.append(.call(
-                    symbol: nil,
                     callee: interner.intern("kk_sequence_reduceRightOrNull"),
                     arguments: [loweredReceiverID] + normalizedArgIDs,
                     result: result,
-                    canThrow: true,
-                    thrownResult: nil
+                    canThrow: true
                 ))
                 return result
             }
@@ -119,12 +117,10 @@ extension CallLowerer {
                 )
                 {
                     instructions.append(.call(
-                        symbol: nil,
                         callee: runtimeCallee,
                         arguments: [loweredReceiverID],
                         result: result,
-                        canThrow: false,
-                        thrownResult: nil
+                        canThrow: false
                     ))
                     return result
                 }
@@ -152,12 +148,10 @@ extension CallLowerer {
             let calleeStr = calleeNameStr
             if calleeStr == "get" {
                 instructions.append(.call(
-                    symbol: nil,
                     callee: interner.intern("kk_array_get"),
                     arguments: [loweredReceiverID] + normalizedArgIDs,
                     result: result,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ))
                 return result
             }
@@ -192,7 +186,6 @@ extension CallLowerer {
                     hofArgIDs = normalizedArgIDs
                 }
                 instructions.append(.call(
-                    symbol: nil,
                     callee: interner.intern(runtimeCallee),
                     arguments: [loweredReceiverID] + hofArgIDs,
                     result: result,
@@ -284,12 +277,10 @@ extension CallLowerer {
                 }
                 let canThrow = runtimeCallee == "kk_list_minBy"
                 instructions.append(.call(
-                    symbol: nil,
                     callee: interner.intern(runtimeCallee),
                     arguments: callArguments,
                     result: result,
-                    canThrow: canThrow,
-                    thrownResult: nil
+                    canThrow: canThrow
                 ))
                 return result
                 }
@@ -331,7 +322,6 @@ extension CallLowerer {
                 ) -> KIRExprID {
                     let thrownResult = canThrow ? arena.appendTemporary(type: sema.types.nullableAnyType) : nil
                     instructions.append(.call(
-                        symbol: nil,
                         callee: interner.intern(name),
                         arguments: runtimeArguments,
                         result: result,
@@ -491,12 +481,10 @@ extension CallLowerer {
             }
             if let runtimeCallee {
                 instructions.append(.call(
-                    symbol: nil,
                     callee: interner.intern(runtimeCallee),
                     arguments: [loweredReceiverID],
                     result: result,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ))
                 return result
             }

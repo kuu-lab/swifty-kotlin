@@ -525,12 +525,10 @@ func appendObjectItablePropertyGetterRegistrations<C: RangeReplaceableCollection
 
             let registerResult = arena.appendTemporary(type: intType)
             instructions.append(.call(
-                symbol: nil,
                 callee: registerCallee,
                 arguments: [objectValue, ifaceSlotExpr, methodSlotExpr, methodFnExpr],
                 result: registerResult,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
         }
     }
@@ -644,12 +642,10 @@ func appendObjectItablePropertySetterRegistrations<C: RangeReplaceableCollection
 
             let registerResult = arena.appendTemporary(type: intType)
             instructions.append(.call(
-                symbol: nil,
                 callee: registerCallee,
                 arguments: [objectValue, ifaceSlotExpr, methodSlotExpr, methodFnExpr],
                 result: registerResult,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
         }
     }

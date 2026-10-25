@@ -525,12 +525,10 @@ extension ControlFlowLowerer {
 
         let runtimeResult = arena.appendTemporary(type: boolType)
         instructions.append(.call(
-            symbol: nil,
             callee: interner.intern("kk_op_is"),
             arguments: [exceptionSlot, tokenExpr],
             result: runtimeResult,
-            canThrow: false,
-            thrownResult: nil
+            canThrow: false
         ))
         instructions.append(.copy(from: runtimeResult, to: matchResult))
         instructions.append(.jump(doneLabel))
@@ -614,7 +612,6 @@ extension ControlFlowLowerer {
                 // is routed to the enclosing try/catch exception slot.
                 let notNullResult = arena.appendTemporary(type: arena.exprType(result))
                 instructions.append(.call(
-                    symbol: nil,
                     callee: interner.intern("kk_op_notnull"),
                     arguments: [operand],
                     result: notNullResult,
@@ -635,12 +632,10 @@ extension ControlFlowLowerer {
                 }
                 if let unboxCallee {
                     instructions.append(.call(
-                        symbol: nil,
                         callee: unboxCallee,
                         arguments: [notNullResult],
                         result: result,
-                        canThrow: false,
-                        thrownResult: nil
+                        canThrow: false
                     ))
                 } else {
                     instructions.append(.copy(from: notNullResult, to: result))

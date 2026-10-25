@@ -636,6 +636,11 @@ extension BuildASTPhase {
             appendValueParameter(from: paramTokens, into: &arguments, interner: interner, astArena: astArena,
                                  allowAnnotationArrays: allowsAnnotationArrays)
         }
+        DeclarationPositionValidator.validateMultipleVarargParameters(
+            arguments,
+            fallbackRange: arena.node(nodeID).range,
+            diagnostics: diagnostics
+        )
         return arguments
     }
 
@@ -749,7 +754,8 @@ extension BuildASTPhase {
         into parameters: inout [ValueParamDecl],
         interner: StringInterner,
         astArena: ASTArena,
-        allowAnnotationArrays: Bool = false
+        allowAnnotationArrays: Bool = false,
+        allowsImplicitParameterTypes: Bool = false
     ) {
         let split = splitDefaultValue(tokens)
         let withoutDefault = split.withoutDefault
@@ -840,11 +846,15 @@ extension BuildASTPhase {
                 )
             }
         } else {
-            diagnostics?.error(
-                "KSWIFTK-PARSE-0020",
-                "An explicit type is required on a value parameter.",
-                range: nameToken.range
-            )
+            // Anonymous function literals may leave parameter types implicit;
+            // Sema infers them from the expected function type.
+            if !allowsImplicitParameterTypes {
+                diagnostics?.error(
+                    "KSWIFTK-PARSE-0020",
+                    "An explicit type is required on a value parameter.",
+                    range: nameToken.range
+                )
+            }
             typeRef = nil
         }
 
@@ -860,6 +870,9 @@ extension BuildASTPhase {
             }
         }
         let isVararg = candidateModifiers.contains(.vararg)
+        let varargRange = isVararg
+            ? modifierPrefixTokens.first(where: { $0.kind == .keyword(.vararg) })?.range
+            : nil
         let isCrossinline = candidateModifiers.contains(.crossinline)
         let isNoinline = candidateModifiers.contains(.noinline)
         let isOverrideProperty = candidateModifiers.contains(.override)
@@ -889,6 +902,7 @@ extension BuildASTPhase {
             propertyVisibilityModifiers: candidateModifiers.intersection([.public, .private, .internal, .protected]),
             hasDefaultValue: hasDefaultValue,
             isVararg: isVararg,
+            varargRange: varargRange,
             isCrossinline: isCrossinline,
             isNoinline: isNoinline,
             defaultValue: defaultValueExpr,

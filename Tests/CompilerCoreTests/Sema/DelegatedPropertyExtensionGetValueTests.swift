@@ -77,5 +77,69 @@ struct DelegatedPropertyExtensionGetValueTests {
         #expect(getValueOwner == readWriteProperty || sema.types.isNominalSubtypeSymbol(getValueOwner, of: readWriteProperty))
         #expect(setValueOwner == readWriteProperty || sema.types.isNominalSubtypeSymbol(setValueOwner, of: readWriteProperty))
     }
+
+    // KUU-3206: an extension getValue/setValue declared *after* the delegated
+    // property still resolves. Its expression body leaves the header return
+    // type as the `Any` placeholder until inference runs on demand; the
+    // convention's expected-type probe must not reject it early.
+    @Test(arguments: [false, true])
+    func forwardDeclaredExtensionGetValueResolves(useArtifact: Bool) throws {
+        if useArtifact { TestStdlibCache.shared.prepare() }
+
+        let source = """
+        package kuu3206.forwardDeclared
+
+        class C {
+            val impl = 123
+            val s: String by impl
+            var t: String by impl
+        }
+        operator fun Any?.getValue(thisRef: Any?, property: Any?) = "OK"
+        operator fun Any?.setValue(thisRef: Any?, property: Any?, value: String) {}
+
+        fun local(): String {
+            val impl = 7
+            val s: String by impl
+            return s
+        }
+
+        fun box(): String = C().s + C().t + local()
+        """
+
+        let ctx = makeContextFromSource(source, allowDefaultStdlibLibrary: useArtifact)
+        try runSema(ctx)
+
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.isEmpty, "Unexpected diagnostics: \(errors.map { "\($0.code): \($0.message)" })")
+
+        let sema = try #require(ctx.sema)
+        let interner = ctx.interner
+        let anyGetValue = try #require(sema.symbols.lookup(fqName: [
+            interner.intern("kuu3206"), interner.intern("forwardDeclared"), interner.intern("getValue"),
+        ]))
+        let anySetValue = try #require(sema.symbols.lookup(fqName: [
+            interner.intern("kuu3206"), interner.intern("forwardDeclared"), interner.intern("setValue"),
+        ]))
+
+        let classChildren = sema.symbols.children(ofFQName: [
+            interner.intern("kuu3206"), interner.intern("forwardDeclared"), interner.intern("C"),
+        ])
+        func memberProperty(named name: String) -> SymbolID? {
+            classChildren.first {
+                sema.symbols.symbol($0)?.kind == .property
+                    && sema.symbols.symbol($0)?.name == interner.intern(name)
+            }
+        }
+
+        let s = try #require(memberProperty(named: "s"), "Missing property C.s")
+        #expect(sema.symbols.delegateGetValueSymbol(for: s) == anyGetValue)
+
+        let t = try #require(memberProperty(named: "t"), "Missing property C.t")
+        #expect(sema.symbols.delegateGetValueSymbol(for: t) == anyGetValue)
+        #expect(sema.symbols.delegateSetValueSymbol(for: t) == anySetValue)
+
+        let sType = try #require(sema.symbols.propertyType(for: s))
+        #expect(sema.types.isSubtype(sType, sema.types.stringType))
+    }
 }
 #endif

@@ -199,12 +199,10 @@ extension LambdaLowerer {
         instructions.append(.constValue(result: classIDExpr, value: .intLiteral(classID)))
         let wrapperValue = arena.appendTemporary(type: boundType)
         instructions.append(.call(
-            symbol: nil,
             callee: interner.intern("kk_object_new"),
             arguments: [slotCountExpr, classIDExpr],
             result: wrapperValue,
-            canThrow: false,
-            thrownResult: nil
+            canThrow: false
         ))
 
         registerPropertyReferenceInterfaces(
@@ -227,12 +225,10 @@ extension LambdaLowerer {
             instructions.append(.constValue(result: offsetExpr, value: .intLiteral(Int64(fieldOffset))))
             let storeResult = arena.appendTemporary(type: sema.types.anyType)
             instructions.append(.call(
-                symbol: nil,
                 callee: interner.intern("kk_array_set"),
                 arguments: [wrapperValue, offsetExpr, capture],
                 result: storeResult,
-                canThrow: true,
-                thrownResult: nil
+                canThrow: true
             ))
         }
 
@@ -247,12 +243,10 @@ extension LambdaLowerer {
         instructions.append(.constValue(result: arityExpr, value: .intLiteral(Int64(shape.arity))))
         let taggedValue = arena.appendTemporary(type: boundType)
         instructions.append(.call(
-            symbol: nil,
             callee: interner.intern("kk_callable_ref_tag_kproperty"),
             arguments: [wrapperValue, nameExpr, returnTypeExpr, arityExpr],
             result: taggedValue,
-            canThrow: false,
-            thrownResult: nil
+            canThrow: false
         ))
         emitCallableReferenceIdentity(
             callableExpr: taggedValue,
@@ -454,8 +448,7 @@ extension LambdaLowerer {
             callee: getterName,
             arguments: arguments,
             result: result,
-            canThrow: true,
-            thrownResult: nil
+            canThrow: true
         ))
         body.append(.returnValue(result))
         body.append(.endBlock)
@@ -707,8 +700,7 @@ extension LambdaLowerer {
                 callee: interner.intern(externalLinkName),
                 arguments: receiverExpr.map { [$0] } ?? [],
                 result: result,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
             body.append(.returnValue(result))
         } else if let receiverExpr,
@@ -721,12 +713,10 @@ extension LambdaLowerer {
             // constructor-property slot helpers used by ordinary enum fields.
             let result = arena.appendTemporary(type: propertyType)
             body.append(.call(
-                symbol: nil,
                 callee: enumPropertyInfo.name,
                 arguments: [receiverExpr],
                 result: result,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
             body.append(.returnValue(result))
         } else if let receiverExpr,
@@ -764,12 +754,10 @@ extension LambdaLowerer {
             if kind == .getter {
                 let result = arena.appendTemporary(type: propertyType)
                 body.append(.call(
-                    symbol: nil,
                     callee: enumHelperCallee,
                     arguments: [receiverExpr],
                     result: result,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ))
                 body.append(.returnValue(result))
             } else if let valueSymbol {
@@ -777,12 +765,10 @@ extension LambdaLowerer {
                 body.append(.constValue(result: valueExpr, value: .symbolRef(valueSymbol)))
                 let result = arena.appendTemporary(type: sema.types.unitType)
                 body.append(.call(
-                    symbol: nil,
                     callee: enumHelperCallee,
                     arguments: [receiverExpr, valueExpr],
                     result: result,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ))
                 body.append(.returnUnit)
             }
@@ -794,12 +780,10 @@ extension LambdaLowerer {
             if kind == .getter {
                 let result = arena.appendTemporary(type: propertyType)
                 body.append(.call(
-                    symbol: nil,
                     callee: interner.intern("kk_array_get_inbounds"),
                     arguments: [receiverExpr, offsetExpr],
                     result: result,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ))
                 body.append(.returnValue(result))
             } else if let valueSymbol {
@@ -807,12 +791,10 @@ extension LambdaLowerer {
                 body.append(.constValue(result: valueExpr, value: .symbolRef(valueSymbol)))
                 let result = arena.appendTemporary(type: sema.types.anyType)
                 body.append(.call(
-                    symbol: nil,
                     callee: interner.intern("kk_array_set"),
                     arguments: [receiverExpr, offsetExpr, valueExpr],
                     result: result,
-                    canThrow: true,
-                    thrownResult: nil
+                    canThrow: true
                 ))
                 body.append(.returnUnit)
             }
@@ -932,7 +914,7 @@ extension LambdaLowerer {
             body.append(.constValue(result: offsetExpr, value: .intLiteral(Int64(offset))))
             let captureType = params.dropFirst().first?.type ?? accessor.ownerType ?? sema.types.anyType
             let capture = arena.appendTemporary(type: captureType)
-            body.append(.call(symbol: nil, callee: interner.intern("kk_array_get_inbounds"), arguments: [receiverExpr, offsetExpr], result: capture, canThrow: false, thrownResult: nil))
+            body.append(.call(callee: interner.intern("kk_array_get_inbounds"), arguments: [receiverExpr, offsetExpr], result: capture, canThrow: false))
             captures.append(capture)
             _ = index
         }
@@ -971,7 +953,7 @@ extension LambdaLowerer {
             return
         }
         let result = arena.appendTemporary(type: accessor.propertyType)
-        body.append(.call(symbol: accessor.getterSymbol, callee: interner.intern("get"), arguments: callArgs, result: result, canThrow: false, thrownResult: nil))
+        body.append(.call(symbol: accessor.getterSymbol, callee: interner.intern("get"), arguments: callArgs, result: result, canThrow: false))
         body.append(.returnValue(result))
         body.append(.endBlock)
         driver.ctx.appendGeneratedCallableDecl(arena.appendDecl(.function(KIRFunction(
@@ -1094,7 +1076,6 @@ extension LambdaLowerer {
             arguments: [],
             result: result,
             canThrow: false,
-            thrownResult: nil,
             dispatch: dispatch
         ))
         return result
@@ -1125,7 +1106,7 @@ extension LambdaLowerer {
             body.append(.constValue(result: offsetExpr, value: .intLiteral(Int64(offset))))
             let captureType = accessor.ownerType ?? sema.types.anyType
             let capture = arena.appendTemporary(type: captureType)
-            body.append(.call(symbol: nil, callee: interner.intern("kk_array_get_inbounds"), arguments: [receiverExpr, offsetExpr], result: capture, canThrow: false, thrownResult: nil))
+            body.append(.call(callee: interner.intern("kk_array_get_inbounds"), arguments: [receiverExpr, offsetExpr], result: capture, canThrow: false))
             captures.append(capture)
         }
         var callArgs = captures
@@ -1140,7 +1121,7 @@ extension LambdaLowerer {
             callArgs.append(valueExpr)
         }
         let result = arena.appendTemporary(type: sema.types.unitType)
-        body.append(.call(symbol: accessor.setterSymbol, callee: interner.intern("set"), arguments: callArgs, result: result, canThrow: false, thrownResult: nil))
+        body.append(.call(symbol: accessor.setterSymbol, callee: interner.intern("set"), arguments: callArgs, result: result, canThrow: false))
         body.append(.returnUnit)
         body.append(.endBlock)
         driver.ctx.appendGeneratedCallableDecl(arena.appendDecl(.function(KIRFunction(
@@ -1175,13 +1156,13 @@ extension LambdaLowerer {
             let interfaceExpr = arena.appendExpr(.intLiteral(interfaceID), type: intType)
             instructions.append(.constValue(result: interfaceExpr, value: .intLiteral(interfaceID)))
             let edgeResult = arena.appendTemporary(type: intType)
-            instructions.append(.call(symbol: nil, callee: interner.intern("kk_type_register_iface"), arguments: [classIDExpr, interfaceExpr], result: edgeResult, canThrow: false, thrownResult: nil))
+            instructions.append(.call(callee: interner.intern("kk_type_register_iface"), arguments: [classIDExpr, interfaceExpr], result: edgeResult, canThrow: false))
 
             guard let ifaceSlot = layout?.itableSlots[interfaceSymbol] else { continue }
             let ifaceSlotExpr = arena.appendExpr(.intLiteral(Int64(ifaceSlot)), type: intType)
             instructions.append(.constValue(result: ifaceSlotExpr, value: .intLiteral(Int64(ifaceSlot))))
             let registerIfaceResult = arena.appendTemporary(type: intType)
-            instructions.append(.call(symbol: nil, callee: interner.intern("kk_object_register_itable_iface"), arguments: [wrapperValue, interfaceExpr, ifaceSlotExpr], result: registerIfaceResult, canThrow: false, thrownResult: nil))
+            instructions.append(.call(callee: interner.intern("kk_object_register_itable_iface"), arguments: [wrapperValue, interfaceExpr, ifaceSlotExpr], result: registerIfaceResult, canThrow: false))
 
             guard let ifaceLayout = sema.symbols.nominalLayout(for: interfaceSymbol) else { continue }
             for (methodSymbol, methodSlot) in ifaceLayout.vtableSlots {
@@ -1214,7 +1195,7 @@ extension LambdaLowerer {
                 let methodFnExpr = arena.appendExpr(.symbolRef(registeredImplementation), type: intType)
                 instructions.append(.constValue(result: methodFnExpr, value: .symbolRef(registeredImplementation)))
                 let registerMethodResult = arena.appendTemporary(type: intType)
-                instructions.append(.call(symbol: nil, callee: interner.intern("kk_object_register_itable_method"), arguments: [wrapperValue, ifaceSlotExpr, methodSlotExpr, methodFnExpr], result: registerMethodResult, canThrow: false, thrownResult: nil))
+                instructions.append(.call(callee: interner.intern("kk_object_register_itable_method"), arguments: [wrapperValue, ifaceSlotExpr, methodSlotExpr, methodFnExpr], result: registerMethodResult, canThrow: false))
             }
         }
     }
@@ -1277,8 +1258,7 @@ extension LambdaLowerer {
             callee: implementationFunction.name,
             arguments: args,
             result: result,
-            canThrow: false,
-            thrownResult: nil
+            canThrow: false
         ))
         body.append(.returnValue(result))
         body.append(.endBlock)

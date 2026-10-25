@@ -47,7 +47,7 @@ final class ConsolePrintLoweringPass: LoweringPass, ParallelLoweringPass {
                     ? function.instructionLocations[index]
                     : nil
                 switch instruction {
-                case let .call(symbol, callee, arguments, result, canThrow, thrownResult, isSuperCall, _):
+                case let .call(symbol, callee, arguments, result, _, _, _, _):
                     if let printKind = Self.consolePrintKind(
                         symbol: symbol,
                         callee: callee,
@@ -278,12 +278,10 @@ final class ConsolePrintLoweringPass: LoweringPass, ParallelLoweringPass {
         to body: inout KIRLoweringEmitContext
     ) {
         body.append(.call(
-            symbol: nil,
             callee: rawPrintCallee,
             arguments: [value],
             result: nil,
             canThrow: false,
-            thrownResult: nil,
             isSuperCall: false
         ))
     }
@@ -330,12 +328,10 @@ final class ConsolePrintLoweringPass: LoweringPass, ParallelLoweringPass {
             }
             let boxed = arena.appendTemporary(type: intType)
             newBody.append(.call(
-                symbol: nil,
                 callee: boxCallee,
                 arguments: [argument],
                 result: boxed,
                 canThrow: false,
-                thrownResult: nil,
                 isSuperCall: false
             ))
             return appendAnyToString(
@@ -365,12 +361,10 @@ final class ConsolePrintLoweringPass: LoweringPass, ParallelLoweringPass {
         newBody.append(.constValue(result: tagExpr, value: .intLiteral(tag)))
         let result = arena.appendTemporary(type: stringType)
         newBody.append(.call(
-            symbol: nil,
             callee: anyToStringCallee,
             arguments: [argument, tagExpr],
             result: result,
             canThrow: false,
-            thrownResult: nil,
             isSuperCall: false
         ))
         return result
@@ -519,7 +513,6 @@ final class ConsolePrintLoweringPass: LoweringPass, ParallelLoweringPass {
                     arguments: [argument],
                     result: toStringResult,
                     canThrow: false,
-                    thrownResult: nil,
                     isSuperCall: false
                 ))
                 return KIRExprWithInstructions(value: toStringResult, instructions: instructions)
@@ -557,7 +550,6 @@ final class ConsolePrintLoweringPass: LoweringPass, ParallelLoweringPass {
                     arguments: [argument],
                     result: result,
                     canThrow: false,
-                    thrownResult: nil,
                     isSuperCall: false
                 ))
                 return KIRExprWithInstructions(value: result, instructions: instructions)
@@ -595,7 +587,6 @@ final class ConsolePrintLoweringPass: LoweringPass, ParallelLoweringPass {
                 arguments: [],
                 result: toStringResult,
                 canThrow: false,
-                thrownResult: nil,
                 dispatch: dispatchKind
             ))
         } else {
@@ -605,7 +596,6 @@ final class ConsolePrintLoweringPass: LoweringPass, ParallelLoweringPass {
                 arguments: [argument],
                 result: toStringResult,
                 canThrow: false,
-                thrownResult: nil,
                 isSuperCall: false
             ))
         }

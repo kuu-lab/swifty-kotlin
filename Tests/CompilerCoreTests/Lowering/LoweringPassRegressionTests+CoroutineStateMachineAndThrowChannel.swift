@@ -186,7 +186,7 @@ extension LoweringPassRegressionTests {
             returnType: types.make(.primitive(.int, .nonNull)),
             body: [
                 .constValue(result: liveValue, value: .intLiteral(41)),
-                .call(symbol: suspendSym, callee: interner.intern("suspendTarget"), arguments: [], result: callResult, canThrow: false, thrownResult: nil),
+                .call(symbol: suspendSym, callee: interner.intern("suspendTarget"), arguments: [], result: callResult, canThrow: false),
                 .binary(op: .add, lhs: liveValue, rhs: callResult, result: summedResult),
                 .returnValue(summedResult),
             ],
@@ -231,12 +231,10 @@ extension LoweringPassRegressionTests {
         let loadedLiveOut = pass.computeLiveOutByInstruction(
             [
                 .call(
-                    symbol: nil,
                     callee: interner.intern("suspendPoint"),
                     arguments: [],
                     result: nil,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ),
                 .loadGlobal(result: loadResult, symbol: globalSymbol),
                 .returnValue(loadResult),
@@ -250,12 +248,10 @@ extension LoweringPassRegressionTests {
             [
                 .constValue(result: storedValue, value: .stringLiteral(interner.intern("before"))),
                 .call(
-                    symbol: nil,
                     callee: interner.intern("suspendPoint"),
                     arguments: [],
                     result: nil,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ),
                 .storeGlobal(value: storedValue, symbol: globalSymbol),
                 .returnUnit,
@@ -354,8 +350,7 @@ extension LoweringPassRegressionTests {
                     callee: suspendName,
                     arguments: [liveValue],
                     result: callResult,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ),
                 .binary(op: .add, lhs: liveValue, rhs: callResult, result: sumResult),
                 .returnValue(sumResult),
@@ -430,7 +425,7 @@ extension LoweringPassRegressionTests {
             params: [],
             returnType: types.unitType,
             body: [
-                .call(symbol: topSymbol, callee: interner.intern("top"), arguments: [], result: mainResult, canThrow: false, thrownResult: nil),
+                .call(symbol: topSymbol, callee: interner.intern("top"), arguments: [], result: mainResult, canThrow: false),
                 .returnValue(mainResult),
             ],
             isSuspend: false,
@@ -442,7 +437,7 @@ extension LoweringPassRegressionTests {
             params: [],
             returnType: types.unitType,
             body: [
-                .call(symbol: leafSymbol, callee: interner.intern("leaf"), arguments: [], result: topResult, canThrow: false, thrownResult: nil),
+                .call(symbol: leafSymbol, callee: interner.intern("leaf"), arguments: [], result: topResult, canThrow: false),
                 .returnValue(topResult),
             ],
             isSuspend: true,
@@ -454,7 +449,7 @@ extension LoweringPassRegressionTests {
             params: [],
             returnType: types.unitType,
             body: [
-                .call(symbol: nil, callee: interner.intern("external_throwing"), arguments: [], result: leafResult, canThrow: false, thrownResult: nil),
+                .call(callee: interner.intern("external_throwing"), arguments: [], result: leafResult, canThrow: false),
                 .returnValue(leafResult),
             ],
             isSuspend: true,

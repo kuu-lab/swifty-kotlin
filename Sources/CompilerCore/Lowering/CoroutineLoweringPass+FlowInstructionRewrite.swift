@@ -56,12 +56,10 @@ extension CoroutineLoweringPass {
 
         func appendFlowReleaseCall(_ handleExpr: KIRExprID) {
             loweredBody.append(.call(
-                symbol: nil,
                 callee: names.kkFlowRelease,
                 arguments: [handleExpr],
                 result: nil,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
         }
 
@@ -79,12 +77,10 @@ extension CoroutineLoweringPass {
                 let retained = module.arena.appendTemporary(type: ctx.sema?.types.anyType ?? TypeID.invalid
                 )
                 loweredBody.append(.call(
-                    symbol: nil,
                     callee: names.kkFlowRetain,
                     arguments: [sourceHandle],
                     result: retained,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ))
                 return (retained, retained)
             }
@@ -108,12 +104,10 @@ extension CoroutineLoweringPass {
         ) {
             let consume = prepareFlowHandleForConsume(handleExpr)
             loweredBody.append(.call(
-                symbol: nil,
                 callee: names.kkFlowEmit,
                 arguments: [consume.callArg, lambdaExpr, appendIntConstantInBody(tag.rawValue)],
                 result: result,
                 canThrow: false,
-                thrownResult: nil,
                 isSuperCall: isSuperCall
             ))
             if let releaseHandle = consume.releaseAfterCall { appendFlowReleaseCall(releaseHandle) }
@@ -130,12 +124,10 @@ extension CoroutineLoweringPass {
         ) {
             let consume = prepareFlowHandleForConsume(handleExpr)
             loweredBody.append(.call(
-                symbol: nil,
                 callee: callee,
                 arguments: [consume.callArg] + extraArguments,
                 result: result,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
             if let releaseHandle = consume.releaseAfterCall { appendFlowReleaseCall(releaseHandle) }
             if let result { flowExprIDs.insert(result.rawValue) }
@@ -177,12 +169,10 @@ extension CoroutineLoweringPass {
                    arguments.count == 1
                 {
                     loweredBody.append(.call(
-                        symbol: nil,
                         callee: producerBridge,
                         arguments: [arguments[0], appendIntConstantInBody(0)],
                         result: result,
                         canThrow: false,
-                        thrownResult: nil,
                         isSuperCall: isSuperCall,
                         qualifiedSuperType: qualifiedSuperType
                     ))
@@ -194,12 +184,10 @@ extension CoroutineLoweringPass {
 
                 if callee == names.flow, arguments.count == 1, !hasRealDeclaration(symbol, in: ctx) {
                     loweredBody.append(.call(
-                        symbol: nil,
                         callee: names.kkFlowCreate,
                         arguments: [arguments[0], appendIntConstantInBody(0)],
                         result: result,
                         canThrow: false,
-                        thrownResult: nil,
                         isSuperCall: isSuperCall,
                         qualifiedSuperType: qualifiedSuperType
                     ))
@@ -216,7 +204,6 @@ extension CoroutineLoweringPass {
                 if callee == names.emit, arguments.count == 1, isFlowScopeFunction,
                    !hasRealDeclaration(symbol, in: ctx) {
                     loweredBody.append(.call(
-                        symbol: nil,
                         callee: names.kkFlowEmit,
                         arguments: [
                             appendIntConstantInBody(0),
@@ -445,12 +432,10 @@ extension CoroutineLoweringPass {
                 {
                     let consume = prepareFlowHandleForConsume(arguments[0])
                     loweredBody.append(.call(
-                        symbol: nil,
                         callee: names.kkFlowToList,
                         arguments: [consume.callArg, appendIntConstantInBody(0)],
                         result: result,
                         canThrow: false,
-                        thrownResult: nil,
                         isSuperCall: isSuperCall
                     ))
                     if let releaseHandle = consume.releaseAfterCall { appendFlowReleaseCall(releaseHandle) }
@@ -463,12 +448,10 @@ extension CoroutineLoweringPass {
                 {
                     let consume = prepareFlowHandleForConsume(arguments[0])
                     loweredBody.append(.call(
-                        symbol: nil,
                         callee: names.kkFlowFirst,
                         arguments: [consume.callArg, appendIntConstantInBody(0)],
                         result: result,
                         canThrow: false,
-                        thrownResult: nil,
                         isSuperCall: isSuperCall
                     ))
                     if let releaseHandle = consume.releaseAfterCall { appendFlowReleaseCall(releaseHandle) }
@@ -481,12 +464,10 @@ extension CoroutineLoweringPass {
                 {
                     let consume = prepareFlowHandleForConsume(arguments[0])
                     loweredBody.append(.call(
-                        symbol: nil,
                         callee: names.kkFlowSingle,
                         arguments: [consume.callArg, appendIntConstantInBody(0)],
                         result: result,
                         canThrow: true,
-                        thrownResult: nil,
                         isSuperCall: isSuperCall
                     ))
                     if let releaseHandle = consume.releaseAfterCall { appendFlowReleaseCall(releaseHandle) }
@@ -504,7 +485,6 @@ extension CoroutineLoweringPass {
                         arguments: [consume.callArg, appendIntConstantInBody(0)],
                         result: result,
                         canThrow: false,
-                        thrownResult: nil,
                         isSuperCall: isSuperCall
                     ))
                     if let releaseHandle = consume.releaseAfterCall { appendFlowReleaseCall(releaseHandle) }
@@ -522,7 +502,6 @@ extension CoroutineLoweringPass {
                         arguments: [consume.callArg, appendIntConstantInBody(0)],
                         result: result,
                         canThrow: false,
-                        thrownResult: nil,
                         isSuperCall: isSuperCall
                     ))
                     if let releaseHandle = consume.releaseAfterCall { appendFlowReleaseCall(releaseHandle) }
@@ -750,12 +729,10 @@ extension CoroutineLoweringPass {
                 {
                     let consume = prepareFlowHandleForConsume(receiver)
                     loweredBody.append(.call(
-                        symbol: nil,
                         callee: names.kkFlowToList,
                         arguments: [consume.callArg, appendIntConstantInBody(0)],
                         result: result,
-                        canThrow: false,
-                        thrownResult: nil
+                        canThrow: false
                     ))
                     if let releaseHandle = consume.releaseAfterCall { appendFlowReleaseCall(releaseHandle) }
                     continue
@@ -766,12 +743,10 @@ extension CoroutineLoweringPass {
                 {
                     let consume = prepareFlowHandleForConsume(receiver)
                     loweredBody.append(.call(
-                        symbol: nil,
                         callee: names.kkFlowFirst,
                         arguments: [consume.callArg, appendIntConstantInBody(0)],
                         result: result,
-                        canThrow: false,
-                        thrownResult: nil
+                        canThrow: false
                     ))
                     if let releaseHandle = consume.releaseAfterCall { appendFlowReleaseCall(releaseHandle) }
                     continue
@@ -782,12 +757,10 @@ extension CoroutineLoweringPass {
                 {
                     let consume = prepareFlowHandleForConsume(receiver)
                     loweredBody.append(.call(
-                        symbol: nil,
                         callee: names.kkFlowSingle,
                         arguments: [consume.callArg, appendIntConstantInBody(0)],
                         result: result,
-                        canThrow: true,
-                        thrownResult: nil
+                        canThrow: true
                     ))
                     if let releaseHandle = consume.releaseAfterCall { appendFlowReleaseCall(releaseHandle) }
                     continue

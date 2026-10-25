@@ -99,9 +99,9 @@ extension LoweringPassRegressionTests {
                     .constValue(result: valueExpr, value: .symbolRef(valueParameter)),
                     .constValue(result: blockExpr, value: .symbolRef(blockParameter)),
                     .call(
-                        symbol: nil, callee: interner.intern(RuntimeCall.functionInvoke.name),
+                        callee: interner.intern(RuntimeCall.functionInvoke.name),
                         arguments: [blockExpr, valueExpr], result: blockResult,
-                        canThrow: true, thrownResult: nil
+                        canThrow: true
                     ),
                     .returnValue(blockResult),
                 ], isSuspend: false, isInline: true
@@ -116,7 +116,7 @@ extension LoweringPassRegressionTests {
             body: [
                 .call(
                     symbol: target.symbol, callee: target.name, arguments: arguments,
-                    result: result, canThrow: true, thrownResult: nil
+                    result: result, canThrow: true
                 ),
                 .returnValue(result),
             ], isSuspend: false, isInline: false
@@ -213,7 +213,7 @@ extension LoweringPassRegressionTests {
                 returnType: types.intType,
                 body: [
                     .label(10),
-                    .call(symbol: leafSymbol, callee: leaf.name, arguments: [], result: middleResult, canThrow: false, thrownResult: nil),
+                    .call(symbol: leafSymbol, callee: leaf.name, arguments: [], result: middleResult, canThrow: false),
                     .returnValue(middleResult),
                 ], isSuspend: false, isInline: true
             )
@@ -224,8 +224,8 @@ extension LoweringPassRegressionTests {
                 returnType: types.intType,
                 body: [
                     .label(10),
-                    .call(symbol: middleSymbol, callee: middle.name, arguments: [], result: firstResult, canThrow: false, thrownResult: nil),
-                    .call(symbol: middleSymbol, callee: middle.name, arguments: [], result: secondResult, canThrow: false, thrownResult: nil),
+                    .call(symbol: middleSymbol, callee: middle.name, arguments: [], result: firstResult, canThrow: false),
+                    .call(symbol: middleSymbol, callee: middle.name, arguments: [], result: secondResult, canThrow: false),
                     .returnValue(secondResult),
                 ], isSuspend: false, isInline: false
             )
@@ -332,14 +332,14 @@ extension LoweringPassRegressionTests {
                 .constValue(result: argument, value: .intLiteral(7)),
                 .constValue(result: lambdaRef, value: .symbolRef(lambdaSymbol)),
                 .call(
-                    symbol: nil, callee: invokeCallee,
+                    callee: invokeCallee,
                     arguments: [lambdaRef, argument], result: lambdaResult,
-                    canThrow: false, thrownResult: nil
+                    canThrow: false
                 ),
                 .call(
                     symbol: inlineSymbol, callee: inlineCallee.name,
                     arguments: [argument], result: inlineResult,
-                    canThrow: false, thrownResult: nil
+                    canThrow: false
                 ),
                 .returnValue(inlineResult),
             ],

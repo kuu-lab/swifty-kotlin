@@ -100,12 +100,10 @@ extension CoroutineLoweringPass {
         )
         lowered.append(
             .call(
-                symbol: nil,
                 callee: enterCallee,
                 arguments: [continuationExpr, functionIDExpr],
                 result: resumeLabelExpr,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             )
         )
 
@@ -144,12 +142,10 @@ extension CoroutineLoweringPass {
                     )
                     lowered.append(
                         .call(
-                            symbol: nil,
                             callee: getSpillCallee,
                             arguments: [continuationExpr, slotExpr],
                             result: exprID,
-                            canThrow: false,
-                            thrownResult: nil
+                            canThrow: false
                         )
                     )
                 }
@@ -158,12 +154,10 @@ extension CoroutineLoweringPass {
                     )
                     lowered.append(
                         .call(
-                            symbol: nil,
                             callee: getCompletionCallee,
                             arguments: [continuationExpr],
                             result: completionTokenExpr,
-                            canThrow: false,
-                            thrownResult: nil
+                            canThrow: false
                         )
                     )
                     lowered.append(.copy(from: completionTokenExpr, to: callResultExpr))
@@ -176,12 +170,10 @@ extension CoroutineLoweringPass {
                 )
                 lowered.append(
                     .call(
-                        symbol: nil,
                         callee: getThrownExceptionCallee,
                         arguments: [continuationExpr],
                         result: thrownExceptionExpr,
-                        canThrow: false,
-                        thrownResult: nil
+                        canThrow: false
                     )
                 )
                 let throwLabel = Int32(4000 + block.resumeLabel * 2)
@@ -206,7 +198,6 @@ extension CoroutineLoweringPass {
                     let cancelCheckResult = module.arena.appendTemporary(type: intType)
                     lowered.append(
                         .call(
-                            symbol: nil,
                             callee: checkCancellationCallee,
                             arguments: [continuationExpr],
                             result: cancelCheckResult,
@@ -233,12 +224,10 @@ extension CoroutineLoweringPass {
                 } else {
                     lowered.append(
                         .call(
-                            symbol: nil,
                             callee: exitCallee,
                             arguments: [continuationExpr, thrownExceptionExpr],
                             result: nil,
-                            canThrow: false,
-                            thrownResult: nil
+                            canThrow: false
                         )
                     )
                     lowered.append(.rethrow(value: thrownExceptionExpr))
@@ -278,12 +267,10 @@ extension CoroutineLoweringPass {
                         )
                         lowered.append(
                             .call(
-                                symbol: nil,
                                 callee: setSpillCallee,
                                 arguments: [continuationExpr, slotExpr, exprID],
                                 result: nil,
-                                canThrow: false,
-                                thrownResult: nil
+                                canThrow: false
                             )
                         )
                     }
@@ -294,12 +281,10 @@ extension CoroutineLoweringPass {
 
                     lowered.append(
                         .call(
-                            symbol: nil,
                             callee: setLabelCallee,
                             arguments: [continuationExpr, resumeLabelExpr],
                             result: nil,
-                            canThrow: false,
-                            thrownResult: nil
+                            canThrow: false
                         )
                     )
 
@@ -355,12 +340,10 @@ extension CoroutineLoweringPass {
                             let millisExpr = module.arena.appendTemporary(type: longType
                             )
                             lowered.append(.call(
-                                symbol: nil,
                                 callee: interner.intern("kk_duration_inWholeMilliseconds"),
                                 arguments: [firstArg],
                                 result: millisExpr,
                                 canThrow: false,
-                                thrownResult: nil,
                                 isSuperCall: false
                             ))
                             loweredSuspendArguments[0] = millisExpr
@@ -431,23 +414,19 @@ extension CoroutineLoweringPass {
                     )
                     lowered.append(
                         .call(
-                            symbol: nil,
                             callee: suspendedProvider,
                             arguments: [],
                             result: suspendedExpr,
-                            canThrow: false,
-                            thrownResult: nil
+                            canThrow: false
                         )
                     )
                     lowered.append(.returnIfEqual(lhs: suspendTokenResult, rhs: suspendedExpr))
                     lowered.append(
                         .call(
-                            symbol: nil,
                             callee: setCompletionCallee,
                             arguments: [continuationExpr, suspendTokenResult],
                             result: nil,
-                            canThrow: false,
-                            thrownResult: nil
+                            canThrow: false
                         )
                     )
                     if let userResultExpr {
@@ -460,7 +439,6 @@ extension CoroutineLoweringPass {
                     // An uncontended Mutex acquisition does not check cancellation.
                     if !mutexLockCallees.contains(suspendCallInfo.callee) {
                         lowered.append(.call(
-                            symbol: nil,
                             callee: checkCancellationCallee,
                             arguments: [continuationExpr],
                             result: nil,
@@ -478,12 +456,10 @@ extension CoroutineLoweringPass {
                     )
                     lowered.append(
                         .call(
-                            symbol: nil,
                             callee: exitCallee,
                             arguments: [continuationExpr, value],
                             result: exitValueExpr,
-                            canThrow: false,
-                            thrownResult: nil
+                            canThrow: false
                         )
                     )
                     lowered.append(.returnValue(exitValueExpr))
@@ -494,12 +470,10 @@ extension CoroutineLoweringPass {
                     )
                     lowered.append(
                         .call(
-                            symbol: nil,
                             callee: exitCallee,
                             arguments: [continuationExpr, unitExpr],
                             result: exitValueExpr,
-                            canThrow: false,
-                            thrownResult: nil
+                            canThrow: false
                         )
                     )
                     lowered.append(.returnValue(exitValueExpr))

@@ -244,12 +244,10 @@ struct ControlFlowAndCallLowererDirectCoverageTests {
 
         var lowered = KIRLoweringEmitContext([
             .call(
-                symbol: nil,
                 callee: fixture.interner.intern("mayThrow"),
                 arguments: [],
                 result: nil,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ),
         ])
         let exceptionSlot = fixture.kirArena.appendExpr(.temporary(3), type: fixture.types.anyType)

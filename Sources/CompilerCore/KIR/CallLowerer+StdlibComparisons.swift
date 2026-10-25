@@ -285,12 +285,10 @@ extension CallLowerer {
             if case let .floatingPoint(runtimeCallee) = comparisonStrategy {
                 let newCurrent = arena.appendTemporary(type: resultType)
                 instructions.append(.call(
-                    symbol: nil,
                     callee: runtimeCallee,
                     arguments: [candidateExpr, currentExpr],
                     result: newCurrent,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ))
                 currentExpr = newCurrent
                 continue
@@ -307,12 +305,10 @@ extension CallLowerer {
                 let compareResultExpr = arena.appendTemporary(type: intType
                 )
                 instructions.append(.call(
-                    symbol: nil,
                     callee: interner.intern("kk_compare_any"),
                     arguments: [candidateExpr, currentExpr],
                     result: compareResultExpr,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ))
                 conditionExpr = arena.appendTemporary(type: boolType
                 )
@@ -352,12 +348,10 @@ extension CallLowerer {
                 let compareResultExpr = arena.appendTemporary(type: intType
                 )
                 instructions.append(.call(
-                    symbol: nil,
                     callee: interner.intern("__kk_compare_with_comparator"),
                     arguments: [loweredArgIDs[comparatorArgIndex], boxedCandidate, boxedCurrent],
                     result: compareResultExpr,
-                    canThrow: true,
-                    thrownResult: nil
+                    canThrow: true
                 ))
                 conditionExpr = arena.appendTemporary(type: boolType
                 )
@@ -507,12 +501,10 @@ extension CallLowerer {
         if let floatingPointRuntimeCallee {
             let result = arena.appendTemporary(type: resultType)
             instructions.append(.call(
-                symbol: nil,
                 callee: interner.intern(floatingPointRuntimeCallee),
                 arguments: [lhsExpr, rhsExpr],
                 result: result,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
             return result
         }
@@ -590,21 +582,17 @@ extension CallLowerer {
             let calleeID = interner.intern(floatingPointRuntimeCallee)
             let tmp = arena.appendTemporary(type: resultType)
             instructions.append(.call(
-                symbol: nil,
                 callee: calleeID,
                 arguments: [aExpr, bExpr],
                 result: tmp,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
             let result = arena.appendTemporary(type: resultType)
             instructions.append(.call(
-                symbol: nil,
                 callee: calleeID,
                 arguments: [tmp, cExpr],
                 result: result,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
             return result
         }

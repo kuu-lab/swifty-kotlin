@@ -33,12 +33,10 @@ extension LoweringPassRegressionTests {
         var body: [KIRInstruction] = []
         if hasMarker {
             body.append(.call(
-                symbol: nil,
                 callee: interner.intern("<lambda>"),
                 arguments: [],
                 result: nil,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: false
             ))
         }
         body.append(.returnUnit)
@@ -84,12 +82,10 @@ extension LoweringPassRegressionTests {
             returnType: types.unitType,
             body: [
                 .call(
-                    symbol: nil,
                     callee: interner.intern("<lambda>"),
                     arguments: [v0],
                     result: v1,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ),
                 .returnUnit,
             ],
@@ -180,8 +176,7 @@ extension LoweringPassRegressionTests {
                     callee: lambdaName,
                     arguments: [capturedValue, callArg], // capture + value
                     result: callResult,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ),
                 .returnValue(callResult),
             ],
@@ -290,8 +285,7 @@ extension LoweringPassRegressionTests {
                     callee: lambdaName,
                     arguments: [callArg],
                     result: callResult,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ),
                 .returnValue(callResult),
             ],
@@ -381,8 +375,7 @@ extension LoweringPassRegressionTests {
                     callee: lambdaName,
                     arguments: [capturedValue, callArg],
                     result: callResult,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ),
                 .returnValue(callResult),
             ],
@@ -536,8 +529,7 @@ extension LoweringPassRegressionTests {
                     callee: lambdaName,
                     arguments: [capturedValue, callArg],
                     result: callResult,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ),
                 .returnValue(callResult),
             ],
@@ -717,8 +709,7 @@ extension LoweringPassRegressionTests {
                     callee: lambdaName,
                     arguments: [capturedVal1, capturedVal2, callArg],
                     result: callResult,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ),
                 .returnValue(callResult),
             ],
@@ -802,8 +793,8 @@ extension LoweringPassRegressionTests {
             // their default bridges and callees. Closure conversion must not use
             // this pre-ABI bit as proof that the lambda cannot throw.
             lambdaBody.append(.call(
-                symbol: nil, callee: sourceCallee, arguments: [captureExpr],
-                result: nil, canThrow: false, thrownResult: nil
+                callee: sourceCallee, arguments: [captureExpr],
+                result: nil, canThrow: false
             ))
         }
         lambdaBody.append(.returnValue(captureExpr))
@@ -838,8 +829,7 @@ extension LoweringPassRegressionTests {
                     callee: lambdaName,
                     arguments: [capturedValue, callArg],
                     result: callResult,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ),
                 .returnValue(callResult),
             ],
@@ -947,8 +937,7 @@ extension LoweringPassRegressionTests {
                     callee: lambdaName,
                     arguments: [capturedValue],
                     result: callResult,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ),
                 .returnValue(callResult),
             ],
@@ -1027,8 +1016,7 @@ extension LoweringPassRegressionTests {
                     callee: lambdaName,
                     arguments: [capturedValue, callArg],
                     result: callResult,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ),
                 .returnValue(callResult),
             ],
@@ -1111,8 +1099,7 @@ extension LoweringPassRegressionTests {
                     callee: lambdaName,
                     arguments: [capturedValue, callArg],
                     result: callResult,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: false
                 ),
                 .returnValue(callResult),
             ],

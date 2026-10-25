@@ -126,12 +126,10 @@ final class EnumNameAccessLoweringPass: LoweringPass, ParallelLoweringPass {
                     // per-class helper needed.
                     let targetResult = result ?? module.arena.appendTemporary(type: intType)
                     newBody.append(.call(
-                        symbol: nil,
                         callee: ctx.interner.intern("kk_unbox_int"),
                         arguments: [receiver],
                         result: targetResult,
                         canThrow: false,
-                        thrownResult: nil,
                         isSuperCall: false
                     ))
                     continue
@@ -150,7 +148,6 @@ final class EnumNameAccessLoweringPass: LoweringPass, ParallelLoweringPass {
                             arguments: [receiver],
                             result: targetResult,
                             canThrow: false,
-                            thrownResult: nil,
                             isSuperCall: false
                         ))
                         continue
@@ -217,7 +214,6 @@ final class EnumNameAccessLoweringPass: LoweringPass, ParallelLoweringPass {
             arguments: [arguments[0]],
             result: result,
             canThrow: false,
-            thrownResult: nil,
             isSuperCall: false
         )]
     }
@@ -282,7 +278,6 @@ final class EnumNameAccessLoweringPass: LoweringPass, ParallelLoweringPass {
             arguments: arguments,
             result: targetResult,
             canThrow: false,
-            thrownResult: nil,
             isSuperCall: false
         )]
     }

@@ -81,6 +81,52 @@ extension InlineLoweringPass {
                 argument, parameterType: param.type, module: module, ctx: ctx, into: &lowered
             )
         }
+
+        // Tailrec lowering turns a self tail-call into copies that write the
+        // parameter slots before jumping back to the loop head. A parameter
+        // rebound this way does not hold its initial argument on later
+        // iterations, so a `kk_function_invoke` through it must stay a dynamic
+        // dispatch: splicing the call-site lambda's body would freeze
+        // iteration-0's callable into the loop (KUU-3222).
+        let reboundParamSymbols: Set<SymbolID> = {
+            var storageSymbols: [KIRExprID: SymbolID] = [:]
+            for instruction in inlineTarget.body {
+                guard case let .constValue(expr, .symbolRef(symbol)) = instruction else { continue }
+                storageSymbols[expr] = symbol
+            }
+            var rebound: Set<SymbolID> = []
+            for instruction in inlineTarget.body {
+                let written: [KIRExprID]
+                switch instruction {
+                case let .copy(_, to):
+                    written = [to]
+                case let .constValue(result, value):
+                    // The constValue that binds the parameter symbol is the
+                    // slot's own definition; anything else written over it
+                    // reassigns the parameter.
+                    if case let .symbolRef(bound) = value, storageSymbols[result] == bound {
+                        written = []
+                    } else {
+                        written = [result]
+                    }
+                case let .call(_, _, _, result, _, thrownResult, _, _),
+                     let .virtualCall(_, _, _, _, result, _, thrownResult, _):
+                    written = [result, thrownResult].compactMap { $0 }
+                case let .beginNonLocalReturnScope(value, _, function):
+                    written = function != nil ? [value] : []
+                default:
+                    written = InlineExprAliasing.definedResult(in: instruction).map { [$0] } ?? []
+                }
+                for expr in written {
+                    if let symbol = storageSymbols[expr] {
+                        rebound.insert(symbol)
+                    }
+                }
+            }
+            return rebound
+        }()
+        let reboundArgumentExprs = Set(reboundParamSymbols.compactMap { parameterValues[$0] })
+
         var returnedExpr: KIRExprID?
         var hasNonLocalReturn = false
         var hasNormalReturn = false
@@ -257,6 +303,7 @@ extension InlineLoweringPass {
                     nil
                 }
                 if let lambdaParamSym = resolvedLambdaParamSymbol,
+                   !reboundParamSymbols.contains(lambdaParamSym),
                    let argExpr = parameterValues[lambdaParamSym],
                    let lambdaFunction = resolveLambdaFunction(
                        argExpr: argExpr,
@@ -352,6 +399,7 @@ extension InlineLoweringPass {
                 let resolvedArgs = args.map { InlineExprAliasing.resolveAlias(of: $0, aliases: localExprMap) }
                 if ["kk_function_invoke", "kk_function_invoke_0", "kk_function_invoke_2", "kk_function_invoke_3", "kk_function_invoke_4", "kk_suspend_function_invoke", "kk_suspend_function_invoke_0", "kk_suspend_function_invoke_2", "kk_suspend_function_invoke_3", "kk_suspend_function_invoke_4", "kk_suspend_function_invoke_5", "kk_suspend_function_invoke_6"].contains(calleeStr),
                    let callableExpr = resolvedArgs.first,
+                   !reboundArgumentExprs.contains(callableExpr),
                    let lambdaFunction = resolveLambdaFunction(
                        argExpr: callableExpr,
                        arena: module.arena,
@@ -560,12 +608,10 @@ extension InlineLoweringPass {
                         qualifiedSuperType: qualifiedSuperType
                     ))
                     lowered.append(.call(
-                        symbol: nil,
                         callee: unboxCallee,
                         arguments: [boxedResult],
                         result: loweredResult,
-                        canThrow: false,
-                        thrownResult: nil
+                        canThrow: false
                     ))
                     break
                 }

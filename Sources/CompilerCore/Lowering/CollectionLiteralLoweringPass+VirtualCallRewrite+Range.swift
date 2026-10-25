@@ -34,9 +34,9 @@ extension CollectionVirtualCallRewriteLoweringPass {
         if callee == lookup.stepName, arguments.isEmpty {
             let stepName = isULongRange ? lookup.kkULongRangeStepName : (isUIntRange ? interner.intern("__kk_uint_range_step") : lookup.kkRangeStepName)
             loweredBody.append(.call(
-                symbol: nil, callee: stepName,
+                callee: stepName,
                 arguments: [receiver], result: result,
-                canThrow: false, thrownResult: nil
+                canThrow: false
             ))
             return true
         }
@@ -51,9 +51,9 @@ extension CollectionVirtualCallRewriteLoweringPass {
             // real-kklib probe covering all 13 KSP-1523 members.
             let firstName = lookup.kkRangeFirstName
             loweredBody.append(.call(
-                symbol: nil, callee: firstName,
+                callee: firstName,
                 arguments: [receiver], result: result,
-                canThrow: false, thrownResult: nil
+                canThrow: false
             ))
             return true
         }
@@ -61,15 +61,15 @@ extension CollectionVirtualCallRewriteLoweringPass {
             // KSP-1523: see the `first`/`start` case above — same unreachable arm.
             let lastName = lookup.kkRangeLastName
             loweredBody.append(.call(
-                symbol: nil, callee: lastName,
+                callee: lastName,
                 arguments: [receiver], result: result,
-                canThrow: false, thrownResult: nil
+                canThrow: false
             ))
             return true
         }
         if callee == lookup.endExclusiveName, arguments.isEmpty {
             loweredBody.append(.call(
-                symbol: nil, callee: lookup.kkRangeEndExclusiveName,
+                callee: lookup.kkRangeEndExclusiveName,
                 arguments: [receiver], result: result,
                 canThrow: true, thrownResult: origThrownResult
             ))
@@ -78,9 +78,9 @@ extension CollectionVirtualCallRewriteLoweringPass {
         if callee == lookup.countName, arguments.isEmpty {
             // KSP-1523: see the `first`/`start` case above — same unreachable arm.
             loweredBody.append(.call(
-                symbol: nil, callee: lookup.kkRangeCountName,
+                callee: lookup.kkRangeCountName,
                 arguments: [receiver], result: result,
-                canThrow: false, thrownResult: nil
+                canThrow: false
             ))
             return true
         }
@@ -88,18 +88,18 @@ extension CollectionVirtualCallRewriteLoweringPass {
             // KSP-1523: see the `first`/`start` case above — same unreachable arm.
             let isEmptyName = lookup.kkRangeIsEmptyName
             loweredBody.append(.call(
-                symbol: nil, callee: isEmptyName,
+                callee: isEmptyName,
                 arguments: [receiver], result: result,
-                canThrow: false, thrownResult: nil
+                canThrow: false
             ))
             return true
         }
         if callee == lookup.sumName, arguments.isEmpty {
             // KSP-1523: see the `first`/`start` case above — same unreachable arm.
             loweredBody.append(.call(
-                symbol: nil, callee: lookup.kkRangeSumName,
+                callee: lookup.kkRangeSumName,
                 arguments: [receiver], result: result,
-                canThrow: false, thrownResult: nil
+                canThrow: false
             ))
             return true
         }
@@ -109,9 +109,9 @@ extension CollectionVirtualCallRewriteLoweringPass {
             // KSP-1523: see the `first`/`start` case above — same unreachable arm.
             let containsName = interner.intern("__kk_range_contains")
             loweredBody.append(.call(
-                symbol: nil, callee: containsName,
+                callee: containsName,
                 arguments: [receiver, arguments[0]], result: result,
-                canThrow: false, thrownResult: nil
+                canThrow: false
             ))
             return true
         }
@@ -126,9 +126,9 @@ extension CollectionVirtualCallRewriteLoweringPass {
                 toListCallee = lookup.kkRangeToListName
             }
             loweredBody.append(.call(
-                symbol: nil, callee: toListCallee,
+                callee: toListCallee,
                 arguments: [receiver], result: result,
-                canThrow: false, thrownResult: nil
+                canThrow: false
             ))
             state.tagListResult(result)
             return true
@@ -136,9 +136,9 @@ extension CollectionVirtualCallRewriteLoweringPass {
 
         if callee == lookup.iteratorName, arguments.isEmpty {
             loweredBody.append(.call(
-                symbol: nil, callee: lookup.kkRangeIteratorName,
+                callee: lookup.kkRangeIteratorName,
                 arguments: [receiver], result: result,
-                canThrow: false, thrownResult: nil
+                canThrow: false
             ))
             return true
         }
@@ -345,9 +345,9 @@ extension CollectionVirtualCallRewriteLoweringPass {
             // structural reason as the other members above (see `first`/`start`).
             let firstOrNullName = interner.intern("__kk_range_firstOrNull")
             loweredBody.append(.call(
-                symbol: nil, callee: firstOrNullName,
+                callee: firstOrNullName,
                 arguments: [receiver], result: result,
-                canThrow: false, thrownResult: nil
+                canThrow: false
             ))
             return true
         }
@@ -382,9 +382,9 @@ extension CollectionVirtualCallRewriteLoweringPass {
             // structural reason as the other members above (see `first`/`start`).
             let lastOrNullName = interner.intern("__kk_range_lastOrNull")
             loweredBody.append(.call(
-                symbol: nil, callee: lastOrNullName,
+                callee: lastOrNullName,
                 arguments: [receiver], result: result,
-                canThrow: false, thrownResult: nil
+                canThrow: false
             ))
             return true
         }
@@ -419,7 +419,7 @@ extension CollectionVirtualCallRewriteLoweringPass {
         }
         if callee == lookup.chunkedName, arguments.count == 1 {
             loweredBody.append(.call(
-                symbol: nil, callee: isULongRange ? interner.intern("__kk_ulong_range_chunked")
+                callee: isULongRange ? interner.intern("__kk_ulong_range_chunked")
                     : (isUIntRange ? interner.intern("__kk_uint_range_chunked") : lookup.kkRangeChunkedName),
                 arguments: [receiver] + arguments, result: result,
                 canThrow: true, thrownResult: origThrownResult
@@ -429,7 +429,7 @@ extension CollectionVirtualCallRewriteLoweringPass {
         }
         if callee == lookup.windowedName, arguments.count == 3 {
             loweredBody.append(.call(
-                symbol: nil, callee: isULongRange ? interner.intern("__kk_ulong_range_windowed")
+                callee: isULongRange ? interner.intern("__kk_ulong_range_windowed")
                     : (isUIntRange ? interner.intern("__kk_uint_range_windowed") : lookup.kkRangeWindowedName),
                 arguments: [receiver] + arguments, result: result,
                 canThrow: true, thrownResult: origThrownResult
@@ -451,7 +451,7 @@ extension CollectionVirtualCallRewriteLoweringPass {
             } else {
                 takeName = lookup.kkRangeTakeName
             }
-            loweredBody.append(.call(symbol: nil, callee: takeName,
+            loweredBody.append(.call(callee: takeName,
                 arguments: [receiver] + arguments, result: result, canThrow: true, thrownResult: origThrownResult))
             state.tagListResult(result)
             return true
@@ -469,7 +469,7 @@ extension CollectionVirtualCallRewriteLoweringPass {
             } else {
                 dropName = lookup.kkRangeDropName
             }
-            loweredBody.append(.call(symbol: nil, callee: dropName,
+            loweredBody.append(.call(callee: dropName,
                 arguments: [receiver] + arguments, result: result, canThrow: true, thrownResult: origThrownResult))
             state.tagListResult(result)
             return true
@@ -483,8 +483,8 @@ extension CollectionVirtualCallRewriteLoweringPass {
             } else {
                 averageName = lookup.kkRangeAverageName
             }
-            loweredBody.append(.call(symbol: nil, callee: averageName,
-                arguments: [receiver], result: result, canThrow: false, thrownResult: nil))
+            loweredBody.append(.call(callee: averageName,
+                arguments: [receiver], result: result, canThrow: false))
             return true
         }
         if callee == lookup.sortedName, arguments.isEmpty {
@@ -498,8 +498,8 @@ extension CollectionVirtualCallRewriteLoweringPass {
             } else {
                 sortedName = lookup.kkRangeSortedName
             }
-            loweredBody.append(.call(symbol: nil, callee: sortedName,
-                arguments: [receiver], result: result, canThrow: false, thrownResult: nil))
+            loweredBody.append(.call(callee: sortedName,
+                arguments: [receiver], result: result, canThrow: false))
             state.tagListResult(result)
             return true
         }
@@ -509,9 +509,9 @@ extension CollectionVirtualCallRewriteLoweringPass {
             // structural reason as the other members above (see `first`/`start`).
             let reversedName = lookup.kkRangeReversedName
             loweredBody.append(.call(
-                symbol: nil, callee: reversedName,
+                callee: reversedName,
                 arguments: [receiver], result: result,
-                canThrow: false, thrownResult: nil
+                canThrow: false
             ))
             if let result {
                 state.insert(.range, result)

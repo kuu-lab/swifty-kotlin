@@ -30,11 +30,9 @@ func emitKClassDisplayNameRegistration(
     let nameExpr = arena.appendExpr(.stringLiteral(name), type: sema.types.intType)
     instructions.append(.constValue(result: nameExpr, value: .stringLiteral(name)))
     instructions.append(.call(
-        symbol: nil,
         callee: interner.intern("__kk_kclass_register_display_name"),
         arguments: [typeTokenExpr, nameExpr],
         result: arena.appendTemporary(type: sema.types.intType),
-        canThrow: false,
-        thrownResult: nil
+        canThrow: false
     ))
 }

@@ -425,7 +425,7 @@ extension KIRLoweringDriver {
         initInstructions.append(.call(
             symbol: ctorSymbol, callee: interner.intern("<init>"),
             arguments: [allocatedObj, lambdaFnPtr, modeExpr, lockArgument, initialValueExpr, initialComputedExpr],
-            result: createResult, canThrow: false, thrownResult: nil
+            result: createResult, canThrow: false
         ))
         initInstructions.append(.storeGlobal(value: createResult, symbol: delegateStorageSymbol))
     }
@@ -524,12 +524,10 @@ extension KIRLoweringDriver {
         instructions.append(.constValue(result: classIDExpr, value: .intLiteral(classIDValue)))
         let allocatedObj = arena.appendTemporary(type: resultType)
         instructions.append(.call(
-            symbol: nil,
             callee: interner.intern("kk_object_new"),
             arguments: [slotCountExpr, classIDExpr],
             result: allocatedObj,
-            canThrow: false,
-            thrownResult: nil
+            canThrow: false
         ))
         for superSymbol in sema.symbols.directSupertypes(for: ownerSymbol) {
             let parentTypeID = RuntimeTypeCheckToken.stableNominalTypeID(symbol: superSymbol, sema: sema, interner: interner)
@@ -542,9 +540,9 @@ extension KIRLoweringDriver {
                 ? interner.intern("kk_type_register_iface")
                 : interner.intern("kk_type_register_super")
             instructions.append(.call(
-                symbol: nil, callee: registerCallee,
+                callee: registerCallee,
                 arguments: [childExpr, parentExpr],
-                result: registerResult, canThrow: false, thrownResult: nil
+                result: registerResult, canThrow: false
             ))
         }
         appendObjectItableMethodRegistrations(

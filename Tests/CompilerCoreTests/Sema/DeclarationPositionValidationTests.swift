@@ -80,6 +80,32 @@ struct DeclarationPositionValidationTests {
     }
 
     @Test(arguments: [
+        "class C<T, T> { }",
+        "class C<T, T, T> { }",
+        "fun <T, T> f() = 1",
+        "interface I<K, K> {}",
+        "typealias M<T, T> = T",
+        "enum class E<T, T> { A }",
+    ])
+    func duplicateTypeParameterNamesAreRejected(_ source: String) throws {
+        let ctx = try semaContextWithoutStdlib(for: source)
+        assertHasDiagnostic("KSWIFTK-SEMA-0436", in: ctx)
+    }
+
+    @Test(arguments: [
+        "class C<T> { }",
+        "class C<T, U> { }",
+        "fun <T, U> f() = 1",
+        "interface I<K, V> {}",
+        "typealias M<T, U> = T",
+        "class Outer<T> { class Inner<T> { } }",
+    ])
+    func distinctTypeParameterNamesAreAccepted(_ source: String) throws {
+        let ctx = try semaContextWithoutStdlib(for: source)
+        assertNoDiagnostic("KSWIFTK-SEMA-0436", in: ctx)
+    }
+
+    @Test(arguments: [
         "companion fun f() = 1",
         "private companion fun f() = 1",
         "companion val x = 1",
@@ -190,6 +216,100 @@ struct DeclarationPositionValidationTests {
         assertHasDiagnostic("KSWIFTK-SEMA-0416", in: ctx)
     }
 
+    @Test(arguments: [
+        "class C { operator fun mod(a: Int) = 1 }",
+        "class C { operator fun modAssign(a: Int) {} }",
+        "class C { operator fun and(a: C) = 1 }",
+        "class C { operator fun shl(a: Int) = 1 }",
+        "class C { operator fun component() = 1 }",
+        "class C { operator fun component1x() = 1 }",
+    ])
+    func nonConventionOperatorNamesAreRejected(source: String) throws {
+        let ctx = try semaContextWithoutStdlib(for: source)
+        assertHasDiagnostic("KSWIFTK-SEMA-0416", in: ctx)
+    }
+
+    // MARK: - operator modifier eligibility (KUU-3149)
+
+    @Test(arguments: [
+        // Arity: each convention name pins down a value-parameter count.
+        "class C { operator fun plus(a: C, b: Int) = 1 }",
+        "class C { operator fun minus() = 1 }",
+        "class C { operator fun unaryPlus(a: Int) = 1 }",
+        "class C { operator fun not(a: Int) = true }",
+        "class C { operator fun inv(a: Int) = 1 }",
+        "class C { operator fun component1(a: Int) = 1 }",
+        "class C { operator fun iterator(a: Int): Iterator<Int> = TODO() }",
+        "class C { operator fun next(a: Int) = 1 }",
+        "class C { operator fun hasNext(a: Int) = true }",
+        "class C { operator fun compareTo(a: C, b: C) = 0 }",
+        "class C { operator fun contains() = true }",
+        "class C { operator fun rangeTo(a: C, b: C) = 1 }",
+        "class C { operator fun plusAssign(a: Int, b: Int) {} }",
+        "class C { operator fun get() = 1 }",
+        "class C { operator fun set(i: Int) {} }",
+        "class C { operator fun getValue(a: Int) = 1 }",
+        "class C { operator fun setValue(a: Int, b: Int) {} }",
+        "class C { operator fun provideDelegate(a: Int) = 1 }",
+        "class C { operator fun getValue(a: Int, b: Int, c: Int) = 1 }",
+        "class C { operator fun setValue(a: Int, b: Int, c: Int, d: Int) {} }",
+        // Parameter shape: defaults and varargs are rejected once arity fits.
+        "class C { operator fun plus(a: Int = 0) = 1 }",
+        "class C { operator fun plus(vararg a: Int) = a.size }",
+        "class C { operator fun contains(a: Int = 0) = true }",
+        "class C { operator fun getValue(a: Int, vararg b: Int) = 1 }",
+        "class C { operator fun set(i: Int, v: Int = 0) {} }",
+        "class C { operator fun set(i: Int, vararg v: Int) {} }",
+        // Position: operator functions must be members or extensions.
+        "operator fun plus(a: Int, b: Int) = 1",
+        "operator fun invoke() {}",
+        "operator fun unaryPlus() = 1",
+        "operator fun get(i: Int) = i",
+        "operator fun Int.equals(o: Any?): Boolean = true",
+        // `equals` must be a member that can override `Any.equals`.
+        "operator fun equals(o: Any?): Boolean = true",
+        "class C { operator fun equals() = true }",
+        "class C { operator fun equals(a: Int, b: Int) = true }",
+        // Delegate accessors must not be suspend.
+        "class C { suspend operator fun provideDelegate(a: Int, b: Int) = 1 }",
+        // Members of local classes and anonymous objects are checked too.
+        "fun f() { class L { operator fun unaryPlus(a: Int) = 1 } }",
+        "fun make() = object { operator fun component1(a: Int) = 1 }",
+    ])
+    func operatorEligibilityViolationsAreRejected(source: String) throws {
+        let ctx = try semaContextWithoutStdlib(for: source)
+        assertHasDiagnostic("KSWIFTK-SEMA-0439", in: ctx)
+    }
+
+    @Test(arguments: [
+        "class C { operator fun plus(a: Int) = a }",
+        "class C { operator fun unaryPlus() = 1 }",
+        "class C { operator fun inc(a: Int): C = this }",
+        "class C { operator fun invoke(a: Int, b: Int, c: Int) = 0 }",
+        "class C { operator fun invoke(vararg a: Int) {} }",
+        "class C { operator fun get(i: Int, j: Int) = i }",
+        "class C { operator fun get(vararg i: Int) = i.size }",
+        "class C { operator fun get(i: Int = 0) = i }",
+        "class C { operator fun set(i: Int, v: Int) {} }",
+        "class C { operator fun component0() = 1 }",
+        "class C { operator fun component01() = 1 }",
+        "class C { operator fun component15() = 1 }",
+        "class C { operator fun inv() = 1 }",
+        "class C { operator fun equals(other: Any?): Boolean = true }",
+        "operator fun Int.plus(a: Int) = a",
+        "operator fun Int.invoke() = 1",
+        "interface I { operator fun unaryPlus(): Int }",
+        "object O { operator fun not(): Boolean = true }",
+        "class C { companion object { operator fun invoke() = 1 } }",
+        "fun f() { class L { operator fun unaryPlus() = 1 } }",
+        "fun make() = object { operator fun component1() = 1 }",
+    ])
+    func legalOperatorFunctionsAreAccepted(source: String) throws {
+        let ctx = try semaContextWithoutStdlib(for: source)
+        assertNoDiagnostic("KSWIFTK-SEMA-0439", in: ctx)
+        assertNoDiagnostic("KSWIFTK-SEMA-0416", in: ctx)
+    }
+
     // MARK: - infix function requirements (KUU-2996)
 
     @Test(arguments: [
@@ -227,6 +347,27 @@ struct DeclarationPositionValidationTests {
     func infixFunctionsSatisfyingRequirementsAreAccepted(source: String) throws {
         let ctx = try semaContextWithoutStdlib(for: source)
         assertNoDiagnostic("KSWIFTK-SEMA-0431", in: ctx)
+    }
+
+    // MARK: - vararg parameter requirements (KUU-2998)
+
+    @Test(arguments: [
+        "fun f(vararg a: Int, vararg b: Int) = a",
+        "fun outer() { fun f(vararg a: Int, vararg b: Int) = a }",
+        "val f = fun(vararg a: Int, vararg b: Int) = a",
+        "class C(vararg a: Int, vararg b: Int)",
+        "class C { constructor(vararg a: Int, vararg b: Int) }",
+    ])
+    func multipleVarargParametersAreRejected(source: String) throws {
+        let ctx = try semaContextWithoutStdlib(for: source)
+        let diagnostics = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0441" }
+        #expect(diagnostics.count == 2, "Expected one diagnostic per vararg modifier, got: \(diagnostics)")
+
+        let expectedOffsets = [source.range(of: "vararg")!, source.range(of: "vararg", options: .backwards)!]
+            .map { source.distance(from: source.startIndex, to: $0.lowerBound) }
+            .sorted()
+        let actualOffsets = diagnostics.compactMap { $0.primaryRange?.start.offset }.sorted()
+        #expect(actualOffsets == expectedOffsets)
     }
 
     // MARK: - Annotation classes
