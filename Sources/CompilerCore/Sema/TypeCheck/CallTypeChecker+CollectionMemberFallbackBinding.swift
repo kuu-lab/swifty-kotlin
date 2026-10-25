@@ -23,6 +23,14 @@ extension CallTypeChecker {
         let sema = ctx.sema
         let interner = ctx.interner
         let knownNames = KnownCompilerNames(interner: interner)
+        // A `super.<member>` call binds here without ever reaching
+        // `bindChosenRegularMemberCall`, so nothing would record the
+        // super-call marker. Without it KIR lowering emits a virtual
+        // dispatch that re-invokes the override on `this` instead of the
+        // selected supertype implementation (KUU-3220).
+        if !safeCall, case .superRef = ctx.ast.arena.expr(receiverID) {
+            sema.bindings.markSuperCall(id)
+        }
         guard calleeName != knownNames.contains else { return nil }
 
         // `size` is a collection property, but this fallback models it next to
