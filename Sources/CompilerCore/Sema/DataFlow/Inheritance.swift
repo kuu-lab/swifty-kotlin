@@ -59,27 +59,29 @@ extension DataFlowSemaPhase {
         // requires the written form without `()` — each secondary constructor
         // delegates via `super(...)` instead (kotlinc rejects `Base()` there
         // with "supertype initialization is impossible without a primary
-        // constructor"). Objects always have an implicit primary constructor.
-        let classHasPrimaryConstructor: Bool
+        // constructor"). Expect classes defer supertype initialization to
+        // their actual declaration. Objects always have an implicit primary
+        // constructor.
+        let requiresClassSupertypeConstructorInvocation: Bool
         switch decl {
         case let .classDecl(classDecl):
             superTypeRefs = classDecl.superTypeEntries.map(\.typeRef)
             superTypeEntries = classDecl.superTypeEntries
             nestedDecls = classDecl.nestedClasses + classDecl.nestedObjects
                 + (classDecl.companionObject.map { [$0] } ?? [])
-            classHasPrimaryConstructor = classDecl.hasPrimaryConstructorSyntax
-                || classDecl.secondaryConstructors.isEmpty
+            requiresClassSupertypeConstructorInvocation = !classDecl.modifiers.contains(.expect)
+                && (classDecl.hasPrimaryConstructorSyntax || classDecl.secondaryConstructors.isEmpty)
         case let .interfaceDecl(interfaceDecl):
             superTypeRefs = interfaceDecl.superTypes
             superTypeEntries = []
             nestedDecls = interfaceDecl.nestedClasses + interfaceDecl.nestedObjects
                 + (interfaceDecl.companionObject.map { [$0] } ?? [])
-            classHasPrimaryConstructor = false
+            requiresClassSupertypeConstructorInvocation = false
         case let .objectDecl(objectDecl):
             superTypeRefs = objectDecl.superTypes
             superTypeEntries = objectDecl.superTypeEntries
             nestedDecls = objectDecl.nestedClasses + objectDecl.nestedObjects
-            classHasPrimaryConstructor = true
+            requiresClassSupertypeConstructorInvocation = true
         default:
             return
         }
@@ -152,7 +154,7 @@ extension DataFlowSemaPhase {
                     if !entry.hasConstructorCallSyntax,
                        entry.delegateExpression == nil,
                        symbols.symbol(resolved.symbol)?.kind == .class,
-                       classHasPrimaryConstructor,
+                       requiresClassSupertypeConstructorInvocation,
                        !isBundledStdlibDecl
                     {
                         diagnostics.error(
