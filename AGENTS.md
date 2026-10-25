@@ -8,7 +8,7 @@ KSwiftK は Swift で書かれた Kotlin コンパイラ。Kotlin 2.4.20 stable 
 
 ## ビルド & テストコマンド
 
-**動作確認は変更に関係する最低限のスコープで良い。** 既定は `swift build` ＋ 変更箇所を直接カバーするテストだけを `--filter` で回す（→ [動作確認の最小スコープ](#動作確認の最小スコープ)）。
+**動作確認は変更に関係する最低限のスコープで良い。** 既定は変更を直接カバーするテストを `--filter` で実行し、対象テストのビルドもその実行に任せる。テストがない場合は対象の SwiftPM target / product だけをビルドする（→ [動作確認の最小スコープ](#動作確認の最小スコープ)）。
 
 ```bash
 swift build                              # デバッグビルド
@@ -30,11 +30,14 @@ bash Scripts/swift_test.sh --filter CompilerBackendTests                        
 
 ローカルの動作確認は**変更に関係する範囲だけ**で良い。全テスト・全ゴールデン・全 diff ケースの総ざらいを既定の締め作業にしない（全体は CI が回す）。
 
-- 既定: `swift build`（型チェック）＋ 変更箇所を直接カバーするテストのみ `--filter` で指定
+- 既定: 変更を直接カバーするテストがある場合は `bash Scripts/swift_test.sh --filter <test>` を先に実行する。テストコマンドが必要なテスト成果物をビルドするため、別途 `swift build` を重ねない
+- 直接カバーするテストがない場合は `swift build --target <target>` または `swift build --product <product>` で対象だけを確認する。より広い依存範囲に影響する変更、狭い確認では原因を診断できない場合、または明示的に求められた場合に限り、全体の `swift build` を行う
+- 同じ worktree でチケットを続けて扱う場合は `.build` を保持し、SwiftPM の増分ビルド成果物を再利用する。別 worktree 間で `.build` や `--scratch-path` を共有しない。同じ master commit だけでは作業差分・ツールチェーン・ビルド設定が同一とは限らず、同時書き込みも競合し得る
+- 標準ライブラリ成果物や Runtime オブジェクトなど、内容 fingerprint に基づく共有キャッシュは SwiftPM の `.build` と分けて利用する
 - Golden: 変更が golden 出力に影響する場合のみ該当スイートを型名フィルタで回す（四スイート一括の `--filter Golden` は影響範囲が広いときだけ）
 - kotlinc 差分: ディレクトリ全体ではなく関係するケース単体（`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/foo.kt`）
 - 全体を回すのは、明示的に求められたとき、または CI が落ちた範囲を再現するときに限る
-- 時短目的の `--skip-build` 単独使用は避ける（古いテストバイナリで偽陽性が出る）。`swift build` と `swift test --skip-build` の同時実行も禁止
+- 時短目的の `--skip-build` 単独使用は避ける（古いテストバイナリで偽陽性が出る）。通常のビルドを省略して検証したい場合は使わず、対象テストを通常どおり実行する。`swift build` と `swift test --skip-build` の同時実行も禁止
 - 回していない範囲は報告に明記する（「◯◯だけ確認、全体は未実行」）。縮小したスコープを green と誤報告しない
 
 ### ゴールデンテスト更新
