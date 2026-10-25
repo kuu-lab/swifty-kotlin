@@ -6,6 +6,24 @@ import Testing
 
 extension JVMBackendTests {
     @Test(arguments: [EmitMode.jvmClass, .jvmJar])
+    func javaLangDefaultImportIllegalAccessError(mode: EmitMode) throws {
+        try withWorkspace { root in
+            let result = try compile("fun main() { throw IllegalAccessError() }", root: root, mode: mode)
+            try #require(result.0 == 0, "\(result.1.map(\.message))")
+            let output = root.appendingPathComponent(mode == .jvmJar ? "hello.jar" : "classes")
+            let execution: CommandResult
+            do {
+                execution = try java(["-cp", output.path, "HelloKt"])
+            } catch CommandRunnerError.nonZeroExit(let failed) {
+                execution = failed
+            }
+            #expect(execution.exitCode != 0)
+            #expect(execution.stderr.contains("java.lang.IllegalAccessError"))
+            #expect(execution.stderr.contains("HelloKt.main(hello.kt)"))
+        }
+    }
+
+    @Test(arguments: [EmitMode.jvmClass, .jvmJar])
     func javaLangConstantsExceptionsAndArraycopy(mode: EmitMode) throws {
         let library = try ownStdlibLibrary()
         try withWorkspace { root in

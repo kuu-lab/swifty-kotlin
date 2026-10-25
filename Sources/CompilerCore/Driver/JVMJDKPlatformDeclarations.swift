@@ -117,6 +117,14 @@ extension JVMClasspathIndex {
             package java.lang
             class StackTraceElement private constructor()
             """, 0x0011, "java/lang/Object", []),
+            ("java/lang/IllegalAccessError", """
+            package java.lang
+            open class IllegalAccessError : kotlin.Error {
+                constructor() : super()
+            }
+            """, 0x0001, "java/lang/IncompatibleClassChangeError", [
+                method("java/lang/IllegalAccessError", "<init>", [], .reference("java/lang/IllegalAccessError", nullable: false)),
+            ]),
             ("java/lang/Integer", """
             package java.lang
             class Integer private constructor() {
