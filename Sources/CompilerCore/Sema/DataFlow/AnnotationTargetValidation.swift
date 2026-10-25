@@ -230,10 +230,24 @@ extension DataFlowSemaPhase {
             } else {
                 isFunctionLiteral = ast.arena.isAnonymousFunction(exprID)
             }
+            var annotations: [AnnotationNode] = []
             for annotation in annotationsByExpr[exprID] ?? [] {
                 if let usageID = annotation.usageID, !seenAnnotationUsages.insert(usageID).inserted {
                     continue
                 }
+                annotations.append(annotation)
+            }
+            validateRepeatedAnnotationApplications(
+                annotations,
+                siteForAnnotation: { _ in .expression(isFunctionLiteral: isFunctionLiteral) },
+                ownerRange: range,
+                file: file,
+                symbols: symbols,
+                diagnostics: diagnostics,
+                interner: interner,
+                resolutionContext: resolutionContext
+            )
+            for annotation in annotations {
                 // Register before body inference and worker creation, retaining
                 // the existing diagnostic-name and severity suppression policy.
                 if let symbolID = resolveAnnotationSymbol(
@@ -255,6 +269,51 @@ extension DataFlowSemaPhase {
                     diagnostics: diagnostics, interner: interner, filesByID: filesByID,
                     resolutionContext: resolutionContext
                 )
+            }
+        }
+    }
+
+    private func validateRepeatedAnnotationApplications(
+        _ annotations: [AnnotationNode],
+        siteForAnnotation: (AnnotationNode) -> AnnotationUsageSite?,
+        ownerRange: SourceRange?,
+        file: ASTFile,
+        symbols: SymbolTable,
+        diagnostics: DiagnosticEngine,
+        interner: StringInterner,
+        resolutionContext: AnnotationTargetResolutionContext
+    ) {
+        var seen: [SymbolID: Set<AnnotationUsageSite>] = [:]
+        for annotation in annotations {
+            guard let site = siteForAnnotation(annotation),
+                  let symbolID = resolveAnnotationSymbol(
+                      named: annotation.name,
+                      in: file,
+                      symbols: symbols,
+                      interner: interner,
+                      types: resolutionContext.types,
+                      enclosingFQName: resolutionContext.enclosingFQName,
+                      lexicalEnclosingFQNames: resolutionContext.lexicalEnclosingFQNames
+                  ),
+                  symbols.symbol(symbolID)?.kind == .annotationClass
+            else {
+                continue
+            }
+
+            let isRepeatable = symbols.annotations(for: symbolID).contains {
+                $0.annotationFQName == "kotlin.annotation.Repeatable"
+                    || $0.annotationFQName == "kotlin.jvm.JvmRepeatable"
+            }
+            guard !isRepeatable else { continue }
+
+            if seen[symbolID, default: []].contains(site) {
+                diagnostics.error(
+                    "KSWIFTK-SEMA-ANNOTATION-REPEATED",
+                    "Annotation '@\(annotation.name)' is not repeatable.",
+                    range: annotation.constructionTokens?.first?.range ?? ownerRange
+                )
+            } else {
+                seen[symbolID, default: []].insert(site)
             }
         }
     }
@@ -378,6 +437,16 @@ extension DataFlowSemaPhase {
             return
         }
 
+        validateRepeatedAnnotationApplications(
+            file.annotations,
+            siteForAnnotation: { _ in .file },
+            ownerRange: file.range,
+            file: file,
+            symbols: symbols,
+            diagnostics: diagnostics,
+            interner: interner,
+            resolutionContext: resolutionContext
+        )
         for annotation in file.annotations {
             validateAnnotationTarget(
                 annotation: annotation,
@@ -432,6 +501,16 @@ extension DataFlowSemaPhase {
             return
         }
 
+        validateRepeatedAnnotationApplications(
+            decl.annotations,
+            siteForAnnotation: { annotationUsageSite(for: $0, on: decl, ownerSymbol: ownerSymbol) },
+            ownerRange: decl.range,
+            file: file,
+            symbols: symbols,
+            diagnostics: diagnostics,
+            interner: interner,
+            resolutionContext: resolutionContext
+        )
         for annotation in decl.annotations {
             guard let site = annotationUsageSite(for: annotation, on: decl, ownerSymbol: ownerSymbol) else {
                 continue
@@ -491,6 +570,16 @@ extension DataFlowSemaPhase {
                     resolutionContext: memberResolutionContext
                 )
             }
+            validateRepeatedAnnotationApplications(
+                classDecl.primaryConstructorAnnotations,
+                siteForAnnotation: { _ in .constructor },
+                ownerRange: decl.range,
+                file: file,
+                symbols: symbols,
+                diagnostics: diagnostics,
+                interner: interner,
+                resolutionContext: memberResolutionContext
+            )
             for annotation in classDecl.primaryConstructorAnnotations {
                 validateAnnotationTarget(
                     annotation: annotation,
@@ -514,6 +603,16 @@ extension DataFlowSemaPhase {
                 )
             }
             for ctor in classDecl.secondaryConstructors {
+                validateRepeatedAnnotationApplications(
+                    ctor.annotations,
+                    siteForAnnotation: { _ in .constructor },
+                    ownerRange: decl.range,
+                    file: file,
+                    symbols: symbols,
+                    diagnostics: diagnostics,
+                    interner: interner,
+                    resolutionContext: memberResolutionContext
+                )
                 for annotation in ctor.annotations {
                     validateAnnotationTarget(
                         annotation: annotation,
@@ -538,6 +637,16 @@ extension DataFlowSemaPhase {
                 }
             }
             for entry in classDecl.enumEntries {
+                validateRepeatedAnnotationApplications(
+                    entry.annotations,
+                    siteForAnnotation: { _ in .enumEntry },
+                    ownerRange: decl.range,
+                    file: file,
+                    symbols: symbols,
+                    diagnostics: diagnostics,
+                    interner: interner,
+                    resolutionContext: memberResolutionContext
+                )
                 for annotation in entry.annotations {
                     validateAnnotationTarget(
                         annotation: annotation,
@@ -601,6 +710,17 @@ extension DataFlowSemaPhase {
             }
         case let .propertyDecl(property):
             for accessor in [property.getter, property.setter].compactMap({ $0 }) {
+                let site: AnnotationUsageSite = accessor.kind == .getter ? .getter : .setter
+                validateRepeatedAnnotationApplications(
+                    accessor.annotations,
+                    siteForAnnotation: { _ in site },
+                    ownerRange: accessor.range,
+                    file: file,
+                    symbols: symbols,
+                    diagnostics: diagnostics,
+                    interner: interner,
+                    resolutionContext: resolutionContext
+                )
                 for annotation in accessor.annotations {
                     validateAnnotationTarget(
                         annotation: annotation,
@@ -634,26 +754,18 @@ extension DataFlowSemaPhase {
         filesByID: [Int32: ASTFile],
         resolutionContext: AnnotationTargetResolutionContext
     ) {
+        validateRepeatedAnnotationApplications(
+            param.annotations,
+            siteForAnnotation: { valueParameterAnnotationSite($0, param: param) },
+            ownerRange: ownerDecl.range,
+            file: file,
+            symbols: symbols,
+            diagnostics: diagnostics,
+            interner: interner,
+            resolutionContext: resolutionContext
+        )
         for annotation in param.annotations {
-            let site: AnnotationUsageSite
-            switch annotation.useSiteTarget?.lowercased() {
-            case nil:
-                site = param.isProperty ? .constructorPropertyParameter : .valueParameter
-            case "param", "setparam":
-                site = .valueParameter
-            case "field":
-                site = .paramField
-            case "get":
-                site = .getter
-            case "set":
-                site = .setter
-            case "property":
-                site = .property(explicitUseSiteTarget: true)
-            case "delegate":
-                site = .delegate
-            default:
-                site = .valueParameter
-            }
+            let site = valueParameterAnnotationSite(annotation, param: param)
             validateAnnotationTarget(
                 annotation: annotation,
                 site: site,
@@ -667,6 +779,30 @@ extension DataFlowSemaPhase {
                 filesByID: filesByID,
                 resolutionContext: resolutionContext
             )
+        }
+    }
+
+    private func valueParameterAnnotationSite(
+        _ annotation: AnnotationNode,
+        param: ValueParamDecl
+    ) -> AnnotationUsageSite {
+        switch annotation.useSiteTarget?.lowercased() {
+        case nil:
+            param.isProperty ? .constructorPropertyParameter : .valueParameter
+        case "param", "setparam":
+            .valueParameter
+        case "field":
+            .paramField
+        case "get":
+            .getter
+        case "set":
+            .setter
+        case "property":
+            .property(explicitUseSiteTarget: true)
+        case "delegate":
+            .delegate
+        default:
+            .valueParameter
         }
     }
 
@@ -1158,7 +1294,7 @@ extension DataFlowSemaPhase {
             || validator.accessorUsesBackingField(propertyDecl.setter, isBackingFieldReference: usesBackingField)
     }
 
-    private enum AnnotationUsageSite {
+    private enum AnnotationUsageSite: Hashable {
         case classLike(SymbolKind)
         case function
         case constructor
@@ -1294,6 +1430,16 @@ private extension DataFlowSemaPhase {
                 validateTypeAnnotationTargets(typeRefID: part, ownerRange: ownerRange, file: file, ast: ast, symbols: symbols, diagnostics: diagnostics, interner: interner, filesByID: filesByID, resolutionContext: resolutionContext)
             }
         case let .annotated(base, annotations):
+            validateRepeatedAnnotationApplications(
+                annotations,
+                siteForAnnotation: { _ in .type },
+                ownerRange: ownerRange,
+                file: file,
+                symbols: symbols,
+                diagnostics: diagnostics,
+                interner: interner,
+                resolutionContext: resolutionContext
+            )
             for annotation in annotations {
                 validateAnnotationTarget(
                     annotation: annotation,
