@@ -22,7 +22,7 @@ extension ExprTypeChecker {
                   let signature = sema.symbols.functionSignature(for: local.symbol),
                   let declaredReceiver = signature.receiverType,
                   driver.helpers.declaresExtensionReceiver(local.symbol, sema: sema, interner: ctx.interner),
-                  !isHiddenByDeprecatedAnnotation(local.symbol, symbols: sema.symbols),
+                  !isHiddenByDeprecationOrVersionAnnotation(local.symbol, symbols: sema.symbols),
                   ctx.visibilityChecker.isAccessible(
                       symbol, fromFile: ctx.currentFileID, enclosingClass: ctx.enclosingClassSymbol
                   ),

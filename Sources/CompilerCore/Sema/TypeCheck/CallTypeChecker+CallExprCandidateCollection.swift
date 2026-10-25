@@ -502,7 +502,7 @@ extension CallTypeChecker {
                                 sema.symbols.functionSignature(for: $0)?.parameterTypes
                             }
                             candidates.removeAll { existingID in
-                                guard isHiddenByDeprecatedAnnotation(existingID, symbols: sema.symbols),
+                                guard isHiddenByDeprecationOrVersionAnnotation(existingID, symbols: sema.symbols),
                                       let signature = sema.symbols.functionSignature(for: existingID)
                                 else {
                                     return false
@@ -653,7 +653,7 @@ extension CallTypeChecker {
                                 sema.symbols.functionSignature(for: $0)?.parameterTypes
                             }
                             existingCandidates.removeAll { existingID in
-                                guard isHiddenByDeprecatedAnnotation(existingID, symbols: sema.symbols),
+                                guard isHiddenByDeprecationOrVersionAnnotation(existingID, symbols: sema.symbols),
                                       let signature = sema.symbols.functionSignature(for: existingID)
                                 else {
                                     return false

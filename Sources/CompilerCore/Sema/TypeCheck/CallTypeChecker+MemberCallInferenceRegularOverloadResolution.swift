@@ -459,7 +459,7 @@ extension CallTypeChecker {
                           !ast.arena.isInfixCall(id) || symbol.flags.contains(.infixFunction),
                           let signature = sema.symbols.functionSignature(for: candidate),
                           let declaredReceiver = signature.receiverType,
-                          !isHiddenByDeprecatedAnnotation(candidate, symbols: sema.symbols)
+                          !isHiddenByDeprecationOrVersionAnnotation(candidate, symbols: sema.symbols)
                     else { return false }
                     let isUser = symbol.declSite.map {
                         driver.sourceManager?.origin(of: $0.start.file) == .user

@@ -548,11 +548,11 @@ struct TypeInferenceContext: CustomStringConvertible {
         // the normal deprecation path to emit KSWIFTK-SEMA-DEPRECATED rather
         // than degrading the diagnostic to an unresolved reference.
         let hasNonHiddenCandidate = candidates.contains {
-            !isHiddenByDeprecatedAnnotation($0, symbols: sema.symbols)
+            !isHiddenByDeprecationOrVersionAnnotation($0, symbols: sema.symbols)
         }
         for candidate in candidates {
             guard let symbol = cachedSymbol(candidate) else { continue }
-            guard !isHiddenByDeprecatedAnnotation(candidate, symbols: sema.symbols)
+            guard !isHiddenByDeprecationOrVersionAnnotation(candidate, symbols: sema.symbols)
                     || !hasNonHiddenCandidate
             else { continue }
             if visibilityChecker.isAccessible(symbol, fromFile: currentFileID, enclosingClass: enclosingClassSymbol) {
