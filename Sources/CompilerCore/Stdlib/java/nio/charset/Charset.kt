@@ -1,6 +1,9 @@
 package java.nio.charset
 
 import kotlin.internal.KsSymbolName
+import java.util.SortedMap
+import java.util.TreeMap
+import kotlin.text.Charsets
 
 // Native Charset values are source objects. Only the private codec boundary
 // consumes the Int tag; a public Charset is never passed as that raw word.
@@ -14,6 +17,27 @@ public class Charset internal constructor(internal val tag: Int) {
          * The host locale and JVM file.encoding property do not select a codec.
          */
         public fun defaultCharset(): Charset = Charsets.UTF_8
+
+        /**
+         * Returns the charsets supported by the bundled native codecs, keyed
+         * by their canonical names in natural string order.
+         */
+        public fun availableCharsets(): SortedMap<String, Charset> {
+            val charsets = TreeMap<String, Charset>()
+            val available = listOf(
+                Charsets.UTF_8,
+                Charsets.ISO_8859_1,
+                Charsets.US_ASCII,
+                Charsets.UTF_16,
+                Charsets.UTF_16BE,
+                Charsets.UTF_16LE,
+                Charsets.UTF_32,
+                Charsets.UTF_32BE,
+                Charsets.UTF_32LE
+            )
+            for (charset in available) charsets.put(charset.name(), charset)
+            return charsets
+        }
 
         public fun forName(charsetName: String): Charset {
             if (charsetName.isEmpty()) throw IllegalCharsetNameException(charsetName)
