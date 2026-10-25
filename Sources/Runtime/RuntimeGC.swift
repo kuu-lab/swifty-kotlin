@@ -22,6 +22,16 @@ struct KClassCacheKey: Hashable {
     let typeToken: Int
 }
 
+/// A Java Class handle is canonical per Kotlin classifier, except for runtime
+/// values whose JVM class depends on their concrete representation (arrays,
+/// collection implementations, and generated function classes).
+struct JavaClassCacheKey: Hashable {
+    let typeToken: Int
+    var runtimeClassName: String? = nil
+    var functionIdentity: Int? = nil
+    var enclosingClassName: String? = nil
+}
+
 /// Per-category count of GC roots discovered while seeding the mark worklist,
 /// mapped onto `kotlin.native.runtime.RootSetStatistics`'s four pools:
 /// `threadLocalReferences` counts rooted thread-local values,
@@ -160,7 +170,7 @@ struct GCState {
 
 struct MetadataState {
     var kClassBoxCache: [KClassCacheKey: Int] = [:]
-    var javaClassCache: [Int: Int] = [:]
+    var javaClassCache: [JavaClassCacheKey: Int] = [:]
     var primitiveJavaClassCache: [Int: Int] = [:]
     var delegatedPropertyStubCache: [String: Int] = [:]
     var kTypeProjectionStarRaw: Int?
