@@ -1316,7 +1316,7 @@ extension CallLowerer {
                 if effectiveMasks.count > 1 {
                     effectiveMasks[effectiveMasks.count - 1] = 1
                 } else {
-                    effectiveMasks[0] |= Int64(1) << 30
+                    effectiveMasks[0] |= Int64(1) << DefaultArgumentMask.superCallMarkerBitIndex
                 }
             }
             appendDefaultMaskArguments(
