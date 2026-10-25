@@ -1,5 +1,42 @@
 
 extension BuildASTPhase {
+    /// Kotlin requires a newline after a local expression-bodied function,
+    /// even when its expression is followed by a semicolon. Check the original
+    /// block tokens because statement splitting discards empty semicolon groups.
+    func validateLocalFunctionSeparator(
+        after expression: ExprID,
+        in tokens: [Token],
+        astArena: ASTArena
+    ) {
+        guard case let .localFunDecl(_, _, _, _, .expr(_, bodyRange), _, _, _, _) = astArena.expr(expression) else {
+            return
+        }
+        var lower = 0
+        var upper = tokens.count
+        while lower < upper {
+            let middle = lower + (upper - lower) / 2
+            if tokens[middle].range.start.offset < bodyRange.end.offset {
+                lower = middle + 1
+            } else {
+                upper = middle
+            }
+        }
+        guard lower < tokens.count, !tokens[lower].leadingTrivia.contains(.newline) else { return }
+        if lower < tokens.count, tokens[lower].kind == .symbol(.semicolon) {
+            lower += 1
+        }
+        guard lower < tokens.count else { return }
+        let next = tokens[lower]
+        guard !next.leadingTrivia.contains(.newline),
+              next.kind != .symbol(.rBrace), next.kind != .eof
+        else { return }
+        diagnostics?.error(
+            "KSWIFTK-PARSE-0006",
+            "Unexpected tokens (use ';' to separate expressions on the same line).",
+            range: next.range
+        )
+    }
+
     func parseLocalFunDeclExpr(
         from statementTokens: [Token],
         interner: StringInterner,
@@ -244,7 +281,12 @@ extension BuildASTPhase {
                 tokens: exprTokens, interner: interner, astArena: astArena, diagnostics: diagnostics
             )
             if let exprID = parser.parse(), let exprRange = astArena.exprRange(exprID) {
-                body = .expr(exprID, exprRange)
+                // Parenthesized expressions reuse their inner ExprID, whose
+                // range omits `)`. Preserve the full consumed body for the
+                // declaration boundary and separator validation.
+                let bodyEnd = parser.index > parser.tokens.startIndex
+                    ? parser.tokens[parser.index - 1].range.end : exprRange.end
+                body = .expr(exprID, SourceRange(start: exprRange.start, end: bodyEnd))
             } else {
                 body = .unit
             }
@@ -370,6 +412,7 @@ extension BuildASTPhase {
                 if let exprID = parseStatementGroup(
                     raw: rawStmtTokens, filtered: filtered, interner: interner, astArena: astArena
                 ) {
+                    validateLocalFunctionSeparator(after: exprID, in: bodyTokens, astArena: astArena)
                     blockExprs.append(exprID)
                 }
             }

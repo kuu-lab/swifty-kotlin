@@ -81,6 +81,15 @@ extension BuildASTPhase {
                 result.append(exprID)
             }
         }
+        if result.contains(where: { expression in
+            if case .localFunDecl(_, _, _, _, .expr, _, _, _, _) = astArena.expr(expression) { return true }
+            return false
+        }) {
+            let blockTokens = collectTokens(from: blockNodeID, in: arena)
+            for expression in result {
+                validateLocalFunctionSeparator(after: expression, in: blockTokens, astArena: astArena)
+            }
+        }
         return result
     }
 
