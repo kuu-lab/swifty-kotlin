@@ -75,6 +75,36 @@ public fun UIntArray.sum(): UInt {
     return sum
 }
 
+public fun ULongArray.sum(): ULong {
+    var sum = 0uL
+    var i = 0
+    while (i < this.size) {
+        sum += this[i]
+        i++
+    }
+    return sum
+}
+
+public fun UByteArray.sum(): UInt {
+    var sum = 0u
+    var i = 0
+    while (i < this.size) {
+        sum += this[i].toUInt()
+        i++
+    }
+    return sum
+}
+
+public fun UShortArray.sum(): UInt {
+    var sum = 0u
+    var i = 0
+    while (i < this.size) {
+        sum += this[i].toUInt()
+        i++
+    }
+    return sum
+}
+
 @SinceKotlin("1.4")
 public inline fun CharArray.sumOf(selector: (Char) -> Int): Int {
     var sum = 0
