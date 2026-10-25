@@ -592,8 +592,6 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
             println(margin.replaceIndentByMargin())
             println(margin.replaceIndentByMargin(">"))
             println(margin.replaceIndentByMargin(">", "|"))
-            println(value.indent())
-            println(value.indent(2))
         }
         """
 
@@ -613,7 +611,7 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
 
             try expectSourceBackedStringCalls(
                 in: ir,
-                operations: ["trimIndent", "trimMargin", "prependIndent", "replaceIndent", "replaceIndentByMargin", "indent"]
+                operations: ["trimIndent", "trimMargin", "prependIndent", "replaceIndent", "replaceIndentByMargin"]
             )
         }
     }

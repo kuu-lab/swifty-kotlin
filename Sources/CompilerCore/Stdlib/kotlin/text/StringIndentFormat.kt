@@ -20,7 +20,6 @@ internal fun String.normalizeLineSeparators(): String {
     }
     return sb.toString()
 }
-
 internal fun String.splitIntoLines(): List<String> {
     val src = normalizeLineSeparators()
     val result = mutableListOf<String>()
@@ -144,44 +143,6 @@ public fun String.prependIndent(indent: String = "    "): String {
             sb.append(line)
         }
         first = false
-    }
-    return sb.toString()
-}
-
-public fun String.indent(): String = indent(4)
-
-public fun String.indent(n: Int): String {
-    if (n == 0) return this
-    val lines = splitIntoLines()
-    val sb = StringBuilder()
-    var first = true
-    if (n > 0) {
-        val indentBuilder = StringBuilder()
-        var j = 0
-        while (j < n) {
-            indentBuilder.append(' ')
-            j++
-        }
-        val indent = indentBuilder.toString()
-        for (line in lines) {
-            if (!first) sb.append('\n')
-            if (line.isBlankLine() && line.length < indent.length) {
-                sb.append(indent)
-            } else {
-                sb.append(indent)
-                sb.append(line)
-            }
-            first = false
-        }
-    } else {
-        val remove = -n
-        for (line in lines) {
-            if (!first) sb.append('\n')
-            val leading = line.leadingWhitespaceCount()
-            val drop = if (remove < leading) remove else leading
-            sb.append(line.substring(drop))
-            first = false
-        }
     }
     return sb.toString()
 }
