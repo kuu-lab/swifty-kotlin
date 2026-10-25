@@ -91,10 +91,32 @@ public inline fun <K, V> MutableMap<K, V>.computeIfAbsent(key: K, mappingFunctio
     return computedValue
 }
 
+public fun <K, V> MutableMap<K, V>.computeIfPresent(
+    key: K,
+    remappingFunction: (K, V) -> V?
+): V? {
+    val oldValue = this[key] ?: return null
+    val newValue = remappingFunction(key, oldValue)
+    if (newValue == null) remove(key) else this[key] = newValue
+    return newValue
+}
+
 public fun <K, V> MutableMap<K, V>.putIfAbsent(key: K, value: V): V? {
     val oldValue = this[key]
     if (oldValue != null) return oldValue
     return put(key, value)
+}
+
+public fun <K, V> MutableMap<K, V>.merge(
+    key: K,
+    value: V,
+    remappingFunction: (V, V) -> V?
+): V? {
+    if (value == null) throw NullPointerException()
+    val oldValue = this[key]
+    val newValue = if (oldValue == null) value else remappingFunction(oldValue, value)
+    if (newValue == null) remove(key) else this[key] = newValue
+    return newValue
 }
 
 public inline fun <K, V> MutableMap<out K, V>.remove(key: K): V? {
