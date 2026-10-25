@@ -559,6 +559,30 @@ extension CallTypeChecker {
             {
                 sema.bindings.markImplicitReceiverMember(id, name: calleeName)
             }
+            // Kotlin member scope: a `private` member is not inherited, so a
+            // bare call reaching it from a subtype body (e.g. `object : X()`
+            // nested in `X`) dispatches on the enclosing instance that
+            // declares it — `this@X` — never the subtype's `this`. The scope
+            // chain still surfaces the callee; pin that outer receiver so KIR
+            // lowering reads the captured `this@X` instead of the active
+            // receiver, whose inherited same-named slot would shadow the
+            // enclosing value (KUU-3212).
+            if let chosenInfo = sema.symbols.symbol(chosen),
+               chosenInfo.kind == .function,
+               chosenInfo.visibility == .private,
+               sema.symbols.memberExtensionOwnerSymbol(for: chosen) == nil,
+               sema.bindings.implicitReceiverOuterReceiver(for: id) == nil,
+               let owner = sema.symbols.parentSymbol(for: chosen),
+               let outerEntry = ctx.implicitReceiverMemberLookupEntries().first(where: { entry in
+                   driver.helpers.nominalSymbol(
+                       of: sema.types.makeNonNullable(entry.type),
+                       types: sema.types
+                   ) == owner
+               }),
+               let receiverSymbol = outerEntry.symbol
+            {
+                sema.bindings.markImplicitReceiverOuterReceiver(id, symbol: receiverSymbol)
+            }
             // Scope lookup can resolve an outer member or package extension
             // before the receiver tower fallback runs. Preserve the selected
             // receiver for capture analysis, including builtin receivers

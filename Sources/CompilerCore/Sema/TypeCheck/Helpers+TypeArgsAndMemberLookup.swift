@@ -726,6 +726,16 @@ extension TypeCheckHelpers {
                 else {
                     continue
                 }
+                // Kotlin member scope: a `private` member is not inherited, so
+                // it is only a member candidate on the nominal that declares
+                // it (depth 0). An inherited private member must not win the
+                // receiver over an outer `this` that owns the same name — e.g.
+                // a private method of the superclass called inside
+                // `object : Super()` targets the enclosing instance
+                // (KUU-3212).
+                if symbol.visibility == .private, depth > 0 {
+                    continue
+                }
                 let parentMatchesOwner = sema.symbols.parentSymbol(for: candidate) == owner
                 let isUnattachedPackageExtension = includeUnattachedPackageExtensions
                     && sema.symbols.parentSymbol(for: candidate) == nil
@@ -1095,6 +1105,13 @@ extension TypeCheckHelpers {
         guard !nominalRoots.isEmpty else {
             return nil
         }
+        // Kotlin member scope: a `private` member is not inherited, so it is
+        // only reachable on the nominal that declares it. Skipping inherited
+        // private members lets implicit-receiver resolution continue outward
+        // to an enclosing `this` that legitimately owns them — e.g. a
+        // `private val` of the superclass read inside `object : Super()`
+        // binds the enclosing instance, not the object's own field (KUU-3212).
+        let nominalRootSet = Set(nominalRoots)
         var ownerQueue: [SymbolID] = nominalRoots
         var visited: Set<SymbolID> = []
         while !ownerQueue.isEmpty {
@@ -1109,6 +1126,7 @@ extension TypeCheckHelpers {
                       // being searched.
                       sema.symbols.parentSymbol(for: candidate) == owner,
                       sym.kind == .property || sym.kind == .field,
+                      sym.visibility != .private || nominalRootSet.contains(owner),
                       let propType = sema.symbols.propertyType(for: candidate)
                 else {
                     continue
@@ -1160,6 +1178,9 @@ extension TypeCheckHelpers {
         }
 
         let nominalRoots = allNominalSymbols(of: receiverType, types: sema.types, symbols: sema.symbols)
+        // Same member-scope rule as `lookupMemberProperty`: inherited `private`
+        // members are not writable members of this receiver (KUU-3212).
+        let nominalRootSet = Set(nominalRoots)
         var ownerQueue = nominalRoots
         var visited: Set<SymbolID> = []
         var candidates: [InheritedMemberPropertyCandidate] = []
@@ -1175,6 +1196,7 @@ extension TypeCheckHelpers {
                 guard let property = sema.symbols.symbol(candidate),
                       sema.symbols.parentSymbol(for: candidate) == owner,
                       property.kind == .property || property.kind == .field,
+                      property.visibility != .private || nominalRootSet.contains(owner),
                       let declaredType = sema.symbols.propertyType(for: candidate)
                 else {
                     continue
