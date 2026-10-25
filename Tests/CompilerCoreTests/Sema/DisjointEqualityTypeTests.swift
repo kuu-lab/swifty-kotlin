@@ -97,6 +97,30 @@ struct DisjointEqualityTypeTests {
         }
     }
 
+    @Test func zeroArgumentCollectionFactoryRequiresInferenceEvidence() throws {
+        let source = """
+        fun badEmptyList(values: List<Int>) = values == emptyList()
+        fun badEmptyListOnLeft(values: List<Int>) = emptyList() == values
+        fun badListOf(values: List<Int>) = values == listOf()
+        fun badEmptySet(values: Set<Int>) = values == emptySet()
+        fun badMutableListOf(values: MutableList<Int>) = values == mutableListOf()
+        fun badEmptyMap(values: Map<Int, String>) = values == emptyMap()
+        fun badNotEqual(values: List<Int>) = values != emptyList()
+        fun badIdentity(values: List<Int>) = values === emptyList()
+        fun badIdentityOnLeft(values: List<Int>) = emptyList() === values
+        fun explicit(values: List<Int>) = values == emptyList<Int>()
+        fun contextualList(): List<Int> = emptyList()
+        fun contextualSet(): Set<Int> = emptySet()
+        fun contextualMap(): Map<Int, String> = emptyMap()
+        """
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.count == 9, "Only untyped equality operands should be rejected: \(errors)")
+        #expect(errors.allSatisfy { $0.code == "KSWIFTK-SEMA-INFER" }, "Got: \(errors)")
+    }
+
     @Test func lambdaEqualityUsesParameterTypesBeforeSmartCasting() throws {
         let sources = [
             """

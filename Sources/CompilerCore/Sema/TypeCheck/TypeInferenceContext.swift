@@ -49,6 +49,9 @@ struct TypeInferenceContext: CustomStringConvertible {
     /// Collection fast paths must check inputs when their result type comes
     /// from a speculative superclass hint rather than the inputs themselves.
     var validatesLiftedHintCollectionArguments = false
+    /// Direct equality operands have no argument type that can infer a generic
+    /// zero-argument collection factory's element type.
+    var collectionFactoryInferenceRequiredForEqualityOperand: ExprID?
     /// The current call expression is in statement position and its result is
     /// discarded. This lets generic call inference apply Kotlin's Unit-coercion
     /// rules without weakening calls whose values are consumed by expressions.
