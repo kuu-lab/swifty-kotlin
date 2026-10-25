@@ -99,6 +99,34 @@ func runtimeFloatingPointArrayToString(
     return "[\(parts.joined(separator: ", "))]"
 }
 
+func runtimeUnsignedArrayToString(
+    _ raw: Int,
+    box: RuntimeArrayBox
+) -> String? {
+    guard let kind = runtimePrimitiveArrayElementKind(rawValue: raw) else {
+        return nil
+    }
+    let name: String
+    let storageKind: RuntimePrimitiveArrayElementKind
+    switch kind {
+    case .uByte:
+        name = "UByteArray"
+        storageKind = .byte
+    case .uShort:
+        name = "UShortArray"
+        storageKind = .short
+    case .uInt:
+        name = "UIntArray"
+        storageKind = .int
+    case .uLong:
+        name = "ULongArray"
+        storageKind = .long
+    default: return nil
+    }
+    let parts = box.elements.map { runtimePrimitiveArrayElementToString($0, kind: storageKind) }
+    return "\(name)(storage=[\(parts.joined(separator: ", "))])"
+}
+
 @_cdecl("__kk_array_copyOf")
 public func __kk_array_copyOf(_ arrayRaw: Int) -> Int {
     guard let array = runtimeArrayBox(from: arrayRaw) else {
