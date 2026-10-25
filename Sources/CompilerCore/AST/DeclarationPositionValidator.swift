@@ -655,6 +655,15 @@ struct DeclarationPositionValidator {
             emitNotApplicable("protected", to: "top level class", range: decl.range)
         }
 
+        // Visibility modifiers apply to constructor parameters only when they declare a property.
+        for param in decl.primaryConstructorParams where !param.isProperty {
+            let parameterModifiers = param.propertyVisibilityModifiers ?? []
+            for (modifier, name) in Self.constructorParameterVisibilityModifiers
+            where parameterModifiers.contains(modifier) {
+                emitNotApplicable(name, to: "value parameter", range: decl.range)
+            }
+        }
+
         validateInnerPosition(modifiers, site: site, target: kindName, range: decl.range)
         if case .nominal(let nominal) = site {
             validateMemberSiteModifiers(modifiers, site: nominal, target: "member class", range: decl.range)
@@ -1332,5 +1341,9 @@ struct DeclarationPositionValidator {
         (.operator, "operator"), (.infix, "infix"), (.external, "external"),
         (.override, "override"), (.funModifier, "fun"), (.vararg, "vararg"),
         (.crossinline, "crossinline"), (.noinline, "noinline"),
+    ]
+
+    private static let constructorParameterVisibilityModifiers: [(Modifiers, String)] = [
+        (.public, "public"), (.private, "private"), (.internal, "internal"), (.protected, "protected"),
     ]
 }
