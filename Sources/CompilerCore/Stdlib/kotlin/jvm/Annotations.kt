@@ -23,6 +23,21 @@ public annotation class JvmStatic
 @Target(AnnotationTarget.FUNCTION, AnnotationTarget.CONSTRUCTOR)
 public annotation class JvmOverloads
 
+@Target(
+    AnnotationTarget.CLASS,
+    AnnotationTarget.FUNCTION,
+    AnnotationTarget.PROPERTY,
+    AnnotationTarget.TYPE
+)
+@Retention(AnnotationRetention.BINARY)
+@MustBeDocumented
+public annotation class JvmSuppressWildcards(val suppress: Boolean = true)
+
+@Target(AnnotationTarget.TYPE)
+@Retention(AnnotationRetention.BINARY)
+@MustBeDocumented
+public annotation class JvmWildcard
+
 // Generic extension properties are not yet supported by the parser. Keep the
 // Annotation upper bound, as with the source-backed KClass extension properties.
 public val Annotation.annotationClass: KClass<out Annotation>
