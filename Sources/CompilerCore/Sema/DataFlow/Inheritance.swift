@@ -199,6 +199,37 @@ extension DataFlowSemaPhase {
                     symbols.setSupertypeTypeArgs(resolved.typeArgs, for: symbol, supertype: resolved.symbol)
                     types.setNominalSupertypeTypeArgs(resolved.typeArgs, for: symbol, supertype: resolved.symbol)
                 }
+                switch decl {
+                case let .classDecl(classDecl):
+                    validateInnerClassSupertypeReceiver(
+                        resolvedSymbol: resolved.symbol,
+                        context: classDecl.isInner ? .memberInner : .memberNonInner,
+                        declRange: classDecl.range,
+                        declSymbol: symbol,
+                        enclosingClassScopes: enclosingClassScopes,
+                        symbols: symbols,
+                        types: types,
+                        diagnostics: diagnostics,
+                        sourceManager: sourceManager,
+                        interner: interner
+                    )
+                case let .objectDecl(objectDecl):
+                    validateInnerClassSupertypeReceiver(
+                        resolvedSymbol: resolved.symbol,
+                        context: objectDecl.modifiers.contains(.companion)
+                            ? .memberCompanion : .memberNonInner,
+                        declRange: objectDecl.range,
+                        declSymbol: symbol,
+                        enclosingClassScopes: enclosingClassScopes,
+                        symbols: symbols,
+                        types: types,
+                        diagnostics: diagnostics,
+                        sourceManager: sourceManager,
+                        interner: interner
+                    )
+                default:
+                    break
+                }
             }
         }
 
@@ -308,6 +339,120 @@ extension DataFlowSemaPhase {
                 diagnostics: diagnostics,
                 sourceManager: sourceManager,
                 interner: interner
+            )
+        }
+    }
+
+    /// How the declaring nominal context can (or cannot) supply the implicit
+    /// receiver an inner-class supertype constructor requires.
+    enum InnerSupertypeReceiverContext {
+        /// `inner class C : I()` — C captures this@E1 plus E1's own inner chain.
+        case memberInner
+        /// Non-inner member class/object — the enclosing `this` exists on the
+        /// class-scope receiver stack but cannot back the inner constructor.
+        case memberNonInner
+        /// Companion object — the companion cuts the receiver chain entirely.
+        case memberCompanion
+        /// Local class or anonymous object — captures the enclosing function's
+        /// implicit receivers, which follow the inner-class chain.
+        case lexical
+    }
+
+    /// KUU-3236: kotlinc rejects an inner class used as a supertype when the
+    /// declaration context cannot supply an implicit receiver of its
+    /// containing class ("constructor of the inner class 'I' can only be
+    /// called with a receiver of the containing class"), and emits
+    /// "outer class 'X' of non-inner class cannot be used as receiver" when
+    /// the would-be receiver is blocked by a non-inner boundary.
+    func validateInnerClassSupertypeReceiver(
+        resolvedSymbol: SymbolID,
+        context: InnerSupertypeReceiverContext,
+        declRange: SourceRange,
+        declSymbol: SymbolID,
+        enclosingClassScopes: [[InternedString]],
+        lexicalReceiverSymbols: Set<SymbolID> = [],
+        symbols: SymbolTable,
+        types: TypeSystem,
+        diagnostics: DiagnosticEngine,
+        sourceManager: SourceManager?,
+        interner: StringInterner
+    ) {
+        guard let superInfo = symbols.symbol(resolvedSymbol),
+              superInfo.flags.contains(.innerClass),
+              let outerID = symbols.parentSymbol(for: resolvedSymbol),
+              let outerInfo = symbols.symbol(outerID),
+              outerInfo.kind == .class || outerInfo.kind == .enumClass
+                || outerInfo.kind == .object
+        else {
+            return
+        }
+        // Only diagnose user source; bundled/imported declarations may have
+        // incomplete receiver models.
+        guard let fileID = symbols.sourceFileID(for: declSymbol)
+                ?? symbols.symbol(declSymbol)?.declSite?.start.file,
+              sourceManager?.origin(of: fileID) == .user
+        else {
+            return
+        }
+        // Enclosing classes, outermost → innermost. Bail out when the chain
+        // cannot be modelled reliably rather than guessing a diagnostic.
+        var enclosing: [SymbolID] = []
+        enclosing.reserveCapacity(enclosingClassScopes.count)
+        for fqName in enclosingClassScopes {
+            guard let enclosingID = symbols.lookup(fqName: fqName),
+                  let info = symbols.symbol(enclosingID)
+            else {
+                return
+            }
+            enclosing.append(enclosingID)
+        }
+
+        // Receivers the inner constructor may use. Member contexts derive the
+        // enclosing `this` chain from the innermost class outward, stopping
+        // after the first non-inner class. Lexical contexts are also handed
+        // the actual implicit-receiver set (which includes extension
+        // receivers); unioning the chain covers positions where receivers are
+        // not pushed yet, such as inner-class super-constructor arguments.
+        var usable: Set<SymbolID> = []
+        switch context {
+        case .memberInner, .lexical:
+            for enclosingID in enclosing.reversed() {
+                usable.insert(enclosingID)
+                if symbols.symbol(enclosingID)?.flags.contains(.innerClass) != true {
+                    break
+                }
+            }
+            usable.formUnion(lexicalReceiverSymbols)
+        case .memberNonInner, .memberCompanion:
+            break
+        }
+        if usable.contains(where: { types.isNominalSubtypeSymbol($0, of: outerID) }) {
+            return
+        }
+
+        // The class whose instance would have satisfied the receiver had the
+        // non-inner boundary not cut the chain: the first enclosing class the
+        // declaration cannot reach. Companion objects cut the chain entirely.
+        let provider: SymbolID?
+        switch context {
+        case .memberCompanion:
+            provider = nil
+        case .memberInner, .memberNonInner, .lexical:
+            provider = enclosing.reversed().first { !usable.contains($0) }
+        }
+        if let provider, types.isNominalSubtypeSymbol(provider, of: outerID) {
+            let name = interner.resolve(symbols.symbol(provider)?.name ?? superInfo.name)
+            diagnostics.error(
+                "KSWIFTK-SEMA-0440",
+                "outer class '\(name)' of non-inner class cannot be used as receiver.",
+                range: declRange
+            )
+        } else {
+            diagnostics.error(
+                "KSWIFTK-SEMA-0439",
+                "constructor of the inner class '\(interner.resolve(superInfo.name))' "
+                    + "can only be called with a receiver of the containing class.",
+                range: declRange
             )
         }
     }
@@ -1855,27 +2000,12 @@ extension DataFlowSemaPhase {
         // Every inherited abstract member this class still owes an
         // implementation for. CLASS-008: members from an interface satisfied
         // through `by` delegation are excluded.
-        var overriddenNames = collectOverriddenMemberNames(
+        let overriddenNames = collectOverriddenMemberNames(
             for: symbol,
             decl: decl,
             ast: ast,
             symbols: symbols
         )
-        // A data object synthesizes `toString()` unless a final inherited implementation wins.
-        if symbolInfo.kind == .object,
-           symbolInfo.flags.contains(.dataType),
-           let toStringName = symbols.children(ofFQName: symbolInfo.fqName).compactMap({ memberID -> InternedString? in
-               guard let member = symbols.symbol(memberID),
-                     member.kind == .function,
-                     member.name == interner.intern("toString"),
-                     member.flags.contains(.synthetic)
-               else {
-                   return nil
-               }
-               return member.name
-           }).first {
-            overriddenNames.insert(toStringName)
-        }
         let missingMembers = unimplementedAbstractMembers(
             for: symbol,
             overriddenNames: overriddenNames,
@@ -1883,7 +2013,31 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             types: types,
             interner: interner
-        )
+        ).filter { missingMember in
+            // Data classes and data objects synthesize `componentN()`,
+            // `copy`, `toString()`, `hashCode()` and `equals()` unless a final
+            // inherited implementation wins. A generated member with the same
+            // name and arity implements the abstract member — or, when its
+            // signature cannot validly override, the conflict is already
+            // reported by the generated-member conflict check
+            // (KSWIFTK-SEMA-0436).
+            guard symbolInfo.flags.contains(.dataType),
+                  let missingSymbol = symbols.symbol(missingMember),
+                  let missingSignature = symbols.functionSignature(for: missingMember)
+            else { return true }
+            return !symbols.children(ofFQName: symbolInfo.fqName).contains { memberID in
+                guard let member = symbols.symbol(memberID),
+                      member.kind == .function,
+                      member.flags.contains(.synthetic),
+                      member.name == missingSymbol.name,
+                      symbols.functionSignature(for: memberID)?.parameterTypes.count
+                        == missingSignature.parameterTypes.count
+                else {
+                    return false
+                }
+                return true
+            }
+        }
         guard !missingMembers.isEmpty else { return }
 
         let className = symbolInfo.fqName.map { interner.resolve($0) }.joined(separator: ".")

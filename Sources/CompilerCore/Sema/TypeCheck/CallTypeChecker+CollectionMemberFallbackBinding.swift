@@ -25,6 +25,16 @@ extension CallTypeChecker {
         let knownNames = KnownCompilerNames(interner: interner)
         guard calleeName != knownNames.contains else { return nil }
 
+        // `size` is a collection property, but this fallback models it next to
+        // zero-argument collection functions. Keep an explicit `size()` call
+        // from taking the property-read fallback.
+        if calleeName == knownNames.size,
+           args.isEmpty,
+           ctx.ast.arena.isExplicitCall(id)
+        {
+            return nil
+        }
+
         let memberName = interner.resolve(calleeName)
         if sema.requiresResolvedLibraryCalls, Self.jvmSourceCollectionCalls.contains(memberName) { return nil }
         if sema.bindings.exprTypes[receiverID] == nil {
@@ -654,7 +664,7 @@ extension CallTypeChecker {
         let kotlinCollections = knownNames.kotlinCollectionsPackage
         let kotlinSequences = knownNames.kotlinSequencesPackage
         let iterableFQName = knownNames.kotlinCollectionsIterableFQName
-        guard let iterableSymbol = sema.symbols.lookup(fqName: iterableFQName) else {
+        guard let iterableSymbol = sema.symbols.lookupNominal(fqName: iterableFQName) else {
             return []
         }
         return sema.symbols.lookupByShortName(calleeName).filter { candidate in
@@ -819,7 +829,7 @@ extension CallTypeChecker {
         let knownNames = KnownCompilerNames(interner: interner)
         let iterableFQName = knownNames.kotlinCollectionsIterableFQName
 
-        guard let iterableSymbol = sema.symbols.lookup(fqName: iterableFQName) else {
+        guard let iterableSymbol = sema.symbols.lookupNominal(fqName: iterableFQName) else {
             return nil
         }
 

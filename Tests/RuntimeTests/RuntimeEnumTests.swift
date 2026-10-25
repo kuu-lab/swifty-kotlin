@@ -65,4 +65,16 @@ struct RuntimeEnumTests {
         #expect(kk_any_member_hashCode(firstBox) == firstDirectHash)
         #expect(kk_any_member_hashCode(secondBox) == secondDirectHash)
     }
+
+    @Test
+    func enumCompareToReturnsOrdinalDifferenceForRawAndBoxedValues() {
+        let first = kk_enum_box_ordinal(0, runtimeMakeStringRaw("FIRST"), 91_401)
+        let last = kk_enum_box_ordinal(2, runtimeMakeStringRaw("LAST"), 91_401)
+
+        #expect(kk_enum_compareTo(0, 2) == -2)
+        #expect(kk_enum_compareTo(2, 0) == 2)
+        #expect(kk_enum_compareTo(1, 1) == 0)
+        #expect(kk_enum_compareTo(first, last) == -2)
+        #expect(kk_enum_compareTo(last, first) == 2)
+    }
 }

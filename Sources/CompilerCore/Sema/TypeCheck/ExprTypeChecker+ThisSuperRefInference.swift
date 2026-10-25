@@ -17,6 +17,15 @@ extension ExprTypeChecker {
             sema.bindings.bindExprType(id, type: sema.types.errorType)
             return sema.types.errorType
         }
+        guard driver.isSuperReceiverExpression(id) else {
+            sema.diagnostics.error(
+                "KSWIFTK-SEMA-0057",
+                "'super' cannot be a callee.",
+                range: range
+            )
+            sema.bindings.bindExprType(id, type: sema.types.errorType)
+            return sema.types.errorType
+        }
         if interfaceQualifier == nil, label == nil,
            let entrySuperContext = ctx.enumEntrySuperContext,
            ctx.enclosingClassSymbol == entrySuperContext.ownerSymbol

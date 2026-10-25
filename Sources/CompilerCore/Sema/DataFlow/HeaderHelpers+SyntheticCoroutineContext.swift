@@ -328,28 +328,9 @@ extension DataFlowSemaPhase {
         let throwableType = context.throwableType!
 
         if !bundledIndex.contains(ownerFQName: kotlinCoroutinesPkg + [interner.intern("CoroutineContext")], name: interner.intern("cancel"), arity: 1) {
-            registerSyntheticCoroutineMember(
-                ownerSymbol: coroutineContextSymbol,
-                ownerType: coroutineContextType,
-                name: "cancel",
-                externalLinkName: "kk_context_cancel_no_cause",
-                returnType: types.unitType,
-                parameters: [],
-                flags: [.synthetic],
-                symbols: symbols,
-                interner: interner
-            )
-            registerSyntheticCoroutineMember(
-                ownerSymbol: coroutineContextSymbol,
-                ownerType: coroutineContextType,
-                name: "cancel",
-                externalLinkName: "kk_context_cancel",
-                returnType: types.unitType,
-                parameters: [(name: "cause", type: types.makeNullable(rootCancellationType))],
-                flags: [.synthetic],
-                symbols: symbols,
-                interner: interner
-            )
+            let coroutineContextMembers = coroutineMemberRows(of: coroutineContextSymbol, type: coroutineContextType, symbols: symbols, interner: interner)
+            coroutineContextMembers.fn("cancel", "kk_context_cancel_no_cause", ret: types.unitType, flags: [.synthetic])
+            coroutineContextMembers.fn("cancel", "kk_context_cancel", [(name: "cause", type: types.makeNullable(rootCancellationType))], ret: types.unitType, flags: [.synthetic])
         }
 
         let coroutineNameSymbol = ensureClassSymbol(
@@ -487,18 +468,10 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-        registerSyntheticCoroutineMember(
-            ownerSymbol: coroutineExceptionHandlerSymbol,
-            ownerType: coroutineExceptionHandlerType,
-            name: "handleException",
-            externalLinkName: "kk_exception_handler_invoke",
-            returnType: types.unitType,
-            parameters: [
-                (name: "context", type: kotlinCoroutineContextType),
-                (name: "exception", type: throwableType),
-            ],
-            symbols: symbols,
-            interner: interner
+        let coroutineExceptionHandlerMembers = coroutineMemberRows(of: coroutineExceptionHandlerSymbol, type: coroutineExceptionHandlerType, symbols: symbols, interner: interner)
+        coroutineExceptionHandlerMembers.fn(
+            "handleException", "kk_exception_handler_invoke", [(name: "context", type: kotlinCoroutineContextType), (name: "exception", type: throwableType)],
+            ret: types.unitType
         )
         if !bundledIndex.contains(
             ownerFQName: coroutinesPkg,
@@ -550,64 +523,31 @@ extension DataFlowSemaPhase {
             name: interner.intern("plus"),
             arity: 1
         ) {
-            registerSyntheticCoroutineMember(
-                ownerSymbol: coroutineContextSymbol,
-                ownerType: coroutineContextType,
-                name: "plus",
-                externalLinkName: "__kk_context_plus_dispatch",
-                returnType: kotlinCoroutineContextType,
-                parameters: [(name: "context", type: kotlinCoroutineContextType)],
-                flags: [.synthetic, .operatorFunction],
-                symbols: symbols,
-                interner: interner
+            let coroutineContextMembers = coroutineMemberRows(of: coroutineContextSymbol, type: coroutineContextType, symbols: symbols, interner: interner)
+            coroutineContextMembers.fn(
+                "plus", "__kk_context_plus_dispatch", [(name: "context", type: kotlinCoroutineContextType)],
+                ret: kotlinCoroutineContextType, flags: [.synthetic, .operatorFunction]
             )
         }
-        registerSyntheticCoroutineMember(
-            ownerSymbol: dispatcherSymbol,
-            ownerType: dispatcherType,
-            name: "plus",
-            externalLinkName: "kk_context_plus",
-            returnType: kotlinCoroutineContextType,
-            parameters: [(name: "context", type: kotlinCoroutineContextType)],
-            flags: [.synthetic, .operatorFunction],
-            symbols: symbols,
-            interner: interner
+        let dispatcherMembers = coroutineMemberRows(of: dispatcherSymbol, type: dispatcherType, symbols: symbols, interner: interner)
+        dispatcherMembers.fn(
+            "plus", "kk_context_plus", [(name: "context", type: kotlinCoroutineContextType)],
+            ret: kotlinCoroutineContextType, flags: [.synthetic, .operatorFunction]
         )
         if !hasBundledCoroutineName {
-            registerSyntheticCoroutineMember(
-                ownerSymbol: coroutineNameSymbol,
-                ownerType: coroutineNameType,
-                name: "plus",
-                externalLinkName: "kk_context_plus",
-                returnType: kotlinCoroutineContextType,
-                parameters: [(name: "context", type: kotlinCoroutineContextType)],
-                flags: [.synthetic, .operatorFunction],
-                symbols: symbols,
-                interner: interner
+            let coroutineNameMembers = coroutineMemberRows(of: coroutineNameSymbol, type: coroutineNameType, symbols: symbols, interner: interner)
+            coroutineNameMembers.fn(
+                "plus", "kk_context_plus", [(name: "context", type: kotlinCoroutineContextType)],
+                ret: kotlinCoroutineContextType, flags: [.synthetic, .operatorFunction]
             )
         }
-        registerSyntheticCoroutineMember(
-            ownerSymbol: coroutineExceptionHandlerSymbol,
-            ownerType: coroutineExceptionHandlerType,
-            name: "plus",
-            externalLinkName: "kk_context_plus",
-            returnType: kotlinCoroutineContextType,
-            parameters: [(name: "context", type: kotlinCoroutineContextType)],
-            flags: [.synthetic, .operatorFunction],
-            symbols: symbols,
-            interner: interner
+        let coroutineExceptionHandlerMembers = coroutineMemberRows(of: coroutineExceptionHandlerSymbol, type: coroutineExceptionHandlerType, symbols: symbols, interner: interner)
+        coroutineExceptionHandlerMembers.fn(
+            "plus", "kk_context_plus", [(name: "context", type: kotlinCoroutineContextType)],
+            ret: kotlinCoroutineContextType, flags: [.synthetic, .operatorFunction]
         )
-        registerSyntheticCoroutineMember(
-            ownerSymbol: jobSymbol,
-            ownerType: jobType,
-            name: "plus",
-            externalLinkName: "kk_context_plus",
-            returnType: kotlinCoroutineContextType,
-            parameters: [(name: "context", type: kotlinCoroutineContextType)],
-            flags: [.synthetic, .operatorFunction],
-            symbols: symbols,
-            interner: interner
-        )
+        let jobMembers = coroutineMemberRows(of: jobSymbol, type: jobType, symbols: symbols, interner: interner)
+        jobMembers.fn("plus", "kk_context_plus", [(name: "context", type: kotlinCoroutineContextType)], ret: kotlinCoroutineContextType, flags: [.synthetic, .operatorFunction])
     }
 
     func registerEmptyCoroutineContextStub(context: inout SyntheticCoroutineRegistryContext) {

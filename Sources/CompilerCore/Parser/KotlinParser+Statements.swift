@@ -1074,7 +1074,8 @@ extension KotlinParser {
         allowsClassDelegation: Bool = false,
         allowsWhereClauseContinuation: Bool = false,
         allowsFunctionWhereClause: Bool = false,
-        allowsPropertyDelegation: Bool = false
+        allowsPropertyDelegation: Bool = false,
+        stopsAtFunctionDelegation: Bool = false
     ) {
         var progress = false
         var sawAssignment = false
@@ -1087,6 +1088,19 @@ extension KotlinParser {
             let token = stream.peek()
             let atTopLevel = depth.isTopLevel
                 && templateExpressionDepth == 0
+            if stopsAtFunctionDelegation,
+               atTopLevel,
+               !sawAssignment,
+               token.kind == .softKeyword(.by),
+               !canStartTypeName(after: lastConsumedToken?.kind)
+            {
+                diagnostics.error(
+                    "KSWIFTK-PARSE-0006",
+                    "Unexpected 'by' after function signature.",
+                    range: token.range
+                )
+                break
+            }
             if !inBlock, !children.isEmpty, atTopLevel, hasLeadingNewline(token),
                token.kind == .keyword(.this)
             {
@@ -1241,6 +1255,18 @@ extension KotlinParser {
         }
         if !progress, !shouldStopStatementBefore(stream.peek(), inBlock: inBlock) {
             _ = consumeToken(into: &children, range: &range)
+        }
+    }
+
+    private func canStartTypeName(after kind: TokenKind?) -> Bool {
+        guard let kind else { return false }
+        switch kind {
+        case .symbol(.colon), .symbol(.dot), .symbol(.questionDot), .symbol(.lessThan),
+             .symbol(.comma), .symbol(.lParen), .symbol(.arrow),
+             .keyword(.in), .softKeyword(.out):
+            return true
+        default:
+            return false
         }
     }
 }

@@ -140,10 +140,17 @@ extension ExprTypeChecker {
         }
         var lhsCtx = ctx
         lhsCtx.isElvisBranchExpectedTypeHint = isElvisCallLhs && !isSafeLetElvisFailure && expectedType != nil
-        let inferredLhs = driver.inferExpr(
+        let lhsOperandType = driver.inferExpr(
             lhsID, ctx: lhsCtx, locals: &locals,
             expectedType: lhsExpectedType
         )
+        // A bare `ClassName` on an Elvis side denotes the companion object;
+        // keep the companion value type through the join (KUU-3232).
+        let inferredLhs = op == .elvis
+            ? driver.helpers.retypeClassNameAsCompanionValue(
+                lhsID, currentType: lhsOperandType, ast: ast, sema: sema
+            ) ?? lhsOperandType
+            : lhsOperandType
         var lhs = sema.types.capturedOperatorReceiverType(of: inferredLhs)
         // Elvis uses an enclosing expected type for its RHS, but the LHS's
         // non-null type is only a contextual hint when no enclosing type exists.
@@ -250,6 +257,11 @@ extension ExprTypeChecker {
             } else {
                 rhs = driver.inferExpr(rhsID, ctx: rhsCtx, locals: &locals, expectedType: rhsExpectedType)
             }
+        }
+        if op == .elvis {
+            rhs = driver.helpers.retypeClassNameAsCompanionValue(
+                rhsID, currentType: rhs, ast: ast, sema: sema
+            ) ?? rhs
         }
         let inferredRhs = rhs
         rhs = sema.types.capturedOperatorReceiverType(of: inferredRhs)
@@ -1208,7 +1220,7 @@ extension ExprTypeChecker {
         }
     }
 
-    private func equalityOperandType(_ expr: ExprID, inferred: TypeID, ctx: TypeInferenceContext) -> TypeID {
+    func equalityOperandType(_ expr: ExprID, inferred: TypeID, ctx: TypeInferenceContext) -> TypeID {
         let sema = ctx.sema
         let declared = equalityDeclaredType(expr, inferred: inferred, sema: sema)
         // Range literals and their local references can carry a scalar element
@@ -1292,7 +1304,7 @@ extension ExprTypeChecker {
     // String is involved. Ordinary classes may implement cross-type equals.
     // Type-parameter bounds and enum/value-class diagnostics have additional
     // warning rules and remain on the existing path.
-    private func equalityHasIncompatibleBuiltinTypes(_ lhs: TypeID, _ rhs: TypeID, sema: SemaModule) -> Bool {
+    func equalityHasIncompatibleBuiltinTypes(_ lhs: TypeID, _ rhs: TypeID, sema: SemaModule) -> Bool {
         func erasedOperand(_ type: TypeID) -> TypeID? {
             let nonNull = sema.types.makeNonNullable(type)
             switch sema.types.kind(of: nonNull) {

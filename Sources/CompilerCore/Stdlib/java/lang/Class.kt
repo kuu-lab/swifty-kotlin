@@ -42,6 +42,9 @@ private external fun __classGetDeclaredField(type: Class<*>, name: String): Fiel
 @KsSymbolName("__kk_java_class_get_name")
 private external fun __classGetName(type: Class<*>): String
 
+@KsSymbolName("__kk_class_simple_name")
+private external fun __classSimpleName(type: Class<*>): String
+
 @KsSymbolName("__kk_class_for_name")
 private external fun __classForName(className: String): Class<*>
 
@@ -89,6 +92,9 @@ public class Class<T> {
     public val name: String
         get() = __classGetName(this)
 
+    public val simpleName: String
+        get() = __classSimpleName(this)
+
     @KsSymbolName("__kk_java_class_isInstance")
     private external fun __isInstance(value: Any?): Boolean
 
@@ -107,6 +113,8 @@ public class Class<T> {
     private external fun __classGetDeclaringClass(): Class<*>?
 
     public fun getName(): String = name
+
+    public fun getSimpleName(): String = simpleName
 
     public fun getEnclosingClass(): Class<*>? = __classGetEnclosingClass()
 

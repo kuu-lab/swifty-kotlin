@@ -551,7 +551,9 @@ extension DataFlowSemaPhase {
     ) -> SymbolID {
         let iterableName = interner.intern("Iterable")
         let iterableFQName = kotlinCollectionsPkg + [iterableName]
-        let iterableInterfaceSymbol: SymbolID = if let existing = symbols.lookup(fqName: iterableFQName) {
+        // lookupNominal: `kotlin.collections.Iterable` also names the bundled
+        // `Iterable(iterator)` factory (KUU-3246).
+        let iterableInterfaceSymbol: SymbolID = if let existing = symbols.lookupNominal(fqName: iterableFQName) {
             existing
         } else {
             symbols.define(
@@ -570,8 +572,12 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-        types.setNominalTypeParameterSymbols([typeParamSymbol], for: iterableInterfaceSymbol)
-        types.setNominalTypeParameterVariances([.out], for: iterableInterfaceSymbol)
+        // Source-declared or imported Iterable keeps its real type parameter;
+        // only the synthetic fallback shell is decorated.
+        if !symbols.isSourceBackedSymbol(iterableInterfaceSymbol) {
+            types.setNominalTypeParameterSymbols([typeParamSymbol], for: iterableInterfaceSymbol)
+            types.setNominalTypeParameterVariances([.out], for: iterableInterfaceSymbol)
+        }
 
         let iteratorName = interner.intern("Iterator")
         let iteratorFQName = kotlinCollectionsPkg + [iteratorName]
@@ -889,6 +895,9 @@ extension DataFlowSemaPhase {
         // KSP-701: only the source-less fallback may synthesize Sequence.
         // Bundled source declarations, including Sequence.iterator, remain authoritative.
         let sequenceFQName = packageFQName + [interner.intern("Sequence")]
+        // lookupNominal: `kotlin.sequences.Sequence` also names the bundled
+        // `Sequence(iterator)` factory; the factory is source-backed yet is
+        // not the nominal this stub must reuse (KUU-3246).
         if let existing = symbols.lookupNominal(fqName: sequenceFQName),
            symbols.isSourceBackedSymbol(existing) {
             return existing
@@ -929,7 +938,9 @@ extension DataFlowSemaPhase {
 
         let sequenceName = interner.intern("Sequence")
         let sequenceFQName = kotlinSequencesPkg + [sequenceName]
-        let sequenceSymbol: SymbolID = if let existing = symbols.lookup(fqName: sequenceFQName) {
+        // lookupNominal: `kotlin.sequences.Sequence` also names the bundled
+        // `Sequence(iterator)` factory (KUU-3246).
+        let sequenceSymbol: SymbolID = if let existing = symbols.lookupNominal(fqName: sequenceFQName) {
             existing
         } else {
             symbols.define(
@@ -953,8 +964,12 @@ extension DataFlowSemaPhase {
                 visibility: .private,
                 flags: []
             )
-            types.setNominalTypeParameterSymbols([seqTypeParamSymbol], for: sequenceSymbol)
-            types.setNominalTypeParameterVariances([.out], for: sequenceSymbol)
+            // Source-declared or imported Sequence keeps its own type
+            // parameter; only the synthetic fallback shell is decorated.
+            if !symbols.isSourceBackedSymbol(sequenceSymbol) {
+                types.setNominalTypeParameterSymbols([seqTypeParamSymbol], for: sequenceSymbol)
+                types.setNominalTypeParameterVariances([.out], for: sequenceSymbol)
+            }
         }
 
         // Register iterator() independently of the type parameter block above,

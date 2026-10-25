@@ -980,8 +980,8 @@ extension CallTypeChecker {
             mutableFQName = knownNames.kotlinCollectionsMutableMapFQName
             readOnlyFQName = knownNames.kotlinCollectionsMapFQName
         }
-        guard let mutableSymbol = sema.symbols.lookup(fqName: mutableFQName),
-              let readOnlySymbol = sema.symbols.lookup(fqName: readOnlyFQName)
+        guard let mutableSymbol = sema.symbols.lookupNominal(fqName: mutableFQName),
+              let readOnlySymbol = sema.symbols.lookupNominal(fqName: readOnlyFQName)
         else {
             return sema.types.anyType
         }

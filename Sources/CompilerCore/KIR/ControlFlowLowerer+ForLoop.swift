@@ -917,7 +917,7 @@ extension ControlFlowLowerer {
                   sema: sema,
                   interner: interner
               ) == nil,
-              let iterableSymbol = sema.symbols.lookup(fqName: [
+              let iterableSymbol = sema.symbols.lookupNominal(fqName: [
                   interner.intern("kotlin"),
                   interner.intern("collections"),
                   interner.intern("Iterable"),

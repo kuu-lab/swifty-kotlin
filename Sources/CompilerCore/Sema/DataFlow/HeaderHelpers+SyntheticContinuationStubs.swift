@@ -158,20 +158,10 @@ extension DataFlowSemaPhase {
             name: interner.intern("resumeWith"),
             arity: 1
         ) {
-            registerSyntheticCoroutineMember(
-                ownerSymbol: continuationSymbol,
-                ownerType: continuationType,
-                name: "resumeWith",
-                externalLinkName: "kk_coroutine_continuation_resume_with",
-                returnType: types.unitType,
-                parameters: [(
-                    name: "result",
-                    type: resultOfContinuationTType
-                )],
-                typeParameterSymbols: [continuationTypeParameterSymbol],
-                classTypeParameterCount: 1,
-                symbols: symbols,
-                interner: interner
+            let continuationMembers = coroutineMemberRows(of: continuationSymbol, type: continuationType, symbols: symbols, interner: interner)
+            continuationMembers.fn(
+                "resumeWith", "kk_coroutine_continuation_resume_with", [(name: "result", type: resultOfContinuationTType)],
+                ret: types.unitType, typeParameterSymbols: [continuationTypeParameterSymbol], classTypeParameterCount: 1
             )
         }
         let rootCancellationType = types.make(.classType(ClassType(

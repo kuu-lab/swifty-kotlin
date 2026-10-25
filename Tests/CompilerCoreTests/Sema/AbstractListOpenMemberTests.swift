@@ -39,9 +39,9 @@ struct AbstractListOpenMemberTests {
             let sema = try #require(ctx.sema)
             let ast = try #require(ctx.ast)
             let fqName = ["kotlin", "collections", "AbstractList"].map(ctx.interner.intern)
-            let owner = try #require(sema.symbols.lookup(fqName: fqName))
+            let owner = try #require(sema.symbols.lookupNominal(fqName: fqName))
             let listFQName = ["kotlin", "collections", "List"].map(ctx.interner.intern)
-            let listOwner = try #require(sema.symbols.lookup(fqName: listFQName))
+            let listOwner = try #require(sema.symbols.lookupNominal(fqName: listFQName))
             let listLayout = try #require(sema.symbols.nominalLayout(for: listOwner))
             for (name, arity, slot) in [("get", 1, 0), ("listIterator", 1, 1), ("subList", 2, 2)] {
                 let member = try #require(sema.symbols.lookupAll(fqName: listFQName + [ctx.interner.intern(name)]).first {

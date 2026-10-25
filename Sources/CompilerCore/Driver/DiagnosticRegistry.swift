@@ -546,6 +546,12 @@ enum DiagnosticRegistry {
             summary: "Invalid is-check on non-class type."
         ),
         DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0057",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "'super' cannot be a callee."
+        ),
+        DiagnosticDescriptor(
             code: "KSWIFTK-SEMA-UNCHECKED-CAST",
             pass: "SEMA",
             defaultSeverity: .warning,
@@ -1095,10 +1101,28 @@ enum DiagnosticRegistry {
             summary: "An interface cannot extend a class."
         ),
         DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0439",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "An inner-class supertype requires a receiver of the containing class."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0440",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "An enclosing this of a non-inner class cannot back an inner-class supertype."
+        ),
+        DiagnosticDescriptor(
             code: "KSWIFTK-SEMA-0441",
             pass: "SEMA",
             defaultSeverity: .error,
             summary: "Multiple vararg parameters are prohibited."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0442",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "Generated data class componentN() conflicts with a supertype member."
         ),
     ]
 

@@ -167,9 +167,15 @@ extension LocalDeclTypeChecker {
             sema.bindings.bindIndexedCompoundAssignElementOperator(id, binding: binding)
         }
 
-        let resultType = elementOperator?.resultType ?? compoundOpResultType(
-            assignOp: op, elementType: elementType, valueType: valueType, sema: sema
-        )
+        let resultType = if isBuiltinNumericIncrement {
+            // Built-in inc/dec writes its wrapped result back to the element
+            // type, even when ordinary binary arithmetic promotes that type.
+            elementType
+        } else {
+            elementOperator?.resultType ?? compoundOpResultType(
+                assignOp: op, elementType: elementType, valueType: valueType, sema: sema
+            )
+        }
 
         // KSWIFTK-BUG: the write-back half of `a[i] op= v` must go through the
         // same custom operator `set()` that a plain `a[i] = v` would resolve,

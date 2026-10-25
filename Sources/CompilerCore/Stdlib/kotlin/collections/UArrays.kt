@@ -269,6 +269,15 @@ public fun UIntArray.asList(): List<UInt> = __kkUIntArrayAsList(this)
 public fun ULongArray.asList(): List<ULong> = __kkULongArrayAsList(this)
 
 @ExperimentalUnsignedTypes
+public fun UByteArray.asIterable(): Iterable<UByte> = this.asList()
+@ExperimentalUnsignedTypes
+public fun UShortArray.asIterable(): Iterable<UShort> = this.asList()
+@ExperimentalUnsignedTypes
+public fun UIntArray.asIterable(): Iterable<UInt> = this.asList()
+@ExperimentalUnsignedTypes
+public fun ULongArray.asIterable(): Iterable<ULong> = this.asList()
+
+@ExperimentalUnsignedTypes
 public fun UByteArray.random(): UByte = random(Random.Default)
 
 @ExperimentalUnsignedTypes

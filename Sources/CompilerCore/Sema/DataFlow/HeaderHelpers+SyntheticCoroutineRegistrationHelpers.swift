@@ -351,6 +351,10 @@ extension DataFlowSemaPhase {
         )
     }
 
+    func coroutineMemberRows(of ownerSymbol: SymbolID, type ownerType: TypeID, symbols: SymbolTable, interner: StringInterner) -> SyntheticCoroutineMemberRows {
+        SyntheticCoroutineMemberRows(phase: self, ownerSymbol: ownerSymbol, ownerType: ownerType, symbols: symbols, interner: interner)
+    }
+
     func registerSyntheticCoroutineMember(
         ownerSymbol: SymbolID,
         ownerType: TypeID,
@@ -659,3 +663,24 @@ extension DataFlowSemaPhase {
 
 }
 // jscpd:ignore-end
+/// Rows for coroutine member stubs; see `SyntheticMemberRows`. Defaults mirror
+/// `registerSyntheticCoroutineMember`.
+struct SyntheticCoroutineMemberRows {
+    let phase: DataFlowSemaPhase
+    let ownerSymbol: SymbolID
+    let ownerType: TypeID
+    let symbols: SymbolTable
+    let interner: StringInterner
+
+    func fn(
+        _ name: String, _ externalLinkName: String?, _ parameters: [(name: String, type: TypeID)] = [],
+        ret returnType: TypeID, flags: SymbolFlags = [.synthetic], typeParameterSymbols: [SymbolID] = [],
+        classTypeParameterCount: Int = 0, isSuspend: Bool = false
+    ) {
+        phase.registerSyntheticCoroutineMember(
+            ownerSymbol: ownerSymbol, ownerType: ownerType, name: name, externalLinkName: externalLinkName,
+            returnType: returnType, parameters: parameters, flags: flags, typeParameterSymbols: typeParameterSymbols,
+            classTypeParameterCount: classTypeParameterCount, isSuspend: isSuspend, symbols: symbols, interner: interner
+        )
+    }
+}
