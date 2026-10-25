@@ -288,7 +288,12 @@ public func kk_mutable_set_add(
     if runtimeThrowIfReadOnlySet(set, outThrown) {
         return 0
     }
-    return set.insert(value: runtimeValueFromCollectionABI(elem)) ? 1 : 0
+    let value = runtimeValueFromCollectionABI(elem)
+    guard set.acceptsInsertion(rawValue: value.legacyRawValue) else {
+        runtimeSetThrown(outThrown, runtimeAllocateIllegalArgumentException(message: "Element outside range view"))
+        return 0
+    }
+    return set.insert(value: value) ? 1 : 0
 }
 
 @_cdecl("__kk_mutable_set_remove")
@@ -569,6 +574,10 @@ public func kk_mutable_map_put(
     // Identity maps retain boxed reference handles, including boxed Char.
     let runtimeKey = map.usesReferenceEquality ? RuntimeValue(raw: key) : runtimeValueFromCollectionABI(key)
     let runtimeValue = map.usesReferenceEquality ? RuntimeValue(raw: value) : runtimeValueFromCollectionABI(value)
+    guard map.acceptsInsertion(rawKey: runtimeKey.legacyRawValue) else {
+        runtimeSetThrown(outThrown, runtimeAllocateIllegalArgumentException(message: "Key outside range view"))
+        return runtimeNullSentinelInt
+    }
     return map.put(key: runtimeKey, value: runtimeValue)
         .map(runtimeCollectionABIValue)
         ?? runtimeNullSentinelInt
@@ -626,6 +635,10 @@ public func kk_mutable_map_putAll(
     }
     let otherKeys = other.keyValues
     let otherValues = other.entryValues
+    for key in otherKeys where !map.acceptsInsertion(rawKey: key.legacyRawValue) {
+        runtimeSetThrown(outThrown, runtimeAllocateIllegalArgumentException(message: "Key outside range view"))
+        return 0
+    }
     for (idx, key) in otherKeys.enumerated() {
         guard idx < otherValues.count else { break }
         _ = map.put(key: key, value: otherValues[idx])
@@ -669,6 +682,10 @@ private func runtimeCopySourceMapEntries(
                   context: "Map.Entry.value dispatch", outThrown: &thrown
               ), thrown == 0
         else { return }
+        if !map.acceptsInsertion(rawKey: key) {
+            thrown = runtimeAllocateIllegalArgumentException(message: "Key outside range view")
+            return
+        }
         _ = map.put(key: key, value: value)
     }
 }
@@ -961,7 +978,10 @@ public func kk_mutable_map_iterator_next(
     }
     return runtimeMutableMapEntryNew(
         mapRaw: iter.mapRaw,
-        key: map.keyValues[storageIndex],
+        // `keyValues` is the view's projected order, while `storageIndex`
+        // may refer to the backing map's storage position. The iterator
+        // snapshot preserves the corresponding view index.
+        key: map.keyValues[iter.index - 1],
         value: value
     )
 }

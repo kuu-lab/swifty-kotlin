@@ -182,11 +182,31 @@ extension JVMClasspathIndex {
                 fun comparator(): kotlin.Comparator<in K>?
                 fun firstKey(): K
                 fun lastKey(): K
+                fun subMap(fromKey: K, toKey: K): SortedMap<K, V>
             }
             """, 0x0601, "java/lang/Object", [
                 method("java/util/SortedMap", "comparator", [], .reference("java/util/Comparator", nullable: true), interface: true),
                 method("java/util/SortedMap", "firstKey", [], object, interface: true),
                 method("java/util/SortedMap", "lastKey", [], object, interface: true),
+                method("java/util/SortedMap", "subMap", [object, object], .reference("java/util/SortedMap", nullable: false), interface: true),
+            ]),
+            ("java/util/SortedSet", """
+            package java.util
+            interface SortedSet<E> : kotlin.collections.MutableSet<E> {
+                fun comparator(): kotlin.Comparator<in E>?
+                fun first(): E
+                fun last(): E
+                fun headSet(toElement: E): SortedSet<E>
+                fun tailSet(fromElement: E): SortedSet<E>
+                fun subSet(fromElement: E, toElement: E): SortedSet<E>
+            }
+            """, 0x0601, "java/lang/Object", [
+                method("java/util/SortedSet", "comparator", [], .reference("java/util/Comparator", nullable: true), interface: true),
+                method("java/util/SortedSet", "first", [], object, interface: true),
+                method("java/util/SortedSet", "last", [], object, interface: true),
+                method("java/util/SortedSet", "headSet", [object], .reference("java/util/SortedSet", nullable: false), interface: true),
+                method("java/util/SortedSet", "tailSet", [object], .reference("java/util/SortedSet", nullable: false), interface: true),
+                method("java/util/SortedSet", "subSet", [object, object], .reference("java/util/SortedSet", nullable: false), interface: true),
             ]),
             ("java/util/Locale", """
             package java.util
@@ -202,6 +222,7 @@ extension JVMClasspathIndex {
                 override fun comparator(): kotlin.Comparator<in K>? = null
                 override fun firstKey(): K = null!!
                 override fun lastKey(): K = null!!
+                override fun subMap(fromKey: K, toKey: K): SortedMap<K, V> = null!!
                 override val size: Int get() = 0
                 override val keys: kotlin.collections.Set<K> get() = null!!
                 override val values: kotlin.collections.Collection<V> get() = null!!
@@ -219,6 +240,40 @@ extension JVMClasspathIndex {
                 method("java/util/TreeMap", "<init>", [], .reference("java/util/TreeMap", nullable: false)),
                 method("java/util/TreeMap", "<init>", [.reference("java/util/Comparator", nullable: true)], .reference("java/util/TreeMap", nullable: false)),
                 method("java/util/TreeMap", "put", [object, object], object),
+                method("java/util/TreeMap", "subMap", [object, object], .reference("java/util/SortedMap", nullable: false)),
+            ]),
+            ("java/util/TreeSet", """
+            package java.util
+            open class TreeSet<E> : SortedSet<E> {
+                constructor()
+                constructor(comparator: kotlin.Comparator<in E>?)
+                override fun comparator(): kotlin.Comparator<in E>? = null
+                override fun first(): E = null!!
+                override fun last(): E = null!!
+                override fun headSet(toElement: E): SortedSet<E> = null!!
+                override fun tailSet(fromElement: E): SortedSet<E> = null!!
+                override fun subSet(fromElement: E, toElement: E): SortedSet<E> = null!!
+                override val size: Int get() = 0
+                override fun isEmpty(): Boolean = false
+                override fun contains(element: E): Boolean = false
+                override fun containsAll(elements: kotlin.collections.Collection<@UnsafeVariance E>): Boolean = false
+                override fun iterator(): kotlin.collections.MutableIterator<E> = null!!
+                override fun add(element: E): Boolean = false
+                override fun addAll(elements: kotlin.collections.Collection<out E>): Boolean = false
+                override fun remove(element: E): Boolean = false
+                override fun removeAll(elements: kotlin.collections.Collection<out E>): Boolean = false
+                override fun retainAll(elements: kotlin.collections.Collection<out E>): Boolean = false
+                override fun clear() {}
+            }
+            """, 0x0001, "java/util/AbstractSet", [
+                method("java/util/TreeSet", "<init>", [], .reference("java/util/TreeSet", nullable: false)),
+                method("java/util/TreeSet", "<init>", [.reference("java/util/Comparator", nullable: true)], .reference("java/util/TreeSet", nullable: false)),
+                method("java/util/TreeSet", "comparator", [], .reference("java/util/Comparator", nullable: true)),
+                method("java/util/TreeSet", "first", [], object),
+                method("java/util/TreeSet", "last", [], object),
+                method("java/util/TreeSet", "headSet", [object], .reference("java/util/SortedSet", nullable: false)),
+                method("java/util/TreeSet", "tailSet", [object], .reference("java/util/SortedSet", nullable: false)),
+                method("java/util/TreeSet", "subSet", [object, object], .reference("java/util/SortedSet", nullable: false)),
             ]),
             ("java/util/Collections", """
             package java.util

@@ -118,6 +118,50 @@ struct RuntimeSortedCollectionTests {
     }
 
     @Test
+    func sortedSetRangeViewsStayLiveAndRejectOutOfRangeAdds() {
+        let set = makeTreeSet([1, 2, 4, 6])
+        var thrown = 0
+        let subset = kk_sorted_set_sub_set(set, 2, 5, &thrown)
+        #expect(thrown == 0)
+        #expect(setElements(subset) == [2, 4])
+
+        _ = kk_mutable_set_add(set, 3, &thrown)
+        #expect(thrown == 0)
+        #expect(setElements(subset) == [2, 3, 4])
+
+        _ = kk_mutable_set_remove(subset, 3, &thrown)
+        #expect(thrown == 0)
+        #expect(setElements(set) == [1, 2, 4, 6])
+
+        _ = kk_mutable_set_add(subset, 5, &thrown)
+        #expect(thrown != 0)
+        #expect(setElements(set) == [1, 2, 4, 6])
+
+        thrown = 0
+        _ = kk_sorted_set_sub_set(set, 5, 2, &thrown)
+        #expect(thrown != 0)
+    }
+
+    @Test
+    func sortedSetNestedRangeViewsValidateParentEndpoints() {
+        let set = makeTreeSet([1, 2, 4, 6])
+        var thrown = 0
+        let subset = kk_sorted_set_sub_set(set, 2, 5, &thrown)
+        #expect(thrown == 0)
+        #expect(setElements(kk_sorted_set_head_set(subset, 5, &thrown)) == [2, 4])
+        #expect(thrown == 0)
+        #expect(setElements(kk_sorted_set_tail_set(subset, 2, &thrown)) == [2, 4])
+        #expect(thrown == 0)
+
+        _ = kk_sorted_set_head_set(subset, 1, &thrown)
+        #expect(thrown != 0)
+        _ = kk_sorted_set_tail_set(subset, 6, &thrown)
+        #expect(thrown != 0)
+        _ = kk_sorted_set_sub_set(subset, 1, 3, &thrown)
+        #expect(thrown != 0)
+    }
+
+    @Test
     func descendingIteratorWalksBackwards() {
         let set = makeTreeSet([1, 2, 3])
         let iterator = kk_sorted_set_descending_iterator(set)
@@ -202,6 +246,47 @@ struct RuntimeSortedCollectionTests {
         #expect(mapKeys(map) == [1, 2, 3, 4])
         #expect(mapKeys(descending) == [4, 3, 2, 1])
         #expect(kk_map_get(map, 4) == 40)
+    }
+
+    @Test
+    func sortedMapRangeViewsStayLiveAndRejectOutOfRangePuts() {
+        let map = makeTreeMap([(1, 10), (2, 20), (4, 40), (6, 60)])
+        var thrown = 0
+        let subMap = kk_sorted_map_sub_map(map, 2, 5, &thrown)
+        #expect(thrown == 0)
+        #expect(mapKeys(subMap) == [2, 4])
+        #expect(runtimeValuesEqual(subMap, makeTreeMap([(2, 20), (4, 40)])))
+
+        _ = kk_mutable_map_put(map, 3, 30, &thrown)
+        #expect(thrown == 0)
+        #expect(mapKeys(subMap) == [2, 3, 4])
+
+        _ = kk_mutable_map_remove(subMap, 3, &thrown)
+        #expect(thrown == 0)
+        #expect(mapKeys(map) == [1, 2, 4, 6])
+
+        _ = kk_mutable_map_put(subMap, 5, 50, &thrown)
+        #expect(thrown != 0)
+        #expect(mapKeys(map) == [1, 2, 4, 6])
+
+        thrown = 0
+        _ = kk_sorted_map_sub_map(map, 5, 2, &thrown)
+        #expect(thrown != 0)
+    }
+
+    @Test
+    func sortedMapNestedRangeViewsValidateParentEndpoints() {
+        let map = makeTreeMap([(1, 10), (2, 20), (4, 40), (6, 60)])
+        var thrown = 0
+        let subMap = kk_sorted_map_sub_map(map, 2, 5, &thrown)
+        #expect(thrown == 0)
+        #expect(mapKeys(kk_sorted_map_sub_map(subMap, 2, 5, &thrown)) == [2, 4])
+        #expect(thrown == 0)
+
+        _ = kk_sorted_map_sub_map(subMap, 1, 3, &thrown)
+        #expect(thrown != 0)
+        _ = kk_sorted_map_sub_map(subMap, 2, 6, &thrown)
+        #expect(thrown != 0)
     }
 
     @Test
