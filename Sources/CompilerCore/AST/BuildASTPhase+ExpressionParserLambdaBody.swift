@@ -83,6 +83,9 @@ extension BuildASTPhase.ExpressionParser {
             {
                 statements.append(postfixExpr)
             } else if let statementExpr = parseLambdaBodyStatement(from: group) {
+                BuildASTPhase(diagnostics: diagnostics).validateLocalFunctionSeparator(
+                    after: statementExpr, in: tokens, astArena: astArena
+                )
                 statements.append(statementExpr)
             }
         }
@@ -92,7 +95,8 @@ extension BuildASTPhase.ExpressionParser {
     private func parseLambdaBodyStatement(from group: ArraySlice<Token>) -> ExprID? {
         let phase = BuildASTPhase(diagnostics: diagnostics)
         if let localFun = phase.parseLocalFunDeclExpr(
-            from: Array(group), interner: interner, astArena: astArena
+            from: BuildASTPhase.skipLeadingLocalAnnotations(Array(group), interner: interner),
+            interner: interner, astArena: astArena
         ) {
             return localFun
         }
