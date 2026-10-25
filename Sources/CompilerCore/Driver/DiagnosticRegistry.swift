@@ -1130,6 +1130,12 @@ enum DiagnosticRegistry {
             defaultSeverity: .error,
             summary: "Variance annotations are only allowed for type parameters of classes and interfaces."
         ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0444",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "Generated data class componentN() conflicts with a member declared in the data class."
+        ),
     ]
 
 

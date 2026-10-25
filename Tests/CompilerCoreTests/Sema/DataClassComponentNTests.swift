@@ -410,6 +410,73 @@ struct DataClassComponentNTests {
     }
 
     @Test
+    func testGeneratedComponentNConflictsWithSameClassDeclaration() throws {
+        let sources: [String] = [
+            """
+            data class DuplicateComponent(val field: Int) {
+                operator fun component1(): Int = field
+            }
+            """,
+            """
+            data class P(var x: Int, var y: Int) {
+                operator fun component1() = x
+                operator fun component2() = x + 1
+            }
+
+            fun destructure() {
+                val (a, b) = P(10, 20)
+            }
+            """,
+            """
+            data class OverloadedComponent(val field: Int) {
+                fun component1(index: Int): Int = field + index
+                operator fun component2(): Int = field
+            }
+
+            fun destructureOverloadedComponent(value: OverloadedComponent) {
+                val (component) = value
+            }
+            """,
+            """
+            class NonDataComponent(val field: Int) {
+                operator fun component1(): Int = field
+            }
+
+            data class UnrelatedDataComponent(val field: Int)
+
+            fun destructureUnrelatedDataComponent(value: UnrelatedDataComponent) {
+                val (component) = value
+            }
+            """,
+        ]
+
+        try withTemporaryFiles(contents: sources) { paths in
+            let ctx = makeCompilationContext(inputs: paths, includeStdlib: false)
+            try runSema(ctx)
+
+            let duplicateErrors = diagnosticsForPath(paths[0], in: ctx).filter { $0.severity == .error }
+            #expect(
+                duplicateErrors.count == 1 && duplicateErrors[0].code == "KSWIFTK-SEMA-0444",
+                "A user-declared parameterless component1() must conflict with the generated member, got: \(duplicateErrors.map { "\($0.code): \($0.message)" })"
+            )
+
+            let issueReproErrors = diagnosticsForPath(paths[1], in: ctx).filter { $0.severity == .error }
+            #expect(
+                issueReproErrors.count == 2 && issueReproErrors.allSatisfy { $0.code == "KSWIFTK-SEMA-0444" },
+                "Both conflicting members in the two-property data class should be diagnosed without a destructuring ambiguity, got: \(issueReproErrors.map { "\($0.code): \($0.message)" })"
+            )
+
+            for path in paths.dropFirst(2) {
+                let errors = diagnosticsForPath(path, in: ctx).filter { $0.severity == .error }
+                #expect(
+                    errors.isEmpty,
+                    "An overloaded component function or a non-data-class component should remain valid, got: \(errors.map { "\($0.code): \($0.message)" })"
+                )
+            }
+        }
+    }
+
+    @Test
     func testForLoopDestructuringArrayListPairsFromBundledStdlib() throws {
         let source = """
         val alist = arrayListOf(1 to 2, 2 to 3, 3 to 4)

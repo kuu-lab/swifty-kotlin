@@ -1241,6 +1241,30 @@ extension DataFlowSemaPhase {
             let componentName = interner.intern("component\(index + 1)")
             let componentFQName = ownerFQName + [componentName]
 
+            // Component functions are synthesized before ordinary member
+            // headers are collected, so the symbol table cannot yet see a
+            // same-class source declaration. Detect the exact no-argument
+            // member in the AST here instead of registering both functions
+            // as overloads with an identical call shape.
+            let userDeclaredComponent = classDecl.memberFunctions.lazy.compactMap { declID -> FunDecl? in
+                guard case let .funDecl(function)? = ast.arena.decl(declID) else {
+                    return nil
+                }
+                return function.name == componentName
+                    && function.receiverType == nil
+                    && function.contextReceivers.isEmpty
+                    && function.valueParams.isEmpty
+                    ? function : nil
+            }.first
+            if let userDeclaredComponent {
+                diagnostics.error(
+                    "KSWIFTK-SEMA-0444",
+                    "Function 'component\(index + 1)()' generated for the data class conflicts with a member declared in the data class.",
+                    range: userDeclaredComponent.range
+                )
+                continue
+            }
+
             let hasUserDeclared = symbols.lookupAll(fqName: componentFQName).contains { id in
                 guard let sym = symbols.symbol(id),
                       sym.kind == .function,
