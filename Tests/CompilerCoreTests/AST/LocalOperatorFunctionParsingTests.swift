@@ -44,6 +44,16 @@ struct LocalOperatorFunctionParsingTests {
         ("private fun helper() {}", "KSWIFTK-SEMA-0400"),
         ("inline fun helper() {}", "KSWIFTK-SEMA-0400"),
         ("operator fun Int.notAnOperator(): Int = this", "KSWIFTK-SEMA-0416"),
+        ("operator fun mod(a: Int): Int = a", "KSWIFTK-SEMA-0416"),
+        // KUU-3149: local operator functions are never members, so only the
+        // extension-receiver form with the convention arity is legal.
+        ("operator fun plus(a: Int, b: Int): Int = a", "KSWIFTK-SEMA-0439"),
+        ("operator fun unaryPlus(): Int = 1", "KSWIFTK-SEMA-0439"),
+        ("operator fun Int.unaryPlus(a: Int): Int = a", "KSWIFTK-SEMA-0439"),
+        ("operator fun Int.plus(a: Int, b: Int): Int = a", "KSWIFTK-SEMA-0439"),
+        ("operator fun Int.component1(a: Int): Int = a", "KSWIFTK-SEMA-0439"),
+        ("operator fun Int.plus(vararg a: Int): Int = a.size", "KSWIFTK-SEMA-0439"),
+        ("operator fun Int.plus(a: Int = 0): Int = a", "KSWIFTK-SEMA-0439"),
     ])
     func invalidLocalModifiersRemainRejected(declaration: String, diagnostic: String) throws {
         let path = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".kt").path

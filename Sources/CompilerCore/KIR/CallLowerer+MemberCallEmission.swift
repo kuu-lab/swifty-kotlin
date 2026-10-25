@@ -778,6 +778,27 @@ extension CallLowerer {
             ))
             finalArguments[1] = converted
         }
+        if loweredCalleeText == "__kk_float_range_contains",
+           sourceArgExprs.count == 1,
+           finalArguments.count >= 2,
+           sema.types.makeNonNullable(
+               sema.bindings.exprTypes[sourceArgExprs[0]] ?? sema.types.anyType
+           ) == sema.types.doubleType
+        {
+            // KUU-3228: ClosedRange<Float>.contains(Double) truncates the
+            // argument via `toFloat` — the `floatRangeContains` extension
+            // semantics — before the Float range ABI sees it.
+            let converted = arena.appendTemporary(type: sema.types.floatType)
+            instructions.append(.call(
+                symbol: nil,
+                callee: interner.intern("kk_double_to_float"),
+                arguments: [finalArguments[1]],
+                result: converted,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            finalArguments[1] = converted
+        }
         // KUU-600: Regex.replace's transform uses the runtime callback ABI.
         // Its Kotlin function-value argument must be split into the raw
         // function pointer and closure environment expected by the bridge.

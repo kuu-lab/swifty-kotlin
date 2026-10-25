@@ -52,19 +52,34 @@ extension DataFlowSemaPhase {
         }
 
         let superTypeRefs: [TypeRefID]
+        let superTypeEntries: [SuperTypeEntry]
         let nestedDecls: [DeclID]
+        // A bare class supertype is only illegal when the class has a primary
+        // constructor to initialize it. Without a primary constructor, Kotlin
+        // requires the written form without `()` — each secondary constructor
+        // delegates via `super(...)` instead (kotlinc rejects `Base()` there
+        // with "supertype initialization is impossible without a primary
+        // constructor"). Objects always have an implicit primary constructor.
+        let classHasPrimaryConstructor: Bool
         switch decl {
         case let .classDecl(classDecl):
             superTypeRefs = classDecl.superTypeEntries.map(\.typeRef)
+            superTypeEntries = classDecl.superTypeEntries
             nestedDecls = classDecl.nestedClasses + classDecl.nestedObjects
                 + (classDecl.companionObject.map { [$0] } ?? [])
+            classHasPrimaryConstructor = classDecl.hasPrimaryConstructorSyntax
+                || classDecl.secondaryConstructors.isEmpty
         case let .interfaceDecl(interfaceDecl):
             superTypeRefs = interfaceDecl.superTypes
+            superTypeEntries = []
             nestedDecls = interfaceDecl.nestedClasses + interfaceDecl.nestedObjects
                 + (interfaceDecl.companionObject.map { [$0] } ?? [])
+            classHasPrimaryConstructor = false
         case let .objectDecl(objectDecl):
             superTypeRefs = objectDecl.superTypes
+            superTypeEntries = objectDecl.superTypeEntries
             nestedDecls = objectDecl.nestedClasses + objectDecl.nestedObjects
+            classHasPrimaryConstructor = true
         default:
             return
         }
@@ -82,8 +97,35 @@ extension DataFlowSemaPhase {
             mergedEnclosingTypeParameters[name] = paramSymbol
         }
 
+        // Unresolved supertypes must not be dropped silently: report the
+        // written name on user sources only — bundled/residual stdlib
+        // declarations may reference profile-conditional types (KUU-3250).
+        let declSite = symbols.symbol(symbol)?.declSite
+        let reportUnresolved: ((InternedString) -> Void)? = {
+            guard let fileID = symbols.sourceFileID(for: symbol) ?? declSite?.start.file,
+                  sourceManager?.origin(of: fileID) == .user
+            else { return nil }
+            let isBundledStdlibSource = { (fileID: FileID) -> Bool in
+                guard let resourcePath = Bundle.module.resourcePath else { return false }
+                let stdlibPath = URL(fileURLWithPath: resourcePath).appendingPathComponent("Stdlib").path
+                return sourceManager?.path(of: fileID).hasPrefix(stdlibPath + "/") == true
+            }(fileID)
+            guard !isBundledStdlibSource else { return nil }
+            return { name in
+                diagnostics.error(
+                    "KSWIFTK-SEMA-0025",
+                    "Unresolved type '\(interner.resolve(name))'.",
+                    range: declSite
+                )
+            }
+        }()
+
         var superSymbols: [SymbolID] = []
-        for superTypeRef in superTypeRefs {
+        let declFileID = symbols.sourceFileID(for: symbol)
+            ?? symbols.symbol(symbol)?.declSite?.start.file
+        let isBundledStdlibDecl = declFileID
+            .flatMap { sourceManager?.origin(of: $0)?.isBundledStdlib } == true
+        for (index, superTypeRef) in superTypeRefs.enumerated() {
             if let resolved = resolveNominalSymbolAndTypeArgs(
                 superTypeRef,
                 currentPackage: currentPackage,
@@ -93,8 +135,33 @@ extension DataFlowSemaPhase {
                 ast: ast,
                 symbols: symbols,
                 types: types,
-                interner: interner
+                interner: interner,
+                reportUnresolved: reportUnresolved
             ) {
+                if superSymbols.contains(resolved.symbol) {
+                    diagnostics.error(
+                        "KSWIFTK-SEMA-0440",
+                        "A supertype appears twice.",
+                        range: (index < superTypeEntries.count ? superTypeEntries[index].range : nil)
+                            ?? symbols.symbol(symbol)?.declSite
+                    )
+                    continue
+                }
+                if index < superTypeEntries.count {
+                    let entry = superTypeEntries[index]
+                    if !entry.hasConstructorCallSyntax,
+                       entry.delegateExpression == nil,
+                       symbols.symbol(resolved.symbol)?.kind == .class,
+                       classHasPrimaryConstructor,
+                       !isBundledStdlibDecl
+                    {
+                        diagnostics.error(
+                            "KSWIFTK-SEMA-0436",
+                            "this type has a constructor, so it must be initialized here.",
+                            range: entry.range ?? symbols.symbol(symbol)?.declSite
+                        )
+                    }
+                }
                 if let imported = symbols.symbol(resolved.symbol),
                    imported.flags.contains(.importedLibrary),
                    let fileID = symbols.sourceFileID(for: symbol)
@@ -385,7 +452,8 @@ extension DataFlowSemaPhase {
         ast: ASTModule,
         symbols: SymbolTable,
         types: TypeSystem,
-        interner: StringInterner
+        interner: StringInterner,
+        reportUnresolved: ((InternedString) -> Void)? = nil
     ) -> ResolvedSupertype? {
         guard let typeRef = ast.arena.typeRef(typeRefID) else {
             return nil
@@ -458,11 +526,72 @@ extension DataFlowSemaPhase {
             // [P1..PN, R], so the supertype args carry params then return type.
             let functionArgs: [TypeArg] = paramTypes.map { .in($0) } + [.out(returnType)]
             return ResolvedSupertype(symbol: functionSymbol, typeArgs: functionArgs)
-        case .intersection, .annotated:
+        case .intersection:
             return nil
+        case let .annotated(baseRef, _):
+            // Type-use annotations (`class C : @Anno Base()`) do not change
+            // the inherited nominal; resolve the underlying ref instead of
+            // silently dropping the edge (KUU-3250).
+            return resolveNominalSymbolAndTypeArgs(
+                baseRef,
+                currentPackage: currentPackage,
+                imports: imports,
+                enclosingTypeParameters: enclosingTypeParameters,
+                enclosingClassScopes: enclosingClassScopes,
+                ast: ast,
+                symbols: symbols,
+                types: types,
+                interner: interner,
+                reportUnresolved: reportUnresolved
+            )
         }
         guard !path.isEmpty else {
             return nil
+        }
+
+        let resolvedSupertype: (SymbolID) -> ResolvedSupertype = { symbol in
+            let resolvedArgs = self.resolveTypeArgRefsForInheritance(
+                argRefs,
+                currentPackage: currentPackage,
+                imports: imports,
+                enclosingTypeParameters: enclosingTypeParameters,
+                enclosingClassScopes: enclosingClassScopes,
+                ast: ast,
+                symbols: symbols,
+                types: types,
+                interner: interner,
+                reportUnresolved: reportUnresolved
+            )
+            let nominal = self.resolveTypeAliasSupertype(symbol, symbols: symbols, types: types) ?? symbol
+            let runtimeNominal = self.resolveActualNominalSupertype(nominal, symbols: symbols)
+            return ResolvedSupertype(
+                symbol: runtimeNominal,
+                typeArgs: self.expandTypeAliasSupertypeArgs(symbol, writtenArgs: resolvedArgs, symbols: symbols, types: types)
+            )
+        }
+
+        // Enclosing class scopes also contribute member classifiers
+        // inherited through their supertypes: `I` inside `Sub.M` names
+        // `Outer.I`, which no `scope + path` child lookup can express
+        // (KUU-3250). Innermost scope first, matching the candidate tier
+        // order below.
+        let scopeCandidatePaths = Set(enclosingClassScopes.map { $0 + path })
+        for scope in enclosingClassScopes.reversed() {
+            if let symbol = symbols.lookupAll(fqName: scope + path)
+                .compactMap({ symbols.symbol($0) })
+                .first(where: { isNominalTypeSymbol($0.kind) })?.id {
+                return resolvedSupertype(symbol)
+            }
+            if let scopeSymbol = symbols.lookupAll(fqName: scope)
+                .compactMap({ symbols.symbol($0) })
+                .first(where: { isNominalTypeSymbol($0.kind) })?.id,
+               let member = inheritedMemberClassifierSymbol(
+                   path: path,
+                   owner: scopeSymbol,
+                   symbols: symbols
+               ) {
+                return resolvedSupertype(member)
+            }
         }
 
         let candidatePaths = inheritanceCandidatePaths(
@@ -473,28 +602,12 @@ extension DataFlowSemaPhase {
             symbols: symbols
         )
 
-        for candidatePath in candidatePaths {
+        for candidatePath in candidatePaths where !scopeCandidatePaths.contains(candidatePath) {
             if let symbol = symbols.lookupAll(fqName: candidatePath)
                 .compactMap({ symbols.symbol($0) })
                 .first(where: { isNominalTypeSymbol($0.kind) })?.id
             {
-                let resolvedArgs = resolveTypeArgRefsForInheritance(
-                    argRefs,
-                    currentPackage: currentPackage,
-                    imports: imports,
-                    enclosingTypeParameters: enclosingTypeParameters,
-                    enclosingClassScopes: enclosingClassScopes,
-                    ast: ast,
-                    symbols: symbols,
-                    types: types,
-                    interner: interner
-                )
-                let nominal = resolveTypeAliasSupertype(symbol, symbols: symbols, types: types) ?? symbol
-                let runtimeNominal = resolveActualNominalSupertype(nominal, symbols: symbols)
-                return ResolvedSupertype(
-                    symbol: runtimeNominal,
-                    typeArgs: expandTypeAliasSupertypeArgs(symbol, writtenArgs: resolvedArgs, symbols: symbols, types: types)
-                )
+                return resolvedSupertype(symbol)
             }
         }
 
@@ -508,24 +621,110 @@ extension DataFlowSemaPhase {
                     .compactMap({ symbols.symbol($0) })
                     .first(where: { isNominalTypeSymbol($0.kind) })?.id
                 {
-                    let resolvedArgs = resolveTypeArgRefsForInheritance(
-                        argRefs,
-                        currentPackage: currentPackage,
-                        imports: imports,
-                        enclosingTypeParameters: enclosingTypeParameters,
-                        enclosingClassScopes: enclosingClassScopes,
-                        ast: ast,
-                        symbols: symbols,
-                        types: types,
-                        interner: interner
-                    )
-                let nominal = resolveTypeAliasSupertype(symbol, symbols: symbols, types: types) ?? symbol
-                    let runtimeNominal = resolveActualNominalSupertype(nominal, symbols: symbols)
-                        return ResolvedSupertype(
-                        symbol: runtimeNominal,
-                        typeArgs: expandTypeAliasSupertypeArgs(symbol, writtenArgs: resolvedArgs, symbols: symbols, types: types)
-                    )
+                    return resolvedSupertype(symbol)
                 }
+            }
+        }
+        // A lone type parameter as the supertype head (`class C<T> : T()`)
+        // resolves to the parameter — kotlinc rejects it as "supertype is
+        // not a class or interface" rather than an unresolved name, so the
+        // unresolved-name report stays silent for that shape (KUU-3250).
+        if !(path.count == 1 && enclosingTypeParameters[path[0]] != nil) {
+            reportUnresolved?(unresolvedSupertypeSegment(
+                path: path,
+                currentPackage: currentPackage,
+                imports: imports,
+                enclosingTypeParameters: enclosingTypeParameters,
+                enclosingClassScopes: enclosingClassScopes,
+                symbols: symbols
+            ))
+        }
+        return nil
+    }
+
+    /// kotlinc names the first path segment that fails to resolve
+    /// (`unresolved reference 'NotExist'` for `NotExist.Nested`, `'Missing'`
+    /// for `Outer.Missing`, and `'NotExist'` for `kotlin.NotExist` where the
+    /// `kotlin` package itself resolves), so the reported segment walks the
+    /// prefixes in order (KUU-3250).
+    private func unresolvedSupertypeSegment(
+        path: [InternedString],
+        currentPackage: [InternedString],
+        imports: [ImportDecl],
+        enclosingTypeParameters: [InternedString: SymbolID],
+        enclosingClassScopes: [[InternedString]],
+        symbols: SymbolTable
+    ) -> InternedString {
+        guard path.count > 1 else { return path[0] }
+        let segmentResolves: ([InternedString]) -> Bool = { prefixPath in
+            if prefixPath.count == 1, enclosingTypeParameters[prefixPath[0]] != nil {
+                return true
+            }
+            let symbolResolves = self.inheritanceCandidatePaths(
+                for: prefixPath,
+                currentPackage: currentPackage,
+                imports: imports,
+                enclosingClassScopes: enclosingClassScopes,
+                symbols: symbols
+            ).contains { candidatePath in
+                symbols.lookupAll(fqName: candidatePath)
+                    .compactMap({ symbols.symbol($0) })
+                    .contains(where: { $0.kind == .package || self.isNominalTypeSymbol($0.kind) })
+            }
+            if symbolResolves { return true }
+            return enclosingClassScopes.contains { scope in
+                guard let scopeSymbol = symbols.lookupAll(fqName: scope)
+                    .compactMap({ symbols.symbol($0) })
+                    .first(where: { self.isNominalTypeSymbol($0.kind) })?.id
+                else { return false }
+                return self.inheritedMemberClassifierSymbol(
+                    path: prefixPath, owner: scopeSymbol, symbols: symbols
+                ) != nil
+            }
+        }
+        for index in path.indices.dropLast() where !segmentResolves(Array(path[...index])) {
+            return path[index]
+        }
+        return path[path.count - 1]
+    }
+
+    /// Member classifier lookup through `owner`'s supertype chain: inside
+    /// `Sub.M` the simple name `I` resolves to `Outer.I` because member
+    /// types are inherited like other members (KUU-3250). The owner's own
+    /// children are already covered by the `scope + path` fqName lookup,
+    /// so only supertypes are walked, closest first.
+    private func inheritedMemberClassifierSymbol(
+        path: [InternedString],
+        owner: SymbolID,
+        symbols: SymbolTable
+    ) -> SymbolID? {
+        var seen: Set<SymbolID> = [owner]
+        var queue = symbols.directSupertypes(for: owner)
+        var index = 0
+        while index < queue.count {
+            let current = queue[index]
+            index += 1
+            for child in symbols.children(of: current) {
+                guard let info = symbols.symbol(child), info.name == path[0],
+                      isNominalTypeSymbol(info.kind)
+                else { continue }
+                var resolved = child
+                var resolvedOK = true
+                for component in path.dropFirst() {
+                    guard let next = symbols.children(of: resolved).first(where: {
+                        guard let nextInfo = symbols.symbol($0) else { return false }
+                        return nextInfo.name == component && isNominalTypeSymbol(nextInfo.kind)
+                    }) else {
+                        resolvedOK = false
+                        break
+                    }
+                    resolved = next
+                }
+                if resolvedOK { return resolved }
+            }
+            for superSymbol in symbols.directSupertypes(for: current)
+                where seen.insert(superSymbol).inserted {
+                queue.append(superSymbol)
             }
         }
         return nil
@@ -615,7 +814,8 @@ extension DataFlowSemaPhase {
         ast: ASTModule,
         symbols: SymbolTable,
         types: TypeSystem,
-        interner: StringInterner
+        interner: StringInterner,
+        reportUnresolved: ((InternedString) -> Void)? = nil
     ) -> [TypeArg] {
         // Use all-or-nothing semantics: if any type arg fails to resolve,
         // return an empty array to preserve positional integrity.
@@ -633,7 +833,8 @@ extension DataFlowSemaPhase {
                     ast: ast,
                     symbols: symbols,
                     types: types,
-                    interner: interner
+                    interner: interner,
+                    reportUnresolved: reportUnresolved
                 ) else {
                     return []
                 }
@@ -648,7 +849,8 @@ extension DataFlowSemaPhase {
                     ast: ast,
                     symbols: symbols,
                     types: types,
-                    interner: interner
+                    interner: interner,
+                    reportUnresolved: reportUnresolved
                 ) else {
                     return []
                 }
@@ -663,7 +865,8 @@ extension DataFlowSemaPhase {
                     ast: ast,
                     symbols: symbols,
                     types: types,
-                    interner: interner
+                    interner: interner,
+                    reportUnresolved: reportUnresolved
                 ) else {
                     return []
                 }
@@ -684,7 +887,8 @@ extension DataFlowSemaPhase {
         ast: ASTModule,
         symbols: SymbolTable,
         types: TypeSystem,
-        interner: StringInterner
+        interner: StringInterner,
+        reportUnresolved: ((InternedString) -> Void)? = nil
     ) -> TypeID? {
         guard let typeRef = ast.arena.typeRef(typeRefID) else {
             return nil
@@ -714,6 +918,43 @@ extension DataFlowSemaPhase {
             {
                 return builtinType
             }
+            let resolvedType: (SymbolID) -> TypeID = { nominalSymbol in
+                let resolvedArgs = self.resolveTypeArgRefsForInheritance(
+                    argRefs,
+                    currentPackage: currentPackage,
+                    imports: imports,
+                    enclosingTypeParameters: enclosingTypeParameters,
+                    enclosingClassScopes: enclosingClassScopes,
+                    ast: ast,
+                    symbols: symbols,
+                    types: types,
+                    interner: interner,
+                    reportUnresolved: reportUnresolved
+                )
+                return types.make(.classType(ClassType(classSymbol: nominalSymbol, args: resolvedArgs, nullability: nullability)))
+            }
+            // Enclosing class scopes also contribute member classifiers
+            // inherited through their supertypes (e.g. `I` -> `Outer.I`
+            // inside `Sub.M`); see resolveNominalSymbolAndTypeArgs (KUU-3250).
+            let scopeCandidatePaths = Set(enclosingClassScopes.map { $0 + path })
+            for scope in enclosingClassScopes.reversed() {
+                if let nominalSymbol = symbols.lookupAll(fqName: scope + path)
+                    .compactMap({ symbols.symbol($0) })
+                    .first(where: { isNominalTypeSymbol($0.kind) })
+                {
+                    return resolvedType(nominalSymbol.id)
+                }
+                if let scopeSymbol = symbols.lookupAll(fqName: scope)
+                    .compactMap({ symbols.symbol($0) })
+                    .first(where: { isNominalTypeSymbol($0.kind) })?.id,
+                   let member = inheritedMemberClassifierSymbol(
+                       path: path,
+                       owner: scopeSymbol,
+                       symbols: symbols
+                   ) {
+                    return resolvedType(member)
+                }
+            }
             let candidatePaths = inheritanceCandidatePaths(
                 for: path,
                 currentPackage: currentPackage,
@@ -721,23 +962,12 @@ extension DataFlowSemaPhase {
                 enclosingClassScopes: enclosingClassScopes,
                 symbols: symbols
             )
-            for candidatePath in candidatePaths {
+            for candidatePath in candidatePaths where !scopeCandidatePaths.contains(candidatePath) {
                 if let nominalSymbol = symbols.lookupAll(fqName: candidatePath)
                     .compactMap({ symbols.symbol($0) })
                     .first(where: { isNominalTypeSymbol($0.kind) })
                 {
-                    let resolvedArgs = resolveTypeArgRefsForInheritance(
-                        argRefs,
-                        currentPackage: currentPackage,
-                        imports: imports,
-                        enclosingTypeParameters: enclosingTypeParameters,
-                        enclosingClassScopes: enclosingClassScopes,
-                        ast: ast,
-                        symbols: symbols,
-                        types: types,
-                        interner: interner
-                    )
-                    return types.make(.classType(ClassType(classSymbol: nominalSymbol.id, args: resolvedArgs, nullability: nullability)))
+                    return resolvedType(nominalSymbol.id)
                 }
             }
             // Resolve built-in/primitive type names first so they take precedence
@@ -761,21 +991,18 @@ extension DataFlowSemaPhase {
                         .compactMap({ symbols.symbol($0) })
                         .first(where: { isNominalTypeSymbol($0.kind) })
                     {
-                        let resolvedArgs = resolveTypeArgRefsForInheritance(
-                            argRefs,
-                            currentPackage: currentPackage,
-                            imports: imports,
-                            enclosingTypeParameters: enclosingTypeParameters,
-                            enclosingClassScopes: enclosingClassScopes,
-                            ast: ast,
-                            symbols: symbols,
-                            types: types,
-                            interner: interner
-                        )
-                        return types.make(.classType(ClassType(classSymbol: nominalSymbol.id, args: resolvedArgs, nullability: nullability)))
+                        return resolvedType(nominalSymbol.id)
                     }
                 }
             }
+            reportUnresolved?(unresolvedSupertypeSegment(
+                path: path,
+                currentPackage: currentPackage,
+                imports: imports,
+                enclosingTypeParameters: enclosingTypeParameters,
+                enclosingClassScopes: enclosingClassScopes,
+                symbols: symbols
+            ))
             return nil
         case let .functionType(contextReceiverRefIDs, receiverRefID, paramRefIDs, returnRefID, isSuspend, nullable):
             return resolveFunctionTypeForInheritance(
@@ -801,7 +1028,8 @@ extension DataFlowSemaPhase {
                     ast: ast,
                     symbols: symbols,
                     types: types,
-                    interner: interner
+                    interner: interner,
+                    reportUnresolved: reportUnresolved
                 )
             }
             guard partTypes.count == partRefs.count else { return nil }
@@ -816,7 +1044,8 @@ extension DataFlowSemaPhase {
                 ast: ast,
                 symbols: symbols,
                 types: types,
-                interner: interner
+                interner: interner,
+                reportUnresolved: reportUnresolved
             ) else {
                 return nil
             }
@@ -942,6 +1171,7 @@ extension DataFlowSemaPhase {
                     ast: ast,
                     symbols: symbols,
                     bindings: bindings,
+                    types: types,
                     diagnostics: diagnostics,
                     interner: interner
                 )
@@ -1601,6 +1831,7 @@ extension DataFlowSemaPhase {
         ast: ASTModule,
         symbols: SymbolTable,
         bindings: BindingTable,
+        types: TypeSystem,
         diagnostics: DiagnosticEngine,
         interner: StringInterner
     ) {
@@ -1650,6 +1881,7 @@ extension DataFlowSemaPhase {
             overriddenNames: overriddenNames,
             delegatedInterfaces: symbols.delegatedInterfaces(forClass: symbol),
             symbols: symbols,
+            types: types,
             interner: interner
         )
         guard !missingMembers.isEmpty else { return }

@@ -41,9 +41,8 @@ struct OverrideNothingTests {
 
     @Test
     func acceptsOverrideThroughTypeAliasedSupertypeArgument() throws {
-        // `Sub : Base<Node>` lifts the supertype argument with the alias
-        // symbol intact while the member signature resolves `Node` to
-        // `Target`; the override check must compare the real nominals.
+        // The alias is retained in the supertype argument while the member
+        // signature resolves it to the real nominal type.
         let source = """
         class Target
 
@@ -55,6 +54,62 @@ struct OverrideNothingTests {
 
         class Sub : Base<Node>() {
             override fun complete(affected: Node, failure: Any?) {}
+        }
+        """
+        let inputPath = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString + ".kt").path
+        let ctx = makeCompilationContext(
+            inputs: [inputPath],
+            includeStdlib: false,
+            allowDefaultStdlibLibrary: false
+        )
+        _ = ctx.sourceManager.addFile(path: inputPath, contents: Data(source.utf8))
+        try runSema(ctx)
+
+        let overrideNothingDiagnostics = ctx.diagnostics.diagnostics.filter {
+            $0.severity == .error
+                && $0.code == "KSWIFTK-SEMA-OVERRIDE-NOTHING"
+        }
+        #expect(overrideNothingDiagnostics.isEmpty, "Got: \(ctx.diagnostics.diagnostics)")
+    }
+
+    @Test
+    func rejectsOverrideWithNoInheritedNamesake() throws {
+        let source = """
+        class NoParent { override fun f() = 1 }
+
+        open class EmptyParent
+        class Child : EmptyParent() { override fun g() = 2 }
+
+        class PropertyChild { override val x = 3 }
+        """
+        let inputPath = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString + ".kt").path
+        let ctx = makeCompilationContext(
+            inputs: [inputPath],
+            includeStdlib: false,
+            allowDefaultStdlibLibrary: false
+        )
+        _ = ctx.sourceManager.addFile(path: inputPath, contents: Data(source.utf8))
+        try runSema(ctx)
+
+        let messages = ctx.diagnostics.diagnostics.filter {
+            $0.severity == .error
+                && $0.code == "KSWIFTK-SEMA-OVERRIDE-NOTHING"
+        }.map(\.message).sorted()
+        #expect(
+            messages == ["'f' overrides nothing.", "'g' overrides nothing.", "'x' overrides nothing."],
+            "Got: \(ctx.diagnostics.diagnostics)"
+        )
+    }
+
+    @Test
+    func acceptsImplicitAnyOverrides() throws {
+        let source = """
+        class AnyOverrides {
+            override fun toString() = "x"
+            override fun equals(other: Any?) = false
+            override fun hashCode() = 0
         }
         """
         let inputPath = FileManager.default.temporaryDirectory

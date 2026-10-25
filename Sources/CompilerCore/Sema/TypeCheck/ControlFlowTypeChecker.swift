@@ -34,7 +34,8 @@ final class ControlFlowTypeChecker {
         let isRangeExpr = Self.isRangeExpression(iterableExpr, ast: ctx.ast)
             || sema.bindings.isRangeExpr(iterableExpr)
         if let elementType = bindLoopIterationOperators(
-            exprID: exprID, iterableType: iterableType, range: range, locals: locals, ctx: ctx
+            exprID: exprID, iterableExpr: iterableExpr, iterableType: iterableType,
+            range: range, locals: locals, ctx: ctx
         ) {
             return elementType
         }
@@ -62,6 +63,7 @@ final class ControlFlowTypeChecker {
 
     func bindLoopIterationOperators(
         exprID: ExprID,
+        iterableExpr: ExprID,
         iterableType: TypeID,
         range: SourceRange,
         locals: LocalBindings,
@@ -158,8 +160,22 @@ final class ControlFlowTypeChecker {
             ctx: ctx
         )
 
+        // `iterator()` bound, so the for-loop convention is committed: its
+        // return type must now provide operator hasNext()/next(). Falling
+        // back to the structural element-type guesses here would silently
+        // accept `operator fun iterator() = 1` (kotlinc: 'hasNext()' cannot
+        // be called on 'iterator()').
+        let iterableRange = ctx.ast.arena.exprRange(iterableExpr) ?? range
         guard let hasNextResolution, let nextResolution else {
-            return nil
+            reportMissingLoopIteratorConvention(
+                missingHasNext: hasNextResolution == nil,
+                missingNext: nextResolution == nil,
+                iteratorType: iteratorType,
+                range: iterableRange,
+                locals: locals,
+                ctx: ctx
+            )
+            return sema.types.errorType
         }
 
         if let diagnostic = hasNextResolution.call.diagnostic ?? nextResolution.call.diagnostic {
@@ -167,11 +183,19 @@ final class ControlFlowTypeChecker {
             return sema.types.errorType
         }
 
-        guard let hasNextChosen = hasNextResolution.call.chosenCallee,
-              let nextChosen = nextResolution.call.chosenCallee,
-              let nextSignature = sema.symbols.functionSignature(for: nextChosen)
-        else {
-            return nil
+        let hasNextChosen = hasNextResolution.call.chosenCallee
+        let nextChosen = nextResolution.call.chosenCallee
+        let nextSignature = nextChosen.flatMap { sema.symbols.functionSignature(for: $0) }
+        guard let hasNextChosen, let nextChosen, let nextSignature else {
+            reportMissingLoopIteratorConvention(
+                missingHasNext: hasNextChosen == nil,
+                missingNext: nextSignature == nil,
+                iteratorType: iteratorType,
+                range: iterableRange,
+                locals: locals,
+                ctx: ctx
+            )
+            return sema.types.errorType
         }
 
         let hasNextCall = makeLoopOperatorCallBinding(
@@ -339,6 +363,70 @@ final class ControlFlowTypeChecker {
         return nil
     }
 
+    /// `iterator()` resolved but its return type lacks a callable operator
+    /// `hasNext()`/`next()`. A present-but-non-`operator` member or extension
+    /// reports kotlinc's "'operator' modifier is required" instead of the
+    /// missing-candidate "'<name>()' cannot be called on 'iterator()'".
+    private func reportMissingLoopIteratorConvention(
+        missingHasNext: Bool,
+        missingNext: Bool,
+        iteratorType: TypeID,
+        range: SourceRange,
+        locals: LocalBindings,
+        ctx: TypeInferenceContext
+    ) {
+        let sema = ctx.sema
+        for (missing, convention) in [(missingHasNext, "hasNext"), (missingNext, "next")] where missing {
+            let name = ctx.interner.intern(convention)
+            if hasNonOperatorLoopConventionCandidate(named: name, receiverType: iteratorType, locals: locals, ctx: ctx) {
+                ctx.sema.diagnostics.error(
+                    "KSWIFTK-SEMA-0432",
+                    "'operator' modifier is required on '\(convention)' in '\(driver.helpers.conventionReceiverDisplayName(iteratorType, sema: sema, interner: ctx.interner))'.",
+                    range: range
+                )
+            } else {
+                ctx.sema.diagnostics.error(
+                    "KSWIFTK-SEMA-0172",
+                    "'\(convention)()' cannot be called on 'iterator()'.",
+                    range: range
+                )
+            }
+        }
+    }
+
+    private func hasNonOperatorLoopConventionCandidate(
+        named name: InternedString,
+        receiverType: TypeID,
+        locals: LocalBindings,
+        ctx: TypeInferenceContext
+    ) -> Bool {
+        let sema = ctx.sema
+        let memberCandidates = driver.helpers.collectMemberFunctionCandidates(
+            named: name,
+            receiverType: receiverType,
+            sema: sema,
+            interner: ctx.interner
+        )
+        if memberCandidates.contains(where: {
+            driver.helpers.isNonOperatorConventionFunction($0, sema: sema)
+        }) {
+            return true
+        }
+        let extensionCandidates = driver.callChecker.collectExtensionCallCandidates(
+            named: name,
+            memberLookupType: receiverType,
+            isSuperCall: false,
+            supertypeSymbols: [],
+            ctx: ctx,
+            locals: locals,
+            sema: sema,
+            interner: ctx.interner
+        )
+        return extensionCandidates.contains {
+            driver.helpers.isNonOperatorConventionFunction($0, sema: sema)
+        }
+    }
+
     private func makeLoopOperatorCallBinding(
         from resolution: ResolvedLoopOperator,
         chosenCallee: SymbolID
@@ -441,6 +529,23 @@ final class ControlFlowTypeChecker {
             exprID: id, iterableExpr: iterableExpr, iterableType: iterableType,
             range: range, locals: locals, ctx: ctx
         )
+        // An explicit `for (c: T in xs)` annotation must accept the iterator
+        // element type; kotlinc reports an initializer type mismatch.
+        let declaredLoopType = ctx.ast.arena.forVariableTypeRef(for: id).map {
+            driver.helpers.resolveTypeRef(
+                $0, ast: ctx.ast, sema: sema, interner: ctx.interner,
+                scope: ctx.scope, diagnostics: ctx.sema.diagnostics,
+                inferenceContext: ctx, usageRange: range
+            )
+        }
+        if let declaredLoopType {
+            driver.emitSubtypeConstraint(
+                left: elementType, right: declaredLoopType,
+                range: range, solver: ConstraintSolver(),
+                sema: sema, diagnostics: ctx.sema.diagnostics
+            )
+        }
+        let loopValueType = declaredLoopType ?? elementType
         invalidateNullableControlFlowAssignments(id, ctx: ctx, locals: &locals)
         var bodyLocals = locals
         if let loopVariable {
@@ -473,12 +578,12 @@ final class ControlFlowTypeChecker {
                 else { return false }
                 return sym.flags.contains(.valueType) || sym.kind == .enumClass
             }()
-            if case .primitive(_, .nonNull) = sema.types.kind(of: elementType) {
-                sema.symbols.setPropertyType(elementType, for: loopVariableSymbol)
+            if case .primitive(_, .nonNull) = sema.types.kind(of: loopValueType) {
+                sema.symbols.setPropertyType(loopValueType, for: loopVariableSymbol)
             } else if isNominalValueElement {
-                sema.symbols.setPropertyType(elementType, for: loopVariableSymbol)
+                sema.symbols.setPropertyType(loopValueType, for: loopVariableSymbol)
             }
-            bodyLocals[loopVariable] = (elementType, loopVariableSymbol, false, true)
+            bodyLocals[loopVariable] = (loopValueType, loopVariableSymbol, false, true)
             sema.bindings.bindIdentifier(id, symbol: loopVariableSymbol)
         }
         var newLabelStack = ctx.loopLabelStack
@@ -983,6 +1088,16 @@ final class ControlFlowTypeChecker {
                     ctx.sema.diagnostics.rollback(to: retryCheckpoint)
                 }
             }
+            if let companionType = driver.helpers.retypeBranchClassObjectValue(
+                thenExpr, currentType: thenType, ast: ast, sema: sema
+            ) {
+                thenType = companionType
+            }
+            if let companionType = driver.helpers.retypeBranchClassObjectValue(
+                elseExpr, currentType: elseType, ast: ast, sema: sema
+            ) {
+                elseType = companionType
+            }
             let joinedRangeType = bindJoinedRangeExpressionMetadata(
                 id,
                 thenExpr: thenExpr,
@@ -1245,10 +1360,15 @@ final class ControlFlowTypeChecker {
         branchCtx.isConditionallyEvaluated = false
 
         var tryBodyLocals = preTryLocals
-        let tryBodyType = driver.inferExpr(
+        var tryBodyType = driver.inferExpr(
             body, ctx: branchCtx, locals: &tryBodyLocals,
             expectedType: branchExpectedType, isStatementContext: isStatementContext
         )
+        if let companionType = driver.helpers.retypeBranchClassObjectValue(
+            body, currentType: tryBodyType, ast: ctx.ast, sema: sema
+        ) {
+            tryBodyType = companionType
+        }
         branchTypes.append(tryBodyType)
         if tryBodyType != sema.types.nothingType {
             normalCompletionLocals.append(tryBodyLocals)
@@ -1281,10 +1401,15 @@ final class ControlFlowTypeChecker {
                 clause.body,
                 binding: CatchClauseBinding(parameterSymbol: catchParamSymbol, parameterType: catchParamType)
             )
-            let catchType = driver.inferExpr(
+            var catchType = driver.inferExpr(
                 clause.body, ctx: branchCtx, locals: &catchLocals,
                 expectedType: branchExpectedType, isStatementContext: isStatementContext
             )
+            if let companionType = driver.helpers.retypeBranchClassObjectValue(
+                clause.body, currentType: catchType, ast: ctx.ast, sema: sema
+            ) {
+                catchType = companionType
+            }
             branchTypes.append(catchType)
             if catchType != sema.types.nothingType {
                 normalCompletionLocals.append(catchLocals)

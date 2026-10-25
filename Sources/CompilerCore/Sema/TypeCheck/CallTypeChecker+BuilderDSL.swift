@@ -240,7 +240,7 @@ extension CallTypeChecker {
                 interner.intern("collections"),
                 interner.intern("MutableList"),
             ]
-            guard let mutableListSymbol = sema.symbols.lookup(fqName: mutableListFQName) else {
+            guard let mutableListSymbol = sema.symbols.lookupNominal(fqName: mutableListFQName) else {
                 return sema.types.anyType
             }
             return sema.types.make(.classType(ClassType(
@@ -1032,7 +1032,7 @@ extension CallTypeChecker {
             interner.intern("sequences"),
             interner.intern("Sequence"),
         ]
-        guard let sequenceSymbol = sema.symbols.lookup(fqName: sequenceFQName) else {
+        guard let sequenceSymbol = sema.symbols.lookupNominal(fqName: sequenceFQName) else {
             return sema.types.anyType
         }
         return sema.types.make(.classType(ClassType(

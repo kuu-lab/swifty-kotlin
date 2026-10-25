@@ -741,3 +741,59 @@ public func kk_tag_value_class_box(_ boxedRaw: Int, _ classID: Int) -> Int {
     runtimeRegisterObjectType(rawValue: effectiveRaw, classID: Int64(classID))
     return effectiveRaw
 }
+
+/// Allocates a nominal box for a value class whose *underlying representation
+/// can itself be null* (e.g. `@JvmInline value class V(val x: String?)`,
+/// KUU-3115). `kk_tag_value_class_box` cannot express that case: it passes the
+/// null sentinel through unchanged, so `V(null)` and a null `V?` slot would be
+/// indistinguishable. Here the payload — which may be the null sentinel — is
+/// stored in object slot 2 of a fresh `RuntimeObjectBox`, keeping every `V?`
+/// slot box-or-sentinel just like other reference types.
+///
+/// The box is tagged with the value class's stable nominal type ID so
+/// `is`/`as`/`as?`, `KClass.isInstance`, nominal `toString` bridges and
+/// interface dispatch observe the value-class identity rather than the
+/// payload's. The class ID is registered as a data class whose participating
+/// field mask covers only the payload slot, so structural `==`/`!=` and
+/// `hashCode` compare underlying values — matching Kotlin/JVM, where a value
+/// class's `equals`/`hashCode` forward to the underlying value.
+@_cdecl("kk_value_class_box")
+public func kk_value_class_box(_ payload: Int, _ classID: Int) -> Int {
+    // Idempotent: a slot already carrying this value class's box — e.g. an
+    // `Any`-erased value re-widened to `V?` — is returned unchanged rather
+    // than nested inside another box.
+    if runtimeObjectTypeID(rawValue: payload) == Int64(classID) {
+        return payload
+    }
+    let box = RuntimeObjectBox(length: 3, classID: Int64(classID))
+    box[2] = payload
+    let opaque = UnsafeMutableRawPointer(Unmanaged.passRetained(box).toOpaque())
+    let key = UInt(bitPattern: opaque)
+    runtimeStorage.withGCLock { state in
+        state.objectPointers.insert(key)
+    }
+    runtimeStorage.withMetadataLock { state in
+        state.objectTypeByPointer[key] = Int64(classID)
+        state.dataClassIDs.insert(Int64(classID))
+        // Slots 0-1 are the RuntimeObjectBox header; only slot 2 (the payload)
+        // participates in structural equality/hashCode.
+        state.dataClassFieldMasks[Int64(classID)] = 1 << 2
+    }
+    return Int(bitPattern: opaque)
+}
+
+/// Inverse of `kk_value_class_box`: unwraps a `V?`-slot value to the payload a
+/// `V`-typed slot expects. The class-ID check keeps the operation idempotent —
+/// a slot already holding the raw payload, the null sentinel, or an unrelated
+/// object passes through unchanged, matching the `kk_unbox_*` convention.
+@_cdecl("kk_value_class_unbox")
+public func kk_value_class_unbox(_ rawValue: Int, _ classID: Int) -> Int {
+    guard classID != 0,
+          runtimeObjectTypeID(rawValue: rawValue) == Int64(classID),
+          let box = runtimeArrayBox(from: rawValue),
+          box.count > 2
+    else {
+        return rawValue
+    }
+    return box[2]
+}

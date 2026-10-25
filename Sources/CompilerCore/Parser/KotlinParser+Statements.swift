@@ -1142,7 +1142,21 @@ extension KotlinParser {
                     if case .keyword(.finally) = nextAfterBlock.kind { continue }
                 }
                 if sawIfKeyword, case .keyword(.else) = nextAfterBlock.kind { continue }
-                if ParserBoundaryPolicy.continuesExpressionAfterNewline(nextAfterBlock.kind) { continue }
+                if ParserBoundaryPolicy.continuesExpressionAfterNewline(nextAfterBlock.kind) {
+                    // `+` and `-` can begin a prefix-unary expression, so a
+                    // newline before them ends the `{ }` statement
+                    // (`fun f() { }\n+x` is `f() { }` then `+x`, matching how
+                    // Kotlin treats a line starting with `+`/`-` as a new
+                    // statement). Same-line `f() { } + g()` still continues.
+                    // The remaining continuation symbols cannot start a
+                    // statement, so they extend the expression across the
+                    // newline (`f() { }\n?.member`, `f() { }\n?: fallback`).
+                    let canStartNewStatement = nextAfterBlock.kind == .symbol(.plus)
+                        || nextAfterBlock.kind == .symbol(.minus)
+                    if !canStartNewStatement || !hasLeadingNewline(nextAfterBlock) {
+                        continue
+                    }
+                }
                 if nextAfterBlock.kind == .symbol(.lParen),
                    !hasLeadingNewline(nextAfterBlock)
                 {

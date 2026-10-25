@@ -1062,6 +1062,68 @@ extension DataEnumSealedSynthesisPass {
                     thrownResult: nil
                 ))
             } else if let classToString = resolveClassOwnToStringCallee(for: propType, sema: sema, interner: interner) {
+                // KUU-3110: `toString` dispatch must go through the
+                // `kotlin.Any.toString` vtable slot — the runtime member
+                // registered there forwards to the object's own toString —
+                // to reach the most-derived override. Looking the slot up by
+                // the resolved symbol instead would find orphan slots
+                // (synthesized data-class members and interface members are
+                // stored under their own key but are never registered as
+                // virtual slots). Types whose layout carries no Any slot —
+                // interfaces under source-injected stdlib — fall back to
+                // `kk_any_to_string`, which resolves the object's per-object
+                // toString the same way.
+                let toStringVtableSlot: Int? = {
+                    guard let (_, classSymbol) = resolveClassTypeSymbol(propType, sema: sema),
+                          let layout = sema.symbols.nominalLayout(for: classSymbol.id)
+                    else { return nil }
+                    return layout.vtableSlots.first(where: { key, _ in
+                        sema.symbols.symbol(key).map {
+                            isSyntheticAnyToStringSymbol($0, interner: interner)
+                        } ?? false
+                    })?.value
+                }()
+                let toStringTagExpr: KIRExprID? = toStringVtableSlot == nil
+                    ? module.arena.appendTemporary(type: intType)
+                    : nil
+                if let toStringTagExpr {
+                    body.append(.constValue(
+                        result: toStringTagExpr,
+                        value: .intLiteral(computeAnyFallbackTag(for: propType, sema: sema))
+                    ))
+                }
+                let toStringCall = { (result: KIRExprID) -> KIRInstruction in
+                    if let toStringVtableSlot {
+                        return .virtualCall(
+                            symbol: classToString.symbol,
+                            callee: classToString.callee,
+                            receiver: propValue,
+                            arguments: [],
+                            result: result,
+                            canThrow: false,
+                            thrownResult: nil,
+                            dispatch: .vtable(slot: toStringVtableSlot)
+                        )
+                    }
+                    if let toStringTagExpr {
+                        return .call(
+                            symbol: nil,
+                            callee: interner.intern("kk_any_to_string"),
+                            arguments: [propValue, toStringTagExpr],
+                            result: result,
+                            canThrow: false,
+                            thrownResult: nil
+                        )
+                    }
+                    return .call(
+                        symbol: classToString.symbol,
+                        callee: classToString.callee,
+                        arguments: [propValue],
+                        result: result,
+                        canThrow: false,
+                        thrownResult: nil
+                    )
+                }
                 if propIsNullable {
                     let nonNullLabel = allocateLabel()
                     let endLabel = allocateLabel()
@@ -1073,25 +1135,11 @@ extension DataEnumSealedSynthesisPass {
                     body.append(.jump(endLabel))
                     body.append(.label(nonNullLabel))
                     let innerPropStr = module.arena.appendTemporary(type: stringType)
-                    body.append(.call(
-                        symbol: classToString.symbol,
-                        callee: classToString.callee,
-                        arguments: [propValue],
-                        result: innerPropStr,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
+                    body.append(toStringCall(innerPropStr))
                     body.append(.copy(from: innerPropStr, to: propStr))
                     body.append(.label(endLabel))
                 } else {
-                    body.append(.call(
-                        symbol: classToString.symbol,
-                        callee: classToString.callee,
-                        arguments: [propValue],
-                        result: propStr,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
+                    body.append(toStringCall(propStr))
                 }
             } else {
                 // Convert to string via kk_any_to_string using the same tag convention
@@ -1371,7 +1419,30 @@ extension DataEnumSealedSynthesisPass {
                     case .stringStruct, .classType, .any:
                         "kk_structural_eq"
                     case .primitive:
-                        "kk_op_eq"
+                        // KUU-3109: data class equals uses Double.equals/
+                        // Float.equals semantics — NaN equals NaN regardless of
+                        // payload while -0.0 differs from +0.0 — not the raw
+                        // bit-pattern equality kk_op_eq applies.
+                        // KUU-3108: nullable primitives reach the compare as
+                        // registered boxes (or the null sentinel), so kk_op_eq
+                        // only compares box identity. Double?/Float? route to
+                        // the null-aware canonical equals; the remaining
+                        // nullable primitives go through kk_structural_eq's
+                        // null- and box-aware value comparison.
+                        switch sema.types.kind(of: propType) {
+                        case .primitive(.double, .nonNull):
+                            "kk_double_equals"
+                        case .primitive(.float, .nonNull):
+                            "kk_float_equals"
+                        case .primitive(.double, .nullable):
+                            "kk_nullable_double_equals"
+                        case .primitive(.float, .nullable):
+                            "kk_nullable_float_equals"
+                        case .primitive(_, .nullable):
+                            "kk_structural_eq"
+                        default:
+                            "kk_op_eq"
+                        }
                     default:
                         "kk_structural_eq"
                     }

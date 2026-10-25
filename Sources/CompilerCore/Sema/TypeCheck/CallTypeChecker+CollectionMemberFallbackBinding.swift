@@ -35,7 +35,7 @@ extension CallTypeChecker {
         // List.reduce must keep normal overload applicability and the distinct
         // S/T callback types; this fallback only models an erased accumulator.
         if calleeName == knownNames.reduce,
-           let listOwner = sema.symbols.lookup(fqName: knownNames.kotlinCollectionsListFQName),
+           let listOwner = sema.symbols.lookupNominal(fqName: knownNames.kotlinCollectionsListFQName),
            driver.helpers.allNominalSymbols(of: receiverType, types: sema.types, symbols: sema.symbols).contains(where: {
                sema.types.isNominalSubtypeSymbol($0, of: listOwner)
            })
@@ -860,7 +860,7 @@ extension CallTypeChecker {
         let resolutionCandidates: [SymbolID] = {
             guard memberName == "flatMap",
                   let lambdaBodyReturnType,
-                  let sequenceSymbol = sema.symbols.lookup(fqName: knownNames.kotlinSequenceFQName)
+                  let sequenceSymbol = sema.symbols.lookupNominal(fqName: knownNames.kotlinSequenceFQName)
             else {
                 return candidates
             }

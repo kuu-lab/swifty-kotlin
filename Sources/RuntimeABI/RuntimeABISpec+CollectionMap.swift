@@ -1,227 +1,25 @@
+private let abi = RuntimeABISectionBuilder("Collection")
+
 public extension RuntimeABISpec {
-    static let mapForEachSpec: RuntimeABIFunctionSpec = RuntimeABIFunctionSpec(
-        name: stdlibMapHOFName("forEach", arity: 1, fallback: "kk_map_forEach"),
-        parameters: [
-            RuntimeABIParameter(name: "mapRaw", type: .intptr),
-            RuntimeABIParameter(name: "fnPtr", type: .intptr),
-            RuntimeABIParameter(name: "closureRaw", type: .intptr),
-            RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-        ],
-        returnType: .intptr,
-        section: "Collection"
-    )
-
-    static let mapMapSpec: RuntimeABIFunctionSpec = RuntimeABIFunctionSpec(
-        name: stdlibMapHOFName("map", arity: 1, fallback: "kk_map_map"),
-        parameters: [
-            RuntimeABIParameter(name: "mapRaw", type: .intptr),
-            RuntimeABIParameter(name: "fnPtr", type: .intptr),
-            RuntimeABIParameter(name: "closureRaw", type: .intptr),
-            RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-        ],
-        returnType: .intptr,
-        section: "Collection"
-    )
-
-    static let mapMapNotNullSpec: RuntimeABIFunctionSpec = RuntimeABIFunctionSpec(
-        name: stdlibMapHOFName("mapNotNull", arity: 1, fallback: "kk_map_mapNotNull"),
-        parameters: [
-            RuntimeABIParameter(name: "mapRaw", type: .intptr),
-            RuntimeABIParameter(name: "fnPtr", type: .intptr),
-            RuntimeABIParameter(name: "closureRaw", type: .intptr),
-            RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-        ],
-        returnType: .intptr,
-        section: "Collection"
-    )
-
-    static let mapFilterSpec: RuntimeABIFunctionSpec = RuntimeABIFunctionSpec(
-        name: stdlibMapHOFName("filter", arity: 1, fallback: "kk_map_filter"),
-        parameters: [
-            RuntimeABIParameter(name: "mapRaw", type: .intptr),
-            RuntimeABIParameter(name: "fnPtr", type: .intptr),
-            RuntimeABIParameter(name: "closureRaw", type: .intptr),
-            RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-        ],
-        returnType: .intptr,
-        section: "Collection"
-    )
-
-    static let mapFilterNotSpec: RuntimeABIFunctionSpec = RuntimeABIFunctionSpec(
-        name: stdlibMapHOFName("filterNot", arity: 1, fallback: "kk_map_filterNot"),
-        parameters: [
-            RuntimeABIParameter(name: "mapRaw", type: .intptr),
-            RuntimeABIParameter(name: "fnPtr", type: .intptr),
-            RuntimeABIParameter(name: "closureRaw", type: .intptr),
-            RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-        ],
-        returnType: .intptr,
-        section: "Collection"
-    )
-
-    static let mapFilterKeysSpec: RuntimeABIFunctionSpec = RuntimeABIFunctionSpec(
-        name: stdlibMapHOFName("filterKeys", arity: 1, fallback: "kk_map_filterKeys"),
-        parameters: [
-            RuntimeABIParameter(name: "mapRaw", type: .intptr),
-            RuntimeABIParameter(name: "fnPtr", type: .intptr),
-            RuntimeABIParameter(name: "closureRaw", type: .intptr),
-            RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-        ],
-        returnType: .intptr,
-        section: "Collection"
-    )
-
-    static let mapFilterValuesSpec: RuntimeABIFunctionSpec = RuntimeABIFunctionSpec(
-        name: stdlibMapHOFName("filterValues", arity: 1, fallback: "kk_map_filterValues"),
-        parameters: [
-            RuntimeABIParameter(name: "mapRaw", type: .intptr),
-            RuntimeABIParameter(name: "fnPtr", type: .intptr),
-            RuntimeABIParameter(name: "closureRaw", type: .intptr),
-            RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-        ],
-        returnType: .intptr,
-        section: "Collection"
-    )
-
-    static let mapMapValuesSpec: RuntimeABIFunctionSpec = RuntimeABIFunctionSpec(
-        name: stdlibMapHOFName("mapValues", arity: 1, fallback: "kk_map_mapValues"),
-        parameters: [
-            RuntimeABIParameter(name: "mapRaw", type: .intptr),
-            RuntimeABIParameter(name: "fnPtr", type: .intptr),
-            RuntimeABIParameter(name: "closureRaw", type: .intptr),
-            RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-        ],
-        returnType: .intptr,
-        section: "Collection"
-    )
-
-    static let mapMapKeysSpec: RuntimeABIFunctionSpec = RuntimeABIFunctionSpec(
-        name: stdlibMapHOFName("mapKeys", arity: 1, fallback: "kk_map_mapKeys"),
-        parameters: [
-            RuntimeABIParameter(name: "mapRaw", type: .intptr),
-            RuntimeABIParameter(name: "fnPtr", type: .intptr),
-            RuntimeABIParameter(name: "closureRaw", type: .intptr),
-            RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-        ],
-        returnType: .intptr,
-        section: "Collection"
-    )
-
-    static let mapMapKeysToSpec: RuntimeABIFunctionSpec = RuntimeABIFunctionSpec(
-        name: stdlibMapHOFName("mapKeysTo", arity: 2, fallback: "kk_map_mapKeysTo"),
-        parameters: [
-            RuntimeABIParameter(name: "mapRaw", type: .intptr),
-            RuntimeABIParameter(name: "destRaw", type: .intptr),
-            RuntimeABIParameter(name: "fnPtr", type: .intptr),
-            RuntimeABIParameter(name: "closureRaw", type: .intptr),
-            RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-        ],
-        returnType: .intptr,
-        section: "Collection"
-    )
-
-    static let mapMapValuesToSpec: RuntimeABIFunctionSpec = RuntimeABIFunctionSpec(
-        name: stdlibMapHOFName("mapValuesTo", arity: 2, fallback: "kk_map_mapValuesTo"),
-        parameters: [
-            RuntimeABIParameter(name: "mapRaw", type: .intptr),
-            RuntimeABIParameter(name: "destRaw", type: .intptr),
-            RuntimeABIParameter(name: "fnPtr", type: .intptr),
-            RuntimeABIParameter(name: "closureRaw", type: .intptr),
-            RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-        ],
-        returnType: .intptr,
-        section: "Collection"
-    )
-
-    static let mapCountSpec: RuntimeABIFunctionSpec = RuntimeABIFunctionSpec(
-        name: stdlibMapHOFName("count", arity: 1, fallback: "kk_map_count"),
-        parameters: [
-            RuntimeABIParameter(name: "mapRaw", type: .intptr),
-            RuntimeABIParameter(name: "fnPtr", type: .intptr),
-            RuntimeABIParameter(name: "closureRaw", type: .intptr),
-            RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-        ],
-        returnType: .intptr,
-        section: "Collection"
-    )
-
-    static let mapAnySpec: RuntimeABIFunctionSpec = RuntimeABIFunctionSpec(
-        name: stdlibMapHOFName("any", arity: 1, fallback: "kk_map_any"),
-        parameters: [
-            RuntimeABIParameter(name: "mapRaw", type: .intptr),
-            RuntimeABIParameter(name: "fnPtr", type: .intptr),
-            RuntimeABIParameter(name: "closureRaw", type: .intptr),
-            RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-        ],
-        returnType: .intptr,
-        section: "Collection"
-    )
-
-    static let mapAllSpec: RuntimeABIFunctionSpec = RuntimeABIFunctionSpec(
-        name: stdlibMapHOFName("all", arity: 1, fallback: "kk_map_all"),
-        parameters: [
-            RuntimeABIParameter(name: "mapRaw", type: .intptr),
-            RuntimeABIParameter(name: "fnPtr", type: .intptr),
-            RuntimeABIParameter(name: "closureRaw", type: .intptr),
-            RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-        ],
-        returnType: .intptr,
-        section: "Collection"
-    )
-
-    static let mapNoneSpec: RuntimeABIFunctionSpec = RuntimeABIFunctionSpec(
-        name: stdlibMapHOFName("none", arity: 1, fallback: "kk_map_none"),
-        parameters: [
-            RuntimeABIParameter(name: "mapRaw", type: .intptr),
-            RuntimeABIParameter(name: "fnPtr", type: .intptr),
-            RuntimeABIParameter(name: "closureRaw", type: .intptr),
-            RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-        ],
-        returnType: .intptr,
-        section: "Collection"
-    )
-
-    static let mapPlusSpec: RuntimeABIFunctionSpec = RuntimeABIFunctionSpec(
-        name: "kk_map_plus",
-        parameters: [
-            RuntimeABIParameter(name: "mapRaw", type: .intptr),
-            RuntimeABIParameter(name: "pairRaw", type: .intptr),
-        ],
-        returnType: .intptr,
-        section: "Collection",
-        isThrowing: false
-    )
-
-    static let mapMinusSpec: RuntimeABIFunctionSpec = RuntimeABIFunctionSpec(
-        name: "kk_map_minus",
-        parameters: [
-            RuntimeABIParameter(name: "mapRaw", type: .intptr),
-            RuntimeABIParameter(name: "key", type: .intptr),
-        ],
-        returnType: .intptr,
-        section: "Collection",
-        isThrowing: false
-    )
-
-    static let bridgeMapIteratorNextSpec: RuntimeABIFunctionSpec = RuntimeABIFunctionSpec(
-        name: "__kk_map_iterator_next",
-        parameters: [
-            RuntimeABIParameter(name: "iterRaw", type: .intptr),
-            RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-        ],
-        returnType: .intptr,
-        section: "Collection"
-    )
-
-    static let bridgeMutableMapIteratorNextSpec: RuntimeABIFunctionSpec = RuntimeABIFunctionSpec(
-        name: "__kk_mutable_map_iterator_next",
-        parameters: [
-            RuntimeABIParameter(name: "iterRaw", type: .intptr),
-            RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-        ],
-        returnType: .intptr,
-        section: "Collection"
-    )
+    static let mapForEachSpec: RuntimeABIFunctionSpec = abi.th(stdlibMapHOFName("forEach", arity: 1, fallback: "kk_map_forEach"), "mapRaw fnPtr closureRaw outThrown")
+    static let mapMapSpec: RuntimeABIFunctionSpec = abi.th(stdlibMapHOFName("map", arity: 1, fallback: "kk_map_map"), "mapRaw fnPtr closureRaw outThrown")
+    static let mapMapNotNullSpec: RuntimeABIFunctionSpec = abi.th(stdlibMapHOFName("mapNotNull", arity: 1, fallback: "kk_map_mapNotNull"), "mapRaw fnPtr closureRaw outThrown")
+    static let mapFilterSpec: RuntimeABIFunctionSpec = abi.th(stdlibMapHOFName("filter", arity: 1, fallback: "kk_map_filter"), "mapRaw fnPtr closureRaw outThrown")
+    static let mapFilterNotSpec: RuntimeABIFunctionSpec = abi.th(stdlibMapHOFName("filterNot", arity: 1, fallback: "kk_map_filterNot"), "mapRaw fnPtr closureRaw outThrown")
+    static let mapFilterKeysSpec: RuntimeABIFunctionSpec = abi.th(stdlibMapHOFName("filterKeys", arity: 1, fallback: "kk_map_filterKeys"), "mapRaw fnPtr closureRaw outThrown")
+    static let mapFilterValuesSpec: RuntimeABIFunctionSpec = abi.th(stdlibMapHOFName("filterValues", arity: 1, fallback: "kk_map_filterValues"), "mapRaw fnPtr closureRaw outThrown")
+    static let mapMapValuesSpec: RuntimeABIFunctionSpec = abi.th(stdlibMapHOFName("mapValues", arity: 1, fallback: "kk_map_mapValues"), "mapRaw fnPtr closureRaw outThrown")
+    static let mapMapKeysSpec: RuntimeABIFunctionSpec = abi.th(stdlibMapHOFName("mapKeys", arity: 1, fallback: "kk_map_mapKeys"), "mapRaw fnPtr closureRaw outThrown")
+    static let mapMapKeysToSpec: RuntimeABIFunctionSpec = abi.th(stdlibMapHOFName("mapKeysTo", arity: 2, fallback: "kk_map_mapKeysTo"), "mapRaw destRaw fnPtr closureRaw outThrown")
+    static let mapMapValuesToSpec: RuntimeABIFunctionSpec = abi.th(stdlibMapHOFName("mapValuesTo", arity: 2, fallback: "kk_map_mapValuesTo"), "mapRaw destRaw fnPtr closureRaw outThrown")
+    static let mapCountSpec: RuntimeABIFunctionSpec = abi.th(stdlibMapHOFName("count", arity: 1, fallback: "kk_map_count"), "mapRaw fnPtr closureRaw outThrown")
+    static let mapAnySpec: RuntimeABIFunctionSpec = abi.th(stdlibMapHOFName("any", arity: 1, fallback: "kk_map_any"), "mapRaw fnPtr closureRaw outThrown")
+    static let mapAllSpec: RuntimeABIFunctionSpec = abi.th(stdlibMapHOFName("all", arity: 1, fallback: "kk_map_all"), "mapRaw fnPtr closureRaw outThrown")
+    static let mapNoneSpec: RuntimeABIFunctionSpec = abi.th(stdlibMapHOFName("none", arity: 1, fallback: "kk_map_none"), "mapRaw fnPtr closureRaw outThrown")
+    static let mapPlusSpec: RuntimeABIFunctionSpec = abi.nt("kk_map_plus", "mapRaw pairRaw")
+    static let mapMinusSpec: RuntimeABIFunctionSpec = abi.nt("kk_map_minus", "mapRaw key")
+    static let bridgeMapIteratorNextSpec: RuntimeABIFunctionSpec = abi.th("__kk_map_iterator_next", "iterRaw outThrown")
+    static let bridgeMutableMapIteratorNextSpec: RuntimeABIFunctionSpec = abi.th("__kk_mutable_map_iterator_next", "iterRaw outThrown")
 
     private static func stdlibMapHOFName(_ memberName: String, arity: Int, fallback: String) -> String {
         StdlibSurfaceSpec.collectionHOFRuntimeLinkName(
@@ -233,273 +31,52 @@ public extension RuntimeABISpec {
     }
 
     static let collectionMapFunctions: [RuntimeABIFunctionSpec] = [
-        RuntimeABIFunctionSpec(
-            name: "__kk_map_of",
-            parameters: [
-                RuntimeABIParameter(name: "keysArrayRaw", type: .intptr),
-                RuntimeABIParameter(name: "valuesArrayRaw", type: .intptr),
-                RuntimeABIParameter(name: "count", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Collection",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_hash_map_of",
-            parameters: [
-                RuntimeABIParameter(name: "keysArrayRaw", type: .intptr),
-                RuntimeABIParameter(name: "valuesArrayRaw", type: .intptr),
-                RuntimeABIParameter(name: "count", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Collection",
-            isThrowing: false
-        ),
+        abi.nt("__kk_map_of", "keysArrayRaw valuesArrayRaw count"),
+        abi.nt("__kk_hash_map_of", "keysArrayRaw valuesArrayRaw count"),
         // Nominal-tag bridge for the LinkedHashMap constructor family
         // and linkedMapOf, mirroring `__kk_linked_hash_set_of`.
-        RuntimeABIFunctionSpec(
-            name: "__kk_linked_hash_map_of",
-            parameters: [
-                RuntimeABIParameter(name: "keysArrayRaw", type: .intptr),
-                RuntimeABIParameter(name: "valuesArrayRaw", type: .intptr),
-                RuntimeABIParameter(name: "count", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Collection",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_map_of_pairs",
-            parameters: [
-                RuntimeABIParameter(name: "pairsArrayRaw", type: .intptr),
-                RuntimeABIParameter(name: "count", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Collection",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_hash_map_of_pairs",
-            parameters: [
-                RuntimeABIParameter(name: "pairsArrayRaw", type: .intptr),
-                RuntimeABIParameter(name: "count", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Collection",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_linked_hash_map_of_pairs",
-            parameters: [
-                RuntimeABIParameter(name: "pairsArrayRaw", type: .intptr),
-                RuntimeABIParameter(name: "count", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Collection",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_emptyMap",
-            parameters: [],
-            returnType: .intptr,
-            section: "Collection"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_identity_hash_map_init",
-            parameters: [RuntimeABIParameter(name: "mapRaw", type: .intptr)],
-            returnType: .intptr,
-            section: "Collection",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_hash_map_storage",
-            parameters: [
-                RuntimeABIParameter(name: "mapRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Collection",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_map_size",
-            parameters: [
-                RuntimeABIParameter(name: "mapRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Collection",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_map_get",
-            parameters: [
-                RuntimeABIParameter(name: "mapRaw", type: .intptr),
-                RuntimeABIParameter(name: "key", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Collection",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_map_contains_key",
-            parameters: [
-                RuntimeABIParameter(name: "mapRaw", type: .intptr),
-                RuntimeABIParameter(name: "key", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Collection",
-            isThrowing: false,
-            returnsRawBoolean: true
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_map_contains_value",
-            parameters: [
-                RuntimeABIParameter(name: "mapRaw", type: .intptr),
-                RuntimeABIParameter(name: "value", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Collection",
-            isThrowing: false,
-            returnsRawBoolean: true
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_map_is_empty",
-            parameters: [
-                RuntimeABIParameter(name: "mapRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Collection",
-            isThrowing: false,
-            returnsRawBoolean: true
-        ),
+        abi.nt("__kk_linked_hash_map_of", "keysArrayRaw valuesArrayRaw count"),
+        abi.nt("__kk_map_of_pairs", "pairsArrayRaw count"),
+        abi.nt("__kk_hash_map_of_pairs", "pairsArrayRaw count"),
+        abi.nt("__kk_linked_hash_map_of_pairs", "pairsArrayRaw count"),
+        abi.th("__kk_emptyMap"),
+        abi.nt("__kk_identity_hash_map_init", "mapRaw"),
+        abi.nt("__kk_hash_map_storage", "mapRaw"),
+        abi.nt("__kk_map_size", "mapRaw"),
+        abi.nt("__kk_map_get", "mapRaw key"),
+        abi.nt("__kk_map_contains_key", "mapRaw key", raw: true),
+        abi.nt("__kk_map_contains_value", "mapRaw value", raw: true),
+        abi.nt("__kk_map_is_empty", "mapRaw", raw: true),
         mapForEachSpec,
         mapMapSpec,
         mapMapNotNullSpec,
         mapFilterSpec,
         mapFilterNotSpec,
-        RuntimeABIFunctionSpec(
-            name: "__kk_map_withDefault",
-            parameters: [
-                RuntimeABIParameter(name: "mapRaw", type: .intptr),
-                RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                RuntimeABIParameter(name: "closureRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Collection",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_map_implicit_default",
-            parameters: [
-                RuntimeABIParameter(name: "mapRaw", type: .intptr),
-                RuntimeABIParameter(name: "key", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Collection"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_map_has_default",
-            parameters: [
-                RuntimeABIParameter(name: "mapRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Collection",
-            isThrowing: false
-        ),
+        abi.nt("__kk_map_withDefault", "mapRaw fnPtr closureRaw"),
+        abi.th("__kk_map_implicit_default", "mapRaw key outThrown"),
+        abi.nt("__kk_map_has_default", "mapRaw"),
         mapFilterKeysSpec,
         mapFilterValuesSpec,
         mapMapValuesSpec,
         mapMapKeysSpec,
         mapMapKeysToSpec,
         mapMapValuesToSpec,
-        RuntimeABIFunctionSpec(
-            name: "__kk_map_entries",
-            parameters: [
-                RuntimeABIParameter(name: "mapRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Collection",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_map_keys",
-            parameters: [
-                RuntimeABIParameter(name: "mapRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Collection",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_map_values",
-            parameters: [
-                RuntimeABIParameter(name: "mapRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Collection",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_map_to_string",
-            parameters: [
-                RuntimeABIParameter(name: "mapRaw", type: .intptr),
-            ],
-            returnType: .opaquePointer,
-            section: "Collection",
-            isThrowing: false
-        ),
+        abi.nt("__kk_map_entries", "mapRaw"),
+        abi.nt("__kk_map_keys", "mapRaw"),
+        abi.nt("__kk_map_values", "mapRaw"),
+        abi.nt("__kk_map_to_string", "mapRaw", ret: .opaquePointer),
         mapCountSpec,
         mapAnySpec,
         mapAllSpec,
         mapNoneSpec,
         mapPlusSpec,
         mapMinusSpec,
-        RuntimeABIFunctionSpec(
-            name: "__kk_map_iterator",
-            parameters: [
-                RuntimeABIParameter(name: "mapRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Collection",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_map_iterator_hasNext",
-            parameters: [
-                RuntimeABIParameter(name: "iterRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Collection",
-            isThrowing: false
-        ),
+        abi.nt("__kk_map_iterator", "mapRaw"),
+        abi.nt("__kk_map_iterator_hasNext", "iterRaw"),
         bridgeMapIteratorNextSpec,
-        RuntimeABIFunctionSpec(
-            name: "__kk_mutable_map_iterator",
-            parameters: [
-                RuntimeABIParameter(name: "mapRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Collection",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_mutable_map_iterator_hasNext",
-            parameters: [
-                RuntimeABIParameter(name: "iterRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Collection",
-            isThrowing: false
-        ),
+        abi.nt("__kk_mutable_map_iterator", "mapRaw"),
+        abi.nt("__kk_mutable_map_iterator_hasNext", "iterRaw"),
         bridgeMutableMapIteratorNextSpec,
-        RuntimeABIFunctionSpec(
-            name: "__kk_mutable_map_iterator_remove",
-            parameters: [
-                RuntimeABIParameter(name: "iterRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Collection"
-        ),
+        abi.th("__kk_mutable_map_iterator_remove", "iterRaw outThrown"),
     ]
 }

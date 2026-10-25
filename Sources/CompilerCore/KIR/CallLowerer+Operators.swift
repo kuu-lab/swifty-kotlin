@@ -130,37 +130,154 @@ extension CallLowerer {
                 return literalID
             }
         }
-        let rawLhsID = driver.lowerExpr(
-            lhs,
-            ast: ast,
-            sema: sema,
-            arena: arena,
-            interner: interner,
-            propertyConstantInitializers: propertyConstantInitializers,
-            instructions: &instructions
-        )
-        // Freeze lhs before lowering rhs: a bare mutable-local lhs (e.g. `x`
-        // in `x + x++`) must observe its value at the point it was
-        // evaluated, not any mutation rhs performs on the same variable.
-        // Only worth doing when rhs could actually perform a mutation
-        // (e.g. `result + 22` cannot touch `result`, so freezing here
-        // would only add a dead copy some optimization levels don't fold
-        // away). See freezeEvaluationOrderOperand / needsEvaluationOrderFreeze
-        // / expressionMayMutateState.
-        let lhsID = needsEvaluationOrderFreeze(lhs, ast: ast, sema: sema)
-            && expressionMayMutateState(rhs, ast: ast)
-            ? freezeEvaluationOrderOperand(rawLhsID, arena: arena, instructions: &instructions)
-            : rawLhsID
-        let rhsID = driver.lowerExpr(
-            rhs,
-            ast: ast,
-            sema: sema,
-            arena: arena,
-            interner: interner,
-            propertyConstantInitializers: propertyConstantInitializers,
-            instructions: &instructions
-        )
+        // KUU-3174: `a?.b == c` / `c == a?.b` hoist the `?.` receiver's null
+        // check over the entire comparison. `lhs?.equals(rhs) ?: (rhs === null)`
+        // folds to `false` when the safe-call operand is null and the other
+        // operand is statically non-nullable, so the other operand must not
+        // be evaluated on the null path. Identity equality (`===`) is a
+        // primitive reference compare outside the `equals` continuation —
+        // kotlinc still evaluates both operands, so it is excluded here.
+        func isSafeChainOperand(_ e: ExprID) -> Bool {
+            guard let kind = ast.arena.expr(e), case .safeMemberCall = kind else { return false }
+            return true
+        }
+        func isStaticallyNonNullableOperand(_ e: ExprID) -> Bool {
+            guard let type = sema.bindings.exprTypes[e] else { return false }
+            if case .typeParam = sema.types.kind(of: type) { return false }
+            return sema.types.nullability(of: type) == .nonNull
+        }
         let result = arena.appendTemporary(type: boundType)
+        var deferredEqualityEndLabel: Int32? = nil
+        defer {
+            if let endLabel = deferredEqualityEndLabel {
+                instructions.append(.label(endLabel))
+            }
+        }
+        let isEqualityOp = op == .equal || op == .notEqual
+        let lhsIsSafeChainOperand = isEqualityOp && isSafeChainOperand(lhs)
+        let rhsIsSafeChainOperand = isEqualityOp && isSafeChainOperand(rhs)
+        let rawLhsID: KIRExprID
+        let lhsID: KIRExprID
+        let rhsID: KIRExprID
+        if lhsIsSafeChainOperand, !rhsIsSafeChainOperand,
+           isStaticallyNonNullableOperand(rhs)
+        {
+            rawLhsID = driver.lowerExpr(
+                lhs,
+                ast: ast,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                propertyConstantInitializers: propertyConstantInitializers,
+                instructions: &instructions
+            )
+            lhsID = needsEvaluationOrderFreeze(lhs, ast: ast, sema: sema)
+                && expressionMayMutateState(rhs, ast: ast)
+                ? freezeEvaluationOrderOperand(rawLhsID, arena: arena, instructions: &instructions)
+                : rawLhsID
+            let nonNullLabel = driver.ctx.makeLoopLabel()
+            let endLabel = driver.ctx.makeLoopLabel()
+            deferredEqualityEndLabel = endLabel
+            instructions.append(.jumpIfNotNull(value: lhsID, target: nonNullLabel))
+            instructions.append(.constValue(
+                result: result,
+                value: .boolLiteral(op == .notEqual)
+            ))
+            instructions.append(.jump(endLabel))
+            instructions.append(.label(nonNullLabel))
+            rhsID = driver.lowerExpr(
+                rhs,
+                ast: ast,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                propertyConstantInitializers: propertyConstantInitializers,
+                instructions: &instructions
+            )
+        } else if rhsIsSafeChainOperand, !lhsIsSafeChainOperand,
+                  isStaticallyNonNullableOperand(lhs),
+                  case let .safeMemberCall(safeReceiverExpr, safeCalleeName, _, safeArgs, _)
+                      = ast.arena.expr(rhs)
+        {
+            // `e == b?.x`: kotlinc's `b?.let { e == it.x } ?: (e === null)`
+            // evaluates `e` inside the `?.` continuation — after the
+            // receiver's null check but before the member access. Lower the
+            // receiver standalone so `e` can sit between the check and the
+            // access, preserving that order.
+            let receiverID = driver.lowerExpr(
+                safeReceiverExpr,
+                ast: ast,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                propertyConstantInitializers: propertyConstantInitializers,
+                instructions: &instructions
+            )
+            let nonNullLabel = driver.ctx.makeLoopLabel()
+            let endLabel = driver.ctx.makeLoopLabel()
+            deferredEqualityEndLabel = endLabel
+            instructions.append(.jumpIfNotNull(value: receiverID, target: nonNullLabel))
+            instructions.append(.constValue(
+                result: result,
+                value: .boolLiteral(op == .notEqual)
+            ))
+            instructions.append(.jump(endLabel))
+            instructions.append(.label(nonNullLabel))
+            rawLhsID = driver.lowerExpr(
+                lhs,
+                ast: ast,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                propertyConstantInitializers: propertyConstantInitializers,
+                instructions: &instructions
+            )
+            lhsID = rawLhsID
+            rhsID = lowerSafeMemberCallExpr(
+                rhs,
+                receiverExpr: safeReceiverExpr,
+                calleeName: safeCalleeName,
+                args: safeArgs,
+                ast: ast,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                propertyConstantInitializers: propertyConstantInitializers,
+                instructions: &instructions,
+                precomputedReceiverID: receiverID
+            )
+        } else {
+            rawLhsID = driver.lowerExpr(
+                lhs,
+                ast: ast,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                propertyConstantInitializers: propertyConstantInitializers,
+                instructions: &instructions
+            )
+            // Freeze lhs before lowering rhs: a bare mutable-local lhs (e.g. `x`
+            // in `x + x++`) must observe its value at the point it was
+            // evaluated, not any mutation rhs performs on the same variable.
+            // Only worth doing when rhs could actually perform a mutation
+            // (e.g. `result + 22` cannot touch `result`, so freezing here
+            // would only add a dead copy some optimization levels don't fold
+            // away). See freezeEvaluationOrderOperand / needsEvaluationOrderFreeze
+            // / expressionMayMutateState.
+            lhsID = needsEvaluationOrderFreeze(lhs, ast: ast, sema: sema)
+                && expressionMayMutateState(rhs, ast: ast)
+                ? freezeEvaluationOrderOperand(rawLhsID, arena: arena, instructions: &instructions)
+                : rawLhsID
+            rhsID = driver.lowerExpr(
+                rhs,
+                ast: ast,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                propertyConstantInitializers: propertyConstantInitializers,
+                instructions: &instructions
+            )
+        }
         let genericFloatingPointArithmeticOp: KIRBinaryOp? = switch op {
         case .add: .add
         case .subtract: .subtract
@@ -237,7 +354,7 @@ extension CallLowerer {
             {
                 instructions.append(.constValue(
                     result: result,
-                    value: .boolLiteral(op == .notEqual || op == .notIdentityEqual)
+                    value: .boolLiteral(op == .notEqual)
                 ))
                 return result
             }
@@ -1421,6 +1538,19 @@ extension CallLowerer {
         // Member-access const reads (`O.OC`) never reach `constExprValue`;
         // resolve them the same way tryLowerObjectMemberPropertyRead does,
         // restricted to `.constValue` symbols so a plain `val` can never fold.
+        // An unqualified member `const val` read inside its owner (e.g. `a`
+        // in `object A { const val a = "$"; val s = "1234$a" }`) reaches here
+        // as a `.nameRef` — it is likewise a compile-time constant on the JVM
+        // even though Sema does not bind `constExprValue` for it (KUU-3180).
+        if case .nameRef? = ast.arena.expr(exprID),
+           let refSymbol = sema.bindings.identifierSymbol(for: exprID),
+           let symbol = sema.symbols.accessorOwnerProperty(for: refSymbol) ?? refSymbol as SymbolID?,
+           let info = sema.symbols.symbol(symbol),
+           info.flags.contains(.constValue),
+           !isEnumEntry(symbol, sema: sema)
+        {
+            return sema.symbols.constValueExprKind(for: symbol)
+        }
         guard case .memberCall(let receiver, _, _, let args, _)? = ast.arena.expr(exprID),
               args.isEmpty,
               let chosen = sema.bindings.callBindings[exprID]?.chosenCallee

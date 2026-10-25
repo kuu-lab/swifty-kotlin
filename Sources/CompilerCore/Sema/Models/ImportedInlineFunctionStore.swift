@@ -85,6 +85,13 @@ public final class ImportedInlineFunctionStore {
     /// entry at all.
     public private(set) var failedSymbols: Set<SymbolID> = []
 
+    /// Imported inline symbols whose `.kir` body is still a deferred binding:
+    /// the compact index registered them as pending, but the descriptor is
+    /// only installed by the lowering-time demand scan. Queries that run
+    /// before that scan (e.g. BuildKIR's function-value materialization)
+    /// must treat these symbols as having a body available.
+    public private(set) var pendingBodySymbols: Set<SymbolID> = []
+
     /// The state a deferred parse needs, captured once after every imported
     /// binding has been applied so lazy parses see the same callee-resolution
     /// maps the eager parse did. The resolver keeps reading the import-phase
@@ -111,6 +118,18 @@ public final class ImportedInlineFunctionStore {
     func register(_ descriptor: Descriptor, for symbol: SymbolID) {
         guard functions[symbol] == nil else { return }
         descriptors[symbol] = descriptor
+    }
+
+    /// Marks `symbol` as an inline body whose binding is still deferred. The
+    /// mark is consumed together with the binding: once the demand scan
+    /// installs a descriptor (or a parse resolves the body), `descriptors`
+    /// and `functions` take over answering "is a body available".
+    func markPendingBody(for symbol: SymbolID) {
+        pendingBodySymbols.insert(symbol)
+    }
+
+    func clearPendingBody(for symbol: SymbolID) {
+        pendingBodySymbols.remove(symbol)
     }
 
     /// Seeds an already-parsed body (used when the lazy metadata loader

@@ -7,7 +7,8 @@ extension CallLowerer {
         calleeName: InternedString,
         args: [CallArgument],
         shared: KIRLoweringSharedContext,
-        emit instructions: inout KIRLoweringEmitContext
+        emit instructions: inout KIRLoweringEmitContext,
+        precomputedReceiverID: KIRExprID? = nil
     ) -> KIRExprID {
         let ast = shared.ast
         let sema = shared.sema
@@ -36,7 +37,7 @@ extension CallLowerer {
             let nullableResultType = sema.types.makeNullable(scopeBoundType)
             let result = arena.appendTemporary(type: nullableResultType
             )
-            let loweredReceiver = driver.lowerExpr(
+            let loweredReceiver = precomputedReceiverID ?? driver.lowerExpr(
                 receiverExpr,
                 shared: shared,
                 emit: &instructions
@@ -94,7 +95,7 @@ extension CallLowerer {
             }
         }
 
-        let loweredReceiverID = driver.lowerExpr(
+        let loweredReceiverID = precomputedReceiverID ?? driver.lowerExpr(
             receiverExpr,
             shared: shared, emit: &instructions
         )
@@ -794,11 +795,39 @@ extension CallLowerer {
                     || (calleeStr == "toULong" && nonNullReceiverType == longType && nonNullResultType == ulongType)
                     || (calleeStr == "toInt" && (nonNullReceiverType == byteType || nonNullReceiverType == shortType) && nonNullResultType == intType)
                     || (calleeStr == "toLong" && (nonNullReceiverType == byteType || nonNullReceiverType == shortType) && nonNullResultType == longType)
-            if ["toInt", "toUInt", "toLong", "toULong", "toFloat", "toDouble", "toByte"].contains(calleeStr),
+                    || (calleeStr == "toShort" && nonNullReceiverType == byteType && nonNullResultType == shortType)
+            // Identity conversions have no runtime callee; keep them from
+            // falling through to generic member emission as raw symbols
+            // (`Short?.toShort()`, `UByte?.toUByte()` linked against `_toShort`).
+            if ["toInt", "toUInt", "toLong", "toULong", "toFloat", "toDouble", "toByte", "toShort", "toUByte", "toUShort"].contains(calleeStr),
                nonNullReceiverType == nonNullResultType || isRepresentationPreservingConversion,
-               nonNullReceiverType == intType || nonNullReceiverType == longType || nonNullReceiverType == uintType || nonNullReceiverType == ulongType || nonNullReceiverType == byteType || nonNullReceiverType == shortType || nonNullReceiverType == floatType || nonNullReceiverType == doubleType
+               nonNullReceiverType == intType || nonNullReceiverType == longType || nonNullReceiverType == uintType || nonNullReceiverType == ulongType || nonNullReceiverType == ubyteType || nonNullReceiverType == ushortType || nonNullReceiverType == byteType || nonNullReceiverType == shortType || nonNullReceiverType == floatType || nonNullReceiverType == doubleType
             {
-                instructions.append(.copy(from: loweredReceiverID, to: result))
+                if nonNullReceiverType == nonNullResultType {
+                    instructions.append(.copy(from: loweredReceiverID, to: result))
+                    return result
+                }
+                // The receiver's box is tagged with the receiver's type, so
+                // copying it would hand out a `ULong` where a `Long?` is
+                // expected (`ULong?.toLong()` printed as an unsigned value).
+                // Unbox the payload and let the result copy box it again under
+                // the result type.
+                let nonNullLabel = driver.ctx.makeLoopLabel()
+                let endLabel = driver.ctx.makeLoopLabel()
+                instructions.append(.jumpIfNotNull(value: loweredReceiverID, target: nonNullLabel))
+                let nullValue = arena.appendExpr(.unit, type: resultType)
+                instructions.append(.constValue(result: nullValue, value: .null))
+                instructions.append(.copy(from: nullValue, to: result))
+                instructions.append(.jump(endLabel))
+                instructions.append(.label(nonNullLabel))
+                let conversionReceiverID = materializePrimitiveValue(
+                    loweredReceiverID, toType: nonNullReceiverType, sema: sema,
+                    arena: arena, instructions: &instructions.instructions
+                ) ?? loweredReceiverID
+                let nonNullResult = arena.appendTemporary(type: nonNullResultType)
+                instructions.append(.copy(from: conversionReceiverID, to: nonNullResult))
+                instructions.append(.copy(from: nonNullResult, to: result))
+                instructions.append(.label(endLabel))
                 return result
             }
         }
@@ -1001,8 +1030,22 @@ extension CallLowerer {
             let declaredType = memberSymbol.flatMap {
                 sema.symbols.propertyType(for: $0) ?? sema.symbols.functionSignature(for: $0)?.returnType
             }
-            guard let declaredType,
-                  case let .primitive(declaredPrimitive, .nonNull) = resolveValueClassKind(
+            guard let declaredType else { return resultType }
+            // A nullable-underlying value class member yields the `V` payload
+            // representation; splitting the merge slot lets the `V` -> `V?`
+            // copy box it rather than storing the payload verbatim
+            // (KUU-3115).
+            if nullableUnderlyingValueClassSymbol(
+                of: sema.types.kind(of: declaredType),
+                types: sema.types, symbols: sema.symbols
+            ) != nil,
+               valueClassBoxTargetIsBoxed(
+                   sema.types.kind(of: resultType), symbols: sema.symbols
+               )
+            {
+                return declaredType
+            }
+            guard case let .primitive(declaredPrimitive, .nonNull) = resolveValueClassKind(
                       sema.types.kind(of: declaredType), types: sema.types, symbols: sema.symbols
                   ),
                   case let .primitive(resultPrimitive, .nonNull) = resolveValueClassKind(

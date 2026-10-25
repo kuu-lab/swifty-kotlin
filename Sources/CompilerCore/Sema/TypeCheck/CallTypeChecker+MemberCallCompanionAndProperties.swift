@@ -1,5 +1,27 @@
 
 extension CallTypeChecker {
+    /// KUU-3237: Kotlin does not resolve nested classifiers through a
+    /// typealias qualifier (`A2.Inner`, `A2.Companion` are unresolved
+    /// references), while companion members and enum entries remain
+    /// reachable through the alias. Import aliases (`import C as A`)
+    /// resolve to the class symbol directly and keep classifier access.
+    /// The bound identifier is not enough: `expandTypeAliasValueTarget`
+    /// rebinds the name to the target nominal when it has a companion,
+    /// so the scope candidates for the written name decide.
+    func receiverQualifierIsTypeAlias(
+        receiverID: ExprID,
+        ctx: TypeInferenceContext
+    ) -> Bool {
+        let sema = ctx.sema
+        if case let .nameRef(name, _) = ctx.ast.arena.expr(receiverID) {
+            return ctx.cachedScopeLookup(name).contains {
+                sema.symbols.symbol($0)?.kind == .typeAlias
+            }
+        }
+        return sema.bindings.identifierSymbol(for: receiverID)
+            .flatMap { sema.symbols.symbol($0) }?.kind == .typeAlias
+    }
+
     func resolveClassNameMemberValue(
         ownerNominalSymbol: SymbolID,
         memberName: InternedString,

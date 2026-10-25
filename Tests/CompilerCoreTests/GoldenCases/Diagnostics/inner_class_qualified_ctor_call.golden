@@ -1,0 +1,57 @@
+{
+  "version": 1,
+  "diagnostics": [
+    {
+      "file": "inner_class_qualified_ctor_call.kt",
+      "range": {
+        "start": { "line": 16, "character": 12 },
+        "end": { "line": 16, "character": 21 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-0437",
+      "source": "kswiftk",
+      "message": "constructor of the inner class 'I' can only be called with a receiver of the containing class.",
+      "codeActions": []
+    },
+    {
+      "file": "inner_class_qualified_ctor_call.kt",
+      "range": {
+        "start": { "line": 17, "character": 12 },
+        "end": { "line": 17, "character": 30 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-0437",
+      "source": "kswiftk",
+      "message": "constructor of the inner class 'Deep' can only be called with a receiver of the containing class.",
+      "codeActions": []
+    },
+    {
+      "file": "inner_class_qualified_ctor_call.kt",
+      "range": {
+        "start": { "line": 18, "character": 12 },
+        "end": { "line": 18, "character": 17 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-0437",
+      "source": "kswiftk",
+      "message": "constructor of the inner class 'I' can only be called with a receiver of the containing class.",
+      "codeActions": []
+    },
+    {
+      "file": "inner_class_qualified_ctor_call.kt",
+      "range": {
+        "start": { "line": 24, "character": 4 },
+        "end": { "line": 24, "character": 10 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-0437",
+      "source": "kswiftk",
+      "message": "constructor of the inner class 'LI' can only be called with a receiver of the containing class.",
+      "codeActions": []
+    }
+  ]
+}
