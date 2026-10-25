@@ -113,6 +113,7 @@ struct DeclarationPositionValidator {
 
     private func validateFunction(_ decl: FunDecl, site: OwnerSite) {
         let modifiers = decl.modifiers
+        validateVisibilityModifierConflicts(modifiers, range: decl.range)
         let target = functionTargetName(site: site)
 
         for (modifier, name) in Self.funImpossibleModifiers where modifiers.contains(modifier) {
@@ -213,6 +214,7 @@ struct DeclarationPositionValidator {
     }
 
     private func validateProperty(_ decl: PropertyDecl, site: OwnerSite) {
+        validateVisibilityModifierConflicts(decl.modifiers, range: decl.range)
         // Primary-constructor `val`/`var` parameters are materialized as
         // member properties; their restrictions are checked on the class.
         if decl.isSynthesizedPrimaryConstructorProperty {
@@ -544,6 +546,11 @@ struct DeclarationPositionValidator {
 
     private func validateClass(_ decl: ClassDecl, site: OwnerSite) {
         let modifiers = decl.modifiers
+        validateVisibilityModifierConflicts(modifiers, range: decl.range)
+        validateVisibilityModifierConflicts(decl.primaryConstructorModifiers, range: decl.range)
+        for constructor in decl.secondaryConstructors {
+            validateVisibilityModifierConflicts(constructor.modifiers, range: constructor.range)
+        }
         let isEnum = modifiers.contains(.enumModifier)
         let isAnnotation = modifiers.contains(.annotationClass)
         // `inline class` is the deprecated spelling of `value class`, so it
@@ -776,6 +783,7 @@ struct DeclarationPositionValidator {
 
     private func validateInterface(_ decl: InterfaceDecl, site: OwnerSite) {
         let modifiers = decl.modifiers
+        validateVisibilityModifierConflicts(modifiers, range: decl.range)
 
         for (modifier, name) in Self.interfaceForbiddenModifiers where modifiers.contains(modifier) {
             emitNotApplicable(name, to: "interface", range: decl.range)
@@ -838,6 +846,7 @@ struct DeclarationPositionValidator {
 
     private func validateObject(_ decl: ObjectDecl, site: OwnerSite) {
         let modifiers = decl.modifiers
+        validateVisibilityModifierConflicts(modifiers, range: decl.range)
         let kindName = site == .function ? "local object" : "standalone object"
 
         for (modifier, name) in Self.objectImpossibleModifiers where modifiers.contains(modifier) {
@@ -919,6 +928,7 @@ struct DeclarationPositionValidator {
     }
 
     private func validateTypeAlias(_ decl: TypeAliasDecl, site: OwnerSite) {
+        validateVisibilityModifierConflicts(decl.modifiers, range: decl.range)
         for (modifier, name) in Self.typeAliasForbiddenModifiers where decl.modifiers.contains(modifier) {
             emitNotApplicable(name, to: "typealias", range: decl.range)
         }
@@ -1009,6 +1019,21 @@ struct DeclarationPositionValidator {
                 )
             }
         }
+    }
+
+    private func validateVisibilityModifierConflicts(_ modifiers: Modifiers, range: SourceRange) {
+        emitIncompatiblePairs(
+            modifiers,
+            pairs: [
+                (.private, "private", .public, "public"),
+                (.private, "private", .internal, "internal"),
+                (.private, "private", .protected, "protected"),
+                (.public, "public", .internal, "internal"),
+                (.public, "public", .protected, "protected"),
+                (.internal, "internal", .protected, "protected"),
+            ],
+            range: range
+        )
     }
 
     private func emitNotApplicable(_ name: String, to target: String, range: SourceRange) {
