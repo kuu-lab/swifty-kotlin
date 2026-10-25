@@ -51,9 +51,7 @@ extension TypeCheckDriver {
             return sema.types.nominalFunctionType(for: type)
         }
 
-        for id in callSuspensionContexts.keys.sorted(by: { $0.rawValue < $1.rawValue }) {
-            guard let context = callSuspensionContexts[id] else { continue }
-
+        func allowsSuspension(in context: SuspensionContext) -> Bool {
             // Only inlined ordinary lambdas may inherit a surrounding
             // suspension context. A suspend lambda supplies its own context.
             var allowed = context.function.flatMap { sema.symbols.functionSignature(for: $0) }?.isSuspend == true
@@ -64,7 +62,12 @@ extension TypeCheckDriver {
                     allowed = false
                 }
             }
-            if !allowed {
+            return allowed
+        }
+
+        for id in callSuspensionContexts.keys.sorted(by: { $0.rawValue < $1.rawValue }) {
+            guard let context = callSuspensionContexts[id] else { continue }
+            if !allowsSuspension(in: context) {
                 for name in suspendingCallNames(for: id) {
                     diagnostics.error(
                         "KSWIFTK-SEMA-0308",
@@ -73,6 +76,15 @@ extension TypeCheckDriver {
                     )
                 }
             }
+        }
+
+        for id in coroutineContextPropertySuspensionContexts.keys.sorted(by: { $0.rawValue < $1.rawValue }) {
+            guard let context = coroutineContextPropertySuspensionContexts[id], !allowsSuspension(in: context) else { continue }
+            diagnostics.error(
+                "KSWIFTK-SEMA-0313",
+                "Suspend property 'val coroutineContext: CoroutineContext' can only be accessed from a coroutine or suspend function.",
+                range: ast.arena.exprRange(id)
+            )
         }
     }
 }
