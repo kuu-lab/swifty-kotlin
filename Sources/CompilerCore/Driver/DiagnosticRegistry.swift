@@ -102,12 +102,29 @@ enum DiagnosticRegistry {
     private static let suppressionSeverityConstraints: [String: DiagnosticSeverity] = [
         "DEPRECATION": .warning,
         "DEPRECATION_ERROR": .error,
+        // kotlinc K2 splits the "check for instance is always 'false'"
+        // diagnostic by severity: IMPOSSIBLE_IS_CHECK_ERROR is raised when the
+        // subject's declared type is incompatible with the target, while
+        // IMPOSSIBLE_IS_CHECK_WARNING covers checks that are impossible only
+        // under a smart-cast type. Each name suppresses only its severity.
+        "IMPOSSIBLE_IS_CHECK_ERROR": .error,
+        "IMPOSSIBLE_IS_CHECK_DEPRECATION_ERROR": .error,
+        "IMPOSSIBLE_IS_CHECK_WARNING": .warning,
+        "IMPOSSIBLE_IS_CHECK_DEPRECATION": .warning,
     ]
 
     private static let suppressionAliases: [String: [String]] = [
         "UPPER_BOUND_VIOLATED_IN_TYPE_OPERATOR_OR_PARAMETER_BOUNDS_WARNING": ["KSWIFTK-SEMA-BOUND"],
         "UPPER_BOUND_VIOLATED_IN_TYPE_OPERATOR_OR_PARAMETER_BOUNDS_ERROR": ["KSWIFTK-SEMA-BOUND"],
         "UNCHECKED_CAST": ["KSWIFTK-SEMA-UNCHECKED-CAST"],
+        // kotlinc reports an impossible `is` check as IMPOSSIBLE_IS_CHECK_ERROR
+        // (the pre-2.4 name was IMPOSSIBLE_IS_CHECK_DEPRECATION). The K1 name
+        // INCOMPATIBLE_TYPES deliberately does not map here: kotlinc does not
+        // let it suppress IMPOSSIBLE_IS_CHECK_ERROR.
+        "IMPOSSIBLE_IS_CHECK_ERROR": ["KSWIFTK-SEMA-0415"],
+        "IMPOSSIBLE_IS_CHECK_DEPRECATION_ERROR": ["KSWIFTK-SEMA-0415"],
+        "IMPOSSIBLE_IS_CHECK_WARNING": ["KSWIFTK-SEMA-0415"],
+        "IMPOSSIBLE_IS_CHECK_DEPRECATION": ["KSWIFTK-SEMA-0415"],
         "INVISIBLE_MEMBER": ["KSWIFTK-SEMA-0040", "KSWIFTK-SEMA-0041", "KSWIFTK-SEMA-0044"],
         "INVISIBLE_REFERENCE": ["KSWIFTK-SEMA-0040", "KSWIFTK-SEMA-0041", "KSWIFTK-SEMA-0044"],
         "NON_PUBLIC_CALL_FROM_PUBLIC_INLINE": ["KSWIFTK-SEMA-0045"],

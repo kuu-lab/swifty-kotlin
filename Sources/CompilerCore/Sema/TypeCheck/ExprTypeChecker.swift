@@ -601,11 +601,21 @@ final class ExprTypeChecker {
                    ),
                    isDefinitelyDisjoint(subject: subjectNonNull, target: targetNonNull, sema: sema)
                 {
-                    ctx.sema.diagnostics.error(
-                        "KSWIFTK-SEMA-0415",
-                        "check for instance is always 'false'.",
-                        range: range
-                    )
+                    if let severity = impossibleIsCheckSeverity(
+                        subjectExpr: exprID,
+                        narrowedSubjectType: subjectNonNull,
+                        targetType: targetNonNull,
+                        locals: locals,
+                        ctx: ctx
+                    ) {
+                        ctx.sema.diagnostics.emit(Diagnostic(
+                            severity: severity,
+                            code: "KSWIFTK-SEMA-0415",
+                            message: "check for instance is always 'false'.",
+                            primaryRange: range,
+                            secondaryRanges: []
+                        ))
+                    }
                 }
             }
             sema.bindings.bindIsCheckTargetType(id, type: targetType)
@@ -2215,6 +2225,71 @@ final class ExprTypeChecker {
             return []
         }
         return [site]
+    }
+
+    /// Severity for an impossible `subject is target` check after
+    /// `isDefinitelyDisjoint` rejected the subject's current (possibly
+    /// flow-narrowed) type. Mirrors kotlinc's two-phase cast checker: the
+    /// subject's *original* type is checked first, so a disjointness that only
+    /// exists because of a smart cast or an assignment narrowing is
+    /// IMPOSSIBLE_IS_CHECK_WARNING for a stable reference — and unreported for
+    /// an unstable one, whose reads kotlinc treats as the declared type.
+    /// Returns nil when no diagnostic should be emitted.
+    private func impossibleIsCheckSeverity(
+        subjectExpr: ExprID,
+        narrowedSubjectType: TypeID,
+        targetType: TypeID,
+        locals: LocalBindings,
+        ctx: TypeInferenceContext
+    ) -> DiagnosticSeverity? {
+        let sema = ctx.sema
+        guard let reference = ctx.dataFlow.resolveStableReference(
+            subjectExpr,
+            locals: locals,
+            ast: ctx.ast,
+            sema: sema,
+            interner: ctx.interner
+        ),
+        let declaredType = declaredIsCheckSubjectType(
+            for: reference.symbol.properties.last ?? reference.symbol.root,
+            sema: sema
+        ),
+        declaredType != sema.types.errorType
+        else {
+            return .error
+        }
+        let declaredNonNull = sema.types.makeNonNullable(declaredType)
+        guard declaredNonNull != narrowedSubjectType,
+              !isDefinitelyDisjoint(subject: declaredNonNull, target: targetType, sema: sema)
+        else {
+            return .error
+        }
+        return reference.isStable ? .warning : nil
+    }
+
+    /// The declared (un-narrowed) type bound to a `DataFlowReference` symbol:
+    /// `propertyType` covers locals, properties, and synthetic parameters, while
+    /// real value parameters and receiver parameters live on the owning
+    /// function's signature.
+    private func declaredIsCheckSubjectType(for symbol: SymbolID, sema: SemaModule) -> TypeID? {
+        if let type = sema.symbols.propertyType(for: symbol) {
+            return type
+        }
+        guard let owner = sema.symbols.valueParameterOwner(for: symbol)
+            ?? sema.symbols.parentSymbol(for: symbol),
+            let signature = sema.symbols.functionSignature(for: owner)
+        else {
+            return nil
+        }
+        if let index = signature.valueParameterSymbols.firstIndex(of: symbol),
+           index < signature.parameterTypes.count
+        {
+            return signature.parameterTypes[index]
+        }
+        if symbol == SyntheticSymbolScheme.receiverParameterSymbol(for: owner) {
+            return signature.receiverType
+        }
+        return nil
     }
 
     /// Whether a `subject is target` check can never succeed: neither type
