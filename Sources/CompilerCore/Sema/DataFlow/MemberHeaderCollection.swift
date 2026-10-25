@@ -651,6 +651,7 @@ extension DataFlowSemaPhase {
                 declSite: propertyDecl.range,
                 ast: ast, symbols: symbols, types: types,
                 interner: interner, sourceManager: sourceManager, isInline: propertyDecl.allAccessorsAreInline,
+                isProperty: true,
                 diagnostics: diagnostics, enclosingTypeParameters: classLocalTypeParameters,
                 relativeOwnerFQName: ownerFQName, currentPackageFQName: sourcePackageFQName,
                 imports: sourceImports
