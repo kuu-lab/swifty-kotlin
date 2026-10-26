@@ -1901,7 +1901,7 @@ final class ExprTypeChecker {
         // extension call.
         if names.count == 1,
            let name = names.first,
-           ["unaryPlus", "unaryMinus"].contains(interner.resolve(name))
+           ["not", "unaryPlus", "unaryMinus"].contains(interner.resolve(name))
         {
             let memberExtensionCandidates = collectImplicitReceiverMemberExtensionOperatorCandidates(
                 named: name,
