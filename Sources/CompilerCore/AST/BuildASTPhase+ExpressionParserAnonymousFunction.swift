@@ -223,6 +223,7 @@ extension BuildASTPhase.ExpressionParser {
         let range = SourceRange(start: tokens[expressionStartIndex].range.start, end: tokens[endIndex - 1].range.end)
         let callableRefID = astArena.appendExpr(.callableRef(receiver: nil, member: syntheticName, range: range))
         let function = astArena.appendExpr(.blockExpr(statements: [localFunExprID], trailingExpr: callableRefID, range: range))
+        astArena.markAnonymousFunction(localFunExprID)
         astArena.markAnonymousFunction(function)
         return function
     }

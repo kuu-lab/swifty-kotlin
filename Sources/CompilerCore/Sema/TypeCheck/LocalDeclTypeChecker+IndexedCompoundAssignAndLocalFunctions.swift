@@ -925,6 +925,9 @@ extension LocalDeclTypeChecker {
         }
         bodyLocals.memberFlow = [:]
         let bodyReceiverType: TypeID? = receiverType ?? ctx.implicitReceiverType
+        let lambdaLoopScopes = ast.arena.isAnonymousFunction(id)
+            ? ctx.lambdaLoopScopes + [(exprID: id, loopDepth: ctx.loopDepth, labels: ctx.loopLabelStack)]
+            : []
         var bodyCtx = driver.helpers.localFunctionOptInContext(ctx).copying(
             scope: localFunctionScope,
             implicitReceiverType: bodyReceiverType,
@@ -933,6 +936,7 @@ extension LocalDeclTypeChecker {
             lambdaLabelStack: [],
             lambdaReturnScopes: [],
             lambdaDepth: 0,
+            lambdaLoopScopes: lambdaLoopScopes,
             enclosingFunctionReturnType: resolvedReturnType,
             enclosingFunctionSymbol: funSymbol,
             enclosingFunctionProhibitsExpressionBodyReturn: body.isExpressionBody

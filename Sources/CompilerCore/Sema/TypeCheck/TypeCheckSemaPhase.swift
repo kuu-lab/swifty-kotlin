@@ -101,7 +101,8 @@ final class TypeCheckSemaPhase: CompilerPhase {
         }
 
         withSemaSubPhaseTiming("post-validation", ctx: ctx) {
-            let (inlineLambdaArguments, suspendLambdaArguments) = collectInlineLambdaArguments(ast: ast, sema: sema)
+            let (inlineLambdaArguments, inlineAnonymousFunctionArguments, suspendLambdaArguments) =
+                collectInlineLambdaArguments(ast: ast, sema: sema)
             validateTailrecFunctions(
                 ast: ast,
                 sema: sema,
@@ -110,7 +111,12 @@ final class TypeCheckSemaPhase: CompilerPhase {
             )
             validateWorkerExecuteJobs(ast: ast, sema: sema, ctx: ctx)
 
-            validateLoopJumpLambdaPaths(ast: ast, sema: sema, diagnostics: ctx.diagnostics, inlineLambdaArguments: inlineLambdaArguments)
+            validateLoopJumpLambdaPaths(
+                ast: ast,
+                sema: sema,
+                diagnostics: ctx.diagnostics,
+                inlineControlFlowArguments: inlineLambdaArguments.union(inlineAnonymousFunctionArguments)
+            )
             validateReturnLambdaPaths(ast: ast, sema: sema, diagnostics: ctx.diagnostics, inlineLambdaArguments: inlineLambdaArguments)
             driver.validateSuspensionContexts(
                 inlineLambdaArguments: inlineLambdaArguments,
@@ -175,8 +181,13 @@ final class TypeCheckSemaPhase: CompilerPhase {
     private func collectInlineLambdaArguments(
         ast: ASTModule,
         sema: SemaModule
-    ) -> (inlineLambdaArguments: Set<ExprID>, suspendLambdaArguments: Set<ExprID>) {
+    ) -> (
+        inlineLambdaArguments: Set<ExprID>,
+        inlineAnonymousFunctionArguments: Set<ExprID>,
+        suspendLambdaArguments: Set<ExprID>
+    ) {
         var inlineLambdaArguments: Set<ExprID> = []
+        var inlineAnonymousFunctionArguments: Set<ExprID> = []
         var suspendLambdaArguments: Set<ExprID> = []
         let samHelpers = TypeCheckHelpers()
         func recordLambdaArguments(_ arguments: [ExprID], binding: CallBinding) {
@@ -184,9 +195,22 @@ final class TypeCheckSemaPhase: CompilerPhase {
             let calleeIsInline = sema.symbols.symbol(binding.chosenCallee)?.flags.contains(.inlineFunction) == true
             for (index, argument) in arguments.enumerated() {
                 let parameterIndex = binding.parameterMapping[index] ?? index
-                guard case .lambdaLiteral = ast.arena.expr(argument),
-                      signature.parameterTypes.indices.contains(parameterIndex)
-                else { continue }
+                guard signature.parameterTypes.indices.contains(parameterIndex) else { continue }
+                let isLambdaArgument: Bool
+                if case .lambdaLiteral = ast.arena.expr(argument) {
+                    isLambdaArgument = true
+                } else {
+                    isLambdaArgument = false
+                }
+                let anonymousFunctionDeclaration: ExprID? = {
+                    guard ast.arena.isAnonymousFunction(argument),
+                          case let .blockExpr(statements, _, _) = ast.arena.expr(argument)
+                    else {
+                        return nil
+                    }
+                    return statements.first(where: ast.arena.isAnonymousFunction)
+                }()
+                guard isLambdaArgument || anonymousFunctionDeclaration != nil else { continue }
 
                 let parameterType = sema.types.makeNonNullable(signature.parameterTypes[parameterIndex])
                 let parameterFunction: FunctionType?
@@ -195,14 +219,19 @@ final class TypeCheckSemaPhase: CompilerPhase {
                 } else {
                     parameterFunction = samHelpers.samFunctionType(for: parameterType, sema: sema)
                 }
-                if parameterFunction?.isSuspend == true {
+                if isLambdaArgument, parameterFunction?.isSuspend == true {
                     suspendLambdaArguments.insert(argument)
                 }
-                if calleeIsInline,
-                   !signature.valueParameterAllowsNonLocalReturn.indices.contains(parameterIndex)
-                       || signature.valueParameterAllowsNonLocalReturn[parameterIndex]
-                {
-                    inlineLambdaArguments.insert(argument)
+                let allowsNonLocalControlFlow =
+                    !signature.valueParameterAllowsNonLocalReturn.indices.contains(parameterIndex)
+                        || signature.valueParameterAllowsNonLocalReturn[parameterIndex]
+                if calleeIsInline, allowsNonLocalControlFlow {
+                    if isLambdaArgument {
+                        inlineLambdaArguments.insert(argument)
+                    }
+                    if let anonymousFunctionDeclaration {
+                        inlineAnonymousFunctionArguments.insert(anonymousFunctionDeclaration)
+                    }
                 }
             }
         }
@@ -243,7 +272,7 @@ final class TypeCheckSemaPhase: CompilerPhase {
             }
             inlineLambdaArguments.insert(args[1].expr)
         }
-        return (inlineLambdaArguments, suspendLambdaArguments)
+        return (inlineLambdaArguments, inlineAnonymousFunctionArguments, suspendLambdaArguments)
     }
 
     private func validateReturnLambdaPaths(
@@ -300,17 +329,20 @@ final class TypeCheckSemaPhase: CompilerPhase {
         }
     }
 
-    /// Non-local loop jumps are legal only when every lambda boundary between
-    /// the jump and its loop target belongs to an inline parameter that allows
-    /// non-local control flow. The selected call binding is available only
-    /// after body inference, so the initial checker records these candidate
-    /// paths and this pass reports rejected ones here.
+    /// Non-local loop jumps are legal only when every lambda or anonymous
+    /// function boundary between the jump and its loop target belongs to an
+    /// inline parameter that allows non-local control flow. The selected call
+    /// binding is available only after body inference, so this pass reports
+    /// rejected candidate paths here.
     private func validateLoopJumpLambdaPaths(
-        ast: ASTModule, sema: SemaModule, diagnostics: DiagnosticEngine, inlineLambdaArguments: Set<ExprID>
+        ast: ASTModule,
+        sema: SemaModule,
+        diagnostics: DiagnosticEngine,
+        inlineControlFlowArguments: Set<ExprID>
     ) {
         for exprID in sema.bindings.loopJumpLambdaPaths.keys.sorted(by: { $0.rawValue < $1.rawValue }) {
             guard let lambdaPath = sema.bindings.loopJumpLambdaPaths[exprID],
-                  !lambdaPath.allSatisfy({ inlineLambdaArguments.contains($0) })
+                  !lambdaPath.allSatisfy({ inlineControlFlowArguments.contains($0) })
             else { continue }
             let code: String
             let message: String

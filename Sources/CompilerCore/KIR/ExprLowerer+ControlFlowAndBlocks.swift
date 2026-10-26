@@ -841,6 +841,22 @@ extension ExprLowerer {
                 }
             }
             if let trailingExpr {
+                if ast.arena.isAnonymousFunction(exprID),
+                   statements.count == 1,
+                   ast.arena.isAnonymousFunction(statements[0]),
+                   case .callableRef? = ast.arena.expr(trailingExpr),
+                   let functionSymbol = sema.bindings.identifierSymbols[trailingExpr],
+                   sema.symbols.symbol(functionSymbol)?.flags.contains(.localFunction) == true,
+                   arena.function(for: functionSymbol)?.isInlineOnly == true,
+                   let callableExpr = driver.ctx.localValue(for: functionSymbol)
+                {
+                    // This synthetic reference is the value of an anonymous
+                    // function whose non-local loop jump requires inlining.
+                    // Reuse the local function binding so callable-reference
+                    // reflection and escaping adapters cannot retain its
+                    // caller-owned jump marker after inline expansion.
+                    return callableExpr
+                }
                 return lowerExpr(
                     trailingExpr,
                     ast: ast,
