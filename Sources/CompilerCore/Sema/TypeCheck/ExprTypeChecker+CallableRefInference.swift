@@ -785,7 +785,7 @@ extension ExprTypeChecker {
                 // `resolveExtensionPropertyGetter` resolves a plain
                 // `receiver.length` read: scan scope-visible `.property`
                 // symbols for one whose recorded extension receiver type
-                // accepts `nonNullReceiver`.
+                // accepts the actual receiver type, including nullability.
                 if candidates.isEmpty, unboundClassType != nil {
                     let companionExtensions = companionExtensionCallableReferenceCandidates(
                         named: member,
@@ -807,7 +807,7 @@ extension ExprTypeChecker {
                             return false
                         }
                         return driver.callChecker.extensionSyntheticFallbackReceiverMatches(
-                            callSiteReceiver: nonNullReceiver,
+                            callSiteReceiver: effectiveReceiverType,
                             declaredReceiver: declaredReceiver,
                             sema: sema
                         )
@@ -821,7 +821,7 @@ extension ExprTypeChecker {
                             return false
                         }
                         return driver.callChecker.extensionSyntheticFallbackReceiverMatches(
-                            callSiteReceiver: nonNullReceiver,
+                            callSiteReceiver: effectiveReceiverType,
                             declaredReceiver: declaredReceiver,
                             sema: sema
                         )
@@ -870,7 +870,7 @@ extension ExprTypeChecker {
                         if unboundClassType != nil {
                             guard let resolution = resolveExtensionPropertyReferenceType(
                                 propertySymbol,
-                                receiverType: nonNullReceiver,
+                                receiverType: effectiveReceiverType,
                                 fallbackPropertyType: propertyType,
                                 sema: sema,
                                 interner: interner
@@ -901,7 +901,7 @@ extension ExprTypeChecker {
                         let resultType = bindPropertyCallableRef(
                             id,
                             propertySymbol: extensionPropertyReference.symbol,
-                            ownerType: unboundClassType != nil ? nonNullReceiver : nil,
+                            ownerType: unboundClassType != nil ? effectiveReceiverType : nil,
                             isUnbound: unboundClassType != nil,
                             expectedType: expectedType,
                             range: range,
