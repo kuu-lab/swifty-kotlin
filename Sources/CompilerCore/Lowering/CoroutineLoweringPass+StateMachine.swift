@@ -18,6 +18,7 @@ extension CoroutineLoweringPass {
         loweredSymbol: SymbolID,
         module: KIRModule,
         interner: StringInterner,
+        externalLinkName: (SymbolID) -> String?,
         suspendFunctionSymbols: Set<SymbolID>,
         suspendFunctionNames: Set<InternedString>,
         runtimeSuspendCallNames: Set<InternedString>,
@@ -282,15 +283,23 @@ extension CoroutineLoweringPass {
                         // a millis integer lower to the kk_kxmini_delay bridge.
                         // Duration calls keep their source callee so the bundled
                         // body delegates via `Duration.inWholeMilliseconds`.
+                        // A user suspend function may share the source name
+                        // `delay` without using the runtime bridge ABI. Check
+                        // the resolved external link name before treating it
+                        // as a kotlinx.coroutines delay call.
+                        let isRuntimeDelaySourceCall = suspendCallInfo.symbol.flatMap { symbol in
+                            externalLinkName(symbol)
+                        } == interner.resolve(runtimeDelayCallee)
                         let isMillisDelayCall: Bool = {
-                            guard suspendCallInfo.callee == sourceDelayCallee else {
+                            guard suspendCallInfo.callee == sourceDelayCallee,
+                                  isRuntimeDelaySourceCall
+                            else {
                                 return false
                             }
-                            guard let firstArg = suspendCallInfo.arguments.first,
-                                  let argType = module.arena.exprType(firstArg)
-                            else {
-                                return true
+                            guard let firstArg = suspendCallInfo.arguments.first else {
+                                return false
                             }
+                            guard let argType = module.arena.exprType(firstArg) else { return true }
                             return argType == longType || argType == intType
                         }()
                         loweredSuspendCallee = isMillisDelayCall ? runtimeDelayCallee : suspendCallInfo.callee
