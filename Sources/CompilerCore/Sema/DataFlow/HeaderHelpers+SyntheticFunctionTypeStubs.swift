@@ -133,7 +133,7 @@ extension DataFlowSemaPhase {
             interner: interner,
             isSuspend: true,
             isAbstract: true,
-            usesRuntimeInvokeBridge: false
+            usesRuntimeInvokeBridge: arity <= 6
         )
     }
 
@@ -261,7 +261,11 @@ extension DataFlowSemaPhase {
         )
         symbols.setParentSymbol(ownerSymbol, for: invokeSymbol)
         if usesRuntimeInvokeBridge {
-            let runtimeInvoke = arity == 1 ? "kk_function_invoke" : "kk_function_invoke_\(arity)"
+            let runtimeInvoke: String = if isSuspend {
+                arity == 1 ? "kk_suspend_function_invoke" : "kk_suspend_function_invoke_\(arity)"
+            } else {
+                arity == 1 ? "kk_function_invoke" : "kk_function_invoke_\(arity)"
+            }
             symbols.setExternalLinkName(runtimeInvoke, for: invokeSymbol)
         }
 
