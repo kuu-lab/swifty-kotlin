@@ -83,6 +83,34 @@ struct FunctionValueSamConversionTests {
         }
     }
 
+    @Test func intersectionBoundFunctionValuesAdaptToMatchingSam() throws {
+        let ctx = makeSamContext("""
+        fun interface KRunnable { fun invoke() }
+        fun interface KBoolean { fun invoke(b: Boolean) }
+        fun useFunInterface(fn: KRunnable) { fn.invoke() }
+        fun useFunInterfacePredicate(fn: KBoolean) { fn.invoke(true) }
+        fun <T> testIntersection(x: T) where T : () -> Unit, T : (Boolean) -> Unit {
+            useFunInterface(x)
+            useFunInterfacePredicate(x)
+        }
+        object Test : () -> Unit, (Boolean) -> Unit {
+            override fun invoke() {}
+            override fun invoke(p1: Boolean) {}
+        }
+        fun main() { testIntersection(Test) }
+        """)
+        try runSema(ctx)
+
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.isEmpty, "Each function-type bound must adapt to its matching SAM: \(errors)")
+        let sema = try #require(ctx.sema)
+        #expect(sema.bindings.samConversionExprs.count == 2)
+        for expr in sema.bindings.samConversionExprs {
+            #expect(sema.bindings.samInterfaceType(for: expr) != nil)
+            #expect(sema.bindings.samUnderlyingFunctionType(for: expr) != nil)
+        }
+    }
+
     @Test func suspendSamFunctionValuesPreserveReceiverAndContextShape() throws {
         let ctx = makeSamContext("""
         fun interface SuspendIntAction { suspend fun run(value: Int) }

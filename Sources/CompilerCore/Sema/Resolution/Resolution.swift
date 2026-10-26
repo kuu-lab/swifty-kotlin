@@ -1697,19 +1697,33 @@ extension OverloadResolver {
             let constraintParameterType: TypeID
             let constraintArgumentType: TypeID
             if !arg.isSpread,
-               case .functionType = typeSystem.kind(of: argType),
                let samFunction = TypeCheckHelpers().samFunctionType(for: paramType, sema: sema)
             {
-                constraintParameterType = typeSystem.withNullability(
+                let samFunctionType = typeSystem.withNullability(
                     typeSystem.nullability(of: paramType),
                     for: typeSystem.make(.functionType(samFunction))
                 )
-                // Function argument adaptations also apply when the target is
-                // represented by a SAM interface at this call site.
-                constraintArgumentType = typeSystem.functionArgumentConversionType(
-                    from: argType,
-                    to: constraintParameterType
-                ) ?? argType
+                let functionArgumentType: TypeID?
+                if case .functionType = typeSystem.kind(of: argType) {
+                    functionArgumentType = argType
+                } else {
+                    functionArgumentType = typeSystem.functionTypeWitness(
+                        from: argType,
+                        compatibleWith: samFunctionType
+                    )
+                }
+                if let functionArgumentType {
+                    constraintParameterType = samFunctionType
+                    // Function argument adaptations also apply when the target is
+                    // represented by a SAM interface at this call site.
+                    constraintArgumentType = typeSystem.functionArgumentConversionType(
+                        from: functionArgumentType,
+                        to: constraintParameterType
+                    ) ?? functionArgumentType
+                } else {
+                    constraintParameterType = paramType
+                    constraintArgumentType = argType
+                }
             } else {
                 constraintParameterType = paramType
                 constraintArgumentType = argType

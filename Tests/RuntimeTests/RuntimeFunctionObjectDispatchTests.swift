@@ -75,6 +75,25 @@ private func makeCallable(_ arity: Int, fnPtr: Int? = nil, payload: Int = 10) ->
     return object
 }
 
+private func makeCallableSupportingArities(_ arities: [Int], payload: Int = 10) -> Int {
+    let methods = [
+        unsafeBitCast(callable0, to: Int.self), unsafeBitCast(callable1, to: Int.self),
+        unsafeBitCast(callable2, to: Int.self), unsafeBitCast(callable3, to: Int.self),
+        unsafeBitCast(callable4, to: Int.self), unsafeBitCast(callable5, to: Int.self),
+        unsafeBitCast(callable6, to: Int.self),
+    ]
+    let object = kk_object_new(1, 0)
+    var thrown = 0
+    _ = kk_array_set(object, 0, payload, &thrown)
+    for (index, arity) in arities.enumerated() {
+        let slot = 3 + index
+        let typeID = runtimeStableNominalTypeID(fqName: "kotlin.Function.Function\(arity)")
+        _ = kk_object_register_itable_iface(object, Int(typeID), slot)
+        _ = kk_object_register_itable_method(object, slot, 0, methods[arity])
+    }
+    return object
+}
+
 private func invoke(_ arity: Int, _ function: Int, _ thrown: UnsafeMutablePointer<Int>) -> Int {
     switch arity {
     case 0: return kk_function_invoke_0(function, thrown)
@@ -110,6 +129,16 @@ struct RuntimeFunctionObjectDispatchTests {
         #expect(wrap(arity, object, &thrown) == object)
         #expect(kk_function_value_closure_raw(object) == object)
         #expect(kk_function_value_fn_ptr(object) != object)
+        #expect(thrown == 0)
+    }
+
+    @Test func dispatchesMultiArityFunctionObjectsByRequestedArity() {
+        let object = makeCallableSupportingArities([0, 1])
+        var thrown = 0
+        #expect(kk_unbox_int(kk_function_invoke_0(object, &thrown)) == 10)
+        #expect(thrown == 0)
+
+        #expect(kk_unbox_int(kk_function_invoke(object, kk_box_int(1), &thrown)) == 11)
         #expect(thrown == 0)
     }
 

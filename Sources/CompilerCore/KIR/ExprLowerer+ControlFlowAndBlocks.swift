@@ -13,8 +13,10 @@ extension ExprLowerer {
             propertyConstantInitializers: propertyConstantInitializers,
             instructions: &instructions
         )
+        let samFunctionType = sema.bindings.samUnderlyingFunctionType(for: exprID)
+            ?? sema.bindings.exprTypes[exprID]
         if sema.bindings.isSamConversion(exprID),
-           let type = sema.bindings.exprTypes[exprID],
+           let type = samFunctionType,
            case let .functionType(function) = sema.types.kind(of: type)
         {
             let loweredValueCanBeFunction: Bool = {
