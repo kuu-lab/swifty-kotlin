@@ -367,6 +367,13 @@ extension CallTypeChecker {
                 return callableInvocationScopePriority(property, named: calleeName, ctx: ctx) != priority
             }
         }
+        getterCandidates = preferMostSpecificMemberReceiverCandidates(
+            getterCandidates,
+            receiverType: resolvedBuilderInferenceType(receiverType, ctx: ctx),
+            sema: sema,
+            interner: ctx.interner
+        )
+        propertyForGetter = propertyForGetter.filter { getter, _ in getterCandidates.contains(getter) }
         if getterCandidates.count == 1,
            let getter = getterCandidates.first,
            let property = propertyForGetter[getter],
