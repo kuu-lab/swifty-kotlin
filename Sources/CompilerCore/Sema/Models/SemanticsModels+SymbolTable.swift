@@ -2,6 +2,17 @@
 import Foundation
 
 extension SymbolTable {
+    /// Anonymous function literals are represented by local functions. A
+    /// source label can replace the internal name, so literal semantics come
+    /// from either the retained internal name or the synthetic marker.
+    public func isAnonymousFunction(_ symbolID: SymbolID, interner: StringInterner) -> Bool {
+        guard let symbol = symbol(symbolID) else { return false }
+        return symbol.kind == .function
+            && symbol.flags.contains(.localFunction)
+            && (symbol.flags.contains(.synthetic)
+                || interner.resolve(symbol.name).hasPrefix("__AnonymousFunction_"))
+    }
+
     /// Whether `import <path>` contributes the declarations nested under that
     /// path to unqualified lookup. A path that resolves only to packages acts
     /// like a package import (the `import kotlin.collections` quirk), and a

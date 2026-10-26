@@ -2041,7 +2041,9 @@ extension LambdaLowerer {
             )
         }
         if refKind == .functionRef {
-            let anonymous = interner.resolve(memberName).hasPrefix("__AnonymousFunction_")
+            let anonymous = targetSymbol.map {
+                sema.symbols.isAnonymousFunction($0, interner: interner)
+            } ?? false
             emitFunctionDescription(
                 value: taggedExpr,
                 description: anonymous ? "kotlin.Function\(arity)" : functionReferenceDescription(

@@ -679,6 +679,7 @@ extension LocalDeclTypeChecker {
         name: InternedString,
         typeParams: [TypeParamDecl] = [],
         contextReceivers: [ContextReceiverDecl] = [],
+        isAnonymousFunction: Bool = false,
         receiverTypeRef: TypeRefID? = nil,
         valueParams: [ValueParamDecl],
         returnTypeRef: TypeRefID?,
@@ -862,6 +863,9 @@ extension LocalDeclTypeChecker {
         }
 
         var functionFlags: SymbolFlags = [.localFunction]
+        if isAnonymousFunction, !interner.resolve(name).hasPrefix("__AnonymousFunction_") {
+            functionFlags.insert(.synthetic)
+        }
         if ast.arena.isInfixFunction(id) { functionFlags.insert(.infixFunction) }
         if ast.arena.isOperatorFunction(id) { functionFlags.insert(.operatorFunction) }
         if isSuspend {
