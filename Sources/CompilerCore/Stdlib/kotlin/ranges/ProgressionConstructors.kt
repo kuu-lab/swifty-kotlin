@@ -161,6 +161,7 @@ public operator infix fun Long.downTo(to: Short): LongProgression = LongProgress
 public operator infix fun Long.downTo(to: Int): LongProgression = LongProgression.fromClosedRange(this, to.toLong(), -1)
 public operator infix fun Long.downTo(to: Long): LongProgression = LongProgression.fromClosedRange(this, to, -1)
 
+public operator fun Char.rangeTo(to: Char): CharRange = CharRange(this, to)
 public infix fun Char.until(to: Char): CharRange = __rangeUntil(this, to)
 public operator infix fun Char.rangeUntil(to: Char): CharRange = __rangeUntil(this, to)
 public operator infix fun Char.downTo(to: Char): CharProgression = CharProgression.fromClosedRange(this, to, -1)
