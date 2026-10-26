@@ -75,5 +75,35 @@ struct ListSumOfSelectorTypeTests {
             #expect(signature.returnType == expectedReturn)
         }
     }
+
+    @Test
+    func scopeFunctionInsideExplicitSumOfLambdaParameterResolves() throws {
+        let source = """
+        fun main() {
+            val values = listOf(1, 2)
+            println(values.sumOf { x -> run { x } })
+        }
+        """
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let errorCodes = ctx.diagnostics.diagnostics
+            .filter { $0.severity == .error }
+            .map(\.code)
+        #expect(
+            errorCodes.isEmpty,
+            "Expected `run` inside the `sumOf` selector to resolve, got diagnostics \(errorCodes)"
+        )
+
+        guard errorCodes.isEmpty else { return }
+        let sumOfCalls = memberCallExprIDs(named: "sumOf", in: ast, interner: ctx.interner)
+            .filter { isUserSourceExpr($0, in: ctx) }
+        let sumOfCall = try #require(sumOfCalls.first)
+        let binding = try #require(sema.bindings.callBinding(for: sumOfCall))
+        let signature = try #require(sema.symbols.functionSignature(for: binding.chosenCallee))
+        #expect(signature.returnType == sema.types.intType)
+    }
 }
 #endif
