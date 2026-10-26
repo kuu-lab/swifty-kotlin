@@ -398,6 +398,7 @@ extension ABILoweringPass {
         module: KIRModule,
         types: TypeSystem?,
         symbols: SymbolTable?,
+        rawValueReturningCallees: Set<InternedString> = [],
         boxedReturnCallees: Set<InternedString> = []
     ) -> (classSymbol: SymbolID, boxing: Bool, returnType: TypeID)? {
         guard !boxedReturnCallees.contains(callee) else { return nil }
@@ -410,6 +411,9 @@ extension ABILoweringPass {
         }
         if returnType == nil {
             returnType = signatureByName[callee]?.returnType
+        }
+        if returnType == nil, rawValueReturningCallees.contains(callee) {
+            returnType = types.anyType
         }
         guard let returnType else { return nil }
         let rawReturnKind = types.kind(of: returnType)
@@ -455,6 +459,13 @@ extension ABILoweringPass {
             types: types, symbols: symbols, interner: interner,
             arena: module.arena, into: &newBody
         )
+        if nullableUnderlyingValueClassSymbol(
+            of: module.arena.exprType(to).map { types.kind(of: $0) },
+            types: types,
+            symbols: symbols
+        ) == conversion.classSymbol {
+            module.markRawValueClassPayload(to)
+        }
     }
 
     private func inferFunctionTypeParameter(

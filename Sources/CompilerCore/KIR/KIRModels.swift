@@ -492,22 +492,22 @@ public final class KIRModule {
     package var inlineBodiesBeforeCoroutineLowering: [SymbolID: [KIRInstruction]] = [:]
     package var inlineBodiesBeforeFinallyLowering: [SymbolID: [KIRInstruction]] = [:]
 
-    /// Copy targets that hold the raw underlying payload read from a non-null
-    /// nullable-representation value class. ABI lowering must preserve these
-    /// copies instead of treating them as `V` -> `Any` boxing boundaries.
-    private let rawValueClassPayloadCopyTargetsLock = NSLock()
-    private var rawValueClassPayloadCopyTargets: Set<KIRExprID> = []
+    /// Expressions known to hold a raw nullable-representation value-class
+    /// payload. ABI lowering and payload reads must preserve this state instead
+    /// of treating the value as a nominal `V` box.
+    private let rawValueClassPayloadsLock = NSLock()
+    private var rawValueClassPayloads: Set<KIRExprID> = []
 
-    func markRawValueClassPayloadCopyTarget(_ expression: KIRExprID) {
-        rawValueClassPayloadCopyTargetsLock.lock()
-        defer { rawValueClassPayloadCopyTargetsLock.unlock() }
-        rawValueClassPayloadCopyTargets.insert(expression)
+    func markRawValueClassPayload(_ expression: KIRExprID) {
+        rawValueClassPayloadsLock.lock()
+        defer { rawValueClassPayloadsLock.unlock() }
+        rawValueClassPayloads.insert(expression)
     }
 
-    func isRawValueClassPayloadCopyTarget(_ expression: KIRExprID) -> Bool {
-        rawValueClassPayloadCopyTargetsLock.lock()
-        defer { rawValueClassPayloadCopyTargetsLock.unlock() }
-        return rawValueClassPayloadCopyTargets.contains(expression)
+    func isRawValueClassPayload(_ expression: KIRExprID) -> Bool {
+        rawValueClassPayloadsLock.lock()
+        defer { rawValueClassPayloadsLock.unlock() }
+        return rawValueClassPayloads.contains(expression)
     }
 
     /// Callee names with a proven non-throwing contract. Closure conversion must

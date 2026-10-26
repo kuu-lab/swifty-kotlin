@@ -334,6 +334,7 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                         module: module,
                         types: types,
                         symbols: symbols,
+                        rawValueReturningCallees: typeCheckValueCallees,
                         boxedReturnCallees: unboxSkipCallees
                     )
                     if let vcResultConversion, let vcResult, let types, let symbols {
@@ -452,7 +453,7 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                 }
 
                 if case let .copy(_, to) = instruction,
-                   module.isRawValueClassPayloadCopyTarget(to)
+                   module.isRawValueClassPayload(to)
                 {
                     newBody.append(instruction)
                     idx += 1
@@ -1071,6 +1072,7 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                     module: module,
                     types: types,
                     symbols: symbols,
+                    rawValueReturningCallees: typeCheckValueCallees,
                     boxedReturnCallees: unboxSkipCallees
                 )
 
