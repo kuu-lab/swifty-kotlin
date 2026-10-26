@@ -71,4 +71,18 @@ struct GenericErasedLambdaArgExecutionTests {
             allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
         )
     }
+
+    /// KUU-3345: an unchecked `Any as T` cast must retain the String handle
+    /// representation when the value is passed to a generic function value.
+    @Test(arguments: [true, false])
+    func genericUncheckedCastThroughLambda(allowDefaultStdlibLibrary: Bool) throws {
+        TestStdlibCache.shared.prepare()
+        let source = try diffCaseSource("generic_lambda_bridge_cast.kt", file: #filePath)
+        try compileAndRunKotlin(
+            source,
+            expectedOutput: "xOK\n",
+            moduleName: "KUU3345GenericLambdaBridgeCast",
+            allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
+        )
+    }
 }
