@@ -561,9 +561,33 @@ final class ValueClassUnboxingPass: LoweringPass, ParallelLoweringPass {
                             result.append(instruction)
                             resultLocations.append(location)
                         }
-                        // arguments[0] is the allocated receiver, arguments[1] is the value
-                        result.append(.copy(from: arguments[1], to: callResult))
-                        resultLocations.append(location)
+                        // A value-class constructor stores its argument as
+                        // the underlying payload. If that payload is itself
+                        // a nullable-representation value class crossing an
+                        // erased/reference field boundary, retain its nominal
+                        // identity inside the new value class.
+                        let sourceKind = arena.exprType(arguments[1]).map { types.kind(of: $0) }
+                        let underlyingType = symbols.parentSymbol(for: ctorSymbol)
+                            .flatMap { symbols.effectiveValueClassUnderlyingType(for: $0) }
+                        if let sourceClassSymbol = nullableUnderlyingValueClassSymbol(
+                            of: sourceKind, types: types, symbols: symbols
+                        ), let underlyingType,
+                           valueClassBoxTargetIsBoxed(types.kind(of: underlyingType), symbols: symbols)
+                        {
+                            var payloadBoxInstructions: [KIRInstruction] = []
+                            emitValueClassBoxCall(
+                                value: arguments[1], classSymbol: sourceClassSymbol,
+                                result: callResult, resultType: arena.exprType(callResult),
+                                types: types, symbols: symbols, interner: interner,
+                                arena: arena, into: &payloadBoxInstructions
+                            )
+                            result.append(contentsOf: payloadBoxInstructions)
+                            resultLocations.append(contentsOf: repeatElement(location, count: payloadBoxInstructions.count))
+                            module.markRawValueClassPayload(callResult)
+                        } else {
+                            result.append(.copy(from: arguments[1], to: callResult))
+                            resultLocations.append(location)
+                        }
                         continue
                     } else if arguments.count == 1,
                               allocExprs.contains(arguments[0]),
@@ -647,9 +671,11 @@ final class ValueClassUnboxingPass: LoweringPass, ParallelLoweringPass {
                         // underlying type visible to ABI lowering: a plain
                         // copy from the value-class-typed receiver would look
                         // like V -> Any and re-box the payload as V.
-                        let classID = RuntimeTypeCheckToken.stableNominalTypeID(
-                            symbol: classSymbol, symbols: symbols, interner: interner
-                        )
+                        let classID = module.isRawValueClassPayload(arguments[0])
+                            ? 0
+                            : RuntimeTypeCheckToken.stableNominalTypeID(
+                                symbol: classSymbol, symbols: symbols, interner: interner
+                            )
                         let classIDExpr = arena.appendExpr(
                             .intLiteral(classID), type: types.intType
                         )
@@ -684,7 +710,7 @@ final class ValueClassUnboxingPass: LoweringPass, ParallelLoweringPass {
                            symbols.effectiveValueClassUnderlyingType(for: classSymbol)
                                == arena.exprType(callResult)
                         {
-                            module.markRawValueClassPayloadCopyTarget(callResult)
+                            module.markRawValueClassPayload(callResult)
                         }
                         result.append(.copy(from: arguments[0], to: callResult))
                     }
