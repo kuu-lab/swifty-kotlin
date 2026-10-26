@@ -11,6 +11,55 @@ struct MutableLocalAssignmentFlowRefinementTests {
         return makeContextFromSource(source, allowDefaultStdlibLibrary: true)
     }
 
+    @Test func inferredMutableLocalKeepsTheDeclaredTypeOfASmartCastInitializer() throws {
+        let ctx = try context("""
+        open class PsiElement { open val parent: PsiElement get() = this }
+        class Child(override val parent: PsiElement) : PsiElement()
+        fun widen(element: PsiElement) {
+            if (element is Child) {
+                var parent = element
+                parent = parent.parent
+            }
+        }
+        """)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "got: \(ctx.diagnostics.diagnostics)")
+    }
+
+    @Test func inferredMutableLocalRetainsExplicitAndPreSmartCastControls() throws {
+        let ctx = try context("""
+        open class PsiElement { open val parent: PsiElement get() = this }
+        class Child(override val parent: PsiElement) : PsiElement()
+        fun explicit(element: PsiElement) {
+            if (element is Child) {
+                var parent: PsiElement = element
+                parent = parent.parent
+            }
+        }
+        fun initializedBeforeSmartCast(element: PsiElement) {
+            var parent = element
+            if (element is Child) parent = parent.parent
+        }
+        """)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "got: \(ctx.diagnostics.diagnostics)")
+    }
+
+    @Test func explicitNarrowMutableLocalStillRejectsParentTypeReassignment() throws {
+        let ctx = try context("""
+        open class PsiElement { open val parent: PsiElement get() = this }
+        class Child(override val parent: PsiElement) : PsiElement()
+        fun reject(element: PsiElement) {
+            if (element is Child) {
+                var parent: Child = element
+                parent = element.parent
+            }
+        }
+        """)
+        try runSema(ctx)
+        #expect(ctx.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-TYPE-0001" })
+    }
+
     @Test func refinesComparableLocalFromArrayElementInsideBranch() throws {
         let ctx = try context("""
         fun <T : Comparable<T>> swapIfNeeded(array: Array<T>) {
