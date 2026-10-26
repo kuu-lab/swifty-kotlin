@@ -11,6 +11,10 @@ import kotlin.internal.KsSymbolName
 
 public interface KFunction<out R> : KCallable<R>, Function<R>
 
+// KFunction1 is synthesized by the Kotlin compiler alongside function types.
+// Declare its arity-specific shape so imports and inherited function/reflection
+// supertypes resolve in this bundled source as well.
+public interface KFunction1<in P1, out R> : KFunction<R>, (P1) -> R
 // KUU-1357: the KFunction modifier flags are extension properties here for the
 // same reason the KClass surface uses extensions — runtime-backed handles
 // dispatch through the `__kk_kfunction_*` bridges rather than an interface

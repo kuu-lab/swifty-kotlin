@@ -345,6 +345,18 @@ extension TypeSystem {
                 if isSubtype(reflectiveType, supertype) {
                     return true
                 }
+                let arity = (leftFunction.receiver.map { [$0] } ?? []).count + leftFunction.params.count
+                if let inheritedFunction = inheritedFunctionInterfaceClassType(
+                    of: rightClass,
+                    arity: arity,
+                    isSuspend: false
+                ), isSubtype(makeNonNullable(make(.classType(rightClass))), reflectiveType),
+                   functionTypeSubtypeOfFunctionN(leftFunction, inheritedFunction)
+                {
+                    // KFunctionN interfaces expose both the reflective KFunction
+                    // contract and their matching FunctionN invocation shape.
+                    return true
+                }
             }
             // Only callable references implement the reflective KFunction interface.
             guard rightClass.classSymbol == functionInterfaceSymbol
@@ -1384,8 +1396,37 @@ extension TypeSystem {
             return nil
         }
         let isSuspend = suspendFunctionNArity(of: classType.classSymbol) != nil
-        guard let arity = functionInterfaceArity(of: classType.classSymbol, isSuspend: isSuspend),
-              classType.args.count == arity + 1 else { return nil }
+        if let arity = functionInterfaceArity(of: classType.classSymbol, isSuspend: isSuspend),
+           classType.args.count == arity + 1
+        {
+            return nominalFunctionType(for: classType, arity: arity, isSuspend: isSuspend)
+        }
+        // KFunctionN declares both KFunction<R> and FunctionN<P..., R> as
+        // direct supertypes. Keep the callable view for those reflective types
+        // without walking unrelated nominal type hierarchies on every lookup.
+        guard let kFunctionInterfaceSymbol,
+              directNominalSupertypes(for: classType.classSymbol).contains(kFunctionInterfaceSymbol),
+              let inheritedFunction = directNominalSupertypes(for: classType.classSymbol).first(where: {
+                  functionInterfaceArity(of: $0, isSuspend: false) != nil
+              }),
+              let arity = functionInterfaceArity(of: inheritedFunction, isSuspend: false),
+              let arguments = liftedNominalSupertypeArgs(from: classType, to: inheritedFunction)
+        else {
+            return nil
+        }
+        let inheritedType = self.classType(
+            for: inheritedFunction,
+            arguments: arguments,
+            nullability: classType.nullability
+        )
+        return nominalFunctionType(for: inheritedType, arity: arity, isSuspend: false)
+    }
+
+    private func nominalFunctionType(
+        for classType: ClassType,
+        arity: Int,
+        isSuspend: Bool
+    ) -> FunctionType? {
         let projectedArguments = substitutingCovariantStarUpperBounds(
             classType.args,
             for: classType.classSymbol
