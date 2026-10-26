@@ -66,7 +66,47 @@ struct CallableReferenceParsingTests {
         #expect(restored.typeRef(typeRef) == arena.typeRef(typeRef))
     }
 
-    @Test(arguments: ["a < b", "a > b", "a < b && c > d", "Box<String>()::echo", "box::echo"])
+    @Test
+    func explicitFunctionTypeReceiverIsPreserved() throws {
+        let source = "(Int.() -> String)::baz"
+        let lexed = lex(source)
+        let arena = ASTArena()
+        let parser = BuildASTPhase.ExpressionParser(
+            tokens: lexed.tokens.dropLast(),
+            interner: lexed.interner,
+            astArena: arena,
+            diagnostics: lexed.diagnostics
+        )
+        let exprID = try #require(parser.parse())
+        guard case let .callableRef(receiver, member, range) = arena.expr(exprID) else {
+            Issue.record("Expected a callable reference to the function type.")
+            return
+        }
+
+        #expect(receiver == nil)
+        #expect(member == lexed.interner.intern("baz"))
+        #expect(range.start.offset == 0)
+        #expect(range.end.offset == source.utf8.count)
+        #expect(parser.current() == nil)
+        #expect(lexed.diagnostics.diagnostics.isEmpty)
+        let typeRef = try #require(arena.callableRefReceiverTypeRef(for: exprID))
+        guard case let .functionType(_, receiverType?, params, returnType, _, nullable) = arena.typeRef(typeRef) else {
+            Issue.record("Expected the function receiver type to be retained by the callable reference.")
+            return
+        }
+        #expect(params.isEmpty)
+        #expect(!nullable)
+        guard case let .named(receiverPath, _, _) = arena.typeRef(receiverType),
+              case let .named(returnPath, _, _) = arena.typeRef(returnType)
+        else {
+            Issue.record("Expected named types inside the receiver function type.")
+            return
+        }
+        #expect(receiverPath.last == lexed.interner.intern("Int"))
+        #expect(returnPath.last == lexed.interner.intern("String"))
+    }
+
+    @Test(arguments: ["a < b", "a > b", "a < b && c > d", "Box<String>()::echo", "box::echo", "(box)::echo"])
     func ordinaryExpressionsDoNotAcquireTypeReceivers(_ source: String) throws {
         let lexed = lex(source)
         let arena = ASTArena()
