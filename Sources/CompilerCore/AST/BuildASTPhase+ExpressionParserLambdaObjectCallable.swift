@@ -402,42 +402,34 @@ extension BuildASTPhase.ExpressionParser {
 
     private func parseDestructuringNames(from innerTokens: [Token]) -> [InternedString?] {
         var names: [InternedString?] = []
-        var idx = 0
-        while idx < innerTokens.count {
-            let token = innerTokens[idx]
-            switch token.kind {
-            case .symbol(.comma):
-                idx += 1
-                continue
-            case let kind where kind.isLabelName:
-                guard let name = tokenText( token) else {
-                    idx += 1
-                    continue
-                }
-                let nameStr = interner.resolve(name)
-                names.append(nameStr == "_" ? nil : name)
-                idx += 1
-            default:
-                idx = skipTypeAnnotationIfPresent(innerTokens, from: idx)
+        var depth = BuildASTPhase.BracketDepth()
+        var entryStart = innerTokens.startIndex
+        for index in innerTokens.indices {
+            if innerTokens[index].kind == .symbol(.comma), depth.isAtTopLevel {
+                appendDestructuringName(in: innerTokens[entryStart ..< index], to: &names)
+                entryStart = index + 1
             }
+            depth.track(innerTokens[index].kind)
         }
+        appendDestructuringName(in: innerTokens[entryStart...], to: &names)
         return names
     }
 
-    private func skipTypeAnnotationIfPresent(_ tokens: [Token], from startIdx: Int) -> Int {
-        var idx = startIdx
-        guard idx < tokens.count, tokens[idx].kind == .symbol(.colon) else {
-            return idx + 1
+    private func appendDestructuringName(
+        in entry: ArraySlice<Token>,
+        to names: inout [InternedString?]
+    ) {
+        guard !entry.isEmpty else { return }
+        var firstIndex = entry.startIndex
+        if entry[firstIndex].kind == .keyword(.val) || entry[firstIndex].kind == .keyword(.var) {
+            firstIndex = entry.index(after: firstIndex)
         }
-        idx += 1
-        var typeDepth = BuildASTPhase.BracketDepth()
-        while idx < tokens.count {
-            let current = tokens[idx]
-            if typeDepth.isAtTopLevel, current.kind == .symbol(.comma) { break }
-            typeDepth.track(current.kind)
-            idx += 1
+        guard firstIndex < entry.endIndex,
+              let name = tokenText(entry[firstIndex])
+        else {
+            return
         }
-        return idx
+        names.append(interner.resolve(name) == "_" ? nil : name)
     }
 
     private func wrapLambdaDestructuring(
@@ -579,22 +571,66 @@ extension BuildASTPhase.ExpressionParser {
         guard !inner.isEmpty else { return false }
         var depth = BuildASTPhase.BracketDepth()
         var entryStart = inner.startIndex
+        var entryCount = 0
+        var fullFormEntryCount = 0
         for idx in inner.indices {
             if inner[idx].kind == .symbol(.comma), depth.isAtTopLevel {
-                guard isDestructuringEntry(inner[entryStart..<idx]) else { return false }
+                let entry = inner[entryStart ..< idx]
+                guard isDestructuringEntry(entry) else { return false }
+                entryCount += 1
+                if entry.first?.kind == .keyword(.val) || entry.first?.kind == .keyword(.var) {
+                    fullFormEntryCount += 1
+                }
                 entryStart = idx + 1
             }
             depth.track(inner[idx].kind)
         }
         // Kotlin permits a trailing comma after the last component.
-        return entryStart == inner.endIndex || isDestructuringEntry(inner[entryStart...])
+        if entryStart < inner.endIndex {
+            let entry = inner[entryStart...]
+            guard isDestructuringEntry(entry) else { return false }
+            entryCount += 1
+            if entry.first?.kind == .keyword(.val) || entry.first?.kind == .keyword(.var) {
+                fullFormEntryCount += 1
+            }
+        }
+        return fullFormEntryCount == 0 || fullFormEntryCount == entryCount
     }
 
     private func isDestructuringEntry(_ entry: ArraySlice<Token>) -> Bool {
-        guard let first = entry.first, tokenText(first) != nil else { return false }
+        guard let first = entry.first else { return false }
+        let isFullForm = first.kind == .keyword(.val) || first.kind == .keyword(.var)
+        let declaration = isFullForm ? entry.dropFirst() : entry
+        guard let declarationName = declaration.first,
+              tokenText(declarationName) != nil
+        else {
+            return false
+        }
+
+        var depth = BuildASTPhase.BracketDepth()
+        var assignmentIndex: Int?
+        for index in declaration.indices.dropFirst() {
+            if declaration[index].kind == .symbol(.assign), depth.isAtTopLevel {
+                assignmentIndex = index
+                break
+            }
+            depth.track(declaration[index].kind)
+        }
+        if let assignmentIndex {
+            guard isFullForm,
+                  isWellFormedLambdaParamSegment(declaration[declaration.startIndex ..< assignmentIndex])
+            else {
+                return false
+            }
+            let property = declaration.index(after: assignmentIndex)
+            return property < declaration.endIndex
+                && declaration.index(after: property) == declaration.endIndex
+                && tokenText(declaration[property]) != nil
+        }
+
         // Component annotations use the same name/type grammar as plain
         // parameters; reject expressions and incompletely parsed types.
-        return isWellFormedLambdaParamSegment(entry)
+        return isWellFormedLambdaParamSegment(declaration)
     }
 
 }

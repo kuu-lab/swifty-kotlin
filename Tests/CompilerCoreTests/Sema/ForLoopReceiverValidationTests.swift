@@ -274,6 +274,60 @@ struct ForLoopReceiverValidationTests {
     }
 
     @Test
+    func nameBasedFullFormDestructuringBindsLocalForAndLambdaEntries() throws {
+        let source = """
+        class Tuple(val first: String, val second: Int)
+        class Cursor(val value: Tuple) {
+            operator fun hasNext(): Boolean = false
+            operator fun next(): Tuple = value
+        }
+        class Values(val value: Tuple) {
+            operator fun iterator(): Cursor = Cursor(value)
+        }
+
+        fun localDeclarations(x: Tuple): Boolean {
+            (val a = first, val b = second) = x
+            if (a != "OK" || b != 1) return false
+
+            (val second) = x
+            if (second != 1) return false
+
+            (val second: Int, val first: String) = x
+            if (first != "OK" || second != 1) return false
+
+            (var first, var second) = x
+            first = "KO"
+            second = 2
+            return first == "KO" && second == 2
+        }
+
+        fun forLoop(x: Tuple): Boolean {
+            for ((val first, val second) in Values(x)) {
+                if (first != "OK" || second != 1) return false
+            }
+            return true
+        }
+
+        fun lambdaParameter(x: Tuple): Boolean {
+            val check: (Tuple) -> Boolean = { (val first, val second) ->
+                first == "OK" && second == 1
+            }
+            return check(x)
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(
+                inputs: [path],
+                frontendFlags: ["name-based-destructuring=complete"],
+                includeStdlib: false
+            )
+            try runSema(ctx)
+            let sourceDiagnostics = diagnosticsForPath(path, in: ctx)
+            #expect(!sourceDiagnostics.hasError, "\(sourceDiagnostics)")
+        }
+    }
+
+    @Test
     func nameBasedForLoopDestructuringResolvesExplicitPropertyAliases() throws {
         let source = """
         class Tuple(val first: Int, val second: Int)
