@@ -7,6 +7,102 @@ import TestStdlibCache
 
 extension StdlibArtifactRegressionTests {
 
+    @Test
+    func testSuspendFunInterfaceBoundReferenceCreatesSuspendVirtualThunk() throws {
+        let source = """
+        fun interface SuspendRunnable { suspend fun invoke() }
+
+        fun main() {
+            val runnable = SuspendRunnable { }
+            val block: suspend () -> Unit = runnable::invoke
+        }
+        """
+        try withTemporaryFile(contents: source) { userPath in
+            let options = CompilerOptions(
+                moduleName: "SuspendFunInterfaceBoundReferenceKIR",
+                inputs: [userPath],
+                outputPath: FileManager.default.temporaryDirectory
+                    .appendingPathComponent(UUID().uuidString).path,
+                emit: .kirDump,
+                target: TargetTriple.hostDefault(),
+                includeStdlib: false,
+                allowDefaultStdlibLibrary: false
+            )
+            let ctx = CompilationContext(
+                options: options,
+                sourceManager: SourceManager(),
+                diagnostics: DiagnosticEngine(),
+                interner: StringInterner()
+            )
+            try runToKIR(ctx)
+            try #require(!ctx.diagnostics.hasError, "Unexpected diagnostics: \(ctx.diagnostics.diagnostics)")
+
+            let module = try #require(ctx.kir)
+            let hasSuspendDispatchThunk = module.arena.declarations.contains { declaration in
+                guard case let .function(function) = declaration,
+                      function.isSuspend,
+                      ctx.interner.resolve(function.name) == "invoke"
+                else {
+                    return false
+                }
+                return function.body.contains { instruction in
+                    if case .virtualCall = instruction { return true }
+                    return false
+                }
+            }
+            #expect(hasSuspendDispatchThunk)
+        }
+    }
+
+    /// A bound suspend reference to a fun-interface method must keep virtual dispatch.
+    @Test
+    func testFunInterfaceSuspendInvokeBoundReferenceStartsCoroutine() throws {
+        let artifactPath = try testStdlibArtifactPath()
+        let source = """
+        import kotlin.coroutines.*
+
+        fun interface SuspendRunnable { suspend fun invoke() }
+
+        fun main() {
+            var result = ""
+            val runnable = SuspendRunnable { result = "OK" }
+            val direct: suspend () -> Unit = { runnable.invoke() }
+            val completion = Continuation<Unit>(EmptyCoroutineContext) { it.getOrThrow() }
+
+            direct.startCoroutine(completion)
+            println(result)
+
+            result = ""
+            runnable::invoke.startCoroutine(completion)
+            println(result)
+        }
+        """
+        try withTemporaryFile(contents: source) { userPath in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString).path
+            let ctx = makeCompilationContext(
+                inputs: [userPath],
+                moduleName: "FunInterfaceSuspendInvokeBoundReference",
+                emit: .executable,
+                outputPath: outputBase,
+                includeStdlib: false,
+                stdlibLibraryPath: artifactPath,
+                allowDefaultStdlibLibrary: false
+            )
+            try runToKIR(ctx)
+            try #require(!ctx.diagnostics.hasError, "Unexpected diagnostics: \(ctx.diagnostics.diagnostics)")
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            #expect(result.exitCode == 0, "stderr: \(result.stderr)")
+            #expect(
+                result.stdout.replacingOccurrences(of: "\r\n", with: "\n") == "OK\nOK\n"
+            )
+        }
+    }
+
     /// KUU-3405: a custom setter assignment must still run when it is the
     /// final statement of a suspend lambda after resuming from suspension.
     @Test
