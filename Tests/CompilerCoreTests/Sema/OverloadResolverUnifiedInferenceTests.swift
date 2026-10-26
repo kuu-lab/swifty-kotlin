@@ -1,6 +1,7 @@
 #if canImport(Testing)
 @testable import CompilerCore
 import Testing
+@testable import CompilerTestSupport
 
 extension OverloadResolverTests {
     // MARK: - Unified Generic Type Inference (P5-85 / P5-126)

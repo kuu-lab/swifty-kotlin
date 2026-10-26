@@ -1,6 +1,7 @@
 #if canImport(Testing)
 @testable import CompilerCore
 import Testing
+@testable import CompilerTestSupport
 
 /// KUU-961: A bare `::name` callable reference must not resolve to an
 /// extension function or extension property — kotlinc reports

@@ -1,6 +1,7 @@
 #if canImport(Testing)
 @testable import CompilerCore
 import Testing
+@testable import CompilerTestSupport
 
 /// KUU-564: `Result<Nothing>` must let `getOrElse` infer its fallback type.
 @Suite

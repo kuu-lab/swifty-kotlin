@@ -1,6 +1,7 @@
 #if canImport(Testing)
 @testable import CompilerCore
 import Testing
+@testable import CompilerTestSupport
 
 /// KUU-568 / KUU-654: String.replaceFirstChar keeps both Char and CharSequence transform overloads.
 @Suite

@@ -1,6 +1,7 @@
 @testable import CompilerCore
 import Foundation
 import Testing
+@testable import CompilerTestSupport
 
 // MARK: - STDLIB-REGEX-002: Regex sema resolution and KIR lowering
 //

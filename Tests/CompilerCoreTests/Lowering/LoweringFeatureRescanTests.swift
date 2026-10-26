@@ -1,6 +1,7 @@
 #if canImport(Testing)
 @testable import CompilerCore
 import Testing
+@testable import CompilerTestSupport
 
 // `LoweringPhase` takes a `KIRModule.scanFeatures()` snapshot before the pass
 // pipeline and several passes gate `shouldRun` on it. A pass that ran may have

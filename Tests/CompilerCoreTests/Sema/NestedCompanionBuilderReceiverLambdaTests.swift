@@ -2,6 +2,7 @@
 @testable import CompilerCore
 import Testing
 import TestStdlibCache
+@testable import CompilerTestSupport
 
 /// KUU-2398: member calls in a nested companion builder receiver lambda must
 /// resolve against the lambda's `Builder` receiver.

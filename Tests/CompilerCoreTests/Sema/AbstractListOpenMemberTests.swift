@@ -3,6 +3,7 @@
 import RuntimeABI
 import Testing
 import TestStdlibCache
+@testable import CompilerTestSupport
 
 @Suite
 struct AbstractListOpenMemberTests {

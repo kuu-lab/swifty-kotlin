@@ -1,6 +1,7 @@
 #if canImport(Testing)
 @testable import CompilerCore
 import Testing
+@testable import CompilerTestSupport
 
 // `.name`/`.ordinal` on an enum-typed receiver that isn't a literal entry
 // reference (`Direction.NORTH.name`) or constant-foldable local used to lower

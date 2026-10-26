@@ -1,6 +1,7 @@
 #if canImport(Testing)
 @testable import CompilerCore
 import Testing
+@testable import CompilerTestSupport
 
 /// STDLIB-REFLECT-067: Sema inference for KClass kind/modifier boolean members
 /// (`isData` / `isSealed` / `isValue`) on both a class-literal receiver and a

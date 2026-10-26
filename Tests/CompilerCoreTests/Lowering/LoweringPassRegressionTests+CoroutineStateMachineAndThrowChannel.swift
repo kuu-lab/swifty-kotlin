@@ -3,6 +3,7 @@
 import Foundation
 import RuntimeABI
 import Testing
+@testable import CompilerTestSupport
 
 extension LoweringPassRegressionTests {
     @Test

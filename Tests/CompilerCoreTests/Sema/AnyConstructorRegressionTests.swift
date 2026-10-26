@@ -2,6 +2,7 @@
 @testable import CompilerCore
 import Foundation
 import Testing
+@testable import CompilerTestSupport
 
 /// Regression coverage for KSP-805: implicit kotlin.Any must remain the
 /// nominal root without becoming an explicit `super()` delegation target.

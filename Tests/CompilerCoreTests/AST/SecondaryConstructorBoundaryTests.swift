@@ -1,6 +1,7 @@
 #if canImport(Testing)
 @testable import CompilerCore
 import Testing
+@testable import CompilerTestSupport
 
 // BUG-227: an annotated secondary constructor placed after a `;`-terminated
 // statement on the same physical line (e.g. `val y = 1; @Anno constructor() : this(0)`)

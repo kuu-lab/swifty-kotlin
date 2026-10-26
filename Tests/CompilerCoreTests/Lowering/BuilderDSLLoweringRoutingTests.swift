@@ -2,6 +2,7 @@
 @testable import CompilerCore
 import Foundation
 import Testing
+@testable import CompilerTestSupport
 
 /// RF-LOWER-CALL-001: pin the *production* routing of the `buildList` /
 /// `buildSet` / `buildMap` DSL before RF-LOWER-CALL-004〜006 delete the legacy

@@ -1,6 +1,7 @@
 #if canImport(Testing)
 @testable import CompilerCore
 import Testing
+@testable import CompilerTestSupport
 
 // KUU-2953: enum member state lives in per-entry ordinal slots behind the
 // `$enumConstructorProperty$` / `$enumPropertySetter$` helpers. The synthetic

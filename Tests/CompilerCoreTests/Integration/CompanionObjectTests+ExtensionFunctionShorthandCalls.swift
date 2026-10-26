@@ -2,6 +2,7 @@
 @testable import CompilerCore
 import Foundation
 import Testing
+@testable import CompilerTestSupport
 
 // MARK: - KSP-CAP-003: Companion-receiver extension function shorthand calls
 

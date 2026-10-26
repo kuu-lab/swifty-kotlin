@@ -1,6 +1,7 @@
 #if canImport(Testing)
 @testable import CompilerCore
 import Testing
+@testable import CompilerTestSupport
 
 extension BuildKIRRegressionTests {
     /// KSP-417 kept normalization and codePointCount as runtime bridges,

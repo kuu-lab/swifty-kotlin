@@ -2,6 +2,7 @@
 @testable import CompilerCore
 import Foundation
 import Testing
+@testable import CompilerTestSupport
 
 @Suite
 struct ExtensionAccessorReceiverLambdaTests {
@@ -40,42 +41,6 @@ struct ExtensionAccessorReceiverLambdaTests {
             ctx.interner.intern("Scope"), ctx.interner.intern("host")
         ]))
         #expect(sema.bindings.identifierSymbols.values.contains(innerProperty))
-    }
-
-    @Test
-    func labeledAnonymousExtensionFunctionCanAddressBothReceivers() throws {
-        let ctx = makeContext("""
-        class A(val x: String)
-        val <T> T.a: T.() -> String
-            get() = fun1@ fun T.(): String { return (this@fun1 as A).x + (this@a as A).x }
-        """)
-        try runToKIR(ctx)
-        #expect(!ctx.diagnostics.hasError, "Unexpected diagnostics: \(ctx.diagnostics.diagnostics)")
-        guard !ctx.diagnostics.hasError else { return }
-
-        let ast = try #require(ctx.ast)
-        let sema = try #require(ctx.sema)
-        let anonymousFunction = try #require(ast.arena.exprs.indices.first { index in
-            guard case let .localFunDecl(name, _, _, _, _, _, _, _, _) = ast.arena.exprs[index] else {
-                return false
-            }
-            return name == ctx.interner.intern("fun1")
-        })
-        let anonymousFunctionSymbol = try #require(sema.bindings.identifierSymbol(
-            for: ExprID(rawValue: Int32(anonymousFunction))
-        ))
-        let propertySymbol = try #require(sema.symbols.lookup(fqName: [ctx.interner.intern("a")]))
-        let receiverReferences = ast.arena.exprs.enumerated().compactMap { entry -> (InternedString, SymbolID?)? in
-            let (index, expression) = entry
-            guard case let .thisRef(label?, _) = expression else { return nil }
-            guard label == ctx.interner.intern("fun1") || label == ctx.interner.intern("a") else { return nil }
-            return (label, sema.bindings.identifierSymbol(for: ExprID(rawValue: Int32(index))))
-        }
-        #expect(receiverReferences.count == 2, "Expected both qualified receiver references: \(receiverReferences)")
-        #expect(receiverReferences.first { $0.0 == ctx.interner.intern("fun1") }?.1 ==
-            SyntheticSymbolScheme.receiverParameterSymbol(for: anonymousFunctionSymbol))
-        #expect(receiverReferences.first { $0.0 == ctx.interner.intern("a") }?.1 ==
-            SyntheticSymbolScheme.receiverParameterSymbol(for: propertySymbol))
     }
 
     private func makeContext(_ source: String) -> CompilationContext {

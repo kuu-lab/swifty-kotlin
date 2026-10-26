@@ -2,6 +2,7 @@
 @testable import CompilerCore
 import Foundation
 import Testing
+@testable import CompilerTestSupport
 
 extension LoweringABIAndPropertyRegressionTests {
     // MARK: - Raw Boolean Return Callees

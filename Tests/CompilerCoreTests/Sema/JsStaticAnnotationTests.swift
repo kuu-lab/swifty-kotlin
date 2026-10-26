@@ -1,6 +1,7 @@
 #if canImport(Testing)
     @testable import CompilerCore
     import Testing
+@testable import CompilerTestSupport
 
     struct JsStaticAnnotationTests {
         // These Sema checks and native calls do not verify Kotlin/JS static-member emission.

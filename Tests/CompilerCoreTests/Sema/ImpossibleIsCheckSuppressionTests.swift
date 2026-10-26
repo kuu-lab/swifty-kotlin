@@ -1,6 +1,7 @@
 #if canImport(Testing)
 @testable import CompilerCore
 import Testing
+@testable import CompilerTestSupport
 
 // KUU-3207: kotlinc reports an impossible `is` check as
 // IMPOSSIBLE_IS_CHECK_ERROR when the subject's declared type is incompatible

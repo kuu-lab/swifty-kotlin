@@ -1,6 +1,7 @@
 #if canImport(Testing)
 @testable import CompilerCore
 import Testing
+@testable import CompilerTestSupport
 
 // KUU-853 regression: a bare reference to a sibling extension property inside
 // another same-receiver extension body (`id` inside `label`'s getter, `label`

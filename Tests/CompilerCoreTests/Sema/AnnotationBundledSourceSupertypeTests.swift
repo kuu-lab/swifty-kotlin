@@ -1,6 +1,7 @@
 @testable import CompilerCore
 import Foundation
 import Testing
+@testable import CompilerTestSupport
 
 /// Regression coverage for KSP-719: the bundled `kotlin.Annotation` source
 /// reuses the synthetic `kotlin.Annotation` symbol, but `bindInheritanceEdges`

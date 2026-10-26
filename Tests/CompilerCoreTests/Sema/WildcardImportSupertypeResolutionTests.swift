@@ -1,6 +1,7 @@
 @testable import CompilerCore
 import Foundation
 import Testing
+@testable import CompilerTestSupport
 
 /// Regression coverage for a supertype-resolution gap: `bindInheritanceEdges`
 /// (Sources/CompilerCore/Sema/DataFlow/Inheritance.swift) resolved an

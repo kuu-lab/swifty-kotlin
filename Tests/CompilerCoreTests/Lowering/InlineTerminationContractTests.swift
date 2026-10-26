@@ -2,6 +2,7 @@
 @testable import CompilerCore
 import Foundation
 import Testing
+@testable import CompilerTestSupport
 
 /// Termination contracts for the inline pass (RF-LOWER-INLINE-010): calls
 /// to bodyless callees -- `isInlineOnly` declarations and imported inline

@@ -2,6 +2,7 @@
 @testable import CompilerCore
 import Foundation
 import Testing
+@testable import CompilerTestSupport
 
 /// KSP-1324: `kotlin.reflect.findAssociatedObject` is a bundled Kotlin
 /// source declaration (`Stdlib/kotlin/reflect/AssociatedObjects.kt`); the

@@ -2,6 +2,7 @@
 @testable import CompilerCore
 import Testing
 import Foundation
+@testable import CompilerTestSupport
 
 @Suite
 struct FunctionValueSamConversionTests {

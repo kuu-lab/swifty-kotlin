@@ -72,7 +72,7 @@ let package = Package(
         ),
         .target(
             name: "CompilerTestSupport",
-            dependencies: ["CompilerCore"],
+            dependencies: ["CompilerCore", "RuntimeABI"],
             path: "Sources/CompilerTestSupport"
         ),
         .target(

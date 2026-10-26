@@ -1,6 +1,7 @@
 #if canImport(Testing)
 @testable import CompilerCore
 import Testing
+@testable import CompilerTestSupport
 
 /// KSP-848: preserve the shared checked allocation and primitive-element store
 /// lowering for FloatArray constructors without adding a FloatArray-specific ABI.

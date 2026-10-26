@@ -1,6 +1,7 @@
 #if canImport(Testing)
 @testable import CompilerCore
 import Testing
+@testable import CompilerTestSupport
 
 /// Regression coverage for value parameters / primary-constructor properties
 /// whose name is literally a Kotlin modifier keyword (`inner`, `sealed`,

@@ -1,6 +1,7 @@
 #if canImport(Testing)
 @testable import CompilerCore
 import Testing
+@testable import CompilerTestSupport
 
 @Suite struct DelegatedCollectionArgumentInferenceTests {
     @Test(arguments: ["listOf(\"one\")", "listOf(\"one\", 2)", "emptyList()", "listOf<Any>(\"one\")"])

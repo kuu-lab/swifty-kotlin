@@ -1,6 +1,7 @@
 @testable import CompilerCore
 import Testing
 import TestStdlibCache
+@testable import CompilerTestSupport
 
 @Suite
 struct VarargCallArgumentResolutionTests {

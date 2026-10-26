@@ -1,6 +1,7 @@
 @testable import CompilerCore
 import Foundation
 import Testing
+@testable import CompilerTestSupport
 
 /// KUU-1432: every destination HOF takes exactly two arguments (destination +
 /// predicate/transform lambda). The collection fast path only handled the

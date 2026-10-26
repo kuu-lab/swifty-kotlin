@@ -1,6 +1,7 @@
 #if canImport(Testing)
 @testable import CompilerCore
 import Testing
+@testable import CompilerTestSupport
 
 /// KSP-652: `ClosedRange.endInclusive` reads on concrete ranges used to fall through the range
 /// property lowering (only the legacy `end` alias was mapped), so KIR emitted a call to a bare

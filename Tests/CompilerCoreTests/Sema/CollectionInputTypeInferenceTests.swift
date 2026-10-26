@@ -1,5 +1,6 @@
 @testable import CompilerCore
 import Testing
+@testable import CompilerTestSupport
 
 /// KUU-3452: collection receiver type arguments must not be widened by an
 /// incompatible search argument.

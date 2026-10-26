@@ -1,6 +1,7 @@
 #if canImport(Testing)
 @testable import CompilerCore
 import Testing
+@testable import CompilerTestSupport
 
 /// KSP-1274: `rewriteDelegateAccesses` injects the synthesized `get`/`set`
 /// accessor calls AFTER try bodies were already throw-wrapped by

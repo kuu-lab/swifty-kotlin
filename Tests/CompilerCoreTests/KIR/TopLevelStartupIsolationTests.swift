@@ -1,5 +1,6 @@
 @testable import CompilerCore
 import Testing
+@testable import CompilerTestSupport
 
 @Suite
 struct TopLevelStartupIsolationTests {

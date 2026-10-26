@@ -1,6 +1,7 @@
 #if canImport(Testing)
 @testable import CompilerCore
 import Testing
+@testable import CompilerTestSupport
 
 /// An `override` of an `operator fun` inherits the `operator` modifier even
 /// without repeating the keyword. Before `OverrideOperatorModifierInheritance`

@@ -2,6 +2,7 @@
 @testable import CompilerCore
 import Foundation
 import Testing
+@testable import CompilerTestSupport
 
 /// Regression tests for an empty type annotation after `:` (e.g. `val x: = 1`).
 /// kotlinc rejects these; previously the empty token list silently collapsed to

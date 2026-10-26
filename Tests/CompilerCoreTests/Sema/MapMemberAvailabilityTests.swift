@@ -1,6 +1,7 @@
 @testable import CompilerCore
 import Foundation
 import Testing
+@testable import CompilerTestSupport
 
 /// KUU-1362: `Map<K, V>` is not an `Iterable` in Kotlin. Iterable/Collection-only
 /// members must be rejected in Sema (unresolved member) instead of binding a

@@ -3,6 +3,7 @@
 import Foundation
 import RuntimeABI
 import Testing
+@testable import CompilerTestSupport
 
 /// RF-LOWER-CALL-008: pin the *symbol-based* preservation of the List
 /// transform/filter higher-order functions.

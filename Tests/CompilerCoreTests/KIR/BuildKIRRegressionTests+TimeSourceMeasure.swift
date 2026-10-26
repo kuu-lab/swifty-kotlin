@@ -1,6 +1,7 @@
 #if canImport(Testing)
 @testable import CompilerCore
 import Testing
+@testable import CompilerTestSupport
 
 extension BuildKIRRegressionTests {
     /// KSP-1475: TimeSource measurement APIs remain bundled Kotlin calls in user KIR.

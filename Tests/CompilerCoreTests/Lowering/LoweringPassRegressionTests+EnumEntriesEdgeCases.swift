@@ -2,6 +2,7 @@
 @testable import CompilerCore
 import Foundation
 import Testing
+@testable import CompilerTestSupport
 
 // STDLIB-023: kotlin.enums `entries` / `EnumEntries<T>` edge case coverage.
 extension LoweringPassRegressionTests {

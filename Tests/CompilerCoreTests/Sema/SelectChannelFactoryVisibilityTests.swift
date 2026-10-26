@@ -1,6 +1,7 @@
 @testable import CompilerCore
 import Testing
 import TestStdlibCache
+@testable import CompilerTestSupport
 
 /// KUU-1466: Channel factories require a channels import even inside a
 /// receiver lambda supplied to the bundled select DSL.

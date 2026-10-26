@@ -1,6 +1,7 @@
 @testable import CompilerCore
 import Testing
 import TestStdlibCache
+@testable import CompilerTestSupport
 
 /// KUU-1032: invisible wildcard imports must not shadow public default imports.
 @Suite

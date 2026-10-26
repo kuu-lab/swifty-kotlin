@@ -2,6 +2,7 @@
 @testable import CompilerCore
 import Foundation
 import Testing
+@testable import CompilerTestSupport
 
 /// KSP-1112: the canonical `kotlin.concurrent.atomics.AtomicInt(Int)`
 /// constructor is represented by a source-backed factory linked directly to

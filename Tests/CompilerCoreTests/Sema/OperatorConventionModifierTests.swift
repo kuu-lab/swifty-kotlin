@@ -1,6 +1,7 @@
 #if canImport(Testing)
 @testable import CompilerCore
 import Testing
+@testable import CompilerTestSupport
 
 /// kotlinc requires the `operator` modifier on functions used through
 /// operator syntax (`get`/`set`/`componentN`/`compareTo` conventions).

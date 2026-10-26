@@ -2,6 +2,7 @@
 @testable import CompilerCore
 import Foundation
 import Testing
+@testable import CompilerTestSupport
 
 /// Negative tests to ensure the array-erase heuristic (which previously typed
 /// collection HOF results as `Any`) is not reintroduced.
