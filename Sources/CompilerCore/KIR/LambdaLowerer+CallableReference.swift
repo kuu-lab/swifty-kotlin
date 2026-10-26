@@ -618,6 +618,22 @@ extension LambdaLowerer {
                 captureArguments.append(loweredReceiver)
             }
         } else if !isUnbound,
+                  isInnerConstructorTarget,
+                  let targetSymbol,
+                  let innerClass = sema.symbols.parentSymbol(for: targetSymbol),
+                  let outerClass = sema.symbols.parentSymbol(for: innerClass),
+                  let outerReceiver = captureValueExpr(
+                      for: outerClass,
+                      sema: sema,
+                      arena: arena,
+                      interner: interner,
+                      instructions: &instructions
+                  )
+        {
+            // A bare `::Inner` has no syntax receiver, but its constructor
+            // reference is still bound to the lexically enclosing instance.
+            captureArguments.append(outerReceiver)
+        } else if !isUnbound,
                   !isSingletonOwnedPropertyRef,
                   let receiverSymbol = sema.bindings.implicitReceiverOuterReceiver(for: exprID),
                   let receiverValue = captureValueExpr(
