@@ -245,7 +245,7 @@ final class WasmFunctionEmission {
         case let .uintLiteral(value), let .ulongLiteral(value):
             code.i64Const(Int64(bitPattern: value))
         case let .floatLiteral(value):
-            code.i64Const(Int64(UInt64(value.bitPattern)))
+            code.i64Const(Int64(Float(value).bitPattern))
         case let .doubleLiteral(value):
             code.i64Const(Int64(bitPattern: value.bitPattern))
         case let .charLiteral(value):

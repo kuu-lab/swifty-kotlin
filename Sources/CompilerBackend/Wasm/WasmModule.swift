@@ -91,6 +91,66 @@ enum WasmOpcode {
     static let i32WrapI64: UInt8 = 0xA7
     static let i64ExtendI32S: UInt8 = 0xAC
     static let i64ExtendI32U: UInt8 = 0xAD
+    // f32 comparisons / arithmetic.
+    static let f32Eq: UInt8 = 0x5B
+    static let f32Ne: UInt8 = 0x5C
+    static let f32Lt: UInt8 = 0x5D
+    static let f32Gt: UInt8 = 0x5E
+    static let f32Le: UInt8 = 0x5F
+    static let f32Ge: UInt8 = 0x60
+    static let f32Trunc: UInt8 = 0x8F
+    static let f32Ceil: UInt8 = 0x8D
+    static let f32Floor: UInt8 = 0x8E
+    static let f32Nearest: UInt8 = 0x90
+    static let f32Sqrt: UInt8 = 0x91
+    static let f32Add: UInt8 = 0x92
+    static let f32Sub: UInt8 = 0x93
+    static let f32Mul: UInt8 = 0x94
+    static let f32Div: UInt8 = 0x95
+    static let f32Min: UInt8 = 0x96
+    static let f32Max: UInt8 = 0x97
+    static let f32Copysign: UInt8 = 0x98
+    // f64 comparisons / arithmetic.
+    static let f64Eq: UInt8 = 0x61
+    static let f64Ne: UInt8 = 0x62
+    static let f64Lt: UInt8 = 0x63
+    static let f64Gt: UInt8 = 0x64
+    static let f64Le: UInt8 = 0x65
+    static let f64Ge: UInt8 = 0x66
+    static let f64Trunc: UInt8 = 0x9D
+    static let f64Ceil: UInt8 = 0x9B
+    static let f64Floor: UInt8 = 0x9C
+    static let f64Nearest: UInt8 = 0x9E
+    static let f64Sqrt: UInt8 = 0x9F
+    static let f64Add: UInt8 = 0xA0
+    static let f64Sub: UInt8 = 0xA1
+    static let f64Mul: UInt8 = 0xA2
+    static let f64Div: UInt8 = 0xA3
+    static let f64Min: UInt8 = 0xA4
+    static let f64Max: UInt8 = 0xA5
+    static let f64Copysign: UInt8 = 0xA6
+    // Numeric conversions.
+    static let f32ConvertI32S: UInt8 = 0xB2
+    static let f32ConvertI64S: UInt8 = 0xB4
+    static let f32DemoteF64: UInt8 = 0xB6
+    static let f64ConvertI32S: UInt8 = 0xB7
+    static let f64ConvertI64S: UInt8 = 0xB9
+    static let f64PromoteF32: UInt8 = 0xBB
+    static let i32ReinterpretF32: UInt8 = 0xBC
+    static let i64ReinterpretF64: UInt8 = 0xBD
+    static let f32ReinterpretI32: UInt8 = 0xBE
+    static let f64ReinterpretI64: UInt8 = 0xBF
+    /// trunc_sat family uses the 0xFC prefix + subopcode encoding; emit via
+    /// `WasmCode.truncSat(_:)`.
+    static let truncSatPrefix: UInt8 = 0xFC
+    static let i32TruncSatF32S: UInt64 = 0x00
+    static let i32TruncSatF32U: UInt64 = 0x01
+    static let i32TruncSatF64S: UInt64 = 0x02
+    static let i32TruncSatF64U: UInt64 = 0x03
+    static let i64TruncSatF32S: UInt64 = 0x04
+    static let i64TruncSatF32U: UInt64 = 0x05
+    static let i64TruncSatF64S: UInt64 = 0x06
+    static let i64TruncSatF64U: UInt64 = 0x07
     static let blockVoid: UInt8 = 0x40
 }
 
@@ -132,6 +192,8 @@ struct WasmCode {
     mutating func globalGet(_ index: Int) { op(WasmOpcode.globalGet); u(UInt64(index)) }
     mutating func globalSet(_ index: Int) { op(WasmOpcode.globalSet); u(UInt64(index)) }
     mutating func i64Const(_ value: Int64) { op(WasmOpcode.i64Const); s(value) }
+    /// trunc_sat family: 0xFC prefix followed by an unsigned subopcode.
+    mutating func truncSat(_ subopcode: UInt64) { op(WasmOpcode.truncSatPrefix); u(subopcode) }
     mutating func i32Const(_ value: Int32) { op(WasmOpcode.i32Const); s(Int64(value)) }
     mutating func call(_ index: Int) { op(WasmOpcode.call); u(UInt64(index)) }
     mutating func callIndirect(_ typeIndex: Int) {

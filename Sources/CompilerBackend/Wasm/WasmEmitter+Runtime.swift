@@ -35,6 +35,8 @@ enum WasmRuntimeHelpers {
     static func isInlineCallee(_ name: String) -> Bool {
         inlineCalleeNames.contains(name)
             || arithmeticOpcodes[name] != nil
+            || floatBinaryOpcodes[name] != nil
+            || floatRemOps.contains(name)
             || isBoxName(name)
             || isUnboxName(name)
     }
@@ -46,11 +48,19 @@ enum WasmRuntimeHelpers {
         emission: WasmFunctionEmission
     ) {
         if isBoxName(name) {
-            emitTaggedBox(code: &code, scratch: emission.scratchLocal)
+            if let helper = Self.boxHelperName(for: name) {
+                code.call(ctx.emittedHelperIndex(for: helper, argumentCount: 1))
+            }
             return
         }
         if isUnboxName(name) {
-            emitTaggedUnbox(code: &code, scratch: emission.scratchLocal)
+            if let helper = Self.unboxHelperName(for: name) {
+                code.call(ctx.emittedHelperIndex(for: helper, argumentCount: 1))
+            }
+            return
+        }
+        if floatBinaryOpcodes[name] != nil || floatRemOps.contains(name) {
+            emitFloatArithmetic(name: name, code: &code, scratch: emission.scratchLocal)
             return
         }
         if let opcode = arithmeticOpcodes[name] {
@@ -82,8 +92,170 @@ enum WasmRuntimeHelpers {
         }
     }
 
-    /// MVP representation is uniform raw i64 — boxing is the identity until
-    /// the tagged object model lands (M2).
+    /// Double/Float boxes are real heap objects (`{typeID@-16, bits@16}`) so
+    /// `is`/generic-element dispatch can read the nominal tag — every other
+    /// `kk_box_*` stays identity under the uniform raw-i64 model.
+    private static func boxHelperName(for name: String) -> String? {
+        switch name {
+        case "kk_box_double", "kk_box_double_static":
+            return "__kk_wasm_box_double_nullable"
+        case "kk_box_double_nonnull", "kk_box_double_nonnull_static":
+            return "__kk_wasm_box_double"
+        case "kk_box_float", "kk_box_float_static":
+            return "__kk_wasm_box_float"
+        default:
+            return nil
+        }
+    }
+
+    private static func unboxHelperName(for name: String) -> String? {
+        switch name {
+        case "kk_unbox_double", "kk_unbox_double_static",
+             "kk_unbox_double_nonnull", "kk_unbox_double_nonnull_static":
+            return "__kk_wasm_unbox_double"
+        case "kk_unbox_float", "kk_unbox_float_static":
+            return "__kk_wasm_unbox_float"
+        default:
+            return nil
+        }
+    }
+
+    /// f64 ops reinterpret the i64 payload; f32 ops use the low 32 bits.
+    /// Comparisons yield the i32 compare result extended to i64.
+    private static let floatBinaryOpcodes: [String: UInt8] = [
+        "kk_op_dadd": WasmOpcode.f64Add,
+        "kk_op_dsub": WasmOpcode.f64Sub,
+        "kk_op_dmul": WasmOpcode.f64Mul,
+        "kk_op_ddiv": WasmOpcode.f64Div,
+        "kk_op_deq": WasmOpcode.f64Eq,
+        "kk_op_dne": WasmOpcode.f64Ne,
+        "kk_op_dlt": WasmOpcode.f64Lt,
+        "kk_op_dle": WasmOpcode.f64Le,
+        "kk_op_dgt": WasmOpcode.f64Gt,
+        "kk_op_dge": WasmOpcode.f64Ge,
+        "kk_op_fadd": WasmOpcode.f32Add,
+        "kk_op_fsub": WasmOpcode.f32Sub,
+        "kk_op_fmul": WasmOpcode.f32Mul,
+        "kk_op_fdiv": WasmOpcode.f32Div,
+        "kk_op_feq": WasmOpcode.f32Eq,
+        "kk_op_fne": WasmOpcode.f32Ne,
+        "kk_op_flt": WasmOpcode.f32Lt,
+        "kk_op_fle": WasmOpcode.f32Le,
+        "kk_op_fgt": WasmOpcode.f32Gt,
+        "kk_op_fge": WasmOpcode.f32Ge,
+    ]
+
+    /// `a % b` (trunc remainder) and `a mod b` (floor mod) have no wasm
+    /// opcode — emitted as `a - b * trunc|floor(a / b)`.
+    private static let floatRemOps: Set<String> = [
+        "kk_op_dmod", "kk_op_dfloor_mod", "kk_op_fmod", "kk_op_ffloor_mod",
+    ]
+
+    private static func emitFloatArithmetic(
+        name: String,
+        code: inout WasmCode,
+        scratch: Int
+    ) {
+        let isFloat = name.hasPrefix("kk_op_f")
+        if let op = floatBinaryOpcodes[name] {
+            // Two i64 operands [a, b] with b on top: park b in scratch so each
+            // operand can be reinterpreted in turn (reinterpret only touches
+            // the stack top).
+            code.localSet(scratch)
+            if isFloat {
+                // operand = f32.reinterpret(i32.wrap(arg))
+                code.op(WasmOpcode.i32WrapI64)
+                code.op(WasmOpcode.f32ReinterpretI32)
+                code.localGet(scratch)
+                code.op(WasmOpcode.i32WrapI64)
+                code.op(WasmOpcode.f32ReinterpretI32)
+            } else {
+                code.op(WasmOpcode.f64ReinterpretI64)
+                code.localGet(scratch)
+                code.op(WasmOpcode.f64ReinterpretI64)
+            }
+            code.op(op)
+            // Comparisons produce i32; arithmetic produces a float whose bits
+            // return as i64 (f32 keeps its payload in the low 32 bits).
+            if op == WasmOpcode.f64Eq || op == WasmOpcode.f64Ne ||
+               op == WasmOpcode.f64Lt || op == WasmOpcode.f64Le ||
+               op == WasmOpcode.f64Gt || op == WasmOpcode.f64Ge ||
+               op == WasmOpcode.f32Eq || op == WasmOpcode.f32Ne ||
+               op == WasmOpcode.f32Lt || op == WasmOpcode.f32Le ||
+               op == WasmOpcode.f32Gt || op == WasmOpcode.f32Ge
+            {
+                code.i64ExtendFromComparison()
+            } else if isFloat {
+                code.op(WasmOpcode.i32ReinterpretF32)
+                code.op(WasmOpcode.i64ExtendI32U)
+            } else {
+                code.op(WasmOpcode.i64ReinterpretF64)
+            }
+            return
+        }
+        // rem: r = a - b * trunc|floor(a / b). Floor-mod additionally forces a
+        // zero result to the divisor's sign (Kotlin `mod` contract).
+        let floorMod = name == "kk_op_dfloor_mod" || name == "kk_op_ffloor_mod"
+        let aL = scratch, bL = scratch + 1, rL = scratch + 2
+        code.localSet(bL)
+        code.localSet(aL)
+        // Stack discipline: compute q = trunc|floor(a/b), r = a - b*q.
+        code.localGet(aL)
+        if isFloat { code.op(WasmOpcode.i32WrapI64); code.op(WasmOpcode.f32ReinterpretI32) }
+        else { code.op(WasmOpcode.f64ReinterpretI64) }
+        code.localGet(aL)
+        if isFloat { code.op(WasmOpcode.i32WrapI64); code.op(WasmOpcode.f32ReinterpretI32) }
+        else { code.op(WasmOpcode.f64ReinterpretI64) }
+        code.localGet(bL)
+        if isFloat { code.op(WasmOpcode.i32WrapI64); code.op(WasmOpcode.f32ReinterpretI32) }
+        else { code.op(WasmOpcode.f64ReinterpretI64) }
+        code.op(isFloat ? WasmOpcode.f32Div : WasmOpcode.f64Div)
+        code.op(floorMod
+            ? (isFloat ? WasmOpcode.f32Floor : WasmOpcode.f64Floor)
+            : (isFloat ? WasmOpcode.f32Trunc : WasmOpcode.f64Trunc))
+        code.localGet(bL)
+        if isFloat { code.op(WasmOpcode.i32WrapI64); code.op(WasmOpcode.f32ReinterpretI32) }
+        else { code.op(WasmOpcode.f64ReinterpretI64) }
+        code.op(isFloat ? WasmOpcode.f32Mul : WasmOpcode.f64Mul)
+        code.op(isFloat ? WasmOpcode.f32Sub : WasmOpcode.f64Sub)
+        if floorMod {
+            // r == ±0 → copysign(+0.0, b).
+            code.op(isFloat ? WasmOpcode.i32ReinterpretF32 : WasmOpcode.i64ReinterpretF64)
+            if isFloat { code.op(WasmOpcode.i64ExtendI32U) }
+            code.localSet(rL)
+            code.localGet(rL)
+            code.i64Const(0x7FFF_FFFF_FFFF_FFFF)
+            code.op(WasmOpcode.i64And)
+            code.op(WasmOpcode.i64Eqz)
+            code.openIf(result: .i64)
+            code.i64Const(0)
+            if isFloat {
+                code.op(WasmOpcode.i32WrapI64)
+                code.op(WasmOpcode.f32ReinterpretI32)
+                code.localGet(bL)
+                code.op(WasmOpcode.i32WrapI64)
+                code.op(WasmOpcode.f32ReinterpretI32)
+                code.op(WasmOpcode.f32Copysign)
+                code.op(WasmOpcode.i32ReinterpretF32)
+                code.op(WasmOpcode.i64ExtendI32U)
+            } else {
+                code.op(WasmOpcode.f64ReinterpretI64)
+                code.localGet(bL)
+                code.op(WasmOpcode.f64ReinterpretI64)
+                code.op(WasmOpcode.f64Copysign)
+                code.op(WasmOpcode.i64ReinterpretF64)
+            }
+            code.elseBranch()
+            code.localGet(rL)
+            code.end()
+        } else {
+            code.op(isFloat ? WasmOpcode.i32ReinterpretF32 : WasmOpcode.i64ReinterpretF64)
+            if isFloat { code.op(WasmOpcode.i64ExtendI32U) }
+        }
+    }
+
+    /// MVP representation is uniform raw i64 — boxing is the identity for
+    /// everything the boxHelperName/unboxHelperName tables don't cover.
     private static func emitTaggedBox(code: inout WasmCode, scratch: Int) {
         _ = scratch
     }
@@ -322,6 +494,31 @@ enum WasmRuntimeHelpers {
         "kk_iterable_iterator", "__kk_collection_size",
         "kk_string_from_flat", "kk_string_to_flat",
         "kk_op_notnull", "kk_op_elvis",
+        // Double/Float primitive boxes (`RuntimeBoxing.swift` equivalents):
+        // a real heap object `{typeID@-16, bits@16}` so `is`/generic-element
+        // dispatch reads the nominal tag — the raw i64 ABI stays in force for
+        // every other box kind.
+        "__kk_wasm_box_double", "__kk_wasm_box_double_nullable",
+        "__kk_wasm_box_float",
+        "__kk_wasm_unbox_double", "__kk_wasm_unbox_float",
+        // Numeric conversions — Kotlin/Java saturating semantics map exactly
+        // onto wasm's trunc_sat opcodes.
+        "__kk_double_to_int", "__kk_double_to_long",
+        "__kk_float_to_int", "__kk_float_to_long",
+        "kk_int_to_double", "kk_int_to_double_bits", "kk_long_to_double",
+        "kk_int_to_float", "kk_int_to_float_bits", "kk_long_to_float",
+        "kk_double_to_float",
+        "kk_float_to_double", "__kk_float_to_double_bits",
+        "kk_double_to_bits", "kk_bits_to_double",
+        "kk_float_to_bits", "kk_bits_to_float",
+        "kk_double_equals", "kk_float_equals",
+        "kk_nullable_double_equals", "kk_nullable_float_equals",
+        // Kotlin/JVM-compatible floating-point rendering: exact decimal
+        // expansion of the binary value and its rounding boundaries, then
+        // the shortest candidate inside the boundary interval (Dragon4).
+        "__kk_wasm_expand", "__kk_wasm_cmp_decimal", "__kk_wasm_round_copy",
+        "__kk_wasm_fp_format", "__kk_wasm_render_decimal",
+        "__kk_wasm_format_double", "__kk_wasm_format_float",
     ]
 
     /// True when `name` has an emitted wasm helper body — used by callee
@@ -903,6 +1100,118 @@ enum WasmRuntimeHelpers {
             code.elseBranch()
             code.localGet(0)
             code.end()
+        case "__kk_wasm_box_double", "__kk_wasm_box_double_nullable",
+             "__kk_wasm_box_float":
+            extraLocals = 1
+            emitNumericBoxBody(
+                &code, ctx: ctx,
+                typeID: name.contains("float")
+                    ? Self.stableNominalTypeID("kotlin.Float")
+                    : Self.stableNominalTypeID("kotlin.Double"),
+                nullable: name.hasSuffix("_nullable")
+            )
+        case "__kk_wasm_unbox_double", "__kk_wasm_unbox_float":
+            extraLocals = 0
+            emitNumericUnboxBody(
+                &code, ctx: ctx,
+                typeID: name.contains("float")
+                    ? Self.stableNominalTypeID("kotlin.Float")
+                    : Self.stableNominalTypeID("kotlin.Double")
+            )
+        case "__kk_double_to_int":
+            extraLocals = 0
+            code.localGet(0)
+            code.op(WasmOpcode.f64ReinterpretI64)
+            code.truncSat(WasmOpcode.i32TruncSatF64S)
+            code.op(WasmOpcode.i64ExtendI32S)
+        case "__kk_double_to_long":
+            extraLocals = 0
+            code.localGet(0)
+            code.op(WasmOpcode.f64ReinterpretI64)
+            code.truncSat(WasmOpcode.i64TruncSatF64S)
+        case "__kk_float_to_int":
+            extraLocals = 0
+            code.localGet(0)
+            code.op(WasmOpcode.i32WrapI64)
+            code.op(WasmOpcode.f32ReinterpretI32)
+            code.truncSat(WasmOpcode.i32TruncSatF32S)
+            code.op(WasmOpcode.i64ExtendI32S)
+        case "__kk_float_to_long":
+            extraLocals = 0
+            code.localGet(0)
+            code.op(WasmOpcode.i32WrapI64)
+            code.op(WasmOpcode.f32ReinterpretI32)
+            code.truncSat(WasmOpcode.i64TruncSatF32S)
+        case "kk_int_to_double", "kk_int_to_double_bits":
+            extraLocals = 0
+            code.localGet(0)
+            code.op(WasmOpcode.i32WrapI64)
+            code.op(WasmOpcode.f64ConvertI32S)
+            code.op(WasmOpcode.i64ReinterpretF64)
+        case "kk_long_to_double":
+            extraLocals = 0
+            code.localGet(0)
+            code.op(WasmOpcode.f64ConvertI64S)
+            code.op(WasmOpcode.i64ReinterpretF64)
+        case "kk_int_to_float", "kk_int_to_float_bits":
+            extraLocals = 0
+            code.localGet(0)
+            code.op(WasmOpcode.i32WrapI64)
+            code.op(WasmOpcode.f32ConvertI32S)
+            code.op(WasmOpcode.i32ReinterpretF32)
+            code.op(WasmOpcode.i64ExtendI32U)
+        case "kk_long_to_float":
+            extraLocals = 0
+            code.localGet(0)
+            code.op(WasmOpcode.f32ConvertI64S)
+            code.op(WasmOpcode.i32ReinterpretF32)
+            code.op(WasmOpcode.i64ExtendI32U)
+        case "kk_double_to_float":
+            extraLocals = 0
+            code.localGet(0)
+            code.op(WasmOpcode.f64ReinterpretI64)
+            code.op(WasmOpcode.f32DemoteF64)
+            code.op(WasmOpcode.i32ReinterpretF32)
+            code.op(WasmOpcode.i64ExtendI32U)
+        case "kk_float_to_double", "__kk_float_to_double_bits":
+            extraLocals = 0
+            code.localGet(0)
+            code.op(WasmOpcode.i32WrapI64)
+            code.op(WasmOpcode.f32ReinterpretI32)
+            code.op(WasmOpcode.f64PromoteF32)
+            code.op(WasmOpcode.i64ReinterpretF64)
+        case "kk_double_to_bits", "kk_bits_to_double":
+            // f64 payloads already travel as raw i64 bits — identity.
+            extraLocals = 0
+            code.localGet(0)
+        case "kk_float_to_bits", "kk_bits_to_float":
+            // f32 payloads live in the low 32 bits.
+            extraLocals = 0
+            code.localGet(0)
+            code.i64Const(0xFFFF_FFFF)
+            code.op(WasmOpcode.i64And)
+        case "kk_double_equals", "kk_float_equals",
+             "kk_nullable_double_equals", "kk_nullable_float_equals":
+            extraLocals = 2
+            emitFpEqualsBody(&code, ctx: ctx, name: name)
+        case "__kk_wasm_expand":
+            extraLocals = 7
+            emitExpandBody(&code, ctx: ctx)
+        case "__kk_wasm_cmp_decimal":
+            extraLocals = 6
+            emitCmpDecimalBody(&code)
+        case "__kk_wasm_round_copy":
+            extraLocals = 5
+            emitRoundCopyBody(&code)
+        case "__kk_wasm_fp_format":
+            extraLocals = 6
+            emitFpFormatBody(&code, ctx: ctx)
+        case "__kk_wasm_render_decimal":
+            extraLocals = 9
+            emitRenderDecimalBody(&code, ctx: ctx)
+        case "__kk_wasm_format_double", "__kk_wasm_format_float":
+            extraLocals = 6
+            emitFormatFpBody(&code, ctx: ctx, isFloat: name.hasSuffix("float"))
         default:
             return emittedThrowableBody(for: name, argumentCount: argumentCount, context: ctx)
         }
@@ -2544,6 +2853,24 @@ enum WasmRuntimeHelpers {
         code.localGet(0)
         code.op(WasmOpcode.return)
         code.end()
+        // Boxed Double/Float payloads (`{typeID@-16, bits@16}`) render via
+        // the Dragon4 formatter — covers `println(3.14)` through tag 1.
+        emitLoadAt(&code, baseLocal: 0, byteOffset: L.typeIDOffset)
+        code.i64Const(Self.stableNominalTypeID("kotlin.Double"))
+        code.op(WasmOpcode.i64Eq)
+        code.openIf()
+        emitLoadAt(&code, baseLocal: 0, byteOffset: 16)
+        code.call(ctx.emittedHelperIndex(for: "__kk_wasm_format_double", argumentCount: 1))
+        code.op(WasmOpcode.return)
+        code.end()
+        emitLoadAt(&code, baseLocal: 0, byteOffset: L.typeIDOffset)
+        code.i64Const(Self.stableNominalTypeID("kotlin.Float"))
+        code.op(WasmOpcode.i64Eq)
+        code.openIf()
+        emitLoadAt(&code, baseLocal: 0, byteOffset: 16)
+        code.call(ctx.emittedHelperIndex(for: "__kk_wasm_format_float", argumentCount: 1))
+        code.op(WasmOpcode.return)
+        code.end()
         code.end()
         code.end()
         // tag == 2 → "true"/"false".
@@ -2773,6 +3100,1294 @@ enum WasmRuntimeHelpers {
         code.localGet(5)
         code.localGet(4)
         code.call(ctx.emittedHelperIndex(for: "__kk_string_literal_from_utf8", argumentCount: 2))
+    }
+
+    // MARK: - Floating-point boxes, conversions, and rendering
+
+    /// `(bits) -> i64`: heap box `{typeID@-16, bits@16}` with nominal
+    /// Double/Float tag. Pass-through when the argument is already a box of
+    /// the same type (re-boxing a `Double?` read back from a generic slot)
+    /// and, for the nullable variant, when it is the null sentinel.
+    private static func emitNumericBoxBody(
+        _ code: inout WasmCode,
+        ctx: WasmModuleContext,
+        typeID: Int64,
+        nullable: Bool
+    ) {
+        code.localGet(0)
+        code.globalGet(ctx.dataEndGlobal)
+        code.op(WasmOpcode.i64GeU)
+        code.localGet(0)
+        code.globalGet(ctx.heapGlobal)
+        code.op(WasmOpcode.i64LtU)
+        code.op(WasmOpcode.i32And)
+        code.openIf()
+        code.localGet(0)
+        code.i64Const(7)
+        code.op(WasmOpcode.i64And)
+        code.op(WasmOpcode.i64Eqz)
+        code.openIf()
+        emitLoadAt(&code, baseLocal: 0, byteOffset: L.typeIDOffset)
+        code.i64Const(typeID)
+        code.op(WasmOpcode.i64Eq)
+        code.openIf()
+        code.localGet(0)
+        code.op(WasmOpcode.return)
+        code.end()
+        code.end()
+        code.end()
+        if nullable {
+            code.localGet(0)
+            code.i64Const(L.nullSentinel)
+            code.op(WasmOpcode.i64Eq)
+            code.openIf()
+            code.localGet(0)
+            code.op(WasmOpcode.return)
+            code.end()
+        }
+        code.i64Const(24)
+        code.call(ctx.emittedHelperIndex(for: "$__kk_wasm_alloc", argumentCount: 1))
+        code.localSet(1)
+        emitStoreAtConst(&code, baseLocal: 1, byteOffset: L.typeIDOffset, value: typeID)
+        emitStoreAt(&code, baseLocal: 1, byteOffset: 16, valueLocal: 0)
+        code.localGet(1)
+    }
+
+    /// `(v) -> i64`: inverse of the box helpers — a heap object with the
+    /// matching typeID yields its `@16` payload; every other value (raw bits,
+    /// the null sentinel, foreign objects) passes through unchanged.
+    private static func emitNumericUnboxBody(
+        _ code: inout WasmCode,
+        ctx: WasmModuleContext,
+        typeID: Int64
+    ) {
+        code.localGet(0)
+        code.globalGet(ctx.dataEndGlobal)
+        code.op(WasmOpcode.i64GeU)
+        code.localGet(0)
+        code.globalGet(ctx.heapGlobal)
+        code.op(WasmOpcode.i64LtU)
+        code.op(WasmOpcode.i32And)
+        code.openIf(result: .i64)
+        code.localGet(0)
+        code.i64Const(7)
+        code.op(WasmOpcode.i64And)
+        code.op(WasmOpcode.i64Eqz)
+        code.openIf(result: .i64)
+        emitLoadAt(&code, baseLocal: 0, byteOffset: L.typeIDOffset)
+        code.i64Const(typeID)
+        code.op(WasmOpcode.i64Eq)
+        code.openIf(result: .i64)
+        emitLoadAt(&code, baseLocal: 0, byteOffset: 16)
+        code.elseBranch()
+        code.localGet(0)
+        code.end()
+        code.elseBranch()
+        code.localGet(0)
+        code.end()
+        code.elseBranch()
+        code.localGet(0)
+        code.end()
+    }
+
+    /// `(a, b) -> i64`: boxed-or-raw floating-point equality. The nullable
+    /// variants first fold the null sentinel (`a == b` covers both-null).
+    private static func emitFpEqualsBody(
+        _ code: inout WasmCode,
+        ctx: WasmModuleContext,
+        name: String
+    ) {
+        let isFloat = name.contains("float")
+        let unbox = isFloat ? "__kk_wasm_unbox_float" : "__kk_wasm_unbox_double"
+        if name.contains("nullable") {
+            code.localGet(0)
+            code.localGet(1)
+            code.op(WasmOpcode.i64Eq)
+            code.openIf()
+            code.i64Const(1)
+            code.op(WasmOpcode.return)
+            code.end()
+            code.localGet(0)
+            code.i64Const(L.nullSentinel)
+            code.op(WasmOpcode.i64Eq)
+            code.openIf()
+            code.i64Const(0)
+            code.op(WasmOpcode.return)
+            code.end()
+            code.localGet(1)
+            code.i64Const(L.nullSentinel)
+            code.op(WasmOpcode.i64Eq)
+            code.openIf()
+            code.i64Const(0)
+            code.op(WasmOpcode.return)
+            code.end()
+        }
+        code.localGet(0)
+        code.call(ctx.emittedHelperIndex(for: unbox, argumentCount: 1))
+        code.localSet(2)
+        code.localGet(1)
+        code.call(ctx.emittedHelperIndex(for: unbox, argumentCount: 1))
+        code.localSet(3)
+        if isFloat {
+            code.localGet(2)
+            code.op(WasmOpcode.i32WrapI64)
+            code.op(WasmOpcode.f32ReinterpretI32)
+            code.localGet(3)
+            code.op(WasmOpcode.i32WrapI64)
+            code.op(WasmOpcode.f32ReinterpretI32)
+            code.op(WasmOpcode.f32Eq)
+        } else {
+            code.localGet(2)
+            code.op(WasmOpcode.f64ReinterpretI64)
+            code.localGet(3)
+            code.op(WasmOpcode.f64ReinterpretI64)
+            code.op(WasmOpcode.f64Eq)
+        }
+        code.i64ExtendFromComparison()
+    }
+
+    /// `(m, p, buf) -> i64`: exact decimal expansion of `m * 2^p` into
+    /// `{exp@0, len@8, digits@16}` — `exp` is the decimal-point position so
+    /// `value = digits * 10^(exp - len)`. Doubling (`p >= 0`) and
+    /// quintupling (`p < 0`, since `2^p = 5^-p * 10^p`) keep every digit
+    /// exact. Locals: copy=3, len=4, i=5, count=6, carry=7, mult=8, tmp=9.
+    private static func emitExpandBody(_ code: inout WasmCode, ctx: WasmModuleContext) {
+        // len = decimal digit count of m.
+        code.localGet(0)
+        code.localSet(3)
+        code.i64Const(0)
+        code.localSet(4)
+        code.openBlock()
+        code.openLoop()
+        code.localGet(3)
+        code.i64Const(10)
+        code.op(WasmOpcode.i64DivU)
+        code.localSet(3)
+        code.localGet(4)
+        code.i64Const(1)
+        code.op(WasmOpcode.i64Add)
+        code.localSet(4)
+        code.localGet(3)
+        code.i64Truthy()
+        code.brIf(0)
+        code.end()
+        code.end()
+        // Write the digits of m big-endian at buf+16.
+        code.localGet(0)
+        code.localSet(3)
+        code.localGet(4)
+        code.localSet(5)
+        code.openBlock()
+        code.openLoop()
+        code.localGet(5)
+        code.op(WasmOpcode.i64Eqz)
+        code.brIf(1)
+        code.localGet(5)
+        code.i64Const(1)
+        code.op(WasmOpcode.i64Sub)
+        code.localSet(5)
+        emitAddress(&code, baseLocal: 2, byteOffset: 16)
+        code.localGet(5)
+        code.op(WasmOpcode.i32WrapI64)
+        code.op(WasmOpcode.i32Add)
+        code.localGet(3)
+        code.i64Const(10)
+        code.op(WasmOpcode.i64RemU)
+        code.op(WasmOpcode.i32WrapI64)
+        code.i32Store8()
+        code.localGet(3)
+        code.i64Const(10)
+        code.op(WasmOpcode.i64DivU)
+        code.localSet(3)
+        code.br(0)
+        code.end()
+        code.end()
+        // mult = p > 0 ? 2 : 5, count = |p|.  p == 0 skips the loop entirely.
+        code.localGet(1)
+        code.i64Const(0)
+        code.op(WasmOpcode.i64GtS)
+        code.openIf()
+        code.i64Const(2)
+        code.localSet(8)
+        code.localGet(1)
+        code.localSet(6)
+        code.elseBranch()
+        code.i64Const(5)
+        code.localSet(8)
+        code.i64Const(0)
+        code.localGet(1)
+        code.op(WasmOpcode.i64Sub)
+        code.localSet(6)
+        code.end()
+        code.openBlock()
+        code.openLoop()
+        code.localGet(6)
+        code.op(WasmOpcode.i64Eqz)
+        code.brIf(1)
+        // carry loop: for i = len-1 downto 0: t = d[i]*mult + carry;
+        // d[i] = t % 10; carry = t / 10.
+        code.i64Const(0)
+        code.localSet(7)
+        code.localGet(4)
+        code.localSet(5)
+        code.openBlock()
+        code.openLoop()
+        code.localGet(5)
+        code.op(WasmOpcode.i64Eqz)
+        code.brIf(1)
+        code.localGet(5)
+        code.i64Const(1)
+        code.op(WasmOpcode.i64Sub)
+        code.localSet(5)
+        emitAddress(&code, baseLocal: 2, byteOffset: 16)
+        code.localGet(5)
+        code.op(WasmOpcode.i32WrapI64)
+        code.op(WasmOpcode.i32Add)
+        code.i32Load8U()
+        code.op(WasmOpcode.i64ExtendI32U)
+        code.localGet(8)
+        code.op(WasmOpcode.i64Mul)
+        code.localGet(7)
+        code.op(WasmOpcode.i64Add)
+        code.localSet(9)
+        emitAddress(&code, baseLocal: 2, byteOffset: 16)
+        code.localGet(5)
+        code.op(WasmOpcode.i32WrapI64)
+        code.op(WasmOpcode.i32Add)
+        code.localGet(9)
+        code.i64Const(10)
+        code.op(WasmOpcode.i64RemU)
+        code.op(WasmOpcode.i32WrapI64)
+        code.i32Store8()
+        code.localGet(9)
+        code.i64Const(10)
+        code.op(WasmOpcode.i64DivU)
+        code.localSet(7)
+        code.br(0)
+        code.end()
+        code.end()
+        // A leftover carry is a new MOST significant digit: shift the
+        // big-endian digit run right by one and prepend it.
+        code.localGet(7)
+        code.i64Truthy()
+        code.openIf()
+        code.localGet(4)
+        code.localSet(5)
+        code.openBlock()
+        code.openLoop()
+        code.localGet(5)
+        code.op(WasmOpcode.i64Eqz)
+        code.brIf(1)
+        emitAddress(&code, baseLocal: 2, byteOffset: 16)
+        code.localGet(5)
+        code.op(WasmOpcode.i32WrapI64)
+        code.op(WasmOpcode.i32Add)
+        emitAddress(&code, baseLocal: 2, byteOffset: 15)
+        code.localGet(5)
+        code.op(WasmOpcode.i32WrapI64)
+        code.op(WasmOpcode.i32Add)
+        code.i32Load8U()
+        code.i32Store8()
+        code.localGet(5)
+        code.i64Const(1)
+        code.op(WasmOpcode.i64Sub)
+        code.localSet(5)
+        code.br(0)
+        code.end()
+        code.end()
+        emitAddress(&code, baseLocal: 2, byteOffset: 16)
+        code.localGet(7)
+        code.op(WasmOpcode.i32WrapI64)
+        code.i32Store8()
+        code.localGet(4)
+        code.i64Const(1)
+        code.op(WasmOpcode.i64Add)
+        code.localSet(4)
+        code.end()
+        code.localGet(6)
+        code.i64Const(1)
+        code.op(WasmOpcode.i64Sub)
+        code.localSet(6)
+        code.br(0)
+        code.end()
+        code.end()
+        // buf = {exp: len + min(p,0), len}.
+        emitStoreAt(&code, baseLocal: 2, byteOffset: 8, valueLocal: 4)
+        code.localGet(4)
+        code.localGet(1)
+        code.i64Const(0)
+        code.op(WasmOpcode.i64LtS)
+        code.openIf(result: .i64)
+        code.localGet(1)
+        code.elseBranch()
+        code.i64Const(0)
+        code.end()
+        code.op(WasmOpcode.i64Add)
+        code.localSet(3)
+        emitStoreAt(&code, baseLocal: 2, byteOffset: 0, valueLocal: 3)
+        code.localGet(4)
+    }
+
+    /// `(a, b) -> i64`: three-way compare of two expanded decimals
+    /// `{exp,len,digits}` — returns -1/0/1. Compares the decimal-point
+    /// position first, then aligned digit strings (absent digits read as 0).
+    /// Locals: la=2, lb=3, i=4, n=5.
+    private static func emitCmpDecimalBody(_ code: inout WasmCode) {
+        emitLoadAt(&code, baseLocal: 0, byteOffset: 0)
+        emitLoadAt(&code, baseLocal: 1, byteOffset: 0)
+        code.op(WasmOpcode.i64Ne)
+        code.openIf()
+        emitLoadAt(&code, baseLocal: 0, byteOffset: 0)
+        emitLoadAt(&code, baseLocal: 1, byteOffset: 0)
+        code.op(WasmOpcode.i64LtS)
+        code.openIf(result: .i64)
+        code.i64Const(-1)
+        code.elseBranch()
+        code.i64Const(1)
+        code.end()
+        code.op(WasmOpcode.return)
+        code.end()
+        emitLoadAt(&code, baseLocal: 0, byteOffset: 8)
+        code.localSet(2)
+        emitLoadAt(&code, baseLocal: 1, byteOffset: 8)
+        code.localSet(3)
+        code.localGet(2)
+        code.localGet(3)
+        code.op(WasmOpcode.i64GtS)
+        code.openIf(result: .i64)
+        code.localGet(2)
+        code.elseBranch()
+        code.localGet(3)
+        code.end()
+        code.localSet(5)
+        code.i64Const(0)
+        code.localSet(4)
+        code.openBlock()
+        code.openLoop()
+        code.localGet(4)
+        code.localGet(5)
+        code.op(WasmOpcode.i64GeS)
+        code.brIf(1)
+        // da = i < la ? a[16+i] : 0
+        code.localGet(4)
+        code.localGet(2)
+        code.op(WasmOpcode.i64LtS)
+        code.openIf(result: .i64)
+        emitAddress(&code, baseLocal: 0, byteOffset: 16)
+        code.localGet(4)
+        code.op(WasmOpcode.i32WrapI64)
+        code.op(WasmOpcode.i32Add)
+        code.i32Load8U()
+        code.op(WasmOpcode.i64ExtendI32U)
+        code.elseBranch()
+        code.i64Const(0)
+        code.end()
+        code.localSet(6)
+        // db = i < lb ? b[16+i] : 0
+        code.localGet(4)
+        code.localGet(3)
+        code.op(WasmOpcode.i64LtS)
+        code.openIf(result: .i64)
+        emitAddress(&code, baseLocal: 1, byteOffset: 16)
+        code.localGet(4)
+        code.op(WasmOpcode.i32WrapI64)
+        code.op(WasmOpcode.i32Add)
+        code.i32Load8U()
+        code.op(WasmOpcode.i64ExtendI32U)
+        code.elseBranch()
+        code.i64Const(0)
+        code.end()
+        code.localSet(7)
+        code.localGet(6)
+        code.localGet(7)
+        code.op(WasmOpcode.i64Ne)
+        code.openIf()
+        code.localGet(6)
+        code.localGet(7)
+        code.op(WasmOpcode.i64LtU)
+        code.openIf(result: .i64)
+        code.i64Const(-1)
+        code.elseBranch()
+        code.i64Const(1)
+        code.end()
+        code.op(WasmOpcode.return)
+        code.end()
+        code.localGet(4)
+        code.i64Const(1)
+        code.op(WasmOpcode.i64Add)
+        code.localSet(4)
+        code.br(0)
+        code.end()
+        code.end()
+        code.i64Const(0)
+    }
+
+    /// `(src, k, dst) -> i64`: `dst` = `src` rounded to at most `k`
+    /// significant digits (round-half-even on the exact digits). Overflow
+    /// (`999…9` -> `100…0`) keeps `len = k` and bumps `exp` — numerically
+    /// identical for the interval compare. Locals: i=3, j=4, tail=5, d=6,
+    /// srcLen=7.
+    private static func emitRoundCopyBody(_ code: inout WasmCode) {
+        emitLoadAt(&code, baseLocal: 0, byteOffset: 8)
+        code.localSet(7)
+        // len = min(k, srcLen)
+        code.localGet(1)
+        code.localGet(7)
+        code.op(WasmOpcode.i64LtS)
+        code.openIf(result: .i64)
+        code.localGet(1)
+        code.elseBranch()
+        code.localGet(7)
+        code.end()
+        code.localSet(4)
+        // copy len digits
+        code.i64Const(0)
+        code.localSet(3)
+        code.openBlock()
+        code.openLoop()
+        code.localGet(3)
+        code.localGet(4)
+        code.op(WasmOpcode.i64GeS)
+        code.brIf(1)
+        emitAddress(&code, baseLocal: 2, byteOffset: 16)
+        code.localGet(3)
+        code.op(WasmOpcode.i32WrapI64)
+        code.op(WasmOpcode.i32Add)
+        emitAddress(&code, baseLocal: 0, byteOffset: 16)
+        code.localGet(3)
+        code.op(WasmOpcode.i32WrapI64)
+        code.op(WasmOpcode.i32Add)
+        code.i32Load8U()
+        code.i32Store8()
+        code.localGet(3)
+        code.i64Const(1)
+        code.op(WasmOpcode.i64Add)
+        code.localSet(3)
+        code.br(0)
+        code.end()
+        code.end()
+        emitStoreAt(&code, baseLocal: 2, byteOffset: 8, valueLocal: 4)
+        emitLoadAt(&code, baseLocal: 0, byteOffset: 0)
+        code.localSet(3)
+        emitStoreAt(&code, baseLocal: 2, byteOffset: 0, valueLocal: 3)
+        // Round only when digits were dropped.
+        code.localGet(7)
+        code.localGet(1)
+        code.op(WasmOpcode.i64GtS)
+        code.openIf()
+        emitAddress(&code, baseLocal: 0, byteOffset: 16)
+        code.localGet(1)
+        code.op(WasmOpcode.i32WrapI64)
+        code.op(WasmOpcode.i32Add)
+        code.i32Load8U()
+        code.op(WasmOpcode.i64ExtendI32U)
+        code.localSet(6)
+        // roundUp = d > 5 | (d == 5 & (tail != all-zero | dst[k-1] odd))
+        code.localGet(6)
+        code.i64Const(5)
+        code.op(WasmOpcode.i64GtU)
+        code.i64ExtendFromComparison()
+        code.localSet(4)
+        code.localGet(6)
+        code.i64Const(5)
+        code.op(WasmOpcode.i64Eq)
+        code.openIf()
+        // tail = any src[k+1 .. srcLen) nonzero
+        code.i64Const(0)
+        code.localSet(5)
+        code.localGet(1)
+        code.i64Const(1)
+        code.op(WasmOpcode.i64Add)
+        code.localSet(3)
+        code.openBlock()
+        code.openLoop()
+        code.localGet(3)
+        code.localGet(7)
+        code.op(WasmOpcode.i64GeS)
+        code.brIf(1)
+        emitAddress(&code, baseLocal: 0, byteOffset: 16)
+        code.localGet(3)
+        code.op(WasmOpcode.i32WrapI64)
+        code.op(WasmOpcode.i32Add)
+        code.i32Load8U()
+        code.op(WasmOpcode.i64ExtendI32U)
+        code.i64Truthy()
+        code.openIf()
+        code.i64Const(1)
+        code.localSet(5)
+        code.br(2)
+        code.end()
+        code.localGet(3)
+        code.i64Const(1)
+        code.op(WasmOpcode.i64Add)
+        code.localSet(3)
+        code.br(0)
+        code.end()
+        code.end()
+        code.localGet(5)
+        code.i64Truthy()
+        code.openIf()
+        code.i64Const(1)
+        code.localSet(4)
+        code.elseBranch()
+        // half-even: round up iff dst[k-1] is odd
+        emitAddress(&code, baseLocal: 2, byteOffset: 16)
+        code.localGet(1)
+        code.op(WasmOpcode.i32WrapI64)
+        code.i32Const(-1)
+        code.op(WasmOpcode.i32Add)
+        code.op(WasmOpcode.i32Add)
+        code.i32Load8U()
+        code.op(WasmOpcode.i64ExtendI32U)
+        code.i64Const(1)
+        code.op(WasmOpcode.i64And)
+        code.localSet(4)
+        code.end()
+        code.end()
+        code.localGet(4)
+        code.i64Truthy()
+        code.openIf()
+        // propagate the carry through dst digits
+        code.localGet(1)
+        code.localSet(3)
+        code.openBlock()
+        code.openLoop()
+        code.localGet(3)
+        code.op(WasmOpcode.i64Eqz)
+        code.brIf(1)
+        code.localGet(3)
+        code.i64Const(1)
+        code.op(WasmOpcode.i64Sub)
+        code.localSet(3)
+        emitAddress(&code, baseLocal: 2, byteOffset: 16)
+        code.localGet(3)
+        code.op(WasmOpcode.i32WrapI64)
+        code.op(WasmOpcode.i32Add)
+        code.i32Load8U()
+        code.op(WasmOpcode.i64ExtendI32U)
+        code.i64Const(9)
+        code.op(WasmOpcode.i64Eq)
+        code.openIf()
+        emitAddress(&code, baseLocal: 2, byteOffset: 16)
+        code.localGet(3)
+        code.op(WasmOpcode.i32WrapI64)
+        code.op(WasmOpcode.i32Add)
+        code.i32Const(0)
+        code.i32Store8()
+        code.elseBranch()
+        emitAddress(&code, baseLocal: 2, byteOffset: 16)
+        code.localGet(3)
+        code.op(WasmOpcode.i32WrapI64)
+        code.op(WasmOpcode.i32Add)
+        emitAddress(&code, baseLocal: 2, byteOffset: 16)
+        code.localGet(3)
+        code.op(WasmOpcode.i32WrapI64)
+        code.op(WasmOpcode.i32Add)
+        code.i32Load8U()
+        code.i32Const(1)
+        code.op(WasmOpcode.i32Add)
+        code.i32Store8()
+        code.br(2)
+        code.end()
+        code.br(0)
+        code.end()
+        code.end()
+        // i == 0 at loop exit means the carry ran out of digits
+        // (999… -> 100…): dst[0] = 1 and exp += 1.
+        code.localGet(3)
+        code.op(WasmOpcode.i64Eqz)
+        code.openIf()
+        emitAddress(&code, baseLocal: 2, byteOffset: 16)
+        code.i32Const(1)
+        code.i32Store8()
+        emitLoadAt(&code, baseLocal: 2, byteOffset: 0)
+        code.i64Const(1)
+        code.op(WasmOpcode.i64Add)
+        code.localSet(3)
+        emitStoreAt(&code, baseLocal: 2, byteOffset: 0, valueLocal: 3)
+        code.end()
+        code.end()
+        code.end()
+        code.i64Const(0)
+    }
+
+    /// `(m, p, lowGapHalf, even, maxK, sign) -> i64`: Dragon4 over the three
+    /// exact decimals — `v`, `m⁺ = (2m+1)·2^(p-1)`, and `m⁻` (halved when the
+    /// lower representable gap halves at a power-of-two mantissa). The first
+    /// `k` whose rounded candidate lands inside the (inclusive for even
+    /// mantissas) boundary interval wins; `render_decimal` prints it.
+    /// Locals: buf=6, k=7, cLo=8, cHi=9, loOK=10, hiOK=11.
+    private static func emitFpFormatBody(_ code: inout WasmCode, ctx: WasmModuleContext) {
+        code.i64Const(4096)
+        code.call(ctx.emittedHelperIndex(for: "$__kk_wasm_alloc", argumentCount: 1))
+        code.localSet(6)
+        code.localGet(0)
+        code.localGet(1)
+        code.localGet(6)
+        code.call(ctx.emittedHelperIndex(for: "__kk_wasm_expand", argumentCount: 3))
+        code.op(WasmOpcode.drop)
+        code.localGet(0)
+        code.i64Const(2)
+        code.op(WasmOpcode.i64Mul)
+        code.i64Const(1)
+        code.op(WasmOpcode.i64Add)
+        code.localGet(1)
+        code.i64Const(1)
+        code.op(WasmOpcode.i64Sub)
+        code.localGet(6)
+        code.i64Const(2048)
+        code.op(WasmOpcode.i64Add)
+        code.call(ctx.emittedHelperIndex(for: "__kk_wasm_expand", argumentCount: 3))
+        code.op(WasmOpcode.drop)
+        code.localGet(2)
+        code.i64Truthy()
+        code.openIf(result: .i64)
+        code.localGet(0)
+        code.i64Const(4)
+        code.op(WasmOpcode.i64Mul)
+        code.i64Const(1)
+        code.op(WasmOpcode.i64Sub)
+        code.elseBranch()
+        code.localGet(0)
+        code.i64Const(2)
+        code.op(WasmOpcode.i64Mul)
+        code.i64Const(1)
+        code.op(WasmOpcode.i64Sub)
+        code.end()
+        code.localGet(2)
+        code.i64Truthy()
+        code.openIf(result: .i64)
+        code.localGet(1)
+        code.i64Const(2)
+        code.op(WasmOpcode.i64Sub)
+        code.elseBranch()
+        code.localGet(1)
+        code.i64Const(1)
+        code.op(WasmOpcode.i64Sub)
+        code.end()
+        code.localGet(6)
+        code.i64Const(1024)
+        code.op(WasmOpcode.i64Add)
+        code.call(ctx.emittedHelperIndex(for: "__kk_wasm_expand", argumentCount: 3))
+        code.op(WasmOpcode.drop)
+        // k = 1 … maxK
+        code.i64Const(1)
+        code.localSet(7)
+        code.openBlock()
+        code.openLoop()
+        code.localGet(7)
+        code.localGet(4)
+        code.op(WasmOpcode.i64GtS)
+        code.brIf(1)
+        code.localGet(6)
+        code.localGet(7)
+        code.localGet(6)
+        code.i64Const(3072)
+        code.op(WasmOpcode.i64Add)
+        code.call(ctx.emittedHelperIndex(for: "__kk_wasm_round_copy", argumentCount: 3))
+        code.op(WasmOpcode.drop)
+        code.localGet(6)
+        code.i64Const(3072)
+        code.op(WasmOpcode.i64Add)
+        code.localGet(6)
+        code.i64Const(1024)
+        code.op(WasmOpcode.i64Add)
+        code.call(ctx.emittedHelperIndex(for: "__kk_wasm_cmp_decimal", argumentCount: 2))
+        code.localSet(8)
+        code.localGet(6)
+        code.i64Const(3072)
+        code.op(WasmOpcode.i64Add)
+        code.localGet(6)
+        code.i64Const(2048)
+        code.op(WasmOpcode.i64Add)
+        code.call(ctx.emittedHelperIndex(for: "__kk_wasm_cmp_decimal", argumentCount: 2))
+        code.localSet(9)
+        // loOK = even ? cLo >= 0 : cLo > 0 ; hiOK = even ? cHi <= 0 : cHi < 0
+        code.localGet(3)
+        code.i64Truthy()
+        code.openIf(result: .i64)
+        code.localGet(8)
+        code.i64Const(0)
+        code.op(WasmOpcode.i64GeS)
+        code.i64ExtendFromComparison()
+        code.elseBranch()
+        code.localGet(8)
+        code.i64Const(0)
+        code.op(WasmOpcode.i64GtS)
+        code.i64ExtendFromComparison()
+        code.end()
+        code.localSet(10)
+        code.localGet(3)
+        code.i64Truthy()
+        code.openIf(result: .i64)
+        code.localGet(9)
+        code.i64Const(0)
+        code.op(WasmOpcode.i64LeS)
+        code.i64ExtendFromComparison()
+        code.elseBranch()
+        code.localGet(9)
+        code.i64Const(0)
+        code.op(WasmOpcode.i64LtS)
+        code.i64ExtendFromComparison()
+        code.end()
+        code.localSet(11)
+        code.localGet(10)
+        code.localGet(11)
+        code.op(WasmOpcode.i64And)
+        code.i64Truthy()
+        code.openIf()
+        code.br(2)
+        code.end()
+        code.localGet(7)
+        code.i64Const(1)
+        code.op(WasmOpcode.i64Add)
+        code.localSet(7)
+        code.br(0)
+        code.end()
+        code.end()
+        code.localGet(6)
+        code.i64Const(3072)
+        code.op(WasmOpcode.i64Add)
+        code.localGet(5)
+        code.call(ctx.emittedHelperIndex(for: "__kk_wasm_render_decimal", argumentCount: 2))
+    }
+
+    /// `(bufC, sign) -> i64`: Kotlin `Double/Float.toString` rendering of the
+    /// chosen digit string — `E`-notation when `sciExp >= 7 or <= -4`, the
+    /// Java `d.fracE±exp` shape, otherwise fixed notation with a mandatory
+    /// `.0` fraction. Locals: out=2, w=3, len=4, exp=5, sci=6, i=7, j=8,
+    /// v=9, cnt=10.
+    private static func emitRenderDecimalBody(_ code: inout WasmCode, ctx: WasmModuleContext) {
+        code.i64Const(96)
+        code.call(ctx.emittedHelperIndex(for: "$__kk_wasm_alloc", argumentCount: 1))
+        code.localSet(2)
+        code.i64Const(0)
+        code.localSet(3)
+        code.localGet(1)
+        code.i64Truthy()
+        code.openIf()
+        emitStoreByte(&code, baseLocal: 2, indexLocal: 3, value: 0x2D)
+        code.localGet(3)
+        code.i64Const(1)
+        code.op(WasmOpcode.i64Add)
+        code.localSet(3)
+        code.end()
+        emitLoadAt(&code, baseLocal: 0, byteOffset: 8)
+        code.localSet(4)
+        emitLoadAt(&code, baseLocal: 0, byteOffset: 0)
+        code.localSet(5)
+        code.localGet(5)
+        code.i64Const(1)
+        code.op(WasmOpcode.i64Sub)
+        code.localSet(6)
+        // scientific iff sciExp >= 7 || sciExp <= -4
+        code.localGet(6)
+        code.i64Const(7)
+        code.op(WasmOpcode.i64GeS)
+        code.localGet(6)
+        code.i64Const(-4)
+        code.op(WasmOpcode.i64LeS)
+        code.op(WasmOpcode.i32Or)
+        code.openIf()
+        // d0 '.' frac 'E' exp — frac = digits[1..] with trailing zeros
+        // trimmed, at least one digit ("1.0E10").
+        emitWriteDigit(&code, bufLocal: 0, digitIndex: 0, outLocal: 2, wLocal: 3)
+        emitStoreByte(&code, baseLocal: 2, indexLocal: 3, value: 0x2E)
+        code.localGet(3)
+        code.i64Const(1)
+        code.op(WasmOpcode.i64Add)
+        code.localSet(3)
+        // j = last nonzero index (>= 1)
+        code.localGet(4)
+        code.i64Const(1)
+        code.op(WasmOpcode.i64Sub)
+        code.localSet(8)
+        code.openBlock()
+        code.openLoop()
+        code.localGet(8)
+        code.i64Const(0)
+        code.op(WasmOpcode.i64LeS)
+        code.brIf(1)
+        emitAddress(&code, baseLocal: 0, byteOffset: 16)
+        code.localGet(8)
+        code.op(WasmOpcode.i32WrapI64)
+        code.op(WasmOpcode.i32Add)
+        code.i32Load8U()
+        code.op(WasmOpcode.i64ExtendI32U)
+        code.i64Truthy()
+        code.openIf()
+        code.br(2)
+        code.end()
+        code.localGet(8)
+        code.i64Const(1)
+        code.op(WasmOpcode.i64Sub)
+        code.localSet(8)
+        code.br(0)
+        code.end()
+        code.end()
+        code.i64Const(1)
+        code.localSet(7)
+        code.openBlock()
+        code.openLoop()
+        code.localGet(7)
+        code.localGet(8)
+        code.op(WasmOpcode.i64GtS)
+        code.brIf(1)
+        emitWriteDigit(&code, bufLocal: 0, digitIndexLocal: 7, outLocal: 2, wLocal: 3)
+        code.localGet(7)
+        code.i64Const(1)
+        code.op(WasmOpcode.i64Add)
+        code.localSet(7)
+        code.br(0)
+        code.end()
+        code.end()
+        // j stayed 0 -> frac is empty -> write '0'
+        code.localGet(8)
+        code.i64Const(0)
+        code.op(WasmOpcode.i64LeS)
+        code.openIf()
+        emitStoreByte(&code, baseLocal: 2, indexLocal: 3, value: 0x30)
+        code.localGet(3)
+        code.i64Const(1)
+        code.op(WasmOpcode.i64Add)
+        code.localSet(3)
+        code.end()
+        emitStoreByte(&code, baseLocal: 2, indexLocal: 3, value: 0x45)
+        code.localGet(3)
+        code.i64Const(1)
+        code.op(WasmOpcode.i64Add)
+        code.localSet(3)
+        emitWriteI64Decimal(&code, valueLocal: 6, outLocal: 2, wLocal: 3, scratchA: 7, scratchB: 8)
+        code.elseBranch()
+        // fixed notation
+        code.localGet(6)
+        code.localGet(4)
+        code.i64Const(1)
+        code.op(WasmOpcode.i64Sub)
+        code.op(WasmOpcode.i64GeS)
+        code.openIf()
+        // integer: digits + (sciExp - len + 1) zeros + ".0"
+        code.i64Const(0)
+        code.localSet(7)
+        code.openBlock()
+        code.openLoop()
+        code.localGet(7)
+        code.localGet(4)
+        code.op(WasmOpcode.i64GeS)
+        code.brIf(1)
+        emitWriteDigit(&code, bufLocal: 0, digitIndexLocal: 7, outLocal: 2, wLocal: 3)
+        code.localGet(7)
+        code.i64Const(1)
+        code.op(WasmOpcode.i64Add)
+        code.localSet(7)
+        code.br(0)
+        code.end()
+        code.end()
+        // zeros = sciExp - len + 1
+        code.localGet(6)
+        code.localGet(4)
+        code.op(WasmOpcode.i64Sub)
+        code.i64Const(1)
+        code.op(WasmOpcode.i64Add)
+        code.localSet(8)
+        code.openBlock()
+        code.openLoop()
+        code.localGet(8)
+        code.op(WasmOpcode.i64Eqz)
+        code.brIf(1)
+        emitStoreByte(&code, baseLocal: 2, indexLocal: 3, value: 0x30)
+        code.localGet(3)
+        code.i64Const(1)
+        code.op(WasmOpcode.i64Add)
+        code.localSet(3)
+        code.localGet(8)
+        code.i64Const(1)
+        code.op(WasmOpcode.i64Sub)
+        code.localSet(8)
+        code.br(0)
+        code.end()
+        code.end()
+        emitStoreByte(&code, baseLocal: 2, indexLocal: 3, value: 0x2E)
+        code.localGet(3)
+        code.i64Const(1)
+        code.op(WasmOpcode.i64Add)
+        code.localSet(3)
+        emitStoreByte(&code, baseLocal: 2, indexLocal: 3, value: 0x30)
+        code.localGet(3)
+        code.i64Const(1)
+        code.op(WasmOpcode.i64Add)
+        code.localSet(3)
+        code.elseBranch()
+        code.localGet(6)
+        code.i64Const(0)
+        code.op(WasmOpcode.i64GeS)
+        code.openIf()
+        // 0 <= sciExp < len-1: ddd . ddd
+        code.i64Const(0)
+        code.localSet(7)
+        code.openBlock()
+        code.openLoop()
+        code.localGet(7)
+        code.localGet(6)
+        code.op(WasmOpcode.i64GtS)
+        code.brIf(1)
+        emitWriteDigit(&code, bufLocal: 0, digitIndexLocal: 7, outLocal: 2, wLocal: 3)
+        code.localGet(7)
+        code.i64Const(1)
+        code.op(WasmOpcode.i64Add)
+        code.localSet(7)
+        code.br(0)
+        code.end()
+        code.end()
+        emitStoreByte(&code, baseLocal: 2, indexLocal: 3, value: 0x2E)
+        code.localGet(3)
+        code.i64Const(1)
+        code.op(WasmOpcode.i64Add)
+        code.localSet(3)
+        code.openBlock()
+        code.openLoop()
+        code.localGet(7)
+        code.localGet(4)
+        code.op(WasmOpcode.i64GeS)
+        code.brIf(1)
+        emitWriteDigit(&code, bufLocal: 0, digitIndexLocal: 7, outLocal: 2, wLocal: 3)
+        code.localGet(7)
+        code.i64Const(1)
+        code.op(WasmOpcode.i64Add)
+        code.localSet(7)
+        code.br(0)
+        code.end()
+        code.end()
+        code.elseBranch()
+        // sciExp < 0: "0." + (-sciExp-1) zeros + digits
+        emitStoreByte(&code, baseLocal: 2, indexLocal: 3, value: 0x30)
+        code.localGet(3)
+        code.i64Const(1)
+        code.op(WasmOpcode.i64Add)
+        code.localSet(3)
+        emitStoreByte(&code, baseLocal: 2, indexLocal: 3, value: 0x2E)
+        code.localGet(3)
+        code.i64Const(1)
+        code.op(WasmOpcode.i64Add)
+        code.localSet(3)
+        code.i64Const(-1)
+        code.localGet(6)
+        code.op(WasmOpcode.i64Sub)
+        code.localSet(8)
+        code.openBlock()
+        code.openLoop()
+        code.localGet(8)
+        code.op(WasmOpcode.i64Eqz)
+        code.brIf(1)
+        emitStoreByte(&code, baseLocal: 2, indexLocal: 3, value: 0x30)
+        code.localGet(3)
+        code.i64Const(1)
+        code.op(WasmOpcode.i64Add)
+        code.localSet(3)
+        code.localGet(8)
+        code.i64Const(1)
+        code.op(WasmOpcode.i64Sub)
+        code.localSet(8)
+        code.br(0)
+        code.end()
+        code.end()
+        code.i64Const(0)
+        code.localSet(7)
+        code.openBlock()
+        code.openLoop()
+        code.localGet(7)
+        code.localGet(4)
+        code.op(WasmOpcode.i64GeS)
+        code.brIf(1)
+        emitWriteDigit(&code, bufLocal: 0, digitIndexLocal: 7, outLocal: 2, wLocal: 3)
+        code.localGet(7)
+        code.i64Const(1)
+        code.op(WasmOpcode.i64Add)
+        code.localSet(7)
+        code.br(0)
+        code.end()
+        code.end()
+        code.end()
+        code.end()
+        code.end()
+        code.localGet(2)
+        code.localGet(3)
+        code.call(ctx.emittedHelperIndex(for: "__kk_string_literal_from_utf8", argumentCount: 2))
+    }
+
+    /// `(bits) -> i64`: field extraction for binary64/binary32 — specials
+    /// (NaN/Infinity/±0.0) short-circuit, then the mantissa/exponent drive
+    /// `__kk_wasm_fp_format`. The all-decimal expansion needs only
+    /// `(m, p, lowGapHalf, even, maxK, sign)`.
+    /// Locals: sign=1, e=2, f=3, m=4, p=5, lgh=6.
+    private static func emitFormatFpBody(
+        _ code: inout WasmCode,
+        ctx: WasmModuleContext,
+        isFloat: Bool
+    ) {
+        let manBits: Int64 = isFloat ? 23 : 52
+        let expMask: Int64 = isFloat ? 0xFF : 0x7FF
+        let manMask: Int64 = isFloat ? 0x7F_FFFF : 0xF_FFFF_FFFF_FFFF
+        let bias: Int64 = isFloat ? 150 : 1075
+        let subExp: Int64 = isFloat ? -149 : -1074
+        let threshold: Int64 = isFloat ? 1 << 23 : 1 << 52
+        let maxK: Int64 = isFloat ? 9 : 17
+        // sign = bits < 0 (for float the sign bit is bit31 — the i64 value is
+        // zero-extended, so test bit 31 explicitly).
+        if isFloat {
+            code.localGet(0)
+            code.i64Const(0x8000_0000)
+            code.op(WasmOpcode.i64And)
+            code.i64Truthy()
+            code.i64ExtendFromComparison()
+        } else {
+            code.localGet(0)
+            code.i64Const(0)
+            code.op(WasmOpcode.i64LtS)
+            code.i64ExtendFromComparison()
+        }
+        code.localSet(1)
+        code.localGet(0)
+        code.i64Const(manBits)
+        code.op(WasmOpcode.i64ShrU)
+        code.i64Const(expMask)
+        code.op(WasmOpcode.i64And)
+        code.localSet(2)
+        code.localGet(0)
+        code.i64Const(manMask)
+        code.op(WasmOpcode.i64And)
+        code.localSet(3)
+        // specials
+        code.localGet(2)
+        code.i64Const(expMask)
+        code.op(WasmOpcode.i64Eq)
+        code.openIf()
+        code.localGet(3)
+        code.i64Truthy()
+        code.openIf()
+        emitLiteralString(&code, ctx: ctx, "NaN")
+        code.op(WasmOpcode.return)
+        code.end()
+        code.localGet(1)
+        code.i64Truthy()
+        code.openIf(result: .i64)
+        emitLiteralString(&code, ctx: ctx, "-Infinity")
+        code.elseBranch()
+        emitLiteralString(&code, ctx: ctx, "Infinity")
+        code.end()
+        code.op(WasmOpcode.return)
+        code.end()
+        // E == 0 && f == 0 -> ±0.0
+        code.localGet(2)
+        code.op(WasmOpcode.i64Eqz)
+        code.openIf()
+        code.localGet(3)
+        code.op(WasmOpcode.i64Eqz)
+        code.openIf()
+        code.localGet(1)
+        code.i64Truthy()
+        code.openIf(result: .i64)
+        emitLiteralString(&code, ctx: ctx, "-0.0")
+        code.elseBranch()
+        emitLiteralString(&code, ctx: ctx, "0.0")
+        code.end()
+        code.op(WasmOpcode.return)
+        code.end()
+        code.end()
+        // m = E ? (f | 2^manBits) : f ; p = E ? E - bias : subExp
+        code.localGet(2)
+        code.i64Truthy()
+        code.openIf(result: .i64)
+        code.localGet(3)
+        code.i64Const(threshold)
+        code.op(WasmOpcode.i64Or)
+        code.elseBranch()
+        code.localGet(3)
+        code.end()
+        code.localSet(4)
+        code.localGet(2)
+        code.i64Truthy()
+        code.openIf(result: .i64)
+        code.localGet(2)
+        code.i64Const(bias)
+        code.op(WasmOpcode.i64Sub)
+        code.elseBranch()
+        code.i64Const(subExp)
+        code.end()
+        code.localSet(5)
+        // lowGapHalf = (f == threshold && E > 1)
+        code.localGet(3)
+        code.i64Const(threshold)
+        code.op(WasmOpcode.i64Eq)
+        code.localGet(2)
+        code.i64Const(1)
+        code.op(WasmOpcode.i64GtS)
+        code.op(WasmOpcode.i32And)
+        code.i64ExtendFromComparison()
+        code.localSet(6)
+        // fp_format(m, p, lgh, even, maxK, sign)
+        code.localGet(4)
+        code.localGet(5)
+        code.localGet(6)
+        code.localGet(3)
+        code.i64Const(1)
+        code.op(WasmOpcode.i64And)
+        code.op(WasmOpcode.i64Eqz)
+        code.i64ExtendFromComparison()
+        code.i64Const(maxK)
+        code.localGet(1)
+        code.call(ctx.emittedHelperIndex(for: "__kk_wasm_fp_format", argumentCount: 6))
+    }
+
+    /// Writes `'0' + buf[16 + digitIndex]` at `out + w` and bumps `w`.
+    private static func emitWriteDigit(
+        _ code: inout WasmCode,
+        bufLocal: Int,
+        digitIndexLocal: Int,
+        outLocal: Int,
+        wLocal: Int
+    ) {
+        emitAddress(&code, baseLocal: outLocal, byteOffset: 0)
+        code.localGet(wLocal)
+        code.op(WasmOpcode.i32WrapI64)
+        code.op(WasmOpcode.i32Add)
+        emitAddress(&code, baseLocal: bufLocal, byteOffset: 16)
+        code.localGet(digitIndexLocal)
+        code.op(WasmOpcode.i32WrapI64)
+        code.op(WasmOpcode.i32Add)
+        code.i32Load8U()
+        code.i32Const(0x30)
+        code.op(WasmOpcode.i32Add)
+        code.i32Store8()
+        code.localGet(wLocal)
+        code.i64Const(1)
+        code.op(WasmOpcode.i64Add)
+        code.localSet(wLocal)
+    }
+
+    /// Constant-index convenience for digit 0 of `buf`.
+    private static func emitWriteDigit(
+        _ code: inout WasmCode,
+        bufLocal: Int,
+        digitIndex: Int,
+        outLocal: Int,
+        wLocal: Int
+    ) {
+        emitAddress(&code, baseLocal: outLocal, byteOffset: 0)
+        code.localGet(wLocal)
+        code.op(WasmOpcode.i32WrapI64)
+        code.op(WasmOpcode.i32Add)
+        emitAddress(&code, baseLocal: bufLocal, byteOffset: 16 + Int64(digitIndex))
+        code.i32Load8U()
+        code.i32Const(0x30)
+        code.op(WasmOpcode.i32Add)
+        code.i32Store8()
+        code.localGet(wLocal)
+        code.i64Const(1)
+        code.op(WasmOpcode.i64Add)
+        code.localSet(wLocal)
+    }
+
+    /// Writes one ASCII byte at `out + index` — the caller owns bumping `w`.
+    private static func emitStoreByte(
+        _ code: inout WasmCode,
+        baseLocal: Int,
+        indexLocal: Int,
+        value: UInt8
+    ) {
+        emitAddress(&code, baseLocal: baseLocal, byteOffset: 0)
+        code.localGet(indexLocal)
+        code.op(WasmOpcode.i32WrapI64)
+        code.op(WasmOpcode.i32Add)
+        code.i32Const(Int32(bitPattern: UInt32(value)))
+        code.i32Store8()
+    }
+
+    /// Writes a signed i64 as ASCII decimal at `out + w`, bumping `w`.
+    /// Locals scratchA/scratchB are free caller temporaries.
+    private static func emitWriteI64Decimal(
+        _ code: inout WasmCode,
+        valueLocal: Int,
+        outLocal: Int,
+        wLocal: Int,
+        scratchA: Int,
+        scratchB: Int
+    ) {
+        // sign
+        code.localGet(valueLocal)
+        code.i64Const(0)
+        code.op(WasmOpcode.i64LtS)
+        code.openIf()
+        emitStoreByte(&code, baseLocal: outLocal, indexLocal: wLocal, value: 0x2D)
+        code.localGet(wLocal)
+        code.i64Const(1)
+        code.op(WasmOpcode.i64Add)
+        code.localSet(wLocal)
+        code.i64Const(0)
+        code.localGet(valueLocal)
+        code.op(WasmOpcode.i64Sub)
+        code.localSet(valueLocal)
+        code.end()
+        // digit count into scratchB, value copy into scratchA
+        code.localGet(valueLocal)
+        code.localSet(scratchA)
+        code.i64Const(0)
+        code.localSet(scratchB)
+        code.openBlock()
+        code.openLoop()
+        code.localGet(scratchA)
+        code.i64Const(10)
+        code.op(WasmOpcode.i64DivU)
+        code.localSet(scratchA)
+        code.localGet(scratchB)
+        code.i64Const(1)
+        code.op(WasmOpcode.i64Add)
+        code.localSet(scratchB)
+        code.localGet(scratchA)
+        code.i64Truthy()
+        code.brIf(0)
+        code.end()
+        code.end()
+        // cnt survives in valueLocal (dead after the copy) while scratchB
+        // counts down: digits land at out[w + j], then w += cnt.
+        code.localGet(valueLocal)
+        code.localSet(scratchA)
+        code.localGet(scratchB)
+        code.localSet(valueLocal)
+        code.openBlock()
+        code.openLoop()
+        code.localGet(scratchB)
+        code.op(WasmOpcode.i64Eqz)
+        code.brIf(1)
+        code.localGet(scratchB)
+        code.i64Const(1)
+        code.op(WasmOpcode.i64Sub)
+        code.localSet(scratchB)
+        emitAddress(&code, baseLocal: outLocal, byteOffset: 0)
+        code.localGet(wLocal)
+        code.op(WasmOpcode.i32WrapI64)
+        code.op(WasmOpcode.i32Add)
+        code.localGet(scratchB)
+        code.op(WasmOpcode.i32WrapI64)
+        code.op(WasmOpcode.i32Add)
+        code.localGet(scratchA)
+        code.i64Const(10)
+        code.op(WasmOpcode.i64RemU)
+        code.i64Const(0x30)
+        code.op(WasmOpcode.i64Add)
+        code.op(WasmOpcode.i32WrapI64)
+        code.i32Store8()
+        code.localGet(scratchA)
+        code.i64Const(10)
+        code.op(WasmOpcode.i64DivU)
+        code.localSet(scratchA)
+        code.br(0)
+        code.end()
+        code.end()
+        code.localGet(wLocal)
+        code.localGet(valueLocal)
+        code.op(WasmOpcode.i64Add)
+        code.localSet(wLocal)
     }
 
     // MARK: - List helpers
@@ -3278,6 +4893,49 @@ enum WasmRuntimeHelpers {
         code.end()
         code.i64Const(1)
         code.op(WasmOpcode.return)
+        code.end()
+        // Two heap objects sharing the Double/Float typeID compare their
+        // `{bits@16}` payload numerically (`listOf(1.5).contains(1.5)`);
+        // bit-equality is wrong here — it would separate +0.0/-0.0.
+        code.localGet(aHeap)
+        code.localGet(bHeap)
+        code.op(WasmOpcode.i64And)
+        code.i64Const(0)
+        code.op(WasmOpcode.i64Ne)
+        code.openIf()
+        emitLoadAt(&code, baseLocal: 0, byteOffset: L.typeIDOffset)
+        code.localSet(paL)
+        emitLoadAt(&code, baseLocal: 1, byteOffset: L.typeIDOffset)
+        code.localGet(paL)
+        code.op(WasmOpcode.i64Eq)
+        code.openIf()
+        code.localGet(paL)
+        code.i64Const(Self.stableNominalTypeID("kotlin.Double"))
+        code.op(WasmOpcode.i64Eq)
+        code.openIf()
+        emitLoadAt(&code, baseLocal: 0, byteOffset: 16)
+        code.op(WasmOpcode.f64ReinterpretI64)
+        emitLoadAt(&code, baseLocal: 1, byteOffset: 16)
+        code.op(WasmOpcode.f64ReinterpretI64)
+        code.op(WasmOpcode.f64Eq)
+        code.i64ExtendFromComparison()
+        code.op(WasmOpcode.return)
+        code.end()
+        code.localGet(paL)
+        code.i64Const(Self.stableNominalTypeID("kotlin.Float"))
+        code.op(WasmOpcode.i64Eq)
+        code.openIf()
+        emitLoadAt(&code, baseLocal: 0, byteOffset: 16)
+        code.op(WasmOpcode.i32WrapI64)
+        code.op(WasmOpcode.f32ReinterpretI32)
+        emitLoadAt(&code, baseLocal: 1, byteOffset: 16)
+        code.op(WasmOpcode.i32WrapI64)
+        code.op(WasmOpcode.f32ReinterpretI32)
+        code.op(WasmOpcode.f32Eq)
+        code.i64ExtendFromComparison()
+        code.op(WasmOpcode.return)
+        code.end()
+        code.end()
         code.end()
         // Different kinds / non-strings / non-heap: not equal.
         code.i64Const(0)

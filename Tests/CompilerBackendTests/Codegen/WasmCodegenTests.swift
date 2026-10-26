@@ -992,4 +992,109 @@ struct WasmCodegenTests {
         #expect(run?.status == 0)
         #expect(run?.stdout == "1\n2\n1\n[7-8-8]\n7, 8, 8\na+b\nhi\n")
     }
+
+    @Test
+    func runsFloatingPointIntrinsicsUnderNodeWASI() throws {
+        guard nodePath() != nil else { return }
+        // Double/Float payloads travel as raw i64 bits; boxes carry the
+        // nominal typeID so any_to_string(v, 1) renders via Dragon4.
+        //   println(3.14)           -> 3.14
+        //   println(1.0 / 3.0)      -> 0.3333333333333333
+        //   println(10.0 % 3.0)     -> 1.0
+        //   println(1.5f)           -> 1.5
+        //   println(-0.0)           -> -0.0
+        //   println(0.5 * -1.0)     -> -0.5
+        //   println(1e10)           -> 1.0E10
+        //   println(1.5 == 1.5)     -> true   (tag-2 Boolean rendering)
+        //   println(2.5f + 0.25f)   -> 2.75
+        //   println((2.7).toInt())  -> 2
+        //   println(3.toDouble())   -> 3.0
+        let arena = KIRArena()
+        let mainSymbol = SymbolID(rawValue: 1)
+        func e(_ kind: KIRExprKind = .unit) -> KIRExprID { arena.appendExpr(kind) }
+        let pi = e(), third = e(), rem = e(), half = e(), negZero = e()
+        let negHalf = e(), big = e(), eq = e(), fsum = e(), toInt = e()
+        let toDbl = e(), box = e(), tag = e(), tagBool = e()
+        var body: [KIRInstruction] = []
+        body.append(.constValue(result: tag, value: .intLiteral(1)))
+        body.append(.constValue(result: tagBool, value: .intLiteral(2)))
+        func printValue(_ v: KIRExprID, _ t: KIRExprID) {
+            let s = e()
+            body.append(.call(symbol: nil, callee: interner.intern("kk_any_to_string"),
+                              arguments: [v, t], result: s,
+                              canThrow: false, thrownResult: nil))
+            body.append(println(interner.intern("__kk_println_raw"), s))
+        }
+        body.append(.constValue(result: pi, value: .doubleLiteral(3.14)))
+        body.append(.call(symbol: nil, callee: interner.intern("kk_box_double_nonnull"),
+                          arguments: [pi], result: box,
+                          canThrow: false, thrownResult: nil))
+        printValue(box, tag)
+        body.append(.constValue(result: third, value: .doubleLiteral(3.0)))
+        body.append(.call(symbol: nil, callee: interner.intern("kk_op_ddiv"),
+                          arguments: [e(.doubleLiteral(1.0)), third], result: rem,
+                          canThrow: false, thrownResult: nil))
+        body.append(.call(symbol: nil, callee: interner.intern("kk_box_double_nonnull"),
+                          arguments: [rem], result: box,
+                          canThrow: false, thrownResult: nil))
+        printValue(box, tag)
+        body.append(.call(symbol: nil, callee: interner.intern("kk_op_dmod"),
+                          arguments: [e(.doubleLiteral(10.0)), third], result: rem,
+                          canThrow: false, thrownResult: nil))
+        body.append(.call(symbol: nil, callee: interner.intern("kk_box_double_nonnull"),
+                          arguments: [rem], result: box,
+                          canThrow: false, thrownResult: nil))
+        printValue(box, tag)
+        body.append(.constValue(result: half, value: .floatLiteral(1.5)))
+        body.append(.call(symbol: nil, callee: interner.intern("kk_box_float"),
+                          arguments: [half], result: box,
+                          canThrow: false, thrownResult: nil))
+        printValue(box, tag)
+        body.append(.constValue(result: negZero, value: .doubleLiteral(-0.0)))
+        body.append(.call(symbol: nil, callee: interner.intern("kk_box_double_nonnull"),
+                          arguments: [negZero], result: box,
+                          canThrow: false, thrownResult: nil))
+        printValue(box, tag)
+        body.append(.call(symbol: nil, callee: interner.intern("kk_op_dmul"),
+                          arguments: [e(.doubleLiteral(0.5)), e(.doubleLiteral(-1.0))], result: negHalf,
+                          canThrow: false, thrownResult: nil))
+        body.append(.call(symbol: nil, callee: interner.intern("kk_box_double_nonnull"),
+                          arguments: [negHalf], result: box,
+                          canThrow: false, thrownResult: nil))
+        printValue(box, tag)
+        body.append(.constValue(result: big, value: .doubleLiteral(1e10)))
+        body.append(.call(symbol: nil, callee: interner.intern("kk_box_double_nonnull"),
+                          arguments: [big], result: box,
+                          canThrow: false, thrownResult: nil))
+        printValue(box, tag)
+        body.append(.call(symbol: nil, callee: interner.intern("kk_op_deq"),
+                          arguments: [e(.doubleLiteral(1.5)), e(.doubleLiteral(1.5))], result: eq,
+                          canThrow: false, thrownResult: nil))
+        printValue(eq, tagBool)
+        body.append(.call(symbol: nil, callee: interner.intern("kk_op_fadd"),
+                          arguments: [e(.floatLiteral(2.5)), e(.floatLiteral(0.25))], result: fsum,
+                          canThrow: false, thrownResult: nil))
+        body.append(.call(symbol: nil, callee: interner.intern("kk_box_float"),
+                          arguments: [fsum], result: box,
+                          canThrow: false, thrownResult: nil))
+        printValue(box, tag)
+        body.append(.call(symbol: nil, callee: interner.intern("__kk_double_to_int"),
+                          arguments: [e(.doubleLiteral(2.7))], result: toInt,
+                          canThrow: false, thrownResult: nil))
+        printValue(toInt, tag)
+        body.append(.call(symbol: nil, callee: interner.intern("kk_int_to_double"),
+                          arguments: [e(.intLiteral(3))], result: toDbl,
+                          canThrow: false, thrownResult: nil))
+        body.append(.call(symbol: nil, callee: interner.intern("kk_box_double_nonnull"),
+                          arguments: [toDbl], result: box,
+                          canThrow: false, thrownResult: nil))
+        printValue(box, tag)
+        body.append(.returnUnit)
+        let main = makeFunction(symbol: mainSymbol, name: "main", params: [], body: body)
+        let declID = arena.appendDecl(.function(main))
+        let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [declID])], arena: arena)
+        let run = try runUnderNode(try emit(module, entry: mainSymbol))
+        #expect(run?.status == 0)
+        #expect(run?.stdout == "3.14\n0.3333333333333333\n1.0\n1.5\n-0.0\n-0.5\n1.0E10\ntrue\n2.75\n2\n3.0\n")
+    }
 }
