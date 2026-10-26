@@ -9,6 +9,97 @@ import Testing
 struct CodegenBackendScopeFunctionEdgeCasesTests {
 
     @Test
+    func testInheritedContextMemberExtensionInsideRunLambda() throws {
+        let runLibrary = """
+        package testlib
+        public inline fun <T, R> T.run(block: T.() -> R): R = block()
+        public inline fun <T, R> with(receiver: T, block: T.() -> R): R = receiver.block()
+        """
+        let libraryBase = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString).path
+        let libraryPath = libraryBase + ".kklib"
+        defer { try? FileManager.default.removeItem(atPath: libraryPath) }
+
+        try withTemporaryFile(contents: runLibrary) { path in
+            let options = CompilerOptions(
+                moduleName: "KUU3357RunLibrary",
+                inputs: [path],
+                outputPath: libraryBase,
+                emit: .library,
+                target: TargetTriple.hostDefault(),
+                includeStdlib: false,
+                allowDefaultStdlibLibrary: false
+            )
+            let ctx = CompilationContext(
+                options: options,
+                sourceManager: SourceManager(),
+                diagnostics: DiagnosticEngine(),
+                interner: StringInterner()
+            )
+            try runToKIR(ctx)
+            #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+        }
+
+        let source = """
+        @file:OptIn(kotlin.ExperimentalContextParameters::class)
+        import testlib.run
+        import testlib.with
+
+        abstract class A {
+            context(c: C) fun P.foo(): Int = c.result
+        }
+
+        class B : A() {
+            val p = P()
+            context(c: C) fun test(): Int = p.run { foo() }
+        }
+
+        class P
+        class C(val result: Int)
+
+        fun main() {
+            val result = with(C(42)) { B().test() }
+            if (result != 42) {
+                val failure: Any? = null
+                failure!!
+            }
+        }
+        """
+
+        let outputPath = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString).path
+        defer { try? FileManager.default.removeItem(atPath: outputPath) }
+        try withTemporaryFile(contents: source) { path in
+            let options = CompilerOptions(
+                moduleName: "InheritedContextMemberExtensionInsideRunLambda",
+                inputs: [path],
+                outputPath: outputPath,
+                emit: .executable,
+                searchPaths: [libraryPath],
+                target: TargetTriple.hostDefault(),
+                includeStdlib: false,
+                allowDefaultStdlibLibrary: false
+            )
+            let ctx = CompilationContext(
+                options: options,
+                sourceManager: SourceManager(),
+                diagnostics: DiagnosticEngine(),
+                interner: StringInterner()
+            )
+            try runToKIR(ctx)
+            #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputPath, arguments: [])
+            #expect(result.exitCode == 0, "\(result.stderr)")
+        }
+    }
+
+    @Test
     func testNamedArgumentCallKeepsMultipleContextParameters() throws {
         let source = """
         import kotlin.ExperimentalContextParameters
