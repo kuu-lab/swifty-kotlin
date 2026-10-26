@@ -609,11 +609,40 @@ final class RuntimeOutputStreamBox: RuntimeChildReferenceProviding {
     }
 }
 
-final class RuntimeBufferedWriterBox {
+protocol RuntimeJavaWriter: AnyObject {
+    func write(_ text: String) throws
+    func flush() throws
+    func closeThrowing() throws
+}
+
+final class RuntimeStringWriterBox: RuntimeJavaWriter {
+    private let builder: RuntimeStringBuilderBox
+    let bufferRaw: Int
+
+    init(builder: RuntimeStringBuilderBox, bufferRaw: Int) {
+        self.builder = builder
+        self.bufferRaw = bufferRaw
+    }
+
+    func write(_ text: String) {
+        builder.ensureCapacity(builder.units.count + text.utf16.count)
+        runtimeAppendKotlinUTF16CodeUnits(of: text, to: &builder.units)
+    }
+
+    func flush() {}
+
+    func closeThrowing() throws {}
+
+    func stringValue() -> String { builder.stringValue }
+}
+
+final class RuntimeBufferedWriterBox: RuntimeJavaWriter {
     private let fileHandle: FileHandle?
     private let stream: RuntimeOutputStreamBox?
+    private let upstreamWriter: (any RuntimeJavaWriter)?
     private let charsetTag: CharsetTag?
     private var buffer: Data
+    private var pendingText: String
     private let bufferSize: Int
     private let encoding: String.Encoding
     private var closed: Bool
@@ -621,8 +650,10 @@ final class RuntimeBufferedWriterBox {
     init(fileHandle: FileHandle, bufferSize: Int = 8192, encoding: String.Encoding = .utf8) {
         self.fileHandle = fileHandle
         self.stream = nil
+        self.upstreamWriter = nil
         self.charsetTag = nil
         self.buffer = Data()
+        self.pendingText = ""
         self.bufferSize = max(1, bufferSize)
         self.encoding = encoding
         self.closed = false
@@ -631,8 +662,22 @@ final class RuntimeBufferedWriterBox {
     init(stream: RuntimeOutputStreamBox, charsetTag: CharsetTag, bufferSize: Int = 8192) {
         self.fileHandle = nil
         self.stream = stream
+        self.upstreamWriter = nil
         self.charsetTag = charsetTag
         self.buffer = Data()
+        self.pendingText = ""
+        self.bufferSize = max(1, bufferSize)
+        self.encoding = .utf8
+        self.closed = false
+    }
+
+    init(writer: any RuntimeJavaWriter, bufferSize: Int = 8192) {
+        self.fileHandle = nil
+        self.stream = nil
+        self.upstreamWriter = writer
+        self.charsetTag = nil
+        self.buffer = Data()
+        self.pendingText = ""
         self.bufferSize = max(1, bufferSize)
         self.encoding = .utf8
         self.closed = false
@@ -640,6 +685,13 @@ final class RuntimeBufferedWriterBox {
 
     func write(_ text: String) throws {
         guard !closed else { throw RuntimeKotlinThrownError(thrownRaw: runtimeAllocateIOException(message: "Stream closed")) }
+        if upstreamWriter != nil {
+            pendingText.append(text)
+            if pendingText.utf16.count >= bufferSize {
+                try flushBuffer()
+            }
+            return
+        }
         let data: Data
         if let charsetTag {
             data = Data(runtimeCharsetEncodedBytes(text, tag: charsetTag).map { UInt8(truncatingIfNeeded: $0) })
@@ -660,7 +712,8 @@ final class RuntimeBufferedWriterBox {
     func flush() throws {
         guard !closed else { throw RuntimeKotlinThrownError(thrownRaw: runtimeAllocateIOException(message: "Stream closed")) }
         try flushBuffer()
-        if let stream { try stream.flush() }
+        if let upstreamWriter { try upstreamWriter.flush() }
+        else if let stream { try stream.flush() }
         else { try fileHandle?.synchronize() }
     }
 
@@ -674,9 +727,11 @@ final class RuntimeBufferedWriterBox {
             // Close the underlying stream even if encoding/flush failed.
             try? stream?.closeThrowing()
             try? fileHandle?.close()
+            try? upstreamWriter?.closeThrowing()
             throw error
         }
-        if let stream { try stream.closeThrowing() }
+        if let upstreamWriter { try upstreamWriter.closeThrowing() }
+        else if let stream { try stream.closeThrowing() }
         else { try fileHandle?.close() }
     }
 
@@ -685,6 +740,12 @@ final class RuntimeBufferedWriterBox {
     }
 
     private func flushBuffer() throws {
+        if let upstreamWriter {
+            guard !pendingText.isEmpty else { return }
+            try upstreamWriter.write(pendingText)
+            pendingText = ""
+            return
+        }
         guard !buffer.isEmpty else { return }
         if let stream { try stream.write(buffer) }
         else { try fileHandle?.write(contentsOf: buffer) }

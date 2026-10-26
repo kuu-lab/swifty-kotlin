@@ -663,11 +663,67 @@ private func runtimeBufferedWriterBox(from raw: Int) -> RuntimeBufferedWriterBox
     return tryCast(ptr, to: RuntimeBufferedWriterBox.self)
 }
 
+private func runtimeStringWriterBox(from raw: Int) -> RuntimeStringWriterBox? {
+    guard let ptr = UnsafeMutableRawPointer(bitPattern: raw) else { return nil }
+    return tryCast(ptr, to: RuntimeStringWriterBox.self)
+}
+
+private func runtimeStringWriterNew(initialCapacity: Int?) -> Int {
+    let builder: RuntimeStringBuilderBox
+    if let initialCapacity {
+        builder = RuntimeStringBuilderBox(units: [], capacity: initialCapacity)
+    } else {
+        builder = RuntimeStringBuilderBox()
+    }
+    let bufferRaw = runtimeRegisterStringBuilderType(registerRuntimeObject(builder))
+    return runtimeRegisterJavaWriter(
+        RuntimeStringWriterBox(builder: builder, bufferRaw: bufferRaw),
+        fqName: "java.io.StringWriter",
+        parentFQName: "java.io.Writer"
+    )
+}
+
+@_cdecl("__kk_string_writer_new_default")
+public func __kk_string_writer_new_default() -> Int {
+    runtimeStringWriterNew(initialCapacity: nil)
+}
+
+@_cdecl("__kk_string_writer_new")
+public func __kk_string_writer_new(_ initialSize: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    outThrown?.pointee = 0
+    guard initialSize >= 0 else {
+        outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "negative initial size")
+        return 0
+    }
+    return runtimeStringWriterNew(initialCapacity: initialSize)
+}
+
+@_cdecl("__kk_string_writer_to_string")
+public func __kk_string_writer_to_string(_ writerRaw: Int) -> Int {
+    guard let writer = runtimeStringWriterBox(from: writerRaw) else {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_string_writer_to_string received invalid StringWriter handle")
+    }
+    return runtimeMakeUTF8StringRaw(writer.stringValue())
+}
+
+@_cdecl("__kk_string_writer_get_buffer")
+public func __kk_string_writer_get_buffer(_ writerRaw: Int) -> Int {
+    guard let writer = runtimeStringWriterBox(from: writerRaw) else {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_string_writer_get_buffer received invalid StringWriter handle")
+    }
+    return writer.bufferRaw
+}
+
 @_cdecl("__kk_buffered_writer_write")
 public func __kk_buffered_writer_write(_ writerRaw: Int, _ textRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
-    guard let writer = runtimeBufferedWriterBox(from: writerRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_buffered_writer_write received invalid BufferedWriter handle")
+    let writer: any RuntimeJavaWriter
+    if let bufferedWriter = runtimeBufferedWriterBox(from: writerRaw) {
+        writer = bufferedWriter
+    } else if let stringWriter = runtimeStringWriterBox(from: writerRaw) {
+        writer = stringWriter
+    } else {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_buffered_writer_write received invalid Writer handle")
     }
     guard let ptr = UnsafeMutableRawPointer(bitPattern: textRaw),
           let text = extractString(from: ptr)
@@ -703,8 +759,13 @@ public func __kk_buffered_writer_new_line(_ writerRaw: Int, _ outThrown: UnsafeM
 @_cdecl("__kk_buffered_writer_flush")
 public func __kk_buffered_writer_flush(_ writerRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
-    guard let writer = runtimeBufferedWriterBox(from: writerRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_buffered_writer_flush received invalid BufferedWriter handle")
+    let writer: any RuntimeJavaWriter
+    if let bufferedWriter = runtimeBufferedWriterBox(from: writerRaw) {
+        writer = bufferedWriter
+    } else if let stringWriter = runtimeStringWriterBox(from: writerRaw) {
+        writer = stringWriter
+    } else {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_buffered_writer_flush received invalid Writer handle")
     }
     do {
         try writer.flush()
@@ -729,10 +790,17 @@ public func __kk_writer_buffered(_ writerRaw: Int, _ bufferSizeRaw: Int, _ outTh
         outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "bufferSize must be positive")
         return 0
     }
-    guard runtimeBufferedWriterBox(from: writerRaw) != nil else {
+    if runtimeBufferedWriterBox(from: writerRaw) != nil {
+        return writerRaw
+    }
+    guard let writer = runtimeStringWriterBox(from: writerRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_writer_buffered received invalid Writer handle")
     }
-    return writerRaw
+    return runtimeRegisterJavaWriter(
+        RuntimeBufferedWriterBox(writer: writer, bufferSize: bufferSizeRaw),
+        fqName: "java.io.BufferedWriter",
+        parentFQName: "java.io.Writer"
+    )
 }
 
 @_cdecl("__kk_bytearrayinputstream_new")
@@ -1137,7 +1205,11 @@ public func __kk_output_stream_bufferedWriter(_ streamRaw: Int, _ charsetRaw: In
     guard let stream = runtimeOutputStreamBox(from: streamRaw), let tag = CharsetTag(rawValue: charsetRaw) else {
         fatalError("KSwiftK panic: invalid OutputStream/Charset tag")
     }
-    return registerRuntimeObject(RuntimeBufferedWriterBox(stream: stream, charsetTag: tag))
+    return runtimeRegisterJavaWriter(
+        RuntimeBufferedWriterBox(stream: stream, charsetTag: tag),
+        fqName: "java.io.BufferedWriter",
+        parentFQName: "java.io.Writer"
+    )
 }
 
 

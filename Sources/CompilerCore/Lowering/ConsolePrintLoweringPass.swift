@@ -462,6 +462,14 @@ final class ConsolePrintLoweringPass: LoweringPass, ParallelLoweringPass {
             || classSymbol.fqName == [interner.intern("kotlin"), interner.intern("Enum")] {
             return nil
         }
+        if classSymbol.fqName == [
+            interner.intern("java"), interner.intern("io"), interner.intern("StringWriter"),
+        ] {
+            // Runtime StringWriter boxes register their raw StringWriter.toString
+            // entry in the erased-Any override map. Leave console printing on that
+            // path instead of dispatching through a compiler-owned flat String vtable.
+            return nil
+        }
         if ["ULongRange", "ULongProgression"].contains(where: { name in
             classSymbol.fqName == [
                 interner.intern("kotlin"),
