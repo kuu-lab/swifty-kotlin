@@ -962,7 +962,7 @@ extension ExprTypeChecker {
                 else {
                     return false
                 }
-                let isAnonymous = interner.resolve(member).hasPrefix("__AnonymousFunction_")
+                let isAnonymous = sema.symbols.isAnonymousFunction(symbolID, interner: interner)
                 return signature.receiverType == nil || isAnonymous
             })
             candidates = localFunctionCandidates.isEmpty
@@ -988,7 +988,7 @@ extension ExprTypeChecker {
                let localSymbol = ctx.cachedSymbol(local.symbol),
                localSymbol.kind == .function,
                (sema.symbols.functionSignature(for: local.symbol)?.receiverType == nil
-                   || interner.resolve(member).hasPrefix("__AnonymousFunction_"))
+                   || sema.symbols.isAnonymousFunction(local.symbol, interner: interner))
             {
                 candidates = [local.symbol]
             }
@@ -1356,7 +1356,7 @@ extension ExprTypeChecker {
         }
 
         // Concrete value and type receivers specialize the owner's type parameters.
-        let boundReceiverType: TypeID? = if isImplicitlyBoundMember {
+        var boundReceiverType: TypeID? = if isImplicitlyBoundMember {
             implicitBoundReceiver?.type
         } else if let importedObjectCallableReferenceReceiver {
             importedObjectCallableReferenceReceiver.type
@@ -1366,6 +1366,29 @@ extension ExprTypeChecker {
             effectiveReceiverType
         } else {
             nil
+        }
+        if isBoundReceiver,
+           let candidateReceiverType = boundReceiverType,
+           let expectedFunctionType,
+           let session = ctx.builderInference,
+           !session.isFinalized,
+           session.mentionsVariable(candidateReceiverType, types: sema.types),
+           !session.mentionsVariable(expectedFunctionType, types: sema.types),
+           candidates.count == 1,
+           let candidate = candidates.first,
+           let signature = sema.symbols.functionSignature(for: candidate),
+           signature.typeParameterSymbols.count == signature.classTypeParameterCount,
+           let resolvedReceiverType = inferBuilderBoundCallableReferenceReceiverType(
+               signature: signature,
+               targetSymbol: candidate,
+               boundReceiverType: candidateReceiverType,
+               expectedFunctionType: expectedFunctionType,
+               range: range,
+               availableContextReceiverTypes: availableContextReceiverTypes,
+               ctx: ctx
+           )
+        {
+            boundReceiverType = resolvedReceiverType
         }
         if candidates.count == 1 {
             driver.inferFunctionReturnTypesIfNeeded(for: candidates)

@@ -231,7 +231,8 @@ extension ExprTypeChecker {
             sema: sema
         )
         // Resolve the operator against the flow-refined read type, but check its
-        // result against the type declared for the storage location.
+        // result against the declared storage type. The implicit write clears
+        // the old narrowing instead of adopting the operator's return type.
         guard sema.types.isSubtype(returnType, assignmentType) else {
             ctx.sema.diagnostics.error(
                 "KSWIFTK-SEMA-0303",
@@ -250,7 +251,7 @@ extension ExprTypeChecker {
         sema.bindings.bindExprType(exprID, type: expressionType)
         return IncrementDecrementInferenceResult(
             expressionType: expressionType,
-            assignedType: returnType
+            assignedType: assignmentType
         )
     }
 

@@ -108,6 +108,29 @@ struct CodegenBackendVirtualDispatchTests {
         }
     }
 
+    @Test func testContextParameterSamLambdaPassesContextToBody() throws {
+        let source = """
+        @file:OptIn(kotlin.ExperimentalContextParameters::class)
+
+        open class A { fun foo(s: String) = s }
+        context(ctx: T)
+        fun <T> get(): T = ctx
+        fun interface Sam { context(i: A) fun accept(s: String): String }
+        val sam = Sam { s: String -> get<A>().foo(s) }
+        context(i: A)
+        fun invokeSam() { println(sam.accept("OK")) }
+        fun <T, R> withValue(value: T, block: T.() -> R): R = block(value)
+        fun main() { withValue(A()) { invokeSam() } }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "KUU3281ContextParameterSamLambda",
+            expected: "OK\n",
+            optLevel: .O0
+        )
+    }
+
     @Test(arguments: [true, false])
     func testNestedRunForEachKeepsLabeledClassReceiverForGenericVisitor(
         allowDefaultStdlibLibrary: Bool

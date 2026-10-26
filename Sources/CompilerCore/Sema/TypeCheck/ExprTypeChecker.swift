@@ -277,16 +277,9 @@ final class ExprTypeChecker {
                 sema.symbols.symbol($0)?.kind == .constructor
             } ?? false
             let returnsFromInitBlock = ctx.returnTargetIsInitBlock && (label == nil || targetsFunction)
-            let hasForbiddenConstructorReturnValue = returnsFromConstructor
+            let isConstructorReturnWithValue = returnsFromConstructor
                 && value != nil
                 && (label == nil || targetsFunction)
-            if hasForbiddenConstructorReturnValue {
-                sema.diagnostics.error(
-                    "KSWIFTK-SEMA-0042",
-                    "'return' with a value is not allowed in a constructor.",
-                    range: range
-                )
-            }
             if returnsFromInitBlock {
                 sema.diagnostics.error(
                     "KSWIFTK-SEMA-0312",
@@ -356,7 +349,7 @@ final class ExprTypeChecker {
             // an outer assignment: `x = if (c) 1 else return null` inside a
             // function returning `Int?` must check `return null` against
             // `Int?`, not `x`'s declared `Int`).
-            let returnExpectedType: TypeID? = if hasForbiddenConstructorReturnValue {
+            let returnExpectedType: TypeID? = if isConstructorReturnWithValue {
                 nil
             } else if label == nil || targetsFunction,
                                                     let enclosingFunctionReturnType = ctx.enclosingFunctionReturnType
@@ -369,6 +362,13 @@ final class ExprTypeChecker {
             }
             if let value {
                 let resolved = driver.inferExpr(value, ctx: ctx, locals: &locals, expectedType: returnExpectedType)
+                if isConstructorReturnWithValue, resolved != sema.types.unitType {
+                    sema.diagnostics.error(
+                        "KSWIFTK-SEMA-0042",
+                        "'return' with a value is not allowed in a constructor.",
+                        range: range
+                    )
+                }
                 if (!(label == nil || targetsFunction) || !ctx.isPropertyGetterReturn),
                    returnExpectedType == sema.types.unitType,
                    sema.types.makeNonNullable(resolved) == sema.types.unitType
@@ -584,12 +584,43 @@ final class ExprTypeChecker {
             } else {
                 hasErasedTypeArguments = false
             }
-            // Kotlin permits this when the subject is already known to have
-            // the target instantiation; otherwise its type arguments are erased.
+            let subjectHasKnownTargetInstantiation: Bool
+            if sema.types.isSubtype(subjectNonNull, targetNonNull) {
+                subjectHasKnownTargetInstantiation = true
+            } else if case let .classType(subjectClass) = sema.types.kind(of: subjectNonNull),
+                      case let .classType(targetClass) = sema.types.kind(of: targetNonNull),
+                      targetClass.enclosingTypeArgs.allSatisfy({ arg in
+                          if case .star = arg { return true }
+                          return false
+                      }),
+                      let inferredArgs = sema.types.narrowedSubtypeArgs(
+                          forSubtype: targetClass.classSymbol,
+                          givenSupertype: subjectClass.classSymbol,
+                          supertypeArgs: subjectClass.args
+                      ),
+                      inferredArgs.count == targetClass.args.count
+            {
+                // A generic supertype can prove explicit target arguments even
+                // when the subject's nominal type is broader than the target.
+                // Star-projected target arguments need no runtime evidence.
+                subjectHasKnownTargetInstantiation = zip(targetClass.args, inferredArgs).allSatisfy { targetArg, inferredArg in
+                    switch targetArg {
+                    case .star:
+                        return true
+                    case let .invariant(targetArgType), let .out(targetArgType), let .in(targetArgType):
+                        guard case let .invariant(inferredArgType) = inferredArg else { return false }
+                        return targetArgType == inferredArgType
+                    }
+                }
+            } else {
+                subjectHasKnownTargetInstantiation = false
+            }
+            // Kotlin permits explicit generic checks when the subject's static
+            // type proves the target instantiation, including through supertypes.
             if hasErasedTypeArguments,
                subjectType != sema.types.errorType,
                targetType != sema.types.errorType,
-               !sema.types.isSubtype(subjectNonNull, targetNonNull)
+               !subjectHasKnownTargetInstantiation
             {
                 ctx.sema.diagnostics.error(
                     "KSWIFTK-SEMA-ERASED-TYPE",
@@ -782,7 +813,14 @@ final class ExprTypeChecker {
             return inferCallableRefExpr(id, receiver: receiver, member: member, range: range, ctx: ctx, locals: &locals, expectedType: expectedType)
 
         case let .blockExpr(statements, trailingExpr, _):
+            // Increment/decrement expressions desugar to a block containing a
+            // synthetic compound assignment. Its write must update outer
+            // locals just like a call-result compound assignment block.
+            let containsIncrementDecrementAssignment = statements.contains {
+                ast.arena.isIncrementDecrement($0)
+            }
             let preservesOuterDataFlow = ast.arena.isCallResultCompoundAssignmentBlock(id)
+                || containsIncrementDecrementAssignment
             ctx.dataFlow.localStability.analyze(statements + (trailingExpr.map { [$0] } ?? []), ast: ast)
             // Anonymous functions are blocks around a synthetic local function
             // and its callable reference. The declaration needs the contextual
@@ -875,6 +913,7 @@ final class ExprTypeChecker {
                 name: name,
                 typeParams: typeParams,
                 contextReceivers: ast.arena.localFunContextReceivers(for: id),
+                isAnonymousFunction: ast.arena.isAnonymousFunction(id),
                 receiverTypeRef: receiverTypeRef,
                 valueParams: valueParams,
                 returnTypeRef: returnTypeRef,
@@ -1852,7 +1891,11 @@ final class ExprTypeChecker {
     ) -> [SymbolID] {
         let sema = ctx.sema
         let interner = ctx.interner
-        let isPrimitive = if case .primitive = sema.types.kind(of: receiverType) { true } else { false }
+        let isNonNullablePrimitive = if case .primitive(_, .nonNull) = sema.types.kind(of: receiverType) {
+            true
+        } else {
+            false
+        }
         let allowedOnPrimitive = names.contains { name in
             switch interner.resolve(name) {
             case "downTo", "rangeTo", "rangeUntil", "step":
@@ -1863,7 +1906,9 @@ final class ExprTypeChecker {
                 return false
             }
         }
-        guard !isPrimitive || allowedOnPrimitive else { return [] }
+        // Non-null primitive operators use dedicated builtin paths. Nullable
+        // primitives can declare applicable operator extensions such as Int?.inc().
+        guard !isNonNullablePrimitive || allowedOnPrimitive else { return [] }
 
         // STDLIB-OP-031: Names that are inherently operator functions in Kotlin
         // (e.g. equals, compareTo). Overrides of these inherit operator status

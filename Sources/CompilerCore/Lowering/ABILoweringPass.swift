@@ -999,7 +999,14 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                     var primitiveHint: TypeKind?
                     for operand in boxedArguments {
                         if let opType = intrinsicArgType(operand, arena: module.arena, types: types) {
-                            let opKind = resolveValueClassKind(types.kind(of: opType), types: types, symbols: symbols)
+                            let primitiveType = symbols.flatMap {
+                                resolvePrimitiveArithmeticUpperBound(
+                                    of: opType, types: types, symbols: $0
+                                )
+                            } ?? opType
+                            let opKind = resolveValueClassKind(
+                                types.kind(of: primitiveType), types: types, symbols: symbols
+                            )
                             if case .primitive(_, .nonNull) = opKind {
                                 primitiveHint = opKind
                                 break

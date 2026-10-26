@@ -252,4 +252,35 @@ extension BundledStdlibExecutionTests {
             allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
         )
     }
+
+    // KUU-3507: an object inheriting a superclass toString() must keep the
+    // same result through println, explicit calls, and string interpolation.
+    @Test
+    func testInheritedObjectToStringAcrossStringPaths() throws {
+        try compileAndRunKotlin(
+            """
+            open class Code(val x: String) {
+                override fun toString() = "$x"
+                fun foo(): String = x
+            }
+            object K : Code("K")
+            object Own {
+                override fun toString(): String = "Own"
+            }
+            fun main() {
+                println(K)
+                println(K.toString())
+                println("$K")
+                val r = K
+                println(r.toString())
+                println(K.x)
+                println(K.foo())
+                println(Own)
+                println(Own.toString())
+            }
+            """,
+            expectedOutput: "K\nK\nK\nK\nK\nK\nOwn\nOwn\n",
+            moduleName: "KUU3507InheritedObjectToString"
+        )
+    }
 }

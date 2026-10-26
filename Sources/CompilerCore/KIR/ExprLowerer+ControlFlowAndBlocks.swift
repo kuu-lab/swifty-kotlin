@@ -464,6 +464,12 @@ extension ExprLowerer {
 
         case let .returnExpr(value, label, _):
             let targetsFunction = sema.bindings.functionReturnLambdaPaths[exprID] != nil
+            let returnTargetSymbol = sema.bindings.identifierSymbol(for: exprID)
+                ?? (label == nil ? driver.ctx.currentFunctionSymbol : nil)
+            let returnsFromConstructor = returnTargetSymbol
+                .flatMap { sema.symbols.symbol($0)?.kind == .constructor } ?? false
+            let discardsConstructorUnitReturn = returnsFromConstructor
+                && value.map { sema.bindings.exprTypes[$0] == sema.types.unitType } == true
             let outerLambdaTarget: KIRReturnTarget? = {
                 guard let target = sema.bindings.lambdaReturnTargets[exprID],
                       sema.bindings.lambdaReturnLambdaPaths[exprID]?.isEmpty == false else { return nil }
@@ -491,6 +497,7 @@ extension ExprLowerer {
                 instructions.append(.constValue(result: unit, value: .unit))
                 return unit
             }
+            let returnValue: KIRExprID?
             if let value {
                 let lowered = lowerExpr(
                     value,
@@ -501,22 +508,35 @@ extension ExprLowerer {
                     propertyConstantInitializers: propertyConstantInitializers,
                     instructions: &instructions
                 )
-                // A bare variable read resolves to the variable's own storage
-                // register (see `driver.ctx.localValue(for:)` above), not a
-                // copy. If this return is inside a try-with-finally,
-                // `inlineAllEnclosingFinallyBlocks` below runs the finally body
-                // next -- if it reassigns that same variable, `lowered` would
-                // retroactively observe the mutation. Snapshot into a fresh
-                // register first, same as the `val a = b` aliasing guard in the
-                // `.localDecl` case above.
-                let returnValue: KIRExprID
-                if isBareVariableRead(value, ast: ast), !driver.ctx.enclosingFinallyBlocks().isEmpty {
-                    let snapshot = arena.appendTemporary(type: arena.exprType(lowered) ?? sema.types.anyType)
-                    instructions.append(.copy(from: lowered, to: snapshot))
-                    returnValue = snapshot
+                if discardsConstructorUnitReturn {
+                    // Kotlin treats `return Unit` in a constructor like `return`:
+                    // evaluate the expression, then leave without returning Unit
+                    // in place of the constructed instance.
+                    returnValue = nil
                 } else {
-                    returnValue = lowered
+                    // A bare variable read resolves to the variable's own storage
+                    // register (see `driver.ctx.localValue(for:)` above), not a
+                    // copy. If this return is inside a try-with-finally,
+                    // `inlineAllEnclosingFinallyBlocks` below runs the finally body
+                    // next -- if it reassigns that same variable, `lowered` would
+                    // retroactively observe the mutation. Snapshot into a fresh
+                    // register first, same as the `val a = b` aliasing guard in the
+                    // `.localDecl` case above.
+                    if isBareVariableRead(value, ast: ast), !driver.ctx.enclosingFinallyBlocks().isEmpty {
+                        let snapshot = arena.appendTemporary(type: arena.exprType(lowered) ?? sema.types.anyType)
+                        instructions.append(.copy(from: lowered, to: snapshot))
+                        returnValue = snapshot
+                    } else {
+                        returnValue = lowered
+                    }
                 }
+            } else {
+                returnValue = nil
+            }
+
+            let effectiveReturnValue = returnValue
+                ?? (returnsFromConstructor ? driver.ctx.activeImplicitReceiverExprID() : nil)
+            if let returnValue = effectiveReturnValue {
                 if let outerLambdaTarget {
                     instructions.append(.nonLocalReturn(returnValue, target: outerLambdaTarget))
                 } else if label == nil || targetsFunction, driver.ctx.currentLambdaAllowsNonLocalReturn {

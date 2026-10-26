@@ -74,6 +74,16 @@ extension TypeSystemTests {
     }
 
     @Test
+    func lubPreservesTypeParameterWhenJoinedWithDefinitelyNonNullForm() {
+        let types = TypeSystem()
+        let parameter = types.make(.typeParam(TypeParamType(symbol: SymbolID(rawValue: 700))))
+        let definitelyNonNull = types.definitelyNonNullForm(of: parameter)
+
+        #expect(types.lub([definitelyNonNull, parameter]) == parameter)
+        #expect(types.lub([parameter, definitelyNonNull]) == parameter)
+    }
+
+    @Test
     func lubKeepsNullableBoundOfTypeParameter() {
         let types = TypeSystem()
         let symbols = SymbolTable()

@@ -169,6 +169,20 @@ extension StdlibArtifactRegressionTests {
         }
     }
 
+    /// KUU-3330: a resumed suspend call returning Unit must preserve the boxed
+    /// Unit value when its result crosses an Any? assignment.
+    @Test(arguments: [0, 2])
+    func testSuspendUnitResultIsBoxedAfterResume(optimization: Int) throws {
+        TestStdlibCache.shared.prepare()
+        try compileAndRunKotlin(
+            try diffCaseSource("kuu_3330_suspend_unit_after_resume.kt", file: #filePath),
+            expectedOutput: "result=kotlin.Unit done=true\n",
+            moduleName: "KUU3330SuspendUnitAfterResume",
+            allowDefaultStdlibLibrary: true,
+            optLevel: try #require(OptimizationLevel(rawValue: optimization))
+        )
+    }
+
     /// KUU-3405: a custom setter assignment must still run when it is the
     /// final statement of a suspend lambda after resuming from suspension.
     @Test

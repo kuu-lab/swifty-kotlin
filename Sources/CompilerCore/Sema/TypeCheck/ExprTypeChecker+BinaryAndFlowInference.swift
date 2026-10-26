@@ -282,7 +282,16 @@ extension ExprTypeChecker {
         // concrete primitive upper bound (for example, `T : Double`). Keep
         // the operand bindings generic; the resulting primitive expression
         // type lets ABI lowering unbox those values before emitting the op.
-        if [.add, .subtract, .multiply, .divide, .modulo].contains(op),
+        let isPrimitiveUpperBoundComparison: Bool = switch op {
+        case .lessThan, .lessOrEqual, .greaterThan, .greaterOrEqual:
+            true
+        default:
+            false
+        }
+        let isEqualityComparison = op == .equal || op == .notEqual
+        if [.add, .subtract, .multiply, .divide, .modulo].contains(op)
+            || isPrimitiveUpperBoundComparison
+            || isEqualityComparison,
            let primitiveLhs = resolvePrimitiveArithmeticUpperBound(
                of: lhs, types: sema.types, symbols: sema.symbols
            ),
@@ -290,8 +299,13 @@ extension ExprTypeChecker {
                of: rhs, types: sema.types, symbols: sema.symbols
            ),
            sema.types.isBuiltinArithmeticOperand(primitiveLhs),
-           sema.types.isBuiltinArithmeticOperand(primitiveRhs)
+           sema.types.isBuiltinArithmeticOperand(primitiveRhs),
+           !(isEqualityComparison && primitiveLhs != primitiveRhs)
         {
+            // Primitive type-parameter bounds use the same scalar operators as
+            // their concrete types. In particular, resolving a floating-point
+            // bound here keeps `<` on IEEE comparisons instead of `compareTo`,
+            // whose total order distinguishes signed zero.
             lhs = primitiveLhs
             rhs = primitiveRhs
         }
@@ -383,10 +397,15 @@ extension ExprTypeChecker {
         default:
             true
         }
+        let rhsIntegerLiteral = driver.callChecker.integerLiteralValues(rhsID, ast: ast)
         let operatorCall = CallExpr(
             range: range,
             calleeName: operatorName,
-            args: [CallArg(type: rhs)]
+            args: [CallArg(
+                type: rhs,
+                signedIntegerLiteral: rhsIntegerLiteral.signed,
+                unsignedIntegerLiteral: rhsIntegerLiteral.unsigned
+            )]
         )
         var collectedOperatorCandidates: [SymbolID] = if shouldUseInheritedEqualityDispatch {
             collectOperatorCandidates(
@@ -655,11 +674,6 @@ extension ExprTypeChecker {
             }
         }
         if !operatorCandidates.isEmpty {
-            let operatorCall = CallExpr(
-                range: range,
-                calleeName: operatorName,
-                args: [CallArg(type: rhs)]
-            )
             let isComparisonOperator: Bool = switch op {
             case .lessThan, .lessOrEqual, .greaterThan, .greaterOrEqual:
                 true
@@ -764,6 +778,12 @@ extension ExprTypeChecker {
                 sema.bindings.bindExprType(id, type: sema.types.errorType)
                 return sema.types.errorType
             }
+            driver.callChecker.contextualizeResolvedIntegerArguments(
+                args: [CallArgument(expr: rhsID)],
+                resolved: resolved,
+                ctx: ctx,
+                locals: &locals
+            )
             let returnType = driver.callChecker.bindCallAndResolveReturnType(id, chosen: chosen, resolved: resolved, sema: sema)
             // compareTo desugaring: comparison operators (<, <=, >, >=) that resolve
             // to a compareTo method should produce Bool, not the compareTo return type (Int).

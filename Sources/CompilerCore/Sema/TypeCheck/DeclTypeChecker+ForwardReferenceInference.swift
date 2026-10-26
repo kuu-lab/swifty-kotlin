@@ -232,12 +232,13 @@ extension DeclTypeChecker {
                 guard !driver.precheckedPropertyDecls.contains(declID),
                       let decl = ctx.ast.arena.decl(declID),
                       case let .propertyDecl(property) = decl,
+                      let propertySymbol = sema.bindings.declSymbols[declID],
                       canSafelyPrecheckInferredProperty(
                           property,
+                          symbol: propertySymbol,
                           in: ctx,
                           initialLocals: initialLocals
-                      ),
-                      let propertySymbol = sema.bindings.declSymbols[declID]
+                      )
                 else {
                     continue
                 }
@@ -303,15 +304,55 @@ extension DeclTypeChecker {
 
     func canSafelyPrecheckInferredProperty(
         _ property: PropertyDecl,
+        symbol: SymbolID,
         in ctx: TypeInferenceContext,
         initialLocals: LocalBindings = [:]
     ) -> Bool {
+        guard property.type == nil,
+              property.explicitBackingField == nil
+        else {
+            return false
+        }
+
+        // Make a simple inferred extension getter's receiver available during
+        // prechecking so earlier function bodies see its concrete return type.
+        if let receiverType = ctx.sema.symbols.extensionPropertyReceiverType(for: symbol) {
+            guard !property.isVar,
+                  property.setter == nil,
+                  property.receiverType != nil,
+                  property.typeParams.isEmpty,
+                  property.contextReceivers.isEmpty,
+                  property.initializer == nil,
+                  property.delegateExpression == nil,
+                  let getter = property.getter,
+                  getter.returnType == nil,
+                  case let .expr(bodyExpr, _) = getter.body
+            else {
+                return false
+            }
+
+            let getterContext = ctx.copying(
+                implicitReceiverType: receiverType,
+                currentDeclSymbol: symbol
+            ).withOuterReceiver(
+                label: property.name,
+                type: receiverType,
+                symbol: SyntheticSymbolScheme.receiverParameterSymbol(for: symbol)
+            )
+            guard let type = safePrecheckExpressionType(
+                bodyExpr,
+                in: getterContext,
+                locals: initialLocals
+            ) else {
+                return false
+            }
+            return type != ctx.sema.types.nullableNothingType
+        }
+
         // A visibility-only setter such as `internal set` has no body and does
         // not change the initializer's inferred property type.
-        guard property.type == nil,
-              property.getter == nil,
+        guard property.getter == nil,
               property.setter == nil || property.setter?.body == .unit,
-              property.explicitBackingField == nil,
               property.receiverType == nil
         else {
             return false
@@ -482,6 +523,16 @@ extension DeclTypeChecker {
             return nil
         }
         let namedCandidates = ctx.cachedScopeLookup(name)
+        if let arrayType = safePrecheckArrayOfCall(
+            name,
+            typeArgs: typeArgs,
+            args: args,
+            namedCandidates: namedCandidates,
+            in: ctx,
+            locals: locals
+        ) {
+            return arrayType
+        }
         if namedCandidates.count == 1,
            let symbol = ctx.sema.symbols.symbol(namedCandidates[0]),
            symbol.kind == .class || symbol.kind == .enumClass,
@@ -539,6 +590,43 @@ extension DeclTypeChecker {
                 && canBeCalledWithoutArguments(signature)
         }
         return safePrecheckCallResultType(candidates, in: ctx)
+    }
+
+    private func safePrecheckArrayOfCall(
+        _ name: InternedString,
+        typeArgs: [TypeRefID],
+        args: [CallArgument],
+        namedCandidates: [SymbolID],
+        in ctx: TypeInferenceContext,
+        locals: LocalBindings
+    ) -> TypeID? {
+        let knownNames = KnownCompilerNames(interner: ctx.interner)
+        guard name == ctx.interner.intern("arrayOf"),
+              typeArgs.isEmpty,
+              !args.isEmpty,
+              args.allSatisfy({ !$0.isSpread }),
+              namedCandidates.count == 1,
+              let factory = ctx.sema.symbols.symbol(namedCandidates[0]),
+              factory.kind == .function,
+              factory.fqName == [knownNames.kotlin, name],
+              let arraySymbol = ctx.sema.symbols.lookup(fqName: knownNames.kotlinArrayFQName)
+        else {
+            return nil
+        }
+
+        // A non-empty arrayOf call has a stable element LUB when each argument
+        // is independently safe to type-check before its declaration body.
+        let elementTypes = args.compactMap { argument -> TypeID? in
+            safePrecheckExpressionType(argument.expr, in: ctx, locals: locals)
+        }
+        guard elementTypes.count == args.count else { return nil }
+        let elementType = ctx.sema.types.lub(elementTypes)
+        guard isSafePrecheckValueType(elementType, in: ctx) else { return nil }
+        return ctx.sema.types.make(.classType(ClassType(
+            classSymbol: arraySymbol,
+            args: [.invariant(elementType)],
+            nullability: .nonNull
+        )))
     }
 
     private func safePrecheckMemberCall(

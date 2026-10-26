@@ -672,7 +672,11 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
         let propertiesByName = Dictionary(
             symbols.children(of: owner.id)
                 .compactMap { symbols.symbol($0) }
-                .filter { $0.kind == .property && !$0.flags.contains(.synthetic) }
+                .filter {
+                    $0.kind == .property
+                        && !$0.flags.contains(.synthetic)
+                        && !symbols.hasExtensionPropertyReceiver($0.id)
+                }
                 .map { ($0.name, $0) },
             uniquingKeysWith: { first, _ in first }
         )
@@ -840,7 +844,14 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
                 }
                 return symbol
             }
-        let propertiesByName = Dictionary(uniqueKeysWithValues: childProperties.map { ($0.name, $0) })
+        // A member extension can share the constructor property's name, but it
+        // is not the stored property represented by that constructor parameter.
+        let propertiesByName = Dictionary(
+            childProperties
+                .filter { !sema.symbols.hasExtensionPropertyReceiver($0.id) }
+                .map { ($0.name, $0) },
+            uniquingKeysWith: { first, _ in first }
+        )
 
         guard let primaryCtorSymbol = sema.symbols.children(of: owner.id)
             .compactMap({ childID -> SymbolID? in

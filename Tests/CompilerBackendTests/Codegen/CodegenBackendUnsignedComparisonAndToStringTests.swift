@@ -194,6 +194,36 @@ struct CodegenBackendUnsignedComparisonAndToStringTests {
         )
     }
 
+    @Test
+    func testDataClassToStringUnitProperty() throws {
+        let source = """
+        data class UnitHolder(val value: Unit)
+        data class NullableUnitHolder(val value: Unit?)
+        fun main() {
+            val unit = UnitHolder(Unit)
+            println(unit.toString())
+            println(unit)
+            println(unit.component1())
+
+            println(NullableUnitHolder(Unit))
+            println(NullableUnitHolder(null))
+        }
+        """
+        try assertKotlinOutput(
+            source,
+            moduleName: "DataClassToStringUnitProperty",
+            expected: """
+            UnitHolder(value=kotlin.Unit)
+            UnitHolder(value=kotlin.Unit)
+            kotlin.Unit
+            NullableUnitHolder(value=kotlin.Unit)
+            NullableUnitHolder(value=null)
+            """ + "\n",
+            allowDefaultStdlibLibrary: false,
+            prepareTestStdlibCache: false
+        )
+    }
+
     // The ULong tag fix above was implemented by consolidating a duplicated
     // tag-computation switch (computeAnyFallbackTag) that data class
     // toString() synthesis and println(dataClass) rewriting each had their

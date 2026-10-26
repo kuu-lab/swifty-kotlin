@@ -6,6 +6,41 @@ import Testing
 
 extension StdlibArtifactRegressionTests {
 
+    /// KUU-3259: artifact-backed List equality must accept java.util.LinkedList.
+    @Test
+    func testJavaUtilLinkedListListEqualityInsideFreshStdlibArtifact() throws {
+        let artifactPath = try Self.buildStdlibArtifact()
+        let source = """
+        import java.util.LinkedList
+
+        fun main() {
+            val linked = LinkedList<Int>()
+            linked.add(1)
+            val erased: Any = linked
+            println(erased is List<*>)
+            println(listOf(1) == linked)
+            println(mutableListOf(1) == linked)
+            val deque = ArrayDeque<Int>()
+            deque.add(1)
+            println(deque.equals(erased))
+            println(linked.equals(listOf(1)))
+        }
+        """
+        let expected = """
+        true
+        true
+        true
+        true
+        true
+
+        """
+
+        let output = try Self.runLinkedListSources(
+            [source], optLevel: .O0, stdlibLibraryPath: artifactPath
+        )
+        #expect(output == expected, "fresh stdlib artifact at O0")
+    }
+
     /// KUU-2035: preserve JVM Unit local, return, argument, and property boundaries.
     @Test
     func testJavaLinkedListPlatformUnitThroughSourceAndFreshArtifactAtO0AndO2() throws {

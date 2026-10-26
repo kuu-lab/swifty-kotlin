@@ -549,11 +549,14 @@ extension TypeSystem {
         }
         let result: TypeID = if filtered.dropFirst().allSatisfy({ $0 == first }) {
             first
-        } else if case .typeParam = kind(of: first),
-                  filtered.dropFirst().allSatisfy({ isSubtype($0, first) }) {
+        } else if let commonTypeParameter = filtered.first(where: { candidate in
+            guard case .typeParam = kind(of: candidate) else { return false }
+            return filtered.allSatisfy { isSubtype($0, candidate) }
+        }) {
             // Preserve a declared common supertype such as `R` when a
-            // self-type extension combines it with a bounded receiver `C`.
-            first
+            // self-type extension combines it with a bounded receiver `C`, or
+            // when `T & Any` is joined with the original type parameter `T`.
+            commonTypeParameter
         } else if let kClassLub = lubKClassTypes(filtered) {
             kClassLub
         } else {
@@ -1341,6 +1344,7 @@ extension TypeSystem {
         defer { activeNominalLUBInputs.remove(inputSet) }
 
         let variances = allTypeParameterVariances(for: symbol)
+        let isArray = symbol == arrayClassSymbol
         var combined: [TypeArg] = []
         for index in first.indices {
             let arguments = argumentLists.map { $0[index] }
@@ -1350,10 +1354,22 @@ extension TypeSystem {
             }
             var upperBounds: [TypeID] = []
             for argument in arguments {
-                guard case let .out(bound) = composedProjection(
-                    declarationVariance: variances[index], useSite: argument
-                ) else { return nil }
-                upperBounds.append(bound)
+                if isArray {
+                    // Kotlin's invariant Array still has an out-projected LUB:
+                    // reading through Array<out X> is safe and keeps Array's
+                    // indexed and iterable members available.
+                    switch argument {
+                    case let .invariant(bound), let .out(bound):
+                        upperBounds.append(bound)
+                    case .in, .star:
+                        return nil
+                    }
+                } else {
+                    guard case let .out(bound) = composedProjection(
+                        declarationVariance: variances[index], useSite: argument
+                    ) else { return nil }
+                    upperBounds.append(bound)
+                }
             }
             combined.append(.out(lub(upperBounds)))
         }

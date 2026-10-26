@@ -1,9 +1,54 @@
 #if canImport(Testing)
 @testable import CompilerCore
 import Testing
+import TestStdlibCache
 
 @Suite
 struct LambdaPostfixIncrementTypingTests {
+    @Test func testIndexedIncrementAndDecrementRemainTheLambdaResult() throws {
+        let source = """
+        class Box {
+            operator fun get(index: Int): Int = index
+            operator fun set(index: Int, value: Int) {}
+        }
+        class Grid {
+            operator fun get(x: Int, y: Int, z: Int): Int = x
+            operator fun set(x: Int, y: Int, z: Int, value: Int) {}
+        }
+        operator fun Int.inc(): Int = this
+        operator fun Int.dec(): Int = this
+        fun doTest(test: () -> Int) = test()
+        fun test(box: Box, grid: Grid) {
+            doTest { ++box[0] }
+            doTest { box[0]-- }
+            doTest { ++grid[0, 1, 2] }
+            doTest { grid[0, 1, 2]-- }
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], includeStdlib: false)
+            try runSema(ctx)
+            #expect(!ctx.diagnostics.hasError, "got: \(ctx.diagnostics.diagnostics)")
+        }
+    }
+
+    @Test func testPrimitiveArrayIncrementAndDecrementRemainTheLambdaResult() throws {
+        TestStdlibCache.shared.prepare()
+        let ctx = makeContextFromSource("""
+        val arr = intArrayOf(3)
+        fun doTest(test: () -> Int) = test()
+        fun test() {
+            doTest { ++arr[0] }
+            doTest { arr[0]-- }
+        }
+        """, allowDefaultStdlibLibrary: true)
+
+        try runSema(ctx)
+
+        #expect(!ctx.diagnostics.hasError, "got: \(ctx.diagnostics.diagnostics)")
+    }
+
     @Test func testPostfixIncrementRemainsTheLambdaResult() throws {
         let ctx = makeContextFromSources([
             """

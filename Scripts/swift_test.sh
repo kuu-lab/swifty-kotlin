@@ -41,7 +41,16 @@ has_workers_flag=false
 has_jobs_flag=false
 has_swift_testing_width_flag=false
 supports_parallel_flags=true
+has_skip_build=false
+has_test_product=false
+test_system="${SWIFT_BUILD_SYSTEM:-}"
+declare -a filters=()
+previous_arg=""
 for arg in "$@"; do
+    case "$previous_arg" in
+        --filter) filters+=("$arg") ;;
+        --build-system) test_system="$arg" ;;
+    esac
     case "$arg" in
         --parallel)
             has_parallel_flag=true
@@ -53,9 +62,13 @@ for arg in "$@"; do
         --num-workers|--num-workers=*)
             has_workers_flag=true
             ;;
-        -j|--jobs|--jobs=*)
+        -j|-j[0-9]*|--jobs|--jobs=*)
             has_jobs_flag=true
             ;;
+        --filter=*) filters+=("${arg#--filter=}") ;;
+        --skip-build) has_skip_build=true ;;
+        --test-product|--test-product=*) has_test_product=true ;;
+        --build-system=*) test_system="${arg#--build-system=}" ;;
         --experimental-maximum-parallelization-width|--experimental-maximum-parallelization-width=*)
             has_swift_testing_width_flag=true
             ;;
@@ -63,7 +76,16 @@ for arg in "$@"; do
             supports_parallel_flags=false
             ;;
     esac
+    previous_arg="$arg"
 done
+
+# Source preflight is deliberately limited to one simple qualified filter.
+# Complex regexes and prebuilt products are left to SwiftPM's discovery.
+if [[ "$supports_parallel_flags" == true && "$has_skip_build" == false \
+    && ${#filters[@]} == 1 && "${SWIFT_TEST_SOURCE_PREFLIGHT:-1}" != 0 ]] \
+    && command -v python3 >/dev/null 2>&1; then
+    python3 "$SCRIPT_DIR/lib/check_swift_test_filter.py" "$SCRIPT_DIR/.." "${filters[0]}"
+fi
 
 declare -a command=(swift test)
 
@@ -79,7 +101,29 @@ kswiftk_append_testing_plugin_path command
 # per-test-target products), tell `swift test` which product to load. Without
 # this `swift test --skip-build` looks for the all-in-one PackageTests bundle.
 test_product="${SWIFT_TEST_PRODUCT:-}"
-if [[ -n "$test_product" ]]; then
+if [[ -z "$test_product" && "$has_test_product" == false && "$has_skip_build" == false \
+    && "$supports_parallel_flags" == true && ${#filters[@]} == 1 ]]; then
+    # An anchored, literal module prefix and no alternation guarantees that
+    # selecting this product cannot exclude another module's matches.
+    filter="${filters[0]}"
+    if [[ "$filter" =~ ^\^([A-Za-z_][A-Za-z_0-9]*)\\\. && "$filter" != *'|'* ]]; then
+        candidate_product="${BASH_REMATCH[1]}"
+        prefix="^${candidate_product}\\."
+        suffix="${filter#"$prefix"}"
+        if [[ "$suffix" != \?* && "$suffix" != \** && "$suffix" != \{* \
+            && -d "$SCRIPT_DIR/../Tests/$candidate_product" ]]; then
+            if [[ -z "$test_system" ]]; then
+                default_build_system="$(swift test --help-hidden 2>/dev/null | grep -A1 -- '--build-system <build-system>' | tr '\n' ' ' || true)"
+                [[ "$default_build_system" == *'(default: swiftbuild)'* ]] && test_system=swiftbuild
+            fi
+            if [[ "$test_system" == swiftbuild ]]; then
+                test_product="$candidate_product"
+                echo "swift_test.sh: selecting test product $test_product from the anchored filter." >&2
+            fi
+        fi
+    fi
+fi
+if [[ -n "$test_product" && "$has_test_product" == false ]]; then
     command+=(--test-product "$test_product")
 fi
 
@@ -113,8 +157,14 @@ resolve_worker_count() {
     __out="$default_workers"
 }
 
+build_slots=""
+kswiftk_resolve_build_slots build_slots
+
 if [[ "$has_jobs_flag" == false ]]; then
     resolve_worker_count build_jobs "$build_jobs_override"
+    if [[ -z "$build_jobs_override" && "$build_slots" -gt 0 && "$build_jobs" =~ ^[1-9][0-9]*$ ]]; then
+        build_jobs=$(( (build_jobs + build_slots - 1) / build_slots ))
+    fi
     if [[ -n "$build_jobs" ]]; then
         command+=(-j "$build_jobs")
     fi
@@ -147,6 +197,10 @@ if [[ "$supports_parallel_flags" == true ]]; then
 fi
 
 command+=("$@")
+
+if [[ "$has_skip_build" == false && "$build_slots" -gt 0 ]]; then
+    kswiftk_wrap_build_slots command "$build_slots" "$SCRIPT_DIR"
+fi
 
 # ---------------------------------------------------------------------------
 # Color helpers (disabled in CI unless NO_COLOR is unset and terminal present)
@@ -236,13 +290,25 @@ while true; do
     break
 done
 
+# SwiftPM can exit successfully for a filter that matches no tests. Some
+# mixed XCTest/Swift Testing runs print a zero count for one runner even when
+# another runner succeeds, so a positive count takes precedence.
+if [[ "$supports_parallel_flags" == true && ${#filters[@]} -gt 0 ]] && (( test_exit == 0 )); then
+    if { grep -qF 'No matching test cases were run' "$tmpout" \
+        || grep -qE 'Test run with 0 tests?|Executed 0 tests?' "$tmpout"; } \
+        && ! grep -qE 'Test run with [1-9][0-9]* tests?|Executed [1-9][0-9]* tests?' "$tmpout"; then
+        echo "swift_test.sh: no tests matched the filter; check the registered test names." >&2
+        test_exit=1
+    fi
+fi
+
 # ---------------------------------------------------------------------------
 # Emit grouped failure summary
 # ---------------------------------------------------------------------------
 emit_failure_summary() {
     local count="${#unique_failures[@]}"
     if (( count == 0 )); then
-        if (( test_exit == 0 )); then
+        if (( test_exit == 0 )) && [[ "$supports_parallel_flags" == true ]]; then
             printf >&2 "\n${GREEN}${BOLD}All tests passed.${RESET}\n"
         fi
         return

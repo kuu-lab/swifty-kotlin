@@ -149,7 +149,7 @@ extension LocalDeclTypeChecker {
         let getCall = CallExpr(range: range, calleeName: getName, args: zip(indices, indexTypes).map { index, type in
             let literal = driver.callChecker.integerLiteralValues(index, ast: ast)
             return CallArg(type: type, signedIntegerLiteral: literal.signed, unsignedIntegerLiteral: literal.unsigned)
-        })
+        }, dispatchReceiverTypes: ctx.implicitReceiverMemberLookupEntries().map(\.type))
         // Member existence does not imply applicability. Probe without emitting
         // diagnostics, retaining even ambiguous viable members ahead of extensions.
         if ctx.resolver.probeCall(
@@ -189,7 +189,10 @@ extension LocalDeclTypeChecker {
                         substitutedTypeArguments: resolved.substitutedTypeArguments
                             .sorted(by: { $0.key.rawValue < $1.key.rawValue })
                             .map { _, value in value },
-                        parameterMapping: resolved.parameterMapping
+                        parameterMapping: resolved.parameterMapping,
+                        dispatchReceiverSymbol: indexedOperatorDispatchReceiverSymbol(
+                            for: chosen, named: getName, ctx: ctx
+                        )
                     )
                 )
                 sema.bindings.bindCallableTarget(id, target: .symbol(chosen))
@@ -333,6 +336,11 @@ extension LocalDeclTypeChecker {
             ctx.cachedSymbol($0)?.flags.contains(.operatorFunction) == true
         }
         if setCandidates.isEmpty {
+            setCandidates = collectIndexedOperatorMemberExtensionCandidates(
+                named: setName, receiverType: receiverType, ctx: ctx
+            )
+        }
+        if setCandidates.isEmpty {
             let nonNullReceiver = sema.types.makeNonNullable(receiverType)
             // An unrelated nearer extension must not hide an applicable set
             // from an outer scope (e.g. the default-imported MutableMap.set).
@@ -451,11 +459,23 @@ extension LocalDeclTypeChecker {
             }
             return driver.helpers.arrayElementType(for: receiverType, sema: sema, interner: interner)
         }()
+        let setValueTypeHasUnresolvedTypeParameter: Bool = {
+            guard let setValueExpectedType, !setCandidates.isEmpty else { return false }
+            return setCandidates.contains { candidate in
+                guard let signature = sema.symbols.functionSignature(for: candidate) else {
+                    return true
+                }
+                return ctx.resolver.containsTypeVariable(
+                    setValueExpectedType,
+                    typeVarBySymbol: sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols),
+                    typeSystem: sema.types
+                )
+            }
+        }()
 
-        // Pass concrete contextual numeric types or a fully-substituted function
-        // type as the expected type; a still-generic element type (e.g. an
-        // unsubstituted `MutableMap.set` value type `T`) must not influence
-        // inference of non-literal values.
+        // Pass concrete contextual numeric types for literal narrowing, and
+        // fully-substituted function or class types for nested calls. A
+        // setter's unresolved type parameter must not influence other values.
         let valueExpectedType: TypeID? = {
             guard let setValueExpectedType else { return nil }
             let nonNull = sema.types.makeNonNullable(setValueExpectedType)
@@ -473,6 +493,15 @@ extension LocalDeclTypeChecker {
                     return nil
                 }
                 return nonNull
+            case .classType:
+                // A nested generic constructor or factory call needs its
+                // fully substituted class type before argument inference.
+                guard driver.callChecker.isInferableNestedCallExpr(valueExpr, ast: ast),
+                      !setValueTypeHasUnresolvedTypeParameter
+                else {
+                    return nil
+                }
+                return nonNull
             default:
                 return nil
             }
@@ -486,7 +515,12 @@ extension LocalDeclTypeChecker {
             return CallArg(type: type, signedIntegerLiteral: literal.signed, unsignedIntegerLiteral: literal.unsigned)
         }
         setCallArgs.append(CallArg(type: valueType, bindsToLastParameter: true))
-        let setCall = CallExpr(range: range, calleeName: setName, args: setCallArgs)
+        let setCall = CallExpr(
+            range: range,
+            calleeName: setName,
+            args: setCallArgs,
+            dispatchReceiverTypes: ctx.implicitReceiverMemberLookupEntries().map(\.type)
+        )
         // A single-index member cannot handle a multi-index assignment.
         // Preserve applicable (including ambiguous) members, but try lexical
         // operator extensions when none of the collected candidates applies.
@@ -520,7 +554,10 @@ extension LocalDeclTypeChecker {
                         substitutedTypeArguments: resolved.substitutedTypeArguments
                             .sorted(by: { $0.key.rawValue < $1.key.rawValue })
                             .map { _, value in value },
-                        parameterMapping: resolved.parameterMapping
+                        parameterMapping: resolved.parameterMapping,
+                        dispatchReceiverSymbol: indexedOperatorDispatchReceiverSymbol(
+                            for: chosen, named: setName, ctx: ctx
+                        )
                     )
                 )
                 sema.bindings.bindCallableTarget(id, target: .symbol(chosen))

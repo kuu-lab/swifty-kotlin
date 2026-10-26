@@ -836,6 +836,7 @@ extension DataFlowSemaPhase {
                 requireDataTypeFlag = true
                 validateDataClassComponentNSupertypeConflicts(
                     classDecl: classDecl,
+                    ast: ast,
                     ownerSymbol: symbol,
                     ownerFQName: info.fqName,
                     symbols: symbols,
@@ -972,6 +973,7 @@ extension DataFlowSemaPhase {
     /// `private` members are invisible and never conflict.
     private func validateDataClassComponentNSupertypeConflicts(
         classDecl: ClassDecl,
+        ast: ASTModule,
         ownerSymbol: SymbolID,
         ownerFQName: [InternedString],
         symbols: SymbolTable,
@@ -988,16 +990,22 @@ extension DataFlowSemaPhase {
         )
         for (index, _) in classDecl.primaryConstructorParams.enumerated() {
             let componentName = interner.intern("component\(index + 1)")
-            // An explicit user declaration suppresses generation; regular
-            // override validation owns any conflict for it.
-            let hasUserDeclared = symbols.lookupAll(fqName: ownerFQName + [componentName]).contains { id in
-                guard let sym = symbols.symbol(id),
-                      sym.kind == .function,
-                      !sym.flags.contains(.synthetic)
-                else { return false }
-                return true
+            let userDeclaredFunctions = userDeclaredDataClassComponentNFunctions(
+                named: componentName,
+                classDecl: classDecl,
+                ast: ast
+            )
+            if !userDeclaredFunctions.isEmpty {
+                let className = ownerFQName.map(interner.resolve).joined(separator: ".")
+                for function in userDeclaredFunctions {
+                    diagnostics.error(
+                        "KSWIFTK-SEMA-0446",
+                        "Conflicting overloads: the generated 'fun \(interner.resolve(componentName))()' conflicts with this declaration in data class '\(className)'.",
+                        range: function.range
+                    )
+                }
+                continue
             }
-            if hasUserDeclared { continue }
 
             for memberID in effectiveInheritedDataClassComponentMembers(
                 ownerSymbol: ownerSymbol,
@@ -1038,6 +1046,27 @@ extension DataFlowSemaPhase {
                     range: classDecl.range
                 )
             }
+        }
+    }
+
+    /// Returns source declarations that have the same callable shape as a
+    /// generated data-class component: no extension receiver, context
+    /// receivers, or value parameters.
+    private func userDeclaredDataClassComponentNFunctions(
+        named name: InternedString,
+        classDecl: ClassDecl,
+        ast: ASTModule
+    ) -> [FunDecl] {
+        classDecl.memberFunctions.compactMap { declID in
+            guard case let .funDecl(function)? = ast.arena.decl(declID),
+                  function.name == name,
+                  function.receiverType == nil,
+                  function.contextReceivers.isEmpty,
+                  function.valueParams.isEmpty
+            else {
+                return nil
+            }
+            return function
         }
     }
 
@@ -1304,14 +1333,11 @@ extension DataFlowSemaPhase {
             let componentName = interner.intern("component\(index + 1)")
             let componentFQName = ownerFQName + [componentName]
 
-            let hasUserDeclared = symbols.lookupAll(fqName: componentFQName).contains { id in
-                guard let sym = symbols.symbol(id),
-                      sym.kind == .function,
-                      !sym.flags.contains(.synthetic)
-                else { return false }
-                return true
-            }
-            guard !hasUserDeclared else { continue }
+            guard userDeclaredDataClassComponentNFunctions(
+                named: componentName,
+                classDecl: classDecl,
+                ast: ast
+            ).isEmpty else { continue }
 
             let returnType = parameterTypes?[index] ?? resolveTypeRef(
                 param.type,

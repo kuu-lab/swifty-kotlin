@@ -286,6 +286,7 @@ public final class ASTArena: @unchecked Sendable {
     private var _incrementDecrementCachedValues: [ExprID: ExprID] = [:]
     // Prefix annotations belong to the operand without changing its AST shape.
     private var _expressionAnnotations: [ExprID: [AnnotationNode]] = [:]
+    /// Anonymous function literal blocks and the local declarations backing them.
     private var _anonymousFunctionExpressions: Set<ExprID> = []
     private var _parenthesizedExpressions: Set<ExprID> = []
     private var _localFunContextReceivers: [ExprID: [ContextReceiverDecl]] = [:]

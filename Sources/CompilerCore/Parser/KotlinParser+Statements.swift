@@ -1158,6 +1158,21 @@ extension KotlinParser {
                     continue
                 }
             }
+            if case .symbol(.lBrace) = token.kind,
+               atTopLevel,
+               allowsClassDelegation,
+               sawSupertypeColon,
+               lastConsumedToken?.kind == .softKeyword(.by)
+            {
+                // A brace immediately after a class-delegation `by` starts the
+                // delegate lambda, not the declaration body. Keep its tokens
+                // in the header so AST construction can parse it as an
+                // expression; a following brace can still start the class body.
+                _ = consumeToken(into: &children, range: &range)
+                depth.track(token.kind)
+                progress = true
+                continue
+            }
             if case .symbol(.lBrace) = token.kind, inBlock, atTopLevel {
                 let blockID = parseBlock()
                 children.append(.node(blockID))

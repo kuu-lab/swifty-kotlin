@@ -5,6 +5,7 @@
 | Script | CI | Purpose |
 |---|---|---|
 | `swift_test.sh` | ✓ | `swift test` wrapper: parallel defaults, grouped failure summary, golden-update hint, GitHub annotations, crash-signal retry |
+| `swift_build.sh` | – | Coordinate focused local `swift build` invocations with test builds across worktrees |
 | `shard_swift_tests.sh` | ✓ | Split one slow test target across CI jobs (`--mode dynamic` per-test / `--mode static` per-suite) |
 | `js_annotations/run_ci.py` | ✓ | JVM-independent annotation/view/reflection source/artifact O0/O2 matrix, runner regressions, and KUU-1480 evidence; see [handoff](../docs/js-annotations-ci-evidence.md) |
 | `diff_kotlinc.sh` | ✓ | Behavioral diff of `kswiftc` vs `kotlinc` over `diff_cases/`, plus candidate-only output checks for target-specific cases; persists failure artifacts |
@@ -31,6 +32,7 @@
 
 - Tune XCTest and Swift Testing workers (including Golden): `SWIFT_TEST_WORKERS=4 bash Scripts/swift_test.sh`
 - Tune build jobs: `SWIFT_TEST_BUILD_JOBS=4 bash Scripts/swift_test.sh`
+- Tune concurrent local builds across worktrees: `SWIFT_BUILD_SLOTS=2 bash Scripts/swift_test.sh`
 - Disable parallel mode: `bash Scripts/swift_test.sh --no-parallel`
 
 `SWIFT_TEST_WORKERS` must be a positive integer. Explicit Swift Testing
@@ -38,6 +40,47 @@
 `SWT_EXPERIMENTAL_MAXIMUM_PARALLELIZATION_WIDTH` settings take precedence for
 Swift Testing. Without a worker override, the runner keeps its default width.
 Limiting workers reduces concurrent CPU load; it does not skip test cases.
+
+For a focused test, anchor and escape the module prefix when it is known:
+
+```bash
+bash Scripts/swift_test.sh --filter '^CompilerCoreTests\.SuiteName/testName' --no-parallel
+```
+
+When `swiftbuild` is selected, the wrapper automatically selects the single
+test product for this anchored form. It also detects a toolchain whose default
+build system is `swiftbuild`. Ambiguous regexes, unanchored filters, native
+builds, and `--skip-build` are left unchanged because narrowing them could omit
+tests or select a product that was not built. `SWIFT_TEST_PRODUCT` or an
+explicit `--test-product` overrides automatic selection.
+
+Before building, a single simple `Module.Suite` or `Module.Suite/test` filter
+is checked against the suite and method declarations in that test target's
+Swift sources. Both unanchored and anchored forms are supported. This is a
+source-level check, not SwiftPM test discovery; complex regexes are left to
+SwiftPM. If a test is
+generated or inherited and cannot be found this way, set
+`SWIFT_TEST_SOURCE_PREFLIGHT=0`. If SwiftPM reports that a filtered run matched
+no tests, the wrapper fails instead of reporting success. For an existing,
+up-to-date test build, `swift test list --skip-build` can show the registered
+names; it must not be used as evidence for changes that have not been built.
+
+Locally, `swift_test.sh` and `swift_build.sh` share a limit of two SwiftPM
+builds at a time across worktrees and divide detected build jobs between those
+slots. Use the build wrapper for focused builds so it participates in the same
+limit, for example `bash Scripts/swift_build.sh --product kswiftc`. The slot is released
+as soon as SwiftPM reports `Build complete!`, so a slow test does not occupy a
+build slot. `SWIFT_BUILD_SLOTS` changes the limit; `0` disables it.
+`SWIFT_TEST_BUILD_JOBS` for tests, `SWIFT_BUILD_JOBS` for builds, and explicit
+`-j`/`--jobs` take precedence over the automatic per-build job count. CI keeps
+its existing behavior unless slots are explicitly configured. `--skip-build`
+does not acquire a slot. The shared slot
+directory defaults to `/tmp/kswiftk-swift-build-slots-<uid>` and can be
+overridden with `SWIFT_BUILD_SLOT_DIR`; all cooperating worktrees must use
+the same directory and slot count. If Python 3 is unavailable, the wrapper
+warns and skips the cross-worktree limit. Direct `swift build`, `swift test`,
+and other scripts do not participate in the limit. If SwiftPM does not emit
+its normal build-complete marker, the slot remains held until it exits.
 
 To reduce Golden and other frontend test CPU time locally, build CompilerCore
 with the same debug optimization setting used by CI:

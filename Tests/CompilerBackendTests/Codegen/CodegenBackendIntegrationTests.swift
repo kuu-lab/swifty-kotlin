@@ -363,6 +363,22 @@ import Testing
     }
 
     @Test
+    func testEnumBuiltInOrdinalImplementsInterfaceProperty() throws {
+        // KUU-3528: Enum.ordinal is a valid implementation of an interface property.
+        let source = """
+        interface Ordinaled { val ordinal: Int }
+        enum class A : Ordinaled { X }
+        fun main() { println((A.X as Ordinaled).ordinal) }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "EnumOrdinalInterface",
+            expected: "0\n"
+        )
+    }
+
+    @Test
     func testCodegenEnumValuesAndValueOf() throws {
         // Test enumValueOf (no map dependency)
         let sourceValueOf = """

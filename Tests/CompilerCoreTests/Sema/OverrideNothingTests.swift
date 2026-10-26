@@ -128,5 +128,36 @@ struct OverrideNothingTests {
         }
         #expect(overrideNothingDiagnostics.isEmpty, "Got: \(ctx.diagnostics.diagnostics)")
     }
+
+    @Test
+    func acceptsInterfaceOverrideFromInnerClassNestedInEnumEntry() throws {
+        let source = """
+        interface IFoo { fun foo(e: En): String }
+        enum class En {
+            TEST {
+                inner class Nested : IFoo {
+                    override fun foo(e: En) = if (e == TEST) e.ok else "Failed"
+                }
+                override val ok: String get() = "OK"
+            };
+            abstract val ok: String
+        }
+        """
+        let inputPath = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString + ".kt").path
+        let ctx = makeCompilationContext(
+            inputs: [inputPath],
+            includeStdlib: false,
+            allowDefaultStdlibLibrary: false
+        )
+        _ = ctx.sourceManager.addFile(path: inputPath, contents: Data(source.utf8))
+        try runSema(ctx)
+
+        let overrideNothingDiagnostics = ctx.diagnostics.diagnostics.filter {
+            $0.severity == .error
+                && $0.code == "KSWIFTK-SEMA-OVERRIDE-NOTHING"
+        }
+        #expect(overrideNothingDiagnostics.isEmpty, "Got: \(ctx.diagnostics.diagnostics)")
+    }
 }
 #endif
