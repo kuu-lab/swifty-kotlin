@@ -7,6 +7,12 @@ class MapOwner(val values: Map<String, Int>, val mutableValues: MutableMap<Strin
     var writable by mutableValues
 }
 
+// KUU-3567: a class property initialized from hashMapOf remains a valid Map delegate.
+class InitializedMapOwner {
+    val map: Map<String, String> = hashMapOf("a" to "all")
+    val a by map
+}
+
 fun main() {
     val m = mapOf("a" to 1, "b" to 2)
     val a by m
@@ -57,4 +63,6 @@ fun main() {
     println(memberValues["writable"])
     memberValues["member"] = 33
     println(owner.member)
+
+    println(InitializedMapOwner().a)
 }
