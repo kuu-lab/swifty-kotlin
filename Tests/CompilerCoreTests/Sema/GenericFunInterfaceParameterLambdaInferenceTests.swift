@@ -8,7 +8,12 @@ struct GenericFunInterfaceParameterLambdaInferenceTests {
     private func context(_ source: String) -> CompilationContext {
         let path = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString + ".kt").path
-        let ctx = makeCompilationContext(inputs: [path], includeStdlib: false)
+        let ctx = makeCompilationContext(
+            inputs: [path],
+            includeStdlib: false,
+            stdlibLibraryPath: nil,
+            allowDefaultStdlibLibrary: false
+        )
         _ = ctx.sourceManager.addFile(path: path, contents: Data(source.utf8))
         return ctx
     }
@@ -37,6 +42,42 @@ struct GenericFunInterfaceParameterLambdaInferenceTests {
             return
         }
         #expect(interface.args == [.invariant(sema.types.unitType)])
+    }
+
+    @Test
+    func genericSamParameterLambdaInfersFromSiblingValueArgument() throws {
+        let ctx = context("""
+        fun interface Converter<T, R> { fun convert(t: T): R }
+        fun <T, R> apply(c: Converter<T, R>, t: T) = c.convert(t)
+        fun inferLambda() = apply({ it }, 5)
+        """)
+        try runSema(ctx)
+
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.isEmpty, "Sibling arguments must infer generic SAM type arguments: \(errors)")
+        let sema = try #require(ctx.sema)
+        let ast = try #require(ctx.ast)
+        let call = try #require(nameRefCallExprID(named: "apply", in: ast, interner: ctx.interner))
+        let binding = try #require(sema.bindings.callBinding(for: call))
+        #expect(binding.substitutedTypeArguments == [sema.types.intType, sema.types.intType])
+    }
+
+    @Test
+    func genericSamConstructorInfersFromSiblingValueArgument() throws {
+        let ctx = context("""
+        fun interface Converter<T, R> { fun convert(t: T): R }
+        fun <T, R> apply(c: Converter<T, R>, t: T) = c.convert(t)
+        fun inferConstructor() = apply(Converter { it }, "abc")
+        """)
+        try runSema(ctx)
+
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.isEmpty, "Sibling arguments must infer generic SAM type arguments: \(errors)")
+        let sema = try #require(ctx.sema)
+        let ast = try #require(ctx.ast)
+        let call = try #require(nameRefCallExprID(named: "apply", in: ast, interner: ctx.interner))
+        let binding = try #require(sema.bindings.callBinding(for: call))
+        #expect(binding.substitutedTypeArguments == [sema.types.stringType, sema.types.stringType])
     }
 
     @Test(arguments: ["make", "Factory.make"])
