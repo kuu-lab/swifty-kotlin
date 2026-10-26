@@ -417,7 +417,13 @@ extension BuildASTPhase.ExpressionParser {
         else {
             return
         }
-        names.append(interner.resolve(name) == "_" ? nil : name)
+        // Only a bare `_` skips the entry; a backticked `` `_` `` binds a real
+        // variable named `_`, matching kotlinc.
+        if case .identifier = entry[firstIndex].kind, interner.resolve(name) == "_" {
+            names.append(nil)
+        } else {
+            names.append(name)
+        }
     }
 
     private func wrapLambdaDestructuring(

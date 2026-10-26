@@ -32,7 +32,8 @@ extension KotlinLexer {
 
             if ch == 0x24,
                offset + 1 < byteCount(),
-               templateIdentifierScalarByteLength(at: offset + 1, isStart: true) != nil
+               byte(at: offset + 1) == 0x60
+                   || templateIdentifierScalarByteLength(at: offset + 1, isStart: true) != nil
             {
                 appendSegment(to: &tokens, from: segmentStart, to: offset, leadingTrivia: [])
                 tokens.append(
@@ -43,7 +44,12 @@ extension KotlinLexer {
                     )
                 )
                 offset += 1
-                if let templateName = scanTemplateName(leadingTrivia: [], start: offset) {
+                // A backticked identifier can follow `$` ("$`name`") just like a
+                // plain name; scanTemplateName only covers the plain form.
+                let templateName: Token? = byte(at: offset) == 0x60
+                    ? scanBacktickedIdentifier(leadingTrivia: [], start: offset)
+                    : scanTemplateName(leadingTrivia: [], start: offset)
+                if let templateName {
                     tokens.append(templateName)
                     segmentStart = offset
                     continue
@@ -112,7 +118,8 @@ extension KotlinLexer {
             }
             if byte(at: offset) == 0x24,
                offset + 1 < byteCount(),
-               templateIdentifierScalarByteLength(at: offset + 1, isStart: true) != nil
+               byte(at: offset + 1) == 0x60
+                   || templateIdentifierScalarByteLength(at: offset + 1, isStart: true) != nil
             {
                 appendSegment(to: &tokens, from: segmentStart, to: offset, leadingTrivia: [])
                 tokens.append(
@@ -123,7 +130,10 @@ extension KotlinLexer {
                     )
                 )
                 offset += 1
-                if let templateName = scanTemplateName(leadingTrivia: [], start: offset) {
+                let templateName: Token? = byte(at: offset) == 0x60
+                    ? scanBacktickedIdentifier(leadingTrivia: [], start: offset)
+                    : scanTemplateName(leadingTrivia: [], start: offset)
+                if let templateName {
                     tokens.append(templateName)
                     segmentStart = offset
                     continue
@@ -420,7 +430,8 @@ extension KotlinLexer {
 
         if consecutiveDollars >= dollarCount,
            afterDollars < byteCount(),
-           templateIdentifierScalarByteLength(at: afterDollars, isStart: true) != nil
+           byte(at: afterDollars) == 0x60
+               || templateIdentifierScalarByteLength(at: afterDollars, isStart: true) != nil
         {
             let literalDollars = consecutiveDollars - dollarCount
             if literalDollars > 0 {
@@ -437,6 +448,11 @@ extension KotlinLexer {
                 )
             )
             offset = afterDollars
+            if byte(at: offset) == 0x60 {
+                tokens.append(scanBacktickedIdentifier(leadingTrivia: [], start: offset))
+                segmentStart = offset
+                return
+            }
             if let templateName = scanTemplateName(leadingTrivia: [], start: offset) {
                 tokens.append(templateName)
                 segmentStart = offset
