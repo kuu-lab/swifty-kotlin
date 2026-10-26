@@ -1876,14 +1876,23 @@ extension LambdaLowerer {
     func emitCallableReferenceIdentity(
         callableExpr: KIRExprID,
         targetSymbol: SymbolID,
+        identityTargetRaw: Int64? = nil,
         captures: [KIRExprID],
         sema: SemaModule,
         arena: KIRArena,
         interner: StringInterner,
         instructions: inout [KIRInstruction]
     ) {
-        let identityTarget = arena.appendExpr(.symbolRef(targetSymbol), type: sema.types.intType)
-        instructions.append(.constValue(result: identityTarget, value: .symbolRef(targetSymbol)))
+        let identityTarget: KIRExprID
+        let identityValue: KIRExprKind
+        if let identityTargetRaw {
+            identityTarget = arena.appendExpr(.intLiteral(identityTargetRaw), type: sema.types.intType)
+            identityValue = .intLiteral(identityTargetRaw)
+        } else {
+            identityTarget = arena.appendExpr(.symbolRef(targetSymbol), type: sema.types.intType)
+            identityValue = .symbolRef(targetSymbol)
+        }
+        instructions.append(.constValue(result: identityTarget, value: identityValue))
         let boxedCaptures = captures.map { capture in
             let captureType = arena.exprType(capture) ?? sema.types.anyType
             return boxValueForAnySlot(
