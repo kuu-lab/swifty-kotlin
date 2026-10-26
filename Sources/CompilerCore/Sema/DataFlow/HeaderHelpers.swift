@@ -1466,6 +1466,28 @@ extension DataFlowSemaPhase {
                 visibility: .private,
                 flags: []
             )
+            let parameterAnnotations = valueParam.annotations.filter { annotation in
+                switch annotation.useSiteTarget?.lowercased() {
+                case nil, "param", "setparam":
+                    true
+                default:
+                    false
+                }
+            }
+            if !parameterAnnotations.isEmpty, let diagnostics {
+                let sourceFileID = declSite?.start.file
+                registerAnnotations(
+                    parameterAnnotations,
+                    symbol: paramSymbol,
+                    declRange: nil,
+                    sourceFileID: sourceFileID,
+                    sourceFile: sourceFileID.flatMap(ast.file(for:)),
+                    sourceManager: sourceManager,
+                    interner: interner,
+                    symbols: symbols,
+                    diagnostics: diagnostics
+                )
+            }
             let preResolvedType = resolvedParameterTypes.flatMap { index < $0.count ? $0[index] : nil }
             let resolvedType = preResolvedType ?? resolveTypeRef(
                 valueParam.type,

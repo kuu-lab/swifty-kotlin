@@ -382,4 +382,11 @@ public struct CompilerOptions: Equatable {
             || frontendFlags.contains("FullValueClasses")
             || frontendFlags.contains("+FullValueClasses")
     }
+
+    /// Enables implicit conversion of signed integer constants to unsigned
+    /// parameter types when both sides carry `@ImplicitIntegerCoercion`.
+    public var implicitSignedToUnsignedIntegerConversionEnabled: Bool {
+        frontendFlags.contains("ImplicitSignedToUnsignedIntegerConversion")
+            || frontendFlags.contains("+ImplicitSignedToUnsignedIntegerConversion")
+    }
 }

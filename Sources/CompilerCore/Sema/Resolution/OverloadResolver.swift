@@ -51,6 +51,71 @@ public struct CallArg {
     }
 }
 
+func hasImplicitIntegerCoercionAnnotation(
+    _ annotations: [MetadataAnnotationRecord],
+    forParameter: Bool
+) -> Bool {
+    annotations.contains { annotation in
+        guard annotation.annotationFQName == "kotlin.internal.ImplicitIntegerCoercion" else {
+            return false
+        }
+        switch annotation.useSiteTarget?.lowercased() {
+        case nil:
+            return true
+        case "param" where forParameter:
+            return true
+        case "property" where !forParameter:
+            return true
+        default:
+            return false
+        }
+    }
+}
+
+func implicitSignedIntegerCoercionTargetType(
+    _ value: Int64,
+    parameterType: TypeID,
+    types: TypeSystem
+) -> TypeID? {
+    guard case let .primitive(primitive, _) = types.kind(of: types.makeNonNullable(parameterType)) else {
+        return nil
+    }
+    return switch primitive {
+    case .ubyte where (0 ... Int64(UInt8.max)).contains(value):
+        types.ubyteType
+    case .ushort where (0 ... Int64(UInt16.max)).contains(value):
+        types.ushortType
+    case .uint where (0 ... Int64(UInt32.max)).contains(value):
+        types.uintType
+    case .ulong where value >= 0:
+        types.ulongType
+    default:
+        nil
+    }
+}
+
+func implicitSignedIntegerCoercionConstant(
+    _ value: Int64,
+    to parameterType: TypeID,
+    types: TypeSystem
+) -> KIRExprKind? {
+    guard let targetType = implicitSignedIntegerCoercionTargetType(
+        value, parameterType: parameterType, types: types
+    ), case let .primitive(primitive, _) = types.kind(of: targetType) else {
+        return nil
+    }
+    return switch primitive {
+    case .ubyte, .ushort:
+        .intLiteral(value)
+    case .uint:
+        .uintLiteral(UInt64(value))
+    case .ulong:
+        .ulongLiteral(UInt64(value))
+    default:
+        nil
+    }
+}
+
 /// The alias's parameters remain inference variables until overload resolution.
 public struct TypeAliasConstructorContext {
     public let typeParameterSymbols: [SymbolID]

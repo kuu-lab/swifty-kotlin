@@ -1588,8 +1588,19 @@ extension OverloadResolver {
                 substitution: explicitTypeSubstitution,
                 typeVarBySymbol: typeVarBySymbol
             )
+            let allowsImplicitIntegerCoercion = sema.implicitSignedToUnsignedIntegerConversionEnabled
+                && paramIndex < signature.valueParameterSymbols.count
+                && hasImplicitIntegerCoercionAnnotation(
+                    sema.symbols.annotations(for: signature.valueParameterSymbols[paramIndex]),
+                    forParameter: true
+                )
             let inferredArgType = !arg.isSpread
-                ? (integerLiteralType(arg, parameterType: literalParameterType, types: typeSystem) ?? arg.type)
+                ? (integerLiteralType(
+                    arg,
+                    parameterType: literalParameterType,
+                    allowsImplicitIntegerCoercion: allowsImplicitIntegerCoercion,
+                    types: typeSystem
+                ) ?? arg.type)
                 : arg.type
             let argType = !arg.isSpread
                 ? (typeSystem.functionArgumentConversionType(from: inferredArgType, to: paramType) ?? inferredArgType)
@@ -1691,12 +1702,20 @@ extension OverloadResolver {
     private func integerLiteralType(
         _ argument: CallArg,
         parameterType: TypeID,
+        allowsImplicitIntegerCoercion: Bool,
         types: TypeSystem
     ) -> TypeID? {
         guard case let .primitive(primitive, _) = types.kind(of: types.makeNonNullable(parameterType)) else {
             return nil
         }
         if let value = argument.signedIntegerLiteral {
+            if allowsImplicitIntegerCoercion,
+               let coercedType = implicitSignedIntegerCoercionTargetType(
+                   value, parameterType: parameterType, types: types
+               )
+            {
+                return coercedType
+            }
             switch primitive {
             case .byte where (-128...127).contains(value): return types.byteType
             case .short where (-32768...32767).contains(value): return types.shortType

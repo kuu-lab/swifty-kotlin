@@ -54,6 +54,41 @@ extension CallTypeChecker {
         }
     }
 
+    /// Preserve integer values from explicitly annotated `const val` reads so
+    /// overload resolution can apply `@ImplicitIntegerCoercion` per parameter.
+    func integerArgumentValues(
+        _ exprID: ExprID,
+        ctx: TypeInferenceContext
+    ) -> (signed: Int64?, unsigned: UInt64?) {
+        let literal = integerLiteralValues(exprID, ast: ctx.ast)
+        if literal.signed != nil || literal.unsigned != nil {
+            return literal
+        }
+
+        let sema = ctx.sema
+        let callee = sema.bindings.callBinding(for: exprID)?.chosenCallee
+        let property = callee.flatMap {
+            sema.symbols.accessorOwnerProperty(for: $0) ?? sema.symbols.parentSymbol(for: $0)
+        }
+        guard let symbol = sema.bindings.identifierSymbol(for: exprID) ?? property,
+              let info = sema.symbols.symbol(symbol),
+              info.kind == .property,
+              info.flags.contains(.constValue),
+              hasImplicitIntegerCoercionAnnotation(
+                  sema.symbols.annotations(for: symbol), forParameter: false
+              ),
+              let constant = sema.symbols.constValueExprKind(for: symbol)
+        else {
+            return (nil, nil)
+        }
+        switch constant {
+        case let .intLiteral(value), let .longLiteral(value):
+            return (value, nil)
+        default:
+            return (nil, nil)
+        }
+    }
+
     /// Folds an Int constant expression built only from unsuffixed integer
     /// literals (arithmetic operators, `-`/`+`, and the `shl`/`shr`/`ushr`/`and`/
     /// `or`/`xor` infix calls) using Int (32-bit wrapping) semantics. Plain
@@ -110,7 +145,7 @@ extension CallTypeChecker {
         else { return }
         let typeVarBySymbol = ctx.sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
         for (index, argument) in args.enumerated() where !argument.isSpread {
-            let literal = integerLiteralValues(argument.expr, ast: ctx.ast)
+            let literal = integerArgumentValues(argument.expr, ctx: ctx)
             guard literal.signed != nil || literal.unsigned != nil,
                   let parameterIndex = resolved.parameterMapping[index],
                   signature.parameterTypes.indices.contains(parameterIndex)
@@ -120,6 +155,24 @@ extension CallTypeChecker {
                 substitution: resolved.substitutedTypeArguments,
                 typeVarBySymbol: typeVarBySymbol
             )
+            if ctx.sema.implicitSignedToUnsignedIntegerConversionEnabled,
+               let value = literal.signed,
+               signature.valueParameterSymbols.indices.contains(parameterIndex),
+               hasImplicitIntegerCoercionAnnotation(
+                   ctx.sema.symbols.annotations(for: signature.valueParameterSymbols[parameterIndex]),
+                   forParameter: true
+               ),
+               let targetType = implicitSignedIntegerCoercionTargetType(
+                   value, parameterType: parameterType, types: ctx.sema.types
+               ),
+               let convertedConstant = implicitSignedIntegerCoercionConstant(
+                   value, to: parameterType, types: ctx.sema.types
+               )
+            {
+                ctx.sema.bindings.bindExprType(argument.expr, type: targetType)
+                ctx.sema.bindings.bindConstExprValue(argument.expr, value: convertedConstant)
+                continue
+            }
             _ = driver.inferExpr(argument.expr, ctx: ctx, locals: &locals, expectedType: parameterType)
         }
     }

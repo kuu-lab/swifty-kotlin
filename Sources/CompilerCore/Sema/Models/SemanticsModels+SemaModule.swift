@@ -17,6 +17,9 @@ public final class SemaModule {
     /// unresolved import into an excluded package gets a dedicated diagnostic
     /// instead of a plain "Unresolved import path".
     var stdlibProfile: StdlibProfile = .full
+    /// Whether signed integer constants may be implicitly coerced to unsigned
+    /// parameters carrying `@ImplicitIntegerCoercion`.
+    var implicitSignedToUnsignedIntegerConversionEnabled = false
 
     public let symbols: SymbolTable
     public let types: TypeSystem
