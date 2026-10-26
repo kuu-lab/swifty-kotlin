@@ -481,21 +481,26 @@ final class LocalDeclTypeChecker {
             return ctx.sema.types.unitType
         }
 
-        let allCandidateIDs = ctx.cachedScopeLookup(name)
+        // Find the nearest assignable property in the scope chain. A same-named
+        // function in an inner class scope must not hide a top-level property.
+        let allCandidateIDs = ctx.cachedScopeLookup(name, matching: { candidateID in
+            guard let candidate = ctx.cachedSymbol(candidateID), candidate.kind == .property else {
+                return false
+            }
+            guard let parentID = ctx.sema.symbols.parentSymbol(for: candidateID),
+                  let parentSymbol = ctx.cachedSymbol(parentID)
+            else {
+                return true
+            }
+            return parentSymbol.kind == .package || parentSymbol.kind == .object
+                || (ctx.implicitReceiverType != nil
+                    && (parentSymbol.kind == .class || parentSymbol.kind == .object || parentSymbol.kind == .interface))
+        })
         let dslBlockedIDs = allCandidateIDs.filter { ctx.isCandidateBlockedByDslMarker($0) }
         let dslFilteredIDs = allCandidateIDs.filter { !ctx.isCandidateBlockedByDslMarker($0) }
         let (visibleIDs, _) = ctx.filterByVisibility(dslFilteredIDs)
         let candidates = visibleIDs.compactMap { ctx.cachedSymbol($0) }
-        if let propSymbol = candidates.first(where: { sym in
-            guard sym.kind == .property else { return false }
-            guard let parentID = ctx.sema.symbols.parentSymbol(for: sym.id),
-                  let parentSym = ctx.sema.symbols.symbol(parentID) else { return true }
-            // A scope-visible object member can be an explicit import such as
-            // `import C.p`; singleton properties need no lexical receiver.
-            // Class and interface members still require an implicit receiver.
-            return parentSym.kind == .package || parentSym.kind == .object || (ctx.implicitReceiverType != nil
-                && (parentSym.kind == .class || parentSym.kind == .object || parentSym.kind == .interface))
-        }) {
+        if let propSymbol = candidates.first(where: { $0.kind == .property }) {
             let propType = ctx.sema.symbols.propertyType(for: propSymbol.id) ?? ctx.sema.types.anyType
             let valueType = driver.inferExpr(value, ctx: ctx, locals: &locals, expectedType: propType)
             ctx.sema.bindings.bindIdentifier(id, symbol: propSymbol.id)
