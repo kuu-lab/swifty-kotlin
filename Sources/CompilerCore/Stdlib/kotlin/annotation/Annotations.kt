@@ -7,6 +7,8 @@
 
 package kotlin.annotation
 
+import kotlin.enums.enumEntries
+
 public enum class AnnotationTarget {
     CLASS,
     ANNOTATION_CLASS,
