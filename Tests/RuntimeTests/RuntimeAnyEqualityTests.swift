@@ -248,6 +248,41 @@ struct RuntimeAnyEqualityTests {
         #expect(!boolValue(kk_any_equals(lambda, 0, otherLambda, 0)))
     }
 
+    @Test
+    func adaptedCallableReferenceIdentityDoesNotExposeKCallable() {
+        func reference(target: Int, arity: Int, captures: [Int] = []) -> Int {
+            var thrown = 0
+            let value = kk_function_create_1(target, 0, &thrown)
+            let capturesRaw = captures.isEmpty
+                ? runtimeNullSentinelInt
+                : registerRuntimeObject(RuntimeListBox(elements: captures))
+            __kk_callable_adapter_set_identity(value, 0, target, capturesRaw, arity, 0, 0)
+            return value
+        }
+
+        let target = unsafeBitCast(runtimeCallableReferenceTarget, to: Int.self)
+        let otherTarget = unsafeBitCast(runtimeCallableReferenceOtherTarget, to: Int.self)
+        let capture = kk_object_new(0, 0x51_45)
+        let otherCapture = kk_object_new(0, 0x51_45)
+        let first = reference(target: target, arity: 3, captures: [capture])
+        let same = reference(target: target, arity: 3, captures: [capture])
+        let differentArity = reference(target: target, arity: 1, captures: [capture])
+        let differentCapture = reference(target: target, arity: 3, captures: [otherCapture])
+        let differentTarget = reference(target: otherTarget, arity: 3, captures: [capture])
+        var thrown = 0
+        let copied = kk_function_create_1(target, 0, &thrown)
+        __kk_function_copy_description(first, copied)
+
+        #expect(boolValue(kk_any_equals(first, 0, same, 0)))
+        #expect(kk_any_hashCode(first, 0) == kk_any_hashCode(same, 0))
+        #expect(!boolValue(kk_any_equals(first, 0, differentArity, 0)))
+        #expect(!boolValue(kk_any_equals(first, 0, differentCapture, 0)))
+        #expect(!boolValue(kk_any_equals(first, 0, differentTarget, 0)))
+        #expect(boolValue(kk_any_equals(first, 0, copied, 0)))
+        #expect(runtimeCallableRoots().contains(capture))
+        #expect(__kk_kcallable_is_runtime(first) == 0)
+    }
+
     // KUU-2940: `fun interface` SAM adapters built from callable references get
     // JVM `FunctionAdapter` equality — equal when the other operand implements
     // the same interface and holds an equal function delegate; a raw callable
