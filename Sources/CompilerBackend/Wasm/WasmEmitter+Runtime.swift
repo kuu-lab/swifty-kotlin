@@ -321,6 +321,7 @@ enum WasmRuntimeHelpers {
         "__kk_function_set_enclosing_class",
         "kk_iterable_iterator", "__kk_collection_size",
         "kk_string_from_flat", "kk_string_to_flat",
+        "kk_op_notnull", "kk_op_elvis",
     ]
 
     /// True when `name` has an emitted wasm helper body — used by callee
@@ -874,6 +875,34 @@ enum WasmRuntimeHelpers {
             // through the flat registry, unobservable here).
             extraLocals = 0
             code.localGet(0)
+        case "kk_op_notnull":
+            // `!!` — nullSentinel → NPE through thrownGlobal (nil message so
+            // `toString` prints the fqName only); else pass the value through.
+            extraLocals = 0
+            code.localGet(0)
+            code.i64Const(L.nullSentinel)
+            code.op(WasmOpcode.i64Eq)
+            code.openIf()
+            code.i64Const(L.nullSentinel)
+            code.call(ctx.emittedHelperIndex(
+                for: "__kk_null_pointer_exception_new", argumentCount: 1
+            ))
+            code.globalSet(ctx.thrownGlobal)
+            code.i64Const(0)
+            code.op(WasmOpcode.return)
+            code.end()
+            code.localGet(0)
+        case "kk_op_elvis":
+            // `?:` — `lhs == nullSentinel ? rhs : lhs`.
+            extraLocals = 0
+            code.localGet(0)
+            code.i64Const(L.nullSentinel)
+            code.op(WasmOpcode.i64Eq)
+            code.openIf(result: .i64)
+            code.localGet(1)
+            code.elseBranch()
+            code.localGet(0)
+            code.end()
         default:
             return emittedThrowableBody(for: name, argumentCount: argumentCount, context: ctx)
         }
