@@ -567,6 +567,14 @@ extension TypeCheckHelpers {
             }
             return inheritedOwner ?? sema.symbols.expectActualDefaultArgumentOwner(for: target)
         }
+        func isInnerConstructor(_ symbol: SymbolID) -> Bool {
+            guard sema.symbols.symbol(symbol)?.kind == .constructor,
+                  let owner = sema.symbols.parentSymbol(for: symbol)
+            else {
+                return false
+            }
+            return sema.symbols.symbol(owner)?.flags.contains(.innerClass) == true
+        }
         func functionShapes() -> [CallableReferenceFunctionShape] {
             let callableType = callableFunctionType(
                 for: signature,
@@ -856,7 +864,10 @@ extension TypeCheckHelpers {
                     blameRange: nil
                 )
             }
-            if let boundReceiver, let receiverType = signature.receiverType {
+            let hasBoundEnclosingInstance = boundReceiver.map { isInnerConstructor($0.symbol) } ?? false
+            if let boundReceiver, let receiverType = signature.receiverType,
+               !hasBoundEnclosingInstance
+            {
                 constraints += resolver.decomposeSubtypeConstraint(
                     subtype: boundReceiver.receiverType,
                     supertype: receiverType,
@@ -867,21 +878,46 @@ extension TypeCheckHelpers {
             }
             // Seed real owner slots even when their argument is the same
             // lexical T; subtype T <: T alone supplies no solver substitution.
-            if let boundReceiver, let owner = sema.symbols.parentSymbol(for: boundReceiver.symbol),
-               case let .classType(receiver) = types.kind(of: types.makeNonNullable(
-                   types.capturedReadableUpperBound(of: boundReceiver.receiverType)
-               )),
-               types.isNominalSubtypeSymbol(receiver.classSymbol, of: owner),
-               let ownerArgs = types.liftedNominalSupertypeArgs(
-                   from: receiver.classSymbol, childArgs: receiver.args, to: owner
-               ) {
-                for (index, symbol) in signature.typeParameterSymbols.prefix(signature.classTypeParameterCount).enumerated() {
-                    guard ownerArgs.indices.contains(index), let variable = typeVars[symbol] else { continue }
-                    let parameterType = types.make(.typeParam(TypeParamType(symbol: symbol)))
-                    let argument = resolveMemberPropertyType(
-                        parameterType, receiverType: boundReceiver.receiverType, ownerSymbol: owner, sema: sema
+            if let boundReceiver, let owner = sema.symbols.parentSymbol(for: boundReceiver.symbol) {
+                if isInnerConstructor(boundReceiver.symbol) {
+                    // An inner constructor captures its enclosing class parameters.
+                    // Fix them from the lexical outer instance before solving the
+                    // remaining constructor parameters against the expected shape.
+                    let capturedParameters = types.enclosingTypeParameterSymbols(for: owner)
+                    let capturedArguments = types.implicitInnerClassEnclosingArgs(
+                        for: owner, enclosingInstanceTypes: [boundReceiver.receiverType]
                     )
-                    constraints.append(VariableConstraint(kind: .equal, left: .variable(variable), right: .type(argument)))
+                    for (symbol, typeArgument) in zip(
+                        signature.typeParameterSymbols.prefix(capturedParameters.count), capturedArguments
+                    ) {
+                        guard let variable = typeVars[symbol] else { continue }
+                        let argument: TypeID
+                        switch typeArgument {
+                        case let .invariant(type), let .out(type), let .in(type): argument = type
+                        case .star: continue
+                        }
+                        constraints.append(VariableConstraint(
+                            kind: .equal, left: .variable(variable), right: .type(argument)
+                        ))
+                    }
+                } else if case let .classType(receiver) = types.kind(of: types.makeNonNullable(
+                    types.capturedReadableUpperBound(of: boundReceiver.receiverType)
+                )),
+                   types.isNominalSubtypeSymbol(receiver.classSymbol, of: owner),
+                   let ownerArgs = types.liftedNominalSupertypeArgs(
+                       from: receiver.classSymbol, childArgs: receiver.args, to: owner
+                   )
+                {
+                    for (index, symbol) in signature.typeParameterSymbols.prefix(signature.classTypeParameterCount).enumerated() {
+                        guard ownerArgs.indices.contains(index), let variable = typeVars[symbol] else { continue }
+                        let parameterType = types.make(.typeParam(TypeParamType(symbol: symbol)))
+                        let argument = resolveMemberPropertyType(
+                            parameterType, receiverType: boundReceiver.receiverType, ownerSymbol: owner, sema: sema
+                        )
+                        constraints.append(VariableConstraint(
+                            kind: .equal, left: .variable(variable), right: .type(argument)
+                        ))
+                    }
                 }
             }
             func upperBounds(_ index: Int, _ symbol: SymbolID) -> [TypeID] {

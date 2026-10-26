@@ -978,6 +978,42 @@ extension ExprTypeChecker {
             {
                 candidates = [local.symbol]
             }
+            // A bare inner-class constructor reference inside an enclosing
+            // instance captures that receiver, just like `outer::Inner`.
+            if candidates.isEmpty {
+                var implicitReceivers = ctx.implicitReceiverMemberLookupEntries()
+                if let type = ctx.implicitReceiverType,
+                   let symbol = locals[interner.intern("this")]?.symbol,
+                   let index = implicitReceivers.firstIndex(where: { $0.type == type })
+                {
+                    implicitReceivers[index].symbol = symbol
+                }
+                for implicitReceiver in implicitReceivers.reversed() {
+                    let innerConstructors = driver.helpers.collectInnerClassConstructorCandidates(
+                        named: member,
+                        receiverType: implicitReceiver.type,
+                        sema: sema,
+                        interner: interner
+                    )
+                    let visibleConstructors = ctx.filterByVisibility(innerConstructors).0.filter { constructor in
+                        guard let innerClassID = sema.symbols.parentSymbol(for: constructor),
+                              let innerClass = ctx.cachedSymbol(innerClassID),
+                              innerClass.kind == .class,
+                              innerClass.flags.contains(.innerClass),
+                              !innerClass.flags.contains(.abstractType)
+                        else {
+                            return false
+                        }
+                        return !ctx.filterByVisibility([innerClassID]).0.isEmpty
+                    }
+                    guard !visibleConstructors.isEmpty else { continue }
+                    candidates = visibleConstructors
+                    isConstructorReference = true
+                    isImplicitlyBoundMember = true
+                    implicitBoundReceiver = implicitReceiver
+                    break
+                }
+            }
             // REFL-CTOR: a bare `::Foo` where `Foo` names a class/enum class
             // is a constructor reference `(Args...) -> Foo`. Constructors are
             // stored under the class's own FQ name with the reserved `<init>`
@@ -1046,6 +1082,14 @@ extension ExprTypeChecker {
         if !implicitMemberCandidates.isEmpty {
             candidates = implicitMemberCandidates
             isImplicitlyBoundMember = true
+            isConstructorReference = candidates.allSatisfy { candidate in
+                guard sema.symbols.symbol(candidate)?.kind == .constructor,
+                      let owner = sema.symbols.parentSymbol(for: candidate)
+                else {
+                    return false
+                }
+                return sema.symbols.symbol(owner)?.flags.contains(.innerClass) == true
+            }
         }
 
         // A nested class constructor (`Outer::Nested`) is stored under
