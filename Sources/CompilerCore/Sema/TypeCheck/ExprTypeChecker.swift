@@ -1891,7 +1891,11 @@ final class ExprTypeChecker {
     ) -> [SymbolID] {
         let sema = ctx.sema
         let interner = ctx.interner
-        let isPrimitive = if case .primitive = sema.types.kind(of: receiverType) { true } else { false }
+        let isNonNullablePrimitive = if case .primitive(_, .nonNull) = sema.types.kind(of: receiverType) {
+            true
+        } else {
+            false
+        }
         let allowedOnPrimitive = names.contains { name in
             switch interner.resolve(name) {
             case "downTo", "rangeTo", "rangeUntil", "step":
@@ -1902,7 +1906,9 @@ final class ExprTypeChecker {
                 return false
             }
         }
-        guard !isPrimitive || allowedOnPrimitive else { return [] }
+        // Non-null primitive operators use dedicated builtin paths. Nullable
+        // primitives can declare applicable operator extensions such as Int?.inc().
+        guard !isNonNullablePrimitive || allowedOnPrimitive else { return [] }
 
         // STDLIB-OP-031: Names that are inherently operator functions in Kotlin
         // (e.g. equals, compareTo). Overrides of these inherit operator status
