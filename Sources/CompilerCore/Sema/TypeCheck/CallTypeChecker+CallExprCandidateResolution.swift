@@ -1,6 +1,37 @@
 // swiftlint:disable file_length function_body_length cyclomatic_complexity
 
 extension CallTypeChecker {
+    func contextApplicableCallCandidates(
+        _ candidates: [SymbolID],
+        ctx: TypeInferenceContext
+    ) -> [SymbolID] {
+        let sema = ctx.sema
+        let availableContextTypes = ctx.contextReceiverTypes
+            + ctx.implicitReceiverStack.map(\.type)
+            + ctx.outerReceiverTypes.map(\.type)
+            + (ctx.implicitReceiverType.map { [$0] } ?? [])
+        return candidates.filter { candidate in
+            guard let signature = sema.symbols.functionSignature(for: candidate) else {
+                return true
+            }
+            return signature.contextParameterTypes.allSatisfy { requiredType in
+                if sema.types.typeContainsAnyTypeParam(requiredType) {
+                    return !availableContextTypes.isEmpty
+                }
+                return availableContextTypes.contains { availableType in
+                    sema.types.isSubtype(
+                        sema.types.makeNonNullable(availableType),
+                        sema.types.makeNonNullable(requiredType)
+                    )
+                }
+            }
+        }
+    }
+
+    func firstContextParameterType(in candidates: [SymbolID], ctx: TypeInferenceContext) -> TypeID? {
+        candidates.compactMap { ctx.sema.symbols.functionSignature(for: $0)?.contextParameterTypes.first }.first
+    }
+
     func resolveCallExprCandidates(
         _ id: ExprID,
         calleeID: ExprID,
@@ -29,32 +60,11 @@ extension CallTypeChecker {
         let interner = ctx.interner
         let knownNames = KnownCompilerNames(interner: interner)
 
-        let availableContextTypes = ctx.contextReceiverTypes
-            + ctx.implicitReceiverStack.map(\.type)
-            + ctx.outerReceiverTypes.map(\.type)
-            + (ctx.implicitReceiverType.map { [$0] } ?? [])
-        let contextApplicableCandidates = candidates.filter { candidate in
-            guard let signature = sema.symbols.functionSignature(for: candidate) else {
-                return true
-            }
-            return signature.contextParameterTypes.allSatisfy { requiredType in
-                if sema.types.typeContainsAnyTypeParam(requiredType) {
-                    return !availableContextTypes.isEmpty
-                }
-                return availableContextTypes.contains { availableType in
-                    sema.types.isSubtype(
-                        sema.types.makeNonNullable(availableType),
-                        sema.types.makeNonNullable(requiredType)
-                    )
-                }
-            }
-        }
+        let contextApplicableCandidates = contextApplicableCallCandidates(candidates, ctx: ctx)
         var resolvedCandidates: [SymbolID]
         if !contextApplicableCandidates.isEmpty {
             resolvedCandidates = contextApplicableCandidates
-        } else if let missingType = candidates
-            .compactMap({ sema.symbols.functionSignature(for: $0)?.contextParameterTypes.first })
-            .first
+        } else if let missingType = firstContextParameterType(in: candidates, ctx: ctx)
         {
             sema.diagnostics.error(
                 "KSWIFTK-SEMA-CTX-002",

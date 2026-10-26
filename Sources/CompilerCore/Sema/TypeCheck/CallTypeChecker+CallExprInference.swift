@@ -557,7 +557,10 @@ extension CallTypeChecker {
         if candidates.isEmpty, calleeName == nil,
            let calleeExpr, !calleeExpr.isLambdaOrCallableRef {
             let calleeType = driver.inferExpr(calleeID, ctx: ctx, locals: &locals)
-            let invokeCandidates = implicitInvokeOperatorCandidates(for: calleeType, ctx: ctx)
+            let invokeCandidates = contextApplicableCallCandidates(
+                implicitInvokeOperatorCandidates(for: calleeType, ctx: ctx),
+                ctx: ctx
+            )
             if !invokeCandidates.isEmpty {
                 argumentContextCandidates = invokeCandidates
                 argumentContextReceiverType = calleeType

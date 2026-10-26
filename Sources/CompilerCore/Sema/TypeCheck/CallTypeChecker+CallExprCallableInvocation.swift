@@ -198,7 +198,19 @@ extension CallTypeChecker {
         }
 
         if let callableCalleeType {
-            let invokeCandidates = implicitInvokeOperatorCandidates(for: callableCalleeType, ctx: ctx)
+            let allInvokeCandidates = implicitInvokeOperatorCandidates(for: callableCalleeType, ctx: ctx)
+            let invokeCandidates = contextApplicableCallCandidates(allInvokeCandidates, ctx: ctx)
+            if invokeCandidates.isEmpty,
+               let missingType = firstContextParameterType(in: allInvokeCandidates, ctx: ctx)
+            {
+                sema.diagnostics.error(
+                    "KSWIFTK-SEMA-CTX-002",
+                    "No context value is available for parameter type '\(sema.types.renderType(missingType))'.",
+                    range: range
+                )
+                sema.bindings.bindExprType(id, type: sema.types.errorType)
+                return sema.types.errorType
+            }
             if !invokeCandidates.isEmpty {
                 let resolvedArgs = zip(args, argTypes).map { argument, type in
                     CallArg.source(argument, type: type, callRange: range, ast: ctx.ast)
@@ -222,7 +234,18 @@ extension CallTypeChecker {
                     return sema.types.errorType
                 }
                 if let chosen = resolved.chosenCallee {
-                    let returnType = bindCallAndResolveReturnType(id, chosen: chosen, resolved: resolved, sema: sema)
+                    let contextReceiverSymbols = contextParameterReceiverSymbols(
+                        for: chosen,
+                        substitution: resolved.substitutedTypeArguments,
+                        ctx: ctx
+                    )
+                    let returnType = bindCallAndResolveReturnType(
+                        id,
+                        chosen: chosen,
+                        resolved: resolved,
+                        sema: sema,
+                        contextParameterReceiverSymbols: contextReceiverSymbols
+                    )
                     applyContractEffects(
                         id: id,
                         chosen: chosen,
