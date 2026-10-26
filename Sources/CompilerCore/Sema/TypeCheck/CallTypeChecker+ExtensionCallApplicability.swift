@@ -68,7 +68,7 @@ extension CallTypeChecker {
                     continue
                 }
                 if sema.types.isSubtype(actual, parameterType)
-                    || sema.types.suspendConversionType(from: actual, to: parameterType) != nil
+                    || sema.types.functionArgumentConversionType(from: actual, to: parameterType) != nil
                     || integerLiteralFitsParameter(argument.expr, parameterType: parameterType, ctx: ctx) {
                     continue
                 }

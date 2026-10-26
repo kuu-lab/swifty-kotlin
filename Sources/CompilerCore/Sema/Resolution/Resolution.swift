@@ -1592,7 +1592,7 @@ extension OverloadResolver {
                 ? (integerLiteralType(arg, parameterType: literalParameterType, types: typeSystem) ?? arg.type)
                 : arg.type
             let argType = !arg.isSpread
-                ? (typeSystem.suspendConversionType(from: inferredArgType, to: paramType) ?? inferredArgType)
+                ? (typeSystem.functionArgumentConversionType(from: inferredArgType, to: paramType) ?? inferredArgType)
                 : inferredArgType
 
             if arg.label != nil, isVararg[paramIndex] {
@@ -1661,9 +1661,9 @@ extension OverloadResolver {
                     typeSystem.nullability(of: paramType),
                     for: typeSystem.make(.functionType(samFunction))
                 )
-                // Suspend conversion applies to function arguments even when
-                // the target is represented by a SAM interface at this call site.
-                constraintArgumentType = typeSystem.suspendConversionType(
+                // Function argument adaptations also apply when the target is
+                // represented by a SAM interface at this call site.
+                constraintArgumentType = typeSystem.functionArgumentConversionType(
                     from: argType,
                     to: constraintParameterType
                 ) ?? argType
