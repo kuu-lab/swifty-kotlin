@@ -503,7 +503,8 @@ extension ExprTypeChecker {
                 ownerFQName: classFQName, ownerType: classType,
                 symbols: sema.symbols, types: sema.types,
                 scope: classScope, interner: interner,
-                diagnostics: ctx.sema.diagnostics
+                diagnostics: ctx.sema.diagnostics,
+                ownerIsLocal: true
             )
         }
         let memberFunctionSymbolsByDecl = collectObjectLiteralMemberFunctions(
