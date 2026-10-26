@@ -769,7 +769,6 @@ struct TypeCheckScopeBuilder {
             ["kotlin", "sequences"],
             ["kotlin", "text"],
             ["kotlin", "time"],
-            ["kotlin", "system"],
             ["java", "lang"],
         ]
         return packages.map { segments in

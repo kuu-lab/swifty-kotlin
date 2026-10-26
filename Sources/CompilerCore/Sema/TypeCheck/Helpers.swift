@@ -991,6 +991,7 @@ struct TypeCheckHelpers {
                 // Fall back to short-name lookup so that packaged types
                 // (e.g. `package test; class Foo`) resolve when referenced
                 // by simple name (`Foo`) during type checking.
+                let kotlinReflectPackage = [interner.intern("kotlin"), interner.intern("reflect")]
                 let candidates: [SymbolID] = if !scopeCandidates.isEmpty {
                     scopeCandidates
                 } else if !qualifiedScopeCandidates.isEmpty {
@@ -1000,10 +1001,13 @@ struct TypeCheckHelpers {
                 } else if !nestedCandidates.isEmpty {
                     nestedCandidates
                 } else {
+                    // Preserve short-name recovery for legacy and generated
+                    // type references, but require imports for kotlin.reflect.
                     sema.symbols.lookupByShortName(shortName).filter { candidate in
                         guard isTypeLikeSymbol(candidate), let symbol = sema.symbols.symbol(candidate) else {
                             return false
                         }
+                        guard !symbol.fqName.starts(with: kotlinReflectPackage) else { return false }
                         // Local classes resolve only through their lexical scope,
                         // including self-references while collecting their headers.
                         if symbol.kind == .class, symbol.flags.contains(.synthetic),
