@@ -525,11 +525,14 @@ extension DataFlowSemaPhase {
         let currentPackage = currentPackageFQName
             ?? usageRange.flatMap { ast.file(for: $0.start.file)?.packageFQName }
         let defaultImportPackages = Set(TypeCheckScopeBuilder().makeDefaultImportPackages(interner: interner))
+        let kotlinReflectPackage = [interner.intern("kotlin"), interner.intern("reflect")]
         let enforcesWildcardImportVisibility =
             usageRange.flatMap { sourceManager?.origin(of: $0.start.file) } == .user
                 && imports.contains(where: \.isWildcard)
         return symbols.lookupByShortName(shortName).compactMap { symbols.symbol($0) }.filter { symbol in
             guard isNominalTypeSymbol(symbol.kind) else { return false }
+            // kotlin.reflect declarations require an explicit import.
+            guard !symbol.fqName.starts(with: kotlinReflectPackage) else { return false }
             // Wildcard imports must not widen short-name recovery beyond the
             // current/default/imported package paths (KUU-3295). Other header
             // paths retain legacy recovery for nested and forward references.

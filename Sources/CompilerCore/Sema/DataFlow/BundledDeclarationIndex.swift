@@ -1436,7 +1436,6 @@ package struct BundledDeclarationIndex: Sendable {
         let ranges = interner.intern("ranges")
         let text = interner.intern("text")
         let io = interner.intern("io")
-        let reflect = interner.intern("reflect")
         let native = interner.intern("native")
 
         let defaultImportPackages: [[InternedString]] = [
@@ -1446,7 +1445,6 @@ package struct BundledDeclarationIndex: Sendable {
             [kotlin, text],
             [kotlin, io],
             [kotlin],
-            [kotlin, reflect],
             [kotlin, interner.intern("jvm")],
             [kotlin, native],
             [interner.intern("java"), interner.intern("lang")],
@@ -1488,10 +1486,6 @@ package struct BundledDeclarationIndex: Sendable {
                 "UByteArray", "UShortArray", "UIntArray", "ULongArray",
                 "Pair", "Triple", "Result",
                 "Throwable", "Exception", "Error", "RuntimeException",
-            ]),
-            ([kotlin, reflect], [
-                "KClass", "KClassifier", "KType", "KTypeParameter",
-                "KTypeProjection", "KCallable", "KFunction", "KProperty",
             ]),
         ]
 

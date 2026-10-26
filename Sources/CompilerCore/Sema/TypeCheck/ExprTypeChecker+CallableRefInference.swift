@@ -1209,18 +1209,26 @@ extension ExprTypeChecker {
         let postponedReturnParameter = driver.helpers.postponedCallableReferenceReturnTypeParameter(
             expectedFunctionType, inferenceParameters: ctx.callableReferenceInferenceParameters, sema: sema
         )
-        let chosen = driver.helpers.chooseCallableReferenceTarget(
-            from: candidates,
-            expectedType: expectedFunctionType ?? expectedType,
-            bindReceiver: isBoundReceiver,
-            boundReceiverType: boundReceiverType,
-            unboundReceiverType: unboundCallableReceiverType,
-            expectedCallableReferenceReturnType: expectedCallableReferenceReturnType,
-            postponedReturnTypeParameter: postponedReturnParameter,
-            interner: interner,
-            availableContextReceiverTypes: availableContextReceiverTypes,
-            sema: sema
-        )
+        let hasUncontextualPropertyFunctionOverload = propertyReferenceCandidate != nil
+            && !candidates.isEmpty
+            && expectedFunctionType == nil
+            && expectedCallableReferenceReturnType == nil
+        let chosen: SymbolID? = if hasUncontextualPropertyFunctionOverload {
+            nil
+        } else {
+            driver.helpers.chooseCallableReferenceTarget(
+                from: candidates,
+                expectedType: expectedFunctionType ?? expectedType,
+                bindReceiver: isBoundReceiver,
+                boundReceiverType: boundReceiverType,
+                unboundReceiverType: unboundCallableReceiverType,
+                expectedCallableReferenceReturnType: expectedCallableReferenceReturnType,
+                postponedReturnTypeParameter: postponedReturnParameter,
+                interner: interner,
+                availableContextReceiverTypes: availableContextReceiverTypes,
+                sema: sema
+            )
+        }
         if chosen == nil,
            let candidate = propertyReferenceCandidate,
            let expectedFunctionType,

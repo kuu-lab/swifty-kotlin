@@ -296,7 +296,9 @@ extension TypeCheckHelpers {
             return nil
         }
         guard let expectedType else {
-            return sorted.first
+            // Without a contextual type, declaration order cannot disambiguate
+            // overloaded callable references.
+            return sorted.count == 1 ? sorted[0] : nil
         }
 
         let expectedFunctionType: TypeID? = if case .functionType = sema.types.kind(of: expectedType) {
@@ -307,7 +309,11 @@ extension TypeCheckHelpers {
             nil
         }
         guard let expectedFunctionType else {
-            guard let expectedCallableReferenceReturnType else { return sorted.first }
+            guard let expectedCallableReferenceReturnType else {
+                // A non-callable expected type (for example Any?) does not
+                // select one member of an overload set.
+                return sorted.count == 1 ? sorted[0] : nil
+            }
             let matching = sorted.filter { symbolID in
                 guard let signature = sema.symbols.functionSignature(for: symbolID) else { return false }
                 return contextualCallableReferenceBinding(
