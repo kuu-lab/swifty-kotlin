@@ -732,20 +732,63 @@ extension DeclTypeChecker {
         ctx: TypeInferenceContext
     ) -> ClassMemberScope {
         let sema = ctx.sema
-        func insertCompanionMembers(of classSymbol: SymbolID, into scope: BaseScope) {
+        func companionMemberScope(of classSymbol: SymbolID, parent: Scope) -> Scope {
             guard let companionSymbol = sema.symbols.companionObjectSymbol(for: classSymbol),
-                  let companion = sema.symbols.symbol(companionSymbol)
+                  sema.symbols.symbol(companionSymbol) != nil
             else {
-                return
+                return parent
             }
-            for memberSymbol in sema.symbols.children(ofFQName: companion.fqName) {
-                guard let member = sema.symbols.symbol(memberSymbol),
-                      member.kind == .property || member.kind == .field || member.kind == .function
+
+            var inheritedOwnersByDepth: [[SymbolID]] = []
+            var pending = sema.symbols.directSupertypes(for: companionSymbol).map { ($0, 1) }
+            var visitedOwners: Set<SymbolID> = [companionSymbol]
+            var index = 0
+            while index < pending.count {
+                let (owner, depth) = pending[index]
+                index += 1
+                guard visitedOwners.insert(owner).inserted,
+                      sema.symbols.symbol(owner) != nil
                 else {
                     continue
                 }
-                scope.insert(memberSymbol)
+                while inheritedOwnersByDepth.count < depth {
+                    inheritedOwnersByDepth.append([])
+                }
+                inheritedOwnersByDepth[depth - 1].append(owner)
+                pending.append(contentsOf: sema.symbols.directSupertypes(for: owner).map { ($0, depth + 1) })
             }
+
+            func insertMembers(
+                of owners: [SymbolID],
+                into scope: BaseScope,
+                inherited: Bool,
+                functionsOnly: Bool
+            ) {
+                for owner in owners {
+                    guard let ownerInfo = sema.symbols.symbol(owner) else { continue }
+                    for memberSymbol in sema.symbols.children(ofFQName: ownerInfo.fqName) {
+                        guard let member = sema.symbols.symbol(memberSymbol),
+                              member.kind == .function
+                                || !functionsOnly && (member.kind == .property || member.kind == .field),
+                              !inherited || member.visibility != .private
+                        else {
+                            continue
+                        }
+                        scope.insert(memberSymbol)
+                    }
+                }
+            }
+
+            var memberScopeParent = parent
+            for owners in inheritedOwnersByDepth.reversed() {
+                let inheritedScope = BaseScope(parent: memberScopeParent, symbols: sema.symbols)
+                insertMembers(of: owners, into: inheritedScope, inherited: true, functionsOnly: true)
+                memberScopeParent = inheritedScope
+            }
+
+            let ownScope = BaseScope(parent: memberScopeParent, symbols: sema.symbols)
+            insertMembers(of: [companionSymbol], into: ownScope, inherited: false, functionsOnly: false)
+            return ownScope
         }
 
         // A class inherits the unqualified companion shorthand of its class
@@ -772,13 +815,10 @@ extension DeclTypeChecker {
             }
 
             for superclass in inheritedClassSymbols.reversed() {
-                let inheritedCompanionScope = BaseScope(parent: companionScopeParent, symbols: sema.symbols)
-                insertCompanionMembers(of: superclass, into: inheritedCompanionScope)
-                companionScopeParent = inheritedCompanionScope
+                companionScopeParent = companionMemberScope(of: superclass, parent: companionScopeParent)
             }
         }
-        let companionScope = BaseScope(parent: companionScopeParent, symbols: sema.symbols)
-        insertCompanionMembers(of: ownerSymbol, into: companionScope)
+        let companionScope = companionMemberScope(of: ownerSymbol, parent: companionScopeParent)
 
         let classScope = ClassMemberScope(
             parent: companionScope,

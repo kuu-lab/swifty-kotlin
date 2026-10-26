@@ -63,7 +63,10 @@ extension CallTypeChecker {
             }
             return !candidateSet.contains(actual)
         }
-        let (visible, invisible) = ctx.filterByVisibility(resolvedCandidates)
+        let (visible, invisible) = ctx.filterByVisibility(
+            resolvedCandidates,
+            protectedAccessReceiverType: memberLookupType
+        )
         let memberName = interner.resolve(calleeName)
         if !isClassNameReceiver,
            !safeCall,
