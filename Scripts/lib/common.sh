@@ -78,6 +78,37 @@ detect_workers() {
     printf ""
 }
 
+# Coordinate local Swift builds across worktrees. CI keeps its existing
+# concurrency unless the caller explicitly configures SWIFT_BUILD_SLOTS.
+kswiftk_resolve_build_slots() {
+    local -n __slots_result="$1"
+    local count="${SWIFT_BUILD_SLOTS:-}"
+    if [[ -z "$count" ]]; then
+        if [[ "${CI:-}" == true || "${CI:-}" == 1 || "${GITHUB_ACTIONS:-}" == true ]]; then
+            count=0
+        else
+            count=2
+        fi
+    fi
+    if ! [[ "$count" =~ ^(0|[1-9][0-9]*)$ ]]; then
+        echo "error: SWIFT_BUILD_SLOTS must be a non-negative integer" >&2
+        return 1
+    fi
+    __slots_result="$count"
+}
+
+kswiftk_wrap_build_slots() {
+    local -n __build_command="$1"
+    local slots="$2" script_dir="$3"
+    (( slots > 0 )) || return 0
+    if command -v python3 >/dev/null 2>&1; then
+        local slot_dir="${SWIFT_BUILD_SLOT_DIR:-/tmp/kswiftk-swift-build-slots-$(id -u)}"
+        __build_command=(python3 "$script_dir/lib/swift_build_slots.py" "$slots" "$slot_dir" "${__build_command[@]}")
+    else
+        echo "Swift build: python3 is unavailable; cross-worktree build slots are disabled." >&2
+    fi
+}
+
 # Append Swift 6.3+ compilation-caching flags to the named bash array when
 # SWIFT_ENABLE_COMPILE_CACHE is set. Both the build step and the test step must
 # pass identical -Xswiftc flags to avoid invalidating SwiftPM's incremental cache.
