@@ -221,10 +221,11 @@ identifier usages in the seed corpus.
 
 ## Golden update workflow
 
-1. Run golden tests without updating fixtures:
+1. Run only the affected golden suite without updating fixtures. For example,
+   for a Sema change:
 
 ```bash
-bash Scripts/swift_test.sh --filter Golden
+bash Scripts/swift_test.sh --filter CompilerCoreTests.GoldenSemaGoldenTests/matchesGolden
 ```
 
 2. Review differences:
@@ -233,11 +234,11 @@ bash Scripts/swift_test.sh --filter Golden
 git diff -- Tests/CompilerCoreTests/GoldenCases
 ```
 
-3. If the parser/sema/lowering change is intentional, update fixtures
+3. If the change is intentional, update the same affected suite
    (the `-swift-version` flags match the CI language mode):
 
 ```bash
-UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6
+UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter CompilerCoreTests.GoldenSemaGoldenTests/matchesGolden -Xswiftc -swift-version -Xswiftc 6
 ```
 
    The Golden tests run `GoldenHarnessWorker` from `./.build/debug/` of the
@@ -255,12 +256,12 @@ git status --short
 git diff -- Tests/CompilerCoreTests/GoldenCases
 ```
 
-5. Validate before commit:
-
-```bash
-bash Scripts/swift_test.sh
-bash Scripts/diff_kotlinc.sh Scripts/diff_cases
-```
+5. Re-run the affected golden suite with the CI language mode and any focused
+   regression tests needed for the change. Run an individual kotlinc diff case
+   when parity is relevant. The full test and diff suites belong in CI unless
+   explicitly requested or needed to reproduce a CI failure. Use the Lexer,
+   Parser, Sema, or Diagnostics suite type name appropriate to the change; the
+   full `--filter Golden` is for changes spanning multiple suites.
 
 ### Golden stability (after harness / concurrency changes)
 
