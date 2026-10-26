@@ -22,4 +22,18 @@ struct ObjectQualifiedNestedConstructorCodegenTests {
             allowDefaultStdlibLibrary: !stdlibFromSource
         )
     }
+
+    @Test func enclosingObjectThisIsAvailableInNestedSuperConstructorCall() throws {
+        let repository = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent()
+        let source = try String(contentsOf: repository.appendingPathComponent(
+            "Scripts/diff_cases/kuu_3560_nested_class_supercall_object_this.kt"
+        ), encoding: .utf8)
+        try assertKotlinOutput(
+            source,
+            moduleName: "KUU3560NestedClassSupercallObjectThis",
+            expected: "OK\n"
+        )
+    }
 }

@@ -106,6 +106,19 @@ struct InnerClassOuterReceiverCallTests {
         }
     }
 
+    @Test func nestedClassSuperConstructorArgumentCanUseEnclosingObjectThis() throws {
+        try withSemaContext("""
+        open class Base(val value: String)
+        object Owner {
+            class Nested : Base(this.answer())
+            fun answer(): String = "OK"
+        }
+        """) { ctx in
+            #expect(!ctx.diagnostics.hasError,
+                    "Expected nested class super arguments to resolve the enclosing object's this, got: \(ctx.diagnostics.diagnostics.map(\.message))")
+        }
+    }
+
     @Test func regularNestedClassDoesNotCaptureEnclosingInstance() throws {
         try withSemaContext("""
         class RegularOwner {

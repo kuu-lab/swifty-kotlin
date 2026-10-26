@@ -229,6 +229,18 @@ extension ExprTypeChecker {
             sema.bindings.bindExprType(id, type: sema.types.errorType)
             return sema.types.errorType
         }
+        // A nested class's supertype arguments run before its own receiver is
+        // initialized, but an enclosing object is a singleton and remains
+        // available. Bind `this` to the object symbol so KIR loads that value
+        // instead of falling back to the not-yet-initialized class receiver.
+        if ctx.implicitReceiverType == nil,
+           let outerObjectReceiver = ctx.singletonObjectOuterReceivers.last,
+           case let .classType(objectType) = sema.types.kind(of: outerObjectReceiver.type)
+        {
+            sema.bindings.bindIdentifier(id, symbol: objectType.classSymbol)
+            sema.bindings.bindExprType(id, type: outerObjectReceiver.type)
+            return outerObjectReceiver.type
+        }
         guard let receiverType = ctx.implicitReceiverType else {
             ctx.sema.diagnostics.error(
                 "KSWIFTK-SEMA-0051",
