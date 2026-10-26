@@ -896,8 +896,14 @@ extension CallLowerer {
         // (this compiler currently accepts it too; tracked separately as
         // BUG-262), so the widening below is a no-op for legal `!=` sources.
         case .lessThan, .lessOrEqual, .greaterThan, .greaterOrEqual, .notEqual:
-            let lhsTypeID = arena.exprType(lhsID) ?? sema.bindings.exprTypes[lhs]
-            let rhsTypeID = arena.exprType(rhsID) ?? sema.bindings.exprTypes[rhs]
+            let lhsSourceTypeID = arena.exprType(lhsID) ?? sema.bindings.exprTypes[lhs]
+            let rhsSourceTypeID = arena.exprType(rhsID) ?? sema.bindings.exprTypes[rhs]
+            let lhsTypeID = lhsSourceTypeID.flatMap {
+                resolvePrimitiveArithmeticUpperBound(of: $0, types: sema.types, symbols: sema.symbols)
+            } ?? lhsSourceTypeID
+            let rhsTypeID = rhsSourceTypeID.flatMap {
+                resolvePrimitiveArithmeticUpperBound(of: $0, types: sema.types, symbols: sema.symbols)
+            } ?? rhsSourceTypeID
             let lhsIsFloatingPoint = lhsTypeID.map { isFloatingPointPrimitiveType($0, types: sema.types) } ?? false
             let rhsIsFloatingPoint = rhsTypeID.map { isFloatingPointPrimitiveType($0, types: sema.types) } ?? false
             let isReferenceNotEqual = op == .notEqual && [lhsTypeID, rhsTypeID].contains { typeID in

@@ -409,8 +409,9 @@ extension CallLowerer {
         return narrowed
     }
 
-    /// Resolve `boundType` to its narrowed non-null primitive and
-    /// materialize `value` accordingly (see materializePrimitiveValue).
+    /// Materialize the primitive form of a flow-narrowed value. Non-null
+    /// primitives are unboxed from erased storage; nullable primitives keep
+    /// their box-or-sentinel representation in a narrowed typed alias.
     func materializeSmartcastedPrimitiveValue(
         _ value: KIRExprID,
         boundType: TypeID?,
@@ -418,15 +419,40 @@ extension CallLowerer {
         arena: KIRArena,
         instructions: inout [KIRInstruction]
     ) -> KIRExprID? {
-        guard let boundType,
-              let primitiveType = smartcastNarrowedPrimitiveType(of: boundType, sema: sema)
-        else {
-            return nil
+        guard let boundType else { return nil }
+        if case let .primitive(primitive, .nullable) = sema.types.kind(of: boundType),
+           let storedType = arena.exprType(value),
+           smartcastStorageNeedsNullablePrimitiveAlias(
+               sema.types.kind(of: storedType), primitive: primitive
+           )
+        {
+            // A nullable primitive smartcast keeps the erased box or null
+            // sentinel representation. Give the value its narrowed static
+            // type so equality lowering can select the IEEE-aware nullable
+            // comparison bridge without unboxing away nullness.
+            let narrowed = arena.appendTemporary(type: boundType)
+            instructions.append(.copy(from: value, to: narrowed))
+            return narrowed
         }
+        guard let primitiveType = smartcastNarrowedPrimitiveType(of: boundType, sema: sema) else { return nil }
         return materializePrimitiveValue(
             value, toType: primitiveType, sema: sema, arena: arena,
             instructions: &instructions
         )
+    }
+
+    private func smartcastStorageNeedsNullablePrimitiveAlias(
+        _ storedKind: TypeKind,
+        primitive: PrimitiveType
+    ) -> Bool {
+        switch storedKind {
+        case .any, .typeParam, .classType:
+            true
+        case let .primitive(storedPrimitive, .nullable):
+            storedPrimitive != primitive
+        default:
+            false
+        }
     }
 
     /// Target kind for `kk_number_to_primitive` (KSP-1540). Mirrors the

@@ -282,7 +282,16 @@ extension ExprTypeChecker {
         // concrete primitive upper bound (for example, `T : Double`). Keep
         // the operand bindings generic; the resulting primitive expression
         // type lets ABI lowering unbox those values before emitting the op.
-        if [.add, .subtract, .multiply, .divide, .modulo].contains(op),
+        let isPrimitiveUpperBoundComparison: Bool = switch op {
+        case .lessThan, .lessOrEqual, .greaterThan, .greaterOrEqual:
+            true
+        default:
+            false
+        }
+        let isEqualityComparison = op == .equal || op == .notEqual
+        if [.add, .subtract, .multiply, .divide, .modulo].contains(op)
+            || isPrimitiveUpperBoundComparison
+            || isEqualityComparison,
            let primitiveLhs = resolvePrimitiveArithmeticUpperBound(
                of: lhs, types: sema.types, symbols: sema.symbols
            ),
@@ -290,8 +299,13 @@ extension ExprTypeChecker {
                of: rhs, types: sema.types, symbols: sema.symbols
            ),
            sema.types.isBuiltinArithmeticOperand(primitiveLhs),
-           sema.types.isBuiltinArithmeticOperand(primitiveRhs)
+           sema.types.isBuiltinArithmeticOperand(primitiveRhs),
+           !(isEqualityComparison && primitiveLhs != primitiveRhs)
         {
+            // Primitive type-parameter bounds use the same scalar operators as
+            // their concrete types. In particular, resolving a floating-point
+            // bound here keeps `<` on IEEE comparisons instead of `compareTo`,
+            // whose total order distinguishes signed zero.
             lhs = primitiveLhs
             rhs = primitiveRhs
         }
