@@ -5,6 +5,33 @@ import Foundation
 import Testing
 
 extension StdlibArtifactRegressionTests {
+    /// KUU-3482: fully-qualified BigDecimal construction must resolve like BigInteger.
+    @Test(arguments: [false, true])
+    func testBigDecimalFullyQualifiedConstructorAcrossStdlibSurfaces(useArtifact: Bool) throws {
+        let artifactPath = useArtifact ? try BigDecimalZeroArtifact.path.get() : nil
+        let source = """
+        fun main() {
+            val integer = java.math.BigInteger("1")
+            val decimal = java.math.BigDecimal("1.5")
+        }
+        """
+
+        try withTemporaryFile(contents: source) { inputPath in
+            let context = bigDecimalZeroContext(
+                inputPath: inputPath,
+                outputPath: nil,
+                artifactPath: artifactPath,
+                optLevel: .O0
+            )
+            do {
+                try runSema(context)
+            } catch {
+                // Assert on diagnostics below so the failure reports the unresolved name.
+            }
+            #expect(!context.diagnostics.hasError, "Unexpected diagnostics: \(context.diagnostics.diagnostics)")
+        }
+    }
+
     /// KUU-2232: resolve BigDecimal constants from source and fresh metadata at O0/O2.
     /// This is compile-only coverage; it intentionally does not execute generated functions.
     @Test(arguments: [false, true], [0, 2])
