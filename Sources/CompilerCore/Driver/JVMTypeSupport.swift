@@ -28,6 +28,9 @@ extension JVMClasspathIndex {
         if name == "kotlin/Pair" || name == "java/io/Serializable" { return name }
         if name == "kotlin/Comparator" { return "java/util/Comparator" }
         if name == "kotlin/Comparable" { return "java/lang/Comparable" }
+        // KUU-3537: kotlin.Cloneable is a typealias for java.lang.Cloneable on
+        // the JVM — real array types ([I, [Ljava/lang/Object;, ...) implement it.
+        if name == "kotlin/Cloneable" { return "java/lang/Cloneable" }
         if name.hasPrefix("kotlin/collections/"), let mapped = collectionNames[String(name.split(separator: "/").last!)] { return mapped }
         if name.hasPrefix("kotlin/"), exceptionNames.contains(String(name.dropFirst(7))) { return "java/lang/" + name.dropFirst(7) }
         return nil
