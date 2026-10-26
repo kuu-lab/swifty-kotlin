@@ -101,21 +101,15 @@ extension CallTypeChecker {
                 scopeCandidates = applicableScopeCandidates
             }
         }
-        if let dispatchReceiver = ctx.implicitReceiverType {
-            let dispatchMembers = driver.helpers.collectMemberFunctionCandidates(
-                named: calleeName, receiverType: dispatchReceiver, sema: sema, interner: interner
-            ).filter { candidate in
-                guard !requiresInfix || sema.symbols.symbol(candidate)?.flags.contains(.infixFunction) == true,
-                      let receiver = sema.symbols.functionSignature(for: candidate)?.receiverType else {
-                    return false
-                }
-                return extensionReceiverMatchesDuringBuilderInference(
-                    callSiteReceiver: nonNullReceiverForScope, declaredReceiver: receiver, ctx: ctx
-                )
-            }
-            if !dispatchMembers.isEmpty {
-                scopeCandidates = dispatchMembers
-            }
+        let dispatchMembers = collectDispatchReceiverMemberExtensionCandidates(
+            named: calleeName,
+            extensionReceiverType: nonNullReceiverForScope,
+            ctx: ctx
+        ).filter { candidate in
+            !requiresInfix || sema.symbols.symbol(candidate)?.flags.contains(.infixFunction) == true
+        }
+        if !dispatchMembers.isEmpty {
+            scopeCandidates = dispatchMembers
         }
         // Primitive-array source members are top-level extensions in
         // kotlin.collections. Default-import lookup may stop at a

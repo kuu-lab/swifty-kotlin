@@ -368,16 +368,15 @@ extension CallTypeChecker {
     /// (e.g. a `SelectBuilder<R>` enclosing receiver) participate in calls
     /// whose call-site receiver is the *extension* receiver: `clause { }`
     /// inside `select { }` must find the builder's
-    /// `operator fun <Q> SelectClause1<Q>.invoke`. Collects the implicit
-    /// receiver's members first, then outer receivers innermost-out.
+    /// `operator fun <Q> SelectClause1<Q>.invoke`. Collects members from the
+    /// full implicit receiver tower, innermost first.
     func collectDispatchReceiverMemberExtensionCandidates(
         named calleeName: InternedString,
         extensionReceiverType: TypeID,
         ctx: TypeInferenceContext
     ) -> [SymbolID] {
         let sema = ctx.sema
-        let receivers = [ctx.implicitReceiverType].compactMap { $0 }
-            + ctx.outerReceiverTypes.reversed().map(\.type)
+        let receivers = ctx.implicitReceiverMemberLookupEntries().map(\.type)
         for receiver in receivers {
             let candidates = driver.helpers.collectMemberFunctionCandidates(
                 named: calleeName,
