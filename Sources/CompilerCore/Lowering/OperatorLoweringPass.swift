@@ -123,15 +123,11 @@ final class OperatorLoweringPass: LoweringPass, ParallelLoweringPass {
             return
         }
 
-        // `P == null` / `P != null` where the non-literal side is statically
-        // non-null is a tautology the JVM answers without a runtime check
-        // (e.g. a `Long?` local smart-cast to `Long` after `v = Long.MIN_VALUE`,
-        // or a plain `x != null` on a non-null primitive). Folding is required
-        // for correctness, not just an optimization: unboxing the operand
-        // yields raw bits that can equal the null sentinel (Long.MIN_VALUE,
-        // -0.0), which a raw kk_op_eq/ne would then misread as `null`.
-        // Nullable/platform operands are excluded — those may genuinely hold
-        // null and take the sentinel-safe path below.
+        // A non-null Long/ULong/Double/Float compared with null can have the
+        // same raw bits as the null sentinel. Keep folding those cases because
+        // this unboxed representation cannot distinguish a cast null from a
+        // valid value with the sentinel bits. Other non-null values can safely
+        // use the runtime comparison, which preserves unchecked-cast nulls.
         if op == .equal || op == .notEqual {
             func isNullLiteral(_ exprID: KIRExprID) -> Bool {
                 arena.expr(exprID) == .null
@@ -139,7 +135,9 @@ final class OperatorLoweringPass: LoweringPass, ParallelLoweringPass {
             func isNonNullPrimitiveLike(_ exprID: KIRExprID) -> Bool {
                 guard let types, let typeID = arena.exprType(exprID) else { return false }
                 let kind = resolveValueClassKind(types.kind(of: typeID), types: types, symbols: symbols)
-                if case .primitive(_, .nonNull) = kind { return true }
+                if case let .primitive(primitive, .nonNull) = kind {
+                    return primitive.rawValueCollidesWithNullSentinel
+                }
                 return false
             }
             let lhsIsNull = isNullLiteral(lhs)
