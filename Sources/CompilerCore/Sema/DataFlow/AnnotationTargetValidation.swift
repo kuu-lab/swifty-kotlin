@@ -721,26 +721,17 @@ extension DataFlowSemaPhase {
         ), let annotationSymbol = symbols.symbol(annotationSymbolID),
               annotationSymbol.kind == .annotationClass
         else {
-            // Expression/type positions became syntactically admissible in the
-            // JVM grammar gate, so an unresolvable name here must not compile
-            // silently (kotlinc reports "unresolved reference"). Declaration
-            // positions keep their existing JVM codegen check. Two tolerances
-            // remain: bundled stdlib sources annotate types with names their
-            // own surface omits (e.g. the JVM stubs use @UnsafeVariance
-            // without declaring it), and built-in names that the compiler
-            // recognises by name alone (kotlin.Suppress on JVM).
-            switch site {
-            case .expression, .type:
-                if resolutionContext.sourceManager?.origin(of: file.fileID)?.isBundledStdlib != true,
-                   !KnownCompilerAnnotation.isKnownBuiltInAnnotation(annotation.name) {
-                    diagnostics.error(
-                        "KSWIFTK-SEMA-0022",
-                        "Unresolved reference '\(annotation.name)'.",
-                        range: annotation.constructionTokens?.first?.range ?? ownerRange
-                    )
-                }
-            default:
-                break
+            // An annotation name must resolve at every use site, including
+            // declarations. Bundled stdlib sources can rely on annotations
+            // omitted from the compiler's reduced surface, and built-in names
+            // may be recognized by the compiler without a declaration.
+            if resolutionContext.sourceManager?.origin(of: file.fileID)?.isBundledStdlib != true,
+               !KnownCompilerAnnotation.isKnownBuiltInAnnotation(annotation.name) {
+                diagnostics.error(
+                    "KSWIFTK-SEMA-0022",
+                    "Unresolved reference '\(annotation.name)'.",
+                    range: annotation.constructionTokens?.first?.range ?? ownerRange
+                )
             }
             return
         }
