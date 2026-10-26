@@ -11,6 +11,7 @@ private struct CallableReferenceFunctionShape {
     let functionType: TypeID
     let parameterMapping: [Int: Int]
     let requiresAdapter: Bool
+    let isScalarVarargAdaptation: Bool
     let contextArgumentTypes: [TypeID]
     let boundContextParameterTypes: [TypeID]
 }
@@ -481,6 +482,7 @@ extension TypeCheckHelpers {
                     functionType: packedCallableType,
                     parameterMapping: Dictionary(uniqueKeysWithValues: signature.parameterTypes.indices.map { ($0, $0) }),
                     requiresAdapter: false,
+                    isScalarVarargAdaptation: false,
                     contextArgumentTypes: [],
                     boundContextParameterTypes: []
                 )]
@@ -595,6 +597,7 @@ extension TypeCheckHelpers {
                     parameterMapping: mapping,
                     requiresAdapter: scalarVarargCount != nil || sourceParameterCount != parameterCount
                         || !contextArgumentTypes.isEmpty || requiresErasedPrimitiveInputAdapter,
+                    isScalarVarargAdaptation: scalarVarargCount != nil,
                     contextArgumentTypes: contextArgumentTypes,
                     boundContextParameterTypes: contextArgumentTypes.isEmpty ? [] : base.contextReceivers
                 )
@@ -664,6 +667,7 @@ extension TypeCheckHelpers {
                     expected: expectedFunctionType,
                     expectedCallableReferenceReturnType: expectedCallableReferenceReturnType,
                     postponedReturn: postponedReturnTypeParameter,
+                    deferScalarVarargInputTypeParameters: shape.isScalarVarargAdaptation,
                     sema: sema
                 ) else { return nil }
                 return ContextualCallableReferenceBinding(
@@ -841,7 +845,9 @@ extension TypeCheckHelpers {
             guard callableReferenceTypeMatches(
                 specializedType, expected: expectedFunctionType,
                 expectedCallableReferenceReturnType: expectedCallableReferenceReturnType,
-                postponedReturn: postponedReturnTypeParameter, sema: sema
+                postponedReturn: postponedReturnTypeParameter,
+                deferScalarVarargInputTypeParameters: shape.isScalarVarargAdaptation,
+                sema: sema
             ) else { return nil }
             var arguments: [TypeID] = []
             for symbol in signature.typeParameterSymbols {
@@ -868,6 +874,7 @@ extension TypeCheckHelpers {
         expected: TypeID?,
         expectedCallableReferenceReturnType: TypeID? = nil,
         postponedReturn: SymbolID?,
+        deferScalarVarargInputTypeParameters: Bool = false,
         sema: SemaModule
     ) -> Bool {
         if let expectedCallableReferenceReturnType {
@@ -876,9 +883,36 @@ extension TypeCheckHelpers {
             else { return false }
         }
         guard let expected else { return true }
-        let matchingExpected = suspendConvertedCallableReferenceExpectedType(
+        var matchingExpected = suspendConvertedCallableReferenceExpectedType(
             actualType, expectedFunctionType: expected, sema: sema
         ) ?? expected
+        if deferScalarVarargInputTypeParameters,
+           case let .functionType(actual) = sema.types.kind(of: actualType),
+           case let .functionType(context) = sema.types.kind(of: matchingExpected)
+        {
+            let actualInputs = (actual.receiver.map { [$0] } ?? []) + actual.params
+            var expectedInputs = (context.receiver.map { [$0] } ?? []) + context.params
+            guard actualInputs.count == expectedInputs.count else { return false }
+            var deferredInput = false
+            for index in expectedInputs.indices where sema.types.typeContainsAnyTypeParam(expectedInputs[index]) {
+                expectedInputs[index] = actualInputs[index]
+                deferredInput = true
+            }
+            if deferredInput {
+                let receiverCount = context.receiver == nil ? 0 : 1
+                let deferredExpected = sema.types.make(.functionType(FunctionType(
+                    contextReceivers: context.contextReceivers,
+                    receiver: receiverCount == 0 ? nil : expectedInputs.first,
+                    params: Array(expectedInputs.dropFirst(receiverCount)),
+                    returnType: context.returnType,
+                    isSuspend: context.isSuspend,
+                    isCallableReference: context.isCallableReference,
+                    nullability: context.nullability,
+                    throws: context.throws
+                )))
+                matchingExpected = deferredExpected
+            }
+        }
         guard let postponedReturn,
               case let .functionType(actual) = sema.types.kind(of: actualType),
               case let .functionType(context) = sema.types.kind(of: matchingExpected),
