@@ -1,9 +1,18 @@
 #if canImport(Testing)
 @testable import CompilerCore
+import Foundation
 import Testing
 
 @Suite
 struct LocalExtensionFunctionTests {
+    private func makeIsolatedContext(_ source: String) -> CompilationContext {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let path = directory.appendingPathComponent("input.kt").path
+        let ctx = makeCompilationContext(inputs: [path], includeStdlib: false)
+        _ = ctx.sourceManager.addFile(path: path, contents: Data(source.utf8))
+        return ctx
+    }
+
     private func localFunctionSymbol(
         named name: InternedString,
         in ast: ASTModule,
@@ -358,6 +367,55 @@ struct LocalExtensionFunctionTests {
         })
         let local = try #require(sema.bindings.identifierSymbol(for: ExprID(rawValue: Int32(localID))))
         #expect(sema.bindings.callBindings.values.contains { $0.chosenCallee == local })
+    }
+
+    @Test
+    func contextualLocalFunctionWinsOverSameNamedLocalExtension() throws {
+        let ctx = makeIsolatedContext("""
+        fun <T, R> with(receiver: T, block: T.() -> R): R = receiver.block()
+        class A
+        fun probe() {
+            fun foo(a: A): Int = 1
+            fun A.foo(): Int = 2
+            context(a: A) fun foo(): Int = 3
+            with(A()) { foo() }
+            A().foo()
+            foo(A())
+        }
+        """)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+
+        let sema = try #require(ctx.sema)
+        let fooName = ctx.interner.intern("foo")
+        let ast = try #require(ctx.ast)
+        var fooFunctions: [(symbol: SymbolID, signature: FunctionSignature)] = []
+        for index in ast.arena.exprs.indices {
+            let id = ExprID(rawValue: Int32(index))
+            guard let expr = ast.arena.expr(id) else { continue }
+            guard case let .localFunDecl(name, _, _, _, _, _, _, _, _) = expr,
+                  name == fooName,
+                  let symbol = sema.bindings.identifierSymbol(for: id),
+                  let signature = sema.symbols.functionSignature(for: symbol)
+            else { continue }
+            fooFunctions.append((symbol, signature))
+        }
+        let contextFunction = try #require(fooFunctions.first { $0.signature.contextParameterTypes.count == 1 })
+        let extensionFunction = try #require(fooFunctions.first { $0.signature.receiverType != nil })
+        let valueFunction = try #require(fooFunctions.first {
+            $0.signature.contextParameterTypes.isEmpty
+                && $0.signature.receiverType == nil
+                && $0.signature.parameterTypes.count == 1
+        })
+        #expect(sema.bindings.callBindings.values.filter {
+            $0.chosenCallee == contextFunction.symbol
+        }.count == 1)
+        #expect(sema.bindings.callBindings.values.filter {
+            $0.chosenCallee == extensionFunction.symbol
+        }.count == 1)
+        #expect(sema.bindings.callBindings.values.filter {
+            $0.chosenCallee == valueFunction.symbol
+        }.count == 1)
     }
 
     @Test
