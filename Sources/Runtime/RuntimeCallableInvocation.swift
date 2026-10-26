@@ -175,6 +175,38 @@ public func __kk_callable_ref_set_identity(_ callable: Int, _ targetRaw: Int, _ 
     }
 }
 
+/// Record equality identity for an adapted callable-reference function value
+/// without registering KFunction reflection metadata on the function object.
+@_cdecl("__kk_function_value_set_callable_ref_identity")
+public func __kk_function_value_set_callable_ref_identity(
+    _ callable: Int,
+    _ targetRaw: Int,
+    _ capturesRaw: Int,
+    _ arity: Int,
+    _ kindRaw: Int,
+    _ flags: Int
+) {
+    guard callable != 0, targetRaw != 0, arity >= 0, (0...1).contains(kindRaw) else { return }
+    let captures: [Int]
+    if capturesRaw == runtimeNullSentinelInt {
+        captures = []
+    } else if let values = callableArguments(capturesRaw) {
+        captures = values
+    } else {
+        return
+    }
+    runtimeStorage.withDelegateLock { state in
+        state.functionValueCallableRefIdentityByValue[callable] = RuntimeCallableReferenceIdentity(
+            targetRaw: targetRaw,
+            arity: arity,
+            kind: kindRaw == 0 ? .function : .property,
+            isSuspend: (flags & 1) != 0,
+            modifierFlags: flags & ~1,
+            captures: captures
+        )
+    }
+}
+
 /// `flags` packs KFunction modifier bits like `kk_callable_ref_tag_kfunction`:
 /// bit0=suspend, bit1=inline, bit2=operator, bit3=infix, bit4=external.
 @_cdecl("__kk_sam_adapter_set_identity")
@@ -208,14 +240,22 @@ public func __kk_sam_adapter_set_identity(
 }
 
 func runtimeCallableReflectionRoots() -> [Int] {
-    let (entries, samEntries) = runtimeStorage.withDelegateLock {
-        ($0.callableRefMetadataByValue, $0.samAdapterIdentityByValue)
+    let (entries, functionValueEntries, samEntries) = runtimeStorage.withDelegateLock {
+        (
+            $0.callableRefMetadataByValue,
+            $0.functionValueCallableRefIdentityByValue,
+            $0.samAdapterIdentityByValue
+        )
     }
     var roots = entries.flatMap { raw, metadata in
         [raw, metadata.property] + metadata.identityCaptures + (callableArguments(metadata.environment) ?? [])
             + (callableArguments(metadata.typeParameters) ?? [])
     }
     for (raw, identity) in samEntries {
+        roots.append(raw)
+        roots.append(contentsOf: identity.captures)
+    }
+    for (raw, identity) in functionValueEntries {
         roots.append(raw)
         roots.append(contentsOf: identity.captures)
     }

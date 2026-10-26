@@ -79,7 +79,7 @@ func runtimeFunctionValueBox(from rawValue: Int) -> RuntimeFunctionValueBox? {
     resolveRuntimeHandle(rawValue, as: RuntimeFunctionValueBox.self)
 }
 
-private struct RuntimeCallableReferenceIdentity {
+struct RuntimeCallableReferenceIdentity {
     let targetRaw: Int
     let arity: Int
     let kind: RuntimeCallableRefKind
@@ -93,9 +93,14 @@ private struct RuntimeCallableReferenceIdentity {
 }
 
 private func runtimeCallableReferenceIdentity(from rawValue: Int) -> RuntimeCallableReferenceIdentity? {
-    if let metadata = runtimeStorage.withDelegateLock({ $0.callableRefMetadataByValue[rawValue] }),
-       metadata.identityTargetRaw != 0
-    {
+    let (metadata, functionValueIdentity, samIdentity) = runtimeStorage.withDelegateLock { state in
+        (
+            state.callableRefMetadataByValue[rawValue],
+            state.functionValueCallableRefIdentityByValue[rawValue],
+            state.samAdapterIdentityByValue[rawValue]
+        )
+    }
+    if let metadata, metadata.identityTargetRaw != 0 {
         return RuntimeCallableReferenceIdentity(
             targetRaw: metadata.identityTargetRaw,
             arity: metadata.arity,
@@ -105,8 +110,10 @@ private func runtimeCallableReferenceIdentity(from rawValue: Int) -> RuntimeCall
             captures: metadata.identityCaptures
         )
     }
-    guard let samIdentity = runtimeStorage.withDelegateLock({ $0.samAdapterIdentityByValue[rawValue] })
-    else {
+    if let functionValueIdentity {
+        return functionValueIdentity
+    }
+    guard let samIdentity else {
         return nil
     }
     return RuntimeCallableReferenceIdentity(
