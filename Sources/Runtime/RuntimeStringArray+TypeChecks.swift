@@ -536,8 +536,68 @@ public func kk_op_cast(_ value: Int, _ typeToken: Int, _ outThrown: UnsafeMutabl
             return 0
         }
     }
-    outThrown?.pointee = runtimeAllocateClassCastException(message: "ClassCastException")
+    outThrown?.pointee = runtimeAllocateClassCastException(
+        message: runtimeClassCastExceptionMessage(value: value, targetTypeToken: typeToken)
+    )
     return 0
+}
+
+private func runtimeClassCastExceptionMessage(value: Int, targetTypeToken: Int) -> String {
+    let sourceKClassRaw = __kk_kclass_of(value, Int(RuntimeTypeTokenEncoding.anyBase), 0)
+    let sourceName = runtimeKClassBox(from: sourceKClassRaw).map {
+        runtimeClassCastTypeName(typeToken: $0.typeToken, nameHint: $0.nameHint)
+    } ?? "kotlin.Any"
+    let targetName = runtimeClassCastTypeName(typeToken: targetTypeToken)
+    return "class \(sourceName) cannot be cast to class \(targetName)"
+}
+
+/// Uses declaration metadata directly because local classes still need their
+/// generated qualified name in ClassCastException messages even though
+/// KClass.qualifiedName is null for local declarations.
+private func runtimeClassCastTypeName(typeToken: Int, nameHint: Int = 0) -> String {
+    let normalizedToken = Int(
+        truncatingIfNeeded: Int64(truncatingIfNeeded: typeToken)
+            & ~RuntimeTypeTokenEncoding.nullableBit
+    )
+    if let metadata = runtimeKClassMetadataRegistry.lookup(typeToken: normalizedToken),
+       metadata.isLocal,
+       let classCastName = runtimeKClassMetadataRegistry.classCastName(typeToken: normalizedToken),
+       !classCastName.isEmpty {
+        return classCastName
+    }
+    if let metadata = runtimeKClassMetadataRegistry.lookup(typeToken: normalizedToken),
+       !metadata.qualifiedName.isEmpty {
+        return metadata.qualifiedName
+    }
+    if let arrayName = runtimeArrayKClassQualifiedName(typeToken: normalizedToken) {
+        return arrayName
+    }
+    if let rangeName = runtimeRangeClassQualifiedName(typeToken: normalizedToken) {
+        return rangeName
+    }
+    let qualifiedNameRaw = __kk_type_token_qualified_name(normalizedToken, nameHint)
+    if qualifiedNameRaw != 0,
+       qualifiedNameRaw != runtimeNullSentinelInt,
+       let qualifiedName = extractString(from: UnsafeMutableRawPointer(bitPattern: qualifiedNameRaw)),
+       !qualifiedName.isEmpty
+    {
+        if qualifiedName == "Unknown"
+            || qualifiedName.contains("__localdecl_")
+            || qualifiedName.contains("__ObjectLiteral_"),
+           let classCastName = runtimeKClassMetadataRegistry.classCastName(typeToken: normalizedToken),
+           !classCastName.isEmpty {
+            return classCastName
+        }
+        return qualifiedName
+    }
+    if nameHint != 0,
+       nameHint != runtimeNullSentinelInt,
+       let name = extractString(from: UnsafeMutableRawPointer(bitPattern: nameHint)),
+       !name.isEmpty
+    {
+        return name
+    }
+    return "kotlin.Any"
 }
 
 /// Checks an erased generic result at the delegated property boundary. A null
@@ -579,7 +639,9 @@ public func kk_array_op_cast(
     guard value == runtimeNullSentinelInt
             || runtimeArrayHasAssignableComponent(rawValue: value, targetComponent: componentType)
     else {
-        outThrown?.pointee = runtimeAllocateClassCastException(message: "ClassCastException")
+        outThrown?.pointee = runtimeAllocateClassCastException(
+            message: runtimeClassCastExceptionMessage(value: value, targetTypeToken: typeToken)
+        )
         return 0
     }
     return value

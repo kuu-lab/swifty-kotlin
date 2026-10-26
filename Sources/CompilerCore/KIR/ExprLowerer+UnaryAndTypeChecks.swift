@@ -432,6 +432,24 @@ extension ExprLowerer {
                 instructions: &instructions
             )
         }
+        if let targetType = sema.bindings.castTargetType(for: exprID),
+           case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(targetType)) {
+            let targetSymbol = classType.classSymbol
+            if let targetClass = sema.symbols.symbol(targetSymbol),
+               targetClass.fqName.contains(where: { component in
+                   let name = interner.resolve(component)
+                   return name.hasPrefix("__localdecl_") || name.hasPrefix("__ObjectLiteral_")
+               }) {
+                emitKClassCastNameRegistration(
+                    symbol: targetSymbol,
+                    typeTokenExpr: typeToken,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    instructions: &instructions
+                )
+            }
+        }
         let result = arena.appendTemporary(type: boundType ?? sema.types.anyType)
         instructions.append(.call(
             callee: interner.intern(isSafe ? "kk_op_safe_cast" : "kk_op_cast"),

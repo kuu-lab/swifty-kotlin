@@ -166,6 +166,10 @@ extension CallLowerer {
             symbol: objectSymbol, typeTokenExpr: typeTokenExpr,
             sema: sema, arena: arena, interner: interner, instructions: &instructions
         )
+        emitKClassCastNameRegistration(
+            symbol: objectSymbol, typeTokenExpr: typeTokenExpr,
+            sema: sema, arena: arena, interner: interner, instructions: &instructions
+        )
         emitKClassCompanionAndNestedRegistration(
             classSymbol: objectSymbol, typeTokenExpr: typeTokenExpr,
             sema: sema, arena: arena, interner: interner, instructions: &instructions
