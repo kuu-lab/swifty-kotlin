@@ -28,6 +28,9 @@ if [[ "${2:-}" == --help-hidden ]]; then
     exit 0
 fi
 printf '%s\n' "$@" > "$SWIFT_ARGS_LOG"
+printf 'swift-cache=%s\nclang-cache=%s\nexplicit-modules=%s\n' \
+    "${EnableSwiftCachingByDefault:-unset}" "${EnableClangCachingByDefault:-unset}" \
+    "${EnableSwiftExplicitModulesByDefault:-unset}" >> "$SWIFT_ARGS_LOG"
 if [[ "${FAKE_NO_MATCH:-}" == 1 || "${FAKE_NO_MATCH:-}" == mixed ]]; then
     echo 'warning: No matching test cases were run'
 fi
@@ -44,15 +47,26 @@ echo 8
 EOF
 cat > "$TEST_DIR/bin/uname" <<'EOF'
 #!/usr/bin/env bash
-echo Linux
+echo "${FAKE_UNAME:-Linux}"
+EOF
+cat > "$TEST_DIR/bin/xcrun" <<'EOF'
+#!/usr/bin/env bash
+[[ "$1" == --find && "$2" == swiftc ]] || exit 1
+printf '%s\n' "$FAKE_SWIFTC"
 EOF
 chmod +x "$TEST_DIR/bin/"*
+mkdir -p "$TEST_DIR/toolchain/bin" "$TEST_DIR/toolchain/lib/swift/host/plugins/testing"
+touch "$TEST_DIR/toolchain/lib/swift/host/plugins/testing/libTestingMacros.dylib"
+fake_plugins_dir="$(cd "$TEST_DIR/toolchain/lib/swift/host/plugins" && pwd)"
 wrapper="$TEST_DIR/repo/Scripts/swift_test.sh"
 
 run_wrapper() {
     rm -f "$TEST_DIR/args"
     env -u SWIFT_TEST_PRODUCT -u SWIFT_BUILD_SYSTEM -u SWIFT_TEST_BUILD_JOBS -u SWIFT_BUILD_JOBS \
         -u SWIFT_TEST_SOURCE_PREFLIGHT -u GITHUB_ACTIONS -u CI -u FAKE_NO_MATCH \
+        -u SWIFT_ENABLE_COMPILE_CACHE -u SWIFT_ENABLE_CACHE_REMARKS -u SWIFT_CAS_PATH \
+        -u EnableSwiftCachingByDefault -u EnableClangCachingByDefault -u EnableSwiftExplicitModulesByDefault \
+        -u FAKE_UNAME -u FAKE_SWIFTC \
         PATH="$TEST_DIR/bin:$PATH" SWIFT_ARGS_LOG="$TEST_DIR/args" \
         SWIFT_BUILD_SLOT_DIR="$TEST_DIR/slots" SWIFT_BUILD_SLOTS=0 \
         "$@" > "$TEST_DIR/output" 2>&1
@@ -155,5 +169,28 @@ expect_line 3 "$TEST_DIR/args"
 run_wrapper SWIFT_BUILD_SLOTS=2 bash "$build_wrapper" --jobs=5
 reject_line -j "$TEST_DIR/args"
 expect_line --jobs=5 "$TEST_DIR/args"
+
+# Builds and tests must use identical SwiftPM configuration and cache flags.
+for script in "$build_wrapper" "$wrapper"; do
+    run_wrapper SWIFT_BUILD_SYSTEM=swiftbuild SWIFT_ENABLE_COMPILE_CACHE=1 \
+        SWIFT_CAS_PATH="$TEST_DIR/cas" bash "$script"
+    expect_line --build-system "$TEST_DIR/args"
+    expect_line swiftbuild "$TEST_DIR/args"
+    expect_line -explicit-module-build "$TEST_DIR/args"
+    expect_line -cache-compile-job "$TEST_DIR/args"
+    expect_line -cas-path "$TEST_DIR/args"
+    expect_line "$TEST_DIR/cas" "$TEST_DIR/args"
+    expect_line swift-cache=true "$TEST_DIR/args"
+    expect_line clang-cache=true "$TEST_DIR/args"
+    expect_line explicit-modules=true "$TEST_DIR/args"
+done
+run_wrapper SWIFT_BUILD_SYSTEM=native SWIFT_ENABLE_COMPILE_CACHE=1 bash "$build_wrapper"
+expect_line native "$TEST_DIR/args"
+expect_line swift-cache=unset "$TEST_DIR/args"
+for script in "$build_wrapper" "$wrapper"; do
+    run_wrapper FAKE_UNAME=Darwin FAKE_SWIFTC="$TEST_DIR/toolchain/bin/swiftc" bash "$script"
+    expect_line -plugin-path "$TEST_DIR/args"
+    expect_line "$fake_plugins_dir/testing" "$TEST_DIR/args"
+done
 
 echo 'PASS: Swift test filter, product, and build job selection'
