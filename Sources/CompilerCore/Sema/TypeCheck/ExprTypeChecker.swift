@@ -1021,6 +1021,58 @@ final class ExprTypeChecker {
             return
         }
 
+        if let floatingPointRangeReceiver = driver.callChecker.floatingPointRangeArgumentType(
+            containerExpr,
+            ast: ctx.ast,
+            sema: sema,
+            interner: interner
+        ) {
+            let call = CallExpr(range: range, calleeName: containsName, args: [CallArg(type: elementType)])
+            let members = driver.helpers.collectMemberFunctionCandidates(
+                named: containsName,
+                receiverType: floatingPointRangeReceiver,
+                sema: sema,
+                interner: interner
+            )
+            let memberResult = ctx.resolver.resolveCall(
+                candidates: members,
+                call: call,
+                expectedType: nil,
+                implicitReceiverType: floatingPointRangeReceiver,
+                ctx: ctx.sema
+            )
+            let extensions = containsExtensionCandidates(receiverType: floatingPointRangeReceiver)
+            let extensionResult = extensions.isEmpty ? nil : ctx.resolver.resolveCall(
+                candidates: extensions,
+                call: call,
+                expectedType: nil,
+                implicitReceiverType: floatingPointRangeReceiver,
+                ctx: ctx.sema
+            )
+            let resolved = memberResult.chosenCallee != nil ? memberResult : extensionResult ?? memberResult
+            if let chosen = resolved.chosenCallee {
+                sema.bindings.bindCall(exprID, binding: CallBinding(
+                    chosenCallee: chosen,
+                    substitutedTypeArguments: resolved.substitutedTypeArguments
+                        .sorted { $0.key.rawValue < $1.key.rawValue }.map { $0.value },
+                    parameterMapping: resolved.parameterMapping
+                ))
+            } else if let diagnostic = resolved.diagnostic {
+                ctx.sema.diagnostics.emit(diagnostic)
+            } else if let expectedElementType = driver.helpers.rangeLikeDeclaredElementType(
+                for: floatingPointRangeReceiver,
+                sema: sema,
+                interner: interner
+            ) {
+                ctx.sema.diagnostics.error(
+                    "KSWIFTK-SEMA-0002",
+                    "Argument type mismatch: expected '\(sema.types.renderType(expectedElementType))', got '\(sema.types.renderType(elementType))'.",
+                    range: ctx.ast.arena.exprRange(elementExpr)
+                )
+            }
+            return
+        }
+
         // Range expressions carry an Int lowering type until their member call
         // is resolved. If a user operator extension is in scope, recover the
         // source-level IntRange receiver before the primitive fast path can
@@ -1632,7 +1684,8 @@ final class ExprTypeChecker {
                   symbol.flags.contains(SymbolFlags.operatorFunction),
                   let signature = sema.symbols.functionSignature(for: candidate),
                   signature.parameterTypes.count == 1,
-                  let receiverType = signature.receiverType
+                  let receiverType = signature.receiverType,
+                  !isHiddenByDeprecatedAnnotation(candidate, symbols: sema.symbols)
             else {
                 return false
             }

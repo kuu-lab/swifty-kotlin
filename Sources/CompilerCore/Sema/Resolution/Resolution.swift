@@ -749,6 +749,35 @@ extension OverloadResolver {
                     ))
                 }
             }
+            // A nominal member's class type arguments are fixed by its
+            // receiver. For covariant classes such as List<E>, the ordinary
+            // subtype constraint only makes the receiver's E a lower bound;
+            // an incompatible method argument could then widen E to Any. Keep
+            // the receiver's concrete projection bound exact so method inputs
+            // are checked against the instantiated member signature.
+            if signature.receiverType == nil,
+               isNominalMemberFunction(candidate, typeSystem: ctx.types),
+               case let .classType(receiverOwner) = ctx.types.kind(of: receiverOwnerType),
+               receiverOwner.classSymbol == owner
+            {
+                for (parameter, argument) in zip(
+                    signature.typeParameterSymbols.prefix(signature.classTypeParameterCount),
+                    ctx.types.allTypeArguments(for: receiverOwner)
+                ) {
+                    guard let variable = typeVarBySymbol[parameter] else { continue }
+                    let type: TypeID
+                    switch argument {
+                    case let .invariant(value), let .out(value), let .in(value): type = value
+                    case .star: continue
+                    }
+                    constraints.append(VariableConstraint(
+                        kind: .equal,
+                        left: .variable(variable),
+                        right: .type(type),
+                        blameRange: call.range
+                    ))
+                }
+            }
         }
 
         let inheritedDefaultArgumentOwner = candidateImplicitReceiverType.flatMap {
