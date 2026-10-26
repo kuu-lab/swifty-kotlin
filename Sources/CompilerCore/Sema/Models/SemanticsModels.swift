@@ -235,6 +235,30 @@ public struct FunctionSignature: Hashable, Sendable, Codable {
         self.typeParameterUpperBounds = normalizedUpperBoundsList.map(\.first)
         self.classTypeParameterCount = classTypeParameterCount
     }
+
+    func replacingReturnType(_ returnType: TypeID) -> FunctionSignature {
+        FunctionSignature(
+            receiverType: receiverType,
+            contextReceiverTypes: contextReceiverTypes,
+            contextParameterSymbols: contextParameterSymbols,
+            contextParameterTypes: contextParameterTypes,
+            parameterTypes: parameterTypes,
+            returnType: returnType,
+            isSuspend: isSuspend,
+            canThrow: canThrow,
+            valueParameterSymbols: valueParameterSymbols,
+            valueParameterUnsafeVarianceTypeParameterSymbols: valueParameterUnsafeVarianceTypeParameterSymbols,
+            valueParameterHasDefaultValues: valueParameterHasDefaultValues,
+            valueParameterIsVararg: valueParameterIsVararg,
+            valueParameterAllowsNonLocalReturn: valueParameterAllowsNonLocalReturn,
+            hasExplicitInlineParameterMetadata: hasExplicitInlineParameterMetadata,
+            typeParameterSymbols: typeParameterSymbols,
+            reifiedTypeParameterIndices: reifiedTypeParameterIndices,
+            typeParameterUpperBounds: typeParameterUpperBounds,
+            typeParameterUpperBoundsList: typeParameterUpperBoundsList,
+            classTypeParameterCount: classTypeParameterCount
+        )
+    }
 }
 
 public struct EnumEntryDispatchTarget: Hashable, Sendable, Codable {

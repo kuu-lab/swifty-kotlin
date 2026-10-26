@@ -1484,6 +1484,8 @@ public final class SymbolTable {
 
     private var classDelegationForwardingMethodInfo: [SymbolID: (interfaceSymbol: SymbolID, interfaceMethodSymbol: SymbolID, fieldSymbol: SymbolID)] = [:]
 
+    private var classDelegationForwardingMethodReturnTypeSubstitutions: [SymbolID: (substitution: [TypeVarID: TypeID], typeVarBySymbol: [SymbolID: TypeVarID])] = [:]
+
     private var classDelegationForwardingMethodsByClass: [SymbolID: [SymbolID]] = [:]
 
     public func addClassDelegationForwardingMethod(
@@ -1491,9 +1493,15 @@ public final class SymbolTable {
         forClass classSymbol: SymbolID,
         interface interfaceSymbol: SymbolID,
         interfaceMethod interfaceMethodSymbol: SymbolID,
-        field fieldSymbol: SymbolID
+        field fieldSymbol: SymbolID,
+        returnTypeSubstitution: [TypeVarID: TypeID] = [:],
+        returnTypeTypeVarBySymbol: [SymbolID: TypeVarID] = [:]
     ) {
         classDelegationForwardingMethodInfo[forwardingSymbol] = (interfaceSymbol, interfaceMethodSymbol, fieldSymbol)
+        classDelegationForwardingMethodReturnTypeSubstitutions[forwardingSymbol] = (
+            returnTypeSubstitution,
+            returnTypeTypeVarBySymbol
+        )
         classDelegationForwardingMethodsByClass[classSymbol, default: []].append(forwardingSymbol)
     }
 
@@ -1503,6 +1511,21 @@ public final class SymbolTable {
 
     public func classDelegationForwardingMethodInfo(for forwardingSymbol: SymbolID) -> (interfaceSymbol: SymbolID, interfaceMethodSymbol: SymbolID, fieldSymbol: SymbolID)? {
         classDelegationForwardingMethodInfo[forwardingSymbol]
+    }
+
+    func substitutedClassDelegationForwardingMethodReturnType(
+        _ returnType: TypeID,
+        for forwardingSymbol: SymbolID,
+        types: TypeSystem
+    ) -> TypeID? {
+        guard let substitution = classDelegationForwardingMethodReturnTypeSubstitutions[forwardingSymbol] else {
+            return nil
+        }
+        return types.substituteTypeParameters(
+            in: returnType,
+            substitution: substitution.substitution,
+            typeVarBySymbol: substitution.typeVarBySymbol
+        )
     }
 
     private var classDelegationForwardingPropertyInfo: [SymbolID: (interfaceSymbol: SymbolID, interfacePropertySymbol: SymbolID, fieldSymbol: SymbolID)] = [:]

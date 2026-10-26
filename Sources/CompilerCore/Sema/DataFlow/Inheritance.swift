@@ -1986,7 +1986,9 @@ extension DataFlowSemaPhase {
             forClass: classSymbol,
             interface: interfaceSymbol,
             interfaceMethod: methodSym.id,
-            field: fieldSymbol
+            field: fieldSymbol,
+            returnTypeSubstitution: forwardingSubstitution,
+            returnTypeTypeVarBySymbol: forwardingTypeVars
         )
     }
 

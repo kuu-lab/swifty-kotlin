@@ -478,6 +478,8 @@ extension CallTypeChecker {
             candidates = candidates.filter { samFactoryCandidates.contains($0) }
         }
 
+        driver.inferDelegatedForwardingMethodReturnTypesIfNeeded(for: candidates)
+
         if let inferred = inferCompareValuesByCall(
             id,
             args: args,
