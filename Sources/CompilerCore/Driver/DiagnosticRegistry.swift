@@ -1166,6 +1166,12 @@ enum DiagnosticRegistry {
             defaultSeverity: .error,
             summary: "'val' and 'var' parameters are only allowed in primary constructors."
         ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0445",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "Type constraints are not allowed when no type parameters are declared."
+        ),
     ]
 
 

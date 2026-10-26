@@ -61,6 +61,28 @@ struct DeclarationPositionValidationTests {
         assertNoDiagnostic("KSWIFTK-SEMA-0444", in: ctx)
     }
 
+    @Test(arguments: [
+        "class Box<T> { fun plus(other: Box<T>): Box<T> where T : Int = this }",
+        "fun plain(value: Int): Int where T : Int = value",
+    ])
+    func whereClausesRequireFunctionTypeParameters(source: String) throws {
+        let ctx = try semaContextWithoutStdlib(for: source)
+        let diagnostics = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0445" }
+
+        #expect(diagnostics.count == 1, "Expected one where-clause diagnostic, got: \(diagnostics)")
+        #expect(
+            diagnostics.first?.message == "Type constraints are not allowed when no type parameters declared."
+        )
+        let expectedOffset = source.range(of: "where").map { source[..<$0.lowerBound].utf8.count }
+        #expect(diagnostics.first?.primaryRange?.start.offset == expectedOffset)
+    }
+
+    @Test
+    func genericFunctionWhereClauseRemainsAccepted() throws {
+        let ctx = try semaContextWithoutStdlib(for: "fun <T> id(value: T): T where T : Any = value")
+        assertNoDiagnostic("KSWIFTK-SEMA-0445", in: ctx)
+    }
+
     // MARK: - Declaration positions
 
     @Test func constValInsideClassIsRejected() throws {

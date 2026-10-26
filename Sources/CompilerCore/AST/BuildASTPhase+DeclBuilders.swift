@@ -317,8 +317,13 @@ extension BuildASTPhase {
         let returnType = declarationReturnType(from: nodeID, in: arena, interner: interner, astArena: astArena)
         let body = declarationBody(from: nodeID, in: arena, interner: interner, astArena: astArena)
         let rawTypeParams = declarationTypeParameters(from: nodeID, in: arena, interner: interner, astArena: astArena)
-        let whereClauses = declarationWhereClauses(from: nodeID, in: arena, interner: interner, astArena: astArena)
-        let typeParams = applyWhereClauses(rawTypeParams, whereClauses: whereClauses)
+        let whereClauseInfo = declarationWhereClauseInfo(
+            from: nodeID,
+            in: arena,
+            interner: interner,
+            astArena: astArena
+        )
+        let typeParams = applyWhereClauses(rawTypeParams, whereClauses: whereClauseInfo.whereClauses)
         let annotations = declarationAnnotations(from: nodeID, in: arena, interner: interner)
         return FunDecl(
             range: node.range,
@@ -326,6 +331,7 @@ extension BuildASTPhase {
             modifiers: modifiers,
             annotations: prefixedAnnotations + annotations,
             typeParams: typeParams,
+            whereClauseRange: whereClauseInfo.range,
             receiverType: receiverType,
             contextReceivers: contextReceivers,
             valueParams: valueParams,
