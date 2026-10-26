@@ -478,7 +478,8 @@ extension DataFlowSemaPhase {
         newKind: SymbolKind,
         existing: [SemanticSymbol],
         symbols: SymbolTable? = nil,
-        newIsExtensionProperty: Bool = false
+        newIsExtensionProperty: Bool = false,
+        newHasContextParameters: Bool = false
     ) -> Bool {
         guard !existing.isEmpty else {
             return false
@@ -507,8 +508,18 @@ extension DataFlowSemaPhase {
                 if newIsExtensionProperty {
                     return false
                 }
+                let existingHasContextParameters: Bool
+                if let symbols,
+                   let getter = symbols.extensionPropertyGetterAccessor(for: existing.id),
+                   let signature = symbols.functionSignature(for: getter) {
+                    existingHasContextParameters = !signature.contextParameterTypes.isEmpty
+                } else {
+                    existingHasContextParameters = false
+                }
                 return !existing.flags.contains(.synthetic)
                     && !(symbols?.hasExtensionPropertyReceiver(existing.id) ?? false)
+                    && !newHasContextParameters
+                    && !existingHasContextParameters
             }
         }
         if isCallableLike(newKind) {
@@ -551,6 +562,7 @@ extension DataFlowSemaPhase {
         newFlags: SymbolFlags = [],
         additionalExisting: [SemanticSymbol] = [],
         newIsExtensionProperty: Bool = false,
+        newHasContextParameters: Bool = false,
         topLevelVisibility: Visibility? = nil,
         topLevelFileID: FileID? = nil
     ) {
@@ -606,7 +618,8 @@ extension DataFlowSemaPhase {
             newKind: newKind,
             existing: existing,
             symbols: symbols,
-            newIsExtensionProperty: newIsExtensionProperty
+            newIsExtensionProperty: newIsExtensionProperty,
+            newHasContextParameters: newHasContextParameters
         ) {
             diagnostics.error(
                 "KSWIFTK-SEMA-0001",
@@ -632,6 +645,53 @@ extension DataFlowSemaPhase {
                   !existing.flags.contains(.synthetic),
                   symbols.hasExtensionPropertyReceiver(id),
                   symbols.extensionPropertyReceiverType(for: id) == receiverType
+            else {
+                return nil
+            }
+            return existing
+        }
+        guard !matchingDeclarations.isEmpty else { return }
+        if matchingDeclarations.count == 1,
+           let existing = matchingDeclarations.first,
+           isCompatibleExpectActualPair(newKind: .property, newFlags: newFlags, existing: existing)
+        {
+            return
+        }
+        diagnostics.error(
+            "KSWIFTK-SEMA-0001",
+            "Duplicate declaration in the same package scope.",
+            range: range
+        )
+    }
+
+    func checkAndReportDuplicateContextPropertyParameters(
+        propertySymbol: SymbolID,
+        contextParameterTypes: [TypeID],
+        fqName: [InternedString],
+        range: SourceRange?,
+        newFlags: SymbolFlags,
+        topLevelVisibility: Visibility,
+        topLevelFileID: FileID,
+        symbols: SymbolTable,
+        diagnostics: DiagnosticEngine
+    ) {
+        guard !contextParameterTypes.isEmpty else { return }
+        let matchingDeclarations = symbols.lookupAll(fqName: fqName).compactMap { id -> SemanticSymbol? in
+            guard id != propertySymbol,
+                  let existing = symbols.symbol(id),
+                  existing.kind == .property,
+                  !existing.flags.contains(.synthetic),
+                  !existing.flags.contains(.importedLibrary),
+                  !symbols.hasExtensionPropertyReceiver(id),
+                  !symbols.canCoexistAsFilePrivateTopLevelCallable(
+                      kind: .property,
+                      visibility: topLevelVisibility,
+                      fileID: topLevelFileID,
+                      existing: existing
+                  ),
+                  let getter = symbols.extensionPropertyGetterAccessor(for: id),
+                  let signature = symbols.functionSignature(for: getter),
+                  signature.contextParameterTypes == contextParameterTypes
             else {
                 return nil
             }

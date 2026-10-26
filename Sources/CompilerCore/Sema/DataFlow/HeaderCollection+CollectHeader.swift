@@ -900,6 +900,20 @@ extension DataFlowSemaPhase {
                 fallbackType: types.anyType
             )
 
+            if propertyDecl.receiverType == nil, !propertyContextParams.paramTypes.isEmpty {
+                checkAndReportDuplicateContextPropertyParameters(
+                    propertySymbol: symbol,
+                    contextParameterTypes: propertyContextParams.paramTypes,
+                    fqName: fqName,
+                    range: propertyDecl.range,
+                    newFlags: declaration.flags,
+                    topLevelVisibility: declaration.visibility,
+                    topLevelFileID: file.fileID,
+                    symbols: symbols,
+                    diagnostics: diagnostics
+                )
+            }
+
             if let getter = propertyDecl.getter, getter.body != .unit {
                 symbols.setPropertyHasCustomGetter(true, for: symbol)
             }

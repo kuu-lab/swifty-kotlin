@@ -231,10 +231,13 @@ extension DataFlowSemaPhase {
             return symbol
         }
         let newIsExtensionProperty: Bool
+        let newHasContextParameters: Bool
         if case let .propertyDecl(pd) = decl {
             newIsExtensionProperty = pd.receiverType != nil
+            newHasContextParameters = pd.contextReceivers.contains(where: \.isContextParameter)
         } else {
             newIsExtensionProperty = false
+            newHasContextParameters = false
         }
         let reusableSyntheticSymbol = newIsExtensionProperty ? nil : reusableSyntheticDeclarationSymbol(
             kind: declaration.kind,
@@ -254,6 +257,7 @@ extension DataFlowSemaPhase {
                 newFlags: declaration.flags,
                 additionalExisting: scopeExisting,
                 newIsExtensionProperty: newIsExtensionProperty,
+                newHasContextParameters: newHasContextParameters,
                 topLevelVisibility: declaration.visibility,
                 topLevelFileID: file.fileID
             )
@@ -279,6 +283,7 @@ extension DataFlowSemaPhase {
                 visibility: declaration.visibility,
                 flags: declaration.flags,
                 isExtensionProperty: newIsExtensionProperty,
+                isContextProperty: newHasContextParameters,
                 topLevelFileID: file.fileID
             )
         }
