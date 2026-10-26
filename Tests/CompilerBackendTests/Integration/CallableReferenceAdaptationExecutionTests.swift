@@ -3,6 +3,22 @@ import TestStdlibCache
 
 @Suite(.serialized)
 struct CallableReferenceAdaptationExecutionTests {
+    @Test func boundReferencePassedToCrossinlineInvokesInsideAnonymousObject() throws {
+        try compileAndRunKotlin(
+            """
+            inline fun inlineFun(crossinline lambda: () -> String) =
+                object { fun foo() = lambda.invoke() }.foo()
+            class A {
+                val prop = inlineFun(::bar)
+                fun bar() = "OK"
+            }
+            fun main() { println(A().prop) }
+            """,
+            expectedOutput: "OK\n",
+            moduleName: "KUU3371CrossinlineCallableReferenceAnonymousObject"
+        )
+    }
+
     @Test func stringPlusCallableReferenceConcatenatesCharArrayFoldElements() throws {
         TestStdlibCache.shared.prepare()
         try compileAndRunKotlin(
