@@ -150,6 +150,48 @@ struct KnownCompilerNamesFQNTests {
                       "Synthetic Set (no FQN) should still be recognized as set-like via fallback")
     }
 
+    @Test(arguments: ["List", "MutableList"])
+    func listLikeSymbolsRequireStdlibOrSyntheticIdentity(name: String) throws {
+        let interner = StringInterner()
+        let knownNames = KnownCompilerNames(interner: interner)
+
+        let userSymbols = SymbolTable()
+        let userID = userSymbols.define(
+            kind: .class,
+            name: interner.intern(name),
+            fqName: [interner.intern(name)],
+            declSite: nil,
+            visibility: .public,
+            flags: []
+        )
+        let userSymbol = try #require(userSymbols.symbol(userID))
+        #expect(!knownNames.isConcreteListLikeSymbol(userSymbol))
+
+        let stdlibSymbols = SymbolTable()
+        let stdlibID = stdlibSymbols.define(
+            kind: .class,
+            name: interner.intern(name),
+            fqName: ["kotlin", "collections", name].map(interner.intern),
+            declSite: nil,
+            visibility: .public,
+            flags: []
+        )
+        let stdlibSymbol = try #require(stdlibSymbols.symbol(stdlibID))
+        #expect(knownNames.isConcreteListLikeSymbol(stdlibSymbol))
+
+        let syntheticSymbols = SymbolTable()
+        let syntheticID = syntheticSymbols.define(
+            kind: .class,
+            name: interner.intern(name),
+            fqName: [],
+            declSite: nil,
+            visibility: .public,
+            flags: []
+        )
+        let syntheticSymbol = try #require(syntheticSymbols.symbol(syntheticID))
+        #expect(knownNames.isConcreteListLikeSymbol(syntheticSymbol))
+    }
+
     @Test func testRegexConstructorWithUserDefinedSetDoesNotRouteToSetOverload() {
         let fixture = makeKIRDirectLoweringFixture()
         let interner = fixture.interner
