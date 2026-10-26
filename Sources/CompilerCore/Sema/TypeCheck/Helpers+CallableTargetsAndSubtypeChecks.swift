@@ -139,6 +139,29 @@ extension TypeCheckHelpers {
             params = params.map(specialize)
             returnType = specialize(returnType)
         }
+        if !bindReceiver,
+           let unboundReceiverType,
+           let targetSymbol,
+           sema.symbols.symbol(targetSymbol)?.kind == .constructor,
+           let innerClass = sema.symbols.parentSymbol(for: targetSymbol),
+           sema.symbols.symbol(innerClass)?.flags.contains(.innerClass) == true,
+           let outerOwner = sema.symbols.parentSymbol(for: innerClass),
+           !sema.types.enclosingTypeParameterSymbols(for: innerClass).isEmpty
+        {
+            // `Outer<Concrete>::Inner` uses the outer class as its unbound
+            // receiver. Specialize captured outer parameters from that type;
+            // the inner class itself is not a supertype of this receiver.
+            func specializeCapturedOuterParameters(_ type: TypeID) -> TypeID {
+                resolveMemberPropertyType(
+                    type,
+                    receiverType: unboundReceiverType,
+                    ownerSymbol: outerOwner,
+                    sema: sema
+                )
+            }
+            params = params.map(specializeCapturedOuterParameters)
+            returnType = specializeCapturedOuterParameters(returnType)
+        }
         if packVarargs, let interner {
             for index in params.indices where signature.valueParameterIsVararg.indices.contains(index)
                 && signature.valueParameterIsVararg[index] {
@@ -428,6 +451,60 @@ extension TypeCheckHelpers {
             allowScalarVarargAdaptation: allowScalarVarargAdaptation,
             availableContextReceiverTypes: availableContextReceiverTypes, sema: sema
         )?.functionType
+    }
+
+    func specializeInnerConstructorExpectedFunctionType(
+        _ expectedFunctionType: TypeID,
+        targetSymbol: SymbolID,
+        unboundReceiverType: TypeID,
+        inferenceParameters: Set<SymbolID>,
+        sema: SemaModule
+    ) -> TypeID? {
+        guard case let .functionType(expected) = sema.types.kind(of: expectedFunctionType),
+              sema.symbols.symbol(targetSymbol)?.kind == .constructor,
+              let innerClass = sema.symbols.parentSymbol(for: targetSymbol),
+              sema.symbols.symbol(innerClass)?.flags.contains(.innerClass) == true,
+              let outerOwner = sema.symbols.parentSymbol(for: innerClass),
+              let expectedReceiverType = expected.receiver ?? expected.params.first,
+              case let .classType(expectedReceiver) = sema.types.kind(of: sema.types.makeNonNullable(
+                  sema.types.capturedReadableUpperBound(of: expectedReceiverType)
+              )),
+              case let .classType(actualReceiver) = sema.types.kind(of: sema.types.makeNonNullable(
+                  sema.types.capturedReadableUpperBound(of: unboundReceiverType)
+              )),
+              let expectedOwnerArguments = sema.types.liftedNominalSupertypeArgs(
+                  from: expectedReceiver, to: outerOwner
+              ),
+              let actualOwnerArguments = sema.types.liftedNominalSupertypeArgs(
+                  from: actualReceiver, to: outerOwner
+              )
+        else {
+            return nil
+        }
+
+        // An explicit outer type receiver can determine type variables owned
+        // by the enclosing call. Apply that evidence to its expected function
+        // type before solving the inner constructor's own class parameters;
+        // lexical type parameters remain rigid.
+        let typeVarBySymbol = sema.types.makeTypeVarBySymbol(Array(inferenceParameters))
+        var substitution: [TypeVarID: TypeID] = [:]
+        for (expectedArgument, actualArgument) in zip(expectedOwnerArguments, actualOwnerArguments) {
+            guard case let .invariant(expectedType) = expectedArgument,
+                  case let .typeParam(parameter) = sema.types.kind(of: expectedType),
+                  inferenceParameters.contains(parameter.symbol),
+                  let typeVariable = typeVarBySymbol[parameter.symbol],
+                  case let .invariant(actualType) = actualArgument
+            else {
+                continue
+            }
+            substitution[typeVariable] = actualType
+        }
+        guard !substitution.isEmpty else { return nil }
+        return sema.types.substituteTypeParameters(
+            in: expectedFunctionType,
+            substitution: substitution,
+            typeVarBySymbol: typeVarBySymbol
+        )
     }
 
     func contextualCallableReferenceBinding(
@@ -754,6 +831,59 @@ extension TypeCheckHelpers {
                         parameterType, receiverType: boundReceiver.receiverType, ownerSymbol: owner, sema: sema
                     )
                     constraints.append(VariableConstraint(kind: .equal, left: .variable(variable), right: .type(argument)))
+                }
+            }
+            if let unboundReceiverType,
+               let targetSymbol,
+               sema.symbols.symbol(targetSymbol)?.kind == .constructor,
+               let innerClass = sema.symbols.parentSymbol(for: targetSymbol),
+               sema.symbols.symbol(innerClass)?.flags.contains(.innerClass) == true,
+               let outerOwner = sema.symbols.parentSymbol(for: innerClass),
+               case let .classType(receiver) = types.kind(of: types.makeNonNullable(
+                   types.capturedReadableUpperBound(of: unboundReceiverType)
+               )),
+               let ownerArguments = types.liftedNominalSupertypeArgs(from: receiver, to: outerOwner)
+            {
+                // The unbound receiver of `Outer<T>::Inner` fixes the
+                // constructor's captured outer type parameters. Seed those
+                // variables so contextual inference only solves the inner
+                // class's own parameters from the expected return type.
+                for (parameter, argument) in zip(
+                    types.enclosingTypeParameterSymbols(for: innerClass), ownerArguments
+                ) {
+                    guard let variable = typeVars[parameter] else { continue }
+                    let argumentType: TypeID
+                    switch argument {
+                    case let .invariant(type):
+                        argumentType = type
+                    case let .out(type):
+                        argumentType = types.makeCapturedType(
+                            parameter: parameter,
+                            lower: types.nothingType,
+                            upper: type,
+                            writeForbidden: true
+                        )
+                    case let .in(type):
+                        let bounds = types.declaredUpperBounds(for: parameter)
+                        argumentType = types.makeCapturedType(
+                            parameter: parameter,
+                            lower: type,
+                            upper: bounds.isEmpty ? types.nullableAnyType : types.glb(bounds)
+                        )
+                    case .star:
+                        let bounds = types.declaredUpperBounds(for: parameter)
+                        argumentType = types.makeCapturedType(
+                            parameter: parameter,
+                            lower: types.nothingType,
+                            upper: bounds.isEmpty ? types.nullableAnyType : types.glb(bounds),
+                            writeForbidden: true
+                        )
+                    }
+                    constraints.append(VariableConstraint(
+                        kind: .equal,
+                        left: .variable(variable),
+                        right: .type(argumentType)
+                    ))
                 }
             }
             func upperBounds(_ index: Int, _ symbol: SymbolID) -> [TypeID] {
