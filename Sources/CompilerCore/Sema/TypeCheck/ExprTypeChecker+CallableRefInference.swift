@@ -1356,7 +1356,7 @@ extension ExprTypeChecker {
         }
 
         // Concrete value and type receivers specialize the owner's type parameters.
-        let boundReceiverType: TypeID? = if isImplicitlyBoundMember {
+        var boundReceiverType: TypeID? = if isImplicitlyBoundMember {
             implicitBoundReceiver?.type
         } else if let importedObjectCallableReferenceReceiver {
             importedObjectCallableReferenceReceiver.type
@@ -1366,6 +1366,29 @@ extension ExprTypeChecker {
             effectiveReceiverType
         } else {
             nil
+        }
+        if isBoundReceiver,
+           let candidateReceiverType = boundReceiverType,
+           let expectedFunctionType,
+           let session = ctx.builderInference,
+           !session.isFinalized,
+           session.mentionsVariable(candidateReceiverType, types: sema.types),
+           !session.mentionsVariable(expectedFunctionType, types: sema.types),
+           candidates.count == 1,
+           let candidate = candidates.first,
+           let signature = sema.symbols.functionSignature(for: candidate),
+           signature.typeParameterSymbols.count == signature.classTypeParameterCount,
+           let resolvedReceiverType = inferBuilderBoundCallableReferenceReceiverType(
+               signature: signature,
+               targetSymbol: candidate,
+               boundReceiverType: candidateReceiverType,
+               expectedFunctionType: expectedFunctionType,
+               range: range,
+               availableContextReceiverTypes: availableContextReceiverTypes,
+               ctx: ctx
+           )
+        {
+            boundReceiverType = resolvedReceiverType
         }
         if candidates.count == 1 {
             driver.inferFunctionReturnTypesIfNeeded(for: candidates)

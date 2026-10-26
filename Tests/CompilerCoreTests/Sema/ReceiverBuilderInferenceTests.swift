@@ -28,6 +28,68 @@ struct ReceiverBuilderInferenceTests {
         """)
     }
 
+    @Test func boundCallableReferenceArgumentInfersBuilderType() throws {
+        let source = """
+        interface Scope<T> { fun emit(value: T) }
+        @kotlin.BuilderInference
+        fun <T> build(block: Scope<T>.() -> Unit) {}
+        fun consumeString(action: (String) -> Unit) {}
+        fun fromBoundReference() { build { consumeString(this::emit) } }
+        fun fromLambda() { build { consumeString { emit(it) } } }
+        fun withExplicitType() { build<String> { consumeString(this::emit) } }
+        fun fromDirectInput() { build { emit("OK") } }
+        class StringScope : Scope<String> { override fun emit(value: String) {} }
+        fun fromConcreteReceiver(scope: StringScope) { consumeString(scope::emit) }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], includeStdlib: false)
+            try runSema(ctx)
+            #expect(!ctx.diagnostics.hasError, "Unexpected diagnostics: \(ctx.diagnostics.diagnostics)")
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
+            let buildCalls = allExprIDs(in: ast, path: path, ctx: ctx) { exprID, expr in
+                guard case let .call(calleeID, _, _, _) = expr,
+                      case let .nameRef(name, _) = ast.arena.expr(calleeID)
+                else { return false }
+                return ctx.interner.resolve(name) == "build"
+                    && sema.bindings.callBinding(for: exprID) != nil
+            }
+            #expect(buildCalls.count == 4)
+            #expect(buildCalls.allSatisfy {
+                sema.bindings.callBinding(for: $0)?.substitutedTypeArguments == [sema.types.stringType]
+            })
+        }
+    }
+
+    @Test func boundCallableReferenceRejectsExplicitBuilderTypeMismatch() throws {
+        let source = """
+        interface Scope<T> { fun emit(value: T) }
+        @kotlin.BuilderInference
+        fun <T> build(block: Scope<T>.() -> Unit) {}
+        fun consumeSuspendInt(action: suspend (Int) -> Unit) {}
+        fun rejectsMismatch() { build<String> { consumeSuspendInt(this::emit) } }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], includeStdlib: false)
+            try runSema(ctx)
+            assertHasDiagnostic("KSWIFTK-TYPE-0001", in: ctx)
+        }
+    }
+
+    @Test func boundCallableReferenceInferenceStillRejectsNoEvidence() throws {
+        let source = """
+        interface Scope<T> { fun emit(value: T) }
+        @kotlin.BuilderInference
+        fun <T> build(block: Scope<T>.() -> Unit) {}
+        fun rejectsNoEvidence() { build {} }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], includeStdlib: false)
+            try runSema(ctx)
+            assertHasDiagnostic("KSWIFTK-SEMA-INFER", in: ctx)
+        }
+    }
+
     @Test func nonUnitReceiverLambdaBodyReturnInfersBuilderType() throws {
         let source = nonUnitBuilder + """
 
