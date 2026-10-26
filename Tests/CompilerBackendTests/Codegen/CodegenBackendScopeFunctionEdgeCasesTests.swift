@@ -122,6 +122,28 @@ struct CodegenBackendScopeFunctionEdgeCasesTests {
     }
 
     @Test
+    func testReorderedNamedArgumentsKeepMultipleContextParameters() throws {
+        let source = """
+        import kotlin.ExperimentalContextParameters
+
+        @OptIn(ExperimentalContextParameters::class)
+        context(string: String, strings: List<String>)
+        fun test(x: Any, y: Int = 0): List<Any> = listOf(string, strings, x, y)
+
+        @OptIn(ExperimentalContextParameters::class)
+        fun main() {
+            with("c1") { with(listOf("c2")) { println(test(y = 1, x = listOf(1))) } }
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "ReorderedNamedArgumentsMultipleContextParameters",
+            expected: "[c1, [c2], [1], 1]\n"
+        )
+    }
+
+    @Test
     func testGenericMemberContextParametersUseSubstitutedClassTypeArguments() throws {
         let source = """
         import kotlin.ExperimentalContextParameters
