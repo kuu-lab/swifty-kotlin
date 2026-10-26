@@ -500,6 +500,7 @@ extension CallTypeChecker {
                     candidates: extensionCandidates,
                     preInferredArgumentTypes: cachedNonLambdaArgTypes,
                     ctx: ctx,
+                    locals: locals,
                     expectedTypeOverrides: &extensionExpectedTypeOverrides
                 )
                 let extensionArgs = prepareCallArguments(

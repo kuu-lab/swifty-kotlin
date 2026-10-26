@@ -16,6 +16,7 @@ extension CallTypeChecker {
         candidates: [SymbolID],
         preInferredArgumentTypes: [Int: TypeID] = [:],
         ctx: TypeInferenceContext,
+        locals: LocalBindings,
         expectedTypeOverrides: inout [Int: TypeID]
     ) {
         // A generic call's other arguments can determine the input side of a
@@ -124,6 +125,39 @@ extension CallTypeChecker {
                   contextualTypes.allSatisfy({ $0 == parameterType })
             else {
                 continue
+            }
+            if preInferredArgumentTypes[index] == nil,
+               case let .functionType(expectedFunction) = ctx.sema.types.kind(of: parameterType),
+               expectedFunction.isSuspend,
+               case let .call(nestedCalleeID, _, _, _) = ctx.ast.arena.expr(args[index].expr),
+               case let .nameRef(nestedCalleeName, _) = ctx.ast.arena.expr(nestedCalleeID),
+               ctx.scope.lookup(nestedCalleeName).contains(where: {
+                   ctx.cachedSymbol($0)?.kind == .class
+               })
+            {
+                let checkpoint = ctx.sema.diagnostics.checkpoint()
+                var probeLocals = locals
+                let argumentType = driver.inferExpr(
+                    args[index].expr,
+                    ctx: ctx,
+                    locals: &probeLocals
+                )
+                let emittedError = ctx.sema.diagnostics.diagnostics.dropFirst(checkpoint).contains {
+                    $0.severity == .error
+                }
+                ctx.sema.diagnostics.rollback(to: checkpoint)
+                if !emittedError,
+                   case .classType = ctx.sema.types.kind(of: argumentType),
+                   ctx.sema.types.suspendConversionType(from: argumentType, to: parameterType) != nil,
+                   let nestedCallee = ctx.sema.bindings.callBinding(for: args[index].expr)?.chosenCallee,
+                   ctx.sema.symbols.symbol(nestedCallee)?.kind == .constructor,
+                   let nestedSignature = ctx.sema.symbols.functionSignature(for: nestedCallee),
+                   nestedSignature.classTypeParameterCount == 0
+                {
+                    // Keep a concrete FunctionN implementation as its nominal value so the
+                    // outer argument check can apply suspend conversion to the constructor result.
+                    continue
+                }
             }
             // Constructors and non-generic factories have fixed result types.
             // Keep an incompatible result already inferred without context so
@@ -668,6 +702,7 @@ extension CallTypeChecker {
             candidates: candidates,
             preInferredArgumentTypes: preInferredArgumentTypes,
             ctx: ctx,
+            locals: locals,
             expectedTypeOverrides: &expectedTypeOverrides
         )
         if let launcherIndex = coroutineLauncherLambdaArgIndex,
