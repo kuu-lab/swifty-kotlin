@@ -37,6 +37,38 @@ struct LambdaLowererDirectCoverageTests {
         #expect(kirFunctionCreationCalls(in: instructions, interner: fixture.interner).isEmpty)
     }
 
+    @Test
+    func suspendLambdaRegistersSuspendFunctionTypePayload() throws {
+        let fixture = makeKIRDirectLoweringFixture()
+        let range = makeRange()
+        let body = appendTypedExpr(.intLiteral(42, range), type: fixture.types.intType, fixture: fixture)
+        let functionType = fixture.types.make(.functionType(FunctionType(
+            params: [],
+            returnType: fixture.types.intType,
+            isSuspend: true,
+            nullability: .nonNull
+        )))
+        let lambda = appendTypedExpr(
+            .lambdaLiteral(params: [], body: body, label: nil, range: range),
+            type: functionType, fixture: fixture
+        )
+        var instructions: [KIRInstruction] = []
+        _ = fixture.driver.lambdaLowerer.lowerLambdaLiteralExpr(
+            lambda, params: [], bodyExpr: body,
+            ast: fixture.ast, sema: fixture.sema, arena: fixture.kirArena,
+            interner: fixture.interner, propertyConstantInitializers: [:],
+            instructions: &instructions
+        )
+        let tag = try #require(kirCalls(
+            to: .functionTagArity,
+            in: instructions,
+            interner: fixture.interner
+        ).first)
+        #expect(fixture.kirArena.expr(tag.arguments[1]) == .intLiteral(0x100))
+        #expect(tag.result == nil)
+        #expect(!tag.canThrow)
+    }
+
     @Test(arguments: [false, true], [nil, false, true] as [Bool?])
     func capturingLambdaRespectsInlineParameters(
         allowsNonLocalReturn: Bool, importedParameterAllowsNonLocalReturn: Bool?

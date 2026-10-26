@@ -157,7 +157,11 @@ enum RuntimeTypeCheckToken {
             // reference-type boundary, so `is`/`as`/`KClass.isInstance`
             // against the value class name can match that tag directly —
             // the same way a plain nominal class/interface check does.
-            category = .nominal(classType.classSymbol)
+            if let shape = sema.types.nominalFunctionInterfaceShape(of: classType.classSymbol) {
+                category = .function(arity: shape.arity, isSuspend: shape.isSuspend)
+            } else {
+                category = .nominal(classType.classSymbol)
+            }
         case .kClassType:
             // Concrete KClass<T> and nominal KClass<*> targets share the
             // erased reflection interface identity, not T's type token.
@@ -223,14 +227,6 @@ enum RuntimeTypeCheckToken {
             ) {
                 return builtinToken
             }
-            // KUU-1084: a nominal `kotlin.FunctionN` reference is the same
-            // classifier as the function type it names — `typeOf<(A) -> B>`
-            // and `typeOf<Function1<A, B>>` must produce identical KTypes.
-            if let arity = kotlinFunctionInterfaceArity(
-                symbolID: symbolID, sema: sema, interner: interner
-            ) {
-                return encode(base: functionBase, nullable: descriptor.nullable, payload: Int64(arity))
-            }
             let nominalTypeID = stableNominalTypeID(symbol: symbolID, sema: sema, interner: interner)
             return encode(base: descriptor.category.base, nullable: descriptor.nullable, payload: nominalTypeID)
         case let .function(arity, isSuspend):
@@ -274,29 +270,6 @@ enum RuntimeTypeCheckToken {
         }
         let builtinNames = BuiltinTypeNames(interner: interner)
         return encodeBuiltinTypeName(symbol.name, nullable: nullable, builtinNames: builtinNames)
-    }
-
-    /// The `N` in `kotlin.Function.FunctionN`, or nil when the symbol is not
-    /// one of the synthetic arity-indexed function interfaces. Bare
-    /// `kotlin.Function`/`kotlin.Function.Function` markers return nil and
-    /// stay nominal.
-    private static func kotlinFunctionInterfaceArity(
-        symbolID: SymbolID,
-        sema: SemaModule,
-        interner: StringInterner
-    ) -> Int? {
-        guard let symbol = sema.symbols.symbol(symbolID),
-              symbol.fqName.count == 3,
-              symbol.fqName[0] == interner.intern("kotlin"),
-              symbol.fqName[1] == interner.intern("Function")
-        else {
-            return nil
-        }
-        let name = interner.resolve(symbol.name)
-        guard name.hasPrefix("Function") else {
-            return nil
-        }
-        return Int(name.dropFirst("Function".count))
     }
 
     static func simpleName(of type: TypeID, sema: SemaModule, interner: StringInterner) -> String? {

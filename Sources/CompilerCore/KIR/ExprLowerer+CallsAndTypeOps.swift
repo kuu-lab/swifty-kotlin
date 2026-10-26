@@ -87,6 +87,16 @@ extension ExprLowerer {
                let nominal = sema.symbols.symbol(symbol),
                nominal.kind == .class || nominal.kind == .interface || nominal.kind == .object || nominal.kind == .enumClass
             {
+                if let shape = sema.types.nominalFunctionInterfaceShape(of: symbol) {
+                    let payload = Int64(shape.arity) | (shape.isSuspend ? 0x100 : 0)
+                    return emitLiteral(
+                        RuntimeTypeCheckToken.encode(
+                            base: RuntimeTypeCheckToken.functionBase,
+                            nullable: nullable,
+                            payload: payload
+                        )
+                    )
+                }
                 let nominalTypeID = RuntimeTypeCheckToken.stableNominalTypeID(symbol: symbol, sema: sema, interner: interner)
                 return emitLiteral(
                     RuntimeTypeCheckToken.encode(
