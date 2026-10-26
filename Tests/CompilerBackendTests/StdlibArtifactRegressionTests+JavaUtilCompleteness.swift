@@ -11,7 +11,13 @@ extension StdlibArtifactRegressionTests {
     func testJavaUtilCompletenessSurface() throws {
         let artifactPath = try Self.buildStdlibArtifact()
         let source = """
+        import java.lang.Thread
+        import kotlin.concurrent.schedule
+
         fun main() {
+            val thread = Thread { println("run") }
+            thread.join()
+
             val calendar = java.util.Calendar.getInstance()
             println(calendar.getTimeZone().getID().isNotEmpty())
             println(java.util.TimeZone.getDefault().getID().isNotEmpty())
@@ -43,11 +49,9 @@ extension StdlibArtifactRegressionTests {
 
             val latch = java.util.concurrent.CountDownLatch(1)
             val timer = java.util.Timer("sample")
-            timer.schedule(object : java.util.TimerTask() {
-                override fun run() {
-                    latch.countDown()
-                }
-            }, 0L)
+            timer.schedule(0L) {
+                latch.countDown()
+            }
             println(latch.await(5L, java.util.concurrent.TimeUnit.SECONDS))
             timer.cancel()
         }
