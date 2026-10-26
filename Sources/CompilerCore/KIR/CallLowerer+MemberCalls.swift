@@ -55,8 +55,14 @@ extension CallLowerer {
             )
         }
 
-        if sema.bindings.isTypeQualifiedConstructorCallExpr(exprID) {
-            emitCompanionInitializationBeforeConstructorArguments(
+        if sema.bindings.isTypeQualifiedConstructorCallExpr(exprID),
+           !shouldDeferCompanionInitializationUntilArgumentsAreEvaluated(
+               exprID: exprID,
+               args: args,
+               sema: sema
+           )
+        {
+            emitCompanionInitializationForConstructorCall(
                 exprID: exprID,
                 sema: sema,
                 arena: arena,
