@@ -20,6 +20,13 @@ struct SequenceMemberAvailabilityTests {
             "s.zip(other) { a, b -> b }",
             "s.zip(nullable)",
             "s?.reversed()",
+            // KUU-3480: the drop-last family is absent from kotlin.sequences
+            // too — kotlinc 2.4.20 reports the same unresolved reference
+            // diagnostics, so these must stay rejected alongside takeLast.
+            "sequenceOf(1, 2, 3).dropLast(2).toList()",
+            "sequenceOf(1, 2, 3).dropLastWhile { it > 1 }.toList()",
+            "s.dropLast(2)",
+            "s.dropLastWhile { it > 1 }",
             // KUU-1413: kotlin.sequences has no reduceRight family — kotlinc
             // rejects all four as unresolved references on a Sequence.
             "sequenceOf(1, 2, 3).reduceRight { a, b -> a - b }",
@@ -82,6 +89,7 @@ struct SequenceMemberAvailabilityTests {
             val reverse: List<Int> = list.reversed()
             val eagerTail = s.toList().takeLast(2)
             val eagerSuffix = s.toList().takeLastWhile { it > 1 }
+            val eagerDrop = s.toList().dropLast(2)
             val eagerReverse = s.toList().reversed()
             // KUU-1413: the one-pass reduce family stays available on Sequence;
             // only the right-fold variants were removed.
