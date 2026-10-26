@@ -307,7 +307,7 @@ extension LambdaLowerer {
         return result.sorted { $0.rawValue < $1.rawValue }
     }
 
-    private func propertySymbol(for targetSymbol: SymbolID, sema: SemaModule) -> SymbolID? {
+    func propertySymbol(for targetSymbol: SymbolID, sema: SemaModule) -> SymbolID? {
         if sema.symbols.symbol(targetSymbol)?.kind == .property {
             return targetSymbol
         }
@@ -316,7 +316,9 @@ extension LambdaLowerer {
         }
         return sema.symbols.allSymbols().first { symbol in
             symbol.kind == .property
-                && (SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: symbol.id) == targetSymbol
+                && (sema.symbols.extensionPropertyGetterAccessor(for: symbol.id) == targetSymbol
+                    || sema.symbols.extensionPropertySetterAccessor(for: symbol.id) == targetSymbol
+                    || SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: symbol.id) == targetSymbol
                     || SyntheticSymbolScheme.propertySetterAccessorSymbol(for: symbol.id) == targetSymbol)
         }?.id
     }

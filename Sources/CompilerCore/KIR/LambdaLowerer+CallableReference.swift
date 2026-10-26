@@ -641,10 +641,41 @@ extension LambdaLowerer {
                 propertyConstantInitializers: propertyConstantInitializers,
                 instructions: &instructions
             )
+            let extensionPropertyFunctionType: FunctionType? = {
+                guard sema.bindings.callableRefKind(for: exprID) == .propertyRef,
+                      let targetSymbol,
+                      let propertySymbol = propertySymbol(for: targetSymbol, sema: sema),
+                      let receiverType = sema.symbols.extensionPropertyReceiverType(for: propertySymbol)
+                else {
+                    return nil
+                }
+                if case let .functionType(functionType) = sema.types.kind(of: receiverType) {
+                    return functionType
+                }
+                return sema.types.nominalFunctionType(for: receiverType)
+            }()
+            let capturedReceiver: KIRExprID
+            if let functionType = extensionPropertyFunctionType,
+               driver.ctx.callableValueInfo(for: loweredReceiver) != nil
+            {
+                // Extension property references capture their receiver as a value.
+                // Materialize callable references to match the receiver's function ABI.
+                capturedReceiver = driver.callLowerer.materializeFunctionValueArgument(
+                    loweredArgID: loweredReceiver,
+                    argExprID: receiverExpr,
+                    functionType: functionType,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    instructions: &instructions
+                )
+            } else {
+                capturedReceiver = loweredReceiver
+            }
             // For unbound type references (Type::member), the receiver is
             // not captured — it becomes a parameter of the function type.
             if !isUnbound, !isSingletonOwnedPropertyRef {
-                captureArguments.append(loweredReceiver)
+                captureArguments.append(capturedReceiver)
             }
         } else if !isUnbound,
                   !isSingletonOwnedPropertyRef,
