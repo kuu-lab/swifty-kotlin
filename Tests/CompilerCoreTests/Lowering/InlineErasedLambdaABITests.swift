@@ -379,6 +379,60 @@ struct InlineErasedLambdaABITests {
         #expect(callNames(in: body, interner: interner).last == (primitive == .float ? LoweringTestRuntime.name("unbox_float") : LoweringTestRuntime.name("unbox_double")))
     }
 
+    @Test
+    func unboxesErasedStringResultAfterGenericInlineCall() {
+        let interner = StringInterner()
+        let arena = KIRArena()
+        let types = TypeSystem()
+        let symbols = SymbolTable()
+        let diagnostics = DiagnosticEngine()
+        let genericSymbol = symbols.define(
+            kind: .typeParameter,
+            name: interner.intern("R"),
+            fqName: [interner.intern("inlineABI"), interner.intern("R")],
+            declSite: nil,
+            visibility: .private
+        )
+        let genericType = types.make(.typeParam(TypeParamType(symbol: genericSymbol)))
+        let sema = makeSemaModule(
+            symbols: symbols,
+            types: types,
+            diagnostics: diagnostics
+        ).ctx
+        let ctx = makeKIRContext(
+            moduleName: "InlineErasedLambdaABI",
+            interner: interner,
+            sema: sema,
+            diagnostics: diagnostics
+        )
+        let module = KIRModule(files: [], arena: arena)
+        let inlineTarget = KIRFunction(
+            symbol: SymbolID(rawValue: 40),
+            name: interner.intern("genericCall"),
+            params: [],
+            returnType: genericType,
+            body: [],
+            isSuspend: false,
+            isInline: true
+        )
+        let returned = arena.appendTemporary(type: genericType)
+        let specializedResult = arena.appendTemporary(type: types.stringType)
+        var body = KIRLoweringEmitContext()
+
+        let unboxed = InlineErasedLambdaABI.unboxErasedInlineResultIfNeeded(
+            returnedExpr: returned,
+            result: specializedResult,
+            inlineTarget: inlineTarget,
+            module: module,
+            ctx: ctx,
+            into: &body
+        )
+
+        #expect(unboxed != returned)
+        #expect(arena.exprType(unboxed) == types.stringType)
+        #expect(callNames(in: body, interner: interner) == ["kk_string_to_flat"])
+    }
+
     private func callNames(in body: KIRLoweringEmitContext, interner: StringInterner) -> [String] {
         body.instructions.compactMap { instruction in
             guard case let .call(_, callee, _, _, _, _, _, _) = instruction else {
