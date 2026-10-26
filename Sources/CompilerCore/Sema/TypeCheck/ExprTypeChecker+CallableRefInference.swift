@@ -457,17 +457,41 @@ extension ExprTypeChecker {
             // `toString` member is hosted by a synthetic nominal `kotlin.Any` symbol.
             // Bridge that representation gap so `value::toString` resolves through
             // the same member target as other bound references.
-            let memberLookupReceiver: TypeID = if effectiveReceiverType == sema.types.anyType,
-                                                   member == interner.intern("toString"),
-                                                   let anyClassSymbol = sema.types.anyClassSymbol
+            let memberLookupReceiver: TypeID
+            if effectiveReceiverType == sema.types.anyType,
+               member == interner.intern("toString"),
+               let anyClassSymbol = sema.types.anyClassSymbol
             {
-                sema.types.make(.classType(ClassType(
+                memberLookupReceiver = sema.types.make(.classType(ClassType(
                     classSymbol: anyClassSymbol,
                     args: [],
                     nullability: .nonNull
                 )))
+            } else if member == interner.intern("invoke"),
+                      case let .functionType(functionType) = sema.types.kind(of: nonNullReceiver),
+                      !functionType.isCallableReference,
+                      functionType.contextReceivers.isEmpty
+            {
+                let inputTypes = (functionType.receiver.map { [$0] } ?? []) + functionType.params
+                let arity = inputTypes.count
+                let interfaceSymbols = functionType.isSuspend
+                    ? sema.types.suspendFunctionNInterfaceSymbols
+                    : sema.types.functionNInterfaceSymbols
+                if let interfaceSymbol = interfaceSymbols[arity] {
+                    // Function types are not nominal lookup roots. Map their
+                    // callable shape to the compiler-known FunctionN interface
+                    // so `value::invoke` resolves the same synthetic member as
+                    // an ordinary `value.invoke()` call.
+                    memberLookupReceiver = sema.types.make(.classType(ClassType(
+                        classSymbol: interfaceSymbol,
+                        args: inputTypes.map(TypeArg.in) + [.out(functionType.returnType)],
+                        nullability: .nonNull
+                    )))
+                } else {
+                    memberLookupReceiver = nonNullReceiver
+                }
             } else {
-                nonNullReceiver
+                memberLookupReceiver = nonNullReceiver
             }
             let memberCandidates = driver.helpers.collectMemberFunctionCandidates(
                 named: member,
