@@ -783,6 +783,13 @@ extension ControlFlowLowerer {
     ) -> KIRExprID {
         let boolType = sema.types.make(.primitive(.boolean, .nonNull))
         let intType = sema.types.make(.primitive(.int, .nonNull))
+        let iterableType = sema.bindings.exprTypes[iterableExpr] ?? sema.types.anyType
+        let arrayType = sema.types.makeNonNullable(iterableType)
+        let arrayElementType = TypeCheckHelpers().arrayElementType(
+            for: arrayType,
+            sema: sema,
+            interner: interner
+        )
 
         let arrayValueID = driver.lowerExpr(
             iterableExpr,
@@ -795,8 +802,10 @@ extension ControlFlowLowerer {
         )
 
         // Snapshot the array reference: `for (x in arr)` iterates the array
-        // evaluated once, even if the `var` is reassigned inside the body.
-        let arrayID = arena.appendTemporary(type: sema.types.anyType)
+        // evaluated once, even if the `var` is reassigned inside the body. Keep
+        // its static array type so ABI lowering can distinguish boxed Array<T>
+        // elements from the raw elements of primitive arrays.
+        let arrayID = arena.appendTemporary(type: arrayType)
         instructions.append(.copy(from: arrayValueID, to: arrayID))
 
         let sizeID = arena.appendTemporary(type: intType)
@@ -827,13 +836,27 @@ extension ControlFlowLowerer {
         let loopVarType = sema.bindings.flowElementType(forExpr: exprID)
             ?? loopVariableSymbol.flatMap { sema.symbols.propertyType(for: $0) }
             ?? sema.types.anyType
-        let elementID = arena.appendTemporary(type: loopVarType)
+        let elementType = arrayElementType ?? loopVarType
+        let arrayElementID = arena.appendTemporary(type: elementType)
         instructions.append(.call(
             callee: interner.intern("kk_array_get_inbounds"),
             arguments: [arrayID, indexSlot],
-            result: elementID,
+            result: arrayElementID,
             canThrow: false
         ))
+
+        // Load with the array's element representation, then apply the usual
+        // KIR copy conversion to the declared loop-variable representation.
+        // In particular, DoubleArray/FloatArray store raw floating-point bits;
+        // reading them directly into an Any-typed temporary skips boxing.
+        let elementID: KIRExprID
+        if elementType == loopVarType {
+            elementID = arrayElementID
+        } else {
+            let convertedElementID = arena.appendTemporary(type: loopVarType)
+            instructions.append(.copy(from: arrayElementID, to: convertedElementID))
+            elementID = convertedElementID
+        }
 
         let oneID = arena.appendExpr(.intLiteral(1), type: intType)
         instructions.append(.constValue(result: oneID, value: .intLiteral(1)))
