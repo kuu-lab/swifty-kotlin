@@ -553,13 +553,34 @@ extension ExprLowerer {
                 )
             }
         }
-        let result = arena.appendTemporary(type: boundType ?? sema.types.anyType)
+        let resultType = boundType ?? sema.types.anyType
+        let primitiveCastType = sema.bindings.castTargetType(for: exprID).flatMap { targetType -> TypeID? in
+            guard !isSafe,
+                  case .primitive(_, .nonNull) = sema.types.kind(of: targetType)
+            else { return nil }
+            return targetType
+        }
+        // `kk_op_cast` validates and returns the erased value, which is still
+        // boxed when the target is a non-null primitive. Preserve that erased
+        // result type here so ABI lowering inserts the required unbox before
+        // primitive operators consume it (including IEEE comparisons).
+        let castResult = arena.appendTemporary(
+            type: primitiveCastType == nil ? resultType : sema.types.nullableAnyType
+        )
         instructions.append(.call(
             callee: interner.intern(isSafe ? "kk_op_safe_cast" : "kk_op_cast"),
             arguments: [operandID, typeToken],
-            result: result,
+            result: castResult,
             canThrow: !isSafe
         ))
-        return result
+        if let primitiveCastType,
+           let unboxed = driver.callLowerer.materializePrimitiveValue(
+               castResult, toType: primitiveCastType, sema: sema, arena: arena,
+               instructions: &instructions
+           )
+        {
+            return unboxed
+        }
+        return castResult
     }
 }
