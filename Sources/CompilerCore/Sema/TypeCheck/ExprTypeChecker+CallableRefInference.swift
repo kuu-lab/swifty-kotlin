@@ -97,9 +97,13 @@ extension ExprTypeChecker {
             return nil
         }
 
-        let companionSymbol = sema.symbols.companionObjectSymbol(for: ownerSymbol.id)
+        let companionSymbol = sema.symbols.companionBlockObjectSymbol(
+            for: ownerSymbol.id,
+            interner: interner
+        ) ?? sema.symbols.companionObjectSymbol(for: ownerSymbol.id)
             ?? sema.symbols.actualSymbol(for: ownerSymbol.id).flatMap {
-                sema.symbols.companionObjectSymbol(for: $0)
+                sema.symbols.companionBlockObjectSymbol(for: $0, interner: interner)
+                    ?? sema.symbols.companionObjectSymbol(for: $0)
             }
         guard let companionSymbol else { return nil }
 
@@ -585,9 +589,13 @@ extension ExprTypeChecker {
                 else {
                     return nil
                 }
-                let companionSymbol = sema.symbols.companionObjectSymbol(for: ownerSymbol.id)
+                let companionSymbol = sema.symbols.companionBlockObjectSymbol(
+                    for: ownerSymbol.id,
+                    interner: interner
+                ) ?? sema.symbols.companionObjectSymbol(for: ownerSymbol.id)
                     ?? sema.symbols.actualSymbol(for: ownerSymbol.id).flatMap {
-                        sema.symbols.companionObjectSymbol(for: $0)
+                        sema.symbols.companionBlockObjectSymbol(for: $0, interner: interner)
+                            ?? sema.symbols.companionObjectSymbol(for: $0)
                     }
                 guard let companionSymbol else { return nil }
                 let companionType = sema.symbols.propertyType(for: companionSymbol)
@@ -690,10 +698,36 @@ extension ExprTypeChecker {
                 // `receiver.length` read: scan scope-visible `.property`
                 // symbols for one whose recorded extension receiver type
                 // accepts `nonNullReceiver`.
+                if candidates.isEmpty, unboundClassType != nil {
+                    let companionExtensions = companionExtensionCallableReferenceCandidates(
+                        named: member,
+                        receiverType: nonNullReceiver,
+                        ctx: ctx
+                    )
+                    if !companionExtensions.isEmpty {
+                        candidates = companionExtensions
+                        companionCallableReferenceReceiverType = nonNullReceiver
+                    }
+                }
                 if candidates.isEmpty {
                     let extensionPropertyCandidates = ctx.cachedScopeLookup(member).filter { symbolID in
                         guard let symbol = ctx.cachedSymbol(symbolID),
                               symbol.kind == .property,
+                              let declaredReceiver = sema.symbols.extensionPropertyReceiverType(for: symbolID),
+                              !isCompanionExtension(symbolID, ctx: ctx)
+                        else {
+                            return false
+                        }
+                        return driver.callChecker.extensionSyntheticFallbackReceiverMatches(
+                            callSiteReceiver: nonNullReceiver,
+                            declaredReceiver: declaredReceiver,
+                            sema: sema
+                        )
+                    }
+                    let companionExtensionProperty = unboundClassType == nil ? nil : ctx.cachedScopeLookup(member).first { symbolID in
+                        guard let symbol = ctx.cachedSymbol(symbolID),
+                              symbol.kind == .property,
+                              isCompanionExtension(symbolID, ctx: ctx),
                               let declaredReceiver = sema.symbols.extensionPropertyReceiverType(for: symbolID)
                         else {
                             return false
@@ -703,6 +737,38 @@ extension ExprTypeChecker {
                             declaredReceiver: declaredReceiver,
                             sema: sema
                         )
+                    }
+                    if let companionExtensionProperty,
+                       let propertyType = sema.symbols.propertyType(for: companionExtensionProperty),
+                       let resolution = resolveExtensionPropertyReferenceType(
+                           companionExtensionProperty,
+                           receiverType: nonNullReceiver,
+                           fallbackPropertyType: propertyType,
+                           sema: sema,
+                           interner: interner
+                       )
+                    {
+                        let resultType = bindPropertyCallableRef(
+                            id,
+                            propertySymbol: companionExtensionProperty,
+                            ownerType: nil,
+                            isUnbound: false,
+                            expectedType: expectedType,
+                            range: range,
+                            ctx: ctx,
+                            sema: sema,
+                            interner: interner,
+                            resolvedPropertyType: resolution.valueType
+                        )
+                        if let specialization = resolution.specialization,
+                           let getter = sema.symbols.extensionPropertyGetterAccessor(for: companionExtensionProperty)
+                        {
+                            bindCallableReferenceBinding(
+                                id, target: getter, specialization: specialization,
+                                range: range, ctx: ctx
+                            )
+                        }
+                        return resultType
                     }
                     var extensionPropertyReference: (
                         symbol: SymbolID,
@@ -767,6 +833,7 @@ extension ExprTypeChecker {
                         }
                         return resultType
                     }
+
                 }
                 // A same-named non-extension function in a nearer scope must
                 // not hide a legal receiver extension. Filter for applicable
@@ -1783,6 +1850,64 @@ extension ExprTypeChecker {
         sema.bindings.bindCaptureSymbols(id, symbols: fallbackCaptures)
         sema.bindings.bindExprType(id, type: fallbackType)
         return fallbackType
+    }
+
+    private func companionExtensionCallableReferenceCandidates(
+        named name: InternedString,
+        receiverType: TypeID,
+        ctx: TypeInferenceContext
+    ) -> [SymbolID] {
+        let sema = ctx.sema
+        var candidates = ctx.cachedScopeLookup(name)
+        for file in ctx.ast.files {
+            for declID in file.topLevelDecls {
+                guard case let .funDecl(function)? = ctx.ast.arena.decl(declID),
+                      function.name == name,
+                      function.modifiers.contains(.companion),
+                      function.receiverType != nil,
+                      let symbol = sema.bindings.declSymbols[declID],
+                      !candidates.contains(symbol)
+                else {
+                    continue
+                }
+                candidates.append(symbol)
+            }
+        }
+        return candidates.filter { candidate in
+            guard let symbol = sema.symbols.symbol(candidate),
+                  symbol.kind == .function,
+                  isCompanionExtension(candidate, ctx: ctx),
+                  let declaredReceiver = sema.symbols.functionSignature(for: candidate)?.receiverType
+            else {
+                return false
+            }
+            return driver.callChecker.extensionSyntheticFallbackReceiverMatches(
+                callSiteReceiver: receiverType,
+                declaredReceiver: declaredReceiver,
+                sema: sema
+            )
+        }
+    }
+
+    private func isCompanionExtension(_ symbolID: SymbolID, ctx: TypeInferenceContext) -> Bool {
+        guard let symbol = ctx.sema.symbols.symbol(symbolID),
+              let sourceFileID = symbol.declSite?.start.file,
+              let file = ctx.ast.file(for: sourceFileID)
+        else {
+            return false
+        }
+        for declID in file.topLevelDecls {
+            guard let decl = ctx.ast.arena.decl(declID) else { continue }
+            switch decl {
+            case let .funDecl(function) where function.range == symbol.declSite:
+                return function.modifiers.contains(.companion) && function.receiverType != nil
+            case let .propertyDecl(property) where property.range == symbol.declSite:
+                return property.modifiers.contains(.companion) && property.receiverType != nil
+            default:
+                continue
+            }
+        }
+        return false
     }
 
     /// REFL-PRIMOP: `Int::plus` / `Int::times` (and the other primitive

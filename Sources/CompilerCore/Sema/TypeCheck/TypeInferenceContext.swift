@@ -479,20 +479,63 @@ struct TypeInferenceContext: CustomStringConvertible {
                 entries.append((type, symbol))
             }
         }
+        func appendCompanionBlockChain(for owner: SymbolID, skipping skippedBlock: SymbolID? = nil) {
+            var queue = [owner]
+            var visited: Set<SymbolID> = []
+            while !queue.isEmpty {
+                let current = queue.removeFirst()
+                guard visited.insert(current).inserted,
+                      let ownerSymbol = sema.symbols.symbol(current)
+                else {
+                    continue
+                }
+                if let companionBlock = sema.symbols.companionBlockObjectSymbol(for: current, interner: interner),
+                   companionBlock != skippedBlock
+                {
+                    appendUnique(
+                        sema.types.make(.classType(ClassType(
+                            classSymbol: companionBlock,
+                            args: [],
+                            nullability: .nonNull
+                        ))),
+                        symbol: companionBlock
+                    )
+                }
+                guard ownerSymbol.kind == .class else { continue }
+                queue.append(contentsOf: sema.symbols.directSupertypes(for: current).filter {
+                    sema.symbols.symbol($0)?.kind == .class
+                })
+            }
+        }
+        func appendReceiverAndCompanionBlock(_ type: TypeID, symbol: SymbolID?) {
+            appendUnique(type, symbol: symbol)
+            guard case let .classType(classType) = sema.types.kind(of: type),
+                  let receiverSymbol = sema.symbols.symbol(classType.classSymbol)
+            else {
+                return
+            }
+            if receiverSymbol.name == interner.intern("$CompanionBlocks"),
+               let owner = sema.symbols.parentSymbol(for: classType.classSymbol)
+            {
+                appendCompanionBlockChain(for: owner, skipping: classType.classSymbol)
+            } else {
+                appendCompanionBlockChain(for: classType.classSymbol)
+            }
+        }
         if let implicitReceiverType {
-            appendUnique(implicitReceiverType, symbol: nil)
+            appendReceiverAndCompanionBlock(implicitReceiverType, symbol: nil)
         }
         for entry in implicitReceiverStack.reversed() {
-            appendUnique(entry.type, symbol: entry.symbol)
+            appendReceiverAndCompanionBlock(entry.type, symbol: entry.symbol)
         }
         for entry in outerReceiverTypes.reversed() {
-            appendUnique(entry.type, symbol: entry.symbol)
+            appendReceiverAndCompanionBlock(entry.type, symbol: entry.symbol)
         }
         if let enclosingClassSymbol, !excludesEnclosingClassReceiver {
             let ownerArgs = sema.types.nominalTypeParameterSymbols(for: enclosingClassSymbol).map {
                 TypeArg.invariant(sema.types.make(.typeParam(TypeParamType(symbol: $0))))
             }
-            appendUnique(
+            appendReceiverAndCompanionBlock(
                 sema.types.make(.classType(ClassType(
                     classSymbol: enclosingClassSymbol,
                     args: ownerArgs,

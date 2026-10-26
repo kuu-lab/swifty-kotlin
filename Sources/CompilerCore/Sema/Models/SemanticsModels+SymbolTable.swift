@@ -1871,6 +1871,22 @@ public final class SymbolTable {
         companionObjectSymbols[owner]
     }
 
+    /// Returns the hidden implementation object used to scope companion-block
+    /// declarations. It is intentionally distinct from a source companion
+    /// object because Kotlin exposes the two through different qualifiers.
+    public func companionBlockObjectSymbol(
+        for owner: SymbolID,
+        interner: StringInterner
+    ) -> SymbolID? {
+        let implementationOwner = actualSymbol(for: owner) ?? owner
+        guard let ownerInfo = symbol(implementationOwner) else { return nil }
+        let blockName = interner.intern("$CompanionBlocks")
+        return lookupAll(fqName: ownerInfo.fqName + [blockName]).first { candidate in
+            parentSymbol(for: candidate) == implementationOwner
+                && symbol(candidate)?.kind == .object
+        }
+    }
+
     public func setOuterInstanceFieldSymbol(_ field: SymbolID, for innerClass: SymbolID) {
         outerInstanceFieldSymbols[innerClass] = field
     }

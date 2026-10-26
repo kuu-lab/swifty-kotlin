@@ -351,7 +351,7 @@ final class DeclTypeChecker {
         // nested receiver lambdas in getter/setter bodies.
         let extRecv = sema.symbols
             .extensionPropertyReceiverType(for: symbol)
-        let accessorCtx: TypeInferenceContext = if let extRecv {
+        var accessorCtx: TypeInferenceContext = if let extRecv {
             ctx.copying(implicitReceiverType: extRecv).withOuterReceiver(
                 label: property.name,
                 type: extRecv,
@@ -359,6 +359,13 @@ final class DeclTypeChecker {
             )
         } else {
             ctx
+        }
+        if let extRecv {
+            accessorCtx = addingCompanionLookupReceiver(
+                to: accessorCtx,
+                receiverType: extRecv,
+                enabled: property.modifiers.contains(.companion)
+            )
         }
 
         if let getter = property.getter {

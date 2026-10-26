@@ -1064,6 +1064,11 @@ extension DeclTypeChecker {
                 type: extensionReceiverType,
                 symbol: SyntheticSymbolScheme.receiverParameterSymbol(for: symbol)
             )
+            functionCtx = addingCompanionLookupReceiver(
+                to: functionCtx,
+                receiverType: extensionReceiverType,
+                enabled: function.modifiers.contains(.companion)
+            )
         }
         // Propagate suppression flag so that individual `return` statements inside
         // functions with inferred return types also skip the platform-type warning.

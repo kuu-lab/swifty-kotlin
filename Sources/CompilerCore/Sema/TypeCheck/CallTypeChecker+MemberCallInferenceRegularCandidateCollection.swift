@@ -41,10 +41,22 @@ extension CallTypeChecker {
             // Class-name receiver: only companion members are valid targets.
             // Search from the companion, rather than the owner class, so its
             // inherited members are included without exposing owner instances.
-            let classNameReceiverCompanionSymbol: SymbolID? = {
+            let classNameReceiverBlockSymbol: SymbolID? = {
                 guard let ownerNominal = classNameReceiverNominalSymbol else { return nil }
                 // In a platform module, resolve through the implementation companion
                 // so member calls bind to actual declarations with emitted symbols.
+                if let actualOwner = sema.symbols.actualSymbol(for: ownerNominal),
+                   let blockCompanion = companionBlockSymbol(for: actualOwner, sema: sema, interner: interner)
+                {
+                    return blockCompanion
+                }
+                if let blockCompanion = companionBlockSymbol(for: ownerNominal, sema: sema, interner: interner) {
+                    return blockCompanion
+                }
+                return nil
+            }()
+            let classNameReceiverSourceCompanionSymbol: SymbolID? = {
+                guard let ownerNominal = classNameReceiverNominalSymbol else { return nil }
                 if let actualOwner = sema.symbols.actualSymbol(for: ownerNominal),
                    let companion = sema.symbols.companionObjectSymbol(for: actualOwner)
                 {
@@ -52,6 +64,17 @@ extension CallTypeChecker {
                 }
                 return sema.symbols.companionObjectSymbol(for: ownerNominal)
             }()
+            let classNameReceiverCompanionSymbol = classNameReceiverBlockSymbol
+                ?? classNameReceiverSourceCompanionSymbol
+            let companionExtensionReceiverType = classNameReceiverNominalSymbol.flatMap { owner in
+                sema.symbols.symbol(owner).map { _ in
+                    sema.types.make(.classType(ClassType(
+                        classSymbol: owner,
+                        args: [],
+                        nullability: .nonNull
+                    )))
+                }
+            }
             if let companionSymbol = classNameReceiverCompanionSymbol {
                 let companionTypeForExtensionLookup = sema.types.make(.classType(ClassType(classSymbol: companionSymbol, args: [], nullability: .nonNull)))
 
@@ -59,12 +82,28 @@ extension CallTypeChecker {
                 // property short-circuit to avoid shadowing a companion function
                 // of the same name.
                 if args.isEmpty {
-                    if let propResult = driver.helpers.lookupMemberProperty(
-                        named: calleeName,
-                        receiverType: companionTypeForExtensionLookup,
-                        sema: sema
-                    )
-                    {
+                    let directPropertyReceivers = [
+                        classNameReceiverBlockSymbol.map { ($0, companionTypeForExtensionLookup) },
+                        classNameReceiverSourceCompanionSymbol.map { symbol in
+                            (symbol, sema.types.make(.classType(ClassType(
+                                classSymbol: symbol, args: [], nullability: .nonNull
+                            ))))
+                        },
+                    ].compactMap { $0 }
+                    let directProperty = directPropertyReceivers.first { _, receiverType in
+                        driver.helpers.lookupMemberProperty(
+                            named: calleeName,
+                            receiverType: receiverType,
+                            sema: sema
+                        ) != nil
+                    }.flatMap { _, receiverType in
+                        driver.helpers.lookupMemberProperty(
+                            named: calleeName,
+                            receiverType: receiverType,
+                            sema: sema
+                        ).map { ($0, receiverType) }
+                    }
+                    if let (propResult, propertyReceiverType) = directProperty {
                         let propSymbol = propResult.symbol
                         let propType = propResult.type
                         if let propSym = sema.symbols.symbol(propSymbol),
@@ -91,34 +130,94 @@ extension CallTypeChecker {
                             diagnostics: ctx.sema.diagnostics
                         )
                         // Re-bind receiver to companion type for correct KIR lowering
-                        sema.bindings.bindExprType(receiverID, type: companionTypeForExtensionLookup)
+                        sema.bindings.bindExprType(receiverID, type: propertyReceiverType)
                         sema.bindings.bindIdentifier(id, symbol: propSymbol)
                         sema.bindings.bindExprType(id, type: propType)
                         return ([], companionReceiverType, propType)
                     }
 
-                    let compTypeForExt = sema.types.make(.classType(ClassType(classSymbol: companionSymbol, args: [], nullability: .nonNull)))
-                    if let extensionPropertyType = resolveExtensionPropertyGetter(
-                        id: id,
-                        calleeName: calleeName,
-                        range: range,
-                        receiverType: compTypeForExt,
-                        expectedType: expectedType,
-                        ctx: ctx
-                    ) {
-                        sema.bindings.bindExprType(receiverID, type: compTypeForExt)
+                    if let sourceCompanion = classNameReceiverSourceCompanionSymbol,
+                       sourceCompanion != classNameReceiverBlockSymbol
+                    {
+                        let sourceCompanionType = sema.types.make(.classType(ClassType(
+                            classSymbol: sourceCompanion, args: [], nullability: .nonNull
+                        )))
+                        if let extensionPropertyType = resolveExtensionPropertyGetter(
+                            id: id,
+                            calleeName: calleeName,
+                            range: range,
+                            receiverType: sourceCompanionType,
+                            expectedType: expectedType,
+                            ctx: ctx
+                        ) {
+                            sema.bindings.bindExprType(receiverID, type: sourceCompanionType)
+                            sema.bindings.bindExprType(id, type: extensionPropertyType)
+                            return ([], sourceCompanionType, extensionPropertyType)
+                        }
+                    }
+                    if let ownerReceiverType = companionExtensionReceiverType,
+                       let extensionPropertyType = resolveExtensionPropertyGetter(
+                           id: id,
+                           calleeName: calleeName,
+                           range: range,
+                           receiverType: ownerReceiverType,
+                           expectedType: expectedType,
+                           ctx: ctx,
+                           invocationCandidateFilter: { candidate in
+                               self.isCompanionExtension(candidate, ctx: ctx)
+                           }
+                       )
+                    {
+                        companionReceiverType = ownerReceiverType
+                        sema.bindings.bindExprType(receiverID, type: ownerReceiverType)
                         sema.bindings.bindExprType(id, type: extensionPropertyType)
                         return ([], companionReceiverType, extensionPropertyType)
                     }
                 }
 
                 // Then try companion function candidates
-                var companionCandidates = driver.helpers.collectMemberFunctionCandidates(
-                    named: calleeName,
-                    receiverType: companionTypeForExtensionLookup,
-                    sema: sema,
-                    interner: interner
-                )
+                var companionCandidates: [SymbolID] = []
+                var selectedCompanionReceiverType: TypeID?
+                if classNameReceiverBlockSymbol != nil {
+                    companionCandidates = driver.helpers.collectMemberFunctionCandidates(
+                        named: calleeName,
+                        receiverType: companionTypeForExtensionLookup,
+                        sema: sema,
+                        interner: interner
+                    )
+                    if !companionCandidates.isEmpty {
+                        selectedCompanionReceiverType = companionTypeForExtensionLookup
+                    }
+                }
+                if companionCandidates.isEmpty,
+                   let sourceCompanion = classNameReceiverSourceCompanionSymbol,
+                   sourceCompanion != classNameReceiverBlockSymbol
+                {
+                    let sourceCompanionType = sema.types.make(.classType(ClassType(
+                        classSymbol: sourceCompanion, args: [], nullability: .nonNull
+                    )))
+                    companionCandidates = driver.helpers.collectMemberFunctionCandidates(
+                        named: calleeName,
+                        receiverType: sourceCompanionType,
+                        sema: sema,
+                        interner: interner
+                    )
+                    if !companionCandidates.isEmpty {
+                        selectedCompanionReceiverType = sourceCompanionType
+                    }
+                }
+                if companionCandidates.isEmpty,
+                   let ownerReceiverType = companionExtensionReceiverType
+                {
+                    companionCandidates = companionExtensionFunctionCandidates(
+                        named: calleeName,
+                        ownerReceiverType: ownerReceiverType,
+                        ctx: ctx
+                    )
+                    if !companionCandidates.isEmpty {
+                        selectedCompanionReceiverType = ownerReceiverType
+                    }
+                }
                 // Precompiled library extensions are not inserted into
                 // file scopes, because their receiver is resolved during
                 // member-call inference. Recover those synthetic
@@ -176,16 +275,50 @@ extension CallTypeChecker {
                 if companionCandidates.isEmpty {
                     companionCandidates = syntheticCompanionCandidates()
                 }
-                if !companionCandidates.isEmpty {
-                    companionReceiverType = companionTypeForExtensionLookup
+                if !companionCandidates.isEmpty,
+                   selectedCompanionReceiverType == nil
+                {
+                    selectedCompanionReceiverType = companionTypeForExtensionLookup
+                }
+                if let selectedCompanionReceiverType {
+                    companionReceiverType = selectedCompanionReceiverType
                     // Re-bind receiver expression to companion type so KIR
-                    // lowering passes the companion singleton (not the owner
-                    // class) as the first argument to the companion function.
-                    sema.bindings.bindExprType(receiverID, type: companionReceiverType!)
+                    // lowering passes the selected implementation receiver.
+                    sema.bindings.bindExprType(receiverID, type: selectedCompanionReceiverType)
                 }
                 allCandidates = companionCandidates
             } else {
-                allCandidates = []
+                if let ownerReceiverType = companionExtensionReceiverType {
+                    if args.isEmpty,
+                       let extensionPropertyType = resolveExtensionPropertyGetter(
+                           id: id,
+                           calleeName: calleeName,
+                           range: range,
+                           receiverType: ownerReceiverType,
+                           expectedType: expectedType,
+                           ctx: ctx,
+                           invocationCandidateFilter: { candidate in
+                               self.isCompanionExtension(candidate, ctx: ctx)
+                           }
+                       )
+                    {
+                        companionReceiverType = ownerReceiverType
+                        sema.bindings.bindExprType(receiverID, type: ownerReceiverType)
+                        sema.bindings.bindExprType(id, type: extensionPropertyType)
+                        return ([], companionReceiverType, extensionPropertyType)
+                    }
+                    allCandidates = companionExtensionFunctionCandidates(
+                        named: calleeName,
+                        ownerReceiverType: ownerReceiverType,
+                        ctx: ctx
+                    )
+                    if !allCandidates.isEmpty {
+                        companionReceiverType = ownerReceiverType
+                        sema.bindings.bindExprType(receiverID, type: ownerReceiverType)
+                    }
+                } else {
+                    allCandidates = []
+                }
             }
         } else {
             let allowedOwnerSymbols = isSuperCall && !supertypeSymbols.isEmpty ?
@@ -726,6 +859,72 @@ extension CallTypeChecker {
         }
 
         return (allCandidates, companionReceiverType, nil)
+    }
+
+    private func companionBlockSymbol(
+        for owner: SymbolID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> SymbolID? {
+        sema.symbols.companionBlockObjectSymbol(for: owner, interner: interner)
+    }
+
+    func companionExtensionFunctionCandidates(
+        named name: InternedString,
+        ownerReceiverType: TypeID,
+        ctx: TypeInferenceContext
+    ) -> [SymbolID] {
+        let sema = ctx.sema
+        var candidates = ctx.cachedScopeLookup(name)
+        for file in ctx.ast.files {
+            for declID in file.topLevelDecls {
+                guard case let .funDecl(function)? = ctx.ast.arena.decl(declID),
+                      function.name == name,
+                      function.modifiers.contains(.companion),
+                      function.receiverType != nil,
+                      let symbol = sema.bindings.declSymbols[declID],
+                      !candidates.contains(symbol)
+                else {
+                    continue
+                }
+                candidates.append(symbol)
+            }
+        }
+        return candidates.filter { candidate in
+            guard let symbol = sema.symbols.symbol(candidate),
+                  symbol.kind == .function,
+                  isCompanionExtension(candidate, ctx: ctx),
+                  let receiver = sema.symbols.functionSignature(for: candidate)?.receiverType
+            else {
+                return false
+            }
+            return extensionSyntheticFallbackReceiverMatches(
+                callSiteReceiver: ownerReceiverType,
+                declaredReceiver: receiver,
+                sema: sema
+            )
+        }
+    }
+
+    private func isCompanionExtension(_ symbolID: SymbolID, ctx: TypeInferenceContext) -> Bool {
+        guard let symbol = ctx.sema.symbols.symbol(symbolID),
+              let sourceFileID = symbol.declSite?.start.file,
+              let file = ctx.ast.file(for: sourceFileID)
+        else {
+            return false
+        }
+        for declID in file.topLevelDecls {
+            guard let decl = ctx.ast.arena.decl(declID) else { continue }
+            switch decl {
+            case let .funDecl(funDecl) where funDecl.range == symbol.declSite:
+                return funDecl.modifiers.contains(.companion) && funDecl.receiverType != nil
+            case let .propertyDecl(propertyDecl) where propertyDecl.range == symbol.declSite:
+                return propertyDecl.modifiers.contains(.companion) && propertyDecl.receiverType != nil
+            default:
+                continue
+            }
+        }
+        return false
     }
 }
 // swiftlint:enable cyclomatic_complexity file_length function_body_length

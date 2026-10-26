@@ -148,6 +148,39 @@ extension CallTypeChecker {
                     }
                 }
             }
+            let candidatesAreSourceCompanionMembers = !candidates.isEmpty && candidates.allSatisfy { candidate in
+                guard let companion = sema.symbols.parentSymbol(for: candidate),
+                      let owner = sema.symbols.parentSymbol(for: companion)
+                else {
+                    return false
+                }
+                return sema.symbols.companionObjectSymbol(for: owner) == companion
+            }
+            if (candidates.isEmpty || candidatesAreSourceCompanionMembers), locals[calleeName] == nil {
+                for receiver in ctx.implicitReceiverMemberLookupEntries() {
+                    guard let receiverSymbol = receiver.symbol,
+                          let owner = sema.symbols.parentSymbol(for: receiverSymbol),
+                          sema.symbols.companionBlockObjectSymbol(
+                            for: owner,
+                            interner: interner
+                          ) == receiverSymbol
+                    else {
+                        continue
+                    }
+                    let blockMembers = driver.helpers.collectMemberFunctionCandidates(
+                        named: calleeName,
+                        receiverType: receiver.type,
+                        sema: sema,
+                        interner: interner
+                    ).filter { !scopeSelection.excludedMembers.contains($0) }
+                    let visibleBlockMembers = ctx.filterByVisibility(blockMembers).visible
+                    guard !visibleBlockMembers.isEmpty else { continue }
+                    candidates = visibleBlockMembers
+                    callImplicitReceiverType = receiver.type
+                    mergedImplicitReceiverMembers = visibleBlockMembers
+                    break
+                }
+            }
             if candidates.isEmpty,
                locals[calleeName] == nil,
                let activeReceiverType = ctx.implicitReceiverType,
@@ -440,7 +473,12 @@ extension CallTypeChecker {
                     ?? inheritedClassSymbols.first
                     ?? scopedClassSymbols.first
                 if let classSym, let classSymbol = ctx.cachedSymbol(classSym) {
-                    if let companionSymbol = sema.symbols.companionObjectSymbol(for: classSym) {
+                    let companionInvokeReceiverSymbols = [
+                        sema.symbols.companionBlockObjectSymbol(for: classSym, interner: interner),
+                        sema.symbols.companionObjectSymbol(for: classSym),
+                    ].compactMap { $0 }
+                    var foundCompanionInvoke = false
+                    for companionSymbol in companionInvokeReceiverSymbols {
                         let companionType = sema.symbols.propertyType(for: companionSymbol)
                             ?? sema.types.make(.classType(ClassType(
                                 classSymbol: companionSymbol,
@@ -455,12 +493,37 @@ extension CallTypeChecker {
                         ).filter { candidate in
                             sema.symbols.symbol(candidate)?.flags.contains(.operatorFunction) == true
                         }
+                        guard !invokeCandidates.isEmpty else { continue }
                         let (visibleInvokes, invisibleInvokes) = ctx.filterByVisibility(invokeCandidates)
                         candidates.append(contentsOf: visibleInvokes)
                         callInvisible.append(contentsOf: invisibleInvokes)
                         typeNameCompanionInvokeCandidates.formUnion(visibleInvokes)
                         if !visibleInvokes.isEmpty {
                             typeNameCompanionInvokeReceiverType = companionType
+                        }
+                        foundCompanionInvoke = true
+                        break
+                    }
+                    if !foundCompanionInvoke, callInvisible.isEmpty {
+                        let ownerType = sema.types.make(.classType(ClassType(
+                            classSymbol: classSym,
+                            args: [],
+                            nullability: .nonNull
+                        )))
+                        let extensionInvokes = companionExtensionFunctionCandidates(
+                            named: interner.intern("invoke"),
+                            ownerReceiverType: ownerType,
+                            ctx: ctx
+                        ).filter { candidate in
+                            sema.symbols.symbol(candidate)?.flags.contains(.operatorFunction) == true
+                        }
+                        let (visibleInvokes, invisibleInvokes) = ctx.filterByVisibility(extensionInvokes)
+                        candidates.append(contentsOf: visibleInvokes)
+                        callInvisible.append(contentsOf: invisibleInvokes)
+                        typeNameCompanionInvokeCandidates.formUnion(visibleInvokes)
+                        if !visibleInvokes.isEmpty {
+                            callImplicitReceiverType = ownerType
+                            typeNameCompanionInvokeReceiverType = ownerType
                         }
                     }
 
