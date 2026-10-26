@@ -124,4 +124,18 @@ struct CallableReferenceAdaptationExecutionTests {
             optLevel: .O2
         )
     }
+
+    @Test func importedObjectVarargCallableReferenceAdaptsToSingleArgument() throws {
+        try compileAndRunKotlin(
+            """
+            import Host.foo
+
+            fun withO(fn: (String) -> String): String = fn("O")
+            object Host { fun foo(vararg x: String): String = x[0] + "K" }
+            fun main() { println(withO(::foo)) }
+            """,
+            expectedOutput: "OK\n",
+            moduleName: "KUU3351ImportedObjectVarargCallableReference"
+        )
+    }
 }

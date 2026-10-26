@@ -21,7 +21,8 @@ extension ExprTypeChecker {
 
     private func bindCallableReferenceBinding(
         _ expression: ExprID, target: SymbolID, specialization: ContextualCallableReferenceBinding,
-        range: SourceRange, ctx: TypeInferenceContext, requiresFunctionConversion: Bool = false
+        range: SourceRange, ctx: TypeInferenceContext, requiresFunctionConversion: Bool = false,
+        dispatchReceiverSymbol: SymbolID? = nil
     ) {
         guard let signature = ctx.sema.symbols.functionSignature(for: target) else { return }
         for index in signature.reifiedTypeParameterIndices.sorted() where index < specialization.typeArguments.count {
@@ -37,6 +38,7 @@ extension ExprTypeChecker {
             substitutedTypeArguments: specialization.typeArguments,
             parameterMapping: specialization.parameterMapping,
             defaultArgumentOwner: specialization.defaultArgumentOwner,
+            dispatchReceiverSymbol: dispatchReceiverSymbol,
             isCallableReferenceAdapter: specialization.requiresAdapter || requiresFunctionConversion,
             boundContextParameterTypes: specialization.boundContextParameterTypes
         ))
@@ -1169,6 +1171,33 @@ extension ExprTypeChecker {
             }
         }
 
+        // A function imported through an object is implicitly bound to that
+        // singleton, just like an unqualified call to the imported member.
+        // Keep this candidate-specific import behavior out of implicit-receiver
+        // lookup, which already selected its own receiver above.
+        var importedObjectCallableReferenceReceiver: (symbol: SymbolID, type: TypeID)?
+        if receiver == nil, !isImplicitlyBoundMember, !candidates.isEmpty {
+            let importedObjectReceivers = driver.callChecker.importedObjectDispatchReceiverOwners(
+                named: member,
+                candidates: candidates,
+                ctx: ctx
+            )
+            let receiverSymbols = Set(candidates.compactMap { importedObjectReceivers[$0] })
+            if importedObjectReceivers.count == candidates.count,
+               receiverSymbols.count == 1,
+               let objectSymbol = receiverSymbols.first
+            {
+                importedObjectCallableReferenceReceiver = (
+                    objectSymbol,
+                    sema.types.make(.classType(ClassType(
+                        classSymbol: objectSymbol,
+                        args: [],
+                        nullability: .nonNull
+                    )))
+                )
+            }
+        }
+
         // For unbound type references (Type::member), the receiver is not
         // bound — it becomes a parameter of the function type. For bound
         // references (obj::member), the receiver is captured. Ordinary
@@ -1177,6 +1206,7 @@ extension ExprTypeChecker {
         let isBoundReceiver = (receiver != nil
             && (unboundClassType == nil || companionCallableReferenceReceiverType != nil))
             || (isConstructorReference && unboundInnerConstructorReceiverType == nil)
+            || importedObjectCallableReferenceReceiver != nil
             || isImplicitlyBoundMember
         let unboundCallableReceiverType: TypeID?
         if let unboundInnerConstructorReceiverType {
@@ -1328,6 +1358,8 @@ extension ExprTypeChecker {
         // Concrete value and type receivers specialize the owner's type parameters.
         let boundReceiverType: TypeID? = if isImplicitlyBoundMember {
             implicitBoundReceiver?.type
+        } else if let importedObjectCallableReferenceReceiver {
+            importedObjectCallableReferenceReceiver.type
         } else if let companionCallableReferenceReceiverType {
             companionCallableReferenceReceiverType
         } else if receiver != nil && !isConstructorReference {
@@ -1657,7 +1689,8 @@ extension ExprTypeChecker {
             {
                 bindCallableReferenceBinding(
                     id, target: chosen, specialization: contextualSpecialization, range: range, ctx: ctx,
-                    requiresFunctionConversion: requiresFunctionConversion
+                    requiresFunctionConversion: requiresFunctionConversion,
+                    dispatchReceiverSymbol: importedObjectCallableReferenceReceiver?.symbol
                 )
             }
             sema.bindings.bindIdentifier(id, symbol: chosen)
