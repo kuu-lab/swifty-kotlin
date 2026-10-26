@@ -45,6 +45,27 @@ func resolveValueClassKind(
     return types.kind(of: instantiatedUnderlyingType)
 }
 
+/// Reference payloads need a separate nominal wrapper at erased boundaries:
+/// tagging the payload object itself would change its identity for other uses.
+func referenceBackedValueClassSymbol(
+    of kind: TypeKind,
+    types: TypeSystem,
+    symbols: SymbolTable?
+) -> SymbolID? {
+    guard case let .classType(classType) = kind,
+          classType.nullability == .nonNull,
+          let symbols,
+          symbols.symbol(classType.classSymbol)?.flags.contains(.valueType) == true,
+          symbols.effectiveValueClassUnderlyingType(for: classType.classSymbol) != nil
+    else { return nil }
+    switch resolveValueClassKind(kind, types: types, symbols: symbols) {
+    case .classType, .any, .functionType, .intersection, .kClassType:
+        return classType.classSymbol
+    default:
+        return nil
+    }
+}
+
 extension ABILoweringPass {
     /// Callees whose `typeParam`-typed parameter stores the argument verbatim into a
     /// generic container. Because type parameters are erased to Any at runtime, a
@@ -209,6 +230,18 @@ extension ABILoweringPass {
             return interner.intern("kk_value_class_box")
         }
 
+        if isReferenceBoxingBoundary,
+           let valueClass = referenceBackedValueClassSymbol(of: rawArgKind, types: types, symbols: symbols)
+        {
+            if case let .classType(parameterClass) = rawParamKind,
+               parameterClass.classSymbol == valueClass,
+               parameterClass.nullability == .nonNull
+            {
+                return nil
+            }
+            return interner.intern("kk_value_class_box")
+        }
+
         guard isReferenceBoxingBoundary else {
             if case let .primitive(paramPrimitive, .nullable) = paramKind,
                case let .primitive(argPrimitive, .nonNull) = argKind,
@@ -223,9 +256,21 @@ extension ABILoweringPass {
             return nil
         }
 
+        // A String-backed value class needs its own nominal tag at an
+        // erased argument boundary. Plain String arguments already cross
+        // this boundary as String handles, but passing that handle without
+        // tagging it makes an interface bridge's value-class cast fail.
+        let isStringBackedValueClass: Bool = {
+            guard case let .classType(classType) = rawArgKind,
+                  classType.nullability == .nonNull,
+                  symbols?.symbol(classType.classSymbol)?.flags.contains(.valueType) == true,
+                  case .stringStruct(.nonNull) = argKind
+            else { return false }
+            return true
+        }()
         return boxingCalleeTable.boxCallee(
             for: argKind,
-            requireNonNull: false,
+            requireNonNull: isStringBackedValueClass,
             preferStaticPrimitive: preferStaticPrimitive
         )
     }
