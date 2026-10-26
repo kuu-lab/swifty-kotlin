@@ -466,6 +466,45 @@ extension ExprTypeChecker {
                 return true
             }
         }
+        // A built-in or bundled rangeTo candidate can exist for the receiver
+        // while rejecting the RHS type. Kotlin then considers visible operator
+        // extensions; keep member precedence by retrying only when the current
+        // candidates have no viable call.
+        if op == .rangeTo,
+           ctx.resolver.probeCall(
+               candidates: operatorCandidates,
+               call: operatorCall,
+               expectedType: nil,
+               implicitReceiverType: lhs,
+               ctx: sema
+           ).viableCandidates.isEmpty
+        {
+            let localExtensionCandidates = collectLocalOperatorExtensionCandidates(
+                names: operatorNames,
+                receiverType: lhs,
+                call: operatorCall,
+                locals: locals,
+                ctx: ctx
+            )
+            if !localExtensionCandidates.isEmpty {
+                operatorCandidates = localExtensionCandidates
+            } else {
+                let extensionCandidates = collectScopedOperatorExtensionCandidates(
+                    names: operatorNames,
+                    receiverType: lhs,
+                    ctx: ctx
+                )
+                if !ctx.resolver.probeCall(
+                    candidates: extensionCandidates,
+                    call: operatorCall,
+                    expectedType: nil,
+                    implicitReceiverType: lhs,
+                    ctx: sema
+                ).viableCandidates.isEmpty {
+                    operatorCandidates = extensionCandidates
+                }
+            }
+        }
         // `collectOperatorCandidates` deliberately excludes primitive receivers
         // from member lookup for non-range operators. That also hides scoped
         // operator extensions because they aren't members. Search for those
