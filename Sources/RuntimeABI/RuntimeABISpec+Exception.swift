@@ -17,6 +17,8 @@ public extension RuntimeABISpec {
     static let throwableIsCancellationSpec: RuntimeABIFunctionSpec = abi.nt("kk_throwable_is_cancellation", "throwableRaw")
     static let bridgeSynchronizedSpec: RuntimeABIFunctionSpec = abi.th("__kk_synchronized", "lock fnPtr closureRaw outThrown")
     static let bridgeThrowableRawStackFramesSpec: RuntimeABIFunctionSpec = abi.th("__kk_throwable_rawStackFrames", "throwableRaw outThrown")
+    static let bridgeThrowableStackTraceSpec: RuntimeABIFunctionSpec = abi.nt("__kk_throwable_stackTrace", "throwableRaw")
+    static let bridgeThrowableSetStackTraceSpec: RuntimeABIFunctionSpec = abi.nt("__kk_throwable_setStackTrace", "throwableRaw stackTraceRaw")
     static let bridgeThrowableToStringSpec: RuntimeABIFunctionSpec = abi.th("__kk_throwable_toString", "throwableRaw outThrown")
     static let bridgePrintStderrSpec: RuntimeABIFunctionSpec = abi.nt("__kk_printStderr", "messageRaw")
     static let bridgeThrowableSuppressedRawSpec: RuntimeABIFunctionSpec = abi.nt("__kk_throwable_suppressedRaw", "throwableRaw")
@@ -132,6 +134,8 @@ public extension RuntimeABISpec {
         abi.nt("__kk_throwable_setMessage", "throwableRaw messageRaw"),
         abi.nt("__kk_throwable_cause", "throwableRaw"),
         bridgeThrowableRawStackFramesSpec,
+        bridgeThrowableStackTraceSpec,
+        bridgeThrowableSetStackTraceSpec,
         bridgeThrowableToStringSpec,
         bridgePrintStderrSpec,
         abi.nt("__kk_throwable_setCause", "throwableRaw causeRaw"),

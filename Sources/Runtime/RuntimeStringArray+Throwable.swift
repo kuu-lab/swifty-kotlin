@@ -201,14 +201,47 @@ func runtimeThrowableRawStackFrameStrings(from throwableRaw: Int) -> [String] {
     if let throwable = tryCast(ptr, to: RuntimeThrowableBox.self) {
         guard throwable.writableStackTrace else { return [] }
         let header = runtimeThrowableToString(throwableRaw) ?? throwable.renderedMessage
+        if let frames = runtimeThrowableStackTraceElementLines(throwable.stackTraceElementsRaw) {
+            return [header] + frames
+        }
         return [header] + runtimeThrowableStackFrameLines(throwable.stackTraceAddresses)
     }
     if let object = tryCast(ptr, to: RuntimeObjectBox.self) {
         guard object.throwableWritableStackTrace else { return [] }
         let header = runtimeThrowableToString(throwableRaw) ?? "java.lang.Throwable"
+        if let frames = runtimeThrowableStackTraceElementLines(object.throwableStackTraceElementsRaw) {
+            return [header] + frames
+        }
         return [header] + runtimeThrowableStackFrameLines(object.throwableStackTraceAddresses ?? [])
     }
     return []
+}
+
+private func runtimeThrowableStackTraceElementLines(_ stackTraceRaw: Int) -> [String]? {
+    guard stackTraceRaw != 0,
+          stackTraceRaw != runtimeNullSentinelInt,
+          let stackTrace = runtimeArrayBox(from: stackTraceRaw)
+    else {
+        return nil
+    }
+    return stackTrace.elements.map { "\tat \(runtimeElementToString($0))" }
+}
+
+private func runtimeCopyThrowableStackTrace(_ stackTraceRaw: Int) -> Int {
+    guard stackTraceRaw != 0,
+          stackTraceRaw != runtimeNullSentinelInt,
+          let stackTrace = runtimeArrayBox(from: stackTraceRaw)
+    else {
+        return stackTraceRaw
+    }
+    let copyRaw = kk_array_new(stackTrace.elements.count)
+    guard let copy = runtimeArrayBox(from: copyRaw) else {
+        return stackTraceRaw
+    }
+    for (index, element) in stackTrace.elements.enumerated() {
+        copy[index] = element
+    }
+    return copyRaw
 }
 
 private func runtimeAllocateArrayBox(length: Int) -> Int {
@@ -360,6 +393,45 @@ public func __kk_throwable_rawStackFrames(
         arrayBox[i] = registerRuntimeObject(RuntimeStringBox(frame))
     }
     return arrayRaw
+}
+
+@_cdecl("__kk_throwable_stackTrace")
+public func __kk_throwable_stackTrace(_ throwableRaw: Int) -> Int {
+    guard throwableRaw != runtimeNullSentinelInt,
+          throwableRaw != 0,
+          let ptr = UnsafeMutableRawPointer(bitPattern: throwableRaw)
+    else {
+        return runtimeNullSentinelInt
+    }
+    if let throwable = tryCast(ptr, to: RuntimeThrowableBox.self) {
+        return throwable.stackTraceElementsRaw == 0
+            ? runtimeNullSentinelInt
+            : runtimeCopyThrowableStackTrace(throwable.stackTraceElementsRaw)
+    }
+    if let throwable = tryCast(ptr, to: RuntimeObjectBox.self), runtimeIsThrowableRaw(throwableRaw) {
+        return throwable.throwableStackTraceElementsRaw == 0
+            ? runtimeNullSentinelInt
+            : runtimeCopyThrowableStackTrace(throwable.throwableStackTraceElementsRaw)
+    }
+    return runtimeNullSentinelInt
+}
+
+@_cdecl("__kk_throwable_setStackTrace")
+public func __kk_throwable_setStackTrace(_ throwableRaw: Int, _ stackTraceRaw: Int) -> Int {
+    guard throwableRaw != runtimeNullSentinelInt,
+          throwableRaw != 0,
+          let ptr = UnsafeMutableRawPointer(bitPattern: throwableRaw)
+    else {
+        return throwableRaw
+    }
+    if let throwable = tryCast(ptr, to: RuntimeThrowableBox.self) {
+        guard throwable.writableStackTrace else { return throwableRaw }
+        throwable.stackTraceElementsRaw = runtimeCopyThrowableStackTrace(stackTraceRaw)
+    } else if let throwable = tryCast(ptr, to: RuntimeObjectBox.self), runtimeIsThrowableRaw(throwableRaw) {
+        guard throwable.throwableWritableStackTrace else { return throwableRaw }
+        throwable.throwableStackTraceElementsRaw = runtimeCopyThrowableStackTrace(stackTraceRaw)
+    }
+    return throwableRaw
 }
 
 @_cdecl("__kk_throwable_toString")
