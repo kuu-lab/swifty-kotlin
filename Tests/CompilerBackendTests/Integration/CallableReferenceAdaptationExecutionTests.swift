@@ -95,6 +95,18 @@ struct CallableReferenceAdaptationExecutionTests {
         )
     }
 
+    @Test func defaultArgumentCallableReferenceRunsThroughGenericFunction() throws {
+        try compileAndRunKotlin(
+            """
+            fun foo(x: String, y: Char = 'K'): String = x + y
+            fun <T, U> call(f: (T) -> U, x: T): U = f(x)
+            fun main() { println(call(::foo, "O")) }
+            """,
+            expectedOutput: "OK\n",
+            moduleName: "KUU3350DefaultArgumentCallableReferenceThroughGenericFunction"
+        )
+    }
+
     @Test func virtualStringVarargCallableReferenceUsesPackedArrayABI() throws {
         try compileAndRunKotlin(
             """
