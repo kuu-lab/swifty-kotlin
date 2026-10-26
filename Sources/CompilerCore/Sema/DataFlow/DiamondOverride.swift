@@ -13,6 +13,7 @@ extension DataFlowSemaPhase {
     private struct DiamondImplementation {
         let implementationID: SymbolID
         let directInterfaceID: SymbolID
+        let ownerInterfaceID: SymbolID
         let inheritanceDepth: Int
     }
 
@@ -155,6 +156,7 @@ extension DataFlowSemaPhase {
                     mostSpecificImpls[key, default: []].append(DiamondImplementation(
                         implementationID: childID,
                         directInterfaceID: directInterfaceID,
+                        ownerInterfaceID: currentInterfaceID,
                         inheritanceDepth: depth
                     ))
                 }
@@ -167,16 +169,45 @@ extension DataFlowSemaPhase {
             }
         }
 
+        let ownerInterfaceIDs = Set(mostSpecificImpls.values.flatMap { implementations in
+            implementations.map(\.ownerInterfaceID)
+        })
+        let inheritedInterfacesByOwner = ownerInterfaceIDs.reduce(into: [SymbolID: Set<SymbolID>]()) {
+            inheritedByOwner, ownerInterfaceID in
+            inheritedByOwner[ownerInterfaceID] = inheritedInterfaceIDs(
+                of: ownerInterfaceID,
+                symbols: symbols
+            )
+        }
+
         var conflicts: [DiamondConflict] = []
         for (key, implementations) in mostSpecificImpls {
             guard !concreteSuperclassKeys.contains(key) else {
                 continue
             }
 
+            // A declaration in a subinterface replaces the matching default
+            // inherited from its parent, even when the class also lists that
+            // parent interface directly. Such candidates are one override
+            // chain, not an ambiguous pair of implementations.
+            let effectiveImplementations = implementations.filter { candidate in
+                !implementations.contains { other in
+                    guard candidate.implementationID != other.implementationID,
+                          let otherSymbol = symbols.symbol(other.implementationID),
+                          otherSymbol.flags.contains(.overrideMember)
+                    else {
+                        return false
+                    }
+                    return inheritedInterfacesByOwner[other.ownerInterfaceID]?
+                        .contains(candidate.ownerInterfaceID) == true
+                }
+            }
+            guard !effectiveImplementations.isEmpty else { continue }
+
             // Depth 0 means the direct interface provides the implementation,
             // which is more specific than defaults inherited from ancestors.
-            let minDepth = implementations.map(\.inheritanceDepth).min() ?? 0
-            let mostSpecific = implementations.filter { $0.inheritanceDepth == minDepth }
+            let minDepth = effectiveImplementations.map(\.inheritanceDepth).min() ?? 0
+            let mostSpecific = effectiveImplementations.filter { $0.inheritanceDepth == minDepth }
 
             var implGroups: [SymbolID: Set<SymbolID>] = [:]
             for implementation in mostSpecific {
@@ -230,6 +261,26 @@ extension DataFlowSemaPhase {
                 + "because it is inherited from multiple interfaces: \(ifaceNames)."
             diagnostics.error("KSWIFTK-SEMA-0171", msg, range: declRange)
         }
+    }
+
+    private func inheritedInterfaceIDs(
+        of childInterfaceID: SymbolID,
+        symbols: SymbolTable
+    ) -> Set<SymbolID> {
+        var visited: Set<SymbolID> = [childInterfaceID]
+        var queue = symbols.directSupertypes(for: childInterfaceID)
+        var inherited: Set<SymbolID> = []
+        while !queue.isEmpty {
+            let currentInterfaceID = queue.removeFirst()
+            guard visited.insert(currentInterfaceID).inserted,
+                  symbols.symbol(currentInterfaceID)?.kind == .interface
+            else {
+                continue
+            }
+            inherited.insert(currentInterfaceID)
+            queue.append(contentsOf: symbols.directSupertypes(for: currentInterfaceID))
+        }
+        return inherited
     }
 
     private func collectDiamondOverrideKeys(
