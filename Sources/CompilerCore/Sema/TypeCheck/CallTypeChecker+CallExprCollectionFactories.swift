@@ -67,7 +67,9 @@ extension CallTypeChecker {
                 let expectedType = expectedCollectionType(withArity: 1)
                 if let expectedType, explicitTypeArgs.isEmpty {
                     let isImmutable = name == "emptyList" || name == "listOf" || name == "listOfNotNull"
-                    if !(isImmutable && isMutableCollection(expectedType)) {
+                    // Mutable factories retain their concrete collection type;
+                    // only immutable factories adopt a compatible read-only target.
+                    if isImmutable && !isMutableCollection(expectedType) {
                         return (expectedType, typeArgs(from: expectedType))
                     }
                 }
