@@ -135,6 +135,53 @@ extension LoweringPassRegressionTests {
         #expect(!callees.contains(RuntimeCall.valueClassUnbox.name), "A value class whose payload cannot be null must not emit kk_value_class_unbox: \(callees)")
     }
 
+    @Test
+    func testConcreteGenericValueClassUsesInstantiatedUnderlyingTypeAtGenericBoundary() throws {
+        let source = """
+        annotation class JvmInline
+        @JvmInline
+        value class IC<T: Int>(val i: T) {
+            init { counter += i }
+        }
+        var counter = 0
+        fun <T> id(t: T) = t
+        fun pass() {
+            val ic = IC(42)
+            counter = 0
+            id(ic)
+        }
+        """
+        let callees = try loweredCallees(for: source, function: "pass", includeStdlib: false)
+        #expect(
+            callees.contains(RuntimeCall.tagValueClassBox.name),
+            "IC<Int> has a non-null Int payload and must use primitive boxing with its value-class tag: \(callees)"
+        )
+        #expect(
+            !callees.contains(RuntimeCall.valueClassBox.name),
+            "IC<Int> must not use the nominal box reserved for nullable underlying representations: \(callees)"
+        )
+    }
+
+    @Test
+    func testErasedGenericValueClassStillUsesNominalBoxAtGenericBoundary() throws {
+        let source = """
+        annotation class JvmInline
+        @JvmInline
+        value class Box<T>(val value: T)
+        fun <T> id(value: T): T = value
+        fun <T> erase(value: Box<T>): Any = id(value)
+        """
+        let callees = try loweredCallees(for: source, function: "erase", includeStdlib: false)
+        #expect(
+            callees.contains(RuntimeCall.valueClassBox.name),
+            "An erased generic payload may carry null and must retain the nominal value-class box: \(callees)"
+        )
+        #expect(
+            !callees.contains(RuntimeCall.tagValueClassBox.name),
+            "An erased generic payload must not use the primitive box-and-tag route: \(callees)"
+        )
+    }
+
     private func loweredCallees(for source: String, function functionName: String, includeStdlib: Bool = true) throws -> [String] {
         var callees: [String] = []
         try withTemporaryFiles(contents: [source]) { paths in

@@ -37,7 +37,12 @@ func resolveValueClassKind(
     else {
         return kind
     }
-    return types.kind(of: underlyingType)
+    let instantiatedUnderlyingType = types.substituteNominalTypeParameters(
+        in: underlyingType,
+        owner: classType.classSymbol,
+        ownerArgs: classType.args
+    )
+    return types.kind(of: instantiatedUnderlyingType)
 }
 
 extension ABILoweringPass {

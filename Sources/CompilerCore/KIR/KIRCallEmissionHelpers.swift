@@ -427,8 +427,13 @@ func nullableUnderlyingValueClassSymbol(
           let symbols,
           let sym = symbols.symbol(classType.classSymbol),
           sym.flags.contains(.valueType),
-          let underlyingType = symbols.effectiveValueClassUnderlyingType(for: classType.classSymbol)
+          let declaredUnderlyingType = symbols.effectiveValueClassUnderlyingType(for: classType.classSymbol)
     else { return nil }
+    let underlyingType = types.substituteNominalTypeParameters(
+        in: declaredUnderlyingType,
+        owner: classType.classSymbol,
+        ownerArgs: classType.args
+    )
     var visited: Set<SymbolID> = [classType.classSymbol]
     return valueClassReprCanBeNull(underlyingType, types: types, symbols: symbols, visited: &visited)
         ? classType.classSymbol
@@ -453,8 +458,13 @@ private func valueClassReprCanBeNull(
         guard let sym = symbols.symbol(classType.classSymbol),
               sym.flags.contains(.valueType),
               visited.insert(classType.classSymbol).inserted,
-              let inner = symbols.effectiveValueClassUnderlyingType(for: classType.classSymbol)
+              let declaredInner = symbols.effectiveValueClassUnderlyingType(for: classType.classSymbol)
         else { return false }
+        let inner = types.substituteNominalTypeParameters(
+            in: declaredInner,
+            owner: classType.classSymbol,
+            ownerArgs: classType.args
+        )
         return valueClassReprCanBeNull(inner, types: types, symbols: symbols, visited: &visited)
     default:
         return types.nullability(of: type) != .nonNull
