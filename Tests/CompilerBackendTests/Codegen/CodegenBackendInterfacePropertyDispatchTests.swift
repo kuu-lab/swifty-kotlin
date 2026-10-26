@@ -118,6 +118,17 @@ struct CodegenBackendInterfacePropertyDispatchTests {
     }
 
     @Test
+    func testInterfacePropertyAssignmentInsideSuspendReceiverLambda() throws {
+        let source = try diffCaseSource("kuu_3301_interface_default_suspend_receiver_assignment.kt")
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "Kuu3301InterfaceDefaultSuspendReceiverAssignment",
+            expected: "OK\nGeneric OK\n"
+        )
+    }
+
+    @Test
     func testCanonicalDiffCaseInterfaceStoredPropertyDispatch() throws {
         let source = try diffCaseSource("interface_stored_property_dispatch.kt")
 

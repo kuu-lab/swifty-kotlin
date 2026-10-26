@@ -253,22 +253,30 @@ extension ExprLowerer {
                       let ownerInfo = sema.symbols.symbol(ownerSymbol),
                       ownerInfo.kind == .class || ownerInfo.kind == .interface
             {
-                // No direct field offset (the property has a distinct
-                // backing field because it declares a custom accessor):
-                // this bare-name write must not be treated as a plain
-                // local variable. If a real `set(...)` body exists,
-                // dispatch to the setter accessor directly (mirrors
-                // CallLowerer+MemberPropertyReads.swift's getter dispatch
-                // for the analogous read side). Otherwise the setter is
-                // the compiler-provided default (`field = value`), so
-                // write straight to the backing field's own storage —
-                // the same backing-field global that MemberLowerer+
-                // DelegatedAndAccessorLowering.swift's lowerAccessorBody
-                // resolves through the active receiver's instance layout.
+                // A missing field offset can mean an accessor-backed class
+                // property or an interface property, which has no per-instance
+                // layout. Resolve interface writes through its itable setter;
+                // class properties use their setter body or backing field.
                 // (`.object` is deliberately excluded: the branch above
                 // already routes every object-member property through
                 // global-copy storage before reaching here.)
-                if driver.callLowerer.memberPropertyUsesSetterAccessor(symbol, ast: ast, sema: sema) {
+                if ownerInfo.kind == .interface,
+                   driver.callLowerer.tryLowerInterfaceItablePropertySetterWrite(
+                       propertySymbol: symbol,
+                       loweredReceiverID: receiverExprID,
+                       loweredValueID: valueID,
+                       sema: sema,
+                       cache: driver.ctx.nominalDispatchCache,
+                       arena: arena,
+                       interner: interner,
+                       instructions: &instructions
+                   ) != nil
+                {
+                    // An interface has no instance field layout of its own.
+                    // A bare property name in a nested lambda still refers to
+                    // the captured dispatch receiver, so write through its
+                    // runtime itable setter just like an explicit receiver.
+                } else if driver.callLowerer.memberPropertyUsesSetterAccessor(symbol, ast: ast, sema: sema) {
                     let setterSymbol = sema.symbols.extensionPropertySetterAccessor(for: symbol)
                         ?? SyntheticSymbolScheme.propertySetterAccessorSymbol(for: symbol)
                     let setterArguments = driver.callLowerer.propertyAccessorArguments(
