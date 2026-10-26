@@ -739,5 +739,36 @@ struct ComparatorOverloadResolutionTests {
             #expect(errors.isEmpty, "Expected the constructor's Comparator<String> parameter to type implicit `it`, got: \(errors)")
         }
     }
+
+    @Test func testFullyQualifiedPriorityQueueComparatorTypesCompareBySelector() throws {
+        let source = """
+        fun main() {
+            val pq = java.util.PriorityQueue<Int>(compareBy { -it })
+        }
+        """
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+
+        #expect(!ctx.diagnostics.hasError)
+
+        let sema = try #require(ctx.sema)
+        let ast = try #require(ctx.ast)
+        let names = KnownCompilerNames(interner: ctx.interner)
+        let compareByCall = try #require(firstExprID(in: ast) { _, expr in
+            guard case let .call(callee, _, _, _) = expr,
+                  case let .nameRef(name, _) = ast.arena.expr(callee)
+            else { return false }
+            return name == names.compareBy
+        })
+        guard case let .call(_, _, args, _) = ast.arena.expr(compareByCall),
+              let selector = args.first?.expr,
+              let selectorType = sema.bindings.exprType(for: selector),
+              case let .functionType(functionType) = sema.types.kind(of: selectorType)
+        else {
+            Issue.record("Expected compareBy's selector lambda to have an inferred function type")
+            return
+        }
+        #expect(functionType.params == [sema.types.intType])
+    }
 }
 #endif
