@@ -1344,6 +1344,7 @@ extension TypeSystem {
         defer { activeNominalLUBInputs.remove(inputSet) }
 
         let variances = allTypeParameterVariances(for: symbol)
+        let isArray = symbol == arrayClassSymbol
         var combined: [TypeArg] = []
         for index in first.indices {
             let arguments = argumentLists.map { $0[index] }
@@ -1353,10 +1354,22 @@ extension TypeSystem {
             }
             var upperBounds: [TypeID] = []
             for argument in arguments {
-                guard case let .out(bound) = composedProjection(
-                    declarationVariance: variances[index], useSite: argument
-                ) else { return nil }
-                upperBounds.append(bound)
+                if isArray {
+                    // Kotlin's invariant Array still has an out-projected LUB:
+                    // reading through Array<out X> is safe and keeps Array's
+                    // indexed and iterable members available.
+                    switch argument {
+                    case let .invariant(bound), let .out(bound):
+                        upperBounds.append(bound)
+                    case .in, .star:
+                        return nil
+                    }
+                } else {
+                    guard case let .out(bound) = composedProjection(
+                        declarationVariance: variances[index], useSite: argument
+                    ) else { return nil }
+                    upperBounds.append(bound)
+                }
             }
             combined.append(.out(lub(upperBounds)))
         }
