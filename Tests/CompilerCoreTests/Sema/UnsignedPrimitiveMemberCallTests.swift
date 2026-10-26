@@ -1,8 +1,58 @@
 @testable import CompilerCore
 import Testing
+import TestStdlibCache
 
 @Suite
 struct UnsignedPrimitiveMemberCallTests {
+
+    // KUU-3289: Keep explicit compareTo calls resolvable for inferred unsigned locals.
+    @Test(arguments: [false, true])
+    func testUIntAndULongCompareToMemberCallsResolve(allowDefaultStdlibLibrary: Bool) throws {
+        let source = """
+        fun inferredUnsignedValues() {
+            val uintLeft = 1u
+            val uintRight = 2u
+            val ulongLeft = 1uL
+            val ulongRight = 2uL
+            uintLeft.compareTo(uintRight)
+            ulongLeft.compareTo(ulongRight)
+        }
+
+        fun typedUnsignedValues(uintLeft: UInt, uintRight: UInt, ulongLeft: ULong, ulongRight: ULong) {
+            uintLeft.compareTo(uintRight)
+            ulongLeft.compareTo(ulongRight)
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            if allowDefaultStdlibLibrary {
+                TestStdlibCache.shared.prepare()
+            }
+            let ctx = makeCompilationContext(
+                inputs: [path],
+                emit: allowDefaultStdlibLibrary ? .executable : .kirDump,
+                allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
+            )
+            try runSema(ctx)
+            let diagnostics = diagnosticsForPath(path, in: ctx).filter { $0.severity == .error }
+            #expect(diagnostics.isEmpty, "Unexpected diagnostics: \(diagnostics)")
+
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
+            var checkedCalls = 0
+            for (index, expr) in ast.arena.exprs.enumerated() {
+                guard case let .memberCall(_, callee, _, args, range) = expr,
+                      callee == ctx.interner.intern("compareTo"),
+                      args.count == 1,
+                      ctx.sourceManager.path(of: range.start.file) == path
+                else { continue }
+                let id = ExprID(rawValue: Int32(index))
+                #expect(sema.bindings.exprType(for: id) == sema.types.intType)
+                #expect(sema.bindings.callBindings[id] != nil)
+                checkedCalls += 1
+            }
+            #expect(checkedCalls == 4)
+        }
+    }
 
     @Test
     func testUnsignedUshrIsRejected() throws {
