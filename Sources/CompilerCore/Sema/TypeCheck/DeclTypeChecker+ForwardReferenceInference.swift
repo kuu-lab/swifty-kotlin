@@ -310,7 +310,6 @@ extension DeclTypeChecker {
         initialLocals: LocalBindings = [:]
     ) -> Bool {
         guard property.type == nil,
-              property.setter == nil,
               property.explicitBackingField == nil
         else {
             return false
@@ -320,6 +319,7 @@ extension DeclTypeChecker {
         // prechecking so earlier function bodies see its concrete return type.
         if let receiverType = ctx.sema.symbols.extensionPropertyReceiverType(for: symbol) {
             guard !property.isVar,
+                  property.setter == nil,
                   property.receiverType != nil,
                   property.typeParams.isEmpty,
                   property.contextReceivers.isEmpty,
@@ -350,7 +350,10 @@ extension DeclTypeChecker {
             return type != ctx.sema.types.nullableNothingType
         }
 
+        // A visibility-only setter such as `internal set` has no body and does
+        // not change the initializer's inferred property type.
         guard property.getter == nil,
+              property.setter == nil || property.setter?.body == .unit,
               property.receiverType == nil
         else {
             return false
@@ -448,6 +451,13 @@ extension DeclTypeChecker {
         case .call:
             return safePrecheckTopLevelCall(exprID, in: ctx, locals: locals)
         case .memberCall:
+            if let enumEntryType = safePrecheckQualifiedEnumEntryType(
+                exprID, in: ctx, locals: locals
+            ),
+               isSafePrecheckValueType(enumEntryType, in: ctx)
+            {
+                return enumEntryType
+            }
             return safePrecheckMemberCall(exprID, in: ctx, locals: locals)
         default:
             // Arbitrary control flow, mutation, and delegates are deliberately
@@ -667,6 +677,91 @@ extension DeclTypeChecker {
             )
         })
         return safePrecheckCallResultType(Array(Set(candidates)), in: ctx)
+    }
+
+    /// Enum-entry initializers can appear as a classifier-qualified chain
+    /// such as `Parser.ValueOrigin.UNSET`. The ordinary member-call precheck
+    /// treats the first classifier as a value receiver, so it cannot infer
+    /// this chain and leaves an enclosing inferred property at its `Any?`
+    /// header type.
+    private func safePrecheckQualifiedEnumEntryType(
+        _ exprID: ExprID,
+        in ctx: TypeInferenceContext,
+        locals: LocalBindings
+    ) -> TypeID? {
+        var segments: [(expr: ExprID, name: InternedString)] = []
+        func collect(_ id: ExprID) -> Bool {
+            switch ctx.ast.arena.expr(id) {
+            case let .nameRef(name, _):
+                segments.append((id, name))
+                return true
+            case let .memberCall(receiver, name, typeArguments, arguments, _):
+                guard typeArguments.isEmpty, arguments.isEmpty,
+                      !ctx.ast.arena.isExplicitCall(id), collect(receiver)
+                else {
+                    return false
+                }
+                segments.append((id, name))
+                return true
+            default:
+                return false
+            }
+        }
+
+        guard collect(exprID), segments.count >= 2,
+              let root = segments.first
+        else {
+            return nil
+        }
+        guard locals[root.name] == nil else { return nil }
+        for receiver in ctx.implicitReceiverMemberLookupEntries() {
+            if driver.helpers.lookupMemberProperty(
+                named: root.name,
+                receiverType: ctx.sema.types.makeNonNullable(receiver.type),
+                sema: ctx.sema
+            ) != nil {
+                return nil
+            }
+        }
+        let rootCandidates = ctx.scope.lookup(root.name)
+        guard rootCandidates.count == 1,
+              let rootSymbol = ctx.sema.symbols.symbol(rootCandidates[0]),
+              rootSymbol.kind == .class || rootSymbol.kind == .enumClass
+        else {
+            return nil
+        }
+
+        var ownerSymbol = rootSymbol.id
+        var ownerFQName = rootSymbol.fqName
+        for segment in segments.dropFirst() {
+            ownerFQName.append(segment.name)
+            let candidates = ctx.sema.symbols.lookupAll(fqName: ownerFQName).filter {
+                ctx.sema.symbols.parentSymbol(for: $0) == ownerSymbol
+            }
+            guard candidates.count == 1,
+                  let member = ctx.sema.symbols.symbol(candidates[0])
+            else {
+                return nil
+            }
+
+            if segment.expr == exprID {
+                guard member.kind == .field,
+                      ctx.sema.symbols.symbol(ownerSymbol)?.kind == .enumClass
+                else {
+                    return nil
+                }
+                return ctx.sema.symbols.propertyType(for: member.id)
+            }
+
+            switch member.kind {
+            case .class, .interface, .object, .enumClass, .annotationClass:
+                ownerSymbol = member.id
+                ownerFQName = member.fqName
+            default:
+                return nil
+            }
+        }
+        return nil
     }
 
     private func safePrecheckExtensionCandidates(
