@@ -299,6 +299,8 @@ final class ConstPropertyEvaluator {
         guard path.count == 3, path[0] == "kotlin", path[2] == "Companion" else { return nil }
         let member = interner.resolve(info.name)
         switch (path[1], member) {
+        case ("Char", "MIN_VALUE"): return .charLiteral(0)
+        case ("Char", "MAX_VALUE"): return .charLiteral(65535)
         case ("Byte", "MIN_VALUE"): return .intLiteral(-128)
         case ("Byte", "MAX_VALUE"): return .intLiteral(127)
         case ("Short", "MIN_VALUE"): return .intLiteral(-32768)
