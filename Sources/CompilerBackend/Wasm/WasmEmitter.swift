@@ -114,6 +114,14 @@ final class WasmModuleContext {
         static let mutableMapIteratorTypeID: Int64 = -9_014
         /// `__kk_range_for_in_iterator` result box: `{cur@16, last@24, step@32}`.
         static let rangeForInIteratorTypeID: Int64 = -9_015
+        /// `kk_function_create_N` function-value box:
+        /// `{fnTableIdx@16, closure@24, arity@32, description@40}`.
+        static let functionValueTypeID: Int64 = -9_016
+        /// Function-value box field offsets.
+        static let functionFnIdxOffset: Int64 = 16
+        static let functionClosureOffset: Int64 = 24
+        static let functionArityOffset: Int64 = 32
+        static let functionDescOffset: Int64 = 40
         /// Set boxes share the list layout `{array@16, count@24, flags@32}`
         /// so `kk_list_iterator` iterates them unchanged. Concrete nominal
         /// tags come from `stableNominalTypeID` so `is` checks work.
@@ -453,6 +461,21 @@ public struct WasmEmitter {
             _ = ctx.wasmImportFDWrite()
             _ = ctx.wasmImportProcExit()
         }
+
+        // Reserve funcref table slot 0 for a dispatch-error thunk. Vtable and
+        // itable memory is zero-initialised, so an unwritten slot reads back
+        // as 0 — without a real occupant here `call_indirect` would alias
+        // whatever function landed at slot 0 (the native equivalent is
+        // `kk_dispatch_error`). Every genuine registration gets a slot >= 1.
+        let dispatchErrorIndex = ctx.module.addFunction(
+            type: .i64Signature(0), name: "$__kk_wasm_dispatch_error"
+        )
+        var dispatchErrorBody = WasmCode()
+        dispatchErrorBody.u(0)
+        dispatchErrorBody.op(WasmOpcode.unreachable)
+        dispatchErrorBody.op(WasmOpcode.end)
+        ctx.module.setBody(dispatchErrorBody.bytes, forFunctionIndex: dispatchErrorIndex)
+        _ = ctx.module.tableSlot(forFunction: dispatchErrorIndex)
 
         // Register internal functions, then KIR globals, then runtime globals.
         let functions = ctx.emitFunctions()
