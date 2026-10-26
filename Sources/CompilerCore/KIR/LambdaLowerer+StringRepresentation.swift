@@ -75,6 +75,21 @@ extension LambdaLowerer {
         return "\(prefix)\(receiverText)\(interner.resolve(name))(\(params)): \(result)"
     }
 
+    func functionTypeDescription(
+        _ function: FunctionType,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> String {
+        let params = function.params
+            .map { reflectionTypeName($0, sema: sema, interner: interner) }
+            .joined(separator: ", ")
+        let receiver = function.receiver
+            .map { reflectionTypeName($0, sema: sema, interner: interner) + "." } ?? ""
+        let prefix = function.isSuspend ? "suspend " : ""
+        let result = reflectionTypeName(function.returnType, sema: sema, interner: interner)
+        return "\(prefix)\(receiver)(\(params)) -> \(result)"
+    }
+
     private func reflectionTypeName(_ type: TypeID, sema: SemaModule, interner: StringInterner) -> String {
         let suffix = sema.types.nullability(of: type) == .nullable ? "?" : ""
         switch sema.types.kind(of: type) {

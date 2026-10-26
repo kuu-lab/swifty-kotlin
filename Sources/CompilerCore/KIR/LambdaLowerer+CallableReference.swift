@@ -2044,13 +2044,21 @@ extension LambdaLowerer {
             let anonymous = targetSymbol.map {
                 sema.symbols.isAnonymousFunction($0, interner: interner)
             } ?? false
+            let functionType: FunctionType? = if case let .functionType(type) = sema.types.kind(of: callableType) {
+                type
+            } else {
+                nil
+            }
             emitFunctionDescription(
                 value: taggedExpr,
-                description: anonymous ? "kotlin.Function\(arity)" : functionReferenceDescription(
-                    name: memberName, type: callableType, targetSymbol: targetSymbol,
-                    sema: sema, interner: interner
-                ),
-                identity: anonymous,
+                description: anonymous
+                    ? functionType.map { functionTypeDescription($0, sema: sema, interner: interner) }
+                        ?? "kotlin.Function\(arity)"
+                    : functionReferenceDescription(
+                        name: memberName, type: callableType, targetSymbol: targetSymbol,
+                        sema: sema, interner: interner
+                    ),
+                identity: anonymous && functionType == nil,
                 sema: sema, arena: arena, interner: interner, instructions: &instructions
             )
         }

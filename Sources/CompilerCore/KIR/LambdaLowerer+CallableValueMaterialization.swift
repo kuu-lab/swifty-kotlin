@@ -253,8 +253,8 @@ extension LambdaLowerer {
         )
         emitFunctionDescription(
             value: materializedExpr,
-            description: "kotlin.Function\(invocationTypes.count)",
-            identity: true,
+            description: functionTypeDescription(functionType, sema: sema, interner: interner),
+            identity: false,
             sema: sema, arena: arena, interner: interner, instructions: &instructions
         )
         return materializedExpr
