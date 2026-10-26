@@ -25,8 +25,10 @@ extension ControlFlowTypeChecker {
                 layout.mutableFlags.indices.contains(index) ? layout.mutableFlags[index] : nil
             } ?? isMutable
             if usesNameBasedDestructuring {
-                guard let name else { continue }
-                let propertyName = layout?.properties[index] ?? name
+                let propertyName = layout.flatMap { layout in
+                    layout.properties.indices.contains(index) ? layout.properties[index] : nil
+                } ?? name
+                guard let propertyName else { continue }
                 let property: (type: TypeID, binding: DestructuringPropertyBinding?)
                 if rhsType == sema.types.errorType {
                     property = (sema.types.errorType, nil)
@@ -39,16 +41,18 @@ extension ControlFlowTypeChecker {
                         ctx: ctx
                     )
                 }
-                let symbol = sema.symbols.define(
-                    kind: .local,
-                    name: name,
-                    fqName: [interner.intern("__destructuring_\(id.rawValue)"), name],
-                    declSite: range,
-                    visibility: .private,
-                    flags: entryMutable ? [.mutable] : []
-                )
-                sema.symbols.setPropertyType(property.type, for: symbol)
-                locals[name] = (property.type, symbol, entryMutable, true)
+                if let name {
+                    let symbol = sema.symbols.define(
+                        kind: .local,
+                        name: name,
+                        fqName: [interner.intern("__destructuring_\(id.rawValue)"), name],
+                        declSite: range,
+                        visibility: .private,
+                        flags: entryMutable ? [.mutable] : []
+                    )
+                    sema.symbols.setPropertyType(property.type, for: symbol)
+                    locals[name] = (property.type, symbol, entryMutable, true)
+                }
                 if let binding = property.binding {
                     sema.bindings.bindDestructuringProperty(id, index: index, binding: binding)
                 }
