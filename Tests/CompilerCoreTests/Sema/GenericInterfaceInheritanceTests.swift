@@ -85,5 +85,22 @@ struct GenericInterfaceInheritanceTests {
             sema.symbols.supertypeTypeArgs(for: producerSymbol, supertype: function0Symbol) == [.out(valueType)]
         )
     }
+
+    @Test func redundantAncestorInterfaceViaGenericSuperclassCompiles() throws {
+        let ctx = makeContextFromSource("""
+        interface AL { fun get(index: Int): Any? = null }
+        interface ALE<T> : AL {
+            fun getOrNull(index: Int, value: T): T { val r = get(index) as? T; return r ?: value }
+        }
+        open class SmartArrayList() : ALE<String> {}
+        class SmartArrayList2() : SmartArrayList(), AL {}
+        fun main() { println(SmartArrayList2().getOrNull(0, "239")) }
+        """)
+        try runSema(ctx)
+        #expect(
+            !ctx.diagnostics.hasError,
+            "Expected inherited AL paths to unify, got: \(ctx.diagnostics.diagnostics)"
+        )
+    }
 }
 #endif

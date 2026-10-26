@@ -549,11 +549,14 @@ extension TypeSystem {
         }
         let result: TypeID = if filtered.dropFirst().allSatisfy({ $0 == first }) {
             first
-        } else if case .typeParam = kind(of: first),
-                  filtered.dropFirst().allSatisfy({ isSubtype($0, first) }) {
+        } else if let commonTypeParameter = filtered.first(where: { candidate in
+            guard case .typeParam = kind(of: candidate) else { return false }
+            return filtered.allSatisfy { isSubtype($0, candidate) }
+        }) {
             // Preserve a declared common supertype such as `R` when a
-            // self-type extension combines it with a bounded receiver `C`.
-            first
+            // self-type extension combines it with a bounded receiver `C`, or
+            // when `T & Any` is joined with the original type parameter `T`.
+            commonTypeParameter
         } else if let kClassLub = lubKClassTypes(filtered) {
             kClassLub
         } else {
