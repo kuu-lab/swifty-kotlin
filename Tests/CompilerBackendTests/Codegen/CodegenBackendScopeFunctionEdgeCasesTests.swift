@@ -134,6 +134,36 @@ struct CodegenBackendScopeFunctionEdgeCasesTests {
     }
 
     @Test
+    func testCrossinlineWrapperCapturesContextParameter() throws {
+        let source = """
+        import kotlin.ExperimentalContextParameters
+
+        @OptIn(ExperimentalContextParameters::class)
+        context(s: String)
+        fun foo() = s
+
+        fun bar(f: () -> String) = f()
+
+        inline fun baz(crossinline f: () -> String) = bar { f() }
+
+        @OptIn(ExperimentalContextParameters::class)
+        context(_: String)
+        fun qux() = baz { foo() }
+
+        @OptIn(ExperimentalContextParameters::class)
+        fun main() {
+            println(context("OK") { qux() })
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "CrossinlineContextParameterCapture",
+            expected: "OK\n"
+        )
+    }
+
+    @Test
     func testO2ContextFunctionInvokeUsesContextReceiverArity() throws {
         let wrappers = [1, 22].map { arity in
             let types = (0 ..< arity).map { "T\($0)" }

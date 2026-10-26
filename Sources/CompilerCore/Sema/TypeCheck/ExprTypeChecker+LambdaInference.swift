@@ -190,8 +190,16 @@ extension ExprTypeChecker {
         // though the enclosing member's `this` shadows them in `locals` — the
         // enclosing context (e.g. an object literal) captured them, so the
         // lambda can capture them through the same chain.
-        let outerSymbols = Set(locals.values.map(\.symbol) + ctx.implicitReceiverStack.map(\.symbol))
-            .union(ctx.outerReceiverTypes.compactMap(\.symbol))
+        // Anonymous context parameters are not in `locals`, but call bindings
+        // still refer to their symbols and closures must capture those values.
+        let enclosingContextSymbols = ctx.enclosingFunctionSymbol
+            .flatMap { sema.symbols.functionSignature(for: $0)?.contextParameterSymbols } ?? []
+        let outerSymbols = Set(
+            locals.values.map(\.symbol)
+                + ctx.implicitReceiverStack.map(\.symbol)
+                + ctx.outerReceiverTypes.compactMap(\.symbol)
+                + enclosingContextSymbols
+        )
         let inferredImplicitItType = params.isEmpty
             ? inferItParameterType(ctx: ctx, id: id, sema: sema, locals: locals)
             : nil
