@@ -92,5 +92,34 @@ struct ImportedStdlibImportScopeTests {
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
         #expect(errors.isEmpty, "\(errors)")
     }
+
+    /// A wildcard import exposes declarations in its package only. In
+    /// particular, kotlin.properties.* must not make kotlin.reflect.KProperty
+    /// visible by its short name.
+    @Test
+    func wildcardImportDoesNotExposeTypesFromOtherPackages() throws {
+        let ctx = makeContextFromSources([
+            "package kotlin.reflect\ninterface KProperty<out V>",
+            "package kotlin.properties\nclass PropertyMarker",
+            """
+            package consumer
+            import kotlin.properties.*
+            class Del { operator fun getValue(t: Any?, p: KProperty<*>) = 1 }
+            """,
+            """
+            package explicitConsumer
+            import kotlin.reflect.KProperty
+            class Del { operator fun getValue(t: Any?, p: KProperty<*>) = 1 }
+            """
+        ])
+        try runSema(ctx)
+        let unresolvedPropertyType = ctx.diagnostics.diagnostics.filter {
+            $0.code == "KSWIFTK-SEMA-0025" && $0.message == "Unresolved type 'KProperty'."
+        }
+        #expect(
+            unresolvedPropertyType.count == 1,
+            "Expected only the declaration without its kotlin.reflect import to leave KProperty unresolved"
+        )
+    }
 }
 #endif

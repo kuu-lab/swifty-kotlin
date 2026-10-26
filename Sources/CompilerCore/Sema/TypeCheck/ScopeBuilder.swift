@@ -767,7 +767,6 @@ struct TypeCheckScopeBuilder {
             ["kotlin", "io"],
             ["kotlin", "jvm"],
             ["kotlin", "ranges"],
-            ["kotlin", "reflect"],
             ["kotlin", "sequences"],
             ["kotlin", "text"],
             ["kotlin", "time"],
