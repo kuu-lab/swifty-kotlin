@@ -302,6 +302,18 @@ public func kk_op_is(_ value: Int, _ typeToken: Int) -> Int {
                 actualIsSuspend: false
             ) ? 1 : 0
         }
+        // User classes can implement a function type as a supertype. Their
+        // nominal metadata carries the arity-specific FunctionN edge, while
+        // runtime-created closure boxes use the arity metadata above.
+        if let sourceTypeID = runtimeObjectTypeID(rawValue: value) {
+            let targetFQName = isSuspend
+                ? "kotlin.coroutines.SuspendFunction\(arity)"
+                : "kotlin.Function.Function\(arity)"
+            return runtimeIsAssignable(
+                sourceTypeID: sourceTypeID,
+                targetTypeID: runtimeStableNominalTypeID(fqName: targetFQName)
+            ) ? 1 : 0
+        }
         return 0
 
     case RuntimeTypeTokenEncoding.longBase:

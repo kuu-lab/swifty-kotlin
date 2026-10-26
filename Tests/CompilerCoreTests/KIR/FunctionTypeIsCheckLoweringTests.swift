@@ -61,4 +61,25 @@ struct FunctionTypeIsCheckLoweringTests {
         )
         #expect(module.arena.expr(token) == .intLiteral(expected))
     }
+
+    @Test
+    func testSuspendFunctionInterfaceCheckEncodesSuspendFlagAndArity() throws {
+        let ctx = makeContextFromSource("""
+        import kotlin.coroutines.SuspendFunction0
+        fun check(value: Any): Boolean = value is SuspendFunction0<*>
+        """)
+        try runToKIR(ctx)
+        #expect(!ctx.diagnostics.hasError, Comment(rawValue: "\(ctx.diagnostics.diagnostics)"))
+        let module = try #require(ctx.kir)
+        let body = try findKIRFunctionBody(named: "check", in: module, interner: ctx.interner)
+        let calls = kirCalls(to: .opIs, in: body, interner: ctx.interner)
+        #expect(calls.count == 1)
+        let token = try #require(calls.first?.arguments.last)
+        let expected = RuntimeTypeCheckToken.encode(
+            base: RuntimeTypeCheckToken.functionBase,
+            nullable: false,
+            payload: 0x100
+        )
+        #expect(module.arena.expr(token) == .intLiteral(expected))
+    }
 }

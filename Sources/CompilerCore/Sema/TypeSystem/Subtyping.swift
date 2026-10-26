@@ -1369,6 +1369,16 @@ extension TypeSystem {
         isSuspend ? suspendFunctionNArity(of: classSymbol) : functionNArity(of: classSymbol)
     }
 
+    func nominalFunctionInterfaceShape(of classSymbol: SymbolID) -> (arity: Int, isSuspend: Bool)? {
+        if let arity = functionNArity(of: classSymbol) {
+            return (arity, false)
+        }
+        if let arity = suspendFunctionNArity(of: classSymbol) {
+            return (arity, true)
+        }
+        return nil
+    }
+
     func nominalFunctionType(for type: TypeID) -> FunctionType? {
         guard case let .classType(classType) = kind(of: type) else {
             return nil

@@ -94,4 +94,26 @@ struct RuntimeFunctionArityTests {
         #expect(kk_op_is(reflected, functionToken(1)) == 0)
         #expect(kk_op_is(42, functionToken(1)) == 0)
     }
+
+    @Test func boxedSuspendFunctionChecksRequireTheSuspendMarkerAndMatchingArity() {
+        let regular = kk_function_create_0(0x123400, 0, nil)
+        let suspended = kk_suspend_function_create(0x234500, 0, 0, 0x345600)
+
+        #expect(kk_op_is(regular, functionToken(0)) == 1)
+        #expect(kk_op_is(regular, functionToken(0, suspend: true)) == 0)
+        #expect(kk_op_is(suspended, functionToken(0)) == 0)
+        #expect(kk_op_is(suspended, functionToken(0, suspend: true)) == 1)
+        #expect(kk_op_is(suspended, functionToken(1, suspend: true)) == 0)
+    }
+
+    @Test func suspendFunctionChecksAcceptNominalImplementations() {
+        let customTypeID = runtimeStableNominalTypeID(fqName: "test.CustomSuspendFunction")
+        let suspendFunction0ID = runtimeStableNominalTypeID(fqName: "kotlin.coroutines.SuspendFunction0")
+        runtimeRegisterTypeEdge(childTypeID: customTypeID, parentTypeID: suspendFunction0ID)
+        let value = kk_object_new(0, Int(customTypeID))
+
+        #expect(kk_op_is(value, functionToken(0, suspend: true)) == 1)
+        #expect(kk_op_is(value, functionToken(1, suspend: true)) == 0)
+        #expect(kk_op_is(value, functionToken(0)) == 0)
+    }
 }
