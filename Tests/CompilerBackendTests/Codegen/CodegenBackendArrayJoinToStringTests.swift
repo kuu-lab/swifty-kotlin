@@ -31,6 +31,32 @@ struct CodegenBackendArrayJoinToStringTests {
         try assertKotlinOutput(source, moduleName: "ArrayJoinToStringSeparator", expected: "1 | 2 | 3\n10,20,30\n")
     }
 
+    @Test func testCodegenGenericArrayJoinToStringAndJoinToUseArrayView() throws {
+        let source = """
+        fun main() {
+            println(arrayOf(1, 2).joinToString())
+            println(arrayOf("a", "b").joinToString("-"))
+
+            val buffer = StringBuilder()
+            arrayOf(1, 2).joinTo(buffer, ", ")
+            println(buffer.toString())
+        }
+        """
+        let expected = "1, 2\na-b\n1, 2\n"
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "GenericArrayJoinToStringAndJoinTo",
+            expected: expected
+        )
+        try assertKotlinOutput(
+            source,
+            moduleName: "GenericArrayJoinToStringAndJoinToSourceStdlib",
+            expected: expected,
+            allowDefaultStdlibLibrary: false
+        )
+    }
+
     @Test func testCodegenArrayJoinToStringWithPrefixAndPostfix() throws {
         let source = """
         fun main() {
