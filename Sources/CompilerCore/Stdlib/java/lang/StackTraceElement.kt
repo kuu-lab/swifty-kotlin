@@ -29,3 +29,15 @@ public class StackTraceElement(
         return declaringClassName + "." + methodNameValue + "(" + location + ")"
     }
 }
+
+public val StackTraceElement.className: String
+    get() = getClassName()
+
+public val StackTraceElement.methodName: String
+    get() = getMethodName()
+
+public val StackTraceElement.fileName: String?
+    get() = getFileName()
+
+public val StackTraceElement.lineNumber: Int
+    get() = getLineNumber()

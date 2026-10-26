@@ -7,7 +7,9 @@ open class Throwable {
 
     val message: String? get() = null
     val cause: Throwable? get() = null
-    val stackTrace: Array<java.lang.StackTraceElement> get() = null!!
+    var stackTrace: Array<java.lang.StackTraceElement>
+        get() = null!!
+        set(value) {}
     val suppressed: Array<Throwable> get() = null!!
 
     fun initCause(cause: Throwable?): Throwable = this

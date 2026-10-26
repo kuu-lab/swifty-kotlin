@@ -141,6 +141,7 @@ final class RuntimeObjectBox: RuntimeArrayBox {
     var throwableMessageRaw: Int = 0
     var throwableCause: Int
     var throwableStackTraceAddresses: [Int]?
+    var throwableStackTraceElementsRaw: Int
     var throwableSuppressed: [Int]
     var throwableSuppressionEnabled: Bool
     var throwableWritableStackTrace: Bool
@@ -153,6 +154,7 @@ final class RuntimeObjectBox: RuntimeArrayBox {
         self.throwableMessage = nil
         self.throwableCause = 0
         self.throwableStackTraceAddresses = nil
+        self.throwableStackTraceElementsRaw = 0
         self.throwableSuppressed = []
         self.throwableSuppressionEnabled = true
         self.throwableWritableStackTrace = true

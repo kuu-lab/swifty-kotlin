@@ -9,6 +9,7 @@ class RuntimeThrowableBox {
     var messageRaw: Int
     var cause: Int
     var stackTraceAddresses: [Int]
+    var stackTraceElementsRaw: Int = 0
     var suppressionEnabled = true
     var writableStackTrace = true
     /// Stores raw Int pointers to other RuntimeThrowableBox instances.
