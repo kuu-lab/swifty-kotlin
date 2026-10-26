@@ -85,7 +85,8 @@ extension CollectionVirtualCallRewriteLoweringPass {
                 callee: lookup.kkListChunkedBridgeName,
                 arguments: [receiver] + arguments,
                 result: transformResult,
-                canThrow: false
+                canThrow: true,
+                thrownResult: origThrownResult
             ))
             if let result {
                 state.tagListResult(result, temporary: transformResult)
@@ -124,7 +125,8 @@ extension CollectionVirtualCallRewriteLoweringPass {
                 callee: lookup.kkListWindowedBridgeName,
                 arguments: [receiver, arguments[0], oneExpr, zeroExpr],
                 result: transformResult,
-                canThrow: false
+                canThrow: true,
+                thrownResult: origThrownResult
             ))
             if let result {
                 state.tagListResult(result, temporary: transformResult)
@@ -142,7 +144,8 @@ extension CollectionVirtualCallRewriteLoweringPass {
                 callee: lookup.kkListWindowedBridgeName,
                 arguments: [receiver, arguments[0], arguments[1], zeroExpr],
                 result: transformResult,
-                canThrow: false
+                canThrow: true,
+                thrownResult: origThrownResult
             ))
             if let result {
                 state.tagListResult(result, temporary: transformResult)
@@ -161,7 +164,8 @@ extension CollectionVirtualCallRewriteLoweringPass {
                     callee: lookup.kkListWindowedBridgeName,
                     arguments: [receiver] + arguments,
                     result: transformResult,
-                    canThrow: false
+                    canThrow: true,
+                    thrownResult: origThrownResult
                 ))
                 if let result {
                     state.tagListResult(result, temporary: transformResult)
