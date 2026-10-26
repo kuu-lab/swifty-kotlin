@@ -2,6 +2,7 @@
 @testable import CompilerCore
 import Foundation
 import Testing
+@testable import CompilerTestSupport
 
 // KUU-950: `catch (e: T)` must resolve `T` through the same name-resolution
 // path as declarations and `is`/`as` expressions — import priority (explicit >

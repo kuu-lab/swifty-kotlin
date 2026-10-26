@@ -1,6 +1,7 @@
 #if canImport(Testing)
 import CompilerCore
 import Testing
+@testable import CompilerTestSupport
 
 @Suite
 struct LocalClassVtableLayoutTests {

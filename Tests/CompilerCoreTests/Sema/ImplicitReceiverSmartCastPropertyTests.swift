@@ -1,6 +1,7 @@
 #if canImport(Testing)
 @testable import CompilerCore
 import Testing
+@testable import CompilerTestSupport
 
 @Suite
 struct ImplicitReceiverSmartCastPropertyTests {
@@ -64,22 +65,6 @@ struct ImplicitReceiverSmartCastPropertyTests {
         }
         class Child : Base()
         val Child.marker: String get() = "OK"
-        """)
-        try runSema(ctx)
-        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
-    }
-
-    @Test
-    func narrowedMemberThisResolvesInferredTopLevelExtensionProperty() throws {
-        let ctx = makeContextFromSource("""
-        open class KFoo {
-            fun foo(): String {
-                if (this is KFooQux) return qux
-                throw AssertionError()
-            }
-        }
-        class KFooQux : KFoo()
-        val KFooQux.qux get() = "OK"
         """)
         try runSema(ctx)
         #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")

@@ -3,6 +3,7 @@
 import Foundation
 import TestStdlibCache
 import Testing
+@testable import CompilerTestSupport
 
 // MARK: - SymbolTable Delegate Storage Tests
 

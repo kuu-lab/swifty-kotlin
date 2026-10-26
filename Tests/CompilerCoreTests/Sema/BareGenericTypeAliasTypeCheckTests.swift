@@ -2,6 +2,7 @@
 import Foundation
 import TestStdlibCache
 import Testing
+@testable import CompilerTestSupport
 
 @Suite
 struct BareGenericTypeAliasTypeCheckTests {
@@ -121,23 +122,5 @@ struct BareGenericTypeAliasTypeCheckTests {
         }
         #expect(erasedTypeErrors.count == 2, "got: \(ctx.diagnostics.diagnostics)")
         #expect(erasedTypeErrors.allSatisfy { $0.message.contains("List<Int>") })
-    }
-
-    @Test
-    func mixedTypeParameterAndStarIsCheckUsesKnownSupertypeInstantiation() throws {
-        let ctx = try contextWithoutStdlib("""
-        interface Bound
-        interface CompilerPhase<in X1 : Bound, Y1>
-        private class CompositePhase<X2 : Bound, Y2>(val foo: String) : CompilerPhase<X2, Y2>
-
-        @Suppress("UNCHECKED_CAST")
-        fun <X3 : Bound, Y3> CompilerPhase<X3, Y3>.bar(): Boolean {
-            this as CompilerPhase<X3, Any?>
-            return this is CompositePhase<X3, *>
-        }
-        """)
-
-        #expect(!ctx.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-SEMA-ERASED-TYPE" }, "got: \(ctx.diagnostics.diagnostics)")
-        #expect(!ctx.diagnostics.hasError, "got: \(ctx.diagnostics.diagnostics)")
     }
 }

@@ -1,6 +1,7 @@
 #if canImport(Testing)
 @testable import CompilerCore
 import Testing
+@testable import CompilerTestSupport
 
 /// A lambda parameter (`it` or a named parameter) used as a `when` subject
 /// must be smart-cast in `is` branches just like a regular function

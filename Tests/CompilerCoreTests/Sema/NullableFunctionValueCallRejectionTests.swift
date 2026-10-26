@@ -1,5 +1,6 @@
 @testable import CompilerCore
 import Testing
+@testable import CompilerTestSupport
 
 /// Kotlin rejects invoking a nullable function value without `?.`/`!!`;
 /// a direct call must not lower a null function object into

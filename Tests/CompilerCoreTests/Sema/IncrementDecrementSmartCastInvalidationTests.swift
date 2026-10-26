@@ -1,6 +1,7 @@
 #if canImport(Testing)
 @testable import CompilerCore
 import Testing
+@testable import CompilerTestSupport
 
 // KUU-3504: a custom `inc()` call reassigns a mutable local, so a prior
 // assignment-based smart cast must not survive the increment expression.

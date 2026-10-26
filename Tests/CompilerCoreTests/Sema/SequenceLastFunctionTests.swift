@@ -1,5 +1,6 @@
 @testable import CompilerCore
 import Testing
+@testable import CompilerTestSupport
 
 /// KSP-1351: the whole last family (`last`, `last(predicate)`,
 /// `lastOrNull`, `lastOrNull(predicate)`) resolves via the canonical

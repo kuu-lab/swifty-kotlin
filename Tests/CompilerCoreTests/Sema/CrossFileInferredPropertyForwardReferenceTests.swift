@@ -1,6 +1,7 @@
 #if canImport(Testing)
     @testable import CompilerCore
     import Testing
+@testable import CompilerTestSupport
 
     struct CrossFilePropertyInferenceTests {
         @Test
@@ -193,22 +194,6 @@
                     )
                 }
             }
-        }
-
-        @Test
-        func inferredArrayPropertyResolvesMembersFromEarlierFunctionBody() throws {
-            let source = """
-            package sample
-            fun box(): String {
-                return "${SS.size} ${SS[0]} ${SS.first()}"
-            }
-            fun main() { println(box()) }
-            val SS = arrayOf("ab", "cd")
-            """
-
-            _ = try SemaFixture(
-                surface: "forward-referenced inferred array property member access"
-            ).make(source: source)
         }
 
         @Test

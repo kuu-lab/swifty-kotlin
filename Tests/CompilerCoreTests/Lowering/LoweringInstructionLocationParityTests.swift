@@ -1,6 +1,7 @@
 #if canImport(Testing)
 @testable import CompilerCore
 import Testing
+@testable import CompilerTestSupport
 
 // ARCH-019: every lowering pass must keep `instructionLocations` parallel to
 // `body`. This test lowers a source that exercises passes which rewrite,

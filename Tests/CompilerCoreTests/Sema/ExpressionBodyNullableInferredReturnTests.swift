@@ -1,6 +1,7 @@
 #if canImport(Testing)
 @testable import CompilerCore
 import Testing
+@testable import CompilerTestSupport
 
 /// An expression-body function without a return type annotation starts with the
 /// non-null header placeholder `Any`. That placeholder must neither constrain the

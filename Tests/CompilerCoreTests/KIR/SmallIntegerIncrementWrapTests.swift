@@ -2,6 +2,7 @@
 @testable import CompilerCore
 import Foundation
 import Testing
+@testable import CompilerTestSupport
 
 /// `++` / `--` on Byte / Short / UByte / UShort must wrap to the operand's width, and
 /// explicit `inc()` / `dec()` / `plus()` / `minus()` member calls on primitives must resolve.

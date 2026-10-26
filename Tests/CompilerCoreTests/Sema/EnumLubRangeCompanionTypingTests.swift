@@ -2,6 +2,7 @@
 @testable import CompilerCore
 import Testing
 import TestStdlibCache
+@testable import CompilerTestSupport
 
 /// Regression tests for four Sema typing gaps found together:
 /// enum `Comparable` bounds, common-supertype LUB, range literals as

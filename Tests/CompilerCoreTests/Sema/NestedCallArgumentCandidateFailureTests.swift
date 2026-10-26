@@ -2,6 +2,7 @@
 @testable import CompilerCore
 import TestStdlibCache
 import Testing
+@testable import CompilerTestSupport
 
 @Suite
 struct NestedCallArgumentCandidateFailureTests {

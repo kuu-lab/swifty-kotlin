@@ -2,6 +2,7 @@
 @testable import CompilerCore
 import Foundation
 import Testing
+@testable import CompilerTestSupport
 
 /// RF-LOWER-CALL-009: pin the source-preservation contract of the List
 /// fold / reduce / scan / running family.

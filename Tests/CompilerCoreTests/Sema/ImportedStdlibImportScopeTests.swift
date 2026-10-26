@@ -3,6 +3,7 @@
 import Foundation
 import Testing
 import TestStdlibCache
+@testable import CompilerTestSupport
 
 /// KUU-1205: the precompiled stdlib `.kklib` synthesises `.package` records
 /// for every FQ-name prefix of an imported declaration, including paths that

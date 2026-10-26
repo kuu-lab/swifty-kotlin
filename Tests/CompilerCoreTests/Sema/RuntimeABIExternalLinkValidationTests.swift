@@ -2,6 +2,7 @@
 import RuntimeABI
 import Foundation
 import Testing
+@testable import CompilerTestSupport
 
 @Suite
 struct RuntimeABIExternalLinkValidationTests {

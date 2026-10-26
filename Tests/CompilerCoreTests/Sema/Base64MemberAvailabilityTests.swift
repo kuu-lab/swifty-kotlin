@@ -1,6 +1,7 @@
 @testable import CompilerCore
 import Foundation
 import Testing
+@testable import CompilerTestSupport
 
 /// KUU-1396: JVM-parity surface for `kotlin.io.encoding.Base64`. The issue
 /// reported `decodeIntoArray`/`encodeIntoByteArray`/`paddingOption` as missing

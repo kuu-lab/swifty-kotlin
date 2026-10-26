@@ -2,6 +2,7 @@
 @testable import CompilerCore
 import Foundation
 import Testing
+@testable import CompilerTestSupport
 
 /// `val name get() = "p$v"` in an object literal has neither a type nor an
 /// initializer before `get`, so the local-declaration prefix parse failed and

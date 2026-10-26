@@ -2,6 +2,7 @@
 @testable import CompilerCore
 import Testing
 import TestStdlibCache
+@testable import CompilerTestSupport
 
 /// KUU-2365: an expression body may put the `if` else-branch expression on the
 /// line after `else`, including when the declared return type is explicit.

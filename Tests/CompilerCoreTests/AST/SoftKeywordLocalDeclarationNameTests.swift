@@ -2,6 +2,7 @@
 @testable import CompilerCore
 import Foundation
 import Testing
+@testable import CompilerTestSupport
 
 /// `out` is a soft keyword: it means declaration-site variance inside a type
 /// argument or type parameter list (`List<out T>`) and is an ordinary

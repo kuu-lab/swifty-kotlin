@@ -2,6 +2,7 @@
 @testable import CompilerCore
 import Foundation
 import Testing
+@testable import CompilerTestSupport
 
 /// Sema-surface tests for `while(true)` / `do while(true)` infinite loops.
 ///

@@ -1,6 +1,7 @@
 #if canImport(Testing)
 @testable import CompilerCore
 import Testing
+@testable import CompilerTestSupport
 
 /// Regression coverage for KUU-3477: `equals` requires a safe call on nullable receivers.
 @Suite

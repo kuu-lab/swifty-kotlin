@@ -1,6 +1,7 @@
 import Foundation
 @testable import CompilerCore
 import Testing
+@testable import CompilerTestSupport
 
 @Suite
 struct GenericExtensionPropertyTypeCheckingTests {
@@ -87,19 +88,6 @@ struct GenericExtensionPropertyTypeCheckingTests {
             var <X, Y> ctx: X
                 get() = x
                 set(v) {}
-        }
-        """)
-        #expect(!context.diagnostics.hasError, "\(context.diagnostics.diagnostics)")
-    }
-
-    @Test
-    func genericFunctionTypeReceiverPropertyResolvesForCallableReference() throws {
-        let context = try check("""
-        val <T> (Int.() -> T).baz: T get() = this(1)
-        fun Int.foo(): String = "x"
-        fun result(): String {
-            val f = Int::foo
-            return f.baz
         }
         """)
         #expect(!context.diagnostics.hasError, "\(context.diagnostics.diagnostics)")

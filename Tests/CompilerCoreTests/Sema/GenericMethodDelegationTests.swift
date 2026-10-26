@@ -2,6 +2,7 @@
 @testable import CompilerCore
 import Foundation
 import Testing
+@testable import CompilerTestSupport
 
 @Suite struct GenericMethodDelegationTests {
     private func makeContext(_ source: String) -> CompilationContext {

@@ -1,6 +1,7 @@
 #if canImport(Testing)
 @testable import CompilerCore
 import Testing
+@testable import CompilerTestSupport
 
 /// KSP-CAP-013: `resolveTypeRef` used to resolve an unqualified type name
 /// (e.g. `Lazy` in `val x: Lazy<Int> = ...`) via a global short-name scan

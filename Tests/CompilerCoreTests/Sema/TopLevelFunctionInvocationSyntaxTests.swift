@@ -1,5 +1,6 @@
 @testable import CompilerCore
 import Testing
+@testable import CompilerTestSupport
 
 /// KUU-3007: Kotlin function declarations need `::` before they can be used as values.
 @Suite

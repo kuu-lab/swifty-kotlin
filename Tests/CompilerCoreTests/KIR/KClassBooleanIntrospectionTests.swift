@@ -1,6 +1,7 @@
 #if canImport(Testing)
 @testable import CompilerCore
 import Testing
+@testable import CompilerTestSupport
 
 /// KSP-496 moved these to ordinary Kotlin extension properties
 /// (Sources/CompilerCore/Stdlib/kotlin/reflect/KClasses.kt), so `main`'s

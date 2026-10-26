@@ -1,6 +1,6 @@
 @testable import CompilerBackend
 @testable import CompilerCore
-import CompilerTestSupport
+@testable import CompilerTestSupport
 import Foundation
 import Testing
 

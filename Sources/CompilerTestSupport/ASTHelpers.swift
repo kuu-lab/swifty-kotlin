@@ -164,11 +164,13 @@ func buildASTModule(
 ) throws -> (ASTModule, CompilationContext) {
     let ctx: CompilationContext
     if includeStdlib {
-        ctx = makeContextFromSource(source)
+        ctx = makeContextFromSource(source, allowDefaultStdlibLibrary: false)
     } else {
         let fakePath = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString + ".kt").path
-        ctx = makeCompilationContext(inputs: [fakePath], includeStdlib: false)
+        ctx = makeCompilationContext(
+            inputs: [fakePath], includeStdlib: false, allowDefaultStdlibLibrary: false
+        )
         _ = ctx.sourceManager.addFile(path: fakePath, contents: Data(source.utf8))
     }
     try runFrontend(ctx)
@@ -180,7 +182,7 @@ func buildASTModule(
 func makeSharedKIRContext(sources: [String]) throws -> CompilationContext {
     var result: CompilationContext?
     try withTemporaryFiles(contents: sources) { paths in
-        let ctx = makeCompilationContext(inputs: paths)
+        let ctx = makeCompilationContext(inputs: paths, allowDefaultStdlibLibrary: false)
         try runToKIR(ctx)
         result = ctx
     }

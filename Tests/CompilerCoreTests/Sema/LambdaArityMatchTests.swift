@@ -2,6 +2,7 @@
 @testable import CompilerCore
 import Foundation
 import Testing
+@testable import CompilerTestSupport
 
 /// KUU-2990: a lambda literal whose declared parameter count does not match the
 /// expected function type must be rejected — `(Int, Int) -> Unit = { }` cannot

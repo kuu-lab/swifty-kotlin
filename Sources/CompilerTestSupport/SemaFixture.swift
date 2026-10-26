@@ -79,7 +79,7 @@ final class SemaFixture: @unchecked Sendable {
     ) throws -> (SemaModule, StringInterner) {
         var result: (SemaModule, StringInterner)?
         try withTemporaryFiles(contents: sources) { paths in
-            let ctx = makeCompilationContext(inputs: paths)
+            let ctx = makeCompilationContext(inputs: paths, allowDefaultStdlibLibrary: false)
             try runSema(ctx)
             check(
                 ctx.diagnostics.diagnostics,

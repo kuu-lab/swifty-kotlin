@@ -1,6 +1,7 @@
 #if canImport(Testing)
 @testable import CompilerCore
 import Testing
+@testable import CompilerTestSupport
 
 /// BUG-219: an unresolved return type parameter nested inside a lambda's
 /// contextual return type must not reject a concrete member-call result before

@@ -1,6 +1,7 @@
 #if canImport(Testing)
 @testable import CompilerCore
 import Testing
+@testable import CompilerTestSupport
 
 /// Operator-syntax calls on an open/abstract member operator must lower to a
 /// `.virtualCall` (like `lhs.plus(rhs)` does), not a direct `.call` to the

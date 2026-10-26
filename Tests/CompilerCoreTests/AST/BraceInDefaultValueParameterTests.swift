@@ -1,6 +1,7 @@
 #if canImport(Testing)
 @testable import CompilerCore
 import Testing
+@testable import CompilerTestSupport
 
 /// Regression coverage for value parameters whose default value expression
 /// contains a `{`, e.g. a scope-function call (`run { ... }`) or a lambda

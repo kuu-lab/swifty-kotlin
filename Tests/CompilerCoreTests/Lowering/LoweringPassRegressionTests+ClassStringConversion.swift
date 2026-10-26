@@ -1,6 +1,7 @@
 #if canImport(Testing)
 @testable import CompilerCore
 import Testing
+@testable import CompilerTestSupport
 
 // A class value stringified through the Any-erased `+`/string-template funnel
 // (CallLowerer.emitAnyToStringWithNullGuard) must call its own overridden

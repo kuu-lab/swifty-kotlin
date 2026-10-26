@@ -1,5 +1,6 @@
 @testable import CompilerCore
 import Testing
+@testable import CompilerTestSupport
 
 /// KUU-834: destination HOF specials must enforce their MutableCollection and
 /// MutableMap bounds before assigning contextual types to the lambda.

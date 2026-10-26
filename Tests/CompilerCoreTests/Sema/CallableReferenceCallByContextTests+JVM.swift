@@ -1,6 +1,7 @@
 #if canImport(Testing)
 @testable import CompilerCore
 import Testing
+@testable import CompilerTestSupport
 
 extension CallableReferenceCallByContextTests {
     private func check(_ ctx: CompilationContext) throws {

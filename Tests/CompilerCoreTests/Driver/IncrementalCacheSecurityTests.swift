@@ -8,6 +8,7 @@ import Darwin
 #elseif canImport(Glibc)
 import Glibc
 #endif
+@testable import CompilerTestSupport
 
 /// The incremental cache must never restore build outputs from data it
 /// cannot authenticate: a committed `.kswiftk-cache`, a tampered artifact,

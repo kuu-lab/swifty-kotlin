@@ -2,6 +2,7 @@
 @testable import CompilerCore
 import Foundation
 import Testing
+@testable import CompilerTestSupport
 
 extension BuildKIRRegressionTests {
     @Test func testNullableIntIncDecExtensionsResolveForPrefixAndPostfix() throws {

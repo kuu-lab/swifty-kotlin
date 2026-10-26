@@ -1,6 +1,6 @@
 #if canImport(Testing)
 @testable import CompilerCore
-import CompilerTestSupport
+@testable import CompilerTestSupport
 import Testing
 import TestStdlibCache
 
