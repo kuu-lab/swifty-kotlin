@@ -362,5 +362,61 @@ struct WhenSubjectSmartCastTests {
         try runSema(ctx)
         assertHasDiagnostic("KSWIFTK-SEMA-0071", in: ctx)
     }
+
+    @Test func testWhenExhaustivenessUsesNegativeDataFlowFacts() throws {
+        let source = """
+        fun boolean(b: Boolean): Int {
+            if (b == false) return 1
+            return when (b) { true -> 2 }
+        }
+
+        fun nullableTrue(b: Boolean?): Int {
+            if ((b == true) == false) return 1
+            return when (b) { true -> 2 }
+        }
+
+        fun nullableFalseOrNull(b: Boolean?): Int {
+            if ((b == true) == true) return 1
+            return when (b) { null -> 2; false -> 3 }
+        }
+
+        enum class Color { RED, GREEN, BLUE }
+        fun enumTwo(color: Color): Int {
+            if (color == Color.RED) return 1
+            return when (color) { Color.GREEN -> 2; Color.BLUE -> 3 }
+        }
+        fun enumOne(color: Color): Int {
+            if (color == Color.RED) throw AssertionError()
+            if (color == Color.GREEN) throw AssertionError()
+            return when (color) { Color.BLUE -> 3 }
+        }
+
+        sealed class Variant {
+            object A : Variant()
+            object B : Variant()
+            object C : Variant()
+        }
+        fun sealedTwo(value: Variant): Int {
+            if (value is Variant.A) return 1
+            return when (value) { Variant.B -> 2; Variant.C -> 3 }
+        }
+        fun sealedOne(value: Variant): Int {
+            if (value is Variant.A) return 1
+            if (value is Variant.B) return 2
+            return when (value) { Variant.C -> 3 }
+        }
+        fun sealedShortCircuit(value: Variant): Int {
+            (value is Variant.A) && throw AssertionError()
+            return when (value) { Variant.B -> 2; Variant.C -> 3 }
+        }
+        """
+
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+        let nonExhaustiveErrors = ctx.diagnostics.diagnostics.filter {
+            $0.code == "KSWIFTK-SEMA-0004" || $0.code == "KSWIFTK-SEMA-0071"
+        }
+        #expect(nonExhaustiveErrors.isEmpty, "Got: \(nonExhaustiveErrors)")
+    }
 }
 #endif

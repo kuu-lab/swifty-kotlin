@@ -133,6 +133,8 @@ extension CallTypeChecker {
                     narrowedLocals[name] = prior
                 }
                 narrowedLocals.memberFlow = locals.memberFlow
+                narrowedLocals.variableFacts = locals.variableFacts
+                narrowedLocals.invalidatedVariableFacts = locals.invalidatedVariableFacts
                 locals = narrowedLocals
                 return result
             }

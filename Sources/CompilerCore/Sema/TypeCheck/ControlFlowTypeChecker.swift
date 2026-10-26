@@ -1155,6 +1155,7 @@ final class ControlFlowTypeChecker {
                 elseCompletes ? elseLocals : nil,
             ].compactMap { $0 }
             locals.memberFlow = joinMemberFlow(from: reachingBranchLocals, base: locals.memberFlow, sema: sema)
+            locals.joinVariableFacts(from: reachingBranchLocals)
         } else {
             // An `if` without `else` is a statement in Kotlin; using it where a
             // value is consumed must fail like kotlinc's INVALID_IF_AS_EXPRESSION.
@@ -1175,6 +1176,8 @@ final class ControlFlowTypeChecker {
                 // path, i.e. the negated condition. Apply that narrowed state so it survives
                 // the fallthrough.
                 driver.exprChecker.applyFlowStateToLocals(branch.falseState, locals: &locals, sema: sema)
+            } else {
+                locals.joinVariableFacts(from: [thenLocals, elseLocals])
             }
         }
         // Retain nullable-local assignment facts only on paths that can

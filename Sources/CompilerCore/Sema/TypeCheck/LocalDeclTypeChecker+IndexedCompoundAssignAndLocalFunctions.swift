@@ -940,6 +940,8 @@ extension LocalDeclTypeChecker {
             bodyLocals[name] = (declaredType, local.symbol, local.isMutable, local.isInitialized)
         }
         bodyLocals.memberFlow = [:]
+        bodyLocals.variableFacts = [:]
+        bodyLocals.invalidatedVariableFacts = []
         let bodyReceiverType: TypeID? = receiverType ?? ctx.implicitReceiverType
         let lambdaLoopScopes = ast.arena.isAnonymousFunction(id)
             ? ctx.lambdaLoopScopes + [(exprID: id, loopDepth: ctx.loopDepth, labels: ctx.loopLabelStack)]

@@ -14,6 +14,13 @@ extension ExprTypeChecker {
             }
             locals[name] = (narrowed, local.symbol, local.isMutable, local.isInitialized)
         }
+        for local in locals.values {
+            if let facts = state.variables[local.symbol]?.valueFacts, !facts.isEmpty {
+                locals.variableFacts[local.symbol] = facts
+            } else {
+                locals.variableFacts.removeValue(forKey: local.symbol)
+            }
+        }
         locals.memberFlow = state.members
     }
 
@@ -26,7 +33,8 @@ extension ExprTypeChecker {
         range: SourceRange,
         ctx: TypeInferenceContext,
         locals: inout LocalBindings,
-        expectedType: TypeID?
+        expectedType: TypeID?,
+        isStatementContext: Bool = false
     ) -> TypeID {
         let ast = ctx.ast
         let sema = ctx.sema
@@ -86,6 +94,10 @@ extension ExprTypeChecker {
                 sema: sema,
                 diagnostics: ctx.sema.diagnostics
             )
+            if isStatementContext, !ctx.isConditionallyEvaluated, rhs == sema.types.nothingType {
+                let completingState = op == .logicalAnd ? lhsBranch.falseState : lhsBranch.trueState
+                applyFlowStateToLocals(completingState, locals: &locals, sema: sema)
+            }
             sema.bindings.bindExprType(id, type: boolType)
             return boolType
         }
