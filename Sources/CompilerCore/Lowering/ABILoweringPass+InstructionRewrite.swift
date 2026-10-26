@@ -14,7 +14,8 @@ extension ABILoweringPass {
         boxTypeParamArguments: Bool = false,
         sema: SemaModule? = nil,
         cache: KIRNominalDispatchCache? = nil,
-        newBody: inout KIRLoweringEmitContext
+        newBody: inout KIRLoweringEmitContext,
+        isConstructorCall: Bool = false
     ) -> [KIRExprID] {
         var boxedArguments = arguments
         // Erased and nullable slots carry boxes even after a smart cast.
@@ -99,7 +100,8 @@ extension ABILoweringPass {
         {
             boxedArguments[receiverIndex] = unboxed
         }
-        if receiverOffset > 0, arguments.indices.contains(receiverIndex),
+        // Constructor receivers are fresh allocations, not nullable value-class boxes.
+        if !isConstructorCall, receiverOffset > 0, arguments.indices.contains(receiverIndex),
            let receiverType = signature.receiverType,
            let unboxed = unboxNullableUnderlyingValueClass(arguments[receiverIndex], to: receiverType)
         {

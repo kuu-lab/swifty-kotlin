@@ -7,6 +7,87 @@ import Testing
 @Suite
 struct CodegenBackendGenericVarargBoxingTests {
     @Test
+    func genericIdentityDoesNotReexecuteBoundedValueClassInitializer() throws {
+        try assertKotlinOutput(
+            """
+            @JvmInline
+            value class IC<T: Int>(val i: T) {
+                init { counter += i }
+            }
+            var counter = 0
+            fun <T> id(t: T) = t
+
+            fun main() {
+                val ic = IC(42)
+                counter = 0
+                id(ic)
+                println(counter)
+            }
+            """,
+            moduleName: "KUU3409GenericValueClassInitThroughIdentity",
+            expected: "0\n"
+        )
+    }
+
+    @Test
+    func genericIdentityDoesNotReexecuteBoundedValueClassInitializerWithoutStdlib() throws {
+        try assertKotlinOutput(
+            """
+            annotation class JvmInline
+            @JvmInline
+            value class IC<T: Int>(val i: T) {
+                init { counter += i }
+            }
+            var counter = 0
+            fun <T> id(t: T) = t
+
+            fun main() {
+                val ic = IC(42)
+                counter = 0
+                id(ic)
+                if (counter != 0) {
+                    val failure: Any? = null
+                    failure!!
+                }
+            }
+            """,
+            moduleName: "KUU3409GenericValueClassInitWithoutStdlib",
+            expected: "",
+            includeStdlib: false,
+            allowDefaultStdlibLibrary: false,
+            prepareTestStdlibCache: false
+        )
+    }
+
+    @Test
+    func boundedGenericValueClassInitializerControlWithoutIdentityCall() throws {
+        try assertKotlinOutput(
+            """
+            annotation class JvmInline
+            @JvmInline
+            value class IC<T: Int>(val i: T) {
+                init { counter += i }
+            }
+            var counter = 0
+
+            fun main() {
+                val ic = IC(42)
+                if (counter != 42) {
+                    val failure: Any? = null
+                    failure!!
+                }
+                counter = 0
+            }
+            """,
+            moduleName: "KUU3409GenericValueClassInitControlWithoutIdentity",
+            expected: "",
+            includeStdlib: false,
+            allowDefaultStdlibLibrary: false,
+            prepareTestStdlibCache: false
+        )
+    }
+
+    @Test
     func primitiveAndBoundedValueClassValuesAreBoxedIntoGenericVararg() throws {
         try assertKotlinOutput(
             """

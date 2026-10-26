@@ -715,7 +715,8 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                             || stubSignatureByName[effectiveCallee] != nil,
                         sema: ctx.sema,
                         cache: ctx.nominalDispatchCache,
-                        newBody: &newBody
+                        newBody: &newBody,
+                        isConstructorCall: symbols?.symbol(effectiveCallSymbol ?? .invalid)?.kind == .constructor
                     )
                 } else {
                     boxedArguments = arguments
