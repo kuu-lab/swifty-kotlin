@@ -10,6 +10,7 @@ import kotlinx.cinterop.nativeHeap
 import kotlinx.cinterop.sizeOf
 import kotlinx.cinterop.alignOf
 import kotlinx.cinterop.ExperimentalForeignApi
+import kotlinx.cinterop.get
 
 @ExperimentalForeignApi
 fun roundTrip(): String = memScoped {

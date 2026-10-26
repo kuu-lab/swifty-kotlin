@@ -16,7 +16,6 @@ symbol fq=golden.sema.directNonLocalFold[kind=fun;params=kotlin.CharSequence,Cha
 symbol fq=golden.sema.safeNonLocalFold.$5.source[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
 symbol fq=golden.sema.safeNonLocalFold.$5.target[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
 symbol fq=golden.sema.safeNonLocalFold[kind=fun;params=kotlin.CharSequence?,Char;ret=Int;names=[source,target];origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.CharSequence?,Char] ret=Int
-symbol fq=kotlin.text.code[kind=fun;recv=Char;params=;ret=Int;origin=unknown] kind=function vis=public flags=synthetic sig=recv=Char params=[] ret=Int
 file fstdlib_kotlin_text_CharSequence_fold package=golden.sema
   decl golden.sema.charSequenceFold[kind=fun;params=kotlin.CharSequence,Int;ret=Int;names=[source,initial];origin=fixture] fun charSequenceFold sym=golden.sema.charSequenceFold[kind=fun;params=kotlin.CharSequence,Int;ret=Int;names=[source,initial];origin=fixture]
   decl golden.sema.charSequenceFoldIndexed[kind=fun;params=kotlin.CharSequence,String;ret=String;names=[source,initial];origin=fixture] fun charSequenceFoldIndexed sym=golden.sema.charSequenceFoldIndexed[kind=fun;params=kotlin.CharSequence,String;ret=String;names=[source,initial];origin=fixture]
@@ -28,7 +27,7 @@ expr e@4:5 name(source) type=kotlin.CharSequence ref=golden.sema.charSequenceFol
 expr e@4:17 name(initial) type=Int ref=golden.sema.charSequenceFold.$0.initial[kind=vparam;origin=fixture]
 expr e@4:50 name(accumulator) type=Int ref=s-0
 expr e@4:64 name(value) type=Char ref=s-1
-expr e@4:64#1 memberCall recv=e@4:64 callee=code args=[] type=Int call=kotlin.text.code[kind=fun;recv=Char;params=;ret=Int;origin=unknown]
+expr e@4:64#1 memberCall recv=e@4:64 callee=code args=[] type=Int call=kotlin.text.code[kind=fun;recv=Char;params=;ret=Int]
 expr e@4:50#1 binary(add) lhs=e@4:50 rhs=e@4:64#1 type=Int
 expr e@4:26 lambda params=[accumulator,value] body=e@4:50#1 label=fold type=(Int, Char) -> Int
 expr e@4:5#1 memberCall recv=e@4:5 callee=fold args=[_:e@4:17,_:e@4:26] type=Int call=kotlin.text.fold[kind=fun;recv=kotlin.CharSequence;params=T0,fn{p=T0,Char;ret=T0};ret=T0;gen=1;names=[initial,operation]] targs=[Int]

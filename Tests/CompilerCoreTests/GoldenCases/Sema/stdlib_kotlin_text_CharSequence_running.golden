@@ -13,7 +13,6 @@ symbol fq=inspectNullable.$1.source[kind=vparam;origin=fixture] kind=valueParame
 symbol fq=inspectNullable[kind=fun;params=kotlin.CharSequence?;ret=Unit;names=[source];origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.CharSequence?] ret=Unit
 symbol fq=inspectRunning.$2.source[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
 symbol fq=inspectRunning[kind=fun;params=kotlin.CharSequence;ret=Unit;names=[source];origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.CharSequence] ret=Unit
-symbol fq=kotlin.text.code[kind=fun;recv=Char;params=;ret=Int;origin=unknown] kind=function vis=public flags=synthetic sig=recv=Char params=[] ret=Int
 file fstdlib_kotlin_text_CharSequence_running package=_
   decl inspectRunning[kind=fun;params=kotlin.CharSequence;ret=Unit;names=[source];origin=fixture] fun inspectRunning sym=inspectRunning[kind=fun;params=kotlin.CharSequence;ret=Unit;names=[source];origin=fixture]
   decl inspectNullable[kind=fun;params=kotlin.CharSequence?;ret=Unit;names=[source];origin=fixture] fun inspectNullable sym=inspectNullable[kind=fun;params=kotlin.CharSequence?;ret=Unit;names=[source];origin=fixture]
@@ -22,7 +21,7 @@ expr e@2:29 name(source) type=kotlin.CharSequence ref=inspectRunning.$2.source[k
 expr e@2:48 int(0) type=Int
 expr e@2:67 name(acc) type=Int ref=s-0
 expr e@2:73 name(value) type=Char ref=s-1
-expr e@2:73#1 memberCall recv=e@2:73 callee=code args=[] type=Int call=kotlin.text.code[kind=fun;recv=Char;params=;ret=Int;origin=unknown]
+expr e@2:73#1 memberCall recv=e@2:73 callee=code args=[] type=Int call=kotlin.text.code[kind=fun;recv=Char;params=;ret=Int]
 expr e@2:67#1 binary(add) lhs=e@2:67 rhs=e@2:73#1 type=Int
 expr e@2:51 lambda params=[acc,value] body=e@2:67#1 label=runningFold type=(Int, Char) -> Int
 expr e@2:29#1 memberCall recv=e@2:29 callee=runningFold args=[_:e@2:48,_:e@2:51] type=kotlin.collections.List<Int> call=kotlin.text.runningFold[kind=fun;recv=kotlin.CharSequence;params=T0,fn{p=T0,Char;ret=T0};ret=kotlin.collections.List<T0>;gen=1;names=[initial,operation]] targs=[Int]
@@ -97,7 +96,7 @@ expr e@26:18 name(source) type=kotlin.CharSequence ref=inspectNamed.$0.source[ki
 expr e@26:47 name(seed) type=Int ref=inspectNamed.$0.seed[kind=vparam;origin=fixture]
 expr e@26:81 name(acc) type=Int ref=s-14
 expr e@26:87 name(value) type=Char ref=s-15
-expr e@26:87#1 memberCall recv=e@26:87 callee=code args=[] type=Int call=kotlin.text.code[kind=fun;recv=Char;params=;ret=Int;origin=unknown]
+expr e@26:87#1 memberCall recv=e@26:87 callee=code args=[] type=Int call=kotlin.text.code[kind=fun;recv=Char;params=;ret=Int]
 expr e@26:81#1 binary(add) lhs=e@26:81 rhs=e@26:87#1 type=Int
 expr e@26:65 lambda params=[acc,value] body=e@26:81#1 label=runningFold type=(Int, Char) -> Int
 expr e@26:18#1 memberCall recv=e@26:18 callee=runningFold args=[initial:e@26:47,operation:e@26:65] type=kotlin.collections.List<Int> call=kotlin.text.runningFold[kind=fun;recv=kotlin.CharSequence;params=T0,fn{p=T0,Char;ret=T0};ret=kotlin.collections.List<T0>;gen=1;names=[initial,operation]] targs=[Int]

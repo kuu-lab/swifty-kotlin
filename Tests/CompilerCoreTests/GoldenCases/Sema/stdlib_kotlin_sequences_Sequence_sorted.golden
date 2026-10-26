@@ -26,8 +26,8 @@ expr e@11:30 name(comparator) type=kotlin.Comparator<in Int> ref=sequenceSortedW
 expr e@11:12#1 memberCall recv=e@11:12 callee=sortedWith args=[_:e@11:30] type=kotlin.sequences.Sequence<Int> call=kotlin.sequences.sortedWith[kind=fun;recv=kotlin.sequences.Sequence<T0>;params=kotlin.Comparator<in T0>;ret=kotlin.sequences.Sequence<T0>;gen=1;names=[comparator]] targs=[Int]
 expr e@11:5 return value=e@11:12#1 type=Nothing
 expr e@15:12 name(values) type=kotlin.sequences.Sequence<Int> ref=sequenceSortedWithSam.$3.values[kind=vparam;origin=fixture]
-expr e@15:40 name(a) type=Int! ref=s-0
-expr e@15:44 name(b) type=Int! ref=s-1
+expr e@15:40 name(a) type=Int ref=s-0
+expr e@15:44 name(b) type=Int ref=s-1
 expr e@15:40#1 binary(subtract) lhs=e@15:40 rhs=e@15:44 type=Int
 expr e@15:30 lambda params=[a,b] body=e@15:40#1 label=sortedWith type=kotlin.Comparator<in Int>
 expr e@15:12#1 memberCall recv=e@15:12 callee=sortedWith args=[_:e@15:30] type=kotlin.sequences.Sequence<Int> call=kotlin.sequences.sortedWith[kind=fun;recv=kotlin.sequences.Sequence<T0>;params=kotlin.Comparator<in T0>;ret=kotlin.sequences.Sequence<T0>;gen=1;names=[comparator]] targs=[Int]
