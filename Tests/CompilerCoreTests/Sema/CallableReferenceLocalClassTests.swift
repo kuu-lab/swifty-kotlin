@@ -5,6 +5,47 @@ import Testing
 @Suite
 struct CallableReferenceLocalClassTests {
     @Test
+    func boundOuterMutablePropertyReferenceResolvesFromLocalClass() throws {
+        let ctx = makeContextFromSource("""
+        class C {
+            var value: String = "fail"
+                private set
+
+            fun bar(): String {
+                class D { fun foo() = this@C::value }
+                val r = D().foo()
+                r.set("OK")
+                return r.get()
+            }
+        }
+        fun main() { println(C().bar()) }
+        """, allowDefaultStdlibLibrary: true)
+        try runSema(ctx)
+
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let reference = try #require(firstExprID(in: ast) { _, expr in
+            if case .callableRef = expr { return true }
+            return false
+        })
+        let referenceType = try #require(sema.bindings.exprType(for: reference))
+        try #require(
+            errors.isEmpty,
+            "Unexpected diagnostics: \(errors); property reference type: \(sema.types.kind(of: referenceType))"
+        )
+        #expect(!sema.bindings.isUnboundCallableRef(reference))
+        guard case let .classType(classType) = sema.types.kind(of: referenceType) else {
+            Issue.record("Expected a KMutableProperty0 class type, got \(sema.types.kind(of: referenceType))")
+            return
+        }
+        let propertyReferenceType = try #require(sema.symbols.symbol(classType.classSymbol))
+        #expect(
+            propertyReferenceType.fqName.map { ctx.interner.resolve($0) } == ["kotlin", "reflect", "KMutableProperty0"]
+        )
+    }
+
+    @Test
     func classifierAndValueReceiversKeepTheirCallableReferenceKinds() throws {
         let source = """
         class Outer { fun foo(): Int = 1 }
