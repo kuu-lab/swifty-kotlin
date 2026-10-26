@@ -393,6 +393,29 @@ struct BuildKIRCodegenRegressionTests {
         }
     }
 
+    /// KUU-3483: lazy Iterable receivers must keep zip's source-backed iterator body.
+    @Test
+    func testBuildKIRKeepsLazyIterableZipSourceBacked() throws {
+        let source = """
+        fun main(values: List<Int>, other: List<String>) {
+            values.withIndex().zip(other)
+            values.zip(other)
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = try makeArtifactCompilationContext(inputs: [path], emit: .kirDump)
+            try runToKIR(ctx)
+
+            let module = try #require(ctx.kir)
+            let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+            try expectSourceBackedCalls(["withIndex", "zip"], in: body, context: ctx)
+            let listZip = try abiFunctions(["list_zip"], in: RuntimeABISpec.collectionHOFFunctions, privateBridge: true)
+            let callNames = extractCallees(from: body, interner: ctx.interner)
+            #expect(listZip.allSatisfy { callNames.contains($0.name) }, "Concrete List.zip should keep using its bridge")
+        }
+    }
+
     @Test
     func testBuildKIRKeepsIterableZipArrayOverloadsSourceBacked() throws {
         let source = """
