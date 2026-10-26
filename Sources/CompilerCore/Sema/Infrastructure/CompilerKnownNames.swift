@@ -1323,7 +1323,8 @@ package struct KnownCompilerNames {
     ]
 
     func isConcreteListLikeSymbol(_ symbol: SemanticSymbol) -> Bool {
-        symbol.name == list || symbol.name == mutableList
+        // Fall back to simple names only for synthetic symbols (no FQN).
+        (symbol.fqName.isEmpty && (symbol.name == list || symbol.name == mutableList))
             || symbolMatches(symbol, fqName: kotlinCollectionsArrayListFQName)
             || symbolMatches(symbol, fqName: kotlinCollectionsListFQName)
             || symbolMatches(symbol, fqName: kotlinCollectionsMutableListFQName)
