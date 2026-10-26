@@ -10,6 +10,16 @@ public fun <T> Array<out T>.toHashSet(): HashSet<T> = asIterable().toHashSet()
 
 public fun <T> Array<out T>.toMutableSet(): MutableSet<T> = asIterable().toMutableSet()
 
+@Suppress("UNCHECKED_CAST")
+public fun <T : Any> Array<T?>.requireNoNulls(): Array<T> {
+    for (element in this) {
+        if (element == null) {
+            throw IllegalArgumentException("null element found in $this.")
+        }
+    }
+    return this as Array<T>
+}
+
 public fun <T : Comparable<T>> Array<out T>.toSortedSet(): java.util.SortedSet<T> =
     asIterable().toSortedSet()
 
