@@ -219,6 +219,7 @@ extension BuildASTPhase.ExpressionParser {
             index = expressionStartIndex
             return nil
         }
+        astArena.markAnonymousFunction(localFunExprID)
 
         let range = SourceRange(start: tokens[expressionStartIndex].range.start, end: tokens[endIndex - 1].range.end)
         let callableRefID = astArena.appendExpr(.callableRef(receiver: nil, member: syntheticName, range: range))

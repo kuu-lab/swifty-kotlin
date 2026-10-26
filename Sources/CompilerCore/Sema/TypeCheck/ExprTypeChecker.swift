@@ -882,6 +882,7 @@ final class ExprTypeChecker {
                 name: name,
                 typeParams: typeParams,
                 contextReceivers: ast.arena.localFunContextReceivers(for: id),
+                isAnonymousFunction: ast.arena.isAnonymousFunction(id),
                 receiverTypeRef: receiverTypeRef,
                 valueParams: valueParams,
                 returnTypeRef: returnTypeRef,

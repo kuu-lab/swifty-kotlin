@@ -304,7 +304,8 @@ extension BuildASTPhase {
             body = .unit
         }
 
-        let isSyntheticAnonymous = interner.resolve(name).hasPrefix("__AnonymousFunction_")
+        let isSyntheticAnonymous = isAnonymousFunction
+            || interner.resolve(name).hasPrefix("__AnonymousFunction_")
         if body == .unit, !hasExternal, !isSyntheticAnonymous {
             diagnostics?.error(
                 "KSWIFTK-SEMA-0426",

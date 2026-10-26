@@ -174,12 +174,12 @@ extension TypeCheckHelpers {
                     ?? params[index]
             }
         }
-        let isAnonymous: Bool = {
-            guard let targetSymbol, let name = sema.symbols.symbol(targetSymbol)?.name, let interner else {
-                return false
-            }
-            return interner.resolve(name).hasPrefix("__AnonymousFunction_")
-        }()
+        let isAnonymous: Bool
+        if let targetSymbol, let interner {
+            isAnonymous = sema.symbols.isAnonymousFunction(targetSymbol, interner: interner)
+        } else {
+            isAnonymous = false
+        }
         if !bindReceiver, let receiverType = unboundReceiverType ?? signature.receiverType {
             if isAnonymous {
                 return sema.types.make(.functionType(FunctionType(
@@ -690,12 +690,12 @@ extension TypeCheckHelpers {
             }
 
             let types = sema.types
-            let isAnonymousExtension: Bool = {
-                guard let targetSymbol, let name = sema.symbols.symbol(targetSymbol)?.name, let interner else {
-                    return false
-                }
-                return interner.resolve(name).hasPrefix("__AnonymousFunction_")
-            }()
+            let isAnonymousExtension: Bool
+            if let targetSymbol, let interner {
+                isAnonymousExtension = sema.symbols.isAnonymousFunction(targetSymbol, interner: interner)
+            } else {
+                isAnonymousExtension = false
+            }
             let receiverOffset = !bindReceiver && (unboundReceiverType != nil || signature.receiverType != nil) && !isAnonymousExtension ? 1 : 0
             let expectedArity = (expected.receiver == nil ? 0 : 1) + expected.params.count
             let expectedValueArity = isAnonymousExtension ? expected.params.count : (expectedArity - receiverOffset)
