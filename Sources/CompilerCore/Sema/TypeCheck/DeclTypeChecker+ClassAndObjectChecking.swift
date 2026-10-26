@@ -66,11 +66,12 @@ extension DeclTypeChecker {
             if let getter = ctx.sema.symbols.extensionPropertyGetterAccessor(for: symbol),
                let signature = ctx.sema.symbols.functionSignature(for: getter) {
                 for parameter in signature.typeParameterSymbols.dropFirst(signature.classTypeParameterCount) { propertyScope.insert(parameter) }
-                if let receiver = signature.receiverType {
-                    for parameter in signature.typeParameterSymbols.dropFirst(signature.classTypeParameterCount)
-                        where !ctx.sema.types.typeContainsTypeParamThroughUpperBounds(receiver, symbol: parameter) {
-                        diagnostics.error("KSWIFTK-SEMA-0005", "Property type parameter must occur in its receiver type.", range: property.range)
-                    }
+                let receiverTypes = signature.contextReceiverTypes + (signature.receiverType.map { [$0] } ?? [])
+                for parameter in signature.typeParameterSymbols.dropFirst(signature.classTypeParameterCount)
+                    where !receiverTypes.contains(where: {
+                        ctx.sema.types.typeContainsTypeParamThroughUpperBounds($0, symbol: parameter)
+                    }) {
+                    diagnostics.error("KSWIFTK-SEMA-0005", "Property type parameter must occur in its receiver type.", range: property.range)
                 }
             } else {
                 diagnostics.error("KSWIFTK-SEMA-0005", "Only extension properties can declare type parameters.", range: property.range)

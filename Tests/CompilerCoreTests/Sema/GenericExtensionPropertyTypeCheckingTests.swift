@@ -80,6 +80,19 @@ struct GenericExtensionPropertyTypeCheckingTests {
     }
 
     @Test
+    func propertyTypeParametersMayOccurInContextReceivers() throws {
+        let context = try check("""
+        class C<Z> {
+            context(x: X, y: Y)
+            var <X, Y> ctx: X
+                get() = x
+                set(v) {}
+        }
+        """)
+        #expect(!context.diagnostics.hasError, "\(context.diagnostics.diagnostics)")
+    }
+
+    @Test
     func propertyTypeParameterAbsentFromReceiverAndBoundsIsRejected() throws {
         let context = try check("""
         class Tuple<A>(val item: A)
