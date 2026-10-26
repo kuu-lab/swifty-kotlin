@@ -305,6 +305,172 @@ extension CallLowerer {
 
     }
 
+    /// Context parameters are not represented in the erased KProperty1 API.
+    /// For a statically known unbound property reference, lower `get` against
+    /// the accessor so the invocation site's context values reach its ABI.
+    func tryLowerContextualKProperty1GetInvocation(
+        _ exprID: ExprID,
+        receiverExpr: ExprID,
+        calleeName: InternedString,
+        args: [CallArgument],
+        ast: ASTModule,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        propertyConstantInitializers: [SymbolID: KIRExprKind],
+        instructions: inout [KIRInstruction]
+    ) -> KIRExprID? {
+        guard interner.resolve(calleeName) == "get",
+              args.count == 1,
+              !args[0].isSpread,
+              let (_, receiverSymbol) = resolveClassTypeSymbol(
+                  sema.types.makeNonNullable(sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType),
+                  sema: sema
+              ),
+              ["KProperty1", "KMutableProperty1"].contains(interner.resolve(receiverSymbol.name)),
+              let (propertySymbol, referenceExpr) = staticallyReferencedProperty(
+                  from: receiverExpr,
+                  ast: ast,
+                  sema: sema
+              ),
+              sema.bindings.callableReferenceBinding(for: referenceExpr)?.boundContextParameterTypes.isEmpty ?? true
+        else {
+            return nil
+        }
+
+        let getterSymbol = sema.symbols.extensionPropertyGetterAccessor(for: propertySymbol)
+            ?? SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: propertySymbol)
+        guard let signature = sema.symbols.functionSignature(for: getterSymbol),
+              !signature.contextParameterTypes.isEmpty,
+              signature.typeParameterSymbols.isEmpty,
+              sema.symbols.memberExtensionOwnerSymbol(for: getterSymbol) == nil,
+              sema.symbols.parentSymbol(for: propertySymbol).flatMap({ sema.symbols.symbol($0)?.kind }) != .interface
+        else {
+            return nil
+        }
+
+        let contextArguments = contextArgumentValues(
+            for: signature,
+            callExprID: exprID,
+            callBinding: nil,
+            sema: sema,
+            arena: arena
+        )
+        guard contextArguments.count == signature.contextParameterTypes.count else { return nil }
+
+        // Keep receiver evaluation so a property holding the reference still initializes.
+        let referenceValue = driver.exprLowerer.lowerExpr(
+            receiverExpr,
+            ast: ast,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            propertyConstantInitializers: propertyConstantInitializers,
+            instructions: &instructions
+        )
+        _ = referenceValue
+        let propertyReceiver = driver.exprLowerer.lowerExpr(
+            args[0].expr,
+            ast: ast,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            propertyConstantInitializers: propertyConstantInitializers,
+            instructions: &instructions
+        )
+
+        let resultType = sema.bindings.exprTypes[exprID] ?? sema.types.anyType
+        let result = arena.appendTemporary(type: resultType)
+        if let (accessorSymbol, dispatch) = resolvePropertyAccessorVirtualDispatch(
+            propertySymbol: propertySymbol,
+            accessorKind: .getter,
+            sema: sema
+        ) {
+            instructions.append(.virtualCall(
+                symbol: accessorSymbol,
+                callee: interner.intern("get"),
+                receiver: propertyReceiver,
+                arguments: contextArguments,
+                result: result,
+                canThrow: false,
+                dispatch: dispatch
+            ))
+        } else {
+            instructions.append(.call(
+                symbol: getterSymbol,
+                callee: interner.intern("get"),
+                arguments: [propertyReceiver] + contextArguments,
+                result: result,
+                canThrow: false
+            ))
+        }
+        return result
+    }
+
+    private func staticallyReferencedProperty(
+        from receiverExpr: ExprID,
+        ast: ASTModule,
+        sema: SemaModule
+    ) -> (symbol: SymbolID, referenceExpr: ExprID)? {
+        var visited: Set<SymbolID> = []
+
+        func referenceExpression(from expression: ExprID) -> ExprID? {
+            if sema.bindings.callableRefKind(for: expression) == .propertyRef,
+               sema.bindings.isUnboundCallableRef(expression)
+            {
+                return expression
+            }
+            guard case .nameRef = ast.arena.expr(expression),
+                  let valueSymbol = sema.bindings.identifierSymbol(for: expression),
+                  visited.insert(valueSymbol).inserted,
+                  let valueInfo = sema.symbols.symbol(valueSymbol)
+            else {
+                return nil
+            }
+
+            switch valueInfo.kind {
+            case .property:
+                for (index, declaration) in ast.arena.decls.enumerated() {
+                    let declarationID = DeclID(rawValue: Int32(index))
+                    guard sema.bindings.declSymbol(for: declarationID) == valueSymbol,
+                          case let .propertyDecl(property) = declaration,
+                          !property.isVar,
+                          property.getter == nil,
+                          property.delegateExpression == nil,
+                          let initializer = property.initializer
+                    else {
+                        continue
+                    }
+                    return referenceExpression(from: initializer)
+                }
+            case .local:
+                for (index, declaration) in ast.arena.exprs.enumerated() {
+                    let declarationID = ExprID(rawValue: Int32(index))
+                    guard sema.bindings.identifierSymbol(for: declarationID) == valueSymbol,
+                          case let .localDecl(_, isMutable, _, initializer, isDelegated, _, _) = declaration,
+                          !isMutable,
+                          !isDelegated,
+                          let initializer
+                    else {
+                        continue
+                    }
+                    return referenceExpression(from: initializer)
+                }
+            default:
+                break
+            }
+            return nil
+        }
+
+        guard let referenceExpr = referenceExpression(from: receiverExpr),
+              case let .symbol(propertySymbol)? = sema.bindings.callableTarget(for: referenceExpr),
+              sema.symbols.symbol(propertySymbol)?.kind == .property
+        else {
+            return nil
+        }
+        return (propertySymbol, referenceExpr)
+    }
+
     func tryLowerKProperty0GetInvocation(
         _ exprID: ExprID,
         receiverExpr: ExprID,
