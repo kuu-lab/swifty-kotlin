@@ -1,6 +1,7 @@
 #if canImport(Testing)
 @testable import CompilerCore
 import Testing
+@testable import CompilerTestSupport
 
 /// Regression coverage for superclass constructor calls that dropped named
 /// arguments / defaults or the state handed to a runtime-backed Exception

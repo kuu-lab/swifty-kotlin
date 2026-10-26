@@ -1,6 +1,7 @@
 #if canImport(Testing)
 @testable import CompilerCore
 import Testing
+@testable import CompilerTestSupport
 
 /// STDLIB-IO-PROP-004: Validates that the synthetic `kotlin.io.File.isRooted`
 /// extension property is registered with the `java.io.File` receiver and is

@@ -1,5 +1,5 @@
 @testable import CompilerCore
-import CompilerTestSupport
+@testable import CompilerTestSupport
 import TestStdlibCache
 import Testing
 

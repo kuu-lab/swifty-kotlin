@@ -155,7 +155,7 @@ final class ValPropertyInitializationChecker {
                       !property.modifiers.contains(.abstract), !property.modifiers.contains(.lateinit),
                       !property.modifiers.contains(.expect), !property.modifiers.contains(.const),
                       property.receiverType == nil, property.initializer == nil,
-                      property.delegateExpression == nil, property.explicitBackingField == nil,
+                      property.delegateExpression == nil, property.explicitBackingField?.initializer == nil,
                       !isFieldless(property, symbol: field)
                 else { return nil }
                 return field
@@ -179,9 +179,9 @@ final class ValPropertyInitializationChecker {
                 else { continue }
                 if let initializer = property.initializer { walk(initializer, flow: &initial) }
                 if let delegate = property.delegateExpression { walk(delegate, flow: &initial) }
-                if let explicit = property.explicitBackingField { walk(explicit.initializer, flow: &initial) }
+                if let initializer = property.explicitBackingField?.initializer { walk(initializer, flow: &initial) }
                 if property.initializer != nil || property.delegateExpression != nil
-                    || property.explicitBackingField != nil || isFieldless(property, symbol: field),
+                    || property.explicitBackingField?.initializer != nil || isFieldless(property, symbol: field),
                    fields.contains(field), initial.paths[.normal] != nil {
                     initial.paths[.normal]?.insert(field)
                 }

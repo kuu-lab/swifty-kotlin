@@ -1098,10 +1098,17 @@ final class DataFlowAnalyzer {
 
 
     func merge(_ lhs: DataFlowState, _ rhs: DataFlowState) -> DataFlowState {
+        // An empty set means the path has no positive type information.
+        // It must not inherit a narrowing that holds only on the other path.
+        func mergedPossibleTypes(_ left: Set<TypeID>, _ right: Set<TypeID>) -> Set<TypeID> {
+            guard !left.isEmpty, !right.isEmpty else { return [] }
+            return left.union(right)
+        }
+
         var merged: [SymbolID: VariableFlowState] = [:]
         for (symbol, lhsState) in lhs.variables {
             guard let rhsState = rhs.variables[symbol] else { continue }
-            let types = lhsState.possibleTypes.union(rhsState.possibleTypes)
+            let types = mergedPossibleTypes(lhsState.possibleTypes, rhsState.possibleTypes)
             let nullability: Nullability = (lhsState.nullability == .nullable || rhsState.nullability == .nullable)
                 ? .nullable
                 : .nonNull
@@ -1116,7 +1123,7 @@ final class DataFlowAnalyzer {
         for (reference, lhsState) in lhs.members {
             guard let rhsState = rhs.members[reference] else { continue }
             result.members[reference] = VariableFlowState(
-                possibleTypes: lhsState.possibleTypes.union(rhsState.possibleTypes),
+                possibleTypes: mergedPossibleTypes(lhsState.possibleTypes, rhsState.possibleTypes),
                 nullability: lhsState.nullability == .nullable || rhsState.nullability == .nullable ? .nullable : .nonNull,
                 isStable: lhsState.isStable && rhsState.isStable,
                 valueFacts: lhsState.valueFacts.joining(rhsState.valueFacts)

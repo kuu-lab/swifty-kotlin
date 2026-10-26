@@ -2,6 +2,7 @@
 @testable import CompilerCore
 import Testing
 import TestStdlibCache
+@testable import CompilerTestSupport
 
 extension BuildKIRRegressionTests {
     /// KUU-3347: floating-point range values use an opaque runtime handle, but

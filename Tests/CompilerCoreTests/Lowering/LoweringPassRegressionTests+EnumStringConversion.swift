@@ -1,6 +1,7 @@
 #if canImport(Testing)
 @testable import CompilerCore
 import Testing
+@testable import CompilerTestSupport
 
 // An enum value that stays statically typed as its enum class is represented by
 // its bare ordinal. BUG-179 taught the Any-erasure boundary to box that ordinal

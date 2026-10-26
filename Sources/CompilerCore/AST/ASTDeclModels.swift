@@ -492,9 +492,10 @@ public struct PropertyAccessorDecl: Equatable, Codable {
 public struct ExplicitBackingField: Codable {
     /// When `nil`, the type is inferred from the initializer expression.
     public let type: TypeRefID?
-    public let initializer: ExprID
+    /// May be omitted when an explicit field type is assigned in an init block.
+    public let initializer: ExprID?
 
-    public init(type: TypeRefID? = nil, initializer: ExprID) {
+    public init(type: TypeRefID? = nil, initializer: ExprID? = nil) {
         self.type = type
         self.initializer = initializer
     }

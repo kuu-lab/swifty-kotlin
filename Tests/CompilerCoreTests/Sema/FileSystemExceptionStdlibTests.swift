@@ -1,6 +1,7 @@
 #if canImport(Testing)
 @testable import CompilerCore
 import Testing
+@testable import CompilerTestSupport
 
 /// KSP-619: Validates that the `kotlin.io` filesystem exception hierarchy comes
 /// from the bundled Kotlin source (`Stdlib/kotlin/io/FileSystemException.kt`)

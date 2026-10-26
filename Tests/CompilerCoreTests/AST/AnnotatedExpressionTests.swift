@@ -1,6 +1,7 @@
 import Foundation
 @testable import CompilerCore
 import Testing
+@testable import CompilerTestSupport
 
 @Suite
 struct AnnotatedExpressionTests {

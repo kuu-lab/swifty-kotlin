@@ -2,6 +2,7 @@
 @testable import CompilerCore
 import Testing
 import TestStdlibCache
+@testable import CompilerTestSupport
 
 extension BuildKIRRegressionTests {
     /// All `kk_object_register_vtable_method` registrations in the module:

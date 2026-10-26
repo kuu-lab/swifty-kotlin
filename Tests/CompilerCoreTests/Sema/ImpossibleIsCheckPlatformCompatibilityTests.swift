@@ -2,6 +2,7 @@
 @testable import CompilerCore
 import Testing
 import TestStdlibCache
+@testable import CompilerTestSupport
 
 // KUU-3453: missing imported/platform supertypes must not make valid `is` checks impossible.
 @Suite

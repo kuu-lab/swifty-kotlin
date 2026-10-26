@@ -116,6 +116,18 @@ extension ExprTypeChecker {
         ctx: TypeInferenceContext
     ) -> TypeID {
         let sema = ctx.sema
+        // Enum entry bodies are checked as members of their enum class, but
+        // that class is not listed in its own direct-supertype graph. Kotlin
+        // nevertheless accepts `super<Enum>.member()` to reach the enum
+        // implementation from an entry override.
+        if let entrySuperContext = ctx.enumEntrySuperContext,
+           entrySuperContext.ownerSymbol == classSymbol,
+           isEnumEntryMemberBody(classSymbol: classSymbol, ctx: ctx),
+           ctx.cachedSymbol(classSymbol)?.name == qualifier
+        {
+            sema.bindings.bindExprType(id, type: entrySuperContext.type)
+            return entrySuperContext.type
+        }
         let supertypes = sema.symbols.directSupertypes(for: classSymbol)
         for superID in supertypes {
             guard let superSym = ctx.cachedSymbol(superID) else { continue }

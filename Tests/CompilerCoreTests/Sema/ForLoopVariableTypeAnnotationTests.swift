@@ -1,6 +1,7 @@
 #if canImport(Testing)
 @testable import CompilerCore
 import Testing
+@testable import CompilerTestSupport
 
 /// KUU-3138: an explicit type on a for-loop variable must accept the
 /// iterator element type; kotlinc reports an initializer type mismatch.

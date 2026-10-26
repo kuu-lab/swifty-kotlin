@@ -1,6 +1,7 @@
 #if canImport(Testing)
 @testable import CompilerCore
 import Testing
+@testable import CompilerTestSupport
 
 // `receiver.field += x` where `field: String` and `x` is not itself a String
 // must convert `x` the same way `+`/string-template concatenation does

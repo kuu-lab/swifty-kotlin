@@ -2,6 +2,7 @@
 @testable import CompilerCore
 import RuntimeABI
 import Testing
+@testable import CompilerTestSupport
 
 /// Operations identify ABI entries independently of their canonical link names.
 enum BuildKIRRuntimeOperation: String {

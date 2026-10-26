@@ -2,6 +2,7 @@
 @testable import CompilerCore
 import RuntimeABI
 import Testing
+@testable import CompilerTestSupport
 
 extension BuildKIRRegressionTests {
     /// Test-facing selectors must resolve to an ABI declaration or internal callee.

@@ -2,6 +2,7 @@
 @testable import CompilerCore
 import Foundation
 import Testing
+@testable import CompilerTestSupport
 
 // KUU-3250: supertypes that fail to resolve must not be dropped silently.
 // kotlinc reports `unresolved reference` for names that match nothing, so

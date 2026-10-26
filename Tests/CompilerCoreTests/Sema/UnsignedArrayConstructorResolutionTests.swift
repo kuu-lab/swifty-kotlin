@@ -1,6 +1,7 @@
 #if canImport(Testing)
 @testable import CompilerCore
 import Testing
+@testable import CompilerTestSupport
 
 /// KSP-905/KSP-908: published internal storage constructors participate in
 /// overload resolution without replacing primitive size-only allocation.

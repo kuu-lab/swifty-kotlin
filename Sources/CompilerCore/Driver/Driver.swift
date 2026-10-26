@@ -755,13 +755,15 @@ public final class CompilerDriver {
                 if let typeRef = backingField.type {
                     collectTypeRefDependencies(typeRefID: typeRef, ast: ast, interner: interner, depended: &depended)
                 }
-                collectExprDependencies(
-                    exprID: backingField.initializer,
-                    ast: ast,
-                    interner: interner,
-                    availableSymbols: availableSymbols,
-                    depended: &depended
-                )
+                if let initializer = backingField.initializer {
+                    collectExprDependencies(
+                        exprID: initializer,
+                        ast: ast,
+                        interner: interner,
+                        availableSymbols: availableSymbols,
+                        depended: &depended
+                    )
+                }
             }
         case let .typeAliasDecl(d):
             collectTypeAliasDependencies(d, ast: ast, interner: interner, depended: &depended)

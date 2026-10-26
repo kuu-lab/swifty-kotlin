@@ -1,6 +1,7 @@
 #if canImport(Testing)
 @testable import CompilerCore
 import Testing
+@testable import CompilerTestSupport
 
 /// KSP-1091: the legacy `kotlin.concurrent.AtomicLong(Long)` constructor
 /// surface is a source-backed factory entry point while the residual synthetic

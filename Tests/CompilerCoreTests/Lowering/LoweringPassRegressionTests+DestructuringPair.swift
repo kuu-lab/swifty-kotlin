@@ -2,6 +2,7 @@
 @testable import CompilerCore
 import Foundation
 import Testing
+@testable import CompilerTestSupport
 
 // STDLIB-021-BUG-01: Pair destructuring after partition() failed to lower because
 // the componentN return type was the raw generic type parameter (A / B) rather than

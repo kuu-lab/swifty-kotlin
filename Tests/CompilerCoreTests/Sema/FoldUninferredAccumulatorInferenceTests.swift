@@ -1,6 +1,7 @@
 #if canImport(Testing)
 @testable import CompilerCore
 import Testing
+@testable import CompilerTestSupport
 
 /// KUU-2787: `val xs: List<Int> = ints.fold(emptyList()) { acc, x -> acc + x }`
 /// fixed the accumulator `R` to the initial value's `List<Nothing>` and pinned

@@ -1,5 +1,6 @@
 @testable import CompilerCore
 import Testing
+@testable import CompilerTestSupport
 
 /// KUU-1429: the `as`/`as?` cast operand is a full Kotlin `type`, which
 /// includes function types (`() -> Int`, `Int.() -> Int`, `suspend` types).

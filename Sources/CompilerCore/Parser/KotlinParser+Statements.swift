@@ -1095,6 +1095,14 @@ extension KotlinParser {
             let token = stream.peek()
             let atTopLevel = depth.isTopLevel
                 && templateExpressionDepth == 0
+            // A same-line `field:` clause belongs to the property, not its declared type.
+            if allowsPropertyDelegation, atTopLevel, depth.angle == 0, !sawAssignment,
+               isExplicitBackingFieldStart(token),
+               lastConsumedToken?.kind != .symbol(.dot),
+               lastConsumedToken?.kind != .symbol(.questionDot)
+            {
+                break
+            }
             if stopsAtFunctionDelegation, atTopLevel, !sawAssignment {
                 let expectsTypeName = functionTypeNameAfterAnnotation || canStartTypeName(after: lastConsumedToken?.kind)
                 if token.kind == .symbol(.at), expectsTypeName {

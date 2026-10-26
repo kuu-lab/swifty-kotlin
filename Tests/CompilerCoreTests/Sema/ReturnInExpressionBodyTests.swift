@@ -2,6 +2,7 @@
 @testable import CompilerCore
 import Foundation
 import Testing
+@testable import CompilerTestSupport
 
 /// kotlinc rejects a `return` bound to a function or accessor declared with
 /// an `= expression` body **without** an explicit return type

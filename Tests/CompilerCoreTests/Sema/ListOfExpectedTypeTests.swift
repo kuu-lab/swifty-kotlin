@@ -2,6 +2,7 @@
 @testable import CompilerCore
 import Foundation
 import Testing
+@testable import CompilerTestSupport
 
 /// KUU-2029: expected result types must constrain listOf's arguments rather
 /// than replace the inferred result without checking the source declaration.

@@ -1,5 +1,6 @@
 @testable import CompilerCore
 import Testing
+@testable import CompilerTestSupport
 
 /// KUU-2813: opt-in `reachability-sema` skips body analysis for top-level
 /// functions that are not (lexically) reachable from `main`.

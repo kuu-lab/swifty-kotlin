@@ -2,6 +2,7 @@
 @testable import CompilerCore
 import Foundation
 import Testing
+@testable import CompilerTestSupport
 
 // `operator fun invoke` declared as an EXTENSION (not a class/object member)
 // used to be invisible to callable-value call syntax (`value(args)`):

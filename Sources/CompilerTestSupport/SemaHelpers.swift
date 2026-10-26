@@ -5,7 +5,7 @@ func makeSema(
 ) throws -> (SemaModule, StringInterner) {
     var result: (SemaModule, StringInterner)?
     try withTemporaryFile(contents: source) { path in
-        let ctx = makeCompilationContext(inputs: [path])
+        let ctx = makeCompilationContext(inputs: [path], allowDefaultStdlibLibrary: false)
         try runSema(ctx)
         let sema = try requireTestValue(ctx.sema, "Expected sema module after running Sema")
         result = (sema, ctx.interner)
@@ -21,7 +21,7 @@ func makeSema(
 func semaContext(for sources: [String]) throws -> CompilationContext {
     var result: CompilationContext?
     try withTemporaryFiles(contents: sources) { paths in
-        let ctx = makeCompilationContext(inputs: paths)
+        let ctx = makeCompilationContext(inputs: paths, allowDefaultStdlibLibrary: false)
         try runSema(ctx)
         result = ctx
     }

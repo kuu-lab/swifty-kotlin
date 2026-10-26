@@ -2,6 +2,7 @@
 @testable import CompilerCore
 import Foundation
 import Testing
+@testable import CompilerTestSupport
 
 // MARK: - STDLIB-IO-PROP-003: File.invariantSeparatorsPath
 //

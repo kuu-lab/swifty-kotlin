@@ -1,6 +1,7 @@
 @testable import CompilerCore
 import Testing
 import TestStdlibCache
+@testable import CompilerTestSupport
 
 /// KUU-1447: bundled stdlib `internal` extension properties must not resolve
 /// from user code. The extension-property getter/setter recovery fallbacks in

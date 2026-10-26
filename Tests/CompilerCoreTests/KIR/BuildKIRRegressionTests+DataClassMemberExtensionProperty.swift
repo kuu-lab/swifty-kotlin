@@ -2,6 +2,7 @@
 @testable import CompilerCore
 import Foundation
 import Testing
+@testable import CompilerTestSupport
 
 extension BuildKIRRegressionTests {
     // KUU-3520: a member extension property may share a name with a data

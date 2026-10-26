@@ -1,6 +1,7 @@
 #if canImport(Testing)
 @testable import CompilerCore
 import Testing
+@testable import CompilerTestSupport
 
 /// KUU-597: Sequence aggregate source binding must not select a monomorphic
 /// overload for a receiver with a different element type.

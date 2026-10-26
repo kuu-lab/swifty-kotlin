@@ -296,7 +296,7 @@ final class ComparableCharEscapeAnalyzer {
         let eachProperty: (PropertyDecl) -> Void = { property in
             if let initializer = property.initializer { visit(initializer, depth, false) }
             if let delegateExpression = property.delegateExpression { visit(delegateExpression, depth, false) }
-            if let backingField = property.explicitBackingField { visit(backingField.initializer, depth, false) }
+            if let initializer = property.explicitBackingField?.initializer { visit(initializer, depth, false) }
             if let getter = property.getter { eachBody(getter.body) }
             if let setter = property.setter { eachBody(setter.body) }
             if let delegateBody = property.delegateBody { eachBody(delegateBody) }

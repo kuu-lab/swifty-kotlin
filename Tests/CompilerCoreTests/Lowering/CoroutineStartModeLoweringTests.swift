@@ -2,6 +2,7 @@
 @testable import CompilerCore
 import Foundation
 import Testing
+@testable import CompilerTestSupport
 
 /// Source-backed `launch(start = CoroutineStart.X)` must pass X to the launch
 /// bridge, preserving eager, lazy, atomic and undispatched start modes.

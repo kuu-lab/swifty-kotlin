@@ -2,6 +2,7 @@
 @testable import CompilerCore
 import Foundation
 import Testing
+@testable import CompilerTestSupport
 
 // Records come from real Kotlin producer Sema and the production encoder.
 // This Core test is not a claim of native-object producer/link validation.

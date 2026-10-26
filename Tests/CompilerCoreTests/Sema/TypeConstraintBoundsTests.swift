@@ -1,5 +1,6 @@
 @testable import CompilerCore
 import Testing
+@testable import CompilerTestSupport
 
 private struct MissingFunctionDeclaration: Error, CustomStringConvertible {
     let name: String

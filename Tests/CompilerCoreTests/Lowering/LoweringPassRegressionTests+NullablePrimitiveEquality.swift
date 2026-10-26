@@ -2,6 +2,7 @@
 @testable import CompilerCore
 import Foundation
 import Testing
+@testable import CompilerTestSupport
 
 /// `null == false` (and other nullable-primitive vs. non-null literal
 /// comparisons) must stay null-aware. kk_op_eq/ne only accept raw

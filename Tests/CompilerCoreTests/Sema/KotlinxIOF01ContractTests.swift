@@ -3,6 +3,7 @@
 import Foundation
 import Testing
 import TestStdlibCache
+@testable import CompilerTestSupport
 
 /// KUU-1820: exercise the public kotlinx-io surface from an external consumer.
 @Suite(.serialized)

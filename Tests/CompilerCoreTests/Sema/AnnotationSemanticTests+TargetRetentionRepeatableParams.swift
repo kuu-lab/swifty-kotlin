@@ -2,6 +2,7 @@
 @testable import CompilerCore
 import Foundation
 import Testing
+@testable import CompilerTestSupport
 
 // STDLIB-ANNO-002: annotation sema / diagnostics coverage
 // Covers: @Target enforcement on additional sites, @Retention(RUNTIME) metadata,

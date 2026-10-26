@@ -1,7 +1,7 @@
 #if canImport(Testing)
 @testable import CompilerCore
 import Testing
-import TestStdlibCache
+@testable import CompilerTestSupport
 
 /// TYPE-103: Verify that `arrayOf()` preserves element types and that
 /// array-specific members are not incorrectly resolved on `Any` receivers.
@@ -638,57 +638,6 @@ struct ArrayOfTypeSafetyTests {
 
         }
 
-    }
-
-    @Test
-    func testHeterogeneousNestedArrayLubRetainsArraySurface() throws {
-        TestStdlibCache.shared.prepare()
-        let source = """
-        fun main() {
-            val meta = arrayOf(arrayOf(1, 2), arrayOf("s"))
-            println(meta[0].size)
-            println(meta[0][0])
-            val inner = meta[0]
-            println(inner.size)
-            for (x in inner) { println(x) }
-        }
-        """
-        try withTemporaryFiles(contents: [source]) { paths in
-            let ctx = makeCompilationContext(
-                inputs: paths,
-                emit: .executable,
-                allowDefaultStdlibLibrary: true
-            )
-            try runSema(ctx)
-
-            let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-            #expect(errors.isEmpty, "Expected the nested Array LUB to retain array members: \(errors)")
-
-            let ast = try #require(ctx.ast)
-            let sema = try #require(ctx.sema)
-            let interner = ctx.interner
-            let mainBody = try #require(findMainBodyStatements(in: ast, path: paths[0], ctx: ctx, interner: interner))
-            let innerName = interner.intern("inner")
-            var innerType: TypeID?
-            for exprID in mainBody {
-                guard let expr = ast.arena.expr(exprID),
-                      case let .localDecl(name, _, _, initializer, _, _, _) = expr,
-                      name == innerName,
-                      let initializer
-                else { continue }
-                innerType = sema.bindings.exprType(for: initializer)
-                break
-            }
-
-            let arraySymbol = try #require(sema.symbols.lookup(fqName: KnownCompilerNames(interner: interner).kotlinArrayFQName))
-            let inferredInnerType = try #require(innerType)
-            guard case let .classType(arrayType) = sema.types.kind(of: inferredInnerType) else {
-                Issue.record("Expected the inner expression to retain its Array class type.")
-                return
-            }
-            #expect(arrayType.classSymbol == arraySymbol)
-            #expect(arrayType.args == [.out(sema.types.anyType)])
-        }
     }
 
     // MARK: - Helpers

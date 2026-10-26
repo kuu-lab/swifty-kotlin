@@ -1,6 +1,7 @@
 #if canImport(Testing)
 @testable import CompilerCore
 import Testing
+@testable import CompilerTestSupport
 
 /// KUU-1367: the bundled `kotlinx.io` surface mirrors upstream kotlinx-io 0.9.1,
 /// where `ByteString.hex()`, `ByteString.utf8()`,

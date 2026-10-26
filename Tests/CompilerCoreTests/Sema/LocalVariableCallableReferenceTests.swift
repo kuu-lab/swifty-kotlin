@@ -1,6 +1,7 @@
 #if canImport(Testing)
 @testable import CompilerCore
 import Testing
+@testable import CompilerTestSupport
 
 /// KUU-1355: a bare `::name` reference can never denote a local variable or
 /// value parameter — kotlinc rejects them with "references to variables

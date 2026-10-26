@@ -1,6 +1,7 @@
 @testable import CompilerCore
 import Foundation
 import Testing
+@testable import CompilerTestSupport
 
 /// Receiver-parented top-level extensions and their KSP-443 aliases are lookup
 /// entries, not dispatchable members. Counting either in `orderedOwnMethods`

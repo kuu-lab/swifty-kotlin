@@ -1,6 +1,7 @@
 #if canImport(Testing)
 @testable import CompilerCore
 import Testing
+@testable import CompilerTestSupport
 
 /// Regression coverage for inline property accessors that are split by a
 /// semicolon in the CST: the first accessor can stay on the property node while

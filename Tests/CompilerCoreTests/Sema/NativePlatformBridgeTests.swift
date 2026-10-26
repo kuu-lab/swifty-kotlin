@@ -1,6 +1,7 @@
 #if canImport(Testing)
 @testable import CompilerCore
 import Testing
+@testable import CompilerTestSupport
 
 /// STDLIB-NATIVE-PLATFORM-002: Sema-level tests verifying that
 /// Platform, OsFamily, CpuArchitecture, and MemoryModel are visible with the

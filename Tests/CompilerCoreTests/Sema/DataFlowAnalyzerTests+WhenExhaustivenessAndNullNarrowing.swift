@@ -1,6 +1,7 @@
 #if canImport(Testing)
 @testable import CompilerCore
 import Testing
+@testable import CompilerTestSupport
 
 extension DataFlowAnalyzerTests {
     @Test func testCapturedSealedUpperBoundIsUsedForWhenExhaustiveness() {

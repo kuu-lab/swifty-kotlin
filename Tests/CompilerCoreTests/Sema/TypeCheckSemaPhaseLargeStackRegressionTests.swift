@@ -5,6 +5,7 @@ import Foundation
 import Dispatch
 #endif
 import Testing
+@testable import CompilerTestSupport
 
 // MARK: - TypeCheckSemaPhase large-stack regression
 //

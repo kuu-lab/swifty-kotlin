@@ -109,3 +109,72 @@ func makeContextFromSource(
     _ = ctx.sourceManager.addFile(path: fakePath, contents: Data(source.utf8))
     return ctx
 }
+
+/// A stdlib-free `CompilationContext` over a single virtual source, shared by
+/// bound-identity regression tests across test targets.
+func makeBoundIdentityContext(_ source: String) -> CompilationContext {
+    let path = "/virtual/bound-identity.kt"
+    let context = makeCompilationContext(
+        inputs: [path],
+        includeStdlib: false,
+        allowDefaultStdlibLibrary: false
+    )
+    _ = context.sourceManager.addFile(path: path, contents: .init(source.utf8))
+    return context
+}
+
+/// A `KIRContext` for tests that drive a single `KIRPass` directly instead of
+/// the whole `LoweringPhase`. `moduleName` is defaulted because no lowering
+/// pass reads `CompilerOptions` — nothing under `Sources/CompilerCore/Lowering`
+/// touches `options`, so the value is unobservable from a pass test.
+func makeKIRContext(
+    moduleName: String = "KIRTest",
+    interner: StringInterner,
+    sema: SemaModule? = nil,
+    diagnostics: DiagnosticEngine = DiagnosticEngine()
+) -> KIRContext {
+    let ctx = makeCompilationContext(
+        inputs: [],
+        moduleName: moduleName,
+        interner: interner,
+        diagnostics: diagnostics,
+        allowDefaultStdlibLibrary: false
+    )
+    return makeKIRContext(from: ctx, sema: sema)
+}
+
+/// The `KIRContext` that `LoweringPhase.run` builds for `context`, for tests
+/// that run one pass against an already-built `CompilationContext`.
+func makeKIRContext(from context: CompilationContext, sema: SemaModule? = nil) -> KIRContext {
+    KIRContext(
+        diagnostics: context.diagnostics,
+        options: context.options,
+        interner: context.interner,
+        sema: sema ?? context.sema
+    )
+}
+
+/// Run `LoweringPhase` over a hand-built `module`, the shape every
+/// pass-level lowering test needs.
+@discardableResult
+func runLowering(
+    module: KIRModule,
+    interner: StringInterner,
+    moduleName: String,
+    emit: EmitMode = .kirDump,
+    sema: SemaModule? = nil,
+    diagnostics: DiagnosticEngine = DiagnosticEngine()
+) throws -> CompilationContext {
+    let ctx = makeCompilationContext(
+        inputs: [],
+        moduleName: moduleName,
+        emit: emit,
+        interner: interner,
+        diagnostics: diagnostics,
+        allowDefaultStdlibLibrary: false
+    )
+    ctx.kir = module
+    ctx.sema = sema
+    try LoweringPhase().run(ctx)
+    return ctx
+}

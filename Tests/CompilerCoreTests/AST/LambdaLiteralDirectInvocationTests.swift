@@ -1,6 +1,7 @@
 #if canImport(Testing)
 @testable import CompilerCore
 import Testing
+@testable import CompilerTestSupport
 
 /// KUU-1380: a lambda literal is a `primaryExpression`, so it takes the same
 /// `postfixUnarySuffix` chain as any other primary — `{ ... }()` invokes the

@@ -5,6 +5,7 @@ import Foundation
 import Dispatch
 #endif
 import Testing
+@testable import CompilerTestSupport
 
 // MARK: - KUU-809: nominal layout synthesis bounds for untrusted supertype graphs
 //

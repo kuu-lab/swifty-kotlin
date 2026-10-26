@@ -1,6 +1,7 @@
 #if canImport(Testing)
 @testable import CompilerCore
 import Testing
+@testable import CompilerTestSupport
 
 // BUG-206: `?:` was lowered strictly, as `kk_op_elvis(lhs, rhs)` with both
 // operands evaluated up front. The fallback therefore ran even when lhs was

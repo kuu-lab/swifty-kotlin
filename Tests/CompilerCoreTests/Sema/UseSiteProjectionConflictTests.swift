@@ -1,5 +1,6 @@
 @testable import CompilerCore
 import Testing
+@testable import CompilerTestSupport
 
 @Suite
 struct UseSiteProjectionConflictTests {
@@ -69,6 +70,10 @@ struct UseSiteProjectionConflictTests {
         #expect(diagnostics.contains { $0.severity == .error } == rejects, "\(diagnostics)")
     }
 
+    // `.timeLimit` requires macOS 13+; the package floor is macOS 12, so the
+    // trait expression must be type-checked under a macOS 13 context. On older
+    // hosts the test is skipped; Linux and macOS 13+ run it normally.
+    @available(macOS 13.0, *)
     @Test(.timeLimit(.minutes(1)))
     func sharedExpandedAliasDagIsBounded() throws {
         let (_, symbols, types, interner) = makeSemaModule()

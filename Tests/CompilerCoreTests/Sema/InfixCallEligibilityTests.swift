@@ -2,6 +2,7 @@
 import Foundation
 import Testing
 import TestStdlibCache
+@testable import CompilerTestSupport
 
 @Suite
 struct InfixCallEligibilityTests {

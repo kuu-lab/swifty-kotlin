@@ -2,6 +2,7 @@
 @testable import CompilerCore
 import Foundation
 import Testing
+@testable import CompilerTestSupport
 
 // STDLIB-ANNO-002: constructor / value-parameter / enum-entry annotation sema coverage
 // Tests that @Target constraints are enforced on the four new usage sites:

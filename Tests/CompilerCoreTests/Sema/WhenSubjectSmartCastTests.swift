@@ -1,6 +1,7 @@
 #if canImport(Testing)
 @testable import CompilerCore
 import Testing
+@testable import CompilerTestSupport
 
 /// A lambda parameter (`it` or a named parameter) used as a `when` subject
 /// must be smart-cast in `is` branches just like a regular function
@@ -418,5 +419,44 @@ struct WhenSubjectSmartCastTests {
         }
         #expect(nonExhaustiveErrors.isEmpty, "Got: \(nonExhaustiveErrors)")
     }
+    @Test func testConjunctionFallthroughDoesNotInventGenericSmartCast() throws {
+        let source = """
+        interface Marker { fun mark() }
+        class Box<T : Any>(val value: T)
+        class Carrier<T : Any>(val ordering: Any?) {
+            fun accept(entry: Box<T>) {}
+            fun offer(element: T) {
+                if (element == null) return
+                if (ordering == null && element !is Marker) return
+                val entry = Box(element)
+                accept(entry)
+            }
+        }
+        fun <T : Any> positive(element: T) {
+            if (element !is Marker) return
+            element.mark()
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], includeStdlib: false)
+            try runSema(ctx)
+            #expect(!ctx.diagnostics.hasError, "Unexpected diagnostics: \(ctx.diagnostics.diagnostics)")
+        }
+
+        let invalid = source + """
+
+        fun <T : Any> invalid(element: T, ordering: Any?) {
+            if (element == null) return
+            if (ordering == null && element !is Marker) return
+            element.mark()
+        }
+        """
+        try withTemporaryFile(contents: invalid) { path in
+            let ctx = makeCompilationContext(inputs: [path], includeStdlib: false)
+            try runSema(ctx)
+            #expect(ctx.diagnostics.hasError, "Expected the unproven Marker call to be rejected: \(ctx.diagnostics.diagnostics)")
+        }
+    }
+
 }
 #endif

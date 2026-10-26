@@ -2,6 +2,7 @@
 @testable import CompilerCore
 import Foundation
 import Testing
+@testable import CompilerTestSupport
 
 /// KUU-1380 (sema): a directly-invoked lambda literal gets a synthesized
 /// `() -> Any`-shaped contextual type when no caller expected type exists.

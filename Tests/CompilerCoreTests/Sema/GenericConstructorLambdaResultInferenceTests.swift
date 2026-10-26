@@ -1,6 +1,7 @@
 #if canImport(Testing)
 @testable import CompilerCore
 import Testing
+@testable import CompilerTestSupport
 
 /// KUU-2318: generic constructor result parameters are inferred from the
 /// concrete return type of a function-typed lambda argument.

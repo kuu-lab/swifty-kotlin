@@ -2,6 +2,7 @@
 @testable import CompilerCore
 import Foundation
 import Testing
+@testable import CompilerTestSupport
 
 @Suite struct ImplicitReceiverMemberScopeFallbackTests {
     private func makeIsolatedContext(_ source: String) -> CompilationContext {

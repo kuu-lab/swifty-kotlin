@@ -1,5 +1,6 @@
 @testable import CompilerCore
 import Testing
+@testable import CompilerTestSupport
 
 /// KUU-1453: an explicit `recv.name` without parentheses is property-access
 /// syntax. Kotlin/JVM rejects it for functions with

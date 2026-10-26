@@ -1,6 +1,7 @@
 #if canImport(Testing)
 @testable import CompilerCore
 import Testing
+@testable import CompilerTestSupport
 
 /// `list[0] = v`, `map[k] = v` and `str[0] = c` must be rejected at compile
 /// time (no `set` operator) instead of reaching the built-in array fallback

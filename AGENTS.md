@@ -31,7 +31,9 @@ bash Scripts/swift_test.sh --filter CompilerBackendTests                        
 ローカルの動作確認は**変更に関係する範囲だけ**で良い。全テスト・全ゴールデン・全 diff ケースの総ざらいを既定の締め作業にしない（全体は CI が回す）。
 
 - 既定: 変更を直接カバーするテストがある場合は `bash Scripts/swift_test.sh --filter <test>` を先に実行する。テストコマンドが必要なテスト成果物をビルドするため、別途 `swift build` を重ねない
-- 直接カバーするテストがない場合は `swift build --target <target>` または `swift build --product <product>` で対象だけを確認する。より広い依存範囲に影響する変更、狭い確認では原因を診断できない場合、または明示的に求められた場合に限り、全体の `swift build` を行う
+- テストの型名と関数名をソースで確認し、モジュールが分かる場合は `--filter '^CompilerCoreTests\.SuiteName/testName'` のように先頭と区切りを明示する。`swiftbuild` では該当テスト製品だけを自動選択する。単純な指定はビルド前にソース照合し、SwiftPM の no-match は失敗として扱う（生成・継承テストの例外や制約は [`Scripts/README.md`](Scripts/README.md)）
+- ローカルの `swift_test.sh` と `swift_build.sh` は worktree 間で同時ビルドを既定 2 本に制限し、ビルド完了後に枠を解放する。`SWIFT_BUILD_SLOTS`、`SWIFT_TEST_BUILD_JOBS`、`SWIFT_BUILD_JOBS` で調整できる。直接の `swift build` や他のスクリプトはこの制御の対象外なので、並行作業全体の負荷にも注意する
+- 直接カバーするテストがない場合は `bash Scripts/swift_build.sh --target <target>` または `bash Scripts/swift_build.sh --product <product>` で対象だけを確認する。より広い依存範囲に影響する変更、狭い確認では原因を診断できない場合、または明示的に求められた場合に限り、全体のビルドを行う
 - 同じ worktree でチケットを続けて扱う場合は `.build` を保持し、SwiftPM の増分ビルド成果物を再利用する。別 worktree 間で `.build` や `--scratch-path` を共有しない。同じ master commit だけでは作業差分・ツールチェーン・ビルド設定が同一とは限らず、同時書き込みも競合し得る
 - 標準ライブラリ成果物や Runtime オブジェクトなど、内容 fingerprint に基づく共有キャッシュは SwiftPM の `.build` と分けて利用する
 - Golden: 変更が golden 出力に影響する場合のみ該当スイートを型名フィルタで回す（四スイート一括の `--filter Golden` は影響範囲が広いときだけ）

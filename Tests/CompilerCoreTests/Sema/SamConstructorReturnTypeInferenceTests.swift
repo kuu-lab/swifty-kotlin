@@ -3,6 +3,7 @@
 import Foundation
 import TestStdlibCache
 import Testing
+@testable import CompilerTestSupport
 
 /// Generic SAM constructor type arguments can be inferred from the lambda body's result.
 @Suite

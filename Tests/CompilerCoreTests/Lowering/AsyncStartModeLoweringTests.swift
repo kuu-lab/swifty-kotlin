@@ -2,6 +2,7 @@
 @testable import CompilerCore
 import Foundation
 import Testing
+@testable import CompilerTestSupport
 
 /// Source-backed `async(start = CoroutineStart.X)` must pass X to the async
 /// bridge, whose Deferred handle carries the block's result.
