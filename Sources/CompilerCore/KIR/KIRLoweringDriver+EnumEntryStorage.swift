@@ -590,6 +590,7 @@ extension KIRLoweringDriver {
             // Set the flag before constructing entries so reentrant reads
             // from initializers (e.g. `init { println(id) }`) do not recurse.
             body.append(.storeGlobal(value: trueExpr, symbol: flagSymbol))
+            let initializerInstructionsStart = body.count
 
             // KUU-3225: `$enumEnsureInit$` is the enum class's <clinit> —
             // on the JVM its supertype companions initialize before any
@@ -708,8 +709,79 @@ extension KIRLoweringDriver {
                     callee: companionLazyInit.ensureInitName,
                     arguments: [],
                     result: companionInitResult,
+                    canThrow: true
+                ))
+            }
+
+            var initializerInstructions = KIRLoweringEmitContext(
+                Array(body.instructions[initializerInstructionsStart..<body.endIndex])
+            )
+            initializerInstructions.instructionLocations = Array(
+                body.instructionLocations[initializerInstructionsStart..<body.endIndex]
+            )
+            body.removeSubrange(initializerInstructionsStart..<body.endIndex)
+
+            let exceptionSlot = arena.appendTemporary(type: sema.types.nullableAnyType)
+            let exceptionTypeSlot = arena.appendTemporary(type: sema.types.intType)
+            let nullException = arena.appendExpr(.null, type: sema.types.nullableAnyType)
+            let unknownType = arena.appendExpr(.intLiteral(0), type: sema.types.intType)
+            body.append(.constValue(result: nullException, value: .null))
+            body.append(.constValue(result: unknownType, value: .intLiteral(0)))
+            body.append(.copy(from: nullException, to: exceptionSlot))
+            body.append(.copy(from: unknownType, to: exceptionTypeSlot))
+
+            let initializerFailureLabel = ctx.makeLoopLabel()
+            controlFlowLowerer.appendThrowAwareInstructions(
+                initializerInstructions,
+                exceptionSlot: exceptionSlot,
+                exceptionTypeSlot: exceptionTypeSlot,
+                thrownTarget: initializerFailureLabel,
+                sema: sema,
+                interner: interner,
+                arena: arena,
+                emit: &body
+            )
+            body.append(.jump(doneLabel))
+            body.append(.label(initializerFailureLabel))
+
+            let errorFQName = [interner.intern("kotlin"), interner.intern("Error")]
+            let rethrowErrorLabel = ctx.makeLoopLabel()
+            if let errorSymbol = sema.symbols.lookup(fqName: errorFQName) {
+                let errorType = sema.types.make(.classType(ClassType(
+                    classSymbol: errorSymbol,
+                    args: [],
+                    nullability: .nonNull
+                )))
+                let errorTypeToken = arena.appendExpr(
+                    .intLiteral(RuntimeTypeCheckToken.encode(type: errorType, sema: sema, interner: interner)),
+                    type: sema.types.intType
+                )
+                let isError = arena.appendTemporary(type: sema.types.booleanType)
+                let trueValue = arena.appendExpr(.boolLiteral(true), type: sema.types.booleanType)
+                body.append(.constValue(result: errorTypeToken, value: .intLiteral(
+                    RuntimeTypeCheckToken.encode(type: errorType, sema: sema, interner: interner)
+                )))
+                body.append(.constValue(result: trueValue, value: .boolLiteral(true)))
+                body.append(.call(
+                    callee: interner.intern("kk_op_is"),
+                    arguments: [exceptionSlot, errorTypeToken],
+                    result: isError,
                     canThrow: false
                 ))
+                body.append(.jumpIfEqual(lhs: isError, rhs: trueValue, target: rethrowErrorLabel))
+            }
+
+            let wrappedException = arena.appendTemporary(type: sema.types.anyType)
+            body.append(.call(
+                callee: interner.intern("__kk_exception_in_initializer_error_new_cause"),
+                arguments: [exceptionSlot],
+                result: wrappedException,
+                canThrow: false
+            ))
+            body.append(.rethrow(value: wrappedException))
+            if sema.symbols.lookup(fqName: errorFQName) != nil {
+                body.append(.label(rethrowErrorLabel))
+                body.append(.rethrow(value: exceptionSlot))
             }
 
             body.append(.label(doneLabel))
@@ -733,7 +805,7 @@ extension KIRLoweringDriver {
 
         func emitEnsureInit(_ body: inout KIRLoweringEmitContext) {
             let result = arena.appendTemporary(type: sema.types.unitType)
-            body.append(.call(symbol: ensureInitSymbol, callee: ensureInitName, arguments: [], result: result, canThrow: false))
+            body.append(.call(symbol: ensureInitSymbol, callee: ensureInitName, arguments: [], result: result, canThrow: true))
         }
 
         let entryCount = classDecl.enumEntries.count
@@ -1038,6 +1110,7 @@ extension KIRLoweringDriver {
             return owner
         }
         let unitType = sema.types.unitType
+        let intType = sema.types.intType
         arena.transformFunctions { function in
             guard !ensureInitSymbols.contains(function.symbol) else { return function }
             var needsRewrite = false
@@ -1064,9 +1137,55 @@ extension KIRLoweringDriver {
             guard needsRewrite else { return function }
             var newBody: [KIRInstruction] = []
             var newLocations: [SourceRange?] = []
+            var guardStack: [FinallyGuardThrowContext?] = []
             newBody.reserveCapacity(function.body.count + 4)
+
+            func appendInitializerCall(
+                symbol: SymbolID,
+                name: InternedString,
+                result: KIRExprID,
+                location: SourceRange?
+            ) {
+                func append(_ instruction: KIRInstruction) {
+                    newBody.append(instruction)
+                    newLocations.append(location)
+                }
+
+                guard let context = guardStack.last ?? nil else {
+                    append(.call(
+                        symbol: symbol,
+                        callee: name,
+                        arguments: [],
+                        result: result,
+                        canThrow: true
+                    ))
+                    return
+                }
+
+                append(.call(
+                    symbol: symbol,
+                    callee: name,
+                    arguments: [],
+                    result: result,
+                    canThrow: true,
+                    thrownResult: context.exceptionSlot
+                ))
+                let unknownType = arena.appendExpr(.intLiteral(0), type: intType)
+                append(.constValue(result: unknownType, value: .intLiteral(0)))
+                append(.copy(from: unknownType, to: context.exceptionTypeSlot))
+                append(.jumpIfNotNull(value: context.exceptionSlot, target: context.thrownTarget))
+            }
+
             for (index, instruction) in function.body.enumerated() {
                 let location = index < function.instructionLocations.count ? function.instructionLocations[index] : nil
+                switch instruction {
+                case .beginFinallyGuard:
+                    guardStack.append(resolveGuardRegionThrowContext(body: function.body, beginIndex: index))
+                case .endFinallyGuard:
+                    _ = guardStack.popLast()
+                default:
+                    break
+                }
                 let referenced: SymbolID? = switch instruction {
                 case let .constValue(_, .symbolRef(symbol)), let .loadGlobal(_, symbol):
                     symbol
@@ -1077,37 +1196,31 @@ extension KIRLoweringDriver {
                    let enumLazyInit = enumLazyInitByCompanionLazyInit[symbol],
                    enumLazyInit.symbol != function.symbol
                 {
-                    newBody.append(.call(
+                    appendInitializerCall(
                         symbol: enumLazyInit.symbol,
-                        callee: enumLazyInit.name,
-                        arguments: [],
+                        name: enumLazyInit.name,
                         result: arena.appendTemporary(type: unitType),
-                        canThrow: false
-                    ))
-                    newLocations.append(location)
+                        location: location
+                    )
                 }
                 if let referenced, let owner = enumOwnerForEntry(referenced) {
                     if let lazyInit = lazyInits[owner] {
-                        newBody.append(.call(
+                        appendInitializerCall(
                             symbol: lazyInit.symbol,
-                            callee: lazyInit.name,
-                            arguments: [],
+                            name: lazyInit.name,
                             result: arena.appendTemporary(type: unitType),
-                            canThrow: false
-                        ))
-                        newLocations.append(location)
+                            location: location
+                        )
                     }
                     if let companionInit = companionLazyInits[owner],
                        companionInit.symbol != function.symbol
                     {
-                        newBody.append(.call(
+                        appendInitializerCall(
                             symbol: companionInit.symbol,
-                            callee: companionInit.name,
-                            arguments: [],
+                            name: companionInit.name,
                             result: arena.appendTemporary(type: unitType),
-                            canThrow: false
-                        ))
-                        newLocations.append(location)
+                            location: location
+                        )
                     }
                 }
                 newBody.append(instruction)

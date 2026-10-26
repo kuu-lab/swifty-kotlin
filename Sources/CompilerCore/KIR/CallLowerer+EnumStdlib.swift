@@ -184,7 +184,7 @@ func emitEnumLazyInitGuard(
             callee: ensureInitName,
             arguments: [],
             result: arena.appendTemporary(type: sema.types.unitType),
-            canThrow: false
+            canThrow: true
         ))
         return
     }
@@ -203,7 +203,7 @@ func emitEnumLazyInitGuard(
                 callee: lazyInitName,
                 arguments: [],
                 result: arena.appendTemporary(type: sema.types.unitType),
-                canThrow: false
+                canThrow: true
             ))
             return
         }
@@ -215,7 +215,7 @@ func emitEnumLazyInitGuard(
                 callee: importedInfo.name,
                 arguments: [],
                 result: arena.appendTemporary(type: sema.types.unitType),
-                canThrow: false
+                canThrow: true
             ))
             return
         }
