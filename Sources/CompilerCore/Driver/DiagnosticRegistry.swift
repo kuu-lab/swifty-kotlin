@@ -1185,6 +1185,12 @@ enum DiagnosticRegistry {
             defaultSeverity: .error,
             summary: "Type constraints are not allowed when no type parameters are declared."
         ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0446",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "A data class componentN() conflicts with a user-declared member."
+        ),
     ]
 
 
