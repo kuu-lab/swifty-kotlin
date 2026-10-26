@@ -2,7 +2,7 @@ package kotlin
 
 import kotlin.internal.KsSymbolName
 
-public class KotlinNothingValueException : RuntimeException {
+internal class KotlinNothingValueException : RuntimeException {
     @KsSymbolName("__kk_kotlin_nothing_value_exception_new")
     public constructor()
 

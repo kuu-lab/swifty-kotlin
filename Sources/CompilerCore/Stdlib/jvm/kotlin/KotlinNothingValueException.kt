@@ -1,6 +1,6 @@
 package kotlin
 
-public class KotlinNothingValueException: RuntimeException {
+internal class KotlinNothingValueException: RuntimeException {
     public constructor(): super()
     public constructor(message: String?): super(message)
     public constructor(message: String?, cause: Throwable?): super(message, cause)
