@@ -1524,6 +1524,34 @@ extension ExprTypeChecker {
                     resultType = resultTypePreservingSuspendConversionSource(
                         expectedSamInterfaceType ?? inferredType
                     )
+                } else if isConstructorReference,
+                          let unboundInnerConstructorReceiverType,
+                          let innerConstructorExpectedType = driver.helpers.specializeInnerConstructorExpectedFunctionType(
+                              expectedFunctionType,
+                              targetSymbol: chosen,
+                              unboundReceiverType: unboundInnerConstructorReceiverType,
+                              inferenceParameters: ctx.callableReferenceInferenceParameters,
+                              sema: sema
+                          ),
+                          let specialization = driver.helpers.contextualCallableReferenceBinding(
+                              for: signature,
+                              targetSymbol: chosen,
+                              bindReceiver: isBoundReceiver,
+                              boundReceiver: boundReceiverType.map { (chosen, $0) },
+                              unboundReceiverType: unboundCallableReceiverType,
+                              expectedFunctionType: innerConstructorExpectedType,
+                              postponedReturnTypeParameter: postponedReturnParameter,
+                              interner: interner,
+                              availableContextReceiverTypes: availableContextReceiverTypes,
+                              sema: sema
+                          )
+                {
+                    // An inner constructor's own class parameters still need
+                    // the contextual return type when its enclosing generic
+                    // type is being inferred.
+                    inferredType = specialization.functionType
+                    contextualSpecialization = specialization
+                    resultType = inferredType
                 } else {
                     // A generic call may infer its input type arguments from a
                     // callable reference. Preserve the reference's concrete

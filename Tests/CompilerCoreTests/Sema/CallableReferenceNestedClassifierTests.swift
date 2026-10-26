@@ -243,5 +243,36 @@ struct CallableReferenceNestedClassifierTests {
             }
         }
     }
+
+    @Test
+    func unboundInnerConstructorReferenceAdaptsToGenericExtensionFunctionType() throws {
+        let source = """
+        class Foo<T> { inner class Bar<T> { val result: String = "OK" } }
+        fun <T> make(factory: Foo<T>.() -> Foo<T>.Bar<T>): String = factory(Foo()).result
+        fun result(): String = make(Foo<Int>::Bar)
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], includeStdlib: false)
+            try runSema(ctx)
+
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
+            let reference = try #require(ast.arena.exprs.indices.compactMap { index -> ExprID? in
+                let exprID = ExprID(rawValue: Int32(index))
+                guard case let .callableRef(_, member, _) = ast.arena.expr(exprID),
+                      ctx.interner.resolve(member) == "Bar"
+                else {
+                    return nil
+                }
+                return exprID
+            }.first)
+            let constructor = try #require(sema.bindings.identifierSymbol(for: reference))
+            let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+            #expect(errors.isEmpty, "Unexpected diagnostics: \(errors)")
+            #expect(sema.symbols.symbol(constructor)?.kind == .constructor)
+            #expect(sema.bindings.isUnboundCallableRef(reference))
+        }
+    }
 }
 #endif

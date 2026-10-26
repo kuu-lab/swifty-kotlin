@@ -625,8 +625,10 @@ extension CallTypeChecker {
         )
 
         // Calling a function-typed value (`m { it }`): no candidate declares
-        // the parameter types, so seed lambda arguments from the value's own
-        // type. This includes member properties accessed through the implicit
+        // the argument types, so use the value's own function type for lambda
+        // and inferable nested-call arguments. For an extension function value
+        // called with its receiver explicitly, that receiver is argument zero.
+        // This includes member properties accessed through the implicit
         // receiver, such as a function property called from an init block.
         let callableValueType: TypeID? = if candidates.isEmpty, let calleeName {
             if let local = locals[calleeName] {
@@ -638,14 +640,26 @@ extension CallTypeChecker {
             nil
         }
         if let callableValueType,
-           case let .functionType(calleeFunctionType) = sema.types.kind(of: sema.types.makeNonNullable(callableValueType)),
-           calleeFunctionType.receiver == nil,
-           args.count == calleeFunctionType.params.count {
-            for (index, argument) in args.enumerated()
-                where !argument.isSpread && argument.label == nil && expectedTypeOverrides[index] == nil
-            {
-                if case .lambdaLiteral = ast.arena.expr(argument.expr) {
-                    expectedTypeOverrides[index] = calleeFunctionType.params[index]
+           case let .functionType(calleeFunctionType) = sema.types.kind(of: sema.types.makeNonNullable(callableValueType)) {
+            let expectedArgumentTypes: [TypeID]?
+            if let receiver = calleeFunctionType.receiver,
+               args.count == calleeFunctionType.params.count + 1 {
+                expectedArgumentTypes = [receiver] + calleeFunctionType.params
+            } else if args.count == calleeFunctionType.params.count {
+                expectedArgumentTypes = calleeFunctionType.params
+            } else {
+                expectedArgumentTypes = nil
+            }
+            if let expectedArgumentTypes {
+                for (index, argument) in args.enumerated()
+                    where !argument.isSpread && argument.label == nil && expectedTypeOverrides[index] == nil
+                {
+                    guard expectedArgumentTypes.indices.contains(index) else { continue }
+                    if case .lambdaLiteral = ast.arena.expr(argument.expr) {
+                        expectedTypeOverrides[index] = expectedArgumentTypes[index]
+                    } else if isInferableNestedCallExpr(argument.expr, ast: ast) {
+                        expectedTypeOverrides[index] = expectedArgumentTypes[index]
+                    }
                 }
             }
         }
