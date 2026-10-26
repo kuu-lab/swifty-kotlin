@@ -59,10 +59,58 @@ public struct SnapshotCallBinding: Codable, Hashable, Sendable {
     /// Sorted by `from`; JSON dictionaries with integer keys are neither
     /// ordered nor portable.
     public let parameterMapping: [SnapshotIndexPair]
+    /// Sorted by `from`; these source arguments supply context parameters.
+    public let contextParameterArgumentMapping: [SnapshotIndexPair]
     public let defaultArgumentOwner: SnapshotSymbol?
     public let dispatchReceiverSymbol: SnapshotSymbol?
     public let isCallableReferenceAdapter: Bool
     public let boundContextParameterTypes: [SnapshotType]
+
+    private enum CodingKeys: String, CodingKey {
+        case chosenCallee
+        case substitutedTypeArguments
+        case parameterMapping
+        case contextParameterArgumentMapping
+        case defaultArgumentOwner
+        case dispatchReceiverSymbol
+        case isCallableReferenceAdapter
+        case boundContextParameterTypes
+    }
+
+    public init(
+        chosenCallee: SnapshotSymbol,
+        substitutedTypeArguments: [SnapshotType],
+        parameterMapping: [SnapshotIndexPair],
+        contextParameterArgumentMapping: [SnapshotIndexPair] = [],
+        defaultArgumentOwner: SnapshotSymbol?,
+        dispatchReceiverSymbol: SnapshotSymbol?,
+        isCallableReferenceAdapter: Bool,
+        boundContextParameterTypes: [SnapshotType]
+    ) {
+        self.chosenCallee = chosenCallee
+        self.substitutedTypeArguments = substitutedTypeArguments
+        self.parameterMapping = parameterMapping
+        self.contextParameterArgumentMapping = contextParameterArgumentMapping
+        self.defaultArgumentOwner = defaultArgumentOwner
+        self.dispatchReceiverSymbol = dispatchReceiverSymbol
+        self.isCallableReferenceAdapter = isCallableReferenceAdapter
+        self.boundContextParameterTypes = boundContextParameterTypes
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        chosenCallee = try container.decode(SnapshotSymbol.self, forKey: .chosenCallee)
+        substitutedTypeArguments = try container.decode([SnapshotType].self, forKey: .substitutedTypeArguments)
+        parameterMapping = try container.decode([SnapshotIndexPair].self, forKey: .parameterMapping)
+        contextParameterArgumentMapping = try container.decodeIfPresent(
+            [SnapshotIndexPair].self,
+            forKey: .contextParameterArgumentMapping
+        ) ?? []
+        defaultArgumentOwner = try container.decodeIfPresent(SnapshotSymbol.self, forKey: .defaultArgumentOwner)
+        dispatchReceiverSymbol = try container.decodeIfPresent(SnapshotSymbol.self, forKey: .dispatchReceiverSymbol)
+        isCallableReferenceAdapter = try container.decode(Bool.self, forKey: .isCallableReferenceAdapter)
+        boundContextParameterTypes = try container.decode([SnapshotType].self, forKey: .boundContextParameterTypes)
+    }
 }
 
 /// Translates between live IDs and ID-independent references for one
@@ -337,8 +385,12 @@ final class SemaSnapshotCodec {
         let mapping = binding.parameterMapping
             .sorted { $0.key < $1.key }
             .map { SnapshotIndexPair(from: $0.key, to: $0.value) }
+        let contextMapping = binding.contextParameterArgumentMapping
+            .sorted { $0.key < $1.key }
+            .map { SnapshotIndexPair(from: $0.key, to: $0.value) }
         return SnapshotCallBinding(
             chosenCallee: callee, substitutedTypeArguments: typeArguments, parameterMapping: mapping,
+            contextParameterArgumentMapping: contextMapping,
             defaultArgumentOwner: owner, dispatchReceiverSymbol: dispatch,
             isCallableReferenceAdapter: binding.isCallableReferenceAdapter,
             boundContextParameterTypes: contextTypes
@@ -362,8 +414,11 @@ final class SemaSnapshotCodec {
         }
         var mapping: [Int: Int] = [:]
         for pair in ref.parameterMapping { mapping[pair.from] = pair.to }
+        var contextMapping: [Int: Int] = [:]
+        for pair in ref.contextParameterArgumentMapping { contextMapping[pair.from] = pair.to }
         return CallBinding(
             chosenCallee: callee, substitutedTypeArguments: typeArguments, parameterMapping: mapping,
+            contextParameterArgumentMapping: contextMapping,
             defaultArgumentOwner: owner, dispatchReceiverSymbol: dispatch,
             isCallableReferenceAdapter: ref.isCallableReferenceAdapter, boundContextParameterTypes: contextTypes
         )

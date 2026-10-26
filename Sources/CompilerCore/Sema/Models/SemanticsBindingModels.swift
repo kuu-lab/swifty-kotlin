@@ -2,6 +2,8 @@ public struct CallBinding {
     public let chosenCallee: SymbolID
     public let substitutedTypeArguments: [TypeID]
     public let parameterMapping: [Int: Int]
+    /// Maps source argument indices to explicitly supplied context-parameter indices.
+    public let contextParameterArgumentMapping: [Int: Int]
     /// The interface default source in an inherited class use-site scope.
     public let defaultArgumentOwner: SymbolID?
     /// The selected lexical dispatch receiver for a member-extension call.
@@ -22,6 +24,7 @@ public struct CallBinding {
         chosenCallee: SymbolID,
         substitutedTypeArguments: [TypeID],
         parameterMapping: [Int: Int],
+        contextParameterArgumentMapping: [Int: Int] = [:],
         defaultArgumentOwner: SymbolID? = nil,
         dispatchReceiverSymbol: SymbolID? = nil,
         contextParameterReceiverSymbols: [SymbolID?] = [],
@@ -31,6 +34,7 @@ public struct CallBinding {
         self.chosenCallee = chosenCallee
         self.substitutedTypeArguments = substitutedTypeArguments
         self.parameterMapping = parameterMapping
+        self.contextParameterArgumentMapping = contextParameterArgumentMapping
         self.defaultArgumentOwner = defaultArgumentOwner
         self.dispatchReceiverSymbol = dispatchReceiverSymbol
         self.contextParameterReceiverSymbols = contextParameterReceiverSymbols

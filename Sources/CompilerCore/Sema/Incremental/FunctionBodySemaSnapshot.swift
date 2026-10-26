@@ -200,6 +200,7 @@ extension FunctionBodySemaSnapshot {
         lhs.chosenCallee == rhs.chosenCallee
             && lhs.substitutedTypeArguments == rhs.substitutedTypeArguments
             && lhs.parameterMapping == rhs.parameterMapping
+            && lhs.contextParameterArgumentMapping == rhs.contextParameterArgumentMapping
             && lhs.defaultArgumentOwner == rhs.defaultArgumentOwner
             && lhs.dispatchReceiverSymbol == rhs.dispatchReceiverSymbol
             && lhs.isCallableReferenceAdapter == rhs.isCallableReferenceAdapter

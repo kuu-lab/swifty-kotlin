@@ -119,6 +119,7 @@ extension CallTypeChecker {
                     .sorted(by: { $0.key.rawValue < $1.key.rawValue })
                     .map(\.value),
                 parameterMapping: resolved.parameterMapping,
+                contextParameterArgumentMapping: resolved.contextParameterArgumentMapping,
                 defaultArgumentOwner: resolved.defaultArgumentOwner,
                 dispatchReceiverSymbol: resolvedDispatchReceiver,
                 contextParameterReceiverSymbols: contextParameterReceiverSymbols

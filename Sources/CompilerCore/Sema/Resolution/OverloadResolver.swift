@@ -182,6 +182,8 @@ public struct ResolvedCall {
     public let chosenCallee: SymbolID?
     public let substitutedTypeArguments: [TypeVarID: TypeID]
     public let parameterMapping: [Int: Int]
+    /// Maps source argument indices to explicitly supplied context-parameter indices.
+    public let contextParameterArgumentMapping: [Int: Int]
     public let diagnostic: Diagnostic?
     public let defaultArgumentOwner: SymbolID?
 
@@ -189,12 +191,14 @@ public struct ResolvedCall {
         chosenCallee: SymbolID?,
         substitutedTypeArguments: [TypeVarID: TypeID],
         parameterMapping: [Int: Int],
+        contextParameterArgumentMapping: [Int: Int] = [:],
         diagnostic: Diagnostic?,
         defaultArgumentOwner: SymbolID? = nil
     ) {
         self.chosenCallee = chosenCallee
         self.substitutedTypeArguments = substitutedTypeArguments
         self.parameterMapping = parameterMapping
+        self.contextParameterArgumentMapping = contextParameterArgumentMapping
         self.diagnostic = diagnostic
         self.defaultArgumentOwner = defaultArgumentOwner
     }

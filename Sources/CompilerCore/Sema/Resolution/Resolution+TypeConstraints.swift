@@ -63,8 +63,118 @@ private func comparableArgument(of subtype: TypeID, typeSystem: TypeSystem) -> T
     }
 }
 
+struct CallArgumentMappings {
+    let parameterMapping: [Int: Int]
+    /// Maps source argument indices to context-parameter indices.
+    let contextParameterArgumentMapping: [Int: Int]
+}
+
 extension OverloadResolver {
+    func buildArgumentMappings(
+        signature: FunctionSignature,
+        callArgs: [CallArg],
+        symbols: SymbolTable,
+        typeSystem: TypeSystem,
+        inheritedDefaultValues: [Bool]? = nil,
+        isCallableArgument: ((Int) -> Bool)? = nil
+    ) -> CallArgumentMappings? {
+        var contextParameterArgumentMapping: [Int: Int] = [:]
+        for (argumentIndex, argument) in callArgs.enumerated() {
+            guard let label = argument.label,
+                  let contextIndex = signature.contextParameterSymbols.firstIndex(where: { symbol in
+                      guard let name = symbols.symbol(symbol)?.name else { return false }
+                      return name != .invalid && name == label
+                  })
+            else {
+                continue
+            }
+            guard !argument.isSpread,
+                  argument.isTrailingLambda != true,
+                  !contextParameterArgumentMapping.values.contains(contextIndex)
+            else {
+                return nil
+            }
+            contextParameterArgumentMapping[argumentIndex] = contextIndex
+        }
+
+        let explicitContextArgumentIndices = Set(contextParameterArgumentMapping.keys)
+        if let lastExplicitContextArgument = explicitContextArgumentIndices.max(),
+           callArgs.indices.contains(where: { index in
+               index > lastExplicitContextArgument
+                   && !explicitContextArgumentIndices.contains(index)
+                   && callArgs[index].label == nil
+           })
+        {
+            // KEEP-448 disallows positional arguments after an explicit context
+            // argument because context parameters have no positional slot.
+            return nil
+        }
+
+        let valueArgumentIndices = callArgs.indices.filter { !explicitContextArgumentIndices.contains($0) }
+        let valueArguments = valueArgumentIndices.map { callArgs[$0] }
+        let compactCallableArgument: ((Int) -> Bool)? = isCallableArgument.map { isCallable in
+            { compactIndex in isCallable(valueArgumentIndices[compactIndex]) }
+        }
+        guard let compactValueMapping = buildValueParameterMapping(
+            signature: signature,
+            callArgs: valueArguments,
+            symbols: symbols,
+            typeSystem: typeSystem,
+            inheritedDefaultValues: inheritedDefaultValues,
+            isCallableArgument: compactCallableArgument
+        ) else {
+            return nil
+        }
+        var parameterMapping: [Int: Int] = [:]
+        for (compactIndex, parameterIndex) in compactValueMapping {
+            parameterMapping[valueArgumentIndices[compactIndex]] = parameterIndex
+        }
+        return CallArgumentMappings(
+            parameterMapping: parameterMapping,
+            contextParameterArgumentMapping: contextParameterArgumentMapping
+        )
+    }
+
+    func explicitContextParameterArgumentMapping(
+        signature: FunctionSignature,
+        argumentLabels: [InternedString?],
+        symbols: SymbolTable
+    ) -> [Int: Int]? {
+        var mapping: [Int: Int] = [:]
+        for (argumentIndex, label) in argumentLabels.enumerated() {
+            guard let label,
+                  let contextIndex = signature.contextParameterSymbols.firstIndex(where: { symbol in
+                      guard let name = symbols.symbol(symbol)?.name else { return false }
+                      return name != .invalid && name == label
+                  })
+            else {
+                continue
+            }
+            guard !mapping.values.contains(contextIndex) else { return nil }
+            mapping[argumentIndex] = contextIndex
+        }
+        return mapping
+    }
+
     func buildParameterMapping(
+        signature: FunctionSignature,
+        callArgs: [CallArg],
+        symbols: SymbolTable,
+        typeSystem: TypeSystem,
+        inheritedDefaultValues: [Bool]? = nil,
+        isCallableArgument: ((Int) -> Bool)? = nil
+    ) -> [Int: Int]? {
+        buildArgumentMappings(
+            signature: signature,
+            callArgs: callArgs,
+            symbols: symbols,
+            typeSystem: typeSystem,
+            inheritedDefaultValues: inheritedDefaultValues,
+            isCallableArgument: isCallableArgument
+        )?.parameterMapping
+    }
+
+    private func buildValueParameterMapping(
         signature: FunctionSignature,
         callArgs: [CallArg],
         symbols: SymbolTable,

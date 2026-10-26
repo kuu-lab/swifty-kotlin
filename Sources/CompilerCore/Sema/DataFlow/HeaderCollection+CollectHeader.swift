@@ -269,7 +269,8 @@ extension DataFlowSemaPhase {
                 types: types,
                 sourceManager: sourceManager,
                 diagnostics: diagnostics,
-                interner: interner
+                interner: interner,
+                isJVMTarget: ctx.options.emit.isJVM
             )
 
             if isValueClassDeclaration(classDecl) {
@@ -823,7 +824,8 @@ extension DataFlowSemaPhase {
                     types: types,
                     sourceManager: sourceManager,
                     diagnostics: diagnostics,
-                    interner: interner
+                    interner: interner,
+                    isJVMTarget: ctx.options.emit.isJVM
                 )
                 checkAndReportJVMErasedCallableConflict(
                     for: symbol,
@@ -831,7 +833,9 @@ extension DataFlowSemaPhase {
                     range: funDecl.range,
                     symbols: symbols,
                     types: types,
-                    diagnostics: diagnostics
+                    sourceManager: sourceManager,
+                    diagnostics: diagnostics,
+                    isJVMTarget: ctx.options.emit.isJVM
                 )
             }
 

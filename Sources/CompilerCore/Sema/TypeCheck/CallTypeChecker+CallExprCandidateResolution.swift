@@ -3,7 +3,8 @@
 extension CallTypeChecker {
     func contextApplicableCallCandidates(
         _ candidates: [SymbolID],
-        ctx: TypeInferenceContext
+        ctx: TypeInferenceContext,
+        argumentLabels: [InternedString?] = []
     ) -> [SymbolID] {
         let sema = ctx.sema
         let availableContextTypes = ctx.contextReceiverTypes
@@ -14,7 +15,17 @@ extension CallTypeChecker {
             guard let signature = sema.symbols.functionSignature(for: candidate) else {
                 return true
             }
-            return signature.contextParameterTypes.allSatisfy { requiredType in
+            guard let explicitContextArguments = ctx.resolver.explicitContextParameterArgumentMapping(
+                signature: signature,
+                argumentLabels: argumentLabels,
+                symbols: sema.symbols
+            ) else {
+                return false
+            }
+            return signature.contextParameterTypes.enumerated().allSatisfy { contextIndex, requiredType in
+                if explicitContextArguments.values.contains(contextIndex) {
+                    return true
+                }
                 if sema.types.typeContainsAnyTypeParam(requiredType) {
                     return !availableContextTypes.isEmpty
                 }
@@ -28,8 +39,39 @@ extension CallTypeChecker {
         }
     }
 
-    func firstContextParameterType(in candidates: [SymbolID], ctx: TypeInferenceContext) -> TypeID? {
-        candidates.compactMap { ctx.sema.symbols.functionSignature(for: $0)?.contextParameterTypes.first }.first
+    func firstContextParameterType(
+        in candidates: [SymbolID],
+        ctx: TypeInferenceContext,
+        argumentLabels: [InternedString?] = []
+    ) -> TypeID? {
+        let sema = ctx.sema
+        let availableContextTypes = ctx.contextReceiverTypes
+            + ctx.implicitReceiverStack.map(\.type)
+            + ctx.outerReceiverTypes.map(\.type)
+            + (ctx.implicitReceiverType.map { [$0] } ?? [])
+        return candidates.compactMap { candidate -> TypeID? in
+            guard let signature = sema.symbols.functionSignature(for: candidate),
+                  let explicitlyProvided = ctx.resolver.explicitContextParameterArgumentMapping(
+                      signature: signature,
+                      argumentLabels: argumentLabels,
+                      symbols: sema.symbols
+                  )
+            else {
+                return nil
+            }
+            return signature.contextParameterTypes.enumerated().first { index, requiredType in
+                guard !explicitlyProvided.values.contains(index) else { return false }
+                if sema.types.typeContainsAnyTypeParam(requiredType) {
+                    return availableContextTypes.isEmpty
+                }
+                return !availableContextTypes.contains { availableType in
+                    sema.types.isSubtype(
+                        sema.types.makeNonNullable(availableType),
+                        sema.types.makeNonNullable(requiredType)
+                    )
+                }
+            }?.element
+        }.first
     }
 
     func resolveCallExprCandidates(
@@ -60,12 +102,16 @@ extension CallTypeChecker {
         let interner = ctx.interner
         let knownNames = KnownCompilerNames(interner: interner)
 
-        let contextApplicableCandidates = contextApplicableCallCandidates(candidates, ctx: ctx)
+        let argumentLabels = args.map(\.label)
+        let contextApplicableCandidates = contextApplicableCallCandidates(
+            candidates, ctx: ctx, argumentLabels: argumentLabels
+        )
         var resolvedCandidates: [SymbolID]
         if !contextApplicableCandidates.isEmpty {
             resolvedCandidates = contextApplicableCandidates
-        } else if let missingType = firstContextParameterType(in: candidates, ctx: ctx)
-        {
+        } else if let missingType = firstContextParameterType(
+            in: candidates, ctx: ctx, argumentLabels: argumentLabels
+        ) {
             sema.diagnostics.error(
                 "KSWIFTK-SEMA-CTX-002",
                 "No context value is available for parameter type '\(sema.types.renderType(missingType))'.",

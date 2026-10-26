@@ -144,6 +144,40 @@ struct CodegenBackendScopeFunctionEdgeCasesTests {
     }
 
     @Test
+    func testExplicitContextArgumentSelectsContextOnlyOverload() throws {
+        let source = """
+        import kotlin.ExperimentalContextParameters
+
+        class Scope(val value: String)
+
+        @OptIn(ExperimentalContextParameters::class)
+        interface Service {
+            fun foo(): String = "plain"
+
+            context(scope: Scope)
+            fun foo(): String = scope.value
+        }
+
+        @OptIn(ExperimentalContextParameters::class)
+        fun main() {
+            val service: Service = object : Service {}
+            println(service.foo(scope = Scope("context")))
+            println(service.foo())
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "ExplicitContextArgumentOverload",
+            expected: "context\nplain\n",
+            frontendFlags: [
+                "opt-in=kotlin.ExperimentalContextParameters",
+                "explicit-context-arguments",
+            ]
+        )
+    }
+
+    @Test
     func testGenericMemberContextParametersUseSubstitutedClassTypeArguments() throws {
         let source = """
         import kotlin.ExperimentalContextParameters

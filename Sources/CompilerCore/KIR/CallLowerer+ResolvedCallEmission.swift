@@ -282,6 +282,7 @@ extension CallLowerer {
         {
             let contextArguments = contextArgumentValues(
                 for: signature, callExprID: exprID, callBinding: callBinding,
+                sourceArgumentIDs: loweredArgIDs,
                 sema: sema, arena: arena
             )
             // leadingArguments carry internal-ABI prefixes (e.g. generated-thunk
