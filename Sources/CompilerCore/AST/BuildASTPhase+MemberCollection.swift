@@ -325,10 +325,33 @@ extension BuildASTPhase {
         var entries: [SuperTypeEntry] = []
         var current: [Token] = []
         var depth = BracketDepth()
+        var delegateLambdaBraceDepth = 0
         while index < tokens.count {
             let token = tokens[index]
+            if delegateLambdaBraceDepth > 0 {
+                if token.kind == .symbol(.lBrace) {
+                    delegateLambdaBraceDepth += 1
+                } else if token.kind == .symbol(.rBrace) {
+                    delegateLambdaBraceDepth -= 1
+                }
+                current.append(token)
+                index += 1
+                continue
+            }
             if depth.isAngleParenTopLevel {
-                if token.kind == .symbol(.lBrace) || token.kind == .symbol(.semicolon) {
+                if token.kind == .symbol(.lBrace) {
+                    if current.last?.kind == .softKeyword(.by) {
+                        // The first brace after `by` belongs to a lambda
+                        // delegate. A later top-level brace is the declaration
+                        // body and stays outside the supertype entry.
+                        delegateLambdaBraceDepth = 1
+                        current.append(token)
+                        index += 1
+                        continue
+                    }
+                    break
+                }
+                if token.kind == .symbol(.semicolon) {
                     break
                 }
                 if case .softKeyword(.where) = token.kind {
