@@ -307,6 +307,20 @@ enum WasmRuntimeHelpers {
         // on wasm until reflection needs the installed tag.
         "__kk_array_component_type",
         "__kk_array_tag_component",
+        // Function-value ABI: create/invoke plus the unbox accessors and
+        // arity/description metadata calls the lambda lowering emits.
+        "kk_function_create_0", "kk_function_create_1", "kk_function_create_2",
+        "kk_function_create_3", "kk_function_create_4", "kk_function_create_5",
+        "kk_function_create_6",
+        "kk_function_invoke", "kk_function_invoke_0", "kk_function_invoke_2",
+        "kk_function_invoke_3", "kk_function_invoke_4", "kk_function_invoke_5",
+        "kk_function_invoke_6",
+        "kk_function_value_fn_ptr", "kk_function_value_closure_raw",
+        "kk_function_value_tag_arity",
+        "__kk_function_set_description", "__kk_function_copy_description",
+        "__kk_function_set_enclosing_class",
+        "kk_iterable_iterator", "__kk_collection_size",
+        "kk_string_from_flat", "kk_string_to_flat",
     ]
 
     /// True when `name` has an emitted wasm helper body — used by callee
@@ -800,6 +814,64 @@ enum WasmRuntimeHelpers {
         case "__kk_array_component_type", "__kk_array_tag_component":
             // Both are pass-throughs: the component descriptor isn't consumed
             // by wasm iteration and arrays carry no installable tag slot yet.
+            extraLocals = 0
+            code.localGet(0)
+        case let name where name.hasPrefix("kk_function_create_"):
+            guard let arity = Int(name.dropFirst("kk_function_create_".count)),
+                  (0...6).contains(arity)
+            else { return nil }
+            extraLocals = 1
+            emitFunctionCreateBody(&code, ctx: ctx, arity: arity)
+        case "kk_function_invoke":
+            extraLocals = 3
+            emitFunctionInvokeBody(&code, ctx: ctx, valueArity: 1)
+        case let name where name.hasPrefix("kk_function_invoke_"):
+            guard let arity = Int(name.dropFirst("kk_function_invoke_".count)),
+                  (0...6).contains(arity)
+            else { return nil }
+            extraLocals = 3
+            emitFunctionInvokeBody(&code, ctx: ctx, valueArity: arity)
+        case "kk_function_value_fn_ptr":
+            extraLocals = 3
+            emitFunctionValueResolveBody(&code, ctx: ctx, wantClosure: false)
+        case "kk_function_value_closure_raw":
+            extraLocals = 3
+            emitFunctionValueResolveBody(&code, ctx: ctx, wantClosure: true)
+        case "kk_function_value_tag_arity",
+             "__kk_function_copy_description",
+             "__kk_function_set_enclosing_class":
+            // Metadata bookkeeping the wasm backend doesn't consume yet.
+            extraLocals = 0
+            code.i64Const(0)
+        case "__kk_function_set_description":
+            // Keep the text on the box so `toString` can recover it later;
+            // only our own function-value box has the @40 slot. The argument
+            // may be a raw funcref index rather than a heap box — only touch
+            // the header when the pointer actually reaches heap memory.
+            extraLocals = 0
+            code.localGet(0)
+            code.globalGet(ctx.dataEndGlobal)
+            code.op(WasmOpcode.i64GeU)
+            code.openIf()
+            emitLoadAt(&code, baseLocal: 0, byteOffset: L.typeIDOffset)
+            code.i64Const(L.functionValueTypeID)
+            code.op(WasmOpcode.i64Eq)
+            code.openIf()
+            emitStoreAt(&code, baseLocal: 0, byteOffset: L.functionDescOffset, valueLocal: 1)
+            code.end()
+            code.end()
+            code.i64Const(0)
+        case "kk_iterable_iterator":
+            extraLocals = 1
+            emitIterableIteratorBody(&code, ctx: ctx)
+        case "__kk_collection_size":
+            extraLocals = 2
+            emitCollectionSizeBody(&code, ctx: ctx)
+        case "kk_string_from_flat", "kk_string_to_flat":
+            // Flat string aggregates already carry the boxed-handle layout on
+            // wasm — `{typeID@-16, data@0, len@8, byteLen@16}` — so the
+            // canonical-box contract collapses to identity (native dedups
+            // through the flat registry, unobservable here).
             extraLocals = 0
             code.localGet(0)
         default:
@@ -2690,6 +2762,15 @@ enum WasmRuntimeHelpers {
         listItables: Bool = true
     ) {
         // Slots 0/1 are object metadata; slots 2/3/4 hold array, count, flags.
+        // `mutableListOf()`/`listOf()` arrive as (0, 0) — substitute a real
+        // zero-length array so `meta@-8` reads stay in bounds for `add`.
+        code.localGet(arrayLocal)
+        code.op(WasmOpcode.i64Eqz)
+        code.openIf()
+        code.i64Const(0)
+        code.call(ctx.emittedHelperIndex(for: "kk_array_new", argumentCount: 1))
+        code.localSet(arrayLocal)
+        code.end()
         code.i64Const(5)
         code.i64Const(typeID)
         code.call(ctx.emittedHelperIndex(for: "kk_object_new", argumentCount: 2))
@@ -2862,7 +2943,15 @@ enum WasmRuntimeHelpers {
         code.localSet(countLocal)
         emitLoadAt(&code, baseLocal: 0, byteOffset: L.listArrayOffset)
         code.localSet(arrLocal)
+        // A null backing pointer means capacity 0 — the grow path below
+        // allocates; reading `meta@-8` off 0 would trap.
+        code.localGet(arrLocal)
+        code.op(WasmOpcode.i64Eqz)
+        code.openIf(result: .i64)
+        code.i64Const(0)
+        code.elseBranch()
         emitLoadAt(&code, baseLocal: arrLocal, byteOffset: L.metaOffset)
+        code.end()
         code.localSet(capLocal)
         // Grow when full: newCapacity = cap*2, or 8 when empty.
         code.localGet(countLocal)
@@ -3262,6 +3351,96 @@ enum WasmRuntimeHelpers {
             reg("kotlin.collections.MutableMap.MutableEntry", slot: 1)
             method(1, 0, "__kk_mutable_map_entry_setValue", arity: 2)
         }
+    }
+
+    /// `(iterable) -> iterator`: generic `Iterable.iterator()` — always route
+    /// through the object's `kotlin.collections.Iterable` itable (slot 0,
+    /// method 0) so list/set boxes, map views, and Kotlin-defined iterables
+    /// all reach their registered iterator. A lookup miss traps rather than
+    /// misdispatching.
+    private static func emitIterableIteratorBody(
+        _ code: inout WasmCode,
+        ctx: WasmModuleContext
+    ) {
+        code.localGet(0)
+        code.localGet(0)
+        code.i64Const(stableNominalTypeID("kotlin.collections.Iterable"))
+        code.i64Const(0)
+        code.call(ctx.emittedHelperIndex(for: "__kk_wasm_itable_lookup", argumentCount: 3))
+        code.localTee(1)
+        code.op(WasmOpcode.i64Eqz)
+        code.openIf()
+        code.op(WasmOpcode.unreachable)
+        code.end()
+        code.localGet(1)
+        code.op(WasmOpcode.i32WrapI64)
+        code.callIndirect(ctx.module.funcTypeIndex(.i64Signature(1)))
+    }
+
+    /// `(collection) -> size`: `Collection.size` for the shared box layouts —
+    /// list/set boxes carry `count@24`, map boxes `count@32`; anything else
+    /// falls back to the `Collection` itable getter (method slot 4).
+    /// Locals: argumentCount = typeID.
+    private static func emitCollectionSizeBody(
+        _ code: inout WasmCode,
+        ctx: WasmModuleContext
+    ) {
+        let typeLocal = 1
+        emitLoadAt(&code, baseLocal: 0, byteOffset: L.typeIDOffset)
+        code.localSet(typeLocal)
+        // Map-family layouts keep their count in a different slot.
+        for fqName in [
+            "kotlin.collections.Map", "kotlin.collections.MutableMap",
+            "kotlin.collections.HashMap", "kotlin.collections.LinkedHashMap",
+        ] {
+            code.localGet(typeLocal)
+            code.i64Const(stableNominalTypeID(fqName))
+            code.op(WasmOpcode.i64Eq)
+            code.openIf()
+            emitLoadAt(&code, baseLocal: 0, byteOffset: L.mapCountOffset)
+            code.op(WasmOpcode.return)
+            code.end()
+        }
+        // Everything else with a registered Collection itable answers through
+        // the size getter (list/set boxes share count@24 either way, so the
+        // itable path covers them too — but only if Collection is registered;
+        // list boxes aren't, so read the shared layout directly for them).
+        for typeID in [L.listTypeID, L.arrayListTypeID] {
+            code.localGet(typeLocal)
+            code.i64Const(typeID)
+            code.op(WasmOpcode.i64Eq)
+            code.openIf()
+            emitLoadAt(&code, baseLocal: 0, byteOffset: L.listCountOffset)
+            code.op(WasmOpcode.return)
+            code.end()
+        }
+        for fqName in [
+            "kotlin.collections.Set", "kotlin.collections.MutableSet",
+            "kotlin.collections.HashSet", "kotlin.collections.LinkedHashSet",
+        ] {
+            code.localGet(typeLocal)
+            code.i64Const(stableNominalTypeID(fqName))
+            code.op(WasmOpcode.i64Eq)
+            code.openIf()
+            emitLoadAt(&code, baseLocal: 0, byteOffset: L.listCountOffset)
+            code.op(WasmOpcode.return)
+            code.end()
+        }
+        // Generic Collection-typed receivers (Kotlin-defined collections):
+        // Collection.size getter lives at method slot 4.
+        code.localGet(0)
+        code.localGet(0)
+        code.i64Const(stableNominalTypeID("kotlin.collections.Collection"))
+        code.i64Const(4)
+        code.call(ctx.emittedHelperIndex(for: "__kk_wasm_itable_lookup", argumentCount: 3))
+        code.localTee(typeLocal)
+        code.op(WasmOpcode.i64Eqz)
+        code.openIf()
+        code.op(WasmOpcode.unreachable)
+        code.end()
+        code.localGet(typeLocal)
+        code.op(WasmOpcode.i32WrapI64)
+        code.callIndirect(ctx.module.funcTypeIndex(.i64Signature(1)))
     }
 
     /// Type-edge registrations mirroring the native runtime's `is`-assignable
@@ -4503,6 +4682,204 @@ enum WasmRuntimeHelpers {
         code.localGet(1)
         code.op(WasmOpcode.i32WrapI64)
         code.callIndirect(ctx.module.funcTypeIndex(.i64Signature(1)))
+    }
+
+    // MARK: - Function values
+
+    /// `(fnIdx, closure) -> box`: materialize the `{fnIdx, closure, arity}`
+    /// function-value box. An already-object value (another box or a Kotlin
+    /// callable object) passes through unchanged — mirroring the idempotent
+    /// boxing of the native `runtimeCreateFunctionValue`. `kk_lambda_*` and
+    /// adapter symbols arrive as funcref table indices, which stay below the
+    /// dataStart heap bound.
+    /// Locals: argumentCount = box.
+    private static func emitFunctionCreateBody(
+        _ code: inout WasmCode,
+        ctx: WasmModuleContext,
+        arity: Int
+    ) {
+        code.localGet(0)
+        code.i64Const(L.dataStart)
+        code.op(WasmOpcode.i64GeS)
+        code.openIf()
+        code.localGet(0)
+        code.op(WasmOpcode.return)
+        code.end()
+        code.i64Const(6)
+        code.i64Const(L.functionValueTypeID)
+        code.call(ctx.emittedHelperIndex(for: "kk_object_new", argumentCount: 2))
+        code.localSet(2)
+        emitStoreAt(&code, baseLocal: 2, byteOffset: L.functionFnIdxOffset, valueLocal: 0)
+        emitStoreAt(&code, baseLocal: 2, byteOffset: L.functionClosureOffset, valueLocal: 1)
+        emitStoreAtConst(&code, baseLocal: 2, byteOffset: L.functionArityOffset, value: Int64(arity))
+        // Register FunctionN.invoke (method 0, iface slot 0) so the box also
+        // answers `f is FunctionN` / iface-typed invokes; dispatch lands back
+        // on this same invoke helper with the receiver-first ABI.
+        let invokeName = arity == 0 ? "kk_function_invoke_0"
+            : arity == 1 ? "kk_function_invoke"
+            : "kk_function_invoke_\(arity)"
+        code.localGet(2)
+        code.i64Const(stableNominalTypeID("kotlin.Function.Function\(arity)"))
+        code.i64Const(0)
+        code.call(ctx.emittedHelperIndex(
+            for: "kk_object_register_itable_iface", argumentCount: 3
+        ))
+        code.op(WasmOpcode.drop)
+        code.localGet(2)
+        code.i64Const(0)
+        code.i64Const(0)
+        code.i64Const(Int64(ctx.module.tableSlot(
+            forFunction: ctx.emittedHelperIndex(for: invokeName, argumentCount: arity + 1)
+        )))
+        code.call(ctx.emittedHelperIndex(
+            for: "kk_object_register_itable_method", argumentCount: 4
+        ))
+        code.op(WasmOpcode.drop)
+        code.localGet(2)
+    }
+
+    /// `(fnObj, args...) -> i64`: invoke a function value of `valueArity`
+    /// parameters. Three shapes resolve to two call_indirect signatures:
+    ///   - box → `fn(closure, args...)`   (closure-first ABI)
+    ///   - callable object → `invoke(obj, args...)` via the FunctionN itable
+    ///     (same signature — the receiver occupies the first slot)
+    ///   - raw funcref index → `fn(args...)` (flat ABI, no closure)
+    /// `fnObj < dataStart` distinguishes table indices from heap pointers.
+    /// Locals: argumentCount = fnIdx, +1 = first-arg staging, +2 = spare.
+    private static func emitFunctionInvokeBody(
+        _ code: inout WasmCode,
+        ctx: WasmModuleContext,
+        valueArity: Int
+    ) {
+        let fnIdxLocal = valueArity + 1
+        let argLocal = valueArity + 2
+        // Null / sentinel receivers surface as NPE through the thrown channel.
+        code.localGet(0)
+        code.i64Const(0)
+        code.op(WasmOpcode.i64Eq)
+        code.localGet(0)
+        code.i64Const(L.nullSentinel)
+        code.op(WasmOpcode.i64Eq)
+        code.op(WasmOpcode.i32Or)
+        code.openIf()
+        emitLiteralString(&code, ctx: ctx, "")
+        code.call(ctx.emittedHelperIndex(
+            for: "__kk_null_pointer_exception_new_message", argumentCount: 1
+        ))
+        code.globalSet(ctx.thrownGlobal)
+        code.i64Const(0)
+        code.op(WasmOpcode.return)
+        code.end()
+        // Raw funcref index: flat `fn(args...)`.
+        code.localGet(0)
+        code.i64Const(L.dataStart)
+        code.op(WasmOpcode.i64LtS)
+        code.openIf()
+        for arg in 0..<valueArity {
+            code.localGet(1 + arg)
+        }
+        code.localGet(0)
+        code.op(WasmOpcode.i32WrapI64)
+        code.callIndirect(ctx.module.funcTypeIndex(.i64Signature(valueArity)))
+        code.op(WasmOpcode.return)
+        code.end()
+        // Box: `fn(closure, args...)`.
+        emitLoadAt(&code, baseLocal: 0, byteOffset: L.typeIDOffset)
+        code.i64Const(L.functionValueTypeID)
+        code.op(WasmOpcode.i64Eq)
+        code.openIf()
+        emitLoadAt(&code, baseLocal: 0, byteOffset: L.functionClosureOffset)
+        code.localSet(argLocal)
+        emitLoadAt(&code, baseLocal: 0, byteOffset: L.functionFnIdxOffset)
+        code.localSet(fnIdxLocal)
+        code.localGet(argLocal)
+        for arg in 0..<valueArity {
+            code.localGet(1 + arg)
+        }
+        code.localGet(fnIdxLocal)
+        code.op(WasmOpcode.i32WrapI64)
+        code.callIndirect(ctx.module.funcTypeIndex(.i64Signature(valueArity + 1)))
+        code.op(WasmOpcode.return)
+        code.end()
+        // Callable object: `invoke(receiver, args...)` through the
+        // FunctionN itable — same signature shape as the box path.
+        code.localGet(0)
+        code.i64Const(stableNominalTypeID("kotlin.Function.Function\(valueArity)"))
+        code.i64Const(0)
+        code.call(ctx.emittedHelperIndex(for: "__kk_wasm_itable_lookup", argumentCount: 3))
+        code.localTee(fnIdxLocal)
+        code.op(WasmOpcode.i64Eqz)
+        code.openIf()
+        emitLiteralString(&code, ctx: ctx, "Invalid function value")
+        code.call(ctx.emittedHelperIndex(
+            for: "__kk_throwable_new_message", argumentCount: 1
+        ))
+        code.globalSet(ctx.thrownGlobal)
+        code.i64Const(0)
+        code.op(WasmOpcode.return)
+        code.end()
+        code.localGet(0)
+        for arg in 0..<valueArity {
+            code.localGet(1 + arg)
+        }
+        code.localGet(fnIdxLocal)
+        code.op(WasmOpcode.i32WrapI64)
+        code.callIndirect(ctx.module.funcTypeIndex(.i64Signature(valueArity + 1)))
+    }
+
+    /// `(fnObj) -> i64`: `kk_function_value_fn_ptr` / `closure_raw` — recover
+    /// the raw pair a collection HOF helper invokes directly. Boxes read
+    /// their fields; callable objects resolve through the FunctionN itable
+    /// (closure = the object itself); raw table indices are already the pair.
+    /// Locals: argumentCount = probe index, +1/+2 = spares.
+    private static func emitFunctionValueResolveBody(
+        _ code: inout WasmCode,
+        ctx: WasmModuleContext,
+        wantClosure: Bool
+    ) {
+        code.localGet(0)
+        code.i64Const(L.dataStart)
+        code.op(WasmOpcode.i64LtS)
+        code.openIf()
+        // Raw index: the value itself is the fnPtr; it owns no closure.
+        if wantClosure {
+            code.i64Const(0)
+        } else {
+            code.localGet(0)
+        }
+        code.op(WasmOpcode.return)
+        code.end()
+        emitLoadAt(&code, baseLocal: 0, byteOffset: L.typeIDOffset)
+        code.i64Const(L.functionValueTypeID)
+        code.op(WasmOpcode.i64Eq)
+        code.openIf()
+        emitLoadAt(
+            &code, baseLocal: 0,
+            byteOffset: wantClosure ? L.functionClosureOffset : L.functionFnIdxOffset
+        )
+        code.op(WasmOpcode.return)
+        code.end()
+        if wantClosure {
+            code.localGet(0)
+            code.op(WasmOpcode.return)
+        }
+        // Callable object: scan Function0..6 for a registered invoke.
+        for arity in 0...6 {
+            code.localGet(0)
+            code.i64Const(stableNominalTypeID("kotlin.Function.Function\(arity)"))
+            code.i64Const(0)
+            code.call(ctx.emittedHelperIndex(
+                for: "__kk_wasm_itable_lookup", argumentCount: 3
+            ))
+            code.localTee(1)
+            code.op(WasmOpcode.i64Eqz)
+            code.openIf()
+            code.elseBranch()
+            code.localGet(1)
+            code.op(WasmOpcode.return)
+            code.end()
+        }
+        code.i64Const(0)
     }
 
     /// `(iterator) -> i64`: shared map-iterator `next` — CME check, bounds,
