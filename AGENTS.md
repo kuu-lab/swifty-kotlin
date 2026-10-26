@@ -18,7 +18,7 @@ bash Scripts/swift_test.sh --skip-build                  # ビルド済み成果
 bash Scripts/swift_test.sh --filter SmokeTests           # スモークテスト
 bash Scripts/swift_test.sh --filter Golden               # ゴールデン全部（Swift Testing: Lexer / Parser / Sema / Diagnostics）。`Golden` はシンボル名の部分一致
 bash Scripts/swift_test.sh --filter CompilerCoreTests.GoldenSemaGoldenTests/matchesGolden  # Sema ゴールデンのみ（`Golden.Sema` は @Suite 表示名のため --filter に効かない。型名で指定する）
-bash Scripts/swift_test.sh --filter CompilerCoreTests.LoweringPassRegressionTests  # 単一テストスイート（フロントエンド）
+bash Scripts/swift_test.sh --filter CompilerCoreKIRLoweringTests.LoweringPassRegressionTests  # 単一テストスイート（フロントエンド）
 bash Scripts/swift_test.sh --filter CompilerBackendTests                         # バックエンドテスト（LLVM 必要: macOS は brew の /opt/homebrew/opt/llvm を自動探索、別所は KSWIFTK_LLVM_DYLIB で指定）
 .build/debug/kswiftc path/to/file.kt -o out  # コンパイラを直接実行
 ```

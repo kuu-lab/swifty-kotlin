@@ -191,7 +191,7 @@ jobs:
       - name: Run CompilerCoreTests method shard with strict concurrency warnings
         run: |
           bash Scripts/shard_swift_tests.sh \
-            --mode dynamic --list-filter '^CompilerCoreTests\.' \
+            --mode dynamic --list-filter '^CompilerCore(Frontend|Sema|KIRLowering)?Tests\.' \
             --list-exclude '^CompilerCoreTests\.(FrontendParallelBenchmarkTests|GoldenDiagnosticsGoldenTests|GoldenHarnessInventoryTests|GoldenLexerGoldenTests|GoldenParserGoldenTests|GoldenSemaGoldenTests|SmokeTests)/' \
             --target-prefix CompilerCoreTests \
             --shard-index "${{ matrix.shard_index }}" --shard-count 6 \
@@ -228,7 +228,7 @@ jobs:
               echo "SWIFT_BUILD_SYSTEM=native SWIFT_TEST_WORKERS=\"\$worker_count\" SWIFT_TEST_BUILD_JOBS=\"\$worker_count\" SWT_EXPERIMENTAL_MAXIMUM_PARALLELIZATION_WIDTH=\"\$worker_count\" bash Scripts/swift_test.sh --skip-build --filter SmokeTests $SWIFT_XSWIFTC_FLAGS"
               echo "SWIFT_BUILD_SYSTEM=native SWIFT_TEST_BUILD_JOBS=\"\$worker_count\" bash Scripts/swift_test.sh --skip-build --no-parallel --filter '^CompilerCoreTests\\.FrontendParallelBenchmarkTests/' $SWIFT_XSWIFTC_FLAGS"
             fi
-            echo "SWIFT_BUILD_SYSTEM=native SWIFT_TEST_WORKERS=\"\$worker_count\" SWIFT_TEST_BUILD_JOBS=\"\$worker_count\" SWT_EXPERIMENTAL_MAXIMUM_PARALLELIZATION_WIDTH=\"\$worker_count\" bash Scripts/shard_swift_tests.sh --mode dynamic --list-filter '^CompilerCoreTests\\.' --list-exclude '^CompilerCoreTests\\.(FrontendParallelBenchmarkTests|GoldenDiagnosticsGoldenTests|GoldenHarnessInventoryTests|GoldenLexerGoldenTests|GoldenParserGoldenTests|GoldenSemaGoldenTests|SmokeTests)/' --target-prefix CompilerCoreTests --shard-index ${{ matrix.shard_index }} --shard-count 6 -- $SWIFT_XSWIFTC_FLAGS"
+            echo "SWIFT_BUILD_SYSTEM=native SWIFT_TEST_WORKERS=\"\$worker_count\" SWIFT_TEST_BUILD_JOBS=\"\$worker_count\" SWT_EXPERIMENTAL_MAXIMUM_PARALLELIZATION_WIDTH=\"\$worker_count\" bash Scripts/shard_swift_tests.sh --mode dynamic --list-filter '^CompilerCore(Frontend|Sema|KIRLowering)?Tests\\.' --list-exclude '^CompilerCoreTests\\.(FrontendParallelBenchmarkTests|GoldenDiagnosticsGoldenTests|GoldenHarnessInventoryTests|GoldenLexerGoldenTests|GoldenParserGoldenTests|GoldenSemaGoldenTests|SmokeTests)/' --target-prefix CompilerCoreTests --shard-index ${{ matrix.shard_index }} --shard-count 6 -- $SWIFT_XSWIFTC_FLAGS"
             if [[ "${{ matrix.shard_index }}" == "0" ]]; then
               echo "SWIFT_BUILD_SYSTEM=native SWIFT_TEST_BUILD_JOBS=\"\$worker_count\" bash Scripts/swift_test.sh --skip-build --no-parallel --filter '^CompilerCoreTests\\.GoldenHarnessInventoryTests/' $SWIFT_XSWIFTC_FLAGS"
             fi

@@ -665,7 +665,7 @@ scanning). Dynamic mode can exclude suites that need separate execution:
 ```bash
 bash Scripts/shard_swift_tests.sh --mode dynamic --list-filter '^CompilerBackendTests\.' \
   --shard-index 0 --shard-count 6
-bash Scripts/shard_swift_tests.sh --mode dynamic --list-filter '^CompilerCoreTests\.' \
+bash Scripts/shard_swift_tests.sh --mode dynamic --list-filter '^CompilerCore(Frontend|Sema|KIRLowering)?Tests\.' \
   --list-exclude '^CompilerCoreTests\.(FrontendParallelBenchmarkTests|SmokeTests)/' \
   --target-prefix CompilerCoreTests \
   --shard-index 0 --shard-count 6

@@ -44,9 +44,12 @@ KSwiftKCLI           --> CompilerCore, CompilerBackend
 KSwiftLSPCLI         --> LSPServer, CompilerCore, CompilerBackend
                          LSPServer       --> CompilerCore
 GoldenHarnessWorker  --> GoldenHarnessSupport --> CompilerCore
-CompilerTestSupport  --> CompilerCore
+CompilerTestSupport  --> CompilerCore, RuntimeABI
 TestStdlibCache      --> CompilerCore, CompilerBackend
 CompilerCoreTests    --> CompilerCore, CompilerTestSupport, GoldenHarnessSupport, GoldenHarnessWorker, TestStdlibCache
+CompilerCoreFrontendTests    --> CompilerCore, CompilerTestSupport, RuntimeABI
+CompilerCoreSemaTests        --> CompilerCore, CompilerTestSupport, TestStdlibCache, RuntimeABI
+CompilerCoreKIRLoweringTests --> CompilerCore, CompilerTestSupport, TestStdlibCache, RuntimeABI
 CompilerBackendTests --> CompilerBackend, CompilerCore, CompilerTestSupport, TestStdlibCache
 RuntimeTests         --> Runtime, RuntimeABI
 RuntimeTestsParallel --> Runtime, RuntimeABI
@@ -179,18 +182,25 @@ LoadSources --> Lex --> Parse --> BuildAST --> SemaPasses --> BuildKIR --> Lower
 
 ```text
 Tests/
- +-- CompilerCoreTests/         # フロントエンドテスト (LLVM 不要)
- |    +-- Lexer/          # TokenModelTests, TokenStreamTests, LexerParserEdgeCaseTests
- |    +-- Parser/         # SyntaxArenaTests
- |    +-- AST/            # ASTModelsTests, BuildASTBodyParsingRegressionTests, BlockExpressionTests
- |    +-- Sema/           # ConstraintSolverTests, OverloadResolverTests, TypeSystemTests, ...
- |    +-- KIR/            # BuildKIRRegressionTests, KIRModelsBehaviorTests, ...
- |    +-- Lowering/       # LoweringPassRegressionTests+*, ...
+ +-- CompilerCoreTests/         # フロントエンド統合テスト (LLVM 不要)
  |    +-- Driver/         # DriverTests, DiagnosticEngineTests, SourceManagerTests, IncrementalCompilationCacheTests, ...
  |    +-- Integration/    # SmokeTests, GoldenHarnessSwiftTesting, DeepPhasePipelineIntegrationTests, FrontendParallelBenchmarkTests
+ |    |    +-- TestSupport/ # ターゲット固有デフォルトの薄い wrapper (makeCompilationContext など)
+ |    +-- Klib/           # KlibContainerTests, ZipArchiveTests, ... (+ Fixtures/)
+ |    +-- Fixtures/       # KUU-2210, KUU-2415 フィクスチャ
  |    +-- GoldenCases/    # .kt スナップショットフィクスチャ (Lexer/, Parser/, Sema/, Diagnostics/)
  |                        #   `.golden` は生成物。`stdlib_<package path>_<Type>_<member>`
  |                        #   命名の `n` は「該当なし」。スロットの網羅は要求されない
+ +-- CompilerCoreFrontendTests/  # フロントエンド字句・構文・AST テスト
+ |    +-- Lexer/          # TokenModelTests, TokenStreamTests, LexerParserEdgeCaseTests
+ |    +-- Parser/         # SyntaxArenaTests
+ |    +-- AST/            # ASTModelsTests, BuildASTBodyParsingRegressionTests, BlockExpressionTests
+ +-- CompilerCoreSemaTests/      # Sema テスト (最大のフェーズ別ターゲット)
+ |    +-- Sema/           # ConstraintSolverTests, OverloadResolverTests, TypeSystemTests, ...
+ |    +-- Fixtures/       # Atomicfu フィクスチャ
+ +-- CompilerCoreKIRLoweringTests/  # KIR 構築・Lowering テスト
+ |    +-- KIR/            # BuildKIRRegressionTests, KIRModelsBehaviorTests, ...
+ |    +-- Lowering/       # LoweringPassRegressionTests+*, ...
  +-- CompilerBackendTests/     # バックエンドテスト (LLVM 必要)
  |    +-- Codegen/        # CodegenBackendIntegrationTests+*, CodegenBackendFixtureTests, LinkPhaseIntegrationTests, NameManglerTests
  |    +-- Fixtures/       # CodegenBackendFixtureTests が走査する <領域>/<ケース>/{*.kt,expected.txt}
@@ -269,7 +279,7 @@ bash Scripts/diff_kotlinc.sh Scripts/diff_cases   # kotlinc 差分回帰テス�
 
 | 用途 | 既定 |
 |---|---|
-| `CompilerCoreTests` の AST / Driver / Integration / Golden harness など、LLVM 非依存で値検証中心のテスト | Swift Testing suite。近接の既存 suite（`+<責務>` 分割ファイル）に追加する |
+| `CompilerCore{Frontend,Sema,KIRLowering,}Tests` のフェーズ別テストと Driver / Integration / Golden harness など、LLVM 非依存で値検証中心のテスト | Swift Testing suite。近接の既存 suite（`+<責務>` 分割ファイル）に追加する |
 | `KSwiftKCLITests` / `LSPServerTests` の小さな protocol・parser・flow テスト | Swift Testing |
 | `CompilerBackendTests` の codegen/link 実行、LLVM・subprocess・fixture cleanup に依存するテスト | Swift Testing；stdout 比較なら `Fixtures/`（上記ガイドライン）、共通 helper は assertion を持たない |
 | `RuntimeTests` / `RuntimeTestsParallel` でプロセス全体の runtime state を変更 / GC するテスト | Swift Testing with `.runtimeIsolation(...)` |
@@ -395,7 +405,7 @@ CI は 2 つの workflow に分かれる。`.github/workflows/ci.yml` は PR と
 | ジョブ | 内容 |
 |---|---|
 | `build-debug-tests` | `Scripts/build_swift_tests.sh` でコンパイラと全テストターゲットをデバッグビルドし、`swift-debug-tests-<run id>` artifact にする（1 回だけ） |
-| `verify-core` | `build-debug-tests` の成果物を展開し、`CompilerCoreTests` をメソッド単位の動的シャード（6 分割）で実行。Golden 4 スイートは `KSWIFTK_GOLDEN_SHARD_INDEX/COUNT` で分割。shard 1 だけ `SmokeTests` と `FrontendParallelBenchmarkTests` も実行。LLVM 不要 |
+| `verify-core` | `build-debug-tests` の成果物を展開し、`CompilerCore{Frontend,Sema,KIRLowering,}Tests` の 4 ターゲットをメソッド単位の動的シャード（6 分割）で実行。Golden 4 スイートは `KSWIFTK_GOLDEN_SHARD_INDEX/COUNT` で分割。shard 1 だけ `SmokeTests` と `FrontendParallelBenchmarkTests` も実行。LLVM 不要 |
 | `verify-self-hosted` | 同じ成果物で `CompilerBackendTests` を静的シャード（4 分割）で実行。shard 1 だけ `RuntimeTests`（直列・チャンク）/ `RuntimeTestsParallel` / `KSwiftKCLITests` / `LSPServerTests` も実行。`setup-llvm` で LLVM を導入 |
 | `refactoring-metrics` | `Scripts/loc_report.sh`（artifact `refactoring-metrics-<run id>`） |
 | `build-release-kswiftc` | `swift build -c release --product kswiftc` を 1 回だけ実行し `kswiftc-release-<run id>` artifact にする |
@@ -450,7 +460,7 @@ CI では `build-and-smoke`（`ci.yml`）と `build-debug-tests` / `verify-core`
 4. `Sema/` — `DataFlow/Phase.swift` でヘッダ収集、`TypeCheck/TypeCheckSemaPhase.swift` で型チェック
 5. `KIR/` — `ExprLowerer.swift` or `MemberLowerer.swift` で KIR 生成
 6. `Lowering/` — 必要なら専用 `*LoweringPass.swift` を追加し `LoweringPhase.passes` に登録
-7. テスト — `Tests/CompilerCoreTests/` の該当ディレクトリ + `Scripts/diff_cases/` に回帰ケース追加
+7. テスト — `Tests/CompilerCore{,Frontend,Sema,KIRLowering}Tests/` の該当ディレクトリ + `Scripts/diff_cases/` に回帰ケース追加
 
 ### 型チェック / 型推論のバグを直す
 
@@ -487,7 +497,7 @@ CI では `build-and-smoke`（`ci.yml`）と `build-debug-tests` / `verify-core`
 
 | テスト種別 | 場所 | 実行方法 |
 |---|---|---|
-| フェーズ単体テスト | `Tests/CompilerCoreTests/{Phase}/` | `bash Scripts/swift_test.sh --filter {TestClass}` |
+| フェーズ単体テスト | `Tests/CompilerCore{Frontend,Sema,KIRLowering}Tests/{Phase}/`（Lexer/Parser/AST→Frontend、Sema、KIR/Lowering→KIRLowering） | `bash Scripts/swift_test.sh --filter {TestClass}` |
 | ゴールデンテスト | `Tests/CompilerCoreTests/GoldenCases/` | `bash Scripts/swift_test.sh --filter Golden` |
 | kotlinc 回帰テスト | `Scripts/diff_cases/*.kt` | `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` |
 | Codegen 実行テスト (fixture) | `Tests/CompilerBackendTests/Fixtures/<領域>/<ケース>/{*.kt,expected.txt}` | `bash Scripts/swift_test.sh --filter CodegenBackendFixtureTests` |
