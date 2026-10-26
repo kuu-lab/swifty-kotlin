@@ -476,6 +476,78 @@ struct ConstPropertyEvaluationTests {
     }
 
     @Test
+    func foldsIntegerToFloatAndDoubleConversions() throws {
+        let ctx = makeContextFromSource("""
+        package numericConversionConstants
+        const val INT_FLOAT = 1.toFloat()
+        const val LONG_FLOAT = 1L.toFloat()
+        const val BYTE_FLOAT = 1.toByte().toFloat()
+        const val SHORT_FLOAT = 1.toShort().toFloat()
+        const val ROUNDED_FLOAT = 16777217.toFloat()
+        const val INT_DOUBLE = 1.toDouble()
+        const val LONG_DOUBLE = 9007199254740993L.toDouble()
+        const val BYTE_DOUBLE = (-1).toByte().toDouble()
+        """)
+        try runSema(ctx)
+
+        #expect(ctx.diagnostics.diagnostics.filter { $0.severity == .error }.isEmpty)
+        let sema = try #require(ctx.sema)
+        let expected: [String: KIRExprKind] = [
+            "INT_FLOAT": .floatLiteral(1.0),
+            "LONG_FLOAT": .floatLiteral(1.0),
+            "BYTE_FLOAT": .floatLiteral(1.0),
+            "SHORT_FLOAT": .floatLiteral(1.0),
+            "ROUNDED_FLOAT": .floatLiteral(Double(Float(16_777_216))),
+            "INT_DOUBLE": .doubleLiteral(1.0),
+            "LONG_DOUBLE": .doubleLiteral(9_007_199_254_740_992),
+            "BYTE_DOUBLE": .doubleLiteral(-1.0),
+        ]
+        for (name, value) in expected {
+            let symbol = try #require(sema.symbols.lookup(
+                fqName: ["numericConversionConstants", name].map { ctx.interner.intern($0) }
+            ))
+            #expect(sema.symbols.constValueExprKind(for: symbol) == value, "Incorrect constant for \(name)")
+        }
+    }
+
+    @Test
+    func foldsStringGetByUtf16Index() throws {
+        let ctx = makeContextFromSource("""
+        package stringGetConstants
+        const val INDEX = 2
+        const val LETTER = "abc".get(INDEX)
+        const val CONCAT_LETTER = ("a" + "bc").get(2)
+        const val UTF16_HIGH = "😀".get(0)
+        const val UTF16_LOW = "😀".get(1)
+        val runtimeString = "abc"
+        const val NOT_CONSTANT = runtimeString.get(1)
+        """)
+        try runSema(ctx)
+
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.count == 1)
+        #expect(errors.first?.code == "KSWIFTK-SEMA-0083")
+
+        let sema = try #require(ctx.sema)
+        let expected: [String: KIRExprKind] = [
+            "LETTER": .charLiteral(99),
+            "CONCAT_LETTER": .charLiteral(99),
+            "UTF16_HIGH": .charLiteral(0xD83D),
+            "UTF16_LOW": .charLiteral(0xDE00),
+        ]
+        for (name, value) in expected {
+            let symbol = try #require(sema.symbols.lookup(
+                fqName: ["stringGetConstants", name].map { ctx.interner.intern($0) }
+            ))
+            #expect(sema.symbols.constValueExprKind(for: symbol) == value, "Incorrect constant for \(name)")
+        }
+        let rejected = try #require(sema.symbols.lookup(
+            fqName: ["stringGetConstants", "NOT_CONSTANT"].map { ctx.interner.intern($0) }
+        ))
+        #expect(sema.symbols.constValueExprKind(for: rejected) == nil)
+    }
+
+    @Test
     func foldsMixedTypeStringConcatenationConstInitializers() throws {
         let ctx = makeContextFromSource("""
         package mixedStringConstants

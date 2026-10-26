@@ -126,10 +126,27 @@ final class ConstPropertyEvaluator {
         if name == "length", nonNullReceiverType == sema.types.stringType {
             return args.isEmpty && isBuiltinStringLengthProperty(expr)
         }
+        if name == "get", nonNullReceiverType == sema.types.stringType {
+            return args.count == 1
+                && !args[0].isSpread
+                && sema.bindings.exprType(for: args[0].expr) == sema.types.intType
+                && isBuiltinStringGetCall(expr)
+        }
         if name == "code" {
             return args.isEmpty
                 && nonNullReceiverType == sema.types.charType
                 && (!isSourceBackedMemberExtensionCall(expr) || isBuiltinCharCodeProperty(expr))
+        }
+        if name == "toFloat" || name == "toDouble" {
+            guard args.isEmpty, isIntegerPrimitiveType(nonNullReceiverType) else { return false }
+            guard isSourceBackedMemberExtensionCall(expr) else { return true }
+            let resultType = name == "toFloat" ? sema.types.floatType : sema.types.doubleType
+            return isBuiltinKotlinNumericConversion(
+                expr,
+                name: name,
+                receiverType: nonNullReceiverType,
+                resultType: resultType
+            )
         }
         if name == "compareTo" {
             guard args.count == 1,
@@ -200,6 +217,38 @@ final class ConstPropertyEvaluator {
         return sema.symbols.isSourceBackedSymbol(propertySymbol)
     }
 
+    private func isBuiltinStringGetCall(_ expr: ExprID) -> Bool {
+        guard let callee = sema.bindings.callBinding(for: expr)?.chosenCallee,
+              let symbol = sema.symbols.symbol(callee),
+              symbol.kind == .function,
+              symbol.fqName == ["kotlin", "text", "get"].map(interner.intern),
+              sema.symbols.isSourceBackedSymbol(callee),
+              let signature = sema.symbols.functionSignature(for: callee),
+              signature.receiverType.map(sema.types.makeNonNullable) == sema.types.stringType,
+              signature.parameterTypes == [sema.types.intType],
+              signature.returnType == sema.types.charType
+        else { return false }
+        return true
+    }
+
+    private func isBuiltinKotlinNumericConversion(
+        _ expr: ExprID,
+        name: String,
+        receiverType: TypeID,
+        resultType: TypeID
+    ) -> Bool {
+        guard let callee = sema.bindings.callBinding(for: expr)?.chosenCallee,
+              let symbol = sema.symbols.symbol(callee),
+              symbol.kind == .function,
+              symbol.fqName == ["kotlin", name].map(interner.intern),
+              let signature = sema.symbols.functionSignature(for: callee),
+              signature.receiverType.map(sema.types.makeNonNullable) == receiverType,
+              signature.parameterTypes.isEmpty,
+              signature.returnType == resultType
+        else { return false }
+        return sema.symbols.isSourceBackedSymbol(callee) || sema.symbols.isSyntheticStubSymbol(callee)
+    }
+
     private func isBuiltinCharCodeProperty(_ expr: ExprID) -> Bool {
         guard let callee = sema.bindings.callBinding(for: expr)?.chosenCallee,
               let calleeSymbol = sema.symbols.symbol(callee)
@@ -221,6 +270,15 @@ final class ConstPropertyEvaluator {
             return false
         }
         return primitive != .boolean
+    }
+
+    private func isIntegerPrimitiveType(_ type: TypeID) -> Bool {
+        switch sema.types.kind(of: sema.types.makeNonNullable(type)) {
+        case .primitive(.byte, _), .primitive(.short, _), .primitive(.int, _), .primitive(.long, _):
+            return true
+        default:
+            return false
+        }
     }
 
     private func isPrimitiveType(_ type: TypeID) -> Bool {
