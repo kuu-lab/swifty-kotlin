@@ -1000,7 +1000,13 @@ extension DataEnumSealedSynthesisPass {
                         } ?? false
                     })?.value
                 }()
-                let toStringTagExpr: KIRExprID? = toStringVtableSlot == nil
+                // Unit has a source-backed toString but no vtable slot; its generic Int tag would print the raw 0 value.
+                let isUnitProperty: Bool = if case .unit = sema.types.kind(of: sema.types.makeNonNullable(propType)) {
+                    true
+                } else {
+                    false
+                }
+                let toStringTagExpr: KIRExprID? = toStringVtableSlot == nil && !isUnitProperty
                     ? module.arena.appendTemporary(type: intType)
                     : nil
                 if let toStringTagExpr {
@@ -1019,6 +1025,15 @@ extension DataEnumSealedSynthesisPass {
                             result: result,
                             canThrow: false,
                             dispatch: .vtable(slot: toStringVtableSlot)
+                        )
+                    }
+                    if isUnitProperty {
+                        return .call(
+                            symbol: classToString.symbol,
+                            callee: classToString.callee,
+                            arguments: [propValue],
+                            result: result,
+                            canThrow: false
                         )
                     }
                     if let toStringTagExpr {
