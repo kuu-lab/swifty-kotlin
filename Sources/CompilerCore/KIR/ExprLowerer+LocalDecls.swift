@@ -210,6 +210,15 @@ extension ExprLowerer {
                 callee: localFunCalleeName,
                 captureArguments: captureBindings.map(\.valueExpr)
             )
+            let hasNonLocalLoopJump = sema.bindings.loopJumpLambdaPaths.values.contains {
+                $0.contains(exprID)
+            }
+            if hasNonLocalLoopJump, !captureBindings.isEmpty {
+                arena.registerLambdaCaptureArgs(
+                    symbol,
+                    captureArgs: captureBindings.map(\.valueExpr)
+                )
+            }
 
             let scopeSnapshot = driver.ctx.saveScope()
             let boxedCaptureSymbols = Set(
@@ -220,6 +229,12 @@ extension ExprLowerer {
             let savedReceiverSymbol = scopeSnapshot.currentImplicitReceiverSymbol
             defer { driver.ctx.restoreScope(scopeSnapshot) }
             driver.ctx.resetScopeForFunction()
+            driver.ctx.currentLambdaAllowsNonLocalBreakContinue = hasNonLocalLoopJump
+            if hasNonLocalLoopJump {
+                driver.ctx.enclosingLoopControlStack = scopeSnapshot.enclosingLoopControlStack
+                    + scopeSnapshot.loopControlStack
+                driver.ctx.nextLoopLabel = max(scopeSnapshot.nextLoopLabel, 10000)
+            }
 
             var localFunBodyInstructions: [KIRInstruction] = [.beginBlock]
 
@@ -415,7 +430,8 @@ extension ExprLowerer {
                         returnType: localFunReturnType,
                         body: localFunBodyInstructions,
                         isSuspend: sig?.isSuspend ?? false,
-                        isInline: false,
+                        isInline: hasNonLocalLoopJump,
+                        isInlineOnly: hasNonLocalLoopJump,
                         isTailrec: isTailrec
                     )
                 )

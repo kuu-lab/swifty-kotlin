@@ -163,6 +163,54 @@ struct LambdaBreakContinueScopeTests {
                 }
             }
 
+            """,
+
+            // 12: a labeled break through an anonymous function argument is legal
+            """
+            package sample12
+            inline fun runInline(block: () -> Unit) { block() }
+            fun g() {
+                outer@ while (true) {
+                    runInline(fun() { break@outer })
+                }
+            }
+
+            """,
+
+            // 13: a labeled continue through an anonymous function argument is legal
+            """
+            package sample13
+            inline fun runInline(block: () -> Unit) { block() }
+            fun g() {
+                outer@ while (true) {
+                    runInline(fun() { continue@outer })
+                }
+            }
+
+            """,
+
+            // 14: crossinline still rejects non-local break in an anonymous function
+            """
+            package sample14
+            inline fun runInline(crossinline block: () -> Unit) { block() }
+            fun g() {
+                outer@ while (true) {
+                    runInline(fun() { break@outer })
+                }
+            }
+
+            """,
+
+            // 15: a non-inline function does not permit a break to cross an anonymous function
+            """
+            package sample15
+            fun run(block: () -> Unit) { block() }
+            fun g() {
+                outer@ while (true) {
+                    run(fun() { break@outer })
+                }
+            }
+
             """
         ]
 
@@ -232,6 +280,22 @@ struct LambdaBreakContinueScopeTests {
                 #expect(
                     diags.contains(where: { $0.code == code && $0.severity == .error }),
                     "non-local jump through a restricted inline parameter must be rejected: \(diags.map { "\($0.code): \($0.message)" })"
+                )
+            }
+            // 12-13: inline anonymous functions admit labeled non-local loop jumps.
+            for index in 12 ... 13 {
+                let diags = diagnosticsForPath(paths[index], in: ctx)
+                #expect(
+                    !diags.contains(where: { $0.severity == .error }),
+                    "non-local loop jumps through an inline anonymous function must compile: \(diags.map { "\($0.code): \($0.message)" })"
+                )
+            }
+            // 14-15: restricted or non-inline anonymous function arguments reject the jump.
+            for index in 14 ... 15 {
+                let diags = diagnosticsForPath(paths[index], in: ctx)
+                #expect(
+                    diags.contains(where: { $0.code == "KSWIFTK-SEMA-0018" && $0.severity == .error }),
+                    "a non-local jump through a restricted anonymous function must be rejected: \(diags.map { "\($0.code): \($0.message)" })"
                 )
             }
         }
