@@ -1,6 +1,25 @@
 import Testing
 
 extension BundledStdlibExecutionTests {
+    /// KUU-3483: zipping the lazy Iterable returned by withIndex() must use its iterator.
+    @Test
+    func testIterableZipWithIndexReceiver() throws {
+        try compileAndRunKotlin(
+            """
+            fun main() {
+                val values = listOf("a", "b").withIndex()
+                println(values.toList())
+                println(values.zip(listOf("a", "b")).toList())
+            }
+            """,
+            expectedOutput: """
+            [IndexedValue(index=0, value=a), IndexedValue(index=1, value=b)]
+            [(IndexedValue(index=0, value=a), a), (IndexedValue(index=1, value=b), b)]
+
+            """
+        )
+    }
+
     /// KSP-999: Array overloads must match Kotlin's iterator pull order while
     /// preserving pair order and transform timing.
     @Test
