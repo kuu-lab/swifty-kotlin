@@ -1846,10 +1846,26 @@ extension DataFlowSemaPhase {
         // example, StringBuilder.append(Int) after StringBuilder.append(Char)
         // is declared as an Appendable override).
         let matchingParents: [OFOInheritedMember]
-        if let childSignature = ctx.symbols.functionSignature(for: memberSymbol) {
+        if let childSymbol = ctx.symbols.symbol(memberSymbol),
+           let childSignature = ctx.symbols.functionSignature(for: memberSymbol) {
             matchingParents = overridableParents.filter { parent in
-                guard let parentSignature = ctx.symbols.functionSignature(for: parent.memberID) else {
+                guard let parentSymbol = ctx.symbols.symbol(parent.memberID),
+                      let parentSignature = ctx.symbols.functionSignature(for: parent.memberID)
+                else {
                     return false
+                }
+                let childIsMemberExtension = childSymbol.flags.contains(.memberExtension)
+                guard childIsMemberExtension == parentSymbol.flags.contains(.memberExtension) else {
+                    return false
+                }
+                if childIsMemberExtension {
+                    return overrideFunctionSignatureMatches(
+                        childMember: memberSymbol,
+                        parentMember: parent.memberID,
+                        childOwner: ownerSymbol,
+                        requireCovariantReturn: true,
+                        ctx: ctx
+                    )
                 }
                 // Kotlin member overrides require equal parameter types. The
                 // general compatibility helper intentionally accepts

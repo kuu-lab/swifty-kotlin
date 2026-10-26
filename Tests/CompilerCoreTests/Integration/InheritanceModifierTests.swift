@@ -652,6 +652,27 @@ import TestStdlibCache
         }
     }
 
+    // KUU-3515: interface member extensions on Any shadow Any members but do not override them.
+    @Test func testAnyMemberExtensionsDoNotRequireOverrideWhenInheritedByDataClass() throws {
+        let source = """
+        interface A {
+            fun Any.equals(other: Any?): Boolean = false
+            fun Any.hashCode(): Int = 0
+            fun Any.toString(): String = ""
+        }
+
+        data class B(val x: Int) : A
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            let sampleDiags = diagnosticsForPath(path, in: ctx)
+            assertNoDiagnostic("KSWIFTK-SEMA-OVERRIDE", in: sampleDiags)
+            #expect(!sampleDiags.hasError, "Unexpected diagnostics: \(sampleDiags)")
+        }
+    }
+
     @Test func testInternalOverrideOfPublicFromOtherModule() throws {
         let source = """
         open class Shape {
