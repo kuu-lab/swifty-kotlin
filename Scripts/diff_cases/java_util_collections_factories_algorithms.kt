@@ -2,6 +2,8 @@
 import java.util.Collections
 import java.util.Random
 
+fun <L : List<Int>> checkedSize(values: L): Int = Collections.checkedList(values, Int::class.java).size
+
 @Suppress("UNCHECKED_CAST")
 fun main() {
     val emptyList = Collections.emptyList<Int>()
@@ -70,4 +72,14 @@ fun main() {
     synchronized.add(3)
     synchronized.listIterator().add(0)
     println("synchronized:${synchronized.joinToString()}:${synchronized.subList(0, 2).joinToString()}")
+
+    // KUU-3343: Java collection factory results expose Kotlin's size property.
+    val checkedSize = Collections.checkedList(listOf(1), Int::class.java)
+    val backing = mutableListOf(1, 2)
+    val synchronizedSize = Collections.synchronizedList(backing)
+    val unmodifiableSize = Collections.unmodifiableList(backing)
+    println("sizes:${checkedSize.size}:${synchronizedSize.size}:${unmodifiableSize.size}:${java.util.LinkedList(backing).size}")
+    backing.add(3)
+    println("updated-sizes:${synchronizedSize.size}:${unmodifiableSize.size}")
+    println("bounded-size:${checkedSize(listOf(1, 2))}")
 }
