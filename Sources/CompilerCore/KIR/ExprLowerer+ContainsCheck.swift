@@ -2,9 +2,11 @@ extension ExprLowerer {
     /// `when` branch conditions (`ControlFlowLowerer+WhenExpr.swift`) reuse the
     /// subject's single lowering here instead of re-lowering `lhsExpr`, which
     /// would re-evaluate a side-effecting subject once per `in`/`!in` branch.
+    /// Standalone membership evaluates the container (`rhsExpr`) before the
+    /// element (`lhsExpr`), matching the desugared `rhs.contains(lhs)` call.
     func lowerContainsCheck(
         exprID: ExprID,
-        lhsID: KIRExprID,
+        preLoweredLhsID: KIRExprID? = nil,
         lhsExpr: ExprID,
         rhsExpr: ExprID,
         negated: Bool,
@@ -17,8 +19,12 @@ extension ExprLowerer {
         instructions: inout [KIRInstruction]
     ) -> KIRExprID {
         let boolType = sema.types.make(.primitive(.boolean, .nonNull))
-        let rhsID = lowerExpr(
+        let containerID = lowerExpr(
             rhsExpr, ast: ast, sema: sema, arena: arena, interner: interner,
+            propertyConstantInitializers: propertyConstantInitializers, instructions: &instructions
+        )
+        let elementID = preLoweredLhsID ?? lowerExpr(
+            lhsExpr, ast: ast, sema: sema, arena: arena, interner: interner,
             propertyConstantInitializers: propertyConstantInitializers, instructions: &instructions
         )
         // KSP-1523: UInt used to get its own branch here (`kk_uint_range_contains`),
@@ -35,15 +41,15 @@ extension ExprLowerer {
             let result = arena.appendTemporary(type: boundType ?? boolType)
             if let floatingPointPlan {
                 emitFloatingPointRangeContains(
-                    floatingPointPlan, rangeID: rhsID, valueID: lhsID,
+                    floatingPointPlan, rangeID: containerID, valueID: elementID,
                     valueExpr: lhsExpr, resultID: result, sema: sema,
                     arena: arena, interner: interner, instructions: &instructions
                 )
             } else {
                 appendContainsCall(
                     exprID: exprID,
-                    elementID: lhsID,
-                    containerID: rhsID,
+                    elementID: elementID,
+                    containerID: containerID,
                     containerExpr: rhsExpr,
                     resultID: result,
                     sema: sema,
@@ -58,15 +64,15 @@ extension ExprLowerer {
         let containsResult = arena.appendTemporary(type: boolType)
         if let floatingPointPlan {
             emitFloatingPointRangeContains(
-                floatingPointPlan, rangeID: rhsID, valueID: lhsID,
+                floatingPointPlan, rangeID: containerID, valueID: elementID,
                 valueExpr: lhsExpr, resultID: containsResult, sema: sema,
                 arena: arena, interner: interner, instructions: &instructions
             )
         } else {
             appendContainsCall(
                 exprID: exprID,
-                elementID: lhsID,
-                containerID: rhsID,
+                elementID: elementID,
+                containerID: containerID,
                 containerExpr: rhsExpr,
                 resultID: containsResult,
                 sema: sema,
