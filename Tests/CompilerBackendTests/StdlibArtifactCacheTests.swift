@@ -56,6 +56,41 @@ struct StdlibArtifactCacheTests {
 
     // MARK: - Cache recovery (KUU-1426)
 
+    @Test
+    func additionalIntegrityValidationRebuildsCorruptedObjects() throws {
+        let fm = FileManager.default
+        let directory = makeTemporaryCacheDirectory()
+        defer { try? fm.removeItem(at: directory) }
+        let target = TargetTriple.hostDefault()
+        var buildCount = 0
+        func resolve() throws -> String {
+            try StdlibArtifactCache.resolveOrBuildCached(
+                target: target, cacheDirectory: directory, compilerFingerprint: "diff-integrity",
+                preserveInvalidArtifacts: true,
+                additionalValidator: { DiffStdlibCache.isIntactArtifact(at: $0) }
+            ) { base in
+                buildCount += 1
+                let artifact = try Self.writeFakeArtifact(at: base, target: target, inlineMangledNames: [])
+                try DiffStdlibCache.sealArtifact(at: artifact)
+                return artifact
+            }
+        }
+        let path = try resolve()
+        #expect(try resolve() == path)
+        #expect(buildCount == 1)
+        let manifest = try JSONSerialization.jsonObject(with: Data(contentsOf: URL(fileURLWithPath: path + "/manifest.json"))) as? [String: Any]
+        let object = try #require((manifest?["objects"] as? [String])?.first)
+        try Data("corrupted".utf8).write(to: URL(fileURLWithPath: path).appendingPathComponent(object))
+        let recovered = try resolve()
+        #expect(recovered != path)
+        #expect(buildCount == 2)
+        #expect(fm.fileExists(atPath: path))
+        #expect(!DiffStdlibCache.isIntactArtifact(at: path))
+        #expect(DiffStdlibCache.isIntactArtifact(at: recovered))
+        #expect(try resolve() == recovered)
+        #expect(buildCount == 2)
+    }
+
     /// A cached artifact whose manifest references an inline-KIR blob that is
     /// no longer on disk must be rebuilt instead of being handed to a compile
     /// that would then fail with KSWIFTK-LIB-0019 or missing link symbols.

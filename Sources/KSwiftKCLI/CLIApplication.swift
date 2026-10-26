@@ -1,3 +1,4 @@
+import CompilerBackend
 import Foundation
 
 func printUsage() {
@@ -35,6 +36,9 @@ func printCLIError(_ error: CLIParseError) {
 
 enum CLIApplication {
     static func run(args: [String]) -> Int32 {
+        if args == ["--cached-stdlib-path"] {
+            return resolveCachedStdlib()
+        }
         if args == ["--daemon"] {
             return CompileDaemonServer().runForeground()
         }
@@ -45,6 +49,23 @@ enum CLIApplication {
             return CLIWatchMode.run(args: args)
         }
         return runCompilation(args: args)
+    }
+
+    static func resolveCachedStdlib(
+        resolve: () throws -> String = { try DiffStdlibCache.resolve() },
+        writeOutput: (String) -> Void = { print($0) },
+        writeError: (String) -> Void = { FileHandle.standardError.write(Data($0.utf8)) }
+    ) -> Int32 {
+        do {
+            writeOutput(try resolve())
+            return 0
+        } catch DiffStdlibCache.Error.fingerprintUnavailable {
+            writeError("kswiftc: stdlib cache identity unavailable\n")
+            return 2
+        } catch {
+            writeError("kswiftc: stdlib cache failed: \(error)\n")
+            return 1
+        }
     }
 
     static func runCompilation(args: [String], socketPath: String? = nil) -> Int32 {

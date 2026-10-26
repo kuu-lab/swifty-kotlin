@@ -12,6 +12,8 @@ source "$SCRIPT_DIR/lib/common.sh"
 source "$SCRIPT_DIR/diff_kotlinc_cases.sh"
 # shellcheck source=diff_kotlinc_toolchain.sh
 source "$SCRIPT_DIR/diff_kotlinc_toolchain.sh"
+# shellcheck source=diff_kotlinc_cached_stdlib.sh
+source "$SCRIPT_DIR/diff_kotlinc_cached_stdlib.sh"
 # shellcheck source=diff_kotlinc_artifacts.sh
 source "$SCRIPT_DIR/diff_kotlinc_artifacts.sh"
 # shellcheck source=diff_kotlinc_candidate_only.sh
@@ -20,6 +22,7 @@ source "$SCRIPT_DIR/diff_kotlinc_candidate_only.sh"
 source "$SCRIPT_DIR/diff_kotlinc_run_case.sh"
 
 KSWIFTC="${KSWIFTC:-$ROOT_DIR/.build/debug/kswiftc}"
+configure_diff_compiler_process
 # Space-separated arguments appended to each candidate compiler invocation.
 # The shared stdlib artifact intentionally remains at the default optimization
 # level so this lane measures optimization of the case under test.
@@ -194,9 +197,13 @@ Environment:
                      -XX:-UsePerfData; set to empty to disable)
   DIFF_STDLIB_LIBRARY
                      Path to an existing KSwiftKStdlib.kklib to reuse; if unset,
-                     the runner builds one under DIFF_ARTIFACT_ROOT
+                     the runner resolves a validated compiler cache when supported
   DIFF_STDLIB_COMPILE_TIMEOUT
                      Stdlib artifact build timeout in seconds (default: 600)
+  DIFF_REUSE_STDLIB_CACHE
+                     Set to 0 to build a fresh artifact for this invocation
+  DIFF_USE_DAEMON    Set to 1 to opt into the compiler daemon; automatic
+                     stdlib cache reuse is disabled in this mode
   DIFF_KSWIFTC_FLAGS
                      Space-separated arguments appended to the candidate
                      kswiftc invocation (default: empty)
@@ -1050,7 +1057,7 @@ if [[ "$DIFF_BACKEND" != "native" ]]; then
 elif [[ -n "$DIFF_STDLIB_LIBRARY" ]]; then
   echo "Stdlib artifact: $DIFF_STDLIB_LIBRARY (provided)"
 elif [[ "$STDLIB_ARTIFACT_REQUIRED" -eq 1 ]]; then
-  echo "Stdlib artifact: pending build under $ARTIFACT_ROOT"
+  echo "Stdlib artifact: pending validated cache resolution or fresh build under $ARTIFACT_ROOT"
 else
   echo "Stdlib artifact: not needed for skipped candidate-only cases"
 fi
@@ -1068,6 +1075,7 @@ if [[ "$STDLIB_ARTIFACT_REQUIRED" -eq 1 ]]; then
   # Build or resolve the precompiled stdlib artifact once per shard. Each candidate
   # compile below will reference it with --stdlib-library instead of recompiling
   # bundled stdlib sources.
+  resolve_cached_diff_stdlib || exit 1
   build_stdlib_artifact || exit 1
   echo "Stdlib artifact: $STDLIB_ARTIFACT"
   echo "Stdlib artifact manifest hash: $(stdlib_manifest_hash "$STDLIB_ARTIFACT")"

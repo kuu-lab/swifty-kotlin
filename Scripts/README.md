@@ -604,13 +604,23 @@ the input, such as same-module `expect`/`actual` declarations.
 
 ## Precompiled stdlib artifact for diff runs
 
-`diff_kotlinc.sh` builds a shared stdlib `.kklib` once per shard and references it from
-each candidate compile. The artifact is created under `DIFF_ARTIFACT_ROOT` (default
-`.artifacts/diff_kotlinc/KSwiftKStdlib.kklib`) at runtime and is never committed.
+`diff_kotlinc.sh` resolves a validated stdlib `.kklib` once per shard and references it
+from each candidate compile. A compiler supporting `--cached-stdlib-path` reuses a
+content-keyed artifact based on the compiler executable, bundled resources, loaded libraries,
+target, and process environment. Cache hits are validated by the compiler;
+unknown identity falls back to a fresh build. Older compilers also build a fresh artifact.
+The cache is under the compiler's user caches directory (or `KSWIFTK_STDLIB_CACHE_DIR`).
+Fresh artifacts are created under `DIFF_ARTIFACT_ROOT` and are never committed.
+Diff runs bypass a global compiler daemon by default so artifact generation and case
+compilation use the same requested compiler. Set `DIFF_USE_DAEMON=1` to opt into a
+daemon; automatic cache reuse is then disabled because its compiler may differ.
 
 ```bash
-# Default: build artifact automatically and use it for all cases
+# Default: resolve a validated artifact and use it for all cases
 bash Scripts/diff_kotlinc.sh Scripts/diff_cases
+
+# When the test specifically needs a freshly built artifact
+DIFF_REUSE_STDLIB_CACHE=0 bash Scripts/diff_kotlinc.sh Scripts/diff_cases/hello.kt
 
 # Reuse an existing artifact (useful for local debugging or repro scripts)
 DIFF_STDLIB_LIBRARY=/path/to/KSwiftKStdlib.kklib bash Scripts/diff_kotlinc.sh Scripts/diff_cases
@@ -624,6 +634,8 @@ bash Scripts/diff_kotlinc.sh --stdlib-library /path/to/KSwiftKStdlib.kklib Scrip
 
 The artifact manifest records `libraryKind: stdlib` and `stdlibManifestHash` so
 mismatched compiler/stdlib versions are rejected with `KSWIFTK-LIB-0021` / `KSWIFTK-LIB-0022`.
+An explicitly supplied `--stdlib-library` remains the caller's responsibility;
+the cache identity check applies to automatically resolved artifacts only.
 
 ## CI test sharding
 
