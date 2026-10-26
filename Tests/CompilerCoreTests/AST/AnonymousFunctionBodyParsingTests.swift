@@ -7,6 +7,7 @@ struct AnonymousFunctionBodyParsingTests {
     @Test(arguments: [
         "fun main() { val g = fun(x: Int) = x * 2 }",
         "val f = fun() = 1",
+        "@file:OptIn(kotlin.ExperimentalContextParameters::class)\nval y = context(p: String) fun String.() = p",
     ])
     func rejectsExpressionBodies(_ source: String) throws {
         let (_, context) = try buildASTModule(from: source, includeStdlib: false)
