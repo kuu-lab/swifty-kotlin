@@ -85,6 +85,30 @@ extension CallLowerer {
             let paramExpr = arena.appendExpr(.symbolRef(param.symbol), type: param.type)
             body.append(.constValue(result: paramExpr, value: .symbolRef(param.symbol)))
             let lambdaParamType = allValueTypes[index]
+            if let valueClassSymbol = nullableUnderlyingValueClassSymbol(
+                of: sema.types.kind(of: lambdaParamType),
+                types: sema.types,
+                symbols: sema.symbols
+            )
+            {
+                // Erased generic callback slots carry nullable-underlying
+                // value classes as nominal boxes; the typed lambda expects
+                // the raw value-class payload.
+                let unboxedExpr = arena.appendTemporary(type: lambdaParamType)
+                emitValueClassUnboxCall(
+                    value: paramExpr,
+                    classSymbol: valueClassSymbol,
+                    result: unboxedExpr,
+                    resultType: lambdaParamType,
+                    types: sema.types,
+                    symbols: sema.symbols,
+                    interner: interner,
+                    arena: arena,
+                    into: &body
+                )
+                callArguments.append(unboxedExpr)
+                continue
+            }
             let lambdaParamKind = resolveValueClassKind(
                 sema.types.kind(of: lambdaParamType),
                 types: sema.types,

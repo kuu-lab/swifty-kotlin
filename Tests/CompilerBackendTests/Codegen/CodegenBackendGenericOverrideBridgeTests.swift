@@ -69,6 +69,38 @@ struct CodegenBackendGenericOverrideBridgeTests {
     }
 
     @Test
+    func testNullableValueClassPayloadThroughGenericSuperclassCallback() throws {
+        let source = """
+        inline fun <T, R> T?.let(block: (T) -> R): R? {
+            if (this == null) return null
+            return block(this)
+        }
+        abstract class C<T> {
+            fun foo(v: T?, x: (T) -> Any?) = v?.let { x(it) }
+        }
+        value class V(val value: Any?)
+        class D : C<V>()
+        class Payload
+        fun main() {
+            val expected = Payload()
+            val result = D().foo(V(expected)) { it.value }
+            if (result !== expected) {
+                val divisor = 0
+                1 / divisor
+            }
+        }
+        """
+        try assertKotlinOutput(
+            source,
+            moduleName: "NullableValueClassGenericSuperclassCallback",
+            expected: "",
+            includeStdlib: false,
+            allowDefaultStdlibLibrary: false,
+            prepareTestStdlibCache: false
+        )
+    }
+
+    @Test
     func testInheritedGenericMethodImplementsConcreteInterfaceMethod() throws {
         let source = """
         interface IntTransform { fun transform(value: Int): Int }
