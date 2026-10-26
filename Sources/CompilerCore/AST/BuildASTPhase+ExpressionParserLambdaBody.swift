@@ -79,7 +79,7 @@ extension BuildASTPhase.ExpressionParser {
             }
             // Keep a final postfix mutation as an expression so the lambda returns its old value.
             if rangeIndex == ranges.count - 1,
-               let postfixExpr = parseTrailingScalarPostfixMutation(group)
+               let postfixExpr = parseTrailingPostfixMutation(group)
             {
                 statements.append(postfixExpr)
             } else if let statementExpr = parseLambdaBodyStatement(from: group) {

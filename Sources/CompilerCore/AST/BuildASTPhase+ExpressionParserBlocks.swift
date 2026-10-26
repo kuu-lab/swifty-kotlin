@@ -69,7 +69,7 @@ extension BuildASTPhase.ExpressionParser {
             if statement == nil {
                 undoFailedSpeculation()
                 if rangeIndex == ranges.count - 1 {
-                    statement = parseTrailingScalarPostfixMutation(strippedGroup[...])
+                    statement = parseTrailingPostfixMutation(strippedGroup[...])
                 }
             }
             if statement == nil {
@@ -110,7 +110,7 @@ extension BuildASTPhase.ExpressionParser {
         return astArena.appendExpr(.blockExpr(statements: statements, trailingExpr: trailingExpr, range: range))
     }
 
-    func parseTrailingScalarPostfixMutation(_ tokens: ArraySlice<Token>) -> ExprID? {
+    func parseTrailingPostfixMutation(_ tokens: ArraySlice<Token>) -> ExprID? {
         var expressionTokens = Array(tokens)
         while expressionTokens.last?.kind == .symbol(.semicolon) {
             expressionTokens.removeLast()
@@ -139,8 +139,7 @@ extension BuildASTPhase.ExpressionParser {
               let expressionNode = astArena.expr(expression),
               case let .blockExpr(statements, trailingExpr, _) = expressionNode,
               trailingExpr != nil,
-              let mutation = statements.last,
-              astArena.isIncrementDecrement(mutation)
+              let mutation = statements.last
         else {
             if let diagnosticsCheckpoint {
                 diagnostics?.rollback(to: diagnosticsCheckpoint)
@@ -148,12 +147,43 @@ extension BuildASTPhase.ExpressionParser {
             return nil
         }
 
-        // Keep indexed increments on the indexed-assignment path; this expression-value fix is
-        // limited to scalar name/member mutations and their old-value result.
+        let isScalarMutation: Bool
         switch astArena.expr(mutation) {
         case .compoundAssign, .memberCompoundAssign:
+            isScalarMutation = astArena.isIncrementDecrement(mutation)
+        default:
+            isScalarMutation = false
+        }
+        let isIndexedMutation: Bool = {
+            guard case let .indexedAssign(_, _, valueExpr, _) = astArena.expr(mutation),
+                  case let .memberCall(_, callee, typeArgs, args, _) = astArena.expr(valueExpr),
+                  typeArgs.isEmpty,
+                  args.isEmpty,
+                  astArena.isExplicitCall(valueExpr)
+            else {
+                return false
+            }
+            let name = interner.resolve(callee)
+            return name == "inc" || name == "dec"
+        }()
+        guard isScalarMutation || isIndexedMutation else {
+            if let diagnosticsCheckpoint {
+                diagnostics?.rollback(to: diagnosticsCheckpoint)
+            }
+            return nil
+        }
+
+        // The indexed expression parser desugars postfix mutation into an
+        // indexed assignment plus a cached old-value trailing expression.
+        // Keeping that block as the tail expression makes lambdas return the
+        // old value while preserving single evaluation of the receiver/index.
+        switch astArena.expr(mutation) {
+        case .compoundAssign, .memberCompoundAssign, .indexedAssign:
             return expression
         default:
+            if let diagnosticsCheckpoint {
+                diagnostics?.rollback(to: diagnosticsCheckpoint)
+            }
             return nil
         }
     }
