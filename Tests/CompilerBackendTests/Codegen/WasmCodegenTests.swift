@@ -1097,4 +1097,78 @@ struct WasmCodegenTests {
         #expect(run?.status == 0)
         #expect(run?.stdout == "3.14\n0.3333333333333333\n1.0\n1.5\n-0.0\n-0.5\n1.0E10\ntrue\n2.75\n2\n3.0\n")
     }
+
+    @Test
+    func runsStringHelpersUnderNodeWASI() throws {
+        guard nodePath() != nil else { return }
+        // Flat-string helper layer: byte-level ASCII semantics, plus the
+        // StringIndexOutOfBounds catch path whose nominal typeID lives under
+        // `java.lang` (the bundled stdlib declares it there, not `kotlin`).
+        let arena = KIRArena()
+        let mainSymbol = SymbolID(rawValue: 1)
+        func e(_ kind: KIRExprKind = .unit) -> KIRExprID { arena.appendExpr(kind) }
+        var body: [KIRInstruction] = []
+        func lit(_ s: String) -> KIRExprID { e(.stringLiteral(interner.intern(s))) }
+        func int(_ v: Int64) -> KIRExprID { e(.intLiteral(v)) }
+        func call(_ name: String, _ args: [KIRExprID]) -> KIRExprID {
+            let r = e()
+            body.append(.call(symbol: nil, callee: interner.intern(name),
+                              arguments: args, result: r,
+                              canThrow: false, thrownResult: nil))
+            return r
+        }
+        func printStr(_ name: String, _ args: [KIRExprID]) {
+            body.append(println(interner.intern("__kk_println_raw"), call(name, args)))
+        }
+        func printInt(_ v: KIRExprID) {
+            let s = e()
+            body.append(.call(symbol: nil, callee: interner.intern("kk_any_to_string"),
+                              arguments: [v, int(1)], result: s,
+                              canThrow: false, thrownResult: nil))
+            body.append(println(interner.intern("__kk_println_raw"), s))
+        }
+        printStr("__kk_wasm_string_upper", [lit("Hello")])
+        printStr("__kk_wasm_string_lower", [lit("HeLLo")])
+        printStr("__kk_wasm_string_substring_to", [lit("Hello World"), int(0), int(5)])
+        printStr("__kk_wasm_string_repeat", [lit("ab"), int(3)])
+        printStr("__kk_wasm_string_trim", [lit("  pad  ")])
+        printInt(call("__kk_wasm_string_index_of", [lit("Hello"), lit("ll"), int(0), int(0)]))
+        printInt(call("__kk_wasm_string_last_index_of_nostart", [lit("Hello"), lit("l")]))
+        printInt(call("__kk_wasm_string_contains_ic", [lit("Hello"), lit("ELL"), int(1)]))
+        printInt(call("__kk_wasm_string_starts_with", [lit("Hello"), lit("He"), int(0)]))
+        printInt(call("__kk_wasm_string_ends_with", [lit("Hello"), lit("lo"), int(0)]))
+        printStr("__kk_wasm_string_replace", [lit("Hello"), lit("l"), lit("L"), int(0)])
+        printStr("__kk_wasm_string_replace_first", [lit("Hello"), lit("l"), lit("L"), int(0)])
+        printStr("__kk_wasm_string_replace_char", [lit("Hello"), int(0x6C), int(0x4C), int(0)])
+        printStr("__kk_wasm_string_reversed", [lit("abc")])
+        printInt(call("__kk_wasm_string_is_blank", [lit("  ")]))
+        let list = call("__kk_wasm_string_split", [lit("a,b,c"), lit(",")])
+        printInt(call("__kk_list_size", [list]))
+        // substring(0, 10) on "abc" throws StringIndexOutOfBoundsException —
+        // declared under `java.lang` in the bundled stdlib, so the catch
+        // token's nominal payload must hash that fqName, not `kotlin.*`.
+        let slot = e(), isMatch = e(), caught = e(), sMiss = e()
+        let catchLabel: Int32 = 60, doneLabel: Int32 = 61
+        body.append(.call(symbol: nil, callee: interner.intern("__kk_wasm_string_substring_to"),
+                          arguments: [lit("abc"), int(0), int(10)], result: e(),
+                          canThrow: true, thrownResult: slot))
+        body.append(.jumpIfNotNull(value: slot, target: catchLabel))
+        body.append(.constValue(result: sMiss, value: .stringLiteral(interner.intern("miss"))))
+        body.append(println(interner.intern("__kk_println_raw"), sMiss))
+        body.append(.jump(doneLabel))
+        body.append(.label(catchLabel))
+        body.append(.call(symbol: nil, callee: interner.intern("kk_op_is"),
+                          arguments: [slot, int(7_519_185_036_922_649_094)], result: isMatch,
+                          canThrow: false, thrownResult: nil))
+        body.append(.constValue(result: caught, value: .stringLiteral(interner.intern("SIOOB"))))
+        body.append(println(interner.intern("__kk_println_raw"), caught))
+        body.append(.label(doneLabel))
+        body.append(.returnUnit)
+        let main = makeFunction(symbol: mainSymbol, name: "main", params: [], body: body)
+        let declID = arena.appendDecl(.function(main))
+        let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [declID])], arena: arena)
+        let run = try runUnderNode(try emit(module, entry: mainSymbol))
+        #expect(run?.status == 0)
+        #expect(run?.stdout == "HELLO\nhello\nHello\nababab\npad\n2\n3\n1\n1\n1\nHeLLo\nHeLlo\nHeLLo\ncba\n1\n3\nSIOOB\n")
+    }
 }

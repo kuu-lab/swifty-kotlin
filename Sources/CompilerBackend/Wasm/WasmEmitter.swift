@@ -155,7 +155,12 @@ final class WasmModuleContext {
         return result
     }
 
-    func resolveCallee(name: String, symbol: SymbolID?, argumentCount: Int) -> CalleeResolution {
+    func resolveCallee(
+        name: String,
+        symbol: SymbolID?,
+        argumentCount: Int,
+        argumentTypes: [TypeID?] = []
+    ) -> CalleeResolution {
         // Runtime-lowered names must win over a retained source symbol: the
         // symbol can be stale bookkeeping for inline expansion while the kk_*
         // text is the real target (mirrors NativeEmitter's contract).
@@ -193,8 +198,9 @@ final class WasmModuleContext {
         }
         // `$default` forwarders and other symbol-less stdlib shims only carry
         // their callee name — route the known ones onto the same helpers the
-        // fqName path selects.
-        if let helper = stdlibShimName(for: name) {
+        // fqName path selects. `argumentTypes` disambiguates same-named
+        // overloads (e.g. `indexOf(String,…)` vs `indexOf(Char,…)`).
+        if let helper = stdlibShimName(for: name, argumentTypes: argumentTypes) {
             return .emittedHelper(emittedHelperIndex(for: helper, argumentCount: argumentCount))
         }
         return .stub(name)
@@ -202,10 +208,69 @@ final class WasmModuleContext {
 
     /// Stdlib shims whose symbol doesn't survive lowering (the
     /// `<fn>$default` forwarders the default-argument expansion emits).
-    private func stdlibShimName(for name: String) -> String? {
+    /// Forwarder args are `[receiver, all-declared-params…, mask]` — the
+    /// defaulted slots carry their real default values, so the helpers can
+    /// ignore the trailing mask.
+    private func stdlibShimName(for name: String, argumentTypes: [TypeID?]) -> String? {
+        func isChar(_ index: Int) -> Bool {
+            guard index < argumentTypes.count, let t = argumentTypes[index],
+                  let types, case .primitive(.char, _) = types.kind(of: t)
+            else { return false }
+            return true
+        }
         switch name {
         case "joinToString", "joinToString$default":
             return "__kk_string_joinToString"
+        // kotlin.text forwarders.
+        case "indexOf$default":
+            return isChar(1)
+                ? "__kk_wasm_string_index_of_char"
+                : "__kk_wasm_string_index_of"
+        case "lastIndexOf$default":
+            // (s, needle, ic, mask) = no-start shape; (s, needle, start, ic,
+            // mask) = start shape.
+            let start = argumentTypes.count >= 5
+            switch (start, isChar(1)) {
+            case (false, false): return "__kk_wasm_string_last_index_of_nostart"
+            case (false, true): return "__kk_wasm_string_last_index_of_char_nostart"
+            case (true, false): return "__kk_wasm_string_last_index_of"
+            case (true, true): return "__kk_wasm_string_last_index_of_char"
+            }
+        case "contains$default":
+            return isChar(1)
+                ? "__kk_wasm_string_contains_char_ic"
+                : "__kk_wasm_string_contains_ic"
+        case "startsWith$default":
+            // argc 4 → (s, prefix, ic, mask); argc 5 → (s, prefix, start,
+            // ic, mask).
+            if argumentTypes.count >= 5 {
+                return "__kk_wasm_string_starts_with_at"
+            }
+            return isChar(1)
+                ? "__kk_wasm_string_starts_with_char"
+                : "__kk_wasm_string_starts_with"
+        case "endsWith$default":
+            return isChar(1)
+                ? "__kk_wasm_string_ends_with_char"
+                : "__kk_wasm_string_ends_with"
+        case "replace$default":
+            return isChar(1)
+                ? "__kk_wasm_string_replace_char"
+                : "__kk_wasm_string_replace"
+        case "replaceFirst$default":
+            return isChar(1)
+                ? "__kk_wasm_string_replace_first_char"
+                : "__kk_wasm_string_replace_first"
+        case "split$default":
+            return "__kk_wasm_string_split"
+        case "repeat$default":
+            return "__kk_wasm_string_repeat"
+        case "substring$default":
+            return "__kk_wasm_string_substring_to"
+        case "capitalize$default":
+            return "__kk_wasm_string_capitalize"
+        case "decapitalize$default":
+            return "__kk_wasm_string_decapitalize"
         default:
             return nil
         }
@@ -356,6 +421,116 @@ final class WasmModuleContext {
                 "Iterable"].contains(components[2])
             {
                 return "__kk_list_size"
+            }
+            // `kotlin.text` String/Char ops whose kklib bodies aren't in
+            // this module — the flat-string helpers reproduce the same
+            // byte-level behavior. Overloads sharing fqName+arity (Char vs
+            // String receivers/params) are split on the resolved signature.
+            if components.count == 3, components[1] == "text" {
+                let sig = symbols?.functionSignature(for: symbol)
+                let sigParamCount = sig?.parameterTypes.count ?? -1
+                func isCharParam(_ index: Int) -> Bool {
+                    guard let sig, index < sig.parameterTypes.count,
+                          let types,
+                          case .primitive(.char, _) = types.kind(of: sig.parameterTypes[index])
+                    else { return false }
+                    return true
+                }
+                let receiverIsChar: Bool = {
+                    guard let t = sig?.receiverType, let types else { return false }
+                    if case .primitive(.char, _) = types.kind(of: t) { return true }
+                    return false
+                }()
+                switch member {
+                case "uppercase", "toUpperCase", "titlecase":
+                    return receiverIsChar
+                        ? "__kk_wasm_char_upper_str"
+                        : "__kk_wasm_string_upper"
+                case "lowercase", "toLowerCase":
+                    return receiverIsChar
+                        ? "__kk_wasm_char_lower_str"
+                        : "__kk_wasm_string_lower"
+                case "uppercaseChar", "titlecaseChar", "toTitleCase":
+                    return "__kk_wasm_char_upper"
+                case "lowercaseChar":
+                    return "__kk_wasm_char_lower"
+                case "capitalize":
+                    return "__kk_wasm_string_capitalize"
+                case "decapitalize":
+                    return "__kk_wasm_string_decapitalize"
+                case "substring", "subSequence":
+                    return argumentCount == 2
+                        ? "__kk_wasm_string_substring"
+                        : "__kk_wasm_string_substring_to"
+                case "trim":
+                    return argumentCount == 1 ? "__kk_wasm_string_trim" : nil
+                case "trimStart":
+                    return argumentCount == 1 ? "__kk_wasm_string_trim_start" : nil
+                case "trimEnd":
+                    return argumentCount == 1 ? "__kk_wasm_string_trim_end" : nil
+                case "repeat":
+                    return argumentCount == 2 ? "__kk_wasm_string_repeat" : nil
+                case "reversed":
+                    return argumentCount == 1 ? "__kk_wasm_string_reversed" : nil
+                case "isEmpty":
+                    return argumentCount == 1 ? "__kk_wasm_string_is_empty" : nil
+                case "isNotEmpty":
+                    return argumentCount == 1 ? "__kk_wasm_string_is_not_empty" : nil
+                case "isBlank":
+                    return argumentCount == 1 ? "__kk_wasm_string_is_blank" : nil
+                case "isNotBlank":
+                    return argumentCount == 1 ? "__kk_wasm_string_is_not_blank" : nil
+                case "contains":
+                    let char = isCharParam(0)
+                    if argumentCount == 2 {
+                        return char
+                            ? "__kk_wasm_string_contains_char"
+                            : "__kk_wasm_string_contains"
+                    }
+                    return char
+                        ? "__kk_wasm_string_contains_char_ic"
+                        : "__kk_wasm_string_contains_ic"
+                case "indexOf":
+                    return isCharParam(0)
+                        ? "__kk_wasm_string_index_of_char"
+                        : "__kk_wasm_string_index_of"
+                case "lastIndexOf":
+                    let hasStart = sigParamCount >= 3
+                        || (sigParamCount < 0 && argumentCount >= 4)
+                    switch (hasStart, isCharParam(0)) {
+                    case (false, false): return "__kk_wasm_string_last_index_of_nostart"
+                    case (false, true): return "__kk_wasm_string_last_index_of_char_nostart"
+                    case (true, false): return "__kk_wasm_string_last_index_of"
+                    case (true, true): return "__kk_wasm_string_last_index_of_char"
+                    }
+                case "startsWith":
+                    let hasStart = sigParamCount >= 3
+                        || (sigParamCount < 0 && argumentCount >= 4)
+                    if hasStart { return "__kk_wasm_string_starts_with_at" }
+                    return isCharParam(0)
+                        ? "__kk_wasm_string_starts_with_char"
+                        : "__kk_wasm_string_starts_with"
+                case "endsWith":
+                    return isCharParam(0)
+                        ? "__kk_wasm_string_ends_with_char"
+                        : "__kk_wasm_string_ends_with"
+                case "replace":
+                    return isCharParam(0)
+                        ? "__kk_wasm_string_replace_char"
+                        : "__kk_wasm_string_replace"
+                case "replaceFirst":
+                    return isCharParam(0)
+                        ? "__kk_wasm_string_replace_first_char"
+                        : "__kk_wasm_string_replace_first"
+                case "split":
+                    // Only single-String-delimiter shapes map to the byte
+                    // scan; vararg/Regex overloads keep their own bodies.
+                    if sig?.valueParameterIsVararg.first == true { break }
+                    return "__kk_wasm_string_split"
+                case "get", "charAt":
+                    return "kk_string_get"
+                default: break
+                }
             }
             guard fq.count == 3, fq[1] == "io", argumentCount == 1 else {
                 return nil

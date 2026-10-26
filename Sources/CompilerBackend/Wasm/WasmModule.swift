@@ -132,9 +132,11 @@ enum WasmOpcode {
     // Numeric conversions.
     static let f32ConvertI32S: UInt8 = 0xB2
     static let f32ConvertI64S: UInt8 = 0xB4
+    static let f32ConvertI64U: UInt8 = 0xB5
     static let f32DemoteF64: UInt8 = 0xB6
     static let f64ConvertI32S: UInt8 = 0xB7
     static let f64ConvertI64S: UInt8 = 0xB9
+    static let f64ConvertI64U: UInt8 = 0xBA
     static let f64PromoteF32: UInt8 = 0xBB
     static let i32ReinterpretF32: UInt8 = 0xBC
     static let i64ReinterpretF64: UInt8 = 0xBD
@@ -217,6 +219,7 @@ struct WasmCode {
     mutating func br(_ depth: Int) { op(WasmOpcode.br); u(UInt64(depth)) }
     mutating func brIf(_ depth: Int) { op(WasmOpcode.brIf); u(UInt64(depth)) }
     mutating func openBlock() { op(WasmOpcode.block); op(WasmOpcode.blockVoid) }
+    mutating func openBlock(result: WasmValType) { op(WasmOpcode.block); op(result.rawValue) }
     mutating func openLoop() { op(WasmOpcode.loop); op(WasmOpcode.blockVoid) }
     /// Convert an i64 on the stack to the i32 truthiness `if`/`br_if` require.
     mutating func i64Truthy() {
