@@ -83,15 +83,34 @@ public final class TestStdlibCache: @unchecked Sendable {
         let fm = FileManager.default
         let buildURL = URL(fileURLWithPath: fm.currentDirectoryPath)
             .appendingPathComponent(".build", isDirectory: true)
+        let worker = TestStdlibWorkerProvenance.resolve()
+        let imageFingerprint: String?
+        if worker == nil {
+            imageFingerprint = TestStdlibWorkerProvenance.fullImageFingerprint(
+                imageURL: Self.currentCompilerImageURL(), context: TestStdlibCompilerIdentity.current()
+            )
+        } else {
+            imageFingerprint = nil
+        }
+        let manifestHash = BundledStdlib.manifestHash()
+        let key: String
+        if let worker {
+            key = FileFingerprint.compute(
+                for: "test-stdlib-worker-key",
+                contents: Data("\(manifestHash)|\(worker.fingerprint)".utf8)
+            ).contentHash
+        } else {
+            key = try Self.contentKey(manifestHash: manifestHash, compilerFingerprint: imageFingerprint)
+        }
         return try Self.resolveOrBuildArtifact(
             buildDirectory: buildURL,
-            contentKey: try Self.contentKey(
-                manifestHash: BundledStdlib.manifestHash(),
-                compilerFingerprint: Self.currentCompilerFingerprint()
-            ),
+            contentKey: key,
             fileManager: fm
         ) { outputBase in
-            try StdlibArtifactBuilder.build(outputBase: outputBase, target: TargetTriple.hostDefault())
+            if let worker {
+                return try TestStdlibWorkerProvenance.build(worker: worker, outputBase: outputBase)
+            }
+            return try StdlibArtifactBuilder.build(outputBase: outputBase, target: TargetTriple.hostDefault())
         }
     }
 
@@ -131,6 +150,12 @@ public final class TestStdlibCache: @unchecked Sendable {
             throw TestStdlibCacheError.lockFailed(lockPath, errno)
         }
 
+        cleanupStaleStaging(
+            buildDirectory: buildDirectory,
+            olderThan: Date().addingTimeInterval(-3600),
+            fileManager: fm
+        )
+
         // Another worker may have built this content key's artifact while we
         // waited for the lock, or a previous run already left one here.
         // Either way its mere presence at this exact path is proof it is
@@ -140,9 +165,19 @@ public final class TestStdlibCache: @unchecked Sendable {
             return artifactPath
         }
 
-        let buildingBase = artifactPath + ".building"
-        try? fm.removeItem(atPath: buildingBase)
-        try? fm.removeItem(atPath: buildingBase + ".kklib")
+        // A child worker can briefly survive a killed parent after its lock is
+        // released. Never let the next attempt delete or reuse that path.
+        let buildingBase = artifactPath + ".building-\(getpid())-\(UUID().uuidString)"
+        let stageLockPath = buildingBase + ".lock"
+        let stageFd = stageLockPath.withCString { path in
+            open(path, O_CREAT | O_EXCL | O_RDWR | O_NOFOLLOW, S_IRUSR | S_IWUSR)
+        }
+        guard stageFd >= 0 else { throw TestStdlibCacheError.lockFileCreateFailed(stageLockPath, errno) }
+        defer {
+            _ = flock(stageFd, LOCK_UN)
+            close(stageFd)
+        }
+        guard flock(stageFd, LOCK_SH) == 0 else { throw TestStdlibCacheError.lockFailed(stageLockPath, errno) }
 
         let builtPath = try builder(buildingBase)
         guard fm.fileExists(atPath: builtPath) else {
@@ -153,7 +188,34 @@ public final class TestStdlibCache: @unchecked Sendable {
         // confirmed `artifactPath` doesn't exist, this can't collide with
         // another builder's output either.
         try fm.moveItem(atPath: builtPath, toPath: artifactPath)
+        try? fm.removeItem(atPath: stageLockPath)
         return artifactPath
+    }
+
+    /// Reclaim only old staging trees whose parent and worker have both
+    /// released their shared attempt lock. Keep the lock file itself so an
+    /// already-open descriptor cannot be split from a newly created lock.
+    static func cleanupStaleStaging(
+        buildDirectory: URL,
+        olderThan cutoff: Date,
+        fileManager fm: FileManager = .default
+    ) {
+        guard let entries = try? fm.contentsOfDirectory(atPath: buildDirectory.path) else { return }
+        for entry in entries where entry.hasPrefix("kswiftk-test-stdlib-cache-")
+            && entry.contains(".kklib.building-") && entry.hasSuffix(".lock") {
+            let lockPath = buildDirectory.appendingPathComponent(entry).path
+            guard let attrs = try? fm.attributesOfItem(atPath: lockPath),
+                  attrs[.type] as? FileAttributeType == .typeRegular,
+                  let modified = attrs[.modificationDate] as? Date, modified < cutoff else { continue }
+            let fd = lockPath.withCString { open($0, O_RDWR | O_NOFOLLOW) }
+            guard fd >= 0 else { continue }
+            if flock(fd, LOCK_EX | LOCK_NB) == 0 {
+                let base = String(lockPath.dropLast(".lock".count))
+                try? fm.removeItem(atPath: base + ".kklib")
+                _ = flock(fd, LOCK_UN)
+            }
+            close(fd)
+        }
     }
 
     /// Missing compiler identity must not map to a reusable "unknown" key.

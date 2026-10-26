@@ -69,8 +69,10 @@ Locally, `swift_test.sh` and `swift_build.sh` share a limit of two SwiftPM
 builds at a time across worktrees and divide detected build jobs between those
 slots. Use the build wrapper for focused builds so it participates in the same
 limit, for example `bash Scripts/swift_build.sh --product kswiftc`. The slot is released
-as soon as SwiftPM reports `Build complete!`, so a slow test does not occupy a
-build slot. `SWIFT_BUILD_SLOTS` changes the limit; `0` disables it.
+when SwiftPM reports `Build complete!`, so a slow test does not occupy a build
+slot. The optional worker link described below reacquires a slot only when a
+test requests the stdlib cache.
+`SWIFT_BUILD_SLOTS` changes the limit; `0` disables it.
 `SWIFT_TEST_BUILD_JOBS` for tests, `SWIFT_BUILD_JOBS` for builds, and explicit
 `-j`/`--jobs` take precedence over the automatic per-build job count. CI keeps
 its existing behavior unless slots are explicitly configured. `--skip-build`
@@ -81,6 +83,29 @@ the same directory and slot count. If Python 3 is unavailable, the wrapper
 warns and skips the cross-worktree limit. Direct `swift build`, `swift test`,
 and other scripts do not participate in the limit. If SwiftPM does not emit
 its normal build-complete marker, the slot remains held until it exits.
+
+For focused macOS `swiftbuild` runs of `CompilerCoreTests` or
+`CompilerBackendTests`, the build-slot wrapper can identify an isolated stdlib
+builder linked from the same compiler objects as the test image. It only does
+so when those objects and the toolchain stay unchanged across a test relink,
+the link inputs are known, and the running image and builder match the recorded
+hashes. The worker and test process also compare bundled sources, LLVM, target,
+OS, and environment. A later test-only relink can then reuse the worker's
+stdlib artifact without making test code part of its cache key. Interrupted
+builds use distinct staging paths; staging older than an hour is reclaimed only
+when neither the parent nor worker holds its attempt lock.
+
+The first run after a compiler change, other build systems or configurations,
+custom linker/compiler flags, and any missing or uncertain proof use the full
+test-image fingerprint and compiler environment instead. If that environment
+cannot be identified, shared reuse is disabled. A worker cache may therefore
+need one fresh build before later test-only changes can reuse it. Set
+`KSWIFTK_TEST_STDLIB_PROVENANCE_DISABLE=1` to disable the optimization, or
+`KSWIFTK_TEST_STDLIB_PROVENANCE_DEBUG=1` to diagnose why proof was unavailable.
+The request waits up to 15 seconds for a build slot and proof, then safely falls
+back; `KSWIFTK_TEST_STDLIB_PROVENANCE_WAIT` can set a limit up to 600 seconds.
+Disabling build slots, using `--skip-build`, and invoking `swift test` directly
+also leave the optimization off.
 
 To reduce Golden and other frontend test CPU time locally, build CompilerCore
 with the same debug optimization setting used by CI:

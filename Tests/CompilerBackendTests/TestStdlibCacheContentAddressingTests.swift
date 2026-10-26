@@ -4,6 +4,12 @@ import Dispatch
 import Foundation
 import Testing
 
+#if canImport(Darwin)
+import Darwin
+#elseif canImport(Glibc)
+import Glibc
+#endif
+
 /// A lock-guarded box for state shared across `DispatchQueue.concurrentPerform`
 /// iterations. Swift 6's strict concurrency checking flags mutation of a
 /// captured `var` from concurrently-executing code even when it is guarded by
@@ -247,6 +253,57 @@ struct TestStdlibCacheContentAddressingTests {
 
             let data = try handle.readToEnd() ?? Data()
             #expect(String(decoding: data, as: UTF8.self) == "stable-content")
+        }
+    }
+
+    @Test
+    func interruptedAttemptCannotShareTheNextAttemptStagingPath() throws {
+        enum Interrupted: Error { case stopped }
+        try withTempBuildDirectory { buildDir in
+            let fm = FileManager.default
+            var previousPath = ""
+            #expect(throws: Interrupted.self) {
+                try TestStdlibCache.resolveOrBuildArtifact(buildDirectory: buildDir, contentKey: "same-key") { output in
+                    previousPath = try fakeBuild(outputBase: output, marker: "old-worker")
+                    throw Interrupted.stopped
+                }
+            }
+            let published = try TestStdlibCache.resolveOrBuildArtifact(buildDirectory: buildDir, contentKey: "same-key") { output in
+                #expect(output + ".kklib" != previousPath)
+                #expect(fm.fileExists(atPath: previousPath))
+                return try fakeBuild(outputBase: output, marker: "new-worker")
+            }
+            // An orphan from the first attempt can still write only its own
+            // staging tree, never the newly published artifact.
+            try "orphan-write".write(toFile: previousPath + "/marker.txt", atomically: true, encoding: .utf8)
+            #expect(try String(contentsOfFile: published + "/marker.txt", encoding: .utf8) == "new-worker")
+        }
+    }
+
+    @Test
+    func staleStagingIsRemovedOnlyAfterItsAttemptLockIsReleased() throws {
+        try withTempBuildDirectory { buildDir in
+            let fm = FileManager.default
+            try fm.createDirectory(at: buildDir, withIntermediateDirectories: true)
+            let artifactName = "kswiftk-test-stdlib-cache-example.kklib"
+            let base = buildDir.appendingPathComponent(artifactName + ".building-1-fixture")
+            let staging = URL(fileURLWithPath: base.path + ".kklib")
+            let lockPath = base.path + ".lock"
+            try fm.createDirectory(at: staging, withIntermediateDirectories: true)
+            let fd = lockPath.withCString { open($0, O_CREAT | O_RDWR, 0o600) }
+            #expect(fd >= 0)
+            guard fd >= 0 else { return }
+            defer { close(fd) }
+            #expect(flock(fd, LOCK_SH) == 0)
+            try fm.setAttributes([.modificationDate: Date(timeIntervalSince1970: 1)], ofItemAtPath: lockPath)
+            TestStdlibCache.cleanupStaleStaging(buildDirectory: buildDir, olderThan: Date())
+            #expect(fm.fileExists(atPath: staging.path))
+            #expect(flock(fd, LOCK_UN) == 0)
+            _ = try TestStdlibCache.resolveOrBuildArtifact(buildDirectory: buildDir, contentKey: "different-key") { output in
+                try fakeBuild(outputBase: output, marker: "new-key")
+            }
+            #expect(!fm.fileExists(atPath: staging.path))
+            #expect(fm.fileExists(atPath: lockPath))
         }
     }
 
