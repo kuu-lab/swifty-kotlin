@@ -540,7 +540,11 @@ final class TypeCheckDriver {
                     }
                     switch decl {
                     case let .propertyDecl(property):
-                        guard declChecker.canSafelyPrecheckInferredProperty(property, in: inferCtx) else {
+                        guard declChecker.canSafelyPrecheckInferredProperty(
+                            property,
+                            symbol: symbol,
+                            in: inferCtx
+                        ) else {
                             continue
                         }
                         declChecker.typeCheckBoundPropertyDecl(

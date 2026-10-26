@@ -232,12 +232,13 @@ extension DeclTypeChecker {
                 guard !driver.precheckedPropertyDecls.contains(declID),
                       let decl = ctx.ast.arena.decl(declID),
                       case let .propertyDecl(property) = decl,
+                      let propertySymbol = sema.bindings.declSymbols[declID],
                       canSafelyPrecheckInferredProperty(
                           property,
+                          symbol: propertySymbol,
                           in: ctx,
                           initialLocals: initialLocals
-                      ),
-                      let propertySymbol = sema.bindings.declSymbols[declID]
+                      )
                 else {
                     continue
                 }
@@ -303,13 +304,52 @@ extension DeclTypeChecker {
 
     func canSafelyPrecheckInferredProperty(
         _ property: PropertyDecl,
+        symbol: SymbolID,
         in ctx: TypeInferenceContext,
         initialLocals: LocalBindings = [:]
     ) -> Bool {
         guard property.type == nil,
-              property.getter == nil,
               property.setter == nil,
-              property.explicitBackingField == nil,
+              property.explicitBackingField == nil
+        else {
+            return false
+        }
+
+        // Make a simple inferred extension getter's receiver available during
+        // prechecking so earlier function bodies see its concrete return type.
+        if let receiverType = ctx.sema.symbols.extensionPropertyReceiverType(for: symbol) {
+            guard !property.isVar,
+                  property.receiverType != nil,
+                  property.typeParams.isEmpty,
+                  property.contextReceivers.isEmpty,
+                  property.initializer == nil,
+                  property.delegateExpression == nil,
+                  let getter = property.getter,
+                  getter.returnType == nil,
+                  case let .expr(bodyExpr, _) = getter.body
+            else {
+                return false
+            }
+
+            let getterContext = ctx.copying(
+                implicitReceiverType: receiverType,
+                currentDeclSymbol: symbol
+            ).withOuterReceiver(
+                label: property.name,
+                type: receiverType,
+                symbol: SyntheticSymbolScheme.receiverParameterSymbol(for: symbol)
+            )
+            guard let type = safePrecheckExpressionType(
+                bodyExpr,
+                in: getterContext,
+                locals: initialLocals
+            ) else {
+                return false
+            }
+            return type != ctx.sema.types.nullableNothingType
+        }
+
+        guard property.getter == nil,
               property.receiverType == nil
         else {
             return false
