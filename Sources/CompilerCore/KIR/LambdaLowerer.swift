@@ -679,7 +679,7 @@ final class LambdaLowerer {
         }
         if !hasNonLocalReturn {
             if let functionType {
-                emitRawFunctionArityTag(
+                emitFunctionValueTypeTag(
                     lambdaValueExpr, functionType: functionType, sema: sema,
                     arena: arena, interner: interner, instructions: &instructions
                 )
@@ -988,7 +988,7 @@ final class LambdaLowerer {
         }
 
         if !hasNonLocalReturn, let functionType {
-            emitRawFunctionArityTag(
+            emitFunctionValueTypeTag(
                 lambdaValueExpr, functionType: functionType, sema: sema,
                 arena: arena, interner: interner, instructions: &instructions
             )

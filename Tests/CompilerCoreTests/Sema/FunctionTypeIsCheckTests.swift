@@ -23,7 +23,7 @@ struct FunctionTypeIsCheckTests {
             let ctx = makeCompilationContext(inputs: [path], includeStdlib: false)
             try runSema(ctx)
             let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-            #expect(errors.count == 11)
+            #expect(errors.count == 8)
             #expect(errors.allSatisfy { $0.code == "KSWIFTK-SEMA-ERASED-TYPE" })
             #expect(errors.allSatisfy { $0.message.contains("Cannot check for instance of erased type") })
             let ast = try #require(ctx.ast)

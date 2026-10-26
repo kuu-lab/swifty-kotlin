@@ -19,12 +19,12 @@ func runtimeFunctionEnclosingClassName(for value: Int) -> String? {
 }
 
 @_cdecl("kk_function_value_tag_arity")
-public func kk_function_value_tag_arity(_ functionRaw: Int, _ arity: Int) -> Int {
-    guard functionRaw != 0, arity >= 0 else {
+public func kk_function_value_tag_arity(_ functionRaw: Int, _ functionTypePayload: Int) -> Int {
+    guard functionRaw != 0, functionTypePayload >= 0 else {
         return functionRaw
     }
     runtimeStorage.withDelegateLock { state in
-        state.functionArityByPointer[functionRaw] = arity
+        state.functionTypePayloadByValue[functionRaw] = functionTypePayload
     }
     return functionRaw
 }
