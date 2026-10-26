@@ -55,7 +55,8 @@ extension LocalDeclTypeChecker {
             args: zip(indices, indexTypes).map { index, type in
                 let literal = driver.callChecker.integerLiteralValues(index, ast: ctx.ast)
                 return CallArg(type: type, signedIntegerLiteral: literal.signed, unsignedIntegerLiteral: literal.unsigned)
-            }
+            },
+            dispatchReceiverTypes: ctx.implicitReceiverMemberLookupEntries().map(\.type)
         )
         if ctx.resolver.probeCall(
             candidates: getCandidates, call: getCall, expectedType: nil,
@@ -520,7 +521,12 @@ extension LocalDeclTypeChecker {
             return CallArg(type: type, signedIntegerLiteral: literal.signed, unsignedIntegerLiteral: literal.unsigned)
         }
         callArgs.append(CallArg(type: valueType, bindsToLastParameter: true))
-        let setCall = CallExpr(range: range, calleeName: setName, args: callArgs)
+        let setCall = CallExpr(
+            range: range,
+            calleeName: setName,
+            args: callArgs,
+            dispatchReceiverTypes: ctx.implicitReceiverMemberLookupEntries().map(\.type)
+        )
         if ctx.resolver.probeCall(
             candidates: setCandidates, call: setCall, expectedType: nil,
             implicitReceiverType: receiverType, ctx: sema
@@ -552,7 +558,10 @@ extension LocalDeclTypeChecker {
                     chosenCallee: chosenSet,
                     substitutedTypeArguments: resolved.substitutedTypeArguments
                         .sorted(by: { $0.key.rawValue < $1.key.rawValue }).map { _, value in value },
-                    parameterMapping: resolved.parameterMapping
+                    parameterMapping: resolved.parameterMapping,
+                    dispatchReceiverSymbol: indexedOperatorDispatchReceiverSymbol(
+                        for: chosenSet, named: setName, ctx: ctx
+                    )
                 ),
                 elementType: elementType
             )
@@ -611,7 +620,10 @@ extension LocalDeclTypeChecker {
             chosenCallee: chosen,
             substitutedTypeArguments: resolved.substitutedTypeArguments
                 .sorted(by: { $0.key.rawValue < $1.key.rawValue }).map { _, value in value },
-            parameterMapping: resolved.parameterMapping
+            parameterMapping: resolved.parameterMapping,
+            dispatchReceiverSymbol: indexedOperatorDispatchReceiverSymbol(
+                for: chosen, named: getCall.calleeName, ctx: ctx
+            )
         ))
         sema.bindings.bindCallableTarget(id, target: .symbol(chosen))
         let typeVarBySymbol = sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
