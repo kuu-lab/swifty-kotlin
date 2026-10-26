@@ -1,5 +1,7 @@
 package kotlin
 
+import kotlin.enums.enumEntries
+
 @Suppress("KSWIFTK-SEMA-OPT-IN")
 public val kotlin.contracts.InvocationKind.entries: kotlin.enums.EnumEntries<kotlin.contracts.InvocationKind>
     get() = enumEntries<kotlin.contracts.InvocationKind>()

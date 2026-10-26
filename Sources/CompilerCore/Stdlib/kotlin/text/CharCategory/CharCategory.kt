@@ -1,5 +1,7 @@
 package kotlin.text
 
+import kotlin.enums.enumEntries
+
 public enum class CharCategory {
     UNASSIGNED,
     UPPERCASE_LETTER,

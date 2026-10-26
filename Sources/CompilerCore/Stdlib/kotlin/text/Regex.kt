@@ -1,5 +1,6 @@
 package kotlin.text
 
+import kotlin.enums.enumEntries
 import kotlin.internal.KsSymbolName
 import kotlin.sequences.emptySequence
 import kotlin.sequences.generateSequence
