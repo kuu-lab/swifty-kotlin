@@ -4,7 +4,7 @@ extension CoroutineLoweringPass {
         call: CallRewriteInput,
         using rewrite: SuspendRewriteContext
     ) -> KIRInstruction? {
-        guard call.callee == rewrite.yieldCallee else {
+        guard call.callee == rewrite.yieldCallee, call.arguments.isEmpty else {
             return nil
         }
         return .call(callee: rewrite.runtimeYieldCallee, arguments: call.arguments, result: call.result, canThrow: false)
