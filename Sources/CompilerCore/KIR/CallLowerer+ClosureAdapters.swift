@@ -1244,6 +1244,7 @@ extension CallLowerer {
         // (fnPtr, closureRaw).
         let function0RuntimeNames: Set<String> = [
             "__kk_auto_closeable_create",
+            "__kk_closeable_create",
             // Atomicfu TLS factory uses (closureRaw, outThrown), including raw Function0 literals.
             "__kk_atomicfu_current_parking_handle",
             "kk_runtime_result_run_catching",
