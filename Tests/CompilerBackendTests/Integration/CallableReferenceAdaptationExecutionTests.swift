@@ -19,6 +19,18 @@ struct CallableReferenceAdaptationExecutionTests {
         )
     }
 
+    @Test func contextCallableReferenceRunsThroughGenericWrapper() throws {
+        try compileAndRunKotlin(
+            """
+            context(c: String) fun ctxLen(): Int = c.length
+            fun <T> withCtx(v: String, f: context(String) () -> T): T = with(v) { f() }
+            fun main() { println(withCtx("hi", ::ctxLen)) }
+            """,
+            expectedOutput: "2\n",
+            moduleName: "KUU3355ContextCallableReference"
+        )
+    }
+
     @Test func stringPlusCallableReferenceConcatenatesCharArrayFoldElements() throws {
         TestStdlibCache.shared.prepare()
         try compileAndRunKotlin(

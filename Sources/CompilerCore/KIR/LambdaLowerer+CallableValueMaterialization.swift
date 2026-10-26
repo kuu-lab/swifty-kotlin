@@ -56,8 +56,11 @@ extension LambdaLowerer {
             )
         }
         // Suspend values count the receiver as the first invocation argument.
-        let invocationTypes = functionType.receiver.map { [$0] + functionType.params }
-            ?? functionType.params
+        // Context receivers are leading runtime invocation inputs for a
+        // context-function value, before its extension receiver and parameters.
+        let invocationTypes = functionType.contextReceivers
+            + (functionType.receiver.map { [$0] } ?? [])
+            + functionType.params
         let createCallee: InternedString
         switch invocationTypes.count {
         case 0:
@@ -250,7 +253,7 @@ extension LambdaLowerer {
         )
         emitFunctionDescription(
             value: materializedExpr,
-            description: "kotlin.Function\(functionType.params.count)",
+            description: "kotlin.Function\(invocationTypes.count)",
             identity: true,
             sema: sema, arena: arena, interner: interner, instructions: &instructions
         )

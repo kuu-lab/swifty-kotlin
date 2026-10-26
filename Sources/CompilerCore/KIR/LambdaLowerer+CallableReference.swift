@@ -19,7 +19,10 @@ extension LambdaLowerer {
     ) -> (symbol: SymbolID, name: InternedString) {
         let callableSymbol = driver.ctx.syntheticLambdaSymbol(for: exprID)
         let callableName = syntheticLambdaName(for: exprID, interner: interner)
-        let inputTypes = (functionType.receiver.map { [$0] } ?? []) + functionType.params
+        let contextInputCount = functionType.contextReceivers.count
+        let inputTypes = functionType.contextReceivers
+            + (functionType.receiver.map { [$0] } ?? [])
+            + functionType.params
         let closureParam = needsHOFWrapper ? KIRParameter(
             symbol: syntheticLambdaClosureParamSymbol(lambdaExprID: exprID),
             type: sema.types.intType
@@ -71,8 +74,9 @@ extension LambdaLowerer {
         let signature = sema.symbols.functionSignature(for: targetSymbol)
         let hasCallableReceiver = signature?.receiverType != nil
         let receiverInputCount = isUnbound && hasCallableReceiver ? 1 : 0
+        let valueInputRefs = Array(valueRefs.dropFirst(contextInputCount))
         let receiverOverride: KIRExprID? = if receiverInputCount == 1 {
-            valueRefs.first
+            valueInputRefs.first
         } else if hasCallableReceiver && !isUnbound && captureRefs.indices.contains(localCaptureCount) {
             captureRefs[localCaptureCount]
         } else {
@@ -82,7 +86,7 @@ extension LambdaLowerer {
             && sema.symbols.parentSymbol(for: targetSymbol)
                 .flatMap { sema.symbols.symbol($0) }?.flags.contains(.innerClass) == true
         let constructorOuterReceiver: KIRExprID? = if isInnerConstructor && isUnbound {
-            valueRefs.first
+            valueInputRefs.first
         } else if sema.symbols.symbol(targetSymbol)?.kind == .constructor,
                   captureRefs.indices.contains(localCaptureCount)
         {
@@ -90,7 +94,7 @@ extension LambdaLowerer {
         } else {
             nil
         }
-        var valueArguments = Array(valueRefs.dropFirst(receiverInputCount))
+        var valueArguments = Array(valueInputRefs.dropFirst(receiverInputCount))
         let callBinding = binding
         let typeVariables = sema.types.makeTypeVarBySymbol(signature?.typeParameterSymbols ?? [])
         var typeSubstitution: [TypeVarID: TypeID] = [:]
@@ -179,7 +183,10 @@ extension LambdaLowerer {
             callResultType = declaredReturnType
         }
         let contextCaptureStart = max(captureRefs.count - binding.boundContextParameterTypes.count, 0)
-        let contextReceiverValues: [KIRLoweringContext.ContextReceiverValue] = binding.boundContextParameterTypes
+        let contextInputValues = functionType.contextReceivers.enumerated().map { index, type in
+            KIRLoweringContext.ContextReceiverValue(type: type, exprID: valueRefs[index])
+        }
+        let boundContextReceiverValues: [KIRLoweringContext.ContextReceiverValue] = binding.boundContextParameterTypes
             .enumerated().compactMap { index, type in
                 guard captureRefs.indices.contains(contextCaptureStart + index) else { return nil }
                 return KIRLoweringContext.ContextReceiverValue(
@@ -187,6 +194,7 @@ extension LambdaLowerer {
                     exprID: captureRefs[contextCaptureStart + index]
                 )
             }
+        let contextReceiverValues = contextInputValues + boundContextReceiverValues
         let callResult = driver.ctx.withContextReceiverValues(contextReceiverValues) {
             driver.callLowerer.lowerResolvedCallBody(
                 exprID,

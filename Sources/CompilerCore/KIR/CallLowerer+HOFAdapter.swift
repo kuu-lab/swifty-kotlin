@@ -29,7 +29,7 @@ extension CallLowerer {
         // For receiver-bearing function types like `DeepRecursiveScope<T,R>.(T) -> R`,
         // the receiver is stored in `functionType.receiver` and must be forwarded
         // as an explicit parameter so the adapter's ABI matches the runtime call site.
-        var allValueTypes: [TypeID] = []
+        var allValueTypes = functionType.contextReceivers
         if let receiverType = functionType.receiver {
             allValueTypes.append(receiverType)
         }
@@ -45,6 +45,7 @@ extension CallLowerer {
         // caller stores it into a `List<R>`.
         var erasedValueTypes: [TypeID] = []
         if let erasedFunctionType {
+            erasedValueTypes.append(contentsOf: erasedFunctionType.contextReceivers)
             if erasedFunctionType.receiver != nil, functionType.receiver != nil {
                 erasedValueTypes.append(erasedFunctionType.receiver ?? sema.types.anyType)
             }
@@ -221,7 +222,8 @@ extension CallLowerer {
                 return functionType
             }
             guard let expectedFunctionType else { return nil }
-            let arity = (expectedFunctionType.receiver == nil ? 0 : 1)
+            let arity = expectedFunctionType.contextReceivers.count
+                + (expectedFunctionType.receiver == nil ? 0 : 1)
                 + expectedFunctionType.params.count
             guard let inheritedFunctionType = sema.types.inheritedFunctionInterfaceClassType(
                 of: classType,
