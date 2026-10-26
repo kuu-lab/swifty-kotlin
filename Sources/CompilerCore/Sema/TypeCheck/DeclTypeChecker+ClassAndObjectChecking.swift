@@ -801,6 +801,14 @@ extension DeclTypeChecker {
             }
         }
 
+        // Class delegation forwarders are synthetic symbols, not AST members,
+        // but must be visible to unqualified calls in the delegating class body.
+        for forwardingSymbol in sema.symbols.classDelegationForwardingMethodSymbols(forClass: ownerSymbol)
+            + sema.symbols.classDelegationForwardingPropertySymbols(forClass: ownerSymbol)
+        {
+            classScope.insert(forwardingSymbol)
+        }
+
         // Inner classes declared in a supertype are inherited members, so
         // `Inner(...)` resolves without qualification in a derived class.
         // Own declarations shadow inherited ones of the same name.

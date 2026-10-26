@@ -608,6 +608,8 @@ extension CallTypeChecker {
         }
         var candidates = filtered.candidates
 
+        driver.inferDelegatedForwardingMethodReturnTypesIfNeeded(for: candidates)
+
         let receiverSelection = selectRegularMemberCallReceiverAndFallbacks(
             request,
             candidates: candidates,
