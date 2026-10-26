@@ -983,6 +983,7 @@ public final class SymbolTable {
         visibility: Visibility,
         flags: SymbolFlags = [],
         isExtensionProperty: Bool = false,
+        isContextProperty: Bool = false,
         topLevelFileID: FileID? = nil
     ) -> SymbolID {
         lock.lock()
@@ -1017,7 +1018,8 @@ public final class SymbolTable {
                         || canCoexistAsOverload(
                             kind: kind,
                             existingSymbols: sourceExistingSymbols,
-                            isExtensionProperty: isExtensionProperty
+                            isExtensionProperty: isExtensionProperty,
+                            isContextProperty: isContextProperty
                         )
                         || canCoexistAsExpectActual(
                             kind: kind,
@@ -1033,7 +1035,8 @@ public final class SymbolTable {
             let shouldCoexist = sourceCanShadowImportedLibrary || canCoexistAsOverload(
                 kind: kind,
                 existingSymbols: existingSymbols,
-                isExtensionProperty: isExtensionProperty
+                isExtensionProperty: isExtensionProperty,
+                isContextProperty: isContextProperty
             )
                 || canCoexistAsExpectActual(kind: kind, flags: flags, existingSymbols: existingSymbols)
                 || canCoexistAsSyntheticPropertyFamily(kind: kind, flags: flags, existingSymbols: existingSymbols)
@@ -1139,7 +1142,8 @@ public final class SymbolTable {
     private func canCoexistAsOverload(
         kind: SymbolKind,
         existingSymbols: [SemanticSymbol],
-        isExtensionProperty: Bool = false
+        isExtensionProperty: Bool = false,
+        isContextProperty: Bool = false
     ) -> Bool {
         func isCallableLike(_ kind: SymbolKind) -> Bool {
             switch kind {
@@ -1193,7 +1197,10 @@ public final class SymbolTable {
             }
             return existingNonPackage.allSatisfy { existing in
                 isCallableLike(existing.kind)
-                    || (existing.kind == .property && hasExtensionPropertyReceiver(existing.id))
+                    || (existing.kind == .property
+                        && (hasExtensionPropertyReceiver(existing.id)
+                            || isContextProperty
+                            || hasContextParameterProperty(existing)))
             }
         }
         if isCallableLike(kind) {
@@ -1214,6 +1221,15 @@ public final class SymbolTable {
             return false
         }
         return existingNonPackageKinds.allSatisfy { isOverloadable($0) }
+    }
+
+    private func hasContextParameterProperty(_ property: SemanticSymbol) -> Bool {
+        guard let getter = extensionPropertyGetterAccessors[property.id],
+              let signature = functionSignatures[getter]
+        else {
+            return false
+        }
+        return !signature.contextParameterTypes.isEmpty
     }
 
     private func canCoexistAsExpectActual(
