@@ -85,4 +85,27 @@ struct GenericErasedLambdaArgExecutionTests {
             allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
         )
     }
+
+    /// KUU-3506: non-explicitly-inline generic higher-order calls must preserve
+    /// the erased String handle across identity, transforming, and referenced lambdas.
+    @Test
+    func genericHigherOrderFunctionValueCall() throws {
+        TestStdlibCache.shared.prepare()
+        try compileAndRunKotlin(
+            """
+            fun <T> idn(x: T): T = x
+            fun <T, R> ap(s: R, a: (R) -> T) = a(s)
+            fun <R> io(s: R, a: (R) -> R) = a(s)
+            fun main() {
+                println(ap("OK", { it }))
+                println(ap("OK", { x -> x + "!" }))
+                println(ap("OK", ::idn))
+                println(io("SAME", { it }))
+                println(io("REF", ::idn))
+            }
+            """,
+            expectedOutput: "OK\nOK!\nOK\nSAME\nREF\n",
+            moduleName: "KUU3506GenericHigherOrderFunctionValueCall"
+        )
+    }
 }
