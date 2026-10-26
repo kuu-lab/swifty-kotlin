@@ -782,7 +782,14 @@ final class ExprTypeChecker {
             return inferCallableRefExpr(id, receiver: receiver, member: member, range: range, ctx: ctx, locals: &locals, expectedType: expectedType)
 
         case let .blockExpr(statements, trailingExpr, _):
+            // Increment/decrement expressions desugar to a block containing a
+            // synthetic compound assignment. Its write must update outer
+            // locals just like a call-result compound assignment block.
+            let containsIncrementDecrementAssignment = statements.contains {
+                ast.arena.isIncrementDecrement($0)
+            }
             let preservesOuterDataFlow = ast.arena.isCallResultCompoundAssignmentBlock(id)
+                || containsIncrementDecrementAssignment
             ctx.dataFlow.localStability.analyze(statements + (trailingExpr.map { [$0] } ?? []), ast: ast)
             // Anonymous functions are blocks around a synthetic local function
             // and its callable reference. The declaration needs the contextual
