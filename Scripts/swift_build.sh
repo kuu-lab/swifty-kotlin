@@ -16,6 +16,14 @@ for arg in "$@"; do
 done
 
 declare -a command=(swift build)
+
+# Match swift_test.sh so alternating focused builds and tests does not change
+# SwiftPM's build system, plugin search path, or compilation cache settings.
+kswiftk_append_build_system_flag command
+kswiftk_append_testing_plugin_path command
+kswiftk_setup_compile_cache_env
+kswiftk_append_compile_cache_flags command
+
 if [[ "$has_jobs_flag" == false ]]; then
     build_jobs="${SWIFT_BUILD_JOBS:-}"
     if [[ -z "$build_jobs" ]]; then
