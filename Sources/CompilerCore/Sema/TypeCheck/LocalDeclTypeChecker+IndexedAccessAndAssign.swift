@@ -451,11 +451,23 @@ extension LocalDeclTypeChecker {
             }
             return driver.helpers.arrayElementType(for: receiverType, sema: sema, interner: interner)
         }()
+        let setValueTypeHasUnresolvedTypeParameter: Bool = {
+            guard let setValueExpectedType, !setCandidates.isEmpty else { return false }
+            return setCandidates.contains { candidate in
+                guard let signature = sema.symbols.functionSignature(for: candidate) else {
+                    return true
+                }
+                return ctx.resolver.containsTypeVariable(
+                    setValueExpectedType,
+                    typeVarBySymbol: sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols),
+                    typeSystem: sema.types
+                )
+            }
+        }()
 
-        // Pass concrete contextual numeric types or a fully-substituted function
-        // type as the expected type; a still-generic element type (e.g. an
-        // unsubstituted `MutableMap.set` value type `T`) must not influence
-        // inference of non-literal values.
+        // Pass concrete contextual numeric types for literal narrowing, and
+        // fully-substituted function or class types for nested calls. A
+        // setter's unresolved type parameter must not influence other values.
         let valueExpectedType: TypeID? = {
             guard let setValueExpectedType else { return nil }
             let nonNull = sema.types.makeNonNullable(setValueExpectedType)
@@ -470,6 +482,15 @@ extension LocalDeclTypeChecker {
                 return nonNull
             case .functionType:
                 guard !driver.callChecker.typeMentionsTypeParameter(nonNull, sema: sema) else {
+                    return nil
+                }
+                return nonNull
+            case .classType:
+                // A nested generic constructor or factory call needs its
+                // fully substituted class type before argument inference.
+                guard driver.callChecker.isInferableNestedCallExpr(valueExpr, ast: ast),
+                      !setValueTypeHasUnresolvedTypeParameter
+                else {
                     return nil
                 }
                 return nonNull
