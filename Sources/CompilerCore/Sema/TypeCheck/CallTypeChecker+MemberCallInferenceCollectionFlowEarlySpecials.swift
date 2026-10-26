@@ -478,7 +478,30 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
            !isMapReceiver,
            isCollectionReceiver || isIterableReceiver || isSequenceReceiver
         {
-            let destinationType = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals)
+            // Let a concrete MutableList result target constrain an empty
+            // destination before treating its provisional Nothing element as
+            // an inference failure.
+            let destinationExpectedType: TypeID? = if let expectedType,
+                                                        case let .classType(expectedClassType) = sema.types.kind(
+                                                            of: sema.types.makeNonNullable(expectedType)
+                                                        ),
+                                                        let expectedClassSymbol = sema.symbols.symbol(expectedClassType.classSymbol),
+                                                        expectedClassSymbol.fqName == [
+                                                            interner.intern("kotlin"),
+                                                            interner.intern("collections"),
+                                                            interner.intern("MutableList"),
+                                                        ]
+            {
+                expectedType
+            } else {
+                nil
+            }
+            let destinationType = driver.inferExpr(
+                args[0].expr,
+                ctx: ctx,
+                locals: &locals,
+                expectedType: destinationExpectedType
+            )
             let nonNullableDestinationType = sema.types.makeNonNullable(destinationType)
             let destinationElementType: TypeID = if case let .classType(destinationClassType) = sema.types.kind(of: nonNullableDestinationType),
                                                     let firstArg = destinationClassType.args.first
@@ -489,6 +512,26 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                 }
             } else {
                 sema.types.anyType
+            }
+            let isUntypedEmptyMutableListFactory: Bool = if case let .call(calleeID, typeArgs, callArgs, _) = ast.arena.expr(args[0].expr),
+                                                           typeArgs.isEmpty,
+                                                           callArgs.isEmpty,
+                                                           case let .nameRef(calleeName, _) = ast.arena.expr(calleeID)
+            {
+                interner.resolve(calleeName) == "mutableListOf"
+            } else {
+                false
+            }
+            if destinationElementType == sema.types.nothingType,
+               isUntypedEmptyMutableListFactory
+            {
+                ctx.sema.diagnostics.error(
+                    "KSWIFTK-SEMA-INFER",
+                    "Cannot infer type parameter 'R' for 'filterIsInstanceTo' from an untyped empty destination.",
+                    range: ast.arena.exprRange(args[0].expr) ?? range
+                )
+                sema.bindings.bindExprType(id, type: sema.types.errorType)
+                return sema.types.errorType
             }
             if isSequenceReceiver {
                 _ = bindBundledSequenceDestinationSourceFunction(
