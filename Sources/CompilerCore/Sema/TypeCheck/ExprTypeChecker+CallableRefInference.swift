@@ -290,21 +290,36 @@ extension ExprTypeChecker {
         // a package `val flush` must not hide `Writer.flush` for `::flush` in
         // implicit-receiver scope. Local declarations retain lexical priority.
         let hasLocalDeclaration = locals[member] != nil
-        var implicitBoundReceiver: (type: TypeID, symbol: SymbolID)?
+        var implicitBoundReceiver: (type: TypeID, symbol: SymbolID?)?
         var implicitPropertyCandidate: SymbolID?
         var implicitPropertyType: TypeID?
         let implicitMemberCandidates: [SymbolID] = {
             guard receiver == nil, !hasLocalDeclaration
             else { return [] }
-            var receivers = ctx.implicitReceiverStack
+            var receivers = ctx.implicitReceiverMemberLookupEntries()
             if let type = ctx.implicitReceiverType,
                let symbol = locals[interner.intern("this")]?.symbol,
-               receivers.last?.symbol != symbol
+               let index = receivers.firstIndex(where: { $0.type == type })
             {
-                receivers.append((type, symbol))
+                receivers[index].symbol = symbol
+            }
+            for index in receivers.indices where receivers[index].symbol == nil {
+                guard let symbol = driver.helpers.nominalSymbol(
+                    of: receivers[index].type,
+                    types: sema.types
+                ),
+                let kind = sema.symbols.symbol(symbol)?.kind,
+                kind == .class || kind == .enumClass
+                else {
+                    continue
+                }
+                // An outer class receiver has no local receiver parameter in
+                // this context; its class symbol lets lowering follow the
+                // inner-class `$outer` chain to capture the instance.
+                receivers[index].symbol = symbol
             }
             var hiddenDslMarkers = Set<String>()
-            for implicitReceiver in receivers.reversed() {
+            for implicitReceiver in receivers {
                 let markers = ctx.collectDslMarkerAnnotations(for: implicitReceiver.type)
                 let isHidden = !hiddenDslMarkers.isDisjoint(with: markers)
                 hiddenDslMarkers.formUnion(markers)
@@ -316,14 +331,16 @@ extension ExprTypeChecker {
                     sema: sema,
                     interner: interner
                 ).filter { candidate in
-                    // Kotlin rejects every `::` form for member-extensions
-                    // ("member and an extension at the same time"), including
-                    // the implicitly-bound `::name` form inside the owner.
+                    // Top-level extension aliases are indexed under their
+                    // receiver's member scope, so they must remain candidates
+                    // for an implicitly-bound `::name`. Member extensions
+                    // still require both receivers and are not callable-reference
+                    // targets.
                     !driver.helpers.declaresExtensionReceiver(
                         candidate,
                         sema: sema,
                         interner: interner
-                    )
+                    ) || sema.symbols.memberExtensionOwnerSymbol(for: candidate) == nil
                 }
                 // A bare `::ext` inside a receiver scope is a *bound* reference
                 // (`with("s") { ::ext }` means `this::ext`), so package-level
@@ -399,8 +416,14 @@ extension ExprTypeChecker {
             return []
         }()
         if let property = implicitPropertyCandidate, let implicitBoundReceiver {
-            sema.bindings.markImplicitReceiverMember(id, name: member)
-            sema.bindings.markImplicitReceiverOuterReceiver(id, symbol: implicitBoundReceiver.symbol)
+            sema.bindings.markImplicitReceiverMember(
+                id,
+                name: member,
+                receiverType: implicitBoundReceiver.type
+            )
+            if let symbol = implicitBoundReceiver.symbol {
+                sema.bindings.markImplicitReceiverOuterReceiver(id, symbol: symbol)
+            }
             return bindPropertyCallableRef(
                 id,
                 propertySymbol: property,
@@ -1440,9 +1463,13 @@ extension ExprTypeChecker {
             // lowering can emit type identity metadata.
             sema.bindings.bindCallableRefKind(id, kind: .functionRef)
             if isImplicitlyBoundMember {
-                sema.bindings.markImplicitReceiverMember(id, name: member)
-                if let implicitBoundReceiver {
-                    sema.bindings.markImplicitReceiverOuterReceiver(id, symbol: implicitBoundReceiver.symbol)
+                sema.bindings.markImplicitReceiverMember(
+                    id,
+                    name: member,
+                    receiverType: implicitBoundReceiver?.type
+                )
+                if let receiverSymbol = implicitBoundReceiver?.symbol {
+                    sema.bindings.markImplicitReceiverOuterReceiver(id, symbol: receiverSymbol)
                 }
             }
             if unboundClassType != nil,
