@@ -56,10 +56,18 @@ extension CallLowerer {
         for signature: FunctionSignature,
         callExprID: ExprID?,
         callBinding: CallBinding?,
+        sourceArgumentIDs: [KIRExprID] = [],
         sema: SemaModule,
         arena: KIRArena
     ) -> [KIRExprID] {
         signature.contextParameterTypes.enumerated().compactMap { index, type in
+            if let explicitArgumentIndex = callBinding?.contextParameterArgumentMapping.first(where: {
+                $0.value == index
+            })?.key,
+               sourceArgumentIDs.indices.contains(explicitArgumentIndex)
+            {
+                return sourceArgumentIDs[explicitArgumentIndex]
+            }
             let receiverSymbol: SymbolID? = if let receiverSymbols = callBinding?.contextParameterReceiverSymbols,
                                                receiverSymbols.indices.contains(index)
             {
@@ -518,6 +526,7 @@ extension CallLowerer {
         interner: StringInterner,
         instructions: inout [KIRInstruction],
         arguments: [KIRExprID],
+        sourceArgumentIDs: [KIRExprID] = [],
         sourceArgExprs: [ExprID] = [],
         sourceArgLabels: [InternedString?] = [],
         callExprID: ExprID? = nil
@@ -543,6 +552,7 @@ extension CallLowerer {
         {
             let contextArguments = contextArgumentValues(
                 for: signature, callExprID: callExprID, callBinding: callBinding,
+                sourceArgumentIDs: sourceArgumentIDs,
                 sema: sema, arena: arena
             )
             let receiverCount = (signature.receiverType == nil ? 0 : 1)

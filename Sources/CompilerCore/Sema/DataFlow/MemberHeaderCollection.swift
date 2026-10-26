@@ -473,7 +473,9 @@ extension DataFlowSemaPhase {
                 range: funDecl.range,
                 symbols: symbols,
                 types: types,
-                diagnostics: diagnostics
+                sourceManager: sourceManager,
+                diagnostics: diagnostics,
+                isJVMTarget: ctx.options.emit.isJVM
             )
         }
 

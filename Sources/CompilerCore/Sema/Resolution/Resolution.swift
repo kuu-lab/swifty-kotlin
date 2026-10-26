@@ -788,7 +788,7 @@ extension OverloadResolver {
         let inheritedDefaultValues = defaultArgumentOwner.flatMap {
             ctx.symbols.functionSignature(for: $0)?.valueParameterHasDefaultValues
         }
-        guard let parameterMapping = buildParameterMapping(
+        guard let argumentMappings = buildArgumentMappings(
             signature: signature,
             callArgs: call.args,
             symbols: ctx.symbols,
@@ -797,6 +797,8 @@ extension OverloadResolver {
         ) else {
             return .rejected
         }
+        let parameterMapping = argumentMappings.parameterMapping
+        let contextParameterArgumentMapping = argumentMappings.contextParameterArgumentMapping
 
         // Add equality constraints for explicit type arguments.
         // For constructors, explicit type args bind class type params (offset 0).
@@ -836,6 +838,7 @@ extension OverloadResolver {
                 to: &nonLiteralConstraints,
                 call: call,
                 parameterMapping: parameterMapping,
+                contextParameterArgumentMapping: contextParameterArgumentMapping,
                 signature: signature,
                 typeVarBySymbol: typeVarBySymbol,
                 explicitTypeSubstitution: explicitTypeSubstitution,
@@ -870,10 +873,20 @@ extension OverloadResolver {
                     boundSubstitution[variable] = type
                 }
                 for literalIndex in literalIndices {
-                    guard let parameterIndex = parameterMapping[literalIndex],
-                          signature.parameterTypes.indices.contains(parameterIndex),
-                          case let .typeParam(parameter) = ctx.types.kind(of: ctx.types.makeNonNullable(
-                              signature.parameterTypes[parameterIndex]
+                    let parameterType: TypeID
+                    if let parameterIndex = parameterMapping[literalIndex],
+                       signature.parameterTypes.indices.contains(parameterIndex)
+                    {
+                        parameterType = signature.parameterTypes[parameterIndex]
+                    } else if let contextIndex = contextParameterArgumentMapping[literalIndex],
+                              signature.contextParameterTypes.indices.contains(contextIndex)
+                    {
+                        parameterType = signature.contextParameterTypes[contextIndex]
+                    } else {
+                        continue
+                    }
+                    guard case let .typeParam(parameter) = ctx.types.kind(of: ctx.types.makeNonNullable(
+                              parameterType
                           )),
                           let variable = typeVarBySymbol[parameter.symbol],
                           explicitTypeSubstitution[variable] == nil,
@@ -915,6 +928,7 @@ extension OverloadResolver {
             to: &constraints,
             call: call,
             parameterMapping: parameterMapping,
+            contextParameterArgumentMapping: contextParameterArgumentMapping,
             signature: signature,
             typeVarBySymbol: typeVarBySymbol,
             explicitTypeSubstitution: literalTypeSubstitution,
@@ -1338,14 +1352,20 @@ extension OverloadResolver {
         }
 
         let instantiatedParameterTypes: [TypeID] = call.args.indices.compactMap { argIndex in
-            guard let paramIndex = parameterMapping[argIndex],
-                  paramIndex >= 0,
-                  paramIndex < signature.parameterTypes.count
-            else {
+            let parameterType: TypeID
+            if let paramIndex = parameterMapping[argIndex],
+               signature.parameterTypes.indices.contains(paramIndex)
+            {
+                parameterType = signature.parameterTypes[paramIndex]
+            } else if let contextIndex = contextParameterArgumentMapping[argIndex],
+                      signature.contextParameterTypes.indices.contains(contextIndex)
+            {
+                parameterType = signature.contextParameterTypes[contextIndex]
+            } else {
                 return nil
             }
             return ctx.types.substituteTypeParameters(
-                in: signature.parameterTypes[paramIndex],
+                in: parameterType,
                 substitution: substitution,
                 typeVarBySymbol: typeVarBySymbol
             )
@@ -1369,6 +1389,7 @@ extension OverloadResolver {
             instantiatedParameterTypes: instantiatedParameterTypes,
             substitutedTypeArguments: bindingSubstitution,
             parameterMapping: parameterMapping,
+            contextParameterArgumentMapping: contextParameterArgumentMapping,
             defaultArgumentOwner: defaultArgumentOwner,
             effectiveDefaultValues: inheritedDefaultValues ?? signature.valueParameterHasDefaultValues,
             usesVararg: Self.normalizeFlags(signature.valueParameterIsVararg, count: signature.parameterTypes.count).contains(true),
@@ -1559,6 +1580,7 @@ extension OverloadResolver {
         to constraints: inout [VariableConstraint],
         call: CallExpr,
         parameterMapping: [Int: Int],
+        contextParameterArgumentMapping: [Int: Int] = [:],
         signature: FunctionSignature,
         typeVarBySymbol: [SymbolID: TypeVarID],
         explicitTypeSubstitution: [TypeVarID: TypeID],
@@ -1571,15 +1593,23 @@ extension OverloadResolver {
         var processedAll = true
         for argIndex in call.args.indices {
             if ignoredIntegerLiteralArgumentIndices.contains(argIndex) { continue }
-            guard let paramIndex = parameterMapping[argIndex],
-                  paramIndex >= 0,
-                  paramIndex < signature.parameterTypes.count
-            else {
+            let paramType: TypeID
+            let isVarargParameter: Bool
+            if let paramIndex = parameterMapping[argIndex],
+               signature.parameterTypes.indices.contains(paramIndex)
+            {
+                paramType = signature.parameterTypes[paramIndex]
+                isVarargParameter = isVararg[paramIndex]
+            } else if let contextIndex = contextParameterArgumentMapping[argIndex],
+                      signature.contextParameterTypes.indices.contains(contextIndex)
+            {
+                paramType = signature.contextParameterTypes[contextIndex]
+                isVarargParameter = false
+            } else {
                 constraints.removeAll(keepingCapacity: false)
                 processedAll = false
                 break
             }
-            let paramType = signature.parameterTypes[paramIndex]
             let arg = call.args[argIndex]
             // Explicit bindings and concrete non-literal inputs supply the
             // literal expectation; constraints still target the original T.
@@ -1589,11 +1619,13 @@ extension OverloadResolver {
                 typeVarBySymbol: typeVarBySymbol
             )
             let allowsImplicitIntegerCoercion = sema.implicitSignedToUnsignedIntegerConversionEnabled
-                && paramIndex < signature.valueParameterSymbols.count
-                && hasImplicitIntegerCoercionAnnotation(
-                    sema.symbols.annotations(for: signature.valueParameterSymbols[paramIndex]),
-                    forParameter: true
-                )
+                && (parameterMapping[argIndex].map { paramIndex in
+                    paramIndex < signature.valueParameterSymbols.count
+                        && hasImplicitIntegerCoercionAnnotation(
+                            sema.symbols.annotations(for: signature.valueParameterSymbols[paramIndex]),
+                            forParameter: true
+                        )
+                } ?? false)
             let inferredArgType = !arg.isSpread
                 ? (integerLiteralType(
                     arg,
@@ -1606,7 +1638,7 @@ extension OverloadResolver {
                 ? (typeSystem.functionArgumentConversionType(from: inferredArgType, to: paramType) ?? inferredArgType)
                 : inferredArgType
 
-            if arg.label != nil, isVararg[paramIndex] {
+            if arg.label != nil, isVarargParameter {
                 // A named vararg argument supplies the whole array, even without `*`.
                 guard let elementType = varargArrayArgumentElementType(
                     argType, parameterType: paramType, sema: sema
@@ -1624,7 +1656,7 @@ extension OverloadResolver {
             }
             // A spread argument supplies an array, so reject candidate types
             // whose array element type cannot be recovered.
-            if arg.isSpread, isVararg[paramIndex] {
+            if arg.isSpread, isVarargParameter {
                 // Preserve error recovery for a spread expression that already
                 // has a root diagnostic; it has no meaningful type to check.
                 if argType == typeSystem.errorType {
@@ -2004,6 +2036,7 @@ extension OverloadResolver {
         let instantiatedParameterTypes: [TypeID]
         let substitutedTypeArguments: [TypeVarID: TypeID]
         let parameterMapping: [Int: Int]
+        let contextParameterArgumentMapping: [Int: Int]
         let defaultArgumentOwner: SymbolID?
         let effectiveDefaultValues: [Bool]
         let usesVararg: Bool
@@ -2014,6 +2047,7 @@ extension OverloadResolver {
                 chosenCallee: symbol,
                 substitutedTypeArguments: substitutedTypeArguments,
                 parameterMapping: parameterMapping,
+                contextParameterArgumentMapping: contextParameterArgumentMapping,
                 diagnostic: nil,
                 defaultArgumentOwner: defaultArgumentOwner
             )

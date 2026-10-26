@@ -752,6 +752,50 @@ final class CallSupportLowerer {
             return NormalizedCallResult(arguments: providedArguments, defaultMask: 0)
         }
 
+        if !callBinding.contextParameterArgumentMapping.isEmpty {
+            let explicitContextArgumentIndices = Set(callBinding.contextParameterArgumentMapping.keys)
+            let retainedArgumentIndices = providedArguments.indices.filter {
+                !explicitContextArgumentIndices.contains($0)
+            }
+            var compactIndexBySourceIndex: [Int: Int] = [:]
+            for (compactIndex, sourceIndex) in retainedArgumentIndices.enumerated() {
+                compactIndexBySourceIndex[sourceIndex] = compactIndex
+            }
+            let compactParameterMapping = Dictionary(uniqueKeysWithValues: callBinding.parameterMapping.compactMap {
+                pair -> (Int, Int)? in
+                guard let compactIndex = compactIndexBySourceIndex[pair.key] else { return nil }
+                return (compactIndex, pair.value)
+            })
+            let compactBinding = CallBinding(
+                chosenCallee: callBinding.chosenCallee,
+                substitutedTypeArguments: callBinding.substitutedTypeArguments,
+                parameterMapping: compactParameterMapping,
+                defaultArgumentOwner: callBinding.defaultArgumentOwner,
+                dispatchReceiverSymbol: callBinding.dispatchReceiverSymbol,
+                contextParameterReceiverSymbols: callBinding.contextParameterReceiverSymbols,
+                isCallableReferenceAdapter: callBinding.isCallableReferenceAdapter,
+                boundContextParameterTypes: callBinding.boundContextParameterTypes
+            )
+            return normalizedCallArguments(
+                providedArguments: retainedArgumentIndices.map { providedArguments[$0] },
+                callBinding: compactBinding,
+                chosenCallee: chosenCallee,
+                spreadFlags: retainedArgumentIndices.map { spreadFlags.indices.contains($0) ? spreadFlags[$0] : false },
+                argumentLabels: argumentLabels.count == providedArguments.count
+                    ? retainedArgumentIndices.map { argumentLabels[$0] }
+                    : [],
+                sourceArgExprs: sourceArgExprs.count == providedArguments.count
+                    ? retainedArgumentIndices.map { sourceArgExprs[$0] }
+                    : [],
+                ast: ast,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                propertyConstantInitializers: propertyConstantInitializers,
+                instructions: &instructions
+            )
+        }
+
         let parameterCount = signature.parameterTypes.count
         guard parameterCount > 0 else {
             return NormalizedCallResult(arguments: providedArguments, defaultMask: 0)

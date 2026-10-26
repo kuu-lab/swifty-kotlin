@@ -13,7 +13,8 @@ extension DataFlowSemaPhase {
         types: TypeSystem,
         sourceManager: SourceManager,
         diagnostics: DiagnosticEngine,
-        interner: StringInterner
+        interner: StringInterner,
+        isJVMTarget: Bool
     ) {
         func isUserSource(_ id: SymbolID) -> Bool {
             // Constructors carry no source file ID of their own; use their owner's.
@@ -29,23 +30,24 @@ extension DataFlowSemaPhase {
             return symbols.functionSignature(for: id)
         }
         guard !constructors.isEmpty else { return }
-        func erased(_ signature: FunctionSignature) -> ([TypeID], [Bool]) {
-            let flags = signature.valueParameterIsVararg.isEmpty
-                ? Array(repeating: false, count: signature.parameterTypes.count)
-                : signature.valueParameterIsVararg
-            return (signature.parameterTypes.map { jvmErasedCallableType($0, types: types) }, flags)
-        }
-        let constructorKeys = constructors.map(erased)
         let hasConflict = symbols.lookupAll(fqName: classFQName).contains { id in
             guard let symbol = symbols.symbol(id), symbol.kind == .function,
                   !symbol.flags.contains(.synthetic),
                   !symbol.flags.contains(.expectDeclaration), !symbol.flags.contains(.actualDeclaration),
                   symbols.parentSymbol(for: id) == nil, isUserSource(id),
                   let signature = symbols.functionSignature(for: id),
-                  signature.receiverType == nil, signature.contextReceiverTypes.isEmpty
+                  signature.receiverType == nil,
+                  signature.contextReceiverTypes.isEmpty,
+                  signature.contextParameterTypes.isEmpty
             else { return false }
-            let key = erased(signature)
-            return constructorKeys.contains { $0.0 == key.0 && $0.1 == key.1 }
+            return constructors.contains { constructor in
+                hasSameSourceCallableSignature(signature, constructor, types: types)
+                    || isJVMTarget && hasSameJVMErasedCallableSignature(
+                        signature,
+                        constructor,
+                        types: types
+                    )
+            }
         }
         if hasConflict {
             diagnostics.error(
@@ -62,7 +64,9 @@ extension DataFlowSemaPhase {
         range: SourceRange?,
         symbols: SymbolTable,
         types: TypeSystem,
-        diagnostics: DiagnosticEngine
+        sourceManager: SourceManager,
+        diagnostics: DiagnosticEngine,
+        isJVMTarget: Bool
     ) {
         guard let newSymbol = symbols.symbol(symbol),
               newSymbol.kind == .function,
@@ -86,11 +90,17 @@ extension DataFlowSemaPhase {
             else {
                 return false
             }
-            return hasSameJVMErasedCallableSignature(
-                newSignature,
-                existingSignature,
-                types: types
-            )
+            if isJVMTarget {
+                return hasSameJVMErasedCallableSignature(newSignature, existingSignature, types: types)
+            }
+            guard !newSymbol.flags.contains(.importedLibrary),
+                  !existingSymbol.flags.contains(.importedLibrary),
+                  !isBundledStdlibSource(symbol, symbols: symbols, sourceManager: sourceManager),
+                  !isBundledStdlibSource(existingID, symbols: symbols, sourceManager: sourceManager)
+            else {
+                return false
+            }
+            return hasSameSourceCallableSignature(newSignature, existingSignature, types: types)
         }
 
         if hasConflict {
@@ -100,6 +110,15 @@ extension DataFlowSemaPhase {
                 range: range
             )
         }
+    }
+
+    private func isBundledStdlibSource(
+        _ symbol: SymbolID,
+        symbols: SymbolTable,
+        sourceManager: SourceManager
+    ) -> Bool {
+        guard let fileID = symbols.sourceFileID(for: symbol) else { return false }
+        return sourceManager.origin(of: fileID)?.isBundledStdlib == true
     }
 
     private func canCoexistAsPrivateTopLevelCallableAcrossSourceFiles(
@@ -126,23 +145,128 @@ extension DataFlowSemaPhase {
         _ rhs: FunctionSignature,
         types: TypeSystem
     ) -> Bool {
-        let lhsReceiver = lhs.receiverType.map { jvmErasedCallableType($0, types: types) }
-        let rhsReceiver = rhs.receiverType.map { jvmErasedCallableType($0, types: types) }
-        guard lhsReceiver == rhsReceiver,
-              lhs.parameterTypes.count == rhs.parameterTypes.count
+        guard lhs.isSuspend == rhs.isSuspend else { return false }
+        func erasedParameterTypes(_ signature: FunctionSignature) -> [TypeID] {
+            let receiver = signature.receiverType.map { [$0] } ?? []
+            return receiver + signature.contextReceiverTypes + signature.contextParameterTypes
+                + signature.parameterTypes
+        }
+        func varargFlags(_ signature: FunctionSignature) -> [Bool] {
+            let receiverAndContextCount = (signature.receiverType == nil ? 0 : 1)
+                + signature.contextReceiverTypes.count + signature.contextParameterTypes.count
+            return Array(repeating: false, count: receiverAndContextCount)
+                + normalizedVarargFlags(signature.valueParameterIsVararg, count: signature.parameterTypes.count)
+        }
+        let lhsVarargs = varargFlags(lhs)
+        let rhsVarargs = varargFlags(rhs)
+        guard lhsVarargs == rhsVarargs else {
+            return false
+        }
+        let lhsParameters = erasedParameterTypes(lhs).map { jvmErasedCallableType($0, types: types) }
+        let rhsParameters = erasedParameterTypes(rhs).map { jvmErasedCallableType($0, types: types) }
+        return zip(lhsParameters, rhsParameters).allSatisfy(==)
+    }
+
+    func hasSameSourceCallableSignature(
+        _ lhs: FunctionSignature,
+        _ rhs: FunctionSignature,
+        types: TypeSystem
+    ) -> Bool {
+        guard lhs.isSuspend == rhs.isSuspend,
+              lhs.typeParameterSymbols.count == rhs.typeParameterSymbols.count,
+              lhs.contextReceiverTypes.count == rhs.contextReceiverTypes.count,
+              lhs.contextParameterTypes.count == rhs.contextParameterTypes.count,
+              lhs.parameterTypes.count == rhs.parameterTypes.count,
+              normalizedVarargFlags(lhs.valueParameterIsVararg, count: lhs.parameterTypes.count)
+                  == normalizedVarargFlags(rhs.valueParameterIsVararg, count: rhs.parameterTypes.count)
         else {
             return false
         }
 
-        let lhsVarargs = normalizedVarargFlags(lhs.valueParameterIsVararg, count: lhs.parameterTypes.count)
-        let rhsVarargs = normalizedVarargFlags(rhs.valueParameterIsVararg, count: rhs.parameterTypes.count)
-        guard lhsVarargs == rhsVarargs else {
-            return false
+        let lhsTypeParameterIndices = Dictionary(uniqueKeysWithValues: lhs.typeParameterSymbols.enumerated().map {
+            ($0.element, $0.offset)
+        })
+        let rhsTypeParameterIndices = Dictionary(uniqueKeysWithValues: rhs.typeParameterSymbols.enumerated().map {
+            ($0.element, $0.offset)
+        })
+
+        func equivalentTypes(_ left: [TypeID], _ right: [TypeID]) -> Bool {
+            left.count == right.count && zip(left, right).allSatisfy { equivalent($0.0, $0.1) }
         }
 
-        let lhsParameters = lhs.parameterTypes.map { jvmErasedCallableType($0, types: types) }
-        let rhsParameters = rhs.parameterTypes.map { jvmErasedCallableType($0, types: types) }
-        return zip(lhsParameters, rhsParameters).allSatisfy(==)
+        func equivalentTypeArguments(_ left: [TypeArg], _ right: [TypeArg]) -> Bool {
+            guard left.count == right.count else { return false }
+            return zip(left, right).allSatisfy { leftArgument, rightArgument in
+                switch (leftArgument, rightArgument) {
+                case let (.invariant(leftType), .invariant(rightType)),
+                     let (.out(leftType), .out(rightType)),
+                     let (.in(leftType), .in(rightType)):
+                    equivalent(leftType, rightType)
+                case (.star, .star):
+                    true
+                default:
+                    false
+                }
+            }
+        }
+
+        func equivalent(_ left: TypeID, _ right: TypeID) -> Bool {
+            switch (types.kind(of: left), types.kind(of: right)) {
+            case (.error, .error), (.unit, .unit), (.nullableUnit, .nullableUnit), (.platformUnit, .platformUnit):
+                return true
+            case let (.nothing(leftNullability), .nothing(rightNullability)),
+                 let (.any(leftNullability), .any(rightNullability)),
+                 let (.stringStruct(leftNullability), .stringStruct(rightNullability)):
+                return leftNullability == rightNullability
+            case let (.primitive(leftType, leftNullability), .primitive(rightType, rightNullability)):
+                return leftType == rightType && leftNullability == rightNullability
+            case let (.typeParam(leftType), .typeParam(rightType)):
+                guard leftType.nullability == rightType.nullability else { return false }
+                if leftType.capture != nil || rightType.capture != nil {
+                    return leftType == rightType
+                }
+                if let leftIndex = lhsTypeParameterIndices[leftType.symbol],
+                   let rightIndex = rhsTypeParameterIndices[rightType.symbol]
+                {
+                    return leftIndex == rightIndex
+                }
+                return leftType.symbol == rightType.symbol
+            case let (.classType(leftType), .classType(rightType)):
+                return leftType.classSymbol == rightType.classSymbol
+                    && leftType.nullability == rightType.nullability
+                    && equivalentTypeArguments(leftType.args, rightType.args)
+                    && equivalentTypeArguments(leftType.enclosingTypeArgs, rightType.enclosingTypeArgs)
+            case let (.functionType(leftType), .functionType(rightType)):
+                return leftType.isSuspend == rightType.isSuspend
+                    && leftType.isCallableReference == rightType.isCallableReference
+                    && leftType.nullability == rightType.nullability
+                    && equivalentTypes(leftType.contextReceivers, rightType.contextReceivers)
+                    && optionalTypesEquivalent(leftType.receiver, rightType.receiver)
+                    && equivalentTypes(leftType.params, rightType.params)
+                    && equivalent(leftType.returnType, rightType.returnType)
+                    && equivalentTypes(leftType.throws, rightType.throws)
+            case let (.intersection(leftParts), .intersection(rightParts)):
+                return equivalentTypes(leftParts, rightParts)
+            case let (.kClassType(leftType), .kClassType(rightType)):
+                return leftType.nullability == rightType.nullability
+                    && equivalent(leftType.argument, rightType.argument)
+            default:
+                return false
+            }
+        }
+
+        func optionalTypesEquivalent(_ left: TypeID?, _ right: TypeID?) -> Bool {
+            switch (left, right) {
+            case let (left?, right?): equivalent(left, right)
+            case (nil, nil): true
+            default: false
+            }
+        }
+
+        return optionalTypesEquivalent(lhs.receiverType, rhs.receiverType)
+            && equivalentTypes(lhs.contextReceiverTypes, rhs.contextReceiverTypes)
+            && equivalentTypes(lhs.contextParameterTypes, rhs.contextParameterTypes)
+            && equivalentTypes(lhs.parameterTypes, rhs.parameterTypes)
     }
 
     private func normalizedVarargFlags(_ flags: [Bool], count: Int) -> [Bool] {

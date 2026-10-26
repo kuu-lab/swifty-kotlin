@@ -918,6 +918,7 @@ extension CallLowerer {
             interner: interner,
             instructions: &instructions,
             arguments: finalArguments,
+            sourceArgumentIDs: loweredArgIDs,
             sourceArgExprs: args.map(\.expr),
             sourceArgLabels: args.map(\.label),
             callExprID: exprID

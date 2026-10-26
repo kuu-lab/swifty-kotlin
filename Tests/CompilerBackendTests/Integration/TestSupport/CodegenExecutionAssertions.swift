@@ -15,6 +15,7 @@ func runCodegenPipeline(
     allowDefaultStdlibLibrary: Bool = true,
     stdlibLibraryPath: String? = nil,
     includeStdlib: Bool = true,
+    frontendFlags: [String] = [],
     prepareTestStdlibCache: Bool = true
 ) throws -> CompilationContext {
     // The backend wrapper eagerly prepares stdlib even when this input opts out.
@@ -28,6 +29,7 @@ func runCodegenPipeline(
         emit: emit,
         target: target,
         optLevel: optLevel,
+        frontendFlags: frontendFlags,
         irFlags: irFlags,
         includeStdlib: includeStdlib,
         stdlibLibraryPath: stdlibLibraryPath,
@@ -62,6 +64,7 @@ func assertKotlinOutput(
     includeStdlib: Bool = true,
     allowDefaultStdlibLibrary: Bool = true,
     prepareTestStdlibCache: Bool = true,
+    frontendFlags: [String] = [],
     sourceLocation: Testing.SourceLocation = #_sourceLocation
 ) throws {
     try withTemporaryFile(contents: source) { path in
@@ -75,6 +78,7 @@ func assertKotlinOutput(
             optLevel: optLevel,
             allowDefaultStdlibLibrary: allowDefaultStdlibLibrary,
             includeStdlib: includeStdlib,
+            frontendFlags: frontendFlags,
             prepareTestStdlibCache: prepareTestStdlibCache
         )
         try LinkPhase().run(ctx)
