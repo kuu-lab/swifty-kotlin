@@ -79,7 +79,7 @@ extension ExprLowerer {
                let tokenSymbol = reifiedTypeTokenSymbol(for: last, sema: sema)
             {
                 return lowerReifiedTypeCheckTokenExpr(
-                    tokenSymbol: tokenSymbol, nullable: nullable, intType: intType,
+                    tokenSymbol: tokenSymbol, nullable: nullable, sema: sema,
                     interner: interner, arena: arena, instructions: &instructions
                 )
             }
@@ -153,7 +153,7 @@ extension ExprLowerer {
            let tokenSymbol = reifiedTypeTokenSymbol(for: symbolInfo.name, sema: sema)
         {
             return lowerReifiedTypeCheckTokenExpr(
-                tokenSymbol: tokenSymbol, nullable: typeParam.nullability == .nullable, intType: intType,
+                tokenSymbol: tokenSymbol, nullable: typeParam.nullability == .nullable, sema: sema,
                 interner: interner, arena: arena, instructions: &instructions
             )
         }
@@ -168,7 +168,7 @@ extension ExprLowerer {
     private func lowerReifiedTypeCheckTokenExpr(
         tokenSymbol: SymbolID,
         nullable: Bool,
-        intType: TypeID,
+        sema: SemaModule,
         interner: StringInterner,
         arena: KIRArena,
         instructions: inout [KIRInstruction]
@@ -177,15 +177,13 @@ extension ExprLowerer {
         if let local = driver.ctx.localValue(for: tokenSymbol) {
             token = local
         } else {
-            token = arena.appendExpr(.symbolRef(tokenSymbol), type: intType)
+            token = arena.appendExpr(.symbolRef(tokenSymbol), type: sema.types.intType)
             instructions.append(.constValue(result: token, value: .symbolRef(tokenSymbol)))
         }
         guard nullable else { return token }
-        let flag = arena.appendExpr(.intLiteral(RuntimeTypeCheckToken.nullableFlag), type: intType)
-        instructions.append(.constValue(result: flag, value: .intLiteral(RuntimeTypeCheckToken.nullableFlag)))
-        let result = arena.appendTemporary(type: intType)
-        instructions.append(.call(callee: interner.intern("kk_bitwise_or"), arguments: [token, flag], result: result, canThrow: false))
-        return result
+        return RuntimeTypeCheckToken.emitNullableToken(
+            token, sema: sema, interner: interner, arena: arena, instructions: &instructions
+        )
     }
 
     func reifiedTypeTokenSymbol(
