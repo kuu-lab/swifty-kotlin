@@ -185,8 +185,8 @@ extension BuildASTPhase {
     }
 
     /// Context parameters may carry a `name:` or `_:` prefix (`context(ctx: Context)` /
-    /// `context(_: Context)`). Split the leading `name :` off so the receiver type still
-    /// parses.
+    /// `context(_: Context)`). The `context` soft keyword can also be used as the name.
+    /// Split the leading `name :` off so the receiver type still parses.
     private func parseContextReceiverItem(
         from tokens: [Token],
         interner: StringInterner,
@@ -230,6 +230,9 @@ extension BuildASTPhase {
                 typeTokens = Array(typeTokens.dropFirst(2))
             case let .backtickedIdentifier(ident):
                 name = ident
+                typeTokens = Array(typeTokens.dropFirst(2))
+            case .softKeyword(.context):
+                name = interner.intern("context")
                 typeTokens = Array(typeTokens.dropFirst(2))
             default:
                 break
