@@ -16,7 +16,7 @@ public extension RuntimeABISpec {
         // per-object locking, same rationale as `__kk_synchronized`).
         abi.nt("__kk_lazy_sync_lock", "handle"),
         abi.nt("__kk_lazy_sync_unlock", "handle"),
-        abi.nt("kk_function_value_tag_arity", "functionRaw arity"),
+        abi.nt("kk_function_value_tag_arity", "functionRaw functionTypePayload"),
         abi.th("kk_function_invoke", "functionRaw arg outThrown"),
         abi.th("kk_function_invoke_0", "functionRaw outThrown"),
         suspendFunctionInvokeSpec,

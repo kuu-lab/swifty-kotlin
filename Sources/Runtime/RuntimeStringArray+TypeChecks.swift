@@ -179,6 +179,19 @@ func runtimeIsStringBoxPointer(_ ptr: UnsafeMutableRawPointer) -> Bool {
     return tryCast(ptr, to: RuntimeStringBox.self) != nil
 }
 
+private func runtimeFunctionTypeMatches(
+    targetArity: Int,
+    targetIsSuspend: Bool,
+    actualArity: Int,
+    actualIsSuspend: Bool
+) -> Bool {
+    if targetIsSuspend {
+        return actualIsSuspend && targetArity == actualArity
+    }
+    let loweredFunctionArity = actualArity + (actualIsSuspend ? 1 : 0)
+    return targetArity == loweredFunctionArity
+}
+
 @_cdecl("kk_op_is")
 public func kk_op_is(_ value: Int, _ typeToken: Int) -> Int {
     let token = Int64(truncatingIfNeeded: typeToken)
@@ -240,21 +253,29 @@ public func kk_op_is(_ value: Int, _ typeToken: Int) -> Int {
         return box.primitiveTypeBase == base ? 1 : 0
 
     case RuntimeTypeTokenEncoding.functionBase:
-        // KUU-1084: function-type tokens encode the FunctionN arity in the
-        // low payload byte; a value matches when it is a function value of
-        // the same arity (the suspend bit does not change `is` semantics).
-        let (arity, _) = RuntimeTypeTokenEncoding.functionPayloadParts(payload)
-        let rawArity = runtimeStorage.withDelegateLock { state -> Int? in
-            if let registeredArity = state.functionArityByPointer[value] {
-                return registeredArity
+        // KUU-1084: function-type tokens carry source arity and the suspend
+        // marker. Suspend functions also expose their lowered FunctionN+1 shape.
+        let (arity, isSuspend) = RuntimeTypeTokenEncoding.functionPayloadParts(payload)
+        let taggedFunctionType = runtimeStorage.withDelegateLock { state -> (Int, Bool)? in
+            if let payload = state.functionTypePayloadByValue[value] {
+                let (arity, isSuspend) = RuntimeTypeTokenEncoding.functionPayloadParts(Int64(payload))
+                return (arity, isSuspend)
             }
             if let metadata = state.callableRefMetadataByValue[value], metadata.kind == .function {
-                return metadata.arity
+                return (metadata.arity, metadata.isSuspend)
+            }
+            if let adapter = state.samAdapterIdentityByValue[value] {
+                return (adapter.arity, adapter.isSuspend)
             }
             return nil
         }
-        if let rawArity {
-            return rawArity == arity ? 1 : 0
+        if let (actualArity, actualIsSuspend) = taggedFunctionType {
+            return runtimeFunctionTypeMatches(
+                targetArity: arity,
+                targetIsSuspend: isSuspend,
+                actualArity: actualArity,
+                actualIsSuspend: actualIsSuspend
+            ) ? 1 : 0
         }
         guard let ptr = UnsafeMutableRawPointer(bitPattern: value),
               runtimeStorage.withGCLock({ state in
@@ -264,12 +285,22 @@ public func kk_op_is(_ value: Int, _ typeToken: Int) -> Int {
             return 0
         }
         if let fnBox = tryCast(ptr, to: RuntimeFunctionValueBox.self) {
-            return fnBox.arity == arity ? 1 : 0
+            return runtimeFunctionTypeMatches(
+                targetArity: arity,
+                targetIsSuspend: isSuspend,
+                actualArity: fnBox.arity,
+                actualIsSuspend: fnBox.suspendEntryPoint != 0
+            ) ? 1 : 0
         }
         // Callable references (`::foo`) also satisfy function-type checks at
         // their declared arity.
         if let kfnBox = tryCast(ptr, to: RuntimeKFunctionBox.self) {
-            return kfnBox.arity == arity ? 1 : 0
+            return runtimeFunctionTypeMatches(
+                targetArity: arity,
+                targetIsSuspend: isSuspend,
+                actualArity: kfnBox.arity,
+                actualIsSuspend: false
+            ) ? 1 : 0
         }
         return 0
 

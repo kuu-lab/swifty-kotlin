@@ -1350,7 +1350,7 @@ extension LambdaLowerer {
             if sema.bindings.callableRefKind(for: exprID) == .functionRef,
                case let .functionType(functionType) = sema.types.kind(of: callableType)
             {
-                emitRawFunctionArityTag(
+                emitFunctionValueTypeTag(
                     callableExpr, functionType: functionType, sema: sema,
                     arena: arena, interner: interner, instructions: &instructions
                 )
