@@ -49,4 +49,13 @@ extension BundledStdlibExecutionTests {
             allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
         )
     }
+
+    @Test
+    func adaptedDefaultArgumentReferencesCompareEqual() throws {
+        try compileAndRunKotlin(
+            try diffCaseSource("callable_reference_equality_default_args.kt", file: #filePath),
+            expectedOutput: "true\ntrue\ntrue\n",
+            moduleName: "KUU3369CallableReferenceEqualityDefaultArgs"
+        )
+    }
 }
