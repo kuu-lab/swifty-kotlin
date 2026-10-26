@@ -43,6 +43,27 @@ struct CallableReferenceAdaptationExecutionTests {
         )
     }
 
+    @Test func innerConstructorReferencePassedToInlineExtensionRetainsOuterCapture() throws {
+        try compileAndRunKotlin(
+            """
+            class A {
+                inner class C(val m: String) {
+                    fun test(): String {
+                        m.f(::C)
+                        return m
+                    }
+                }
+            }
+
+            inline fun String.f(g: (String) -> A.C): A.C = g(this)
+
+            fun main() { println(A().C("OK").test()) }
+            """,
+            expectedOutput: "OK\n",
+            moduleName: "KUU3378InnerConstructorReferenceInlineExtension"
+        )
+    }
+
     @Test func adaptsVarargAndTrailingDefaultArgumentsAtRuntime() throws {
         try compileAndRunKotlin(
             """
