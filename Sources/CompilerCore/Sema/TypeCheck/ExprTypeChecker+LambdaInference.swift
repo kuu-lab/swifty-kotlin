@@ -408,6 +408,15 @@ extension ExprTypeChecker {
             let lexicalParameters = driver.helpers.lexicalTypeParameterSymbols(in: ctx)
             return !returnTypeParameters.subtracting(inputTypeParameters).subtracting(lexicalParameters).isEmpty
         }()
+        // Collection HOF shims can use Any as an erased callback ABI while the
+        // body still needs to infer its natural result. Do not let that
+        // placeholder flow into a nested generic call such as `run { ... }`,
+        // where it would otherwise infer the call's result as Any and hide the
+        // selector's concrete type from overload selection.
+        let expectedReturnIsCollectionHOFPlaceholder = sema.bindings.isCollectionHOFLambdaExpr(id)
+            && !sema.bindings.hasSourceDeclaredExpectedType(id)
+            && (expectedFunctionType?.returnType == sema.types.anyType
+                || expectedFunctionType?.returnType == sema.types.nullableAnyType)
         // Kotlin discards a Unit-expected lambda body's value rather than requiring
         // it to actually type as Unit (e.g. `repeat(3) { i -> someIntCall(i) }`).
         // Passing Unit down as the body's expectedType would incorrectly propagate
@@ -430,6 +439,9 @@ extension ExprTypeChecker {
             }
             guard let expectedReturnType = expectedFunctionType?.returnType,
                   !lambdaUsesUnitCoercion else {
+                return nil
+            }
+            if expectedReturnIsCollectionHOFPlaceholder {
                 return nil
             }
             if case let .typeParam(parameter) = sema.types.kind(of: expectedReturnType),
