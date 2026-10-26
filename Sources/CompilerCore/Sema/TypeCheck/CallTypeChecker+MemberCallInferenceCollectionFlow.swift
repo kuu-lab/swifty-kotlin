@@ -355,7 +355,7 @@ extension CallTypeChecker {
                 guard let symbol = sema.symbols.symbol(candidate),
                       let site = symbol.declSite,
                       driver.sourceManager?.origin(of: site.start.file) == .user,
-                      !isHiddenByDeprecatedAnnotation(candidate, symbols: sema.symbols),
+                      !isHiddenByDeprecationOrVersionAnnotation(candidate, symbols: sema.symbols),
                       let signature = sema.symbols.functionSignature(for: candidate),
                       let receiver = signature.receiverType,
                       parameterMappingForCallArguments(args, in: signature, callRange: range, ctx: ctx) != nil

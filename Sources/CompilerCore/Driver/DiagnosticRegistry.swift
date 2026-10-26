@@ -131,6 +131,7 @@ enum DiagnosticRegistry {
         "PROTECTED_CALL_FROM_PUBLIC_INLINE": ["KSWIFTK-SEMA-0045"],
         "DEPRECATION": ["KSWIFTK-SEMA-DEPRECATED"],
         "DEPRECATION_ERROR": ["KSWIFTK-SEMA-DEPRECATED"],
+        "API_VERSION": ["KSWIFTK-SEMA-API-VERSION"],
         "OPT_IN_USAGE": ["KSWIFTK-SEMA-OPT-IN"],
         "UNCHECKED_IS": ["KSWIFTK-SEMA-ERASED-TYPE"],
         "ANNOTATION_TARGET": ["KSWIFTK-SEMA-ANNOTATION-TARGET"],
@@ -586,6 +587,12 @@ enum DiagnosticRegistry {
             pass: "SEMA",
             defaultSeverity: .warning,
             summary: "Reference to deprecated declaration."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-API-VERSION",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "Reference to an API unavailable in the selected Kotlin API version."
         ),
         DiagnosticDescriptor(
             code: "KSWIFTK-SEMA-OPT-IN",

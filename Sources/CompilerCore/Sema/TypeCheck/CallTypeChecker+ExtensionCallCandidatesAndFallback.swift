@@ -90,7 +90,7 @@ extension CallTypeChecker {
             let applicableScopeCandidates = ctx.scope.lookup(calleeName, matching: { candidate in
                 guard receiverMatches(candidate),
                       let symbol = ctx.cachedSymbol(candidate),
-                      !isHiddenByDeprecatedAnnotation(candidate, symbols: sema.symbols),
+                      !isHiddenByDeprecationOrVersionAnnotation(candidate, symbols: sema.symbols),
                       ctx.visibilityChecker.isAccessible(
                           symbol, fromFile: ctx.currentFileID, enclosingClass: ctx.enclosingClassSymbol
                       )

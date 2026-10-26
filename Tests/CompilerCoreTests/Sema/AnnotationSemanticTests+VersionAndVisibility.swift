@@ -1503,6 +1503,36 @@ extension AnnotationSemanticTests {
         #expect(diagnostics.isEmpty, "Expected compiler -opt-in flag to suppress stdlib opt-in diagnostics, got: \(ctx.diagnostics.diagnostics)")
     }
 
+    @Test func testApiVersionAnnotationsRestrictCalls() {
+        let source = """
+        package sample
+
+        @Deprecated("Use replacement")
+        @DeprecatedSinceKotlin(warningSince = "1.0", errorSince = "2.0")
+        fun old(): Int = 1
+
+        @SinceKotlin("3.0")
+        fun newer(): Int = 2
+
+        @SinceKotlin(version = "2.0")
+        fun available(): Int = 3
+
+        fun caller(): Int = old() + newer() + available()
+        """
+
+        let ctx = runSemaCollectingDiagnostics(source)
+        let deprecations = diagnostics(withCode: "KSWIFTK-SEMA-DEPRECATED", in: ctx)
+        #expect(deprecations.count == 1, "Expected errorSince to deprecate old(), got: \(ctx.diagnostics.diagnostics)")
+        #expect(deprecations.allSatisfy(isError))
+        #expect(deprecations.first?.message.contains("old") == true)
+
+        let unavailableApi = diagnostics(withCode: "KSWIFTK-SEMA-API-VERSION", in: ctx)
+        #expect(unavailableApi.count == 1, "Expected SinceKotlin(3.0) to make newer() unavailable, got: \(ctx.diagnostics.diagnostics)")
+        #expect(unavailableApi.allSatisfy(isError))
+        #expect(unavailableApi.first?.message.contains("newer") == true)
+        #expect(!ctx.diagnostics.diagnostics.contains { $0.message.contains("'sample.available'") }, "SinceKotlin(2.0) should remain available in API version 2.4")
+    }
+
 
     @Test func testExperimentalVersionOverloadingAnnotationAcceptsCompilerOptInFlag() {
         let source = """

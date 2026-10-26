@@ -961,7 +961,7 @@ final class ExprTypeChecker {
                 ctx.filterByVisibility(candidates).visible.filter {
                     sema.symbols.symbol($0)?.flags.contains(.operatorFunction) == true
                         && sema.symbols.functionSignature(for: $0)?.receiverType != nil
-                        && !isHiddenByDeprecatedAnnotation($0, symbols: sema.symbols)
+                        && !isHiddenByDeprecationOrVersionAnnotation($0, symbols: sema.symbols)
                 }
             }
             let extensions = visibleExtensions(ctx.cachedScopeLookup(containsName))
@@ -1694,7 +1694,7 @@ final class ExprTypeChecker {
                   let signature = sema.symbols.functionSignature(for: candidate),
                   signature.parameterTypes.count == 1,
                   let receiverType = signature.receiverType,
-                  !isHiddenByDeprecatedAnnotation(candidate, symbols: sema.symbols)
+                  !isHiddenByDeprecationOrVersionAnnotation(candidate, symbols: sema.symbols)
             else {
                 return false
             }

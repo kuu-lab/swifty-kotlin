@@ -139,7 +139,7 @@ struct SerializationExceptionsTests {
             sema.symbols.functionSignature(for: $0)?.parameterTypes.count == 1
         })
         #expect(sema.symbols.symbol(hidden)?.visibility == .internal)
-        #expect(isHiddenByDeprecatedAnnotation(hidden, symbols: sema.symbols))
+        #expect(isHiddenByDeprecationOrVersionAnnotation(hidden, symbols: sema.symbols))
         #expect(sema.symbols.annotations(for: hidden).contains { $0.annotationFQName == "kotlin.PublishedApi" })
     }
 }

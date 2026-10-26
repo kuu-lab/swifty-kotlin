@@ -17,7 +17,7 @@ extension LocalDeclTypeChecker {
                   let signature = sema.symbols.functionSignature(for: candidate),
                   let declaredReceiver = signature.receiverType,
                   driver.helpers.declaresExtensionReceiver(candidate, sema: sema, interner: ctx.interner),
-                  !isHiddenByDeprecatedAnnotation(candidate, symbols: sema.symbols),
+                  !isHiddenByDeprecationOrVersionAnnotation(candidate, symbols: sema.symbols),
                   ctx.visibilityChecker.isAccessible(
                       symbol, fromFile: ctx.currentFileID, enclosingClass: ctx.enclosingClassSymbol
                   ),
