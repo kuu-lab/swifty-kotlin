@@ -6,6 +6,7 @@
 |---|---|---|
 | `swift_test.sh` | ✓ | `swift test` wrapper: parallel defaults, grouped failure summary, golden-update hint, GitHub annotations, crash-signal retry |
 | `swift_build.sh` | – | Coordinate focused local `swift build` invocations with test builds across worktrees |
+| `summarize_stdlib_timings.py` | – | Summarize opt-in stdlib artifact build durations and overlap across processes |
 | `shard_swift_tests.sh` | ✓ | Split one slow test target across CI jobs (`--mode dynamic` per-test / `--mode static` per-suite) |
 | `js_annotations/run_ci.py` | ✓ | JVM-independent annotation/view/reflection source/artifact O0/O2 matrix, runner regressions, and KUU-1480 evidence; see [handoff](../docs/js-annotations-ci-evidence.md) |
 | `diff_kotlinc.sh` | ✓ | Behavioral diff of `kswiftc` vs `kotlinc` over `diff_cases/`, plus candidate-only output checks for target-specific cases; persists failure artifacts |
@@ -93,6 +94,23 @@ This opts CompilerCore into `-O` while keeping the debug build configuration.
 It can make stepping through CompilerCore code less direct; omit the setting
 when debugging the compiler. Run without `--skip-build` when changing it so
 the compiler is rebuilt with the requested optimization level.
+
+To measure overlapping stdlib artifact builds across worktrees, set the same
+`KSWIFTK_STDLIB_TIMINGS` path for the test or compiler processes under study:
+
+```bash
+KSWIFTK_STDLIB_TIMINGS=/tmp/kswiftk-stdlib-timings.jsonl bash Scripts/swift_test.sh --filter '<test>'
+python3 Scripts/summarize_stdlib_timings.py /tmp/kswiftk-stdlib-timings.jsonl
+```
+
+The opt-in JSONL log records start/end events for in-process artifact builders
+and `kswiftc --stdlib-only`, including elapsed time and success. It does not
+record source paths or change cache behavior. The summary reports completed,
+failed, incomplete and invalid spans, peak overlap, and duration percentiles.
+An interrupted process can leave an incomplete span; overlap counts use only
+completed spans. Wall-clock changes can invalidate an interval. Logging is
+best-effort and the parent directory must already exist. Keep the file in a
+private location when collecting measurements from concurrent worktrees.
 
 If a run crashes with a signal (e.g. `*** Signal 11: ...` / `exited with
 unexpected signal code`) and no per-test failure line was parsed, the whole
