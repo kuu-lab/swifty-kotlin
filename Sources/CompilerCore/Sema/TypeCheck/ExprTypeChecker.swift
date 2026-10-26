@@ -277,16 +277,9 @@ final class ExprTypeChecker {
                 sema.symbols.symbol($0)?.kind == .constructor
             } ?? false
             let returnsFromInitBlock = ctx.returnTargetIsInitBlock && (label == nil || targetsFunction)
-            let hasForbiddenConstructorReturnValue = returnsFromConstructor
+            let isConstructorReturnWithValue = returnsFromConstructor
                 && value != nil
                 && (label == nil || targetsFunction)
-            if hasForbiddenConstructorReturnValue {
-                sema.diagnostics.error(
-                    "KSWIFTK-SEMA-0042",
-                    "'return' with a value is not allowed in a constructor.",
-                    range: range
-                )
-            }
             if returnsFromInitBlock {
                 sema.diagnostics.error(
                     "KSWIFTK-SEMA-0312",
@@ -356,7 +349,7 @@ final class ExprTypeChecker {
             // an outer assignment: `x = if (c) 1 else return null` inside a
             // function returning `Int?` must check `return null` against
             // `Int?`, not `x`'s declared `Int`).
-            let returnExpectedType: TypeID? = if hasForbiddenConstructorReturnValue {
+            let returnExpectedType: TypeID? = if isConstructorReturnWithValue {
                 nil
             } else if label == nil || targetsFunction,
                                                     let enclosingFunctionReturnType = ctx.enclosingFunctionReturnType
@@ -369,6 +362,13 @@ final class ExprTypeChecker {
             }
             if let value {
                 let resolved = driver.inferExpr(value, ctx: ctx, locals: &locals, expectedType: returnExpectedType)
+                if isConstructorReturnWithValue, resolved != sema.types.unitType {
+                    sema.diagnostics.error(
+                        "KSWIFTK-SEMA-0042",
+                        "'return' with a value is not allowed in a constructor.",
+                        range: range
+                    )
+                }
                 if (!(label == nil || targetsFunction) || !ctx.isPropertyGetterReturn),
                    returnExpectedType == sema.types.unitType,
                    sema.types.makeNonNullable(resolved) == sema.types.unitType
