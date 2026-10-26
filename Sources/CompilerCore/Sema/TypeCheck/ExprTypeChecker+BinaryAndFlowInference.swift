@@ -43,6 +43,12 @@ extension ExprTypeChecker {
         let ushortType = sema.types.ushortType
         let ulongType = sema.types.ulongType
         let uintType = sema.types.uintType
+        let requiresEqualityOperandFactoryInference: Bool = switch op {
+        case .equal, .notEqual, .identityEqual, .notIdentityEqual:
+            true
+        default:
+            false
+        }
 
         if op == .logicalAnd || op == .logicalOr {
             let lhs = driver.inferExpr(lhsID, ctx: ctx, locals: &locals, expectedType: boolType)
@@ -139,6 +145,9 @@ extension ExprTypeChecker {
             nil
         }
         var lhsCtx = ctx
+        if requiresEqualityOperandFactoryInference {
+            lhsCtx.collectionFactoryInferenceRequiredForEqualityOperand = lhsID
+        }
         lhsCtx.isElvisBranchExpectedTypeHint = isElvisCallLhs && !isSafeLetElvisFailure && expectedType != nil
         let lhsOperandType = driver.inferExpr(
             lhsID, ctx: lhsCtx, locals: &locals,
@@ -222,6 +231,9 @@ extension ExprTypeChecker {
             false
         }
         var rhsCtx = ctx
+        if requiresEqualityOperandFactoryInference {
+            rhsCtx.collectionFactoryInferenceRequiredForEqualityOperand = rhsID
+        }
         if op == .elvis, expectedType == nil, rhsIsCall,
            nonNullLhs != sema.types.errorType,
            nonNullLhs != sema.types.nothingType

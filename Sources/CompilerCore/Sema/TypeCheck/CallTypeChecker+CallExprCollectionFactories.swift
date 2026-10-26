@@ -19,6 +19,15 @@ extension CallTypeChecker {
         func sourceBackedCollectionFactoryType(
             name: String
         ) -> (type: TypeID, typeArgs: [TypeID])? {
+            let factoryTypeArity: Int? = switch name {
+            case "emptyList", "listOf", "listOfNotNull", "mutableListOf", "arrayListOf",
+                 "emptySet", "setOf", "setOfNotNull", "mutableSetOf", "hashSetOf", "linkedSetOf":
+                1
+            case "emptyMap", "mapOf", "mutableMapOf", "hashMapOf", "linkedMapOf":
+                2
+            default:
+                nil
+            }
             func typeArgs(from type: TypeID) -> [TypeID] {
                 guard case let .classType(classType) = sema.types.kind(of: type) else {
                     return []
@@ -45,6 +54,14 @@ extension CallTypeChecker {
                 // assignment target is nullable. Keep the target's type arguments
                 // without propagating its nullability to the call result.
                 return sema.types.makeNonNullable(expectedType)
+            }
+
+            if ctx.collectionFactoryInferenceRequiredForEqualityOperand == id,
+               args.isEmpty, explicitTypeArgs.isEmpty,
+               let factoryTypeArity,
+               expectedCollectionType(withArity: factoryTypeArity) == nil
+            {
+                return nil
             }
 
             func isMutableCollection(_ type: TypeID) -> Bool {
