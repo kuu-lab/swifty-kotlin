@@ -73,6 +73,29 @@ struct ReceiverLambdaMemberExtensionTests {
     }
 
     @Test
+    func memberExtensionNotOperatorResolvesInsideReceiverLambda() throws {
+        let ctx = makeContext("""
+        var res = "FAIL"
+        class Context {
+            operator fun Any.not() { res = "OK" }
+        }
+        fun coVerify(block: Context.() -> Unit) { Context().block() }
+        fun main() { val c = Any(); coVerify { !c } }
+        """)
+        try runToKIR(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+
+        let sema = try #require(ctx.sema)
+        let notCalls = sema.bindings.callBindings.values.filter {
+            sema.symbols.symbol($0.chosenCallee)?.name == ctx.interner.intern("not")
+        }
+        #expect(notCalls.count == 1)
+        let callee = try #require(notCalls.first?.chosenCallee)
+        let owner = try #require(sema.symbols.memberExtensionOwnerSymbol(for: callee))
+        #expect(sema.symbols.symbol(owner)?.name == ctx.interner.intern("Context"))
+    }
+
+    @Test
     func memberExtensionStillRequiresDispatchReceiver() throws {
         let ctx = makeContext("""
         fun interface Parser<out T> { fun parse(source: String): T }
