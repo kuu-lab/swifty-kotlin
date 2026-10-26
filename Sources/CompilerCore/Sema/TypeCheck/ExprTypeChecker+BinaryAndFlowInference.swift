@@ -383,10 +383,15 @@ extension ExprTypeChecker {
         default:
             true
         }
+        let rhsIntegerLiteral = driver.callChecker.integerLiteralValues(rhsID, ast: ast)
         let operatorCall = CallExpr(
             range: range,
             calleeName: operatorName,
-            args: [CallArg(type: rhs)]
+            args: [CallArg(
+                type: rhs,
+                signedIntegerLiteral: rhsIntegerLiteral.signed,
+                unsignedIntegerLiteral: rhsIntegerLiteral.unsigned
+            )]
         )
         var collectedOperatorCandidates: [SymbolID] = if shouldUseInheritedEqualityDispatch {
             collectOperatorCandidates(
@@ -655,11 +660,6 @@ extension ExprTypeChecker {
             }
         }
         if !operatorCandidates.isEmpty {
-            let operatorCall = CallExpr(
-                range: range,
-                calleeName: operatorName,
-                args: [CallArg(type: rhs)]
-            )
             let isComparisonOperator: Bool = switch op {
             case .lessThan, .lessOrEqual, .greaterThan, .greaterOrEqual:
                 true
@@ -764,6 +764,12 @@ extension ExprTypeChecker {
                 sema.bindings.bindExprType(id, type: sema.types.errorType)
                 return sema.types.errorType
             }
+            driver.callChecker.contextualizeResolvedIntegerArguments(
+                args: [CallArgument(expr: rhsID)],
+                resolved: resolved,
+                ctx: ctx,
+                locals: &locals
+            )
             let returnType = driver.callChecker.bindCallAndResolveReturnType(id, chosen: chosen, resolved: resolved, sema: sema)
             // compareTo desugaring: comparison operators (<, <=, >, >=) that resolve
             // to a compareTo method should produce Bool, not the compareTo return type (Int).
