@@ -2188,6 +2188,15 @@ extension OverloadResolver {
         guard paramsEqual else {
             return false
         }
+        // A context-only local function and an extension can both consume the
+        // same implicit receiver. When their single context type and extension
+        // receiver are equivalent, prefer the context function for a bare call.
+        if hasEquivalentContextParameterAndReceiver(lhs, rhs, typeSystem: typeSystem) {
+            return true
+        }
+        if hasEquivalentContextParameterAndReceiver(rhs, lhs, typeSystem: typeSystem) {
+            return false
+        }
         if lhs.instantiatedParameterTypes == rhs.instantiatedParameterTypes,
            let lhsReceiver = lhs.instantiatedReceiverType,
            let rhsReceiver = rhs.instantiatedReceiverType
@@ -2218,6 +2227,28 @@ extension OverloadResolver {
             return !lhs.usesVararg && rhs.usesVararg
         }
         return false
+    }
+
+    private func hasEquivalentContextParameterAndReceiver(
+        _ contextCandidate: ViableCandidate,
+        _ extensionCandidate: ViableCandidate,
+        typeSystem: TypeSystem
+    ) -> Bool {
+        guard contextCandidate.signature.receiverType == nil,
+              contextCandidate.signature.contextParameterTypes.count == 1,
+              extensionCandidate.signature.contextParameterTypes.isEmpty,
+              let receiverType = extensionCandidate.instantiatedReceiverType
+        else {
+            return false
+        }
+        let signature = contextCandidate.signature
+        let contextType = typeSystem.substituteTypeParameters(
+            in: signature.contextParameterTypes[0],
+            substitution: contextCandidate.substitutedTypeArguments,
+            typeVarBySymbol: typeSystem.makeTypeVarBySymbol(signature.typeParameterSymbols)
+        )
+        return typeSystem.isSubtype(contextType, receiverType)
+            && typeSystem.isSubtype(receiverType, contextType)
     }
 
     /// Kotlin compares overloads by their declared (uninstantiated) signatures:
