@@ -314,6 +314,48 @@ extension StdlibArtifactRegressionTests {
         }
     }
 
+    /// KUU-3550: enum class initialization wraps a non-Error initializer
+    /// failure in ExceptionInInitializerError and preserves the original cause.
+    @Test
+    func testThrowingEnumEntryInitializerIsWrappedThroughSharedStdlibArtifact() throws {
+        let artifactPath = try Self.buildStdlibArtifact()
+        let source = """
+        enum class Color(val s: String) {
+            BLACK("black"),
+            BAD(run { throw IllegalStateException("x") });
+        }
+
+        fun main() {
+            try { Color.BAD }
+            catch (e: ExceptionInInitializerError) { println(e.cause) }
+        }
+        """
+
+        try withTemporaryFile(contents: source) { userPath in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString)
+                .path
+            defer { try? FileManager.default.removeItem(atPath: outputBase) }
+            let ctx = CompilerTestSupport.makeCompilationContext(
+                inputs: [userPath],
+                moduleName: "EnumInitializerFailure",
+                emit: .executable,
+                outputPath: outputBase,
+                includeStdlib: false,
+                stdlibLibraryPath: artifactPath,
+                allowDefaultStdlibLibrary: false
+            )
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            #expect(result.exitCode == 0, "Execution stderr: \(result.stderr)")
+            #expect(result.stdout.replacingOccurrences(of: "\r\n", with: "\n") == "java.lang.IllegalStateException: x\n")
+        }
+    }
+
     /// STDLIB-ARTIFACT-015: imported synthetic enum entries (e.g.
     /// `RegexOption`) must carry `.constValue` and an ordinal expression so
     /// the shared stdlib path emits `intLiteral` values instead of unresolved

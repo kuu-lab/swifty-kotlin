@@ -257,7 +257,7 @@ extension KIRLoweringDriver {
     /// The exception-routing channels of a `begin/endFinallyGuard` region:
     /// the slot each throwing call writes into, the slot carrying the thrown
     /// type token, and the catch/finally dispatch label.
-    private struct FinallyGuardThrowContext {
+    struct FinallyGuardThrowContext {
         var exceptionSlot: KIRExprID
         var exceptionTypeSlot: KIRExprID
         var thrownTarget: Int32
@@ -272,7 +272,7 @@ extension KIRLoweringDriver {
     /// before the guard and the dispatch label is the first label after the
     /// region's matching end marker. Returns nil when neither holds — the
     /// caller then leaves the exception to propagate.
-    private func resolveGuardRegionThrowContext(
+    func resolveGuardRegionThrowContext(
         body: [KIRInstruction],
         beginIndex: Int
     ) -> FinallyGuardThrowContext? {
