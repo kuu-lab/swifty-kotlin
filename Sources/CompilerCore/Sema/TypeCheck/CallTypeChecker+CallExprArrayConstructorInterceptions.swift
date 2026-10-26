@@ -34,6 +34,10 @@ extension CallTypeChecker {
                 guard let symbol = ctx.cachedSymbol(candidate),
                       symbol.kind == .function,
                       sema.symbols.isSourceBackedSymbol(candidate),
+                      // The external allocation declarations exist to make
+                      // callable references visible. Direct size-only calls
+                      // must keep using the compiler intrinsic below.
+                      sema.symbols.externalLinkName(for: candidate) != "kk_array_new_checked",
                       let signature = sema.symbols.functionSignature(for: candidate),
                       signature.receiverType == nil,
                       signature.parameterTypes.count == args.count,

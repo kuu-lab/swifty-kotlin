@@ -5,6 +5,7 @@ extension BundledStdlibExecutionTests {
     func typedConstructorReferences(allowDefaultStdlibLibrary: Bool) throws {
         try compileAndRunKotlin(
             """
+            private fun <T> upcast(value: T): T = value
             class Gen<T>(val x: T)
             fun main() {
                 val g: (Int) -> Gen<Int> = ::Gen
@@ -29,9 +30,14 @@ extension BundledStdlibExecutionTests {
                 } catch (e: NegativeArraySizeException) {
                     println("negative size")
                 }
+                val bytes = upcast<(Int) -> ByteArray>(::ByteArray)(2)
+                println(bytes.size)
+                println(bytes[0])
+                val erasedBytes: Any = bytes
+                println(erasedBytes is ByteArray)
             }
             """,
-            expectedOutput: "5\na\n3\nm\n2\n0\n7\ntrue\nfalse\nnegative size\n",
+            expectedOutput: "5\na\n3\nm\n2\n0\n7\ntrue\nfalse\nnegative size\n2\n0\ntrue\n",
             moduleName: "KUU1276ConstructorReferences",
             allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
         )
