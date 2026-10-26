@@ -111,6 +111,41 @@ extension BuildKIRRegressionTests {
         try checkExtensionVarReceiverSelection(specificFirst: specificFirst, assignment: "\"x\".tag += 1\n\"x\".tag++", getterCount: 2)
     }
 
+    @Test(arguments: [false, true])
+    func testImportedObjectPropertyCompoundAssignmentsWriteBack(usesAlias: Bool) throws {
+        let importedName = usesAlias ? "count" : "x"
+        let importDecl = usesAlias ? "import Host.x as count" : "import Host.x"
+        let ctx = makeContextFromSource("""
+        \(importDecl)
+        object Host { var x: Int = 0 }
+        fun main() {
+            \(importedName) += 1
+            \(importedName)++
+            ++\(importedName)
+            println(\(importedName))
+        }
+        """)
+        try runToKIR(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+
+        let sema = try #require(ctx.sema)
+        let module = try #require(ctx.kir)
+        let property = try #require(sema.symbols.lookup(fqName: ["Host", "x"].map(ctx.interner.intern)))
+        let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+        let writes = body.filter { instruction in
+            if case let .storeGlobal(_, symbol) = instruction {
+                return symbol == property
+            }
+            if case let .copy(_, target) = instruction,
+               case let .symbolRef(symbol) = module.arena.expr(target)
+            {
+                return symbol == property
+            }
+            return false
+        }
+        #expect(writes.count == 3, "Expected all three mutations to write the object property, got \(writes)")
+    }
+
     private func checkExtensionVarReceiverSelection(specificFirst: Bool, assignment: String, getterCount: Int) throws {
         let general = """
         var Any.tag: Int
