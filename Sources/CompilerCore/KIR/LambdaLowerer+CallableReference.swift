@@ -1416,47 +1416,19 @@ extension LambdaLowerer {
 
         // Adapted references are ordinary function values and do not expose KCallable reflection.
         if isAdaptedCallableReference {
-            // Context-bound callable references bypass the reflection tag below.
-            // Preserve their target and captures separately for Any equality.
             if let targetSymbol,
-               let refKind = sema.bindings.callableRefKind(for: exprID),
-               let identityTargetSymbol = callableReferenceIdentityTargetSymbol(
-                   targetSymbol: targetSymbol,
-                   refKind: refKind,
-                   sema: sema
-               )
+               let refKind = sema.bindings.callableRefKind(for: exprID)
             {
-                let functionType: FunctionType? = {
-                    guard case let .functionType(functionType) = sema.types.kind(of: callableType) else {
-                        return nil
-                    }
-                    return functionType
-                }()
-                let arity = functionType.map {
-                    Int64($0.contextReceivers.count + ($0.receiver == nil ? 0 : 1) + $0.params.count)
-                } ?? 0
-                var flags: Int64 = functionType?.isSuspend == true ? 1 : 0
-                if refKind == .functionRef,
-                   let target = sema.symbols.symbol(targetSymbol)
-                {
-                    if target.flags.contains(.inlineFunction) { flags |= 1 << 1 }
-                    if target.flags.contains(.operatorFunction) { flags |= 1 << 2 }
-                    if target.flags.contains(.infixFunction) { flags |= 1 << 3 }
-                    if sema.symbols.externalLinkName(for: targetSymbol) != nil { flags |= 1 << 4 }
-                }
-                emitCallableReferenceIdentity(
+                emitCallableRefAdapterIdentity(
                     callableExpr: callableValue,
-                    targetSymbol: identityTargetSymbol,
+                    targetSymbol: targetSymbol,
+                    refKind: refKind,
                     captures: captureArguments,
+                    callableType: callableType,
                     sema: sema,
                     arena: arena,
                     interner: interner,
-                    instructions: &instructions,
-                    identityMetadata: (
-                        arity: arity,
-                        kind: refKind == .propertyRef ? 1 : 0,
-                        flags: flags
-                    )
+                    instructions: &instructions
                 )
             }
             return callableValue
@@ -1826,6 +1798,95 @@ extension LambdaLowerer {
         }
 
         return callableExpr
+    }
+
+    /// Keep the referenced target and captures on a function adapter without
+    /// exposing KCallable reflection metadata (KUU-3361).
+    func emitCallableRefAdapterIdentity(
+        callableExpr: KIRExprID,
+        targetSymbol: SymbolID,
+        refKind: CallableRefKind,
+        captures: [KIRExprID],
+        callableType: TypeID,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        instructions: inout [KIRInstruction]
+    ) {
+        guard case let .functionType(functionType) = sema.types.kind(of: callableType) else { return }
+        let identityTargetSymbol: SymbolID?
+        switch refKind {
+        case .functionRef:
+            identityTargetSymbol = targetSymbol
+        case .propertyRef:
+            let propertySymbol = sema.symbols.symbol(targetSymbol)?.kind == .property
+                ? targetSymbol
+                : sema.symbols.accessorOwnerProperty(for: targetSymbol)
+            guard let propertySymbol else { return }
+            identityTargetSymbol = sema.symbols.extensionPropertyGetterAccessor(for: propertySymbol)
+                ?? SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: propertySymbol)
+        }
+        guard let identityTargetSymbol else { return }
+
+        let intType = sema.types.intType
+        let samInterfaceTypeIDExpr = arena.appendExpr(.intLiteral(0), type: intType)
+        instructions.append(.constValue(result: samInterfaceTypeIDExpr, value: .intLiteral(0)))
+        let identityTarget = arena.appendExpr(.symbolRef(identityTargetSymbol), type: intType)
+        instructions.append(.constValue(result: identityTarget, value: .symbolRef(identityTargetSymbol)))
+        let boxedCaptures = captures.map { capture in
+            boxValueForAnySlot(
+                capture,
+                sourceType: arena.exprType(capture) ?? sema.types.anyType,
+                types: sema.types,
+                symbols: sema.symbols,
+                interner: interner,
+                arena: arena,
+                requireNonNull: true,
+                sema: sema,
+                into: &instructions
+            )
+        }
+        let capturesExpr: KIRExprID
+        if boxedCaptures.isEmpty {
+            capturesExpr = arena.appendExpr(.null, type: sema.types.nullableAnyType)
+            instructions.append(.constValue(result: capturesExpr, value: .null))
+        } else {
+            capturesExpr = makeReflectionArgumentList(
+                boxedCaptures,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            )
+        }
+        let arity = Int64(functionType.contextReceivers.count
+            + (functionType.receiver == nil ? 0 : 1) + functionType.params.count)
+        let arityExpr = arena.appendExpr(.intLiteral(arity), type: intType)
+        instructions.append(.constValue(result: arityExpr, value: .intLiteral(arity)))
+
+        var flags: Int64 = functionType.isSuspend ? 1 : 0
+        if let target = sema.symbols.symbol(targetSymbol) {
+            if target.flags.contains(.inlineFunction) { flags |= 1 << 1 }
+            if target.flags.contains(.operatorFunction) { flags |= 1 << 2 }
+            if target.flags.contains(.infixFunction) { flags |= 1 << 3 }
+            if sema.symbols.externalLinkName(for: targetSymbol) != nil { flags |= 1 << 4 }
+        }
+        let flagsExpr = arena.appendExpr(.intLiteral(flags), type: intType)
+        instructions.append(.constValue(result: flagsExpr, value: .intLiteral(flags)))
+        let returnTypeName = interner.intern(
+            sema.types.displayName(of: functionType.returnType, symbols: sema.symbols, interner: interner)
+        )
+        let returnTypeExpr = arena.appendExpr(.stringLiteral(returnTypeName), type: sema.types.stringType)
+        instructions.append(.constValue(result: returnTypeExpr, value: .stringLiteral(returnTypeName)))
+        instructions.append(.call(
+            callee: interner.intern("__kk_callable_adapter_set_identity"),
+            arguments: [
+                callableExpr, samInterfaceTypeIDExpr, identityTarget,
+                capturesExpr, arityExpr, flagsExpr, returnTypeExpr,
+            ],
+            result: nil,
+            canThrow: false
+        ))
     }
 
     /// The caller must use the returned expression (and register it for

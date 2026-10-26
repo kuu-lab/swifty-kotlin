@@ -39,4 +39,14 @@ extension BundledStdlibExecutionTests {
             allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
         )
     }
+
+    @Test(arguments: [true, false])
+    func unitCoercedCallableReferenceEqualityMatchesKotlin(allowDefaultStdlibLibrary: Bool) throws {
+        try compileAndRunKotlin(
+            try diffCaseSource("callable_reference_equality_coercion_to_unit.kt", file: #filePath),
+            expectedOutput: "true\ntrue\nfalse\nfalse\ntrue\n",
+            moduleName: "KUU3361CallableReferenceUnitEquality",
+            allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
+        )
+    }
 }
