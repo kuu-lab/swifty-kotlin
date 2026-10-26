@@ -43,6 +43,10 @@ struct JVMTextOperation {
         }
         add("substring", [p("startIndex", "Int", .int), p("endIndex", "Int", .int, "length")], owner: "java/lang/String", instance: true)
         add("codePointAt", [p("index", "Int", .int)], sourceResult: "Int", result: .int, owner: "java/lang/String", instance: true)
+        let intStream = JVMValueType.reference("java/util/stream/IntStream", nullable: false)
+        for name in ["chars", "codePoints"] {
+            add(name, sourceResult: "IntStream", result: intStream, receiver: "CharSequence", jvmReceiver: sequence, owner: "java/lang/CharSequence", instance: true)
+        }
         add("slice", [p("indices", "IntRange", .reference("kotlin/ranges/IntRange", nullable: false))])
         add("slice", [p("indices", "Iterable<Int>", .reference("java/lang/Iterable", nullable: false))], sourceResult: "CharSequence", result: sequence, receiver: "CharSequence", jvmReceiver: sequence)
         for name in ["take", "takeLast", "drop", "dropLast"] { add(name, [p("n", "Int", .int)]) }

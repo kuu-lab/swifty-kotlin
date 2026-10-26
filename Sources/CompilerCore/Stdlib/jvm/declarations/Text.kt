@@ -1,7 +1,10 @@
 package kotlin.text
+import java.util.stream.IntStream
 operator fun String.get(index: Int): Char = null!!
 fun String.subSequence(startIndex: Int, endIndex: Int): CharSequence = null!!
 fun String.codePointAt(index: Int): Int = null!!
+fun CharSequence.chars(): IntStream = null!!
+fun CharSequence.codePoints(): IntStream = null!!
 operator fun CharSequence.get(index: Int): Char = null!!
 fun CharSequence.subSequence(startIndex: Int, endIndex: Int): CharSequence = null!!
 fun String.substring(startIndex: Int, endIndex: Int = null!!): String = null!!
