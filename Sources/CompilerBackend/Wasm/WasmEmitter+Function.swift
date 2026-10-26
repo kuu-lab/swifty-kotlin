@@ -598,7 +598,8 @@ final class WasmFunctionEmission {
         let resolution = ctx.resolveCallee(
             name: name,
             symbol: symbol,
-            argumentCount: arguments.count
+            argumentCount: arguments.count,
+            argumentTypes: arguments.map { arena.exprType($0) }
         )
         for argument in arguments { resolveValue(argument) }
         switch resolution {

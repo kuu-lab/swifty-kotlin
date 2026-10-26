@@ -37,6 +37,7 @@ enum WasmRuntimeHelpers {
             || arithmeticOpcodes[name] != nil
             || floatBinaryOpcodes[name] != nil
             || floatRemOps.contains(name)
+            || isConversionCallee(name)
             || isBoxName(name)
             || isUnboxName(name)
     }
@@ -61,6 +62,10 @@ enum WasmRuntimeHelpers {
         }
         if floatBinaryOpcodes[name] != nil || floatRemOps.contains(name) {
             emitFloatArithmetic(name: name, code: &code, scratch: emission.scratchLocal)
+            return
+        }
+        if let conversion = parseConversion(name), !isEmittedHelperName(name) {
+            emitNumericConversion(conversion, code: &code)
             return
         }
         if let opcode = arithmeticOpcodes[name] {
@@ -150,6 +155,65 @@ enum WasmRuntimeHelpers {
     private static let floatRemOps: Set<String> = [
         "kk_op_dmod", "kk_op_dfloor_mod", "kk_op_fmod", "kk_op_ffloor_mod",
     ]
+
+    /// Numeric widths for `kk_<src>_to_<dst>` conversion callees. Signed
+    /// targets sign-extend out of the low bits; unsigned targets (including
+    /// Char) mask. 64-bit targets are the identity under the raw-i64 ABI.
+    private static let integerWidths: [String: (bits: Int64, signed: Bool)] = [
+        "byte": (8, true), "short": (16, true), "int": (32, true), "long": (64, true),
+        "ubyte": (8, false), "ushort": (16, false), "char": (16, false),
+        "uint": (32, false), "ulong": (64, false),
+    ]
+
+    private static func parseConversion(
+        _ name: String
+    ) -> (from: (bits: Int64, signed: Bool), to: String)? {
+        guard name.hasPrefix("kk_") else { return nil }
+        let parts = name.dropFirst(3).split(separator: "_")
+        guard parts.count == 3, parts[1] == "to",
+              let from = integerWidths[String(parts[0])] else { return nil }
+        let dst = String(parts[2])
+        guard dst == "double" || dst == "float" || integerWidths[dst] != nil else {
+            return nil
+        }
+        return (from, dst)
+    }
+
+    static func isConversionCallee(_ name: String) -> Bool {
+        !isEmittedHelperName(name) && parseConversion(name) != nil
+    }
+
+    /// Arg is the raw i64 already pushed by the call site. Integer narrowing
+    /// re-normalizes the payload; fp destinations convert with the source's
+    /// signedness (unsigned payloads are stored zero-extended, so the i64
+    /// unsigned-convert opcodes see the correct magnitude).
+    private static func emitNumericConversion(
+        _ conversion: (from: (bits: Int64, signed: Bool), to: String),
+        code: inout WasmCode
+    ) {
+        switch conversion.to {
+        case "double":
+            code.op(conversion.from.signed
+                ? WasmOpcode.f64ConvertI64S : WasmOpcode.f64ConvertI64U)
+            code.op(WasmOpcode.i64ReinterpretF64)
+        case "float":
+            code.op(conversion.from.signed
+                ? WasmOpcode.f32ConvertI64S : WasmOpcode.f32ConvertI64U)
+            code.op(WasmOpcode.i32ReinterpretF32)
+            code.op(WasmOpcode.i64ExtendI32U)
+        default:
+            guard let dst = integerWidths[conversion.to], dst.bits != 64 else { return }
+            if dst.signed {
+                code.i64Const(64 - dst.bits)
+                code.op(WasmOpcode.i64Shl)
+                code.i64Const(64 - dst.bits)
+                code.op(WasmOpcode.i64ShrS)
+            } else {
+                code.i64Const((Int64(1) << dst.bits) - 1)
+                code.op(WasmOpcode.i64And)
+            }
+        }
+    }
 
     private static func emitFloatArithmetic(
         name: String,
@@ -519,6 +583,41 @@ enum WasmRuntimeHelpers {
         "__kk_wasm_expand", "__kk_wasm_cmp_decimal", "__kk_wasm_round_copy",
         "__kk_wasm_fp_format", "__kk_wasm_render_decimal",
         "__kk_wasm_format_double", "__kk_wasm_format_float",
+        // `kotlin.text` member helpers — byte-level semantics matching the
+        // existing `emitStringGetBody` convention (ASCII-exact folding;
+        // UTF-16 surrogate handling is a later milestone). `$default`
+        // forwarder arities append a mask argument the bodies ignore.
+        "__kk_wasm_string_upper", "__kk_wasm_string_lower",
+        "__kk_wasm_string_substring", "__kk_wasm_string_substring_to",
+        "__kk_wasm_string_repeat", "__kk_wasm_string_trim",
+        "__kk_wasm_string_trim_start", "__kk_wasm_string_trim_end",
+        "__kk_wasm_string_index_of", "__kk_wasm_string_index_of_char",
+        "__kk_wasm_string_last_index_of", "__kk_wasm_string_last_index_of_char",
+        "__kk_wasm_string_last_index_of_nostart",
+        "__kk_wasm_string_last_index_of_char_nostart",
+        "__kk_wasm_string_contains", "__kk_wasm_string_contains_ic",
+        "__kk_wasm_string_contains_char", "__kk_wasm_string_contains_char_ic",
+        "__kk_wasm_string_starts_with", "__kk_wasm_string_starts_with_at",
+        "__kk_wasm_string_starts_with_char",
+        "__kk_wasm_string_ends_with", "__kk_wasm_string_ends_with_char",
+        "__kk_wasm_string_replace", "__kk_wasm_string_replace_char",
+        "__kk_wasm_string_replace_first", "__kk_wasm_string_replace_first_char",
+        "__kk_wasm_string_split",
+        "__kk_wasm_string_capitalize", "__kk_wasm_string_decapitalize",
+        "__kk_wasm_string_is_empty", "__kk_wasm_string_is_not_empty",
+        "__kk_wasm_string_is_blank", "__kk_wasm_string_is_not_blank",
+        "__kk_wasm_string_reversed",
+        "__kk_wasm_char_upper", "__kk_wasm_char_lower",
+        "__kk_wasm_char_upper_str", "__kk_wasm_char_lower_str",
+        // Bundled-stdlib extern link names whose wasm behavior is provided
+        // by the helpers above (`@KsSymbolName` on `private external fun`
+        // declarations — see kotlin/text/*.kt).
+        "__kk_string_get_flat", "kk_string_lowercase",
+        "__kk_string_split", "__kk_string_split_limit",
+        "__kk_char_uppercase_string", "__kk_char_lowercase_string",
+        "__kk_char_titlecase_string",
+        "__kk_char_uppercase_code", "__kk_char_lowercase_code",
+        "__kk_char_titlecase_code",
     ]
 
     /// True when `name` has an emitted wasm helper body — used by callee
@@ -657,7 +756,7 @@ enum WasmRuntimeHelpers {
         case "kk_string_length", "__kk_string_struct_get_length":
             extraLocals = 0
             emitStringLengthBody(&code)
-        case "kk_string_get":
+        case "kk_string_get", "__kk_string_get_flat":
             extraLocals = 0
             emitStringGetBody(&code)
         case "__kk_string_concat_flat":
@@ -1212,6 +1311,87 @@ enum WasmRuntimeHelpers {
         case "__kk_wasm_format_double", "__kk_wasm_format_float":
             extraLocals = 6
             emitFormatFpBody(&code, ctx: ctx, isFloat: name.hasSuffix("float"))
+        case "__kk_wasm_string_upper", "__kk_wasm_string_lower",
+             "kk_string_lowercase":
+            extraLocals = 6
+            emitStringCaseBody(&code, ctx: ctx, argumentCount: argumentCount,
+                               upper: name.hasSuffix("upper"))
+        case "__kk_wasm_string_substring", "__kk_wasm_string_substring_to":
+            extraLocals = 3
+            emitSubstringBody(&code, ctx: ctx, argumentCount: argumentCount)
+        case "__kk_wasm_string_repeat":
+            extraLocals = 7
+            emitStringRepeatBody(&code, ctx: ctx, argumentCount: argumentCount)
+        case "__kk_wasm_string_trim":
+            extraLocals = 4
+            emitStringTrimBody(&code, ctx: ctx, argumentCount: argumentCount)
+        case "__kk_wasm_string_trim_start", "__kk_wasm_string_trim_end":
+            extraLocals = 4
+            emitStringTrimBody(&code, ctx: ctx, argumentCount: argumentCount,
+                               trimStart: name.hasSuffix("_start"),
+                               trimEnd: name.hasSuffix("_end"))
+        case "__kk_wasm_string_index_of", "__kk_wasm_string_index_of_char":
+            extraLocals = 9
+            emitStringIndexOfBody(&code, ctx: ctx, argumentCount: argumentCount,
+                                  charNeedle: name.hasSuffix("_char"))
+        case "__kk_wasm_string_last_index_of", "__kk_wasm_string_last_index_of_char",
+             "__kk_wasm_string_last_index_of_nostart",
+             "__kk_wasm_string_last_index_of_char_nostart":
+            extraLocals = 9
+            emitStringLastIndexOfBody(
+                &code, ctx: ctx, argumentCount: argumentCount,
+                hasStart: !name.hasSuffix("_nostart"),
+                charNeedle: name.contains("_char")
+            )
+        case "__kk_wasm_string_contains", "__kk_wasm_string_contains_ic",
+             "__kk_wasm_string_contains_char", "__kk_wasm_string_contains_char_ic":
+            extraLocals = 0
+            emitStringContainsBody(&code, ctx: ctx, name: name)
+        case "__kk_wasm_string_starts_with", "__kk_wasm_string_starts_with_at",
+             "__kk_wasm_string_ends_with", "__kk_wasm_string_ends_with_char",
+             "__kk_wasm_string_starts_with_char":
+            extraLocals = 9
+            emitStringPrefixSuffixBody(&code, ctx: ctx, argumentCount: argumentCount, name: name)
+        case "__kk_wasm_string_replace", "__kk_wasm_string_replace_char":
+            extraLocals = 15
+            emitStringReplaceBody(&code, ctx: ctx, argumentCount: argumentCount,
+                                  charNeedles: name.hasSuffix("_char"))
+        case "__kk_wasm_string_replace_first", "__kk_wasm_string_replace_first_char":
+            extraLocals = 14
+            emitStringReplaceFirstBody(&code, ctx: ctx, argumentCount: argumentCount,
+                                       charNeedles: name.hasSuffix("_char"))
+        case "__kk_wasm_string_split",
+             "__kk_string_split", "__kk_string_split_limit":
+            extraLocals = 9
+            emitStringSplitBody(&code, ctx: ctx, argumentCount: argumentCount)
+        case "__kk_wasm_string_capitalize", "__kk_wasm_string_decapitalize":
+            extraLocals = 6
+            emitStringCapitalizeBody(&code, ctx: ctx, argumentCount: argumentCount,
+                                     upper: name.hasSuffix("capitalize"))
+        case "__kk_wasm_char_upper", "__kk_wasm_char_lower",
+             "__kk_char_uppercase_code", "__kk_char_lowercase_code",
+             "__kk_char_titlecase_code":
+            extraLocals = 0
+            emitCharCaseBody(&code, upper: !name.contains("lowercase"))
+        case "__kk_wasm_char_upper_str", "__kk_wasm_char_lower_str",
+             "__kk_char_uppercase_string", "__kk_char_lowercase_string",
+             "__kk_char_titlecase_string":
+            extraLocals = 5
+            emitCharToStringCaseBody(&code, ctx: ctx, argumentCount: argumentCount,
+                                     upper: !name.contains("lowercase"))
+        case "__kk_wasm_string_is_empty", "__kk_wasm_string_is_not_empty":
+            extraLocals = 3
+            emitStringIsEmptyOrBlankBody(&code, blank: false,
+                                         negate: name.hasSuffix("not_empty"),
+                                         argumentCount: argumentCount)
+        case "__kk_wasm_string_is_blank", "__kk_wasm_string_is_not_blank":
+            extraLocals = 3
+            emitStringIsEmptyOrBlankBody(&code, blank: true,
+                                         negate: name.hasSuffix("not_blank"),
+                                         argumentCount: argumentCount)
+        case "__kk_wasm_string_reversed":
+            extraLocals = 7
+            emitStringReversedBody(&code, ctx: ctx, argumentCount: argumentCount)
         default:
             return emittedThrowableBody(for: name, argumentCount: argumentCount, context: ctx)
         }
@@ -2821,6 +3001,27 @@ enum WasmRuntimeHelpers {
     /// included — full numeric formatting is a stdlib milestone).
     /// locals: 2=mag, 3=tmp, 4=size, 5=data, 6=i, 7=sign — params v=0, tag=1.
     private static func emitAnyToStringBody(_ code: inout WasmCode, ctx: WasmModuleContext) {
+        // tags 5/6/7 carry raw scalar payloads (never pointers), and their
+        // values can share the null sentinel's bit pattern (-0.0 is
+        // Int64.min), so they decode before every object/null check — the
+        // lowering pre-guards nullable receivers (see
+        // CallLowerer.emitAnyToStringWithNullGuard).
+        code.localGet(1)
+        code.i64Const(6)
+        code.op(WasmOpcode.i64Eq)
+        code.openIf()
+        code.localGet(0)
+        code.call(ctx.emittedHelperIndex(for: "__kk_wasm_format_double", argumentCount: 1))
+        code.op(WasmOpcode.return)
+        code.end()
+        code.localGet(1)
+        code.i64Const(5)
+        code.op(WasmOpcode.i64Eq)
+        code.openIf()
+        code.localGet(0)
+        code.call(ctx.emittedHelperIndex(for: "__kk_wasm_format_float", argumentCount: 1))
+        code.op(WasmOpcode.return)
+        code.end()
         // tag == 3 → the value already is the string.
         code.localGet(1)
         code.i64Const(3)
@@ -2988,10 +3189,15 @@ enum WasmRuntimeHelpers {
         code.call(ctx.emittedHelperIndex(for: "__kk_string_literal_from_utf8", argumentCount: 2))
         code.op(WasmOpcode.return)
         code.end()
-        // null sentinel → "null".
+        // null sentinel → "null". Tag 7 (ULong) exempts the check: its full
+        // 64-bit payload can legitimately equal the sentinel's bit pattern.
         code.localGet(0)
         code.i64Const(L.nullSentinel)
         code.op(WasmOpcode.i64Eq)
+        code.localGet(1)
+        code.i64Const(7)
+        code.op(WasmOpcode.i64Ne)
+        code.op(WasmOpcode.i32And)
         code.openIf()
         emitLiteralString(&code, ctx: ctx, "null")
         code.op(WasmOpcode.return)
@@ -3002,7 +3208,9 @@ enum WasmRuntimeHelpers {
         emitLiteralString(&code, ctx: ctx, "0")
         code.op(WasmOpcode.return)
         code.end()
-        // tag == 9 → zero-extend the low UInt32 before rendering.
+        // tag == 9 → zero-extend the low UInt32 before rendering; tags
+        // 10–13 re-narrow UByte/UShort/Byte/Short the same way (defensive —
+        // producers already normalize).
         code.localGet(1)
         code.i64Const(9)
         code.op(WasmOpcode.i64Eq)
@@ -3012,7 +3220,58 @@ enum WasmRuntimeHelpers {
         code.op(WasmOpcode.i64And)
         code.localSet(0)
         code.end()
-        // sign + magnitude (magnitude uses unsigned math so Int64.min is fine).
+        code.localGet(1)
+        code.i64Const(10)
+        code.op(WasmOpcode.i64Eq)
+        code.openIf()
+        code.localGet(0)
+        code.i64Const(0xFF)
+        code.op(WasmOpcode.i64And)
+        code.localSet(0)
+        code.end()
+        code.localGet(1)
+        code.i64Const(11)
+        code.op(WasmOpcode.i64Eq)
+        code.openIf()
+        code.localGet(0)
+        code.i64Const(0xFFFF)
+        code.op(WasmOpcode.i64And)
+        code.localSet(0)
+        code.end()
+        code.localGet(1)
+        code.i64Const(12)
+        code.op(WasmOpcode.i64Eq)
+        code.openIf()
+        code.localGet(0)
+        code.i64Const(56)
+        code.op(WasmOpcode.i64Shl)
+        code.i64Const(56)
+        code.op(WasmOpcode.i64ShrS)
+        code.localSet(0)
+        code.end()
+        code.localGet(1)
+        code.i64Const(13)
+        code.op(WasmOpcode.i64Eq)
+        code.openIf()
+        code.localGet(0)
+        code.i64Const(48)
+        code.op(WasmOpcode.i64Shl)
+        code.i64Const(48)
+        code.op(WasmOpcode.i64ShrS)
+        code.localSet(0)
+        code.end()
+        // sign + magnitude (magnitude uses unsigned math so Int64.min is
+        // fine). Tag 7 (ULong) skips negation entirely — the payload is
+        // already the full unsigned magnitude.
+        code.localGet(1)
+        code.i64Const(7)
+        code.op(WasmOpcode.i64Eq)
+        code.openIf()
+        code.localGet(0)
+        code.localSet(2)
+        code.i64Const(0)
+        code.localSet(7)
+        code.elseBranch()
         code.localGet(0)
         code.i64Const(0)
         code.op(WasmOpcode.i64LtS)
@@ -3028,6 +3287,7 @@ enum WasmRuntimeHelpers {
         code.elseBranch()
         code.localGet(0)
         code.localSet(2)
+        code.end()
         code.end()
         // n = digit count.
         code.localGet(2)
@@ -4388,6 +4648,1538 @@ enum WasmRuntimeHelpers {
         code.localGet(valueLocal)
         code.op(WasmOpcode.i64Add)
         code.localSet(wLocal)
+    }
+
+    // MARK: - String helpers
+
+    /// Byte at `dataLocal[indexLocal]` → i64.
+    private static func emitByteAt(_ code: inout WasmCode, dataLocal: Int, indexLocal: Int) {
+        code.localGet(dataLocal)
+        code.op(WasmOpcode.i32WrapI64)
+        code.localGet(indexLocal)
+        code.op(WasmOpcode.i32WrapI64)
+        code.op(WasmOpcode.i32Add)
+        code.i32Load8U()
+        code.op(WasmOpcode.i64ExtendI32U)
+    }
+
+    /// `bufLocal[indexLocal] = valueLocal` as a single byte.
+    private static func emitByteStore(_ code: inout WasmCode, bufLocal: Int, indexLocal: Int, valueLocal: Int) {
+        code.localGet(bufLocal)
+        code.op(WasmOpcode.i32WrapI64)
+        code.localGet(indexLocal)
+        code.op(WasmOpcode.i32WrapI64)
+        code.op(WasmOpcode.i32Add)
+        code.localGet(valueLocal)
+        code.op(WasmOpcode.i32WrapI64)
+        code.i32Store8()
+    }
+
+    /// Folds the ASCII letter in `local` to lowercase in place (A-Z → +32).
+    private static func emitFoldAsciiLower(_ code: inout WasmCode, local: Int) {
+        code.localGet(local)
+        code.i64Const(65)
+        code.op(WasmOpcode.i64GeU)
+        code.localGet(local)
+        code.i64Const(90)
+        code.op(WasmOpcode.i64LeU)
+        code.op(WasmOpcode.i32And)
+        code.openIf()
+        code.localGet(local)
+        code.i64Const(32)
+        code.op(WasmOpcode.i64Add)
+        code.localSet(local)
+        code.end()
+    }
+
+    /// Wraps `dataLocal`/`charLenLocal`/`byteLenLocal` into a boxed String
+    /// object (`{typeID@-16, +0:data, +8:len, +16:byteLen}`), pushing it.
+    private static func emitWrapString(
+        _ code: inout WasmCode,
+        ctx: WasmModuleContext,
+        dataLocal: Int,
+        charLenLocal: Int,
+        byteLenLocal: Int,
+        scratchLocal: Int
+    ) {
+        code.i64Const(32)
+        code.call(ctx.emittedHelperIndex(for: "$__kk_wasm_alloc", argumentCount: 1))
+        code.localSet(scratchLocal)
+        emitStoreAtConst(&code, baseLocal: scratchLocal, byteOffset: L.typeIDOffset, value: L.stringTypeID)
+        emitStoreAt(&code, baseLocal: scratchLocal, byteOffset: 0, valueLocal: dataLocal)
+        emitStoreAt(&code, baseLocal: scratchLocal, byteOffset: 8, valueLocal: charLenLocal)
+        emitStoreAt(&code, baseLocal: scratchLocal, byteOffset: 16, valueLocal: byteLenLocal)
+        code.localGet(scratchLocal)
+    }
+
+    /// UTF-8-encodes `charLocal` into `bufLocal` (1–3 bytes), storing the byte
+    /// count into `lenLocal` — same shape as the tag-4 path in
+    /// `emitAnyToStringBody` (ASCII-exact; no surrogate pairs).
+    private static func emitCharToUtf8(_ code: inout WasmCode, charLocal: Int, bufLocal: Int, lenLocal: Int) {
+        code.localGet(charLocal)
+        code.i64Const(0x80)
+        code.op(WasmOpcode.i64LtU)
+        code.openIf(result: .i64)
+        code.i64Const(1)
+        code.elseBranch()
+        code.localGet(charLocal)
+        code.i64Const(0x800)
+        code.op(WasmOpcode.i64LtU)
+        code.openIf(result: .i64)
+        code.i64Const(2)
+        code.elseBranch()
+        code.i64Const(3)
+        code.end()
+        code.end()
+        code.localSet(lenLocal)
+        // byte0 = len==1 ? c : len==2 ? 0xC0|c>>6 : 0xE0|c>>12
+        code.localGet(bufLocal)
+        code.op(WasmOpcode.i32WrapI64)
+        code.localGet(lenLocal)
+        code.i64Const(1)
+        code.op(WasmOpcode.i64Eq)
+        code.openIf(result: .i64)
+        code.localGet(charLocal)
+        code.elseBranch()
+        code.localGet(lenLocal)
+        code.i64Const(2)
+        code.op(WasmOpcode.i64Eq)
+        code.openIf(result: .i64)
+        code.i64Const(0xC0)
+        code.localGet(charLocal)
+        code.i64Const(6)
+        code.op(WasmOpcode.i64ShrU)
+        code.op(WasmOpcode.i64Or)
+        code.elseBranch()
+        code.i64Const(0xE0)
+        code.localGet(charLocal)
+        code.i64Const(12)
+        code.op(WasmOpcode.i64ShrU)
+        code.op(WasmOpcode.i64Or)
+        code.end()
+        code.end()
+        code.op(WasmOpcode.i32WrapI64)
+        code.i32Store8()
+        // byte1 (len>=2) = 0x80 | ((len==2 ? c : c>>6) & 0x3F)
+        code.localGet(lenLocal)
+        code.i64Const(2)
+        code.op(WasmOpcode.i64GeS)
+        code.openIf()
+        code.localGet(bufLocal)
+        code.op(WasmOpcode.i32WrapI64)
+        code.i32Const(1)
+        code.op(WasmOpcode.i32Add)
+        code.localGet(lenLocal)
+        code.i64Const(2)
+        code.op(WasmOpcode.i64Eq)
+        code.openIf(result: .i64)
+        code.localGet(charLocal)
+        code.elseBranch()
+        code.localGet(charLocal)
+        code.i64Const(6)
+        code.op(WasmOpcode.i64ShrU)
+        code.end()
+        code.i64Const(0x3F)
+        code.op(WasmOpcode.i64And)
+        code.i64Const(0x80)
+        code.op(WasmOpcode.i64Or)
+        code.op(WasmOpcode.i32WrapI64)
+        code.i32Store8()
+        code.end()
+        // byte2 (len==3) = 0x80 | (c & 0x3F)
+        code.localGet(lenLocal)
+        code.i64Const(3)
+        code.op(WasmOpcode.i64Eq)
+        code.openIf()
+        code.localGet(bufLocal)
+        code.op(WasmOpcode.i32WrapI64)
+        code.i32Const(2)
+        code.op(WasmOpcode.i32Add)
+        code.localGet(charLocal)
+        code.i64Const(0x3F)
+        code.op(WasmOpcode.i64And)
+        code.i64Const(0x80)
+        code.op(WasmOpcode.i64Or)
+        code.op(WasmOpcode.i32WrapI64)
+        code.i32Store8()
+        code.end()
+    }
+
+    /// `(s) -> String`: ASCII case fold — `A-Z`/`a-z` map, everything else
+    /// copied through. Locals (argc base): data, byteLen, buf, i, c, charLen.
+    private static func emitStringCaseBody(
+        _ code: inout WasmCode, ctx: WasmModuleContext, argumentCount: Int, upper: Bool
+    ) {
+        let data = argumentCount, len = argumentCount + 1, buf = argumentCount + 2
+        let i = argumentCount + 3, c = argumentCount + 4, cl = argumentCount + 5
+        emitLoadAt(&code, baseLocal: 0, byteOffset: 0)
+        code.localSet(data)
+        emitLoadAt(&code, baseLocal: 0, byteOffset: 16)
+        code.localSet(len)
+        emitLoadAt(&code, baseLocal: 0, byteOffset: 8)
+        code.localSet(cl)
+        code.localGet(len)
+        code.call(ctx.emittedHelperIndex(for: "$__kk_wasm_alloc", argumentCount: 1))
+        code.localSet(buf)
+        code.i64Const(0)
+        code.localSet(i)
+        code.openBlock()
+        code.openLoop()
+        code.localGet(i)
+        code.localGet(len)
+        code.op(WasmOpcode.i64GeU)
+        code.brIf(1)
+        emitByteAt(&code, dataLocal: data, indexLocal: i)
+        code.localSet(c)
+        code.localGet(c)
+        code.i64Const(upper ? 97 : 65)
+        code.op(WasmOpcode.i64GeU)
+        code.localGet(c)
+        code.i64Const(upper ? 122 : 90)
+        code.op(WasmOpcode.i64LeU)
+        code.op(WasmOpcode.i32And)
+        code.openIf()
+        code.localGet(c)
+        code.i64Const(32)
+        code.op(upper ? WasmOpcode.i64Sub : WasmOpcode.i64Add)
+        code.localSet(c)
+        code.end()
+        emitByteStore(&code, bufLocal: buf, indexLocal: i, valueLocal: c)
+        code.localGet(i)
+        code.i64Const(1)
+        code.op(WasmOpcode.i64Add)
+        code.localSet(i)
+        code.br(0)
+        code.end()
+        code.end()
+        emitWrapString(&code, ctx: ctx, dataLocal: buf, charLenLocal: cl, byteLenLocal: len, scratchLocal: data)
+    }
+
+    /// `(s, start[, end]) -> String`: byte-level substring sharing the source
+    /// buffer (strings are immutable). Out-of-range indices throw
+    /// StringIndexOutOfBoundsException through `thrownGlobal`.
+    /// Locals: argc+0=data+start, argc+1=len, argc+2=obj.
+    private static func emitSubstringBody(_ code: inout WasmCode, ctx: WasmModuleContext, argumentCount: Int) {
+        let d = argumentCount, e = argumentCount + 1, obj = argumentCount + 2
+        emitLoadAt(&code, baseLocal: 0, byteOffset: 0)
+        code.localSet(d)
+        if argumentCount >= 3 {
+            code.localGet(2)
+        } else {
+            emitLoadAt(&code, baseLocal: 0, byteOffset: 16)
+        }
+        code.localSet(e)
+        // start < 0 || start > end || end > byteLen → throw
+        code.localGet(1)
+        code.i64Const(0)
+        code.op(WasmOpcode.i64LtS)
+        code.localGet(1)
+        code.localGet(e)
+        code.op(WasmOpcode.i64GtS)
+        code.op(WasmOpcode.i32Or)
+        code.localGet(e)
+        emitLoadAt(&code, baseLocal: 0, byteOffset: 16)
+        code.op(WasmOpcode.i64GtS)
+        code.op(WasmOpcode.i32Or)
+        code.openIf()
+        emitLiteralString(&code, ctx: ctx, "String index out of range")
+        code.call(ctx.emittedHelperIndex(
+            for: "__kk_string_index_out_of_bounds_exception_new_message",
+            argumentCount: 1
+        ))
+        code.globalSet(ctx.thrownGlobal)
+        code.i64Const(0)
+        code.op(WasmOpcode.return)
+        code.end()
+        code.localGet(d)
+        code.localGet(1)
+        code.op(WasmOpcode.i64Add)
+        code.localSet(d)
+        code.localGet(e)
+        code.localGet(1)
+        code.op(WasmOpcode.i64Sub)
+        code.localSet(e)
+        emitWrapString(&code, ctx: ctx, dataLocal: d, charLenLocal: e, byteLenLocal: e, scratchLocal: obj)
+    }
+
+    /// `(s, n) -> String`: byte repeat. `n < 0` throws
+    /// IllegalArgumentException. Locals (argc base): data, byteLen, buf, i,
+    /// j, charLen, obj.
+    private static func emitStringRepeatBody(
+        _ code: inout WasmCode, ctx: WasmModuleContext, argumentCount: Int
+    ) {
+        let data = argumentCount, len = argumentCount + 1, buf = argumentCount + 2
+        let i = argumentCount + 3, j = argumentCount + 4, cl = argumentCount + 5
+        let obj = argumentCount + 6
+        code.localGet(1)
+        code.i64Const(0)
+        code.op(WasmOpcode.i64LtS)
+        code.openIf()
+        emitLiteralString(&code, ctx: ctx, "Count 'n' must be non-negative, but was negative.")
+        code.call(ctx.emittedHelperIndex(
+            for: "__kk_illegal_argument_exception_new_message",
+            argumentCount: 1
+        ))
+        code.globalSet(ctx.thrownGlobal)
+        code.i64Const(0)
+        code.op(WasmOpcode.return)
+        code.end()
+        emitLoadAt(&code, baseLocal: 0, byteOffset: 0)
+        code.localSet(data)
+        emitLoadAt(&code, baseLocal: 0, byteOffset: 16)
+        code.localSet(len)
+        emitLoadAt(&code, baseLocal: 0, byteOffset: 8)
+        code.localSet(cl)
+        code.localGet(len)
+        code.localGet(1)
+        code.op(WasmOpcode.i64Mul)
+        code.call(ctx.emittedHelperIndex(for: "$__kk_wasm_alloc", argumentCount: 1))
+        code.localSet(buf)
+        code.i64Const(0)
+        code.localSet(i)
+        code.openBlock()
+        code.openLoop()
+        code.localGet(i)
+        code.localGet(1)
+        code.op(WasmOpcode.i64GeS)
+        code.brIf(1)
+        code.i64Const(0)
+        code.localSet(j)
+        code.openBlock()
+        code.openLoop()
+        code.localGet(j)
+        code.localGet(len)
+        code.op(WasmOpcode.i64GeU)
+        code.brIf(1)
+        code.localGet(buf)
+        code.op(WasmOpcode.i32WrapI64)
+        code.localGet(i)
+        code.localGet(len)
+        code.op(WasmOpcode.i64Mul)
+        code.localGet(j)
+        code.op(WasmOpcode.i64Add)
+        code.op(WasmOpcode.i32WrapI64)
+        code.op(WasmOpcode.i32Add)
+        code.localGet(data)
+        code.op(WasmOpcode.i32WrapI64)
+        code.localGet(j)
+        code.op(WasmOpcode.i32WrapI64)
+        code.op(WasmOpcode.i32Add)
+        code.i32Load8U()
+        code.i32Store8()
+        code.localGet(j)
+        code.i64Const(1)
+        code.op(WasmOpcode.i64Add)
+        code.localSet(j)
+        code.br(0)
+        code.end()
+        code.end()
+        code.localGet(i)
+        code.i64Const(1)
+        code.op(WasmOpcode.i64Add)
+        code.localSet(i)
+        code.br(0)
+        code.end()
+        code.end()
+        code.localGet(cl)
+        code.localGet(1)
+        code.op(WasmOpcode.i64Mul)
+        code.localSet(cl)
+        code.localGet(len)
+        code.localGet(1)
+        code.op(WasmOpcode.i64Mul)
+        code.localSet(len)
+        emitWrapString(&code, ctx: ctx, dataLocal: buf, charLenLocal: cl, byteLenLocal: len, scratchLocal: obj)
+    }
+
+    /// `(s) -> String`: trims bytes <= 0x20 at the selected ends, sharing the
+    /// buffer. `trimStart`/`trimEnd` select which scans run (both for `trim`).
+    /// Locals (argc base): data, len, i, j.
+    private static func emitStringTrimBody(
+        _ code: inout WasmCode, ctx: WasmModuleContext, argumentCount: Int,
+        trimStart: Bool = true, trimEnd: Bool = true
+    ) {
+        let data = argumentCount, len = argumentCount + 1
+        let i = argumentCount + 2, j = argumentCount + 3
+        emitLoadAt(&code, baseLocal: 0, byteOffset: 0)
+        code.localSet(data)
+        emitLoadAt(&code, baseLocal: 0, byteOffset: 16)
+        code.localSet(len)
+        code.i64Const(0)
+        code.localSet(i)
+        code.localGet(len)
+        code.localSet(j)
+        if trimStart {
+            code.openBlock()
+            code.openLoop()
+            code.localGet(i)
+            code.localGet(j)
+            code.op(WasmOpcode.i64GeU)
+            code.brIf(1)
+            emitByteAt(&code, dataLocal: data, indexLocal: i)
+            code.i64Const(0x20)
+            code.op(WasmOpcode.i64GtU)
+            code.brIf(1)
+            code.localGet(i)
+            code.i64Const(1)
+            code.op(WasmOpcode.i64Add)
+            code.localSet(i)
+            code.br(0)
+            code.end()
+            code.end()
+        }
+        if trimEnd {
+            code.openBlock()
+            code.openLoop()
+            code.localGet(j)
+            code.localGet(i)
+            code.op(WasmOpcode.i64LeU)
+            code.brIf(1)
+            code.localGet(j)
+            code.i64Const(1)
+            code.op(WasmOpcode.i64Sub)
+            code.localSet(j)
+            emitByteAt(&code, dataLocal: data, indexLocal: j)
+            code.i64Const(0x20)
+            code.op(WasmOpcode.i64GtU)
+            code.openIf()
+            code.localGet(j)
+            code.i64Const(1)
+            code.op(WasmOpcode.i64Add)
+            code.localSet(j)
+            code.br(2)
+            code.end()
+            code.br(0)
+            code.end()
+            code.end()
+        }
+        code.localGet(0)
+        code.localGet(i)
+        code.localGet(j)
+        code.call(ctx.emittedHelperIndex(for: "__kk_wasm_string_substring_to", argumentCount: 3))
+    }
+
+    /// `(s, needle|char, startIndex, ignoreCase[, mask]) -> Int`: naive byte
+    /// scan. `charNeedle` encodes the Char argument into a scratch buffer so
+    /// the search loops stay shared. Locals (argc base): sd, sl, nd, nl, i,
+    /// j, a, res.
+    private static func emitStringIndexOfBody(
+        _ code: inout WasmCode,
+        ctx: WasmModuleContext,
+        argumentCount: Int,
+        charNeedle: Bool
+    ) {
+        let base = argumentCount
+        let sd = base, sl = base + 1, nd = base + 2, nl = base + 3
+        let i = base + 4, j = base + 5, a = base + 6, b = base + 7, res = base + 8
+        emitLoadAt(&code, baseLocal: 0, byteOffset: 0)
+        code.localSet(sd)
+        emitLoadAt(&code, baseLocal: 0, byteOffset: 16)
+        code.localSet(sl)
+        if charNeedle {
+            code.i64Const(4)
+            code.call(ctx.emittedHelperIndex(for: "$__kk_wasm_alloc", argumentCount: 1))
+            code.localSet(nd)
+            emitCharToUtf8(&code, charLocal: 1, bufLocal: nd, lenLocal: nl)
+        } else {
+            emitLoadAt(&code, baseLocal: 1, byteOffset: 0)
+            code.localSet(nd)
+            emitLoadAt(&code, baseLocal: 1, byteOffset: 16)
+            code.localSet(nl)
+        }
+        // Clamp startIndex to [0, sl] (JVM semantics).
+        code.localGet(2)
+        code.i64Const(0)
+        code.op(WasmOpcode.i64LtS)
+        code.openIf()
+        code.i64Const(0)
+        code.localSet(2)
+        code.end()
+        code.i64Const(-1)
+        code.localSet(res)
+        code.localGet(2)
+        code.localSet(i)
+        code.openBlock()
+        code.openLoop()
+        // i > sl - nl → not found
+        code.localGet(i)
+        code.localGet(sl)
+        code.localGet(nl)
+        code.op(WasmOpcode.i64Sub)
+        code.op(WasmOpcode.i64GtS)
+        code.brIf(1)
+        code.i64Const(0)
+        code.localSet(j)
+        code.openBlock()
+        code.openLoop()
+        code.localGet(j)
+        code.localGet(nl)
+        code.op(WasmOpcode.i64GeU)
+        code.openIf()
+        code.localGet(i)
+        code.localSet(res)
+        code.br(4) // matched → leave function-level block
+        code.end()
+        // a = sd[i+j]; b = byte pushed for compare (reuse j-local space via a)
+        code.localGet(i)
+        code.localGet(j)
+        code.op(WasmOpcode.i64Add)
+        code.localSet(a)
+        emitByteAt(&code, dataLocal: sd, indexLocal: a)
+        code.localSet(a)
+        emitByteAt(&code, dataLocal: nd, indexLocal: j)
+        code.localSet(b)
+        // ignoreCase → fold both to lowercase
+        code.localGet(3)
+        code.i64Truthy()
+        code.openIf()
+        emitFoldAsciiLower(&code, local: a)
+        emitFoldAsciiLower(&code, local: b)
+        code.end()
+        code.localGet(a)
+        code.localGet(b)
+        code.op(WasmOpcode.i64Ne)
+        code.openIf()
+        code.br(2) // mismatch → end of inner block → i++
+        code.end()
+        code.localGet(j)
+        code.i64Const(1)
+        code.op(WasmOpcode.i64Add)
+        code.localSet(j)
+        code.br(0)
+        code.end()
+        code.end()
+        code.localGet(i)
+        code.i64Const(1)
+        code.op(WasmOpcode.i64Add)
+        code.localSet(i)
+        code.br(0)
+        code.end()
+        code.end()
+        code.localGet(res)
+    }
+
+    /// `(s, needle|char, [startIndex,] ignoreCase[, mask]) -> Int`: backward
+    /// byte scan. `hasStart` selects the parameter layout — the no-start
+    /// overloads and their `$default` shims put ignoreCase at index 2.
+    /// Locals (argc base): sd, sl, nd, nl, i, j, a, b.
+    private static func emitStringLastIndexOfBody(
+        _ code: inout WasmCode,
+        ctx: WasmModuleContext,
+        argumentCount: Int,
+        hasStart: Bool,
+        charNeedle: Bool
+    ) {
+        let base = argumentCount
+        let sd = base, sl = base + 1, nd = base + 2, nl = base + 3
+        let i = base + 4, j = base + 5, a = base + 6, b = base + 7
+        let res = base + 8
+        let icParam = hasStart ? 3 : 2
+        emitLoadAt(&code, baseLocal: 0, byteOffset: 0)
+        code.localSet(sd)
+        emitLoadAt(&code, baseLocal: 0, byteOffset: 16)
+        code.localSet(sl)
+        if charNeedle {
+            code.i64Const(4)
+            code.call(ctx.emittedHelperIndex(for: "$__kk_wasm_alloc", argumentCount: 1))
+            code.localSet(nd)
+            emitCharToUtf8(&code, charLocal: 1, bufLocal: nd, lenLocal: nl)
+        } else {
+            emitLoadAt(&code, baseLocal: 1, byteOffset: 0)
+            code.localSet(nd)
+            emitLoadAt(&code, baseLocal: 1, byteOffset: 16)
+            code.localSet(nl)
+        }
+        // i = min(startIndex | sl - 1, sl - nl); i < 0 → -1.
+        code.localGet(sl)
+        code.localGet(nl)
+        code.op(WasmOpcode.i64Sub)
+        code.localSet(i)
+        if hasStart {
+            code.localGet(2)
+            code.i64Const(0)
+            code.op(WasmOpcode.i64LtS)
+            code.openIf()
+            code.i64Const(-1)
+            code.op(WasmOpcode.return)
+            code.end()
+            code.localGet(2)
+            code.localGet(i)
+            code.op(WasmOpcode.i64LtS)
+            code.openIf()
+            code.localGet(2)
+            code.localSet(i)
+            code.end()
+        }
+        code.localGet(i)
+        code.i64Const(0)
+        code.op(WasmOpcode.i64LtS)
+        code.openIf()
+        code.i64Const(-1)
+        code.op(WasmOpcode.return)
+        code.end()
+        code.i64Const(-1)
+        code.localSet(res)
+        code.openBlock()
+        code.openLoop()
+        code.localGet(i)
+        code.i64Const(0)
+        code.op(WasmOpcode.i64LtS)
+        code.brIf(1)
+        code.i64Const(0)
+        code.localSet(j)
+        code.openBlock()
+        code.openLoop()
+        code.localGet(j)
+        code.localGet(nl)
+        code.op(WasmOpcode.i64GeU)
+        code.openIf()
+        code.localGet(i)
+        code.localSet(res)
+        code.br(4) // matched → leave the scan block
+        code.end()
+        code.localGet(i)
+        code.localGet(j)
+        code.op(WasmOpcode.i64Add)
+        code.localSet(a)
+        emitByteAt(&code, dataLocal: sd, indexLocal: a)
+        code.localSet(a)
+        emitByteAt(&code, dataLocal: nd, indexLocal: j)
+        code.localSet(b)
+        code.localGet(icParam)
+        code.i64Truthy()
+        code.openIf()
+        emitFoldAsciiLower(&code, local: a)
+        emitFoldAsciiLower(&code, local: b)
+        code.end()
+        code.localGet(a)
+        code.localGet(b)
+        code.op(WasmOpcode.i64Ne)
+        code.openIf()
+        code.br(2) // mismatch → end of inner block → i--
+        code.end()
+        code.localGet(j)
+        code.i64Const(1)
+        code.op(WasmOpcode.i64Add)
+        code.localSet(j)
+        code.br(0)
+        code.end()
+        code.end()
+        code.localGet(i)
+        code.i64Const(1)
+        code.op(WasmOpcode.i64Sub)
+        code.localSet(i)
+        code.br(0)
+        code.end()
+        code.end()
+        code.localGet(res)
+    }
+
+    /// `(s, needle[, ic]) -> Boolean` / char variants — delegates to
+    /// `__kk_wasm_string_index_of*` and compares `>= 0`.
+    private static func emitStringContainsBody(_ code: inout WasmCode, ctx: WasmModuleContext, name: String) {
+        let charNeedle = name.contains("_char")
+        code.localGet(0)
+        code.localGet(1)
+        code.i64Const(0)
+        if name.hasSuffix("_ic") {
+            code.localGet(2)
+        } else {
+            code.i64Const(0)
+        }
+        code.call(ctx.emittedHelperIndex(
+            for: charNeedle ? "__kk_wasm_string_index_of_char" : "__kk_wasm_string_index_of",
+            argumentCount: 4
+        ))
+        code.i64Const(0)
+        code.op(WasmOpcode.i64GeS)
+        code.i64ExtendFromComparison()
+    }
+
+    /// Prefix/suffix compare. `name` selects the shape:
+    /// - `*_starts_with`  : (s, prefix, ic) — optional mask
+    /// - `*_starts_with_at` : (s, prefix, start, ic) — optional mask
+    /// - `*_ends_with`    : (s, suffix, ic) — optional mask
+    /// - `*_ends_with_char` / `*_starts_with_char` : (s, ch, ic)
+    /// Locals (argc base): sd, sl, nd, nl, base, i, a, res.
+    private static func emitStringPrefixSuffixBody(
+        _ code: inout WasmCode,
+        ctx: WasmModuleContext,
+        argumentCount: Int,
+        name: String
+    ) {
+        let isSuffix = name.contains("ends_with")
+        let charNeedle = name.hasSuffix("_char")
+        let hasStart = name.hasSuffix("_at")
+        let icParam = hasStart ? 3 : 2
+        let startParam = hasStart ? 2 : -1
+        let base = argumentCount
+        let sd = base, sl = base + 1, nd = base + 2, nl = base + 3
+        let at = base + 4, i = base + 5, a = base + 6, b = base + 7, res = base + 8
+        emitLoadAt(&code, baseLocal: 0, byteOffset: 0)
+        code.localSet(sd)
+        emitLoadAt(&code, baseLocal: 0, byteOffset: 16)
+        code.localSet(sl)
+        if charNeedle {
+            code.i64Const(4)
+            code.call(ctx.emittedHelperIndex(for: "$__kk_wasm_alloc", argumentCount: 1))
+            code.localSet(nd)
+            emitCharToUtf8(&code, charLocal: 1, bufLocal: nd, lenLocal: nl)
+        } else {
+            emitLoadAt(&code, baseLocal: 1, byteOffset: 0)
+            code.localSet(nd)
+            emitLoadAt(&code, baseLocal: 1, byteOffset: 16)
+            code.localSet(nl)
+        }
+        // base offset: suffix → sl - nl; prefix with start → arg; else 0.
+        if isSuffix {
+            code.localGet(sl)
+            code.localGet(nl)
+            code.op(WasmOpcode.i64Sub)
+        } else if hasStart {
+            code.localGet(startParam)
+        } else {
+            code.i64Const(0)
+        }
+        code.localSet(at)
+        // base < 0 || base + nl > sl → false
+        code.localGet(at)
+        code.i64Const(0)
+        code.op(WasmOpcode.i64LtS)
+        code.localGet(at)
+        code.localGet(nl)
+        code.op(WasmOpcode.i64Add)
+        code.localGet(sl)
+        code.op(WasmOpcode.i64GtS)
+        code.op(WasmOpcode.i32Or)
+        code.openIf()
+        code.i64Const(0)
+        code.op(WasmOpcode.return)
+        code.end()
+        code.i64Const(0)
+        code.localSet(res)
+        code.i64Const(0)
+        code.localSet(i)
+        code.openBlock()
+        code.openLoop()
+        code.localGet(i)
+        code.localGet(nl)
+        code.op(WasmOpcode.i64GeU)
+        code.openIf()
+        code.i64Const(1)
+        code.localSet(res)
+        code.br(2) // all bytes matched → leave the scan block
+        code.end()
+        code.localGet(at)
+        code.localGet(i)
+        code.op(WasmOpcode.i64Add)
+        code.localSet(a)
+        emitByteAt(&code, dataLocal: sd, indexLocal: a)
+        code.localSet(a)
+        emitByteAt(&code, dataLocal: nd, indexLocal: i)
+        code.localSet(b)
+        code.localGet(icParam)
+        code.i64Truthy()
+        code.openIf()
+        emitFoldAsciiLower(&code, local: a)
+        emitFoldAsciiLower(&code, local: b)
+        code.end()
+        code.localGet(a)
+        code.localGet(b)
+        code.op(WasmOpcode.i64Ne)
+        code.openIf()
+        code.i64Const(0)
+        code.localSet(res)
+        code.br(2) // mismatch → leave the scan block with false
+        code.end()
+        code.localGet(i)
+        code.i64Const(1)
+        code.op(WasmOpcode.i64Add)
+        code.localSet(i)
+        code.br(0)
+        code.end()
+        code.end()
+        code.localGet(res)
+    }
+
+    /// `(s, old, new, ic[, mask]) -> String`: two-pass byte replace. An empty
+    /// `old` needle inserts `new` around every byte (JVM parity).
+    /// `charNeedles` encodes Char params into 4-byte scratch buffers instead
+    /// of loading String fields (`String.replace(Char, Char, …)`).
+    /// Locals: sd,sl,od,ol,nd,nl,buf,i,w,cnt,j,a,nb,resLen,cl (argc base).
+    private static func emitStringReplaceBody(
+        _ code: inout WasmCode, ctx: WasmModuleContext, argumentCount: Int,
+        charNeedles: Bool = false
+    ) {
+        let b = argumentCount
+        let sd = b, sl = b + 1, od = b + 2, ol = b + 3
+        let nd = b + 4, nl = b + 5, buf = b + 6, i = b + 7, w = b + 8
+        let cnt = b + 9, j = b + 10, a = b + 11, nb = b + 12, resLen = b + 13, cl = b + 14
+        emitLoadAt(&code, baseLocal: 0, byteOffset: 0)
+        code.localSet(sd)
+        emitLoadAt(&code, baseLocal: 0, byteOffset: 16)
+        code.localSet(sl)
+        if charNeedles {
+            code.i64Const(4)
+            code.call(ctx.emittedHelperIndex(for: "$__kk_wasm_alloc", argumentCount: 1))
+            code.localSet(od)
+            emitCharToUtf8(&code, charLocal: 1, bufLocal: od, lenLocal: ol)
+            code.i64Const(4)
+            code.call(ctx.emittedHelperIndex(for: "$__kk_wasm_alloc", argumentCount: 1))
+            code.localSet(nd)
+            emitCharToUtf8(&code, charLocal: 2, bufLocal: nd, lenLocal: nl)
+        } else {
+            emitLoadAt(&code, baseLocal: 1, byteOffset: 0)
+            code.localSet(od)
+            emitLoadAt(&code, baseLocal: 1, byteOffset: 16)
+            code.localSet(ol)
+            emitLoadAt(&code, baseLocal: 2, byteOffset: 0)
+            code.localSet(nd)
+            emitLoadAt(&code, baseLocal: 2, byteOffset: 16)
+            code.localSet(nl)
+        }
+        // Pass 1 — count matches.
+        code.i64Const(0)
+        code.localSet(cnt)
+        code.i64Const(0)
+        code.localSet(i)
+        code.openBlock()
+        code.openLoop()
+        code.localGet(i)
+        code.localGet(sl)
+        code.localGet(ol)
+        code.op(WasmOpcode.i64Sub)
+        code.op(WasmOpcode.i64GtS)
+        code.brIf(1)
+        emitReplaceMatchAt(&code, sd: sd, od: od, ol: ol, i: i, j: j, a: a, b: nb, icParam: 3)
+        code.openIf()
+        code.localGet(cnt)
+        code.i64Const(1)
+        code.op(WasmOpcode.i64Add)
+        code.localSet(cnt)
+        // i += max(ol, 1)
+        code.localGet(i)
+        code.localGet(ol)
+        code.i64Const(1)
+        code.op(WasmOpcode.i64GtS)
+        code.openIf(result: .i64)
+        code.localGet(ol)
+        code.elseBranch()
+        code.i64Const(1)
+        code.end()
+        code.op(WasmOpcode.i64Add)
+        code.localSet(i)
+        code.elseBranch()
+        code.localGet(i)
+        code.i64Const(1)
+        code.op(WasmOpcode.i64Add)
+        code.localSet(i)
+        code.end()
+        code.br(0)
+        code.end()
+        code.end()
+        // resLen = sl + cnt * (nl - ol); buf = alloc(resLen)
+        code.localGet(sl)
+        code.localGet(cnt)
+        code.localGet(nl)
+        code.localGet(ol)
+        code.op(WasmOpcode.i64Sub)
+        code.op(WasmOpcode.i64Mul)
+        code.op(WasmOpcode.i64Add)
+        code.localSet(resLen)
+        code.localGet(resLen)
+        code.call(ctx.emittedHelperIndex(for: "$__kk_wasm_alloc", argumentCount: 1))
+        code.localSet(buf)
+        // Pass 2 — copy with substitution.
+        code.i64Const(0)
+        code.localSet(i)
+        code.i64Const(0)
+        code.localSet(w)
+        code.openBlock()
+        code.openLoop()
+        code.localGet(i)
+        code.localGet(sl)
+        code.localGet(ol)
+        code.op(WasmOpcode.i64Sub)
+        code.op(WasmOpcode.i64GtS)
+        code.brIf(1)
+        emitReplaceMatchAt(&code, sd: sd, od: od, ol: ol, i: i, j: j, a: a, b: nb, icParam: 3)
+        code.openIf()
+        // copy nl bytes nd → buf+w
+        code.i64Const(0)
+        code.localSet(j)
+        code.openBlock()
+        code.openLoop()
+        code.localGet(j)
+        code.localGet(nl)
+        code.op(WasmOpcode.i64GeU)
+        code.brIf(1)
+        emitByteAt(&code, dataLocal: nd, indexLocal: j)
+        code.localSet(a)
+        emitByteStore(&code, bufLocal: buf, indexLocal: w, valueLocal: a)
+        code.localGet(w)
+        code.i64Const(1)
+        code.op(WasmOpcode.i64Add)
+        code.localSet(w)
+        code.localGet(j)
+        code.i64Const(1)
+        code.op(WasmOpcode.i64Add)
+        code.localSet(j)
+        code.br(0)
+        code.end()
+        code.end()
+        // ol == 0 → also copy the current source byte before advancing
+        // (but not at i == sl, which is the terminal empty-needle match).
+        code.localGet(ol)
+        code.op(WasmOpcode.i64Eqz)
+        code.localGet(i)
+        code.localGet(sl)
+        code.op(WasmOpcode.i64LtU)
+        code.op(WasmOpcode.i32And)
+        code.openIf()
+        emitByteAt(&code, dataLocal: sd, indexLocal: i)
+        code.localSet(a)
+        emitByteStore(&code, bufLocal: buf, indexLocal: w, valueLocal: a)
+        code.localGet(w)
+        code.i64Const(1)
+        code.op(WasmOpcode.i64Add)
+        code.localSet(w)
+        code.end()
+        code.localGet(i)
+        code.localGet(ol)
+        code.i64Const(1)
+        code.op(WasmOpcode.i64GtS)
+        code.openIf(result: .i64)
+        code.localGet(ol)
+        code.elseBranch()
+        code.i64Const(1)
+        code.end()
+        code.op(WasmOpcode.i64Add)
+        code.localSet(i)
+        code.elseBranch()
+        emitByteAt(&code, dataLocal: sd, indexLocal: i)
+        code.localSet(a)
+        emitByteStore(&code, bufLocal: buf, indexLocal: w, valueLocal: a)
+        code.localGet(w)
+        code.i64Const(1)
+        code.op(WasmOpcode.i64Add)
+        code.localSet(w)
+        code.localGet(i)
+        code.i64Const(1)
+        code.op(WasmOpcode.i64Add)
+        code.localSet(i)
+        code.end()
+        code.br(0)
+        code.end()
+        code.end()
+        // Copy the tail (bytes i..sl).
+        code.openBlock()
+        code.openLoop()
+        code.localGet(i)
+        code.localGet(sl)
+        code.op(WasmOpcode.i64GeU)
+        code.brIf(1)
+        emitByteAt(&code, dataLocal: sd, indexLocal: i)
+        code.localSet(a)
+        emitByteStore(&code, bufLocal: buf, indexLocal: w, valueLocal: a)
+        code.localGet(w)
+        code.i64Const(1)
+        code.op(WasmOpcode.i64Add)
+        code.localSet(w)
+        code.localGet(i)
+        code.i64Const(1)
+        code.op(WasmOpcode.i64Add)
+        code.localSet(i)
+        code.br(0)
+        code.end()
+        code.end()
+        // charLen = charLen(s) + cnt * (charLen(new) - charLen(old));
+        // Char needles count UTF-16 units from the raw codepoint instead.
+        emitLoadAt(&code, baseLocal: 0, byteOffset: 8)
+        code.localGet(cnt)
+        if charNeedles {
+            code.localGet(2)
+            code.i64Const(0x1_0000)
+            code.op(WasmOpcode.i64GeU)
+            code.openIf(result: .i64)
+            code.i64Const(2)
+            code.elseBranch()
+            code.i64Const(1)
+            code.end()
+            code.localGet(1)
+            code.i64Const(0x1_0000)
+            code.op(WasmOpcode.i64GeU)
+            code.openIf(result: .i64)
+            code.i64Const(2)
+            code.elseBranch()
+            code.i64Const(1)
+            code.end()
+            code.op(WasmOpcode.i64Sub)
+        } else {
+            emitLoadAt(&code, baseLocal: 2, byteOffset: 8)
+            emitLoadAt(&code, baseLocal: 1, byteOffset: 8)
+            code.op(WasmOpcode.i64Sub)
+        }
+        code.op(WasmOpcode.i64Mul)
+        code.op(WasmOpcode.i64Add)
+        code.localSet(cl)
+        emitWrapString(&code, ctx: ctx, dataLocal: buf, charLenLocal: cl, byteLenLocal: resLen, scratchLocal: i)
+    }
+
+    /// `(s, needle|char, replacement|char, ignoreCase[, mask]) -> String`:
+    /// replace the FIRST match only — `indexOf` + single splice.
+    /// Locals (argc base): sd,sl,od,ol,nd,nl,idx,buf,i,j,w,resLen,cl,a
+    private static func emitStringReplaceFirstBody(
+        _ code: inout WasmCode,
+        ctx: WasmModuleContext,
+        argumentCount: Int,
+        charNeedles: Bool
+    ) {
+        let b = argumentCount
+        let sd = b, sl = b + 1, od = b + 2, ol = b + 3, nd = b + 4, nl = b + 5
+        let idx = b + 6, buf = b + 7, i = b + 8, j = b + 9, w = b + 10
+        let resLen = b + 11, cl = b + 12, a = b + 13
+        emitLoadAt(&code, baseLocal: 0, byteOffset: 0)
+        code.localSet(sd)
+        emitLoadAt(&code, baseLocal: 0, byteOffset: 16)
+        code.localSet(sl)
+        if charNeedles {
+            code.i64Const(4)
+            code.call(ctx.emittedHelperIndex(for: "$__kk_wasm_alloc", argumentCount: 1))
+            code.localSet(od)
+            emitCharToUtf8(&code, charLocal: 1, bufLocal: od, lenLocal: ol)
+            code.i64Const(4)
+            code.call(ctx.emittedHelperIndex(for: "$__kk_wasm_alloc", argumentCount: 1))
+            code.localSet(nd)
+            emitCharToUtf8(&code, charLocal: 2, bufLocal: nd, lenLocal: nl)
+        } else {
+            emitLoadAt(&code, baseLocal: 1, byteOffset: 0)
+            code.localSet(od)
+            emitLoadAt(&code, baseLocal: 1, byteOffset: 16)
+            code.localSet(ol)
+            emitLoadAt(&code, baseLocal: 2, byteOffset: 0)
+            code.localSet(nd)
+            emitLoadAt(&code, baseLocal: 2, byteOffset: 16)
+            code.localSet(nl)
+        }
+        // idx = indexOf(s, needle, 0, ignoreCase)
+        code.localGet(0)
+        code.localGet(1)
+        code.i64Const(0)
+        code.localGet(3)
+        code.call(ctx.emittedHelperIndex(
+            for: charNeedles ? "__kk_wasm_string_index_of_char" : "__kk_wasm_string_index_of",
+            argumentCount: 4
+        ))
+        code.localSet(idx)
+        // idx < 0 → no match → return the receiver unchanged.
+        code.localGet(idx)
+        code.i64Const(0)
+        code.op(WasmOpcode.i64LtS)
+        code.openIf()
+        code.localGet(0)
+        code.op(WasmOpcode.return)
+        code.end()
+        // resLen = sl - ol + nl; buf = alloc(resLen)
+        code.localGet(sl)
+        code.localGet(ol)
+        code.op(WasmOpcode.i64Sub)
+        code.localGet(nl)
+        code.op(WasmOpcode.i64Add)
+        code.localSet(resLen)
+        code.localGet(resLen)
+        code.call(ctx.emittedHelperIndex(for: "$__kk_wasm_alloc", argumentCount: 1))
+        code.localSet(buf)
+        // copy s[0..idx)
+        code.i64Const(0)
+        code.localSet(i)
+        code.openBlock()
+        code.openLoop()
+        code.localGet(i)
+        code.localGet(idx)
+        code.op(WasmOpcode.i64GeU)
+        code.brIf(1)
+        emitByteAt(&code, dataLocal: sd, indexLocal: i)
+        code.localSet(a)
+        emitByteStore(&code, bufLocal: buf, indexLocal: i, valueLocal: a)
+        code.localGet(i)
+        code.i64Const(1)
+        code.op(WasmOpcode.i64Add)
+        code.localSet(i)
+        code.br(0)
+        code.end()
+        code.end()
+        // copy nd[0..nl) → buf[idx + j)
+        code.localGet(idx)
+        code.localSet(w)
+        code.i64Const(0)
+        code.localSet(j)
+        code.openBlock()
+        code.openLoop()
+        code.localGet(j)
+        code.localGet(nl)
+        code.op(WasmOpcode.i64GeU)
+        code.brIf(1)
+        emitByteAt(&code, dataLocal: nd, indexLocal: j)
+        code.localSet(a)
+        emitByteStore(&code, bufLocal: buf, indexLocal: w, valueLocal: a)
+        code.localGet(w)
+        code.i64Const(1)
+        code.op(WasmOpcode.i64Add)
+        code.localSet(w)
+        code.localGet(j)
+        code.i64Const(1)
+        code.op(WasmOpcode.i64Add)
+        code.localSet(j)
+        code.br(0)
+        code.end()
+        code.end()
+        // copy s[idx+ol..sl) → buf[idx+nl..)
+        code.localGet(idx)
+        code.localGet(ol)
+        code.op(WasmOpcode.i64Add)
+        code.localSet(i)
+        code.openBlock()
+        code.openLoop()
+        code.localGet(i)
+        code.localGet(sl)
+        code.op(WasmOpcode.i64GeU)
+        code.brIf(1)
+        emitByteAt(&code, dataLocal: sd, indexLocal: i)
+        code.localSet(a)
+        emitByteStore(&code, bufLocal: buf, indexLocal: w, valueLocal: a)
+        code.localGet(w)
+        code.i64Const(1)
+        code.op(WasmOpcode.i64Add)
+        code.localSet(w)
+        code.localGet(i)
+        code.i64Const(1)
+        code.op(WasmOpcode.i64Add)
+        code.localSet(i)
+        code.br(0)
+        code.end()
+        code.end()
+        // charLen = charLen(s) - charLen(old) + charLen(new)
+        emitLoadAt(&code, baseLocal: 0, byteOffset: 8)
+        if charNeedles {
+            code.localGet(1)
+            code.i64Const(0x1_0000)
+            code.op(WasmOpcode.i64GeU)
+            code.openIf(result: .i64)
+            code.i64Const(2)
+            code.elseBranch()
+            code.i64Const(1)
+            code.end()
+            code.op(WasmOpcode.i64Sub)
+            code.localGet(2)
+            code.i64Const(0x1_0000)
+            code.op(WasmOpcode.i64GeU)
+            code.openIf(result: .i64)
+            code.i64Const(2)
+            code.elseBranch()
+            code.i64Const(1)
+            code.end()
+            code.op(WasmOpcode.i64Add)
+        } else {
+            emitLoadAt(&code, baseLocal: 1, byteOffset: 8)
+            code.op(WasmOpcode.i64Sub)
+            emitLoadAt(&code, baseLocal: 2, byteOffset: 8)
+            code.op(WasmOpcode.i64Add)
+        }
+        code.localSet(cl)
+        emitWrapString(&code, ctx: ctx, dataLocal: buf, charLenLocal: cl, byteLenLocal: resLen, scratchLocal: i)
+    }
+
+    /// `(s, delim) -> List<String>`: byte-scan split into an ArrayList box.
+    /// An empty delimiter returns a single-element list (interim — Kotlin
+    /// splits between every char). Locals: sd,sl,dd,dl,list,i,seg,j,a
+    /// (argc base).
+    private static func emitStringSplitBody(
+        _ code: inout WasmCode, ctx: WasmModuleContext, argumentCount: Int
+    ) {
+        let b = argumentCount
+        let sd = b, sl = b + 1, dd = b + 2, dl = b + 3
+        let list = b + 4, i = b + 5, seg = b + 6, j = b + 7, a = b + 8
+        emitLoadAt(&code, baseLocal: 0, byteOffset: 0)
+        code.localSet(sd)
+        emitLoadAt(&code, baseLocal: 0, byteOffset: 16)
+        code.localSet(sl)
+        emitLoadAt(&code, baseLocal: 1, byteOffset: 0)
+        code.localSet(dd)
+        emitLoadAt(&code, baseLocal: 1, byteOffset: 16)
+        code.localSet(dl)
+        code.i64Const(0)
+        code.call(ctx.emittedHelperIndex(for: "kk_array_new", argumentCount: 1))
+        code.i64Const(0)
+        code.call(ctx.emittedHelperIndex(for: "__kk_array_list_of", argumentCount: 2))
+        code.localSet(list)
+        code.i64Const(0)
+        code.localSet(i)
+        code.i64Const(0)
+        code.localSet(seg)
+        // Empty delimiter → one element per byte (JVM `split("")` parity);
+        // otherwise the scan below never advances.
+        code.localGet(dl)
+        code.op(WasmOpcode.i64Eqz)
+        code.openIf()
+        code.openBlock()
+        code.openLoop()
+        code.localGet(i)
+        code.localGet(sl)
+        code.op(WasmOpcode.i64GeU)
+        code.brIf(1)
+        code.localGet(0)
+        code.localGet(i)
+        code.localGet(i)
+        code.i64Const(1)
+        code.op(WasmOpcode.i64Add)
+        code.call(ctx.emittedHelperIndex(for: "__kk_wasm_string_substring_to", argumentCount: 3))
+        code.localSet(a)
+        code.localGet(list)
+        code.localGet(a)
+        code.call(ctx.emittedHelperIndex(for: "__kk_mutable_list_add", argumentCount: 2))
+        code.op(WasmOpcode.drop)
+        code.localGet(i)
+        code.i64Const(1)
+        code.op(WasmOpcode.i64Add)
+        code.localSet(i)
+        code.br(0)
+        code.end()
+        code.end()
+        code.localGet(list)
+        code.op(WasmOpcode.return)
+        code.end()
+        code.openBlock()
+        code.openLoop()
+        code.localGet(i)
+        code.localGet(sl)
+        code.localGet(dl)
+        code.op(WasmOpcode.i64Sub)
+        code.op(WasmOpcode.i64GtS)
+        code.brIf(1)
+        // match check at i (case-sensitive; j/a scratch)
+        code.i64Const(0)
+        code.localSet(j)
+        code.openBlock()
+        code.openLoop()
+        code.localGet(j)
+        code.localGet(dl)
+        code.op(WasmOpcode.i64GeU)
+        code.openIf()
+        // matched → add substring(s, seg, i), seg = i += dl
+        code.localGet(0)
+        code.localGet(seg)
+        code.localGet(i)
+        code.call(ctx.emittedHelperIndex(for: "__kk_wasm_string_substring_to", argumentCount: 3))
+        code.localSet(a)
+        code.localGet(list)
+        code.localGet(a)
+        code.call(ctx.emittedHelperIndex(for: "__kk_mutable_list_add", argumentCount: 2))
+        code.op(WasmOpcode.drop)
+        code.localGet(i)
+        code.localGet(dl)
+        code.op(WasmOpcode.i64Add)
+        code.localSet(i)
+        code.localGet(i)
+        code.localSet(seg)
+        code.br(3) // restart the outer scan from the advanced position
+        code.end()
+        code.localGet(i)
+        code.localGet(j)
+        code.op(WasmOpcode.i64Add)
+        code.localSet(a)
+        emitByteAt(&code, dataLocal: sd, indexLocal: a)
+        code.localSet(a)
+        emitByteAt(&code, dataLocal: dd, indexLocal: j)
+        code.localGet(a)
+        code.op(WasmOpcode.i64Ne)
+        code.openIf()
+        code.br(2) // mismatch → i++
+        code.end()
+        code.localGet(j)
+        code.i64Const(1)
+        code.op(WasmOpcode.i64Add)
+        code.localSet(j)
+        code.br(0)
+        code.end()
+        code.end()
+        code.localGet(i)
+        code.i64Const(1)
+        code.op(WasmOpcode.i64Add)
+        code.localSet(i)
+        code.br(0)
+        code.end()
+        code.end()
+        // Trailing piece substring(s, seg, sl) — including the empty tail.
+        code.localGet(0)
+        code.localGet(seg)
+        code.localGet(sl)
+        code.call(ctx.emittedHelperIndex(for: "__kk_wasm_string_substring_to", argumentCount: 3))
+        code.localSet(a)
+        code.localGet(list)
+        code.localGet(a)
+        code.call(ctx.emittedHelperIndex(for: "__kk_mutable_list_add", argumentCount: 2))
+        code.op(WasmOpcode.drop)
+        code.localGet(list)
+    }
+
+    /// `(s) -> Boolean`: byteLen == 0 (`isEmpty`), all bytes <= 0x20
+    /// (`isBlank`), and the `negate` variants (`isNotEmpty`/`isNotBlank`).
+    /// Locals (argc base): data, len, i.
+    private static func emitStringIsEmptyOrBlankBody(
+        _ code: inout WasmCode, blank: Bool, negate: Bool, argumentCount: Int
+    ) {
+        let data = argumentCount, len = argumentCount + 1, i = argumentCount + 2
+        if !blank {
+            emitLoadAt(&code, baseLocal: 0, byteOffset: 16)
+            code.op(WasmOpcode.i64Eqz)
+            code.i64ExtendFromComparison()
+        } else {
+            emitLoadAt(&code, baseLocal: 0, byteOffset: 0)
+            code.localSet(data)
+            emitLoadAt(&code, baseLocal: 0, byteOffset: 16)
+            code.localSet(len)
+            code.i64Const(0)
+            code.localSet(i)
+            code.openBlock(result: .i64)
+            code.openLoop()
+            code.localGet(i)
+            code.localGet(len)
+            code.op(WasmOpcode.i64GeU)
+            code.openIf()
+            code.i64Const(1)
+            code.br(2) // every byte was whitespace → blank
+            code.end()
+            emitByteAt(&code, dataLocal: data, indexLocal: i)
+            code.i64Const(0x20)
+            code.op(WasmOpcode.i64GtU)
+            code.openIf()
+            code.i64Const(0)
+            code.br(2) // non-whitespace byte → not blank
+            code.end()
+            code.localGet(i)
+            code.i64Const(1)
+            code.op(WasmOpcode.i64Add)
+            code.localSet(i)
+            code.br(0)
+            code.end()
+            // Dead push: the loop never falls through, but the validator
+            // still expects the i64 block result after `end`.
+            code.i64Const(0)
+            code.end()
+        }
+        if negate {
+            code.i64Const(1)
+            code.op(WasmOpcode.i64Xor)
+        }
+    }
+
+    /// `(s) -> String`: reverse the byte payload into a fresh buffer.
+    /// Locals (argc base): data, len, buf, i, cl, src, c.
+    private static func emitStringReversedBody(
+        _ code: inout WasmCode, ctx: WasmModuleContext, argumentCount: Int
+    ) {
+        let data = argumentCount, len = argumentCount + 1, buf = argumentCount + 2
+        let i = argumentCount + 3, cl = argumentCount + 4
+        let src = argumentCount + 5, c = argumentCount + 6
+        emitLoadAt(&code, baseLocal: 0, byteOffset: 0)
+        code.localSet(data)
+        emitLoadAt(&code, baseLocal: 0, byteOffset: 16)
+        code.localSet(len)
+        emitLoadAt(&code, baseLocal: 0, byteOffset: 8)
+        code.localSet(cl)
+        code.localGet(len)
+        code.call(ctx.emittedHelperIndex(for: "$__kk_wasm_alloc", argumentCount: 1))
+        code.localSet(buf)
+        code.i64Const(0)
+        code.localSet(i)
+        code.openBlock()
+        code.openLoop()
+        code.localGet(i)
+        code.localGet(len)
+        code.op(WasmOpcode.i64GeU)
+        code.brIf(1)
+        // buf[i] = data[len - 1 - i]
+        code.localGet(len)
+        code.i64Const(1)
+        code.op(WasmOpcode.i64Sub)
+        code.localGet(i)
+        code.op(WasmOpcode.i64Sub)
+        code.localSet(src)
+        emitByteAt(&code, dataLocal: data, indexLocal: src)
+        code.localSet(c)
+        emitByteStore(&code, bufLocal: buf, indexLocal: i, valueLocal: c)
+        code.localGet(i)
+        code.i64Const(1)
+        code.op(WasmOpcode.i64Add)
+        code.localSet(i)
+        code.br(0)
+        code.end()
+        code.end()
+        emitWrapString(&code, ctx: ctx, dataLocal: buf, charLenLocal: cl, byteLenLocal: len, scratchLocal: data)
+    }
+
+    /// `(c) -> c`: ASCII Char fold (a-z ↔ A-Z), everything else passthrough.
+    private static func emitCharCaseBody(_ code: inout WasmCode, upper: Bool) {
+        code.localGet(0)
+        code.i64Const(upper ? 97 : 65)
+        code.op(WasmOpcode.i64GeU)
+        code.localGet(0)
+        code.i64Const(upper ? 122 : 90)
+        code.op(WasmOpcode.i64LeU)
+        code.op(WasmOpcode.i32And)
+        code.openIf(result: .i64)
+        code.localGet(0)
+        code.i64Const(32)
+        code.op(upper ? WasmOpcode.i64Sub : WasmOpcode.i64Add)
+        code.elseBranch()
+        code.localGet(0)
+        code.end()
+    }
+
+    /// `(c) -> String`: fold a Char and encode it as a one-char flat string —
+    /// backs `Char.uppercase()`/`lowercase()`/`titlecase()` which return
+    /// String. Locals (argc base): c, buf, byteLen, charLen, obj.
+    private static func emitCharToStringCaseBody(
+        _ code: inout WasmCode, ctx: WasmModuleContext, argumentCount: Int, upper: Bool
+    ) {
+        let c = argumentCount, buf = argumentCount + 1
+        let len = argumentCount + 2, cl = argumentCount + 3, obj = argumentCount + 4
+        code.localGet(0)
+        code.i64Const(upper ? 97 : 65)
+        code.op(WasmOpcode.i64GeU)
+        code.localGet(0)
+        code.i64Const(upper ? 122 : 90)
+        code.op(WasmOpcode.i64LeU)
+        code.op(WasmOpcode.i32And)
+        code.openIf(result: .i64)
+        code.localGet(0)
+        code.i64Const(32)
+        code.op(upper ? WasmOpcode.i64Sub : WasmOpcode.i64Add)
+        code.elseBranch()
+        code.localGet(0)
+        code.end()
+        code.localSet(c)
+        code.i64Const(4)
+        code.call(ctx.emittedHelperIndex(for: "$__kk_wasm_alloc", argumentCount: 1))
+        code.localSet(buf)
+        emitCharToUtf8(&code, charLocal: c, bufLocal: buf, lenLocal: len)
+        code.i64Const(1)
+        code.localSet(cl)
+        emitWrapString(&code, ctx: ctx, dataLocal: buf, charLenLocal: cl, byteLenLocal: len, scratchLocal: obj)
+    }
+
+    /// `(s) -> String`: fold the first byte (upper for capitalize, lower for
+    /// decapitalize), copy the rest. Empty input returns the input box.
+    /// Locals (argc base): data, len, buf, i, c, cl.
+    private static func emitStringCapitalizeBody(
+        _ code: inout WasmCode, ctx: WasmModuleContext, argumentCount: Int, upper: Bool
+    ) {
+        let data = argumentCount, len = argumentCount + 1, buf = argumentCount + 2
+        let i = argumentCount + 3, c = argumentCount + 4, cl = argumentCount + 5
+        emitLoadAt(&code, baseLocal: 0, byteOffset: 16)
+        code.localSet(len)
+        code.localGet(len)
+        code.op(WasmOpcode.i64Eqz)
+        code.openIf()
+        code.localGet(0)
+        code.op(WasmOpcode.return)
+        code.end()
+        emitLoadAt(&code, baseLocal: 0, byteOffset: 0)
+        code.localSet(data)
+        emitLoadAt(&code, baseLocal: 0, byteOffset: 8)
+        code.localSet(cl)
+        code.localGet(len)
+        code.call(ctx.emittedHelperIndex(for: "$__kk_wasm_alloc", argumentCount: 1))
+        code.localSet(buf)
+        code.i64Const(0)
+        code.localSet(i)
+        code.openBlock()
+        code.openLoop()
+        code.localGet(i)
+        code.localGet(len)
+        code.op(WasmOpcode.i64GeU)
+        code.brIf(1)
+        emitByteAt(&code, dataLocal: data, indexLocal: i)
+        code.localSet(c)
+        code.localGet(i)
+        code.op(WasmOpcode.i64Eqz)
+        code.openIf()
+        code.localGet(c)
+        code.i64Const(upper ? 97 : 65)
+        code.op(WasmOpcode.i64GeU)
+        code.localGet(c)
+        code.i64Const(upper ? 122 : 90)
+        code.op(WasmOpcode.i64LeU)
+        code.op(WasmOpcode.i32And)
+        code.openIf()
+        code.localGet(c)
+        code.i64Const(32)
+        code.op(upper ? WasmOpcode.i64Sub : WasmOpcode.i64Add)
+        code.localSet(c)
+        code.end()
+        code.end()
+        emitByteStore(&code, bufLocal: buf, indexLocal: i, valueLocal: c)
+        code.localGet(i)
+        code.i64Const(1)
+        code.op(WasmOpcode.i64Add)
+        code.localSet(i)
+        code.br(0)
+        code.end()
+        code.end()
+        emitWrapString(&code, ctx: ctx, dataLocal: buf, charLenLocal: cl, byteLenLocal: len, scratchLocal: c)
+    }
+
+    /// Match test at `sd[i]` vs `od[0..ol]` with optional ASCII folding —
+    /// pushes an i32 flag (1 = match). `j`, `a`, `b` are scratch locals.
+    private static func emitReplaceMatchAt(
+        _ code: inout WasmCode,
+        sd: Int, od: Int, ol: Int, i: Int, j: Int, a: Int, b: Int, icParam: Int
+    ) {
+        code.i64Const(0)
+        code.localSet(j)
+        code.openBlock(result: .i64)
+        code.openLoop()
+        code.localGet(j)
+        code.localGet(ol)
+        code.op(WasmOpcode.i64GeU)
+        code.openIf()
+        code.i64Const(1)
+        code.br(2) // all bytes matched → exit the flag block with 1
+        code.end()
+        code.localGet(i)
+        code.localGet(j)
+        code.op(WasmOpcode.i64Add)
+        code.localSet(a)
+        emitByteAt(&code, dataLocal: sd, indexLocal: a)
+        code.localSet(a)
+        emitByteAt(&code, dataLocal: od, indexLocal: j)
+        code.localSet(b)
+        code.localGet(icParam)
+        code.i64Truthy()
+        code.openIf()
+        emitFoldAsciiLower(&code, local: a)
+        emitFoldAsciiLower(&code, local: b)
+        code.end()
+        code.localGet(a)
+        code.localGet(b)
+        code.op(WasmOpcode.i64Ne)
+        code.openIf()
+        code.i64Const(0)
+        code.br(2) // mismatch → exit the flag block with 0
+        code.end()
+        code.localGet(j)
+        code.i64Const(1)
+        code.op(WasmOpcode.i64Add)
+        code.localSet(j)
+        code.br(0)
+        code.end()
+        // The loop never falls through (every path branches out), but the
+        // validator still treats the position after `end` as reachable —
+        // satisfy the block's i64 result with a dead constant.
+        code.i64Const(0)
+        code.end()
+        code.i64Truthy()
     }
 
     // MARK: - List helpers
@@ -6725,7 +8517,7 @@ enum WasmRuntimeHelpers {
         ("__kk_illegal_state_exception", "kotlin.IllegalStateException"),
         ("__kk_index_out_of_bounds_exception", "kotlin.IndexOutOfBoundsException"),
         ("__kk_array_index_out_of_bounds_exception", "kotlin.ArrayIndexOutOfBoundsException"),
-        ("__kk_string_index_out_of_bounds_exception", "kotlin.StringIndexOutOfBoundsException"),
+        ("__kk_string_index_out_of_bounds_exception", "java.lang.StringIndexOutOfBoundsException"),
         ("__kk_null_pointer_exception", "kotlin.NullPointerException"),
         ("__kk_class_cast_exception", "kotlin.ClassCastException"),
         ("__kk_type_cast_exception", "kotlin.TypeCastException"),
@@ -6764,7 +8556,7 @@ enum WasmRuntimeHelpers {
         ("kotlin.IllegalStateException", "kotlin.RuntimeException"),
         ("kotlin.IndexOutOfBoundsException", "kotlin.RuntimeException"),
         ("kotlin.ArrayIndexOutOfBoundsException", "kotlin.IndexOutOfBoundsException"),
-        ("kotlin.StringIndexOutOfBoundsException", "kotlin.IndexOutOfBoundsException"),
+        ("java.lang.StringIndexOutOfBoundsException", "kotlin.IndexOutOfBoundsException"),
         ("kotlin.NullPointerException", "kotlin.RuntimeException"),
         ("kotlin.ClassCastException", "kotlin.RuntimeException"),
         ("kotlin.TypeCastException", "kotlin.ClassCastException"),
