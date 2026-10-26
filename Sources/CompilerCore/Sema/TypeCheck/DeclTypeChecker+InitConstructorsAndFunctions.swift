@@ -941,6 +941,7 @@ extension DeclTypeChecker {
         }
 
         var locals: LocalBindings = baseLocals
+        var defaultValueBaseLocals = baseLocals
         for (index, paramSymbol) in signature.valueParameterSymbols.enumerated() {
             guard let param = sema.symbols.symbol(paramSymbol) else {
                 continue
@@ -985,6 +986,7 @@ extension DeclTypeChecker {
                let contextParamName = function.contextReceiverNames.first.flatMap({ $0 })
             {
                 locals[contextParamName] = (receiverType, syntheticThisSymbol, false, true)
+                defaultValueBaseLocals[contextParamName] = (receiverType, syntheticThisSymbol, false, true)
             }
         }
 
@@ -1033,6 +1035,12 @@ extension DeclTypeChecker {
                     false,
                     true
                 )
+                defaultValueBaseLocals[name] = (
+                    signature.contextReceiverTypes[index],
+                    parameterSymbol,
+                    false,
+                    true
+                )
             }
         }
         // A member extension's dispatch receiver is distinct from bare `this`.
@@ -1067,7 +1075,7 @@ extension DeclTypeChecker {
             ctx: functionCtx,
             solver: solver,
             diagnostics: diagnostics,
-            baseLocals: baseLocals
+            baseLocals: defaultValueBaseLocals
         )
 
         // Bodyless declarations use .unit as their sentinel. Abstract and expect
