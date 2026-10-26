@@ -178,12 +178,12 @@ extension CallTypeChecker {
     }
 
     /// Returns the expected numeric type (Long/UInt/ULong/Byte/Short) for an
-    /// unsuffixed int-literal argument if every candidate agrees on that
-    /// parameter being one of those types, so the literal can be widened before
-    /// overload resolution instead of defaulting to Int and rejecting every
-    /// candidate. Returns nil (leaving the literal as Int) when candidates
-    /// disagree or none expect a wideable numeric type — the normal Int-literal
-    /// path and existing overload resolution still handle those cases.
+    /// unsuffixed int-literal argument if every applicable candidate agrees on
+    /// that parameter being one of those types, so the literal can be widened
+    /// before overload resolution instead of defaulting to Int and rejecting
+    /// every candidate. Returns nil (leaving the literal as Int) when applicable
+    /// candidates disagree or none expect a wideable numeric type — the normal
+    /// Int-literal path and existing overload resolution still handle those cases.
     func uniformNumericLiteralParameterType(
         at index: Int,
         argumentLabel: InternedString?,
@@ -192,15 +192,18 @@ extension CallTypeChecker {
     ) -> TypeID? {
         var result: TypeID?
         for candidate in candidates {
-            guard let signature = sema.symbols.functionSignature(for: candidate),
-                  let parameterType = parameterTypeForArgument(
-                      at: index,
-                      argumentLabel: argumentLabel,
-                      in: signature,
-                      sema: sema
-                  )
-            else {
+            guard let signature = sema.symbols.functionSignature(for: candidate) else {
                 return nil
+            }
+            guard let parameterType = parameterTypeForArgument(
+                at: index,
+                argumentLabel: argumentLabel,
+                in: signature,
+                sema: sema
+            ) else {
+                // A candidate with the wrong arity or argument label cannot
+                // accept this call and must not block the applicable candidates.
+                continue
             }
             let nonNullParameterType = sema.types.makeNonNullable(parameterType)
             guard case let .primitive(primitive, _) = sema.types.kind(of: nonNullParameterType)
