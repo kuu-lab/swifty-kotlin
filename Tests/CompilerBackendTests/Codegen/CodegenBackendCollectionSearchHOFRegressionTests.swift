@@ -45,6 +45,25 @@ struct CodegenBackendCollectionSearchHOFRegressionTests {
         )
     }
 
+    @Test(arguments: [false, true])
+    func codegenArrayRequireNoNulls(useArtifact: Bool) throws {
+        if useArtifact {
+            _ = try testStdlibArtifactPath()
+        }
+        let repoRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent()
+        let source = try String(contentsOf: repoRoot.appendingPathComponent(
+            "Scripts/diff_cases/array_require_no_nulls.kt"
+        ), encoding: .utf8)
+        try assertKotlinOutput(
+            source,
+            moduleName: "ArrayRequireNoNulls",
+            expected: "[1, 2]\nnull rejected\n",
+            allowDefaultStdlibLibrary: useArtifact
+        )
+    }
+
     @Test
     func codegenListFirstAndLastPredicateUseSourceImplementation() throws {
         let source = """
