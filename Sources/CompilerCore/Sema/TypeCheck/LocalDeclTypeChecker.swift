@@ -460,6 +460,12 @@ final class LocalDeclTypeChecker {
                     return false
                 }()
                 if setterIsAccessible {
+                    if member.writeSymbol != nil {
+                        driver.exprChecker.collectReceiverBuilderPropertyWriteConstraint(
+                            valueType: valueType, writeType: writeType,
+                            value: value, range: range, ctx: ctx
+                        )
+                    }
                     driver.emitSubtypeConstraint(
                         left: valueType,
                         right: writeType,

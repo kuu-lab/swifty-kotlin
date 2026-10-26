@@ -214,6 +214,40 @@ struct ReceiverBuilderInferenceTests {
         """)
     }
 
+    @Test func mutableMemberPropertyWriteInfersBuilderType() throws {
+        try expectBuilderTypeArgument("""
+        class UserKlass
+        class Buildee<T> {
+            var variable: T = UserKlass() as T
+            fun set(value: T) {}
+        }
+        fun <T> T.apply(block: T.() -> Unit): T = this
+        fun <FT> build(instructions: Buildee<FT>.() -> Unit): Buildee<FT> =
+            Buildee<FT>().apply(instructions)
+        fun box() {
+            val arg: UserKlass = UserKlass()
+            build { variable = arg }
+            build { this.variable = arg }
+            build { set(arg) }
+            build<UserKlass> { variable = arg }
+        }
+        """, callCount: 4)
+    }
+
+    @Test func mutableMemberPropertyWriteRejectsIncompatibleBuilderValueWithoutCascades() throws {
+        try withTemporaryFile(contents: """
+        class UserKlass
+        class Buildee<T> { var variable: T = UserKlass() as T }
+        fun <FT> build(instructions: Buildee<FT>.() -> Unit): Buildee<FT> = null as Buildee<FT>
+        fun box() { build<UserKlass> { variable = "bad" } }
+        """) { path in
+            let ctx = makeCompilationContext(inputs: [path], includeStdlib: false)
+            try runSema(ctx)
+            #expect(ctx.diagnostics.hasError)
+            #expect(ctx.diagnostics.errorCount == 1, "Unexpected cascade diagnostics: \(ctx.diagnostics.diagnostics)")
+        }
+    }
+
     @Test func nestedDslReceiverScopeInfersBuilderFromInnerProperty() throws {
         try expectBuilderTypeArgument("""
         class Scope
