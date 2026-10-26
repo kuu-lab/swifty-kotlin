@@ -790,6 +790,28 @@ extension LambdaLowerer {
             // safely resolve — not memory corruption from reading a
             // wrong-typed object's fields.
             captureArguments.append(implicitReceiver)
+        } else if !isUnbound,
+                  !isSingletonOwnedPropertyRef,
+                  sema.bindings.callableRefKind(for: exprID) == .propertyRef,
+                  let receiverType = sema.bindings.implicitReceiverMemberReceiverType(for: exprID),
+                  let receiverOwner = nominalSymbol(
+                      for: sema.types.makeNonNullable(receiverType),
+                      types: sema.types
+                  ),
+                  let implicitReceiver = driver.ctx.activeImplicitReceiverExprID(),
+                  let capturedReceiver = resolveOuterChainValue(
+                      from: implicitReceiver,
+                      to: receiverOwner,
+                      sema: sema,
+                      arena: arena,
+                      interner: interner,
+                      instructions: &instructions
+                  )
+        {
+            // The selected implicit receiver can be an enclosing instance
+            // reached through one or more inner-class `$outer` fields. Capture
+            // that instance, rather than the currently active inner `this`.
+            captureArguments.append(capturedReceiver)
         } else if sema.bindings.implicitReceiverMemberNames[exprID] != nil,
                   let targetSymbol,
                   let declaredReceiver = sema.symbols.functionSignature(for: targetSymbol)?.receiverType,

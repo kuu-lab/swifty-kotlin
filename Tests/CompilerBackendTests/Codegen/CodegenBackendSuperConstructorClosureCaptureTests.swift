@@ -94,6 +94,80 @@ struct CodegenBackendSuperConstructorClosureCaptureTests {
     }
 
     @Test
+    func inlineLambdaCapturesOuterReceiverFromSuperCall() throws {
+        try assertKotlinOutput(
+            """
+            open class Base(val callback: () -> String)
+            class Outer {
+                val ok = "OK"
+                inner class Inner : Base(
+                    run {
+                        val x = ok
+                        { x }
+                    }
+                )
+            }
+            fun main() { println(Outer().Inner().callback()) }
+            """,
+            moduleName: "SuperConstructorInlineLambdaOuterCapture",
+            expected: "OK\n"
+        )
+    }
+
+    @Test
+    func localAndConstructorParameterCaptureThroughInnerClass() throws {
+        try assertKotlinOutput(
+            """
+            open class Base(val fn: () -> String)
+            fun main() {
+                val o = "O"
+                class Local {
+                    inner class Inner(k: String) : Base({ o + k })
+                }
+                println(Local().Inner("K").fn())
+            }
+            """,
+            moduleName: "SuperConstructorNestedLocalCapture",
+            expected: "OK\n"
+        )
+    }
+
+    @Test
+    func boundReferenceCapturesImplicitOuterReceiver() throws {
+        try assertKotlinOutput(
+            """
+            abstract class Base(val fn: () -> String)
+            class Outer {
+                val ok = "OK"
+                inner class Inner : Base(::ok)
+            }
+            fun main() { println(Outer().Inner().fn()) }
+            """,
+            moduleName: "SuperConstructorBoundOuterReference",
+            expected: "OK\n"
+        )
+    }
+
+    @Test
+    func enumEntryInnerClassCapturesEnumEntryReceiver() throws {
+        try assertKotlinOutput(
+            """
+            abstract class Base(val fn: () -> Test)
+            enum class Test(val ok: String) {
+                TEST("OK") {
+                    inner class Inner : Base({ TEST })
+                    override val base: Base get() = Inner()
+                };
+                abstract val base: Base
+            }
+            fun main() { println(Test.TEST.base.fn().ok) }
+            """,
+            moduleName: "SuperConstructorEnumEntryCapture",
+            expected: "OK\n"
+        )
+    }
+
+    @Test
     func superConstructorArgumentLambdaReadsOuterPropertyBeforeDelegation() throws {
         let source = """
         open class Outer(val ok: String) {
