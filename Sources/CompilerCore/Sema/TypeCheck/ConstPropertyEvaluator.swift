@@ -307,6 +307,13 @@ final class ConstPropertyEvaluator {
         case ("Int", "MAX_VALUE"): return .intLiteral(Int64(Int32.max))
         case ("Long", "MIN_VALUE"): return .longLiteral(Int64.min)
         case ("Long", "MAX_VALUE"): return .longLiteral(Int64.max)
+        case ("UByte", "MIN_VALUE"), ("UShort", "MIN_VALUE"), ("UInt", "MIN_VALUE"):
+            return .uintLiteral(0)
+        case ("UByte", "MAX_VALUE"): return .uintLiteral(UInt64(UInt8.max))
+        case ("UShort", "MAX_VALUE"): return .uintLiteral(UInt64(UInt16.max))
+        case ("UInt", "MAX_VALUE"): return .uintLiteral(UInt64(UInt32.max))
+        case ("ULong", "MIN_VALUE"): return .ulongLiteral(0)
+        case ("ULong", "MAX_VALUE"): return .ulongLiteral(UInt64.max)
         case ("Float", "MIN_VALUE"): return .floatLiteral(Double(Float.leastNonzeroMagnitude))
         case ("Float", "MAX_VALUE"): return .floatLiteral(Double(Float.greatestFiniteMagnitude))
         case ("Float", "POSITIVE_INFINITY"): return .floatLiteral(.infinity)
@@ -325,6 +332,14 @@ final class ConstPropertyEvaluator {
         case ("Int", "SIZE_BYTES"), ("Float", "SIZE_BYTES"): return .intLiteral(4)
         case ("Long", "SIZE_BITS"), ("Double", "SIZE_BITS"): return .intLiteral(64)
         case ("Long", "SIZE_BYTES"), ("Double", "SIZE_BYTES"): return .intLiteral(8)
+        case ("UByte", "SIZE_BITS"): return .intLiteral(8)
+        case ("UByte", "SIZE_BYTES"): return .intLiteral(1)
+        case ("UShort", "SIZE_BITS"): return .intLiteral(16)
+        case ("UShort", "SIZE_BYTES"): return .intLiteral(2)
+        case ("UInt", "SIZE_BITS"): return .intLiteral(32)
+        case ("UInt", "SIZE_BYTES"): return .intLiteral(4)
+        case ("ULong", "SIZE_BITS"): return .intLiteral(64)
+        case ("ULong", "SIZE_BYTES"): return .intLiteral(8)
         default: return nil
         }
     }

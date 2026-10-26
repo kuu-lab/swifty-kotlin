@@ -189,6 +189,61 @@ struct ConstPropertyEvaluationTests {
     }
 
     @Test
+    func foldsUnsignedPrimitiveCompanionConstants() throws {
+        let ctx = makeContextFromSource("""
+        package unsignedConstants
+        const val UBYTE_MIN = UByte.MIN_VALUE
+        const val UBYTE_MAX = UByte.MAX_VALUE
+        const val UBYTE_BITS = UByte.SIZE_BITS
+        const val UBYTE_BYTES = UByte.SIZE_BYTES
+        const val USHORT_MIN = UShort.MIN_VALUE
+        const val USHORT_MAX = UShort.MAX_VALUE
+        const val USHORT_BITS = UShort.SIZE_BITS
+        const val USHORT_BYTES = UShort.SIZE_BYTES
+        const val UINT_MIN = UInt.MIN_VALUE
+        const val UINT_MAX = UInt.MAX_VALUE
+        const val UINT_BITS = UInt.SIZE_BITS
+        const val UINT_BYTES = UInt.SIZE_BYTES
+        const val ULONG_MIN = ULong.MIN_VALUE
+        const val ULONG_MAX = ULong.MAX_VALUE
+        const val ULONG_BITS = ULong.SIZE_BITS
+        const val ULONG_BYTES = ULong.SIZE_BYTES
+        const val EXPLICIT_COMPANION_MAX: UInt = UInt.Companion.MAX_VALUE
+        const val ALIASED_MAX = UINT_MAX
+        """)
+        try runSema(ctx)
+
+        #expect(ctx.diagnostics.diagnostics.filter { $0.severity == .error }.isEmpty)
+        let sema = try #require(ctx.sema)
+        let expected: [String: KIRExprKind] = [
+            "UBYTE_MIN": .uintLiteral(0),
+            "UBYTE_MAX": .uintLiteral(255),
+            "UBYTE_BITS": .intLiteral(8),
+            "UBYTE_BYTES": .intLiteral(1),
+            "USHORT_MIN": .uintLiteral(0),
+            "USHORT_MAX": .uintLiteral(65535),
+            "USHORT_BITS": .intLiteral(16),
+            "USHORT_BYTES": .intLiteral(2),
+            "UINT_MIN": .uintLiteral(0),
+            "UINT_MAX": .uintLiteral(UInt64(UInt32.max)),
+            "UINT_BITS": .intLiteral(32),
+            "UINT_BYTES": .intLiteral(4),
+            "ULONG_MIN": .ulongLiteral(0),
+            "ULONG_MAX": .ulongLiteral(UInt64.max),
+            "ULONG_BITS": .intLiteral(64),
+            "ULONG_BYTES": .intLiteral(8),
+            "EXPLICIT_COMPANION_MAX": .uintLiteral(UInt64(UInt32.max)),
+            "ALIASED_MAX": .uintLiteral(UInt64(UInt32.max)),
+        ]
+        for (name, value) in expected {
+            let symbol = try #require(sema.symbols.lookup(
+                fqName: ["unsignedConstants", name].map { ctx.interner.intern($0) }
+            ))
+            #expect(sema.symbols.constValueExprKind(for: symbol) == value, "Incorrect constant for \(name)")
+        }
+    }
+
+    @Test
     func foldsPrimitiveMemberCallsAndAliasedStringConcatenation() throws {
         let ctx = makeContextFromSources([
             """
