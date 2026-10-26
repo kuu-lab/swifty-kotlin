@@ -502,7 +502,17 @@ final class ValueClassUnboxingPass: LoweringPass, ParallelLoweringPass {
                         // field back out of the allocated box.
                         result.append(instruction)
                         resultLocations.append(location)
-                        if let offset = ctorUnderlyingFieldOffset[ctorSymbol] {
+                        // Nullable-underlying value-class stubs return the raw
+                        // payload through their function ABI. Extracting the
+                        // same field from that result treats the payload as the
+                        // wrapper and corrupts subsequent member access (KUU-3407).
+                        let returnsNullableUnderlyingValueClass = arena.exprType(callResult)
+                            .map { nullableUnderlyingValueClassSymbol(
+                                of: types.kind(of: $0), types: types, symbols: symbols
+                            ) != nil } ?? false
+                        if !returnsNullableUnderlyingValueClass,
+                           let offset = ctorUnderlyingFieldOffset[ctorSymbol]
+                        {
                             if secondaryValueClassCtors.contains(ctorSymbol),
                                appendSecondaryValueClassResultExtraction(
                                    boxedReceiver: alloc,

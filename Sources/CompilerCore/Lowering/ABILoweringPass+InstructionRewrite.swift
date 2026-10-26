@@ -12,6 +12,7 @@ extension ABILoweringPass {
         callee: InternedString?,
         interner: StringInterner,
         boxTypeParamArguments: Bool = false,
+        preservedBoxedArgumentIndices: Set<Int> = [],
         sema: SemaModule? = nil,
         cache: KIRNominalDispatchCache? = nil,
         newBody: inout KIRLoweringEmitContext,
@@ -72,8 +73,13 @@ extension ABILoweringPass {
         // A `V?`/reference slot holds a nominal box while the `V` formal
         // expects the payload: `v?.member()` receivers and value parameters
         // unwrap it here (KUU-3115).
-        func unboxNullableUnderlyingValueClass(_ argument: KIRExprID, to targetType: TypeID) -> KIRExprID? {
-            guard let symbols,
+        func unboxNullableUnderlyingValueClass(
+            _ argument: KIRExprID,
+            to targetType: TypeID,
+            at argumentIndex: Int
+        ) -> KIRExprID? {
+            guard !preservedBoxedArgumentIndices.contains(argumentIndex),
+                  let symbols,
                   let vcSymbol = nullableUnderlyingValueClassSymbol(
                       of: types.kind(of: targetType), types: types, symbols: symbols
                   ),
@@ -103,7 +109,9 @@ extension ABILoweringPass {
         // Constructor receivers are fresh allocations, not nullable value-class boxes.
         if !isConstructorCall, receiverOffset > 0, arguments.indices.contains(receiverIndex),
            let receiverType = signature.receiverType,
-           let unboxed = unboxNullableUnderlyingValueClass(arguments[receiverIndex], to: receiverType)
+           let unboxed = unboxNullableUnderlyingValueClass(
+               arguments[receiverIndex], to: receiverType, at: receiverIndex
+           )
         {
             boxedArguments[receiverIndex] = unboxed
         }
@@ -152,7 +160,9 @@ extension ABILoweringPass {
                 boxedArguments[argumentIndex] = unboxed
                 continue
             }
-            if let unboxed = unboxNullableUnderlyingValueClass(arguments[argumentIndex], to: contextType) {
+            if let unboxed = unboxNullableUnderlyingValueClass(
+                arguments[argumentIndex], to: contextType, at: argumentIndex
+            ) {
                 boxedArguments[argumentIndex] = unboxed
                 continue
             }
@@ -278,7 +288,9 @@ extension ABILoweringPass {
                 boxedArguments[argIndex] = unboxed
                 continue
             }
-            if let unboxed = unboxNullableUnderlyingValueClass(arguments[argIndex], to: paramType) {
+            if let unboxed = unboxNullableUnderlyingValueClass(
+                arguments[argIndex], to: paramType, at: argIndex
+            ) {
                 boxedArguments[argIndex] = unboxed
                 continue
             }
