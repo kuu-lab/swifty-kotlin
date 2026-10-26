@@ -1,7 +1,8 @@
 package kotlin
 
-// Long and Double remain Kotlin primitives. These companion extensions expose
-// Java's wrapper static APIs through Kotlin's primitive type names.
+// Long remains a Kotlin primitive while these companion extensions expose
+// Java's wrapper static APIs through its primitive type name. Double's JVM
+// static methods stay available through the java.lang.Double name only.
 public val Long.Companion.SIZE: Int get() = java.lang.Long.SIZE
 
 public val Long.Companion.BYTES: Int get() = java.lang.Long.BYTES
@@ -79,27 +80,3 @@ public val Double.Companion.MIN_EXPONENT: Int get() = java.lang.Double.MIN_EXPON
 public val Double.Companion.SIZE: Int get() = java.lang.Double.SIZE
 
 public val Double.Companion.BYTES: Int get() = java.lang.Double.BYTES
-
-public fun Double.Companion.parseDouble(value: String): Double = java.lang.Double.parseDouble(value)
-
-public fun Double.Companion.toString(value: Double): String = java.lang.Double.toString(value)
-
-public fun Double.Companion.isNaN(value: Double): Boolean = java.lang.Double.isNaN(value)
-
-public fun Double.Companion.isInfinite(value: Double): Boolean = java.lang.Double.isInfinite(value)
-
-public fun Double.Companion.isFinite(value: Double): Boolean = java.lang.Double.isFinite(value)
-
-public fun Double.Companion.compare(first: Double, second: Double): Int =
-    java.lang.Double.compare(first, second)
-
-public fun Double.Companion.signum(value: Double): Double = java.lang.Double.signum(value)
-
-public fun Double.Companion.sum(first: Double, second: Double): Double =
-    java.lang.Double.sum(first, second)
-
-public fun Double.Companion.min(first: Double, second: Double): Double =
-    java.lang.Double.min(first, second)
-
-public fun Double.Companion.max(first: Double, second: Double): Double =
-    java.lang.Double.max(first, second)
