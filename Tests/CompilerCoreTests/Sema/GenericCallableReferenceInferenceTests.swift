@@ -190,5 +190,41 @@ struct GenericCallableReferenceInferenceTests {
         let signature = try #require(sema.symbols.functionSignature(for: chosen))
         #expect(signature.typeParameterSymbols.isEmpty == preferConcrete)
     }
+
+    @Test
+    func resolvesOverloadedReferencesFromGenericCallResultType() throws {
+        let ctx = makeContextFromSource("""
+        fun foo(x: Int?) {}
+        fun foo(y: String?) {}
+        fun foo(z: Boolean) {}
+        fun <T> bar(f: (T) -> Unit, name: String): T? = null
+        fun main() {
+            val intResult: Int? = bar(::foo, "Int")
+            val stringResult: String? = bar(::foo, "String")
+            val booleanResult: Boolean? = bar<Boolean>(::foo, "Boolean")
+        }
+        """)
+        try runSema(ctx)
+
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.isEmpty, "Expected result context to resolve overloaded references, got: \(errors)")
+
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let inputPath = try #require(ctx.options.inputs.first)
+        let userFileID = try #require(ctx.sourceManager.fileID(forPath: inputPath))
+        let inputTypeNames = ast.arena.exprs.indices.compactMap { index -> TypeID? in
+            let reference = ExprID(rawValue: Int32(index))
+            guard ast.arena.exprRange(reference)?.start.file == userFileID,
+                  case .callableRef = ast.arena.expr(reference),
+                  let target = sema.bindings.identifierSymbol(for: reference),
+                  let signature = sema.symbols.functionSignature(for: target)
+            else { return nil }
+            return signature.parameterTypes.first
+        }.map {
+            sema.types.displayName(of: $0, symbols: sema.symbols, interner: ctx.interner)
+        }
+        #expect(inputTypeNames == ["Int?", "String?", "Boolean"])
+    }
 }
 #endif
