@@ -242,7 +242,15 @@ final class ExprTypeChecker {
             if exprSpineContainsSafeMemberAccess(receiverExpr, ast: ast) {
                 indexCtx.isConditionallyEvaluated = true
             }
-            return driver.localDeclChecker.inferIndexedAccessExpr(id, receiverExpr: receiverExpr, indices: indices, range: range, ctx: indexCtx, locals: &locals)
+            return driver.localDeclChecker.inferIndexedAccessExpr(
+                id,
+                receiverExpr: receiverExpr,
+                indices: indices,
+                range: range,
+                expectedType: expectedType,
+                ctx: indexCtx,
+                locals: &locals
+            )
 
         case let .indexedAssign(receiverExpr, indices, valueExpr, range):
             var assignCtx = ctx
