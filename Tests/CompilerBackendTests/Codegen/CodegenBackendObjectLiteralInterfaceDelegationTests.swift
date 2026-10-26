@@ -11,6 +11,23 @@ import Testing
         )
     }
 
+    @Test func funInterfaceLambdaDelegationExecutes() throws {
+        try compileAndRunKotlin(
+            """
+            fun interface F { fun f(): String }
+            object F1 : F by { "OK" } {
+                val marker: Int = 1
+            }
+            fun main() {
+                println(F1.f())
+                println(F1.marker)
+            }
+            """,
+            expectedOutput: "OK\n1\n",
+            moduleName: "FunInterfaceLambdaDelegation"
+        )
+    }
+
     @Test(arguments: [true, false])
     func anonymousObjectDelegateExecutes(_ allowDefaultStdlibLibrary: Bool) throws {
         try compileAndRunKotlin(
