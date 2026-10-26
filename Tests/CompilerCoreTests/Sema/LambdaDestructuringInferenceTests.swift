@@ -68,6 +68,44 @@ struct LambdaDestructuringInferenceTests {
     }
 
     @Test
+    func suspendLambdaSquareBracketDestructuringBindsComponents() throws {
+        let source = """
+        data class A(val o: String) {
+            operator fun component2(): String = "K"
+        }
+        fun builder(c: suspend (A) -> Unit) {}
+        fun run(): String {
+            var result = ""
+            builder { [x, y] -> result = x + y }
+            return result
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            let errors = diagnosticsForPath(path, in: ctx).filter { $0.severity == .error }
+            #expect(errors.isEmpty, "Unexpected diagnostics: \(errors)")
+
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
+            let references = allExprIDs(in: ast, path: path, ctx: ctx) { _, expression in
+                guard case let .nameRef(name, _) = expression else { return false }
+                return ["x", "y"].contains(ctx.interner.resolve(name))
+            }
+            var checked: Set<String> = []
+            for id in references {
+                guard case let .nameRef(name, _)? = ast.arena.expr(id),
+                      let type = sema.bindings.exprType(for: id)
+                else { continue }
+                let nameText = ctx.interner.resolve(name)
+                #expect(type == sema.types.stringType)
+                checked.insert(nameText)
+            }
+            #expect(checked == ["x", "y"])
+        }
+    }
+
+    @Test
     func runningFoldBindsSecondParameterComponents() throws {
         let source = """
         data class Point(val x:Int){operator fun plus(p:Point)=Point(x+p.x);operator fun times(n:Int)=Point(x*n)}

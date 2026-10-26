@@ -279,6 +279,7 @@ extension BuildASTPhase.ExpressionParser {
         let name: InternedString
         let typeRef: TypeRefID?
         let destructuringNames: [InternedString?]?
+        let destructuringSyntax: ForDestructuringSyntax?
     }
 
     private func parseLambdaParams(
@@ -310,9 +311,8 @@ extension BuildASTPhase.ExpressionParser {
         var params: [LambdaParam] = []
         var usedNames = avoidingNames.union(tokens.compactMap { tokenText($0) })
         for (index, segment) in segments.enumerated() {
-            if segment.first?.kind == .symbol(.lParen),
-               let closeIndex = lambdaDestructuringCloseIndex(in: segment[...]),
-               let names = extractDestructuringNames(from: Array(segment[...closeIndex]))
+            if let closeIndex = lambdaDestructuringCloseIndex(in: segment[...]),
+               let destructuring = extractDestructuringParameter(from: Array(segment[...closeIndex]))
             {
                 var parameterName = interner.intern("__destructured_\(index)")
                 while usedNames.contains(parameterName) {
@@ -322,7 +322,8 @@ extension BuildASTPhase.ExpressionParser {
                 params.append(LambdaParam(
                     name: parameterName,
                     typeRef: parseLambdaParamTypeAnnotation(in: segment, after: closeIndex),
-                    destructuringNames: names
+                    destructuringNames: destructuring.names,
+                    destructuringSyntax: destructuring.syntax
                 ))
                 continue
             }
@@ -334,7 +335,8 @@ extension BuildASTPhase.ExpressionParser {
             params.append(LambdaParam(
                 name: name,
                 typeRef: parseLambdaParamTypeAnnotation(in: segment, after: nameIndex),
-                destructuringNames: nil
+                destructuringNames: nil,
+                destructuringSyntax: nil
             ))
         }
         return params
@@ -366,38 +368,18 @@ extension BuildASTPhase.ExpressionParser {
         return parsed.ref
     }
 
-    private func stripEnclosingParentheses(from tokens: [Token]) -> [Token] {
-        guard tokens.count >= 2,
-              tokens.first?.kind == .symbol(.lParen),
-              tokens.last?.kind == .symbol(.rParen)
-        else {
-            return tokens
-        }
-
-        var depth = 0
-        for (idx, token) in tokens.enumerated() {
-            switch token.kind {
-            case .symbol(.lParen):
-                depth += 1
-            case .symbol(.rParen):
-                depth -= 1
-                if depth == 0, idx != tokens.count - 1 {
-                    return tokens
-                }
-            default:
-                break
-            }
-        }
-        return Array(tokens.dropFirst().dropLast())
-    }
-
-    private func extractDestructuringNames(from paramTokens: [Token]) -> [InternedString?]? {
-        let innerTokens = stripEnclosingParentheses(from: paramTokens)
-        guard innerTokens.count != paramTokens.count,
-              isDestructuringEntries(innerTokens[...])
+    private func extractDestructuringParameter(
+        from paramTokens: [Token]
+    ) -> (names: [InternedString?], syntax: ForDestructuringSyntax)? {
+        guard paramTokens.count >= 2,
+              let syntax = lambdaDestructuringSyntax(for: paramTokens[0].kind),
+              let closeIndex = lambdaDestructuringCloseIndex(in: paramTokens[...]),
+              closeIndex == paramTokens.count - 1
         else { return nil }
+        let innerTokens = Array(paramTokens.dropFirst().dropLast())
+        guard isDestructuringEntries(innerTokens[...]) else { return nil }
         let names = parseDestructuringNames(from: innerTokens)
-        return names.isEmpty ? nil : names
+        return names.isEmpty ? nil : (names, syntax)
     }
 
     private func parseDestructuringNames(from innerTokens: [Token]) -> [InternedString?] {
@@ -448,14 +430,16 @@ extension BuildASTPhase.ExpressionParser {
         // Keep one parameter per argument; component declarations use the
         // expected type of their own parameter, including in mixed lists.
         let declarations = params.compactMap { param -> ExprID? in
-            guard let names = param.destructuringNames else { return nil }
+            guard let names = param.destructuringNames,
+                  let syntax = param.destructuringSyntax
+            else { return nil }
             let initializer = astArena.appendExpr(.nameRef(param.name, range))
             let declaration = astArena.appendExpr(.destructuringDecl(
                 names: names, isMutable: false, initializer: initializer, range: range
             ))
             astArena.setDestructuringDeclLayout(
                 DestructuringDeclLayout(
-                    syntax: .parentheses,
+                    syntax: syntax,
                     properties: Array(repeating: nil, count: names.count),
                     mutableFlags: []
                 ),
@@ -471,7 +455,7 @@ extension BuildASTPhase.ExpressionParser {
 
     /// Whether `tokens` (everything before a top-level `->` inside `{ ... }`)
     /// form a well-formed lambda parameter list: either empty (`{ -> body }`),
-    /// a nonempty destructuring group `(a)` or `(a, b)`, or a comma-separated list of
+    /// a nonempty destructuring group `(a)`, `(a, b)`, `[a]` or `[a, b]`, or a comma-separated list of
     /// `[annotations] name [: Type]` segments whose type parses completely
     /// (function types included). A body expression like `s as (Int) -> Int`
     /// leaves an `->` in the brace group; the strict check keeps it from being
@@ -480,7 +464,7 @@ extension BuildASTPhase.ExpressionParser {
     private func isWellFormedLambdaParameterList(_ tokens: ArraySlice<Token>) -> Bool {
         if tokens.isEmpty { return true }
         let params = Array(tokens)
-        if extractDestructuringNames(from: params) != nil { return true }
+        if extractDestructuringParameter(from: params) != nil { return true }
         var depth = BuildASTPhase.BracketDepth()
         var segmentStart = params.startIndex
         for idx in params.indices {
@@ -506,9 +490,9 @@ extension BuildASTPhase.ExpressionParser {
             idx = segment.startIndex + annotation.nextIndex
         }
         guard idx < segment.endIndex else { return false }
-        if segment[idx].kind == .symbol(.lParen) {
-            // Destructuring parameter `(a)` or `(a, b)` — kotlinc allows it mixed with
-            // regular parameters — optionally followed by `: Type`.
+        if lambdaDestructuringSyntax(for: segment[idx].kind) != nil {
+            // Destructuring parameters in either delimiter form can be mixed with
+            // regular parameters and optionally followed by `: Type`.
             guard let closeIndex = lambdaDestructuringCloseIndex(in: segment[idx...]),
                   isDestructuringEntries(segment[(idx + 1)..<closeIndex])
             else {
@@ -561,18 +545,31 @@ extension BuildASTPhase.ExpressionParser {
     }
 
     private func lambdaDestructuringCloseIndex(in tokens: ArraySlice<Token>) -> Int? {
-        guard tokens.first?.kind == .symbol(.lParen) else { return nil }
+        guard let openingKind = tokens.first?.kind else { return nil }
+        let closingKind: TokenKind
+        switch openingKind {
+        case .symbol(.lParen): closingKind = .symbol(.rParen)
+        case .symbol(.lBracket): closingKind = .symbol(.rBracket)
+        default: return nil
+        }
         var depth = 0
         for idx in tokens.indices {
-            switch tokens[idx].kind {
-            case .symbol(.lParen): depth += 1
-            case .symbol(.rParen):
+            if tokens[idx].kind == openingKind {
+                depth += 1
+            } else if tokens[idx].kind == closingKind {
                 depth -= 1
                 if depth == 0 { return idx }
-            default: break
             }
         }
         return nil
+    }
+
+    private func lambdaDestructuringSyntax(for openingKind: TokenKind) -> ForDestructuringSyntax? {
+        switch openingKind {
+        case .symbol(.lParen): .parentheses
+        case .symbol(.lBracket): .squareBrackets
+        default: nil
+        }
     }
 
     private func isDestructuringEntries(_ inner: ArraySlice<Token>) -> Bool {
