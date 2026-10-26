@@ -607,6 +607,23 @@ extension BuildASTPhase {
                 } else {
                     assignment = nil
                 }
+            case let .safeMemberCall(receiver, callee, typeArgs, args, _):
+                if context.astArena.isExplicitCall(lhsExpr) || !args.isEmpty {
+                    assignment = desugarCallResultCompoundAssignment(
+                        lhsExpr: lhsExpr, op: op, valueExpr: valueExpr, range: range, context: context
+                    )
+                } else if typeArgs.isEmpty {
+                    assignment = desugarSafeMemberCompoundAssignment(
+                        receiverExpr: receiver,
+                        calleeName: callee,
+                        op: op,
+                        valueExpr: valueExpr,
+                        range: range,
+                        context: context
+                    )
+                } else {
+                    assignment = nil
+                }
             case .call:
                 assignment = desugarCallResultCompoundAssignment(
                     lhsExpr: lhsExpr, op: op, valueExpr: valueExpr, range: range, context: context
@@ -647,6 +664,56 @@ extension BuildASTPhase {
                 }
             }
             return assignment
+        }
+
+        /// Keep a safe-call compound assignment conditional while reusing the
+        /// ordinary member-assignment path for its non-null branch.
+        private static func desugarSafeMemberCompoundAssignment(
+            receiverExpr: ExprID,
+            calleeName: InternedString,
+            op: CompoundAssignOp,
+            valueExpr: ExprID,
+            range: SourceRange,
+            context: LocalStatementCoreContext
+        ) -> ExprID {
+            let receiverRange = context.astArena.exprRange(receiverExpr) ?? range
+            let name = context.interner.intern(
+                "$safeCompound$\(range.start.file.rawValue)$\(range.start.offset)$\(range.end.offset)"
+            )
+            let receiverDecl = context.astArena.appendExpr(.localDecl(
+                name: name,
+                isMutable: false,
+                typeAnnotation: nil,
+                initializer: receiverExpr,
+                range: receiverRange
+            ))
+            let conditionReceiver = context.astArena.appendExpr(.nameRef(name, receiverRange))
+            let nullValue = context.astArena.appendExpr(.nullLiteral(receiverRange))
+            let condition = context.astArena.appendExpr(.binary(
+                op: .notEqual,
+                lhs: conditionReceiver,
+                rhs: nullValue,
+                range: receiverRange
+            ))
+            let assignmentReceiver = context.astArena.appendExpr(.nameRef(name, receiverRange))
+            let memberAssignment = context.astArena.appendExpr(.memberCompoundAssign(
+                op: op,
+                receiver: assignmentReceiver,
+                callee: calleeName,
+                value: valueExpr,
+                range: range
+            ))
+            let conditionalAssignment = context.astArena.appendExpr(.ifExpr(
+                condition: condition,
+                thenExpr: memberAssignment,
+                elseExpr: nil,
+                range: range
+            ))
+            return context.astArena.appendExpr(.blockExpr(
+                statements: [receiverDecl, conditionalAssignment],
+                trailingExpr: nil,
+                range: range
+            ))
         }
 
         /// Preserve the call-result receiver without introducing writable storage:
