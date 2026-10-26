@@ -593,6 +593,19 @@ extension CallLowerer {
             instructions: &instructions
         )
         arguments.append(contentsOf: normalized.arguments)
+        if let signature = sema.symbols.functionSignature(for: callee),
+           !signature.contextParameterTypes.isEmpty
+        {
+            let contextArguments = contextArgumentValues(
+                for: signature,
+                callExprID: callExprID,
+                callBinding: binding.call,
+                sema: sema,
+                arena: arena
+            )
+            // `element` is the operator receiver, so context parameters follow it.
+            arguments.insert(contentsOf: contextArguments, at: min(1, arguments.count))
+        }
         let loweredCalleeName: InternedString = if let externalLinkName = sema.symbols.externalLinkName(for: callee),
                                                    !externalLinkName.isEmpty
         {
