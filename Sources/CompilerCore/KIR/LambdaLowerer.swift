@@ -725,7 +725,11 @@ final class LambdaLowerer {
             driver.ctx.setLocalValue(capturedValue, for: capture.capturedSymbol)
         }
         driver.ctx.setLocalDeclaredType(capture.declaredType, for: capture.capturedSymbol)
-        if sema.symbols.symbol(capture.capturedSymbol)?.kind == .class {
+        // A nested receiver lambda can still access an enclosing interface
+        // member through its captured dispatch receiver and itable slot.
+        if let capturedKind = sema.symbols.symbol(capture.capturedSymbol)?.kind,
+           capturedKind == .class || capturedKind == .interface
+        {
             bindCapturedOuterLambdaReceiver(capturedValue, type: capture.param.type, sema: sema)
         }
         if let semanticSymbol = sema.symbols.symbol(capture.capturedSymbol),
