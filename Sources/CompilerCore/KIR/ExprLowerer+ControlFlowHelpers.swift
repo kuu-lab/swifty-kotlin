@@ -60,13 +60,34 @@ extension ExprLowerer {
         instructions.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
         let cellContentType = driver.ctx.localDeclaredType(for: symbol)
             ?? driver.lambdaLowerer.typeForSymbolReference(symbol, sema: sema)
-        let storedValueID = normalizedValueForNullablePrimitiveSlot(
-            valueID,
-            slotType: cellContentType,
-            types: sema.types,
-            arena: arena,
-            into: &instructions
-        )
+        let storedValueID: KIRExprID
+        switch sema.types.kind(of: sema.types.makeNonNullable(cellContentType)) {
+        case .any, .typeParam:
+            if let valueType = arena.exprType(valueID) {
+                storedValueID = boxValueForAnySlot(
+                    valueID,
+                    sourceType: valueType,
+                    types: sema.types,
+                    symbols: sema.symbols,
+                    interner: interner,
+                    arena: arena,
+                    resultType: cellContentType,
+                    sema: sema,
+                    cache: driver.ctx.nominalDispatchCache,
+                    into: &instructions
+                )
+            } else {
+                storedValueID = valueID
+            }
+        default:
+            storedValueID = normalizedValueForNullablePrimitiveSlot(
+                valueID,
+                slotType: cellContentType,
+                types: sema.types,
+                arena: arena,
+                into: &instructions
+            )
+        }
         let setResult = arena.appendTemporary(type: arena.exprType(storedValueID) ?? sema.types.anyType)
         instructions.append(.call(
             callee: interner.intern("kk_array_set"),
