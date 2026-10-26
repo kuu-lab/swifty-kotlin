@@ -5,12 +5,12 @@ import java.util.concurrent.TimeUnit
 public class Thread private constructor(
     private val target: Runnable?,
     initialName: String?,
-    currentThread: Boolean
+    currentThread: kotlin.Boolean
 ) {
     private val threadId: kotlin.Long = allocateId()
     public var name: String = initialName ?: allocateName()
-    private var started: Boolean = currentThread
-    public var isAlive: Boolean = currentThread
+    private var started: kotlin.Boolean = currentThread
+    public var isAlive: kotlin.Boolean = currentThread
         private set
 
     public constructor() : this(null, null, false)

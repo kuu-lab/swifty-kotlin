@@ -6,7 +6,7 @@ import kotlin.internal.KsSymbolName
 private external fun __threadLocalNew(): Long
 
 @KsSymbolName("__kk_thread_local_has_value")
-private external fun __threadLocalHasValue(handle: Long): Boolean
+private external fun __threadLocalHasValue(handle: Long): kotlin.Boolean
 
 @KsSymbolName("__kk_thread_local_value")
 private external fun __threadLocalValue(handle: Long): Any?

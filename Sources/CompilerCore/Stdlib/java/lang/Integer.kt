@@ -29,6 +29,10 @@ public class Integer private constructor() {
 
         public fun toBinaryString(value: Int): String = value.toUInt().toString(2)
 
+        public fun toUnsignedLong(value: Int): kotlin.Long = value.toLong() and 0xFFFFFFFFL
+
+        public fun hashCode(value: Int): Int = value
+
         public fun compare(first: Int, second: Int): Int =
             if (first < second) -1 else if (first == second) 0 else 1
 
@@ -70,5 +74,7 @@ public class Integer private constructor() {
         public fun min(first: Int, second: Int): Int = if (first <= second) first else second
 
         public fun max(first: Int, second: Int): Int = if (first >= second) first else second
+
+        public fun sum(first: Int, second: Int): Int = first + second
     }
 }

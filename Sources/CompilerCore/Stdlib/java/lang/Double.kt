@@ -17,11 +17,33 @@ public class Double private constructor() {
 
         public fun toString(value: kotlin.Double): String = value.toString()
 
-        public fun isNaN(value: kotlin.Double): Boolean = value.isNaN()
+        public fun toHexString(value: kotlin.Double): String {
+            val bits = value.toRawBits()
+            val negative = bits < 0L
+            val sign = if (negative) "-" else ""
+            val exponentBits = ((bits ushr 52) and 0x7FFL).toInt()
+            val fractionBits = bits and 0x000FFFFFFFFFFFFFL
+            if (exponentBits == 0x7FF) {
+                return if (fractionBits != 0L) "NaN" else sign + "Infinity"
+            }
+            if (exponentBits == 0 && fractionBits == 0L) return sign + "0x0.0p0"
 
-        public fun isInfinite(value: kotlin.Double): Boolean = value.isInfinite()
+            val significand = if (exponentBits == 0) "0" else "1"
+            val exponent = if (exponentBits == 0) -1022 else exponentBits - 1023
+            val fraction = fractionBits.toString(16).padStart(13, '0').trimEnd('0').ifEmpty { "0" }
+            return "${sign}0x$significand.$fraction" + "p" + exponent
+        }
 
-        public fun isFinite(value: kotlin.Double): Boolean = value.isFinite()
+        public fun hashCode(value: kotlin.Double): Int {
+            val bits = value.toBits()
+            return (bits xor (bits ushr 32)).toInt()
+        }
+
+        public fun isNaN(value: kotlin.Double): kotlin.Boolean = value.isNaN()
+
+        public fun isInfinite(value: kotlin.Double): kotlin.Boolean = value.isInfinite()
+
+        public fun isFinite(value: kotlin.Double): kotlin.Boolean = value.isFinite()
 
         public fun compare(first: kotlin.Double, second: kotlin.Double): Int =
             first.compareTo(second)

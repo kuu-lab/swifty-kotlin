@@ -40,6 +40,8 @@ public class Long private constructor() {
         public fun compareUnsigned(first: kotlin.Long, second: kotlin.Long): Int =
             first.toULong().compareTo(second.toULong())
 
+        public fun hashCode(value: kotlin.Long): Int = (value xor (value ushr 32)).toInt()
+
         public fun signum(value: kotlin.Long): Int = if (value < 0L) -1 else if (value > 0L) 1 else 0
 
         public fun highestOneBit(value: kotlin.Long): kotlin.Long = value.takeHighestOneBit()
