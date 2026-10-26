@@ -407,15 +407,25 @@ public struct ContextReceiverDecl: Codable {
     public let name: InternedString?
     public let type: TypeRefID
     public let isContextParameter: Bool
+    public let isCrossinline: Bool
+    public let isNoinline: Bool
 
-    public init(name: InternedString? = nil, type: TypeRefID, isContextParameter: Bool? = nil) {
+    public init(
+        name: InternedString? = nil,
+        type: TypeRefID,
+        isContextParameter: Bool? = nil,
+        isCrossinline: Bool = false,
+        isNoinline: Bool = false
+    ) {
         self.name = name
         self.type = type
         self.isContextParameter = isContextParameter ?? (name != nil)
+        self.isCrossinline = isCrossinline
+        self.isNoinline = isNoinline
     }
 
     private enum CodingKeys: String, CodingKey {
-        case name, type, isContextParameter
+        case name, type, isContextParameter, isCrossinline, isNoinline
     }
 
     public init(from decoder: Decoder) throws {
@@ -424,6 +434,8 @@ public struct ContextReceiverDecl: Codable {
         type = try container.decode(TypeRefID.self, forKey: .type)
         isContextParameter = try container.decodeIfPresent(Bool.self, forKey: .isContextParameter)
             ?? (name != nil)
+        isCrossinline = try container.decodeIfPresent(Bool.self, forKey: .isCrossinline) ?? false
+        isNoinline = try container.decodeIfPresent(Bool.self, forKey: .isNoinline) ?? false
     }
 }
 
