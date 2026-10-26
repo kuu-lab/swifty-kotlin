@@ -136,11 +136,7 @@ public class LinkedList<E> private constructor(
 
     override fun equals(other: Any?): Boolean {
         if (other === this) return true
-        // `other is LinkedList` is checked first because stdlib-internal
-        // `other is List` does not yet see LinkedList instances through the
-        // precompiled-artifact path; the delegate comparison handles every
-        // other List implementation.
-        if (other is LinkedList<*>) return storage == other.storage
+        if (other !is List<*>) return false
         return storage == other
     }
 
