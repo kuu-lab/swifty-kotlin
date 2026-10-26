@@ -153,7 +153,12 @@ extension DeclTypeChecker {
         typeCheckEnumEntryConstructorArguments(
             classDecl, symbol: symbol, ctx: classCtx, solver: solver, diagnostics: diagnostics
         )
-        typeCheckPrimaryConstructorSuperDelegation(classDecl, symbol: symbol, ctx: classCtx)
+        typeCheckPrimaryConstructorSuperDelegation(
+            classDecl,
+            symbol: symbol,
+            ctx: classCtx,
+            outerReceiversToKeep: ctx.singletonObjectOuterReceivers
+        )
         let explicitSuperclassSymbol = explicitClassSuperclassSymbol(classDecl, ctx: classCtx)
         typeCheckSecondaryConstructors(
             classDecl.secondaryConstructors,

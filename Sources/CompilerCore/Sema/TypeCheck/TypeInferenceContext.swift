@@ -423,7 +423,13 @@ struct TypeInferenceContext: CustomStringConvertible {
     /// Non-inner nested classes discard enclosing instances, but retain enclosing singleton objects.
     func nestedClassContext(isInner: Bool) -> TypeInferenceContext {
         guard !isInner else { return self }
-        let singletonReceivers = outerReceiverTypes.filter { receiver in
+        return copying(outerReceiverTypes: singletonObjectOuterReceivers)
+    }
+
+    /// Singleton object receivers remain accessible from nested class headers,
+    /// even when the nested class has no enclosing instance of its own.
+    var singletonObjectOuterReceivers: [(label: InternedString, type: TypeID, symbol: SymbolID?)] {
+        outerReceiverTypes.filter { receiver in
             guard receiver.symbol == nil,
                   case let .classType(classType) = sema.types.kind(of: receiver.type)
             else {
@@ -431,7 +437,6 @@ struct TypeInferenceContext: CustomStringConvertible {
             }
             return sema.symbols.symbol(classType.classSymbol)?.kind == .object
         }
-        return copying(outerReceiverTypes: singletonReceivers)
     }
 
     func resolveQualifiedThis(label: InternedString) -> TypeID? {
