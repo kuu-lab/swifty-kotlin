@@ -950,11 +950,13 @@ struct WasmCodegenTests {
                   arguments: [list, sep, prefix, postfix], result: joined,
                   canThrow: false, thrownResult: nil),
             println(interner.intern("__kk_println_raw"), joined),
-            // The symbol-less `$default` forwarder routes by name; zero args
-            // pick the Kotlin defaults.
-            .constValue(result: mask, value: .intLiteral(31)),
+            // The symbol-less `$default` forwarder routes by name; the real
+            // calling convention is (recv, sep, prefix, postfix, limit,
+            // truncated, transform, mask) — mask=63 defaults every param,
+            // so zero args pick the Kotlin defaults.
+            .constValue(result: mask, value: .intLiteral(63)),
             .call(symbol: nil, callee: interner.intern("joinToString$default"),
-                  arguments: [list, zero, zero, zero, zero, zero, mask], result: joined,
+                  arguments: [list, zero, zero, zero, zero, zero, zero, mask], result: joined,
                   canThrow: false, thrownResult: nil),
             println(interner.intern("__kk_println_raw"), joined),
             .constValue(result: two, value: .intLiteral(2)),
@@ -1170,5 +1172,165 @@ struct WasmCodegenTests {
         let run = try runUnderNode(try emit(module, entry: mainSymbol))
         #expect(run?.status == 0)
         #expect(run?.stdout == "HELLO\nhello\nHello\nababab\npad\n2\n3\n1\n1\n1\nHeLLo\nHeLlo\nHeLLo\ncba\n1\n3\nSIOOB\n")
+    }
+
+    @Test
+    func runsStructuralEqualityAndTextHelpersUnderNodeWASI() throws {
+        guard nodePath() != nil else { return }
+        // kk_structural_eq/ne over list/set boxes — elementwise list compare
+        // plus order-independent set compare (the elem-eq heap flags must not
+        // be clobbered by the both-strings check). Flat-ABI `__kk_string_to*`
+        // spellings land here directly, bypassing member routing. Char
+        // delimiters slice via a one-char string so byte units agree.
+        // `TODO(reason)` throws NotImplementedError("An operation is not
+        // implemented: <reason>") like the JVM, and `error` throws
+        // IllegalStateException.
+        let arena = KIRArena()
+        let mainSymbol = SymbolID(rawValue: 1)
+        func e(_ kind: KIRExprKind = .unit) -> KIRExprID { arena.appendExpr(kind) }
+        var body: [KIRInstruction] = []
+        func lit(_ s: String) -> KIRExprID { e(.stringLiteral(interner.intern(s))) }
+        func int(_ v: Int64) -> KIRExprID { e(.intLiteral(v)) }
+        func call(_ name: String, _ args: [KIRExprID]) -> KIRExprID {
+            let r = e()
+            body.append(.call(symbol: nil, callee: interner.intern(name),
+                              arguments: args, result: r,
+                              canThrow: false, thrownResult: nil))
+            return r
+        }
+        func printInt(_ v: KIRExprID) {
+            let s = e()
+            body.append(.call(symbol: nil, callee: interner.intern("kk_any_to_string"),
+                              arguments: [v, int(1)], result: s,
+                              canThrow: false, thrownResult: nil))
+            body.append(println(interner.intern("__kk_println_raw"), s))
+        }
+        func printStr(_ v: KIRExprID) {
+            body.append(println(interner.intern("__kk_println_raw"), v))
+        }
+        func listOf(_ elems: [KIRExprID]) -> KIRExprID {
+            let arr = call("kk_array_new", [int(Int64(elems.count))])
+            for (i, v) in elems.enumerated() {
+                call("kk_array_set", [arr, int(Int64(i)), v])
+            }
+            return call("__kk_list_of", [arr, int(Int64(elems.count))])
+        }
+        func setOf(_ elems: [KIRExprID]) -> KIRExprID {
+            let arr = call("kk_array_new", [int(Int64(elems.count))])
+            for (i, v) in elems.enumerated() {
+                call("kk_array_set", [arr, int(Int64(i)), v])
+            }
+            return call("__kk_set_of", [arr, int(Int64(elems.count))])
+        }
+        func boxOf(_ helper: String, _ elems: [KIRExprID]) -> KIRExprID {
+            let arr = call("kk_array_new", [int(Int64(elems.count))])
+            for (i, v) in elems.enumerated() {
+                call("kk_array_set", [arr, int(Int64(i)), v])
+            }
+            return call(helper, [arr, int(Int64(elems.count))])
+        }
+        let nullS = int(Int64.min)
+        let l12 = listOf([int(1), int(2)])
+        let l12b = listOf([int(1), int(2)])
+        let l21 = listOf([int(2), int(1)])
+        let l123 = listOf([int(1), int(2), int(3)])
+        let s12 = setOf([int(1), int(2)])
+        let s21 = setOf([int(2), int(1)])
+        let s13 = setOf([int(1), int(3)])
+        let lAB = listOf([lit("a"), lit("b")])
+        let lABb = listOf([lit("a"), lit("b")])
+        let lNested = listOf([l12]), lNestedB = listOf([l12b])
+        // Sibling implementations: ArrayList box and LinkedHashSet box must
+        // compare equal to their read-only counterparts (AbstractList/
+        // AbstractSet.equals on the JVM are family-based, not nominal).
+        let al12 = boxOf("__kk_array_list_of", [int(1), int(2)])
+        let lhs21 = boxOf("__kk_linked_hash_set_of", [int(2), int(1)])
+        printInt(call("kk_structural_eq", [l12, l12b]))      // 1
+        printInt(call("kk_structural_eq", [s12, s21]))       // 1 (order-free)
+        printInt(call("kk_structural_eq", [s12, s13]))       // 0
+        printInt(call("kk_structural_eq", [s12, l12]))       // 0
+        printInt(call("kk_structural_eq", [l12, l21]))       // 0
+        printInt(call("kk_structural_eq", [lAB, lABb]))      // 1
+        printInt(call("kk_structural_eq", [lNested, lNestedB])) // 1
+        printInt(call("kk_structural_eq", [l12, l123]))      // 0
+        printInt(call("kk_structural_eq", [nullS, nullS]))   // 1
+        printInt(call("kk_structural_eq", [l12, nullS]))     // 0
+        printInt(call("kk_structural_ne", [l12, l12b]))      // 0
+        printInt(call("kk_structural_eq", [l12, al12]))      // 1 (List family)
+        printInt(call("kk_structural_eq", [s12, lhs21]))     // 1 (Set family)
+        // A class vtable taller than the old 16-slot prefix must not
+        // clobber itable entries: LinkedHashSet registers slots 0...17, and
+        // writes at 16/17 used to land on Iterable's itable block, leaving
+        // `itable_lookup(Iterable, 0)` a garbage table index. With the
+        // itable living in its own buffer (vt + vtableItablePtrOffset) the
+        // iterator registration survives arbitrary direct-slot writes.
+        let clobbered = boxOf("__kk_linked_hash_set_of", [int(2), int(1)])
+        for slot in [Int64(16), Int64(17)] {
+            let symRef = e()
+            body.append(.constValue(result: symRef,
+                                    value: .symbolRef(SymbolID(rawValue: 999_999))))
+            call("kk_object_register_vtable_method", [clobbered, int(slot), symRef])
+        }
+        // kk_any_member_* dispatch on the runtime typeID: a clobbered
+        // LinkedHashSet still iterates/hashes structurally, and cross-family
+        // equals stays family-based.
+        printStr(call("kk_any_member_to_string", [clobbered])) // "[2, 1]"
+        printInt(call("kk_any_member_hashCode", [clobbered]))  // 3 (set sum)
+        printInt(call("kk_any_member_equals", [l12, al12]))    // 1
+        // Flat-ABI scalar parses + Char-delimiter slicing + lines.
+        let dbl = call("__kk_string_toDouble_flat", [lit("3.5")])
+        let ds = e()
+        body.append(.call(symbol: nil, callee: interner.intern("kk_any_to_string"),
+                          arguments: [dbl, int(6)], result: ds,
+                          canThrow: false, thrownResult: nil))
+        printStr(ds) // "3.5" — tag 6 renders raw f64 bits
+        printInt(call("kk_structural_eq",
+                      [call("__kk_string_toDoubleOrNull_flat", [lit("x")]), nullS])) // 1
+        printInt(call("__kk_string_toInt_flat", [lit("42")])) // 42
+        printInt(call("__kk_string_toBoolean_flat", [lit("true")])) // 1
+        printStr(call("__kk_wasm_string_substring_after_char",
+                      [lit("a=b=c"), int(0x3D)])) // "b=c"
+        printStr(call("__kk_wasm_string_substring_before_last_char",
+                      [lit("a=b=c"), int(0x3D)])) // "a=b"
+        printInt(call("__kk_list_size",
+                      [call("__kk_wasm_string_lines", [lit("a\nb\nc")])])) // 3
+        // error/TODO through the thrown channel, caught via jumpIfNotNull.
+        let slot = e(), caught = e(), sMiss = e()
+        let catchLabel: Int32 = 70, doneLabel: Int32 = 71
+        body.append(.call(symbol: nil, callee: interner.intern("__kk_wasm_todo"),
+                          arguments: [lit("later")], result: e(),
+                          canThrow: true, thrownResult: slot))
+        body.append(.jumpIfNotNull(value: slot, target: catchLabel))
+        body.append(.constValue(result: sMiss, value: .stringLiteral(interner.intern("miss"))))
+        body.append(println(interner.intern("__kk_println_raw"), sMiss))
+        body.append(.jump(doneLabel))
+        body.append(.label(catchLabel))
+        body.append(.call(symbol: nil, callee: interner.intern("__kk_throwable_toString"),
+                          arguments: [slot], result: caught,
+                          canThrow: false, thrownResult: nil))
+        body.append(println(interner.intern("__kk_println_raw"), caught))
+        body.append(.label(doneLabel))
+        let slot2 = e(), caught2 = e()
+        let catch2Label: Int32 = 72, done2Label: Int32 = 73
+        body.append(.call(symbol: nil, callee: interner.intern("__kk_wasm_error"),
+                          arguments: [lit("boom")], result: e(),
+                          canThrow: true, thrownResult: slot2))
+        body.append(.jumpIfNotNull(value: slot2, target: catch2Label))
+        body.append(.constValue(result: sMiss, value: .stringLiteral(interner.intern("miss"))))
+        body.append(println(interner.intern("__kk_println_raw"), sMiss))
+        body.append(.jump(done2Label))
+        body.append(.label(catch2Label))
+        body.append(.call(symbol: nil, callee: interner.intern("__kk_throwable_toString"),
+                          arguments: [slot2], result: caught2,
+                          canThrow: false, thrownResult: nil))
+        body.append(println(interner.intern("__kk_println_raw"), caught2))
+        body.append(.label(done2Label))
+        body.append(.returnUnit)
+        let main = makeFunction(symbol: mainSymbol, name: "main", params: [], body: body)
+        let declID = arena.appendDecl(.function(main))
+        let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [declID])], arena: arena)
+        let run = try runUnderNode(try emit(module, entry: mainSymbol))
+        #expect(run?.status == 0)
+        #expect(run?.stdout == "1\n1\n0\n0\n0\n1\n1\n0\n1\n0\n0\n1\n1\n[2, 1]\n3\n1\n3.5\n1\n42\n1\nb=c\na=b\n3\nkotlin.NotImplementedError: An operation is not implemented: later\nkotlin.IllegalStateException: boom\n")
     }
 }
