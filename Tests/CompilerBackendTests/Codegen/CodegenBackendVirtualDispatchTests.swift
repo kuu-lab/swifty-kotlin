@@ -229,6 +229,18 @@ struct CodegenBackendVirtualDispatchTests {
     }
 
     @Test
+    func testContextMemberExtensionDispatchThroughInterfaceKeepsAllReceivers() throws {
+        let source = try diffCaseSource("kuu_3282_context_member_extension_interface_dispatch.kt")
+        try assertKotlinOutput(
+            source,
+            moduleName: "KUU3282ContextMemberExtensionInterfaceDispatch",
+            expected: "OK\nOK\n",
+            optLevel: .O0,
+            allowDefaultStdlibLibrary: true
+        )
+    }
+
+    @Test
     func testOpenClassVirtualDispatchChoosesConcreteOverride() throws {
         let source = """
         open class Animal {
