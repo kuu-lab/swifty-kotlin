@@ -370,11 +370,16 @@ public func kk_array_list_is_read_only(_ listRaw: Int) -> Int {
     kk_box_bool(runtimeListBox(from: listRaw)?.isReadOnly == true ? 1 : 0)
 }
 
-// STDLIB-410: emptyList<T>() - allocates a fresh empty list each call to avoid
-// aliasing with mutable collection operations (e.g., kk_mutable_list_add).
+// Kotlin exposes emptyList() as a shared immutable instance.
+private let emptyListSingletonRaw: Int = {
+    let raw = registerRuntimeObject(RuntimeListBox(elements: []), typeID: listRuntimeTypeID)
+    runtimeListBox(from: raw)?.freeze()
+    return raw
+}()
+
 @_cdecl("__kk_emptyList")
 public func kk_emptyList() -> Int {
-    return registerRuntimeObject(RuntimeListBox(elements: []), typeID: listRuntimeTypeID)
+    return emptyListSingletonRaw
 }
 
 @_cdecl("__kk_list_size")
