@@ -1,3 +1,4 @@
+// KUU-3219 / KUU-3517: invoke overload selection follows callee evaluation order.
 operator fun String.invoke(unused: String): String = "String.invoke(String)"
 operator fun String.invoke(unused: Any): String = "String.invoke(Any)"
 operator fun Any.invoke(unused: String): String = "Any.invoke(String)"
