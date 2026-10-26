@@ -481,6 +481,8 @@ extension DeclTypeChecker {
             initCtx.enclosingFunctionProhibitsExpressionBodyReturn = false
             _ = inferFunctionBodyType(block, ctx: initCtx, locals: &locals, expectedType: nil)
             runningLocals.memberFlow = locals.memberFlow
+            runningLocals.variableFacts = locals.variableFacts
+            runningLocals.invalidatedVariableFacts = locals.invalidatedVariableFacts
         }
     }
 
