@@ -68,6 +68,7 @@ extension DataFlowSemaPhase {
             superTypeRefs = classDecl.superTypeEntries.map(\.typeRef)
             superTypeEntries = classDecl.superTypeEntries
             nestedDecls = classDecl.nestedClasses + classDecl.nestedObjects
+                + classDecl.enumEntries.flatMap(\.nestedClasses)
                 + (classDecl.companionObject.map { [$0] } ?? [])
             requiresClassSupertypeConstructorInvocation = !classDecl.modifiers.contains(.expect)
                 && (classDecl.hasPrimaryConstructorSyntax || classDecl.secondaryConstructors.isEmpty)
