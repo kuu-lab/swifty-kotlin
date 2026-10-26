@@ -249,6 +249,7 @@ final class CoroutineLoweringPass: LoweringPass {
                 loweredSymbol: loweredSymbol,
                 module: module,
                 interner: ctx.interner,
+                externalLinkName: { ctx.sema?.symbols.externalLinkName(for: $0) },
                 suspendFunctionSymbols: suspendFunctionSymbols,
                 suspendFunctionNames: suspendFunctionNames,
                 runtimeSuspendCallNames: runtimeSuspendCallNames,

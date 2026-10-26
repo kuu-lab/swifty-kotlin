@@ -5,6 +5,38 @@ import Testing
 
 extension LoweringPassRegressionTests {
     @Test
+    func testInlineSuspendCallDoesNotRewriteLocalZeroArgumentDelayToRuntimeBridge() throws {
+        let source = """
+        suspend fun delay(): Unit {}
+
+        suspend inline fun foo(value: String): String {
+            delay()
+            return value
+        }
+
+        suspend fun baz(value: String): String = foo(value)
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(
+                inputs: [path], moduleName: "InlineSuspendLocalDelay", emit: .kirDump,
+                includeStdlib: false
+            )
+            try runToLowering(ctx)
+
+            let module = try #require(ctx.kir)
+            let bazStateMachine = try #require(findAllKIRFunctions(in: module).first {
+                ctx.interner.resolve($0.name) == "kk_suspend_baz"
+            })
+            let callees = extractCallees(from: bazStateMachine.body, interner: ctx.interner)
+
+            #expect(!ctx.diagnostics.hasError, "Unexpected diagnostics: \(ctx.diagnostics.diagnostics)")
+            #expect(!callees.contains("kk_kxmini_delay"), "A local zero-argument delay must keep its own suspend entry point")
+            #expect(callees.contains("kk_coroutine_call_direct_suspend"), "Expected a regular direct suspend call")
+        }
+    }
+
+    @Test
     func testCoroutineDurationArgumentsUseMillisecondStorageBridge() throws {
         let source = """
         import kotlinx.coroutines.*
