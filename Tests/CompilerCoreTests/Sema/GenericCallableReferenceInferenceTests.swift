@@ -1,9 +1,17 @@
 #if canImport(Testing)
 @testable import CompilerCore
+import Foundation
 import Testing
 
 @Suite
 struct GenericCallableReferenceInferenceTests {
+    private func makeStarProjectionContext(_ source: String) -> CompilationContext {
+        let path = "/virtual/star-projection-callable-reference-\(UUID().uuidString).kt"
+        let ctx = makeCompilationContext(inputs: [path], includeStdlib: false)
+        _ = ctx.sourceManager.addFile(path: path, contents: Data(source.utf8))
+        return ctx
+    }
+
     @Test(arguments: [
         "val ref: (Int) -> Int = ::identity; ref(42)",
         "val ref: (String) -> String = ::identity; ref(\"hello\")",
@@ -115,6 +123,31 @@ struct GenericCallableReferenceInferenceTests {
         let sema = try #require(ctx.sema)
         let bindings = sema.bindings.callableReferenceBindings.values
         #expect(bindings.filter(\.isCallableReferenceAdapter).count == 3)
+    }
+
+    @Test
+    func infersGenericCallableReferenceFromStarProjectedHigherOrderArgument() throws {
+        let ctx = makeStarProjectionContext("""
+        class MutableList<T>
+        fun <T> T.also(block: (T) -> Unit): T = this
+        fun <T> mutate(value: MutableList<T>): MutableList<T> = value
+        fun use(value: MutableList<*>): MutableList<*> = value.also(::mutate)
+        """)
+        try runSema(ctx)
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.isEmpty, "Expected star-projected callable reference to infer its captured type, got: \(errors)")
+    }
+
+    @Test
+    func rejectsStarProjectedCallableReferenceWhenTypeParameterBoundIsNarrower() throws {
+        let ctx = makeStarProjectionContext("""
+        class MutableList<T>
+        fun <T> T.also(block: (T) -> Unit): T = this
+        fun <T : Any> mutate(value: MutableList<T>): MutableList<T> = value
+        fun use(value: MutableList<*>): MutableList<*> = value.also(::mutate)
+        """)
+        try runSema(ctx)
+        #expect(ctx.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-TYPE-0001" })
     }
 
     @Test(arguments: [

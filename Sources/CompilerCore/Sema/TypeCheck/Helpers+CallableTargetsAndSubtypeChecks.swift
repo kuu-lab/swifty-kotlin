@@ -209,6 +209,122 @@ extension TypeCheckHelpers {
         )))
     }
 
+    private func capturingStarProjectedCallableReferenceInputs(
+        in expectedFunctionType: TypeID,
+        matching callableFunctionType: TypeID,
+        typeVariables: [SymbolID: TypeVarID],
+        sema: SemaModule
+    ) -> TypeID {
+        let types = sema.types
+
+        func projectedType(in argument: TypeArg) -> TypeID? {
+            switch argument {
+            case let .invariant(type), let .out(type), let .in(type): type
+            case .star: nil
+            }
+        }
+
+        func replacingProjectedType(in argument: TypeArg, with type: TypeID) -> TypeArg {
+            switch argument {
+            case .invariant: .invariant(type)
+            case .out: .out(type)
+            case .in: .in(type)
+            case .star: .star
+            }
+        }
+
+        func rewrite(_ expectedType: TypeID, matching actualType: TypeID) -> TypeID {
+            switch (types.kind(of: expectedType), types.kind(of: actualType)) {
+            case let (.classType(expectedClass), .classType(actualClass))
+                where expectedClass.classSymbol == actualClass.classSymbol:
+                let expectedArguments = types.allTypeArguments(for: expectedClass)
+                let actualArguments = types.allTypeArguments(for: actualClass)
+                let classTypeParameters = types.allTypeParameterSymbols(for: expectedClass.classSymbol)
+                guard expectedArguments.count == actualArguments.count else { return expectedType }
+
+                var arguments = expectedArguments
+                var changed = false
+                for index in expectedArguments.indices {
+                    let expectedArgument = expectedArguments[index]
+                    let actualArgument = actualArguments[index]
+                    if case .star = expectedArgument,
+                       let actualInner = projectedType(in: actualArgument),
+                       case let .typeParam(actualParameter) = types.kind(of: actualInner),
+                       actualParameter.capture == nil,
+                       typeVariables[actualParameter.symbol] != nil,
+                       classTypeParameters.indices.contains(index)
+                    {
+                        let projectedCapture = types.capturedTypeForStarProjection(
+                            parameter: classTypeParameters[index],
+                            ownerTypeParameters: classTypeParameters
+                        )
+                        let upperBound = types.capturedReadableUpperBound(of: projectedCapture)
+                        let capture = types.makeCapturedType(
+                            parameter: actualParameter.symbol,
+                            lower: types.nothingType,
+                            upper: upperBound,
+                            writeForbidden: true
+                        )
+                        arguments[index] = .invariant(capture)
+                        changed = true
+                    } else if let expectedInner = projectedType(in: expectedArgument),
+                              let actualInner = projectedType(in: actualArgument) {
+                        let rewrittenInner = rewrite(expectedInner, matching: actualInner)
+                        if rewrittenInner != expectedInner {
+                            arguments[index] = replacingProjectedType(in: expectedArgument, with: rewrittenInner)
+                            changed = true
+                        }
+                    }
+                }
+                guard changed else { return expectedType }
+                return types.make(.classType(types.classType(
+                    for: expectedClass.classSymbol,
+                    arguments: arguments,
+                    nullability: expectedClass.nullability
+                )))
+
+            case let (.functionType(expectedFunction), .functionType(actualFunction)):
+                guard expectedFunction.contextReceivers.count == actualFunction.contextReceivers.count else {
+                    return expectedType
+                }
+                let expectedInputs = (expectedFunction.receiver.map { [$0] } ?? []) + expectedFunction.params
+                let actualInputs = (actualFunction.receiver.map { [$0] } ?? []) + actualFunction.params
+                guard expectedInputs.count == actualInputs.count else { return expectedType }
+
+                var changed = false
+                let contextReceivers = zip(expectedFunction.contextReceivers, actualFunction.contextReceivers).map {
+                    expectedReceiver, actualReceiver in
+                    let rewritten = rewrite(expectedReceiver, matching: actualReceiver)
+                    changed = changed || rewritten != expectedReceiver
+                    return rewritten
+                }
+                let inputs = zip(expectedInputs, actualInputs).map { expectedInput, actualInput in
+                    let rewritten = rewrite(expectedInput, matching: actualInput)
+                    changed = changed || rewritten != expectedInput
+                    return rewritten
+                }
+                guard changed else { return expectedType }
+                let receiver = expectedFunction.receiver == nil ? nil : inputs.first
+                let params = expectedFunction.receiver == nil ? inputs : Array(inputs.dropFirst())
+                return types.make(.functionType(FunctionType(
+                    contextReceivers: contextReceivers,
+                    receiver: receiver,
+                    params: params,
+                    returnType: expectedFunction.returnType,
+                    isSuspend: expectedFunction.isSuspend,
+                    isCallableReference: expectedFunction.isCallableReference,
+                    nullability: expectedFunction.nullability,
+                    throws: expectedFunction.throws
+                )))
+
+            default:
+                return expectedType
+            }
+        }
+
+        return rewrite(expectedFunctionType, matching: callableFunctionType)
+    }
+
     /// Match a suspend expectation against the reference's ordinary signature
     /// before materializing its contextual adapter.
     func suspendConvertedCallableReferenceExpectedType(
@@ -655,16 +771,24 @@ extension TypeCheckHelpers {
                 unitCoercedCallableReferenceType(callableType, expectedFunctionType: expected, sema: sema)
             } ?? callableType
             let types = sema.types
+            let typeVars = types.makeTypeVarBySymbol(signature.typeParameterSymbols)
             let constraintExpectedFunctionType = expectedFunctionType.flatMap { expected in
                 suspendConvertedCallableReferenceExpectedType(
                     inferredType, expectedFunctionType: expected, sema: sema
                 )
             } ?? expectedFunctionType
-            let typeVars = types.makeTypeVarBySymbol(signature.typeParameterSymbols)
+            let matchingExpectedFunctionType = constraintExpectedFunctionType.map { expected in
+                capturingStarProjectedCallableReferenceInputs(
+                    in: expected,
+                    matching: inferredType,
+                    typeVariables: typeVars,
+                    sema: sema
+                )
+            } ?? expectedFunctionType
             guard !typeVars.isEmpty else {
                 guard callableReferenceTypeMatches(
                     inferredType,
-                    expected: expectedFunctionType,
+                    expected: matchingExpectedFunctionType,
                     expectedCallableReferenceReturnType: expectedCallableReferenceReturnType,
                     postponedReturn: postponedReturnTypeParameter,
                     deferScalarVarargInputTypeParameters: shape.isScalarVarargAdaptation,
@@ -682,9 +806,9 @@ extension TypeCheckHelpers {
             let resolver = OverloadResolver()
             var constraints: [VariableConstraint]
             if let postponedReturnTypeParameter {
-                guard let expectedFunctionType,
+                guard let matchingExpectedFunctionType,
                       case let .functionType(actual) = types.kind(of: inferredType),
-                      case let .functionType(expected) = types.kind(of: expectedFunctionType),
+                      case let .functionType(expected) = types.kind(of: matchingExpectedFunctionType),
                       case let .typeParam(resultParameter) = types.kind(of: expected.returnType),
                       resultParameter.symbol == postponedReturnTypeParameter else { return nil }
                 let actualInputs = (actual.receiver.map { [$0] } ?? []) + actual.params
@@ -707,7 +831,7 @@ extension TypeCheckHelpers {
                 }
             } else if let expectedFunctionType {
                 constraints = resolver.decomposeSubtypeConstraint(
-                    subtype: inferredType, supertype: constraintExpectedFunctionType ?? expectedFunctionType,
+                    subtype: inferredType, supertype: matchingExpectedFunctionType ?? expectedFunctionType,
                     typeVarBySymbol: typeVars, typeSystem: types, blameRange: nil
                 )
             } else if let expectedCallableReferenceReturnType,
@@ -831,6 +955,28 @@ extension TypeCheckHelpers {
             let specializedType = types.substituteTypeParameters(
                 in: inferredType, substitution: solution.substitution, typeVarBySymbol: typeVars
             )
+            let expressionType: TypeID = {
+                guard matchingExpectedFunctionType != constraintExpectedFunctionType,
+                      let expectedFunctionType,
+                      case let .functionType(expected) = types.kind(of: expectedFunctionType),
+                      case let .functionType(specialized) = types.kind(of: specializedType)
+                else {
+                    return specializedType
+                }
+                // Keep the caller's unresolved input variables visible to its
+                // overload solver, while retaining this reference's inferred
+                // result type so output inference still has evidence.
+                return types.make(.functionType(FunctionType(
+                    contextReceivers: expected.contextReceivers,
+                    receiver: expected.receiver,
+                    params: expected.params,
+                    returnType: specialized.returnType,
+                    isSuspend: specialized.isSuspend,
+                    isCallableReference: specialized.isCallableReference,
+                    nullability: specialized.nullability,
+                    throws: specialized.throws
+                )))
+            }()
             let specializedContextTypes = shape.boundContextParameterTypes.map {
                 types.substituteTypeParameters(
                     in: $0, substitution: solution.substitution, typeVarBySymbol: typeVars
@@ -843,7 +989,7 @@ extension TypeCheckHelpers {
                 )
             }) else { return nil }
             guard callableReferenceTypeMatches(
-                specializedType, expected: expectedFunctionType,
+                specializedType, expected: matchingExpectedFunctionType,
                 expectedCallableReferenceReturnType: expectedCallableReferenceReturnType,
                 postponedReturn: postponedReturnTypeParameter,
                 deferScalarVarargInputTypeParameters: shape.isScalarVarargAdaptation,
@@ -855,7 +1001,7 @@ extension TypeCheckHelpers {
                 arguments.append(argument)
             }
             return ContextualCallableReferenceBinding(
-                functionType: specializedType,
+                functionType: expressionType,
                 typeArguments: arguments,
                 parameterMapping: shape.parameterMapping,
                 requiresAdapter: shape.requiresAdapter,
