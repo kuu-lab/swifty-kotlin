@@ -815,11 +815,15 @@ extension ExprTypeChecker {
                     returnType: returnType,
                     sema: sema
                 )
+                // Only recognized range factories produce runtime range boxes.
+                // A user-defined operator can return an arbitrary heap object,
+                // including one whose class is named IntRange.
                 // A resolved call returning a range interface yields a heap
                 // object, not a runtime range box. Operand-based marks would
                 // misroute `x in` to the `__kk_*_range_*` bridges and erase
                 // the custom rangeTo call (KUU-2941).
-                if !driver.helpers.isRangeInterfaceType(returnType, sema: sema, interner: interner) {
+                if sema.bindings.isRangeExpr(id),
+                   !driver.helpers.isRangeInterfaceType(returnType, sema: sema, interner: interner) {
                     if [.rangeTo, .rangeUntil, .downTo].contains(op) {
                         sema.bindings.markRangeExpr(id)
                         if lhs == ulongType || rhs == ulongType {

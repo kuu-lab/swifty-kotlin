@@ -26,6 +26,7 @@ extension CallTypeChecker {
         } else if let symbol = sema.symbols.symbol(chosen) {
             let name = interner.resolve(symbol.name)
             isRangeConstructor = ["rangeTo", "until", "rangeUntil", "downTo", "step", "fromClosedRange"].contains(name)
+                && symbol.fqName.map(interner.resolve).starts(with: ["kotlin", "ranges"])
                 && driver.helpers.isRangeLikeType(returnType, sema: sema, interner: interner)
         } else {
             isRangeConstructor = false
