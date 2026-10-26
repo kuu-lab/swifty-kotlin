@@ -768,19 +768,22 @@ extension KotlinParser {
 
     func isAnonymousFunctionExpressionStart(at offset: Int = 0) -> Bool {
         guard stream.peek(offset).kind == .keyword(.fun) else { return false }
-        if stream.peek(offset + 1).kind == .symbol(.lParen) {
-            return true
-        }
         var cursor = offset + 1
         var depth = 0
-        var prevNonTriviaKind: TokenKind? = nil
-        while cursor < 200 {
+        var prevNonTriviaKind: TokenKind? = .keyword(.fun)
+        while cursor < offset + 200 {
             let token = stream.peek(cursor)
             if token.kind == .eof { break }
             switch token.kind {
             case .symbol(.lParen):
                 if depth == 0 {
                     if let prev = prevNonTriviaKind {
+                        if (prev == .keyword(.fun) || prev == .symbol(.greaterThan)),
+                           let nameOffset = offsetAfterParenthesizedReceiver(from: cursor, maxDistance: 4096),
+                           isIdentifierLike(stream.peek(nameOffset).kind)
+                        {
+                            return false
+                        }
                         switch prev {
                         case .keyword(.fun),
                              .symbol(.greaterThan),
@@ -1007,10 +1010,13 @@ extension KotlinParser {
         }
     }
 
-    func offsetPastBalancedGroup(from offset: Int, open: TokenKind, close: TokenKind) -> Int {
+    func offsetPastBalancedGroup(
+        from offset: Int, open: TokenKind, close: TokenKind, maxDistance: Int? = nil
+    ) -> Int {
         var depth = 0
         var index = offset
         repeat {
+            if let maxDistance, index - offset >= maxDistance { return offset }
             let kind = stream.peek(index).kind
             if kind == .eof { break }
             if kind == open {
