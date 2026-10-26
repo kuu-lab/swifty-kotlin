@@ -77,8 +77,13 @@ extension BuildASTPhase.ExpressionParser {
             guard !group.isEmpty else {
                 continue
             }
-            // Keep a final postfix mutation as an expression so the lambda returns its old value.
+            // Keep a final indexed mutation as an expression so the lambda returns
+            // the old value for postfix or the updated value for prefix.
             if rangeIndex == ranges.count - 1,
+               let prefixExpr = parseTrailingPrefixMutation(group)
+            {
+                statements.append(prefixExpr)
+            } else if rangeIndex == ranges.count - 1,
                let postfixExpr = parseTrailingPostfixMutation(group)
             {
                 statements.append(postfixExpr)
@@ -117,6 +122,55 @@ extension BuildASTPhase.ExpressionParser {
             astArena: astArena,
             diagnostics: diagnostics
         ).parse()
+    }
+
+    private func parseTrailingPrefixMutation(_ tokens: ArraySlice<Token>) -> ExprID? {
+        var expressionTokens = Array(tokens)
+        while expressionTokens.last?.kind == .symbol(.semicolon) {
+            expressionTokens.removeLast()
+        }
+        guard let firstToken = expressionTokens.first,
+              firstToken.kind == .symbol(.plusPlus) || firstToken.kind == .symbol(.minusMinus)
+        else {
+            return nil
+        }
+
+        // This whole parse is speculative: on bail the token group is reparsed
+        // as a statement or a plain expression, so its diagnostics must not leak.
+        let diagnosticsCheckpoint = diagnostics?.checkpoint()
+        let parser = BuildASTPhase.ExpressionParser(
+            tokens: expressionTokens,
+            interner: interner,
+            astArena: astArena,
+            diagnostics: diagnostics
+        )
+        guard let expression = parser.parse(),
+              parser.index == parser.tokens.endIndex,
+              !parser.hasIncompleteExpression,
+              case let .blockExpr(statements, trailingExpr, _) = astArena.expr(expression),
+              let trailingExpr,
+              case .indexedAccess = astArena.expr(trailingExpr),
+              let mutation = statements.last,
+              case let .indexedAssign(_, _, valueExpr, _) = astArena.expr(mutation),
+              case let .memberCall(_, callee, typeArgs, args, _) = astArena.expr(valueExpr),
+              typeArgs.isEmpty,
+              args.isEmpty,
+              astArena.isExplicitCall(valueExpr)
+        else {
+            if let diagnosticsCheckpoint {
+                diagnostics?.rollback(to: diagnosticsCheckpoint)
+            }
+            return nil
+        }
+
+        let name = interner.resolve(callee)
+        guard name == "inc" || name == "dec" else {
+            if let diagnosticsCheckpoint {
+                diagnostics?.rollback(to: diagnosticsCheckpoint)
+            }
+            return nil
+        }
+        return expression
     }
 
     private func lambdaTrailingExpression(from statements: inout [ExprID]) -> ExprID? {
