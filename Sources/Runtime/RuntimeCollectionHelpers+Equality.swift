@@ -173,6 +173,17 @@ func runtimeLookupValuesEqual(_ lhs: Int, _ rhs: Int) -> Bool {
         || runtimeEnumTaggedBoxMatchesOrdinal(rhs, rawSide: lhs)
 }
 
+private func runtimeListElementsEqual(_ lhs: [Int], _ rhs: [Int]) -> Bool {
+    guard lhs.count == rhs.count else { return false }
+    for index in lhs.indices {
+        // swiftlint:disable:next for_where
+        if !runtimeValuesEqual(lhs[index], rhs[index]) {
+            return false
+        }
+    }
+    return true
+}
+
 private func runtimeEnumTaggedBoxMatchesOrdinal(_ boxedSide: Int, rawSide: Int) -> Bool {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: boxedSide) else {
         return false
@@ -349,16 +360,23 @@ func runtimeNonNullValuesEqual(_ lhs: Int, _ rhs: Int) -> Bool {
     if let lhsList = runtimeListBox(from: lhs),
        let rhsList = runtimeListBox(from: rhs)
     {
-        let lhsElems = lhsList.elements
-        let rhsElems = rhsList.elements
-        guard lhsElems.count == rhsElems.count else { return false }
-        for i in lhsElems.indices {
-            // swiftlint:disable:next for_where
-            if !runtimeValuesEqual(lhsElems[i], rhsElems[i]) {
-                return false
-            }
-        }
-        return true
+        return runtimeListElementsEqual(lhsList.elements, rhsList.elements)
+    }
+    // Runtime ListBoxes have no source equals override, so compare them with
+    // source-backed List implementations through their ordinary iterator.
+    if let lhsList = runtimeListBox(from: lhs),
+       let rhsTypeID = runtimeObjectTypeID(rawValue: rhs),
+       runtimeIsAssignable(sourceTypeID: rhsTypeID, targetTypeID: listRuntimeTypeID),
+       let rhsElements = runtimeIterableElements(from: rhs)
+    {
+        return runtimeListElementsEqual(lhsList.elements, rhsElements)
+    }
+    if let rhsList = runtimeListBox(from: rhs),
+       let lhsTypeID = runtimeObjectTypeID(rawValue: lhs),
+       runtimeIsAssignable(sourceTypeID: lhsTypeID, targetTypeID: listRuntimeTypeID),
+       let lhsElements = runtimeIterableElements(from: lhs)
+    {
+        return runtimeListElementsEqual(lhsElements, rhsList.elements)
     }
     // Identity map views compare against any Set implementation, including
     // source objects whose elements are exposed through an Iterable itable.
