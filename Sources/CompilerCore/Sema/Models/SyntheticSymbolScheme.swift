@@ -1,4 +1,4 @@
-enum SyntheticSymbolScheme {
+public enum SyntheticSymbolScheme {
     /// Synthetic symbols derive a stable `SymbolID` from an existing symbol
     /// (a property, function, or type-parameter). All kinds share a single
     /// interleaved band so that distinct `(kind, original)` pairs never collide,
@@ -189,7 +189,7 @@ enum SyntheticSymbolScheme {
     /// synthetic getter accessor was derived from, or nil when `symbol` is not
     /// one. Lets callers walk the (few) emitted getters instead of scanning the
     /// whole symbol table for properties.
-    static func propertyOwnerOfGetterAccessor(_ symbol: SymbolID) -> SymbolID? {
+    public static func propertyOwnerOfGetterAccessor(_ symbol: SymbolID) -> SymbolID? {
         guard let (kind, original) = decode(symbol), kind == .getter else { return nil }
         return original
     }
@@ -221,7 +221,7 @@ enum SyntheticSymbolScheme {
         }
     }
 
-    static func isLikelySyntheticSetterAccessor(_ symbol: SymbolID) -> Bool {
+    public static func isLikelySyntheticSetterAccessor(_ symbol: SymbolID) -> Bool {
         decode(symbol)?.kind == .setter
     }
 
@@ -246,7 +246,7 @@ enum SyntheticSymbolScheme {
 
     /// Reverse of `propertySetterAccessorSymbol(for:)`: recovers the original
     /// property symbol from a synthetic setter accessor symbol.
-    static func originalPropertySymbolFromSetterAccessor(_ setterAccessor: SymbolID) -> SymbolID {
+    public static func originalPropertySymbolFromSetterAccessor(_ setterAccessor: SymbolID) -> SymbolID {
         originalPropertySymbolFromAccessor(setterAccessor)
     }
 

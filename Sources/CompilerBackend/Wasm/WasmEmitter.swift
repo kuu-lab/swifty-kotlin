@@ -104,10 +104,20 @@ final class WasmModuleContext {
         static let listIteratorTypeID: Int64 = -9_012
         /// List/iterator body slot offsets (object slots 2/3/4): slot2 holds
         /// the backing array (or the list, for iterators), slot3 the element
-        /// count (or iterator index), slot4 flags (or expected count).
+        /// count (or iterator index), slot4 flags (or expected modCount).
         static let listArrayOffset: Int64 = 16
         static let listCountOffset: Int64 = 24
         static let listFlagsOffset: Int64 = 32
+        /// `subList` view box: `{backing@16, size@24, flags@32, parent@40,
+        /// expectedParentMod@48}`. Backing is the root parent's array pointer
+        /// pre-adjusted by `from*8`, so all element reads work unchanged.
+        static let listViewTypeID: Int64 = -9_017
+        static let listParentOffset: Int64 = 40
+        static let listExpectedModOffset: Int64 = 48
+        /// flags bit layout (list/set/view boxes): bit0 = readOnly,
+        /// bit1 = view marker, bits 8+ = modCount (structural-mod epoch).
+        static let listViewFlag: Int64 = 0x2
+        static let modCountShift: Int64 = 8
         /// `kk_map_iterator` result box.
         static let mapIteratorTypeID: Int64 = -9_013
         /// `kk_mutable_map_iterator` result box.
@@ -136,10 +146,19 @@ final class WasmModuleContext {
         static let pairSecondOffset: Int64 = 24
         static let pairMapRefOffset: Int64 = 32
         static let pairMapKeyOffset: Int64 = 40
-        /// vtable layout: [0, vtableMethods) direct slots, then itable blocks.
-        static let vtableDirectSlots = 16
+        /// vtable array holds direct method slots only. itable entries live
+        /// in a separate per-object buffer whose pointer is stored in the
+        /// vtable header at `vt + vtableItablePtrOffset` — mirroring native's
+        /// disjoint vtable/itable keyspaces so a class whose direct vtable
+        /// exceeds any fixed prefix cannot clobber interface entries.
+        static let vtableItablePtrOffset: Int64 = -16
+        /// Direct-slot capacity of the lazily allocated vtable array.
+        static let vtableSlots = 528
+        /// itable buffer geometry: ifaceSlot-major with `itableStride` method
+        /// slots per interface, up to `itableBlocks` interfaces per object.
         static let itableStride = 32
-        static let vtableSlots = 16 + 32 * 16 // 528 entries
+        static let itableBlocks = 16
+        static let itableSlots = itableStride * itableBlocks // 512 entries
         /// Per-object interface map capacity (typeID, slot) pairs.
         static let ifaceMapCapacity = 8
         /// Tagged small-int sentinels must never look like real pointers.
@@ -203,6 +222,15 @@ final class WasmModuleContext {
         if let helper = stdlibShimName(for: name, argumentTypes: argumentTypes) {
             return .emittedHelper(emittedHelperIndex(for: helper, argumentCount: argumentCount))
         }
+        // Direct calls onto stdlib members whose bodies live in the .kklib
+        // (e.g. a `size` getter on a sentinel-boxed map) resolve through the
+        // same thunk table vtable/itable registrations use, instead of
+        // silently stubbing to 0.
+        if let symbol, let thunk = memberThunkInfo(for: symbol) {
+            return .emittedHelper(
+                emittedHelperIndex(for: thunk.helper, argumentCount: thunk.arity)
+            )
+        }
         return .stub(name)
     }
 
@@ -220,7 +248,13 @@ final class WasmModuleContext {
         }
         switch name {
         case "joinToString", "joinToString$default":
-            return "__kk_string_joinToString"
+            // The full public shape carries (sep, prefix, postfix, limit,
+            // truncated, transform[, mask]) after the receiver — 7+ args.
+            // The private extern bridge is the 4-arg (sep, prefix, postfix)
+            // form.
+            return argumentTypes.count >= 7
+                ? "__kk_wasm_join_to_string_full"
+                : "__kk_string_joinToString"
         // kotlin.text forwarders.
         case "indexOf$default":
             return isChar(1)
@@ -267,6 +301,22 @@ final class WasmModuleContext {
             return "__kk_wasm_string_repeat"
         case "substring$default":
             return "__kk_wasm_string_substring_to"
+        case "substringAfter$default":
+            return isChar(1)
+                ? "__kk_wasm_string_substring_after_char"
+                : "__kk_wasm_string_substring_after"
+        case "substringBefore$default":
+            return isChar(1)
+                ? "__kk_wasm_string_substring_before_char"
+                : "__kk_wasm_string_substring_before"
+        case "substringAfterLast$default":
+            return isChar(1)
+                ? "__kk_wasm_string_substring_after_last_char"
+                : "__kk_wasm_string_substring_after_last"
+        case "substringBeforeLast$default":
+            return isChar(1)
+                ? "__kk_wasm_string_substring_before_last_char"
+                : "__kk_wasm_string_substring_before_last"
         case "capitalize$default":
             return "__kk_wasm_string_capitalize"
         case "decapitalize$default":
@@ -337,6 +387,70 @@ final class WasmModuleContext {
                 switch member {
                 case "first", "component1": return "__kk_pair_first"
                 case "second", "component2": return "__kk_pair_second"
+                case "toString": return "__kk_wasm_pair_to_string"
+                default: break
+                }
+            }
+            // `toString` members/extensions map to the matching renderer —
+            // the kklib bodies aren't in this module.
+            if member == "toString" {
+                switch components.count >= 2 ? components[1] : "" {
+                case "ranges":
+                    return "__kk_wasm_range_to_string"
+                case "Any":
+                    return "kk_any_to_string"
+                case "collections":
+                    if components.count >= 4,
+                       components[2] == "Map" || components[2] == "MutableMap"
+                    {
+                        return "__kk_wasm_entry_to_string"
+                    }
+                    if components.count >= 3 {
+                        switch components[2] {
+                        case "IndexedValue":
+                            return "__kk_wasm_indexed_value_to_string"
+                        case "LinkedHashMap", "HashMap", "Map", "MutableMap",
+                             "AbstractMap":
+                            return "__kk_wasm_map_to_string"
+                        case "LinkedHashSet", "HashSet", "Set", "MutableSet",
+                             "List", "MutableList", "ArrayList",
+                             "AbstractList", "AbstractCollection", "Collection",
+                             "Iterable", "MutableIterable":
+                            return "__kk_wasm_list_to_string"
+                        default: break
+                        }
+                    }
+                default:
+                    break
+                }
+            }
+            if components.count >= 2, components[1] == "IndexedValue",
+               member == "toString"
+            {
+                return "__kk_wasm_indexed_value_to_string"
+            }
+            // `IndexedValue.index`/`value`/`componentN` share the pair layout.
+            if components.count >= 3, components[1] == "collections",
+               components[2] == "IndexedValue"
+            {
+                switch member {
+                case "index", "component1": return "__kk_pair_first"
+                case "value", "component2": return "__kk_pair_second"
+                default: break
+                }
+            }
+            // `Map.Entry.key`/`value`/`componentN` and
+            // `MutableMap.MutableEntry.setValue` share the pair slots (the
+            // live-view second resolves through `__kk_pair_second`).
+            if components.count >= 4, components[1] == "collections",
+               (components[2] == "Map" && components[3] == "Entry")
+                   || (components[2] == "MutableMap"
+                       && components[3] == "MutableEntry")
+            {
+                switch member {
+                case "key", "component1": return "__kk_pair_first"
+                case "value", "component2": return "__kk_pair_second"
+                case "setValue": return "__kk_mutable_map_entry_setValue"
                 default: break
                 }
             }
@@ -359,13 +473,26 @@ final class WasmModuleContext {
                 case "getSuppressed": return "__kk_throwable_suppressedRaw"
                 case "suppressedExceptions": return "__kk_throwable_suppressed_list"
                 case "initCause": return "__kk_throwable_setCause"
+                case "error": return "__kk_wasm_error"
+                case "TODO": return "__kk_wasm_todo"
                 default: break
                 }
             }
-            if components.count == 3, components[1] == "collections" {
-                switch components[2] {
-                case "toList":
-                    return argumentCount == 1 ? "__kk_list_to_list" : nil
+            // `kotlin.comparisons` — ordering helpers whose kklib bodies
+            // inline-expand to these leaf calls.
+            if components.count == 3, components[1] == "comparisons" {
+                switch member {
+                case "compareValues", "compareNullable",
+                     "compareValuesUnchecked":
+                    return "__kk_wasm_compare_values"
+                case "naturalOrder":
+                    return "__kk_wasm_natural_order"
+                case "reverseOrder":
+                    return "__kk_wasm_reverse_order"
+                case "minOf":
+                    return argumentCount == 2 ? "__kk_wasm_min_of" : nil
+                case "maxOf":
+                    return argumentCount == 2 ? "__kk_wasm_max_of" : nil
                 default: break
                 }
             }
@@ -399,14 +526,179 @@ final class WasmModuleContext {
                     "HashSet", "LinkedHashSet",
                 ]
                 if components.count == 3 || listBoxOwners.contains(components[2]) {
+                    // `sum`/`sorted` disambiguate Int/Double receivers and
+                    // primitive-array receivers through the signature.
+                    func elementIsFp(_ sig: FunctionSignature?) -> Bool {
+                        guard let t = sig?.receiverType, let types,
+                              case let .classType(ct) = types.kind(of: t),
+                              let arg = ct.args.first
+                        else { return false }
+                        let argType: TypeID
+                        switch arg {
+                        case let .invariant(id), let .out(id), let .in(id):
+                            argType = id
+                        case .star:
+                            return false
+                        }
+                        guard case .primitive(.double, _) = types.kind(of: argType)
+                        else { return false }
+                        return true
+                    }
+                    func receiverIsPrimArray(
+                        _ sig: FunctionSignature?, names: Set<String>
+                    ) -> Bool {
+                        primReceiverName(sig).map { names.contains($0) } ?? false
+                    }
+                    func primReceiverName(_ sig: FunctionSignature?) -> String? {
+                        guard let t = sig?.receiverType, let types,
+                              case let .classType(ct) = types.kind(of: t),
+                              let sym = symbols?.symbol(ct.classSymbol),
+                              let last = sym.fqName.last
+                        else { return nil }
+                        return interner.resolve(last)
+                    }
+                    // `*Array.toList` extern helpers keyed by the receiver's
+                    // simple name (`Array` covers the generic object array).
+                    let arrayToListHelpers: [String: String] = [
+                        "IntArray": "__kk_intArray_toList",
+                        "LongArray": "__kk_longArray_toList",
+                        "ShortArray": "__kk_shortArray_toList",
+                        "ByteArray": "__kk_byteArray_toList",
+                        "CharArray": "__kk_charArray_toList",
+                        "BooleanArray": "__kk_booleanArray_toList",
+                        "UIntArray": "__kk_uIntArray_toList",
+                        "ULongArray": "__kk_uLongArray_toList",
+                        "DoubleArray": "__kk_doubleArray_toList",
+                        "FloatArray": "__kk_floatArray_toList",
+                        "UByteArray": "__kk_uByteArray_toList",
+                        "UShortArray": "__kk_uShortArray_toList",
+                        "Array": "__kk_array_toList",
+                    ]
+                    let sig = symbols?.functionSignature(for: symbol)
                     switch member {
                     case "indexOf": return "__kk_list_index_of"
                     case "lastIndexOf": return "__kk_list_last_index_of"
                     case "contains": return "__kk_set_contains"
-                    case "first": return "__kk_list_first"
-                    case "last": return "__kk_list_last"
+                    case "first":
+                        return argumentCount == 1 ? "__kk_wasm_iterable_first" : nil
+                    case "firstOrNull":
+                        return argumentCount == 1
+                            ? "__kk_wasm_iterable_first_or_null" : nil
+                    case "last":
+                        return argumentCount == 1 ? "__kk_wasm_iterable_last" : nil
+                    case "lastOrNull":
+                        return argumentCount == 1
+                            ? "__kk_wasm_iterable_last_or_null" : nil
+                    case "single":
+                        return argumentCount == 1 ? "__kk_wasm_iterable_single" : nil
+                    case "singleOrNull":
+                        return argumentCount == 1
+                            ? "__kk_wasm_iterable_single_or_null" : nil
+                    case "elementAt":
+                        return "__kk_wasm_iterable_element_at"
+                    case "elementAtOrNull":
+                        return "__kk_wasm_iterable_element_at_or_null"
                     case "isEmpty": return "__kk_list_is_empty"
-                    case "joinToString": return "__kk_string_joinToString"
+                    case "count":
+                        return argumentCount == 1 ? "__kk_wasm_iterable_count" : nil
+                    case "min":
+                        return argumentCount == 1 ? "__kk_wasm_iterable_min" : nil
+                    case "max":
+                        return argumentCount == 1 ? "__kk_wasm_iterable_max" : nil
+                    case "minOrNull":
+                        return argumentCount == 1
+                            ? "__kk_wasm_iterable_min_or_null" : nil
+                    case "maxOrNull":
+                        return argumentCount == 1
+                            ? "__kk_wasm_iterable_max_or_null" : nil
+                    case "joinToString":
+                        return argumentCount >= 7
+                            ? "__kk_wasm_join_to_string_full"
+                            : "__kk_string_joinToString"
+                    case "toList":
+                        if let recv = primReceiverName(sig),
+                           let helper = arrayToListHelpers[recv] {
+                            return helper
+                        }
+                        return argumentCount == 1 ? "__kk_list_to_list" : nil
+                    case "toMutableList":
+                        if primReceiverName(sig) != nil {
+                            return "__kk_wasm_prim_array_to_mutable_list"
+                        }
+                        return "__kk_wasm_iterable_to_mutable_list"
+                    case "copyOf":
+                        if argumentCount == 1, primReceiverName(sig) != nil {
+                            return "__kk_wasm_prim_array_copy"
+                        }
+                        return nil
+                    case "toMutableSet":
+                        return "__kk_wasm_iterable_to_mutable_set"
+                    case "toHashSet":
+                        return "__kk_wasm_iterable_to_hash_set"
+                    case "toSet":
+                        return "__kk_wasm_iterable_to_set"
+                    case "take":
+                        return "__kk_wasm_iterable_take"
+                    case "drop":
+                        return "__kk_wasm_iterable_drop"
+                    case "reversed":
+                        return argumentCount == 1
+                            ? "__kk_wasm_iterable_reversed" : nil
+                    case "distinct":
+                        return "__kk_wasm_iterable_distinct"
+                    case "flatten":
+                        return "__kk_wasm_iterable_flatten"
+                    case "filterNotNull":
+                        return "__kk_wasm_iterable_filter_not_null"
+                    case "zipWithNext":
+                        return argumentCount == 1
+                            ? "__kk_wasm_iterable_zip_with_next" : nil
+                    case "withIndex":
+                        return "__kk_wasm_iterable_with_index"
+                    case "unzip":
+                        return "__kk_wasm_iterable_unzip"
+                    case "chunked":
+                        return "__kk_wasm_iterable_chunked"
+                    case "zip":
+                        return argumentCount == 2 ? "__kk_wasm_iterable_zip" : nil
+                    case "sorted":
+                        if receiverIsPrimArray(sig, names: [
+                            "IntArray", "LongArray", "ShortArray",
+                            "ByteArray", "CharArray", "BooleanArray",
+                        ]) {
+                            return "__kk_wasm_int_array_sorted"
+                        }
+                        return argumentCount == 1
+                            ? "__kk_wasm_iterable_sorted" : nil
+                    case "sortedDescending":
+                        if receiverIsPrimArray(sig, names: [
+                            "IntArray", "LongArray", "ShortArray",
+                            "ByteArray", "CharArray", "BooleanArray",
+                        ]) {
+                            return "__kk_wasm_int_array_sorted_desc"
+                        }
+                        return argumentCount == 1
+                            ? "__kk_wasm_iterable_sorted_desc" : nil
+                    case "sortedWith":
+                        return "__kk_wasm_iterable_sorted_with"
+                    case "sortedBy":
+                        return "__kk_wasm_iterable_sorted_by"
+                    case "sortedByDescending":
+                        return "__kk_wasm_iterable_sorted_by_desc"
+                    case "sum":
+                        if receiverIsPrimArray(
+                            sig, names: ["DoubleArray", "FloatArray"]
+                        ) {
+                            return "__kk_wasm_prim_array_sum_fp"
+                        }
+                        if receiverIsPrimArray(sig, names: [
+                            "IntArray", "LongArray", "ShortArray", "ByteArray",
+                        ]) {
+                            return "__kk_wasm_prim_array_sum_int"
+                        }
+                        return elementIsFp(sig)
+                            ? "__kk_wasm_iterable_sum_fp"
+                            : "__kk_wasm_iterable_sum_int"
                     default: break
                     }
                 }
@@ -529,15 +821,72 @@ final class WasmModuleContext {
                     return "__kk_wasm_string_split"
                 case "get", "charAt":
                     return "kk_string_get"
+                case "toInt":
+                    return "__kk_wasm_string_to_int"
+                case "toLong":
+                    return "__kk_wasm_string_to_long"
+                case "toIntOrNull":
+                    return "__kk_wasm_string_to_int_or_null"
+                case "toLongOrNull":
+                    return "__kk_wasm_string_to_long_or_null"
+                case "toBoolean":
+                    return "__kk_wasm_string_to_boolean"
+                case "toDouble":
+                    return "__kk_wasm_string_to_double"
+                case "toFloat":
+                    return "__kk_wasm_string_to_float"
+                case "toDoubleOrNull":
+                    return "__kk_wasm_string_to_double_or_null"
+                case "toFloatOrNull":
+                    return "__kk_wasm_string_to_float_or_null"
+                case "substringAfter":
+                    return isCharParam(0)
+                        ? "__kk_wasm_string_substring_after_char"
+                        : "__kk_wasm_string_substring_after"
+                case "substringBefore":
+                    return isCharParam(0)
+                        ? "__kk_wasm_string_substring_before_char"
+                        : "__kk_wasm_string_substring_before"
+                case "substringAfterLast":
+                    return isCharParam(0)
+                        ? "__kk_wasm_string_substring_after_last_char"
+                        : "__kk_wasm_string_substring_after_last"
+                case "substringBeforeLast":
+                    return isCharParam(0)
+                        ? "__kk_wasm_string_substring_before_last_char"
+                        : "__kk_wasm_string_substring_before_last"
+                case "removePrefix":
+                    return "__kk_wasm_string_remove_prefix"
+                case "removeSuffix":
+                    return "__kk_wasm_string_remove_suffix"
+                case "padStart":
+                    return argumentCount >= 3 ? "__kk_wasm_string_pad_start" : nil
+                case "padEnd":
+                    return argumentCount >= 3 ? "__kk_wasm_string_pad_end" : nil
+                case "lines":
+                    return "__kk_wasm_string_lines"
                 default: break
                 }
             }
-            guard fq.count == 3, fq[1] == "io", argumentCount == 1 else {
+            guard fq.count == 3, fq[1] == "io" else {
                 return nil
             }
+            // `println(Any?)` must stringify through the Any path — the raw
+            // writer reads a string layout and mangles heap objects.
+            let isStringParam: Bool = {
+                guard let sig = symbols?.functionSignature(for: symbol),
+                      let p = sig.parameterTypes.first, let types,
+                      case .stringStruct = types.kind(of: p)
+                else { return false }
+                return true
+            }()
             switch fq[2] {
-            case "println": return "__kk_println_raw"
-            case "print": return "__kk_print_raw"
+            case "println":
+                if argumentCount == 0 { return "__kk_wasm_println_empty" }
+                return isStringParam ? "__kk_println_raw" : "__kk_println_any"
+            case "print":
+                if argumentCount == 0 { return "__kk_wasm_noop" }
+                return isStringParam ? "__kk_print_raw" : "__kk_print_any"
             default: return nil
             }
         }
@@ -584,22 +933,167 @@ final class WasmModuleContext {
 
     /// Lazily emits (or returns) the wasm function implementing a runtime
     /// helper callable by KIR name (`kk_object_new`, `__kk_println_raw`, ...).
+    /// `(helper, arity)` backing a stdlib member whose body never
+    /// materialized as a module function. Vtable/itable registrations carry
+    /// the implementation as a `symbolRef`; without this mapping the slot
+    /// would hold the raw symbol ID and `call_indirect` would read a wild
+    /// table index (`linkedSetOf(1,2) == setOf(2,1)` crashes on
+    /// `AbstractMutableSet.equals`). Members land on the same helpers the
+    /// sentinel boxes use, so e.g. `AbstractMutableSet.equals` reaches the
+    /// structural set compare the JVM's `AbstractSet.equals` specifies.
+    func memberThunkInfo(for symbol: SymbolID) -> (helper: String, arity: Int)? {
+        guard let symbols else { return nil }
+        var lookup = symbol
+        if let owner = symbols.accessorOwnerProperty(for: symbol)
+            ?? SyntheticSymbolScheme.propertyOwnerOfGetterAccessor(symbol) {
+            lookup = owner
+        } else if SyntheticSymbolScheme.isLikelySyntheticSetterAccessor(symbol) {
+            let owner = SyntheticSymbolScheme.originalPropertySymbolFromSetterAccessor(symbol)
+            if owner.rawValue >= 0 { lookup = owner }
+        }
+        guard let sem = symbols.symbol(lookup) else { return nil }
+        let fq = sem.fqName.map { interner.resolve($0) }
+        guard fq.count >= 3, fq[0] == "kotlin" else { return nil }
+        let member = fq[fq.count - 1]
+        let owner = fq[fq.count - 2]
+        let grandparent = fq.count >= 3 ? fq[fq.count - 3] : ""
+
+        let setOwners: Set<String> = [
+            "Set", "MutableSet", "AbstractSet", "AbstractMutableSet",
+            "HashSet", "LinkedHashSet",
+        ]
+        let listOwners: Set<String> = [
+            "List", "MutableList", "AbstractList", "AbstractMutableList",
+            "ArrayList", "LinkedList",
+        ]
+        let collectionOwners: Set<String> = [
+            "Collection", "MutableCollection", "AbstractCollection",
+            "AbstractMutableCollection", "Iterable", "MutableIterable",
+        ]
+        let mapOwners: Set<String> = [
+            "Map", "MutableMap", "AbstractMap", "AbstractMutableMap",
+            "HashMap", "LinkedHashMap",
+        ]
+        let isSet = setOwners.contains(owner)
+        let isList = listOwners.contains(owner)
+        let isGenericColl = collectionOwners.contains(owner)
+        let isMap = mapOwners.contains(owner)
+        let isEntry = owner == "Entry" && grandparent == "Map"
+            || owner == "MutableEntry" && grandparent == "MutableMap"
+        let anyColl = isSet || isList || isGenericColl || isMap
+
+        let thunk: (helper: String, arity: Int)?
+        switch member {
+        case "equals":
+            if anyColl { thunk = ("__kk_wasm_elem_eq", 2) }
+            else if owner == "Any" { thunk = ("__kk_wasm_identity_eq", 2) }
+            else { thunk = nil }
+        case "hashCode":
+            if anyColl { thunk = ("__kk_wasm_collection_hash", 1) }
+            else if owner == "Any" { thunk = ("__kk_wasm_identity_hash", 1) }
+            else { thunk = nil }
+        case "toString":
+            thunk = anyColl || isEntry || owner == "Any"
+                ? ("__kk_wasm_obj_to_string", 1) : nil
+        case "iterator":
+            thunk = isSet || isList || isGenericColl
+                ? ("kk_iterable_iterator", 1) : nil
+        case "size":
+            thunk = isSet || isList || isGenericColl ? ("__kk_set_size", 1)
+                : isMap ? ("__kk_map_size", 1) : nil
+        case "isEmpty":
+            thunk = isSet || isList || isGenericColl ? ("__kk_set_is_empty", 1)
+                : isMap ? ("__kk_map_is_empty", 1) : nil
+        case "contains":
+            thunk = isSet || isList || isGenericColl
+                ? ("__kk_set_contains", 2) : nil
+        case "containsAll":
+            thunk = isSet || isList || isGenericColl
+                ? ("__kk_wasm_contains_all", 2) : nil
+        case "containsKey":
+            thunk = isMap ? ("__kk_map_contains_key", 2) : nil
+        case "containsValue":
+            thunk = isMap ? ("__kk_map_contains_value", 2) : nil
+        case "keys":
+            thunk = isMap ? ("__kk_map_keys", 1) : nil
+        case "values":
+            thunk = isMap ? ("__kk_map_values", 1) : nil
+        case "entries":
+            thunk = isMap ? ("__kk_map_entries", 1) : nil
+        case "get":
+            thunk = isMap ? ("__kk_map_get", 2)
+                : isList ? ("__kk_list_get", 2) : nil
+        case "put":
+            thunk = isMap ? ("__kk_mutable_map_put", 3) : nil
+        case "remove":
+            thunk = isSet ? ("__kk_mutable_set_remove", 2)
+                : isMap ? ("__kk_mutable_map_remove", 2) : nil
+        case "clear":
+            thunk = isSet || isList || isGenericColl
+                ? ("__kk_mutable_set_clear", 1)
+                : isMap ? ("__kk_mutable_map_clear", 1) : nil
+        case "add":
+            thunk = isSet ? ("__kk_mutable_set_add", 2)
+                : isList ? ("__kk_mutable_list_add", 2) : nil
+        case "subList":
+            thunk = isList ? ("kk_list_subList", 3) : nil
+        case "indexOf":
+            thunk = isList ? ("__kk_list_index_of", 2) : nil
+        case "lastIndexOf":
+            thunk = isList ? ("__kk_list_last_index_of", 2) : nil
+        case "key":
+            thunk = isEntry ? ("__kk_pair_first", 1) : nil
+        case "value":
+            thunk = isEntry ? ("__kk_pair_second", 1) : nil
+        case "setValue":
+            thunk = isEntry ? ("__kk_mutable_map_entry_setValue", 2) : nil
+        case "component1":
+            thunk = isEntry ? ("__kk_pair_first", 1) : nil
+        case "component2":
+            thunk = isEntry ? ("__kk_pair_second", 1) : nil
+        default:
+            thunk = nil
+        }
+        guard let thunk else { return nil }
+        // The vtable caller invokes the slot with `i64Signature(1+params)`;
+        // only serve members whose signature arity matches the thunk.
+        if let signature = symbols.functionSignature(for: lookup),
+           signature.parameterTypes.count + 1 != thunk.arity
+        {
+            return nil
+        }
+        return thunk
+    }
+
     func emittedHelperIndex(for name: String, argumentCount: Int) -> Int {
         let key = "\(name)/\(argumentCount)"
         if let existing = helperIndexByName[key] { return existing }
-        guard let body = WasmRuntimeHelpers.emittedBody(
-            for: name,
-            argumentCount: argumentCount,
-            context: self
-        ) else {
+        guard WasmRuntimeHelpers.isEmittedHelperName(name) else {
             return stubIndex(for: name, argumentCount: argumentCount)
         }
+        // Pre-register the function index so helpers that call each other
+        // transitively (e.g. `kk_any_to_string` → collection renderers →
+        // `kk_any_to_string`) resolve the cycle instead of recursing.
         let index = module.addFunction(
             type: .i64Signature(argumentCount),
             name: "$\(name)"
         )
         helperIndexByName[key] = index
-        module.setBody(body, forFunctionIndex: index)
+        if let body = WasmRuntimeHelpers.emittedBody(
+            for: name,
+            argumentCount: argumentCount,
+            context: self
+        ) {
+            module.setBody(body, forFunctionIndex: index)
+        } else {
+            // Name is registered but this arity has no body — emit a
+            // return-0 body so the pre-allocated function stays valid.
+            var body = WasmCode()
+            body.u(0)
+            body.i64Const(0)
+            body.op(WasmOpcode.end)
+            module.setBody(body.bytes, forFunctionIndex: index)
+        }
         return index
     }
 
