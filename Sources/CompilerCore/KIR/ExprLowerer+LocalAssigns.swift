@@ -204,6 +204,26 @@ extension ExprLowerer {
                 arena: arena
             ),
                       let ownerSymbol = sema.symbols.parentSymbol(for: symbol),
+                      sema.symbols.symbol(ownerSymbol)?.kind == .interface,
+                      driver.callLowerer.tryLowerInterfaceItablePropertySetterWrite(
+                          propertySymbol: symbol,
+                          loweredReceiverID: receiverExprID,
+                          loweredValueID: valueID,
+                          sema: sema,
+                          cache: driver.ctx.nominalDispatchCache,
+                          arena: arena,
+                          interner: interner,
+                          instructions: &instructions
+                      ) != nil
+            {
+                // Bare interface-property writes in nested receiver lambdas
+                // must dispatch through the captured implementing instance.
+            } else if let receiverExprID = driver.objectLiteralLowerer.implicitReceiverExprID(
+                forProperty: symbol,
+                sema: sema,
+                arena: arena
+            ),
+                      let ownerSymbol = sema.symbols.parentSymbol(for: symbol),
                       let ownerInfo = sema.symbols.symbol(ownerSymbol),
                       ownerInfo.kind == .class || ownerInfo.kind == .interface,
                       !(
