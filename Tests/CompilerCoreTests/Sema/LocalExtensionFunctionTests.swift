@@ -76,7 +76,7 @@ struct LocalExtensionFunctionTests {
     func anonymousFunctionParametersCanUseTheExpectedFunctionType() throws {
         let ctx = makeContextFromSource("""
         fun probe(): (Int) -> Int {
-            return fun(value) = value + 1
+            return fun(value) { return value + 1 }
         }
         """)
         try runSema(ctx)

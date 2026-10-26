@@ -23,14 +23,14 @@ fun main() {
     println(isFunctionDescription(closure.toString()))
     println(listOf(closure).toString() == "[${closure.toString()}]")
     println(closure())
-    val anonymous = fun() = 2
+    val anonymous = fun(): Int { return 2 }
     println(isFunctionDescription(anonymous.toString()))
     println(anonymous())
     val block = fun(): Int { return 3 }
     println(isFunctionDescription(block.toString()))
     println(block())
-    println((fun(x: Int): Int = x + 1)(4))
-    val capturedAnonymous = fun(x: Int) = captured + x
+    println((fun(x: Int): Int { return x + 1 })(4))
+    val capturedAnonymous = fun(x: Int): Int { return captured + x }
     println(isFunctionDescription(capturedAnonymous.toString()))
     println(capturedAnonymous(2))
     println(listOf(f)[0]())

@@ -88,7 +88,7 @@ extension BuildASTPhase.ExpressionParser {
     ///     // desugars to (with a fresh, unspellable synthetic name):
     ///     { fun __AnonymousFunction_7_142(x: Int): Int { return x * 2 }; ::__AnonymousFunction_7_142 }
     ///
-    /// Both block and expression bodies reuse local-function semantics.
+    /// Block bodies and malformed expression-body recovery reuse local-function semantics.
     ///
     /// A `label@ fun(...)` prefix reuses the label as the synthetic function
     /// name so `return@label` resolves like a function-name labeled return.
@@ -177,6 +177,13 @@ extension BuildASTPhase.ExpressionParser {
         let expressionBody: ExprID?
         let headerEndIndex = index
         if matches(.symbol(.assign)) {
+            if let token = current() {
+                diagnostics?.error(
+                    "KSWIFTK-PARSE-0001",
+                    "Expected '{' for anonymous function body.",
+                    range: token.range
+                )
+            }
             _ = consume()
             guard let body = parseExpression(minPrecedence: 0) else {
                 index = expressionStartIndex
