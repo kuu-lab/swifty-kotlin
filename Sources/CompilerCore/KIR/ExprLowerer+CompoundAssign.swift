@@ -177,6 +177,21 @@ extension ExprLowerer {
                 if let dispatchReceiver {
                     finalArguments.insert(dispatchReceiver, at: 0)
                 }
+                if !signature.contextParameterTypes.isEmpty {
+                    let contextArguments = driver.callLowerer.contextArgumentValues(
+                        for: signature,
+                        callExprID: exprID,
+                        callBinding: callBinding,
+                        sema: sema,
+                        arena: arena
+                    )
+                    let receiverCount = (signature.receiverType == nil ? 0 : 1)
+                        + (dispatchReceiver == nil ? 0 : 1)
+                    finalArguments.insert(
+                        contentsOf: contextArguments,
+                        at: min(receiverCount, finalArguments.count)
+                    )
+                }
                 if sema.symbols.symbol(callBinding.chosenCallee)?.flags.contains(.localFunction) == true {
                     var captureArguments: [KIRExprID] = []
                     for capturedSymbol in sema.bindings.localFunctionCaptureSymbols(for: callBinding.chosenCallee) {
