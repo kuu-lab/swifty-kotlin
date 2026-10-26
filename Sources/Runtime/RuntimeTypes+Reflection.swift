@@ -1,7 +1,7 @@
 import Foundation
 
 struct RuntimeKClassMetadataEntry {
-    /// JVM binary name used only when rendering KClass handles.
+    /// JVM binary name used when rendering KClass handles and default object text.
     var displayName: String? = nil
     let qualifiedName: String
     let simpleName: String
