@@ -202,6 +202,9 @@ extension DataFlowSemaPhase {
                     diagnostics: diagnostics
                 )
                 superSymbols.append(resolved.symbol)
+                if resolved.hasExtensionFunctionReceiver {
+                    symbols.markExtensionFunctionTypeSupertype(symbol)
+                }
                 if !resolved.typeArgs.isEmpty {
                     symbols.setSupertypeTypeArgs(resolved.typeArgs, for: symbol, supertype: resolved.symbol)
                     types.setNominalSupertypeTypeArgs(resolved.typeArgs, for: symbol, supertype: resolved.symbol)
@@ -480,6 +483,13 @@ extension DataFlowSemaPhase {
     private struct ResolvedSupertype {
         let symbol: SymbolID
         let typeArgs: [TypeArg]
+        let hasExtensionFunctionReceiver: Bool
+
+        init(symbol: SymbolID, typeArgs: [TypeArg], hasExtensionFunctionReceiver: Bool = false) {
+            self.symbol = symbol
+            self.typeArgs = typeArgs
+            self.hasExtensionFunctionReceiver = hasExtensionFunctionReceiver
+        }
     }
 
     /// Builds the candidate FQNs used by inheritance resolution for a type
@@ -679,7 +689,11 @@ extension DataFlowSemaPhase {
             // [P1..PN, R], so the supertype args carry params then return type.
             let functionArgs: [TypeArg] = paramTypes.map { .in($0) } + [.out(returnType)]
             validateProjections?(functionSymbol, functionArgs)
-            return ResolvedSupertype(symbol: functionSymbol, typeArgs: functionArgs)
+            return ResolvedSupertype(
+                symbol: functionSymbol,
+                typeArgs: functionArgs,
+                hasExtensionFunctionReceiver: receiverRefID != nil
+            )
         case .intersection:
             return nil
         case let .annotated(baseRef, _):

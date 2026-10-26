@@ -333,7 +333,41 @@ extension CallTypeChecker {
         let ast = ctx.ast
         let sema = ctx.sema
         let nonNullCalleeType = sema.types.makeNonNullable(calleeType)
-        guard case let .functionType(functionType) = sema.types.kind(of: nonNullCalleeType) else {
+        let functionType: FunctionType
+        switch sema.types.kind(of: nonNullCalleeType) {
+        case let .functionType(type):
+            functionType = type
+        case let .classType(classType):
+            guard case .receiverMustBePresent = arityPolicy,
+                  sema.symbols.inheritsExtensionFunctionTypeSupertype(classType.classSymbol)
+            else {
+                return nil
+            }
+            let nominalFunction = sema.types.nominalFunctionType(for: nonNullCalleeType)
+                ?? [false, true].lazy.compactMap { isSuspend in
+                    sema.types.inheritedFunctionInterfaceClassType(
+                        of: classType,
+                        arity: argTypes.count,
+                        isSuspend: isSuspend
+                    ).flatMap { interfaceType in
+                        sema.types.nominalFunctionType(for: sema.types.make(.classType(interfaceType)))
+                    }
+                }.first
+            guard let nominalFunction,
+                  let receiver = nominalFunction.params.first
+            else {
+                return nil
+            }
+            functionType = FunctionType(
+                contextReceivers: nominalFunction.contextReceivers,
+                receiver: receiver,
+                params: Array(nominalFunction.params.dropFirst()),
+                returnType: nominalFunction.returnType,
+                isSuspend: nominalFunction.isSuspend,
+                nullability: nominalFunction.nullability,
+                throws: nominalFunction.throws
+            )
+        default:
             return nil
         }
         let contextTypes = functionType.contextReceivers
@@ -494,6 +528,11 @@ extension CallTypeChecker {
                 diagnostics: ctx.sema.diagnostics
             )
         }
+        let callableValueFunctionType: TypeID = if case .classType = sema.types.kind(of: nonNullCalleeType) {
+            sema.types.make(.functionType(functionType))
+        } else {
+            nonNullCalleeType
+        }
         // A bare receiver-function call in an escaping lambda reads an outer
         // `this` even when its body contains no ordinary member reference.
         // Record that value so capture analysis retains it and KIR supplies it.
@@ -517,7 +556,7 @@ extension CallTypeChecker {
             id,
             binding: CallableValueCallBinding(
                 target: callableTarget,
-                functionType: nonNullCalleeType,
+                functionType: callableValueFunctionType,
                 parameterMapping: parameterMapping,
                 extensionCallableExpr: extensionCallableExpr,
                 contextArgumentCount: contextArgumentCount,

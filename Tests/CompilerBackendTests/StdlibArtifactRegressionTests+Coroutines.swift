@@ -103,6 +103,72 @@ extension StdlibArtifactRegressionTests {
         }
     }
 
+    /// Nominal FunctionN implementations adapt to suspend extension and regular function types.
+    @Test
+    func testNominalFunctionClassesAdaptToSuspendFunctionTypes() throws {
+        let artifactPath = try testStdlibArtifactPath()
+        let source = """
+        import kotlin.coroutines.*
+
+        private var result = ""
+
+        private fun runSuspend(block: suspend Int.() -> Unit) {
+            block.startCoroutine(1, Continuation(EmptyCoroutineContext) { it.getOrThrow() })
+        }
+
+        class ExtensionAction : Int.() -> Unit {
+            override fun invoke(p1: Int) {
+                result += "O"
+                println("O")
+            }
+        }
+
+        class RegularAction : (Int) -> Unit {
+            override fun invoke(p1: Int) { result += "K" }
+        }
+
+        fun main() {
+            val extensionAction = ExtensionAction()
+            val regularAction = RegularAction()
+            1.(ExtensionAction())()
+            runSuspend(extensionAction)
+            runSuspend(regularAction)
+            println(result)
+        }
+        """
+        try withTemporaryFile(contents: source) { userPath in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString).path
+            let ctx = makeCompilationContext(
+                inputs: [userPath], moduleName: "NominalSuspendFunctionTypes",
+                emit: .executable, outputPath: outputBase,
+                includeStdlib: false, stdlibLibraryPath: artifactPath,
+                allowDefaultStdlibLibrary: false
+            )
+            try runToKIR(ctx)
+            try #require(!ctx.diagnostics.hasError, "Unexpected diagnostics: \(ctx.diagnostics.diagnostics)")
+            try LoweringPhase().run(ctx)
+            do {
+                try CodegenPhase().run(ctx)
+            } catch {
+                throw CompilerPipelineError.invalidInput(
+                    "Codegen failed: \(error); diagnostics: \(ctx.diagnostics.diagnostics)"
+                )
+            }
+            do {
+                try LinkPhase().run(ctx)
+            } catch {
+                throw CompilerPipelineError.invalidInput(
+                    "Link failed: \(error); diagnostics: \(ctx.diagnostics.diagnostics)"
+                )
+            }
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            #expect(result.exitCode == 0, "stderr: \(result.stderr)")
+            #expect(result.stdout.replacingOccurrences(of: "\r\n", with: "\n") == "O\nO\nOOK\n")
+        }
+    }
+
     /// KUU-3405: a custom setter assignment must still run when it is the
     /// final statement of a suspend lambda after resuming from suspension.
     @Test

@@ -47,6 +47,50 @@ struct SuspendConversionTests {
         }
     }
 
+    @Test func acceptsNominalFunctionClassesForSuspendConversion() throws {
+        let source = """
+        fun consumeExtension(action: suspend Int.() -> Unit) {}
+        fun consumeRegular(action: suspend (Int) -> Unit) {}
+        class ExtensionAction : Int.() -> Unit {
+            override fun invoke(p1: Int) {}
+        }
+        class RegularAction : (Int) -> Unit {
+            override fun invoke(p1: Int) {}
+        }
+        fun forward(extensionAction: ExtensionAction, regularAction: RegularAction) {
+            consumeExtension(extensionAction)
+            consumeRegular(regularAction)
+            val constructedExtensionAction = ExtensionAction()
+            val constructedRegularAction = RegularAction()
+            consumeExtension(constructedExtensionAction)
+            consumeRegular(constructedRegularAction)
+            consumeExtension(ExtensionAction())
+            consumeRegular(RegularAction())
+            1.(ExtensionAction())()
+            regularAction(1)
+        }
+        """
+        try withTemporaryFiles(contents: [source]) { paths in
+            let ctx = makeCompilationContext(inputs: paths, includeStdlib: false)
+            try runSema(ctx)
+            #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics.map { $0.message })")
+        }
+    }
+
+    @Test func rejectsRegularFunctionClassAsExtensionReceiverCallable() throws {
+        let source = """
+        class RegularAction : (Int) -> Unit {
+            override fun invoke(p1: Int) {}
+        }
+        fun main() { 1.(RegularAction())() }
+        """
+        try withTemporaryFiles(contents: [source]) { paths in
+            let ctx = makeCompilationContext(inputs: paths, includeStdlib: false)
+            try runSema(ctx)
+            #expect(ctx.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-SEMA-0002" })
+        }
+    }
+
     @Test func acceptsCallableReferencesForSuspendConversionAndUnitCoercion() throws {
         let source = """
         fun consume(action: suspend () -> Unit) {}
@@ -98,6 +142,8 @@ struct SuspendConversionTests {
         "fun number(action: suspend (Int) -> Int) {}\nfun bad(action: (Int) -> String) { number(action) }",
         "fun bad(action: (Int, Int) -> Unit) { consume(action) }",
         "fun bad(action: ((Int) -> Unit)?) { consume(action) }",
+        "class WrongAction : String.() -> Unit { override fun invoke(p1: String) {} }\nfun bad(action: WrongAction) { consume(action) }",
+        "class NullableAction : Int.() -> Unit { override fun invoke(p1: Int) {} }\nfun bad(action: NullableAction?) { consume(action) }",
         "fun ordinary(action: (Int) -> Unit) {}\nfun bad(action: suspend (Int) -> Unit) { ordinary(action) }",
         "fun bad(action: (Int) -> Unit) { val stored: suspend (Int) -> Unit = action }",
     ])

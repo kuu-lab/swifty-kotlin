@@ -9,8 +9,12 @@ extension CallLowerer {
         instructions: inout [KIRInstruction]
     ) -> KIRExprID {
         guard let sourceType = sema.bindings.exprTypes[sourceExpr],
+              let sourceFunctionType = sema.types.suspendConversionSourceFunctionType(
+                  from: sourceType,
+                  to: parameterType
+              ),
+              case let .functionType(sourceFunction) = sema.types.kind(of: sourceFunctionType),
               let convertedType = sema.types.suspendConversionType(from: sourceType, to: parameterType),
-              case let .functionType(sourceFunction) = sema.types.kind(of: sourceType),
               case let .functionType(targetFunction) = sema.types.kind(of: parameterType),
               sourceFunction.contextReceivers.isEmpty
         else {
@@ -37,7 +41,11 @@ extension CallLowerer {
             body.append(.constValue(result: ref, value: .symbolRef(parameter.symbol)))
             return ref
         }
-        let binding = CallableValueCallBinding(target: nil, functionType: sourceType, parameterMapping: [:])
+        let binding = CallableValueCallBinding(
+            target: nil,
+            functionType: sourceFunctionType,
+            parameterMapping: [:]
+        )
         guard let invoke = runtimeCallableInvokeCallee(
             callableValueCallBinding: binding, sema: sema, interner: interner
         ) else {

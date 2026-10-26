@@ -153,6 +153,7 @@ struct SymbolTableSemaSnapshot: Codable {
     let propertySetterVisibilities: [SymbolID: Visibility]
     let directSupertypes: [SymbolID: [SymbolID]]
     let supertypeTypeArgsMap: [SymbolID: [SymbolID: [TypeArg]]]
+    let extensionFunctionTypeSupertypeSymbols: Set<SymbolID>?
     let nominalLayouts: [SymbolID: NominalLayout]
     let nominalLayoutHints: [SymbolID: NominalLayoutHint]
     let externalLinkNames: [SymbolID: String]
@@ -261,6 +262,7 @@ public final class SymbolTable {
     /// on each call.
     private var directSubtypesIndex: [SymbolID: [SymbolID]] = [:]
     private var supertypeTypeArgsMap: [SymbolID: [SymbolID: [TypeArg]]] = [:]
+    private var extensionFunctionTypeSupertypeSymbols: Set<SymbolID> = []
     private var nominalLayouts: [SymbolID: NominalLayout] = [:]
     private var nominalLayoutHints: [SymbolID: NominalLayoutHint] = [:]
     private var externalLinkNames: [SymbolID: String] = [:]
@@ -1392,6 +1394,26 @@ public final class SymbolTable {
         supertypeTypeArgsMap[child, default: [:]][parent] = args
     }
 
+    func markExtensionFunctionTypeSupertype(_ symbol: SymbolID) {
+        extensionFunctionTypeSupertypeSymbols.insert(symbol)
+    }
+
+    func inheritsExtensionFunctionTypeSupertype(_ symbol: SymbolID) -> Bool {
+        var visited: Set<SymbolID> = []
+        var queue = [symbol]
+        var head = 0
+        while head < queue.count {
+            let current = queue[head]
+            head += 1
+            guard visited.insert(current).inserted else { continue }
+            if extensionFunctionTypeSupertypeSymbols.contains(current) {
+                return true
+            }
+            queue.append(contentsOf: directSupertypes(for: current))
+        }
+        return false
+    }
+
     public func supertypeTypeArgs(for child: SymbolID, supertype parent: SymbolID) -> [TypeArg] {
         ensureLazyImportedMetadataLoaded(for: child)
         return supertypeTypeArgsMap[child]?[parent] ?? []
@@ -2078,6 +2100,7 @@ extension SymbolTable {
             propertySetterVisibilities: propertySetterVisibilities,
             directSupertypes: directSupertypes,
             supertypeTypeArgsMap: supertypeTypeArgsMap,
+            extensionFunctionTypeSupertypeSymbols: extensionFunctionTypeSupertypeSymbols,
             nominalLayouts: nominalLayouts,
             nominalLayoutHints: nominalLayoutHints,
             externalLinkNames: externalLinkNames,
@@ -2289,6 +2312,9 @@ extension SymbolTable {
             for (parent, args) in parents {
                 supertypeTypeArgsMap[mappedChild, default: [:]][mapSymbol(parent)] = mapArgs(args, using: typeMap)
             }
+        }
+        for symbol in snapshot.extensionFunctionTypeSupertypeSymbols ?? [] {
+            extensionFunctionTypeSupertypeSymbols.insert(mapSymbol(symbol))
         }
         for (symbol, layout) in snapshot.nominalLayouts { nominalLayouts[mapSymbol(symbol)] = mapLayout(layout) }
         for (symbol, hint) in snapshot.nominalLayoutHints { nominalLayoutHints[mapSymbol(symbol)] = hint }
