@@ -473,6 +473,16 @@ extension DeclTypeChecker {
             return nil
         }
         let namedCandidates = ctx.cachedScopeLookup(name)
+        if let arrayType = safePrecheckArrayOfCall(
+            name,
+            typeArgs: typeArgs,
+            args: args,
+            namedCandidates: namedCandidates,
+            in: ctx,
+            locals: locals
+        ) {
+            return arrayType
+        }
         if namedCandidates.count == 1,
            let symbol = ctx.sema.symbols.symbol(namedCandidates[0]),
            symbol.kind == .class || symbol.kind == .enumClass,
@@ -530,6 +540,43 @@ extension DeclTypeChecker {
                 && canBeCalledWithoutArguments(signature)
         }
         return safePrecheckCallResultType(candidates, in: ctx)
+    }
+
+    private func safePrecheckArrayOfCall(
+        _ name: InternedString,
+        typeArgs: [TypeRefID],
+        args: [CallArgument],
+        namedCandidates: [SymbolID],
+        in ctx: TypeInferenceContext,
+        locals: LocalBindings
+    ) -> TypeID? {
+        let knownNames = KnownCompilerNames(interner: ctx.interner)
+        guard name == ctx.interner.intern("arrayOf"),
+              typeArgs.isEmpty,
+              !args.isEmpty,
+              args.allSatisfy({ !$0.isSpread }),
+              namedCandidates.count == 1,
+              let factory = ctx.sema.symbols.symbol(namedCandidates[0]),
+              factory.kind == .function,
+              factory.fqName == [knownNames.kotlin, name],
+              let arraySymbol = ctx.sema.symbols.lookup(fqName: knownNames.kotlinArrayFQName)
+        else {
+            return nil
+        }
+
+        // A non-empty arrayOf call has a stable element LUB when each argument
+        // is independently safe to type-check before its declaration body.
+        let elementTypes = args.compactMap { argument -> TypeID? in
+            safePrecheckExpressionType(argument.expr, in: ctx, locals: locals)
+        }
+        guard elementTypes.count == args.count else { return nil }
+        let elementType = ctx.sema.types.lub(elementTypes)
+        guard isSafePrecheckValueType(elementType, in: ctx) else { return nil }
+        return ctx.sema.types.make(.classType(ClassType(
+            classSymbol: arraySymbol,
+            args: [.invariant(elementType)],
+            nullability: .nonNull
+        )))
     }
 
     private func safePrecheckMemberCall(
