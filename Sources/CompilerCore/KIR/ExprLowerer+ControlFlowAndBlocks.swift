@@ -866,13 +866,8 @@ extension ExprLowerer {
             )
 
         case let .inExpr(lhsExpr, rhsExpr, _):
-            let lhsID = lowerExpr(
-                lhsExpr, ast: ast, sema: sema, arena: arena, interner: interner,
-                propertyConstantInitializers: propertyConstantInitializers, instructions: &instructions
-            )
             return lowerContainsCheck(
                 exprID: exprID,
-                lhsID: lhsID,
                 lhsExpr: lhsExpr,
                 rhsExpr: rhsExpr,
                 negated: false,
@@ -886,13 +881,8 @@ extension ExprLowerer {
             )
 
         case let .notInExpr(lhsExpr, rhsExpr, _):
-            let lhsID = lowerExpr(
-                lhsExpr, ast: ast, sema: sema, arena: arena, interner: interner,
-                propertyConstantInitializers: propertyConstantInitializers, instructions: &instructions
-            )
             return lowerContainsCheck(
                 exprID: exprID,
-                lhsID: lhsID,
                 lhsExpr: lhsExpr,
                 rhsExpr: rhsExpr,
                 negated: true,
