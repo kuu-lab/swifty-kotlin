@@ -103,8 +103,16 @@ final class CallSupportLowerer {
             }
         }
         for expr in ast.arena.snapshot().expressions {
-            if case let .localNominalDecl(declID, _) = expr {
+            switch expr {
+            case let .localNominalDecl(declID, _):
                 collectFunctionDefaults(declID, ast: ast, sema: sema, mapping: &mapping)
+            case let .objectLiteral(_, declID, _):
+                // Object literal members are expression-owned declarations.
+                if let declID {
+                    collectFunctionDefaults(declID, ast: ast, sema: sema, mapping: &mapping)
+                }
+            default:
+                break
             }
         }
         return mapping
