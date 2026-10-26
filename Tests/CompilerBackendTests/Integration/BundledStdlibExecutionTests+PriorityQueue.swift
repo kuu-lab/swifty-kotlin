@@ -1,6 +1,15 @@
 import Testing
 
 extension BundledStdlibExecutionTests {
+    @Test
+    func testPriorityQueueComparatorOnlyConstructors() throws {
+        try compileAndRunKotlin(
+            try diffCaseSource("java_priority_queue_comparator_constructor.kt", file: #filePath),
+            expectedOutput: "2\n2\n",
+            moduleName: "KUU3484PriorityQueueComparatorConstructors"
+        )
+    }
+
     @Test(arguments: [true, false])
     func testPriorityQueueEmptyPollUsesPlatformReturn(allowDefaultStdlibLibrary: Bool) throws {
         try compileAndRunKotlin(

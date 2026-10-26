@@ -498,9 +498,22 @@ extension CallTypeChecker {
         let argumentContextTypeArgs = typeAliasConstructor.map {
             aliasConstructorArgumentContextTypes($0, explicitTypeArgs: explicitTypeArgs, sema: sema)
         } ?? explicitTypeArgs
-        let preparedArgs = args.contains { ast.arena.expr($0.expr)?.isLambdaOrCallableRef == true }
+        var expectedTypeOverrides: [Int: TypeID] = [:]
+        prepareCompareByExpectedTypeOverrides(
+            args: args,
+            callRange: range,
+            candidates: vis,
+            explicitTypeArgs: argumentContextTypeArgs,
+            locals: locals,
+            ctx: ctx,
+            expectedTypeOverrides: &expectedTypeOverrides
+        )
+        let needsArgumentPreparation = args.contains { ast.arena.expr($0.expr)?.isLambdaOrCallableRef == true }
+            || !expectedTypeOverrides.isEmpty
+        let preparedArgs = needsArgumentPreparation
             ? prepareCallArguments(
                 args: args, callRange: range, candidates: vis,
+                expectedTypeOverrides: expectedTypeOverrides,
                 contextualCallResultType: request.ctx.isCallResultDiscarded && request.ctx.isUnitCoercionContext
                     ? request.ctx.sema.types.unitType : request.expectedType,
                 explicitTypeArgs: argumentContextTypeArgs, ctx: ctx, locals: &locals
