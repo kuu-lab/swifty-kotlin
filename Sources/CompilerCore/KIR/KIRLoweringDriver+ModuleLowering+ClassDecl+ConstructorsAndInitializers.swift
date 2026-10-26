@@ -490,16 +490,20 @@ extension KIRLoweringDriver {
         let sema = shared.sema
         let arena = shared.arena
 
+        // Only primary-constructor properties represent constructor storage.
+        // A member extension may reuse their name but is not initialized here.
         let propertySymbolsByName: [InternedString: SymbolID] = Dictionary(
-            uniqueKeysWithValues: classDecl.memberProperties.compactMap { declID in
+            classDecl.memberProperties.compactMap { declID -> (InternedString, SymbolID)? in
                 guard let symbol = sema.bindings.declSymbols[declID],
                       let decl = shared.ast.arena.decl(declID),
-                      case let .propertyDecl(propertyDecl) = decl
+                      case let .propertyDecl(propertyDecl) = decl,
+                      propertyDecl.isSynthesizedPrimaryConstructorProperty
                 else {
                     return nil
                 }
                 return (propertyDecl.name, symbol)
-            }
+            },
+            uniquingKeysWith: { first, _ in first }
         )
 
         guard let receiverID = ctx.activeImplicitReceiverExprID(),
