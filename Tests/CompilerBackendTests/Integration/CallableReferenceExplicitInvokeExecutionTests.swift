@@ -36,6 +36,41 @@ struct CallableReferenceExplicitInvokeExecutionTests {
     }
 
     @Test(arguments: [0, 2])
+    func chainedExtensionPropertyReferenceInvokesCapturedFunction(optimization: Int) throws {
+        let source = """
+        val (Int.() -> String).foo: String get() = this(1)
+        fun Int.test1(): String = "O"
+
+        fun main() {
+            val direct: Int.() -> String = Int::test1
+            val chained = Int::test1::foo
+            if (direct(1) != "O" || chained() != "O") {
+                val failure: Any = null!!
+            }
+        }
+        """
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let input = directory.appendingPathComponent("reference.kt").path
+        let output = directory.appendingPathComponent("reference").path
+        try source.write(toFile: input, atomically: true, encoding: .utf8)
+        try assertCompilationSucceeded(makeTestDriver().runForTesting(options: CompilerOptions(
+            moduleName: "ChainedExtensionPropertyReference",
+            inputs: [input],
+            outputPath: output,
+            emit: .executable,
+            target: TargetTriple.hostDefault(),
+            optLevel: try #require(OptimizationLevel(rawValue: optimization)),
+            includeStdlib: false,
+            allowDefaultStdlibLibrary: false
+        )))
+        let result = try CommandRunner.run(executable: output, arguments: [])
+        #expect(result.exitCode == 0, "O\(optimization): \(result.stderr)")
+        #expect(result.stderr.isEmpty, "O\(optimization)")
+    }
+
+    @Test(arguments: [0, 2])
     func libraryExportsInferredReferenceSignature(optimization: Int) throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
