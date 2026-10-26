@@ -122,7 +122,7 @@ extension DataFlowSemaPhase {
                 if builtinShadow == nil || builtinShadow?.fqName.first == kotlinRoot { return builtinType }
             }
 
-            let candidates: [SemanticSymbol]
+            var candidates: [SemanticSymbol]
             if let builtinShadow {
                 candidates = [builtinShadow]
             } else if let relativeOwnerFQName
@@ -199,6 +199,14 @@ extension DataFlowSemaPhase {
                 } else {
                     candidates = []
                 }
+            }
+            if candidates.isEmpty,
+               let functionN = types.functionNInterfaceSymbol(named: path, interner: interner),
+               let symbol = symbols.symbol(functionN)
+            {
+                // FunctionN has a compiler-internal FQN under kotlin.Function,
+                // while source annotations use the default-imported kotlin name.
+                candidates = [symbol]
             }
             if let resolved = candidates.first(where: { isNominalTypeSymbol($0.kind) }) {
                 let isBundledDeclaration = (symbols.sourceFileID(for: resolved.id) ?? resolved.declSite?.start.file)

@@ -796,6 +796,12 @@ extension DataFlowSemaPhase {
                 }
             }
         }
+        // FunctionN interfaces have compiler-internal FQNs under the synthetic
+        // `kotlin.Function` package, but source code names them as `FunctionN`
+        // or `kotlin.FunctionN`.
+        if let functionN = types.functionNInterfaceSymbol(named: path, interner: interner) {
+            return resolvedSupertype(functionN)
+        }
         // A lone type parameter as the supertype head (`class C<T> : T()`)
         // resolves to the parameter — kotlinc rejects it as "supertype is
         // not a class or interface" rather than an unresolved name, so the
