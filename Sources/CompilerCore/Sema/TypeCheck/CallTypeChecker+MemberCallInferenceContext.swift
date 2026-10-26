@@ -492,9 +492,9 @@ extension CallTypeChecker {
             sema.bindings.markFQNTopLevelCallExpr(id)
             return builderResult
         }
-        // A package qualifier is not a value receiver, but its lambda arguments
-        // need the same signature context as an imported top-level call. This
-        // also contextualizes builders with explicit element type arguments.
+        // A package qualifier is not a value receiver, but its arguments need
+        // the same signature context as an imported top-level call. This also
+        // contextualizes builders with explicit element type arguments.
         let argumentContextTypeArgs = typeAliasConstructor.map {
             aliasConstructorArgumentContextTypes($0, explicitTypeArgs: explicitTypeArgs, sema: sema)
         } ?? explicitTypeArgs
@@ -508,8 +508,24 @@ extension CallTypeChecker {
             ctx: ctx,
             expectedTypeOverrides: &expectedTypeOverrides
         )
+        let hasContextualIntegerLiteral = args.contains { argument in
+            switch ast.arena.expr(argument.expr) {
+            case .intLiteral, .uintLiteral:
+                return true
+            case let .unaryExpr(op, operand, _):
+                guard op == .unaryPlus || op == .unaryMinus,
+                      case .intLiteral = ast.arena.expr(operand)
+                else {
+                    return false
+                }
+                return true
+            default:
+                return false
+            }
+        }
         let needsArgumentPreparation = args.contains { ast.arena.expr($0.expr)?.isLambdaOrCallableRef == true }
             || !expectedTypeOverrides.isEmpty
+            || hasContextualIntegerLiteral
         let preparedArgs = needsArgumentPreparation
             ? prepareCallArguments(
                 args: args, callRange: range, candidates: vis,
