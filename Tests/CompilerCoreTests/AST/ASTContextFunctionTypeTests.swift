@@ -127,6 +127,21 @@ struct ASTContextFunctionTypeTests {
         #expect(renderTypeRef(blockType, in: ast, interner: ctx.interner) == "context(Int) () -> String")
     }
 
+    @Test
+    func testContextFunctionTypeParameterSupportsExtensionReceiver() throws {
+        let source = """
+        package demo
+        @OptIn(kotlin.ExperimentalContextParameters::class)
+        inline fun build(noinline block: context(C) E.() -> Unit) { block(C(), E()) }
+        """
+        let (ast, ctx) = try buildASTModule(from: source)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+        let function = try #require(firstFunDecl(named: "build", in: ast, interner: ctx.interner))
+        let blockType = try #require(function.valueParams.first?.type)
+
+        #expect(renderTypeRef(blockType, in: ast, interner: ctx.interner) == "context(C) E.() -> Unit")
+    }
+
     /// KUU-915: the first parentheses after `fun <R>` belong to the receiver,
     /// while the parentheses after the name contain the value parameters.
     @Test
