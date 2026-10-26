@@ -584,12 +584,43 @@ final class ExprTypeChecker {
             } else {
                 hasErasedTypeArguments = false
             }
-            // Kotlin permits this when the subject is already known to have
-            // the target instantiation; otherwise its type arguments are erased.
+            let subjectHasKnownTargetInstantiation: Bool
+            if sema.types.isSubtype(subjectNonNull, targetNonNull) {
+                subjectHasKnownTargetInstantiation = true
+            } else if case let .classType(subjectClass) = sema.types.kind(of: subjectNonNull),
+                      case let .classType(targetClass) = sema.types.kind(of: targetNonNull),
+                      targetClass.enclosingTypeArgs.allSatisfy({ arg in
+                          if case .star = arg { return true }
+                          return false
+                      }),
+                      let inferredArgs = sema.types.narrowedSubtypeArgs(
+                          forSubtype: targetClass.classSymbol,
+                          givenSupertype: subjectClass.classSymbol,
+                          supertypeArgs: subjectClass.args
+                      ),
+                      inferredArgs.count == targetClass.args.count
+            {
+                // A generic supertype can prove explicit target arguments even
+                // when the subject's nominal type is broader than the target.
+                // Star-projected target arguments need no runtime evidence.
+                subjectHasKnownTargetInstantiation = zip(targetClass.args, inferredArgs).allSatisfy { targetArg, inferredArg in
+                    switch targetArg {
+                    case .star:
+                        return true
+                    case let .invariant(targetArgType), let .out(targetArgType), let .in(targetArgType):
+                        guard case let .invariant(inferredArgType) = inferredArg else { return false }
+                        return targetArgType == inferredArgType
+                    }
+                }
+            } else {
+                subjectHasKnownTargetInstantiation = false
+            }
+            // Kotlin permits explicit generic checks when the subject's static
+            // type proves the target instantiation, including through supertypes.
             if hasErasedTypeArguments,
                subjectType != sema.types.errorType,
                targetType != sema.types.errorType,
-               !sema.types.isSubtype(subjectNonNull, targetNonNull)
+               !subjectHasKnownTargetInstantiation
             {
                 ctx.sema.diagnostics.error(
                     "KSWIFTK-SEMA-ERASED-TYPE",
