@@ -172,7 +172,9 @@ struct ASTIDRemapper {
         ContextReceiverDecl(
             name: value.name.map { remap($0) },
             type: remap(value.type),
-            isContextParameter: value.isContextParameter
+            isContextParameter: value.isContextParameter,
+            isCrossinline: value.isCrossinline,
+            isNoinline: value.isNoinline
         )
     }
 

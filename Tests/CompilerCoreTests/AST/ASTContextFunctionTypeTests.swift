@@ -76,6 +76,30 @@ struct ASTContextFunctionTypeTests {
         #expect(propertyContext.isContextParameter)
     }
 
+    @Test(arguments: ["noinline", "crossinline"])
+    func testBuildASTParsesInlineContextParameterModifiers(_ modifier: String) throws {
+        let (ast, ctx) = try buildASTModule(from: """
+        context(\(modifier) ctx: () -> Unit) inline fun foo() { ctx() }
+        """)
+        let parseErrors = ctx.diagnostics.diagnostics.filter { $0.code.hasPrefix("KSWIFTK-PARSE-") }
+        #expect(parseErrors.isEmpty, "Unexpected parse diagnostics: \(parseErrors)")
+        guard let function = firstFunDecl(named: "foo", in: ast, interner: ctx.interner) else {
+            Issue.record("Expected function foo in the AST; diagnostics: \(parseErrors)")
+            return
+        }
+        guard let contextParameter = function.contextReceivers.first else {
+            Issue.record("Expected one context parameter on foo; diagnostics: \(parseErrors)")
+            return
+        }
+
+        #expect(function.contextReceivers.count == 1)
+        #expect(ctx.interner.resolve(contextParameter.name ?? ctx.interner.intern("<missing>")) == "ctx")
+        #expect(contextParameter.isContextParameter)
+        #expect(contextParameter.isCrossinline == (modifier == "crossinline"))
+        #expect(contextParameter.isNoinline == (modifier == "noinline"))
+        #expect(renderTypeRef(contextParameter.type, in: ast, interner: ctx.interner) == "() -> Unit")
+    }
+
     @Test
     func testBuildASTParsesNestedGenericContextFunctionTypeAlias() throws {
         let rendered = try renderedHandlerType(from: """

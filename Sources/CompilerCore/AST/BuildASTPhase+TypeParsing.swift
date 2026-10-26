@@ -155,7 +155,11 @@ extension BuildASTPhase {
                 if depth == 0 {
                     if let item = parseContextReceiverItem(from: current, interner: interner, astArena: astArena) {
                         items.append(ContextReceiverDecl(
-                            name: item.name, type: item.ref, isContextParameter: item.isContextParameter
+                            name: item.name,
+                            type: item.ref,
+                            isContextParameter: item.isContextParameter,
+                            isCrossinline: item.isCrossinline,
+                            isNoinline: item.isNoinline
                         ))
                     }
                     break
@@ -164,7 +168,11 @@ extension BuildASTPhase {
             } else if token.kind == .symbol(.comma), depth == 1 {
                 if let item = parseContextReceiverItem(from: current, interner: interner, astArena: astArena) {
                     items.append(ContextReceiverDecl(
-                        name: item.name, type: item.ref, isContextParameter: item.isContextParameter
+                        name: item.name,
+                        type: item.ref,
+                        isContextParameter: item.isContextParameter,
+                        isCrossinline: item.isCrossinline,
+                        isNoinline: item.isNoinline
                     ))
                 }
                 current.removeAll(keepingCapacity: true)
@@ -183,12 +191,35 @@ extension BuildASTPhase {
         from tokens: [Token],
         interner: StringInterner,
         astArena: ASTArena
-    ) -> (name: InternedString?, ref: TypeRefID, isContextParameter: Bool)? {
+    ) -> (
+        name: InternedString?,
+        ref: TypeRefID,
+        isContextParameter: Bool,
+        isCrossinline: Bool,
+        isNoinline: Bool
+    )? {
         var name: InternedString?
         var typeTokens = tokens
         var isContextParameter = false
+        var isCrossinline = false
+        var isNoinline = false
+        while let first = typeTokens.first {
+            if first.kind == .keyword(.crossinline) {
+                isCrossinline = true
+                typeTokens.removeFirst()
+            } else if first.kind == .keyword(.noinline) {
+                isNoinline = true
+                typeTokens.removeFirst()
+            } else {
+                break
+            }
+        }
+        let hasInlineParameterModifier = isCrossinline || isNoinline
+        let nameColonRange = typeTokens.count > 1 && typeTokens[1].kind == .symbol(.colon)
+            ? typeTokens[1].range
+            : nil
         if typeTokens.count > 2,
-           typeTokens[1].kind == .symbol(.colon)
+           nameColonRange != nil
         {
             isContextParameter = true
             switch typeTokens[0].kind {
@@ -204,18 +235,26 @@ extension BuildASTPhase {
                 break
             }
         }
+        if hasInlineParameterModifier, !isContextParameter {
+            diagnostics?.error(
+                "KSWIFTK-PARSE-0002",
+                "Expected a context parameter name after inline parameter modifier.",
+                range: tokens.first?.range
+            )
+            return nil
+        }
         guard let ref = parseTypeRef(from: typeTokens, interner: interner, astArena: astArena) else {
-            if tokens.count > 1, tokens[1].kind == .symbol(.colon) {
+            if let nameColonRange {
                 let following = isContextParameter ? typeTokens.first : nil
                 diagnostics?.error(
                     "KSWIFTK-PARSE-0020",
                     "Expected type after ':'.",
-                    range: following?.range ?? tokens[1].range
+                    range: following?.range ?? nameColonRange
                 )
             }
             return nil
         }
-        return (name, ref, isContextParameter)
+        return (name, ref, isContextParameter, isCrossinline, isNoinline)
     }
 
     func declarationReturnType(

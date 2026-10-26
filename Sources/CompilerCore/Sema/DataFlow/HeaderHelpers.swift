@@ -9,7 +9,9 @@ extension DataFlowSemaPhase {
             guard contextReceiver.isContextParameter else { return nil }
             return ValueParamDecl(
                 name: contextReceiver.name ?? interner.intern("$contextParameter\(index)"),
-                type: contextReceiver.type
+                type: contextReceiver.type,
+                isCrossinline: contextReceiver.isCrossinline,
+                isNoinline: contextReceiver.isNoinline
             )
         }
     }
