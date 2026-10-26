@@ -89,11 +89,11 @@ public fun <T> Array<T>.joinTo(
 
 public fun <T> Array<T>.joinTo(
     buffer: StringBuilder,
-    separator: String,
-    prefix: String,
-    postfix: String,
-    limit: Int,
-    truncated: String,
+    separator: String = ", ",
+    prefix: String = "",
+    postfix: String = "",
+    limit: Int = -1,
+    truncated: String = "...",
     transform: (T) -> Any
 ): StringBuilder = this.asList().joinTo(buffer, separator, prefix, postfix, limit, truncated) { transform(it).toString() }
 

@@ -105,6 +105,15 @@ public inline fun <T> Array<out T>.indexOfFirst(predicate: (T) -> Boolean): Int 
     return -1
 }
 
+public inline fun <T> Array<out T>.indexOfLast(predicate: (T) -> Boolean): Int {
+    var i = size - 1
+    while (i >= 0) {
+        if (predicate(this[i])) return i
+        i--
+    }
+    return -1
+}
+
 // Exception messages match kotlinc's Array wording
 // ("Array is empty." / "Array contains no element matching the predicate.").
 

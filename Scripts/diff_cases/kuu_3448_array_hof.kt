@@ -1,0 +1,223 @@
+@file:OptIn(kotlin.ExperimentalUnsignedTypes::class)
+
+fun verifyBooleanArray(values: BooleanArray) {
+    check(values.scan("seed") { acc, _ -> acc } == listOf("seed", "seed", "seed"))
+    check(values.scanIndexed(0) { index, acc, _ -> acc + index } == listOf(0, 0, 1))
+    check(values.runningFold("seed") { acc, _ -> acc } == listOf("seed", "seed", "seed"))
+    check(values.runningFoldIndexed(0) { index, acc, _ -> acc + index } == listOf(0, 0, 1))
+    check(values.runningReduce { acc, _ -> acc } == listOf(values[0], values[0]))
+    check(values.runningReduceIndexed { _, acc, _ -> acc } == listOf(values[0], values[0]))
+    check(values.foldIndexed(0) { index, acc, _ -> acc + index } == 1)
+    check(values.reduceIndexed { _, acc, _ -> acc } == values[0])
+    check(values.reduceOrNull { acc, _ -> acc } == values[0])
+    check(values.reduceIndexedOrNull { _, acc, _ -> acc } == values[0])
+}
+
+fun verifyByteArray(values: ByteArray) {
+    check(values.scan("seed") { acc, _ -> acc } == listOf("seed", "seed", "seed"))
+    check(values.scanIndexed(0) { index, acc, _ -> acc + index } == listOf(0, 0, 1))
+    check(values.runningFold("seed") { acc, _ -> acc } == listOf("seed", "seed", "seed"))
+    check(values.runningFoldIndexed(0) { index, acc, _ -> acc + index } == listOf(0, 0, 1))
+    check(values.runningReduce { acc, _ -> acc } == listOf(values[0], values[0]))
+    check(values.runningReduceIndexed { _, acc, _ -> acc } == listOf(values[0], values[0]))
+    check(values.foldIndexed(0) { index, acc, _ -> acc + index } == 1)
+    check(values.reduceIndexed { _, acc, _ -> acc } == values[0])
+    check(values.reduceOrNull { acc, _ -> acc } == values[0])
+    check(values.reduceIndexedOrNull { _, acc, _ -> acc } == values[0])
+}
+
+fun verifyShortArray(values: ShortArray) {
+    check(values.scan("seed") { acc, _ -> acc } == listOf("seed", "seed", "seed"))
+    check(values.scanIndexed(0) { index, acc, _ -> acc + index } == listOf(0, 0, 1))
+    check(values.runningFold("seed") { acc, _ -> acc } == listOf("seed", "seed", "seed"))
+    check(values.runningFoldIndexed(0) { index, acc, _ -> acc + index } == listOf(0, 0, 1))
+    check(values.runningReduce { acc, _ -> acc } == listOf(values[0], values[0]))
+    check(values.runningReduceIndexed { _, acc, _ -> acc } == listOf(values[0], values[0]))
+    check(values.foldIndexed(0) { index, acc, _ -> acc + index } == 1)
+    check(values.reduceIndexed { _, acc, _ -> acc } == values[0])
+    check(values.reduceOrNull { acc, _ -> acc } == values[0])
+    check(values.reduceIndexedOrNull { _, acc, _ -> acc } == values[0])
+}
+
+fun verifyCharArray(values: CharArray) {
+    check(values.scan("seed") { acc, _ -> acc } == listOf("seed", "seed", "seed"))
+    check(values.scanIndexed(0) { index, acc, _ -> acc + index } == listOf(0, 0, 1))
+    check(values.runningFold("seed") { acc, _ -> acc } == listOf("seed", "seed", "seed"))
+    check(values.runningFoldIndexed(0) { index, acc, _ -> acc + index } == listOf(0, 0, 1))
+    check(values.runningReduce { acc, _ -> acc } == listOf(values[0], values[0]))
+    check(values.runningReduceIndexed { _, acc, _ -> acc } == listOf(values[0], values[0]))
+    check(values.foldIndexed(0) { index, acc, _ -> acc + index } == 1)
+    check(values.reduceIndexed { _, acc, _ -> acc } == values[0])
+    check(values.reduceOrNull { acc, _ -> acc } == values[0])
+    check(values.reduceIndexedOrNull { _, acc, _ -> acc } == values[0])
+}
+
+fun verifyIntArray(values: IntArray) {
+    check(values.scan("seed") { acc, _ -> acc } == listOf("seed", "seed", "seed", "seed"))
+    check(values.scanIndexed(0) { index, acc, _ -> acc + index } == listOf(0, 0, 1, 3))
+    check(values.runningFold("seed") { acc, _ -> acc } == listOf("seed", "seed", "seed", "seed"))
+    check(values.runningFoldIndexed(0) { index, acc, _ -> acc + index } == listOf(0, 0, 1, 3))
+    check(values.runningReduce { acc, _ -> acc } == listOf(values[0], values[0], values[0]))
+    check(values.runningReduceIndexed { _, acc, _ -> acc } == listOf(values[0], values[0], values[0]))
+    check(values.foldIndexed(0) { index, acc, _ -> acc + index } == 3)
+    check(values.reduceIndexed { _, acc, _ -> acc } == values[0])
+    check(values.reduceOrNull { acc, _ -> acc } == values[0])
+    check(values.reduceIndexedOrNull { _, acc, _ -> acc } == values[0])
+}
+
+fun verifyLongArray(values: LongArray) {
+    check(values.scan("seed") { acc, _ -> acc } == listOf("seed", "seed", "seed"))
+    check(values.scanIndexed(0) { index, acc, _ -> acc + index } == listOf(0, 0, 1))
+    check(values.runningFold("seed") { acc, _ -> acc } == listOf("seed", "seed", "seed"))
+    check(values.runningFoldIndexed(0) { index, acc, _ -> acc + index } == listOf(0, 0, 1))
+    check(values.runningReduce { acc, _ -> acc } == listOf(values[0], values[0]))
+    check(values.runningReduceIndexed { _, acc, _ -> acc } == listOf(values[0], values[0]))
+    check(values.foldIndexed(0) { index, acc, _ -> acc + index } == 1)
+    check(values.reduceIndexed { _, acc, _ -> acc } == values[0])
+    check(values.reduceOrNull { acc, _ -> acc } == values[0])
+    check(values.reduceIndexedOrNull { _, acc, _ -> acc } == values[0])
+}
+
+fun verifyFloatArray(values: FloatArray) {
+    check(values.scan("seed") { acc, _ -> acc } == listOf("seed", "seed", "seed"))
+    check(values.scanIndexed(0) { index, acc, _ -> acc + index } == listOf(0, 0, 1))
+    check(values.runningFold("seed") { acc, _ -> acc } == listOf("seed", "seed", "seed"))
+    check(values.runningFoldIndexed(0) { index, acc, _ -> acc + index } == listOf(0, 0, 1))
+    check(values.runningReduce { acc, _ -> acc } == listOf(values[0], values[0]))
+    check(values.runningReduceIndexed { _, acc, _ -> acc } == listOf(values[0], values[0]))
+    check(values.foldIndexed(0) { index, acc, _ -> acc + index } == 1)
+    check(values.reduceIndexed { _, acc, _ -> acc } == values[0])
+    check(values.reduceOrNull { acc, _ -> acc } == values[0])
+    check(values.reduceIndexedOrNull { _, acc, _ -> acc } == values[0])
+}
+
+fun verifyDoubleArray(values: DoubleArray) {
+    check(values.scan("seed") { acc, _ -> acc } == listOf("seed", "seed", "seed"))
+    check(values.scanIndexed(0) { index, acc, _ -> acc + index } == listOf(0, 0, 1))
+    check(values.runningFold("seed") { acc, _ -> acc } == listOf("seed", "seed", "seed"))
+    check(values.runningFoldIndexed(0) { index, acc, _ -> acc + index } == listOf(0, 0, 1))
+    check(values.runningReduce { acc, _ -> acc } == listOf(values[0], values[0]))
+    check(values.runningReduceIndexed { _, acc, _ -> acc } == listOf(values[0], values[0]))
+    check(values.foldIndexed(0) { index, acc, _ -> acc + index } == 1)
+    check(values.reduceIndexed { _, acc, _ -> acc } == values[0])
+    check(values.reduceOrNull { acc, _ -> acc } == values[0])
+    check(values.reduceIndexedOrNull { _, acc, _ -> acc } == values[0])
+}
+
+fun verifyUByteArray(values: UByteArray) {
+    check(values.scan("seed") { acc, _ -> acc } == listOf("seed", "seed", "seed"))
+    check(values.scanIndexed(0) { index, acc, _ -> acc + index } == listOf(0, 0, 1))
+    check(values.runningFold("seed") { acc, _ -> acc } == listOf("seed", "seed", "seed"))
+    check(values.runningFoldIndexed(0) { index, acc, _ -> acc + index } == listOf(0, 0, 1))
+    check(values.runningReduce { acc, _ -> acc } == listOf(values[0], values[0]))
+    check(values.runningReduceIndexed { _, acc, _ -> acc } == listOf(values[0], values[0]))
+    check(values.foldIndexed(0) { index, acc, _ -> acc + index } == 1)
+    check(values.reduceIndexed { _, acc, _ -> acc } == values[0])
+    check(values.reduceOrNull { acc, _ -> acc } == values[0])
+    check(values.reduceIndexedOrNull { _, acc, _ -> acc } == values[0])
+}
+
+fun verifyUShortArray(values: UShortArray) {
+    check(values.scan("seed") { acc, _ -> acc } == listOf("seed", "seed", "seed"))
+    check(values.scanIndexed(0) { index, acc, _ -> acc + index } == listOf(0, 0, 1))
+    check(values.runningFold("seed") { acc, _ -> acc } == listOf("seed", "seed", "seed"))
+    check(values.runningFoldIndexed(0) { index, acc, _ -> acc + index } == listOf(0, 0, 1))
+    check(values.runningReduce { acc, _ -> acc } == listOf(values[0], values[0]))
+    check(values.runningReduceIndexed { _, acc, _ -> acc } == listOf(values[0], values[0]))
+    check(values.foldIndexed(0) { index, acc, _ -> acc + index } == 1)
+    check(values.reduceIndexed { _, acc, _ -> acc } == values[0])
+    check(values.reduceOrNull { acc, _ -> acc } == values[0])
+    check(values.reduceIndexedOrNull { _, acc, _ -> acc } == values[0])
+}
+
+fun verifyUIntArray(values: UIntArray) {
+    check(values.scan("seed") { acc, _ -> acc } == listOf("seed", "seed", "seed"))
+    check(values.scanIndexed(0) { index, acc, _ -> acc + index } == listOf(0, 0, 1))
+    check(values.runningFold("seed") { acc, _ -> acc } == listOf("seed", "seed", "seed"))
+    check(values.runningFoldIndexed(0) { index, acc, _ -> acc + index } == listOf(0, 0, 1))
+    check(values.runningReduce { acc, _ -> acc } == listOf(values[0], values[0]))
+    check(values.runningReduceIndexed { _, acc, _ -> acc } == listOf(values[0], values[0]))
+    check(values.foldIndexed(0) { index, acc, _ -> acc + index } == 1)
+    check(values.reduceIndexed { _, acc, _ -> acc } == values[0])
+    check(values.reduceOrNull { acc, _ -> acc } == values[0])
+    check(values.reduceIndexedOrNull { _, acc, _ -> acc } == values[0])
+}
+
+fun verifyULongArray(values: ULongArray) {
+    check(values.scan("seed") { acc, _ -> acc } == listOf("seed", "seed", "seed"))
+    check(values.scanIndexed(0) { index, acc, _ -> acc + index } == listOf(0, 0, 1))
+    check(values.runningFold("seed") { acc, _ -> acc } == listOf("seed", "seed", "seed"))
+    check(values.runningFoldIndexed(0) { index, acc, _ -> acc + index } == listOf(0, 0, 1))
+    check(values.runningReduce { acc, _ -> acc } == listOf(values[0], values[0]))
+    check(values.runningReduceIndexed { _, acc, _ -> acc } == listOf(values[0], values[0]))
+    check(values.foldIndexed(0) { index, acc, _ -> acc + index } == 1)
+    check(values.reduceIndexed { _, acc, _ -> acc } == values[0])
+    check(values.reduceOrNull { acc, _ -> acc } == values[0])
+    check(values.reduceIndexedOrNull { _, acc, _ -> acc } == values[0])
+}
+
+fun main() {
+    val booleans = booleanArrayOf(true, false)
+    val bytes = byteArrayOf(1, 2)
+    val shorts = shortArrayOf(1, 2)
+    val chars = charArrayOf('a', 'b')
+    val ints = intArrayOf(3, 1, 2)
+    val longs = longArrayOf(1L, 2L)
+    val floats = floatArrayOf(1f, 2f)
+    val doubles = doubleArrayOf(1.0, 2.0)
+    val ubytes = ubyteArrayOf(1u, 2u)
+    val ushorts = ushortArrayOf(1u, 2u)
+    val uints = uintArrayOf(1u, 2u)
+    val ulongs = ulongArrayOf(1uL, 2uL)
+
+    verifyBooleanArray(booleans)
+    verifyByteArray(bytes)
+    verifyShortArray(shorts)
+    verifyCharArray(chars)
+    verifyIntArray(ints)
+    verifyLongArray(longs)
+    verifyFloatArray(floats)
+    verifyDoubleArray(doubles)
+    verifyUByteArray(ubytes)
+    verifyUShortArray(ushorts)
+    verifyUIntArray(uints)
+    verifyULongArray(ulongs)
+
+    check(arrayOf("a").getOrNull(5) == null)
+    check(arrayOf("a", "b", "a").indexOfLast { it == "a" } == 2)
+    check(arrayOf(1, 2, 3).runningReduce { acc, value -> acc + value } == listOf(1, 3, 6))
+    check(arrayOf(1, 2, 3).scanIndexed(0) { index, acc, value -> acc + index + value } == listOf(0, 1, 4, 9))
+    check(arrayOf(1, 2, 3).runningFoldIndexed(0) { index, acc, value -> acc + index + value } == listOf(0, 1, 4, 9))
+    check(arrayOf(1, 2, 3).runningReduceIndexed { index, acc, value -> acc + index + value } == listOf(1, 4, 9))
+    check(arrayOf<Int>().runningReduce { acc, value -> acc + value }.isEmpty())
+    check(ints.sortedByDescending { it } == listOf(3, 2, 1))
+    check(intArrayOf(1, 2).scan(0) { acc, value -> acc + value } == listOf(0, 1, 3))
+    check(intArrayOf(1, 2).runningFold(0) { acc, value -> acc + value } == listOf(0, 1, 3))
+    check(intArrayOf(1, 2).runningReduce { acc, value -> acc + value } == listOf(1, 3))
+    check(intArrayOf(1, 2).scanIndexed(0) { index, acc, value -> acc + index + value } == listOf(0, 1, 4))
+    check(ints.scanIndexed(0) { index, acc, value -> acc + index + value } == listOf(0, 3, 5, 9))
+    check(intArrayOf(1, 2).foldIndexed(0) { index, acc, value -> acc + index + value } == 4)
+    check(intArrayOf(1, 2).reduceIndexed { index, acc, value -> acc + index + value } == 4)
+    check(intArrayOf().reduceOrNull { acc, value -> acc + value } == null)
+    check(intArrayOf().reduceIndexedOrNull { index, acc, value -> acc + index + value } == null)
+    check(uintArrayOf(1u).max() == 1u)
+    check(doubleArrayOf(1.0).zip(doubleArrayOf(2.0)) == listOf(1.0 to 2.0))
+
+    check(ints.intersect(listOf(2, 4)) == setOf(2))
+    check(ints.union(listOf(2, 4)) == setOf(1, 2, 3, 4))
+    check(ints.subtract(listOf(1, 3)) == setOf(2))
+    check(ints.takeWhile { it > 0 } == listOf(3, 1, 2))
+    check(ints.dropWhile { it > 1 } == listOf(1, 2))
+    check(ints.maxOf { it } == 3)
+    check(ints.minByOrNull { it } == 1)
+    check(arrayOf(1, 2, 3).minByOrNull { it } == 1)
+    check(arrayOf(1, 2, 3).maxByOrNull { it } == 3)
+    check(arrayOf(1, 2, 3).distinctBy { it % 2 } == listOf(1, 2))
+    check(arrayOf(1, 2, 3).intersect(listOf(2, 4)) == setOf(2))
+    check(arrayOf(1, 2, 3).union(listOf(2, 4)) == setOf(1, 2, 3, 4))
+    check(arrayOf(1, 2, 3).subtract(listOf(1, 3)) == setOf(2))
+    val joined = StringBuilder()
+    ints.joinTo(joined) { "v$it" }
+    check(joined.toString() == "v3, v1, v2")
+    println("KUU-3448 array HOFs passed")
+}

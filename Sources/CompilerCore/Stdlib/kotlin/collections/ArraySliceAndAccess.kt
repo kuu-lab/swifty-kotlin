@@ -42,6 +42,9 @@ public fun <T> Array<out T>.elementAt(index: Int): T = this[index]
 public fun <T> Array<out T>.elementAtOrNull(index: Int): T? =
     if (index >= 0 && index < size) this[index] else null
 
+public fun <T> Array<out T>.getOrNull(index: Int): T? =
+    if (index >= 0 && index < size) this[index] else null
+
 public inline fun <T> Array<out T>.elementAtOrElse(index: Int, defaultValue: (Int) -> T): T =
     getOrElse(index, defaultValue)
 
