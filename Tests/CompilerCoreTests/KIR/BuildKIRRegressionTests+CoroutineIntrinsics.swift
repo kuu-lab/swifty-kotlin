@@ -4,6 +4,33 @@ import Testing
 
 extension BuildKIRRegressionTests {
     @Test
+    func boundCallableReferenceToSuspendInlineLongExtensionBuildsKIR() throws {
+        let source = """
+        import kotlin.coroutines.intrinsics.COROUTINE_SUSPENDED
+        import kotlin.coroutines.intrinsics.suspendCoroutineUninterceptedOrReturn
+        import kotlin.coroutines.resume
+
+        suspend inline fun Long.longArgs(a: Long, b: Long, c: Long) =
+            suspendCoroutineUninterceptedOrReturn<Long> {
+                it.resume(this + a + b + c)
+                COROUTINE_SUSPENDED
+            }
+
+        suspend fun main(): Long {
+            val ref = 1L::longArgs
+            return ref(1L, 1L, 1L)
+        }
+        """
+        let ctx = makeContextFromSource(source)
+        try runToLowering(ctx)
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.isEmpty, "Unexpected errors: \(errors)")
+        let module = try #require(ctx.kir)
+        let main = try findKIRFunction(named: "main", in: module, interner: ctx.interner)
+        #expect(main.isSuspend)
+    }
+
+    @Test
     func suspendReceiverFunctionValueForwardedThroughHelperPreservesEnvironment() throws {
         let source = """
         import kotlinx.coroutines.*

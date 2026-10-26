@@ -1417,7 +1417,12 @@ extension LambdaLowerer {
                     returnType: functionType.returnType,
                     captures: captureArguments,
                     receiverCount: isUnbound && targetSymbol.flatMap { sema.symbols.functionSignature(for: $0) }?.receiverType != nil ? 1 : 0,
-                    includeInvocation: targetSymbol.flatMap { sema.symbols.functionSignature(for: $0) }?.reifiedTypeParameterIndices.isEmpty != false,
+                    // KCallable.call's reflection bridge has no continuation
+                    // parameter. Suspend references keep their suspend
+                    // function-value invoke path instead of generating a
+                    // non-suspend reflection thunk that cannot call the target.
+                    includeInvocation: !functionType.isSuspend
+                        && targetSymbol.flatMap { sema.symbols.functionSignature(for: $0) }?.reifiedTypeParameterIndices.isEmpty != false,
                     ast: ast, sema: sema, arena: arena, interner: interner, instructions: &instructions
                 )
             }
