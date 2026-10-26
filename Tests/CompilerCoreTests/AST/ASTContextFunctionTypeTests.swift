@@ -101,6 +101,21 @@ struct ASTContextFunctionTypeTests {
     }
 
     @Test
+    func testBuildASTParsesContextKeywordAsContextParameterName() throws {
+        let (ast, ctx) = try buildASTModule(from: """
+        context(context: Int)
+        fun f() = context
+        """)
+        let function = try #require(firstFunDecl(named: "f", in: ast, interner: ctx.interner))
+        let contextParameter = try #require(function.contextReceivers.first)
+
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+        #expect(function.contextReceivers.count == 1)
+        #expect(ctx.interner.resolve(contextParameter.name ?? ctx.interner.intern("<missing>")) == "context")
+        #expect(contextParameter.isContextParameter)
+    }
+
+    @Test
     func testBuildASTParsesNestedGenericContextFunctionTypeAlias() throws {
         let rendered = try renderedHandlerType(from: """
         package demo
