@@ -218,7 +218,7 @@ struct ThreadLocalState {
 struct DelegateState {
     var callableRefMetadataByValue: [Int: RuntimeCallableRefMetadata] = [:]
     var functionValueCallableRefIdentityByValue: [Int: RuntimeCallableReferenceIdentity] = [:]
-    var samAdapterIdentityByValue: [Int: RuntimeSamAdapterIdentity] = [:]
+    var callableAdapterIdentityByValue: [Int: RuntimeCallableAdapterIdentity] = [:]
     var functionTypePayloadByValue: [Int: Int] = [:]
     var functionDescriptionsByValue: [Int: String] = [:]
     var functionEnclosingClassNamesByPointer: [Int: String] = [:]
@@ -529,7 +529,7 @@ public func kk_gc_collect(_ gcRaw: Int = 0) {
     let threadLocalRoots = runtimeStorage.withThreadLocalLock { state in
         state.threadLocalValues
     }
-    let callableRoots = runtimeCallableReflectionRoots()
+    let callableRoots = runtimeCallableRoots()
     let firstPauseRequestTimeNs = runtimeGCNowNanos()
     var passEpoch: Int64 = 0
     let retired = runtimeStorage.withGCLock { state -> [RuntimeForeignResourceLease] in
@@ -957,7 +957,7 @@ func kk_runtime_reset_delegate() {
     runtimeStorage.withDelegateLock { state in
         state.callableRefMetadataByValue.removeAll(keepingCapacity: false)
         state.functionValueCallableRefIdentityByValue.removeAll(keepingCapacity: false)
-        state.samAdapterIdentityByValue.removeAll(keepingCapacity: false)
+        state.callableAdapterIdentityByValue.removeAll(keepingCapacity: false)
         state.functionTypePayloadByValue.removeAll(keepingCapacity: false)
         state.functionDescriptionsByValue.removeAll(keepingCapacity: false)
         state.functionEnclosingClassNamesByPointer.removeAll(keepingCapacity: false)

@@ -264,7 +264,7 @@ public func kk_op_is(_ value: Int, _ typeToken: Int) -> Int {
             if let metadata = state.callableRefMetadataByValue[value], metadata.kind == .function {
                 return (metadata.arity, metadata.isSuspend)
             }
-            if let adapter = state.samAdapterIdentityByValue[value] {
+            if let adapter = state.callableAdapterIdentityByValue[value] {
                 return (adapter.arity, adapter.isSuspend)
             }
             return nil

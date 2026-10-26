@@ -198,6 +198,7 @@ public func __kk_function_value_set_callable_ref_identity(
     runtimeStorage.withDelegateLock { state in
         state.functionValueCallableRefIdentityByValue[callable] = RuntimeCallableReferenceIdentity(
             targetRaw: targetRaw,
+            returnTypeRaw: 0,
             arity: arity,
             kind: kindRaw == 0 ? .function : .property,
             isSuspend: (flags & 1) != 0,
@@ -209,16 +210,16 @@ public func __kk_function_value_set_callable_ref_identity(
 
 /// `flags` packs KFunction modifier bits like `kk_callable_ref_tag_kfunction`:
 /// bit0=suspend, bit1=inline, bit2=operator, bit3=infix, bit4=external.
-@_cdecl("__kk_sam_adapter_set_identity")
-public func __kk_sam_adapter_set_identity(
+private func runtimeSetCallableAdapterIdentity(
     _ callable: Int,
-    _ interfaceTypeID: Int,
+    samInterfaceTypeID: Int,
     _ targetRaw: Int,
     _ capturesRaw: Int,
     _ arity: Int,
-    _ flags: Int
+    _ flags: Int,
+    returnTypeRaw: Int = 0
 ) {
-    guard interfaceTypeID != 0, targetRaw != 0 else { return }
+    guard callable != 0, targetRaw != 0 else { return }
     let captures: [Int]
     if capturesRaw == runtimeNullSentinelInt {
         captures = []
@@ -228,9 +229,10 @@ public func __kk_sam_adapter_set_identity(
         return
     }
     runtimeStorage.withDelegateLock { state in
-        state.samAdapterIdentityByValue[callable] = RuntimeSamAdapterIdentity(
-            interfaceTypeID: Int64(interfaceTypeID),
+        state.callableAdapterIdentityByValue[callable] = RuntimeCallableAdapterIdentity(
+            samInterfaceTypeID: Int64(samInterfaceTypeID),
             targetRaw: targetRaw,
+            returnTypeRaw: returnTypeRaw,
             arity: arity,
             isSuspend: (flags & 1) != 0,
             modifierFlags: flags & ~1,
@@ -239,20 +241,54 @@ public func __kk_sam_adapter_set_identity(
     }
 }
 
-func runtimeCallableReflectionRoots() -> [Int] {
-    let (entries, functionValueEntries, samEntries) = runtimeStorage.withDelegateLock {
+@_cdecl("__kk_callable_adapter_set_identity")
+public func __kk_callable_adapter_set_identity(
+    _ callable: Int,
+    _ samInterfaceTypeID: Int,
+    _ targetRaw: Int,
+    _ capturesRaw: Int,
+    _ arity: Int,
+    _ flags: Int,
+    _ returnTypeRaw: Int
+) {
+    runtimeSetCallableAdapterIdentity(
+        callable, samInterfaceTypeID: samInterfaceTypeID,
+        targetRaw, capturesRaw, arity, flags, returnTypeRaw: returnTypeRaw
+    )
+}
+
+@_cdecl("__kk_sam_adapter_set_identity")
+public func __kk_sam_adapter_set_identity(
+    _ callable: Int,
+    _ interfaceTypeID: Int,
+    _ targetRaw: Int,
+    _ capturesRaw: Int,
+    _ arity: Int,
+    _ flags: Int
+) {
+    guard interfaceTypeID != 0 else { return }
+    runtimeSetCallableAdapterIdentity(
+        callable, samInterfaceTypeID: interfaceTypeID,
+        targetRaw, capturesRaw, arity, flags
+    )
+}
+
+func runtimeCallableRoots() -> [Int] {
+    let (entries, functionValueEntries, adapterEntries) = runtimeStorage.withDelegateLock {
         (
             $0.callableRefMetadataByValue,
             $0.functionValueCallableRefIdentityByValue,
-            $0.samAdapterIdentityByValue
+            $0.callableAdapterIdentityByValue
         )
     }
     var roots = entries.flatMap { raw, metadata in
-        [raw, metadata.property] + metadata.identityCaptures + (callableArguments(metadata.environment) ?? [])
+        [raw, metadata.returnTypeRaw, metadata.property] + metadata.identityCaptures
+            + (callableArguments(metadata.environment) ?? [])
             + (callableArguments(metadata.typeParameters) ?? [])
     }
-    for (raw, identity) in samEntries {
+    for (raw, identity) in adapterEntries {
         roots.append(raw)
+        roots.append(identity.returnTypeRaw)
         roots.append(contentsOf: identity.captures)
     }
     for (raw, identity) in functionValueEntries {

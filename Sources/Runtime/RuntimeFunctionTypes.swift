@@ -57,13 +57,17 @@ func runtimeFunctionDescription(_ value: Int) -> String? {
 public func __kk_function_copy_description(_ source: Int, _ target: Int) {
     guard target != 0 else { return }
     let description = runtimeFunctionDescription(source)
-    let metadata = runtimeStorage.withDelegateLock { state in
+    let metadata = runtimeStorage.withDelegateLock { state -> RuntimeCallableRefMetadata? in
         if let description {
             state.functionDescriptionsByValue[target] = description
         }
         let metadata = state.callableRefMetadataByValue[source]
         if let metadata {
             state.callableRefMetadataByValue[target] = metadata
+        }
+        let adapterIdentity = state.callableAdapterIdentityByValue[source]
+        if let adapterIdentity {
+            state.callableAdapterIdentityByValue[target] = adapterIdentity
         }
         return metadata
     }
@@ -81,6 +85,7 @@ func runtimeFunctionValueBox(from rawValue: Int) -> RuntimeFunctionValueBox? {
 
 struct RuntimeCallableReferenceIdentity {
     let targetRaw: Int
+    let returnTypeRaw: Int
     let arity: Int
     let kind: RuntimeCallableRefKind
     let isSuspend: Bool
@@ -93,16 +98,17 @@ struct RuntimeCallableReferenceIdentity {
 }
 
 private func runtimeCallableReferenceIdentity(from rawValue: Int) -> RuntimeCallableReferenceIdentity? {
-    let (metadata, functionValueIdentity, samIdentity) = runtimeStorage.withDelegateLock { state in
+    let (metadata, functionValueIdentity, adapterIdentity) = runtimeStorage.withDelegateLock { state in
         (
             state.callableRefMetadataByValue[rawValue],
             state.functionValueCallableRefIdentityByValue[rawValue],
-            state.samAdapterIdentityByValue[rawValue]
+            state.callableAdapterIdentityByValue[rawValue]
         )
     }
     if let metadata, metadata.identityTargetRaw != 0 {
         return RuntimeCallableReferenceIdentity(
             targetRaw: metadata.identityTargetRaw,
+            returnTypeRaw: metadata.returnTypeRaw,
             arity: metadata.arity,
             kind: metadata.kind,
             isSuspend: metadata.isSuspend,
@@ -113,17 +119,18 @@ private func runtimeCallableReferenceIdentity(from rawValue: Int) -> RuntimeCall
     if let functionValueIdentity {
         return functionValueIdentity
     }
-    guard let samIdentity else {
+    guard let adapterIdentity else {
         return nil
     }
     return RuntimeCallableReferenceIdentity(
-        targetRaw: samIdentity.targetRaw,
-        arity: samIdentity.arity,
+        targetRaw: adapterIdentity.targetRaw,
+        returnTypeRaw: adapterIdentity.returnTypeRaw,
+        arity: adapterIdentity.arity,
         kind: .function,
-        isSuspend: samIdentity.isSuspend,
-        modifierFlags: samIdentity.modifierFlags,
-        captures: samIdentity.captures,
-        samInterfaceTypeID: samIdentity.interfaceTypeID
+        isSuspend: adapterIdentity.isSuspend,
+        modifierFlags: adapterIdentity.modifierFlags,
+        captures: adapterIdentity.captures,
+        samInterfaceTypeID: adapterIdentity.samInterfaceTypeID
     )
 }
 
@@ -133,6 +140,7 @@ func runtimeCallableReferenceValuesEqual(_ lhs: Int, _ rhs: Int) -> Bool? {
     guard lhsIdentity != nil || rhsIdentity != nil else { return nil }
     guard let lhsIdentity, let rhsIdentity,
           lhsIdentity.targetRaw == rhsIdentity.targetRaw,
+          runtimeCallableReturnTypesEqual(lhsIdentity.returnTypeRaw, rhsIdentity.returnTypeRaw),
           lhsIdentity.arity == rhsIdentity.arity,
           lhsIdentity.kind == rhsIdentity.kind,
           lhsIdentity.isSuspend == rhsIdentity.isSuspend,
@@ -156,6 +164,17 @@ func runtimeCallableReferenceValuesEqual(_ lhs: Int, _ rhs: Int) -> Bool? {
     return zip(lhsIdentity.captures, rhsIdentity.captures).allSatisfy { lhsCapture, rhsCapture in
         runtimeValuesEqual(lhsCapture, rhsCapture)
     }
+}
+
+private func runtimeCallableReturnTypesEqual(_ lhsRaw: Int, _ rhsRaw: Int) -> Bool {
+    if lhsRaw == rhsRaw { return true }
+    guard lhsRaw != 0, rhsRaw != 0,
+          let lhs = runtimeStringFromRaw(lhsRaw),
+          let rhs = runtimeStringFromRaw(rhsRaw)
+    else {
+        return false
+    }
+    return lhs == rhs
 }
 
 func runtimeCallableReferenceHashCode(_ rawValue: Int) -> Int? {
