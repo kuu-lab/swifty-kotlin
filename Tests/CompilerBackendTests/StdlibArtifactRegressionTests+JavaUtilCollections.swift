@@ -6,6 +6,31 @@ import Testing
 
 extension StdlibArtifactRegressionTests {
     @Test
+    func testJavaCollectionsSortAcceptsReadOnlyListThroughSourceAndFreshArtifactAtO0AndO2() throws {
+        let source = try diffCaseSource("java_util_collections_sort_list_parameter.kt", file: #filePath)
+        let expected = try diffCaseSource("java_util_collections_sort_list_parameter.expected", file: #filePath)
+        let artifactPath = try Self.buildStdlibArtifact()
+        for libraryPath in [nil, artifactPath] {
+            for optLevel in [OptimizationLevel.O0, .O2] {
+                try withTemporaryFile(contents: source) { input in
+                    let output = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
+                    defer { try? FileManager.default.removeItem(atPath: output) }
+                    let context = javaCollectionsContext(input: input, output: output, libraryPath: libraryPath, optLevel: optLevel)
+                    try runToKIR(context)
+                    try assertNoDiagnosticErrors(context)
+                    try LoweringPhase().run(context)
+                    try CodegenPhase().run(context)
+                    try LinkPhase().run(context)
+                    let result = try CommandRunner.run(executable: output, arguments: [])
+                    #expect(result.exitCode == 0, "\(result.stderr)")
+                    #expect(result.stdout.replacingOccurrences(of: "\r\n", with: "\n") == expected,
+                            "source: \(libraryPath == nil), optimization: \(optLevel)")
+                }
+            }
+        }
+    }
+
+    @Test
     func testJavaCollectionsFactoriesAndAlgorithmsThroughSourceAndFreshArtifactAtO0AndO2() throws {
         let source = try diffCaseSource("java_util_collections_factories_algorithms.kt", file: #filePath)
         let expected = try diffCaseSource("java_util_collections_factories_algorithms.expected", file: #filePath)
