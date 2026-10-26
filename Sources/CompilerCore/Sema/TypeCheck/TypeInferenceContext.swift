@@ -543,7 +543,41 @@ struct TypeInferenceContext: CustomStringConvertible {
         return types
     }
 
-    func filterByVisibility(_ candidates: [SymbolID]) -> (visible: [SymbolID], invisible: [SemanticSymbol]) {
+    /// Returns the enclosing class's companion when it inherits the candidate's
+    /// declaring class. Class bodies expose these members through companion
+    /// shorthand, so calls must use that singleton as their dispatch receiver.
+    func inheritedCompanionReceiver(for candidate: SymbolID) -> SymbolID? {
+        guard let candidateSymbol = cachedSymbol(candidate),
+              candidateSymbol.kind == .function,
+              sema.symbols.memberExtensionOwnerSymbol(for: candidate) == nil,
+              sema.symbols.functionSignature(for: candidate)?.receiverType != nil,
+              let declaringOwner = sema.symbols.parentSymbol(for: candidate),
+              let enclosingClassSymbol
+        else {
+            return nil
+        }
+
+        var classQueue = [enclosingClassSymbol]
+        var visitedClasses: Set<SymbolID> = []
+        while !classQueue.isEmpty {
+            let classSymbol = classQueue.removeFirst()
+            guard visitedClasses.insert(classSymbol).inserted else { continue }
+            if let companion = sema.symbols.companionObjectSymbol(for: classSymbol),
+               companion != declaringOwner,
+               sema.types.isNominalSubtypeSymbol(companion, of: declaringOwner) {
+                return companion
+            }
+            classQueue.append(contentsOf: sema.symbols.directSupertypes(for: classSymbol).filter {
+                sema.symbols.symbol($0)?.kind == .class
+            })
+        }
+        return nil
+    }
+
+    func filterByVisibility(
+        _ candidates: [SymbolID],
+        protectedAccessReceiverType: TypeID? = nil
+    ) -> (visible: [SymbolID], invisible: [SemanticSymbol]) {
         var visible: [SymbolID] = []
         var invisible: [SemanticSymbol] = []
         // A hidden compatibility factory must not shadow a usable constructor
@@ -558,7 +592,26 @@ struct TypeInferenceContext: CustomStringConvertible {
             guard !isHiddenByDeprecationOrVersionAnnotation(candidate, symbols: sema.symbols)
                     || !hasNonHiddenCandidate
             else { continue }
-            if visibilityChecker.isAccessible(symbol, fromFile: currentFileID, enclosingClass: enclosingClassSymbol) {
+            let accessibleInEnclosingClass = visibilityChecker.isAccessible(
+                symbol, fromFile: currentFileID, enclosingClass: enclosingClassSymbol
+            )
+            let accessibleThroughEnclosingCompanion: Bool = {
+                guard !accessibleInEnclosingClass,
+                      symbol.visibility == .protected,
+                      let protectedAccessReceiverType,
+                      case let .classType(receiverClass) = sema.types.kind(
+                          of: sema.types.makeNonNullable(protectedAccessReceiverType)
+                      ),
+                      let companion = inheritedCompanionReceiver(for: candidate),
+                      sema.types.isNominalSubtypeSymbol(receiverClass.classSymbol, of: companion)
+                else {
+                    return false
+                }
+                return visibilityChecker.isAccessible(
+                    symbol, fromFile: currentFileID, enclosingClass: companion
+                )
+            }()
+            if accessibleInEnclosingClass || accessibleThroughEnclosingCompanion {
                 visible.append(candidate)
             } else {
                 invisible.append(symbol)

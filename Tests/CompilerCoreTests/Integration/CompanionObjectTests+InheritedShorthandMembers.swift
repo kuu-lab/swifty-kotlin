@@ -4,6 +4,22 @@ import Testing
 @testable import CompilerTestSupport
 
 extension CompanionObjectTests {
+    @Test func protectedInheritedCompanionMemberIsCallableFromEnclosingClass() throws {
+        let source = """
+        open class A { protected fun foo() = "OK" }
+        class B {
+            companion object : A()
+            fun bar() = foo()
+            fun invalidReceiver(value: A) = value.foo()
+        }
+        fun main() { println(B().bar()) }
+        """
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+        #expect(ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0041" }.count == 1)
+        #expect(!ctx.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-SEMA-0023" })
+    }
+
     @Test func testBaseCompanionMembersResolveUnqualifiedInDerivedInstanceMembers() throws {
         let source = """
         open class Root {

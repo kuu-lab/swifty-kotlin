@@ -37,7 +37,7 @@ extension CallTypeChecker {
                 guard let symbol = ctx.cachedSymbol(candidate) else { return false }
                 return symbol.kind == .function || symbol.kind == .constructor
             }
-            if let receiverEntry = ctx.implicitReceiverMemberLookupEntries().first(where: { entry in
+            let matchingReceiverEntry = ctx.implicitReceiverMemberLookupEntries().first(where: { entry in
                 allCallCandidates.contains { candidate in
                     guard let declaredReceiver = sema.symbols.functionSignature(for: candidate)?.receiverType else {
                         return false
@@ -51,12 +51,24 @@ extension CallTypeChecker {
                         sema: sema
                     )
                 }
-            }) {
-                callImplicitReceiverType = receiverEntry.type
+            })
+            if let matchingReceiverEntry {
+                callImplicitReceiverType = matchingReceiverEntry.type
+            } else if let companion = allCallCandidates.compactMap({
+                ctx.inheritedCompanionReceiver(for: $0)
+            }).first {
+                callImplicitReceiverType = sema.types.make(.classType(ClassType(
+                    classSymbol: companion,
+                    args: [],
+                    nullability: .nonNull
+                )))
             }
             let dslBlockedCandidates = allCallCandidates.filter { ctx.isCandidateBlockedByDslMarker($0) }
             let dslFiltered = allCallCandidates.filter { !ctx.isCandidateBlockedByDslMarker($0) }
-            let (vis, invis) = ctx.filterByVisibility(dslFiltered)
+            let (vis, invis) = ctx.filterByVisibility(
+                dslFiltered,
+                protectedAccessReceiverType: callImplicitReceiverType
+            )
             candidates = vis
             implicitReceiverScopeCandidates = vis
             callInvisible = invis

@@ -571,6 +571,17 @@ extension CallTypeChecker {
                 candidates: [chosen],
                 ctx: ctx
             )[chosen]
+            let companionDispatchReceiver = ctx.inheritedCompanionReceiver(for: chosen).flatMap { companion -> SymbolID? in
+                guard let resolvedImplicitReceiverType,
+                      case let .classType(receiverClass) = sema.types.kind(
+                          of: sema.types.makeNonNullable(resolvedImplicitReceiverType)
+                      ),
+                      sema.types.isNominalSubtypeSymbol(receiverClass.classSymbol, of: companion)
+                else {
+                    return nil
+                }
+                return companion
+            }
             let contextParameterReceiverSymbols = contextParameterReceiverSymbols(
                 for: chosen,
                 substitution: resolved.substitutedTypeArguments,
@@ -581,7 +592,7 @@ extension CallTypeChecker {
                 chosen: chosen,
                 resolved: resolved,
                 sema: sema,
-                dispatchReceiverSymbol: importedDispatchReceiver,
+                dispatchReceiverSymbol: importedDispatchReceiver ?? companionDispatchReceiver,
                 contextParameterReceiverSymbols: contextParameterReceiverSymbols
             )
             if sema.wellKnownSymbols.isContractIntrinsic(for: chosen) {
