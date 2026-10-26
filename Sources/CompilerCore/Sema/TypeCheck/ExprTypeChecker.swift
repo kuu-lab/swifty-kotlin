@@ -1693,7 +1693,7 @@ final class ExprTypeChecker {
                   let signature = sema.symbols.functionSignature(for: candidate),
                   signature.parameterTypes.count == 1,
                   let receiverType = signature.receiverType,
-                  !isHiddenByDeprecatedAnnotation(candidate, symbols: sema.symbols)
+                  !isHiddenByDeprecationOrVersionAnnotation(candidate, symbols: sema.symbols)
             else {
                 return false
             }
