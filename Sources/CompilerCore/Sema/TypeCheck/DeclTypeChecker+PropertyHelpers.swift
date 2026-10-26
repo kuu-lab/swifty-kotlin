@@ -199,6 +199,12 @@ extension DeclTypeChecker {
             for: SymbolID(rawValue: -(symbol.rawValue + 50000))
         )
 
+        // The delegate expression already has a diagnostic. Avoid reporting
+        // follow-on convention errors such as a missing getValue on errorType.
+        if delegateType == sema.types.errorType {
+            return result ?? sema.types.nullableAnyType
+        }
+
         // Resolve getValue through the property-delegate convention. Unlike a
         // normal member lookup, the convention also admits visible extension
         // functions whose receiver is the delegate type.

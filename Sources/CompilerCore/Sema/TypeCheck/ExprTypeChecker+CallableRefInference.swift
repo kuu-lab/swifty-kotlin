@@ -475,6 +475,7 @@ extension ExprTypeChecker {
                 ownerType: nil,
                 isUnbound: false,
                 expectedType: expectedType,
+                range: range,
                 ctx: ctx,
                 sema: sema,
                 interner: interner,
@@ -652,6 +653,7 @@ extension ExprTypeChecker {
                         ownerType: unboundClassType != nil ? nonNullReceiver : nil,
                         isUnbound: unboundClassType != nil,
                         expectedType: expectedType,
+                        range: range,
                         ctx: ctx,
                         sema: sema,
                         interner: interner,
@@ -667,6 +669,7 @@ extension ExprTypeChecker {
                         ownerType: nil,
                         isUnbound: false,
                         expectedType: expectedType,
+                        range: range,
                         ctx: ctx,
                         sema: sema,
                         interner: interner,
@@ -733,6 +736,7 @@ extension ExprTypeChecker {
                             ownerType: unboundClassType != nil ? nonNullReceiver : nil,
                             isUnbound: unboundClassType != nil,
                             expectedType: expectedType,
+                            range: range,
                             ctx: ctx,
                             sema: sema,
                             interner: interner,
@@ -1180,6 +1184,7 @@ extension ExprTypeChecker {
                 ownerType: candidate.ownerType,
                 isUnbound: candidate.isUnbound,
                 expectedType: expectedType,
+                range: range,
                 ctx: ctx,
                 sema: sema,
                 interner: interner,
@@ -1211,6 +1216,7 @@ extension ExprTypeChecker {
                     ownerType: candidate.ownerType,
                     isUnbound: candidate.isUnbound,
                     expectedType: expectedType,
+                    range: range,
                     ctx: ctx,
                     sema: sema,
                     interner: interner,
@@ -1348,6 +1354,7 @@ extension ExprTypeChecker {
                 ownerType: candidate.ownerType,
                 isUnbound: candidate.isUnbound,
                 expectedType: expectedType,
+                range: range,
                 ctx: ctx,
                 sema: sema,
                 interner: interner,
@@ -1799,11 +1806,23 @@ extension ExprTypeChecker {
         ownerType: TypeID?,
         isUnbound: Bool,
         expectedType: TypeID?,
+        range: SourceRange,
         ctx: TypeInferenceContext,
         sema: SemaModule,
         interner: StringInterner,
         resolvedPropertyType: TypeID? = nil
     ) -> TypeID {
+        let getterAccessor = sema.symbols.extensionPropertyGetterAccessor(for: propertySymbol)
+            ?? SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: propertySymbol)
+        if sema.symbols.functionSignature(for: getterAccessor)?.contextReceiverTypes.isEmpty == false {
+            sema.diagnostics.error(
+                "KSWIFTK-TYPE-0001",
+                "Callable references to properties with context parameters are not supported.",
+                range: range
+            )
+            return driver.helpers.bindAndReturnErrorType(id, sema: sema)
+        }
+
         var propertyType = resolvedPropertyType
             ?? sema.symbols.propertyType(for: propertySymbol)
             ?? sema.types.errorType
