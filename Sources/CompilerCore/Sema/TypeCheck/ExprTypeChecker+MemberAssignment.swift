@@ -1,4 +1,27 @@
 extension ExprTypeChecker {
+    func collectReceiverBuilderPropertyWriteConstraint(
+        valueType: TypeID,
+        writeType: TypeID,
+        value: ExprID,
+        range: SourceRange,
+        ctx: TypeInferenceContext
+    ) {
+        guard let session = ctx.builderInference,
+              !session.isFinalized,
+              session.mentionsVariable(writeType, types: ctx.sema.types),
+              valueType != ctx.sema.types.errorType
+        else {
+            return
+        }
+        session.constraints.append(contentsOf: ctx.resolver.decomposeSubtypeConstraint(
+            subtype: valueType,
+            supertype: writeType,
+            typeVarBySymbol: session.typeVarBySymbol,
+            typeSystem: ctx.sema.types,
+            blameRange: ctx.ast.arena.exprRange(value) ?? range
+        ))
+    }
+
     func inferMemberAssignExpr(
         _ id: ExprID,
         receiver: ExprID,
@@ -58,6 +81,12 @@ extension ExprTypeChecker {
                                 for: setter, name: ctx.interner.resolve(name), range: range, diagnostics: sema.diagnostics
                             )
                         }
+                    }
+                    if member.writeSymbol != nil {
+                        collectReceiverBuilderPropertyWriteConstraint(
+                            valueType: valueType, writeType: writeType,
+                            value: value, range: range, ctx: ctx
+                        )
                     }
                     driver.emitSubtypeConstraint(
                         left: valueType, right: writeType, range: range, solver: ConstraintSolver(),
