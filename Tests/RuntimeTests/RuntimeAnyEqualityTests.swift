@@ -143,6 +143,41 @@ struct RuntimeAnyEqualityTests {
     }
 
     @Test
+    func testAnyEqualsDistinguishesPrimitiveKindsWithMatchingValues() {
+        let oneAsDouble = kk_double_to_bits(1)
+
+        #expect(!boolValue(kk_any_equals(1, 1, 1, 8)))
+        #expect(!boolValue(kk_any_equals(1, 8, 1, 1)))
+        #expect(!boolValue(kk_any_equals(49, 1, 49, 4)))
+        #expect(!boolValue(kk_any_equals(49, 4, 49, 1)))
+        #expect(!boolValue(kk_any_equals(oneAsDouble, 6, 1, 8)))
+        #expect(!boolValue(kk_any_equals(1, 12, 1, 1)))
+        #expect(!boolValue(kk_any_equals(1, 13, 1, 1)))
+        #expect(!boolValue(kk_any_equals(1, 9, 1, 1)))
+
+        #expect(boolValue(kk_any_equals(1, 1, 1, 1)))
+        #expect(boolValue(kk_any_equals(1, 8, 1, 8)))
+        #expect(boolValue(kk_any_equals(49, 4, 49, 4)))
+        #expect(boolValue(kk_any_equals(oneAsDouble, 6, oneAsDouble, 6)))
+    }
+
+    @Test
+    func testAnyEqualsDistinguishesBoxedSmallIntegerKinds() {
+        let boxedByte = kk_box_byte_static(1)
+        let boxedShort = kk_box_short_static(1)
+        let boxedInt = kk_box_int_static(1)
+        let boxedUInt = kk_box_uint_static(1)
+        let boxedLong = kk_box_long_nonnull(1)
+        let boxedChar = kk_box_char_static(49)
+
+        #expect(!boolValue(kk_any_equals(boxedByte, 0, boxedInt, 0)))
+        #expect(!boolValue(kk_any_equals(boxedShort, 0, boxedInt, 0)))
+        #expect(!boolValue(kk_any_equals(boxedUInt, 0, boxedInt, 0)))
+        #expect(!boolValue(kk_any_equals(boxedInt, 0, boxedLong, 0)))
+        #expect(!boolValue(kk_any_equals(boxedChar, 0, boxedInt, 0)))
+    }
+
+    @Test
     func testUnregisteredRuntimeObjectUsesReferenceIdentity() {
         let classID = 0x51_11
         let first = kk_object_new(1, classID)

@@ -140,6 +140,7 @@ final class ValueClassUnboxingPass: LoweringPass, ParallelLoweringPass {
             let rewritten = self.rewriteBody(
                 function.body,
                 locations: function.instructionLocations,
+                module: module,
                 arena: module.arena,
                 interner: interner,
                 types: types,
@@ -273,6 +274,7 @@ final class ValueClassUnboxingPass: LoweringPass, ParallelLoweringPass {
     private func rewriteBody(
         _ body: [KIRInstruction],
         locations: [SourceRange?],
+        module: KIRModule,
         arena: KIRArena,
         interner: StringInterner,
         types: TypeSystem,
@@ -635,7 +637,33 @@ final class ValueClassUnboxingPass: LoweringPass, ParallelLoweringPass {
                        arguments[0], arena: arena, types: types, symbols: symbols
                    )
                 {
-                    if let unboxCallee = valueClassPayloadUnboxCallee(
+                    if let receiverType = arena.exprType(arguments[0]),
+                       let classSymbol = nullableUnderlyingValueClassSymbol(
+                           of: types.kind(of: receiverType), types: types, symbols: symbols
+                       )
+                    {
+                        // A non-null nullable-underlying value class already
+                        // carries its payload directly. Keep that payload's
+                        // underlying type visible to ABI lowering: a plain
+                        // copy from the value-class-typed receiver would look
+                        // like V -> Any and re-box the payload as V.
+                        let classID = RuntimeTypeCheckToken.stableNominalTypeID(
+                            symbol: classSymbol, symbols: symbols, interner: interner
+                        )
+                        let classIDExpr = arena.appendExpr(
+                            .intLiteral(classID), type: types.intType
+                        )
+                        result.append(.constValue(
+                            result: classIDExpr, value: .intLiteral(classID)
+                        ))
+                        resultLocations.append(location)
+                        result.append(.call(
+                            callee: interner.intern("kk_value_class_unbox"),
+                            arguments: [arguments[0], classIDExpr],
+                            result: callResult,
+                            canThrow: false
+                        ))
+                    } else if let unboxCallee = valueClassPayloadUnboxCallee(
                         for: arguments[0], arena: arena, types: types, symbols: symbols,
                         valueClassSymbols: valueClassSymbols,
                         boxingCalleeTable: boxingCalleeTable
@@ -645,6 +673,19 @@ final class ValueClassUnboxingPass: LoweringPass, ParallelLoweringPass {
                             result: callResult, canThrow: false, thrownResult: nil
                         ))
                     } else {
+                        // A non-null value class whose underlying representation can
+                        // itself be null already stores the raw payload. Preserve this
+                        // property read as a representation-only copy; ABI lowering
+                        // would otherwise mistake X -> Any? for boxing X itself.
+                        if let receiverType = arena.exprType(arguments[0]),
+                           let classSymbol = nullableUnderlyingValueClassSymbol(
+                               of: types.kind(of: receiverType), types: types, symbols: symbols
+                           ),
+                           symbols.effectiveValueClassUnderlyingType(for: classSymbol)
+                               == arena.exprType(callResult)
+                        {
+                            module.markRawValueClassPayloadCopyTarget(callResult)
+                        }
                         result.append(.copy(from: arguments[0], to: callResult))
                     }
                     resultLocations.append(location)

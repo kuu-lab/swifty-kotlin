@@ -618,6 +618,10 @@ extension CallTypeChecker {
                let functionType = sema.bindings.samUnderlyingFunctionType(for: argument.expr) {
                 return functionType
             }
+            if let samLambda = samConstructorLambdaArgument(argument.expr, ctx: ctx),
+               let functionType = sema.bindings.samUnderlyingFunctionType(for: samLambda) {
+                return functionType
+            }
             let type = argTypes[index]
             // A bare `ClassName` argument denotes the class's companion object.
             if !lambdaLiteralIndices.contains(index),

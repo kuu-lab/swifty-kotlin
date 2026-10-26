@@ -1,5 +1,7 @@
 package kotlin
 
+import kotlin.enums.enumEntries
+
 public enum class LazyThreadSafetyMode {
     SYNCHRONIZED,
     PUBLICATION,

@@ -282,13 +282,24 @@ extension CallLowerer {
                 else {
                     return false
                 }
-                // KSP-999: only the Array overload is fully source-backed. The
-                // existing Iterable overload intentionally keeps its shared runtime
-                // bridge for now. Inspect the bound argument rather than the
-                // generic declaration signature so Array<out R> remains visible
-                // after overload substitution.
-                return isGenericKotlinArrayType(
+                // KSP-999: keep the Array overload on its source-backed path.
+                // Inspect the bound argument rather than the generic declaration
+                // signature so Array<out R> remains visible after overload
+                // substitution.
+                if isGenericKotlinArrayType(
                     sema.types.makeNonNullable(firstArgumentType),
+                    sema: sema,
+                    interner: interner
+                ) {
+                    return true
+                }
+
+                // KUU-3483: an Iterable interface value may be a lazy source-backed
+                // wrapper (for example, the result of withIndex()), not a runtime
+                // collection handle that the eager zip bridge can read.
+                let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
+                return isIterableOrCollectionInterfaceType(
+                    sema.types.makeNonNullable(receiverType),
                     sema: sema,
                     interner: interner
                 )

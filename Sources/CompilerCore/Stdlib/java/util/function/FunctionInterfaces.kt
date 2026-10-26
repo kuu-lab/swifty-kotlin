@@ -81,3 +81,14 @@ public fun interface DoubleBinaryOperator { public fun applyAsDouble(first: Doub
 public fun interface ObjIntConsumer<T> { public fun accept(value: T, number: Int) }
 public fun interface ObjLongConsumer<T> { public fun accept(value: T, number: Long) }
 public fun interface ObjDoubleConsumer<T> { public fun accept(value: T, number: Double) }
+
+public fun interface BooleanSupplier { public fun getAsBoolean(): Boolean }
+public fun interface DoubleToIntFunction { public fun applyAsInt(value: Double): Int }
+public fun interface DoubleToLongFunction { public fun applyAsLong(value: Double): Long }
+public fun interface IntToDoubleFunction { public fun applyAsDouble(value: Int): Double }
+public fun interface IntToLongFunction { public fun applyAsLong(value: Int): Long }
+public fun interface LongToDoubleFunction { public fun applyAsDouble(value: Long): Double }
+public fun interface LongToIntFunction { public fun applyAsInt(value: Long): Int }
+public fun interface ToDoubleBiFunction<T, U> { public fun applyAsDouble(first: T, second: U): Double }
+public fun interface ToIntBiFunction<T, U> { public fun applyAsInt(first: T, second: U): Int }
+public fun interface ToLongBiFunction<T, U> { public fun applyAsLong(first: T, second: U): Long }

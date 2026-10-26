@@ -242,7 +242,15 @@ final class ExprTypeChecker {
             if exprSpineContainsSafeMemberAccess(receiverExpr, ast: ast) {
                 indexCtx.isConditionallyEvaluated = true
             }
-            return driver.localDeclChecker.inferIndexedAccessExpr(id, receiverExpr: receiverExpr, indices: indices, range: range, ctx: indexCtx, locals: &locals)
+            return driver.localDeclChecker.inferIndexedAccessExpr(
+                id,
+                receiverExpr: receiverExpr,
+                indices: indices,
+                range: range,
+                expectedType: expectedType,
+                ctx: indexCtx,
+                locals: &locals
+            )
 
         case let .indexedAssign(receiverExpr, indices, valueExpr, range):
             var assignCtx = ctx
@@ -591,7 +599,8 @@ final class ExprTypeChecker {
             if subjectType != sema.types.errorType, targetType != sema.types.errorType {
                 let nullEscape = sema.types.nullability(of: subjectType) == .nullable
                     && sema.types.nullability(of: targetType) == .nullable
-                if !nullEscape,
+                if !negated,
+                   !nullEscape,
                    !isRangeRepresentationCompatible(
                        subjectExpr: exprID,
                        subjectType: subjectNonNull,
@@ -619,7 +628,6 @@ final class ExprTypeChecker {
                 }
             }
             sema.bindings.bindIsCheckTargetType(id, type: targetType)
-            _ = negated
             _ = targetType
             sema.bindings.bindExprType(id, type: boolType)
             return boolType
@@ -1017,6 +1025,58 @@ final class ExprTypeChecker {
                 ))
             } else if let diagnostic = resolved.diagnostic {
                 ctx.sema.diagnostics.emit(diagnostic)
+            }
+            return
+        }
+
+        if let floatingPointRangeReceiver = driver.callChecker.floatingPointRangeArgumentType(
+            containerExpr,
+            ast: ctx.ast,
+            sema: sema,
+            interner: interner
+        ) {
+            let call = CallExpr(range: range, calleeName: containsName, args: [CallArg(type: elementType)])
+            let members = driver.helpers.collectMemberFunctionCandidates(
+                named: containsName,
+                receiverType: floatingPointRangeReceiver,
+                sema: sema,
+                interner: interner
+            )
+            let memberResult = ctx.resolver.resolveCall(
+                candidates: members,
+                call: call,
+                expectedType: nil,
+                implicitReceiverType: floatingPointRangeReceiver,
+                ctx: ctx.sema
+            )
+            let extensions = containsExtensionCandidates(receiverType: floatingPointRangeReceiver)
+            let extensionResult = extensions.isEmpty ? nil : ctx.resolver.resolveCall(
+                candidates: extensions,
+                call: call,
+                expectedType: nil,
+                implicitReceiverType: floatingPointRangeReceiver,
+                ctx: ctx.sema
+            )
+            let resolved = memberResult.chosenCallee != nil ? memberResult : extensionResult ?? memberResult
+            if let chosen = resolved.chosenCallee {
+                sema.bindings.bindCall(exprID, binding: CallBinding(
+                    chosenCallee: chosen,
+                    substitutedTypeArguments: resolved.substitutedTypeArguments
+                        .sorted { $0.key.rawValue < $1.key.rawValue }.map { $0.value },
+                    parameterMapping: resolved.parameterMapping
+                ))
+            } else if let diagnostic = resolved.diagnostic {
+                ctx.sema.diagnostics.emit(diagnostic)
+            } else if let expectedElementType = driver.helpers.rangeLikeDeclaredElementType(
+                for: floatingPointRangeReceiver,
+                sema: sema,
+                interner: interner
+            ) {
+                ctx.sema.diagnostics.error(
+                    "KSWIFTK-SEMA-0002",
+                    "Argument type mismatch: expected '\(sema.types.renderType(expectedElementType))', got '\(sema.types.renderType(elementType))'.",
+                    range: ctx.ast.arena.exprRange(elementExpr)
+                )
             }
             return
         }
@@ -1632,7 +1692,8 @@ final class ExprTypeChecker {
                   symbol.flags.contains(SymbolFlags.operatorFunction),
                   let signature = sema.symbols.functionSignature(for: candidate),
                   signature.parameterTypes.count == 1,
-                  let receiverType = signature.receiverType
+                  let receiverType = signature.receiverType,
+                  !isHiddenByDeprecatedAnnotation(candidate, symbols: sema.symbols)
             else {
                 return false
             }
@@ -1901,7 +1962,7 @@ final class ExprTypeChecker {
         // extension call.
         if names.count == 1,
            let name = names.first,
-           ["unaryPlus", "unaryMinus"].contains(interner.resolve(name))
+           ["not", "unaryPlus", "unaryMinus"].contains(interner.resolve(name))
         {
             let memberExtensionCandidates = collectImplicitReceiverMemberExtensionOperatorCandidates(
                 named: name,
@@ -2313,6 +2374,11 @@ final class ExprTypeChecker {
         if hasKnownJvmSerializableOverlap(subject: subject, target: target, sema: sema, interner: interner) {
             return false
         }
+        if hasKnownJvmNumericOverlap(subject: subject, target: target, sema: sema, interner: interner)
+            || hasKnownJvmAppendableOverlap(subject: subject, target: target, sema: sema, interner: interner)
+        {
+            return false
+        }
         // Generic subject shapes and type parameters defeat the nominal
         // disjointness argument. A target with only star projections still has
         // a known runtime classifier, so a final subject can be rejected when
@@ -2366,6 +2432,93 @@ final class ExprTypeChecker {
 
         return isJvmSerializableBuiltin(subject) && isSerializableInterface(target)
             || isSerializableInterface(subject) && isJvmSerializableBuiltin(target)
+    }
+
+    /// A `Number` value may hold any numeric runtime class even when the
+    /// imported `Number` symbol differs from the TypeSystem's cached symbol.
+    private func hasKnownJvmNumericOverlap(
+        subject: TypeID,
+        target: TypeID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> Bool {
+        guard sema.requiresResolvedLibraryCalls else { return false }
+
+        func isKotlinNumber(_ type: TypeID) -> Bool {
+            guard case let .classType(classType) = sema.types.kind(of: type),
+                  let symbol = sema.symbols.symbol(classType.classSymbol)
+            else {
+                return false
+            }
+            return symbol.fqName == [interner.intern("kotlin"), interner.intern("Number")]
+        }
+
+        func isJvmNumericType(_ type: TypeID) -> Bool {
+            switch sema.types.kind(of: type) {
+            case let .primitive(primitive, _):
+                switch primitive {
+                case .byte, .short, .int, .long, .float, .double:
+                    return true
+                case .boolean, .char, .uint, .ulong, .ubyte, .ushort:
+                    return false
+                }
+            case let .classType(classType):
+                guard let symbol = sema.symbols.symbol(classType.classSymbol),
+                      symbol.fqName.count == 2,
+                      [interner.intern("kotlin"), interner.intern("java")].contains(symbol.fqName[0])
+                else {
+                    return false
+                }
+                switch interner.resolve(symbol.fqName[1]) {
+                case "Byte", "Short", "Int", "Integer", "Long", "Float", "Double":
+                    return true
+                default:
+                    return false
+                }
+            default:
+                return false
+            }
+        }
+
+        return isKotlinNumber(subject) && isJvmNumericType(target)
+            || isKotlinNumber(target) && isJvmNumericType(subject)
+    }
+
+    /// Kotlin/JVM maps `kotlin.text.StringBuilder` to the platform builder,
+    /// which implements `java.lang.Appendable` outside the Sema hierarchy.
+    private func hasKnownJvmAppendableOverlap(
+        subject: TypeID,
+        target: TypeID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> Bool {
+        guard sema.requiresResolvedLibraryCalls,
+              let appendableSymbol = sema.symbols.lookup(
+                  fqName: ["java", "lang", "Appendable"].map(interner.intern)
+              ),
+              sema.symbols.symbol(appendableSymbol)?.kind == .interface
+        else {
+            return false
+        }
+
+        func isAppendable(_ type: TypeID) -> Bool {
+            guard case let .classType(classType) = sema.types.kind(of: type) else { return false }
+            return classType.classSymbol == appendableSymbol
+        }
+
+        func isKotlinStringBuilder(_ type: TypeID) -> Bool {
+            guard case let .classType(classType) = sema.types.kind(of: type),
+                  let symbol = sema.symbols.symbol(classType.classSymbol)
+            else {
+                return false
+            }
+            return symbol.fqName == [
+                interner.intern("kotlin"), interner.intern("text"), interner.intern("StringBuilder"),
+            ]
+        }
+
+        return isKotlinStringBuilder(subject) && isAppendable(target)
+            || isAppendable(subject) && isKotlinStringBuilder(target)
     }
 
     /// Range expressions use their element primitive as the Sema type and carry

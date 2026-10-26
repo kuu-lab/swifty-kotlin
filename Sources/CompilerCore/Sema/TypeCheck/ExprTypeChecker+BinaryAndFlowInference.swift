@@ -43,6 +43,12 @@ extension ExprTypeChecker {
         let ushortType = sema.types.ushortType
         let ulongType = sema.types.ulongType
         let uintType = sema.types.uintType
+        let requiresEqualityOperandFactoryInference: Bool = switch op {
+        case .equal, .notEqual, .identityEqual, .notIdentityEqual:
+            true
+        default:
+            false
+        }
 
         if op == .logicalAnd || op == .logicalOr {
             let lhs = driver.inferExpr(lhsID, ctx: ctx, locals: &locals, expectedType: boolType)
@@ -139,6 +145,9 @@ extension ExprTypeChecker {
             nil
         }
         var lhsCtx = ctx
+        if requiresEqualityOperandFactoryInference {
+            lhsCtx.collectionFactoryInferenceRequiredForEqualityOperand = lhsID
+        }
         lhsCtx.isElvisBranchExpectedTypeHint = isElvisCallLhs && !isSafeLetElvisFailure && expectedType != nil
         let lhsOperandType = driver.inferExpr(
             lhsID, ctx: lhsCtx, locals: &locals,
@@ -222,6 +231,9 @@ extension ExprTypeChecker {
             false
         }
         var rhsCtx = ctx
+        if requiresEqualityOperandFactoryInference {
+            rhsCtx.collectionFactoryInferenceRequiredForEqualityOperand = rhsID
+        }
         if op == .elvis, expectedType == nil, rhsIsCall,
            nonNullLhs != sema.types.errorType,
            nonNullLhs != sema.types.nothingType
@@ -322,6 +334,15 @@ extension ExprTypeChecker {
                 ctx.sema.diagnostics.error(
                     "KSWIFTK-SEMA-0002",
                     "Operator '\(op == .identityEqual ? "===" : "!==")' cannot be applied to unrelated singleton types.",
+                    range: range
+                )
+                sema.bindings.bindExprType(id, type: sema.types.errorType)
+                return sema.types.errorType
+            }
+            if identityEqualityHasDistinctAnonymousObjectTypes(lhsType, rhsType, sema: sema) {
+                ctx.sema.diagnostics.error(
+                    "KSWIFTK-SEMA-0002",
+                    "Operator '\(op == .identityEqual ? "===" : "!==")' cannot be applied to unrelated anonymous object types.",
                     range: range
                 )
                 sema.bindings.bindExprType(id, type: sema.types.errorType)
@@ -457,9 +478,15 @@ extension ExprTypeChecker {
         default:
             false
         }
-        let isBuiltinComparisonPair = sema.types.isBuiltinArithmeticOperand(lhs)
+        // Boolean is not an arithmetic operand, but `kotlin.Boolean` implements
+        // `Comparable<Boolean>` (`true > false` is legal): its 0/1
+        // representation lets the same machine-compare path serve the
+        // relational operators, so pair it with itself as a builtin
+        // comparison (KUU-3490).
+        let isBuiltinComparisonPair = (sema.types.isBuiltinArithmeticOperand(lhs)
             && sema.types.isBuiltinArithmeticOperand(rhs)
-            && ((lhs == charType) == (rhs == charType))
+            && ((lhs == charType) == (rhs == charType)))
+            || (lhs == boolType && rhs == boolType)
         let isNullablePrimitiveReceiver: Bool = if case .primitive(_, .nullable) = sema.types.kind(of: lhs) {
             true
         } else {
@@ -1298,6 +1325,21 @@ extension ExprTypeChecker {
               let right = resolveClassTypeSymbol(rhs, sema: sema)?.symbol
         else { return false }
         return left.kind == .object && right.kind == .object && left.id != right.id
+    }
+
+    private func identityEqualityHasDistinctAnonymousObjectTypes(_ lhs: TypeID, _ rhs: TypeID, sema: SemaModule) -> Bool {
+        // Anonymous object literals are distinct final nominal classes, even
+        // when their members or declared supertypes happen to match.
+        if sema.types.nullability(of: lhs) == .nullable,
+           sema.types.nullability(of: rhs) == .nullable {
+            return false
+        }
+        guard let left = resolveClassTypeSymbol(lhs, sema: sema)?.symbol,
+              let right = resolveClassTypeSymbol(rhs, sema: sema)?.symbol
+        else { return false }
+        return left.flags.contains(.objectLiteralType)
+            && right.flags.contains(.objectLiteralType)
+            && left.id != right.id
     }
 
     // Kotlin 2.3.10 rejects unrelated concrete operands when a primitive or

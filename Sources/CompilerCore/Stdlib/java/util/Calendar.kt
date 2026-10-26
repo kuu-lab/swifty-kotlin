@@ -3,7 +3,9 @@ package java.util
 import kotlin.internal.KsSymbolName
 
 /** A Gregorian calendar backed by the runtime's platform date implementation. */
-public class Calendar internal constructor(private val rawHandle: Long) {
+public open class Calendar internal constructor(private val rawHandle: Long) {
+    internal constructor(timeZone: TimeZone) : this(calendarCreate(timeZone.rawHandle))
+
     public fun getTimeInMillis(): Long = calendarGetTimeInMillis(rawHandle)
 
     public fun setTimeInMillis(value: Long) {

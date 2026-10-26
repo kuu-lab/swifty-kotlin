@@ -310,6 +310,27 @@ extension CallTypeChecker {
             guard let symbol = ctx.cachedSymbol(candidate) else { return false }
             return symbol.kind == .function || symbol.kind == .constructor
         }
+        if samConstructorTarget(named: calleeName, qualifiedName: fqnPath, ctx: ctx) != nil {
+            var samFactoryCandidates: [SymbolID]?
+            if let samType = inferSamConvertedCallExpr(
+                id,
+                calleeName: calleeName,
+                qualifiedName: fqnPath,
+                args: args,
+                range: range,
+                ctx: ctx,
+                locals: &locals,
+                expectedType: request.expectedType,
+                explicitTypeArgs: explicitTypeArgs,
+                samFactoryCandidates: &samFactoryCandidates
+            ) {
+                sema.bindings.markFQNTopLevelCallExpr(id)
+                return samType
+            }
+            if let samFactoryCandidates {
+                fqnCandidates = samFactoryCandidates
+            }
+        }
         if let classSymbolID = sema.symbols.lookupAll(fqName: fqnPath).first(where: {
             guard let symbol = ctx.cachedSymbol($0) else { return false }
             guard symbol.kind == .class || symbol.kind == .enumClass || symbol.kind == .annotationClass else {
@@ -477,9 +498,22 @@ extension CallTypeChecker {
         let argumentContextTypeArgs = typeAliasConstructor.map {
             aliasConstructorArgumentContextTypes($0, explicitTypeArgs: explicitTypeArgs, sema: sema)
         } ?? explicitTypeArgs
-        let preparedArgs = args.contains { ast.arena.expr($0.expr)?.isLambdaOrCallableRef == true }
+        var expectedTypeOverrides: [Int: TypeID] = [:]
+        prepareCompareByExpectedTypeOverrides(
+            args: args,
+            callRange: range,
+            candidates: vis,
+            explicitTypeArgs: argumentContextTypeArgs,
+            locals: locals,
+            ctx: ctx,
+            expectedTypeOverrides: &expectedTypeOverrides
+        )
+        let needsArgumentPreparation = args.contains { ast.arena.expr($0.expr)?.isLambdaOrCallableRef == true }
+            || !expectedTypeOverrides.isEmpty
+        let preparedArgs = needsArgumentPreparation
             ? prepareCallArguments(
                 args: args, callRange: range, candidates: vis,
+                expectedTypeOverrides: expectedTypeOverrides,
                 contextualCallResultType: request.ctx.isCallResultDiscarded && request.ctx.isUnitCoercionContext
                     ? request.ctx.sema.types.unitType : request.expectedType,
                 explicitTypeArgs: argumentContextTypeArgs, ctx: ctx, locals: &locals

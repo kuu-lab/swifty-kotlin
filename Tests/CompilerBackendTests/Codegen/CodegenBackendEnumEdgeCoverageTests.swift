@@ -83,6 +83,8 @@ struct CodegenBackendEnumEdgeCoverageTests {
     @Test
     func testCodegenEnumEntriesIndexedAccessReturnsRealSingleton() throws {
         let source = """
+        import kotlin.enums.enumEntries
+
         enum class Direction { NORTH, SOUTH, EAST, WEST }
 
         fun main() {

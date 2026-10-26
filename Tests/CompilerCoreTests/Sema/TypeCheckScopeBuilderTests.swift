@@ -74,6 +74,24 @@ struct TypeCheckScopeBuilderTests {
         #expect(scope.lookup(answer) == sema.symbols.lookupAll(fqName: [ctx.interner.intern("kotlin"), answer]))
     }
 
+    @Test(arguments: [false, true])
+    func enumEntriesRequiresAnExplicitImportEvenWithOptIn(optIn: Bool) throws {
+        let annotation = optIn ? "@OptIn(ExperimentalStdlibApi::class)\n" : ""
+        try withTemporaryFile(contents: """
+        enum class Color { RED, GREEN, BLUE }
+        \(annotation)fun useEntries() = enumEntries<Color>()
+        """) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            #expect(
+                ctx.diagnostics.diagnostics.contains {
+                    $0.severity == .error && $0.message.contains("enumEntries")
+                },
+                "Unqualified enumEntries should not be available without importing kotlin.enums: \(ctx.diagnostics.diagnostics)"
+            )
+        }
+    }
+
     @Test
     func defaultImportsPreserveFileSpecificShadowingAndAliases() throws {
         let sources = [

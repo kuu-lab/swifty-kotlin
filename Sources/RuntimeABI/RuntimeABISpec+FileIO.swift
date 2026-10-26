@@ -4,6 +4,12 @@ public extension RuntimeABISpec {
     static let fileIOFunctions: [RuntimeABIFunctionSpec] = [
         abi.nt("__kk_input_stream_reader_new", "streamRaw"),
         abi.nt("__kk_buffered_reader_new", "readerRaw"),
+        // KUU-3077 reason code: memory representation. StringWriter shares its
+        // mutable buffer with BufferedWriter through runtime-owned boxes.
+        abi.nt("__kk_string_writer_new_default"),
+        abi.th("__kk_string_writer_new", "initialSize outThrown"),
+        abi.nt("__kk_string_writer_to_string", "writerRaw"),
+        abi.nt("__kk_string_writer_get_buffer", "writerRaw"),
         // File must stay constructible for kotlin.io.FileSystemException (KSP-619)
         // and Files.kt's resolveSibling/normalize (KSP-483); see CLEANUP-STUB-107.
         abi.th("__kk_bytearray_output_stream_new_default"),

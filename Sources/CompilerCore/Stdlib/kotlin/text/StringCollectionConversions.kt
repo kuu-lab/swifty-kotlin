@@ -19,9 +19,11 @@ import kotlin.sequences.emptySequence
 // CharSequence implementation supplied by the compiler.
 
 public fun CharSequence.toList(): List<Char> {
+    val length = __kk_string_struct_get_length(this)
+    if (length == 0) return emptyList()
+
     val result = mutableListOf<Char>()
     var index = 0
-    val length = __kk_string_struct_get_length(this)
     while (index < length) {
         result.add(this[index])
         index++

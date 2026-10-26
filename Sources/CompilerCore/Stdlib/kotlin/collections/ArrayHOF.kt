@@ -68,15 +68,15 @@ public fun <T> Array<T>.forEach(action: (T) -> Unit) {
 }
 
 // `joinTo` / `joinToString` delegate to the source-backed Iterable
-// implementations so Array and List share one rendering path. Primitive
-// arrays retain their type-aware synthetic bridges until KSP-687.
+// implementations through the array's view. Primitive arrays retain their
+// type-aware synthetic bridges until KSP-687.
 
 public fun <T> Array<T>.joinTo(
     buffer: StringBuilder,
     separator: String = ", ",
     prefix: String = "",
     postfix: String = ""
-): StringBuilder = this.toList().joinTo(buffer, separator, prefix, postfix)
+): StringBuilder = this.asList().joinTo(buffer, separator, prefix, postfix)
 
 public fun <T> Array<T>.joinTo(
     buffer: StringBuilder,
@@ -85,23 +85,23 @@ public fun <T> Array<T>.joinTo(
     postfix: String,
     limit: Int,
     truncated: String
-): StringBuilder = this.toList().joinTo(buffer, separator, prefix, postfix, limit, truncated)
+): StringBuilder = this.asList().joinTo(buffer, separator, prefix, postfix, limit, truncated)
 
 public fun <T> Array<T>.joinTo(
     buffer: StringBuilder,
-    separator: String,
-    prefix: String,
-    postfix: String,
-    limit: Int,
-    truncated: String,
+    separator: String = ", ",
+    prefix: String = "",
+    postfix: String = "",
+    limit: Int = -1,
+    truncated: String = "...",
     transform: (T) -> Any
-): StringBuilder = this.toList().joinTo(buffer, separator, prefix, postfix, limit, truncated) { transform(it).toString() }
+): StringBuilder = this.asList().joinTo(buffer, separator, prefix, postfix, limit, truncated) { transform(it).toString() }
 
 public fun <T> Array<T>.joinToString(
     separator: String = ", ",
     prefix: String = "",
     postfix: String = ""
-): String = this.toList().joinToString(separator, prefix, postfix)
+): String = this.asList().joinToString(separator, prefix, postfix)
 
 public fun <T> Array<T>.joinToString(
     separator: String,
@@ -109,23 +109,23 @@ public fun <T> Array<T>.joinToString(
     postfix: String,
     limit: Int,
     truncated: String
-): String = this.toList().joinToString(separator, prefix, postfix, limit, truncated)
+): String = this.asList().joinToString(separator, prefix, postfix, limit, truncated)
 
 public fun <T> Array<T>.joinToString(
     separator: String,
     prefix: String,
     postfix: String,
     transform: (T) -> Any
-): String = this.toList().joinToString(separator, prefix, postfix) { transform(it).toString() }
+): String = this.asList().joinToString(separator, prefix, postfix) { transform(it).toString() }
 
 public fun <T> Array<T>.joinToString(transform: (T) -> Any): String =
-    this.toList().joinToString { transform(it).toString() }
+    this.asList().joinToString { transform(it).toString() }
 
 public fun <T> Array<T>.joinToString(separator: String, transform: (T) -> Any): String =
-    this.toList().joinToString(separator) { transform(it).toString() }
+    this.asList().joinToString(separator) { transform(it).toString() }
 
 public fun <T> Array<T>.joinToString(separator: String, prefix: String, transform: (T) -> Any): String =
-    this.toList().joinToString(separator, prefix) { transform(it).toString() }
+    this.asList().joinToString(separator, prefix) { transform(it).toString() }
 
 public fun <T> Array<T>.joinToString(
     separator: String,
@@ -134,6 +134,6 @@ public fun <T> Array<T>.joinToString(
     limit: Int,
     truncated: String,
     transform: (T) -> Any
-): String = this.toList().joinToString(separator, prefix, postfix, limit, truncated) { transform(it).toString() }
+): String = this.asList().joinToString(separator, prefix, postfix, limit, truncated) { transform(it).toString() }
 
 public fun <T> Array<T>.asSequence(): Sequence<T> = this.toList().asSequence()

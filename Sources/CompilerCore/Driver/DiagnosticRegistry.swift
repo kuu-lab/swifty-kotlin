@@ -135,6 +135,7 @@ enum DiagnosticRegistry {
         "OPT_IN_USAGE": ["KSWIFTK-SEMA-OPT-IN"],
         "UNCHECKED_IS": ["KSWIFTK-SEMA-ERASED-TYPE"],
         "ANNOTATION_TARGET": ["KSWIFTK-SEMA-ANNOTATION-TARGET"],
+        "NON_REPEATABLE_ANNOTATION": ["KSWIFTK-SEMA-ANNOTATION-NOT-REPEATABLE"],
         "ANNOTATION_ARGUMENT_MUST_BE_CONST": ["KSWIFTK-SEMA-ANNOTATION-ARGUMENT-CONST"],
         "ARGUMENT_TYPE_MISMATCH": ["KSWIFTK-SEMA-ANNOTATION-ARGUMENT-TYPE"],
         "TOO_MANY_ARGUMENTS": ["KSWIFTK-SEMA-ANNOTATION-ARGUMENT-ARITY"],
@@ -604,6 +605,12 @@ enum DiagnosticRegistry {
             pass: "SEMA",
             defaultSeverity: .error,
             summary: "Annotation is not applicable to this declaration target."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-ANNOTATION-NOT-REPEATABLE",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "Annotation is not repeatable."
         ),
         DiagnosticDescriptor(
             code: "KSWIFTK-SEMA-ANNOTATION-ARGUMENT-ARITY",

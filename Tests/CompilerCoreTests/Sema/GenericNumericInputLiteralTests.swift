@@ -24,6 +24,49 @@ struct GenericNumericInputLiteralTests {
         return try String(contentsOf: root.appendingPathComponent(name), encoding: .utf8)
     }
 
+    @Test
+    func setOfContextualizesBareIntegerLiteralToInferredLongElementType() throws {
+        let ctx = try context("""
+        fun main() {
+            val values = setOf(1, 1L)
+            println(values.size)
+        }
+        """, library: false, cache: false)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let sourcePath = try #require(ctx.options.inputs.first)
+        let setOfCall = try #require(ast.arena.exprs.enumerated().compactMap { index, expr -> ExprID? in
+            guard case let .call(callee, _, _, _) = expr,
+                  case let .nameRef(name, _) = ast.arena.expr(callee),
+                  ctx.interner.resolve(name) == "setOf",
+                  let range = ast.arena.exprRange(ExprID(rawValue: Int32(index))),
+                  ctx.sourceManager.path(of: range.start.file) == sourcePath
+            else {
+                return nil
+            }
+            return ExprID(rawValue: Int32(index))
+        }.first)
+
+        guard case let .call(_, _, arguments, _) = ast.arena.expr(setOfCall) else {
+            Issue.record("Expected setOf call")
+            return
+        }
+        let binding = try #require(sema.bindings.callBinding(for: setOfCall))
+        let inferredType = try #require(binding.substitutedTypeArguments.first)
+        #expect(
+            inferredType == sema.types.longType,
+            "setOf element type: \(sema.types.renderType(inferredType))"
+        )
+        let firstArgumentType = sema.bindings.exprType(for: arguments[0].expr)
+        #expect(
+            firstArgumentType == sema.types.longType,
+            "First literal type: \(sema.types.renderType(firstArgumentType ?? sema.types.errorType))"
+        )
+    }
+
     @Test(arguments: [false, true], [false, true])
     func concreteInputsContextualizeSignedAndUnsignedLiterals(library: Bool, cache: Bool) throws {
         let ctx = try context(sourceFixture("Scripts/diff_cases/generic_numeric_input_literals.kt"), library: library, cache: cache)

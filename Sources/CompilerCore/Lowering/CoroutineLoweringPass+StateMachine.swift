@@ -267,7 +267,12 @@ extension CoroutineLoweringPass {
                         }
                         loweredSuspendCallee = interner.intern("kk_function_invoke")
                         loweredSuspendArguments = [blockExpr, continuationExpr]
-                    } else if suspendCallInfo.callee == sourceYieldCallee {
+                    // The intrinsic `yield()` is top-level and argumentless. Same-name
+                    // suspend members must keep their declared dispatch and ABI.
+                    } else if suspendCallInfo.callee == sourceYieldCallee,
+                              !suspendCallInfo.isVirtual,
+                              suspendCallInfo.arguments.isEmpty
+                    {
                         loweredSuspendCallee = runtimeYieldCallee
                         loweredSuspendArguments = suspendCallInfo.arguments
                         loweredSuspendArguments.append(continuationExpr)

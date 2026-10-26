@@ -73,11 +73,16 @@ public val Throwable.suppressedExceptions: List<Throwable>
  * when the throwable is created, so `fillInStackTrace()` has nothing to refresh
  * and returns the receiver.
  */
-public val Throwable.stackTrace: Array<StackTraceElement>
+public var Throwable.stackTrace: Array<StackTraceElement>
     get() {
+        val stored = __kkThrowableStackTrace(this)
+        if (stored != null) return stored
         val frames = __kkThrowableRawStackFrames(this)
         val count = if (frames.size > 0) frames.size - 1 else 0
         return Array<StackTraceElement>(count) { i -> StackTraceElement("", "", null, -1, frames[i + 1].removePrefix("\tat ")) }
+    }
+    set(value) {
+        __kkThrowableSetStackTrace(this, value)
     }
 
 public val Throwable.localizedMessage: String?
@@ -144,6 +149,12 @@ internal external fun __kkThrowableSuppressedRaw(throwable: Throwable): Array<Th
 
 @KsSymbolName("__kk_throwable_rawStackFrames")
 internal external fun __kkThrowableRawStackFrames(throwable: Throwable): Array<String>
+
+@KsSymbolName("__kk_throwable_stackTrace")
+internal external fun __kkThrowableStackTrace(throwable: Throwable): Array<StackTraceElement>?
+
+@KsSymbolName("__kk_throwable_setStackTrace")
+internal external fun __kkThrowableSetStackTrace(throwable: Throwable, stackTrace: Array<StackTraceElement>)
 
 @KsSymbolName("__kk_throwable_toString")
 internal external fun __kkThrowableToString(throwable: Throwable): String

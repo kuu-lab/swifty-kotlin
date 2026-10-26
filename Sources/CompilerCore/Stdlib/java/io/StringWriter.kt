@@ -1,25 +1,21 @@
 package java.io
 
 import java.lang.StringBuffer
-import kotlin.text.StringBuilder
+import kotlin.internal.KsSymbolName
 
 public class StringWriter : Writer {
-    private var buffer: StringBuilder = StringBuilder()
-
+    @KsSymbolName("__kk_string_writer_new_default")
     public constructor()
 
-    public constructor(initialSize: Int) {
-        if (initialSize < 0) throw IllegalArgumentException()
-        buffer = StringBuilder(initialSize)
-    }
+    @KsSymbolName("__kk_string_writer_new")
+    public constructor(initialSize: Int)
 
-    public fun write(value: Int): Unit {
-        buffer.append(value.toChar())
-    }
+    @KsSymbolName("__kk_buffered_writer_write")
+    public external override fun write(value: String): Unit
 
-    public fun write(value: CharArray): Unit {
-        write(value, 0, value.size)
-    }
+    public fun write(value: Int): Unit = write(value.toChar().toString())
+
+    public fun write(value: CharArray): Unit = write(value, 0, value.size)
 
     public fun write(value: CharArray, offset: Int, length: Int): Unit {
         if (offset < 0 || length < 0 || offset > value.size - length) {
@@ -27,29 +23,25 @@ public class StringWriter : Writer {
         }
         var index = 0
         while (index < length) {
-            buffer.append(value[offset + index])
+            write(value[offset + index].toString())
             index += 1
         }
-    }
-
-    public fun write(value: String): Unit {
-        buffer.append(value)
     }
 
     public fun write(value: String, offset: Int, length: Int): Unit {
         if (offset < 0 || length < 0 || offset > value.length - length) {
             throw IndexOutOfBoundsException()
         }
-        buffer.append(value.substring(offset, offset + length))
+        write(value.substring(offset, offset + length))
     }
 
     public fun append(value: Char): StringWriter {
-        buffer.append(value)
+        write(value.toString())
         return this
     }
 
     public fun append(value: CharSequence?): StringWriter {
-        buffer.append(value?.toString() ?: "null")
+        write(value?.toString() ?: "null")
         return this
     }
 
@@ -58,15 +50,19 @@ public class StringWriter : Writer {
         if (startIndex < 0 || endIndex < startIndex || endIndex > text.length) {
             throw IndexOutOfBoundsException()
         }
-        buffer.append(text.substring(startIndex, endIndex))
+        write(text.substring(startIndex, endIndex))
         return this
     }
 
-    public fun getBuffer(): StringBuffer = buffer
+    @KsSymbolName("__kk_string_writer_get_buffer")
+    public external fun getBuffer(): StringBuffer
 
-    public fun flush(): Unit {}
+    @KsSymbolName("__kk_buffered_writer_flush")
+    public external override fun flush(): Unit
 
-    public override fun close(): Unit {}
+    @KsSymbolName("__kk_buffered_writer_close_throwing")
+    public external override fun close(): Unit
 
-    public override fun toString(): String = buffer.toString()
+    @KsSymbolName("__kk_string_writer_to_string")
+    public external override fun toString(): String
 }

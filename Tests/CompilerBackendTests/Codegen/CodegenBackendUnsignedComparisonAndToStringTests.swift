@@ -222,6 +222,46 @@ struct CodegenBackendUnsignedComparisonAndToStringTests {
         )
     }
 
+    // KUU-3492: generated data-class toString() must dispatch through a
+    // user-defined class property's own toString() without treating the
+    // object's pointer as an Any fallback value.
+    @Test
+    func testDataClassToStringNestedUserDefinedClassProperties() throws {
+        let source = """
+        data class Pt(val x: Int, val y: Int)
+        data class Named(val name: String, val pt: Pt)
+        class Label(val value: String) {
+            override fun toString(): String = "label=$value"
+        }
+        data class WithLabel(val label: Label)
+        open class Base {
+            override fun toString(): String = "base"
+        }
+        class Child : Base() {
+            override fun toString(): String = "child"
+        }
+        data class WithBase(val value: Base)
+        fun main() {
+            println(Pt(1, 2).toString())
+            println(Named("n", Pt(1, 2)).toString())
+            println(WithLabel(Label("custom")).toString())
+            println(WithBase(Base()).toString())
+            println(WithBase(Child()).toString())
+        }
+        """
+        try assertKotlinOutput(
+            source,
+            moduleName: "DataClassToStringNestedUserDefinedClassProperties",
+            expected: """
+            Pt(x=1, y=2)
+            Named(name=n, pt=Pt(x=1, y=2))
+            WithLabel(label=label=custom)
+            WithBase(value=base)
+            WithBase(value=child)
+            """ + "\n"
+        )
+    }
+
     // Nullable Float?/Double?/Char? properties: a real value renders correctly
     // (not the boxed pointer or raw bit pattern) and a genuinely null value
     // renders as "null" (not a garbage value), through both the toString()

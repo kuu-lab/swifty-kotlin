@@ -1,5 +1,7 @@
 package kotlin
 
+import kotlin.enums.enumEntries
+
 public val RequiresOptIn.Level.entries: kotlin.enums.EnumEntries<RequiresOptIn.Level>
     get() = enumEntries<RequiresOptIn.Level>()
 

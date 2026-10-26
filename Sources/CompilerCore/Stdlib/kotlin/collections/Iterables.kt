@@ -603,7 +603,7 @@ public inline fun <T> Iterable<T>.last(predicate: (T) -> Boolean): T {
     return last as T
 }
 
-public fun <T> Iterable<T>.lastIndexOf(element: T): Int {
+public fun <@kotlin.internal.OnlyInputTypes T> Iterable<T>.lastIndexOf(element: T): Int {
     var lastIndex = -1
     var index = 0
     for (item in this) {
@@ -1071,7 +1071,7 @@ public inline fun <T> Iterable<T>.count(predicate: (T) -> Boolean): Int {
 // KSP-979: The counter is checked after the previous increment wraps negative,
 // allowing the candidate at Int.MAX_VALUE to be evaluated before the next
 // iteration reports overflow, matching the Kotlin stdlib contract.
-public fun <T> Iterable<T>.indexOf(element: T): Int {
+public fun <@kotlin.internal.OnlyInputTypes T> Iterable<T>.indexOf(element: T): Int {
     var index = 0
     for (item in this) {
         if (index < 0) throw ArithmeticException("Index overflow has happened.")

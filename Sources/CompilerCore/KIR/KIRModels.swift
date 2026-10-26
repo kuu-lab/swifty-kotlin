@@ -492,6 +492,24 @@ public final class KIRModule {
     package var inlineBodiesBeforeCoroutineLowering: [SymbolID: [KIRInstruction]] = [:]
     package var inlineBodiesBeforeFinallyLowering: [SymbolID: [KIRInstruction]] = [:]
 
+    /// Copy targets that hold the raw underlying payload read from a non-null
+    /// nullable-representation value class. ABI lowering must preserve these
+    /// copies instead of treating them as `V` -> `Any` boxing boundaries.
+    private let rawValueClassPayloadCopyTargetsLock = NSLock()
+    private var rawValueClassPayloadCopyTargets: Set<KIRExprID> = []
+
+    func markRawValueClassPayloadCopyTarget(_ expression: KIRExprID) {
+        rawValueClassPayloadCopyTargetsLock.lock()
+        defer { rawValueClassPayloadCopyTargetsLock.unlock() }
+        rawValueClassPayloadCopyTargets.insert(expression)
+    }
+
+    func isRawValueClassPayloadCopyTarget(_ expression: KIRExprID) -> Bool {
+        rawValueClassPayloadCopyTargetsLock.lock()
+        defer { rawValueClassPayloadCopyTargetsLock.unlock() }
+        return rawValueClassPayloadCopyTargets.contains(expression)
+    }
+
     /// Callee names with a proven non-throwing contract. Closure conversion must
     /// not register source lambdas based on their pre-ABI call metadata.
     /// ABILoweringPass consults this set without using string-prefix conventions.

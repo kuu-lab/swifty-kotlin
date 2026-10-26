@@ -447,6 +447,8 @@ extension LoweringPassRegressionTests {
     @Test
     func testTopLevelEnumEntriesCallUsesEntriesRuntime() throws {
         let source = """
+        import kotlin.enums.enumEntries
+
         enum class Color { RED, GREEN }
 
         fun useEntries() = enumEntries<Color>()
@@ -578,6 +580,8 @@ extension LoweringPassRegressionTests {
     @Test
     func testEnumEntriesIndexAccessUsesListGetNotArrayGet() throws {
         let source = """
+        import kotlin.enums.enumEntries
+
         enum class Direction { NORTH, SOUTH, EAST, WEST }
 
         fun main() {

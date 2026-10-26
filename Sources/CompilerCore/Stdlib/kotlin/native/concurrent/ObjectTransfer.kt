@@ -9,6 +9,7 @@
 
 package kotlin.native.concurrent
 
+import kotlin.enums.enumEntries
 import kotlin.internal.KsSymbolName
 import kotlin.native.internal.NativePtr
 import kotlinx.cinterop.COpaquePointer

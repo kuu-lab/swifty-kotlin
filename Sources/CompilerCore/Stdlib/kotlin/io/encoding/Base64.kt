@@ -5,6 +5,7 @@
  */
 package kotlin.io.encoding
 
+import kotlin.enums.enumEntries
 import kotlin.internal.KsSymbolName
 
 // Migration source: Sources/Runtime/RuntimeBase64.swift (25 kk_base64_* @_cdecl entries, all deleted).

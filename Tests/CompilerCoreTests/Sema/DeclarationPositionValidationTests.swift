@@ -376,7 +376,7 @@ struct DeclarationPositionValidationTests {
     @Test(arguments: [
         "fun f(vararg a: Int, vararg b: Int) = a",
         "fun outer() { fun f(vararg a: Int, vararg b: Int) = a }",
-        "val f = fun(vararg a: Int, vararg b: Int) = a",
+        "val f = fun(vararg a: Int, vararg b: Int): Int { return a.size }",
         "class C(vararg a: Int, vararg b: Int)",
         "class C { constructor(vararg a: Int, vararg b: Int) }",
     ])

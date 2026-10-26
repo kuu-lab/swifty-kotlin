@@ -264,6 +264,13 @@ private func runtimeUnboxedAnyHashCode(_ value: Int, _ tag: Int32) -> Int {
     }
 }
 
+/// Hash Unit through its canonical box so raw and Any-erased values share one identity hash.
+private func runtimeUnitHashCode() -> Int {
+    let identityHash = kk_native_identityHashCode(kk_box_unit(0))
+    let hash = Int(Int32(truncatingIfNeeded: identityHash))
+    return hash == 0 ? 1 : hash
+}
+
 private func runtimeStoredValueHash(_ value: RuntimeValue) -> Int {
     kk_any_hashCode(value.legacyRawValue, Int(value.anyFallbackTag))
 }
@@ -346,7 +353,7 @@ private func runtimeAnyHashCode(_ value: Int, _ tag: Int32) -> Int {
         return charBox.value
     }
     if runtimeIsUnitBox(value) {
-        return 0
+        return runtimeUnitHashCode()
     }
     // Result is represented by a runtime box while the source-backed stdlib
     // still models it as a class. Preserve Kotlin's public value-class
@@ -495,8 +502,28 @@ private func runtimeKTypeProjectionHashCode(_ projection: RuntimeKTypeProjection
 
 private func runtimeUnboxedAnyKind(_ tag: Int32) -> Int32 {
     switch tag {
-    case 2, 5, 6:
-        return tag
+    case 2:
+        return 2 // Boolean
+    case 4:
+        return 7 // Char
+    case 5:
+        return 5 // Float
+    case 6:
+        return 6 // Double
+    case 7:
+        return 10 // ULong
+    case 8:
+        return 4 // Long
+    case 9:
+        return 12 // UInt
+    case 10:
+        return 13 // UByte
+    case 11:
+        return 14 // UShort
+    case 12:
+        return 15 // Byte
+    case 13:
+        return 16 // Short
     default:
         return 1
     }
@@ -527,8 +554,23 @@ private func runtimeAnyKind(_ value: Int, _ tag: Int32) -> Int32 {
     if tryCast(pointer, to: RuntimeStringBox.self) != nil {
         return 3
     }
-    if tryCast(pointer, to: RuntimeIntBox.self) != nil {
-        return 1
+    if let intBox = tryCast(pointer, to: RuntimeIntBox.self) {
+        switch intBox.primitiveTypeBase {
+        case RuntimeTypeTokenEncoding.uintBase:
+            return 12
+        case RuntimeTypeTokenEncoding.ubyteBase:
+            return 13
+        case RuntimeTypeTokenEncoding.ushortBase:
+            return 14
+        case RuntimeTypeTokenEncoding.byteBase:
+            return 15
+        case RuntimeTypeTokenEncoding.shortBase:
+            return 16
+        default:
+            // Enum ordinals deliberately share the Int kind here. Their
+            // nominal identity is checked by runtimeValuesEqual below.
+            return 1
+        }
     }
     if tryCast(pointer, to: RuntimeLongBox.self) != nil {
         return 4
@@ -638,7 +680,11 @@ public func kk_any_member_to_string(_ raw: Int) -> UnsafeMutableRawPointer {
 
 @_cdecl("kk_any_member_hashCode")
 public func kk_any_member_hashCode(_ raw: Int) -> Int {
-    kk_any_hashCode(raw, 1)
+    // Direct Unit values use raw zero, while reference receivers are boxed.
+    if raw == 0 {
+        return runtimeUnitHashCode()
+    }
+    return kk_any_hashCode(raw, 1)
 }
 
 @_cdecl("kk_any_member_equals")

@@ -14,6 +14,21 @@ import Testing
 /// non-null primitive comparison keeps using the cheaper kk_op_eq/ne path.
 extension LoweringPassRegressionTests {
     @Test
+    func testSetOfMixedLongLiteralBoxesBothElementsAsLong() throws {
+        let source = """
+        fun main() {
+            val values = setOf(1, 1L)
+            println(values.size)
+        }
+        """
+        let callees = try loweredCallees(for: source, function: "main")
+        let boxCallees = callees.filter { $0.hasPrefix("kk_box_") }
+        let longBoxes = boxCallees.filter { $0.hasPrefix("kk_box_long") }
+        #expect(longBoxes.count == 2, "Both set elements must be boxed as Long: \(boxCallees)")
+        #expect(!boxCallees.contains(RuntimeCall.boxIntStatic.name), "No set element should be boxed as Int: \(boxCallees)")
+    }
+
+    @Test
     func testGenericCallsBoxContextualLongIntegerLiteralsAsLong() throws {
         let source = """
         fun <T> eq(a: T, b: T): Boolean = a == b

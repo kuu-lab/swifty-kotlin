@@ -47,6 +47,18 @@ public open class Exception : Throwable {
     ) : super(message, cause, enableSuppression, writableStackTrace)
 }
 
+public open class IllegalAccessException : Exception {
+    public constructor() : super()
+
+    public constructor(message: String?) : super(message)
+}
+
+public open class InterruptedException : Exception {
+    public constructor() : super()
+
+    public constructor(message: String?) : super(message)
+}
+
 public open class IllegalArgumentException : RuntimeException {
     @KsSymbolName("__kk_illegal_argument_exception_new")
     public constructor()

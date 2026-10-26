@@ -1006,11 +1006,28 @@ extension TypeCheckHelpers {
             ownerQueue.append(contentsOf: memberPropertyLookupSupertypes(of: owner, sema: sema))
         }
 
+        // A matched expect/actual property is one contract, not two unrelated
+        // inherited declarations. Keep the expect-side type for expect-class
+        // receivers: the actual class has distinct type-parameter symbols,
+        // which cannot be substituted from the expect receiver type.
+        let pairedActualMembers = Set(candidates.compactMap { candidate -> SymbolID? in
+            guard sema.symbols.symbol(candidate.symbol)?.flags.contains(.expectDeclaration) == true else {
+                return nil
+            }
+            return sema.symbols.actualSymbol(for: candidate.symbol)
+        })
+        let logicalCandidates = candidates.filter { candidate in
+            guard sema.symbols.symbol(candidate.symbol)?.flags.contains(.actualDeclaration) == true else {
+                return true
+            }
+            return !pairedActualMembers.contains(candidate.symbol)
+        }
+
         // A declaration on a subtype shadows the same member inherited from
         // its ancestors. Keep declarations from unrelated branches so their
         // property and setter contracts can be checked together.
-        let effectiveCandidates = candidates.filter { candidate in
-            !candidates.contains { other in
+        let effectiveCandidates = logicalCandidates.filter { candidate in
+            !logicalCandidates.contains { other in
                 other.owner != candidate.owner
                     && sema.types.isNominalSubtypeSymbol(other.owner, of: candidate.owner)
             }

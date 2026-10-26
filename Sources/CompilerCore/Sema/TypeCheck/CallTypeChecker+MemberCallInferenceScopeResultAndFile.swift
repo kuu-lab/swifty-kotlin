@@ -193,7 +193,20 @@ extension CallTypeChecker {
             let resultMemberNames: Set = [
                 "onSuccess", "onFailure", "getOrElse", "getOrDefault", "map", "fold", "recover",
             ]
+            let explicitTypeArgumentsMatchResultMember: Bool = {
+                guard !request.explicitTypeArgs.isEmpty else { return true }
+                guard let resultMember = lookupResultMember(calleeStr, sema: sema, interner: interner),
+                      let signature = sema.symbols.functionSignature(for: resultMember),
+                      signature.classTypeParameterCount <= signature.typeParameterSymbols.count
+                else {
+                    return false
+                }
+                let memberTypeParameterCount = signature.typeParameterSymbols.count
+                    - signature.classTypeParameterCount
+                return request.explicitTypeArgs.count == memberTypeParameterCount
+            }()
             if resultMemberNames.contains(calleeStr),
+               explicitTypeArgumentsMatchResultMember,
                let resultElementType = extractResultElementType(receiverType, sema: sema, interner: interner)
             {
                 let throwableType = driver.helpers.throwableType(sema: sema, interner: interner) ?? sema.types.anyType

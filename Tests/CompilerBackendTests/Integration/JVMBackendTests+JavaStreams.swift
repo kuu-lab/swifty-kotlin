@@ -6,6 +6,35 @@ import Testing
 
 extension JVMBackendTests {
     @Test(arguments: [EmitMode.jvmClass, .jvmJar])
+    func kuu3473CharSequenceAndStringBuilderCodePointMethods(mode: EmitMode) throws {
+        try withWorkspace { root in
+            let result = try compile(#"""
+            fun main() {
+                val sequence: CharSequence = "A\uD83D\uDE00B"
+                println(sequence.chars().count())
+                println(sequence.codePoints().count())
+                println(sequence.codePoints().sum())
+
+                val builder = StringBuilder("A\uD83D\uDE00B")
+                println(builder.codePointAt(1))
+                println(builder.codePointBefore(3))
+                println(builder.codePointCount(0, builder.length))
+                println(builder.codePointCount(1, 3))
+            }
+            """#, root: root, mode: mode)
+            try #require(result.0 == 0, "\(result.1.filter { $0.severity == .error }.map(\.message))")
+
+            let output = root.appendingPathComponent(mode == .jvmJar ? "hello.jar" : "classes")
+            let execution = try java(mode == .jvmJar
+                ? ["-jar", output.path]
+                : ["-cp", output.path, "HelloKt"])
+            #expect(execution.exitCode == 0)
+            #expect(execution.stdout == "4\n3\n128643\n128512\n128512\n3\n1\n")
+            #expect(execution.stderr.isEmpty)
+        }
+    }
+
+    @Test(arguments: [EmitMode.jvmClass, .jvmJar])
     func collectionJavaStreamBridgeMatchesJDK(mode: EmitMode) throws {
         try withWorkspace { root in
             let result = try compile("""
