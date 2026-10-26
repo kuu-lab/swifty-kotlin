@@ -136,7 +136,7 @@ public inline fun <T> List<T>.singleOrNull(predicate: (T) -> Boolean): T? {
     return null
 }
 
-public fun <T> List<T>.indexOf(element: T): Int = __kk_list_index_of(this, element)
+public fun <@kotlin.internal.OnlyInputTypes T> List<T>.indexOf(element: T): Int = __kk_list_index_of(this, element)
 
 public inline fun <T> List<T>.indexOfFirst(predicate: (T) -> Boolean): Int {
     var i = 0
@@ -157,7 +157,7 @@ public fun <T> List<T>.indexOfLast(predicate: (T) -> Boolean): Int {
     return -1
 }
 
-public fun <T> List<T>.lastIndexOf(element: T): Int = __kk_list_lastIndexOf(this, element)
+public fun <@kotlin.internal.OnlyInputTypes T> List<T>.lastIndexOf(element: T): Int = __kk_list_lastIndexOf(this, element)
 
 public operator fun <@kotlin.internal.OnlyInputTypes T> List<T>.contains(element: T): Boolean = indexOf(element) >= 0
 
