@@ -471,26 +471,32 @@ enum TypeRefParserCore {
             }
         }
 
-        if isSuspend, next < tokens.count, tokens[next].kind != .symbol(.lParen) {
-            // After `suspend`, we expect either `(` for a plain function type or
-            // a named type for a receiver function type like `suspend StringBuilder.() -> Unit`.
-            if let receiverParse = parseNamedTypeOnly(
+        if (isSuspend || !contextReceivers.isEmpty),
+           next < tokens.count,
+           tokens[next].kind != .symbol(.lParen)
+        {
+            // Context function types may place a named extension receiver before
+            // `.()`, as in `context(C) E.() -> Unit`. Suspend receiver types use
+            // the same path.
+            guard let receiverParse = parseNamedTypeOnly(
                 tokens, from: next, interner: interner, astArena: astArena, options: options, diagnostics: diagnostics, recursionDepth: recursionDepth
-            ) {
-                return parseReceiverFunctionTypeRefSuffix(
+            ),
+                let receiverFunctionType = parseReceiverFunctionTypeRefSuffix(
                     tokens,
                     from: receiverParse.next,
                     contextReceivers: contextReceivers,
                     receiver: receiverParse.ref,
-                    isSuspend: true,
+                    isSuspend: isSuspend,
                     interner: interner,
                     astArena: astArena,
                     options: options,
                     diagnostics: diagnostics,
                     recursionDepth: recursionDepth
                 )
+            else {
+                return nil
             }
-            return nil
+            return receiverFunctionType
         }
 
         guard next < tokens.count,
