@@ -38,6 +38,40 @@ struct LambdaDestructuringParameterTests {
         }
     }
 
+    @Test(arguments: ["[a, b]", "[a, b]: Pair<Int, Int>"])
+    func preservesSquareBracketDestructuringParameter(parameters: String) throws {
+        let (ast, ctx) = try buildASTModule(
+            from: "fun demo() = { \(parameters) -> a + b }",
+            includeStdlib: false
+        )
+        #expect(!ctx.diagnostics.hasError)
+        let lambdaIndex = try #require(ast.arena.exprs.indices.first {
+            if case .lambdaLiteral = ast.arena.exprs[$0] { return true }
+            return false
+        })
+        let lambdaID = ExprID(rawValue: Int32(lambdaIndex))
+        guard case let .lambdaLiteral(params, body, _, _) = ast.arena.expr(lambdaID),
+              case let .blockExpr(statements, _, _) = ast.arena.expr(body),
+              let declaration = statements.first,
+              case let .destructuringDecl(names, isMutable, initializer, _) = ast.arena.expr(declaration),
+              case let .nameRef(parameter, _) = ast.arena.expr(initializer)
+        else {
+            Issue.record("Expected a square-bracket destructuring parameter")
+            return
+        }
+        #expect(params == [parameter])
+        #expect(!isMutable)
+        #expect(names.map { $0.map(ctx.interner.resolve) } == ["a", "b"])
+        #expect(ast.arena.destructuringDeclLayout(for: declaration)?.syntax == .squareBrackets)
+        if parameters.contains("]:") {
+            let annotations = try #require(ast.arena.lambdaParamTypeRefs(for: lambdaID))
+            #expect(annotations.count == 1)
+            #expect(annotations.first.flatMap { $0 } != nil)
+        } else {
+            #expect(ast.arena.lambdaParamTypeRefs(for: lambdaID) == nil)
+        }
+    }
+
     @Test(arguments: ["()", "(,)", "(a,,)", "(a + b)", "(a b)", "(a:)", "(a) + b", "(a); b", "(a) as (Int) -> Int"])
     func malformedPrefixesDoNotBecomeDestructuringParameters(prefix: String) throws {
         let (ast, _) = try buildASTModule(
