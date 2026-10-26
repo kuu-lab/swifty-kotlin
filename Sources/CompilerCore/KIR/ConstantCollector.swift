@@ -451,6 +451,14 @@ struct ConstantCollector {
             if name == "mod" {
                 return literalConstantFloorMod(receiverConst, argument)
             }
+            if name == "get",
+               case let .stringLiteral(value) = receiverConst,
+               case let .intLiteral(index) = argument
+            {
+                let utf16 = Array(interner.resolve(value).utf16)
+                guard index >= 0, index < Int64(utf16.count) else { return nil }
+                return .charLiteral(UInt32(utf16[Int(index)]))
+            }
         }
         guard args.isEmpty else { return nil }
         switch name {
@@ -486,6 +494,18 @@ struct ConstantCollector {
         case "toLong":
             guard let value = integerValue(of: receiverConst) else { return nil }
             return .longLiteral(value)
+        case "toFloat":
+            switch receiverConst {
+            case let .intLiteral(value): return .floatLiteral(Double(Float(value)))
+            case let .longLiteral(value): return .floatLiteral(Double(Float(value)))
+            default: return nil
+            }
+        case "toDouble":
+            switch receiverConst {
+            case let .intLiteral(value): return .doubleLiteral(Double(value))
+            case let .longLiteral(value): return .doubleLiteral(Double(value))
+            default: return nil
+            }
         case "toChar":
             guard let value = integerValue(of: receiverConst) else { return nil }
             return .charLiteral(UInt32(UInt16(truncatingIfNeeded: value)))
