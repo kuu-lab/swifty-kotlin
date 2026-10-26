@@ -758,6 +758,12 @@ enum DiagnosticRegistry {
             summary: "Mutable property delegate type is missing a 'setValue' operator function."
         ),
         DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0105",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "Callable references to properties with context parameters are unsupported."
+        ),
+        DiagnosticDescriptor(
             code: "KSWIFTK-SEMA-TAILREC",
             pass: "SEMA",
             defaultSeverity: .warning,
