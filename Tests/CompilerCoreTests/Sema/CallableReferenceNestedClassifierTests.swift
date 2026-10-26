@@ -5,6 +5,66 @@ import Testing
 @Suite
 struct CallableReferenceNestedClassifierTests {
     @Test
+    func genericInnerConstructorReferenceCapturesImplicitOuterReceiver() throws {
+        let source = """
+        public class Outer<OT>(val ot: OT) {
+            inner class Inner<IT>(val it: IT, val ot2: OT)
+            fun <II> createI(ii: II) = foo2(ii, ot, ::Inner)
+        }
+        fun <A, B, R> foo2(a: A, b: B, f: (A, B) -> R) = f(a, b)
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], includeStdlib: false)
+            try runSema(ctx)
+
+            let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+            #expect(errors.isEmpty, "Unexpected diagnostics: \(errors)")
+
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
+            let reference = try #require(ast.arena.exprs.indices.compactMap { index -> ExprID? in
+                let exprID = ExprID(rawValue: Int32(index))
+                guard case let .callableRef(_, member, _) = ast.arena.expr(exprID),
+                      ctx.interner.resolve(member) == "Inner"
+                else {
+                    return nil
+                }
+                return exprID
+            }.first)
+            let constructor = try #require(sema.bindings.identifierSymbol(for: reference))
+            let innerClass = try #require(sema.symbols.parentSymbol(for: constructor))
+            let outerClass = try #require(sema.symbols.parentSymbol(for: innerClass))
+            let outerTypeParameter = try #require(sema.types.nominalTypeParameterSymbols(for: outerClass).first)
+            let binding = try #require(sema.bindings.callableReferenceBindings[reference])
+
+            #expect(sema.symbols.symbol(constructor)?.kind == .constructor)
+            #expect(sema.symbols.symbol(innerClass)?.flags.contains(.innerClass) == true)
+            #expect(!sema.bindings.isUnboundCallableRef(reference))
+            #expect(binding.substitutedTypeArguments.count == 2)
+            guard case let .typeParam(capturedOuterParameter) = sema.types.kind(
+                of: binding.substitutedTypeArguments[0]
+            ) else {
+                Issue.record("An implicitly bound inner constructor should capture the outer type parameter.")
+                return
+            }
+            #expect(capturedOuterParameter.symbol == outerTypeParameter)
+            guard case let .functionType(function) = sema.types.kind(
+                of: try #require(sema.bindings.exprType(for: reference))
+            ) else {
+                Issue.record("An implicitly bound inner constructor reference should have a function type.")
+                return
+            }
+            #expect(function.params.count == 2)
+            guard case let .classType(resultType) = sema.types.kind(of: function.returnType) else {
+                Issue.record("An inner constructor reference should return its inner class type.")
+                return
+            }
+            #expect(resultType.classSymbol == innerClass)
+        }
+    }
+
+    @Test
     func boundZeroArgumentInnerConstructorReferenceHasNoInputs() throws {
         try withTemporaryFile(contents: """
         class A { inner class I }
