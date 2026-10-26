@@ -37,9 +37,15 @@ struct IndexedNumericArrayIncrementTests {
         let ctx = makeContextFromSource("""
         @OptIn(ExperimentalUnsignedTypes::class)
         fun main() {
+            val boxedBytes: Array<Byte> = arrayOf<Byte>(1)
+            boxedBytes[0]++
+            boxedBytes[0]--
             val bytes = byteArrayOf(127, -128)
             bytes[0]++
             bytes[1]--
+            val boxedShorts: Array<Short> = arrayOf<Short>(1)
+            boxedShorts[0]++
+            boxedShorts[0]--
             val shorts = shortArrayOf(32767, -32768)
             shorts[0]++
             shorts[1]--
@@ -49,6 +55,46 @@ struct IndexedNumericArrayIncrementTests {
             val ushorts = ushortArrayOf(65535u, 0u)
             ushorts[0]++
             ushorts[1]--
+        }
+        """)
+        try runSema(ctx)
+
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+    }
+
+    @Test
+    func indexedSmallIntegerListAndCustomGetSetIncrementAndDecrementTypecheck() throws {
+        let ctx = makeContextFromSource("""
+        class ByteCell(var value: Byte) {
+            operator fun get(index: Int): Byte = value
+            operator fun set(index: Int, next: Byte) { value = next }
+        }
+
+        fun use(list: ArrayList<Short>, byteCell: ByteCell) {
+            list[0]++
+            list[0]--
+            byteCell[0]++
+            byteCell[0]--
+        }
+        """)
+        try runSema(ctx)
+
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+    }
+
+    @Test
+    func indexedSmallIntegerGenericGetSetIncrementAndDecrementTypecheck() throws {
+        let ctx = makeContextFromSource("""
+        class GenericCell<T>(var value: T) {
+            operator fun get(index: Int): T = value
+            operator fun set(index: Int, next: T) { value = next }
+        }
+
+        fun use(genericByte: GenericCell<Byte>, genericShort: GenericCell<Short>) {
+            genericByte[0]++
+            genericByte[0]--
+            genericShort[0]++
+            genericShort[0]--
         }
         """)
         try runSema(ctx)
