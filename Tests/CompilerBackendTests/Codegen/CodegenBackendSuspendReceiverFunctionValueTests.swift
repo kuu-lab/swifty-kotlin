@@ -5,6 +5,53 @@ import Testing
 
 @Suite
 struct CodegenBackendSuspendReceiverFunctionValueTests {
+    @Test
+    func testInterfaceDefaultMethodAssignsThroughCapturedReceiverFromSuspendLambda() throws {
+        let source = """
+        import kotlin.coroutines.*
+
+        private val completion = object : Continuation<Unit> {
+            override val context: CoroutineContext = EmptyCoroutineContext
+            override fun resumeWith(result: Result<Unit>) {}
+        }
+
+        fun builder(block: suspend String.() -> Unit) {
+            block.startCoroutine("OK", completion)
+        }
+
+        fun <T> builder(receiver: T, block: suspend T.() -> Unit) {
+            block.startCoroutine(receiver, completion)
+        }
+
+        interface Holder {
+            var result: String
+            fun test(): String {
+                builder { result = this }
+                return result
+            }
+        }
+
+        interface GenericHolder<T> {
+            var result: T
+            fun test(receiver: T): T {
+                builder(receiver) { result = this }
+                return result
+            }
+        }
+
+        fun main() {
+            println(object : Holder { override var result = "Fail" }.test())
+            println(object : GenericHolder<String> { override var result = "Fail" }.test("OK"))
+        }
+        """
+        try assertKotlinOutput(
+            source,
+            moduleName: "InterfaceDefaultSuspendReceiverAssignment",
+            expected: "OK\nOK\n",
+            allowDefaultStdlibLibrary: true
+        )
+    }
+
     @Test(arguments: [true, false])
     func testRunTestAcceptsSuspendExtensionReferences(allowDefaultStdlibLibrary: Bool) throws {
         let source = """
