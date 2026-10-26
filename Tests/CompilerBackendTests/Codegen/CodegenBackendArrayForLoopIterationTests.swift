@@ -37,6 +37,43 @@ struct CodegenBackendArrayForLoopIterationTests {
     }
 
     @Test
+    func testPrimitiveArrayForLoopBoxesFloatingPointUpcasts() throws {
+        let source = """
+        fun main() {
+            var anyDoubles = ""
+            for (x: Any in doubleArrayOf(1.0, 2.0)) {
+                anyDoubles += "$x;"
+            }
+            println(anyDoubles)
+
+            var boxedDoubles = ""
+            for (x: Any in arrayOf(9.0, 10.0)) {
+                boxedDoubles += "$x;"
+            }
+            println(boxedDoubles)
+
+            var anyFloats = ""
+            for (x: Any in floatArrayOf(3.0f, 4.0f)) {
+                anyFloats += "$x;"
+            }
+            println(anyFloats)
+
+            for (x: Comparable<Double> in doubleArrayOf(5.0, 6.0)) {
+                println(x.compareTo(5.5))
+            }
+            for (x: Comparable<Float> in floatArrayOf(7.0f, 8.0f)) {
+                println(x.compareTo(7.5f))
+            }
+        }
+        """
+        try assertKotlinOutput(
+            source,
+            moduleName: "PrimitiveArrayForLoopFloatingPointUpcasts",
+            expected: "1.0;2.0;\n9.0;10.0;\n3.0;4.0;\n-1\n1\n-1\n1\n"
+        )
+    }
+
+    @Test
     func testArrayForLoopSnapshotsTopLevelBackingFieldBeforeBodyUpdatesIt() throws {
         let source = """
         var xs: IntArray = intArrayOf(1, 2, 3)
