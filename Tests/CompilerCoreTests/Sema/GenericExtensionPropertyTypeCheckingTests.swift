@@ -93,6 +93,19 @@ struct GenericExtensionPropertyTypeCheckingTests {
     }
 
     @Test
+    func genericFunctionTypeReceiverPropertyResolvesForCallableReference() throws {
+        let context = try check("""
+        val <T> (Int.() -> T).baz: T get() = this(1)
+        fun Int.foo(): String = "x"
+        fun result(): String {
+            val f = Int::foo
+            return f.baz
+        }
+        """)
+        #expect(!context.diagnostics.hasError, "\(context.diagnostics.diagnostics)")
+    }
+
+    @Test
     func propertyTypeParameterAbsentFromReceiverAndBoundsIsRejected() throws {
         let context = try check("""
         class Tuple<A>(val item: A)
