@@ -21,6 +21,7 @@ public extension RuntimeABISpec {
         abi.th("__kk_kclass_simple_name", "kclassRaw"),
         abi.th("__kk_kclass_qualified_name", "kclassRaw"),
         abi.th("__kk_kclass_register_display_name", "typeToken displayNameRaw"),
+        abi.th("__kk_kclass_register_cast_name", "typeToken castNameRaw"),
         abi.nt("__kk_kclass_register_object", "typeToken objectRaw initializerRaw"),
         abi.th("__kk_kclass_object_instance", "kclassRaw outThrown"),
         abi.nt("__kk_kclass_register_sealed_subclass", "typeToken subclassToken nameHint"),

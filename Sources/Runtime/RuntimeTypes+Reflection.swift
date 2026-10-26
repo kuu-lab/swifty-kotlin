@@ -83,6 +83,7 @@ func runtimeAppendAnnotationRecord(_ annotation: RuntimeAnnotationRecord, to rec
 final class RuntimeKClassMetadataRegistry: @unchecked Sendable {
     private let lock = NSLock()
     private var entries: [Int: RuntimeKClassMetadataEntry] = [:]
+    private var classCastNamesByTypeToken: [Int: String] = [:]
     private var javaInheritedAnnotationNames: Set<String> = []
 
     func register(typeToken: Int, entry: RuntimeKClassMetadataEntry) {
@@ -179,6 +180,26 @@ final class RuntimeKClassMetadataRegistry: @unchecked Sendable {
         entries[typeToken]?.displayName = displayName
     }
 
+    func setClassCastName(typeToken: Int, name: String) {
+        let normalizedTypeToken = Int(
+            truncatingIfNeeded: Int64(truncatingIfNeeded: typeToken)
+                & ~RuntimeTypeTokenEncoding.nullableBit
+        )
+        lock.lock()
+        defer { lock.unlock() }
+        classCastNamesByTypeToken[normalizedTypeToken] = name
+    }
+
+    func classCastName(typeToken: Int) -> String? {
+        let normalizedTypeToken = Int(
+            truncatingIfNeeded: Int64(truncatingIfNeeded: typeToken)
+                & ~RuntimeTypeTokenEncoding.nullableBit
+        )
+        lock.lock()
+        defer { lock.unlock() }
+        return classCastNamesByTypeToken[normalizedTypeToken]
+    }
+
     func appendAnnotations(typeToken: Int, annotations: [RuntimeAnnotationRecord]) {
         lock.lock()
         defer { lock.unlock() }
@@ -192,6 +213,7 @@ final class RuntimeKClassMetadataRegistry: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         entries.removeAll()
+        classCastNamesByTypeToken.removeAll()
         javaInheritedAnnotationNames.removeAll()
     }
 }

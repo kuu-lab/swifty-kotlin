@@ -467,6 +467,14 @@ public func __kk_kclass_register_display_name(_ typeToken: Int, _ displayNameRaw
     return 0
 }
 
+@_cdecl("__kk_kclass_register_cast_name")
+public func __kk_kclass_register_cast_name(_ typeToken: Int, _ castNameRaw: Int) -> Int {
+    if let castName = extractString(from: UnsafeMutableRawPointer(bitPattern: castNameRaw)) {
+        runtimeKClassMetadataRegistry.setClassCastName(typeToken: typeToken, name: castName)
+    }
+    return 0
+}
+
 @_cdecl("__kk_kclass_is_data")
 public func __kk_kclass_is_data(_ kclassRaw: Int) -> Int {
     guard let box = runtimeKClassBox(from: kclassRaw),

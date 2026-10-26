@@ -56,6 +56,17 @@ struct CodegenBackendFixtureTests {
     }
 
     @Test
+    func kuu3297NativeClassCastExceptionMessages() {
+        let relativePath = "Exceptions/kuu3297"
+        let fixtureDirectory = Self.fixturesRoot.appendingPathComponent(relativePath, isDirectory: true)
+        runFixture(Fixture(
+            sourcePath: fixtureDirectory.appendingPathComponent("class_cast_exception_messages.kt").path,
+            expected: "OK\n",
+            relativePath: relativePath
+        ))
+    }
+
+    @Test
     func kuu2925AdditionalPclaInferenceCases() {
         for name in [
             "pcla_source_sink_generic_function_call",
