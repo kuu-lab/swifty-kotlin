@@ -621,19 +621,14 @@ extension CallTypeChecker {
             }
         }
         if inferredAliasArguments == nil,
-           let returnArguments = inferInterfaceArgsFromLambdaReturnType(
-               interfaceSymbol,
-               typeParameters: interfaceTypeParameters,
-               argExpr: argExpr,
-               ctx: ctx,
-               locals: locals
-           )
+           let samFunction = driver.helpers.samFunctionType(for: expanded, sema: sema)
         {
-            inferredAliasArguments = inferSamAliasTypeArguments(
+            inferredAliasArguments = inferTypeArgumentsFromLambdaReturnType(
                 aliasTypeParameters,
-                templateArguments: templateType.args,
-                actualArguments: returnArguments,
-                ctx: ctx
+                functionType: samFunction,
+                argExpr: argExpr,
+                ctx: ctx,
+                locals: locals
             )
         }
         guard let inferredAliasArguments,
@@ -763,17 +758,13 @@ extension CallTypeChecker {
     ) -> [TypeArg]? {
         let sema = ctx.sema
         guard !typeParameters.isEmpty,
-              case let .lambdaLiteral(_, bodyExpr, _, _) = ctx.ast.arena.expr(argExpr),
+              case .lambdaLiteral = ctx.ast.arena.expr(argExpr),
               let signature = driver.helpers.samMethodSignature(for: interfaceSymID, sema: sema),
               typeParameters.allSatisfy({ sema.types.typeContainsTypeParam(signature.returnType, symbol: $0) })
         else {
             return nil
         }
 
-        let typeVarBySymbol = sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
-        guard typeParameters.allSatisfy({ typeVarBySymbol[$0] != nil }) else {
-            return nil
-        }
         let provisionalType = sema.types.make(.classType(ClassType(
             classSymbol: interfaceSymID,
             args: typeParameters.map {
@@ -785,17 +776,42 @@ extension CallTypeChecker {
             return nil
         }
 
+        return inferTypeArgumentsFromLambdaReturnType(
+            typeParameters,
+            functionType: samFunctionType,
+            argExpr: argExpr,
+            ctx: ctx,
+            locals: locals
+        )?.map(TypeArg.invariant)
+    }
+
+    private func inferTypeArgumentsFromLambdaReturnType(
+        _ typeParameters: [SymbolID],
+        functionType: FunctionType,
+        argExpr: ExprID,
+        ctx: TypeInferenceContext,
+        locals: LocalBindings
+    ) -> [TypeID]? {
+        let sema = ctx.sema
+        guard case let .lambdaLiteral(_, bodyExpr, _, _) = ctx.ast.arena.expr(argExpr) else {
+            return nil
+        }
+        let typeVarBySymbol = sema.types.makeTypeVarBySymbol(typeParameters)
+        guard typeParameters.allSatisfy({ typeVarBySymbol[$0] != nil }) else {
+            return nil
+        }
+
         // Give the lambda its SAM input types but a top return type so its body
         // is inferred without prematurely checking against unresolved T.
         let returnProbeType = sema.types.make(.functionType(FunctionType(
-            contextReceivers: samFunctionType.contextReceivers,
-            receiver: samFunctionType.receiver,
-            params: samFunctionType.params,
+            contextReceivers: functionType.contextReceivers,
+            receiver: functionType.receiver,
+            params: functionType.params,
             returnType: sema.types.nullableAnyType,
-            isSuspend: samFunctionType.isSuspend,
-            isCallableReference: samFunctionType.isCallableReference,
-            nullability: samFunctionType.nullability,
-            throws: samFunctionType.throws
+            isSuspend: functionType.isSuspend,
+            isCallableReference: functionType.isCallableReference,
+            nullability: functionType.nullability,
+            throws: functionType.throws
         )))
         let checkpoint = sema.diagnostics.checkpoint()
         var probeLocals = locals
@@ -808,7 +824,7 @@ extension CallTypeChecker {
 
         let constraints = ctx.resolver.decomposeSubtypeConstraint(
             subtype: bodyType,
-            supertype: signature.returnType,
+            supertype: functionType.returnType,
             typeVarBySymbol: typeVarBySymbol,
             typeSystem: sema.types,
             blameRange: ctx.ast.arena.exprRange(bodyExpr)
@@ -826,7 +842,7 @@ extension CallTypeChecker {
             return nil
         }
 
-        var inferredArgs: [TypeArg] = []
+        var inferredArgs: [TypeID] = []
         inferredArgs.reserveCapacity(typeParameters.count)
         for typeParameter in typeParameters {
             guard let variable = typeVarBySymbol[typeParameter],
@@ -835,7 +851,7 @@ extension CallTypeChecker {
             else {
                 return nil
             }
-            inferredArgs.append(.invariant(type))
+            inferredArgs.append(type)
         }
         return inferredArgs
     }

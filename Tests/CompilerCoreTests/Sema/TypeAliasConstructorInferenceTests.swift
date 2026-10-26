@@ -82,6 +82,21 @@ struct TypeAliasConstructorInferenceTests {
         #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
     }
 
+    @Test func partiallyAppliedGenericTypeAliasConstructorsInferTheirRemainingArguments() throws {
+        let ctx = try context("""
+        fun interface Foo<A, B> { fun invoke(a: A): B }
+        typealias TA<K> = Foo<Int, K>
+        class Bar<X, Y>(val y: Y) { fun foo(x: X): Y = y }
+        typealias TB<M> = Bar<Int, M>
+
+        fun main() {
+            TA { "string" }.invoke(20)
+            TB("3").foo(3)
+        }
+        """)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+    }
+
     @Test func covariantOwnerCannotWidenFixedConstructorSlot() throws {
         let ctx = try context("""
         class Payload<out A, out B>(val first: A, val second: B)
