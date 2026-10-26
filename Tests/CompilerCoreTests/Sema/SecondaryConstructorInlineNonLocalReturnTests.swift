@@ -62,18 +62,44 @@ struct SecondaryConstructorInlineNonLocalReturnTests {
         assertHasDiagnostic("KSWIFTK-SEMA-0042", in: ctx)
     }
 
-    @Test(arguments: ["42", "Unit"])
-    func constructorRejectsReturnValues(value: String) throws {
+    @Test
+    func constructorRejectsReturnValues() throws {
         let ctx = makeContextFromSource("""
         inline fun run2(block: () -> Unit) = block()
 
         class Box {
-            constructor() { run2 { return \(value) } }
+            constructor() { run2 { return 42 } }
         }
         """, allowDefaultStdlibLibrary: false)
 
         try runSema(ctx)
         assertHasDiagnostic("KSWIFTK-SEMA-0042", in: ctx)
+    }
+
+    @Test
+    func constructorAcceptsReturnUnitWhenInitializingProperty() throws {
+        let ctx = makeContextFromSource("""
+        class A {
+            val prop: Int
+            constructor(arg: Boolean) {
+                if (arg) { prop = 1; return Unit }
+                prop = 2
+            }
+        }
+        fun main() { println(A(true).prop) }
+        """, allowDefaultStdlibLibrary: false)
+
+        try runToKIR(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+
+        let sema = try #require(ctx.sema)
+        let classFQName = [ctx.interner.intern("A")]
+        let constructor = try #require(sema.symbols.children(ofFQName: classFQName).first {
+            sema.symbols.symbol($0)?.kind == .constructor
+        })
+        let module = try #require(ctx.kir)
+        let constructorFunction = try #require(findAllKIRFunctions(in: module).first { $0.symbol == constructor })
+        #expect(!constructorFunction.body.contains(.returnUnit))
     }
 
     @Test
