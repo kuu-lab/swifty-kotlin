@@ -8,7 +8,7 @@ extension LambdaLowerer {
     /// returns a thunk that performs the same itable / vtable dispatch a
     /// literal `receiver.member(args)` call would, or `nil` when the call
     /// resolves statically (final receiver type, top-level / extension
-    /// function, constructor, suspend or compiler-provided owner).
+    /// function, constructor, contextual member or compiler-provided owner).
     func virtualFunctionReferenceThunk(
         targetSymbol: SymbolID,
         receiverStaticType: TypeID?,
@@ -19,7 +19,8 @@ extension LambdaLowerer {
         guard let targetInfo = sema.symbols.symbol(targetSymbol),
               targetInfo.kind == .function,
               let signature = sema.symbols.functionSignature(for: targetSymbol),
-              !signature.isSuspend,
+              signature.contextReceiverTypes.isEmpty,
+              signature.contextParameterTypes.isEmpty,
               !TypeCheckHelpers().declaresExtensionReceiver(targetSymbol, sema: sema, interner: interner),
               let ownerType = signature.receiverType,
               let owner = sema.symbols.parentSymbol(for: targetSymbol),
@@ -170,6 +171,7 @@ extension LambdaLowerer {
                 receiverType: ownerType,
                 parameterTypes: signature.parameterTypes,
                 returnType: signature.returnType,
+                isSuspend: signature.isSuspend,
                 valueParameterSymbols: parameterSymbols,
                 valueParameterIsVararg: signature.valueParameterIsVararg,
                 typeParameterSymbols: signature.typeParameterSymbols,
@@ -184,7 +186,7 @@ extension LambdaLowerer {
             params: params,
             returnType: signature.returnType,
             body: body,
-            isSuspend: false,
+            isSuspend: signature.isSuspend,
             isInline: false
         ))))
         return (thunkSymbol, name)
