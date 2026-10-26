@@ -83,6 +83,31 @@ struct ReceiverLambdaMemberExtensionTests {
         #expect(ctx.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-SEMA-0002" })
     }
 
+    @Test
+    func contextualMemberExtensionResolvesAcrossNestedReceiverLambdas() throws {
+        let ctx = makeContextFromSource("""
+        @file:OptIn(kotlin.ExperimentalContextParameters::class)
+
+        class Context
+        class Extended
+        class Containing {
+            context(_: Context) fun Extended.foo(obj: Any? = null) {}
+        }
+        fun caller() = with(Containing()) { with(Context()) { Extended().foo() } }
+        """)
+        try runToKIR(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+
+        let sema = try #require(ctx.sema)
+        let fooCall = try #require(sema.bindings.callBindings.values.first {
+            sema.symbols.symbol($0.chosenCallee)?.name == ctx.interner.intern("foo")
+        })
+        let owner = try #require(sema.symbols.memberExtensionOwnerSymbol(for: fooCall.chosenCallee))
+        #expect(sema.symbols.symbol(owner)?.name == ctx.interner.intern("Containing"))
+        #expect(fooCall.contextParameterReceiverSymbols.count == 1)
+        #expect(fooCall.contextParameterReceiverSymbols.allSatisfy { $0 != nil })
+    }
+
     private func makeContext(_ source: String) -> CompilationContext {
         let path = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString + ".kt").path
