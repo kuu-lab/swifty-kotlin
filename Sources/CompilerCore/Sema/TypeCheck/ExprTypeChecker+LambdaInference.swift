@@ -313,12 +313,13 @@ extension ExprTypeChecker {
             )
             return declared
         }
-        // Lowered receiver lambdas place the receiver in parameter slot 0
-        // (`syntheticLambdaParamSymbol(exprID, 0)`), so a value parameter's
-        // synthetic symbol index is shifted by one when the expected type
-        // carries an extension receiver.
-        let loweredReceiverSlot = expectedFunctionType?.receiver != nil
-            && sema.bindings.coroutineScopeLambdaReceiverTypes[id] == nil ? 1 : 0
+        // Lowered context inputs and receiver lambdas occupy ABI parameter slots
+        // before source value parameters. Keep their synthetic symbol indices in
+        // sync with the generated KIR parameters.
+        let loweredContextParameterCount = expectedFunctionType?.contextReceivers.count ?? 0
+        let loweredReceiverSlot = loweredContextParameterCount
+            + (expectedFunctionType?.receiver != nil
+                && sema.bindings.coroutineScopeLambdaReceiverTypes[id] == nil ? 1 : 0)
         for (offset, param) in effectiveParams.enumerated() {
             let syntheticSymbol = SymbolID(rawValue: Int32(clamping: Int64(-1_000_000) - Int64(id.rawValue) * 256 - Int64(offset + loweredReceiverSlot)))
             let parameterType = parameterTypes[offset]

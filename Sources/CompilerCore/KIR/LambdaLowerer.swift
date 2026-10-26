@@ -220,9 +220,11 @@ final class LambdaLowerer {
             }
             return baseCount + (needsExplicitReceiver ? 1 : 0)
         }()
+        let contextParameterTypes = functionType?.contextReceivers ?? []
+        let contextParameterCount = contextParameterTypes.count
 
         let lambdaParameterTypes: [TypeID] = {
-            var types: [TypeID] = []
+            var types = contextParameterTypes
             if needsExplicitReceiver, let receiverType = functionType?.receiver {
                 types.append(receiverType)
             }
@@ -253,7 +255,7 @@ final class LambdaLowerer {
 
         let captureSymbols = computeCaptureSymbolsForLambda(
             lambdaExprID: exprID,
-            lambdaParamCount: effectiveParamCount,
+            lambdaParamCount: effectiveParamCount + contextParameterCount,
             lambdaBodyExprID: bodyExpr,
             ast: ast,
             sema: sema,
@@ -268,7 +270,6 @@ final class LambdaLowerer {
                 params: params,
                 bodyExpr: bodyExpr,
                 allowsNonLocalReturn: allowsNonLocalReturn,
-                effectiveParamCount: effectiveParamCount,
                 hasExplicitReceiverParam: needsExplicitReceiver,
                 lambdaParameterTypes: lambdaParameterTypes,
                 lambdaReturnType: lambdaReturnType,
@@ -325,7 +326,7 @@ final class LambdaLowerer {
                 symbol: syntheticLambdaClosureParamSymbol(lambdaExprID: exprID),
                 type: closureParamType
             )
-            let valueParams = (0 ..< effectiveParamCount).map { index in
+            let valueParams = (0 ..< lambdaParameterTypes.count).map { index in
                 KIRParameter(
                     symbol: syntheticLambdaParamSymbol(lambdaExprID: exprID, paramIndex: index),
                     type: lambdaParameterTypes[index]
@@ -333,7 +334,7 @@ final class LambdaLowerer {
             }
             lambdaParameters = [closureParam] + valueParams
         } else {
-            lambdaParameters = (0 ..< effectiveParamCount).map { index in
+            lambdaParameters = (0 ..< lambdaParameterTypes.count).map { index in
                 KIRParameter(
                     symbol: syntheticLambdaParamSymbol(lambdaExprID: exprID, paramIndex: index),
                     type: lambdaParameterTypes[index]
@@ -401,7 +402,7 @@ final class LambdaLowerer {
             // set it as the implicit receiver so that member calls resolve correctly.
             // For collection-HOF lambdas the closure param is first, so the receiver
             // follows it.
-            let receiverParamIndex = needsClosureParam ? 1 : 0
+            let receiverParamIndex = (needsClosureParam ? 1 : 0) + contextParameterCount
             if needsExplicitReceiver, paramIndex == receiverParamIndex {
                 driver.ctx.setImplicitReceiver(symbol: lambdaParam.symbol, exprID: normalizedParamExpr)
             }
@@ -484,7 +485,7 @@ final class LambdaLowerer {
         // e.g. `iterator { yield(w) }` dispatches `yield` on the
         // SequenceScope parameter rather than the captured class instance.
         if needsExplicitReceiver {
-            let receiverParam = lambdaParameters[needsClosureParam ? 1 : 0]
+            let receiverParam = lambdaParameters[(needsClosureParam ? 1 : 0) + contextParameterCount]
             if let receiverValue = driver.ctx.localValue(for: receiverParam.symbol) {
                 driver.ctx.setImplicitReceiver(symbol: receiverParam.symbol, exprID: receiverValue)
             }
@@ -500,24 +501,36 @@ final class LambdaLowerer {
         } else {
             params
         }
-        // Value parameters start after the closure environment parameter (HOF
-        // lambdas) and after the explicit receiver parameter (receiver lambdas
-        // such as `DeepRecursiveScope<T, R>.(T) -> R`); without the receiver
-        // offset a named parameter would alias the receiver slot.
-        let valueParamStart = (needsClosureParam ? 1 : 0) + (needsExplicitReceiver ? 1 : 0)
+        // Value parameters start after the closure environment, context inputs,
+        // and explicit receiver so a source name never aliases an ABI-only slot.
+        let valueParamStart = (needsClosureParam ? 1 : 0) + contextParameterCount
+            + (needsExplicitReceiver ? 1 : 0)
         for (i, paramName) in effectiveParamNames.enumerated() where valueParamStart + i < lambdaParameters.count {
             driver.ctx.registerLambdaParam(symbol: lambdaParameters[valueParamStart + i].symbol, forName: paramName)
         }
 
-        let loweredBody = driver.lowerExpr(
-            bodyExpr,
-            ast: ast,
-            sema: sema,
-            arena: arena,
-            interner: interner,
-            propertyConstantInitializers: propertyConstantInitializers,
-            instructions: &lambdaBody
-        )
+        let contextReceiverValues: [KIRLoweringContext.ContextReceiverValue] = contextParameterTypes
+            .enumerated()
+            .compactMap { index, type in
+                let parameterIndex = (needsClosureParam ? 1 : 0) + index
+                guard lambdaParameters.indices.contains(parameterIndex),
+                      let value = driver.ctx.localValue(for: lambdaParameters[parameterIndex].symbol)
+                else {
+                    return nil
+                }
+                return KIRLoweringContext.ContextReceiverValue(type: type, exprID: value)
+            }
+        let loweredBody = driver.ctx.withContextReceiverValues(contextReceiverValues) {
+            driver.lowerExpr(
+                bodyExpr,
+                ast: ast,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                propertyConstantInitializers: propertyConstantInitializers,
+                instructions: &lambdaBody
+            )
+        }
         if !driver.controlFlowLowerer.isTerminatedExpr(loweredBody, arena: arena, sema: sema) {
             let returnedBody = boxErasedReturnValue(
                 loweredBody,
@@ -777,7 +790,6 @@ final class LambdaLowerer {
         params: [InternedString],
         bodyExpr: ExprID,
         allowsNonLocalReturn: Bool,
-        effectiveParamCount: Int,
         hasExplicitReceiverParam: Bool,
         lambdaParameterTypes: [TypeID],
         lambdaReturnType: TypeID,
@@ -796,8 +808,10 @@ final class LambdaLowerer {
     ) -> KIRExprID {
         let lambdaName = syntheticLambdaName(for: exprID, interner: interner)
         let lambdaSymbol = driver.ctx.syntheticLambdaSymbol(for: exprID)
+        let contextParameterTypes = functionType?.contextReceivers ?? []
+        let contextParameterCount = contextParameterTypes.count
 
-        let lambdaParameters = (0 ..< effectiveParamCount).map { index in
+        let lambdaParameters = (0 ..< lambdaParameterTypes.count).map { index in
             KIRParameter(
                 symbol: syntheticLambdaParamSymbol(lambdaExprID: exprID, paramIndex: index),
                 type: lambdaParameterTypes[index]
@@ -822,7 +836,7 @@ final class LambdaLowerer {
             lambdaBody.append(.constValue(result: paramExpr, value: .symbolRef(lambdaParam.symbol)))
             driver.ctx.setLocalValue(paramExpr, for: lambdaParam.symbol)
 
-            if paramIndex == 0, hasExplicitReceiverParam {
+            if paramIndex == contextParameterCount, hasExplicitReceiverParam {
                 driver.ctx.setImplicitReceiver(symbol: lambdaParam.symbol, exprID: paramExpr)
             }
         }
@@ -835,20 +849,32 @@ final class LambdaLowerer {
         } else {
             params
         }
-        let valueParamStart = hasExplicitReceiverParam ? 1 : 0
+        let valueParamStart = contextParameterCount + (hasExplicitReceiverParam ? 1 : 0)
         for (i, paramName) in effectiveParamNames.enumerated() where valueParamStart + i < lambdaParameters.count {
             driver.ctx.registerLambdaParam(symbol: lambdaParameters[valueParamStart + i].symbol, forName: paramName)
         }
 
-        let loweredBody = driver.lowerExpr(
-            bodyExpr,
-            ast: ast,
-            sema: sema,
-            arena: arena,
-            interner: interner,
-            propertyConstantInitializers: propertyConstantInitializers,
-            instructions: &lambdaBody
-        )
+        let contextReceiverValues: [KIRLoweringContext.ContextReceiverValue] = contextParameterTypes
+            .enumerated()
+            .compactMap { index, type in
+                guard lambdaParameters.indices.contains(index),
+                      let value = driver.ctx.localValue(for: lambdaParameters[index].symbol)
+                else {
+                    return nil
+                }
+                return KIRLoweringContext.ContextReceiverValue(type: type, exprID: value)
+            }
+        let loweredBody = driver.ctx.withContextReceiverValues(contextReceiverValues) {
+            driver.lowerExpr(
+                bodyExpr,
+                ast: ast,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                propertyConstantInitializers: propertyConstantInitializers,
+                instructions: &lambdaBody
+            )
+        }
         if !driver.controlFlowLowerer.isTerminatedExpr(loweredBody, arena: arena, sema: sema) {
             let returnedBody = boxErasedReturnValue(
                 loweredBody,
