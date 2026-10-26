@@ -179,16 +179,20 @@ build_stdlib_artifact() {
   STDLIB_ARTIFACT="$ARTIFACT_ROOT/KSwiftKStdlib.kklib"
   local stdlib_build_stdout="$ARTIFACT_ROOT/stdlib_build.stdout"
   local stdlib_build_stderr="$ARTIFACT_ROOT/stdlib_build.stderr"
+  local stdlib_build_exit=0
 
   echo "Building stdlib artifact: $STDLIB_ARTIFACT"
-  "$TIMEOUT_CMD" "$COMPILE_TIMEOUT" "$KSWIFTC" --stdlib-only --emit library -o "$STDLIB_ARTIFACT" \
-    >"$stdlib_build_stdout" 2>"$stdlib_build_stderr" || {
-      echo "Failed to build stdlib artifact" >&2
-      if [[ -s "$stdlib_build_stderr" ]]; then
-        cat "$stdlib_build_stderr" >&2
-      fi
-      return 1
-    }
+  "$TIMEOUT_CMD" "$STDLIB_COMPILE_TIMEOUT" "$KSWIFTC" --stdlib-only --emit library -o "$STDLIB_ARTIFACT" \
+    >"$stdlib_build_stdout" 2>"$stdlib_build_stderr" || stdlib_build_exit=$?
+  if [[ "$stdlib_build_exit" -ne 0 ]]; then
+    if [[ "$stdlib_build_exit" -eq 124 ]]; then
+      echo "Failed to build stdlib artifact: timed out after ${STDLIB_COMPILE_TIMEOUT}s (set --stdlib-timeout to adjust)" >&2
+    else
+      echo "Failed to build stdlib artifact: exit=$stdlib_build_exit" >&2
+    fi
+    cat "$stdlib_build_stdout" "$stdlib_build_stderr" >&2
+    return 1
+  fi
 
   local stdlib_manifest_hash
   stdlib_manifest_hash="$(stdlib_manifest_hash "$STDLIB_ARTIFACT")"
