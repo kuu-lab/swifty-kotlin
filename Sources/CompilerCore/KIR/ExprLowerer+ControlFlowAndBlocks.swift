@@ -15,15 +15,27 @@ extension ExprLowerer {
         )
         if sema.bindings.isSamConversion(exprID),
            let type = sema.bindings.exprTypes[exprID],
-           case let .functionType(function) = sema.types.kind(of: type),
-           // Callable-reference lowering may already have produced a wrapper.
-           case .functionType = sema.types.kind(of: arena.exprType(value) ?? type),
-           let wrapper = driver.lambdaLowerer.lowerFunctionValueSamWrapper(
-               exprID, value: value, functionType: function, sema: sema,
-               arena: arena, interner: interner, instructions: &instructions
-           )
+           case let .functionType(function) = sema.types.kind(of: type)
         {
-            return wrapper
+            let loweredValueCanBeFunction: Bool = {
+                guard let loweredType = arena.exprType(value) else { return true }
+                switch sema.types.kind(of: loweredType) {
+                case .functionType, .any, .typeParam:
+                    return true
+                default:
+                    return false
+                }
+            }()
+            // A discarded cast can smartcast an `Any` local without changing
+            // the stored KIR value type. Already-wrapped SAM values stay nominal.
+            if loweredValueCanBeFunction,
+               let wrapper = driver.lambdaLowerer.lowerFunctionValueSamWrapper(
+                   exprID, value: value, functionType: function, sema: sema,
+                   arena: arena, interner: interner, instructions: &instructions
+               )
+            {
+                return wrapper
+            }
         }
         // A function call returning concrete Unit produces the singleton even
         // when a generic implementation returns null through its erased ABI.
