@@ -119,12 +119,13 @@ extension KIRLoweringDriver {
         let sema = shared.sema
         let arena = shared.arena
         guard let backingFieldSymbol = sema.symbols.backingFieldSymbol(for: symbol) else { return }
+        guard let initializer = explicitField.initializer else { return }
         let backingFieldType = sema.symbols.propertyType(for: backingFieldSymbol) ?? propType
 
         ctx.resetScopeForFunction()
         ctx.beginCallableLoweringScope()
         var initInstructions: KIRLoweringEmitContext = []
-        let initValue = lowerExpr(explicitField.initializer, shared: shared, emit: &initInstructions)
+        let initValue = lowerExpr(initializer, shared: shared, emit: &initInstructions)
         // Write the field's storage directly. A `.copy` targeting the
         // backing field symbol is rewritten by PropertyLoweringPass into a
         // setter accessor call whenever the property also emits a setter —

@@ -709,11 +709,11 @@ extension KIRLoweringDriver {
         if let explicitField = prop.explicitBackingField {
             let targetSymbol = sema.symbols.backingFieldSymbol(for: propSymbol) ?? propSymbol
             let backingFieldType = sema.symbols.propertyType(for: targetSymbol) ?? sema.types.anyType
-            if !isDefaultFieldInitializer(
-                explicitField.initializer, fieldType: backingFieldType, shared: shared
-            ) {
+            if let initializer = explicitField.initializer,
+               !isDefaultFieldInitializer(initializer, fieldType: backingFieldType, shared: shared)
+            {
                 let initValue = lowerPropertyInitializerValue(
-                    explicitField.initializer,
+                    initializer,
                     shared: shared, emit: &body
                 )
                 emitFieldStore(

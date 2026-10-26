@@ -195,7 +195,7 @@ struct ASTIDRemapper {
     func remap(_ value: ExplicitBackingField) -> ExplicitBackingField {
         ExplicitBackingField(
             type: value.type.map { remap($0) },
-            initializer: remap(value.initializer)
+            initializer: value.initializer.map { remap($0) }
         )
     }
 
