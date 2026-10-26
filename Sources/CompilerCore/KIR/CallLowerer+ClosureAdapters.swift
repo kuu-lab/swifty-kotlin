@@ -387,6 +387,7 @@ extension CallLowerer {
                 callee: function.name,
                 captureArguments: arena.lambdaCaptureArgsBySymbol[function.symbol] ?? [],
                 hasClosureParam: function.params.count >= functionType.params.count
+                    + functionType.contextReceivers.count
                     + (functionType.receiver == nil ? 0 : 1) + 1
             )
         }
@@ -402,7 +403,8 @@ extension CallLowerer {
         let hasStringSignature: Bool
         let needsReturnBoxing: Bool
         if let concreteType = concreteFunctionType {
-            hasStringSignature = concreteType.params.contains(where: sema.types.isString)
+            hasStringSignature = concreteType.contextReceivers.contains(where: sema.types.isString)
+                || concreteType.params.contains(where: sema.types.isString)
                 || sema.types.isString(concreteType.returnType)
             // The erased ABI applies to `Any`/`Any?` reference returns and to
             // type-parameter returns (`(T) -> R` style `transform` params): in
@@ -428,6 +430,7 @@ extension CallLowerer {
             return loweredArgID
         }
         let canForwardZeroArgumentSuspendCallable = functionType.isSuspend
+            && functionType.contextReceivers.isEmpty
             && functionType.params.isEmpty
             && functionType.receiver == nil
             && resolvedCallableInfo.captureArguments.isEmpty
@@ -467,7 +470,9 @@ extension CallLowerer {
             resolvedCallableInfo = adaptedInfo
         }
 
-        let valueArity = functionType.params.count + (functionType.receiver == nil ? 0 : 1)
+        let valueArity = functionType.contextReceivers.count
+            + functionType.params.count
+            + (functionType.receiver == nil ? 0 : 1)
         let createCallee: InternedString
         switch valueArity {
         case 0:
