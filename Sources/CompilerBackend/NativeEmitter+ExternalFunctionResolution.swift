@@ -245,9 +245,9 @@ extension NativeEmitter.FunctionEmissionContext {
             return nil
         }
         let omitsRuntimeReceiver = NativeEmitter.runtimeABIFunctionByName[externalLinkName] != nil
-            && argumentCount == signature.parameterTypes.count
+            && argumentCount == signature.contextParameterTypes.count + signature.parameterTypes.count
         let receivers = omitsRuntimeReceiver ? [] : sourceReceiverTypes(for: symbol, signature: signature)
-        let parameters = receivers + signature.parameterTypes
+        let parameters = receivers + signature.contextParameterTypes + signature.parameterTypes
         guard parameters.count == argumentCount else {
             return nil
         }
@@ -264,7 +264,7 @@ extension NativeEmitter.FunctionEmissionContext {
         let resolvedParameters: [TypeID]
         let resolvedReturnType: TypeID
         func isVarargParameter(_ parameterIndex: Int) -> Bool {
-            let valueParameterIndex = parameterIndex - receivers.count
+            let valueParameterIndex = parameterIndex - receivers.count - signature.contextParameterTypes.count
             return signature.valueParameterIsVararg.indices.contains(valueParameterIndex)
                 && signature.valueParameterIsVararg[valueParameterIndex]
         }
