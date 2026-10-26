@@ -593,6 +593,18 @@ struct TypeInferenceContext: CustomStringConvertible {
         }
     }
 
+    /// Resolve within a candidate namespace so bindings of another kind in an
+    /// inner scope do not hide the matching declaration in an outer scope.
+    func cachedScopeLookup(
+        _ name: InternedString,
+        matching predicate: (SymbolID) -> Bool
+    ) -> [SymbolID] {
+        scope.lookup(name, matching: predicate).filter {
+            !isExpectDeclarationSupersededByActual($0)
+                && !isImportedCallableShadowedBySource($0)
+        }
+    }
+
     /// A source callable shadows an imported callable at the same FQ name when
     /// their erased signatures match — e.g. upstream `kotlinx.io` sources
     /// vendored over the bundled stdlib copy. Keeping both as call candidates
