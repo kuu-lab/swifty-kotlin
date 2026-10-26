@@ -22,3 +22,22 @@ public func __kk_enum_set_class(_ classRaw: Int) -> Int {
     return runtimeStorage.withMetadataLock { $0.enumClassifierIDs.contains(classID) }
         ? classifierRaw : runtimeNullSentinelInt
 }
+
+/// Returns the registered enum entries for a Java Class handle, or null when
+/// the class is not an enum.
+@_cdecl("__kk_enum_set_values")
+public func __kk_enum_set_values(_ classRaw: Int) -> Int {
+    let typeToken: Int
+    if let javaClass = resolveRuntimeHandle(classRaw, as: RuntimeJavaClassBox.self) {
+        typeToken = javaClass.typeToken
+    } else if let kClass = runtimeKClassBox(from: classRaw) {
+        typeToken = kClass.typeToken
+    } else {
+        return runtimeNullSentinelInt
+    }
+    let isRegistered = runtimeStorage.withMetadataLock {
+        $0.enumValuesByTypeToken[Int64(typeToken)] != nil
+    }
+    guard isRegistered else { return runtimeNullSentinelInt }
+    return kk_enum_values_for_token(typeToken)
+}

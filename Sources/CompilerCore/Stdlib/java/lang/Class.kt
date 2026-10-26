@@ -97,6 +97,11 @@ public class Class<T> {
      */
     public fun getDeclaredField(name: String): Field = __classGetDeclaredField(this, name)
 
+    @KsSymbolName("__kk_enum_set_values")
+    private external fun __enumConstants(): Array<T>?
+
+    public fun getEnumConstants(): Array<T>? = __enumConstants()
+
     public val name: String
         get() = __classGetName(this)
 

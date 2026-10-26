@@ -4,6 +4,7 @@ private let abiEnum = RuntimeABISectionBuilder("Enum")
 public extension RuntimeABISpec {
     static let collectionSetFunctions: [RuntimeABIFunctionSpec] = [
         abiEnum.nt("__kk_enum_set_class", "classRaw"),
+        abiEnum.nt("__kk_enum_set_values", "classRaw"),
         abi.nt("__kk_set_of", "arrayRaw count"),
         abi.nt("__kk_hash_set_of", "arrayRaw count"),
         abi.th("__kk_hash_set_new_checked", "capacity loadFactorBits outThrown"),
