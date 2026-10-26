@@ -103,10 +103,13 @@ extension CallTypeChecker {
         "slice", "zip", "drop", "dropLast", "take", "takeLast",
         "elementAtOrNull", "getOrElse", "indexOf", "lastIndexOf", "fill",
         "foldRight", "reduceRight", "forEachIndexed", "mapTo", "filterTo",
-        "toCollection", "toHashSet", "toMutableSet", "sortedBy", "sortedWith",
+        "toCollection", "toHashSet", "toMutableSet", "sortedBy", "sortedByDescending", "sortedWith",
         "partition", "groupBy", "associate", "associateBy",
         "elementAt", "elementAtOrElse", "getOrNull", "single", "singleOrNull",
         "indexOfFirst", "indexOfLast", "toSet",
+        "scan", "scanIndexed", "runningFold", "runningFoldIndexed", "runningReduce", "runningReduceIndexed",
+        "reduceIndexedOrNull", "takeWhile", "dropWhile", "intersect", "union", "subtract",
+        "maxOf", "minByOrNull", "joinTo",
     ]
 
     private static let arraySourceBackedNames: Set<String> = [
@@ -116,12 +119,15 @@ extension CallTypeChecker {
         "elementAt", "elementAtOrNull", "elementAtOrElse", "getOrElse",
         "single", "singleOrNull", "random",
         "sum", "average", "min", "max", "minOrNull", "maxOrNull",
-        "foldRight", "reduceRight", "scan", "runningFold",
+        "foldRight", "reduceRight", "scan", "scanIndexed", "runningFold", "runningFoldIndexed",
+        "runningReduce", "runningReduceIndexed", "reduceIndexedOrNull",
         "distinct", "toSet", "toHashSet", "toMutableSet", "toCollection",
         "mapIndexedNotNull", "mapTo", "filterTo", "flatMapTo", "partition", "groupBy", "forEachIndexed", "zip",
         "associate", "associateBy", "associateWith",
         "associateTo", "associateByTo", "associateWithTo",
-        "indexOf", "lastIndexOf", "indexOfFirst", "fill", "sortedBy", "sortedWith",
+        "indexOf", "lastIndexOf", "indexOfFirst", "indexOfLast", "fill", "getOrNull",
+        "sortedBy", "sortedByDescending", "sortedWith", "joinTo",
+        "distinctBy", "minByOrNull", "maxByOrNull", "intersect", "union", "subtract",
     ]
 
     /// Finds the exact primitive-array source overload before the default-import

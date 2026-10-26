@@ -21,6 +21,10 @@ public fun <C : MutableCollection<in {{T}}>> {{T}}Array.toCollection(destination
 public inline fun <R : Comparable<R>> {{T}}Array.sortedBy(crossinline selector: ({{T}}) -> R?): List<{{T}}> =
     asList().sortedBy(selector)
 
+public inline fun <R : Comparable<R>> {{T}}Array.sortedByDescending(
+    crossinline selector: ({{T}}) -> R?
+): List<{{T}}> = asList().sortedByDescending(selector)
+
 public fun {{T}}Array.sortedWith(comparator: Comparator<in {{T}}>): List<{{T}}> =
     asList().sortedWith(comparator)
 
@@ -37,6 +41,21 @@ public inline fun <C : MutableCollection<in {{T}}>> {{T}}Array.filterTo(
     for (element in this) if (predicate(element)) destination.add(element)
     return destination
 }
+
+public inline fun {{T}}Array.takeWhile(predicate: ({{T}}) -> Boolean): List<{{T}}> =
+    asList().takeWhile(predicate)
+
+public inline fun {{T}}Array.dropWhile(predicate: ({{T}}) -> Boolean): List<{{T}}> =
+    asList().dropWhile(predicate)
+
+public infix fun {{T}}Array.intersect(other: Iterable<{{T}}>): Set<{{T}}> =
+    asList().intersect(other)
+
+public infix fun {{T}}Array.union(other: Iterable<{{T}}>): Set<{{T}}> =
+    asList().union(other)
+
+public infix fun {{T}}Array.subtract(other: Iterable<{{T}}>): Set<{{T}}> =
+    asList().subtract(other)
 
 public inline fun {{T}}Array.partition(predicate: ({{T}}) -> Boolean): Pair<List<{{T}}>, List<{{T}}>> {
     val matching = mutableListOf<{{T}}>()
@@ -111,6 +130,55 @@ public inline fun <K, V> {{T}}Array.associateBy(
     val result = mutableMapOf<K, V>()
     for (element in this) result[keySelector(element)] = valueTransform(element)
     return result
+}
+
+public inline fun <R : Comparable<R>> {{T}}Array.maxOf(selector: ({{T}}) -> R): R =
+    asList().maxOf(selector)
+
+public inline fun <R : Comparable<R>> {{T}}Array.minByOrNull(selector: ({{T}}) -> R): {{T}}? {
+    if (size == 0) return null
+    if (size == 1) return this[0]
+    var bestElement = this[0]
+    var bestKey = selector(bestElement)
+    var index = 1
+    while (index < size) {
+        val element = this[index]
+        val key = selector(element)
+        if (key < bestKey) {
+            bestElement = element
+            bestKey = key
+        }
+        index++
+    }
+    return bestElement
+}
+
+public fun {{T}}Array.joinTo(
+    buffer: StringBuilder,
+    separator: String = ", ",
+    prefix: String = "",
+    postfix: String = ""
+): StringBuilder = asList().joinTo(buffer, separator, prefix, postfix)
+
+public fun {{T}}Array.joinTo(
+    buffer: StringBuilder,
+    separator: String,
+    prefix: String,
+    postfix: String,
+    limit: Int,
+    truncated: String
+): StringBuilder = asList().joinTo(buffer, separator, prefix, postfix, limit, truncated)
+
+public fun {{T}}Array.joinTo(
+    buffer: StringBuilder,
+    separator: String = ", ",
+    prefix: String = "",
+    postfix: String = "",
+    limit: Int = -1,
+    truncated: String = "...",
+    transform: ({{T}}) -> Any
+): StringBuilder = asList().joinTo(buffer, separator, prefix, postfix, limit, truncated) {
+    transform(it).toString()
 }
 
 public infix fun {{T}}Array.zip(other: {{T}}Array): List<Pair<{{T}}, {{T}}>> {
