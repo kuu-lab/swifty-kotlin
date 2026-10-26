@@ -56,13 +56,20 @@ extension CallLowerer {
             return id
         }
 
-        emitCompanionInitializationBeforeConstructorArguments(
+        let deferCompanionInitialization = shouldDeferCompanionInitializationUntilArgumentsAreEvaluated(
             exprID: exprID,
-            sema: sema,
-            arena: arena,
-            interner: interner,
-            instructions: &instructions
+            args: args,
+            sema: sema
         )
+        if !deferCompanionInitialization {
+            emitCompanionInitializationForConstructorCall(
+                exprID: exprID,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            )
+        }
 
         // No call binding exists for a SAM constructor call (the callee name is
         // the fun interface itself); the SAM wrapper is produced by
@@ -392,6 +399,15 @@ extension CallLowerer {
                 && anyExpressionMayMutateState(args[(argumentIndex + 1)...].map(\.expr), ast: ast)
                 ? freezeEvaluationOrderOperand(rawArgID, arena: arena, instructions: &instructions)
                 : rawArgID
+        }
+        if deferCompanionInitialization {
+            emitCompanionInitializationForConstructorCall(
+                exprID: exprID,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            )
         }
         let knownNames = KnownCompilerNames(interner: interner)
         // buildList, buildSet, and buildMap are fully Kotlinized (KSP-622, KSP-623)

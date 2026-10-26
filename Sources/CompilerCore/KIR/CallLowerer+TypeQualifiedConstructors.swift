@@ -43,6 +43,19 @@ extension CallLowerer {
                 instructions: &instructions
             )
         }
+        if shouldDeferCompanionInitializationUntilArgumentsAreEvaluated(
+            exprID: exprID,
+            args: args,
+            sema: sema
+        ) {
+            emitCompanionInitializationForConstructorCall(
+                exprID: exprID,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            )
+        }
 
         return lowerResolvedCallBody(
             exprID,
