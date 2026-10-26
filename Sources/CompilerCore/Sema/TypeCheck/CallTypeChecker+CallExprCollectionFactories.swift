@@ -151,8 +151,41 @@ extension CallTypeChecker {
                         type == sema.types.nullableNothingType ? nil : sema.types.makeNonNullable(type)
                     }
                     : argTypes
-                let elementType = resolvedExplicitTypeArgument(at: 0, in: explicitTypeArgs)
-                    ?? (elementTypes.isEmpty ? sema.types.nothingType : sema.types.lub(elementTypes))
+                let explicitElementType = resolvedExplicitTypeArgument(at: 0, in: explicitTypeArgs)
+                let integerConstantArguments = args.indices.filter { index in
+                    guard !args[index].isSpread else { return false }
+                    let literal = integerLiteralValues(args[index].expr, ast: ctx.ast)
+                    return literal.signed != nil || literal.unsigned != nil
+                }
+                let nonLiteralElementTypes = zip(args, argTypes).compactMap { argument, type -> TypeID? in
+                    guard !argument.isSpread else { return nil }
+                    let literal = integerLiteralValues(argument.expr, ast: ctx.ast)
+                    guard literal.signed == nil, literal.unsigned == nil else { return nil }
+                    if name == "setOfNotNull", type == sema.types.nullableNothingType {
+                        return nil
+                    }
+                    return name == "setOfNotNull" ? sema.types.makeNonNullable(type) : type
+                }
+                let contextualIntegerType = explicitElementType
+                    ?? (nonLiteralElementTypes.isEmpty ? nil : sema.types.lub(nonLiteralElementTypes))
+                // Kotlin can infer a generic collection's element type from a
+                // non-literal input and then widen compatible integer constant
+                // expressions to that type. Keep those constants out of the
+                // ordinary LUB so setOf(1, 1L) becomes Set<Long>, then bind the
+                // literals to Long below before lowering reads their types.
+                let canContextualizeIntegerConstants = !args.contains(where: \.isSpread)
+                    && !integerConstantArguments.isEmpty
+                    && contextualIntegerType.map { targetType in
+                        integerConstantArguments.allSatisfy { index in
+                            integerLiteralFitsParameter(args[index].expr, parameterType: targetType, ctx: ctx)
+                        }
+                    } == true
+                let fallbackElementType = elementTypes.isEmpty
+                    ? sema.types.nothingType : sema.types.lub(elementTypes)
+                let inferredElementType = canContextualizeIntegerConstants
+                    ? contextualIntegerType ?? fallbackElementType
+                    : fallbackElementType
+                let elementType = explicitElementType ?? inferredElementType
                 let resultType: TypeID
                 if name == "linkedSetOf" {
                     resultType = makeSyntheticLinkedHashSetType(
@@ -328,6 +361,24 @@ extension CallTypeChecker {
                               expectedType: expectedType, ctx: sema
                           ).viableCandidates.isEmpty
                     else { return nil }
+                }
+                if ["emptySet", "setOf", "setOfNotNull", "mutableSetOf", "hashSetOf", "linkedSetOf"]
+                    .contains(resolvedName),
+                   let elementType = sourceBackedFactory.typeArgs.first
+                {
+                    var contextualizedLocals = locals
+                    for argument in args where !argument.isSpread {
+                        let literal = integerLiteralValues(argument.expr, ast: ctx.ast)
+                        guard literal.signed != nil || literal.unsigned != nil,
+                              integerLiteralFitsParameter(argument.expr, parameterType: elementType, ctx: ctx)
+                        else { continue }
+                        _ = driver.inferExpr(
+                            argument.expr,
+                            ctx: ctx,
+                            locals: &contextualizedLocals,
+                            expectedType: elementType
+                        )
+                    }
                 }
                 sema.bindings.bindCall(
                     id,
