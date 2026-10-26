@@ -527,6 +527,7 @@ extension CallTypeChecker {
             isSuperCall: isSuperCall,
             lookupReceiverType: lookupReceiverType,
             memberLookupType: memberLookupType,
+            callableReferenceFunctionType: callableReferenceFunctionType,
             locals: locals
         ) {
             return result

@@ -11,6 +11,7 @@ extension CallTypeChecker {
         isSuperCall: Bool,
         lookupReceiverType: TypeID,
         memberLookupType: TypeID,
+        callableReferenceFunctionType: TypeID?,
         locals: LocalBindings
     ) -> TypeID? {
         let id = request.id
@@ -23,6 +24,7 @@ extension CallTypeChecker {
         let ast = ctx.ast
         let sema = ctx.sema
         let interner = ctx.interner
+        let extensionPropertyReceiverType = callableReferenceFunctionType ?? memberLookupType
         let entryMemberProperty: (symbol: SymbolID, type: TypeID)? = {
             guard case let .thisRef(label?, _) = ast.arena.expr(request.receiverID),
                   let entrySymbol = ctx.enumEntryReceiverSymbol(forQualifiedThisLabel: label)
@@ -50,14 +52,14 @@ extension CallTypeChecker {
            let preferredSourcePackage = preferredBundledStdlibPackage(
                sourceFile: sourceFile,
                candidates: sema.symbols.lookupByShortName(calleeName),
-               receiverType: memberLookupType,
+               receiverType: extensionPropertyReceiverType,
                sema: sema
            ),
            let extensionPropertyType = resolveExtensionPropertyGetter(
                id: id,
                calleeName: calleeName,
                range: range,
-               receiverType: memberLookupType,
+               receiverType: extensionPropertyReceiverType,
                expectedType: expectedType,
                ctx: ctx,
                preferredSourcePackage: preferredSourcePackage
@@ -143,7 +145,7 @@ extension CallTypeChecker {
                id: id,
                calleeName: calleeName,
                range: range,
-               receiverType: memberLookupType,
+               receiverType: extensionPropertyReceiverType,
                expectedType: expectedType,
                ctx: ctx
            )
