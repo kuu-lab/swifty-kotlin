@@ -573,7 +573,7 @@ extension BuildASTPhase {
         in arena: SyntaxArena,
         interner: StringInterner,
         astArena: ASTArena
-    ) -> (functions: [DeclID], properties: [DeclID], nestedClasses: [DeclID], nestedObjects: [DeclID], companionObject: DeclID?) {
+    ) -> (functions: [DeclID], properties: [DeclID], nestedClasses: [DeclID], nestedObjects: [DeclID], companionObject: DeclID?, companionBlockObject: DeclID?) {
         guard let bodyBlockID = arena.children(of: nodeID).compactMap({ child -> NodeID? in
             guard case let .node(childID) = child,
                   arena.node(childID).kind == .block
@@ -582,7 +582,7 @@ extension BuildASTPhase {
             }
             return childID
         }).first else {
-            return ([], [], [], [], nil)
+            return ([], [], [], [], nil, nil)
         }
 
         var functions: [DeclID] = []
@@ -590,6 +590,10 @@ extension BuildASTPhase {
         var nestedClasses: [DeclID] = []
         var nestedObjects: [DeclID] = []
         var companionObject: DeclID?
+        var companionBlockObject: DeclID?
+        var companionBlockFunctions: [DeclID] = []
+        var companionBlockProperties: [DeclID] = []
+        var companionBlockRange: SourceRange?
         var pendingMemberAnnotations: [AnnotationNode] = []
         var pendingMemberContextReceivers: [ContextReceiverDecl] = []
 
@@ -601,6 +605,69 @@ extension BuildASTPhase {
             }
             if arena.node(childID).kind == .statement {
                 let tokens = collectTokens(from: childID, in: arena)
+                if tokens.first?.kind == .keyword(.companion),
+                   let blockNodeID = arena.children(of: childID).compactMap({ child -> NodeID? in
+                       guard case let .node(blockID) = child,
+                             arena.node(blockID).kind == .block
+                       else {
+                           return nil
+                       }
+                       return blockID
+                   }).first
+                {
+                    companionBlockRange = companionBlockRange ?? arena.node(blockNodeID).range
+                    var blockAnnotations: [AnnotationNode] = []
+                    var blockContextReceivers: [ContextReceiverDecl] = []
+                    for blockChild in arena.children(of: blockNodeID) {
+                        guard case let .node(blockMemberID) = blockChild else {
+                            blockAnnotations = []
+                            blockContextReceivers = []
+                            continue
+                        }
+                        let blockMemberKind = arena.node(blockMemberID).kind
+                        if blockMemberKind == .statement {
+                            let blockMemberTokens = collectTokens(from: blockMemberID, in: arena)
+                            let parsedContextReceivers = parseContextReceivers(
+                                from: blockMemberTokens, interner: interner, astArena: astArena
+                            )
+                            if !parsedContextReceivers.isEmpty {
+                                blockContextReceivers = parsedContextReceivers
+                            } else if blockMemberTokens.first?.kind != .symbol(.at) {
+                                blockContextReceivers = []
+                            }
+                            if let annotations = declarationPrefixAnnotations(
+                                from: blockMemberID, in: arena, interner: interner
+                            ) {
+                                blockAnnotations = annotations
+                            } else if parsedContextReceivers.isEmpty, blockMemberTokens.first?.kind != .symbol(.at) {
+                                blockAnnotations = []
+                            }
+                            continue
+                        }
+
+                        var blockNestedClasses: [DeclID] = []
+                        var blockNestedObjects: [DeclID] = []
+                        var blockCompanionObject: DeclID?
+                        processMemberChild(
+                            blockMemberID,
+                            in: arena,
+                            interner: interner,
+                            astArena: astArena,
+                            prefixedAnnotations: blockAnnotations,
+                            prefixedContextReceivers: blockContextReceivers,
+                            functions: &companionBlockFunctions,
+                            properties: &companionBlockProperties,
+                            nestedClasses: &blockNestedClasses,
+                            nestedObjects: &blockNestedObjects,
+                            companionObject: &blockCompanionObject
+                        )
+                        blockAnnotations = []
+                        blockContextReceivers = []
+                    }
+                    pendingMemberAnnotations = []
+                    pendingMemberContextReceivers = []
+                    continue
+                }
                 let parsedContextReceivers = parseContextReceivers(
                     from: tokens, interner: interner, astArena: astArena
                 )
@@ -633,7 +700,24 @@ extension BuildASTPhase {
             )
         }
 
-        return (functions, properties, nestedClasses, nestedObjects, companionObject)
+        if let companionBlockRange {
+            let blockObject = ObjectDecl(
+                range: companionBlockRange,
+                // Companion blocks have no source-visible companion object.
+                // Keep their implementation scope as a hidden nested object so
+                // it cannot be referenced as `C.Companion` or reflected as one.
+                name: interner.intern("$CompanionBlocks"),
+                modifiers: [],
+                classBodyInitOrder: companionBlockProperties.indices.map { .property($0) },
+                memberFunctions: companionBlockFunctions,
+                memberProperties: companionBlockProperties
+            )
+            let blockObjectID = astArena.appendDecl(.objectDecl(blockObject))
+            nestedObjects.append(blockObjectID)
+            companionBlockObject = blockObjectID
+        }
+
+        return (functions, properties, nestedClasses, nestedObjects, companionObject, companionBlockObject)
     }
 
     private func declarationPrefixAnnotations(

@@ -92,10 +92,11 @@ extension KotlinParser {
                     modifierChildren
                 )
             }
-            // `companion` is only valid before `object`; keep the token as a
-            // modifier child and re-dispatch so downstream validation reports
-            // it (e.g. `companion fun f()` → not applicable to 'top level
-            // function'), instead of silently dropping it.
+            // Companion extensions can combine `companion` with ordinary
+            // declaration modifiers, e.g. `companion operator fun C.invoke()`.
+            parseLeadingDeclarationPrefix(into: &modifierChildren, range: &modifierRange)
+            // Keep an otherwise invalid `companion` modifier attached so
+            // downstream validation can report its declaration position.
             continue companionDispatch
         default:
             if !modifierChildren.isEmpty {
