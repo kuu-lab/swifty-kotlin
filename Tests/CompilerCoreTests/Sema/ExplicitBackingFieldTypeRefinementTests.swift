@@ -28,11 +28,12 @@ struct ExplicitBackingFieldTypeRefinementTests {
             .flatMap(\.topLevelDecls)
             .compactMap { declID -> TypeID? in
                 guard case let .propertyDecl(property)? = ast.arena.decl(declID),
-                      let explicitField = property.explicitBackingField
+                      let explicitField = property.explicitBackingField,
+                      let initializer = explicitField.initializer
                 else {
                     return nil
                 }
-                return sema.bindings.exprType(for: explicitField.initializer)
+                return sema.bindings.exprType(for: initializer)
             }
         let itemReadTypes = ast.arena.exprs.indices.compactMap { rawID -> TypeID? in
             let id = ExprID(rawValue: Int32(rawID))
