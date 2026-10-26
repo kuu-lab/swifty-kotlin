@@ -1387,6 +1387,49 @@ extension LambdaLowerer {
 
         // Adapted references are ordinary function values and do not expose KCallable reflection.
         if isAdaptedCallableReference {
+            // Context-bound callable references bypass the reflection tag below.
+            // Preserve their target and captures separately for Any equality.
+            if let targetSymbol,
+               let refKind = sema.bindings.callableRefKind(for: exprID),
+               let identityTargetSymbol = callableReferenceIdentityTargetSymbol(
+                   targetSymbol: targetSymbol,
+                   refKind: refKind,
+                   sema: sema
+               )
+            {
+                let functionType: FunctionType? = {
+                    guard case let .functionType(functionType) = sema.types.kind(of: callableType) else {
+                        return nil
+                    }
+                    return functionType
+                }()
+                let arity = functionType.map {
+                    Int64($0.contextReceivers.count + ($0.receiver == nil ? 0 : 1) + $0.params.count)
+                } ?? 0
+                var flags: Int64 = functionType?.isSuspend == true ? 1 : 0
+                if refKind == .functionRef,
+                   let target = sema.symbols.symbol(targetSymbol)
+                {
+                    if target.flags.contains(.inlineFunction) { flags |= 1 << 1 }
+                    if target.flags.contains(.operatorFunction) { flags |= 1 << 2 }
+                    if target.flags.contains(.infixFunction) { flags |= 1 << 3 }
+                    if sema.symbols.externalLinkName(for: targetSymbol) != nil { flags |= 1 << 4 }
+                }
+                emitCallableReferenceIdentity(
+                    callableExpr: callableValue,
+                    targetSymbol: identityTargetSymbol,
+                    captures: captureArguments,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    instructions: &instructions,
+                    identityMetadata: (
+                        arity: arity,
+                        kind: refKind == .propertyRef ? 1 : 0,
+                        flags: flags
+                    )
+                )
+            }
             return callableValue
         }
 
@@ -1833,20 +1876,9 @@ extension LambdaLowerer {
         let taggedExpr = arena.appendTemporary(type: callableType
         )
         instructions.append(.call(callee: interner.intern(tagCallee), arguments: tagArguments, result: taggedExpr, canThrow: false))
-        let identityTargetSymbol: SymbolID? = {
-            guard let targetSymbol else { return nil }
-            switch refKind {
-            case .functionRef:
-                return targetSymbol
-            case .propertyRef:
-                let propertySymbol = sema.symbols.symbol(targetSymbol)?.kind == .property
-                    ? targetSymbol
-                    : sema.symbols.accessorOwnerProperty(for: targetSymbol)
-                guard let propertySymbol else { return nil }
-                return sema.symbols.extensionPropertyGetterAccessor(for: propertySymbol)
-                    ?? SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: propertySymbol)
-            }
-        }()
+        let identityTargetSymbol = targetSymbol.flatMap {
+            callableReferenceIdentityTargetSymbol(targetSymbol: $0, refKind: refKind, sema: sema)
+        }
         if let identityTargetSymbol {
             emitCallableReferenceIdentity(
                 callableExpr: taggedExpr,
@@ -1880,7 +1912,8 @@ extension LambdaLowerer {
         sema: SemaModule,
         arena: KIRArena,
         interner: StringInterner,
-        instructions: inout [KIRInstruction]
+        instructions: inout [KIRInstruction],
+        identityMetadata: (arity: Int64, kind: Int64, flags: Int64)? = nil
     ) {
         let identityTarget = arena.appendExpr(.symbolRef(targetSymbol), type: sema.types.intType)
         instructions.append(.constValue(result: identityTarget, value: .symbolRef(targetSymbol)))
@@ -1911,11 +1944,41 @@ extension LambdaLowerer {
                 instructions: &instructions
             )
         }
+        var identityArguments = [callableExpr, identityTarget, identityCaptures]
+        let identityCallee: String
+        if let identityMetadata {
+            for value in [identityMetadata.arity, identityMetadata.kind, identityMetadata.flags] {
+                let valueExpr = arena.appendExpr(.intLiteral(value), type: sema.types.intType)
+                instructions.append(.constValue(result: valueExpr, value: .intLiteral(value)))
+                identityArguments.append(valueExpr)
+            }
+            identityCallee = "__kk_function_value_set_callable_ref_identity"
+        } else {
+            identityCallee = "__kk_callable_ref_set_identity"
+        }
         instructions.append(.call(
-            callee: interner.intern("__kk_callable_ref_set_identity"),
-            arguments: [callableExpr, identityTarget, identityCaptures],
+            callee: interner.intern(identityCallee),
+            arguments: identityArguments,
             result: nil,
             canThrow: false
         ))
+    }
+
+    func callableReferenceIdentityTargetSymbol(
+        targetSymbol: SymbolID,
+        refKind: CallableRefKind,
+        sema: SemaModule
+    ) -> SymbolID? {
+        switch refKind {
+        case .functionRef:
+            return targetSymbol
+        case .propertyRef:
+            let propertySymbol = sema.symbols.symbol(targetSymbol)?.kind == .property
+                ? targetSymbol
+                : sema.symbols.accessorOwnerProperty(for: targetSymbol)
+            guard let propertySymbol else { return nil }
+            return sema.symbols.extensionPropertyGetterAccessor(for: propertySymbol)
+                ?? SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: propertySymbol)
+        }
     }
 }

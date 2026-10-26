@@ -10,4 +10,14 @@ extension BundledStdlibExecutionTests {
             allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
         )
     }
+
+    @Test(arguments: [true, false])
+    func contextualCallableReferencesCompareCapturedContextValues(allowDefaultStdlibLibrary: Bool) throws {
+        try compileAndRunKotlin(
+            try diffCaseSource("kuu_3309_contextual_callable_reference_equality.kt", file: #filePath),
+            expectedOutput: "true\ntrue\nfalse\nA1\ntrue\ntrue\nfalse\nA1\n",
+            moduleName: "KUU3309ContextualCallableReferenceEquality",
+            allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
+        )
+    }
 }
