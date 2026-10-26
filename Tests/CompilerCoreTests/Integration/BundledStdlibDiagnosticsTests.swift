@@ -132,6 +132,37 @@ struct BundledStdlibDiagnosticsTests {
         }
     }
 
+    /// KUU-3374: bundled String case-conversion deprecations stay warnings at API 2.4.
+    @Test
+    func testDeprecatedStringCaseConversionsEmitWarningsWithoutErrors() throws {
+        let source = """
+        fun main() {
+            println("Abc".decapitalize())
+            println("aBc".capitalize())
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            let deprecations = ctx.diagnostics.diagnostics.filter {
+                $0.code == "KSWIFTK-SEMA-DEPRECATED"
+            }
+            #expect(
+                deprecations.count == 2,
+                "Expected both deprecated APIs to warn: \(ctx.diagnostics.diagnostics)"
+            )
+            #expect(
+                deprecations.allSatisfy { $0.severity == .warning },
+                "Expected warnings, got: \(deprecations)"
+            )
+            #expect(
+                !ctx.diagnostics.hasError,
+                "Deprecation warnings must not fail compilation: \(ctx.diagnostics.diagnostics)"
+            )
+        }
+    }
+
     /// KUU-1393: `scanReduce` is not a Kotlin stdlib API — it was renamed to
     /// `runningReduce` in Kotlin 1.5 and does not exist on any receiver in
     /// Kotlin 2.3.10. Every receiver must reject it as unresolved, matching

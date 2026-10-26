@@ -43,6 +43,11 @@ public fun String.toUpperCase(): String = uppercase()
 /**
  * Deprecated by Kotlin, but still provided for compatibility.
  */
+@Deprecated(
+    "Use replaceFirstChar instead.",
+    ReplaceWith("replaceFirstChar { it.titlecase() }")
+)
+@DeprecatedSinceKotlin(warningSince = "1.5")
 public fun String.capitalize(): String {
     if (this.length == 0) return this
     val first = this[0]
