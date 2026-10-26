@@ -7,6 +7,78 @@ import TestStdlibCache
 
 extension StdlibArtifactRegressionTests {
 
+    /// KUU-3405: a custom setter assignment must still run when it is the
+    /// final statement of a suspend lambda after resuming from suspension.
+    @Test
+    func testFinalSuspendLambdaAssignmentInvokesCustomSetter() throws {
+        let artifactPath = try testStdlibArtifactPath()
+        let source = """
+        import kotlin.coroutines.*
+        import kotlin.coroutines.intrinsics.*
+
+        private suspend fun suspendHere(): String = suspendCoroutineUninterceptedOrReturn { continuation ->
+            continuation.resume("OK")
+            COROUTINE_SUSPENDED
+        }
+
+        private fun builder(block: suspend () -> Unit) {
+            block.startCoroutine(Continuation(EmptyCoroutineContext) {})
+        }
+
+        var setterCalls = 0
+        var varWithCustomSetter: String = ""
+            set(value) {
+                setterCalls++
+                field = value
+            }
+
+        fun main() {
+            builder {
+                if (suspendHere() != "OK") println("fail5")
+                varWithCustomSetter = "OK"
+            }
+            println("$varWithCustomSetter:$setterCalls")
+        }
+        """
+        try withTemporaryFile(contents: source) { userPath in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString).path
+            let ctx = makeCompilationContext(
+                inputs: [userPath],
+                moduleName: "KUU3405FinalSuspendLambdaSetterAssignment",
+                emit: .executable,
+                outputPath: outputBase,
+                includeStdlib: false,
+                stdlibLibraryPath: artifactPath,
+                allowDefaultStdlibLibrary: false
+            )
+            try runToKIR(ctx)
+            try #require(!ctx.diagnostics.hasError, "Unexpected diagnostics: \(ctx.diagnostics.diagnostics)")
+            try LoweringPhase().run(ctx)
+            do {
+                try CodegenPhase().run(ctx)
+            } catch {
+                throw CompilerPipelineError.invalidInput(
+                    "Codegen failed: \(error); diagnostics: \(ctx.diagnostics.diagnostics)"
+                )
+            }
+            do {
+                try LinkPhase().run(ctx)
+            } catch {
+                throw CompilerPipelineError.invalidInput(
+                    "Link failed: \(error); diagnostics: \(ctx.diagnostics.diagnostics)"
+                )
+            }
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            #expect(result.exitCode == 0, "stderr: \(result.stderr)")
+            #expect(
+                result.stdout.replacingOccurrences(of: "\r\n", with: "\n") == "OK:1\n",
+                "stderr: \(result.stderr)"
+            )
+        }
+    }
+
     /// Suspend function references passed to startCoroutine must reuse the
     /// started continuation instead of intercepting an adapter frame as well.
     @Test
