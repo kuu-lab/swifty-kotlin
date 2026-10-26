@@ -785,30 +785,26 @@ extension ExprTypeChecker {
 
     private func findParentCallContext(for lambdaId: ExprID, ctx: TypeInferenceContext, sema _: SemaModule) -> ParentLambdaCallContext? {
         let ast = ctx.ast
-        for expr in ast.arena.exprs {
+        for parent in ast.arena.callArgumentParents(of: lambdaId) {
+            guard let expr = ast.arena.expr(parent.callExprID) else { continue }
             switch expr {
-            case let .call(callee, typeArgs, args, _):
-                guard let argIndex = args.firstIndex(where: { $0.expr == lambdaId }),
-                      let calleeExpr = ast.arena.expr(callee),
+            case let .call(callee, typeArgs, _, _):
+                guard let calleeExpr = ast.arena.expr(callee),
                       case let .nameRef(calleeName, _) = calleeExpr
                 else {
                     continue
                 }
-                return .topLevel(calleeName: calleeName, argIndex: argIndex, typeArgs: typeArgs)
+                return .topLevel(calleeName: calleeName, argIndex: parent.argumentIndex, typeArgs: typeArgs)
 
-            case let .memberCall(receiver, calleeName, typeArgs, args, _):
-                guard let argIndex = args.firstIndex(where: { $0.expr == lambdaId }) else {
-                    continue
-                }
+            case let .memberCall(receiver, calleeName, typeArgs, _, _),
+                 let .safeMemberCall(receiver, calleeName, typeArgs, _, _):
                 let receiverType = ctx.sema.bindings.exprTypes[receiver]
-                return .member(receiverType: receiverType, calleeName: calleeName, argIndex: argIndex, typeArgs: typeArgs)
-
-            case let .safeMemberCall(receiver, calleeName, typeArgs, args, _):
-                guard let argIndex = args.firstIndex(where: { $0.expr == lambdaId }) else {
-                    continue
-                }
-                let receiverType = ctx.sema.bindings.exprTypes[receiver]
-                return .member(receiverType: receiverType, calleeName: calleeName, argIndex: argIndex, typeArgs: typeArgs)
+                return .member(
+                    receiverType: receiverType,
+                    calleeName: calleeName,
+                    argIndex: parent.argumentIndex,
+                    typeArgs: typeArgs
+                )
 
             default:
                 continue

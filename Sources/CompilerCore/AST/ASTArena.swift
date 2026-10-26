@@ -239,12 +239,18 @@ fileprivate struct ASTExpressionRangeIndex: Sendable {
     }
 }
 
+struct ASTCallArgumentParent: Equatable {
+    let callExprID: ExprID
+    let argumentIndex: Int
+}
+
 public final class ASTArena: @unchecked Sendable {
     private let lock = NSLock()
     private var _decls: [Decl] = []
     private var _exprs: [Expr] = []
     private var _typeRefs: [TypeRef] = []
     private var _expressionRangeIndex: ASTExpressionRangeIndex?
+    private var _callArgumentParentsByExpr: [ExprID: [ASTCallArgumentParent]]?
     private var _loopLabels: [ExprID: InternedString] = [:]
     private var _whenSubjectVarNames: [ExprID: InternedString] = [:]
     private var _whenSubjectTypeRefs: [ExprID: TypeRefID] = [:]
@@ -543,7 +549,51 @@ public final class ASTArena: @unchecked Sendable {
         let id = ExprID(rawValue: Int32(_exprs.count))
         _exprs.append(expr)
         _expressionRangeIndex = nil
+        if _callArgumentParentsByExpr != nil {
+            Self.addCallArgumentParents(from: expr, callExprID: id, into: &_callArgumentParentsByExpr!)
+        }
         return id
+    }
+
+    /// Returns call expressions that use `argumentExprID` as an argument, in AST order.
+    /// The index is built once and updated as synthesized expressions are appended.
+    func callArgumentParents(of argumentExprID: ExprID) -> [ASTCallArgumentParent] {
+        lock.lock()
+        defer { lock.unlock() }
+
+        if _callArgumentParentsByExpr == nil {
+            var parentsByExpr: [ExprID: [ASTCallArgumentParent]] = [:]
+            for (index, expr) in _exprs.enumerated() {
+                let callExprID = ExprID(rawValue: Int32(index))
+                Self.addCallArgumentParents(from: expr, callExprID: callExprID, into: &parentsByExpr)
+            }
+            _callArgumentParentsByExpr = parentsByExpr
+        }
+
+        return _callArgumentParentsByExpr?[argumentExprID] ?? []
+    }
+
+    private static func addCallArgumentParents(
+        from expression: Expr,
+        callExprID: ExprID,
+        into parentsByExpr: inout [ExprID: [ASTCallArgumentParent]]
+    ) {
+        let arguments: [CallArgument]
+        switch expression {
+        case let .call(_, _, args, _),
+             let .memberCall(_, _, _, args, _),
+             let .safeMemberCall(_, _, _, args, _):
+            arguments = args
+        default:
+            return
+        }
+
+        var seenArgumentExprs: Set<ExprID> = []
+        for (argumentIndex, argument) in arguments.enumerated() where seenArgumentExprs.insert(argument.expr).inserted {
+            parentsByExpr[argument.expr, default: []].append(
+                ASTCallArgumentParent(callExprID: callExprID, argumentIndex: argumentIndex)
+            )
+        }
     }
 
     public func expr(_ id: ExprID) -> Expr? {
