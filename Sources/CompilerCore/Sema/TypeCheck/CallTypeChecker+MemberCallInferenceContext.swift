@@ -310,6 +310,27 @@ extension CallTypeChecker {
             guard let symbol = ctx.cachedSymbol(candidate) else { return false }
             return symbol.kind == .function || symbol.kind == .constructor
         }
+        if samConstructorTarget(named: calleeName, qualifiedName: fqnPath, ctx: ctx) != nil {
+            var samFactoryCandidates: [SymbolID]?
+            if let samType = inferSamConvertedCallExpr(
+                id,
+                calleeName: calleeName,
+                qualifiedName: fqnPath,
+                args: args,
+                range: range,
+                ctx: ctx,
+                locals: &locals,
+                expectedType: request.expectedType,
+                explicitTypeArgs: explicitTypeArgs,
+                samFactoryCandidates: &samFactoryCandidates
+            ) {
+                sema.bindings.markFQNTopLevelCallExpr(id)
+                return samType
+            }
+            if let samFactoryCandidates {
+                fqnCandidates = samFactoryCandidates
+            }
+        }
         if let classSymbolID = sema.symbols.lookupAll(fqName: fqnPath).first(where: {
             guard let symbol = ctx.cachedSymbol($0) else { return false }
             guard symbol.kind == .class || symbol.kind == .enumClass || symbol.kind == .annotationClass else {
@@ -371,27 +392,81 @@ extension CallTypeChecker {
         // collection. Fully-qualified constructor calls need the same path so
         // an alias like `java.io.IOException` does not fall back to resolving
         // `java` as a value receiver.
+        var typeAliasConstructor: TypeAliasConstructorContext?
         if fqnCandidates.isEmpty,
            let aliasID = sema.symbols.lookupAll(fqName: fqnPath).first(where: {
                ctx.cachedSymbol($0)?.kind == .typeAlias
-           }),
-           sema.symbols.typeAliasTypeParameters(for: aliasID).isEmpty,
-           let expanded = driver.helpers.expandTypeAlias(
-               aliasID,
-               typeArgs: [],
-               sema: sema,
-               visited: [],
-               depth: 0
-           ),
-           case let .classType(aliasTarget) = sema.types.kind(of: expanded)
+           })
         {
-            let ownerID = sema.symbols.actualSymbol(for: aliasTarget.classSymbol) ?? aliasTarget.classSymbol
-            if let owner = ctx.cachedSymbol(ownerID) {
-                let constructorPath = owner.fqName + [interner.intern("<init>")]
-                fqnCandidates.append(contentsOf: sema.symbols.lookupAll(fqName: constructorPath).filter {
-                    ctx.cachedSymbol($0)?.kind == .constructor
-                        && sema.symbols.parentSymbol(for: $0) == ownerID
-                })
+            let aliasTypeParameters = sema.symbols.typeAliasTypeParameters(for: aliasID)
+            if !explicitTypeArgs.isEmpty, explicitTypeArgs.count != aliasTypeParameters.count {
+                sema.diagnostics.error(
+                    "KSWIFTK-SEMA-0062",
+                    "Type argument count mismatch: expected \(aliasTypeParameters.count) but got \(explicitTypeArgs.count).",
+                    range: range
+                )
+                sema.bindings.bindExprType(id, type: sema.types.errorType)
+                return sema.types.errorType
+            }
+
+            let aliasTypeArgs: [TypeArg] = if explicitTypeArgs.isEmpty {
+                aliasTypeParameters.map {
+                    .invariant(sema.types.make(.typeParam(TypeParamType(symbol: $0, nullability: .nonNull))))
+                }
+            } else {
+                explicitTypeArgs.enumerated().map { index, type in
+                    let resolved = type == TypeID.invalid
+                        ? sema.types.make(.typeParam(TypeParamType(
+                            symbol: aliasTypeParameters[index],
+                            nullability: .nonNull
+                        )))
+                        : type
+                    return .invariant(resolved)
+                }
+            }
+
+            if let expanded = driver.helpers.expandTypeAlias(
+                aliasID,
+                typeArgs: aliasTypeArgs,
+                sema: sema,
+                visited: [],
+                depth: 0,
+                diagnostics: sema.diagnostics
+            ) {
+                let aliasTarget: ClassType?
+                switch sema.types.kind(of: expanded) {
+                case let .classType(classType):
+                    aliasTarget = classType
+                case .any:
+                    aliasTarget = sema.types.anyClassSymbol.map { ClassType(classSymbol: $0) }
+                default:
+                    aliasTarget = nil
+                }
+
+                if let aliasTarget {
+                    let ownerID = sema.symbols.actualSymbol(for: aliasTarget.classSymbol) ?? aliasTarget.classSymbol
+                    if let owner = ctx.cachedSymbol(ownerID) {
+                        let constructorPath = owner.fqName + [interner.intern("<init>")]
+                        let constructors = sema.symbols.lookupAll(fqName: constructorPath).filter {
+                            ctx.cachedSymbol($0)?.kind == .constructor
+                                && sema.symbols.parentSymbol(for: $0) == ownerID
+                        }
+                        if !constructors.isEmpty {
+                            fqnCandidates.append(contentsOf: constructors)
+                            let expandedConstructorType = sema.types.make(.classType(ClassType(
+                                classSymbol: ownerID,
+                                args: aliasTarget.args,
+                                enclosingTypeArgs: aliasTarget.enclosingTypeArgs,
+                                nullability: .nonNull
+                            )))
+                            typeAliasConstructor = TypeAliasConstructorContext(
+                                typeParameterSymbols: aliasTypeParameters,
+                                expandedType: expandedConstructorType,
+                                typeAliasSymbol: aliasID
+                            )
+                        }
+                    }
+                }
             }
         }
 
@@ -420,12 +495,28 @@ extension CallTypeChecker {
         // A package qualifier is not a value receiver, but its lambda arguments
         // need the same signature context as an imported top-level call. This
         // also contextualizes builders with explicit element type arguments.
-        let preparedArgs = args.contains { ast.arena.expr($0.expr)?.isLambdaOrCallableRef == true }
+        let argumentContextTypeArgs = typeAliasConstructor.map {
+            aliasConstructorArgumentContextTypes($0, explicitTypeArgs: explicitTypeArgs, sema: sema)
+        } ?? explicitTypeArgs
+        var expectedTypeOverrides: [Int: TypeID] = [:]
+        prepareCompareByExpectedTypeOverrides(
+            args: args,
+            callRange: range,
+            candidates: vis,
+            explicitTypeArgs: argumentContextTypeArgs,
+            locals: locals,
+            ctx: ctx,
+            expectedTypeOverrides: &expectedTypeOverrides
+        )
+        let needsArgumentPreparation = args.contains { ast.arena.expr($0.expr)?.isLambdaOrCallableRef == true }
+            || !expectedTypeOverrides.isEmpty
+        let preparedArgs = needsArgumentPreparation
             ? prepareCallArguments(
                 args: args, callRange: range, candidates: vis,
+                expectedTypeOverrides: expectedTypeOverrides,
                 contextualCallResultType: request.ctx.isCallResultDiscarded && request.ctx.isUnitCoercionContext
                     ? request.ctx.sema.types.unitType : request.expectedType,
-                explicitTypeArgs: explicitTypeArgs, ctx: ctx, locals: &locals
+                explicitTypeArgs: argumentContextTypeArgs, ctx: ctx, locals: &locals
             ) : nil
         let argTypes = preparedArgs?.argTypes ?? args.map { arg -> TypeID in
             sema.bindings.exprType(for: arg.expr) ?? driver.inferExpr(arg.expr, ctx: ctx, locals: &locals)
@@ -438,6 +529,7 @@ extension CallTypeChecker {
             calleeName: calleeName,
             args: callArgs,
             explicitTypeArgs: explicitTypeArgs,
+            typeAliasConstructor: typeAliasConstructor,
             elvisLhsExpectedTypeHint: ctx.isElvisBranchExpectedTypeHint,
             elvisRhsCallResultTypeHint: ctx.elvisRhsCallResultTypeHint
         )
@@ -446,6 +538,7 @@ extension CallTypeChecker {
             resolved = resolveCallRespectingLambdaReturnType(
                 candidates: vis, args: args, argTypes: argTypes, range: range,
                 calleeName: calleeName, explicitTypeArgs: explicitTypeArgs,
+                typeAliasConstructor: typeAliasConstructor,
                 expectedType: request.expectedType, implicitReceiverType: nil,
                 lambdaLiteralIndices: preparedArgs.lambdaLiteralIndices,
                 inputOnlyLambdaIndices: preparedArgs.inputOnlyLambdaIndices,

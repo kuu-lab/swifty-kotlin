@@ -73,7 +73,7 @@ extension LambdaLowerer {
             hasClosureParam: isCollectionHOFReference
         )
         if isCollectionHOFReference {
-            emitRawFunctionArityTag(
+            emitFunctionValueTypeTag(
                 callableExpr,
                 functionType: callableFunctionType,
                 sema: sema,

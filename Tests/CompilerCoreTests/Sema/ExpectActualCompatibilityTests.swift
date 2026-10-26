@@ -5,6 +5,35 @@ import Testing
 
 @Suite
 struct ExpectActualCompatibilityTests {
+    @Test
+    func genericExpectFactoryResultRetainsMutablePropertySetter() throws {
+        let ctx = makeContextFromSources([
+            """
+            package sample.kmp
+            expect class AtomicRef<T>(initial: T) { var value: T }
+            expect fun <T> atomic(initial: T): AtomicRef<T>
+            fun updateOwner() {
+                val owner = atomic<String?>(null)
+                owner.value = "owner"
+                val direct = AtomicRef<String?>(null)
+                direct.value = "direct"
+            }
+            """,
+            """
+            package sample.kmp
+            actual class AtomicRef<T> actual constructor(initial: T) {
+                actual var value: T = initial
+            }
+            actual fun <T> atomic(initial: T): AtomicRef<T> = error("stub")
+            """,
+        ])
+
+        try runSema(ctx)
+
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.isEmpty, "Unexpected diagnostics for a mutable expect property: \(errors)")
+    }
+
     @Test(arguments: [false, true])
     func testImportedExpectLinksToLocalActual(indexed: Bool) throws {
         let libraryDirectory = try makeImportedExpectLibrary(indexed: indexed)

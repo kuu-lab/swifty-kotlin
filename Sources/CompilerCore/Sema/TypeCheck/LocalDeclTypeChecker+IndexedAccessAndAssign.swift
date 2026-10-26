@@ -101,6 +101,7 @@ extension LocalDeclTypeChecker {
         receiverExpr: ExprID,
         indices: [ExprID],
         range: SourceRange,
+        expectedType: TypeID?,
         ctx: TypeInferenceContext,
         locals: inout LocalBindings
     ) -> TypeID {
@@ -152,7 +153,7 @@ extension LocalDeclTypeChecker {
         // Member existence does not imply applicability. Probe without emitting
         // diagnostics, retaining even ambiguous viable members ahead of extensions.
         if ctx.resolver.probeCall(
-            candidates: getCandidates, call: getCall, expectedType: nil,
+            candidates: getCandidates, call: getCall, expectedType: expectedType,
             implicitReceiverType: receiverType, ctx: sema
         ).viableCandidates.isEmpty {
             let extensions = collectIndexedOperatorExtensionCandidates(
@@ -165,7 +166,7 @@ extension LocalDeclTypeChecker {
             let resolved = ctx.resolver.resolveCall(
                 candidates: getCandidates,
                 call: getCall,
-                expectedType: nil,
+                expectedType: expectedType,
                 implicitReceiverType: receiverType,
                 ctx: ctx.sema
             )
@@ -227,7 +228,7 @@ extension LocalDeclTypeChecker {
                         calleeName: getName,
                         args: callArgs
                     ),
-                    expectedType: nil,
+                    expectedType: expectedType,
                     implicitReceiverType: receiverType,
                     ctx: ctx.sema
                 )

@@ -156,7 +156,9 @@ func runtimeRenderAnyForPrint(_ value: Int) -> String {
         return "kotlin.collections.IndexingIterable@\(hex)"
     }
     if let arrayBox = tryCast(raw, to: RuntimeArrayBox.self), type(of: arrayBox) == RuntimeArrayBox.self {
-        return runtimeFloatingPointArrayToString(value, box: arrayBox) ?? runtimeArrayIdentityToString(value)
+        return runtimeUnsignedArrayToString(value, box: arrayBox)
+            ?? runtimeFloatingPointArrayToString(value, box: arrayBox)
+            ?? runtimeArrayIdentityToString(value)
     }
     if let sbBox = tryCast(raw, to: RuntimeStringBuilderBox.self) {
         return sbBox.stringValue
@@ -180,6 +182,9 @@ func runtimeRenderAnyForPrint(_ value: Int) -> String {
         return runtimeResultToString(resultBox, render: runtimeRenderAnyForPrint)
     }
     if let rendered = runtimeJobWrapperDebugString(value) {
+        return rendered
+    }
+    if let rendered = runtimeDefaultObjectIdentityToString(value) {
         return rendered
     }
     return "<object \(raw)>"

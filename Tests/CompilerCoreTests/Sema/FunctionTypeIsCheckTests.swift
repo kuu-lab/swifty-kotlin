@@ -23,7 +23,7 @@ struct FunctionTypeIsCheckTests {
             let ctx = makeCompilationContext(inputs: [path], includeStdlib: false)
             try runSema(ctx)
             let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-            #expect(errors.count == 11)
+            #expect(errors.count == 8)
             #expect(errors.allSatisfy { $0.code == "KSWIFTK-SEMA-ERASED-TYPE" })
             #expect(errors.allSatisfy { $0.message.contains("Cannot check for instance of erased type") })
             let ast = try #require(ctx.ast)
@@ -66,6 +66,42 @@ struct FunctionTypeIsCheckTests {
             try runSema(ctx)
             #expect(!ctx.diagnostics.hasError, Comment(rawValue: "\(ctx.diagnostics.diagnostics)"))
             #expect(!ctx.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-SEMA-ERASED-TYPE" })
+        }
+    }
+
+    @Test
+    func testSuspendFunctionSupertypeIsChecksRespectArity() throws {
+        let source = """
+        import kotlin.coroutines.*
+
+        class C : suspend () -> Unit {
+            override suspend fun invoke() {}
+        }
+
+        interface I : suspend () -> Unit
+        fun interface FI : suspend () -> Unit
+        interface I2 : suspend (Int) -> Unit, suspend (Int, Int) -> Unit
+
+        @Suppress("INCOMPATIBLE_TYPES", "IMPOSSIBLE_IS_CHECK_ERROR")
+        fun checks(c: C, i: I, fi: FI, i2: I2): Boolean {
+            val c0 = c is SuspendFunction0<*>
+            val c1 = c is SuspendFunction1<*, *>
+            val i0 = i is SuspendFunction0<Unit>
+            val i1 = i is SuspendFunction1<*, *>
+            val fi0 = fi is SuspendFunction0<Unit>
+            val fi1 = fi is SuspendFunction1<*, *>
+            val i2a = i2 is SuspendFunction1<*, *>
+            val i2b = i2 is SuspendFunction2<*, *, *>
+            val i2c = i2 is SuspendFunction3<*, *, *, *>
+            return c0 && !c1 && i0 && !i1 && fi0 && !fi1 && i2a && i2b && !i2c
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], includeStdlib: false)
+            try runSema(ctx)
+            #expect(!ctx.diagnostics.hasError, Comment(rawValue: "\(ctx.diagnostics.diagnostics)"))
+            #expect(!ctx.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-SEMA-ERASED-TYPE" })
+            #expect(!ctx.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-SEMA-0415" })
         }
     }
 }

@@ -100,4 +100,43 @@ struct FunInterfaceConstructorReferenceExecutionTests {
         #expect(result.exitCode == 0, "\(result.stderr)")
         #expect(result.stdout == "OK\nOK\nOK\n")
     }
+
+    @Test
+    func samConstructorDispatchesAfterFunctionCastFromAny() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let input = directory.appendingPathComponent("sam-constructor-function-cast-from-any.kt").path
+        let output = directory.appendingPathComponent("sam-constructor-function-cast-from-any").path
+        try """
+        fun interface KR { fun invoke() }
+
+        fun test(a: Any) {
+            a as () -> Unit
+            KR(a).invoke()
+        }
+
+        fun main() {
+            var result = "Fail"
+            test { result = "OK" }
+            println(result)
+        }
+        """.write(toFile: input, atomically: true, encoding: .utf8)
+
+        try assertCompilationSucceeded(makeTestDriver().runForTesting(options: CompilerOptions(
+            moduleName: "SamConstructorFunctionCastFromAny",
+            inputs: [input],
+            outputPath: output,
+            emit: .executable,
+            target: defaultTargetTriple(),
+            optLevel: try #require(OptimizationLevel(rawValue: 0)),
+            stdlibLibraryPath: try testStdlibArtifactPath(),
+            allowDefaultStdlibLibrary: true
+        )))
+
+        let result = try CommandRunner.run(executable: output, arguments: [])
+        #expect(result.exitCode == 0, "\(result.stderr)")
+        #expect(result.stdout == "OK\n")
+    }
 }

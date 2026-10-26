@@ -44,6 +44,8 @@ extension JVMBackendTests {
             }
 
             val map: java.util.SortedMap<Int, String> = sortedMapOf(1 to "a", 2 to "b", 4 to "d", 6 to "f")
+            println(map.headMap(4))
+            println(map.tailMap(4))
             val subMap = map.subMap(2, 5)
             println(subMap.subMap(2, 5))
             try {
@@ -71,7 +73,7 @@ extension JVMBackendTests {
             }
         }
         """#
-        let expected = "[2, 4]\n[2, 4]\nnested set range rejected\n[1, 2]\n[4, 6]\n[2, 4]\n[2, 3, 4]\n[1, 2, 4, 6]\nout-of-range set add rejected\ninvalid set range rejected\n{2=b, 4=d}\nnested map range rejected\n{2=b, 4=d}\n{2=b, 3=c, 4=d}\n{1=a, 2=b, 4=d, 6=f}\nout-of-range map put rejected\ninvalid map range rejected\n"
+        let expected = "[2, 4]\n[2, 4]\nnested set range rejected\n[1, 2]\n[4, 6]\n[2, 4]\n[2, 3, 4]\n[1, 2, 4, 6]\nout-of-range set add rejected\ninvalid set range rejected\n{1=a, 2=b}\n{4=d, 6=f}\n{2=b, 4=d}\nnested map range rejected\n{2=b, 4=d}\n{2=b, 3=c, 4=d}\n{1=a, 2=b, 4=d, 6=f}\nout-of-range map put rejected\ninvalid map range rejected\n"
 
         try withWorkspace { root in
             let runtime = try m11Runtime()

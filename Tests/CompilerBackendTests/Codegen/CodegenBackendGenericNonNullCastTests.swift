@@ -24,6 +24,17 @@ struct CodegenBackendGenericNonNullCastTests {
         )
     }
 
+    /// KUU-3344: Explicit `T & Any` returns must preserve generic values and throw a catchable NPE for null.
+    @Test
+    func definitelyNonNullIntersectionCast() throws {
+        let source = try diffCaseSource("definitely_nonnull_type_parameter_cast.kt", file: #filePath)
+        try assertKotlinOutput(
+            source,
+            moduleName: "DefinitelyNonNullTypeParameterCast",
+            expected: "42\nOK\nNPE\nOK\nevaluations:1\nNPE\nevaluations:1\n"
+        )
+    }
+
     /// KUU-2410: Keep the upstream Kotlin/JVM box regression executable.
     @Test(arguments: [(false, 0), (true, 0), (true, 2)])
     func publicAsWithGenericBox(useArtifact: Bool, optimizationLevel: Int) throws {

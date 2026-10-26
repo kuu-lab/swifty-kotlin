@@ -544,6 +544,49 @@ struct JVMInteropNioSourceContractsTests {
         #expect(seen == ["__kk_bytearrayinputstream_new", "__kk_bytearray_output_stream_new_default", "__kk_bytearray_output_stream_new"])
     }
 
+    @Test(arguments: [false, true])
+    func stringBackedJavaIOConstructorsResolveFromSourceAndArtifact(library: Bool) throws {
+        let (ctx, initial) = try context("""
+        fun probe() {
+            val sw = java.io.StringWriter()
+            val sr = java.io.StringReader("x")
+            val writer: java.io.Writer = sw
+            val reader: java.io.Reader = sr
+            val pw = java.io.PrintWriter(writer)
+            val sb = java.lang.StringBuffer("a")
+            pw.print("b")
+            sw.toString()
+            sr.read()
+            sb.toString()
+            reader.close()
+        }
+        """, library: library)
+        defer { unchanged(ctx, initial) }
+        try runSema(ctx)
+        try #require(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+        let sema = try #require(ctx.sema)
+        for (name, kind, constructorCount) in [
+            ("java.io.StringWriter", SymbolKind.class, 2),
+            ("java.io.StringReader", .class, 1),
+            ("java.io.PrintWriter", .class, 2),
+            ("java.lang.StringBuffer", .typeAlias, 0),
+        ] {
+            let ids = sema.symbols.lookupAll(fqName: name.split(separator: ".").map { ctx.interner.intern(String($0)) })
+            let matches = ids.compactMap { sema.symbols.symbol($0) }.filter { $0.kind == kind }
+            try #require(matches.count == 1, "Missing declaration: \(name)")
+            let symbol = try #require(matches.first)
+            #expect(symbol.flags.contains(.importedLibrary) == library)
+            #expect(sema.symbols.isSourceBackedSymbol(symbol.id))
+            if constructorCount > 0 {
+                let constructors = sema.symbols.children(of: symbol.id).filter {
+                    sema.symbols.symbol($0)?.kind == .constructor
+                }
+                #expect(constructors.count == constructorCount, "\(name)")
+                #expect(constructors.allSatisfy(sema.symbols.isSourceBackedSymbol), "\(name)")
+            }
+        }
+    }
+
     /// KUU-3078: The public PrintStream(OutputStream) constructor accepts a bundled memory stream.
     @Test
     func printStreamAcceptsPublicMemoryStreamConstructorInSourceMode() throws {

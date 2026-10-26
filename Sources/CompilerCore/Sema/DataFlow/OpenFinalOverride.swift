@@ -43,6 +43,136 @@ extension DataFlowSemaPhase {
         }
     }
 
+    /// Expression-body overrides have placeholder return types during the
+    /// header pass. Validate their covariance after type checking publishes the
+    /// inferred signatures.
+    func validateInferredOverrideReturnTypes(
+        ast: ASTModule,
+        symbols: SymbolTable,
+        bindings: BindingTable,
+        types: TypeSystem,
+        diagnostics: DiagnosticEngine,
+        interner: StringInterner,
+        compilationModuleName: String
+    ) {
+        let ctx = OpenFinalOverrideContext(
+            ast: ast,
+            symbols: symbols,
+            bindings: bindings,
+            types: types,
+            diagnostics: diagnostics,
+            interner: interner,
+            compilationModuleFQN: interner.intern(compilationModuleName)
+        )
+
+        for file in ast.sortedFiles {
+            for declID in file.topLevelDecls {
+                validateInferredOverrideReturnTypes(in: declID, ctx: ctx)
+            }
+        }
+    }
+
+    private func validateInferredOverrideReturnTypes(
+        in declID: DeclID,
+        ctx: OpenFinalOverrideContext
+    ) {
+        guard let declaration = ctx.ast.arena.decl(declID) else { return }
+
+        let memberFunctions: [DeclID]
+        let nestedDeclarations: [DeclID]
+        switch declaration {
+        case let .classDecl(classDecl):
+            memberFunctions = classDecl.memberFunctions
+            nestedDeclarations = classDecl.nestedClasses + classDecl.nestedObjects
+                + (classDecl.companionObject.map { [$0] } ?? [])
+            for entry in classDecl.enumEntries {
+                for memberDeclID in entry.memberFunctions {
+                    validateInferredOverrideReturnType(of: memberDeclID, ctx: ctx)
+                }
+                for nestedDeclID in entry.nestedClasses {
+                    validateInferredOverrideReturnTypes(in: nestedDeclID, ctx: ctx)
+                }
+            }
+        case let .interfaceDecl(interfaceDecl):
+            memberFunctions = interfaceDecl.memberFunctions
+            nestedDeclarations = interfaceDecl.nestedClasses + interfaceDecl.nestedObjects
+                + (interfaceDecl.companionObject.map { [$0] } ?? [])
+        case let .objectDecl(objectDecl):
+            memberFunctions = objectDecl.memberFunctions
+            nestedDeclarations = objectDecl.nestedClasses + objectDecl.nestedObjects
+        default:
+            return
+        }
+
+        for memberDeclID in memberFunctions {
+            validateInferredOverrideReturnType(of: memberDeclID, ctx: ctx)
+        }
+        for nestedDeclID in nestedDeclarations {
+            validateInferredOverrideReturnTypes(in: nestedDeclID, ctx: ctx)
+        }
+    }
+
+    private func validateInferredOverrideReturnType(
+        of declID: DeclID,
+        ctx: OpenFinalOverrideContext
+    ) {
+        guard case let .funDecl(function)? = ctx.ast.arena.decl(declID),
+              function.returnType == nil,
+              case let .expr(bodyExprID, _) = function.body,
+              function.modifiers.contains(.override),
+              let bodyType = ctx.bindings.exprType(for: bodyExprID),
+              bodyType != ctx.types.errorType,
+              let memberSymbol = ctx.bindings.declSymbols[declID],
+              let member = ctx.symbols.symbol(memberSymbol),
+              let ownerSymbol = ctx.symbols.parentSymbol(for: memberSymbol),
+              let signature = ctx.symbols.functionSignature(for: memberSymbol)
+        else {
+            return
+        }
+
+        let parent: OFOInheritedMember?
+        if member.flags.contains(.memberExtension) {
+            parent = findInheritedFunction(
+                named: function.name,
+                for: ownerSymbol,
+                childMember: memberSymbol,
+                requireMatchingSignature: true,
+                ctx: ctx
+            )
+        } else {
+            parent = findInheritedMember(
+                named: function.name,
+                for: ownerSymbol,
+                symbols: ctx.symbols,
+                parameterTypes: signature.parameterTypes
+            )
+        }
+        guard let parent,
+              let parentSymbol = ctx.symbols.symbol(parent.memberID),
+              isMemberOverridable(parentSymbol, parent: parent)
+        else { return }
+
+        if (member.flags.contains(.memberExtension) || parentSymbol.flags.contains(.memberExtension)),
+           !overrideFunctionSignatureMatches(
+               childMember: memberSymbol,
+               parentMember: parent.memberID,
+               childOwner: ownerSymbol,
+               requireCovariantReturn: false,
+               ctx: ctx
+           ) {
+            return
+        }
+
+        validateReturnTypeCovariance(
+            childReturnType: signature.returnType,
+            parentSymbol: parentSymbol,
+            memberName: function.name,
+            memberRange: function.range,
+            ownerSymbol: ownerSymbol,
+            ctx: ctx
+        )
+    }
+
     private func validateOFODecl(
         _ declID: DeclID,
         ctx: OpenFinalOverrideContext
@@ -458,7 +588,7 @@ extension DataFlowSemaPhase {
             // Using that placeholder would produce false KSWIFTK-SEMA-OVERRIDE-RETURN
             // diagnostics because `Any` is not a subtype of the parent's specific
             // return type (e.g. Unit, String). Covariance of such functions is
-            // deferred until explicit annotations are present.
+            // checked after TypeCheckSemaPhase publishes their inferred returns.
             let returnType: TypeID? = if fun.returnType != nil {
                 ctx.bindings.declSymbols[declID]
                     .flatMap { ctx.symbols.functionSignature(for: $0)?.returnType }

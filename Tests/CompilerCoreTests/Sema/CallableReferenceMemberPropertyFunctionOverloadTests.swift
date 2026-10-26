@@ -5,6 +5,32 @@ import Testing
 
 @Suite
 struct CallableReferenceMemberPropertyFunctionOverloadTests {
+    @Test
+    func rejectsUncontextualOverloadedCallableReferences() throws {
+        let ctx = makeContextFromSource("""
+        class A {
+            val x: Int = 1
+            fun x(): String = "OK"
+        }
+
+        fun main() {
+            val values = listOf(1, 2)
+            val first = values::first
+            val upper = "a"::uppercase
+            val print = ::println
+            val member = A::x
+        }
+        """)
+        do { try runSema(ctx) } catch {}
+
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        let ambiguousReferences = errors.filter {
+            $0.code == "KSWIFTK-TYPE-0001"
+                && $0.message.contains("No unambiguous callable reference")
+        }
+        #expect(ambiguousReferences.count == 4, "Expected all four overloaded references to be rejected: \(errors)")
+    }
+
     @Test(arguments: [false, true])
     func expectedTypeSelectsSameNamedPropertyOrFunction(allowDefaultStdlibLibrary: Bool) throws {
         if allowDefaultStdlibLibrary { TestStdlibCache.shared.prepare() }

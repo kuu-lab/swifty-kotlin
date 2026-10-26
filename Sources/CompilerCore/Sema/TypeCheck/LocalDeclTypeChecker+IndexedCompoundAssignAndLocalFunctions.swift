@@ -955,6 +955,11 @@ extension LocalDeclTypeChecker {
 
         var defaultBaseLocals = locals
         defaultBaseLocals[name] = (funType, funSymbol, false, true)
+        for parameter in contextParameterDeclarations {
+            if let parameterName = parameter.declaration.name {
+                defaultBaseLocals[parameterName] = (parameter.type, parameter.symbol, false, true)
+            }
+        }
         driver.declChecker.typeCheckParameterDefaultValues(
             valueParams,
             signature: signature,

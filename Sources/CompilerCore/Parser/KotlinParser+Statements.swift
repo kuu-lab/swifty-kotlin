@@ -49,6 +49,8 @@ extension KotlinParser {
             // declaration after it is valid (e.g. `class A { class B { } class C }`).
             let precededBySemicolon = lastConsumedToken?.kind == .symbol(.semicolon)
             let precededByBlockClose = lastConsumedToken?.kind == .symbol(.rBrace)
+            let startsCompanionMember = isClassBody && token.kind == .keyword(.companion)
+                && stream.peek(1).kind == .keyword(.object)
             let hasDeclarationPrefix: Bool
             if token.kind == .softKeyword(.context)
                 || (!isClassBody && token.kind == .symbol(.at))
@@ -60,7 +62,7 @@ extension KotlinParser {
             let isAnonymousFunction = isAnonymousFunctionExpressionStart()
             if isDeclarationStart(token.kind), hasDeclarationPrefix, !isObjectExpressionStart(token),
                !isAnonymousFunction,
-               hasLeadingNewline(token) || atBlockStart || precededBySemicolon || precededByBlockClose
+               hasLeadingNewline(token) || atBlockStart || precededBySemicolon || precededByBlockClose || startsCompanionMember
             {
                 children.append(.node(parseDeclaration(isLocal: !isClassBody)))
                 atBlockStart = false
@@ -548,7 +550,7 @@ extension KotlinParser {
 
         while !stream.atEOF() {
             let token = stream.peek()
-            if depth.paren == 0, depth.bracket == 0 {
+            if depth.paren == 0, depth.bracket == 0, depth.brace == 0 {
                 if token.kind == .symbol(.comma) || token.kind == .symbol(.arrow) || token.kind == .symbol(.rBrace) {
                     break
                 }
@@ -913,7 +915,9 @@ extension KotlinParser {
             let isAnonymousFunction = isAnonymousFunctionExpressionStart(at: cursor)
             let isAnonymousObject = token.kind == .keyword(.object)
                 && (stream.peek(cursor + 1).kind == .symbol(.lBrace) || stream.peek(cursor + 1).kind == .symbol(.colon))
-            let startsDeclaration = isDeclarationStart(token.kind) && !isAnonymousFunction && !isAnonymousObject
+            let isCompanionCall = token.kind == .keyword(.companion)
+                && stream.peek(cursor + 1).kind == .symbol(.lParen)
+            let startsDeclaration = isDeclarationStart(token.kind) && !isAnonymousFunction && !isAnonymousObject && !isCompanionCall
             let result = startsDeclaration
                 && (!sawValueModifier || token.kind == .keyword(.class))
             if sawValueModifier, !result {
@@ -1084,12 +1088,32 @@ extension KotlinParser {
         var sawSupertypeColon = false
         var sawTryKeyword = false
         var sawIfKeyword = false
+        var functionTypeNameAfterAnnotation = false
         var depth = BracketDepth()
         var templateExpressionDepth = 0
         while !stream.atEOF() {
             let token = stream.peek()
             let atTopLevel = depth.isTopLevel
                 && templateExpressionDepth == 0
+            if stopsAtFunctionDelegation, atTopLevel, !sawAssignment {
+                let expectsTypeName = functionTypeNameAfterAnnotation || canStartTypeName(after: lastConsumedToken?.kind)
+                if token.kind == .symbol(.at), expectsTypeName {
+                    var work = 0
+                    if case let .complete(end) = annotationPrefixEnd(from: 0, work: &work) {
+                        for _ in 0..<end { _ = consumeToken(into: &children, range: &range) }
+                        functionTypeNameAfterAnnotation = true
+                        progress = true
+                        continue
+                    }
+                }
+                // Class members do not require a separator after a bodyless
+                // function. Keep a type named `companion` in the signature,
+                // but leave a following companion declaration to parseBlock.
+                if !expectsTypeName, token.kind == .keyword(.companion), stream.peek(1).kind == .keyword(.object) {
+                    return
+                }
+                functionTypeNameAfterAnnotation = false
+            }
             if stopsAtFunctionDelegation,
                atTopLevel,
                !sawAssignment,

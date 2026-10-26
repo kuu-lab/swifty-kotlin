@@ -373,7 +373,7 @@ extension DataFlowSemaPhase {
             interner: interner
         )
         // Source-backed concrete readers inherit this Java abstract base.
-        symbols.insertFlags([.abstractType], for: readerSymbol)
+        symbols.insertFlags([.abstractType, .openType], for: readerSymbol)
         let bufferedReaderSymbol = ensureClassSymbol(
             named: "BufferedReader",
             in: javaIOPkg,
@@ -494,6 +494,8 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
+        // Writer is an abstract Java base class for source-backed writers.
+        symbols.insertFlags([.abstractType], for: writerSymbol)
         let bufferedWriterSymbol = ensureClassSymbol(
             named: "BufferedWriter",
             in: javaIOPkg,
@@ -519,6 +521,12 @@ extension DataFlowSemaPhase {
         types.setNominalDirectSupertypes([writerCloseableSymbol], for: writerSymbol)
         symbols.setDirectSupertypes([writerSymbol, writerCloseableSymbol], for: bufferedWriterSymbol)
         types.setNominalDirectSupertypes([writerSymbol, writerCloseableSymbol], for: bufferedWriterSymbol)
+        symbols.insertFlags([.abstractType, .openType], for: writerSymbol)
+
+        let writerMembers = fileMemberRows(of: writerSymbol, type: writerType, symbols: symbols, interner: interner)
+        writerMembers.fn("write", "__kk_buffered_writer_write", [("text", types.stringType)], ret: types.unitType)
+        writerMembers.fn("flush", "__kk_buffered_writer_flush", ret: types.unitType)
+        writerMembers.fn("close", "__kk_buffered_writer_close_throwing", ret: types.unitType)
 
         let bufferedWriterMembers = fileMemberRows(of: bufferedWriterSymbol, type: bufferedWriterType, symbols: symbols, interner: interner)
         bufferedWriterMembers.fn("write", "__kk_buffered_writer_write", [("text", types.stringType)], ret: types.unitType)
@@ -526,6 +534,13 @@ extension DataFlowSemaPhase {
 
         bufferedWriterMembers.fn("flush", "__kk_buffered_writer_flush", ret: types.unitType)
         bufferedWriterMembers.fn("close", "__kk_buffered_writer_close_throwing", ret: types.unitType)
+        for member in symbols.children(of: bufferedWriterSymbol) {
+            guard let info = symbols.symbol(member), info.kind == .function else { continue }
+            let name = interner.resolve(info.name)
+            if name == "write" || name == "flush" || name == "close" {
+                symbols.insertFlags([.openType, .overrideMember], for: member)
+            }
+        }
 
         let javaLangPkg = ensurePackage(
             path: ["java", "lang"],
@@ -592,6 +607,9 @@ extension DataFlowSemaPhase {
         symbols.setPropertyType(byteArrayInputStreamType, for: byteArrayInputStreamSymbol)
         symbols.setPropertyType(sequenceInputStreamType, for: sequenceInputStreamSymbol)
         symbols.setPropertyType(outputStreamType, for: outputStreamSymbol)
+
+        symbols.insertFlags([.abstractType, .openType], for: inputStreamSymbol)
+        symbols.insertFlags([.abstractType, .openType], for: outputStreamSymbol)
 
         // Register InputStream/OutputStream as Closeable subtypes (STDLIB-IO-093)
         // so that .use {} works with stream resources.
@@ -1019,6 +1037,18 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
+
+        for (owner, names) in [
+            (writerSymbol, Set(["write", "flush", "close"])),
+            (inputStreamSymbol, Set(["read", "available", "skip", "readBytes", "mark", "reset", "markSupported", "close"])),
+            (outputStreamSymbol, Set(["write", "flush", "close"])),
+        ] {
+            for member in symbols.children(of: owner) {
+                guard let info = symbols.symbol(member), info.kind == .function,
+                      names.contains(interner.resolve(info.name)) else { continue }
+                symbols.insertFlags(.openType, for: member)
+            }
+        }
 
 
     }

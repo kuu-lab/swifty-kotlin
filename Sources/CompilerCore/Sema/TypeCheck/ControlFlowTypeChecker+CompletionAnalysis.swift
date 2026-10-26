@@ -18,7 +18,21 @@ extension ControlFlowTypeChecker {
                 return true
             }
         }
-        if ctx.sema.bindings.exprType(for: id) == ctx.sema.types.nothingType {
+        // A Nothing-typed structured expression in an inline argument may still
+        // reach its caller through a local return. Inspect its branches so the
+        // bound return target, rather than the aggregate type, decides completion.
+        let isStructuredInlineLambdaBody: Bool = {
+            guard inlinedLambda != nil else { return false }
+            switch expr {
+            case .blockExpr, .ifExpr, .whenExpr, .tryExpr:
+                return true
+            default:
+                return false
+            }
+        }()
+        if ctx.sema.bindings.exprType(for: id) == ctx.sema.types.nothingType,
+           !isStructuredInlineLambdaBody
+        {
             return false
         }
         func completes(_ child: ExprID) -> Bool {
@@ -29,7 +43,20 @@ extension ControlFlowTypeChecker {
             if let finallyExpr, !completes(finallyExpr) { return false }
             return completes(body) || catchClauses.contains { completes($0.body) }
         case let .blockExpr(statements, trailingExpr, _):
-            return statements.allSatisfy(completes) && (trailingExpr.map(completes) ?? true)
+            for statement in statements {
+                if let inlinedLambda,
+                   let statementExpr = ctx.ast.arena.expr(statement),
+                   case .returnExpr = statementExpr,
+                   ctx.sema.bindings.lambdaReturnTargets[statement] == inlinedLambda
+                {
+                    // A local return exits this lambda body and completes its
+                    // invocation. Later statements are already unreachable and
+                    // must not make the surrounding inline call look terminal.
+                    return true
+                }
+                if !completes(statement) { return false }
+            }
+            return trailingExpr.map(completes) ?? true
         case let .ifExpr(condition, thenExpr, elseExpr, _):
             return completes(condition) && (completes(thenExpr) || (elseExpr.map(completes) ?? true))
         case let .whenExpr(subject, branches, elseExpr, _):

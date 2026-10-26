@@ -127,7 +127,9 @@ func runtimeElementToString(_ elem: Int) -> String {
         return "\(runtimeFormatFloatingPoint(rangeBox.first))\(separator)\(runtimeFormatFloatingPoint(rangeBox.last))"
     }
     if let arrayBox = tryCast(ptr, to: RuntimeArrayBox.self), type(of: arrayBox) == RuntimeArrayBox.self {
-        return runtimeFloatingPointArrayToString(elem, box: arrayBox) ?? runtimeArrayIdentityToString(elem)
+        return runtimeUnsignedArrayToString(elem, box: arrayBox)
+            ?? runtimeFloatingPointArrayToString(elem, box: arrayBox)
+            ?? runtimeArrayIdentityToString(elem)
     }
     if let sbBox = tryCast(ptr, to: RuntimeStringBuilderBox.self) {
         return sbBox.stringValue
@@ -161,11 +163,43 @@ func runtimeElementToString(_ elem: Int) -> String {
     if let rendered = runtimeJobWrapperDebugString(elem) {
         return rendered
     }
+    if let rendered = runtimeDefaultObjectIdentityToString(elem) {
+        return rendered
+    }
     // Registered object of a type this renderer does not know: keep it
     // recognisable as an object instead of leaking its address as a number,
     // matching `runtimeRenderAnyForPrint`.  Non-object handles already
     // returned their numeric value above.
     return "<object \(ptr)>"
+}
+
+/// Renders Kotlin/JVM's default Any.toString() shape when runtime class metadata is available.
+func runtimeDefaultObjectIdentityToString(_ raw: Int) -> String? {
+    let className: String?
+    if let sequence = runtimeSequenceBox(from: raw),
+       let lastStep = sequence.steps.last,
+       case .mapStep = lastStep
+    {
+        // Runtime-backed sequences collapse the stdlib's wrapper objects into one box.
+        className = "kotlin.sequences.TransformingSequence"
+    } else if let typeID = runtimeObjectTypeID(rawValue: raw),
+              let metadata = runtimeKClassMetadataRegistry.lookup(
+                typeToken: runtimeNominalTypeToken(typeID)
+              )
+    {
+        className = runtimeJavaBinaryName(
+            metadata.qualifiedName,
+            metadataDisplayName: metadata.displayName
+        )
+    } else {
+        className = nil
+    }
+
+    guard let className, !className.isEmpty, className != "Unknown" else {
+        return nil
+    }
+    let hash = UInt32(truncatingIfNeeded: kk_any_hashCode(raw, 1))
+    return "\(className)@\(String(hash, radix: 16))"
 }
 
 func runtimeElementToString(_ value: RuntimeValue) -> String {

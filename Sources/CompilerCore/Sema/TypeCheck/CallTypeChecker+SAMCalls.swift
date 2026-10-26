@@ -8,8 +8,8 @@ extension CallTypeChecker {
               typeArgs.isEmpty,
               args.count == 1,
               isSamConvertibleArgument(args[0].expr, ast: ctx.ast),
-              let calleeExpr = ctx.ast.arena.expr(callee),
-              case let .nameRef(calleeName, _) = calleeExpr
+              let qualifiedName = qualifiedCalleePath(for: callee, ast: ctx.ast),
+              let calleeName = qualifiedName.last
         else {
             return nil
         }
@@ -26,12 +26,26 @@ extension CallTypeChecker {
             }
         }
         guard visibleCallables.isEmpty else { return nil }
-        return samConstructorTarget(named: calleeName, ctx: ctx)?.interfaceSymbol
+        return samConstructorTarget(named: calleeName, qualifiedName: qualifiedName, ctx: ctx)?.interfaceSymbol
+    }
+
+    func samConstructorLambdaArgument(_ exprID: ExprID, ctx: TypeInferenceContext) -> ExprID? {
+        guard let expr = ctx.ast.arena.expr(exprID),
+              case let .call(_, typeArgs, args, _) = expr,
+              typeArgs.isEmpty,
+              args.count == 1,
+              isSamConvertibleArgument(args[0].expr, ast: ctx.ast),
+              inferableSamConstructorSymbol(exprID, ctx: ctx) != nil
+        else {
+            return nil
+        }
+        return args[0].expr
     }
 
     func inferSamConvertedCallExpr(
         _ id: ExprID,
         calleeName: InternedString,
+        qualifiedName: [InternedString]? = nil,
         args: [CallArgument],
         range: SourceRange,
         ctx: TypeInferenceContext,
@@ -45,7 +59,7 @@ extension CallTypeChecker {
         }
         if samArgIndices.isEmpty {
             return inferSamConstructorFromFunctionValue(
-                id, calleeName: calleeName, args: args, ctx: ctx, locals: &locals,
+                id, calleeName: calleeName, qualifiedName: qualifiedName, args: args, ctx: ctx, locals: &locals,
                 expectedType: expectedType, explicitTypeArgs: explicitTypeArgs
             )
         }
@@ -74,7 +88,9 @@ extension CallTypeChecker {
         // A same-named factory participates in ordinary overload resolution before
         // the synthetic SAM constructor. Check applicability without inferring a
         // losing lambda body or suppressing errors in the winning factory context.
-        let hasSamConstructor = samConstructorTarget(named: calleeName, ctx: ctx) != nil
+        let hasSamConstructor = samConstructorTarget(
+            named: calleeName, qualifiedName: qualifiedName, ctx: ctx
+        ) != nil
         if hasSamConstructor {
             let shapes = samFactoryShapes(
                 visibleCandidates, calleeName: calleeName, args: args, range: range,
@@ -120,17 +136,33 @@ extension CallTypeChecker {
             }
             return driver.helpers.samFunctionType(for: signature.parameterTypes[samArgIndex], sema: ctx.sema) != nil
         }
+        var inferredNonSamArgTypes: [Int: TypeID] = [:]
         let narrowedSamCandidates = narrowSamCandidates(
             samCompatibleCandidates,
             args: args,
             samArgIndex: samArgIndex,
             ctx: ctx,
-            locals: &locals
+            locals: &locals,
+            inferredNonSamArgTypes: &inferredNonSamArgTypes
         )
 
         if narrowedSamCandidates.count == 1,
            let signature = ctx.sema.symbols.functionSignature(for: narrowedSamCandidates[0])
         {
+            let contextualSamExpectedType: TypeID? = {
+                guard case .lambdaLiteral = ctx.ast.arena.expr(samArgExpr) else { return nil }
+                return lambdaLiteralExpectedType(
+                    at: samArgIndex,
+                    args: args,
+                    callRange: range,
+                    candidates: narrowedSamCandidates,
+                    explicitTypeArgs: explicitTypeArgs,
+                    inferredNonLambdaArgTypes: inferredNonSamArgTypes,
+                    resolver: ctx.resolver,
+                    sema: ctx.sema,
+                    ctx: ctx
+                ).type
+            }()
             var argTypes: [CallArg] = []
             argTypes.reserveCapacity(args.count)
             for (index, argument) in args.enumerated() {
@@ -139,7 +171,9 @@ extension CallTypeChecker {
                     argument.expr,
                     ctx: ctx,
                     locals: &locals,
-                    expectedType: parameterExpectedType
+                    expectedType: index == samArgIndex
+                        ? contextualSamExpectedType ?? parameterExpectedType
+                        : parameterExpectedType
                 )
                 let resolutionType = ctx.sema.bindings.isSamConversion(argument.expr)
                     ? ctx.sema.bindings.samUnderlyingFunctionType(for: argument.expr) ?? inferredType
@@ -188,6 +222,7 @@ extension CallTypeChecker {
         if args.count == 1, let samType = inferSamConstructorCallExpr(
             id,
             calleeName: calleeName,
+            qualifiedName: qualifiedName,
             argExpr: samArgExpr,
                ctx: ctx,
                locals: &locals,
@@ -238,6 +273,7 @@ extension CallTypeChecker {
     private func inferSamConstructorFromFunctionValue(
         _ id: ExprID,
         calleeName: InternedString,
+        qualifiedName: [InternedString]?,
         args: [CallArgument],
         ctx: TypeInferenceContext,
         locals: inout LocalBindings,
@@ -249,7 +285,7 @@ extension CallTypeChecker {
               case let .nameRef(argName, _)? = ctx.ast.arena.expr(args[0].expr),
               let local = locals[argName],
               case .functionType = ctx.sema.types.kind(of: local.type),
-              samConstructorTarget(named: calleeName, ctx: ctx) != nil
+              samConstructorTarget(named: calleeName, qualifiedName: qualifiedName, ctx: ctx) != nil
         else { return nil }
         let hasCallable = !ctx.filterByVisibility(
             ctx.cachedScopeLookup(calleeName).filter { candidate in
@@ -259,7 +295,8 @@ extension CallTypeChecker {
         ).visible.isEmpty
         guard !hasCallable else { return nil }
         return inferSamConstructorCallExpr(
-            id, calleeName: calleeName, argExpr: args[0].expr, ctx: ctx, locals: &locals,
+            id, calleeName: calleeName, qualifiedName: qualifiedName,
+            argExpr: args[0].expr, ctx: ctx, locals: &locals,
             expectedType: expectedType, explicitTypeArgs: explicitTypeArgs
         )
     }
@@ -269,15 +306,19 @@ extension CallTypeChecker {
         args: [CallArgument],
         samArgIndex: Int,
         ctx: TypeInferenceContext,
-        locals: inout LocalBindings
+        locals: inout LocalBindings,
+        inferredNonSamArgTypes: inout [Int: TypeID]
     ) -> [SymbolID] {
-        guard candidates.count > 1 else {
+        guard !candidates.isEmpty else {
             return candidates
         }
-
-        var inferredNonSamArgTypes: [Int: TypeID] = [:]
         for (index, argument) in args.enumerated() where index != samArgIndex {
-            inferredNonSamArgTypes[index] = driver.inferExpr(argument.expr, ctx: ctx, locals: &locals)
+            if inferredNonSamArgTypes[index] == nil {
+                inferredNonSamArgTypes[index] = driver.inferExpr(argument.expr, ctx: ctx, locals: &locals)
+            }
+        }
+        guard candidates.count > 1 else {
+            return candidates
         }
 
         let narrowed = candidates.filter { candidate in
@@ -340,8 +381,9 @@ extension CallTypeChecker {
         return signature.parameterTypes[varargIndex]
     }
 
-    private func samConstructorTarget(
+    func samConstructorTarget(
         named name: InternedString,
+        qualifiedName: [InternedString]? = nil,
         ctx: TypeInferenceContext
     ) -> (interfaceSymbol: SymbolID, typeAliasSymbol: SymbolID?)? {
         let sema = ctx.sema
@@ -349,56 +391,49 @@ extension CallTypeChecker {
             guard let symbol = ctx.cachedSymbol(candidate) else { return false }
             return symbol.kind == .interface && symbol.flags.contains(.funInterface)
         }
+        func target(in candidates: [SymbolID]) -> (interfaceSymbol: SymbolID, typeAliasSymbol: SymbolID?)? {
+            if let interface = candidates.first(where: isFunInterface) {
+                return (interface, nil)
+            }
+            for alias in candidates where ctx.cachedSymbol(alias)?.kind == .typeAlias {
+                let typeParameters = sema.symbols.typeAliasTypeParameters(for: alias)
+                let typeArgs = typeParameters.map { parameter in
+                    TypeArg.invariant(sema.types.make(.typeParam(TypeParamType(symbol: parameter))))
+                }
+                guard let expanded = driver.helpers.expandTypeAlias(
+                    alias,
+                    typeArgs: typeArgs,
+                    sema: sema,
+                    visited: [],
+                    depth: 0
+                ),
+                   case let .classType(classType) = sema.types.kind(of: expanded),
+                   classType.nullability == .nonNull,
+                   isFunInterface(classType.classSymbol)
+                else {
+                    continue
+                }
+                return (classType.classSymbol, alias)
+            }
+            return nil
+        }
+
+        if let qualifiedName, qualifiedName.count > 1 {
+            let qualifiedCandidates = ctx.filterByVisibility(sema.symbols.lookupAll(fqName: qualifiedName)).visible
+            if let target = target(in: qualifiedCandidates) {
+                return target
+            }
+        }
 
         let scoped = ctx.filterByVisibility(ctx.cachedScopeLookup(name)).visible
-        if let interface = scoped.first(where: isFunInterface) {
-            return (interface, nil)
-        }
-        for alias in scoped where ctx.cachedSymbol(alias)?.kind == .typeAlias {
-            let typeParameters = sema.symbols.typeAliasTypeParameters(for: alias)
-            let typeArgs = typeParameters.map { parameter in
-                TypeArg.invariant(sema.types.make(.typeParam(TypeParamType(symbol: parameter))))
-            }
-            guard let expanded = driver.helpers.expandTypeAlias(
-                alias,
-                typeArgs: typeArgs,
-                sema: sema,
-                visited: [],
-                depth: 0
-            ),
-               case let .classType(classType) = sema.types.kind(of: expanded),
-               classType.nullability == .nonNull,
-               isFunInterface(classType.classSymbol)
-            else {
-                continue
-            }
-            return (classType.classSymbol, alias)
+        if let target = target(in: scoped) {
+            return target
         }
 
         let kotlinFQName = [ctx.interner.intern("kotlin"), name]
         let kotlinCandidates = ctx.filterByVisibility(sema.symbols.lookupAll(fqName: kotlinFQName)).visible
-        if let interface = kotlinCandidates.first(where: isFunInterface) {
-            return (interface, nil)
-        }
-        for alias in kotlinCandidates where ctx.cachedSymbol(alias)?.kind == .typeAlias {
-            let typeParameters = sema.symbols.typeAliasTypeParameters(for: alias)
-            let typeArgs = typeParameters.map { parameter in
-                TypeArg.invariant(sema.types.make(.typeParam(TypeParamType(symbol: parameter))))
-            }
-            guard let expanded = driver.helpers.expandTypeAlias(
-                alias,
-                typeArgs: typeArgs,
-                sema: sema,
-                visited: [],
-                depth: 0
-            ),
-               case let .classType(classType) = sema.types.kind(of: expanded),
-               classType.nullability == .nonNull,
-               isFunInterface(classType.classSymbol)
-            else {
-                continue
-            }
-            return (classType.classSymbol, alias)
+        if let target = target(in: kotlinCandidates) {
+            return target
         }
         return nil
     }
@@ -406,13 +441,16 @@ extension CallTypeChecker {
     private func inferSamConstructorCallExpr(
         _ id: ExprID,
         calleeName: InternedString,
+        qualifiedName: [InternedString]?,
         argExpr: ExprID,
         ctx: TypeInferenceContext,
         locals: inout LocalBindings,
         expectedType: TypeID?,
         explicitTypeArgs: [TypeID]
     ) -> TypeID? {
-        guard let target = samConstructorTarget(named: calleeName, ctx: ctx) else {
+        guard let target = samConstructorTarget(
+            named: calleeName, qualifiedName: qualifiedName, ctx: ctx
+        ) else {
             return nil
         }
         let interfaceSymID = target.interfaceSymbol
@@ -504,7 +542,10 @@ extension CallTypeChecker {
         )
 
         sema.bindings.markSamConversion(argExpr)
-        sema.bindings.bindSamUnderlyingFunctionType(argExpr, type: samFTTypeID)
+        sema.bindings.bindSamUnderlyingFunctionType(
+            argExpr,
+            type: sema.bindings.samUnderlyingFunctionType(for: argExpr) ?? samFTTypeID
+        )
         sema.bindings.bindSamInterfaceType(argExpr, type: interfaceType)
 
         sema.bindings.bindExprType(id, type: interfaceType)

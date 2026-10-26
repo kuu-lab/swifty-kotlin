@@ -177,14 +177,10 @@ extension NativeEmitter.FunctionEmissionContext {
             }
             return symbols.throwableMessageGetterSlot(for: owner, interner: interner) == slot
         }()
-        // The `kotlin.Any.toString` vtable slot likewise keeps the
-        // runtime's raw `Int` string-handle ABI: classes without an
-        // override leave `kk_any_member_to_string` registered in it and
-        // Kotlin overrides register a `kk_any_to_string_bridge_*` raw
-        // bridge, so the slot never holds a flat-aggregate function
-        // pointer. The indirect call must therefore use the
-        // `(Int, Int*) -> Int` shape and bridge the returned handle back
-        // to the flat String aggregate (KUU-3111 / KUU-3214).
+        // The Any.toString slot can hold either the raw runtime fallback or a
+        // flat-String Kotlin override. Use the raw ABI only when the slot's
+        // resolved implementation has no emitted Kotlin ABI; KUU-3197 moved
+        // Kotlin overrides back into the slot as flat-ABI functions.
         let isAnyToStringRawABISlot: Bool = {
             guard case let .vtable(slot) = dispatch,
                   let symbols
@@ -202,20 +198,45 @@ extension NativeEmitter.FunctionEmissionContext {
                         } == true
                 }
             }
-            if let typeSystem,
-               let receiverType = module.arena.exprType(receiver),
-               case let .classType(receiverClass) = typeSystem.kind(of: receiverType),
-               slotHasAnyToString(in: receiverClass.classSymbol)
-            {
-                return true
-            }
-            guard let symbol,
-                  symbol != .invalid,
-                  let owner = virtualCallNominalOwner(for: symbol, symbols: symbols)
+            let receiverNominal: SymbolID? = {
+                if let typeSystem,
+                   let receiverType = module.arena.exprType(receiver),
+                   case let .classType(receiverClass) = typeSystem.kind(of: receiverType)
+                {
+                    return receiverClass.classSymbol
+                }
+                guard let symbol,
+                      symbol != .invalid,
+                      let owner = virtualCallNominalOwner(for: symbol, symbols: symbols)
+                else {
+                    return nil
+                }
+                return owner
+            }()
+            guard let receiverNominal,
+                  slotHasAnyToString(in: receiverNominal),
+                  let layout = symbols.nominalLayout(for: receiverNominal)
             else {
                 return false
             }
-            return slotHasAnyToString(in: owner)
+
+            // Data-class synthesis creates its own toString declaration, but
+            // that method does not replace the inherited Any slot. In that
+            // case the slot still contains the raw runtime fallback even
+            // though the call-site symbol names an emitted Kotlin function.
+            // Only use the flat ABI when this exact slot has a source-backed
+            // Kotlin override registered in the receiver's layout.
+            let hasSourceOverrideInSlot = layout.vtableSlots.contains { candidate, candidateSlot in
+                guard candidateSlot == slot,
+                      let candidateInfo = symbols.symbol(candidate),
+                      !isSyntheticAnyToStringSymbol(candidateInfo, interner: interner)
+                else {
+                    return false
+                }
+                return internalFunctions[candidate] != nil
+                    || symbols.externalLinkName(for: candidate)?.hasPrefix("kk_fn_") == true
+            }
+            return !hasSourceOverrideInSlot
         }()
         // A vtable slot whose root-most declaration returns a String
         // aggregate (`toString`, `message` getters, `componentN`, ...) is
@@ -383,14 +404,11 @@ extension NativeEmitter.FunctionEmissionContext {
             false
         }
 
-        // The slot's declared signature — not the root-most member's
-        // external link — fixes the indirect-call ABI. `Any.toString` and
-        // friends link to runtime helpers (`kk_any_member_to_string`) that
-        // return a raw handle, but the registered vtable entry is always a
-        // Kotlin function or an `itableBridgeSymbolForMethod` bridge with
-        // the flat aggregate ABI. Using the runtime helper's signature
-        // here would declare the call `i64`-returning and miscall the flat
-        // implementation (KUU-3230).
+        // For source-backed overrides of String-returning root slots, the
+        // slot signature fixes the indirect-call ABI even if the root member
+        // links to a raw runtime helper. Runtime fallback entries are handled
+        // above; treating those as flat would miscall Kotlin overrides
+        // (KUU-3230).
         let sourceExternalFunctionConflictsWithDeclaredABI = virtualCallReturnsAggregate
             && (virtualSourceCallSignature ?? sourceExternalCallSignature)
                 .map { !stringAggregateBridge.isStringAggregateType($0.returnType) }
@@ -404,10 +422,8 @@ extension NativeEmitter.FunctionEmissionContext {
                 appendThrownChannel: true
             )
         } else if isAnyToStringRawABISlot {
-            // The `kotlin.Any.toString` slot's registered entries all use
-            // the runtime's raw `(Int, Int*) -> Int` handle ABI — either
-            // `kk_any_member_to_string` or a `kk_any_to_string_bridge_*`
-            // raw bridge — so only the indirect-call type matters here.
+            // The runtime fallback entry uses `(Int, Int*) -> Int`; Kotlin
+            // overrides are selected above with their flat source ABI.
             declareExternalFunction(
                 named: "__kk_any_toString__vslot",
                 argumentCount: argumentValues.count,

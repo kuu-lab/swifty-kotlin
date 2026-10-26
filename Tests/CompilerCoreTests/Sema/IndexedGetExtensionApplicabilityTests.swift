@@ -4,6 +4,29 @@ import Testing
 @Suite
 struct IndexedGetExtensionApplicabilityTests {
     @Test
+    func genericNullableOperatorGetUsesExpectedReturnType() throws {
+        let ctx = makeContextFromSource("""
+        interface Settings
+        inline operator fun <reified T : Any> Settings.get(key: String): T? = null
+        inline fun <reified T : Any> Settings.read(key: String): T? = null
+        fun indexed(settings: Settings): Int? = settings["x"]
+        fun directOperatorCall(settings: Settings): Int? = settings.get("x")
+        fun ordinaryCall(settings: Settings): Int? = settings.read("x")
+        fun explicitTypeArgument(settings: Settings): Int? = settings.get<Int>("x")
+        """)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let indexed = try #require(firstExprID(in: ast) { _, expr in
+            guard case let .indexedAccess(_, _, range) = expr else { return false }
+            return ctx.sourceManager.origin(of: range.start.file) == .user
+        })
+        #expect(sema.bindings.exprType(for: indexed) == sema.types.makeNullable(sema.types.intType))
+    }
+
+    @Test
     func integerLiteralIsContextualizedForFallbackExtension() throws {
         let ctx = makeContextFromSource("""
         class LongSlots { operator fun get(index: String): Int = 0 }

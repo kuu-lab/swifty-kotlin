@@ -222,6 +222,7 @@ public extension RuntimeABISpec {
                 abi.nt("__kk_arraydeque_get", "dequeRaw index"),
                 abi.nt("__kk_arraydeque_size", "dequeRaw"),
                 abi.nt("__kk_auto_closeable_create", "fnPtr closureRaw"),
+                abi.nt("__kk_closeable_create", "fnPtr closureRaw"),
             ]
     }()
 }

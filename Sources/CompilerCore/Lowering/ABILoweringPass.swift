@@ -451,6 +451,14 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                     continue
                 }
 
+                if case let .copy(_, to) = instruction,
+                   module.isRawValueClassPayloadCopyTarget(to)
+                {
+                    newBody.append(instruction)
+                    idx += 1
+                    continue
+                }
+
                 if case let .copy(from, to) = instruction, let types,
                    let rewritten = rewriteCopyBoxingOrUnboxing(
                        from: from, to: to,

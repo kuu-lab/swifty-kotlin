@@ -803,8 +803,8 @@ struct RuntimeABIExternalLinkValidationTests {
             RuntimeABICType.intptr.rawValue,
             RuntimeABICType.intptr.rawValue,
         ],
-        // The latest-flow bridge receives its suspend mapper as one boxed
-        // function handle and appends the runtime outThrown slot.
+        // The latest-flow bridge receives the suspend mapper as a function
+        // pointer plus environment, then appends the runtime outThrown slot.
         "__kk_flow_flat_map_latest_external": [
             RuntimeABICType.intptr.rawValue,
             RuntimeABICType.intptr.rawValue,

@@ -160,6 +160,32 @@ public func kk_auto_closeable_create(_ fnPtr: Int, _ closureRaw: Int) -> Int {
     return resourceRaw
 }
 
+/// `Closeable { closeAction }` factory (KUU-3449), shared by the
+/// `kotlin.io.Closeable` and `java.io.Closeable` source factories. Same box
+/// as `__kk_auto_closeable_create`, but registered under every Closeable
+/// nominal so `close()`/`use {}` dispatch resolves whether the receiver's
+/// static type is `kotlin.io.Closeable`, `java.io.Closeable`, or either
+/// `AutoCloseable` spelling.
+@_cdecl("__kk_closeable_create")
+public func kk_closeable_create(_ fnPtr: Int, _ closureRaw: Int) -> Int {
+    let resourceRaw = registerRuntimeObject(RuntimeAutoCloseableBox(fnPtr: fnPtr, closureRaw: closureRaw))
+    _ = kk_object_register_itable_method(
+        resourceRaw,
+        0,
+        0,
+        unsafeBitCast(runtimeAutoCloseableCloseThunk, to: Int.self)
+    )
+    for closeableTypeID in [
+        runtimeAutoCloseableInterfaceTypeID,
+        runtimeStableNominalTypeID(fqName: "java.lang.AutoCloseable"),
+        runtimeStableNominalTypeID(fqName: "kotlin.io.Closeable"),
+        runtimeStableNominalTypeID(fqName: "java.io.Closeable"),
+    ] {
+        _ = kk_object_register_itable_iface(resourceRaw, Int(closeableTypeID), 0)
+    }
+    return resourceRaw
+}
+
 @_cdecl("__kk_iterable_firstNotNullOf")
 public func kk_iterable_firstNotNullOf(_ iterableRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     guard let elements = runtimeCollectionOrArrayElements(from: iterableRaw) else {

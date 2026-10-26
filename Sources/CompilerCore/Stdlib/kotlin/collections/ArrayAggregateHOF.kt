@@ -194,6 +194,19 @@ public inline fun <S, T : S> Array<out T>.reduceRight(operation: (T, S) -> S): S
 public inline fun <T, R> Array<out T>.scan(initial: R, operation: (R, T) -> R): List<R> =
     runningFold(initial, operation)
 
+public inline fun <T, R> Array<out T>.scanIndexed(initial: R, operation: (Int, R, T) -> R): List<R> {
+    val result = mutableListOf<R>()
+    var accumulator = initial
+    result.add(accumulator)
+    var index = 0
+    while (index < size) {
+        accumulator = operation(index, accumulator, this[index])
+        result.add(accumulator)
+        index++
+    }
+    return result
+}
+
 public inline fun <T, R> Array<out T>.runningFold(initial: R, operation: (R, T) -> R): List<R> {
     val result = mutableListOf<R>()
     var accumulator = initial
@@ -201,6 +214,39 @@ public inline fun <T, R> Array<out T>.runningFold(initial: R, operation: (R, T) 
     for (element in this) {
         accumulator = operation(accumulator, element)
         result.add(accumulator)
+    }
+    return result
+}
+
+public inline fun <T, R> Array<out T>.runningFoldIndexed(
+    initial: R,
+    operation: (Int, R, T) -> R
+): List<R> = scanIndexed(initial, operation)
+
+public inline fun <S, T : S> Array<out T>.runningReduce(operation: (S, T) -> S): List<S> {
+    if (size == 0) return emptyList()
+    val result = mutableListOf<S>()
+    var accumulator: S = this[0]
+    result.add(accumulator)
+    var index = 1
+    while (index < size) {
+        accumulator = operation(accumulator, this[index])
+        result.add(accumulator)
+        index++
+    }
+    return result
+}
+
+public inline fun <S, T : S> Array<out T>.runningReduceIndexed(operation: (Int, S, T) -> S): List<S> {
+    if (size == 0) return emptyList()
+    val result = mutableListOf<S>()
+    var accumulator: S = this[0]
+    result.add(accumulator)
+    var index = 1
+    while (index < size) {
+        accumulator = operation(index, accumulator, this[index])
+        result.add(accumulator)
+        index++
     }
     return result
 }

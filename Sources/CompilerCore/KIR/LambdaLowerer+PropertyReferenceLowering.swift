@@ -1029,6 +1029,14 @@ extension LambdaLowerer {
         interner: StringInterner,
         instructions: inout [KIRInstruction]
     ) -> KIRExprID? {
+        // Runtime-backed interface properties may have nominal itable slots
+        // for Kotlin implementations, while opaque runtime boxes (such as
+        // mapOf results) do not register those slots. Their external getter
+        // bridge handles both representations, so let the property-reference
+        // wrapper call its synthesized accessor instead of dispatching here.
+        if sema.symbols.externalLinkName(for: accessor.propertySymbol)?.isEmpty == false {
+            return nil
+        }
         if let interfaceRead = driver.callLowerer.tryLowerInterfaceItablePropertyGetterRead(
             propertySymbol: accessor.propertySymbol,
             loweredReceiverID: receiver,

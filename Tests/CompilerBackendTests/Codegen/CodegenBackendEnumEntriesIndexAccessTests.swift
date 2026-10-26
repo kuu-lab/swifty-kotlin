@@ -22,6 +22,8 @@ struct CodegenBackendEnumEntriesIndexAccessTests {
     @Test
     func testCodegenEnumEntriesIndexAccessMinimalRepro() throws {
         let source = """
+        import kotlin.enums.enumEntries
+
         enum class Direction { NORTH, SOUTH }
         fun main() {
             println(enumEntries<Direction>()[0])

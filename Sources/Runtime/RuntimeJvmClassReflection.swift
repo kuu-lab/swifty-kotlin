@@ -21,6 +21,73 @@ public func __kk_java_class_isInstance(_ classRaw: Int, _ valueRaw: Int) -> Int 
     return kk_op_is(valueRaw, javaClass.typeToken)
 }
 
+@_cdecl("__kk_java_class_is_assignable_from")
+public func __kk_java_class_is_assignable_from(_ classRaw: Int, _ otherClassRaw: Int) -> Int {
+    guard let targetClass = resolveRuntimeHandle(classRaw, as: RuntimeJavaClassBox.self),
+          let sourceClass = resolveRuntimeHandle(otherClassRaw, as: RuntimeJavaClassBox.self)
+    else {
+        return 0
+    }
+
+    let targetIsPrimitive = runtimeJavaClassIsPrimitive(targetClass)
+    let sourceIsPrimitive = runtimeJavaClassIsPrimitive(sourceClass)
+    if targetIsPrimitive || sourceIsPrimitive {
+        return targetIsPrimitive && sourceIsPrimitive && targetClass.displayText == sourceClass.displayText ? 1 : 0
+    }
+
+    let targetBase = Int64(truncatingIfNeeded: targetClass.typeToken) & RuntimeTypeTokenEncoding.baseMask
+    if targetBase == RuntimeTypeTokenEncoding.anyBase {
+        return 1
+    }
+
+    guard let targetTypeID = runtimeJavaClassNominalTypeID(targetClass),
+          let sourceTypeID = runtimeJavaClassNominalTypeID(sourceClass)
+    else {
+        return targetClass.typeToken == sourceClass.typeToken ? 1 : 0
+    }
+    return runtimeIsAssignable(sourceTypeID: sourceTypeID, targetTypeID: targetTypeID) ? 1 : 0
+}
+
+private func runtimeJavaClassIsPrimitive(_ javaClass: RuntimeJavaClassBox) -> Bool {
+    let token = Int64(truncatingIfNeeded: javaClass.typeToken)
+    switch token & RuntimeTypeTokenEncoding.baseMask {
+    case RuntimeTypeTokenEncoding.booleanBase, RuntimeTypeTokenEncoding.byteBase,
+         RuntimeTypeTokenEncoding.shortBase, RuntimeTypeTokenEncoding.intBase,
+         RuntimeTypeTokenEncoding.longBase, RuntimeTypeTokenEncoding.charBase,
+         RuntimeTypeTokenEncoding.floatBase, RuntimeTypeTokenEncoding.doubleBase,
+         RuntimeTypeTokenEncoding.nullBase:
+        return javaClass.displayText == runtimeJavaPrimitiveClassDisplayText(typeToken: javaClass.typeToken)
+    default:
+        return false
+    }
+}
+
+private func runtimeJavaClassNominalTypeID(_ javaClass: RuntimeJavaClassBox) -> Int64? {
+    let token = Int64(truncatingIfNeeded: javaClass.typeToken) & ~RuntimeTypeTokenEncoding.nullableBit
+    let base = token & RuntimeTypeTokenEncoding.baseMask
+    if base == RuntimeTypeTokenEncoding.nominalBase {
+        return (token >> RuntimeTypeTokenEncoding.payloadShift) & RuntimeTypeTokenEncoding.payloadMask
+    }
+    if base == RuntimeTypeTokenEncoding.anyBase {
+        return runtimeStableNominalTypeID(fqName: "kotlin.Any")
+    }
+    if base == RuntimeTypeTokenEncoding.stringBase {
+        return runtimeStringNominalTypeID
+    }
+    switch base {
+    case RuntimeTypeTokenEncoding.booleanBase, RuntimeTypeTokenEncoding.byteBase,
+         RuntimeTypeTokenEncoding.shortBase, RuntimeTypeTokenEncoding.intBase,
+         RuntimeTypeTokenEncoding.longBase, RuntimeTypeTokenEncoding.charBase,
+         RuntimeTypeTokenEncoding.floatBase, RuntimeTypeTokenEncoding.doubleBase,
+         RuntimeTypeTokenEncoding.uintBase, RuntimeTypeTokenEncoding.ulongBase,
+         RuntimeTypeTokenEncoding.ubyteBase, RuntimeTypeTokenEncoding.ushortBase:
+        return runtimePrimitiveNominalTypeID(forTypeTokenBase: base)
+    case RuntimeTypeTokenEncoding.unitBase:
+        return runtimeStableNominalTypeID(fqName: "kotlin.Unit")
+    default: return nil
+    }
+}
+
 @_cdecl("__kk_class_get_enclosing_class")
 public func __kk_class_get_enclosing_class(_ classRaw: Int) -> Int {
     guard let box = resolveRuntimeHandle(classRaw, as: RuntimeJavaClassBox.self) else {

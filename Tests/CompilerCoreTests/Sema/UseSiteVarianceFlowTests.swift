@@ -185,6 +185,48 @@ struct UseSiteVarianceFlowTests {
         }
     }
 
+    @Test(arguments: [false, true])
+    func forLoopOverMutableMapEntriesAllowsSetValue(useArtifact: Bool) throws {
+        // KUU-3456: the entries view must preserve invariant MutableEntry arguments.
+        if useArtifact { TestStdlibCache.shared.prepare() }
+        let source = """
+        fun main() {
+            val m = mutableMapOf(1 to "a")
+            for (e in m.entries) {
+                e.setValue("b")
+            }
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(
+                inputs: [path],
+                emit: .kirDump,
+                allowDefaultStdlibLibrary: useArtifact
+            )
+            try runSema(ctx)
+
+            #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics.map { "\($0.code): \($0.message)" })")
+            assertNoDiagnostic("KSWIFTK-SEMA-VAR-OUT", in: ctx)
+
+            let ast = try #require(ctx.ast)
+            let interner = ctx.interner
+            let setValueCall = try #require(firstExprID(in: ast, path: path, ctx: ctx) { _, expr in
+                guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
+                return callee == interner.intern("setValue")
+            })
+            let sema = try #require(ctx.sema)
+            let binding = try #require(sema.bindings.callBinding(for: setValueCall))
+            let calleeSymbol = try #require(sema.symbols.symbol(binding.chosenCallee))
+            #expect(calleeSymbol.fqName == [
+                interner.intern("kotlin"),
+                interner.intern("collections"),
+                interner.intern("MutableMap"),
+                interner.intern("MutableEntry"),
+                interner.intern("setValue"),
+            ])
+        }
+    }
+
     @Test
     func forLoopOverReadOnlyMapStillRejectsSetValue() throws {
         // KUU-1420 companion: `for (e in map)` over read-only Map yields

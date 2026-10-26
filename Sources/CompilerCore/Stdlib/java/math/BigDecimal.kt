@@ -12,6 +12,9 @@ public class BigDecimal : Number(), Comparable<BigDecimal> {
     @KsSymbolName("__kk_string_toBigDecimal")
     public constructor(value: String)
 
+    @KsSymbolName("__kk_double_toBigDecimal")
+    public constructor(value: Double)
+
     @KsSymbolName("__kk_bignum_add")
     private external fun __kk_bignum_add(other: BigDecimal): BigDecimal
 

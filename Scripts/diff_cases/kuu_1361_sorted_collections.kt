@@ -79,4 +79,6 @@ fun main() {
     println(ds.last())
     println(dm.firstKey())
     println(dm.lastKey())
+    println(dm.headMap("c"))
+    println(dm.tailMap("b"))
 }

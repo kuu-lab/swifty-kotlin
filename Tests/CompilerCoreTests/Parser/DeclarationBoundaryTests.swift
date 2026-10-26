@@ -26,7 +26,7 @@ struct DeclarationBoundaryTests {
     func anonymousFunctionAtLambdaBlockStartIsAnExpression() {
         let parsed = parse("""
         fun host() {
-            val maker: () -> (() -> Int) = { fun () = 1 }
+            val maker: () -> (() -> Int) = { fun () { return 1 } }
             val named: () -> Int = {
                 fun local() = 2
                 local()

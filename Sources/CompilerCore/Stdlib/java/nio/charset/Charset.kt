@@ -1,11 +1,54 @@
 package java.nio.charset
 
+import java.util.Locale
+import java.util.SortedMap
+import java.util.TreeMap
 import kotlin.internal.KsSymbolName
+import kotlin.text.Charsets
 
 // Native Charset values are source objects. Only the private codec boundary
 // consumes the Int tag; a public Charset is never passed as that raw word.
-public class Charset internal constructor(internal val tag: Int) {
+public class Charset internal constructor(internal val tag: Int) : Comparable<Charset> {
     public fun name(): String = charsetName(tag)
+
+    public fun aliases(): Set<String> = when (name()) {
+        "UTF-8" -> setOf("UTF8", "unicode-1-1-utf-8")
+        "ISO-8859-1" -> setOf("ISO8859_1", "latin1", "l1", "IBM819", "cp819", "ISO8859-1")
+        "US-ASCII" -> setOf("ASCII", "iso-ir-6", "ANSI_X3.4-1986", "ISO646-US", "us", "IBM367", "cp367", "csASCII")
+        "UTF-16" -> setOf("UTF16", "UnicodeBig")
+        "UTF-16BE" -> setOf("UTF_16BE", "X-UTF-16BE", "UnicodeBigUnmarked")
+        "UTF-16LE" -> setOf("UTF_16LE", "X-UTF-16LE", "UnicodeLittleUnmarked")
+        "UTF-32" -> setOf("UTF32")
+        "UTF-32BE" -> setOf("UTF_32BE", "X-UTF-32BE")
+        "UTF-32LE" -> setOf("UTF_32LE", "X-UTF-32LE")
+        else -> emptySet()
+    }
+
+    public fun displayName(): String = name()
+
+    public fun displayName(locale: Locale): String = name()
+
+    public val isRegistered: Boolean
+        get() = true
+
+    public fun canEncode(): Boolean = true
+
+    public fun contains(other: Charset): Boolean {
+        val ownName = name()
+        val otherName = other.name()
+        if (ownName == otherName) return true
+        if (ownName.startsWith("UTF-")) return true
+        return (ownName == "ISO-8859-1" && otherName == "US-ASCII")
+    }
+
+    public override fun compareTo(other: Charset): Int =
+        name().uppercase().compareTo(other.name().uppercase())
+
+    override fun equals(other: Any?): Boolean =
+        other is Charset && name().equals(other.name(), ignoreCase = true)
+
+    override fun hashCode(): Int = name().uppercase().hashCode()
+
     public override fun toString(): String = name()
 
     public companion object {
@@ -14,6 +57,44 @@ public class Charset internal constructor(internal val tag: Int) {
          * The host locale and JVM file.encoding property do not select a codec.
          */
         public fun defaultCharset(): Charset = Charsets.UTF_8
+
+        /**
+         * Returns the charsets supported by the bundled native codecs, keyed
+         * by their canonical names in natural string order.
+         */
+        public fun availableCharsets(): SortedMap<String, Charset> {
+            val charsets = TreeMap<String, Charset>()
+            val available = listOf(
+                Charsets.UTF_8,
+                Charsets.ISO_8859_1,
+                Charsets.US_ASCII,
+                Charsets.UTF_16,
+                Charsets.UTF_16BE,
+                Charsets.UTF_16LE,
+                Charsets.UTF_32,
+                Charsets.UTF_32BE,
+                Charsets.UTF_32LE
+            )
+            for (charset in available) charsets.put(charset.name(), charset)
+            return charsets
+        }
+
+        public fun isSupported(charsetName: String): Boolean {
+            return try {
+                forName(charsetName)
+                true
+            } catch (failure: IllegalArgumentException) {
+                false
+            }
+        }
+
+        public fun forName(charsetName: String, fallback: Charset?): Charset? {
+            return try {
+                forName(charsetName)
+            } catch (failure: IllegalArgumentException) {
+                fallback
+            }
+        }
 
         public fun forName(charsetName: String): Charset {
             if (charsetName.isEmpty()) throw IllegalCharsetNameException(charsetName)

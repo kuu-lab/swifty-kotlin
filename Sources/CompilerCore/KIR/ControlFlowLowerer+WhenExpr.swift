@@ -258,7 +258,7 @@ extension ControlFlowLowerer {
             {
                 return driver.exprLowerer.lowerContainsCheck(
                     exprID: conditionExprID,
-                    lhsID: loweredSubjectID,
+                    preLoweredLhsID: loweredSubjectID,
                     lhsExpr: inCondition.lhsExpr,
                     rhsExpr: inCondition.rhsExpr,
                     negated: inCondition.negated,

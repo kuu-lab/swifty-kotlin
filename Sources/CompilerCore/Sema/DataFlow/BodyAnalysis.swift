@@ -155,7 +155,16 @@ extension DataFlowSemaPhase {
                     if !fqCandidates.isEmpty {
                         candidates = fqCandidates
                     } else if path.count == 1 {
-                        candidates = symbols.lookupByShortName(shortName).compactMap { symbols.symbol($0) }
+                        candidates = unqualifiedFallbackNominals(
+                            named: shortName,
+                            currentPackageFQName: currentPackageFQName,
+                            imports: imports,
+                            usageRange: usageRange,
+                            ast: ast,
+                            symbols: symbols,
+                            sourceManager: sourceManager,
+                            interner: interner
+                        )
                     } else {
                         candidates = []
                     }
@@ -171,7 +180,16 @@ extension DataFlowSemaPhase {
                 if !fqCandidates.isEmpty {
                     candidates = fqCandidates
                 } else if path.count == 1 {
-                    candidates = symbols.lookupByShortName(shortName).compactMap { symbols.symbol($0) }
+                    candidates = unqualifiedFallbackNominals(
+                        named: shortName,
+                        currentPackageFQName: currentPackageFQName,
+                        imports: imports,
+                        usageRange: usageRange,
+                        ast: ast,
+                        symbols: symbols,
+                        sourceManager: sourceManager,
+                        interner: interner
+                    )
                 } else {
                     candidates = []
                 }
@@ -491,6 +509,63 @@ extension DataFlowSemaPhase {
                 diagnostics: diagnostics,
                 range: usageRange
             )
+        }
+    }
+
+    private func unqualifiedFallbackNominals(
+        named shortName: InternedString,
+        currentPackageFQName: [InternedString]?,
+        imports: [ImportDecl],
+        usageRange: SourceRange?,
+        ast: ASTModule,
+        symbols: SymbolTable,
+        sourceManager: SourceManager?,
+        interner: StringInterner
+    ) -> [SemanticSymbol] {
+        let currentPackage = currentPackageFQName
+            ?? usageRange.flatMap { ast.file(for: $0.start.file)?.packageFQName }
+        let defaultImportPackages = Set(TypeCheckScopeBuilder().makeDefaultImportPackages(interner: interner))
+        let kotlinReflectPackage = [interner.intern("kotlin"), interner.intern("reflect")]
+        let enforcesWildcardImportVisibility =
+            usageRange.flatMap { sourceManager?.origin(of: $0.start.file) } == .user
+                && imports.contains(where: \.isWildcard)
+        return symbols.lookupByShortName(shortName).compactMap { symbols.symbol($0) }.filter { symbol in
+            guard isNominalTypeSymbol(symbol.kind) else { return false }
+            // kotlin.reflect declarations require an explicit import.
+            guard !symbol.fqName.starts(with: kotlinReflectPackage) else { return false }
+            // Wildcard imports must not widen short-name recovery beyond the
+            // current/default/imported package paths (KUU-3295). Other header
+            // paths retain legacy recovery for nested and forward references.
+            guard enforcesWildcardImportVisibility else { return true }
+            let fqName = symbol.fqName
+            if let currentPackage, fqName == currentPackage + [shortName] {
+                return true
+            }
+            if defaultImportPackages.contains(where: { $0 + [shortName] == fqName }) {
+                return true
+            }
+            if fqName == [shortName] {
+                return true
+            }
+            if imports.contains(where: { importDecl in
+                if importDecl.alias == shortName {
+                    return importDecl.path == fqName
+                }
+                guard importDecl.alias == nil else { return false }
+                if importDecl.path == fqName {
+                    return true
+                }
+                if importDecl.isWildcard {
+                    return importDecl.path + [shortName] == fqName
+                }
+                return symbols.importPathContributesMembers(
+                    importDecl.path,
+                    isWildcard: false
+                ) && importDecl.path + [shortName] == fqName
+            }) {
+                return true
+            }
+            return false
         }
     }
 

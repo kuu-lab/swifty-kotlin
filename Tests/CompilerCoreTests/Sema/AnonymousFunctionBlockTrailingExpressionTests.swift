@@ -12,15 +12,15 @@ struct AnonymousFunctionBlockTrailingExpressionTests {
         fun <T> block(block: () -> T): T = block()
         fun foo() {}
 
-        fun original(): () -> Unit = block { fun() = foo() }
-        fun nested(): () -> (() -> Int) = { fun () = 1 }
+        fun original(): () -> Unit = block { fun(): Unit { foo() } }
+        fun nested(): () -> (() -> Int) = { fun (): Int { return 1 } }
         fun namedLocal(): () -> Int = {
             fun local() = 2
             local()
         }
         fun anonymousReturn(): () -> (() -> Int) = { fun(): Int { return 3 } }
         fun initializer() {
-            val value: () -> Int = fun () = 4
+            val value: () -> Int = fun (): Int { return 4 }
         }
         fun nestedLambda(): () -> (() -> Int) = { { 5 } }
         """) { path in

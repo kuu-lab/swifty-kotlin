@@ -247,8 +247,6 @@ public fun <R> {{T}}Array.foldIndexed(initial: R, operation: (Int, R, {{T}}) -> 
     return acc
 }
 
-//@ note scanIndexed exists for IntArray only (#8770).
-//@ only Int
 public fun <R> {{T}}Array.scanIndexed(initial: R, operation: (Int, R, {{T}}) -> R): List<R> {
     val result = mutableListOf<R>()
     var accumulator = initial
@@ -262,7 +260,74 @@ public fun <R> {{T}}Array.scanIndexed(initial: R, operation: (Int, R, {{T}}) -> 
     return result
 }
 
-//@ end
+public fun <R> {{T}}Array.scan(initial: R, operation: (R, {{T}}) -> R): List<R> =
+    runningFold(initial, operation)
+
+public fun <R> {{T}}Array.runningFold(initial: R, operation: (R, {{T}}) -> R): List<R> {
+    val result = mutableListOf<R>()
+    var accumulator = initial
+    result.add(accumulator)
+    var i = 0
+    while (i < this.size) {
+        accumulator = operation(accumulator, this[i])
+        result.add(accumulator)
+        i++
+    }
+    return result
+}
+
+public fun <R> {{T}}Array.runningFoldIndexed(initial: R, operation: (Int, R, {{T}}) -> R): List<R> {
+    val result = mutableListOf<R>()
+    var accumulator = initial
+    result.add(accumulator)
+    var i = 0
+    while (i < this.size) {
+        accumulator = operation(i, accumulator, this[i])
+        result.add(accumulator)
+        i++
+    }
+    return result
+}
+
+public fun {{T}}Array.runningReduce(operation: ({{T}}, {{T}}) -> {{T}}): List<{{T}}> {
+    if (this.size == 0) return emptyList()
+    val result = mutableListOf<{{T}}>()
+    var accumulator = this[0]
+    result.add(accumulator)
+    var i = 1
+    while (i < this.size) {
+        accumulator = operation(accumulator, this[i])
+        result.add(accumulator)
+        i++
+    }
+    return result
+}
+
+public fun {{T}}Array.runningReduceIndexed(operation: (Int, {{T}}, {{T}}) -> {{T}}): List<{{T}}> {
+    if (this.size == 0) return emptyList()
+    val result = mutableListOf<{{T}}>()
+    var accumulator = this[0]
+    result.add(accumulator)
+    var i = 1
+    while (i < this.size) {
+        accumulator = operation(i, accumulator, this[i])
+        result.add(accumulator)
+        i++
+    }
+    return result
+}
+
+public fun {{T}}Array.reduceIndexedOrNull(operation: (Int, {{T}}, {{T}}) -> {{T}}): {{T}}? {
+    if (this.size == 0) return null
+    var accumulator = this[0]
+    var i = 1
+    while (i < this.size) {
+        accumulator = operation(i, accumulator, this[i])
+        i++
+    }
+    return accumulator
+}
+
 public fun {{T}}Array.find(predicate: ({{T}}) -> Boolean): {{T}}? {
     var i = 0
     while (i < this.size) {

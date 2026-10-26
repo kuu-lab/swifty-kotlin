@@ -1,5 +1,6 @@
 @testable import CompilerCore
 import Testing
+import TestStdlibCache
 
 @Suite
 struct VarargCallArgumentResolutionTests {
@@ -36,6 +37,23 @@ struct VarargCallArgumentResolutionTests {
         ))
         let binding = try #require(sema.bindings.callBinding(for: call))
         #expect(binding.parameterMapping == [0: 0, 1: 1, 2: 2])
+    }
+
+    @Test(arguments: [false, true])
+    func annotationVarargAcceptsNamedArrayLiteral(useLibrary: Bool) throws {
+        if useLibrary { TestStdlibCache.shared.prepare() }
+        let ctx = makeContextFromSource("""
+        annotation class A(vararg val v: Int)
+        @A(1, 2, 3) fun positional() = 1
+        @A(v = [4, 5]) fun named() = 2
+        fun main() { println(positional() + named()) }
+        """, allowDefaultStdlibLibrary: useLibrary)
+        try runSema(ctx)
+
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+        let sema = try #require(ctx.sema)
+        let namedFunction = try #require(sema.symbols.lookup(fqName: [ctx.interner.intern("named")]))
+        #expect(sema.symbols.annotations(for: namedFunction).contains { $0.factorySymbol != nil })
     }
 
     @Test

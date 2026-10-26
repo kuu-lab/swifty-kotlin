@@ -150,10 +150,12 @@ extension BuildASTPhase {
         )
     }
 
-    /// `[val a, var b] = x`: a statement-initial bracket group whose first entry
-    /// declares a variable.
+    /// `(val a, var b) = x` / `[val a, var b] = x`: a statement-initial
+    /// destructuring group whose first entry declares a variable.
     static func isFullFormDestructuringHead(_ tokens: [Token]) -> Bool {
-        guard tokens.count > 2, tokens[0].kind == .symbol(.lBracket) else { return false }
+        guard tokens.count > 2,
+              tokens[0].kind == .symbol(.lParen) || tokens[0].kind == .symbol(.lBracket)
+        else { return false }
         return tokens[1].kind == .keyword(.val) || tokens[1].kind == .keyword(.var)
     }
 
@@ -213,7 +215,11 @@ extension BuildASTPhase {
 
         let innerTokens = Array(statementTokens[(afterKeyword + 1) ..< closeParenIndex])
         let isSquare = openSymbol == .lBracket
-        guard let entries = parseDestructuringEntries(innerTokens, interner: interner, allowsFullForm: isSquare) else {
+        guard let entries = parseDestructuringEntries(
+            innerTokens,
+            interner: interner,
+            allowsFullForm: isSquare || startIndex == -1
+        ) else {
             return nil
         }
         let names = entries.names
@@ -322,7 +328,21 @@ extension BuildASTPhase {
                 continue
             }
             var property: InternedString?
-            if tokens.count >= 3, tokens[1].kind == .symbol(.assign), let target = nameOf(tokens[2]) {
+            var depth = BracketDepth()
+            var assignmentIndex: Int?
+            if tokens.count > 1 {
+                for index in 1 ..< tokens.count {
+                    if tokens[index].kind == .symbol(.assign), depth.isAtTopLevel {
+                        assignmentIndex = index
+                        break
+                    }
+                    depth.track(tokens[index].kind)
+                }
+            }
+            if let assignmentIndex,
+               tokens.indices.contains(assignmentIndex + 1),
+               let target = nameOf(tokens[assignmentIndex + 1])
+            {
                 property = target
             }
             names.append(name)

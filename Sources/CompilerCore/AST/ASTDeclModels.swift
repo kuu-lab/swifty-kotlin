@@ -327,6 +327,9 @@ public struct FunDecl: Codable {
     public let modifiers: Modifiers
     public let annotations: [AnnotationNode]
     public let typeParams: [TypeParamDecl]
+    /// Source location of a declaration-level `where` clause, if present.
+    /// The bounds themselves are stored on the declared type parameters.
+    public let whereClauseRange: SourceRange?
     public let receiverType: TypeRefID?
     /// Declaration-level `context(...)` receivers. Names are nil for unnamed
     /// or `_:` parameters. These stay independent of `receiverType` so a
@@ -352,6 +355,7 @@ public struct FunDecl: Codable {
         modifiers: Modifiers,
         annotations: [AnnotationNode] = [],
         typeParams: [TypeParamDecl] = [],
+        whereClauseRange: SourceRange? = nil,
         receiverType: TypeRefID? = nil,
         contextReceivers: [ContextReceiverDecl] = [],
         valueParams: [ValueParamDecl] = [],
@@ -367,6 +371,7 @@ public struct FunDecl: Codable {
         self.modifiers = modifiers
         self.annotations = annotations
         self.typeParams = typeParams
+        self.whereClauseRange = whereClauseRange
         self.receiverType = receiverType
         self.contextReceivers = contextReceivers
         self.valueParams = valueParams
@@ -385,6 +390,7 @@ public struct FunDecl: Codable {
         modifiers = try container.decode(Modifiers.self, forKey: .modifiers)
         annotations = try container.decode([AnnotationNode].self, forKey: .annotations)
         typeParams = try container.decode([TypeParamDecl].self, forKey: .typeParams)
+        whereClauseRange = try container.decodeIfPresent(SourceRange.self, forKey: .whereClauseRange)
         receiverType = try container.decodeIfPresent(TypeRefID.self, forKey: .receiverType)
         contextReceivers = try container.decodeIfPresent([ContextReceiverDecl].self, forKey: .contextReceivers) ?? []
         valueParams = try container.decode([ValueParamDecl].self, forKey: .valueParams)

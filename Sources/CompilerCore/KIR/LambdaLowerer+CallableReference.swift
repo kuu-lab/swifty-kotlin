@@ -169,9 +169,15 @@ extension LambdaLowerer {
                 in: $0.returnType, substitution: typeSubstitution, typeVarBySymbol: typeVariables
             )
         } ?? functionType.returnType
-        let callResultType = functionType.returnType == sema.types.unitType
-            ? declaredReturnType
-            : functionType.returnType
+        let declaredReturnIsNothing = sema.types.makeNonNullable(declaredReturnType) == sema.types.nothingType
+        let callResultType: TypeID
+        if functionType.returnType == sema.types.unitType {
+            callResultType = declaredReturnType
+        } else if declaredReturnIsNothing {
+            callResultType = functionType.returnType
+        } else {
+            callResultType = declaredReturnType
+        }
         let contextCaptureStart = max(captureRefs.count - binding.boundContextParameterTypes.count, 0)
         let contextReceiverValues: [KIRLoweringContext.ContextReceiverValue] = binding.boundContextParameterTypes
             .enumerated().compactMap { index, type in
@@ -206,11 +212,34 @@ extension LambdaLowerer {
                 localFunctionCaptureArguments: Array(captureRefs.prefix(localCaptureCount))
             )
         }
+        let resultToReturn: KIRExprID
+        if callResultType == functionType.returnType
+            || functionType.returnType == sema.types.unitType
+            || functionType.returnType == sema.types.nothingType
+        {
+            resultToReturn = callResult
+        } else {
+            // The target may return a primitive or value class while the
+            // joined function type erases that result to Any. Call it with its
+            // declared ABI type, then box the value for the function result.
+            resultToReturn = boxValueForAnySlot(
+                callResult,
+                sourceType: declaredReturnType,
+                types: sema.types,
+                symbols: sema.symbols,
+                interner: interner,
+                arena: arena,
+                resultType: functionType.returnType,
+                sema: sema,
+                cache: driver.ctx.nominalDispatchCache,
+                into: &body
+            )
+        }
         switch sema.types.kind(of: functionType.returnType) {
         case .unit, .nothing(.nonNull), .nothing(.nullable):
             body.append(.returnUnit)
         default:
-            body.append(.returnValue(callResult))
+            body.append(.returnValue(resultToReturn))
         }
         body.append(.endBlock)
         driver.ctx.appendGeneratedCallableDecl(arena.appendDecl(.function(KIRFunction(
@@ -1350,7 +1379,7 @@ extension LambdaLowerer {
             if sema.bindings.callableRefKind(for: exprID) == .functionRef,
                case let .functionType(functionType) = sema.types.kind(of: callableType)
             {
-                emitRawFunctionArityTag(
+                emitFunctionValueTypeTag(
                     callableExpr, functionType: functionType, sema: sema,
                     arena: arena, interner: interner, instructions: &instructions
                 )
@@ -1417,7 +1446,12 @@ extension LambdaLowerer {
                     returnType: functionType.returnType,
                     captures: captureArguments,
                     receiverCount: isUnbound && targetSymbol.flatMap { sema.symbols.functionSignature(for: $0) }?.receiverType != nil ? 1 : 0,
-                    includeInvocation: targetSymbol.flatMap { sema.symbols.functionSignature(for: $0) }?.reifiedTypeParameterIndices.isEmpty != false,
+                    // KCallable.call's reflection bridge has no continuation
+                    // parameter. Suspend references keep their suspend
+                    // function-value invoke path instead of generating a
+                    // non-suspend reflection thunk that cannot call the target.
+                    includeInvocation: !functionType.isSuspend
+                        && targetSymbol.flatMap { sema.symbols.functionSignature(for: $0) }?.reifiedTypeParameterIndices.isEmpty != false,
                     ast: ast, sema: sema, arena: arena, interner: interner, instructions: &instructions
                 )
             }

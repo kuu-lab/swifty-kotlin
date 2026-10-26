@@ -38,6 +38,20 @@ private let mutableListRuntimeTypeID: Int64 = {
     return id
 }()
 
+/// Kotlin/JVM erases `List` and `MutableList` to the same runtime interface.
+/// Built-in frozen list boxes therefore pass mutable collection type checks
+/// even though source-defined `List` implementations retain their own identity.
+func runtimeIsJvmErasedListAssignable(
+    rawValue: Int,
+    sourceTypeID: Int64,
+    targetTypeID: Int64
+) -> Bool {
+    guard sourceTypeID == listRuntimeTypeID,
+          runtimeListBox(from: rawValue)?.isEffectivelyReadOnly == true
+    else { return false }
+    return runtimeIsAssignable(sourceTypeID: mutableListRuntimeTypeID, targetTypeID: targetTypeID)
+}
+
 private let abstractMutableListRuntimeTypeID = runtimeStableNominalTypeID(
     fqName: "kotlin.collections.AbstractMutableList"
 )

@@ -8,8 +8,9 @@ extension JVMProgramBuilder {
         let result: JVMValueType
         var mutating = false
         var readOnlyOnly = false
+        var isAbstract = true
         var method: JVMForeignMethod {
-            JVMForeignMethod(owner: owner, name: name, descriptor: "(" + parameters.map(\.descriptor).joined() + ")" + result.descriptor, parameters: parameters, result: result, isStatic: false, isInterface: true, isAbstract: true)
+            JVMForeignMethod(owner: owner, name: name, descriptor: "(" + parameters.map(\.descriptor).joined() + ")" + result.descriptor, parameters: parameters, result: result, isStatic: false, isInterface: true, isAbstract: isAbstract)
         }
     }
 
@@ -17,13 +18,18 @@ extension JVMProgramBuilder {
         let object = JVMValueType.reference("java/lang/Object", nullable: true)
         let collection = JVMValueType.reference("java/util/Collection", nullable: false)
         let iterator = JVMValueType.reference("java/util/Iterator", nullable: false)
-        func method(_ name: String, _ parameters: [JVMValueType], _ result: JVMValueType, mutating: Bool = false, readOnlyOnly: Bool = false) -> CollectionMethod {
-            CollectionMethod(owner: owner, name: name, parameters: parameters, result: result, mutating: mutating, readOnlyOnly: readOnlyOnly)
+        func method(_ name: String, _ parameters: [JVMValueType], _ result: JVMValueType, mutating: Bool = false, readOnlyOnly: Bool = false, isAbstract: Bool = true) -> CollectionMethod {
+            CollectionMethod(owner: owner, name: name, parameters: parameters, result: result, mutating: mutating, readOnlyOnly: readOnlyOnly, isAbstract: isAbstract)
         }
         if owner == "java/util/Iterator" {
             return [method("hasNext", [], .boolean), method("next", [], object), method("remove", [], .unit, mutating: true)]
         }
-        if owner == "java/lang/Iterable" { return [method("iterator", [], iterator)] }
+        if owner == "java/lang/Iterable" {
+            return [
+                method("iterator", [], iterator),
+                method("spliterator", [], .reference("java/util/Spliterator", nullable: false), isAbstract: false),
+            ]
+        }
         if owner == "java/util/ListIterator" {
             return [
                 method("hasPrevious", [], .boolean), method("previous", [], object),
@@ -49,6 +55,13 @@ extension JVMProgramBuilder {
             return defaults + [method("size", [], .int), method("isEmpty", [], .boolean), method("containsKey", [object], .boolean), method("containsValue", [object], .boolean), method("get", [object], object), method("keySet", [], .reference("java/util/Set", nullable: false)), method("values", [], collection), method("entrySet", [], .reference("java/util/Set", nullable: false)), method("put", [object, object], object, mutating: true), method("remove", [object], object, mutating: true), method("putAll", [.reference("java/util/Map", nullable: false)], .unit, mutating: true), method("clear", [], .unit, mutating: true)]
         }
         var methods = [method("size", [], .int), method("isEmpty", [], .boolean), method("contains", [object], .boolean), method("containsAll", [collection], .boolean), method("iterator", [], iterator), method("toArray", [], .reference("[Ljava/lang/Object;", nullable: false)), method("toArray", [.reference("[Ljava/lang/Object;", nullable: false)], .reference("[Ljava/lang/Object;", nullable: false)), method("add", [object], .boolean, mutating: true), method("remove", [object], .boolean, mutating: true), method("addAll", [collection], .boolean, mutating: true), method("removeAll", [collection], .boolean, mutating: true), method("retainAll", [collection], .boolean, mutating: true), method("clear", [], .unit, mutating: true)]
+        if owner == "java/util/Collection" {
+            let stream = JVMValueType.reference("java/util/stream/Stream", nullable: false)
+            methods += [
+                method("stream", [], stream, isAbstract: false),
+                method("parallelStream", [], stream, isAbstract: false),
+            ]
+        }
         if owner == "java/util/List" {
             methods += [
                 method("replaceAll", [.reference("java/util/function/UnaryOperator", nullable: false)], .unit, mutating: true, readOnlyOnly: true),

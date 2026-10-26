@@ -100,6 +100,17 @@ extension LoweringPassRegressionTests {
     }
 
     @Test
+    func testNullableUnderlyingValueClassFieldReadDoesNotReboxPayload() throws {
+        let source = """
+        @JvmInline
+        value class V(val x: Any?)
+        fun isNull(v: V): Boolean = v.x == null
+        """
+        let callees = try loweredCallees(for: source, function: "isNull", includeStdlib: false)
+        #expect(!callees.contains(RuntimeCall.valueClassBox.name), "Reading V.x must preserve the raw nullable payload instead of boxing V: \(callees)")
+    }
+
+    @Test
     func testNullableUnderlyingValueClassMemberCallUnboxesReceiver() throws {
         let source = """
         @JvmInline

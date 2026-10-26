@@ -193,6 +193,38 @@ struct RuntimeJvmClassMappingTests {
         #expect(runtimeRenderAnyForPrint(__kk_class_kotlin(javaClass)) == "class kotlin.String")
     }
 
+    @Test func javaClassSimpleNameUsesRegisteredDeclarationMetadata() {
+        let typeID = runtimeStableNominalTypeID(fqName: "pkg.Direction")
+        let typeToken = Int(truncatingIfNeeded: (typeID << RuntimeTypeTokenEncoding.payloadShift)
+            | RuntimeTypeTokenEncoding.nominalBase)
+        runtimeKClassMetadataRegistry.register(typeToken: typeToken, entry: RuntimeKClassMetadataEntry(
+            qualifiedName: "pkg.Direction",
+            simpleName: "Direction",
+            supertypeDisplayNames: [],
+            isDataClass: false,
+            isSealedClass: false,
+            isValueClass: false,
+            isInterface: false,
+            isObject: false,
+            isEnumClass: true,
+            isAnnotationClass: false,
+            isAbstract: false,
+            fieldCount: 0,
+            memberCount: 0,
+            constructorCount: 0,
+            isFinal: true,
+            isOpen: false,
+            visibility: "public"
+        ))
+        let javaClass = runtimeJavaClassHandle(
+            typeToken: typeToken,
+            nameHint: runtimeMakeStringRaw("pkg.Direction")
+        )
+
+        let nameRaw = __kk_class_simple_name(javaClass)
+        #expect(extractString(from: UnsafeMutableRawPointer(bitPattern: nameRaw)) == "Direction")
+    }
+
     @Test func arrayKClassToStringKeepsKotlinQualifiedName() {
         let name = "kotlin.IntArray"
         let typeToken = runtimeNominalTypeToken(runtimeStableNominalTypeID(fqName: name))

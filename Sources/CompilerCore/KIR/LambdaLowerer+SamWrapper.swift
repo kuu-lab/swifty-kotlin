@@ -134,7 +134,7 @@ extension LambdaLowerer {
         driver.ctx.beginCallableLoweringScope()
         driver.ctx.setCurrentFunctionSymbol(methodSymbol)
 
-        let receiverSymbol = driver.callSupportLowerer.syntheticReceiverParameterSymbol(functionSymbol: methodSymbol)
+        let receiverSymbol = driver.callSupportLowerer.syntheticReceiverParameterSymbol(functionSymbol: wrapperSymbol)
         let receiverExpr = arena.appendExpr(.symbolRef(receiverSymbol), type: wrapperType)
         driver.ctx.setImplicitReceiver(symbol: receiverSymbol, exprID: receiverExpr)
 

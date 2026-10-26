@@ -18,6 +18,76 @@ extension CallTypeChecker {
         ctx: TypeInferenceContext,
         expectedTypeOverrides: inout [Int: TypeID]
     ) {
+        // A generic call's other arguments can determine the input side of a
+        // nested generic SAM constructor before its lambda body is checked.
+        // Keep output-only variables open so the nested lambda's inferred
+        // function type can constrain them during final overload resolution.
+        if candidates.count == 1,
+           let candidate = candidates.first,
+           let signature = ctx.sema.symbols.functionSignature(for: candidate),
+           let parameterMapping = parameterMappingForCallArguments(
+               args, in: signature, callRange: callRange, ctx: ctx
+           )
+        {
+            let typeVarBySymbol = ctx.sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
+            var knownArgumentTypes: [Int: TypeID] = [:]
+            for (argumentIndex, type) in preInferredArgumentTypes {
+                guard let parameterIndex = parameterMapping[argumentIndex] else { continue }
+                knownArgumentTypes[parameterIndex] = type
+            }
+            let substitution = ctx.resolver.probeArgumentTypeSubstitution(
+                signature: signature,
+                typeVarBySymbol: typeVarBySymbol,
+                knownArgumentTypes: knownArgumentTypes,
+                typeSystem: ctx.sema.types
+            )
+            if !substitution.isEmpty {
+                for index in args.indices {
+                    guard samConstructorLambdaArgument(args[index].expr, ctx: ctx) != nil,
+                          let samSymbol = inferableSamConstructorSymbol(args[index].expr, ctx: ctx),
+                          let parameterIndex = parameterMapping[index],
+                          signature.parameterTypes.indices.contains(parameterIndex),
+                          let rawParameterType = contextualCallArgumentType(
+                              args[index], parameterIndex: parameterIndex, in: signature, ctx: ctx
+                          )
+                    else {
+                        continue
+                    }
+                    let parameterType = ctx.sema.types.substituteTypeParameters(
+                        in: rawParameterType,
+                        substitution: substitution,
+                        typeVarBySymbol: typeVarBySymbol
+                    )
+                    guard parameterType != rawParameterType,
+                          resolveClassType(parameterType, sema: ctx.sema)?.classSymbol == samSymbol,
+                          let function = driver.helpers.samFunctionType(for: parameterType, sema: ctx.sema)
+                    else {
+                        continue
+                    }
+                    let inputTypes = function.contextReceivers + function.params + (function.receiver.map { [$0] } ?? [])
+                    guard inputTypes.allSatisfy({
+                        !ctx.resolver.containsTypeVariable(
+                            $0,
+                            typeVarBySymbol: typeVarBySymbol,
+                            typeSystem: ctx.sema.types
+                        )
+                    })
+                    else {
+                        continue
+                    }
+                    let expectedType = functionValueSamArgumentExpectedType(
+                        args[index].expr,
+                        parameterType: parameterType,
+                        ctx: ctx
+                    )
+                    if let existing = expectedTypeOverrides[index], existing != expectedType {
+                        continue
+                    }
+                    expectedTypeOverrides[index] = expectedType
+                }
+            }
+        }
+
         // Argument labels and arity can leave a single contextual candidate
         // even before the nested call's result type is known.
         let mappedCandidates = candidates.compactMap { candidate -> (FunctionSignature, [Int: Int])? in

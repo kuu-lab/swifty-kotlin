@@ -96,7 +96,7 @@ LoadSources --> Lex --> Parse --> BuildAST --> SemaPasses --> BuildKIR --> Lower
 | `Lowering/` | KIR 脱糖パス群 | `LoweringPhase.swift` (パス登録) + 各 `*LoweringPass.swift`。実行順は §9 参照 | for/when/property のデシュガー修正、新 lowering pass 追加 |
 | `Sema/NameMangler.swift` | マングリング | `NameMangler` | シンボル名マングリング修正 |
 | `Driver/` | パイプライン制御 + 横断インフラ | `Driver.swift`, `CompilationContext.swift`, `Diagnostics.swift`, `Phases.swift`, `FrontendPhases.swift`, `SourceManager.swift`, `SourceLocation.swift`, `CommandRunner.swift`, `PhaseTimer.swift`, `IncrementalCompilationCache.swift`, `DependencyGraph.swift`, `FileFingerprint.swift` | 新フェーズ追加、診断メッセージ修正、インクリメンタルビルド |
-| `Stdlib/` | Kotlin stdlib ソース（リソース） | `kotlin/collections/*.kt`, `kotlin/text/*.kt`, `kotlinx/coroutines/**/*.kt` 等（詳細は [`stdlib-pipeline.md`](stdlib-pipeline.md)） | stdlib 拡張関数の追加・修正 |
+| `Stdlib/` | Kotlin stdlib ソース（リソース） | `kotlin/collections/*.kt`, `kotlin/text/*.kt`, `kotlinx/coroutines/**/*.kt` 等（詳細は [`stdlib-pipeline.md`](stdlib-pipeline.md)）。`wasm/kotlin/wasm/` は `kotlin.wasm` API 宣言層で wasm ターゲット時のみ注入、`jvm/` は常時除外 | stdlib 拡張関数の追加・修正 |
 
 ### `Sources/CompilerBackend/` (LLVM バックエンド)
 
@@ -113,7 +113,7 @@ LoadSources --> Lex --> Parse --> BuildAST --> SemaPasses --> BuildKIR --> Lower
 | `RuntimeReflectionMetadataEmitter.swift` | `KClass` 向け実行時リフレクションメタデータを LLVM グローバル定数として発行 |
 | `CodegenRuntimeSupport.swift` (+`+RuntimeObjects`) | ランタイムサポート関数 |
 | `CodegenSymbolSupport.swift` | シンボルサポート |
-| `Wasm/` (`WasmModule.swift`, `WasmEmitter.swift`, `WasmEmitter+Function.swift`, `WasmEmitter+Runtime.swift`) | wasm バックエンド（LLVM 非依存の自前バイナリエンコーダ + KIR→wasm エミッタ）。`--target wasm32-wasi` で linear-memory MVP の `.wasm` を生成（現状は全値 i64 表現の縮小版。計画は [`wasm-support-plan.md`](wasm-support-plan.md)） |
+| `Wasm/` (`WasmModule.swift`, `WasmEmitter.swift`, `WasmEmitter+Function.swift`, `WasmEmitter+Runtime.swift`) | wasm バックエンド（LLVM 非依存の自前バイナリエンコーダ + KIR→wasm エミッタ）。`--target wasm32-wasi` で `.wasm` を生成（全値 i64 の linear-memory 表現。オブジェクト/vtable/`is`/`as`/例外 + 配列 intrinsic + `kotlin.wasm` 宣言層まで動作確認済み。計画は [`wasm-support-plan.md`](wasm-support-plan.md)） |
 | `StdlibArtifactCache.swift` | 実行ファイル生成時に使う stdlib `.kklib` の生成・探索（パッケージ同梱を優先、無ければユーザーキャッシュに生成） |
 
 ### `Sources/KSwiftKCLI/`

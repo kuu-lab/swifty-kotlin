@@ -12,9 +12,9 @@ import kotlin.text.__charUppercaseCode
 
 /** Java-compatible Unicode operations for UTF-16 chars and Unicode code points. */
 public object Character {
-    public const val NON_SPACING_MARK: Byte = 6
-    public const val ENCLOSING_MARK: Byte = 7
-    public const val FORMAT: Byte = 16
+    public const val NON_SPACING_MARK: kotlin.Byte = 6
+    public const val ENCLOSING_MARK: kotlin.Byte = 7
+    public const val FORMAT: kotlin.Byte = 16
 
     private const val UPPERCASE_LETTER: Int = 1
     private const val OTHER_LETTER: Int = 5
@@ -26,43 +26,43 @@ public object Character {
     // Java deliberately does not validate code points for this operation.
     public fun charCount(codePoint: Int): Int = if (codePoint >= 0x10000) 2 else 1
 
-    public fun isDigit(ch: Char): Boolean = ch.isDigit()
+    public fun isDigit(ch: Char): kotlin.Boolean = ch.isDigit()
 
-    public fun isDigit(codePoint: Int): Boolean = getType(codePoint) == DECIMAL_DIGIT_NUMBER
+    public fun isDigit(codePoint: Int): kotlin.Boolean = getType(codePoint) == DECIMAL_DIGIT_NUMBER
 
-    public fun isLetter(ch: Char): Boolean = ch.isLetter()
+    public fun isLetter(ch: Char): kotlin.Boolean = ch.isLetter()
 
-    public fun isLetter(codePoint: Int): Boolean {
+    public fun isLetter(codePoint: Int): kotlin.Boolean {
         val type = getType(codePoint)
         return type in UPPERCASE_LETTER..OTHER_LETTER
     }
 
-    public fun isLetterOrDigit(ch: Char): Boolean = isLetter(ch) || isDigit(ch)
+    public fun isLetterOrDigit(ch: Char): kotlin.Boolean = isLetter(ch) || isDigit(ch)
 
-    public fun isLetterOrDigit(codePoint: Int): Boolean = isLetter(codePoint) || isDigit(codePoint)
+    public fun isLetterOrDigit(codePoint: Int): kotlin.Boolean = isLetter(codePoint) || isDigit(codePoint)
 
-    public fun isUpperCase(ch: Char): Boolean = ch.isUpperCase()
+    public fun isUpperCase(ch: Char): kotlin.Boolean = ch.isUpperCase()
 
-    public fun isUpperCase(codePoint: Int): Boolean = __charIsUpperCase(codePoint)
+    public fun isUpperCase(codePoint: Int): kotlin.Boolean = __charIsUpperCase(codePoint)
 
-    public fun isLowerCase(ch: Char): Boolean = ch.isLowerCase()
+    public fun isLowerCase(ch: Char): kotlin.Boolean = ch.isLowerCase()
 
-    public fun isLowerCase(codePoint: Int): Boolean = __charIsLowerCase(codePoint)
+    public fun isLowerCase(codePoint: Int): kotlin.Boolean = __charIsLowerCase(codePoint)
 
-    public fun isTitleCase(ch: Char): Boolean = ch.isTitleCase()
+    public fun isTitleCase(ch: Char): kotlin.Boolean = ch.isTitleCase()
 
-    public fun isTitleCase(codePoint: Int): Boolean = getType(codePoint) == 3
+    public fun isTitleCase(codePoint: Int): kotlin.Boolean = getType(codePoint) == 3
 
-    public fun isSpaceChar(codePoint: Int): Boolean {
+    public fun isSpaceChar(codePoint: Int): kotlin.Boolean {
         val category = getType(codePoint)
         return category in SPACE_SEPARATOR..PARAGRAPH_SEPARATOR
     }
 
-    public fun isSpaceChar(ch: Char): Boolean = isSpaceChar(ch.code)
+    public fun isSpaceChar(ch: Char): kotlin.Boolean = isSpaceChar(ch.code)
 
-    public fun isWhitespace(ch: Char): Boolean = isWhitespace(ch.code)
+    public fun isWhitespace(ch: Char): kotlin.Boolean = isWhitespace(ch.code)
 
-    public fun isWhitespace(codePoint: Int): Boolean {
+    public fun isWhitespace(codePoint: Int): kotlin.Boolean {
         return when (getType(codePoint)) {
             SPACE_SEPARATOR -> codePoint != 0x00A0 && codePoint != 0x2007 && codePoint != 0x202F
             LINE_SEPARATOR, PARAGRAPH_SEPARATOR -> true
@@ -70,9 +70,9 @@ public object Character {
         }
     }
 
-    public fun isISOControl(ch: Char): Boolean = isISOControl(ch.code)
+    public fun isISOControl(ch: Char): kotlin.Boolean = isISOControl(ch.code)
 
-    public fun isISOControl(codePoint: Int): Boolean = codePoint in 0x00..0x1F || codePoint in 0x7F..0x9F
+    public fun isISOControl(codePoint: Int): kotlin.Boolean = codePoint in 0x00..0x1F || codePoint in 0x7F..0x9F
 
     public fun toUpperCase(ch: Char): Char = ch.uppercaseChar()
 

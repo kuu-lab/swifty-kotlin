@@ -111,6 +111,22 @@ struct IOBufferingAPIContractTests {
         }
     }
 
+    @Test
+    func fullyQualifiedBufferAndImportedStringExtensionsResolveFromBundledSources() throws {
+        let ctx = try context("""
+        import kotlinx.io.readString
+        import kotlinx.io.writeString
+
+        fun main() {
+            val buffer = kotlinx.io.Buffer()
+            buffer.writeString("ab")
+            println(buffer.readString())
+        }
+        """, library: false)
+        try runSema(ctx)
+        try #require(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+    }
+
     @Test(arguments: [false, true])
     func userRawSubtypesResolveInheritedAndDefaultCalls(library: Bool) throws {
         let ctx = try context("""

@@ -2,6 +2,54 @@ package kotlin.collections
 
 public fun <T> Array<out T>.distinct(): List<T> = asIterable().distinct()
 
+public inline fun <T, K> Array<out T>.distinctBy(selector: (T) -> K): List<T> =
+    asIterable().distinctBy(selector)
+
+public inline fun <T, R : Comparable<R>> Array<out T>.minByOrNull(selector: (T) -> R): T? {
+    if (size == 0) return null
+    if (size == 1) return this[0]
+    var bestElement = this[0]
+    var bestKey = selector(bestElement)
+    var index = 1
+    while (index < size) {
+        val element = this[index]
+        val key = selector(element)
+        if (key < bestKey) {
+            bestElement = element
+            bestKey = key
+        }
+        index++
+    }
+    return bestElement
+}
+
+public inline fun <T, R : Comparable<R>> Array<out T>.maxByOrNull(selector: (T) -> R): T? {
+    if (size == 0) return null
+    if (size == 1) return this[0]
+    var bestElement = this[0]
+    var bestKey = selector(bestElement)
+    var index = 1
+    while (index < size) {
+        val element = this[index]
+        val key = selector(element)
+        if (key > bestKey) {
+            bestElement = element
+            bestKey = key
+        }
+        index++
+    }
+    return bestElement
+}
+
+public infix fun <T> Array<out T>.intersect(other: Iterable<T>): Set<T> =
+    asIterable().intersect(other)
+
+public infix fun <T> Array<out T>.union(other: Iterable<T>): Set<T> =
+    asIterable().union(other)
+
+public infix fun <T> Array<out T>.subtract(other: Iterable<T>): Set<T> =
+    asIterable().subtract(other)
+
 public fun <T> Array<out T>.minusElement(element: T): List<T> = asList().minusElement(element)
 
 public fun <T> Array<out T>.toSet(): Set<T> = asIterable().toSet()
@@ -9,6 +57,16 @@ public fun <T> Array<out T>.toSet(): Set<T> = asIterable().toSet()
 public fun <T> Array<out T>.toHashSet(): HashSet<T> = asIterable().toHashSet()
 
 public fun <T> Array<out T>.toMutableSet(): MutableSet<T> = asIterable().toMutableSet()
+
+@Suppress("UNCHECKED_CAST")
+public fun <T : Any> Array<T?>.requireNoNulls(): Array<T> {
+    for (element in this) {
+        if (element == null) {
+            throw IllegalArgumentException("null element found in $this.")
+        }
+    }
+    return this as Array<T>
+}
 
 public fun <T : Comparable<T>> Array<out T>.toSortedSet(): java.util.SortedSet<T> =
     asIterable().toSortedSet()

@@ -149,6 +149,9 @@ struct WasmCode {
     mutating func i32Load8U(offset: UInt64 = 0) {
         op(0x2D); u(0); u(offset)
     }
+    mutating func i32Store8(offset: UInt64 = 0) {
+        op(0x3A); u(0); u(offset)
+    }
     mutating func br(_ depth: Int) { op(WasmOpcode.br); u(UInt64(depth)) }
     mutating func brIf(_ depth: Int) { op(WasmOpcode.brIf); u(UInt64(depth)) }
     mutating func openBlock() { op(WasmOpcode.block); op(WasmOpcode.blockVoid) }

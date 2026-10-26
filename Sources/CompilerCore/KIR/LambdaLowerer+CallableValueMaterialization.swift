@@ -1,5 +1,5 @@
 extension LambdaLowerer {
-    func emitRawFunctionArityTag(
+    func emitFunctionValueTypeTag(
         _ callableExpr: KIRExprID,
         functionType: FunctionType,
         sema: SemaModule,
@@ -9,12 +9,13 @@ extension LambdaLowerer {
     ) {
         let arity = Int64(functionType.contextReceivers.count
             + (functionType.receiver == nil ? 0 : 1) + functionType.params.count)
-        let arityExpr = arena.appendExpr(.intLiteral(arity), type: sema.types.intType)
-        instructions.append(.constValue(result: arityExpr, value: .intLiteral(arity)))
+        let functionTypePayload = arity | (functionType.isSuspend ? 0x100 : 0)
+        let payloadExpr = arena.appendExpr(.intLiteral(functionTypePayload), type: sema.types.intType)
+        instructions.append(.constValue(result: payloadExpr, value: .intLiteral(functionTypePayload)))
         // Preserve the raw symbol and capture ABI for inline/HOF/coroutine lowering.
         instructions.append(.call(
             callee: interner.intern("kk_function_value_tag_arity"),
-            arguments: [callableExpr, arityExpr],
+            arguments: [callableExpr, payloadExpr],
             result: nil,
             canThrow: false
         ))
@@ -229,6 +230,16 @@ extension LambdaLowerer {
         instructions.append(.constValue(result: adapterExpr, value: .symbolRef(adapterSymbol)))
         let materializedExpr = arena.appendTemporary(type: sema.types.make(.functionType(functionType)))
         instructions.append(.call(callee: createCallee, arguments: [adapterExpr, closureObj], result: materializedExpr, canThrow: false))
+        if functionType.isSuspend {
+            emitFunctionValueTypeTag(
+                materializedExpr,
+                functionType: functionType,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            )
+        }
         driver.ctx.registerCallableValue(
             materializedExpr,
             symbol: adapterSymbol,

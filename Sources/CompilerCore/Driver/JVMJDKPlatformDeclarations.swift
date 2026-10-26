@@ -182,12 +182,16 @@ extension JVMClasspathIndex {
                 fun comparator(): kotlin.Comparator<in K>?
                 fun firstKey(): K
                 fun lastKey(): K
+                fun headMap(toKey: K): SortedMap<K, V>
+                fun tailMap(fromKey: K): SortedMap<K, V>
                 fun subMap(fromKey: K, toKey: K): SortedMap<K, V>
             }
             """, 0x0601, "java/lang/Object", [
                 method("java/util/SortedMap", "comparator", [], .reference("java/util/Comparator", nullable: true), interface: true),
                 method("java/util/SortedMap", "firstKey", [], object, interface: true),
                 method("java/util/SortedMap", "lastKey", [], object, interface: true),
+                method("java/util/SortedMap", "headMap", [object], .reference("java/util/SortedMap", nullable: false), interface: true),
+                method("java/util/SortedMap", "tailMap", [object], .reference("java/util/SortedMap", nullable: false), interface: true),
                 method("java/util/SortedMap", "subMap", [object, object], .reference("java/util/SortedMap", nullable: false), interface: true),
             ]),
             ("java/util/SortedSet", """
@@ -222,6 +226,8 @@ extension JVMClasspathIndex {
                 override fun comparator(): kotlin.Comparator<in K>? = null
                 override fun firstKey(): K = null!!
                 override fun lastKey(): K = null!!
+                override fun headMap(toKey: K): SortedMap<K, V> = null!!
+                override fun tailMap(fromKey: K): SortedMap<K, V> = null!!
                 override fun subMap(fromKey: K, toKey: K): SortedMap<K, V> = null!!
                 override val size: Int get() = 0
                 override val keys: kotlin.collections.Set<K> get() = null!!

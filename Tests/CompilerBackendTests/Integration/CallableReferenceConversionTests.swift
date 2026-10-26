@@ -4,6 +4,28 @@ import Testing
 
 @Suite
 struct CallableReferenceConversionTests {
+    @Test func boundSuspendInlineExtensionReferenceKeepsReceiverAndArguments() throws {
+        try assertKotlinOutput("""
+        import kotlin.coroutines.intrinsics.COROUTINE_SUSPENDED
+        import kotlin.coroutines.intrinsics.suspendCoroutineUninterceptedOrReturn
+        import kotlin.coroutines.resume
+        import kotlinx.coroutines.*
+
+        suspend inline fun Long.longArgs(a: Long, b: Long, c: Long) =
+            suspendCoroutineUninterceptedOrReturn<Long> {
+                it.resume(this + a + b + c)
+                COROUTINE_SUSPENDED
+            }
+
+        fun main() {
+            println(runBlocking {
+                val ref = 1L::longArgs
+                ref(1L, 1L, 1L)
+            })
+        }
+        """, moduleName: "BoundSuspendInlineExtensionReference", expected: "4\n")
+    }
+
     @Test func directlyTypedSuspendReferencesMaterializeAdapters() throws {
         try assertKotlinOutput("""
         import kotlin.coroutines.*

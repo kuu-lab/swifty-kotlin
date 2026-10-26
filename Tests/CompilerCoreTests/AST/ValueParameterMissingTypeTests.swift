@@ -41,9 +41,9 @@ struct ValueParameterMissingTypeTests {
         "val j = { a, b -> a }",
         // Anonymous function literals may leave parameter types implicit; the
         // expected function type supplies them during Sema.
-        "val k = fun(x) = x",
-        "val l = fun(x: Int) = x",
-        "fun probe(): (Int) -> Int { return fun(value) = value + 1 }",
+        "val k: (Int) -> Int = fun(x) { return x }",
+        "val l: (Int) -> Int = fun(x: Int) { return x }",
+        "fun probe(): (Int) -> Int { return fun(value) { return value + 1 } }",
     ])
     func acceptsWellFormedParameters(_ source: String) throws {
         let (_, context) = try buildASTModule(from: source, includeStdlib: false)

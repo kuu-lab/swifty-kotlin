@@ -310,7 +310,7 @@ final class ConsolePrintLoweringPass: LoweringPass, ParallelLoweringPass {
         // existing String/Any boxing path (and the flat String ABI for virtual
         // dispatch) is preserved; only primitive scalars are rewritten here.
         switch kind {
-        case .primitive:
+        case .primitive(let primitive, _):
             let requireNonNull = sema.types.nullability(of: argType) == .nonNull
             let boxingTable = BoxingCalleeTable(interner: interner)
             guard let boxCallee = boxingTable.boxCallee(
@@ -321,10 +321,23 @@ final class ConsolePrintLoweringPass: LoweringPass, ParallelLoweringPass {
                 return nil
             }
             let boxed = arena.appendTemporary(type: intType)
-            newBody.append(.call(callee: boxCallee, arguments: [argument], result: boxed, canThrow: false, isSuperCall: false))
+            newBody.append(.call(
+                symbol: nil,
+                callee: boxCallee,
+                arguments: [argument],
+                result: boxed,
+                canThrow: false,
+                thrownResult: nil,
+                isSuperCall: false
+            ))
+            // Boolean needs its dedicated kk_any_to_string tag: a raw or
+            // identity-boxed value carries no runtime type info, so tag 1
+            // would render "1"/"0" instead of "true"/"false". Char gets its
+            // tag for the same reason (code point → character rendering).
+            // The other scalar tags keep flowing through the generic path.
             return appendAnyToString(
                 argument: boxed,
-                tag: 1,
+                tag: primitive == .boolean ? 2 : primitive == .char ? 4 : 1,
                 arena: arena,
                 intType: intType,
                 stringType: stringType,
@@ -447,6 +460,14 @@ final class ConsolePrintLoweringPass: LoweringPass, ParallelLoweringPass {
         // Enum base receivers use tagged boxes and runtime Any override dispatch.
         if classSymbol.fqName == knownNames.kotlinCollectionsHashSetFQName
             || classSymbol.fqName == [interner.intern("kotlin"), interner.intern("Enum")] {
+            return nil
+        }
+        if classSymbol.fqName == [
+            interner.intern("java"), interner.intern("io"), interner.intern("StringWriter"),
+        ] {
+            // Runtime StringWriter boxes register their raw StringWriter.toString
+            // entry in the erased-Any override map. Leave console printing on that
+            // path instead of dispatching through a compiler-owned flat String vtable.
             return nil
         }
         if ["ULongRange", "ULongProgression"].contains(where: { name in

@@ -251,6 +251,69 @@ struct CallableReferenceExtensionReceiverTests {
         #expect(errors.isEmpty, "Extension property refs via `Int::`/`i::` must type-check, got: \(errors)")
     }
 
+    @Test func testFunctionTypeAndGenericExtensionPropertyReferences() throws {
+        let source = """
+        val (Int.() -> String).baz: String get() = "a"
+        val <T> T.quux: T.() -> String get() = { "l" }
+        val a = (Int.() -> String)::baz
+        val b = String::quux
+        fun useQuux(): (String) -> (String.() -> String) = String::quux
+        """
+
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.isEmpty, "Function-type and generic extension property references must resolve: \(errors)")
+
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let references = ast.arena.exprs.indices.compactMap { index -> ExprID? in
+            let exprID = ExprID(rawValue: Int32(index))
+            guard case let .callableRef(_, _, range) = ast.arena.expr(exprID),
+                  ctx.sourceManager.origin(of: range.start.file) == .user
+            else {
+                return nil
+            }
+            return exprID
+        }
+        #expect(references.count == 3)
+        var referencedProperties = Set<String>()
+        for reference in references {
+            guard case let .callableRef(_, member, _) = ast.arena.expr(reference),
+                  case let .symbol(target)? = sema.bindings.callableTargets[reference],
+                  let targetSymbol = sema.symbols.symbol(target)
+            else {
+                Issue.record("Each property reference should bind to a property symbol.")
+                continue
+            }
+            let memberName = ctx.interner.resolve(member)
+            referencedProperties.insert(memberName)
+            #expect(targetSymbol.name == member)
+            #expect(sema.bindings.callableRefKind(for: reference) == .propertyRef)
+            #expect(sema.bindings.isUnboundCallableRef(reference))
+            #expect(sema.bindings.exprType(for: reference) != sema.types.errorType)
+        }
+        #expect(referencedProperties == Set(["baz", "quux"]))
+
+        let contextualQuuxReference = try #require(references.last { reference in
+            guard case let .callableRef(_, member, _) = ast.arena.expr(reference) else { return false }
+            return ctx.interner.resolve(member) == "quux"
+        })
+        guard case let .functionType(functionType) = sema.types.kind(
+            of: try #require(sema.bindings.exprType(for: contextualQuuxReference))
+        ) else {
+            Issue.record("The expected String::quux reference should retain a function type.")
+            return
+        }
+        #expect(functionType.params == [sema.types.stringType])
+        guard case let .functionType(propertyValueType) = sema.types.kind(of: functionType.returnType) else {
+            Issue.record("The generic property value should specialize to a receiver function type.")
+            return
+        }
+        #expect(propertyValueType.receiver == sema.types.stringType)
+        #expect(propertyValueType.returnType == sema.types.stringType)
+    }
+
     @Test func testUnboundGenericExtensionPropertyReferenceSpecializesReceiverType() throws {
         let source = """
         val <T> T.identity: T get() = this
@@ -354,6 +417,53 @@ struct CallableReferenceExtensionReceiverTests {
             errors.isEmpty,
             "`with(4) { ::even }` must bind the extension to the implicit receiver as `() -> Boolean`, got: \(errors)"
         )
+    }
+
+    @Test func testImplicitReceiverExtensionReferencesFromInnerAndOuterClasses() throws {
+        let source = """
+        class A {
+            suspend fun test(): String {
+                (::aExtensionFunction).let { it() }
+                return "A"
+            }
+
+            inner class B {
+                suspend fun test(): String {
+                    (::aExtensionFunction).let { it() }
+                    (::bExtensionFunction).let { it() }
+                    return "B"
+                }
+            }
+        }
+
+        suspend fun A.aExtensionFunction() {}
+        suspend fun A.B.bExtensionFunction() {}
+        """
+
+        let ctx = makeContextFromSource(source)
+        try runToKIR(ctx)
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(
+            errors.isEmpty,
+            "Top-level extensions on implicit outer and inner receivers should resolve: \(errors)"
+        )
+
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let referenceTargets = ast.arena.exprs.indices.compactMap { index -> String? in
+            let expression = ExprID(rawValue: Int32(index))
+            guard case .callableRef? = ast.arena.expr(expression),
+                  case let .symbol(target)? = sema.bindings.callableTargets[expression],
+                  let symbol = sema.symbols.symbol(target)
+            else {
+                return nil
+            }
+            let name = ctx.interner.resolve(symbol.name)
+            return ["aExtensionFunction", "bExtensionFunction"].contains(name) ? name : nil
+        }
+        #expect(referenceTargets.sorted() == [
+            "aExtensionFunction", "aExtensionFunction", "bExtensionFunction"
+        ].sorted())
     }
 
     @Test func testImplicitBoundExtensionInsideExtensionBody() throws {

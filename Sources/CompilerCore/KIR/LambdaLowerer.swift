@@ -50,6 +50,30 @@ final class LambdaLowerer {
         if isRawCallbackParameter, BoxingCalleeTable.isNonNullableStringStruct(rawKind) {
             return exprID
         }
+        if isRawCallbackParameter,
+           let valueClassSymbol = nullableUnderlyingValueClassSymbol(
+               of: rawKind,
+               types: sema.types,
+               symbols: sema.symbols
+           )
+        {
+            // A generic callback invokes this adapter through the erased `T`
+            // ABI. A nullable-underlying value class arrives as its nominal
+            // box, while the typed lambda body expects the raw payload.
+            let normalizedExpr = arena.appendTemporary(type: type)
+            emitValueClassUnboxCall(
+                value: exprID,
+                classSymbol: valueClassSymbol,
+                result: normalizedExpr,
+                resultType: type,
+                types: sema.types,
+                symbols: sema.symbols,
+                interner: interner,
+                arena: arena,
+                into: &instructions
+            )
+            return normalizedExpr
+        }
         let unboxCallee: InternedString? = {
             // Enum values use their raw ordinal in lambda bodies, while
             // collection HOFs pass elements through Any-erased slots as
@@ -655,7 +679,7 @@ final class LambdaLowerer {
         }
         if !hasNonLocalReturn {
             if let functionType {
-                emitRawFunctionArityTag(
+                emitFunctionValueTypeTag(
                     lambdaValueExpr, functionType: functionType, sema: sema,
                     arena: arena, interner: interner, instructions: &instructions
                 )
@@ -873,7 +897,8 @@ final class LambdaLowerer {
                lambdaName: lambdaName,
                lambdaReturnType: lambdaReturnType,
                captureBindings: [],
-               samMethodParamTypes: lambdaParameterTypes,
+               samMethodReceiverType: functionType?.receiver,
+               samMethodParamTypes: functionType?.params ?? lambdaParameterTypes,
                sema: sema,
                arena: arena,
                interner: interner,
@@ -963,7 +988,7 @@ final class LambdaLowerer {
         }
 
         if !hasNonLocalReturn, let functionType {
-            emitRawFunctionArityTag(
+            emitFunctionValueTypeTag(
                 lambdaValueExpr, functionType: functionType, sema: sema,
                 arena: arena, interner: interner, instructions: &instructions
             )

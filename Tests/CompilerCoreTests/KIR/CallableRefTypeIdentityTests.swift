@@ -121,7 +121,7 @@ struct CallableRefTypeIdentityTests {
         fun main() {
             val f = { 1 }
             val ref = ::top
-            val anon = fun() = 2
+            val anon = fun(): Int { return 2 }
             println(anon())
         }
         """)

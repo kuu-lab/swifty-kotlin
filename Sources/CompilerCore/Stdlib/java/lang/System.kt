@@ -3,6 +3,7 @@ package java.lang
 import java.io.InputStream
 import java.io.PrintStream
 import java.util.__identityHashCode
+import kotlin.collections.buildMap
 import kotlin.internal.KsSymbolName
 
 public object System {
@@ -19,10 +20,53 @@ public object System {
     @KsSymbolName("__kk_system_getProperty")
     private external fun __getProperty(propertyName: String): String?
 
+    @KsSymbolName("__kk_system_setProperty")
+    private external fun __setProperty(propertyName: String, value: String): String?
+
+    @KsSymbolName("__kk_system_clearProperty")
+    private external fun __clearProperty(propertyName: String): String?
+
+    @KsSymbolName("__kk_system_getenv")
+    private external fun __getenv(variableName: String): String?
+
+    @KsSymbolName("__kk_system_envCount")
+    private external fun __environmentCount(): Int
+
+    @KsSymbolName("__kk_system_envKeyAt")
+    private external fun __environmentKeyAt(index: Int): String?
+
+    @KsSymbolName("__kk_system_envValueAt")
+    private external fun __environmentValueAt(index: Int): String?
+
+    @KsSymbolName("__kk_system_currentTimeMillis")
+    private external fun __currentTimeMillis(): kotlin.Long
+
+    @KsSymbolName("__kk_system_nanoTime")
+    private external fun __nanoTime(): kotlin.Long
+
     public fun getProperty(propertyName: String): String? = __getProperty(propertyName)
 
     public fun getProperty(propertyName: String, defaultValue: String): String =
         __getProperty(propertyName) ?: defaultValue
+
+    public fun setProperty(propertyName: String, value: String): String? =
+        __setProperty(propertyName, value)
+
+    public fun clearProperty(propertyName: String): String? = __clearProperty(propertyName)
+
+    public fun getenv(variableName: String): String? = __getenv(variableName)
+
+    public fun getenv(): Map<String, String> = buildMap(__environmentCount()) {
+        for (index in 0 until __environmentCount()) {
+            val name = __environmentKeyAt(index) ?: continue
+            val value = __environmentValueAt(index) ?: continue
+            put(name, value)
+        }
+    }
+
+    public fun currentTimeMillis(): kotlin.Long = __currentTimeMillis()
+
+    public fun nanoTime(): kotlin.Long = __nanoTime()
 
     public fun identityHashCode(value: Any?): Int = __identityHashCode(value)
 

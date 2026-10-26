@@ -1,6 +1,13 @@
 package kotlin.collections
+
+import java.util.Spliterator
+import java.util.stream.Stream
+
 interface Iterator<out T> { operator fun hasNext(): Boolean; operator fun next(): T }
-interface Iterable<out E> { operator fun iterator(): Iterator<E> }
+interface Iterable<out E> {
+    operator fun iterator(): Iterator<E>
+    fun spliterator(): Spliterator<@UnsafeVariance E> = null!!
+}
 interface MutableIterator<out T>: Iterator<T> { fun remove() }
 interface MutableIterable<out T>: Iterable<T> { override operator fun iterator(): MutableIterator<T> }
 interface ListIterator<out T>: Iterator<T> {
@@ -18,6 +25,8 @@ interface Collection<out E>: Iterable<E> {
     fun isEmpty(): Boolean
     operator fun contains(element: @UnsafeVariance E): Boolean
     fun containsAll(elements: Collection<@UnsafeVariance E>): Boolean
+    fun stream(): Stream<@UnsafeVariance E> = null!!
+    fun parallelStream(): Stream<@UnsafeVariance E> = null!!
 }
 interface List<out E>: Collection<E> {
     operator fun get(index: Int): E

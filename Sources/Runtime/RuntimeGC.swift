@@ -218,7 +218,7 @@ struct ThreadLocalState {
 struct DelegateState {
     var callableRefMetadataByValue: [Int: RuntimeCallableRefMetadata] = [:]
     var samAdapterIdentityByValue: [Int: RuntimeSamAdapterIdentity] = [:]
-    var functionArityByPointer: [Int: Int] = [:]
+    var functionTypePayloadByValue: [Int: Int] = [:]
     var functionDescriptionsByValue: [Int: String] = [:]
     var functionEnclosingClassNamesByPointer: [Int: String] = [:]
 }
@@ -901,6 +901,7 @@ func removeRuntimeObjectMetadata(forObjectKey key: UInt) {
         state.objectInterfaceSlots.removeValue(forKey: key)
     }
     runtimeStorage.withDelegateLock { state in
+        state.functionTypePayloadByValue.removeValue(forKey: Int(bitPattern: key))
         state.functionDescriptionsByValue.removeValue(forKey: Int(bitPattern: key))
     }
 }
@@ -955,7 +956,7 @@ func kk_runtime_reset_delegate() {
     runtimeStorage.withDelegateLock { state in
         state.callableRefMetadataByValue.removeAll(keepingCapacity: false)
         state.samAdapterIdentityByValue.removeAll(keepingCapacity: false)
-        state.functionArityByPointer.removeAll(keepingCapacity: false)
+        state.functionTypePayloadByValue.removeAll(keepingCapacity: false)
         state.functionDescriptionsByValue.removeAll(keepingCapacity: false)
         state.functionEnclosingClassNamesByPointer.removeAll(keepingCapacity: false)
     }

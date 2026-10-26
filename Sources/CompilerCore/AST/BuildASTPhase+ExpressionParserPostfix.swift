@@ -47,9 +47,21 @@ extension BuildASTPhase.ExpressionParser {
 
     func parsePostfixOrPrimary() -> ExprID? {
         let receiverStartIndex = index
-        guard let expr = parsePrimary() else {
-            return nil
+        if looksLikeFunctionTypeCallableReferenceReceiver(from: receiverStartIndex),
+           let typeReceiver = tryParseCallableReferenceTypeReceiver(
+            from: receiverStartIndex,
+            functionTypeOnly: true
+        ) {
+            if let reference = parseCallableReference(
+                receiver: typeReceiver.expr,
+                receiverTypeRef: typeReceiver.typeRef,
+                receiverTypeRange: typeReceiver.range
+            ) {
+                return parsePostfixSuffixes(reference, receiverStartIndex: receiverStartIndex)
+            }
+            index = receiverStartIndex
         }
+        guard let expr = parsePrimary() else { return nil }
         return parsePostfixSuffixes(expr, receiverStartIndex: receiverStartIndex)
     }
 
@@ -63,7 +75,11 @@ extension BuildASTPhase.ExpressionParser {
             if matches(.symbol(.question)),
                let typeReceiver = tryParseCallableReferenceTypeReceiver(from: receiverStartIndex)
             {
-                guard let reference = parseCallableReference(receiver: typeReceiver.expr, receiverTypeRef: typeReceiver.typeRef) else {
+                guard let reference = parseCallableReference(
+                    receiver: typeReceiver.expr,
+                    receiverTypeRef: typeReceiver.typeRef,
+                    receiverTypeRange: typeReceiver.range
+                ) else {
                     break
                 }
                 expr = reference
@@ -71,7 +87,11 @@ extension BuildASTPhase.ExpressionParser {
             }
             if matches(.symbol(.lessThan)) {
                 if let typeReceiver = tryParseCallableReferenceTypeReceiver(from: receiverStartIndex) {
-                    guard let reference = parseCallableReference(receiver: typeReceiver.expr, receiverTypeRef: typeReceiver.typeRef) else {
+                    guard let reference = parseCallableReference(
+                        receiver: typeReceiver.expr,
+                        receiverTypeRef: typeReceiver.typeRef,
+                        receiverTypeRange: typeReceiver.range
+                    ) else {
                         break
                     }
                     expr = reference
@@ -259,7 +279,11 @@ extension BuildASTPhase.ExpressionParser {
             var hasExplicitCall = false
             if matches(.symbol(.lessThan)) {
                 if let typeReceiver = tryParseCallableReferenceTypeReceiver(from: receiverStartIndex) {
-                    guard let reference = parseCallableReference(receiver: typeReceiver.expr, receiverTypeRef: typeReceiver.typeRef) else {
+                    guard let reference = parseCallableReference(
+                        receiver: typeReceiver.expr,
+                        receiverTypeRef: typeReceiver.typeRef,
+                        receiverTypeRange: typeReceiver.range
+                    ) else {
                         break
                     }
                     expr = reference

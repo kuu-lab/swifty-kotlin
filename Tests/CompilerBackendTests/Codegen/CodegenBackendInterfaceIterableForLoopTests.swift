@@ -196,6 +196,40 @@ struct CodegenBackendInterfaceIterableForLoopTests {
         }
     }
 
+    // KUU-3383: name-based destructuring must follow property names when their
+    // order differs from componentN.
+    @Test
+    func testNameBasedForLoopDestructuringBindsByPropertyName() throws {
+        let source = """
+        fun main() {
+            val arr = arrayOf("a", "b")
+            for ((value, index) in arr.withIndex()) println("$value:$index")
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let output = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString).path
+            defer { try? FileManager.default.removeItem(atPath: output) }
+
+            let ctx = makeCompilationContext(
+                inputs: [path],
+                moduleName: "NameBasedIndexedValueForLoopDestructuring",
+                emit: .executable,
+                outputPath: output,
+                frontendFlags: ["name-based-destructuring=complete"]
+            )
+            try runToKIR(ctx)
+            #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: output, arguments: [])
+            #expect(result.exitCode == 0, "Execution stderr: \(result.stderr)")
+            #expect(result.stdout == "a:0\nb:1\n")
+        }
+    }
+
     @Test
     func testNameBasedDestructuringPropertyAliasesReadProperties() throws {
         let source = """

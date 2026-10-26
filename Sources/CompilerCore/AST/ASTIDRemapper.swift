@@ -156,6 +156,7 @@ struct ASTIDRemapper {
             modifiers: value.modifiers,
             annotations: value.annotations.map { remap($0) },
             typeParams: value.typeParams.map { remap($0) },
+            whereClauseRange: value.whereClauseRange,
             receiverType: value.receiverType.map { remap($0) },
             contextReceivers: value.contextReceivers.map { remap($0) },
             valueParams: value.valueParams.map { remap($0) },

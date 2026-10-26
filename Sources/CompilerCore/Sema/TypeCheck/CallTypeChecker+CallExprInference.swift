@@ -406,10 +406,12 @@ extension CallTypeChecker {
         )
 
         var samFactoryCandidates: [SymbolID]?
-        if let calleeName,
+        let samConstructorName = calleeName ?? calleePath?.last
+        if let samConstructorName,
            let samCallType = inferSamConvertedCallExpr(
                id,
-               calleeName: calleeName,
+               calleeName: samConstructorName,
+               qualifiedName: calleePath,
                args: args,
                range: range,
                ctx: ctx,
@@ -567,6 +569,38 @@ extension CallTypeChecker {
         var lambdaContextOverrides: [Int: TypeInferenceContext] = [:]
         let argumentDiagnosticsCheckpoint = sema.diagnostics.checkpoint()
         let originalArgumentLocals = locals
+        var preInferredSamConstructorSiblingTypes: [Int: TypeID] = [:]
+        if let samConstructorIndex = args.indices.first(where: {
+            driver.callChecker.samConstructorLambdaArgument(args[$0].expr, ctx: ctx) != nil
+        }) {
+            for index in args.indices where index != samConstructorIndex {
+                guard !args[index].isSpread,
+                      !driver.callChecker.isInferableNestedCallExpr(args[index].expr, ast: ast)
+                else {
+                    continue
+                }
+                switch ast.arena.expr(args[index].expr) {
+                case .lambdaLiteral, .callableRef:
+                    continue
+                case .blockExpr where ast.arena.isAnonymousFunction(args[index].expr):
+                    continue
+                default:
+                    break
+                }
+                let numericExpectedType = uniformNumericLiteralParameterType(
+                    at: index,
+                    argumentLabel: args[index].label,
+                    candidates: argumentContextCandidates,
+                    sema: sema
+                )
+                preInferredSamConstructorSiblingTypes[index] = driver.inferExpr(
+                    args[index].expr,
+                    ctx: ctx,
+                    locals: &locals,
+                    expectedType: numericExpectedType
+                )
+            }
+        }
         // Contextual argument inference uses the underlying owner's positions,
         // while overload resolution consumes the alias's public type arguments.
         let argumentContextTypeArgs = typeAliasConstructor.map {
@@ -581,18 +615,29 @@ extension CallTypeChecker {
             calleeName: calleeName,
             candidates: argumentContextCandidates,
             locals: locals,
+            preInferredArgumentTypes: preInferredSamConstructorSiblingTypes,
             withContextExpectedLambdaType: withContextExpectedLambdaType,
             expectedTypeOverrides: &expectedTypeOverrides,
             lambdaContextOverrides: &lambdaContextOverrides
         )
 
-        // Calling a function-typed local (`m { it }`): no candidate declares the
-        // parameter types, so seed lambda arguments from the value's own type.
-        if candidates.isEmpty, let calleeName, let local = locals[calleeName],
-           case let .functionType(calleeFunctionType) = sema.types.kind(of: sema.types.makeNonNullable(local.type)),
+        // Calling a function-typed value (`m { it }`): no candidate declares
+        // the parameter types, so seed lambda arguments from the value's own
+        // type. This includes member properties accessed through the implicit
+        // receiver, such as a function property called from an init block.
+        let callableValueType: TypeID? = if candidates.isEmpty, let calleeName {
+            if let local = locals[calleeName] {
+                local.type
+            } else {
+                implicitReceiverFunctionProperty(named: calleeName, ctx: ctx)?.type
+            }
+        } else {
+            nil
+        }
+        if let callableValueType,
+           case let .functionType(calleeFunctionType) = sema.types.kind(of: sema.types.makeNonNullable(callableValueType)),
            calleeFunctionType.receiver == nil,
-           args.count == calleeFunctionType.params.count
-        {
+           args.count == calleeFunctionType.params.count {
             for (index, argument) in args.enumerated()
                 where !argument.isSpread && argument.label == nil && expectedTypeOverrides[index] == nil
             {
@@ -606,6 +651,7 @@ extension CallTypeChecker {
             args: args,
             callRange: range,
             candidates: argumentContextCandidates,
+            preInferredNonLambdaArgTypes: preInferredSamConstructorSiblingTypes,
             expectedTypeOverrides: expectedTypeOverrides,
             expectedTypeHintIndices: expectedTypeHintIndices,
             contextualCallResultType: ctx.isCallResultDiscarded && ctx.isUnitCoercionContext

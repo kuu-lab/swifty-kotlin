@@ -1,8 +1,45 @@
 @testable import CompilerCore
+import Foundation
 import Testing
 
 @Suite
 struct AnnotationDefaultImportResolutionTests {
+    @Test
+    func bundledJvmFieldAnnotationsResolveThroughDefaultImports() throws {
+        let source = """
+        class C { @Volatile var v = 1; @Transient var t = 2 }
+        """
+        let input = FileManager.default.temporaryDirectory
+            .appendingPathComponent("kuu-3475-\(UUID().uuidString).kt").path
+        let context = CompilerDriver().runFrontend(
+            options: CompilerOptions(
+                moduleName: "KUU3475",
+                inputs: [input],
+                outputPath: input + ".out",
+                emit: .kirDump,
+                target: TargetTriple.hostDefault(),
+                allowDefaultStdlibLibrary: false
+            ),
+            inMemorySources: [input: Data(source.utf8)]
+        ).context
+
+        #expect(!context.diagnostics.hasError, "Unexpected diagnostics: \(context.diagnostics.diagnostics)")
+        let sema = try #require(context.sema)
+        let ast = try #require(context.ast)
+        let fileID = try #require(context.sourceManager.fileID(forPath: input))
+        let file = try #require(ast.file(for: fileID))
+        for (name, expectedFQName) in [("Volatile", "kotlin.jvm.Volatile"), ("Transient", "kotlin.jvm.Transient")] {
+            let resolved = resolveAnnotationSymbol(
+                named: name,
+                in: file,
+                symbols: sema.symbols,
+                interner: context.interner
+            )
+            let expected = expectedFQName.split(separator: ".").map { context.interner.intern(String($0)) }
+            #expect(resolved == sema.symbols.lookup(fqName: expected))
+        }
+    }
+
     @Test(arguments: [false, true])
     func defaultImportPrecedesUnrelatedShortName(reverseOrder: Bool) {
         let interner = StringInterner()

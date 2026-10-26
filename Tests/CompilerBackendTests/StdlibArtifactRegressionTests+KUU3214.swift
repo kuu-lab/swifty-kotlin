@@ -6,15 +6,11 @@ import Testing
 
 extension StdlibArtifactRegressionTests {
 
-    /// KUU-3214 / KT-83308: a virtual `toString()` call through the
-    /// `kotlin.Any.toString` vtable slot must use the runtime's raw
-    /// `(Int) -> Int` string-handle ABI. Registered entries are either
-    /// `kk_any_member_to_string` or a `kk_any_to_string_bridge_*` raw
-    /// bridge, so typing the indirect call as a flat String aggregate
-    /// made the callee read uninitialized memory and the result came
-    /// back null.
+    /// KUU-3214 / KT-83308: virtual `toString()` dispatch must use the ABI
+    /// of the implementation registered in the Any slot. Kotlin overrides
+    /// use the flat String ABI; only the runtime fallback uses a raw handle.
     @Test
-    func testInheritedToStringVirtualCallUsesRawAnySlotABI() throws {
+    func testInheritedToStringVirtualCallUsesRegisteredAnySlotABI() throws {
         let artifactPath = try Self.buildStdlibArtifact()
         let source = """
         open class Base {

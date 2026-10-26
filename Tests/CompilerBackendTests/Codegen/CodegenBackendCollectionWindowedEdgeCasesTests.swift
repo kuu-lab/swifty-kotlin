@@ -89,6 +89,26 @@ struct CodegenBackendCollectionWindowedEdgeCasesTests {
     }
 
     @Test
+    func testCodegenListWindowedRejectsNonPositiveSizeAndStep() throws {
+        let source = try diffCaseSource("list_windowed_invalid_size.kt")
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "ListWindowedInvalidSize",
+            expected:
+                """
+                list-size-zero:ok
+                list-size-negative:ok
+                list-step-zero:ok
+                list-step-negative:ok
+                iterable-size-zero:ok
+                iterable-step-zero:ok
+                transform-size-zero:ok
+                """ + "\n"
+        )
+    }
+
+    @Test
     func testCodegenConcreteArrayChunkedRejectsNonPositiveSizes() throws {
         let source = """
         fun main() {

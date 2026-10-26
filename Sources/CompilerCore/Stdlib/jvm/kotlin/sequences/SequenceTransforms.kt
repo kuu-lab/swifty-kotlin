@@ -6,15 +6,20 @@ package kotlin.sequences
 // MIGRATION-SEQ-002 / KSP-441
 // Core higher-order transform functions for source-backed Sequence pipelines.
 
-public fun <T, R> Sequence<T>.map(transform: (T) -> R): Sequence<R> {
-    val source = this
-    return object : Sequence<R> {
-        override fun iterator(): Iterator<R> = object : Iterator<R> {
-            val sourceIterator = source.iterator()
-            override fun hasNext(): Boolean = sourceIterator.hasNext()
-            override fun next(): R = transform(sourceIterator.next())
-        }
+private class TransformingSequence<T, R>(
+    private val source: Sequence<T>,
+    private val transform: (T) -> R
+) : Sequence<R> {
+    override fun iterator(): Iterator<R> = object : Iterator<R> {
+        private val sourceIterator = source.iterator()
+
+        override fun hasNext(): Boolean = sourceIterator.hasNext()
+        override fun next(): R = transform(sourceIterator.next())
     }
+}
+
+public fun <T, R> Sequence<T>.map(transform: (T) -> R): Sequence<R> {
+    return TransformingSequence(this, transform)
 }
 
 public fun <T, R> Sequence<T>.mapIndexed(transform: (Int, T) -> R): Sequence<R> {

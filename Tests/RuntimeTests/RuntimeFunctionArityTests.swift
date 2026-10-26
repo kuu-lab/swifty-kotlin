@@ -3,8 +3,9 @@ import Testing
 
 @Suite(.runtimeIsolation(.all))
 struct RuntimeFunctionArityTests {
-    private func functionToken(_ arity: Int, nullable: Bool = false) -> Int {
-        Int((Int64(arity) << RuntimeTypeTokenEncoding.payloadShift)
+    private func functionToken(_ arity: Int, nullable: Bool = false, suspend: Bool = false) -> Int {
+        let payload = Int64(arity) | (suspend ? 0x100 : 0)
+        return Int((payload << RuntimeTypeTokenEncoding.payloadShift)
             | RuntimeTypeTokenEncoding.functionBase
             | (nullable ? RuntimeTypeTokenEncoding.nullableBit : 0))
     }
@@ -23,12 +24,32 @@ struct RuntimeFunctionArityTests {
         #expect(kk_op_is(runtimeNullSentinelInt, functionToken(arity, nullable: true)) == 1)
     }
 
+    @Test func suspendFunctionsMatchTheirSuspendTypeAndLoweredFunctionShape() {
+        let suspendRaw = 0x123500
+        let plainRaw = 0x123600
+        _ = kk_function_value_tag_arity(suspendRaw, 0x100)
+        _ = kk_function_value_tag_arity(plainRaw, 0)
+
+        #expect(kk_op_is(suspendRaw, functionToken(0, suspend: true)) == 1)
+        #expect(kk_op_is(suspendRaw, functionToken(0)) == 0)
+        #expect(kk_op_is(suspendRaw, functionToken(1)) == 1)
+        #expect(kk_op_is(plainRaw, functionToken(0, suspend: true)) == 0)
+        #expect(kk_op_is(plainRaw, functionToken(0)) == 1)
+        #expect(kk_op_safe_cast(suspendRaw, functionToken(0, suspend: true)) == suspendRaw)
+        #expect(kk_op_safe_cast(plainRaw, functionToken(0, suspend: true)) == runtimeNullSentinelInt)
+    }
+
     @Test func taggedCallableReferencesMatchFunctionArity() {
         let function = kk_callable_ref_tag_kfunction(0x234500, 0, 0, 2, 0)
         #expect(kk_op_is(function, functionToken(2)) == 1)
         #expect(kk_op_is(function, functionToken(1)) == 0)
         let property = kk_callable_ref_tag_kproperty(0x345600, 0, 0, 0)
         #expect(kk_op_is(property, functionToken(0)) == 0)
+
+        let suspendFunction = kk_callable_ref_tag_kfunction(0x456700, 0, 0, 1, 1)
+        #expect(kk_op_is(suspendFunction, functionToken(1, suspend: true)) == 1)
+        #expect(kk_op_is(suspendFunction, functionToken(1)) == 0)
+        #expect(kk_op_is(suspendFunction, functionToken(2)) == 1)
     }
 
     @Test func callableReferenceMetadataSupportsNominalReflectionChecks() {
@@ -72,5 +93,27 @@ struct RuntimeFunctionArityTests {
         #expect(kk_op_is(reflected, functionToken(2)) == 1)
         #expect(kk_op_is(reflected, functionToken(1)) == 0)
         #expect(kk_op_is(42, functionToken(1)) == 0)
+    }
+
+    @Test func boxedSuspendFunctionChecksRequireTheSuspendMarkerAndMatchingArity() {
+        let regular = kk_function_create_0(0x123400, 0, nil)
+        let suspended = kk_suspend_function_create(0x234500, 0, 0, 0x345600)
+
+        #expect(kk_op_is(regular, functionToken(0)) == 1)
+        #expect(kk_op_is(regular, functionToken(0, suspend: true)) == 0)
+        #expect(kk_op_is(suspended, functionToken(0)) == 0)
+        #expect(kk_op_is(suspended, functionToken(0, suspend: true)) == 1)
+        #expect(kk_op_is(suspended, functionToken(1, suspend: true)) == 0)
+    }
+
+    @Test func suspendFunctionChecksAcceptNominalImplementations() {
+        let customTypeID = runtimeStableNominalTypeID(fqName: "test.CustomSuspendFunction")
+        let suspendFunction0ID = runtimeStableNominalTypeID(fqName: "kotlin.coroutines.SuspendFunction0")
+        runtimeRegisterTypeEdge(childTypeID: customTypeID, parentTypeID: suspendFunction0ID)
+        let value = kk_object_new(0, Int(customTypeID))
+
+        #expect(kk_op_is(value, functionToken(0, suspend: true)) == 1)
+        #expect(kk_op_is(value, functionToken(1, suspend: true)) == 0)
+        #expect(kk_op_is(value, functionToken(0)) == 0)
     }
 }
