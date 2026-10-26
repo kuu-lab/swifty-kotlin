@@ -60,6 +60,33 @@ struct CodegenBackendScopeFunctionEdgeCasesTests {
         )
     }
 
+    @Test
+    func testContextualUnboundPropertyReferenceGetUsesInvocationContext() throws {
+        let source = """
+        import kotlin.ExperimentalContextParameters
+
+        @OptIn(ExperimentalContextParameters::class)
+        class A(val t: String) {
+            context(c: String)
+            val prop: String get() = t + c
+        }
+
+        @OptIn(ExperimentalContextParameters::class)
+        val r = A::prop
+
+        @OptIn(ExperimentalContextParameters::class)
+        fun main() {
+            with("K") { println(r.get(A("a"))) }
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "ContextualUnboundPropertyReferenceGet",
+            expected: "aK\n"
+        )
+    }
+
     @Test(arguments: [true, false])
     func testTailPositionLabeledReturnPropagatesValue(defaultStdlib: Bool) throws {
         let source = """
