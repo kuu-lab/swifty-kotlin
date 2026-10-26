@@ -570,6 +570,9 @@ public enum StdlibArtifactBuilder {
         includeRuntimePrelink: Bool = false,
         profile: StdlibProfile = .full
     ) throws -> String {
+        let timing = StdlibBuildTiming.start(kind: "artifact-builder")
+        var succeeded = false
+        defer { timing?.finish(success: succeeded) }
         let options = CompilerOptions(
             moduleName: "KSwiftKStdlib",
             inputs: [],
@@ -619,6 +622,7 @@ public enum StdlibArtifactBuilder {
         if includeRuntimePrelink {
             attachRuntimePrelinkIfAvailable(outputBase: artifactPath, target: target)
         }
+        succeeded = true
         return artifactPath
     }
 
