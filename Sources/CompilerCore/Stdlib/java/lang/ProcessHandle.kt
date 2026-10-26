@@ -8,7 +8,7 @@ private external fun __currentProcessPid(): kotlin.Long
 public class ProcessHandle private constructor(private val processId: kotlin.Long) {
     public fun pid(): kotlin.Long = processId
 
-    public fun isAlive(): Boolean = processId == __currentProcessPid()
+    public fun isAlive(): kotlin.Boolean = processId == __currentProcessPid()
 
     public companion object {
         public fun current(): ProcessHandle = ProcessHandle(__currentProcessPid())

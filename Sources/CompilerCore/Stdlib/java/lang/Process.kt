@@ -18,7 +18,7 @@ private external fun __processPid(handle: kotlin.Long): kotlin.Long
 private external fun __destroyProcess(handle: kotlin.Long)
 
 public open class Process internal constructor(private val handle: kotlin.Long) {
-    public val isAlive: Boolean
+    public val isAlive: kotlin.Boolean
         get() = __isProcessAlive(handle) != 0
 
     public fun pid(): kotlin.Long = __processPid(handle)
