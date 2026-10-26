@@ -78,6 +78,51 @@ extension ExprTypeChecker {
         return (companionType, candidates)
     }
 
+    /// `Type::member` can fall back to the class's companion scope when no
+    /// member is declared on the class itself. The companion is a singleton,
+    /// so this reference captures it instead of adding the class as an input.
+    private func companionMemberCallableReference(
+        named member: InternedString,
+        receiverType: TypeID,
+        isUnboundTypeReceiver: Bool,
+        ctx: TypeInferenceContext
+    ) -> (receiverType: TypeID, candidates: [SymbolID])? {
+        let sema = ctx.sema
+        let interner = ctx.interner
+        guard isUnboundTypeReceiver,
+              let (_, ownerSymbol) = resolveClassTypeSymbol(receiverType, sema: sema)
+        else {
+            return nil
+        }
+
+        let companionSymbol = sema.symbols.companionObjectSymbol(for: ownerSymbol.id)
+            ?? sema.symbols.actualSymbol(for: ownerSymbol.id).flatMap {
+                sema.symbols.companionObjectSymbol(for: $0)
+            }
+        guard let companionSymbol else { return nil }
+
+        let companionType = sema.symbols.propertyType(for: companionSymbol)
+            ?? sema.types.make(.classType(ClassType(
+                classSymbol: companionSymbol,
+                args: [],
+                nullability: .nonNull
+            )))
+        let candidates = driver.helpers.collectMemberFunctionCandidates(
+            named: member,
+            receiverType: companionType,
+            sema: sema,
+            interner: interner
+        ).filter { candidate in
+            !driver.helpers.declaresExtensionReceiver(
+                candidate,
+                sema: sema,
+                interner: interner
+            )
+        }
+        guard !candidates.isEmpty else { return nil }
+        return (companionType, candidates)
+    }
+
     func inferCallableRefExpr(
         _ id: ExprID,
         receiver: ExprID?,
@@ -426,7 +471,7 @@ extension ExprTypeChecker {
         var isConstructorReference = false
         var unboundInnerConstructorReceiverType: TypeID?
         var isImplicitlyBoundMember = false
-        var enumCompanionCallableReferenceReceiverType: TypeID?
+        var companionCallableReferenceReceiverType: TypeID?
         var propertyReferenceCandidate: (symbol: SymbolID, ownerType: TypeID?, isUnbound: Bool, type: TypeID)?
         if let effectiveReceiverType {
             let nonNullReceiver = sema.types.makeNonNullable(effectiveReceiverType)
@@ -470,6 +515,14 @@ extension ExprTypeChecker {
                     isUnboundTypeReceiver: unboundClassType != nil,
                     ctx: ctx
                 )
+                : nil
+            let companionCallableReference = memberCandidates.isEmpty
+                ? (enumCompanionValueOf ?? companionMemberCallableReference(
+                    named: member,
+                    receiverType: nonNullReceiver,
+                    isUnboundTypeReceiver: unboundClassType != nil,
+                    ctx: ctx
+                ))
                 : nil
             let memberProperty = driver.helpers.lookupMemberProperty(
                 named: member,
@@ -523,12 +576,19 @@ extension ExprTypeChecker {
                         companionMemberProperty.type
                     )
                 }
-            } else if let enumCompanionValueOf {
-                // `EnumType::valueOf` is a static-style Kotlin reference: the
-                // enum's singleton companion receiver is captured implicitly,
-                // so it does not become a leading function parameter.
-                candidates = enumCompanionValueOf.candidates
-                enumCompanionCallableReferenceReceiverType = enumCompanionValueOf.receiverType
+            } else if let companionCallableReference {
+                // A class-name companion reference is bound to the singleton
+                // receiver and therefore has no leading class input.
+                candidates = companionCallableReference.candidates
+                companionCallableReferenceReceiverType = companionCallableReference.receiverType
+                if let property = companionMemberProperty {
+                    propertyReferenceCandidate = (
+                        property.symbol,
+                        nil,
+                        false,
+                        property.type
+                    )
+                }
             } else {
                 // Property references use the same inheritance-aware lookup as
                 // ordinary member reads (for example MutableList<Int>::size).
@@ -1008,7 +1068,7 @@ extension ExprTypeChecker {
         // constructor references have no receiver parameter; inner
         // constructors use their enclosing instance as that parameter.
         let isBoundReceiver = (receiver != nil
-            && (unboundClassType == nil || enumCompanionCallableReferenceReceiverType != nil))
+            && (unboundClassType == nil || companionCallableReferenceReceiverType != nil))
             || (isConstructorReference && unboundInnerConstructorReceiverType == nil)
             || isImplicitlyBoundMember
         let unboundCallableReceiverType: TypeID?
@@ -1159,8 +1219,8 @@ extension ExprTypeChecker {
         // Concrete value and type receivers specialize the owner's type parameters.
         let boundReceiverType: TypeID? = if isImplicitlyBoundMember {
             implicitBoundReceiver?.type
-        } else if let enumCompanionCallableReferenceReceiverType {
-            enumCompanionCallableReferenceReceiverType
+        } else if let companionCallableReferenceReceiverType {
+            companionCallableReferenceReceiverType
         } else if receiver != nil && !isConstructorReference {
             effectiveReceiverType
         } else {
@@ -1438,7 +1498,7 @@ extension ExprTypeChecker {
                 }
             }
             if unboundClassType != nil,
-               enumCompanionCallableReferenceReceiverType == nil,
+               companionCallableReferenceReceiverType == nil,
                (!isConstructorReference || unboundInnerConstructorReceiverType != nil)
             {
                 sema.bindings.markUnboundCallableRef(id)
