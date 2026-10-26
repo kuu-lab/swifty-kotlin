@@ -514,16 +514,27 @@ extension CallTypeChecker {
             return false
         }
         if case let .functionType(declaredFn) = sema.types.kind(of: declared),
-           case let .functionType(actualFn) = sema.types.kind(of: actual),
-           declaredFn.isSuspend == actualFn.isSuspend,
-           declaredFn.params.count == actualFn.params.count,
-           typeArgumentLikeMatch(actual: actualFn.receiver, declared: declaredFn.receiver),
-           zip(actualFn.params, declaredFn.params).allSatisfy({ actualParam, declaredParam in
-               typeArgumentLikeMatch(actual: actualParam, declared: declaredParam)
-           }),
-           typeArgumentLikeMatch(actual: actualFn.returnType, declared: declaredFn.returnType)
+           case let .functionType(actualFn) = sema.types.kind(of: actual)
         {
-            return true
+            // Kotlin treats a function receiver as its leading function
+            // parameter. Keep this fallback aligned with function subtyping so
+            // generic extension receivers match both `suspend R.() -> T` and
+            // `suspend (R) -> T` call-site types.
+            let declaredParameters = (declaredFn.receiver.map { [$0] } ?? []) + declaredFn.params
+            let actualParameters = (actualFn.receiver.map { [$0] } ?? []) + actualFn.params
+            if declaredFn.contextReceivers.count == actualFn.contextReceivers.count,
+               declaredFn.isSuspend == actualFn.isSuspend,
+               declaredParameters.count == actualParameters.count,
+               zip(actualFn.contextReceivers, declaredFn.contextReceivers).allSatisfy({ actualContext, declaredContext in
+                   typeArgumentLikeMatch(actual: actualContext, declared: declaredContext)
+               }),
+               zip(actualParameters, declaredParameters).allSatisfy({ actualParameter, declaredParameter in
+                   typeArgumentLikeMatch(actual: actualParameter, declared: declaredParameter)
+               }),
+               typeArgumentLikeMatch(actual: actualFn.returnType, declared: declaredFn.returnType)
+            {
+                return true
+            }
         }
         if case let .classType(declaredCt) = sema.types.kind(of: declared),
            case let .kClassType(actualKClass) = sema.types.kind(of: actual),
