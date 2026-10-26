@@ -342,6 +342,8 @@ extension DataFlowSemaPhase {
                 symbols.setFunctionSignature(
                     FunctionSignature(
                         receiverType: stubReceiverType,
+                        contextReceiverTypes: signature.contextReceiverTypes,
+                        contextParameterTypes: signature.contextParameterTypes,
                         parameterTypes: stubParameterTypes,
                         returnType: signature.returnType,
                         isSuspend: false,

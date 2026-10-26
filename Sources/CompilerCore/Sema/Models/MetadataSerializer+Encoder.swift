@@ -339,6 +339,7 @@ package final class MetadataEncoder {
         nameResolver: ((InternedString) -> String)?
     ) -> String {
         let functionType = types.make(.functionType(FunctionType(
+            contextReceivers: signature.contextParameterTypes,
             receiver: signature.receiverType,
             params: signature.parameterTypes,
             returnType: signature.returnType,

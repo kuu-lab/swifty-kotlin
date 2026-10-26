@@ -152,8 +152,9 @@ extension NativeEmitter.FunctionEmissionContext {
                     if let internalFunction = internalFunctions[symbol] {
                         return internalFunction
                     }
-                    let parameterCount = signature.parameterTypes.count
-                        + (signature.receiverType == nil ? 0 : 1)
+                    let parameterCount = sourceReceiverTypes(for: symbol, signature: signature).count
+                        + signature.contextParameterTypes.count
+                        + signature.parameterTypes.count
                     if let sourceSignature = sourceExternalSignature(
                         for: symbol,
                         argumentCount: parameterCount
@@ -197,6 +198,7 @@ extension NativeEmitter.FunctionEmissionContext {
                 }
                 let runtimeSpec = NativeEmitter.runtimeABIFunctionByName[linkName]
                 let argumentCount = sourceReceiverTypes(for: symbol, signature: signature).count
+                    + signature.contextParameterTypes.count
                     + signature.parameterTypes.count
                 let appendThrown = runtimeSpec?.isThrowing ?? true
                 // Runtime aliases retain their raw-handle declaration path.

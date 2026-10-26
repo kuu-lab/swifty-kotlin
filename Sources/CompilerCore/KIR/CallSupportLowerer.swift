@@ -349,6 +349,10 @@ final class CallSupportLowerer {
                 driver.ctx.setLocalDeclaredType(receiverType, for: owner)
             }
         }
+        let contextParameters = Array(zip(signature.contextParameterSymbols, signature.contextParameterTypes))
+        params.append(contentsOf: contextParameters.map { symbol, type in
+            KIRParameter(symbol: symbol, type: type)
+        })
         let isVararg = OverloadResolver.normalizeFlags(signature.valueParameterIsVararg, count: paramCount)
         var effectiveParameterTypes: [TypeID] = []
         effectiveParameterTypes.reserveCapacity(paramCount)
@@ -395,6 +399,16 @@ final class CallSupportLowerer {
         params.append(contentsOf: maskSymbols.map { KIRParameter(symbol: $0, type: maskType) })
 
         var body: [KIRInstruction] = [.beginBlock]
+        var contextArgumentExprs: [KIRExprID] = []
+        var contextReceiverValues: [KIRLoweringContext.ContextReceiverValue] = []
+        for (contextSymbol, contextType) in contextParameters {
+            let expression = arena.appendExpr(.symbolRef(contextSymbol), type: contextType)
+            body.append(.constValue(result: expression, value: .symbolRef(contextSymbol)))
+            driver.ctx.setLocalValue(expression, for: contextSymbol)
+            driver.ctx.setLocalDeclaredType(contextType, for: contextSymbol)
+            contextArgumentExprs.append(expression)
+            contextReceiverValues.append(.init(type: contextType, exprID: expression))
+        }
         // Defaults can themselves capture reified parameters in a lambda.
         // Bind both hidden slots before lowering those expressions.
         for tokenSymbol in reifiedTokenSymbols {
@@ -473,15 +487,17 @@ final class CallSupportLowerer {
                 body.append(.jumpIfEqual(lhs: selectedExpr, rhs: zeroExpr, target: skipLabel))
 
                 driver.ctx.setLocalValue(paramExpr, for: paramSymbol)
-                let defaultVal = driver.lowerExpr(
-                    defaultExprID,
-                    ast: ast,
-                    sema: sema,
-                    arena: arena,
-                    interner: interner,
-                    propertyConstantInitializers: propertyConstantInitializers,
-                    instructions: &body
-                )
+                let defaultVal = driver.ctx.withContextReceiverValues(contextReceiverValues) {
+                    driver.lowerExpr(
+                        defaultExprID,
+                        ast: ast,
+                        sema: sema,
+                        arena: arena,
+                        interner: interner,
+                        propertyConstantInitializers: propertyConstantInitializers,
+                        instructions: &body
+                    )
+                }
                 // A function-typed parameter is consumed through kk_function_invoke,
                 // which needs a boxed function value. Call-site lambdas are wrapped
                 // by materializeSourceBackedFunctionValueArguments; do the same for
@@ -526,6 +542,7 @@ final class CallSupportLowerer {
         if let functionReceiverExpr {
             callArgs.append(functionReceiverExpr)
         }
+        callArgs.append(contentsOf: contextArgumentExprs)
         callArgs.append(contentsOf: resolvedParamExprs)
         for tokenSym in reifiedTokenSymbols {
             let tokenExpr = arena.appendExpr(.symbolRef(tokenSym), type: intType)

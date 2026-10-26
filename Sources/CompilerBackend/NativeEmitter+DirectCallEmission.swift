@@ -662,8 +662,12 @@ extension NativeEmitter.FunctionEmissionContext {
         } ?? []
         let callReceiverOffset: Int = effectiveSymbol.flatMap {
             guard let signature = symbols?.functionSignature(for: $0) else { return nil }
-            return sourceExternalCallSignature?.parameters.count == signature.parameterTypes.count
-                ? 0 : sourceReceiverTypes(for: $0, signature: signature).count
+            if let sourceExternalCallSignature {
+                // Externally declared signatures flatten receivers and context
+                // parameters before their value parameters.
+                return max(0, sourceExternalCallSignature.parameters.count - signature.parameterTypes.count)
+            }
+            return sourceReceiverTypes(for: $0, signature: signature).count + signature.contextParameterTypes.count
         } ?? 0
         let isRuntimeCallbackRawABIInternalCall = isInternalCall
             && effectiveSymbol.map { runtimeCallbackRawReturnSymbols.contains($0) } == true
