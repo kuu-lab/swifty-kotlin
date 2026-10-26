@@ -621,13 +621,23 @@ extension CallTypeChecker {
             lambdaContextOverrides: &lambdaContextOverrides
         )
 
-        // Calling a function-typed local (`m { it }`): no candidate declares the
-        // parameter types, so seed lambda arguments from the value's own type.
-        if candidates.isEmpty, let calleeName, let local = locals[calleeName],
-           case let .functionType(calleeFunctionType) = sema.types.kind(of: sema.types.makeNonNullable(local.type)),
+        // Calling a function-typed value (`m { it }`): no candidate declares
+        // the parameter types, so seed lambda arguments from the value's own
+        // type. This includes member properties accessed through the implicit
+        // receiver, such as a function property called from an init block.
+        let callableValueType: TypeID? = if candidates.isEmpty, let calleeName {
+            if let local = locals[calleeName] {
+                local.type
+            } else {
+                implicitReceiverFunctionProperty(named: calleeName, ctx: ctx)?.type
+            }
+        } else {
+            nil
+        }
+        if let callableValueType,
+           case let .functionType(calleeFunctionType) = sema.types.kind(of: sema.types.makeNonNullable(callableValueType)),
            calleeFunctionType.receiver == nil,
-           args.count == calleeFunctionType.params.count
-        {
+           args.count == calleeFunctionType.params.count {
             for (index, argument) in args.enumerated()
                 where !argument.isSpread && argument.label == nil && expectedTypeOverrides[index] == nil
             {
