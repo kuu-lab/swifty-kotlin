@@ -64,6 +64,49 @@ struct TestStdlibCacheContentAddressingTests {
     }
 
     @Test
+    func identicalImageContentsReuseFingerprintButSameMetadataChangesDoNot() throws {
+        try withTempBuildDirectory { buildDir in
+            let fm = FileManager.default
+            let image = buildDir.appendingPathComponent("CompilerBackendTests")
+            let originalTime = Date(timeIntervalSince1970: 1_700_000_000)
+            try fm.createDirectory(at: buildDir, withIntermediateDirectories: true)
+            try Data("compiler-a".utf8).write(to: image)
+            try fm.setAttributes([.modificationDate: originalTime], ofItemAtPath: image.path)
+            let first = try #require(TestStdlibCache.currentCompilerFingerprint(compilerImageURL: image))
+
+            // A timestamp-only relink does not change the generated artifact.
+            try fm.setAttributes([.modificationDate: originalTime.addingTimeInterval(10)], ofItemAtPath: image.path)
+            let touched = try #require(TestStdlibCache.currentCompilerFingerprint(compilerImageURL: image))
+            #expect(touched == first)
+
+            // Different bytes must invalidate even if size and timestamp match.
+            try Data("compiler-b".utf8).write(to: image)
+            try fm.setAttributes([.modificationDate: originalTime], ofItemAtPath: image.path)
+            let changed = try #require(TestStdlibCache.currentCompilerFingerprint(compilerImageURL: image))
+            #expect(changed != first)
+
+            let firstKey = try TestStdlibCache.contentKey(manifestHash: "same-stdlib", compilerFingerprint: first)
+            let touchedKey = try TestStdlibCache.contentKey(manifestHash: "same-stdlib", compilerFingerprint: touched)
+            let changedKey = try TestStdlibCache.contentKey(manifestHash: "same-stdlib", compilerFingerprint: changed)
+            #expect(firstKey == touchedKey)
+            #expect(firstKey != changedKey)
+
+            var builds = 0
+            func resolve(_ key: String) throws -> String {
+                try TestStdlibCache.resolveOrBuildArtifact(buildDirectory: buildDir, contentKey: key) {
+                    builds += 1
+                    return try fakeBuild(outputBase: $0, marker: "build-\(builds)")
+                }
+            }
+            let firstArtifact = try resolve(firstKey)
+            #expect(try resolve(touchedKey) == firstArtifact)
+            #expect(builds == 1)
+            #expect(try resolve(changedKey) != firstArtifact)
+            #expect(builds == 2)
+        }
+    }
+
+    @Test
     func runningTestProductHasACompilerFingerprint() throws {
         let image = try #require(TestStdlibCache.currentCompilerImageURL())
         let name = image.lastPathComponent

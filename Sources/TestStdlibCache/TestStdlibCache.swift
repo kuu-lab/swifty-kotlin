@@ -188,23 +188,34 @@ public final class TestStdlibCache: @unchecked Sendable {
         #endif
     }
 
-    /// A cheap build fingerprint of the loaded compiler image. Include its path
-    /// to keep distinct test products/configurations separate even when their
-    /// sizes and modification times happen to match. No on-disk product search
-    /// is allowed when the actual loaded image cannot be identified or stat'ed.
+    /// Fingerprint the actual loaded image by content, keeping its path to
+    /// separate products/configurations. Relinking or touching identical bytes
+    /// does not invalidate the artifact, while same-size, same-mtime changes do.
+    /// Fail closed if the image cannot be read or changes while it is hashed.
     static func currentCompilerFingerprint(
         compilerImageURL: URL? = currentCompilerImageURL(),
         fileManager fm: FileManager = .default
     ) -> String? {
         guard let compilerImageURL,
-              let attrs = try? fm.attributesOfItem(atPath: compilerImageURL.path),
-              attrs[.type] as? FileAttributeType == .typeRegular,
-              let size = attrs[.size] as? UInt64,
-              let modified = attrs[.modificationDate] as? Date
+              let before = try? fm.attributesOfItem(atPath: compilerImageURL.path),
+              before[.type] as? FileAttributeType == .typeRegular,
+              let size = before[.size] as? UInt64,
+              let modified = before[.modificationDate] as? Date,
+              let bytes = try? Data(contentsOf: compilerImageURL, options: [.mappedIfSafe]),
+              UInt64(bytes.count) == size
         else {
             return nil
         }
-        return "loaded-image-v1|\(compilerImageURL.path)|\(size)|\(modified.timeIntervalSince1970)"
+        let hash = FileFingerprint.compute(for: compilerImageURL.path, contents: bytes).contentHash
+        guard let after = try? fm.attributesOfItem(atPath: compilerImageURL.path),
+              after[.type] as? FileAttributeType == .typeRegular,
+              after[.size] as? UInt64 == size,
+              after[.modificationDate] as? Date == modified,
+              before[.systemFileNumber] as? NSNumber == after[.systemFileNumber] as? NSNumber
+        else {
+            return nil
+        }
+        return "loaded-image-v2|\(compilerImageURL.path)|\(hash)"
     }
 }
 
