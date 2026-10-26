@@ -277,6 +277,11 @@ Run one case:
 bash Scripts/diff_kotlinc.sh Scripts/diff_cases/hello.kt
 ```
 
+The stdlib artifact build has its own 600-second timeout, independent of the
+120-second per-case compile timeout. Override it with `--stdlib-timeout <seconds>`
+or `DIFF_STDLIB_COMPILE_TIMEOUT`; a timeout is reported separately from a
+compiler failure. The same setting is forwarded to candidate-only runs.
+
 For a case without a JVM reference target, add
 `// DIFF_CANDIDATE_ONLY_EXPECTED_OUTPUT: <sidecar-filename>` to the `.kt` file
 and store its expected stdout in a regular sidecar file beside the source. The
