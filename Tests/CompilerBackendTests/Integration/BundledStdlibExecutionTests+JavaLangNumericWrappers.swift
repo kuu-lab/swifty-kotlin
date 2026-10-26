@@ -26,11 +26,11 @@ extension BundledStdlibExecutionTests {
                 println(Long.rotateLeft(1L, 1))
                 println(Long.reverse(1L))
 
-                println(Double.parseDouble("1.5"))
+                println(java.lang.Double.parseDouble("1.5"))
                 println(java.lang.Double.parseDouble("2.5"))
-                println(Double.isNaN(0.0 / 0.0))
+                println(java.lang.Double.isNaN(0.0 / 0.0))
                 println(java.lang.Double.isInfinite(1.0 / 0.0))
-                println(Double.compare(-0.0, 0.0))
+                println(java.lang.Double.compare(-0.0, 0.0))
                 println(Thread.currentThread() === Thread.currentThread())
             }
             """,
