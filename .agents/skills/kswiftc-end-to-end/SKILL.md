@@ -28,13 +28,15 @@ misleading.
   checkout leaves source mtimes older than `.build/debug/kswiftc`. If a source change
   appears to have no effect, `swift package clean` before `swift build` — but only then;
   it is a several-minute cost.
-- **A stale stdlib kklib silently tests the OLD stdlib.** Bundled stdlib `.kt` files are
-  read at compile time from the resource bundle
-  `.build/<triple>/debug/KSwiftK_CompilerCore.resources/Stdlib/` — NOT directly from
-  `Sources/`. After editing `Sources/CompilerCore/Stdlib/**`, re-copy the file into the
-  resource bundle AND `rm -rf ~/.cache/kswiftk/stdlib/*/KSwiftKStdlib.kklib*` before
-  compiling probes (rebuild takes ~45-70s on first compile). `diff` the Sources copy
-  against the bundle copy to confirm the edit actually reached the compiler.
+- **A stale resource bundle silently tests the OLD stdlib.** Bundled `.kt` files are
+  read from the compiler's resource bundle, not directly from `Sources/`. After editing
+  `Sources/CompilerCore/Stdlib/**`, build the compiler product and compare the changed
+  sources with the bundle used by that executable before compiling probes. If they
+  differ, diagnose and refresh the build resources before claiming parity. The default
+  stdlib cache incorporates the bundled-source hash, target, and compiler fingerprint;
+  it validates artifacts and rebuilds on a miss. Do not delete the shared cache merely
+  because a source changed. Tests explicitly checking a fresh artifact still need a
+  freshly built artifact.
 - **`--emit llvm` and `--emit kir` are a different stdlib mode.** Using the prebuilt
   default `.kklib` requires `emit == .executable`
   ([`CompilerTypes.swift`](../../../Sources/CompilerCore/Sema/Models/CompilerTypes.swift)
@@ -56,8 +58,9 @@ misleading.
   name (`symbol=value`) instead of an accessor. `kk_array_set`/`kk_array_get_inbounds`
   are direct backing-field slot accesses — their presence for a `var` write means the
   write did NOT route through an accessor.
-- **Inspecting the default `.kklib` artifact.** `-o exe` uses the per-user cache bundle
-  `~/.cache/kswiftk/stdlib/<ver>-<target>/KSwiftKStdlib.kklib` — a *directory* containing
+- **Inspecting the default `.kklib` artifact.** `-o exe` can use a per-user cache bundle
+  under the platform's caches directory (or `KSWIFTK_STDLIB_CACHE_DIR`); its keyed
+  `KSwiftKStdlib.kklib` is a *directory* containing
   `metadata.bin`, `objects/`, `inline-kir/`, `manifest.json`. Metadata records are text:
   `strings KSwiftKStdlib.kklib/metadata.bin | grep 'setterLink='` shows serialized
   per-property fields (`getterLink=`, `setterLink=`, `recv=` for extension properties,
