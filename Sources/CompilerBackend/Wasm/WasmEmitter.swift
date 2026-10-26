@@ -161,8 +161,12 @@ final class WasmModuleContext {
         // text is the real target (mirrors NativeEmitter's contract).
         // `kk_lambda_<id>` is the exception — the retained symbol *is* the
         // lowered lambda body (same carve-out as the native emitter).
+        // `kk_fn_*` is the kklib link-name form: its symbol points at the
+        // klib-materialized body this module already emits, so `.direct`
+        // resolution applies (unlike `kk_op_*`/`__kk_*` helper names).
         let isRuntimeName = (name.hasPrefix("kk_") || name.hasPrefix("__kk_") || name.hasPrefix("$"))
             && !name.hasPrefix("kk_lambda_")
+            && !name.hasPrefix("kk_fn_")
         if !isRuntimeName,
            let symbol,
            let index = functionIndexBySymbol[symbol]
@@ -278,6 +282,11 @@ final class WasmModuleContext {
             // forwards to an array-meta load.
             if components == ["kotlin", "collections", "size"], argumentCount == 1 {
                 return "__kk_array_size"
+            }
+            // `String.length` is a `kotlin`-package property in the bundled
+            // stdlib — its accessor decodes to `kotlin.length.$get`.
+            if components == ["kotlin", "length"], argumentCount == 1 {
+                return "kk_string_length"
             }
             if components.count == 2 {
                 switch components[1] {
@@ -565,7 +574,10 @@ public struct WasmEmitter {
         ctx.module.exportMemoryName = "memory"
 
         if !ctx.stubbedCallees.isEmpty {
-            let preview = ctx.stubbedCallees.prefix(8).joined(separator: ", ")
+            let dumpAll = ProcessInfo.processInfo.environment["KSWIFTK_WASM_ALL_STUBS"] != nil
+            let preview = dumpAll
+                ? ctx.stubbedCallees.sorted().joined(separator: ", ")
+                : ctx.stubbedCallees.prefix(8).joined(separator: ", ")
             diagnostics?.warning(
                 "KSWIFTK-WASM-0001",
                 "\(ctx.stubbedCallees.count) runtime callee(s) have no wasm implementation yet and were stubbed to return 0: \(preview)\(ctx.stubbedCallees.count > 8 ? ", ..." : "")",
