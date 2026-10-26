@@ -172,6 +172,12 @@ extension ExprTypeChecker {
             flags: classFlags
         )
         sema.bindings.bindDecl(declID, symbol: classSymbol)
+        // A local class declared inside a class shares that class's lexical
+        // private scope. Keep the relationship in the symbol graph so member
+        // bodies can access private outer properties and setters.
+        if let enclosingClassSymbol = ctx.enclosingClassSymbol {
+            sema.symbols.setParentSymbol(enclosingClassSymbol, for: classSymbol)
+        }
         sema.symbols.setSourceFileID(ctx.currentFileID, for: classSymbol)
 
         let sourceFile = ast.file(for: ctx.currentFileID)
