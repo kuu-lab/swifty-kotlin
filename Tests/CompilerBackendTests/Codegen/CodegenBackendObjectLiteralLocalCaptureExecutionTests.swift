@@ -14,6 +14,30 @@ import Testing
 struct CodegenBackendObjectLiteralLocalCaptureExecutionTests {
 
     @Test
+    func testObjectInApplyPropertyInitializerCapturesOuterInstance() throws {
+        let source = """
+        abstract class Y(val lambda: () -> Boolean) { abstract fun fun1(): Int }
+        class X(initial: Int) {
+            val num = initial
+            val discarded: Int = 1.apply {
+                object : Y({ true }) { override fun fun1(): Int = num }
+            }
+            val map: Int = 1.apply {
+                val obj = object : Y({ true }) {
+                    override fun fun1(): Int = num
+                }
+                if (obj.fun1() != 42) { val failure: Any? = null; failure!! }
+            }
+        }
+        fun main() {
+            val x = X(42)
+            if (x.map != 1 || x.discarded != 1) { val failure: Any? = null; failure!! }
+        }
+        """
+        try assertKotlinOutput(source, moduleName: "ObjectInApplyPropertyCapture", expected: "")
+    }
+
+    @Test
     func testLoweringUnpacksReifiedTypeTokensForObjectLiteralMembers() throws {
         let source = """
         inline fun <reified T> typeName(value: T): String = T::class.simpleName ?: "unknown"
