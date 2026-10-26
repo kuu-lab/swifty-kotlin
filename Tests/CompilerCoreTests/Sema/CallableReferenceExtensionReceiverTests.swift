@@ -356,6 +356,53 @@ struct CallableReferenceExtensionReceiverTests {
         )
     }
 
+    @Test func testImplicitReceiverExtensionReferencesFromInnerAndOuterClasses() throws {
+        let source = """
+        class A {
+            suspend fun test(): String {
+                (::aExtensionFunction).let { it() }
+                return "A"
+            }
+
+            inner class B {
+                suspend fun test(): String {
+                    (::aExtensionFunction).let { it() }
+                    (::bExtensionFunction).let { it() }
+                    return "B"
+                }
+            }
+        }
+
+        suspend fun A.aExtensionFunction() {}
+        suspend fun A.B.bExtensionFunction() {}
+        """
+
+        let ctx = makeContextFromSource(source)
+        try runToKIR(ctx)
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(
+            errors.isEmpty,
+            "Top-level extensions on implicit outer and inner receivers should resolve: \(errors)"
+        )
+
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let referenceTargets = ast.arena.exprs.indices.compactMap { index -> String? in
+            let expression = ExprID(rawValue: Int32(index))
+            guard case .callableRef? = ast.arena.expr(expression),
+                  case let .symbol(target)? = sema.bindings.callableTargets[expression],
+                  let symbol = sema.symbols.symbol(target)
+            else {
+                return nil
+            }
+            let name = ctx.interner.resolve(symbol.name)
+            return ["aExtensionFunction", "bExtensionFunction"].contains(name) ? name : nil
+        }
+        #expect(referenceTargets.sorted() == [
+            "aExtensionFunction", "aExtensionFunction", "bExtensionFunction"
+        ].sorted())
+    }
+
     @Test func testImplicitBoundExtensionInsideExtensionBody() throws {
         let source = """
         fun Int.odd(): Boolean = this % 2 == 1
