@@ -544,6 +544,19 @@ extension LambdaLowerer {
             else {
                 return false
             }
+            // Captured properties are read while constructing the object, so
+            // their owners must survive an intervening receiver lambda.
+            if let objectSymbol = sema.bindings.declSymbol(for: declID),
+               sema.bindings.objectLiteralCaptureSymbols(for: objectSymbol).contains(where: { symbol in
+                   guard sema.symbols.symbol(symbol)?.kind == .property,
+                         let owner = sema.symbols.parentSymbol(for: symbol) else { return false }
+                   return memberNeedsOuterReceiver(
+                       owner: owner, excluding: excludingReceiverType,
+                       outerReceiverType: outerReceiverType, sema: sema
+                   )
+               }) {
+                return true
+            }
             if objectDecl.superTypeConstructorArgs.contains(where: { check($0.expr) }) {
                 return true
             }
