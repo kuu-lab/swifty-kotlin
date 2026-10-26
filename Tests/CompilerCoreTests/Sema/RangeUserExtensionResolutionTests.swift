@@ -1,9 +1,65 @@
 #if canImport(Testing)
 @testable import CompilerCore
 import Testing
+import TestStdlibCache
 
 @Suite
 struct RangeUserExtensionResolutionTests {
+    @Test func heterogeneousPrimitiveRangeToExtensionsResolveForOperatorsAndCalls() throws {
+        TestStdlibCache.shared.prepare()
+        let stdlibPath = try #require(CompilerOptions.defaultStdlibLibraryPath)
+        let source = """
+        operator fun Int.rangeTo(right: String): String = right
+        operator fun Long.rangeTo(right: Double): Double = right
+        operator fun String.rangeTo(right: Int): Int = right
+
+        fun test() {
+            val intOperator: String = 1.."a"
+            val intCall: String = 1.rangeTo("a")
+            val longOperator: Double = 1L..2.0
+            val longCall: Double = 1L.rangeTo(2.0)
+            val stringOperator: Int = "a"..1
+            val stringCall: Int = "a".rangeTo(1)
+        }
+        """
+
+        try withTemporaryFiles(contents: [source]) { paths in
+            let ctx = makeCompilationContext(
+                inputs: paths,
+                includeStdlib: false,
+                stdlibLibraryPath: stdlibPath,
+                allowDefaultStdlibLibrary: false
+            )
+            try runSema(ctx)
+            let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }.map { "\($0.code): \($0.message)" }
+            #expect(errors.isEmpty, "Unexpected diagnostics: \(errors)")
+
+            let sema = try #require(ctx.sema)
+            let ast = try #require(ctx.ast)
+            var resolvedHeterogeneousCalls = 0
+            for index in ast.arena.exprs.indices {
+                let id = ExprID(rawValue: Int32(index))
+                guard let binding = sema.bindings.callBinding(for: id),
+                      let symbol = sema.symbols.symbol(binding.chosenCallee),
+                      ctx.interner.resolve(symbol.name) == "rangeTo",
+                      let signature = sema.symbols.functionSignature(for: binding.chosenCallee),
+                      let receiver = signature.receiverType,
+                      signature.parameterTypes.count == 1
+                else {
+                    continue
+                }
+                let isExpectedHeterogeneousPair = (receiver == sema.types.intType && signature.parameterTypes[0] == sema.types.stringType)
+                    || (receiver == sema.types.longType && signature.parameterTypes[0] == sema.types.doubleType)
+                    || (receiver == sema.types.stringType && signature.parameterTypes[0] == sema.types.intType)
+                if isExpectedHeterogeneousPair {
+                    #expect(!symbol.flags.contains(.synthetic))
+                    resolvedHeterogeneousCalls += 1
+                }
+            }
+            #expect(resolvedHeterogeneousCalls == 6)
+        }
+    }
+
     @Test func inferredAndLiteralReceiversResolveUserExtensions() throws {
         let ctx = makeContextFromSource("""
         fun IntRange.onRange() = "int"
