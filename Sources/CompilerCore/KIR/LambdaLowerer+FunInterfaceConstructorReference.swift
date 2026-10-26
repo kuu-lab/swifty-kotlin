@@ -94,6 +94,22 @@ extension LambdaLowerer {
             interner: interner,
             instructions: &instructions
         )
+        // The generated adapter function is unique per reference expression,
+        // but Kotlin compares references to the same SAM constructor by target.
+        emitCallableReferenceIdentity(
+            callableExpr: taggedExpr,
+            targetSymbol: interfaceSymbol,
+            identityTargetRaw: RuntimeTypeCheckToken.stableNominalTypeID(
+                symbol: interfaceSymbol,
+                sema: sema,
+                interner: interner
+            ),
+            captures: [],
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            instructions: &instructions
+        )
         registerCallableReflection(
             value: taggedExpr,
             callableSymbol: callableSymbol,

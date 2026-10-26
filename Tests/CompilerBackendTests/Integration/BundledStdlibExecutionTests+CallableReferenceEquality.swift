@@ -1,6 +1,25 @@
 import Testing
 
 extension BundledStdlibExecutionTests {
+    @Test
+    func identicalFunInterfaceConstructorReferencesCompareEqual() throws {
+        try compileAndRunKotlin(
+            """
+            fun interface KSupplier<out R> { fun get(): R }
+
+            val ks1: (() -> String) -> KSupplier<String> = ::KSupplier
+            val ks2: (() -> String) -> KSupplier<String> = ::KSupplier
+
+            fun main() {
+                println(ks1 == ks2)
+                println(ks1.hashCode() == ks2.hashCode())
+            }
+            """,
+            expectedOutput: "true\ntrue\n",
+            moduleName: "KUU3362FunInterfaceConstructorReferenceEquality"
+        )
+    }
+
     @Test(arguments: [true, false])
     func sameOverloadedFunctionReferenceComparesEqual(allowDefaultStdlibLibrary: Bool) throws {
         try compileAndRunKotlin(
