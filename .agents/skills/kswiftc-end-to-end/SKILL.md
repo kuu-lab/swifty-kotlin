@@ -65,8 +65,8 @@ misleading.
   `strings KSwiftKStdlib.kklib/metadata.bin | grep 'setterLink='` shows serialized
   per-property fields (`getterLink=`, `setterLink=`, `recv=` for extension properties,
   `mutable=1`). Rebuilt automatically by `StdlibArtifactCache.resolveOrBuild` when the
-  compiler/stdlib fingerprint changes; each `diff_kotlinc.sh` invocation also rebuilds
-  its own copy under `.artifacts/diff_kotlinc/` (~1-2 min before any case runs).
+  compiler/stdlib fingerprint changes. `diff_kotlinc.sh` can also use a separately
+  provided artifact; see `Scripts/README.md` for its current cache and freshness rules.
 - **`SKIP-DIFF` cases report `SKIP`, not `FAIL`.** `Scripts/diff_kotlinc.sh` skips any
   case whose source carries `// SKIP-DIFF` or `// KSWIFTK_DIFF_IGNORE`; the reason and
   debt ID belong in that comment. The runner discovers skip directives from case
@@ -156,10 +156,10 @@ cmp cand.out ref.out                                     # byte-identical = PASS
 ```
 
 The first `kswiftc` compile after touching `Sources/CompilerCore/Stdlib/**` pays the
-~45-70s kklib rebuild; subsequent compiles reuse the cache. Also run the repo's own new
-diff case through `bash Scripts/diff_kotlinc.sh Scripts/diff_cases/<case>.kt` once —
-it builds its own fresh artifact under `.artifacts/diff_kotlinc/` and is the sanctioned
-verdict.
+kklib rebuild; subsequent compiles can reuse a validated cache. Also run the repo's own
+new diff case through `bash Scripts/diff_kotlinc.sh Scripts/diff_cases/<case>.kt` once.
+If the change specifically exercises artifact generation, check the runner's documented
+freshness behavior and require a fresh artifact rather than inferring it from the path.
 
 ## LLVM IR parity against master
 
