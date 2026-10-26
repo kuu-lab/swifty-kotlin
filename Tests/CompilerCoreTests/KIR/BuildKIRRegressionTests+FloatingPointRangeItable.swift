@@ -4,6 +4,41 @@ import Testing
 import TestStdlibCache
 
 extension BuildKIRRegressionTests {
+    /// KUU-3347: floating-point range values use an opaque runtime handle, but
+    /// for-in must still honor a user-defined `ClosedRange<Double>.iterator()`.
+    @Test
+    func customClosedRangeDoubleIteratorDrivesForIn() throws {
+        TestStdlibCache.shared.prepare()
+        let ctx = makeContextFromSource("""
+        operator fun ClosedRange<Double>.iterator() = object : Iterator<Double> {
+            private var cur = start
+            override fun hasNext() = cur <= endInclusive
+            override fun next(): Double { val n = cur; cur += 0.1; return n }
+        }
+
+        fun main() {
+            var sum = 0.0
+            for (value in 0.0..1.0) sum += value
+            println(sum)
+        }
+        """, allowDefaultStdlibLibrary: true)
+        try runToLowering(ctx)
+
+        #expect(!ctx.diagnostics.hasError, "Unexpected diagnostics: \(ctx.diagnostics.diagnostics)")
+        let module = try #require(ctx.kir)
+        let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+        let rangeLoopCallees = mainBody.compactMap { instruction -> String? in
+            guard case let .call(_, callee, _, _, _, _, _, _) = instruction else { return nil }
+            let name = ctx.interner.resolve(callee)
+            return name == "iterator" || name.hasPrefix("__kk_range_for_in_") ? name : nil
+        }
+        #expect(rangeLoopCallees.contains("iterator"), "Expected the user-defined iterator call, got: \(rangeLoopCallees)")
+        #expect(
+            !rangeLoopCallees.contains("__kk_range_for_in_iterator"),
+            "Floating-point for-in must not use the integer range iterator: \(rangeLoopCallees)"
+        )
+    }
+
     /// KUU-3258: `x in r` on an untracked `ClosedFloatingPointRange`/`ClosedRange`
     /// receiver lowers into the bundled cross-type `contains` extension, whose
     /// body calls `contains(value.toFloat())` as an unqualified member call on

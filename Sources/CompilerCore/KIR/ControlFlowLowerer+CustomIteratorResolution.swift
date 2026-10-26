@@ -2,8 +2,8 @@
 extension ControlFlowLowerer {
 
     /// Restricts BUG-198 to the signed range/progression classes and direct
-    /// signed range expressions. Unsigned ranges, OpenEndRange, custom classes,
-    /// and interface-typed values must continue through their existing lowering.
+    /// signed range expressions. Unsigned and floating-point ranges, OpenEndRange,
+    /// custom classes, and interface-typed values keep their existing lowering.
     func isBuiltInSignedRange(
         iterableExpr: ExprID,
         iterableType: TypeID,
@@ -12,7 +12,10 @@ extension ControlFlowLowerer {
         interner: StringInterner
     ) -> Bool {
         let nonNullType = sema.types.makeNonNullable(iterableType)
-        if sema.bindings.isUIntRangeExpr(iterableExpr)
+        // The legacy expression type is Int for floating-point range handles.
+        // Exclude their marker before classifying that scalar as a signed range.
+        if sema.bindings.isFloatingPointRangeExpr(iterableExpr)
+            || sema.bindings.isUIntRangeExpr(iterableExpr)
             || sema.bindings.isULongRangeExpr(iterableExpr)
             || nonNullType == sema.types.uintType
             || nonNullType == sema.types.ulongType {
