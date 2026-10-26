@@ -1,5 +1,45 @@
 
 extension CoroutineLoweringPass {
+    func suspendWrapperValueClassResultUnboxing(
+        for resultType: TypeID,
+        using rewrite: SuspendRewriteContext
+    ) -> (callee: InternedString, classSymbol: SymbolID?)? {
+        guard let sema = rewrite.ctx.sema else {
+            return nil
+        }
+
+        let resultKind = sema.types.kind(of: resultType)
+        if let classSymbol = nullableUnderlyingValueClassSymbol(
+            of: resultKind,
+            types: sema.types,
+            symbols: sema.symbols
+        ) {
+            return (rewrite.ctx.interner.intern("kk_value_class_unbox"), classSymbol)
+        }
+
+        guard case let .classType(classType) = resultKind,
+              classType.nullability == .nonNull,
+              let classSymbol = sema.symbols.symbol(classType.classSymbol),
+              classSymbol.flags.contains(.valueType)
+        else {
+            return nil
+        }
+
+        let underlyingKind = resolveValueClassKind(
+            resultKind,
+            types: sema.types,
+            symbols: sema.symbols
+        )
+        guard let unboxCallee = BoxingCalleeTable(interner: rewrite.ctx.interner).unboxCallee(
+            for: underlyingKind,
+            requireNonNull: true,
+            preferStaticPrimitive: true
+        ) else {
+            return nil
+        }
+        return (unboxCallee, nil)
+    }
+
     func rewriteSuspendFunctionValueCreation(
         call: CallRewriteInput,
         symbolByExprRaw: [Int32: SymbolID],
@@ -62,6 +102,19 @@ extension CoroutineLoweringPass {
         // callee's completion still reaches the caller's suspend point; a bare
         // entry-point call would orphan the child continuation.
         guard let callerContinuationSymbol else {
+            // Restore a value-class result from the erased continuation
+            // completion before an itable bridge boxes it for its slot.
+            let resultUnboxing = call.result
+                .flatMap { rewrite.module.arena.exprType($0) }
+                .flatMap { suspendWrapperValueClassResultUnboxing(for: $0, using: rewrite) }
+            let wrapperResult: KIRExprID?
+            if resultUnboxing != nil,
+               let resultType = rewrite.anyType ?? rewrite.ctx.sema?.types.nullableAnyType
+            {
+                wrapperResult = rewrite.module.arena.appendTemporary(type: resultType)
+            } else {
+                wrapperResult = call.result
+            }
             let continuationTemp = rewrite.module.arena.appendTemporary(
                 type: rewrite.continuationTypeByLoweredSymbol[loweredTarget.symbol] ?? rewrite.anyType
             )
@@ -112,12 +165,36 @@ extension CoroutineLoweringPass {
                 .call(
                     callee: rewrite.ctx.interner.intern("kk_coroutine_call_suspend_wrapper"),
                     arguments: [entryPointExpr, continuationTemp],
-                    result: call.result,
+                    result: wrapperResult,
                     canThrow: true,
                     thrownResult: call.thrownResult,
                     isSuperCall: call.isSuperCall
                 )
             )
+            if let callResult = call.result, let resultUnboxing, let wrapperResult {
+                if let classSymbol = resultUnboxing.classSymbol,
+                   let sema = rewrite.ctx.sema
+                {
+                    emitValueClassUnboxCall(
+                        value: wrapperResult,
+                        classSymbol: classSymbol,
+                        result: callResult,
+                        resultType: rewrite.module.arena.exprType(callResult),
+                        types: sema.types,
+                        symbols: sema.symbols,
+                        interner: rewrite.ctx.interner,
+                        arena: rewrite.module.arena,
+                        into: &instructions
+                    )
+                } else {
+                    instructions.append(.call(
+                        callee: resultUnboxing.callee,
+                        arguments: [wrapperResult],
+                        result: callResult,
+                        canThrow: false
+                    ))
+                }
+            }
             return instructions
         }
 
