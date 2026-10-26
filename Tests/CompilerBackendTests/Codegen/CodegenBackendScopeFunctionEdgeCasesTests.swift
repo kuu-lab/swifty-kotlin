@@ -210,6 +210,45 @@ struct CodegenBackendScopeFunctionEdgeCasesTests {
     }
 
     @Test
+    func testContextFunctionTypeAliasInvocationPassesContextReceiver() throws {
+        let source = """
+        class A { fun foo(s: String) = s }
+
+        context(c: T)
+        fun <T> get(): T = c
+
+        typealias F = context(A) (String) -> String
+        val f: F = { s: String -> get<A>().foo(s) }
+
+        fun main() { f(A(), "OK") }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
+            let ctx = try runCodegenPipeline(
+                inputPath: path,
+                moduleName: "ContextFunctionTypeAliasInvocation",
+                emit: .kirDump,
+                outputPath: outputBase,
+                allowDefaultStdlibLibrary: false,
+                includeStdlib: false,
+                prepareTestStdlibCache: false
+            )
+            #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+
+            let dump = try String(contentsOfFile: outputBase + ".kir", encoding: .utf8)
+            let contextCalls = dump.split(separator: "\n").filter { $0.contains("symbol=get ") }
+            let contextCall = try #require(
+                contextCalls.first,
+                "Expected a call to the generic context function:\n\(dump)"
+            )
+            #expect(contextCalls.count == 1, "Expected one call to the generic context function:\n\(dump)")
+            #expect(!contextCall.contains("args=[]"), "The lambda must pass its context parameter to get():\n\(dump)")
+            #expect(dump.contains("kk_function_invoke_2"), "The aliased context function must use the two-input invoke ABI:\n\(dump)")
+        }
+    }
+
+    @Test
     func testCodegenCompilesNamedContextParametersAndAccessors() throws {
         let source = """
         import kotlin.ExperimentalContextParameters
