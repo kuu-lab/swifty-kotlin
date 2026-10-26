@@ -221,6 +221,94 @@ extension ExprLowerer {
         return requiresNonNull(type)
     }
 
+    /// A type parameter used through `T & Any` in the enclosing signature has
+    /// a non-null use-site contract even when its declared upper bound is `Any?`.
+    private func castTargetRequiresNonNull(_ type: TypeID, sema: SemaModule) -> Bool {
+        if castTypeRequiresNonNull(type, sema: sema) {
+            return true
+        }
+        guard sema.types.nullability(of: type) == .nonNull,
+              case let .typeParam(parameter) = sema.types.kind(of: type),
+              let functionSymbol = driver.ctx.activeFunctionSymbol(),
+              let signature = sema.symbols.functionSignature(for: functionSymbol),
+              signature.typeParameterSymbols.contains(parameter.symbol)
+        else {
+            return false
+        }
+
+        let signatureTypes = [signature.receiverType].compactMap { $0 }
+            + signature.contextReceiverTypes
+            + signature.contextParameterTypes
+            + signature.parameterTypes
+            + [signature.returnType]
+            + signature.typeParameterUpperBoundsList.flatMap { $0 }
+        return signatureTypes.contains {
+            hasDefinitelyNonNullUse(of: parameter.symbol, in: $0, sema: sema)
+        }
+    }
+
+    private func hasDefinitelyNonNullUse(
+        of parameterSymbol: SymbolID,
+        in type: TypeID,
+        sema: SemaModule
+    ) -> Bool {
+        var visited: Set<TypeID> = []
+
+        func containsNonNullAny(_ type: TypeID) -> Bool {
+            switch sema.types.kind(of: type) {
+            case .any(.nonNull):
+                return true
+            case let .intersection(parts):
+                return parts.contains(where: containsNonNullAny)
+            default:
+                return false
+            }
+        }
+
+        func containsDirectParameter(_ type: TypeID) -> Bool {
+            switch sema.types.kind(of: type) {
+            case let .typeParam(parameter):
+                return parameter.symbol == parameterSymbol
+            case let .intersection(parts):
+                return parts.contains(where: containsDirectParameter)
+            default:
+                return false
+            }
+        }
+
+        func containsUse(_ type: TypeID) -> Bool {
+            guard visited.insert(type).inserted else { return false }
+            switch sema.types.kind(of: type) {
+            case let .classType(classType):
+                return sema.types.allTypeArguments(for: classType).contains { argument in
+                    switch argument {
+                    case let .invariant(inner), let .out(inner), let .in(inner):
+                        return containsUse(inner)
+                    case .star:
+                        return false
+                    }
+                }
+            case let .functionType(functionType):
+                return functionType.contextReceivers.contains(where: containsUse)
+                    || functionType.receiver.map(containsUse) == true
+                    || functionType.params.contains(where: containsUse)
+                    || containsUse(functionType.returnType)
+            case let .kClassType(classType):
+                return containsUse(classType.argument)
+            case let .intersection(parts):
+                let containsParameter = parts.contains(where: containsDirectParameter)
+                if containsParameter && parts.contains(where: containsNonNullAny) {
+                    return true
+                }
+                return parts.contains(where: containsUse)
+            default:
+                return false
+            }
+        }
+
+        return containsUse(type)
+    }
+
     /// Returns the type parameter from the source-level `T & Any` shape.
     /// Such a definitely-non-null type retains T's erased runtime bound; the
     /// `Any` conjunct only adds a null contract and has no runtime classifier.
@@ -252,11 +340,12 @@ extension ExprLowerer {
     ) -> KIRExprID {
         let result = arena.appendTemporary(type: resultType)
         let operandIsNonNull = operandType.map { castTypeRequiresNonNull($0, sema: sema) } ?? false
+        let targetRequiresNonNull = castTargetRequiresNonNull(targetType, sema: sema)
         if let erasure = checkableCastErasure(of: typeParameterType, sema: sema) {
             // A statically non-null operand can still reach the runtime as
             // an unboxed Long.MIN_VALUE — the null sentinel — so its token is
             // nullable to skip the sentinel branch only, not the classifier.
-            let tokenType = operandIsNonNull || !castTypeRequiresNonNull(targetType, sema: sema)
+            let tokenType = operandIsNonNull || !targetRequiresNonNull
                 ? sema.types.makeNullable(erasure)
                 : sema.types.makeNonNullable(erasure)
             let typeToken = lowerTypeCheckTokenExpr(
@@ -274,11 +363,25 @@ extension ExprLowerer {
             ))
             return result
         }
-        // An unbounded T erases to Any, so T & Any needs only a null check.
+        // An unbounded T erases to Any. For a non-null cast target, use the
+        // erased cast helper so a null value fails as a cast (CCE) rather than
+        // as an explicit `!!`-style null assertion (NPE).
         // A safe cast with no runtime classifier is a pass-through: null is
         // still a valid nullable result of `as?`.
-        if !isSafe, !operandIsNonNull, castTypeRequiresNonNull(targetType, sema: sema) {
-            instructions.append(.nullAssert(operand: operandID, result: result))
+        if !isSafe, !operandIsNonNull, targetRequiresNonNull {
+            let nonNullAnyToken = lowerTypeCheckTokenExpr(
+                targetType: sema.types.anyType,
+                sema: sema,
+                interner: interner,
+                arena: arena,
+                instructions: &instructions
+            )
+            instructions.append(.call(
+                callee: interner.intern("kk_op_cast_erased_return"),
+                arguments: [operandID, nonNullAnyToken],
+                result: result,
+                canThrow: true
+            ))
         } else {
             instructions.append(.copy(from: operandID, to: result))
         }

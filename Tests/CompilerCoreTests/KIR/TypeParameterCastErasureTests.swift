@@ -1,6 +1,7 @@
 #if canImport(Testing)
 @testable import CompilerCore
 @testable import CompilerTestSupport
+import Foundation
 import Testing
 
 private struct TestFailure: Error {
@@ -27,9 +28,17 @@ struct TypeParameterCastErasureTests {
         """
 
     private func context() throws -> CompilationContext {
-        let ctx = makeContextFromSource(source)
+        let ctx = contextWithoutStdlib(source)
         try runToKIR(ctx)
         try #require(!ctx.diagnostics.hasError)
+        return ctx
+    }
+
+    private func contextWithoutStdlib(_ source: String) -> CompilationContext {
+        let path = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString + ".kt").path
+        let ctx = makeCompilationContext(inputs: [path], includeStdlib: false)
+        _ = ctx.sourceManager.addFile(path: path, contents: Data(source.utf8))
         return ctx
     }
 
@@ -47,6 +56,18 @@ struct TypeParameterCastErasureTests {
         guard case let .intLiteral(value) = try #require(ctx.kir).arena.expr(tokenExpr)
         else { throw TestFailure("expected literal runtime type token for \(name)") }
         return value
+    }
+
+    private func containsErasedCastFailure(
+        in body: [KIRInstruction],
+        context: CompilationContext
+    ) -> Bool {
+        body.contains { instruction in
+            if case let .call(_, callee, _, _, canThrow, _, _, _) = instruction {
+                return context.interner.resolve(callee) == "kk_op_cast_erased_return" && canThrow
+            }
+            return false
+        }
     }
 
     private func nominalCToken(ctx: CompilationContext, nullable: Bool) throws -> Int64 {
@@ -107,12 +128,41 @@ struct TypeParameterCastErasureTests {
     }
 
     @Test
-    func anyBoundParameterKeepsNullAssertOnly() throws {
+    func anyBoundParameterUsesErasedCastFailure() throws {
         let ctx = try context()
         let fnBody = try body(named: "anyBound", in: ctx)
         #expect(kirCalls(to: .opCast, in: fnBody, interner: ctx.interner).isEmpty)
         #expect(kirCalls(to: .opSafeCast, in: fnBody, interner: ctx.interner).isEmpty)
-        #expect(fnBody.contains { instruction in
+        #expect(containsErasedCastFailure(in: fnBody, context: ctx))
+    }
+
+    @Test
+    func definitelyNotNullArgumentUsesErasedCastFailure() throws {
+        let source = """
+            interface Param<T : Any>
+            fun <T> queryParam(param: Param<T & Any>): T = null as T
+            fun <T> queryNullable(param: Param<T & Any>): T? = null as T?
+            """
+        let ctx = contextWithoutStdlib(source)
+        try runToKIR(ctx)
+        try #require(!ctx.diagnostics.hasError)
+
+        let fnBody = try body(named: "queryParam", in: ctx)
+        #expect(containsErasedCastFailure(in: fnBody, context: ctx))
+    }
+
+    @Test
+    func definitelyNotNullArgumentDoesNotRejectNullableCastTarget() throws {
+        let source = """
+            interface Param<T : Any>
+            fun <T> queryNullable(param: Param<T & Any>): T? = null as T?
+            """
+        let ctx = contextWithoutStdlib(source)
+        try runToKIR(ctx)
+        try #require(!ctx.diagnostics.hasError)
+
+        let fnBody = try body(named: "queryNullable", in: ctx)
+        #expect(!fnBody.contains { instruction in
             if case .nullAssert = instruction { return true }
             return false
         })
