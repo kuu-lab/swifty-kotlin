@@ -98,11 +98,16 @@ public func kk_set_of_not_null(_ arrayRaw: Int, _ count: Int) -> Int {
     return registerRuntimeObject(RuntimeSetBox(elements: runtimeDeduplicatePreservingOrder(elements)))
 }
 
-// STDLIB-410: emptySet<T>() - allocates a fresh empty set each call to avoid
-// aliasing with mutable collection operations.
+// Kotlin exposes emptySet() as a shared immutable instance.
+private let emptySetSingletonRaw: Int = {
+    let raw = registerRuntimeObject(RuntimeSetBox(elements: []))
+    runtimeSetBox(from: raw)?.freeze()
+    return raw
+}()
+
 @_cdecl("__kk_emptySet")
 public func kk_emptySet() -> Int {
-    return registerRuntimeObject(RuntimeSetBox(elements: []))
+    return emptySetSingletonRaw
 }
 
 // BUG-196: Source-backed LinkedHashSet instances (and user subclasses) are
@@ -545,15 +550,17 @@ public func kk_linked_hash_map_of_pairs(_ pairsArrayRaw: Int, _ count: Int) -> I
     runtimeMapOfPairs(pairsArrayRaw: pairsArrayRaw, count: count, typeID: linkedHashMapRuntimeTypeID)
 }
 
-// STDLIB-410: emptyMap<K,V>() - allocates a fresh empty map each call to avoid
-// aliasing with mutable collection operations (e.g., kk_mutable_map_put).
-// KUU-646: tag as the read-only `Map` so `as MutableMap` fails the way
-// `listOf` / `setOf` fail `as MutableList` / `as MutableSet`.
-@_cdecl("__kk_emptyMap")
-public func kk_emptyMap() -> Int {
+// Kotlin exposes emptyMap() as a shared immutable instance. Keep the
+// read-only `Map` tag so `as MutableMap` fails the way listOf/setOf casts do.
+private let emptyMapSingletonRaw: Int = {
     let raw = registerRuntimeObject(RuntimeMapBox(keys: [], values: []), typeID: mapRuntimeTypeID)
     runtimeMapBox(from: raw)?.freeze()
     return raw
+}()
+
+@_cdecl("__kk_emptyMap")
+public func kk_emptyMap() -> Int {
+    return emptyMapSingletonRaw
 }
 
 @_cdecl("__kk_mutable_map_put")
