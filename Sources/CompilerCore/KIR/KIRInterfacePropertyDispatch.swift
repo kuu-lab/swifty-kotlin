@@ -480,6 +480,13 @@ func appendObjectItablePropertyGetterRegistrations<C: RangeReplaceableCollection
                 continue
             }
 
+            synthesizeEnumBaseOrdinalGetterIfNeeded(
+                implGetter,
+                sema: sema,
+                arena: arena,
+                interner: interner
+            )
+
             // A concrete String/primitive getter must implement the erased
             // return ABI of an interface property such as Entry<K,V>. Build
             // this adapter without a driver so boxed enum registrations use
@@ -532,6 +539,59 @@ func appendObjectItablePropertyGetterRegistrations<C: RangeReplaceableCollection
             ))
         }
     }
+}
+
+/// Enum classes have a compiler-provided `ordinal` property, not a source
+/// accessor with a KIR body. Materialize its getter before its symbol is used
+/// in the interface table.
+private func synthesizeEnumBaseOrdinalGetterIfNeeded(
+    _ getterSymbol: SymbolID,
+    sema: SemaModule,
+    arena: KIRArena,
+    interner: StringInterner
+) {
+    guard arena.function(for: getterSymbol) == nil,
+          let decoded = SyntheticSymbolScheme.decodedPropertyAccessor(getterSymbol),
+          decoded.kind == .getter,
+          let property = sema.symbols.symbol(decoded.property),
+          property.kind == .property,
+          property.name == interner.intern("ordinal"),
+          let ownerSymbol = sema.symbols.parentSymbol(for: decoded.property),
+          sema.symbols.symbol(ownerSymbol)?.kind == .enumClass,
+          property.flags.contains(.synthetic),
+          let propertyType = sema.symbols.propertyType(for: decoded.property),
+          propertyType == sema.types.intType
+    else {
+        return
+    }
+
+    let ownerType = sema.types.make(.classType(ClassType(
+        classSymbol: ownerSymbol, args: [], nullability: .nonNull
+    )))
+    let receiverSymbol = SyntheticSymbolScheme.receiverParameterSymbol(for: decoded.property)
+    let receiver = arena.appendExpr(.symbolRef(receiverSymbol), type: ownerType)
+    let ordinal = arena.appendTemporary(type: propertyType)
+    let ordinalCallee = interner.intern("kk_unbox_int")
+    let function = KIRFunction(
+        symbol: getterSymbol,
+        name: interner.intern("get"),
+        params: [KIRParameter(symbol: receiverSymbol, type: ownerType)],
+        returnType: propertyType,
+        body: [
+            .beginBlock,
+            .constValue(result: receiver, value: .symbolRef(receiverSymbol)),
+            .call(callee: ordinalCallee, arguments: [receiver], result: ordinal, canThrow: false),
+            .returnValue(ordinal),
+            .endBlock,
+        ],
+        isSuspend: false,
+        isInline: false
+    )
+    sema.symbols.setFunctionSignature(
+        FunctionSignature(receiverType: ownerType, parameterTypes: [], returnType: propertyType),
+        for: getterSymbol
+    )
+    _ = arena.appendDecl(.function(function))
 }
 
 /// The setter counterpart of `appendObjectItablePropertyGetterRegistrations` —
