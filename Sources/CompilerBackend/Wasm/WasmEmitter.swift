@@ -179,7 +179,24 @@ final class WasmModuleContext {
         if let helper = stdlibIntrinsicName(symbol: symbol, argumentCount: argumentCount) {
             return .emittedHelper(emittedHelperIndex(for: helper, argumentCount: argumentCount))
         }
+        // `$default` forwarders and other symbol-less stdlib shims only carry
+        // their callee name — route the known ones onto the same helpers the
+        // fqName path selects.
+        if let helper = stdlibShimName(for: name) {
+            return .emittedHelper(emittedHelperIndex(for: helper, argumentCount: argumentCount))
+        }
         return .stub(name)
+    }
+
+    /// Stdlib shims whose symbol doesn't survive lowering (the
+    /// `<fn>$default` forwarders the default-argument expansion emits).
+    private func stdlibShimName(for name: String) -> String? {
+        switch name {
+        case "joinToString", "joinToString$default":
+            return "__kk_string_joinToString"
+        default:
+            return nil
+        }
     }
 
     /// Maps stdlib symbols whose kklib bodies aren't in this module onto wasm
@@ -280,7 +297,36 @@ final class WasmModuleContext {
                 case "step": return "__kk_op_step"
                 case "rangeTo": return "__kk_op_rangeTo"
                 case "toList": return "__kk_range_to_list"
+                case "contains": return "__kk_range_contains"
+                case "isEmpty": return "__kk_range_isEmpty"
+                case "first", "start": return "__kk_range_first"
+                case "last", "endInclusive": return "__kk_range_last"
+                case "iterator": return "__kk_range_for_in_iterator"
                 default: break
+                }
+            }
+            // `kotlin.collections` member/extension calls on the shared
+            // `{array,count,flags}` box. Owner guard keeps Map-box members
+            // (`isEmpty`, `contains`…) from reading the wrong slot layout;
+            // extension fns have no owner component (nil = allowed).
+            if components.count >= 3, components[1] == "collections" {
+                let listBoxOwners: Set<String> = [
+                    "Iterable", "MutableIterable", "Collection",
+                    "MutableCollection", "List", "MutableList", "ArrayList",
+                    "AbstractList", "AbstractCollection", "Set", "MutableSet",
+                    "HashSet", "LinkedHashSet",
+                ]
+                if components.count == 3 || listBoxOwners.contains(components[2]) {
+                    switch member {
+                    case "indexOf": return "__kk_list_index_of"
+                    case "lastIndexOf": return "__kk_list_last_index_of"
+                    case "contains": return "__kk_set_contains"
+                    case "first": return "__kk_list_first"
+                    case "last": return "__kk_list_last"
+                    case "isEmpty": return "__kk_list_is_empty"
+                    case "joinToString": return "__kk_string_joinToString"
+                    default: break
+                    }
                 }
             }
             // `List`/`MutableList`/`ArrayList` member `size` accessors decode
