@@ -20,6 +20,8 @@ final class SemaBodyWorker: @unchecked Sendable {
             bundledIndex: parent.sema.bundledIndex
         )
         sema.wellKnownSymbols = parent.sema.wellKnownSymbols
+        sema.implicitSignedToUnsignedIntegerConversionEnabled =
+            parent.sema.implicitSignedToUnsignedIntegerConversionEnabled
         sema.enumIntrinsicAliasNamesByFile = parent.sema.enumIntrinsicAliasNamesByFile
         let cache = parent.semaCacheContext == nil ? nil : SemaCacheContext()
         let resolver = OverloadResolver()

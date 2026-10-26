@@ -667,7 +667,7 @@ extension CallTypeChecker {
         ctx: TypeInferenceContext
     ) -> ResolvedCall {
         let resolvedArgs = zip(args, argTypes).map { argument, type in
-            let literal = integerLiteralValues(argument.expr, ast: ctx.ast)
+            let literal = integerArgumentValues(argument.expr, ctx: ctx)
             return CallArg.source(
                 argument, type: type, callRange: range, ast: ctx.ast,
                 signedIntegerLiteral: literal.signed,
