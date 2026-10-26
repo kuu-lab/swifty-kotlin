@@ -729,11 +729,30 @@ extension ExprTypeChecker {
         let dslFilteredIDs = allCandidateIDs.filter { !ctx.isCandidateBlockedByDslMarker($0) }
         let (visibleIDs, _) = ctx.filterByVisibility(dslFilteredIDs)
         let candidates = visibleIDs.compactMap { ctx.cachedSymbol($0) }
+        var explicitlyImportedObjectProperties: Set<SymbolID> = []
+        for importDecl in ctx.currentASTFile?.imports ?? [] {
+            guard !importDecl.isWildcard,
+                  (importDecl.alias ?? importDecl.path.last) == name
+            else {
+                continue
+            }
+            for candidateID in sema.symbols.lookupAll(fqName: importDecl.path) {
+                guard sema.symbols.symbol(candidateID)?.kind == .property,
+                      let ownerID = sema.symbols.parentSymbol(for: candidateID)
+                else {
+                    continue
+                }
+                if sema.symbols.symbol(ownerID)?.kind == .object {
+                    explicitlyImportedObjectProperties.insert(candidateID)
+                }
+            }
+        }
         let scopeVisibleProperty = candidates.first(where: { sym in
             guard sym.kind == .property else { return false }
             guard let parentID = sema.symbols.parentSymbol(for: sym.id),
                   let parentSym = sema.symbols.symbol(parentID) else { return true }
-            return parentSym.kind == .package || (ctx.implicitReceiverType != nil
+            return parentSym.kind == .package || explicitlyImportedObjectProperties.contains(sym.id)
+                || (ctx.implicitReceiverType != nil
                 && (parentSym.kind == .class || parentSym.kind == .object || parentSym.kind == .interface))
         })
         if let propSymbol = implicitReceiverMember?.symbol ?? scopeVisibleProperty {
