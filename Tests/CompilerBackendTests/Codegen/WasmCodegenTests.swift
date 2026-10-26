@@ -1333,4 +1333,112 @@ struct WasmCodegenTests {
         #expect(run?.status == 0)
         #expect(run?.stdout == "1\n1\n0\n0\n0\n1\n1\n0\n1\n0\n0\n1\n1\n[2, 1]\n3\n1\n3.5\n1\n42\n1\nb=c\na=b\n3\nkotlin.NotImplementedError: An operation is not implemented: later\nkotlin.IllegalStateException: boom\n")
     }
+
+    @Test
+    func runsListViewAndConcurrentModificationChecksUnderNodeWASI() throws {
+        guard nodePath() != nil else { return }
+        // l = arrayListOf(1,2,3); it = l.iterator(); it.next();
+        // l.add(4) -> it.next() throws ConcurrentModificationException;
+        // exhausting a fresh iterator then next() -> NoSuchElementException;
+        // v = l.subList(0,2) reads through; l.add(9) -> check_modification(v)
+        // throws CME; a fresh view still reads.
+        let arena = KIRArena()
+        let mainSymbol = SymbolID(rawValue: 1)
+        func e(_ kind: KIRExprKind = .unit) -> KIRExprID { arena.appendExpr(kind) }
+        var body: [KIRInstruction] = []
+        func const(_ v: Int64) -> KIRExprID {
+            let id = e()
+            body.append(.constValue(result: id, value: .intLiteral(v)))
+            return id
+        }
+        func slit(_ s: String) -> KIRExprID {
+            let id = e()
+            body.append(.constValue(
+                result: id, value: .stringLiteral(interner.intern(s))
+            ))
+            return id
+        }
+        func call(_ name: String, _ args: [KIRExprID],
+                  result: KIRExprID? = nil,
+                  canThrow: Bool = false, thrown: KIRExprID? = nil) {
+            body.append(.call(symbol: nil, callee: interner.intern(name),
+                              arguments: args, result: result,
+                              canThrow: canThrow, thrownResult: thrown))
+        }
+        // l = [1,2,3] (mutable box)
+        let arr = e(), list = e(), iter = e(), iter2 = e()
+        let view = e(), view2 = e(), got = e(), str = e()
+        let cmeSlot = e(), nseeSlot = e(), viewSlot = e(), caught = e()
+        let n3 = const(3), n4 = const(4), n9 = const(9)
+        let n0 = const(0), n1 = const(1), n2 = const(2)
+        call("kk_array_new", [n3], result: arr)
+        for i in 0..<3 {
+            call("kk_array_set", [arr, const(Int64(i)), const(Int64(i + 1))])
+        }
+        call("__kk_array_list_of", [arr, n3], result: list)
+        call("kk_list_iterator", [list], result: iter)
+        call("kk_list_iterator_next", [iter])
+        call("__kk_mutable_list_add", [list, n4])
+        // it.next() -> CME
+        call("kk_list_iterator_next", [iter], result: e(),
+             canThrow: true, thrown: cmeSlot)
+        let cmeL: Int32 = 90, cmeDone: Int32 = 91
+        body.append(.jumpIfNotNull(value: cmeSlot, target: cmeL))
+        call("__kk_println_raw", [slit("miss")])
+        body.append(.jump(cmeDone))
+        body.append(.label(cmeL))
+        call("__kk_throwable_toString", [cmeSlot], result: caught)
+        call("__kk_println_raw", [caught])
+        body.append(.label(cmeDone))
+        // Exhaust fresh iterator over [1,2,3,4] then next -> NSEE
+        call("kk_list_iterator", [list], result: iter2)
+        for _ in 0..<4 { call("kk_list_iterator_next", [iter2]) }
+        call("kk_list_iterator_next", [iter2], result: e(),
+             canThrow: true, thrown: nseeSlot)
+        let nseeL: Int32 = 92, nseeDone: Int32 = 93
+        body.append(.jumpIfNotNull(value: nseeSlot, target: nseeL))
+        call("__kk_println_raw", [slit("miss")])
+        body.append(.jump(nseeDone))
+        body.append(.label(nseeL))
+        call("__kk_throwable_toString", [nseeSlot], result: caught)
+        call("__kk_println_raw", [caught])
+        body.append(.label(nseeDone))
+        // v = l.subList(0, 2) -> v[0] == 1, v.size == 2
+        call("kk_list_subList", [list, n0, n2], result: view)
+        call("__kk_list_get", [view, n0], result: got)
+        call("kk_any_to_string", [got], result: str)
+        call("__kk_println_raw", [str])
+        call("__kk_set_size", [view], result: got)
+        call("kk_any_to_string", [got], result: str)
+        call("__kk_println_raw", [str])
+        // l.add(9) -> check_modification(v) throws CME
+        call("__kk_mutable_list_add", [list, n9])
+        call("__kk_list_check_modification", [view],
+             canThrow: true, thrown: viewSlot)
+        let vcL: Int32 = 94, vcDone: Int32 = 95
+        body.append(.jumpIfNotNull(value: viewSlot, target: vcL))
+        call("__kk_println_raw", [slit("miss")])
+        body.append(.jump(vcDone))
+        body.append(.label(vcL))
+        call("__kk_throwable_toString", [viewSlot], result: caught)
+        call("__kk_println_raw", [caught])
+        body.append(.label(vcDone))
+        // Fresh view on [1,2,3,4,9]: subList(1,3)[1] == 3
+        call("kk_list_subList", [list, n1, n3], result: view2)
+        call("__kk_list_get", [view2, n1], result: got)
+        call("kk_any_to_string", [got], result: str)
+        call("__kk_println_raw", [str])
+        body.append(.returnUnit)
+        let main = makeFunction(symbol: mainSymbol, name: "main", params: [], body: body)
+        let declID = arena.appendDecl(.function(main))
+        let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [declID])], arena: arena)
+        let run = try runUnderNode(try emit(module, entry: mainSymbol))
+        #expect(run?.status == 0)
+        #expect(run?.stdout ==
+            "kotlin.ConcurrentModificationException\n"
+                + "kotlin.NoSuchElementException\n"
+                + "1\n2\n"
+                + "kotlin.ConcurrentModificationException\n"
+                + "3\n")
+    }
 }

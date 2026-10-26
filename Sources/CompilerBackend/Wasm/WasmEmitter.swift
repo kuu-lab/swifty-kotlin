@@ -104,10 +104,20 @@ final class WasmModuleContext {
         static let listIteratorTypeID: Int64 = -9_012
         /// List/iterator body slot offsets (object slots 2/3/4): slot2 holds
         /// the backing array (or the list, for iterators), slot3 the element
-        /// count (or iterator index), slot4 flags (or expected count).
+        /// count (or iterator index), slot4 flags (or expected modCount).
         static let listArrayOffset: Int64 = 16
         static let listCountOffset: Int64 = 24
         static let listFlagsOffset: Int64 = 32
+        /// `subList` view box: `{backing@16, size@24, flags@32, parent@40,
+        /// expectedParentMod@48}`. Backing is the root parent's array pointer
+        /// pre-adjusted by `from*8`, so all element reads work unchanged.
+        static let listViewTypeID: Int64 = -9_017
+        static let listParentOffset: Int64 = 40
+        static let listExpectedModOffset: Int64 = 48
+        /// flags bit layout (list/set/view boxes): bit0 = readOnly,
+        /// bit1 = view marker, bits 8+ = modCount (structural-mod epoch).
+        static let listViewFlag: Int64 = 0x2
+        static let modCountShift: Int64 = 8
         /// `kk_map_iterator` result box.
         static let mapIteratorTypeID: Int64 = -9_013
         /// `kk_mutable_map_iterator` result box.
@@ -1025,6 +1035,8 @@ final class WasmModuleContext {
         case "add":
             thunk = isSet ? ("__kk_mutable_set_add", 2)
                 : isList ? ("__kk_mutable_list_add", 2) : nil
+        case "subList":
+            thunk = isList ? ("kk_list_subList", 3) : nil
         case "indexOf":
             thunk = isList ? ("__kk_list_index_of", 2) : nil
         case "lastIndexOf":

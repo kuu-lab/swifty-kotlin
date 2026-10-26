@@ -448,6 +448,9 @@ enum WasmRuntimeHelpers {
         "__kk_emptyList",
         "__kk_list_size",
         "__kk_list_check_modification",
+        "kk_list_subList",
+        "__kk_wasm_list_modcount",
+        "__kk_wasm_view_check",
         "__kk_list_get",
         "__kk_mutable_list_add",
         "__kk_list_to_list",
@@ -920,20 +923,30 @@ enum WasmRuntimeHelpers {
             code.localGet(1)
         case "__kk_list_size":
             extraLocals = 0
+            emitViewStaleCheck(&code, ctx: ctx, thrownReturn: 0)
             emitLoadAt(&code, baseLocal: 0, byteOffset: L.listCountOffset)
-        case "__kk_list_check_modification":
-            // View-invalidity tracking doesn't exist yet; accepting silently
-            // matches the zero-return ABI.
+        case "__kk_list_check_modification", "__kk_wasm_view_check":
+            // View staleness gate: non-view receivers pass through silently
+            // (matching the zero-return ABI); a view whose root parent's
+            // modCount moved throws ConcurrentModificationException.
+            extraLocals = 1
+            emitViewCheckBody(&code, ctx: ctx, argumentCount: argumentCount)
+        case "__kk_wasm_list_modcount":
             extraLocals = 0
-            code.i64Const(0)
+            emitListModCountBody(&code, ctx: ctx)
+        case "kk_list_subList":
+            extraLocals = 5
+            emitListSubListBody(&code, ctx: ctx, argumentCount: argumentCount)
         case "__kk_list_get":
             extraLocals = 2
+            emitViewStaleCheck(&code, ctx: ctx, thrownReturn: 0)
             emitListGetBody(&code, ctx: ctx, argumentCount: argumentCount)
         case "__kk_mutable_list_add":
             extraLocals = 5
             emitMutableListAddBody(&code, ctx: ctx, argumentCount: argumentCount)
         case "__kk_list_to_list":
             extraLocals = 5
+            emitViewStaleCheck(&code, ctx: ctx, thrownReturn: 0)
             emitListToListBody(&code, ctx: ctx, argumentCount: argumentCount)
         case "__kk_intArray_toList", "__kk_longArray_toList",
              "__kk_shortArray_toList", "__kk_byteArray_toList",
@@ -1016,7 +1029,7 @@ enum WasmRuntimeHelpers {
             emitPrimArrayCopyBody(&code, ctx: ctx, argumentCount: argumentCount)
         case "kk_list_iterator":
             // Iterator box: slot2 = list, slot3 = index, slot4 = expected
-            // element count (concurrent-modification sentinel). Five slots —
+            // modCount (concurrent-modification sentinel). Five slots —
             // offsets 16/24/32 must stay inside the allocation.
             extraLocals = 1
             code.i64Const(5)
@@ -1026,7 +1039,10 @@ enum WasmRuntimeHelpers {
             emitStoreAt(&code, baseLocal: argumentCount, byteOffset: L.listArrayOffset, valueLocal: 0)
             emitStoreAtConst(&code, baseLocal: argumentCount, byteOffset: L.listCountOffset, value: 0)
             emitAddress(&code, baseLocal: argumentCount, byteOffset: L.listFlagsOffset)
-            emitLoadAt(&code, baseLocal: 0, byteOffset: L.listCountOffset)
+            code.localGet(0)
+            code.call(ctx.emittedHelperIndex(
+                for: "__kk_wasm_list_modcount", argumentCount: 1
+            ))
             code.i64Store(offset: 0)
             emitIteratorItableRegistration(
                 &code, ctx: ctx, objectLocal: argumentCount,
@@ -1126,9 +1142,11 @@ enum WasmRuntimeHelpers {
             code.call(ctx.emittedHelperIndex(for: "__kk_set_of", argumentCount: 2))
         case "__kk_set_size":
             extraLocals = 0
+            emitViewStaleCheck(&code, ctx: ctx, thrownReturn: 0)
             emitLoadAt(&code, baseLocal: 0, byteOffset: L.listCountOffset)
         case "__kk_set_is_empty":
             extraLocals = 0
+            emitViewStaleCheck(&code, ctx: ctx, thrownReturn: 0)
             emitLoadAt(&code, baseLocal: 0, byteOffset: L.listCountOffset)
             code.op(WasmOpcode.i64Eqz)
             code.i64ExtendFromComparison()
@@ -1144,6 +1162,7 @@ enum WasmRuntimeHelpers {
         case "__kk_mutable_set_clear":
             extraLocals = 0
             emitStoreAtConst(&code, baseLocal: 0, byteOffset: L.listCountOffset, value: 0)
+            emitBumpModCount(&code, baseLocal: 0, byteOffset: L.listFlagsOffset)
             code.i64Const(0)
         case "__kk_map_of", "__kk_hash_map_of", "__kk_linked_hash_map_of",
              "__kk_emptyMap":
@@ -1199,6 +1218,7 @@ enum WasmRuntimeHelpers {
         case "__kk_mutable_map_clear":
             extraLocals = 0
             emitStoreAtConst(&code, baseLocal: 0, byteOffset: L.mapCountOffset, value: 0)
+            emitBumpModCount(&code, baseLocal: 0, byteOffset: L.mapFlagsOffset)
             code.i64Const(0)
         case "__kk_mutable_map_entry_setValue":
             extraLocals = 2
@@ -1337,9 +1357,11 @@ enum WasmRuntimeHelpers {
             emitRangeContainsBody(&code)
         case "__kk_list_index_of":
             extraLocals = 4
+            emitViewStaleCheck(&code, ctx: ctx, thrownReturn: -1)
             emitListIndexOfBody(&code, ctx: ctx, argumentCount: argumentCount)
         case "__kk_list_last_index_of":
             extraLocals = 4
+            emitViewStaleCheck(&code, ctx: ctx, thrownReturn: -1)
             emitListLastIndexOfBody(&code, ctx: ctx, argumentCount: argumentCount)
         case "__kk_list_first":
             extraLocals = 0
@@ -1355,6 +1377,7 @@ enum WasmRuntimeHelpers {
             code.call(ctx.emittedHelperIndex(for: "__kk_list_get", argumentCount: 2))
         case "__kk_list_is_empty":
             extraLocals = 0
+            emitViewStaleCheck(&code, ctx: ctx, thrownReturn: 0)
             emitLoadAt(&code, baseLocal: 0, byteOffset: L.listCountOffset)
             code.op(WasmOpcode.i64Eqz)
             code.i64ExtendFromComparison()
@@ -7045,6 +7068,7 @@ enum WasmRuntimeHelpers {
         let capLocal = argumentCount + 2
         let newArrLocal = argumentCount + 3
         let iLocal = argumentCount + 4
+        emitViewMutationGuard(&code, ctx: ctx)
         // Read-only flag lives in bit0 of slot4.
         emitLoadAt(&code, baseLocal: 0, byteOffset: L.listFlagsOffset)
         code.i64Const(1)
@@ -7137,6 +7161,7 @@ enum WasmRuntimeHelpers {
         code.op(WasmOpcode.i64Add)
         code.localSet(countLocal)
         emitStoreAt(&code, baseLocal: 0, byteOffset: L.listCountOffset, valueLocal: countLocal)
+        emitBumpModCount(&code, baseLocal: 0, byteOffset: L.listFlagsOffset)
         code.i64Const(1)
     }
 
@@ -7443,11 +7468,19 @@ enum WasmRuntimeHelpers {
         code.localSet(listLocal)
         emitLoadAt(&code, baseLocal: listLocal, byteOffset: L.listCountOffset)
         code.localSet(countLocal)
+        // CME: expected modCount (@32) vs the source's live modCount —
+        // catches structural mutations including add+remove pairs that a
+        // count compare would miss (JVM checkForComodification parity).
         emitLoadAt(&code, baseLocal: 0, byteOffset: L.listFlagsOffset)
-        code.localGet(countLocal)
+        code.localGet(listLocal)
+        code.call(ctx.emittedHelperIndex(
+            for: "__kk_wasm_list_modcount", argumentCount: 1
+        ))
         code.op(WasmOpcode.i64Ne)
         code.openIf()
-        code.i64Const(1)
+        code.call(ctx.emittedHelperIndex(
+            for: "__kk_concurrent_modification_exception_new", argumentCount: 0
+        ))
         code.globalSet(ctx.thrownGlobal)
         code.i64Const(0)
         code.op(WasmOpcode.return)
@@ -7457,7 +7490,9 @@ enum WasmRuntimeHelpers {
         code.localGet(countLocal)
         code.op(WasmOpcode.i64GeS)
         code.openIf()
-        code.i64Const(1)
+        code.call(ctx.emittedHelperIndex(
+            for: "__kk_no_such_element_exception_new", argumentCount: 0
+        ))
         code.globalSet(ctx.thrownGlobal)
         code.i64Const(0)
         code.op(WasmOpcode.return)
@@ -7476,6 +7511,225 @@ enum WasmRuntimeHelpers {
         code.i64Const(1)
         code.op(WasmOpcode.i64Add)
         code.i64Store(offset: 0)
+    }
+
+    /// `flags@offset += 1 << modCountShift`: bump the structural-modification
+    /// epoch in the flag word's high bits. Mirrors JVM `modCount++` — called
+    /// by every count-changing mutator but not by `set` (non-structural).
+    private static func emitBumpModCount(
+        _ code: inout WasmCode,
+        baseLocal: Int,
+        byteOffset: Int64
+    ) {
+        emitAddress(&code, baseLocal: baseLocal, byteOffset: byteOffset)
+        emitLoadAt(&code, baseLocal: baseLocal, byteOffset: byteOffset)
+        code.i64Const(1 << L.modCountShift)
+        code.op(WasmOpcode.i64Add)
+        code.i64Store(offset: 0)
+    }
+
+    /// `(list) -> i64`: the box's structural-modification epoch —
+    /// `flags >> modCountShift`. Views resolve through to the root parent so
+    /// iterators/views on a window see mutations applied to the root.
+    private static func emitListModCountBody(
+        _ code: inout WasmCode,
+        ctx: WasmModuleContext
+    ) {
+        emitLoadAt(&code, baseLocal: 0, byteOffset: L.typeIDOffset)
+        code.i64Const(L.listViewTypeID)
+        code.op(WasmOpcode.i64Ne)
+        code.openIf()
+        emitLoadAt(&code, baseLocal: 0, byteOffset: L.listFlagsOffset)
+        code.i64Const(L.modCountShift)
+        code.op(WasmOpcode.i64ShrU)
+        code.op(WasmOpcode.return)
+        code.end()
+        emitLoadAt(&code, baseLocal: 0, byteOffset: L.listParentOffset)
+        code.call(ctx.emittedHelperIndex(
+            for: "__kk_wasm_list_modcount", argumentCount: 1
+        ))
+    }
+
+    /// `(list) -> i64` (0 = fine, 1 = stale-and-thrown): fail-fast check for
+    /// `subList` view boxes. A non-view receiver — every other box kind —
+    /// returns 0 untouched, which is the lowering ABI contract. On a stale
+    /// view this throws `ConcurrentModificationException` through the
+    /// thrown channel, matching the native `kk_list_check_modification`
+    /// semantics (`!isValidView`).
+    /// Locals: argumentCount = parent.
+    private static func emitViewCheckBody(
+        _ code: inout WasmCode,
+        ctx: WasmModuleContext,
+        argumentCount: Int
+    ) {
+        // Guard: scalar receivers can never be views (avoids a wild load).
+        code.localGet(0)
+        code.i64Const(L.dataStart)
+        code.op(WasmOpcode.i64LtU)
+        code.openIf()
+        code.i64Const(0)
+        code.op(WasmOpcode.return)
+        code.end()
+        emitLoadAt(&code, baseLocal: 0, byteOffset: L.typeIDOffset)
+        code.i64Const(L.listViewTypeID)
+        code.op(WasmOpcode.i64Ne)
+        code.openIf()
+        code.i64Const(0)
+        code.op(WasmOpcode.return)
+        code.end()
+        emitLoadAt(&code, baseLocal: 0, byteOffset: L.listParentOffset)
+        code.localSet(argumentCount)
+        code.localGet(argumentCount)
+        code.call(ctx.emittedHelperIndex(
+            for: "__kk_wasm_list_modcount", argumentCount: 1
+        ))
+        emitLoadAt(&code, baseLocal: 0, byteOffset: L.listExpectedModOffset)
+        code.op(WasmOpcode.i64Ne)
+        code.openIf()
+        code.call(ctx.emittedHelperIndex(
+            for: "__kk_concurrent_modification_exception_new", argumentCount: 0
+        ))
+        code.globalSet(ctx.thrownGlobal)
+        code.i64Const(1)
+        code.op(WasmOpcode.return)
+        code.end()
+        code.i64Const(0)
+    }
+
+    /// Preamble for helpers reached without a lowering-inserted
+    /// `check_modification` (direct thunk calls on `List`/`MutableList`
+    /// members excluded from the list-view check set): a stale view throws
+    /// CME through the thrown channel; callers see `thrownReturn`.
+    private static func emitViewStaleCheck(
+        _ code: inout WasmCode,
+        ctx: WasmModuleContext,
+        thrownReturn: Int64
+    ) {
+        code.localGet(0)
+        code.call(ctx.emittedHelperIndex(
+            for: "__kk_wasm_view_check", argumentCount: 1
+        ))
+        code.op(WasmOpcode.i32WrapI64)
+        code.openIf()
+        code.i64Const(thrownReturn)
+        code.op(WasmOpcode.return)
+        code.end()
+    }
+
+    /// Preamble for structural mutators on possibly-view receivers. A stale
+    /// view throws CME; a live view throws UOE — window add/remove cannot
+    /// write through to the root parent's count or growth, so failing hard
+    /// is honest while read/`set` paths stay JVM-compatible.
+    private static func emitViewMutationGuard(
+        _ code: inout WasmCode,
+        ctx: WasmModuleContext
+    ) {
+        emitViewStaleCheck(&code, ctx: ctx, thrownReturn: 0)
+        emitLoadAt(&code, baseLocal: 0, byteOffset: L.typeIDOffset)
+        code.i64Const(L.listViewTypeID)
+        code.op(WasmOpcode.i64Eq)
+        code.openIf()
+        code.call(ctx.emittedHelperIndex(
+            for: "__kk_unsupported_operation_exception_new", argumentCount: 0
+        ))
+        code.globalSet(ctx.thrownGlobal)
+        code.i64Const(0)
+        code.op(WasmOpcode.return)
+        code.end()
+    }
+
+    /// `(list, fromIndex, toIndex) -> view box`: `subList` on a sentinel
+    /// list. The view's backing pointer is pre-adjusted into the root
+    /// parent's array (`list.backing + from*8`), so get/iterate/toString and
+    /// `set` all work through the window without extra dispatch. Nested
+    /// views re-anchor to the root parent since `list.backing` already
+    /// carries the accumulated offset. JVM write-through `add`/`removeAt`
+    /// on views is not modelled — those mutators throw UOE via
+    /// `emitViewMutationGuard`.
+    /// Locals: argumentCount = root, +1 = expectedMod, +2 = box.
+    private static func emitListSubListBody(
+        _ code: inout WasmCode,
+        ctx: WasmModuleContext,
+        argumentCount: Int
+    ) {
+        let rootL = argumentCount, expectedL = argumentCount + 1
+        let boxL = argumentCount + 2
+        emitViewStaleCheck(&code, ctx: ctx, thrownReturn: 0)
+        // Bounds: fromIndex < 0 or toIndex > size → IOOBE;
+        // fromIndex > toIndex → IllegalArgumentException (JVM order).
+        code.localGet(1)
+        code.i64Const(0)
+        code.op(WasmOpcode.i64LtS)
+        emitLoadAt(&code, baseLocal: 0, byteOffset: L.listCountOffset)
+        code.localGet(2)
+        code.op(WasmOpcode.i64LtS)
+        code.op(WasmOpcode.i32Or)
+        code.openIf()
+        code.call(ctx.emittedHelperIndex(
+            for: "__kk_index_out_of_bounds_exception_new", argumentCount: 0
+        ))
+        code.globalSet(ctx.thrownGlobal)
+        code.i64Const(0)
+        code.op(WasmOpcode.return)
+        code.end()
+        code.localGet(1)
+        code.localGet(2)
+        code.op(WasmOpcode.i64GtS)
+        code.openIf()
+        code.call(ctx.emittedHelperIndex(
+            for: "__kk_illegal_argument_exception_new", argumentCount: 0
+        ))
+        code.globalSet(ctx.thrownGlobal)
+        code.i64Const(0)
+        code.op(WasmOpcode.return)
+        code.end()
+        // root = isView(list) ? list.parent : list — views always anchor to
+        // the root so a single modCount source exists per chain.
+        emitLoadAt(&code, baseLocal: 0, byteOffset: L.typeIDOffset)
+        code.i64Const(L.listViewTypeID)
+        code.op(WasmOpcode.i64Eq)
+        code.openIf(result: .i64)
+        emitLoadAt(&code, baseLocal: 0, byteOffset: L.listParentOffset)
+        code.elseBranch()
+        code.localGet(0)
+        code.end()
+        code.localSet(rootL)
+        code.localGet(rootL)
+        code.call(ctx.emittedHelperIndex(
+            for: "__kk_wasm_list_modcount", argumentCount: 1
+        ))
+        code.localSet(expectedL)
+        // box = object_new(6, viewTypeID) — offsets up to 48 need 6 slots.
+        code.i64Const(6)
+        code.i64Const(L.listViewTypeID)
+        code.call(ctx.emittedHelperIndex(for: "kk_object_new", argumentCount: 2))
+        code.localSet(boxL)
+        // backing' = list.backing + from*8 (already root-adjusted for views).
+        emitAddress(&code, baseLocal: boxL, byteOffset: L.listArrayOffset)
+        emitLoadAt(&code, baseLocal: 0, byteOffset: L.listArrayOffset)
+        code.localGet(1)
+        code.i64Const(8)
+        code.op(WasmOpcode.i64Mul)
+        code.op(WasmOpcode.i64Add)
+        code.i64Store(offset: 0)
+        emitAddress(&code, baseLocal: boxL, byteOffset: L.listCountOffset)
+        code.localGet(2)
+        code.localGet(1)
+        code.op(WasmOpcode.i64Sub)
+        code.i64Store(offset: 0)
+        // flags: copy the low byte (readOnly) and tag as view.
+        emitAddress(&code, baseLocal: boxL, byteOffset: L.listFlagsOffset)
+        emitLoadAt(&code, baseLocal: 0, byteOffset: L.listFlagsOffset)
+        code.i64Const(0xFF)
+        code.op(WasmOpcode.i64And)
+        code.i64Const(L.listViewFlag)
+        code.op(WasmOpcode.i64Or)
+        code.i64Store(offset: 0)
+        emitStoreAt(&code, baseLocal: boxL, byteOffset: L.listParentOffset, valueLocal: rootL)
+        emitStoreAt(&code, baseLocal: boxL, byteOffset: L.listExpectedModOffset, valueLocal: expectedL)
+        emitIterableItableRegistration(&code, ctx: ctx, objectLocal: boxL)
+        emitListItableRegistrations(&code, ctx: ctx, objectLocal: boxL)
+        code.localGet(boxL)
     }
 
     // MARK: - Pair / Set / Map helpers
@@ -8800,6 +9054,7 @@ enum WasmRuntimeHelpers {
         code.op(WasmOpcode.i64Add)
         code.localSet(countL)
         emitStoreAt(&code, baseLocal: 0, byteOffset: L.listCountOffset, valueLocal: countL)
+        emitBumpModCount(&code, baseLocal: 0, byteOffset: L.listFlagsOffset)
         code.i64Const(1)
     }
 
@@ -8882,6 +9137,7 @@ enum WasmRuntimeHelpers {
         code.op(WasmOpcode.i64Sub)
         code.localSet(countL)
         emitStoreAt(&code, baseLocal: 0, byteOffset: L.listCountOffset, valueLocal: countL)
+        emitBumpModCount(&code, baseLocal: 0, byteOffset: L.listFlagsOffset)
         code.br(2) // break out of the scan loop's enclosing block
         code.end()
         code.localGet(iL)
@@ -9506,6 +9762,7 @@ enum WasmRuntimeHelpers {
         code.op(WasmOpcode.i64Add)
         code.localSet(countL)
         emitStoreAt(&code, baseLocal: 0, byteOffset: L.mapCountOffset, valueLocal: countL)
+        emitBumpModCount(&code, baseLocal: 0, byteOffset: L.mapFlagsOffset)
         code.i64Const(L.nullSentinel)
     }
 
@@ -9600,6 +9857,7 @@ enum WasmRuntimeHelpers {
         code.op(WasmOpcode.i64Sub)
         code.localSet(countL)
         emitStoreAt(&code, baseLocal: 0, byteOffset: L.mapCountOffset, valueLocal: countL)
+        emitBumpModCount(&code, baseLocal: 0, byteOffset: L.mapFlagsOffset)
         code.localGet(oldL)
     }
 
@@ -9656,9 +9914,11 @@ enum WasmRuntimeHelpers {
         code.localSet(objL)
         emitStoreAt(&code, baseLocal: objL, byteOffset: L.listArrayOffset, valueLocal: 0)
         emitStoreAtConst(&code, baseLocal: objL, byteOffset: L.listCountOffset, value: 0)
-        // expected = map.count (CME sentinel).
+        // expected = map modCount (CME sentinel).
         emitAddress(&code, baseLocal: objL, byteOffset: L.listFlagsOffset)
-        emitLoadAt(&code, baseLocal: 0, byteOffset: L.mapCountOffset)
+        emitLoadAt(&code, baseLocal: 0, byteOffset: L.mapFlagsOffset)
+        code.i64Const(L.modCountShift)
+        code.op(WasmOpcode.i64ShrU)
         code.i64Store(offset: 0)
         // Register Iterator itable so interface-typed receivers dispatch.
         emitIteratorItableRegistration(
@@ -9945,12 +10205,16 @@ enum WasmRuntimeHelpers {
         let keyL = argumentCount + 2, countL = argumentCount + 3
         emitLoadAt(&code, baseLocal: 0, byteOffset: L.listArrayOffset)
         code.localSet(containerL)
-        // CME: expected (@32) vs live count.
+        // CME: expected (@32) vs live modCount.
         emitLoadAt(&code, baseLocal: 0, byteOffset: L.listFlagsOffset)
-        emitLoadAt(&code, baseLocal: containerL, byteOffset: L.mapCountOffset)
+        emitLoadAt(&code, baseLocal: containerL, byteOffset: L.mapFlagsOffset)
+        code.i64Const(L.modCountShift)
+        code.op(WasmOpcode.i64ShrU)
         code.op(WasmOpcode.i64Ne)
         code.openIf()
-        code.i64Const(1)
+        code.call(ctx.emittedHelperIndex(
+            for: "__kk_concurrent_modification_exception_new", argumentCount: 0
+        ))
         code.globalSet(ctx.thrownGlobal)
         code.i64Const(0)
         code.op(WasmOpcode.return)
@@ -9962,7 +10226,9 @@ enum WasmRuntimeHelpers {
         code.localGet(countL)
         code.op(WasmOpcode.i64GeS)
         code.openIf()
-        code.i64Const(1)
+        code.call(ctx.emittedHelperIndex(
+            for: "__kk_no_such_element_exception_new", argumentCount: 0
+        ))
         code.globalSet(ctx.thrownGlobal)
         code.i64Const(0)
         code.op(WasmOpcode.return)
