@@ -205,6 +205,34 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                 }
             }
         }
+        // A nullable-underlying value class needs a heap box while its
+        // constructor body writes the underlying field. Preserve that boxed
+        // receiver both on direct constructor calls and across the generated
+        // constructor `$default` stub; ordinary value-class arguments still
+        // follow the payload ABI.
+        var nullableUnderlyingValueClassConstructors: Set<SymbolID> = []
+        var nullableUnderlyingValueClassDefaultStubReceiverIndices: [SymbolID: Int] = [:]
+        if let symbols, let types {
+            for constructor in symbols.symbols(ofKind: .constructor) {
+                guard let owner = symbols.parentSymbol(for: constructor),
+                      nullableUnderlyingValueClassSymbol(
+                          of: .classType(ClassType(classSymbol: owner)),
+                          types: types,
+                          symbols: symbols
+                      ) != nil
+                else {
+                    continue
+                }
+                nullableUnderlyingValueClassConstructors.insert(constructor)
+                let stubSymbol = SyntheticSymbolScheme.defaultStubSymbol(for: constructor)
+                let receiverSymbol = SyntheticSymbolScheme.receiverParameterSymbol(for: constructor)
+                if let stub = module.arena.function(for: stubSymbol),
+                   let receiverIndex = stub.params.firstIndex(where: { $0.symbol == receiverSymbol })
+                {
+                    nullableUnderlyingValueClassDefaultStubReceiverIndices[stubSymbol] = receiverIndex
+                }
+            }
+        }
 
         // ABI-002: An inline body imported from a library artifact records only
         // the link name for a callee whose declaration is synthetic in this
@@ -697,6 +725,21 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                         module: module,
                         symbols: symbols
                     )
+                    var preservedBoxedArgumentIndices: Set<Int> = []
+                    if let callSymbol = effectiveCallSymbol,
+                       let receiverIndex = nullableUnderlyingValueClassDefaultStubReceiverIndices[callSymbol],
+                       arguments.indices.contains(receiverIndex)
+                    {
+                        preservedBoxedArgumentIndices.insert(receiverIndex)
+                    } else if let callSymbol = effectiveCallSymbol,
+                              nullableUnderlyingValueClassConstructors.contains(callSymbol),
+                              receiverOffset > 0
+                    {
+                        let receiverIndex = callCaptureOffset + receiverOffset - 1
+                        if arguments.indices.contains(receiverIndex) {
+                            preservedBoxedArgumentIndices.insert(receiverIndex)
+                        }
+                    }
                     boxedArguments = applyArgumentBoxing(
                         arguments: arguments,
                         signature: signature,
@@ -713,6 +756,7 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                         // the same boxed values as any Kotlin-source callee.
                         boxTypeParamArguments: isKotlinSourceCallee(effectiveCallSymbol, symbols: symbols)
                             || stubSignatureByName[effectiveCallee] != nil,
+                        preservedBoxedArgumentIndices: preservedBoxedArgumentIndices,
                         sema: ctx.sema,
                         cache: ctx.nominalDispatchCache,
                         newBody: &newBody
