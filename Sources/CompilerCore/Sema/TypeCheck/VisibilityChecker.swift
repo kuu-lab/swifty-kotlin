@@ -109,6 +109,13 @@ struct VisibilityChecker {
             if isSubclass(enclosingClass, of: ownerClass) {
                 return true
             }
+            // The containing class and declarations nested within it can
+            // access protected members of its companion object.
+            if let companionOwner = symbols.parentSymbol(for: ownerClass),
+               symbols.companionObjectSymbol(for: companionOwner) == ownerClass,
+               (enclosingClass == companionOwner || isLexicallyNested(enclosingClass, within: companionOwner)) {
+                return true
+            }
             // Kotlin also grants protected access to declarations lexically
             // nested inside the owner, including inner classes that are not
             // themselves subclasses of that owner.
