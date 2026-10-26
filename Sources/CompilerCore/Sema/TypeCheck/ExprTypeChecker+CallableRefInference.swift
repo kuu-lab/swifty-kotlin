@@ -1458,7 +1458,13 @@ extension ExprTypeChecker {
             // it would fail, and adopting it would hide the concrete type the
             // caller needs for inference, so report the reference's own type.
             if let expectedFunctionType {
-                let concreteResult = expectedSamInterfaceType ?? expectedFunctionType
+                let concreteResult = expectedSamInterfaceType
+                    ?? expectedType.flatMap { expected in
+                        isConcreteKFunctionReferenceShape(expected, sema: sema, interner: interner)
+                            ? sema.types.makeNonNullable(expected)
+                            : nil
+                    }
+                    ?? expectedFunctionType
                 if !signature.reifiedTypeParameterIndices.isEmpty {
                     if let specialization = driver.helpers.contextualCallableReferenceBinding(
                         for: signature,
@@ -2151,5 +2157,27 @@ extension ExprTypeChecker {
         default:
             return false
         }
+    }
+
+    private func isConcreteKFunctionReferenceShape(
+        _ type: TypeID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> Bool {
+        guard case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(type)),
+              let symbol = sema.symbols.symbol(classType.classSymbol),
+              Array(symbol.fqName.dropLast()) == ["kotlin", "reflect"].map(interner.intern)
+        else {
+            return false
+        }
+        let prefix = "KFunction"
+        let name = interner.resolve(symbol.name)
+        guard name.hasPrefix(prefix),
+              let arity = Int(name.dropFirst(prefix.count)),
+              (0 ... 22).contains(arity)
+        else {
+            return false
+        }
+        return classType.args.count == arity + 1
     }
 }

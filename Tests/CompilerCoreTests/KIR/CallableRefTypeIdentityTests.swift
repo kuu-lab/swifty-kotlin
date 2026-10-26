@@ -204,6 +204,19 @@ struct CallableRefTypeIdentityTests {
         #expect(ctx.diagnostics.hasError)
     }
 
+    @Test func testCallableReferenceCanBeAssignedToKFunction1AndInvoked() throws {
+        let ctx = makeContextFromSource("""
+        import kotlin.reflect.KFunction1
+        fun length(value: String): Int = value.length
+        fun main() {
+            val function: KFunction1<String, Int> = ::length
+            println(function("Kotlin!"))
+        }
+        """)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+    }
+
     @Test func testBoxedFunctionReferencesResolveInheritedReflectionMembers() throws {
         let ctx = makeContextFromSource("""
         fun defaultFun(x: Int = 2) = x + 1
