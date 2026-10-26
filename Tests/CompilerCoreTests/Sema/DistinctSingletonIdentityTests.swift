@@ -4,6 +4,26 @@ import Testing
 @Suite
 struct DistinctSingletonIdentityTests {
     @Test(arguments: ["===", "!=="])
+    func rejectsDistinctAnonymousObjectTypes(op: String) throws {
+        let context = makeContextFromSource("""
+        fun comparisons() {
+            val first = object { val x = 1 }
+            val second = object { val x = 1 }
+            val same = first
+            first \(op) second
+            same \(op) first
+            first == second
+        }
+        """)
+        try runSema(context)
+
+        let errors = context.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.count == 1, "Only distinct anonymous object types should be rejected: \(errors)")
+        #expect(errors.allSatisfy { $0.code == "KSWIFTK-SEMA-0002" })
+        #expect(errors.first?.message.contains("unrelated anonymous object types") == true)
+    }
+
+    @Test(arguments: ["===", "!=="])
     func rejectsDistinctSingletonTypesExceptSharedNull(op: String) throws {
         let context = makeContextFromSource("""
         object A

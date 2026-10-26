@@ -327,6 +327,15 @@ extension ExprTypeChecker {
                 sema.bindings.bindExprType(id, type: sema.types.errorType)
                 return sema.types.errorType
             }
+            if identityEqualityHasDistinctAnonymousObjectTypes(lhsType, rhsType, sema: sema) {
+                ctx.sema.diagnostics.error(
+                    "KSWIFTK-SEMA-0002",
+                    "Operator '\(op == .identityEqual ? "===" : "!==")' cannot be applied to unrelated anonymous object types.",
+                    range: range
+                )
+                sema.bindings.bindExprType(id, type: sema.types.errorType)
+                return sema.types.errorType
+            }
             sema.bindings.bindExprType(id, type: boolType)
             return boolType
         }
@@ -1304,6 +1313,21 @@ extension ExprTypeChecker {
               let right = resolveClassTypeSymbol(rhs, sema: sema)?.symbol
         else { return false }
         return left.kind == .object && right.kind == .object && left.id != right.id
+    }
+
+    private func identityEqualityHasDistinctAnonymousObjectTypes(_ lhs: TypeID, _ rhs: TypeID, sema: SemaModule) -> Bool {
+        // Anonymous object literals are distinct final nominal classes, even
+        // when their members or declared supertypes happen to match.
+        if sema.types.nullability(of: lhs) == .nullable,
+           sema.types.nullability(of: rhs) == .nullable {
+            return false
+        }
+        guard let left = resolveClassTypeSymbol(lhs, sema: sema)?.symbol,
+              let right = resolveClassTypeSymbol(rhs, sema: sema)?.symbol
+        else { return false }
+        return left.flags.contains(.objectLiteralType)
+            && right.flags.contains(.objectLiteralType)
+            && left.id != right.id
     }
 
     // Kotlin 2.3.10 rejects unrelated concrete operands when a primitive or
