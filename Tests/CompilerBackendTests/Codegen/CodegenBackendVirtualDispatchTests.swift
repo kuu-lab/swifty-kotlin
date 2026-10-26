@@ -101,7 +101,7 @@ struct CodegenBackendVirtualDispatchTests {
             try assertKotlinOutput(
                 try diffCaseSource("fun_interface_receiver_sam_lambda.kt"),
                 moduleName: "KUU2242ReceiverSamLambda",
-                expected: "OK\n",
+                expected: "OK\nOK!\n",
                 optLevel: optLevel,
                 allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
             )
