@@ -157,6 +157,14 @@ struct DeclarationPositionValidator {
 
         validateDuplicateTypeParamNames(decl.typeParams, range: decl.range)
 
+        if let whereClauseRange = decl.whereClauseRange, decl.typeParams.isEmpty {
+            diagnostics?.error(
+                "KSWIFTK-SEMA-0445",
+                "Type constraints are not allowed when no type parameters declared.",
+                range: whereClauseRange
+            )
+        }
+
         for (modifier, name) in Self.funImpossibleModifiers where modifiers.contains(modifier) {
             emitNotApplicable(name, to: target, range: decl.range)
         }

@@ -158,15 +158,37 @@ extension BuildASTPhase {
         interner: StringInterner,
         astArena: ASTArena
     ) -> [(name: InternedString, bound: TypeRefID)] {
+        declarationWhereClauseInfo(
+            from: nodeID,
+            in: arena,
+            interner: interner,
+            astArena: astArena
+        ).whereClauses
+    }
+
+    func declarationWhereClauseInfo(
+        from nodeID: NodeID,
+        in arena: SyntaxArena,
+        interner: StringInterner,
+        astArena: ASTArena
+    ) -> (
+        whereClauses: [(name: InternedString, bound: TypeRefID)],
+        range: SourceRange?
+    ) {
         let tokens = arena.node(nodeID).kind == .propertyDecl
             ? propertyHeadTokens(from: nodeID, in: arena)
             : collectTokens(from: nodeID, in: arena)
         guard let startIndex = findWhereKeywordIndex(in: tokens) else {
-            return []
+            return (whereClauses: [], range: nil)
         }
-        return parseWhereClauseEntries(tokens: tokens, startIndex: startIndex,
-                                       interner: interner, astArena: astArena,
-                                       propertyAccessors: arena.node(nodeID).kind == .propertyDecl)
+        let clauses = parseWhereClauseEntries(
+            tokens: tokens,
+            startIndex: startIndex,
+            interner: interner,
+            astArena: astArena,
+            propertyAccessors: arena.node(nodeID).kind == .propertyDecl
+        )
+        return (whereClauses: clauses, range: tokens[startIndex].range)
     }
 
     private func findWhereKeywordIndex(in tokens: [Token]) -> Int? {
