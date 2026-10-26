@@ -112,5 +112,28 @@ struct CallableReferenceContextualInputTests {
 
         #expect(ctx.diagnostics.hasError, "A Long operator must not satisfy an Int reducer.")
     }
+
+    @Test func contextualPropertyReferenceIsRejected() throws {
+        let ctx = makeContextFromSource("""
+        @file:OptIn(kotlin.ExperimentalContextParameters::class)
+
+        class A(val tag: String) {
+            context(c: String)
+            val prop: String get() = tag + c
+            val y by A::prop
+        }
+
+        class B(val tag: String) {
+            val prop: String get() = tag
+            val y by B::prop
+        }
+        """)
+        try runSema(ctx)
+
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.count == 1, "Expected one contextual property-reference diagnostic: \(errors)")
+        #expect(errors.first?.code == "KSWIFTK-TYPE-0001")
+        #expect(errors.first?.message == "Callable references to properties with context parameters are not supported.")
+    }
 }
 #endif
