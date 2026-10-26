@@ -727,6 +727,18 @@ extension ExprTypeChecker {
                         break
                     }
                     if let extensionPropertyReference {
+                        if let getter = sema.symbols.extensionPropertyGetterAccessor(
+                            for: extensionPropertyReference.symbol
+                        ), let signature = sema.symbols.functionSignature(for: getter),
+                           !signature.contextParameterTypes.isEmpty || !signature.contextReceiverTypes.isEmpty
+                        {
+                            ctx.sema.diagnostics.error(
+                                "KSWIFTK-SEMA-0105",
+                                "Callable references to properties with context parameters are unsupported.",
+                                range: range
+                            )
+                            return driver.helpers.bindAndReturnErrorType(id, sema: sema)
+                        }
                         let resultType = bindPropertyCallableRef(
                             id,
                             propertySymbol: extensionPropertyReference.symbol,

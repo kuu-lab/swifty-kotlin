@@ -6,6 +6,32 @@ import Testing
 @Suite
 struct CallableReferenceMemberPropertyFunctionOverloadTests {
     @Test
+    func rejectsContextualExtensionPropertyCallableReferences() throws {
+        let source = """
+        context(c1: Int, c2: String)
+        var String.extProp: String
+            get() = c2
+            set(v) {}
+
+        class B { val ref = "r"::extProp }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(
+                inputs: [path],
+                frontendFlags: ["opt-in=kotlin.ExperimentalContextParameters"],
+                includeStdlib: false
+            )
+            do { try runSema(ctx) } catch {}
+
+            let diagnostics = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+            #expect(diagnostics.contains {
+                $0.code == "KSWIFTK-SEMA-0105"
+                    && $0.message == "Callable references to properties with context parameters are unsupported."
+            }, "Expected contextual property callable reference to be rejected, got: \(diagnostics)")
+        }
+    }
+
+    @Test
     func rejectsUncontextualOverloadedCallableReferences() throws {
         let ctx = makeContextFromSource("""
         class A {
