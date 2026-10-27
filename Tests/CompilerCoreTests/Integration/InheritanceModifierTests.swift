@@ -674,6 +674,68 @@ import TestStdlibCache
         }
     }
 
+    // KUU-3601: nullable-receiver member extensions declared inside an interface
+    // or class never hide kotlin.Any members — members always win over
+    // extensions, so no `override` modifier is required. A member extension that
+    // re-declares a supertype's member extension does still hide it, matching
+    // kotlinc (JetBrains
+    // codegen/box/extensionFunctions/memberExtensionEqualsHashCodeToStringInInterface.kt).
+    @Test func testNullableAnyMemberExtensionsDoNotHideAnyMembers() throws {
+        let acceptingSources = [
+            """
+            interface AssertDSL {
+                infix fun Any?.equals(other: Any?) {
+                }
+
+                fun Any?.toString(): String = ""
+                fun Any?.hashCode(): Int = 0
+            }
+
+            class C(val x: Int) : AssertDSL
+            """,
+            """
+            class Holder {
+                fun Any?.toString(): String = ""
+                fun Any?.hashCode(): Int = 0
+            }
+            """,
+            """
+            open class Base {
+                open fun Any?.toString(): String = ""
+            }
+            class Impl : Base() {
+                override fun Any?.toString(): String = ""
+            }
+            """,
+        ]
+        // A member extension re-declared in a subtype still hides the
+        // supertype's member extension and therefore needs `override`.
+        let rejectingSources = [
+            """
+            interface A { fun Any?.toString(): String = "a" }
+            interface B : A { fun Any?.toString(): String = "b" }
+            """,
+            """
+            open class P { open fun Any?.toString(): String = "p" }
+            class C : P() { fun Any?.toString(): String = "c" }
+            """,
+        ]
+        try withTemporaryFiles(contents: acceptingSources + rejectingSources) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
+            try runSema(ctx)
+
+            for path in paths.prefix(acceptingSources.count) {
+                let sampleDiags = diagnosticsForPath(path, in: ctx)
+                assertNoDiagnostic("KSWIFTK-SEMA-OVERRIDE", in: sampleDiags)
+                #expect(!sampleDiags.hasError, "Unexpected diagnostics: \(sampleDiags)")
+            }
+            for path in paths.suffix(rejectingSources.count) {
+                let sampleDiags = diagnosticsForPath(path, in: ctx)
+                assertHasDiagnostic("KSWIFTK-SEMA-OVERRIDE", in: sampleDiags)
+            }
+        }
+    }
+
     @Test func testInternalOverrideOfPublicFromOtherModule() throws {
         let source = """
         open class Shape {
