@@ -468,10 +468,31 @@ extension CallTypeChecker {
                     else { return nil }
                     return local.symbol
                 }
-                let classSym = localClassSymbol
+                var classSym = localClassSymbol
                     ?? scopedClassSymbols.first(where: { isLexicallyDeclaredClassifier($0, in: ctx) })
                     ?? inheritedClassSymbols.first
                     ?? scopedClassSymbols.first
+                if let selected = classSym,
+                   isInheritedNestedInterface(selected, in: ctx)
+                {
+                    // An inherited interface has no constructor in this call
+                    // tier; do not let it hide a visible outer classifier's
+                    // constructor. Keep lexical interfaces and inherited
+                    // concrete classes on their existing resolution paths.
+                    let outerClassSymbols = ctx.scope.lookupClassifier(calleeName, matching: { candidate in
+                        guard let symbol = ctx.cachedSymbol(candidate) else { return false }
+                        return symbol.kind == .class || symbol.kind == .enumClass
+                            || symbol.kind == .annotationClass || symbol.kind == .object
+                    }).filter { candidate in
+                        guard let symbol = ctx.cachedSymbol(candidate),
+                              symbol.flags.contains(.expectDeclaration)
+                        else { return true }
+                        return sema.symbols.actualSymbol(for: candidate) == nil
+                    }
+                    if let outerClassSymbol = outerClassSymbols.first {
+                        classSym = outerClassSymbol
+                    }
+                }
                 if let classSym, let classSymbol = ctx.cachedSymbol(classSym) {
                     let companionInvokeReceiverSymbols = [
                         sema.symbols.companionBlockObjectSymbol(for: classSym, interner: interner),

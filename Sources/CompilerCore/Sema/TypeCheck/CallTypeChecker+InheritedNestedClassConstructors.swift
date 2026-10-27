@@ -64,4 +64,23 @@ extension CallTypeChecker {
         }
         return []
     }
+
+    func isInheritedNestedInterface(_ candidate: SymbolID, in ctx: TypeInferenceContext) -> Bool {
+        let symbols = ctx.sema.symbols
+        guard ctx.cachedSymbol(candidate)?.kind == .interface,
+              let owner = symbols.parentSymbol(for: candidate),
+              let enclosingClass = ctx.enclosingClassSymbol
+        else { return false }
+
+        // This only classifies where the interface is declared; visibility is
+        // checked separately for the callable selected from an outer scope.
+        var pendingOwners = symbols.directSupertypes(for: enclosingClass)
+        var visited: Set<SymbolID> = [enclosingClass]
+        while let current = pendingOwners.popLast() {
+            guard visited.insert(current).inserted else { continue }
+            if current == owner { return true }
+            pendingOwners.append(contentsOf: symbols.directSupertypes(for: current))
+        }
+        return false
+    }
 }
