@@ -363,11 +363,20 @@ extension DeclTypeChecker {
         // declaration scope, so visit them before lowering can emit the
         // constructor call. This also records constant-property bindings for
         // expressions such as `Base64(STANDARD_ALPHABET, 0)`.
+        // They run before this object is initialized, so `this` and the
+        // enclosing instance's members stay out of scope; only enclosing
+        // singleton objects (and other kept outer receivers) remain —
+        // `object Inner : Base(this.foo())` inside `object Outer` resolves
+        // `this` to Outer, while the same expression inside a class is
+        // rejected (KUU-3595).
         var superclassArgumentLocals: LocalBindings = [:]
         bindObjectSuperConstructorCall(
             objectDecl,
             symbol: symbol,
-            ctx: ctx,
+            ctx: ctx.copying(
+                implicitReceiverType: .some(nil),
+                outerReceiverTypes: ctx.singletonObjectOuterReceivers
+            ).excludingEnclosingClassReceiver(),
             locals: &superclassArgumentLocals
         )
 
