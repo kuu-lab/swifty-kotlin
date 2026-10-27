@@ -255,6 +255,26 @@ func runtimeObjectTypeID(rawValue: Int) -> Int64? {
     }
 }
 
+/// The nominal type ID a *value class* box was tagged with, or nil when
+/// `rawValue` is not a boxed value class. `objectTypeByPointer` also tags
+/// runtime-internal objects (lists, map entries, pairs, ...), so membership
+/// in `valueClassTypeIDs` is the discriminator — see `kk_tag_value_class_box`.
+/// Equality consults this so a boxed value class can never unwrap into its
+/// underlying type's payload comparison against an unboxed peer (KUU-3616).
+func runtimeValueClassTypeID(rawValue: Int) -> Int64? {
+    guard let ptr = UnsafeMutableRawPointer(bitPattern: rawValue) else {
+        return nil
+    }
+    return runtimeStorage.withMetadataLock { state in
+        guard let classID = state.objectTypeByPointer[UInt(bitPattern: ptr)],
+              state.valueClassTypeIDs.contains(classID)
+        else {
+            return nil
+        }
+        return classID
+    }
+}
+
 func runtimeRegisterArrayType(rawValue: Int, typeID: Int64) {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: rawValue), typeID != 0 else {
         return
