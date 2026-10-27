@@ -1284,7 +1284,12 @@ public final class SymbolTable {
         return existingNonPackageSymbols.allSatisfy { symbol in
             switch symbol.kind {
             case .property:
-                return symbol.flags.contains(.synthetic)
+                // A `.static` synthetic helper shares a member FQName with a
+                // user instance property without conflict — Kotlin generates
+                // `Enum.entries` on the enum class even when a constructor
+                // `val entries` exists, and member lookups keep declaration
+                // order while static reads resolve the stub (KUU-3544).
+                return symbol.flags.contains(.synthetic) || flags.contains(.static)
             // A source-backed factory can share a FQName with its nominal
             // return type, so its parameter may collide with a residual
             // synthetic property on that type (for example `size`).

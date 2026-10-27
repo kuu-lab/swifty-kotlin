@@ -65,11 +65,17 @@ final class EnumEntriesLoweringPass: LoweringPass, ParallelLoweringPass {
         entriesName: InternedString,
         entriesGetName: InternedString
     ) -> KIRInstruction? {
+        // Only the compiler-synthesized `Enum.entries` stub routes to
+        // `entries$get`. A user-declared `entries` member (companion `val`,
+        // nested member, constructor property) keeps its own accessor/backing
+        // field — Kotlin's shadowing rules give it priority over the
+        // synthetic `EnumEntries` property (KUU-3544).
         guard case let .call(symbol, _, _, result, _, _, _, _) = instruction,
               let propSym = symbol,
               let propInfo = sema.symbols.symbol(propSym),
               propInfo.kind == .property,
-              propInfo.name == entriesName
+              propInfo.name == entriesName,
+              propInfo.flags.contains(.synthetic)
         else {
             return nil
         }
@@ -101,7 +107,8 @@ final class EnumEntriesLoweringPass: LoweringPass, ParallelLoweringPass {
               case let .symbolRef(sym) = value,
               let symInfo = sema.symbols.symbol(sym),
               symInfo.kind == .property,
-              symInfo.name == entriesName
+              symInfo.name == entriesName,
+              symInfo.flags.contains(.synthetic)
         else {
             return nil
         }
@@ -129,7 +136,8 @@ final class EnumEntriesLoweringPass: LoweringPass, ParallelLoweringPass {
         guard case let .loadGlobal(result, symbol) = instruction,
               let symInfo = sema.symbols.symbol(symbol),
               symInfo.kind == .property,
-              symInfo.name == entriesName
+              symInfo.name == entriesName,
+              symInfo.flags.contains(.synthetic)
         else {
             return nil
         }

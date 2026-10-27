@@ -113,6 +113,16 @@ extension ExprLowerer {
            let receiverExprID = driver.ctx.activeImplicitReceiverExprID()
         {
             let resultType = boundType ?? sema.symbols.propertyType(for: symbol) ?? sema.types.anyType
+            if symInfo.flags.contains(.static) {
+                // Enum-class statics (the synthetic `Enum.entries` stub) are
+                // not instance storage: a bare `entries` read inside the enum
+                // body resolves the class-level stub. Preserve the property
+                // symbol so EnumEntriesLoweringPass routes it to `entries$get`
+                // (KUU-3544).
+                let valueID = arena.appendExpr(.symbolRef(symbol), type: resultType)
+                instructions.append(.constValue(result: valueID, value: .symbolRef(symbol)))
+                return valueID
+            }
             let result = arena.appendTemporary(type: resultType)
             if driver.callLowerer.memberPropertyUsesAccessor(symbol, ast: ast, sema: sema) {
                 let getterSymbol = sema.symbols.extensionPropertyGetterAccessor(for: symbol)
