@@ -177,7 +177,8 @@ flatten し、内部 IR の field read／write には box／unbox 変換を挿�
 primary／secondary constructor は constructor-impl、既定引数は mask と DefaultConstructorMarker を持つ
 constructor-impl$default として公開する。source constructor の metadata は secondary／optional flags を保つ。
 内部 constructor が保存専用 constructor と衝突する場合は隠し引数を付け、box-impl は init を実行しない。
-Sema の value-class secondary 制限は JVM 出力だけ解除する。
+value-class secondary constructor は primary への `this(...)` 委譲として受理し、ネイティブでも
+primary の underlying field offset から payload を読み戻して unbox する。
 M14 は value class を引数／戻り値に持つ inline と suspend の公開 ABI を生成する。
 inline adapter は本体の local／label／handler を写し、return を unbox する。callback invoke を公開 bytecode に
 残すため、公式 Kotlin consumer の bytecode inliner も non-local return と finally を展開できる。
