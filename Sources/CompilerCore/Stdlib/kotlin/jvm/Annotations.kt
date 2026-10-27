@@ -17,7 +17,12 @@ public annotation class JvmName(val name: String)
 @Target(AnnotationTarget.FILE)
 public annotation class JvmMultifileClass
 
-@Target(AnnotationTarget.FUNCTION, AnnotationTarget.PROPERTY)
+@Target(
+    AnnotationTarget.FUNCTION,
+    AnnotationTarget.PROPERTY,
+    AnnotationTarget.PROPERTY_GETTER,
+    AnnotationTarget.PROPERTY_SETTER
+)
 public annotation class JvmStatic
 
 @Target(AnnotationTarget.FUNCTION, AnnotationTarget.CONSTRUCTOR)
