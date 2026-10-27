@@ -7,6 +7,24 @@ import Testing
 
 @Suite
 struct CodegenBackendInnerClassOuterReceiverExecutionTests {
+    @Test func genericInnerClassTypeAndConstructionCaptureOuterArguments() throws {
+        // KUU-3608: an unqualified generic inner class captures its outer type
+        // arguments while keeping its own explicit type arguments.
+        try assertKotlinOutput(
+            """
+            class Outer<OP> {
+                inner class Inner<IP>
+                fun <T> withInner(block: Inner<T>.() -> String) = Inner<T>().block()
+            }
+            fun <TT> withOuter(block: Outer<TT>.() -> String) = Outer<TT>().block()
+            fun box() = withOuter<Int> { withInner<Boolean> { "OK" } }
+            fun main() { println(box()) }
+            """,
+            moduleName: "KUU3608GenericUnqualifiedInnerClass",
+            expected: "OK\n"
+        )
+    }
+
     @Test func inheritedLateinitIsInitializedUsesInnerReceiver() throws {
         let source = """
             open class Foo {
