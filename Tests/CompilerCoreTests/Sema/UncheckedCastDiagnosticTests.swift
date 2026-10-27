@@ -5,6 +5,28 @@ import Testing
 @Suite
 struct UncheckedCastDiagnosticTests {
     @Test
+    func bundledSuppressionDoesNotHideUserUncheckedCastWarnings() throws {
+        let context = makeContextFromSource("""
+        fun cast(value: Any): List<String> = value as List<String>
+        """)
+        try runSema(context)
+        #expect(!context.diagnostics.hasError, "\(context.diagnostics.diagnostics)")
+
+        let warnings = context.diagnostics.diagnostics.filter {
+            $0.code == "KSWIFTK-SEMA-UNCHECKED-CAST"
+        }
+        let bundledWarnings = warnings.filter {
+            $0.primaryRange.map { context.sourceManager.origin(of: $0.start.file)?.isBundledStdlib == true } == true
+        }
+        let userWarnings = warnings.filter {
+            $0.primaryRange.map { context.sourceManager.origin(of: $0.start.file) == .user } == true
+        }
+        #expect(bundledWarnings.isEmpty, "\(bundledWarnings)")
+        #expect(userWarnings.count == 1, "\(userWarnings)")
+        #expect(userWarnings.allSatisfy { $0.severity == .warning })
+    }
+
+    @Test
     func nullableNothingCastsDoNotWarnWhileErasedValueCastsStillWarn() throws {
         let sources = [
             "fun cast(): List<Int>? = null as List<Int>?",
