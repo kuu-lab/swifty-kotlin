@@ -183,6 +183,33 @@ struct CodegenBackendInnerClassOuterReceiverExecutionTests {
         )
     }
 
+    @Test func deeplyNestedInnerClassesInsideAnonymousObjectsCaptureGenericOuter() throws {
+        try assertKotlinOutput(
+            """
+            class Generic<T>(val t: T) {
+                fun foo(): T {
+                    val o1 = object {
+                        inner class InnerLocal1 {
+                            fun bar(): T {
+                                val o2 = object {
+                                    inner class InnerLocal2 {
+                                        fun baz(): T = t
+                                    }
+                                }
+                                return o2.InnerLocal2().baz()
+                            }
+                        }
+                    }
+                    return o1.InnerLocal1().bar()
+                }
+            }
+            fun main() { println(Generic("OK").foo()) }
+            """,
+            moduleName: "KUU3556NestedInnerClassGenericCapture",
+            expected: "OK\n"
+        )
+    }
+
     @Test
     func localOwnerInnerConstructorCapturesEnclosingInstances() throws {
         try assertKotlinOutput(
