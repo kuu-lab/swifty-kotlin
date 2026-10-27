@@ -5,6 +5,12 @@ import kotlin.reflect.KClass
 @Target(AnnotationTarget.CLASS)
 public annotation class JvmInline
 
+@Target(AnnotationTarget.CLASS)
+@Retention(AnnotationRetention.SOURCE)
+@MustBeDocumented
+@SinceKotlin("1.5")
+public annotation class JvmRecord
+
 @Target(
     AnnotationTarget.FUNCTION,
     AnnotationTarget.PROPERTY_GETTER,
