@@ -110,6 +110,34 @@ func runtimeBinarySearch(
 }
 
 @inline(__always)
+func runtimeInvokeComparable(
+    lhs: Int,
+    rhs: Int,
+    outThrown: UnsafeMutablePointer<Int>?
+) -> Int? {
+    guard let lhsTypeID = runtimeObjectTypeID(rawValue: lhs),
+          runtimeIsAssignable(sourceTypeID: lhsTypeID, targetTypeID: comparableRuntimeTypeID)
+    else {
+        return nil
+    }
+
+    // Dispatch even when rhs has a different Comparable type. The selected
+    // implementation's bridge owns the parameter check and propagates CCE.
+    var compareToFnPtr = kk_itable_lookup_dynamic(lhs, Int(comparableRuntimeTypeID), 0)
+    if compareToFnPtr == 0 {
+        compareToFnPtr = kk_itable_lookup(lhs, 0, 0)
+    }
+    guard compareToFnPtr != 0 else {
+        return nil
+    }
+    let compareToFn = unsafeBitCast(
+        compareToFnPtr,
+        to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self
+    )
+    return maybeUnbox(compareToFn(lhs, rhs, outThrown))
+}
+
+@inline(__always)
 func runtimeCompareComparableValues(lhs: Int, rhs: Int) -> Int? {
     guard let lhsTypeID = runtimeObjectTypeID(rawValue: lhs),
           let rhsTypeID = runtimeObjectTypeID(rawValue: rhs),
