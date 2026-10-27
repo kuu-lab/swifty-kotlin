@@ -477,7 +477,11 @@ extension CallTypeChecker {
         return seen
     }
 
-    private func resolveSuperMemberReceiverType(
+    /// Shared by member calls/reads (`inferMemberCallImpl`) and member
+    /// property writes (`inferMemberAssignExpr`): an unqualified `super`
+    /// receiver must resolve to the direct supertype that actually declares
+    /// the accessed member rather than the implicit `kotlin.Any` fallback.
+    func resolveSuperMemberReceiverType(
         receiverID: ExprID,
         receiverType: TypeID,
         calleeName: InternedString,
