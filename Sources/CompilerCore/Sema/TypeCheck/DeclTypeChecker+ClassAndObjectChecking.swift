@@ -101,6 +101,24 @@ extension DeclTypeChecker {
         diagnostics: DiagnosticEngine
     ) {
         typeCheckAnnotationFactories(classDecl.annotations, symbol: symbol, ctx: ctx)
+        if let classSymbol = ctx.sema.symbols.symbol(symbol) {
+            let constructorPath = classSymbol.fqName + [ctx.interner.intern("<init>")]
+            let constructors = ctx.sema.symbols.lookupAll(fqName: constructorPath)
+            if !classDecl.primaryConstructorAnnotations.isEmpty,
+               let constructor = constructors.first(where: {
+                   ctx.sema.symbols.symbol($0)?.declSite == classDecl.range
+               })
+            {
+                typeCheckAnnotationFactories(classDecl.primaryConstructorAnnotations, symbol: constructor, ctx: ctx)
+            }
+            for declaration in classDecl.secondaryConstructors where !declaration.annotations.isEmpty {
+                if let constructor = constructors.first(where: {
+                    ctx.sema.symbols.symbol($0)?.declSite == declaration.range
+                }) {
+                    typeCheckAnnotationFactories(declaration.annotations, symbol: constructor, ctx: ctx)
+                }
+            }
+        }
         var allNestedObjects = classDecl.nestedObjects
         if let companionDeclID = classDecl.companionObject {
             allNestedObjects.append(companionDeclID)
