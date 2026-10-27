@@ -1389,7 +1389,7 @@ extension KIRLoweringDriver {
                 sourceRange: classDecl.range
             ))
         )
-        ctx.registerCompanionInitializer(symbol: initializerSymbol, name: initializerName)
+        ctx.registerReflectionInitializer(symbol: initializerSymbol, name: initializerName)
         return [declID] + ctx.drainGeneratedCallableDecls()
     }
 
