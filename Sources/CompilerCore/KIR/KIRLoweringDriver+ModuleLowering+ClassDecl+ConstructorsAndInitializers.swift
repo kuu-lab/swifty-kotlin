@@ -173,11 +173,16 @@ extension KIRLoweringDriver {
                 shared: shared,
                 body: &body
             )
-            emitClassDelegationInitializers(
-                ownerSymbol: ownerSymbol,
-                receiverID: ctx.activeImplicitReceiverExprID()!,
-                shared: shared, body: &body
-            )
+            // Enum entries are ordinal-backed and initialized inside
+            // $enumEnsureInit$; their delegate handles are stored there by
+            // emitEnumEntryConstructorInitialization instead.
+            if sema.symbols.symbol(ownerSymbol)?.kind != .enumClass {
+                emitClassDelegationInitializers(
+                    ownerSymbol: ownerSymbol,
+                    receiverID: ctx.activeImplicitReceiverExprID()!,
+                    shared: shared, body: &body
+                )
+            }
             emitClassBodyInitializers(
                 classDecl: classDecl, shared: shared, body: &body
             )
@@ -619,6 +624,17 @@ extension KIRLoweringDriver {
                 continue
             }
             let delegateValue = lowerExpr(delegateExpr, shared: shared, emit: &body)
+
+            // Enum values are ordinal-backed: the delegate handle lives in a
+            // per-entry global slot populated by $enumEnsureInit$, matching
+            // how ordinary enum stored properties are kept.
+            if let slotSymbol = ctx.enumEntryStorageSlots[fieldSymbol] {
+                let slotType = sema.symbols.propertyType(for: fieldSymbol) ?? sema.types.anyType
+                let slotRef = arena.appendExpr(.symbolRef(slotSymbol), type: slotType)
+                body.append(.constValue(result: slotRef, value: .symbolRef(slotSymbol)))
+                body.append(.copy(from: delegateValue, to: slotRef))
+                continue
+            }
 
             guard let fieldOffset = shared.sema.symbols.nominalLayout(for: ownerSymbol)?.fieldOffsets[fieldSymbol] else {
                 continue

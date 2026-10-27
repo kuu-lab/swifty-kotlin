@@ -173,6 +173,28 @@ extension KIRLoweringDriver {
                 isMutable: false
             ))
         }
+        // Class-delegation handles (`enum class E : I by expr`) are per-entry
+        // state too: an enum value is ordinal-backed and has no heap object to
+        // hold the delegate, so it gets the same per-entry global slot an
+        // ordinary stored property does. The delegate expression is evaluated
+        // once per entry in $enumEnsureInit$, and the synthesized forwarding
+        // members read the slot back through the ordinal-switch getter.
+        for interfaceSymbol in sema.symbols.delegatedInterfaces(forClass: ownerSymbol) {
+            guard let fieldSymbol = sema.symbols.classDelegationField(
+                forClass: ownerSymbol,
+                interface: interfaceSymbol
+            ),
+                  let fieldInfo = sema.symbols.symbol(fieldSymbol)
+            else {
+                continue
+            }
+            bodyStoredPropertySymbols[fieldInfo.name] = fieldSymbol
+            addStoredProperty(EnumStoredProperty(
+                name: fieldInfo.name,
+                type: sema.symbols.propertyType(for: fieldSymbol) ?? sema.types.anyType,
+                isMutable: false
+            ))
+        }
         let entryBodyProperties: [[EnumEntryBodyProperty]] = classDecl.enumEntries.map { entry in
             entry.memberProperties.enumerated().compactMap { propertyIndex, declID in
                 guard let decl = ast.arena.decl(declID),
@@ -625,6 +647,7 @@ extension KIRLoweringDriver {
                         binding: selectedBinding,
                         primaryConstructorSymbol: primaryConstructorSymbol,
                         classDecl: classDecl,
+                        ownerSymbol: ownerSymbol,
                         classSlots: classSlots[ordinal],
                         storedProperties: storedProperties,
                         shared: shared,
@@ -648,12 +671,20 @@ extension KIRLoweringDriver {
                         ),
                         primaryConstructorSymbol: primaryConstructorSymbol,
                         classDecl: classDecl,
+                        ownerSymbol: ownerSymbol,
                         classSlots: classSlots[ordinal],
                         storedProperties: storedProperties,
                         shared: shared,
                         body: &body
                     )
                 } else {
+                    emitClassDelegationInitializers(
+                        ownerSymbol: ownerSymbol,
+                        receiverID: ctx.activeImplicitReceiverExprID()!,
+                        superTypeEntries: classDecl.superTypeEntries,
+                        shared: shared,
+                        body: &body
+                    )
                     emitClassBodyInitializers(classDecl: classDecl, shared: shared, body: &body)
                 }
                 ctx.enumEntryStorageSlots = [:]
@@ -917,6 +948,7 @@ extension KIRLoweringDriver {
         binding: CallBinding,
         primaryConstructorSymbol: SymbolID?,
         classDecl: ClassDecl,
+        ownerSymbol: SymbolID,
         classSlots: [InternedString: SymbolID],
         storedProperties: [EnumStoredProperty],
         shared: KIRLoweringSharedContext,
@@ -1017,6 +1049,17 @@ extension KIRLoweringDriver {
                 body.append(.constValue(result: slotRef, value: .symbolRef(slotSymbol)))
                 body.append(.copy(from: argumentValues[index], to: slotRef))
             }
+            // Class-delegation handles are stored while the constructor
+            // parameters are still bound (a delegate expression like `by c`
+            // may name one of them), matching the ordinary class order:
+            // constructor properties, then delegation, then body initializers.
+            emitClassDelegationInitializers(
+                ownerSymbol: ownerSymbol,
+                receiverID: ctx.activeImplicitReceiverExprID()!,
+                superTypeEntries: classDecl.superTypeEntries,
+                shared: shared,
+                body: &body
+            )
             emitClassBodyInitializers(classDecl: classDecl, shared: shared, body: &body)
             return
         }
@@ -1046,6 +1089,7 @@ extension KIRLoweringDriver {
                 binding: delegatedBinding,
                 primaryConstructorSymbol: primaryConstructorSymbol,
                 classDecl: classDecl,
+                ownerSymbol: ownerSymbol,
                 classSlots: classSlots,
                 storedProperties: storedProperties,
                 shared: shared,
@@ -1055,6 +1099,13 @@ extension KIRLoweringDriver {
             // Constructors without a `this(...)` call reach the superclass
             // directly, so the class property initializers and init blocks run
             // before their own body.
+            emitClassDelegationInitializers(
+                ownerSymbol: ownerSymbol,
+                receiverID: ctx.activeImplicitReceiverExprID()!,
+                superTypeEntries: classDecl.superTypeEntries,
+                shared: shared,
+                body: &body
+            )
             emitClassBodyInitializers(classDecl: classDecl, shared: shared, body: &body)
         }
 

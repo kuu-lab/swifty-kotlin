@@ -153,6 +153,17 @@ extension KIRLoweringDriver {
         let arena = shared.arena
         var declIDs: [KIRDeclID] = []
         let intType = sema.types.intType
+        // Enum values are ordinal-backed, so a delegated supertype on an enum
+        // class stores its delegate in per-entry side storage read through the
+        // $enumConstructorProperty$ helper rather than an object field. An
+        // enum with no entries never gets that storage; its (unreachable)
+        // forwarders keep the ordinary field path.
+        let usesEnumEntryStorage = sema.symbols.symbol(classSymbol)?.kind == .enumClass
+            && sema.symbols.children(of: classSymbol).contains { childID in
+                sema.symbols.symbol(childID).map {
+                    sema.symbols.enumOwnerSymbol(for: $0) == classSymbol
+                } ?? false
+            }
 
         for forwardingSymbol in sema.symbols.classDelegationForwardingMethodSymbols(forClass: classSymbol) {
             guard let info = sema.symbols.classDelegationForwardingMethodInfo(for: forwardingSymbol),
@@ -229,20 +240,36 @@ extension KIRLoweringDriver {
                 body.append(.constValue(result: receiverBinding.exprID, value: .symbolRef(receiverBinding.symbol)))
             }
 
-            let offset = shared.sema.symbols.nominalLayout(for: classSymbol)?.fieldOffsets[info.fieldSymbol] ?? 0
-            let offsetExpr = arena.appendExpr(.intLiteral(Int64(offset)), type: shared.sema.types.intType)
-            body.append(.constValue(result: offsetExpr, value: .intLiteral(Int64(offset))))
-
             let delegateResultID = arena.appendTemporary(type: shared.sema.symbols.propertyType(for: info.fieldSymbol) ?? shared.sema.types.anyType
             )
             let delegateReceiverExprID = dispatchReceiverExprID ?? ctx.activeImplicitReceiverExprID()!
-            body.append(.call(
-                callee: shared.interner.intern("kk_array_get"),
-                arguments: [delegateReceiverExprID, offsetExpr],
-                result: delegateResultID,
-                canThrow: true,
-                isSuperCall: false
-            ))
+            if usesEnumEntryStorage,
+               let fieldName = sema.symbols.symbol(info.fieldSymbol)?.name
+            {
+                body.append(.call(
+                    callee: EnumPropertyHelperNames.placeholder(
+                        prefix: EnumPropertyHelperNames.getterPrefix,
+                        ownerSymbol: classSymbol,
+                        propertyName: fieldName,
+                        interner: shared.interner
+                    ),
+                    arguments: [delegateReceiverExprID],
+                    result: delegateResultID,
+                    canThrow: false,
+                    isSuperCall: false
+                ))
+            } else {
+                let offset = shared.sema.symbols.nominalLayout(for: classSymbol)?.fieldOffsets[info.fieldSymbol] ?? 0
+                let offsetExpr = arena.appendExpr(.intLiteral(Int64(offset)), type: shared.sema.types.intType)
+                body.append(.constValue(result: offsetExpr, value: .intLiteral(Int64(offset))))
+                body.append(.call(
+                    callee: shared.interner.intern("kk_array_get"),
+                    arguments: [delegateReceiverExprID, offsetExpr],
+                    result: delegateResultID,
+                    canThrow: true,
+                    isSuperCall: false
+                ))
+            }
 
             var callArgExprs: [KIRExprID] = []
             if sema.symbols.memberExtensionOwnerSymbol(for: info.interfaceMethodSymbol) != nil,
@@ -478,20 +505,46 @@ extension KIRLoweringDriver {
             valueExprID = ve
         }
 
-        let offset = sema.symbols.nominalLayout(for: classSymbol)?.fieldOffsets[info.fieldSymbol] ?? 0
-        let offsetExpr = arena.appendExpr(.intLiteral(Int64(offset)), type: intType)
-        body.append(.constValue(result: offsetExpr, value: .intLiteral(Int64(offset))))
+        // Enum values are ordinal-backed: their delegate handles live in
+        // per-entry side storage read through the $enumConstructorProperty$
+        // helper (see synthesizeClassDelegationForwardingMethods).
+        let usesEnumEntryStorage = ownerSym.kind == .enumClass
+            && sema.symbols.children(of: classSymbol).contains { childID in
+                sema.symbols.symbol(childID).map {
+                    sema.symbols.enumOwnerSymbol(for: $0) == classSymbol
+                } ?? false
+            }
 
         let delegateResultID = arena.appendTemporary(
             type: sema.symbols.propertyType(for: info.fieldSymbol) ?? sema.types.anyType
         )
-        body.append(.call(
-            callee: interner.intern("kk_array_get"),
-            arguments: [ctx.activeImplicitReceiverExprID()!, offsetExpr],
-            result: delegateResultID,
-            canThrow: true,
-            isSuperCall: false
-        ))
+        if usesEnumEntryStorage,
+           let fieldName = sema.symbols.symbol(info.fieldSymbol)?.name
+        {
+            body.append(.call(
+                callee: EnumPropertyHelperNames.placeholder(
+                    prefix: EnumPropertyHelperNames.getterPrefix,
+                    ownerSymbol: classSymbol,
+                    propertyName: fieldName,
+                    interner: interner
+                ),
+                arguments: [ctx.activeImplicitReceiverExprID()!],
+                result: delegateResultID,
+                canThrow: false,
+                isSuperCall: false
+            ))
+        } else {
+            let offset = sema.symbols.nominalLayout(for: classSymbol)?.fieldOffsets[info.fieldSymbol] ?? 0
+            let offsetExpr = arena.appendExpr(.intLiteral(Int64(offset)), type: intType)
+            body.append(.constValue(result: offsetExpr, value: .intLiteral(Int64(offset))))
+            body.append(.call(
+                callee: interner.intern("kk_array_get"),
+                arguments: [ctx.activeImplicitReceiverExprID()!, offsetExpr],
+                result: delegateResultID,
+                canThrow: true,
+                isSuperCall: false
+            ))
+        }
 
         let delegateTypeIDExpr = arena.appendTemporary(type: intType)
         emitNonThrowingCall(
