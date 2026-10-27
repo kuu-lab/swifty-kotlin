@@ -2081,7 +2081,8 @@ extension DataFlowSemaPhase {
         )
         let missingMembers = unimplementedAbstractMembers(
             for: symbol,
-            overriddenNames: overriddenNames,
+            overriddenNames: overriddenNames.regular,
+            overriddenMemberExtensionNames: overriddenNames.memberExtensions,
             delegatedInterfaces: symbols.delegatedInterfaces(forClass: symbol),
             symbols: symbols,
             types: types,
@@ -2093,9 +2094,12 @@ extension DataFlowSemaPhase {
             // name and arity implements the abstract member — or, when its
             // signature cannot validly override, the conflict is already
             // reported by the generated-member conflict check
-            // (KSWIFTK-SEMA-0436).
+            // (KSWIFTK-SEMA-0436). The synthesized members are all regular
+            // (non-extension) members, so they can never satisfy an abstract
+            // member extension (KUU-3656).
             guard symbolInfo.flags.contains(.dataType),
                   let missingSymbol = symbols.symbol(missingMember),
+                  !missingSymbol.flags.contains(.memberExtension),
                   let missingSignature = symbols.functionSignature(for: missingMember)
             else { return true }
             return !symbols.children(ofFQName: symbolInfo.fqName).contains { memberID in
@@ -2130,13 +2134,18 @@ extension DataFlowSemaPhase {
         }
     }
 
+    /// The names this declaration overrides, split by override family:
+    /// `override fun Any?.toString()` (member extension) satisfies abstract
+    /// member extensions, while `override fun toString()` satisfies regular
+    /// abstract members — neither satisfies the other (KUU-3656).
     func collectOverriddenMemberNames(
         for _: SymbolID,
         decl: Decl,
         ast: ASTModule,
         symbols _: SymbolTable
-    ) -> Set<InternedString> {
-        var overriddenNames: Set<InternedString> = []
+    ) -> (regular: Set<InternedString>, memberExtensions: Set<InternedString>) {
+        var regular: Set<InternedString> = []
+        var memberExtensions: Set<InternedString> = []
 
         let memberFunctions: [DeclID]
         let memberProperties: [DeclID]
@@ -2148,14 +2157,18 @@ extension DataFlowSemaPhase {
             memberFunctions = objectDecl.memberFunctions
             memberProperties = objectDecl.memberProperties
         default:
-            return overriddenNames
+            return (regular, memberExtensions)
         }
 
         for memberDeclID in memberFunctions {
             guard let memberDecl = ast.arena.decl(memberDeclID),
                   case let .funDecl(funDecl) = memberDecl else { continue }
             if funDecl.modifiers.contains(.override) {
-                overriddenNames.insert(funDecl.name)
+                if funDecl.receiverType != nil {
+                    memberExtensions.insert(funDecl.name)
+                } else {
+                    regular.insert(funDecl.name)
+                }
             }
         }
 
@@ -2163,11 +2176,15 @@ extension DataFlowSemaPhase {
             guard let memberDecl = ast.arena.decl(memberDeclID),
                   case let .propertyDecl(propertyDecl) = memberDecl else { continue }
             if propertyDecl.modifiers.contains(.override) {
-                overriddenNames.insert(propertyDecl.name)
+                if propertyDecl.receiverType != nil {
+                    memberExtensions.insert(propertyDecl.name)
+                } else {
+                    regular.insert(propertyDecl.name)
+                }
             }
         }
 
-        return overriddenNames
+        return (regular, memberExtensions)
     }
 
     // P5-78: Validate the package and module boundary of sealed hierarchies.
