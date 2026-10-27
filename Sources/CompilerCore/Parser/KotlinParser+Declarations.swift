@@ -681,11 +681,21 @@ extension KotlinParser {
         range: inout RangeAccumulator
     ) -> Bool {
         var depth = BracketDepth()
+        var delegateBraceTracker = DelegateExpressionBraceTracker()
 
         while !stream.atEOF() {
             let token = stream.peek()
             let atTopLevel = depth.isTopLevel && depth.angle == 0
             if atTopLevel, case .symbol(.lBrace) = token.kind {
+                if delegateBraceTracker.braceContinuesDelegateExpression() {
+                    // A brace that belongs to a `by` delegate expression
+                    // (`by when (x) { ... }`, `by object : C { }`, ...) is
+                    // part of the header, not the enum body.
+                    let braceToken = consumeToken(into: &children, range: &range)
+                    delegateBraceTracker.note(braceToken.kind, atTopLevel: true)
+                    depth.track(token.kind)
+                    continue
+                }
                 let body = parseEnumBody()
                 children.append(.node(body))
                 range.append(childRange(.node(body)))
@@ -701,7 +711,8 @@ extension KotlinParser {
                 return false
             }
 
-            _ = consumeToken(into: &children, range: &range)
+            let consumedToken = consumeToken(into: &children, range: &range)
+            delegateBraceTracker.note(consumedToken.kind, atTopLevel: atTopLevel)
             depth.track(token.kind)
         }
         return false

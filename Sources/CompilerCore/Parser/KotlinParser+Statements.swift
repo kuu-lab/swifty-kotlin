@@ -1089,6 +1089,7 @@ extension KotlinParser {
         var sawTryKeyword = false
         var sawIfKeyword = false
         var functionTypeNameAfterAnnotation = false
+        var delegateBraceTracker = DelegateExpressionBraceTracker()
         var depth = BracketDepth()
         var templateExpressionDepth = 0
         while !stream.atEOF() {
@@ -1170,13 +1171,16 @@ extension KotlinParser {
                atTopLevel,
                allowsClassDelegation,
                sawSupertypeColon,
-               lastConsumedToken?.kind == .softKeyword(.by)
+               delegateBraceTracker.braceContinuesDelegateExpression()
             {
-                // A brace immediately after a class-delegation `by` starts the
-                // delegate lambda, not the declaration body. Keep its tokens
-                // in the header so AST construction can parse it as an
-                // expression; a following brace can still start the class body.
-                _ = consumeToken(into: &children, range: &range)
+                // A brace that belongs to a class-delegation `by` expression
+                // (`by { ... }`, `by when (x) { ... }`, `by if (c) { } else
+                // { }`, `by object : C { }`, ...) is part of the header, not
+                // the declaration body. Keep its tokens in the header so AST
+                // construction can parse the whole expression; a following
+                // top-level brace can still start the class body.
+                let braceToken = consumeToken(into: &children, range: &range)
+                delegateBraceTracker.note(braceToken.kind, atTopLevel: true)
                 depth.track(token.kind)
                 progress = true
                 continue
@@ -1239,8 +1243,9 @@ extension KotlinParser {
             if case .keyword(.if) = token.kind {
                 sawIfKeyword = true
             }
-            _ = consumeToken(into: &children, range: &range)
+            let consumedToken = consumeToken(into: &children, range: &range)
             progress = true
+            delegateBraceTracker.note(consumedToken.kind, atTopLevel: atTopLevel)
             depth.track(token.kind)
             switch token.kind {
             case .templateExprStart:
