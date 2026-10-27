@@ -8,43 +8,40 @@ import java.util.function.IntFunction
 import java.util.function.IntPredicate
 import java.util.function.IntUnaryOperator
 
-public class IntStream private constructor(private val values: IntArray) {
+public class IntStream private constructor(private val values: Sequence<Int>) {
     private var consumed: Boolean = false
 
-    private fun consumeValues(): IntArray {
+    private fun consumeValues(): Sequence<Int> {
         if (consumed) throw IllegalStateException("stream has already been operated upon or closed")
         consumed = true
         return values
     }
 
-    public fun filter(predicate: IntPredicate): IntStream {
-        val result = mutableListOf<Int>()
-        for (value in consumeValues()) if (predicate.test(value)) result.add(value)
-        return IntStream.of(*result.toIntArray())
+    public fun filter(predicate: IntPredicate): IntStream =
+        IntStream(consumeValues().filter { predicate.test(it) })
+
+    public fun map(mapper: IntUnaryOperator): IntStream =
+        IntStream(consumeValues().map { mapper.applyAsInt(it) })
+
+    public fun <R> mapToObj(mapper: IntFunction<out R>): Stream<R> =
+        Stream.fromSequence(consumeValues().map { mapper.apply(it) })
+
+    public fun limit(maxSize: Long): IntStream {
+        if (maxSize < 0) throw IllegalArgumentException("Max size must be non-negative")
+        return IntStream(consumeValues().streamLimit(maxSize))
     }
 
-    public fun map(mapper: IntUnaryOperator): IntStream {
-        val values = consumeValues()
-        val result = IntArray(values.size)
-        var index = 0
-        while (index < values.size) {
-            result[index] = mapper.applyAsInt(values[index])
-            index++
-        }
-        return IntStream.of(*result)
-    }
-
-    public fun <R> mapToObj(mapper: IntFunction<out R>): Stream<R> {
-        val result = mutableListOf<R>()
-        for (value in consumeValues()) result.add(mapper.apply(value))
-        return Stream.fromIterable(result)
+    public fun skip(count: Long): IntStream {
+        if (count < 0) throw IllegalArgumentException("Skip count must be non-negative")
+        return IntStream(consumeValues().streamSkip(count))
     }
 
     public fun forEach(action: IntConsumer) {
         for (value in consumeValues()) action.accept(value)
     }
 
-    public fun count(): Long = consumeValues().size.toLong()
+    public fun count(): Long = consumeValues().streamCount()
+
     public fun sum(): Int {
         var result = 0
         for (value in consumeValues()) result += value
@@ -52,38 +49,47 @@ public class IntStream private constructor(private val values: IntArray) {
     }
 
     public fun average(): OptionalDouble {
-        val values = consumeValues()
-        if (values.isEmpty()) return OptionalDouble.empty()
         var total = 0L
-        for (value in values) total += value.toLong()
-        return OptionalDouble.of(total.toDouble() / values.size.toDouble())
+        var count = 0L
+        for (value in consumeValues()) {
+            total += value.toLong()
+            count++
+        }
+        return if (count == 0L) OptionalDouble.empty()
+        else OptionalDouble.of(total.toDouble() / count.toDouble())
     }
 
     public fun min(): OptionalInt {
-        val values = consumeValues()
-        if (values.isEmpty()) return OptionalInt.empty()
-        var result = values[0]
-        var index = 1
-        while (index < values.size) { if (values[index] < result) result = values[index]; index++ }
+        val iterator = consumeValues().iterator()
+        if (!iterator.hasNext()) return OptionalInt.empty()
+        var result = iterator.next()
+        while (iterator.hasNext()) {
+            val value = iterator.next()
+            if (value < result) result = value
+        }
         return OptionalInt.of(result)
     }
 
     public fun max(): OptionalInt {
-        val values = consumeValues()
-        if (values.isEmpty()) return OptionalInt.empty()
-        var result = values[0]
-        var index = 1
-        while (index < values.size) { if (values[index] > result) result = values[index]; index++ }
+        val iterator = consumeValues().iterator()
+        if (!iterator.hasNext()) return OptionalInt.empty()
+        var result = iterator.next()
+        while (iterator.hasNext()) {
+            val value = iterator.next()
+            if (value > result) result = value
+        }
         return OptionalInt.of(result)
     }
 
     public fun findFirst(): OptionalInt {
-        val values = consumeValues()
-        return if (values.isEmpty()) OptionalInt.empty() else OptionalInt.of(values[0])
+        val iterator = consumeValues().iterator()
+        return if (iterator.hasNext()) OptionalInt.of(iterator.next()) else OptionalInt.empty()
     }
+
     public fun findAny(): OptionalInt = findFirst()
-    public fun toArray(): IntArray = consumeValues().copyOf()
-    public fun boxed(): Stream<Int> = Stream.of(*consumeValues().toTypedArray())
+    public fun toArray(): IntArray = consumeValues().toList().toIntArray()
+    public fun boxed(): Stream<Int> = Stream.fromSequence(consumeValues())
+
     public fun reduce(identity: Int, operator: IntBinaryOperator): Int {
         var result = identity
         for (value in consumeValues()) result = operator.applyAsInt(result, value)
@@ -100,33 +106,29 @@ public class IntStream private constructor(private val values: IntArray) {
         return true
     }
 
-    public fun noneMatch(predicate: IntPredicate): Boolean = !anyMatch(predicate)
+    public fun noneMatch(predicate: IntPredicate): Boolean {
+        for (value in consumeValues()) if (predicate.test(value)) return false
+        return true
+    }
 
     public companion object {
-        public fun of(vararg values: Int): IntStream = IntStream(values.copyOf())
-        public fun empty(): IntStream = IntStream(IntArray(0))
+        internal fun fromSequence(values: Sequence<Int>): IntStream = IntStream(values)
+
+        public fun of(vararg values: Int): IntStream =
+            IntStream(streamSequence { values.iterator() })
+
+        public fun empty(): IntStream = IntStream(streamSequence { intArrayOf().iterator() })
 
         public fun range(startInclusive: Int, endExclusive: Int): IntStream {
             if (startInclusive >= endExclusive) return empty()
-            val result = mutableListOf<Int>()
-            var value = startInclusive
-            while (value < endExclusive) {
-                result.add(value)
-                value++
-            }
-            return of(*result.toIntArray())
+            val range = startInclusive until endExclusive
+            return IntStream(streamSequence { range.iterator() })
         }
 
         public fun rangeClosed(startInclusive: Int, endInclusive: Int): IntStream {
             if (startInclusive > endInclusive) return empty()
-            val result = mutableListOf<Int>()
-            var value = startInclusive
-            while (true) {
-                result.add(value)
-                if (value == endInclusive) break
-                value++
-            }
-            return of(*result.toIntArray())
+            val range = startInclusive..endInclusive
+            return IntStream(streamSequence { range.iterator() })
         }
     }
 }
