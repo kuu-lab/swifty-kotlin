@@ -228,6 +228,15 @@ extension ExprTypeChecker {
                         id,
                         symbol: SyntheticSymbolScheme.receiverParameterSymbol(for: currentDeclSymbol)
                     )
+                } else if case let .classType(objectType) = sema.types.kind(of: qualifiedType),
+                          sema.symbols.symbol(objectType.classSymbol)?.kind == .object
+                {
+                    // `this@Object` names a singleton, not a capturable
+                    // receiver. Bind the object symbol so KIR emits the
+                    // singleton load — including from nested-class supertype
+                    // arguments, where no implicit receiver is active and the
+                    // fallback would read the not-yet-initialized `this`.
+                    sema.bindings.bindIdentifier(id, symbol: objectType.classSymbol)
                 }
                 sema.bindings.bindExprType(id, type: qualifiedType)
                 return qualifiedType
