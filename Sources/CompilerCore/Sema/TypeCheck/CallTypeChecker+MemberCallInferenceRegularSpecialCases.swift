@@ -339,7 +339,9 @@ extension CallTypeChecker {
                 local.symbol, request: request, argumentTypes: argTypes, receiverType: memberLookupType
             )
         }()
-        if !isSuperCall, ast.arena.isExplicitCall(id),
+        // `a.f { }` carries a trailing lambda without `()`, so a non-empty
+        // argument list counts as a call the same way `isExplicitCall` does.
+        if !isSuperCall, !args.isEmpty || ast.arena.isExplicitCall(id),
            !hasReceiverMember,
            localExtensionMatchesCallShape,
            let result = inferLexicalExtensionCallableInvocation(request, receiverType: receiverType, locals: &locals)
