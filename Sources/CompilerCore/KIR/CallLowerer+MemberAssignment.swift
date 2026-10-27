@@ -158,16 +158,15 @@ extension CallLowerer {
             instructions.append(.constValue(result: unit, value: .unit))
             return unit
         }
-        // `object` member properties are stored as flat global slots keyed by
-        // the property's own symbol — the same storage `tryLowerObjectMemberPropertyRead`
-        // reads via `loadGlobal` and bare-name assignment inside the object body
-        // writes via `copy`-to-`symbolRef`. The heap object some objects allocate
-        // via `kk_object_new` (for interface/vtable dispatch) never holds the
-        // object's own stored properties, so it must not be treated as
-        // field-offset storage here. A local `object` (KUU-555) is the
-        // exception: its members are object-literal instance fields, so the
-        // `.object` owner check must skip them and let the field-offset
-        // storage path below handle the write.
+        // `object` member properties are stored as flat global slots. An
+        // accessor-backed property uses its separate backing-field symbol,
+        // matching object reads and bare-name assignments. The heap object
+        // some objects allocate via `kk_object_new` (for interface/vtable
+        // dispatch) never holds the object's own stored properties, so it must
+        // not be treated as field-offset storage here. A local `object`
+        // (KUU-555) is the exception: its members are object-literal instance
+        // fields, so the `.object` owner check must skip them and let the
+        // field-offset storage path below handle the write.
         if let propertySymbol = sema.bindings.identifierSymbol(for: exprID),
            !sema.bindings.isObjectLiteralPropertySymbol(propertySymbol),
            let ownerSymbol = sema.symbols.parentSymbol(for: propertySymbol),
@@ -175,9 +174,20 @@ extension CallLowerer {
            ownerInfo.kind == .object
         {
             let propType = sema.symbols.propertyType(for: propertySymbol) ?? sema.types.anyType
-            let globalRef = arena.appendExpr(.symbolRef(propertySymbol), type: propType)
-            instructions.append(.constValue(result: globalRef, value: .symbolRef(propertySymbol)))
-            instructions.append(.copy(from: valueID, to: globalRef))
+            if let backingField = sema.symbols.backingFieldSymbol(for: propertySymbol) {
+                let storedValue = normalizedValueForNullablePrimitiveSlot(
+                    valueID,
+                    slotType: sema.symbols.propertyType(for: backingField) ?? propType,
+                    types: sema.types,
+                    arena: arena,
+                    into: &instructions
+                )
+                instructions.append(.storeGlobal(value: storedValue, symbol: backingField))
+            } else {
+                let globalRef = arena.appendExpr(.symbolRef(propertySymbol), type: propType)
+                instructions.append(.constValue(result: globalRef, value: .symbolRef(propertySymbol)))
+                instructions.append(.copy(from: valueID, to: globalRef))
+            }
             let unit = arena.appendExpr(.unit, type: sema.types.unitType)
             instructions.append(.constValue(result: unit, value: .unit))
             return unit
@@ -492,9 +502,8 @@ extension CallLowerer {
             return (getterLink, String(getterLink.dropLast("_load".count)) + "_store")
         }()
 
-        // `object` member properties are stored as flat global slots keyed by
-        // the property's own symbol (see `lowerMemberAssignExpr` for the full
-        // rationale), not as per-instance field-offset storage.
+        // `object` member properties use flat global slots rather than
+        // per-instance field-offset storage (see `lowerMemberAssignExpr`).
         let isObjectOwned: Bool = {
             guard syntheticLinks == nil,
                   let propertySymbol,
@@ -612,8 +621,9 @@ extension CallLowerer {
             )
             currentValue = result
         } else if isObjectOwned, !usesGetterAccessor, let propertySymbol {
-            let result = arena.appendExpr(.symbolRef(propertySymbol), type: propType)
-            instructions.append(.loadGlobal(result: result, symbol: propertySymbol))
+            let storageSymbol = sema.symbols.backingFieldSymbol(for: propertySymbol) ?? propertySymbol
+            let result = arena.appendExpr(.symbolRef(storageSymbol), type: propType)
+            instructions.append(.loadGlobal(result: result, symbol: storageSymbol))
             currentValue = wrapLateinitReadIfNeeded(
                 result, symbol: propertySymbol, sema: sema, arena: arena, interner: interner,
                 instructions: &instructions
@@ -879,9 +889,20 @@ extension CallLowerer {
                     canThrow: false
                 ))
             } else if isObjectOwned, !storeUsesSetterAccessor, let propertySymbol {
-                let globalRef = arena.appendExpr(.symbolRef(propertySymbol), type: propType)
-                instructions.append(.constValue(result: globalRef, value: .symbolRef(propertySymbol)))
-                instructions.append(.copy(from: newValue, to: globalRef))
+                if let backingField = sema.symbols.backingFieldSymbol(for: propertySymbol) {
+                    let storedValue = normalizedValueForNullablePrimitiveSlot(
+                        newValue,
+                        slotType: sema.symbols.propertyType(for: backingField) ?? propType,
+                        types: sema.types,
+                        arena: arena,
+                        into: &instructions
+                    )
+                    instructions.append(.storeGlobal(value: storedValue, symbol: backingField))
+                } else {
+                    let globalRef = arena.appendExpr(.symbolRef(propertySymbol), type: propType)
+                    instructions.append(.constValue(result: globalRef, value: .symbolRef(propertySymbol)))
+                    instructions.append(.copy(from: newValue, to: globalRef))
+                }
             } else if let propertySymbol,
                       tryLowerInterfaceItablePropertySetterWrite(
                           propertySymbol: propertySymbol,
