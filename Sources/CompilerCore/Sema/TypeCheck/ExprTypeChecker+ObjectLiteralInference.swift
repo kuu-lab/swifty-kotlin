@@ -1255,21 +1255,34 @@ extension ExprTypeChecker {
         // check (`Inheritance.validateAbstractOverrides`) ran during header
         // validation, before this symbol existed.
         var overriddenNames: Set<InternedString> = []
+        var overriddenMemberExtensionNames: Set<InternedString> = []
         for functionDeclID in memberFunctionDecls {
             guard let decl = ast.arena.decl(functionDeclID),
                   case let .funDecl(functionDecl) = decl
             else { continue }
-            overriddenNames.insert(functionDecl.name)
+            // Member extensions and regular members are distinct override
+            // families — a regular `toString()` cannot implement an abstract
+            // `Any?.toString()` requirement (KUU-3656).
+            if functionDecl.receiverType != nil {
+                overriddenMemberExtensionNames.insert(functionDecl.name)
+            } else {
+                overriddenNames.insert(functionDecl.name)
+            }
         }
         for propertyDeclID in memberPropertyDecls {
             guard let decl = ast.arena.decl(propertyDeclID),
                   case let .propertyDecl(propertyDecl) = decl
             else { continue }
-            overriddenNames.insert(propertyDecl.name)
+            if propertyDecl.receiverType != nil {
+                overriddenMemberExtensionNames.insert(propertyDecl.name)
+            } else {
+                overriddenNames.insert(propertyDecl.name)
+            }
         }
         for missingMember in unimplementedAbstractMembers(
             for: ownerSymbol,
             overriddenNames: overriddenNames,
+            overriddenMemberExtensionNames: overriddenMemberExtensionNames,
             delegatedInterfaces: sema.symbols.delegatedInterfaces(forClass: ownerSymbol),
             symbols: sema.symbols,
             types: sema.types,
