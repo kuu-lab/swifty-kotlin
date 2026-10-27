@@ -267,6 +267,14 @@ enum InlineErasedLambdaABI {
             else {
                 continue
             }
+            if isAlreadyUnboxedPrimitiveArgument(
+                arguments[index],
+                primitive: primitive,
+                ctx: ctx,
+                body: body
+            ) {
+                continue
+            }
             let unboxed = module.arena.appendTemporary(type: parameterType)
             body.append(.call(
                 callee: ABILoweringPass.primitiveUnboxingCallee(for: primitive, interner: ctx.interner),
@@ -277,6 +285,60 @@ enum InlineErasedLambdaABI {
             normalized[index] = unboxed
         }
         return normalized
+    }
+
+    /// Imported inline bodies omit expression types. Preserve the erased ABI
+    /// assumption unless the argument's defining instruction already converted
+    /// the same primitive to its raw representation.
+    private static func isAlreadyUnboxedPrimitiveArgument(
+        _ argument: KIRExprID,
+        primitive: PrimitiveType,
+        ctx: KIRContext,
+        body: KIRLoweringEmitContext
+    ) -> Bool {
+        let unboxTable = BoxingCalleeTable(interner: ctx.interner)
+        var primitiveUnboxCallees: Set<InternedString> = []
+        if let callee = unboxTable.unboxCallee(for: primitive) {
+            primitiveUnboxCallees.insert(callee)
+        }
+        if let types = ctx.sema?.types {
+            let nonNullType = types.make(.primitive(primitive, .nonNull))
+            for preferStaticPrimitive in [false, true] {
+                if let callee = unboxTable.unboxCallee(
+                    for: nonNullType,
+                    types: types,
+                    requireNonNull: true,
+                    preferStaticPrimitive: preferStaticPrimitive
+                ) {
+                    primitiveUnboxCallees.insert(callee)
+                }
+            }
+        }
+        var value = argument
+        var visited: Set<KIRExprID> = []
+
+        while visited.insert(value).inserted {
+            let definition = body.reversed().first { instruction in
+                switch instruction {
+                case let .copy(_, to):
+                    return to == value
+                case let .call(_, _, _, result, _, _, _, _):
+                    return result == value
+                default:
+                    return false
+                }
+            }
+            guard let definition else { return false }
+            switch definition {
+            case let .copy(from, _):
+                value = from
+            case let .call(_, callee, _, _, _, _, _, _):
+                return primitiveUnboxCallees.contains(callee)
+            default:
+                return false
+            }
+        }
+        return false
     }
 
     /// Counterpart of `unboxErasedLambdaArguments`: when the invocation's result

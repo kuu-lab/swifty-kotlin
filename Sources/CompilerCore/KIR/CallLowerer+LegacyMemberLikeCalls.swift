@@ -277,6 +277,11 @@ extension CallLowerer {
                 return true
             }
             if calleeNameStr == "zip" {
+                // KUU-3072: transform callbacks must stay on the inline source
+                // body so a non-local return can escape the callback.
+                if args.count >= 2 {
+                    return true
+                }
                 guard let firstArgument = args.first,
                       let firstArgumentType = sema.bindings.exprTypes[firstArgument.expr]
                 else {
