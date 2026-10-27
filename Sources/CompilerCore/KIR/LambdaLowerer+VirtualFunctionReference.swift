@@ -25,12 +25,40 @@ extension LambdaLowerer {
               let ownerType = signature.receiverType,
               let owner = sema.symbols.parentSymbol(for: targetSymbol),
               let ownerInfo = sema.symbols.symbol(owner),
-              ownerInfo.kind == .class || ownerInfo.kind == .interface,
+              ownerInfo.kind == .class || ownerInfo.kind == .interface || ownerInfo.kind == .enumClass,
               signature.valueParameterSymbols.count == signature.parameterTypes.count
         else {
             return nil
         }
         let dispatchReceiverType = receiverStaticType ?? ownerType
+        // Enum entry implementations live behind the enum class's
+        // `$enumEntryDispatch$` ordinal switch — an enum-owned abstract or
+        // overridden member's declaring symbol is only a stub, so a bound
+        // reference that called it directly would run the stub and read a
+        // null result (e.g. `::foo.invoke()` inside an enum entry). Route
+        // through the same helper `tryEmitEnumEntryDispatchCall` uses for
+        // ordinary `receiver.foo()` calls. When no entry overrides the
+        // member there is no helper and the concrete member is called
+        // directly, exactly like the ordinary call path.
+        let enumDispatchCallee: (symbol: SymbolID, name: InternedString)? = {
+            guard ownerInfo.kind == .enumClass else { return nil }
+            let helperName = NameMangler.enumEntryDispatchHelperName(
+                for: targetInfo, interner: interner
+            )
+            guard let helper = sema.symbols.lookupAll(
+                fqName: ownerInfo.fqName + [helperName]
+            ).first(where: {
+                sema.symbols.symbol($0)?.kind == .function
+            }), let helperInfo = sema.symbols.symbol(helper),
+               let helperSignature = sema.symbols.functionSignature(for: helper),
+               helperSignature.typeParameterSymbols.isEmpty,
+               helperSignature.reifiedTypeParameterIndices.isEmpty,
+               !helperSignature.isSuspend
+            else {
+                return nil
+            }
+            return (helper, helperInfo.name)
+        }()
         // Runtime-backed MutableList boxes have no Kotlin itable. Match the
         // direct-call lowering for MutableList.add so a bound reference uses
         // the runtime bridge instead of looking up a missing interface slot.
@@ -58,7 +86,7 @@ extension LambdaLowerer {
         else {
             return nil
         }
-        let dispatch = runtimeBackedListCallee == nil
+        let dispatch = runtimeBackedListCallee == nil && enumDispatchCallee == nil
             ? driver.callLowerer.resolveVirtualDispatch(
                 callee: targetSymbol,
                 receiverTypeID: dispatchReceiverType,
@@ -66,7 +94,7 @@ extension LambdaLowerer {
                 interner: interner
             )
             : nil
-        guard runtimeBackedListCallee != nil || dispatch != nil else {
+        guard runtimeBackedListCallee != nil || dispatch != nil || enumDispatchCallee != nil else {
             return nil
         }
 
@@ -134,6 +162,21 @@ extension LambdaLowerer {
             body.append(.rethrow(value: thrownResult))
             body.append(.label(continuationLabel))
             body.append(.returnValue(result))
+        } else if let enumDispatchCallee {
+            let result = arena.appendTemporary(type: signature.returnType)
+            body.append(.call(
+                symbol: enumDispatchCallee.symbol,
+                callee: enumDispatchCallee.name,
+                arguments: [receiverExpr] + argExprs,
+                result: result,
+                canThrow: false
+            ))
+            switch sema.types.kind(of: signature.returnType) {
+            case .unit, .nothing(.nonNull), .nothing(.nullable):
+                body.append(.returnUnit)
+            default:
+                body.append(.returnValue(result))
+            }
         } else if let dispatch {
             let result = arena.appendTemporary(type: signature.returnType)
             let probeEndLabel = driver.callLowerer.emitFloatingPointRangeMemberProbe(
