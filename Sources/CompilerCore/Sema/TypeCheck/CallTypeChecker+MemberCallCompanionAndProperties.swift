@@ -582,6 +582,19 @@ extension CallTypeChecker {
             else {
                 return
             }
+            if let owner = sema.symbols.memberExtensionOwnerSymbol(for: candidate) {
+                let hasReceiver = ctx.implicitReceiverMemberLookupEntries().contains { entry in
+                    driver.helpers.allNominalSymbols(
+                        of: entry.type, types: sema.types, symbols: sema.symbols, interner: ctx.interner
+                    ).contains { root in
+                        root == owner || sema.types.isNominalSubtypeSymbol(root, of: owner)
+                    }
+                }
+                let hasImportedReceiver = importedObjectDispatchReceiverOwners(
+                    named: calleeName, candidates: [setterAccessor], ctx: ctx
+                )[setterAccessor] != nil
+                guard hasReceiver || hasImportedReceiver else { return }
+            }
             guard isAccessibleFromLexicalScope(symbol) else {
                 if !invisibleProperties.contains(where: { $0.id == symbol.id }) {
                     invisibleProperties.append(symbol)
@@ -610,7 +623,7 @@ extension CallTypeChecker {
                 propertyForSetter[setterAccessor] = candidate
             }
         }
-        for candidate in ctx.filterByVisibility(ctx.cachedScopeLookup(calleeName)).visible {
+        for candidate in ctx.cachedScopeLookup(calleeName) {
             collectSetterCandidate(from: candidate, requireSynthetic: false)
         }
         // Bundled stdlib source extension properties are not necessarily in the
@@ -627,6 +640,30 @@ extension CallTypeChecker {
             for candidate in sema.symbols.lookupByShortName(calleeName) {
                 collectSetterCandidate(from: candidate, requireSynthetic: true)
             }
+        }
+        func hasMoreSpecificReceiver(_ lhs: SymbolID, than rhs: SymbolID) -> Bool {
+            guard let lhsReceiver = sema.symbols.extensionPropertyReceiverType(for: lhs),
+                  let rhsReceiver = sema.symbols.extensionPropertyReceiverType(for: rhs),
+                  !typeMentionsTypeParameter(lhsReceiver, sema: sema),
+                  !typeMentionsTypeParameter(rhsReceiver, sema: sema)
+            else { return false }
+            return sema.types.isSubtype(lhsReceiver, rhsReceiver)
+                && !sema.types.isSubtype(rhsReceiver, lhsReceiver)
+        }
+        if !setterCandidates.isEmpty,
+           let inaccessible = invisibleProperties.first(where: { hidden in
+               setterCandidates.allSatisfy { candidate in
+                   guard let property = propertyForSetter[candidate] else { return false }
+                   return hasMoreSpecificReceiver(hidden.id, than: property)
+               }
+           })
+        {
+            _ = driver.inferExpr(value, ctx: ctx, locals: &locals, expectedType: nil)
+            driver.helpers.emitVisibilityError(
+                for: inaccessible, name: ctx.interner.resolve(calleeName),
+                range: range, diagnostics: sema.diagnostics
+            )
+            return nil
         }
         guard !setterCandidates.isEmpty else {
             let errorsBeforeValue = sema.diagnostics.errorCount
@@ -658,6 +695,27 @@ extension CallTypeChecker {
                 sema: sema,
                 ctx: ctx
             ).type
+        } else if isInferableNestedCallExpr(value, ast: ctx.ast) {
+            // Extension properties are selected by receiver specificity. Do not
+            // let a less-specific receiver hide the selected setter's context.
+            let contextualCandidates = setterCandidates.filter { candidate in
+                guard let property = propertyForSetter[candidate] else { return true }
+                return !setterCandidates.contains { other in
+                    guard other != candidate,
+                          let otherProperty = propertyForSetter[other]
+                    else { return false }
+                    return hasMoreSpecificReceiver(otherProperty, than: property)
+                }
+            }
+            let inaccessibleMayCompete = invisibleProperties.contains { hidden in
+                !contextualCandidates.contains { candidate in
+                    guard let property = propertyForSetter[candidate] else { return false }
+                    return hasMoreSpecificReceiver(property, than: hidden.id)
+                }
+            }
+            expectedValueType = inaccessibleMayCompete ? nil : contextualExtensionSetterValueType(
+                candidates: contextualCandidates, receiverType: receiverType, ctx: ctx
+            )
         } else {
             expectedValueType = nil
         }
@@ -686,7 +744,10 @@ extension CallTypeChecker {
             return nil
         }
 
-        let dispatchReceiverSymbol = sema.symbols.memberExtensionOwnerSymbol(for: chosen).flatMap { owner in
+        let importedDispatchReceiver = importedObjectDispatchReceiverOwners(
+            named: calleeName, candidates: [chosen], ctx: ctx
+        )[chosen]
+        let dispatchReceiverSymbol = importedDispatchReceiver ?? sema.symbols.memberExtensionOwnerSymbol(for: chosen).flatMap { owner in
             ctx.implicitReceiverMemberLookupEntries().first { entry in
                 guard case let .classType(receiverClass) = sema.types.kind(
                     of: sema.types.makeNonNullable(entry.type)
@@ -725,6 +786,59 @@ extension CallTypeChecker {
             diagnostics: ctx.sema.diagnostics
         )
         return propertySymbol
+    }
+
+    private func contextualExtensionSetterValueType(
+        candidates: [SymbolID], receiverType: TypeID, ctx: TypeInferenceContext
+    ) -> TypeID? {
+        let sema = ctx.sema
+        var commonType: TypeID?
+        for candidate in candidates {
+            guard let signature = sema.symbols.functionSignature(for: candidate),
+                  signature.parameterTypes.count == 1
+            else { return nil }
+            let owner = sema.symbols.memberExtensionOwnerSymbol(for: candidate)
+            let property = sema.symbols.accessorOwnerProperty(for: candidate)
+                ?? sema.symbols.parentSymbol(for: candidate)
+            let dispatchReceiver = owner.flatMap { owner in
+                ctx.implicitReceiverMemberLookupEntries().first { entry in
+                    driver.helpers.allNominalSymbols(
+                        of: entry.type, types: sema.types, symbols: sema.symbols, interner: ctx.interner
+                    ).contains { root in
+                        root == owner || sema.types.isNominalSubtypeSymbol(root, of: owner)
+                    }
+                }?.type
+            }
+            let dispatchSubstituted: TypeID
+            if owner != nil, let property {
+                dispatchSubstituted = applyDispatchReceiverClassTypeArgs(
+                    to: signature.parameterTypes[0], signature: signature, candidate: property, ctx: ctx
+                )
+            } else {
+                dispatchSubstituted = signature.parameterTypes[0]
+            }
+            let classSubstituted = applyReceiverClassTypeArgs(
+                to: dispatchSubstituted, signature: signature,
+                candidate: candidate, receiverType: receiverType, sema: sema
+            )
+            let parameterType = applyFunctionReceiverTypeArgs(
+                to: classSubstituted, signature: signature, receiverType: receiverType, sema: sema
+            )
+            let unresolvedSymbols: [SymbolID] = signature.typeParameterSymbols.enumerated().compactMap { index, symbol in
+                if index < signature.classTypeParameterCount, let dispatchReceiver,
+                   sema.types.typeContainsTypeParam(dispatchReceiver, symbol: symbol) {
+                    return nil
+                }
+                return symbol
+            }
+            let typeVars = sema.types.makeTypeVarBySymbol(unresolvedSymbols)
+            guard !ctx.resolver.containsTypeVariable(
+                parameterType, typeVarBySymbol: typeVars, typeSystem: sema.types
+            ) else { return nil }
+            if let commonType, commonType != parameterType { return nil }
+            commonType = parameterType
+        }
+        return commonType
     }
 
     private func validateReifiedPropertyArguments(
