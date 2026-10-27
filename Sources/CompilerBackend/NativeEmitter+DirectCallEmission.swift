@@ -438,6 +438,13 @@ extension NativeEmitter.FunctionEmissionContext {
                 _ = bindings.buildStore(builder, value: zeroValue, pointer: outValueSlot)
             }
             var receiveArgs = argumentValues
+            // Some unresolved explicit `Channel.receive()` calls reach this
+            // bridge with only the channel handle. The runtime ABI always
+            // reserves its second argument for a continuation, so preserve
+            // the null placeholder used by the ordinary member-call path.
+            if receiveArgs.count == 1 {
+                receiveArgs.append(zeroValue)
+            }
             receiveArgs.append(outValueSlot ?? nullThrownPointer)
             var thrownSlotPointer: LLVMCAPIBindings.LLVMValueRef?
             if usesThrownChannel {
