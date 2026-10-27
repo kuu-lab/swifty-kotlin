@@ -78,6 +78,9 @@ extension OverloadResolver {
         inheritedDefaultValues: [Bool]? = nil,
         isCallableArgument: ((Int) -> Bool)? = nil
     ) -> CallArgumentMappings? {
+        guard signature.hasStableParameterNames || !callArgs.contains(where: { $0.label != nil }) else {
+            return nil
+        }
         var contextParameterArgumentMapping: [Int: Int] = [:]
         for (argumentIndex, argument) in callArgs.enumerated() {
             guard let label = argument.label,

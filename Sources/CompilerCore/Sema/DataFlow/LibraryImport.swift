@@ -1995,6 +1995,7 @@ extension DataFlowSemaPhase {
                     valueParameterIsVararg: signature.valueParameterIsVararg,
                     valueParameterAllowsNonLocalReturn: signature.valueParameterAllowsNonLocalReturn,
                     hasExplicitInlineParameterMetadata: signature.hasExplicitInlineParameterMetadata,
+                    hasStableParameterNames: signature.hasStableParameterNames,
                     typeParameterSymbols: normalizedTypeParameterSymbols,
                     reifiedTypeParameterIndices: signature.reifiedTypeParameterIndices,
                     typeParameterUpperBoundsList: normalizedUpperBoundsList,
@@ -2086,6 +2087,7 @@ extension DataFlowSemaPhase {
                 valueParameterIsVararg: signature.valueParameterIsVararg,
                 valueParameterAllowsNonLocalReturn: signature.valueParameterAllowsNonLocalReturn,
                 hasExplicitInlineParameterMetadata: signature.hasExplicitInlineParameterMetadata,
+                hasStableParameterNames: signature.hasStableParameterNames,
                 typeParameterSymbols: parameters,
                 reifiedTypeParameterIndices: signature.reifiedTypeParameterIndices,
                 typeParameterUpperBoundsList: bounds, classTypeParameterCount: ownerCount

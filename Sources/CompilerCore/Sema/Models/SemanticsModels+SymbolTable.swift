@@ -2317,6 +2317,7 @@ extension SymbolTable {
                 valueParameterIsVararg: signature.valueParameterIsVararg,
                 valueParameterAllowsNonLocalReturn: signature.valueParameterAllowsNonLocalReturn,
                 hasExplicitInlineParameterMetadata: signature.hasExplicitInlineParameterMetadata,
+                hasStableParameterNames: signature.hasStableParameterNames,
                 typeParameterSymbols: mapSymbols(signature.typeParameterSymbols),
                 reifiedTypeParameterIndices: signature.reifiedTypeParameterIndices,
                 typeParameterUpperBounds: signature.typeParameterUpperBounds.map { $0.map { mapType($0, using: typeMap) } },

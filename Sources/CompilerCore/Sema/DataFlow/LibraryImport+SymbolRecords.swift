@@ -31,6 +31,7 @@ extension DataFlowSemaPhase {
         let isInfix: Bool
         let isOverride: Bool
         let isMemberExtension: Bool
+        let hasStableParameterNames: Bool
         let receiverOwnerFQName: [InternedString]?
         let valueParameterIsVararg: [Bool]
         let valueParameterUnsafeVarianceTypeParameterIndices: [[Int]]
@@ -109,6 +110,7 @@ extension DataFlowSemaPhase {
             isInfix: Bool = false,
             isOverride: Bool = false,
             isMemberExtension: Bool = false,
+            hasStableParameterNames: Bool = true,
             receiverOwnerFQName: [InternedString]? = nil,
             valueParameterIsVararg: [Bool] = [],
             valueParameterUnsafeVarianceTypeParameterIndices: [[Int]] = [],
@@ -176,6 +178,7 @@ extension DataFlowSemaPhase {
             self.isInfix = isInfix
             self.isOverride = isOverride
             self.isMemberExtension = isMemberExtension
+            self.hasStableParameterNames = hasStableParameterNames
             self.receiverOwnerFQName = receiverOwnerFQName
             self.valueParameterIsVararg = valueParameterIsVararg
             self.valueParameterUnsafeVarianceTypeParameterIndices = valueParameterUnsafeVarianceTypeParameterIndices
