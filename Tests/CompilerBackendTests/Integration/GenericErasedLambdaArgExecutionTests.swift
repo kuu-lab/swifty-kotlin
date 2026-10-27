@@ -102,6 +102,20 @@ struct GenericErasedLambdaArgExecutionTests {
         )
     }
 
+    /// KUU-3177: a receiver lambda invoked on an unchecked-cast generic value
+    /// needs its erased invoke bridge to reject an incompatible receiver.
+    @Test(arguments: [true, false])
+    func genericExtensionLambdaAfterUncheckedCast(allowDefaultStdlibLibrary: Bool) throws {
+        TestStdlibCache.shared.prepare()
+        let source = try diffCaseSource("generic_extension_lambda_bridge_cast.kt", file: #filePath)
+        try compileAndRunKotlin(
+            source,
+            expectedOutput: "OK\nClassCastException\n",
+            moduleName: "KUU3177GenericExtensionLambdaBridgeCast",
+            allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
+        )
+    }
+
     /// KUU-3506: non-explicitly-inline generic higher-order calls must preserve
     /// the erased String handle across identity, transforming, and referenced lambdas.
     @Test
