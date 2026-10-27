@@ -1,6 +1,6 @@
 symbol fq=__try_0_catch_0.e[kind=local;type=kotlin.KotlinNothingValueException;origin=fixture] kind=local vis=internal flags=_ type=kotlin.KotlinNothingValueException
 symbol fq=golden.sema.catchKotlinNothingValue[kind=fun;params=;ret=String;origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[] ret=String
-file fstdlib_kotlin_n_KotlinNothingValueException package=golden.sema
+file fstdlib_kotlin_n_KotlinNothingValueException package=golden.sema annotations=[@file:Suppress("INVISIBLE_MEMBER","INVISIBLE_REFERENCE")]
   decl golden.sema.catchKotlinNothingValue[kind=fun;params=;ret=String;origin=fixture] fun catchKotlinNothingValue sym=golden.sema.catchKotlinNothingValue[kind=fun;params=;ret=String;origin=fixture]
 expr e@4:45 string(bad) type=String
 expr e@4:17 call callee=e@4:17#1 args=[_:e@4:45] type=kotlin.KotlinNothingValueException call=kotlin.KotlinNothingValueException.<init>[kind=ctor;recv=kotlin.KotlinNothingValueException;params=String?;ret=kotlin.KotlinNothingValueException;names=[message]]

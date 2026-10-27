@@ -1,5 +1,5 @@
+@file:Suppress("INVISIBLE_MEMBER", "INVISIBLE_REFERENCE")
 package golden.sema
-
 fun constructKotlinNothingValueException(cause: Throwable): Throwable {
     KotlinNothingValueException()
     KotlinNothingValueException("message")
