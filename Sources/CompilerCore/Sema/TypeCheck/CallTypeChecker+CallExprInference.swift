@@ -447,6 +447,8 @@ extension CallTypeChecker {
         var knownApplicableImplicitMembers: Set<SymbolID> = []
         var typeNameCompanionInvokeCandidates: Set<SymbolID> = []
         var typeNameCompanionInvokeReceiverType: TypeID?
+        var preferredInheritedNestedConstructors: Set<SymbolID> = []
+        var outerNestedConstructorFallbacks: Set<SymbolID> = []
         var typeAliasConstructor: TypeAliasConstructorContext?
 
         if let inferred = collectCallExprCandidates(
@@ -469,7 +471,9 @@ extension CallTypeChecker {
             callInvisible: &callInvisible,
             knownApplicableImplicitMembers: &knownApplicableImplicitMembers,
             typeNameCompanionInvokeCandidates: &typeNameCompanionInvokeCandidates,
-            typeNameCompanionInvokeReceiverType: &typeNameCompanionInvokeReceiverType
+            typeNameCompanionInvokeReceiverType: &typeNameCompanionInvokeReceiverType,
+            preferredInheritedNestedConstructors: &preferredInheritedNestedConstructors,
+            outerNestedConstructorFallbacks: &outerNestedConstructorFallbacks
         ) {
             return inferred
         }
@@ -754,6 +758,8 @@ extension CallTypeChecker {
             memberExtensionReceiverMarks: memberExtensionReceiverMarks,
             mergedImplicitReceiverMembers: mergedImplicitReceiverMembers,
             knownApplicableImplicitMembers: knownApplicableImplicitMembers,
+            preferredInheritedNestedConstructors: preferredInheritedNestedConstructors,
+            outerNestedConstructorFallbacks: outerNestedConstructorFallbacks,
             expectedTypeOverrides: expectedTypeOverrides,
             preparedArgs: preparedArgs,
             argTypes: argTypes
