@@ -94,6 +94,45 @@ extension ABILoweringPass {
             )
             return unboxed
         }
+        // A specialized value-class override receives the erased interface
+        // argument after its nominal cast. Recover the payload before calling
+        // the concrete implementation, including floating-point values whose
+        // raw bits cannot safely be unboxed later from a non-null copy.
+        func unboxErasedValueClass(_ argument: KIRExprID, to targetType: TypeID) -> KIRExprID? {
+            guard let symbols,
+                  case let .classType(targetClass) = types.kind(of: targetType),
+                  targetClass.nullability == .nonNull,
+                  symbols.symbol(targetClass.classSymbol)?.flags.contains(.valueType) == true,
+                  let argumentType = intrinsicArgType(argument, arena: module.arena, types: types)
+            else { return nil }
+            switch types.kind(of: argumentType) {
+            case .typeParam, .any:
+                break
+            default:
+                return nil
+            }
+            let targetKind = resolveValueClassKind(types.kind(of: targetType), types: types, symbols: symbols)
+            if case .primitive(_, .nonNull) = targetKind,
+               let callee = boxingCalleeTable.unboxCallee(
+                   for: targetKind, requireNonNull: true, preferStaticPrimitive: true
+               )
+            {
+                return emitNonThrowingCall(
+                    callee: callee, arg: argument, resultType: targetType,
+                    arena: module.arena, into: &newBody
+                )
+            }
+            if referenceBackedValueClassSymbol(of: types.kind(of: targetType), types: types, symbols: symbols) != nil {
+                let unboxed = module.arena.appendTemporary(type: targetType)
+                emitValueClassUnboxCall(
+                    value: argument, classSymbol: targetClass.classSymbol, result: unboxed,
+                    resultType: targetType, types: types, symbols: symbols,
+                    interner: interner, arena: module.arena, into: &newBody
+                )
+                return unboxed
+            }
+            return nil
+        }
         if receiverOffset > 0, arguments.indices.contains(receiverIndex),
            let receiverType = signature.receiverType,
            let unboxed = unboxNullableEnum(arguments[receiverIndex], to: receiverType)
@@ -294,6 +333,10 @@ extension ABILoweringPass {
                 boxedArguments[argIndex] = unboxed
                 continue
             }
+            if let unboxed = unboxErasedValueClass(arguments[argIndex], to: paramType) {
+                boxedArguments[argIndex] = unboxed
+                continue
+            }
             if let boxCallee = boxingCallee(
                 argType: argType,
                 paramType: paramType,
@@ -398,12 +441,10 @@ extension ABILoweringPass {
         return (unboxCallee, returnType)
     }
 
-    /// KUU-3115: a call whose declared return type and result-slot type sit on
-    /// opposite sides of a nullable-underlying value class's `V`/`V?` boundary
-    /// needs `kk_value_class_box`/`kk_value_class_unbox` — the primitive
-    /// box/unbox tables cannot express that representation change. Returns the
-    /// value-class symbol, whether the result must be *boxed* (vs unboxed),
-    /// and the callee's declared return type for the intermediate slot.
+    /// A call crossing a nominal value-class box boundary needs
+    /// `kk_value_class_box`/`kk_value_class_unbox`: the primitive tables cannot
+    /// represent nullable payloads or separately wrapped reference payloads.
+    /// Return the class symbol, conversion direction, and declared return type.
     func resolveValueClassResultConversion(
         callSymbol: SymbolID?,
         callee: InternedString,
@@ -436,6 +477,14 @@ extension ABILoweringPass {
             of: rawResultKind, types: types, symbols: symbols
         ), valueClassUnboxSourceIsBoxed(rawReturnKind, symbols: symbols) {
             return (vcSymbol, false, returnType)
+        }
+        if let vcSymbol = referenceBackedValueClassSymbol(of: rawResultKind, types: types, symbols: symbols) {
+            switch rawReturnKind {
+            case .typeParam, .any:
+                return (vcSymbol, false, returnType)
+            default:
+                break
+            }
         }
         if let vcSymbol = nullableUnderlyingValueClassSymbol(
             of: rawReturnKind, types: types, symbols: symbols
