@@ -64,6 +64,8 @@ final class TypeCheckDriver {
     var isCheckingAnnotationConstruction = false
     /// Lexical boundaries retained until overload and lambda inference finish.
     var callSuspensionContexts: [ExprID: SuspensionContext] = [:]
+    /// Compiler-special calls that suspend without an ordinary call binding.
+    var specialSuspendingCallNames: [ExprID: String] = [:]
     /// Reads of the restricted `kotlin.coroutines.coroutineContext` property
     /// need the same post-inference suspension-context validation as calls.
     var coroutineContextPropertySuspensionContexts: [ExprID: SuspensionContext] = [:]

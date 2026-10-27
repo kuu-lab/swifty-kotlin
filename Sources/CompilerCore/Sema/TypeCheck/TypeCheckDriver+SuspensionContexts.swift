@@ -27,6 +27,9 @@ extension TypeCheckDriver {
            function.isSuspend {
             names.append("invoke")
         }
+        if let specialName = specialSuspendingCallNames[id] {
+            names.append(specialName)
+        }
         return names
     }
 
