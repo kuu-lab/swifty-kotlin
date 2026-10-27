@@ -142,7 +142,7 @@ extension DataEnumSealedSynthesisPass {
             interner: interner,
             instructions: &body.instructions
         )
-        let (arrayExpr, countExpr, _) = appendEnumOrdinalArrayCreation(
+        let (arrayExpr, countExpr, classIDExpr) = appendEnumOrdinalArrayCreation(
             enumClassSymbol: owner.id,
             entries: entries,
             intType: intType,
@@ -154,7 +154,7 @@ extension DataEnumSealedSynthesisPass {
 
         let listExpr = module.arena.appendTemporary(type: returnType
         )
-        body.append(.call(callee: interner.intern("kk_enum_make_values_array"), arguments: [arrayExpr, countExpr], result: listExpr, canThrow: false))
+        body.append(.call(callee: interner.intern("kk_enum_make_values_array"), arguments: [arrayExpr, countExpr, classIDExpr], result: listExpr, canThrow: false))
 
         body.append(.returnValue(listExpr))
 
