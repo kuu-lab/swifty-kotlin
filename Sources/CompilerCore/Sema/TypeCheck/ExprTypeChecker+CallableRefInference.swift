@@ -558,6 +558,7 @@ extension ExprTypeChecker {
         var isConstructorReference = false
         var unboundInnerConstructorReceiverType: TypeID?
         var isImplicitlyBoundMember = false
+        var hasExplicitMemberCandidates = false
         var companionCallableReferenceReceiverType: TypeID?
         var propertyReferenceCandidate: (symbol: SymbolID, ownerType: TypeID?, isUnbound: Bool, type: TypeID)?
         if let effectiveReceiverType {
@@ -704,6 +705,7 @@ extension ExprTypeChecker {
             }()
             if !memberCandidates.isEmpty {
                 candidates = memberCandidates
+                hasExplicitMemberCandidates = true
                 if unboundClassType != nil,
                    let memberProperty,
                    sema.symbols.extensionPropertyReceiverType(for: memberProperty.symbol) == nil
@@ -1592,7 +1594,7 @@ extension ExprTypeChecker {
             && !candidates.isEmpty
             && expectedFunctionType == nil
             && expectedCallableReferenceReturnType == nil
-        let chosen: SymbolID? = if hasUncontextualPropertyFunctionOverload {
+        var chosen: SymbolID? = if hasUncontextualPropertyFunctionOverload {
             nil
         } else {
             driver.helpers.chooseCallableReferenceTarget(
@@ -1626,6 +1628,75 @@ extension ExprTypeChecker {
                 interner: interner,
                 resolvedPropertyType: candidate.type
             )
+        }
+
+        // An inapplicable member must not hide an extension callable reference
+        // with a compatible expected function type (for example Int::toString
+        // as (Int, Int) -> String). Preserve member priority when one matches.
+        if chosen == nil,
+           hasExplicitMemberCandidates,
+           !isConstructorReference,
+           !isImplicitlyBoundMember,
+           companionCallableReferenceReceiverType == nil,
+           let expectedFunctionType,
+           let effectiveReceiverType
+        {
+            let nonNullReceiver = sema.types.makeNonNullable(effectiveReceiverType)
+            func isApplicableExtension(_ symbolID: SymbolID) -> Bool {
+                guard let symbol = ctx.cachedSymbol(symbolID),
+                      symbol.kind == .function,
+                      !(symbol.flags.contains(.expectDeclaration)
+                          && sema.symbols.actualSymbol(for: symbolID) != nil),
+                      sema.symbols.memberExtensionOwnerSymbol(for: symbolID) == nil,
+                      driver.helpers.declaresExtensionReceiver(symbolID, sema: sema, interner: interner),
+                      let declaredReceiver = sema.symbols.functionSignature(for: symbolID)?.receiverType
+                else { return false }
+                return driver.callChecker.extensionSyntheticFallbackReceiverMatches(
+                    callSiteReceiver: nonNullReceiver,
+                    declaredReceiver: declaredReceiver,
+                    sema: sema
+                )
+            }
+            let localExtensions = ctx.scope.lookup(member, matching: { symbolID in
+                ctx.cachedSymbol(symbolID)?.flags.contains(.localFunction) == true
+                    && isApplicableExtension(symbolID)
+            })
+            let extensions: [SymbolID]
+            if !localExtensions.isEmpty {
+                extensions = localExtensions
+            } else if let local = locals[member],
+                      ctx.cachedSymbol(local.symbol)?.flags.contains(.localFunction) == true,
+                      isApplicableExtension(local.symbol)
+            {
+                extensions = [local.symbol]
+            } else {
+                extensions = ctx.scope.lookup(member, matching: isApplicableExtension)
+            }
+            if extensions.count == 1 {
+                driver.inferFunctionReturnTypesIfNeeded(for: extensions)
+            }
+            let matching = extensions.filter { candidate in
+                guard let signature = sema.symbols.functionSignature(for: candidate) else { return false }
+                return driver.helpers.contextualCallableReferenceBinding(
+                    for: signature,
+                    targetSymbol: candidate,
+                    bindReceiver: isBoundReceiver,
+                    boundReceiver: boundReceiverType.map { (candidate, $0) },
+                    unboundReceiverType: unboundCallableReceiverType,
+                    expectedFunctionType: expectedFunctionType,
+                    postponedReturnTypeParameter: postponedReturnParameter,
+                    interner: interner,
+                    availableContextReceiverTypes: availableContextReceiverTypes,
+                    sema: sema
+                ) != nil
+            }
+            let mostSpecific = driver.callChecker.preferMostSpecificMemberReceiverCandidates(
+                matching, receiverType: nonNullReceiver, sema: sema, interner: interner
+            )
+            if mostSpecific.count == 1 {
+                candidates = mostSpecific
+                chosen = mostSpecific[0]
+            }
         }
 
         if let chosen,
