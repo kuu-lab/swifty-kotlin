@@ -249,7 +249,16 @@ extension CallLowerer {
         ) {
             return emptyArray
         }
-        let result = arena.appendTemporary(type: boundType ?? sema.types.anyType)
+        let preservesErasedGenericResult = kirShouldCheckErasedGenericCallResult(
+            exprID: exprID,
+            boundType: boundType,
+            sema: sema
+        )
+        let result = arena.appendTemporary(
+            type: preservesErasedGenericResult
+                ? sema.types.nullableAnyType
+                : (boundType ?? sema.types.anyType)
+        )
         var callableArguments = loweredArgIDs
         if loweredCallable != nil,
            let binding = callableValueCallBinding,

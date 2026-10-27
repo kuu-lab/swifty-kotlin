@@ -451,3 +451,54 @@ func kirErasedBoundaryCheckable(_ type: TypeID, sema: SemaModule) -> Bool {
         return true
     }
 }
+
+/// Whether a declared function result crosses the ABI as an erased generic
+/// value. A definitely-non-null `T & Any` return still erases to T.
+func kirIsNonReifiedErasedReturnType(_ type: TypeID, sema: SemaModule) -> Bool {
+    let typeParameter: TypeID = if case let .intersection(parts) = sema.types.kind(of: type),
+                                   parts.count == 2,
+                                   parts.contains(where: { sema.types.kind(of: $0) == .any(.nonNull) }),
+                                   let parameter = parts.first(where: {
+                                       if case .typeParam = sema.types.kind(of: $0) { return true }
+                                       return false
+                                   })
+    {
+        parameter
+    } else {
+        type
+    }
+    guard case let .typeParam(parameter) = sema.types.kind(of: typeParameter),
+          let symbol = sema.symbols.symbol(parameter.symbol)
+    else {
+        return false
+    }
+    return !symbol.flags.contains(.reifiedTypeParameter)
+}
+
+/// True when a generic call's substituted result can be checked before the
+/// erased ABI result is converted to its native representation.
+func kirShouldCheckErasedGenericCallResult(
+    exprID: ExprID,
+    boundType: TypeID?,
+    sema: SemaModule
+) -> Bool {
+    let declaredReturnType: TypeID? = if let chosenCallee = sema.bindings.callBindings[exprID]?.chosenCallee,
+                                         let signature = sema.symbols.functionSignature(for: chosenCallee)
+    {
+        signature.returnType
+    } else if let callableBinding = sema.bindings.callableValueCalls[exprID],
+              case let .functionType(functionType) = sema.types.kind(of: callableBinding.functionType)
+    {
+        functionType.returnType
+    } else {
+        nil
+    }
+    guard let declaredReturnType,
+          kirIsNonReifiedErasedReturnType(declaredReturnType, sema: sema),
+          let bound = boundType ?? sema.bindings.exprType(for: exprID),
+          let checkType = kirCheckableCastErasure(of: bound, sema: sema)
+    else {
+        return false
+    }
+    return kirErasedBoundaryCheckable(checkType, sema: sema)
+}

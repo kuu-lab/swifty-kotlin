@@ -164,22 +164,6 @@ extension ExprLowerer {
         kirCheckableCastErasure(of: type, sema: sema)
     }
 
-    /// Whether a declared return type still travels through the erased ABI:
-    /// a non-reified type parameter, or its definitely-non-null `T & Any`
-    /// shape. Reified parameters and concrete classifiers keep their real
-    /// representation and never need a boundary checkcast.
-    private func isNonReifiedErasedReturn(_ type: TypeID, sema: SemaModule) -> Bool {
-        if let typeParameterType = definitelyNotNullTypeParameter(of: type, sema: sema) {
-            return isNonReifiedErasedReturn(typeParameterType, sema: sema)
-        }
-        guard case let .typeParam(parameter) = sema.types.kind(of: type),
-              let symbol = sema.symbols.symbol(parameter.symbol)
-        else {
-            return false
-        }
-        return !symbol.flags.contains(.reifiedTypeParameter)
-    }
-
     /// KUU-3535: a non-reified generic return crosses the call boundary in
     /// erased form — the callee's own `as T` cannot verify it, so
     /// Kotlin/JVM emits the checkcast where the result is claimed at the
@@ -198,29 +182,18 @@ extension ExprLowerer {
         arena: KIRArena,
         instructions: inout [KIRInstruction]
     ) -> KIRExprID {
-        let declaredReturnType: TypeID? = if let chosenCallee = sema.bindings.callBindings[exprID]?.chosenCallee,
-                                             let signature = sema.symbols.functionSignature(for: chosenCallee)
-        {
-            signature.returnType
-        } else if let callableBinding = sema.bindings.callableValueCalls[exprID],
-                  case let .functionType(functionType) = sema.types.kind(of: callableBinding.functionType)
-        {
-            functionType.returnType
-        } else {
-            nil
-        }
-        guard let declaredReturnType,
-              isNonReifiedErasedReturn(declaredReturnType, sema: sema),
+        guard kirShouldCheckErasedGenericCallResult(
+                  exprID: exprID,
+                  boundType: boundType,
+                  sema: sema
+              ),
               let bound = boundType ?? sema.bindings.exprType(for: exprID),
-              let checkType = checkableCastErasure(of: bound, sema: sema),
-              kirErasedBoundaryCheckable(checkType, sema: sema)
+              let checkType = checkableCastErasure(of: bound, sema: sema)
         else {
             return resultID
         }
-        // The erased result carries its box/handle bits, not the bound
-        // type's value representation — a primitive-typed temp would make
-        // ABI lowering re-box the box pointer. Check it through an
-        // Any-typed view.
+        // Generic call results keep the erased representation, including
+        // boxed primitives, until after the type check.
         let erasedOperand = arena.appendTemporary(type: sema.types.nullableAnyType)
         instructions.append(.copy(from: resultID, to: erasedOperand))
         let typeToken = lowerTypeCheckTokenExpr(
@@ -235,9 +208,6 @@ extension ExprLowerer {
         } else {
             nil
         }
-        // `kk_op_cast` returns the erased (still boxed) representation for
-        // primitive targets, so keep the Any typing and unbox explicitly —
-        // the same treatment `as Int` gets in lowerAsCastExpr.
         let checked = arena.appendTemporary(
             type: primitiveBound == nil ? bound : sema.types.nullableAnyType
         )
