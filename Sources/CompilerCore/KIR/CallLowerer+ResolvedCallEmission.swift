@@ -250,9 +250,42 @@ extension CallLowerer {
             return emptyArray
         }
         let result = arena.appendTemporary(type: boundType ?? sema.types.anyType)
+        var callableArguments = loweredArgIDs
+        if loweredCallable != nil,
+           let binding = callableValueCallBinding,
+           case let .functionType(functionType) = sema.types.kind(of: sema.types.makeNonNullable(binding.functionType)),
+           functionType.receiver == nil,
+           functionType.contextReceivers.isEmpty,
+           functionType.params.count == callableArguments.count
+        {
+            for index in callableArguments.indices {
+                let parameterIndex = binding.parameterMapping[index] ?? index
+                guard functionType.params.indices.contains(parameterIndex),
+                      let sourceType = arena.exprType(callableArguments[index]),
+                      case let .primitive(sourcePrimitive, .nonNull) = sema.types.kind(of: sourceType)
+                else { continue }
+                let parameterType = functionType.params[parameterIndex]
+                switch sema.types.kind(of: parameterType) {
+                case .any:
+                    callableArguments[index] = boxValueForAnySlot(
+                        callableArguments[index], sourceType: sourceType,
+                        types: sema.types, symbols: sema.symbols, interner: interner,
+                        arena: arena, resultType: parameterType, requireNonNull: true,
+                        sema: sema, into: &instructions
+                    )
+                case let .primitive(parameterPrimitive, .nullable) where parameterPrimitive == sourcePrimitive:
+                    callableArguments[index] = normalizedValueForNullablePrimitiveSlot(
+                        callableArguments[index], slotType: parameterType,
+                        types: sema.types, arena: arena, into: &instructions
+                    )
+                default:
+                    break
+                }
+            }
+        }
         let callNormalized: NormalizedCallResult = if callBinding != nil {
             driver.callSupportLowerer.normalizedCallArguments(
-                providedArguments: loweredArgIDs,
+                providedArguments: callableArguments,
                 callBinding: callBinding,
                 chosenCallee: chosen,
                 spreadFlags: args.map(\.isSpread),
@@ -268,7 +301,7 @@ extension CallLowerer {
         } else {
             NormalizedCallResult(
                 arguments: normalizedCallableValueArguments(
-                    providedArguments: loweredArgIDs,
+                    providedArguments: callableArguments,
                     callableValueCallBinding: callableValueCallBinding,
                     sema: sema
                 ),
