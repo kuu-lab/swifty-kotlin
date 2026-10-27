@@ -129,20 +129,15 @@ extension KIRLoweringDriver {
             type: sema.symbols.functionSignature(for: provideDelegateSymbol)?.returnType
                 ?? sema.types.anyType
         )
-        let provideDelegateArguments = memberLowerer.prependingMemberExtensionDispatchReceiver(
-            to: [delegateObjExpr, thisRefExprID, kPropertyExprID],
-            for: provideDelegateSymbol,
-            sema: sema
-        )
-        initInstructions.append(
-            .call(
-                symbol: provideDelegateSymbol,
-                callee: provideDelegateName,
-                arguments: provideDelegateArguments,
-                result: provideDelegateResult,
-                canThrow: false
-            )
-        )
+        initInstructions.append(memberLowerer.dispatchedDelegateMemberCall(
+            symbol: provideDelegateSymbol,
+            callee: provideDelegateName,
+            receiver: delegateObjExpr,
+            extraArguments: [thisRefExprID, kPropertyExprID],
+            result: provideDelegateResult,
+            sema: sema,
+            interner: interner
+        ))
 
         initInstructions.append(.storeGlobal(value: provideDelegateResult, symbol: delegateStorageSymbol))
     }
