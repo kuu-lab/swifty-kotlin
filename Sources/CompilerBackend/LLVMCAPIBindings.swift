@@ -261,6 +261,7 @@ final class LLVMCAPIBindings {
         UnsafeMutablePointer<UInt64>?, Int
     ) -> LLVMMetadataRef?
     private let handle: UnsafeMutableRawPointer
+    let libraryPath: String
     let runPassesFn: LLVMRunPassesFn?
     let createPassBuilderOptionsFn: LLVMCreatePassBuilderOptionsFn?
     let disposePassBuilderOptionsFn: LLVMDisposePassBuilderOptionsFn?
@@ -379,6 +380,7 @@ final class LLVMCAPIBindings {
     let diBuilderCreateExpressionFn: LLVMDIBuilderCreateExpressionFn?
     init(
         handle: UnsafeMutableRawPointer,
+        libraryPath: String,
         runPassesFn: LLVMRunPassesFn? = nil,
         createPassBuilderOptionsFn: LLVMCreatePassBuilderOptionsFn? = nil,
         disposePassBuilderOptionsFn: LLVMDisposePassBuilderOptionsFn? = nil,
@@ -497,6 +499,7 @@ final class LLVMCAPIBindings {
         diBuilderCreateExpressionFn: LLVMDIBuilderCreateExpressionFn? = nil
     ) {
         self.handle = handle
+        self.libraryPath = libraryPath
         self.runPassesFn = runPassesFn
         self.createPassBuilderOptionsFn = createPassBuilderOptionsFn
         self.disposePassBuilderOptionsFn = disposePassBuilderOptionsFn

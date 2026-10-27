@@ -116,6 +116,8 @@ public enum StdlibArtifactCache {
         fileManager: FileManager = .default,
         compilerFingerprint: String? = nil,
         profile: StdlibProfile = .full,
+        preserveInvalidArtifacts: Bool = false,
+        additionalValidator: (_ artifactPath: String) -> Bool = { _ in true },
         builder: (_ outputBase: String) throws -> String
     ) throws -> String {
         let currentFingerprint = compilerFingerprint ?? currentCompilerFingerprint()
@@ -136,8 +138,23 @@ public enum StdlibArtifactCache {
         )
 
         return try withFileLock(at: lockPath) {
-            if case .valid = validateArtifact(at: artifactPath, target: target, profile: profile) {
-                return artifactPath
+            func isReusable(_ path: String) -> Bool {
+                if case .valid = validateArtifact(at: path, target: target, profile: profile) {
+                    return additionalValidator(path)
+                }
+                return false
+            }
+            if isReusable(artifactPath) { return artifactPath }
+
+            // Diff consumers keep the returned path while compiling cases.
+            // Never remove a prior publication from under such a reader.
+            let recoveryPrefix = artifactURL.lastPathComponent + ".recovered-"
+            if preserveInvalidArtifacts,
+               let entries = try? fileManager.contentsOfDirectory(atPath: artifactURL.deletingLastPathComponent().path) {
+                for entry in entries.sorted() where entry.hasPrefix(recoveryPrefix) && entry.hasSuffix(".kklib") {
+                    let candidate = artifactURL.deletingLastPathComponent().appendingPathComponent(entry).path
+                    if isReusable(candidate) { return candidate }
+                }
             }
 
             removeStaleStagingDirectories(artifactPath: artifactPath, fileManager: fileManager)
@@ -157,8 +174,14 @@ public enum StdlibArtifactCache {
                 throw Error.buildFailed(String(describing: error))
             }
 
-            guard case .valid = validateArtifact(at: builtArtifactPath, target: target, profile: profile) else {
-                let reason = validationReason(at: builtArtifactPath, target: target, profile: profile)
+            guard case .valid = validateArtifact(at: builtArtifactPath, target: target, profile: profile),
+                  additionalValidator(builtArtifactPath) else {
+                let reason: String
+                if case .valid = validateArtifact(at: builtArtifactPath, target: target, profile: profile) {
+                    reason = "additional artifact validation failed"
+                } else {
+                    reason = validationReason(at: builtArtifactPath, target: target, profile: profile)
+                }
                 try? fileManager.removeItem(atPath: buildingBase)
                 try? fileManager.removeItem(atPath: builtArtifactPath)
                 throw Error.artifactInvalid(
@@ -167,23 +190,26 @@ public enum StdlibArtifactCache {
                 )
             }
 
-            // Publish only now that the replacement is complete: the previous
-            // artifact stays in place until the swap so a failed rebuild never
-            // leaves the cache empty.
-            if fileManager.fileExists(atPath: artifactPath) {
+            // A preserved invalid artifact gets a separate immutable recovery
+            // path, since earlier callers can still be using the original.
+            var publicationPath = artifactPath
+            if preserveInvalidArtifacts && fileManager.fileExists(atPath: artifactPath) {
+                publicationPath = artifactURL.deletingLastPathComponent()
+                    .appendingPathComponent(recoveryPrefix + UUID().uuidString + ".kklib").path
+            } else if fileManager.fileExists(atPath: artifactPath) {
                 try? fileManager.removeItem(atPath: artifactPath)
             }
             do {
-                try fileManager.moveItem(atPath: builtArtifactPath, toPath: artifactPath)
+                try fileManager.moveItem(atPath: builtArtifactPath, toPath: publicationPath)
             } catch {
                 // Unreachable while the lock holds, but a deleted or recreated
                 // lock file can split the critical section and let another
                 // builder publish first. Prefer whatever landed when it
                 // validates instead of reporting a spurious failure.
-                if case .valid = validateArtifact(at: artifactPath, target: target, profile: profile) {
+                if isReusable(publicationPath) {
                     try? fileManager.removeItem(atPath: buildingBase)
                     try? fileManager.removeItem(atPath: builtArtifactPath)
-                    return artifactPath
+                    return publicationPath
                 }
                 try? fileManager.removeItem(atPath: buildingBase)
                 try? fileManager.removeItem(atPath: builtArtifactPath)
@@ -191,7 +217,7 @@ public enum StdlibArtifactCache {
                     "could not publish the stdlib artifact: \(error.localizedDescription)"
                 )
             }
-            return artifactPath
+            return publicationPath
         }
     }
 

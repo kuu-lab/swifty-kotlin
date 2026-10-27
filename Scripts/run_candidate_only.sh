@@ -5,8 +5,11 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 # shellcheck source=lib/common.sh
 source "$SCRIPT_DIR/lib/common.sh"
+# shellcheck source=diff_kotlinc_cached_stdlib.sh
+source "$SCRIPT_DIR/diff_kotlinc_cached_stdlib.sh"
 
 KSWIFTC="${KSWIFTC:-$ROOT_DIR/.build/debug/kswiftc}"
+configure_diff_compiler_process
 DIFF_KSWIFTC_FLAGS="${DIFF_KSWIFTC_FLAGS:-}"
 COMPILE_TIMEOUT="${DIFF_COMPILE_TIMEOUT:-120}"
 RUN_TIMEOUT="${DIFF_RUN_TIMEOUT:-10}"
@@ -187,6 +190,9 @@ if [[ ${#CASES[@]} -eq 0 ]]; then
   exit 1
 fi
 
+DIFF_STDLIB_LIBRARY="$STDLIB_LIBRARY"
+resolve_cached_diff_stdlib || exit 1
+STDLIB_LIBRARY="$DIFF_STDLIB_LIBRARY"
 if [[ -n "$STDLIB_LIBRARY" ]]; then
   if [[ ! -d "$STDLIB_LIBRARY" || ! -f "$STDLIB_LIBRARY/manifest.json" ]]; then
     echo "Stdlib library does not exist or is missing manifest.json: $STDLIB_LIBRARY" >&2
