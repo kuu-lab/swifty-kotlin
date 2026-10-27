@@ -705,13 +705,12 @@ extension CallLowerer {
                ["kk_any_member_to_string", "kk_any_member_hashCode", "kk_any_member_equals"]
                    .contains(linkName),
                let receiverType = arena.exprType(extensionReceiver) ?? signature.receiverType,
-               case .primitive = sema.types.kind(of: sema.types.makeNonNullable(receiverType))
+               usesPrimitiveAnyFallbackRepresentation(for: receiverType, sema: sema)
             {
-                // `kotlin.Any` member stubs are bindable on primitive
-                // receivers, whose runtime representation is a raw scalar
-                // rather than an object pointer. The member-dispatch bridge
-                // would read that raw word as a pointer, so emit the tagged
-                // `kk_any_*` fallbacks explicit `x.toString()` calls use.
+                // Primitive and unboxed primitive-backed value-class
+                // receivers carry raw scalars rather than object pointers.
+                // The member-dispatch bridge would read that raw word as a
+                // pointer, so use the tagged `kk_any_*` fallback instead.
                 if linkName == "kk_any_member_to_string", args.isEmpty {
                     let converted = emitAnyToStringWithNullGuard(
                         valueID: extensionReceiver, valueType: receiverType,
