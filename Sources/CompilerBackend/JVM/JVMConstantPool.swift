@@ -38,6 +38,7 @@ final class JVMConstantPool {
     private var indices: [Data: UInt16] = [:]
     private var bootstrapMethods: [JVMBootstrapMethod] = []
     private var bootstrapIndices: [JVMBootstrapMethod: UInt16] = [:]
+    private(set) var referencedClassNames: Set<String> = []
 
     func intern(_ entry: JVMBytes, wide: Bool = false) throws -> UInt16 {
         if let index = indices[entry.data] { return index }
@@ -52,6 +53,9 @@ final class JVMConstantPool {
     }
 
     func utf8(_ value: String, kotlinLiteral: Bool = false) throws -> UInt16 {
+        if !kotlinLiteral, value.contains("L"), value.contains(";") {
+            referencedClassNames.formUnion(Self.classReferences(in: value))
+        }
         let units = kotlinLiteral ? KotlinStringSurrogateEncoding.utf16CodeUnits(value) : Array(value.utf16)
         var encoded = Data()
         // CONSTANT_Utf8 uses modified UTF-8 over UTF-16 code units: NUL is
@@ -89,8 +93,67 @@ final class JVMConstantPool {
     }
 
     func classInfo(_ name: String) throws -> UInt16 {
+        if name.hasPrefix("[") {
+            referencedClassNames.formUnion(Self.classReferences(in: name))
+        } else {
+            referencedClassNames.insert(name)
+        }
         let nameIndex = try utf8(name)
         return try single(7, nameIndex)
+    }
+
+    private static func classReferences(in signature: String) -> Set<String> {
+        let characters = Array(signature)
+        var references: Set<String> = []
+
+        func parseType(at start: Int) -> Int {
+            guard start < characters.count else { return start }
+            switch characters[start] {
+            case "[":
+                return parseType(at: start + 1)
+            case "T":
+                var index = start + 1
+                while index < characters.count, characters[index] != ";", characters[index] != ":" { index += 1 }
+                return index < characters.count && characters[index] == ";" ? index + 1 : start + 1
+            case "L":
+                var index = start + 1
+                var name = ""
+                while index < characters.count {
+                    switch characters[index] {
+                    case ";":
+                        if !name.isEmpty { references.insert(name) }
+                        return index + 1
+                    case "<":
+                        if !name.isEmpty { references.insert(name) }
+                        index += 1
+                        while index < characters.count, characters[index] != ">" {
+                            let next = parseType(at: index)
+                            index = next > index ? next : index + 1
+                        }
+                        if index < characters.count { index += 1 }
+                    case ".":
+                        name += "$"
+                        index += 1
+                    default:
+                        name.append(characters[index])
+                        index += 1
+                    }
+                }
+                if !name.isEmpty { references.insert(name) }
+                return index
+            case "+", "-":
+                return parseType(at: start + 1)
+            default:
+                return start + 1
+            }
+        }
+
+        var index = 0
+        while index < characters.count {
+            let next = parseType(at: index)
+            index = next > index ? next : index + 1
+        }
+        return references
     }
 
     func member(_ tag: UInt8, owner: String, name: String, descriptor: String) throws -> UInt16 {
