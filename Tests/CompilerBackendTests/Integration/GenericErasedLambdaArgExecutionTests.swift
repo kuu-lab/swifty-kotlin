@@ -19,6 +19,25 @@ struct GenericErasedLambdaArgExecutionTests {
         }
     }
 
+    /// KUU-3538: the expected type of `f()!!` must flow through the null
+    /// assertion so the generic cast result can infer `T` as `Int?`.
+    @Test
+    func inferredGenericUncheckedCastResultThroughNullAssertion() throws {
+        TestStdlibCache.shared.prepare()
+        try compileAndRunKotlin(
+            """
+            @Suppress("UNCHECKED_CAST")
+            fun <T> f() = 1L as T
+            fun main() {
+                val x: Int = f()!!
+                println(x)
+            }
+            """,
+            expectedOutput: "1\n",
+            moduleName: "KUU3538GenericUncheckedCastNullAssertion"
+        )
+    }
+
     /// KUU-3438: a nullable-underlying value class returned through a generic
     /// function-value call must be unboxed before reaching a concrete use site.
     @Test(arguments: [true, false])
