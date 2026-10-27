@@ -18,6 +18,21 @@ private let runtimeArrayTypeNames: [(id: Int64, name: String, kind: RuntimePrimi
     return (runtimeStableNominalTypeID(fqName: fqName), fqName, kind)
 }
 
+/// KUU-3537: nominal type ID of the bundled `kotlin.Cloneable` marker
+/// interface, tagged onto array handles alongside their array class ID.
+let runtimeCloneableNominalTypeID: Int64 = runtimeStableNominalTypeID(fqName: "kotlin.Cloneable")
+
+/// Array class IDs whose handles also answer `is Cloneable`. JVM parity:
+/// `Array` and the eight signed primitive arrays are Cloneable; the unsigned
+/// arrays are value classes over them and are *not*.
+let runtimeCloneableArrayTypeIDs: Set<Int64> = {
+    var ids = Set(runtimeArrayTypeNames
+        .filter { ![.uByte, .uShort, .uInt, .uLong].contains($0.kind) }
+        .map(\.id))
+    ids.insert(runtimeStableNominalTypeID(fqName: "kotlin.Array"))
+    return ids
+}()
+
 func runtimeArrayKClassIdentity(rawValue: Int) -> (typeToken: Int, nameHint: Int)? {
     let typeIDs = runtimeArrayTypeIDs(rawValue: rawValue)
     if let arrayType = runtimeArrayTypeNames.first(where: { typeIDs.contains($0.id) }) {
