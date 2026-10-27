@@ -642,7 +642,7 @@ extension CallTypeChecker {
             nil
         }
         if let callableValueType,
-           case let .functionType(calleeFunctionType) = sema.types.kind(of: sema.types.makeNonNullable(callableValueType)) {
+           let calleeFunctionType = singleStructuralFunctionType(in: callableValueType, sema: sema) {
             let expectedArgumentTypes: [TypeID]?
             if let receiver = calleeFunctionType.receiver,
                args.count == calleeFunctionType.params.count + 1 {

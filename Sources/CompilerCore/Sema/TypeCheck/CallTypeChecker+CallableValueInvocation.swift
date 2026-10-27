@@ -1,5 +1,26 @@
 
 extension CallTypeChecker {
+    /// A smart cast can retain a function type as one component of an
+    /// intersection, for example after checking a callable as KFunction.
+    /// Use it only when there is one unambiguous structural function type.
+    func singleStructuralFunctionType(in type: TypeID, sema: SemaModule) -> FunctionType? {
+        var functionTypes: Set<FunctionType> = []
+        var visited: Set<TypeID> = []
+        func collect(_ type: TypeID) {
+            guard visited.insert(type).inserted else { return }
+            switch sema.types.kind(of: sema.types.makeNonNullable(type)) {
+            case let .functionType(function):
+                functionTypes.insert(function)
+            case let .intersection(parts):
+                for part in parts { collect(part) }
+            default:
+                break
+            }
+        }
+        collect(type)
+        return functionTypes.count == 1 ? functionTypes.first : nil
+    }
+
     func markRangeCallBindings(
         _ id: ExprID,
         chosen: SymbolID,
@@ -339,6 +360,11 @@ extension CallTypeChecker {
         switch sema.types.kind(of: nonNullCalleeType) {
         case let .functionType(type):
             functionType = type
+        case .intersection:
+            guard let type = singleStructuralFunctionType(in: nonNullCalleeType, sema: sema) else {
+                return nil
+            }
+            functionType = type
         case let .classType(classType):
             guard case .receiverMustBePresent = arityPolicy,
                   sema.symbols.inheritsExtensionFunctionTypeSupertype(classType.classSymbol)
@@ -530,10 +556,10 @@ extension CallTypeChecker {
                 diagnostics: ctx.sema.diagnostics
             )
         }
-        let callableValueFunctionType: TypeID = if case .classType = sema.types.kind(of: nonNullCalleeType) {
-            sema.types.make(.functionType(functionType))
-        } else {
+        let callableValueFunctionType: TypeID = if case .functionType = sema.types.kind(of: nonNullCalleeType) {
             nonNullCalleeType
+        } else {
+            sema.types.make(.functionType(functionType))
         }
         // A bare receiver-function call in an escaping lambda reads an outer
         // `this` even when its body contains no ordinary member reference.
