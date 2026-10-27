@@ -5,6 +5,46 @@ import Testing
 
 struct InlineErasedLambdaABITests {
     @Test
+    func nullableStringArgumentsUseNullAwareErasedSlotBridge() {
+        let interner = StringInterner()
+        let arena = KIRArena()
+        let types = TypeSystem()
+        let symbols = SymbolTable()
+        let diagnostics = DiagnosticEngine()
+        let sema = makeSemaModule(symbols: symbols, types: types, diagnostics: diagnostics).ctx
+        let ctx = makeKIRContext(
+            moduleName: "NullableStringInlineABI", interner: interner, sema: sema, diagnostics: diagnostics
+        )
+        let module = KIRModule(files: [], arena: arena)
+        let nullable = arena.appendTemporary(type: types.makeNullable(types.stringType))
+        let target = KIRFunction(
+            symbol: SymbolID(rawValue: 40), name: interner.intern("acceptErased"),
+            params: [KIRParameter(symbol: SymbolID(rawValue: 41), type: types.nullableAnyType)],
+            returnType: types.unitType, body: [], isSuspend: false, isInline: true
+        )
+        var directBody = KIRLoweringEmitContext()
+        let direct = InlineErasedLambdaABI.boxPrimitiveArgumentsForErasedParameters(
+            arguments: [nullable], inlineTarget: target, module: module, ctx: ctx, into: &directBody
+        )
+        #expect(direct.count == 1)
+        #expect(arena.exprType(direct[0]) == types.nullableAnyType)
+        #expect(directBody.contains {
+            if case let .copy(from, to) = $0 { return from == nullable && to == direct[0] }
+            return false
+        })
+
+        var boundBody = KIRLoweringEmitContext()
+        let bound = InlineErasedLambdaABI.bindStringArgumentToErasedParameter(
+            nullable, parameterType: types.nullableAnyType, module: module, ctx: ctx, into: &boundBody
+        )
+        #expect(arena.exprType(bound) == types.nullableAnyType)
+        #expect(boundBody.contains {
+            if case let .copy(from, to) = $0 { return from == nullable && to == bound }
+            return false
+        })
+    }
+
+    @Test
     func nestedCallbackDoesNotBorrowTheOuterMessageReturnType() {
         let interner = StringInterner()
         let types = TypeSystem()
