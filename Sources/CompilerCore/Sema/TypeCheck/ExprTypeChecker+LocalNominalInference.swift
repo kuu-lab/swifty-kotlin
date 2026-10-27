@@ -624,6 +624,21 @@ extension ExprTypeChecker {
             diagnostics: ctx.sema.diagnostics,
             baseLocals: outerLocalsSnapshot
         )
+        // Member property types must be final before constructor bodies and
+        // `init {}` blocks run: registration seeds inference-initialized
+        // properties with an `Any` placeholder, and bodies checked against it
+        // cannot resolve compound-assignment or other type-directed member
+        // operations (KUU-3596). Named classes, named objects, and object
+        // literals all check members before init blocks for the same reason.
+        typeCheckLocalNominalMemberProperties(
+            classDecl.memberProperties,
+            propertySymbolsByDecl: propertySymbolsByDecl,
+            memberScope: classScope,
+            memberCtx: classCtx,
+            initializerLocals: primaryCtorLocals,
+            accessorBaseLocals: outerLocalsSnapshot,
+            ctx: ctx
+        )
         let explicitSuperclassSymbol = driver.declChecker.explicitClassSuperclassSymbol(classDecl, ctx: classCtx)
         driver.declChecker.typeCheckSecondaryConstructors(
             classDecl.secondaryConstructors,
@@ -639,15 +654,6 @@ extension ExprTypeChecker {
             classDecl.initBlocks,
             ctx: classCtx,
             baseLocals: primaryCtorLocals
-        )
-        typeCheckLocalNominalMemberProperties(
-            classDecl.memberProperties,
-            propertySymbolsByDecl: propertySymbolsByDecl,
-            memberScope: classScope,
-            memberCtx: classCtx,
-            initializerLocals: primaryCtorLocals,
-            accessorBaseLocals: outerLocalsSnapshot,
-            ctx: ctx
         )
 
         var capturedSymbols: Set<SymbolID> = []
