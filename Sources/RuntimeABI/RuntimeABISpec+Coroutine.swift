@@ -93,7 +93,11 @@ public extension RuntimeABISpec {
         abi.th("__kk_flow_flat_map_concat", "flowHandle transformFnPtr continuation"),
         abi.th("__kk_flow_flat_map_merge", "flowHandle transformFnPtr continuation"),
         abi.th("__kk_flow_flat_map_latest", "flowHandle transformFnPtr continuation"),
-        abi.th("__kk_flow_flat_map_latest_external", "flowHandle mapperFnPtr mapperEnvPtr outThrown"),
+        // flatMapLatestRuntime forwards the suspend transform as a single boxed
+        // function value (resolved through runtimeFunctionValueBox /
+        // runtimeInvokeSuspendFunction) — no (fnPtr, env) pair is emitted, so
+        // this bridge is (flowHandle, mapperFnPtr, outThrown).
+        abi.th("__kk_flow_flat_map_latest_external", "flowHandle mapperFnPtr outThrown"),
         abi.th("kk_dispatcher_main"),
         abi.th("__kk_dispatcher_named", "kind"),
         abi.th("__kk_dispatcher_immediate", "dispatcher getterSlot outThrown"),
