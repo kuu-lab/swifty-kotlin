@@ -7,7 +7,7 @@ extension BuildKIRRegressionTests {
     @Test func testCustomRangeNamedIntRangeMembership() throws {
         let ctx = makeContextFromSource("""
         class IntRange { operator fun contains(a: Int) = (1..2).contains(a) }
-        class C { operator fun rangeTo(i: Int) = IntRange() }
+        class C { operator fun rangeTo(i: Int): IntRange = IntRange() }
         fun check(): Boolean = 2 in C()..2
         """)
         try runToKIR(ctx)
