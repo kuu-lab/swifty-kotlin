@@ -537,6 +537,36 @@ final class ValueClassUnboxingPass: LoweringPass, ParallelLoweringPass {
                         }
                         continue
                     }
+                    if arguments.count >= 3,
+                       allocExprs.contains(arguments[0]),
+                       secondaryValueClassCtors.contains(ctorSymbol),
+                       let offset = ctorUnderlyingFieldOffset[ctorSymbol],
+                       let owner = symbols.parentSymbol(for: ctorSymbol),
+                       symbols.effectiveValueClassUnderlyingType(for: owner) != nil
+                    {
+                        // Secondary constructors with two or more parameters:
+                        // the delegated primary still stores the payload into
+                        // the box, so run the call and read the field back.
+                        result.append(.call(
+                            symbol: symbol,
+                            callee: callee,
+                            arguments: arguments,
+                            result: nil,
+                            canThrow: canThrow,
+                            thrownResult: thrownResult,
+                            isSuperCall: isSuperCall,
+                            qualifiedSuperType: qualifiedSuperType
+                        ))
+                        resultLocations.append(location)
+                        _ = appendSecondaryValueClassResultExtraction(
+                            boxedReceiver: arguments[0],
+                            ctorSymbol: ctorSymbol,
+                            offset: offset,
+                            callResult: callResult,
+                            location: location
+                        )
+                        continue
+                    }
                     if arguments.count == 2, allocExprs.contains(arguments[0]) {
                         if secondaryValueClassCtors.contains(ctorSymbol),
                            let offset = ctorUnderlyingFieldOffset[ctorSymbol],
