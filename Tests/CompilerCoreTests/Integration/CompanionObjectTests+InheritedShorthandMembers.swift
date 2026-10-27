@@ -20,6 +20,23 @@ extension CompanionObjectTests {
         #expect(!ctx.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-SEMA-0023" })
     }
 
+    @Test func testProtectedCompanionMembersInNestedClasses() throws {
+        let source = """
+        open class A {
+            companion object { protected fun foo(): String = "OK" }
+            fun outer(): String = foo()
+            class B : A() { fun bar(): String = foo() }
+            class C { fun bar(): String = foo() }
+        }
+        fun outside(): String = A.foo()
+        """
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.count == 1, "\(errors)")
+        #expect(errors.first?.code == "KSWIFTK-SEMA-0041")
+    }
+
     @Test func testBaseCompanionMembersResolveUnqualifiedInDerivedInstanceMembers() throws {
         let source = """
         open class Root {
