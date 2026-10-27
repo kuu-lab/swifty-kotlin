@@ -180,14 +180,11 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
         )
 
         var signatureByName: [InternedString: FunctionSignature] = [:]
-        // `$default` stubs are synthetic symbols outside the symbol table, so
-        // `signatureByName` never contains them: a stub call arrives with
-        // `symbol: nil` and `signature == nil`, leaving every slot unboxed.
-        // The stub's own KIR declaration carries the real ABI parameter list —
-        // dispatch/extension receivers as ordinary leading params, then
-        // defaults, then mask words — so positional argument boxing applies
-        // once the signature is recovered by link name (KUU-3224).
+        // `$default` stubs have no Sema signature. Recover their actual ABI
+        // from the KIR declaration, preferring the synthetic symbol and using
+        // the name for symbol-less calls (KUU-3224).
         var stubSignatureByName: [InternedString: FunctionSignature] = [:]
+        var stubSignatureBySymbol: [SymbolID: FunctionSignature] = [:]
         if let symbols {
             for decl in module.arena.declarations {
                 guard case let .function(fn) = decl else { continue }
@@ -197,11 +194,13 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                 if SyntheticSymbolScheme.isSyntheticCallTarget(fn.symbol),
                    !SyntheticSymbolScheme.isLikelySyntheticPropertyAccessor(fn.symbol)
                 {
-                    stubSignatureByName[fn.name] = FunctionSignature(
+                    let stubSignature = FunctionSignature(
                         parameterTypes: fn.params.map(\.type),
                         returnType: fn.returnType,
                         isSuspend: fn.isSuspend
                     )
+                    stubSignatureByName[fn.name] = stubSignature
+                    stubSignatureBySymbol[fn.symbol] = stubSignature
                 }
             }
         }
@@ -661,14 +660,24 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                         && !isNonThrowingExternalLink)
 
                 var signature: FunctionSignature?
+                var recoveredStubSignature = false
                 if let symbols, let effectiveCallSymbol {
                     signature = symbols.functionSignature(for: effectiveCallSymbol)
+                }
+                // A default stub's symbol identifies its owner even when other
+                // declarations have the same `$default` display name.
+                if signature == nil, let effectiveCallSymbol,
+                   let stubSignature = stubSignatureBySymbol[effectiveCallSymbol]
+                {
+                    signature = stubSignature
+                    recoveredStubSignature = true
                 }
                 if signature == nil {
                     signature = signatureByName[effectiveCallee]
                 }
                 if signature == nil {
                     signature = stubSignatureByName[effectiveCallee]
+                    recoveredStubSignature = signature != nil
                 }
                 // Default stubs do not have Sema signatures. Their KIR params
                 // include the receiver as an ordinary argument, so recover the
@@ -752,11 +761,11 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                         boxingCalleeTable: boxingCalleeTable,
                         callee: effectiveCallee,
                         interner: ctx.interner,
-                        // A name-recovered `$default` stub is a source-generated
+                        // A recovered `$default` stub is a source-generated
                         // Kotlin function, so its type-parameter slots carry
                         // the same boxed values as any Kotlin-source callee.
                         boxTypeParamArguments: isKotlinSourceCallee(effectiveCallSymbol, symbols: symbols)
-                            || stubSignatureByName[effectiveCallee] != nil,
+                            || recoveredStubSignature,
                         preservedBoxedArgumentIndices: preservedBoxedArgumentIndices,
                         sema: ctx.sema,
                         cache: ctx.nominalDispatchCache,
@@ -1369,6 +1378,22 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                 interner: interner, arena: module.arena, into: &instructions
             )
             return instructions
+        }
+        if let symbols,
+           let vcSymbol = referenceBackedValueClassSymbol(of: rawToKind, types: types, symbols: symbols)
+        {
+            switch rawFromKind {
+            case .any, .typeParam:
+                var instructions: [KIRInstruction] = []
+                emitValueClassUnboxCall(
+                    value: from, classSymbol: vcSymbol, result: to,
+                    resultType: toType, types: types, symbols: symbols,
+                    interner: interner, arena: module.arena, into: &instructions
+                )
+                return instructions
+            default:
+                break
+            }
         }
         if let symbols,
            let vcSymbol = nullableUnderlyingValueClassSymbol(

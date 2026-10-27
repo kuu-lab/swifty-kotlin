@@ -1106,16 +1106,10 @@ extension KIRLoweringDriver {
             type: sema.symbols.functionSignature(for: provideDelegateSymbol)?.returnType
                 ?? sema.types.anyType
         )
-        let provideDelegateArguments = memberLowerer.prependingMemberExtensionDispatchReceiver(
-            to: [delegateValue, thisRefExprID, kPropertyExprID],
-            for: provideDelegateSymbol,
-            sema: sema
-        )
-        body.append(.call(
+        body.append(memberLowerer.dispatchedDelegateMemberCall(
             symbol: provideDelegateSymbol, callee: provideDelegateName,
-            arguments: provideDelegateArguments,
-            result: provideDelegateResult,
-            canThrow: false
+            receiver: delegateValue, extraArguments: [thisRefExprID, kPropertyExprID],
+            result: provideDelegateResult, sema: sema, interner: shared.interner
         ))
         return provideDelegateResult
     }
@@ -1395,7 +1389,7 @@ extension KIRLoweringDriver {
                 sourceRange: classDecl.range
             ))
         )
-        ctx.registerCompanionInitializer(symbol: initializerSymbol, name: initializerName)
+        ctx.registerReflectionInitializer(symbol: initializerSymbol, name: initializerName)
         return [declID] + ctx.drainGeneratedCallableDecls()
     }
 

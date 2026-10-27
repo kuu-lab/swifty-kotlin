@@ -162,6 +162,25 @@ package enum BundledStdlib {
         profileCache.hash(for: profile)
     }
 
+    /// A content identity for persistent caches that must distinguish even
+    /// same-size changes to the actual resource bundle used by this process.
+    package static func sourceFingerprint(
+        resourcePath: String? = Bundle.module.resourcePath,
+        profile: StdlibProfile = .full
+    ) throws -> String? {
+        let sources = try collectBundledStdlibSources(resourcePath: resourcePath, profile: profile)
+        guard !sources.isEmpty else { return nil }
+        var material = Data()
+        for source in sources {
+            let path = Data(source.path.utf8)
+            material.append(Data("\(path.count):".utf8))
+            material.append(path)
+            let digest = FileFingerprint.sha256Hex(source.contents)
+            material.append(Data(digest.utf8))
+        }
+        return FileFingerprint.sha256Hex(material)
+    }
+
     /// Packages declared by the full profile that `profile` leaves out, as
     /// sorted dotted names. Used to explain a missing import precisely.
     package static func excludedPackages(for profile: StdlibProfile) -> [String] {

@@ -429,7 +429,11 @@ final class ExprTypeChecker {
             return driver.controlFlowChecker.inferTryExpr(id, body: body, catchClauses: catchClauses, finallyExpr: finallyExpr, ctx: ctx, locals: &locals, expectedType: expectedType, isStatementContext: isStatementContext)
 
         case let .binary(op, lhsID, rhsID, range):
-            return inferBinaryExpr(id, op: op, lhsID: lhsID, rhsID: rhsID, range: range, ctx: ctx, locals: &locals, expectedType: expectedType)
+            return inferBinaryExpr(
+                id, op: op, lhsID: lhsID, rhsID: rhsID, range: range,
+                ctx: ctx, locals: &locals, expectedType: expectedType,
+                isStatementContext: isStatementContext
+            )
 
         case let .call(calleeID, typeArgRefs, args, range):
             let explicitTypeArgs = driver.helpers.resolveExplicitTypeArgs(typeArgRefs, ast: ast, sema: sema, interner: interner, scope: ctx.scope, diagnostics: ctx.sema.diagnostics, usageRange: range)
@@ -750,7 +754,10 @@ final class ExprTypeChecker {
             return type
 
         case let .nullAssert(exprID, _):
-            let operandType = driver.inferExpr(exprID, ctx: ctx, locals: &locals)
+            let operandType = driver.inferExpr(
+                exprID, ctx: ctx, locals: &locals,
+                expectedType: expectedType.map { sema.types.makeNullable($0) }
+            )
             let type = sema.types.definitelyNonNullForm(of: operandType)
             if let assertSubjectExpr = ast.arena.expr(exprID),
                case let .nameRef(assertVarName, _) = assertSubjectExpr,
@@ -903,6 +910,8 @@ final class ExprTypeChecker {
                     }
                 }
                 locals.memberFlow = blockLocals.memberFlow
+                locals.variableFacts = blockLocals.variableFacts
+                locals.invalidatedVariableFacts = blockLocals.invalidatedVariableFacts
             }
             sema.bindings.bindExprType(id, type: resultType)
             return resultType

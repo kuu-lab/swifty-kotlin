@@ -1,6 +1,7 @@
 import Dispatch
 import Foundation
 @testable import Runtime
+import RuntimeABI
 import Testing
 
 /// Regression coverage for stale coroutine handle resolution: continuation /
@@ -9,6 +10,22 @@ import Testing
 /// resolved to whatever object later reused the address.
 @Suite("Runtime live coroutine handles")
 struct RuntimeLiveHandleRegistryTests {
+    @Test("continuation type checks use live handle identity")
+    func continuationTypeCheck() {
+        let continuationType = runtimeStableNominalTypeID(fqName: "kotlin.coroutines.Continuation")
+        let otherType = runtimeStableNominalTypeID(fqName: "kotlin.collections.Iterator")
+        func token(_ type: Int64) -> Int {
+            Int(truncatingIfNeeded: RuntimeTypeTokenEncoding.nominalBase
+                | (type << RuntimeTypeTokenEncoding.payloadShift))
+        }
+        let continuation = kk_coroutine_continuation_new(7)
+        #expect(kk_op_is(continuation, token(continuationType)) == 1)
+        #expect(kk_op_is(continuation, token(otherType)) == 0)
+        #expect(kk_op_is(42, token(continuationType)) == 0)
+        _ = kk_coroutine_state_exit(continuation, 0)
+        #expect(kk_op_is(continuation, token(continuationType)) == 0)
+    }
+
     @Test("a released continuation handle no longer resolves")
     func releasedContinuationDoesNotResolve() {
         let continuation = kk_coroutine_continuation_new(7)

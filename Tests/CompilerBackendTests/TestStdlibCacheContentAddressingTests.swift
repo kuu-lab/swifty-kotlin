@@ -4,6 +4,12 @@ import Dispatch
 import Foundation
 import Testing
 
+#if canImport(Darwin)
+import Darwin
+#elseif canImport(Glibc)
+import Glibc
+#endif
+
 /// A lock-guarded box for state shared across `DispatchQueue.concurrentPerform`
 /// iterations. Swift 6's strict concurrency checking flags mutation of a
 /// captured `var` from concurrently-executing code even when it is guarded by
@@ -61,6 +67,49 @@ struct TestStdlibCacheContentAddressingTests {
         try FileManager.default.createDirectory(atPath: artifactPath, withIntermediateDirectories: true)
         try marker.write(toFile: artifactPath + "/marker.txt", atomically: true, encoding: .utf8)
         return artifactPath
+    }
+
+    @Test
+    func identicalImageContentsReuseFingerprintButSameMetadataChangesDoNot() throws {
+        try withTempBuildDirectory { buildDir in
+            let fm = FileManager.default
+            let image = buildDir.appendingPathComponent("CompilerBackendTests")
+            let originalTime = Date(timeIntervalSince1970: 1_700_000_000)
+            try fm.createDirectory(at: buildDir, withIntermediateDirectories: true)
+            try Data("compiler-a".utf8).write(to: image)
+            try fm.setAttributes([.modificationDate: originalTime], ofItemAtPath: image.path)
+            let first = try #require(TestStdlibCache.currentCompilerFingerprint(compilerImageURL: image))
+
+            // A timestamp-only relink does not change the generated artifact.
+            try fm.setAttributes([.modificationDate: originalTime.addingTimeInterval(10)], ofItemAtPath: image.path)
+            let touched = try #require(TestStdlibCache.currentCompilerFingerprint(compilerImageURL: image))
+            #expect(touched == first)
+
+            // Different bytes must invalidate even if size and timestamp match.
+            try Data("compiler-b".utf8).write(to: image)
+            try fm.setAttributes([.modificationDate: originalTime], ofItemAtPath: image.path)
+            let changed = try #require(TestStdlibCache.currentCompilerFingerprint(compilerImageURL: image))
+            #expect(changed != first)
+
+            let firstKey = try TestStdlibCache.contentKey(manifestHash: "same-stdlib", compilerFingerprint: first)
+            let touchedKey = try TestStdlibCache.contentKey(manifestHash: "same-stdlib", compilerFingerprint: touched)
+            let changedKey = try TestStdlibCache.contentKey(manifestHash: "same-stdlib", compilerFingerprint: changed)
+            #expect(firstKey == touchedKey)
+            #expect(firstKey != changedKey)
+
+            var builds = 0
+            func resolve(_ key: String) throws -> String {
+                try TestStdlibCache.resolveOrBuildArtifact(buildDirectory: buildDir, contentKey: key) {
+                    builds += 1
+                    return try fakeBuild(outputBase: $0, marker: "build-\(builds)")
+                }
+            }
+            let firstArtifact = try resolve(firstKey)
+            #expect(try resolve(touchedKey) == firstArtifact)
+            #expect(builds == 1)
+            #expect(try resolve(changedKey) != firstArtifact)
+            #expect(builds == 2)
+        }
     }
 
     @Test
@@ -247,6 +296,57 @@ struct TestStdlibCacheContentAddressingTests {
 
             let data = try handle.readToEnd() ?? Data()
             #expect(String(decoding: data, as: UTF8.self) == "stable-content")
+        }
+    }
+
+    @Test
+    func interruptedAttemptCannotShareTheNextAttemptStagingPath() throws {
+        enum Interrupted: Error { case stopped }
+        try withTempBuildDirectory { buildDir in
+            let fm = FileManager.default
+            var previousPath = ""
+            #expect(throws: Interrupted.self) {
+                try TestStdlibCache.resolveOrBuildArtifact(buildDirectory: buildDir, contentKey: "same-key") { output in
+                    previousPath = try fakeBuild(outputBase: output, marker: "old-worker")
+                    throw Interrupted.stopped
+                }
+            }
+            let published = try TestStdlibCache.resolveOrBuildArtifact(buildDirectory: buildDir, contentKey: "same-key") { output in
+                #expect(output + ".kklib" != previousPath)
+                #expect(fm.fileExists(atPath: previousPath))
+                return try fakeBuild(outputBase: output, marker: "new-worker")
+            }
+            // An orphan from the first attempt can still write only its own
+            // staging tree, never the newly published artifact.
+            try "orphan-write".write(toFile: previousPath + "/marker.txt", atomically: true, encoding: .utf8)
+            #expect(try String(contentsOfFile: published + "/marker.txt", encoding: .utf8) == "new-worker")
+        }
+    }
+
+    @Test
+    func staleStagingIsRemovedOnlyAfterItsAttemptLockIsReleased() throws {
+        try withTempBuildDirectory { buildDir in
+            let fm = FileManager.default
+            try fm.createDirectory(at: buildDir, withIntermediateDirectories: true)
+            let artifactName = "kswiftk-test-stdlib-cache-example.kklib"
+            let base = buildDir.appendingPathComponent(artifactName + ".building-1-fixture")
+            let staging = URL(fileURLWithPath: base.path + ".kklib")
+            let lockPath = base.path + ".lock"
+            try fm.createDirectory(at: staging, withIntermediateDirectories: true)
+            let fd = lockPath.withCString { open($0, O_CREAT | O_RDWR, 0o600) }
+            #expect(fd >= 0)
+            guard fd >= 0 else { return }
+            defer { close(fd) }
+            #expect(flock(fd, LOCK_SH) == 0)
+            try fm.setAttributes([.modificationDate: Date(timeIntervalSince1970: 1)], ofItemAtPath: lockPath)
+            TestStdlibCache.cleanupStaleStaging(buildDirectory: buildDir, olderThan: Date())
+            #expect(fm.fileExists(atPath: staging.path))
+            #expect(flock(fd, LOCK_UN) == 0)
+            _ = try TestStdlibCache.resolveOrBuildArtifact(buildDirectory: buildDir, contentKey: "different-key") { output in
+                try fakeBuild(outputBase: output, marker: "new-key")
+            }
+            #expect(!fm.fileExists(atPath: staging.path))
+            #expect(fm.fileExists(atPath: lockPath))
         }
     }
 

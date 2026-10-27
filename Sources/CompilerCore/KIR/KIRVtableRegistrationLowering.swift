@@ -764,17 +764,20 @@ func appendObjectVtablePropertyAccessorRegistrations<C: RangeReplaceableCollecti
         } else if let decoded = SyntheticSymbolScheme.decodedPropertyAccessor(
             implementation.dispatchAccessor
         ),
-            decoded.kind == .getter,
             let propertyType = sema.symbols.propertyType(for: decoded.property),
             let propertyOwner = sema.symbols.parentSymbol(for: decoded.property)
         {
+            // The slot keeps the root property's ABI. A specialized override
+            // may use a different representation for either the getter's
+            // result or the setter's value (for example T versus String).
+            let isGetter = decoded.kind == .getter
             let interfaceReceiver = sema.types.make(.classType(ClassType(
                 classSymbol: propertyOwner, args: [], nullability: .nonNull
             )))
             let interfaceSignature = FunctionSignature(
                 receiverType: interfaceReceiver,
-                parameterTypes: [],
-                returnType: propertyType,
+                parameterTypes: isGetter ? [] : [propertyType],
+                returnType: isGetter ? propertyType : sema.types.unitType,
                 canThrow: true
             )
 
@@ -791,11 +794,18 @@ func appendObjectVtablePropertyAccessorRegistrations<C: RangeReplaceableCollecti
                 )))
             let implementationSignature = FunctionSignature(
                 receiverType: implementationReceiver,
-                parameterTypes: [],
-                returnType: implementationFunction?.returnType
-                    ?? implementationMetadata?.returnType
-                    ?? implementationPropertyType
-                    ?? propertyType,
+                parameterTypes: isGetter ? [] : [
+                    implementationFunction?.params.last?.type
+                        ?? implementationMetadata?.parameterTypes.last
+                        ?? implementationPropertyType
+                        ?? propertyType,
+                ],
+                returnType: isGetter
+                    ? (implementationFunction?.returnType
+                        ?? implementationMetadata?.returnType
+                        ?? implementationPropertyType
+                        ?? propertyType)
+                    : sema.types.unitType,
                 canThrow: implementationMetadata?.canThrow ?? true
             )
             accessorFn = itableBridgeSymbolForMethod(

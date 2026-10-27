@@ -53,6 +53,7 @@ enum CLIParser {
       --stdlib               Include stdlib search paths (default)
       --no-stdlib            Disable automatic stdlib inclusion
       --stdlib-only          Compile bundled stdlib (.kklib by default; --emit jar for JVM)
+      --cached-stdlib-path   Resolve the validated host stdlib cache and print its path
       --stdlib-library <path> Use <path>.kklib as the stdlib instead of source injection
       --stdlib-from-source   Debug fallback: inject bundled stdlib Kotlin sources
       --profile <name>       Stdlib profile: full (default) | minimal

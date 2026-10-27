@@ -768,19 +768,22 @@ extension KotlinParser {
 
     func isAnonymousFunctionExpressionStart(at offset: Int = 0) -> Bool {
         guard stream.peek(offset).kind == .keyword(.fun) else { return false }
-        if stream.peek(offset + 1).kind == .symbol(.lParen) {
-            return true
-        }
         var cursor = offset + 1
         var depth = 0
-        var prevNonTriviaKind: TokenKind? = nil
-        while cursor < 200 {
+        var prevNonTriviaKind: TokenKind? = .keyword(.fun)
+        while cursor < offset + 200 {
             let token = stream.peek(cursor)
             if token.kind == .eof { break }
             switch token.kind {
             case .symbol(.lParen):
                 if depth == 0 {
                     if let prev = prevNonTriviaKind {
+                        if (prev == .keyword(.fun) || prev == .symbol(.greaterThan)),
+                           let nameOffset = offsetAfterParenthesizedReceiver(from: cursor, maxDistance: 4096),
+                           isIdentifierLike(stream.peek(nameOffset).kind)
+                        {
+                            return false
+                        }
                         switch prev {
                         case .keyword(.fun),
                              .symbol(.greaterThan),
@@ -1007,10 +1010,13 @@ extension KotlinParser {
         }
     }
 
-    func offsetPastBalancedGroup(from offset: Int, open: TokenKind, close: TokenKind) -> Int {
+    func offsetPastBalancedGroup(
+        from offset: Int, open: TokenKind, close: TokenKind, maxDistance: Int? = nil
+    ) -> Int {
         var depth = 0
         var index = offset
         repeat {
+            if let maxDistance, index - offset >= maxDistance { return offset }
             let kind = stream.peek(index).kind
             if kind == .eof { break }
             if kind == open {
@@ -1089,6 +1095,7 @@ extension KotlinParser {
         var sawTryKeyword = false
         var sawIfKeyword = false
         var functionTypeNameAfterAnnotation = false
+        var delegateBraceTracker = DelegateExpressionBraceTracker()
         var depth = BracketDepth()
         var templateExpressionDepth = 0
         while !stream.atEOF() {
@@ -1170,13 +1177,16 @@ extension KotlinParser {
                atTopLevel,
                allowsClassDelegation,
                sawSupertypeColon,
-               lastConsumedToken?.kind == .softKeyword(.by)
+               delegateBraceTracker.braceContinuesDelegateExpression()
             {
-                // A brace immediately after a class-delegation `by` starts the
-                // delegate lambda, not the declaration body. Keep its tokens
-                // in the header so AST construction can parse it as an
-                // expression; a following brace can still start the class body.
-                _ = consumeToken(into: &children, range: &range)
+                // A brace that belongs to a class-delegation `by` expression
+                // (`by { ... }`, `by when (x) { ... }`, `by if (c) { } else
+                // { }`, `by object : C { }`, ...) is part of the header, not
+                // the declaration body. Keep its tokens in the header so AST
+                // construction can parse the whole expression; a following
+                // top-level brace can still start the class body.
+                let braceToken = consumeToken(into: &children, range: &range)
+                delegateBraceTracker.note(braceToken.kind, atTopLevel: true)
                 depth.track(token.kind)
                 progress = true
                 continue
@@ -1239,8 +1249,9 @@ extension KotlinParser {
             if case .keyword(.if) = token.kind {
                 sawIfKeyword = true
             }
-            _ = consumeToken(into: &children, range: &range)
+            let consumedToken = consumeToken(into: &children, range: &range)
             progress = true
+            delegateBraceTracker.note(consumedToken.kind, atTopLevel: atTopLevel)
             depth.track(token.kind)
             switch token.kind {
             case .templateExprStart:

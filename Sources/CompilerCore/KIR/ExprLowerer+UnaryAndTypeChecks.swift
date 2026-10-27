@@ -363,25 +363,17 @@ extension ExprLowerer {
             ))
             return result
         }
-        // An unbounded T erases to Any. For a non-null cast target, use the
-        // erased cast helper so a null value fails as a cast (CCE) rather than
-        // as an explicit `!!`-style null assertion (NPE).
+        // An unbounded T erases to Any, so a cast that only needs the
+        // non-null contract reduces to a null assertion: Kotlin/JVM reports
+        // a null-to-non-null cast as NullPointerException (`x as (T & Any)`
+        // is a null check, like `x!!`), and `kk_op_cast` itself maps the
+        // same failure to NPE. The erased cast helper used at delegated
+        // property boundaries deliberately reports ClassCastException
+        // instead, so it must not be reused here (KUU-3534, KUU-3176).
         // A safe cast with no runtime classifier is a pass-through: null is
         // still a valid nullable result of `as?`.
         if !isSafe, !operandIsNonNull, targetRequiresNonNull {
-            let nonNullAnyToken = lowerTypeCheckTokenExpr(
-                targetType: sema.types.anyType,
-                sema: sema,
-                interner: interner,
-                arena: arena,
-                instructions: &instructions
-            )
-            instructions.append(.call(
-                callee: interner.intern("kk_op_cast_erased_return"),
-                arguments: [operandID, nonNullAnyToken],
-                result: result,
-                canThrow: true
-            ))
+            instructions.append(.nullAssert(operand: operandID, result: result))
         } else {
             instructions.append(.copy(from: operandID, to: result))
         }

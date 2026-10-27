@@ -69,13 +69,19 @@ extension ExprTypeChecker {
             sema.bindings.bindExprType(id, type: local.type)
             return local.type
         }
-        // An uninvoked function is not a qualified receiver. Keep values in
-        // the lookup so properties still shadow imported classifiers.
-        let allCandidateIDs: [SymbolID] = if isQualifier {
-            ctx.cachedScopeLookup(name).filter { symbolID in
-                guard let symbol = ctx.cachedSymbol(symbolID) else { return false }
-                return symbol.kind != .function && symbol.kind != .constructor
-            }
+        // A bare name in value or qualifier position cannot denote a function
+        // or constructor — `foo` needs `foo()` or `::foo` — so a scope tier
+        // that binds the name only to callables must not hide an outer-scope
+        // property or object, e.g. a member `fun foo` shadowing the top-level
+        // `var foo` inside an inner-class init (KUU-3576). When callables are
+        // the only bindings anywhere, keep them so a non-qualifier `foo`
+        // still reaches the "function invocation expected" diagnostic.
+        let valueCandidateIDs = ctx.cachedScopeLookup(name) { symbolID in
+            guard let symbol = ctx.cachedSymbol(symbolID) else { return false }
+            return symbol.kind != .function && symbol.kind != .constructor
+        }
+        let allCandidateIDs: [SymbolID] = if !valueCandidateIDs.isEmpty || isQualifier {
+            valueCandidateIDs
         } else {
             ctx.cachedScopeLookup(name)
         }

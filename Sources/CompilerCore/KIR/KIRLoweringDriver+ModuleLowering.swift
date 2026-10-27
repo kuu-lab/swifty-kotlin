@@ -131,14 +131,22 @@ extension KIRLoweringDriver {
         // initializers. Keep them as a callable entry point in the artifact;
         // importing modules call it before their own property initializers.
         // Object/companion initializers are imported separately, so this
-        // entry point contains only the library's own property writes.
+        // entry point contains reflection registration and the library's own
+        // property writes.
         if case .library = compilationCtx.options.emit,
-           !allTopLevelInitInstructions.isEmpty {
+           !allTopLevelInitInstructions.isEmpty || !ctx.allReflectionInitializers().isEmpty {
             let symbol = ctx.allocateSyntheticGeneratedSymbol()
             let name = compilationCtx.interner.intern(
                 "__kk_library_top_level_init_\(compilationCtx.options.moduleName)"
             )
             var body: KIRLoweringEmitContext = [.beginBlock]
+            for initializer in ctx.allReflectionInitializers() {
+                let result = arena.appendTemporary(type: sema.types.unitType)
+                body.append(.call(
+                    symbol: initializer.symbol, callee: initializer.name,
+                    arguments: [], result: result, canThrow: false
+                ))
+            }
             body.appendRelocatingLabels(contentsOf: allTopLevelInitInstructions)
             body.append(.returnUnit)
             body.append(.endBlock)

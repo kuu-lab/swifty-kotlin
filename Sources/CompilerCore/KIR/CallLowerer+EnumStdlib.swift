@@ -331,9 +331,7 @@ func emitEnumEntryCollection(
     let result = arena.appendTemporary(type: boundType)
     instructions.append(.call(
         callee: interner.intern(runtimeCalleeName),
-        arguments: kind == .enumEntries
-            ? [enumValuesArray, countExpr, cachedClassIDExpr]
-            : [enumValuesArray, countExpr],
+        arguments: [enumValuesArray, countExpr, cachedClassIDExpr],
         result: result,
         canThrow: false
     ))

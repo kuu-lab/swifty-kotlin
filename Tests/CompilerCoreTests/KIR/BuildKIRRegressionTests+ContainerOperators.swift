@@ -4,6 +4,21 @@ import Testing
 @testable import CompilerTestSupport
 
 extension BuildKIRRegressionTests {
+    @Test func testCustomRangeNamedIntRangeMembership() throws {
+        let ctx = makeContextFromSource("""
+        class IntRange { operator fun contains(a: Int) = (1..2).contains(a) }
+        class C { operator fun rangeTo(i: Int) = IntRange() }
+        fun check(): Boolean = 2 in C()..2
+        """)
+        try runToKIR(ctx)
+        #expect(!ctx.diagnostics.hasError, "Unexpected diagnostics: \(ctx.diagnostics.diagnostics)")
+        let module = try #require(ctx.kir)
+        let body = try findKIRFunctionBody(named: "check", in: module, interner: ctx.interner)
+        let callees = extractCallees(from: body, interner: ctx.interner)
+        #expect(callees.contains("rangeTo"), "Expected custom rangeTo, got: \(callees)")
+        #expect(callees.contains("contains"), "Expected custom contains, got: \(callees)")
+        #expect(!callees.contains(runtimeCallee(.rangeContains)), "Custom range must not use the runtime range bridge: \(callees)")
+    }
     @Test func testBuildKIRUsesCustomContainerOperatorsForIndexedContainsAndRangeTo() throws {
         let source = """
         class Bucket(private val values: MutableList<Int>) {

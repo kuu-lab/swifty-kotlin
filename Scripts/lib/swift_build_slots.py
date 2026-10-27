@@ -8,16 +8,22 @@ import re
 import signal
 import subprocess
 import sys
+import threading
 import time
+
+sys.dont_write_bytecode = True
+import test_stdlib_provenance
 
 
 BUILD_COMPLETE = re.compile(rb"(?:^|[\r\n])Build complete!(?:[ \t(\r\n]|$)")
 
 
-def acquire(directory: pathlib.Path, slots: int):
+def acquire(directory: pathlib.Path, slots: int, cancel=None):
     directory.mkdir(mode=0o700, parents=True, exist_ok=True)
     announced = False
     while True:
+        if cancel is not None and cancel():
+            return None
         for index in range(slots):
             handle = (directory / f"slot-{index}.lock").open("a+")
             try:
@@ -38,6 +44,19 @@ def main() -> int:
     handle = acquire(directory, slots)
     child = None
     released = False
+    provenance = test_stdlib_provenance.prepare(command)
+    provenance_thread = None
+
+    def attest_when_requested():
+        assert provenance is not None
+        while not provenance.cancelled.wait(0.2):
+            if not provenance.requested():
+                continue
+            provenance.acquire_worker_slot = lambda: acquire(
+                directory, slots, lambda: provenance.cancelled.is_set() or not provenance.requested()
+            )
+            provenance.finish()
+            return
 
     def forward(signum, _frame):
         if child is not None and child.poll() is None:
@@ -52,7 +71,9 @@ def main() -> int:
     try:
         # Keeping the lock descriptor in the child prevents an abrupt wrapper
         # exit from letting another build start while swift is still running.
-        child = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, pass_fds=(handle.fileno(),))
+        environment = provenance.child_environment() if provenance else None
+        child = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                                 pass_fds=(handle.fileno(),), env=environment)
         tail = b""
         assert child.stdout is not None
         while True:
@@ -66,13 +87,22 @@ def main() -> int:
                 if BUILD_COMPLETE.search(text):
                     fcntl.flock(handle, fcntl.LOCK_UN)
                     released = True
+                    if provenance:
+                        provenance_thread = threading.Thread(target=attest_when_requested, daemon=True)
+                        provenance_thread.start()
                 tail = text[-128:]
+        child.stdout.close()
         code = child.wait()
         return 128 - code if code < 0 else code
     finally:
         if child is not None and child.poll() is None:
             child.terminate()
             child.wait()
+        if provenance:
+            provenance.close()
+            if provenance_thread:
+                provenance_thread.join(timeout=3)
+                provenance.close()
         handle.close()
 
 

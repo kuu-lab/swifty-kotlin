@@ -115,6 +115,26 @@ enum RuntimeTypeCheckToken {
         return token
     }
 
+    static func emitNullableToken(
+        _ token: KIRExprID,
+        sema: SemaModule,
+        interner: StringInterner,
+        arena: KIRArena,
+        instructions: inout [KIRInstruction]
+    ) -> KIRExprID {
+        // Tokens can contain a nominal ID in their upper bits. Use a Long
+        // result so IntegerNarrowingPass does not truncate the bitwise OR.
+        let tokenStorageType = sema.types.longType
+        let flag = arena.appendExpr(.intLiteral(nullableFlag), type: tokenStorageType)
+        instructions.append(.constValue(result: flag, value: .intLiteral(nullableFlag)))
+        let result = arena.appendTemporary(type: tokenStorageType)
+        instructions.append(.call(
+            callee: interner.intern("kk_bitwise_or"), arguments: [token, flag],
+            result: result, canThrow: false
+        ))
+        return result
+    }
+
     static func classify(type: TypeID, sema: SemaModule) -> RuntimeTypeDescriptor {
         let nullable = sema.types.nullability(of: type) == .nullable
         let category: RuntimeTypeCategory

@@ -8,7 +8,8 @@ trap 'rm -rf "$TEST_DIR"' EXIT
 mkdir -p "$TEST_DIR/repo/Scripts/lib" "$TEST_DIR/repo/Tests" "$TEST_DIR/bin"
 cp "$SCRIPT_DIR/swift_test.sh" "$TEST_DIR/repo/Scripts/"
 cp "$SCRIPT_DIR/lib/common.sh" "$TEST_DIR/repo/Scripts/lib/"
-cp "$SCRIPT_DIR/lib/check_swift_test_filter.py" "$SCRIPT_DIR/lib/swift_build_slots.py" "$TEST_DIR/repo/Scripts/lib/"
+cp "$SCRIPT_DIR/lib/check_swift_test_filter.py" "$SCRIPT_DIR/lib/swift_build_slots.py" \
+    "$SCRIPT_DIR/lib/test_stdlib_provenance.py" "$TEST_DIR/repo/Scripts/lib/"
 
 cat > "$TEST_DIR/bin/swift" <<'EOF'
 #!/usr/bin/env bash

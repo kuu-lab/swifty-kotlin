@@ -115,31 +115,7 @@ extension CallTypeChecker {
     ) -> MemberDispatchReceiverKind? {
         let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
         if let (_, symbol) = resolveClassTypeSymbol(nonNullReceiverType, sema: sema) {
-            let knownNames = KnownCompilerNames(interner: interner)
-            switch symbol.name {
-            case knownNames.intRange:
-                return .intRange
-            case knownNames.longRange:
-                return .longRange
-            case knownNames.charRange:
-                return .charRange
-            case knownNames.uintRange:
-                return .uintRange
-            case knownNames.ulongRange:
-                return .ulongRange
-            case knownNames.intProgression:
-                return .intProgression
-            case knownNames.longProgression:
-                return .longProgression
-            case knownNames.charProgression:
-                return .charProgression
-            case knownNames.uintProgression:
-                return .uintProgression
-            case knownNames.ulongProgression:
-                return .ulongProgression
-            default:
-                return nil
-            }
+            return MemberRuntimeDispatch.rangeReceiverKind(forClassSymbol: symbol, interner: interner)
         }
 
         guard sema.bindings.isRangeExpr(receiverExpr) || allowSyntacticRangeExpression else {

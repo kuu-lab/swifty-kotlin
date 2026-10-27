@@ -1188,6 +1188,7 @@ public extension RuntimeABISpec {
             parameters: [
                 RuntimeABIParameter(name: "valuesRaw", type: .intptr),
                 RuntimeABIParameter(name: "count", type: .intptr),
+                RuntimeABIParameter(name: "classID", type: .intptr),
             ],
             returnType: .intptr,
             section: "Enum",

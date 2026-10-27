@@ -621,10 +621,12 @@ func emitBoxCallWithValueClassTag<C: RangeReplaceableCollection>(
         emitPlainBoxCall()
         return
     }
-    // A value class whose payload can itself be null needs the nominal
-    // `RuntimeObjectBox` representation — `kk_box_*` on a null payload would
-    // produce the null sentinel, losing `V(null)` (KUU-3115).
-    if nullableUnderlyingValueClassSymbol(of: rawSourceKind, types: types, symbols: symbols) != nil {
+    // A nullable payload needs a nominal wrapper to distinguish `V(null)`
+    // from null. A reference payload also needs a wrapper rather than tagging
+    // the original object, which may be shared outside the value class.
+    if boxCallee == interner.intern("kk_value_class_box")
+        || nullableUnderlyingValueClassSymbol(of: rawSourceKind, types: types, symbols: symbols) != nil
+    {
         emitValueClassBoxCall(
             value: value, classSymbol: classType.classSymbol, result: result,
             resultType: resultType, types: types, symbols: symbols,

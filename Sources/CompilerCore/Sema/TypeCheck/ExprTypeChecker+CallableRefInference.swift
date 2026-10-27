@@ -453,6 +453,63 @@ extension ExprTypeChecker {
                     implicitPropertyType = memberProperty?.type
                     return []
                 }
+                // Enum entry members are owned by the entry's field symbol
+                // `X.B`, not by the enum class `X` itself, so receiver-type
+                // member lookup above never reaches them — even though they
+                // are members of the entry's implicit `this`. Reach them
+                // through the lexical entry scope (it only exposes that
+                // entry's own members while inside its body) when the enum
+                // owner matches the implicit receiver's nominal type.
+                if let (_, implicitReceiverSymbol) = resolveClassTypeSymbol(
+                    nonNullImplicitReceiver, sema: sema
+                ) {
+                    let enumEntryMembers = ctx.cachedScopeLookup(member).filter { symbolID in
+                        guard let symbol = ctx.cachedSymbol(symbolID),
+                              let ownerID = sema.symbols.parentSymbol(for: symbolID),
+                              let owner = ctx.cachedSymbol(ownerID),
+                              sema.symbols.enumOwnerSymbol(for: owner) == implicitReceiverSymbol.id
+                        else {
+                            return false
+                        }
+                        switch symbol.kind {
+                        case .function:
+                            guard let declaredReceiver = sema.symbols.functionSignature(
+                                for: symbolID
+                            )?.receiverType else {
+                                return false
+                            }
+                            return driver.callChecker.extensionSyntheticFallbackReceiverMatches(
+                                callSiteReceiver: nonNullImplicitReceiver,
+                                declaredReceiver: declaredReceiver,
+                                sema: sema
+                            )
+                        case .property:
+                            return sema.symbols.extensionPropertyReceiverType(for: symbolID) == nil
+                        default:
+                            return false
+                        }
+                    }
+                    let (enumEntryFunctions, enumEntryProperties) = enumEntryMembers.reduce(
+                        into: ([SymbolID](), [SymbolID]())
+                    ) { buckets, symbolID in
+                        switch ctx.cachedSymbol(symbolID)?.kind {
+                        case .function: buckets.0.append(symbolID)
+                        case .property: buckets.1.append(symbolID)
+                        default: break
+                        }
+                    }
+                    let visibleEnumEntryMembers = ctx.filterByVisibility(enumEntryFunctions).0
+                    if !visibleEnumEntryMembers.isEmpty {
+                        implicitBoundReceiver = implicitReceiver
+                        return visibleEnumEntryMembers
+                    }
+                    if let property = ctx.filterByVisibility(enumEntryProperties).0.first {
+                        implicitBoundReceiver = implicitReceiver
+                        implicitPropertyCandidate = property
+                        implicitPropertyType = sema.symbols.propertyType(for: property)
+                        return []
+                    }
+                }
                 let visibleExtensions = ctx.filterByVisibility(implicitExtensionCandidates).0
                 if !visibleExtensions.isEmpty {
                     implicitBoundReceiver = implicitReceiver
@@ -582,7 +639,38 @@ extension ExprTypeChecker {
                 named: member,
                 receiverType: nonNullReceiver,
                 sema: sema
-            )
+            ) ?? {
+                // `this::member` inside an enum entry body: the entry's own
+                // members are owned by the entry's field symbol `X.B`, not by
+                // the enum class `X`, so `lookupMemberProperty` never reaches
+                // them even though `this` statically is the entry instance.
+                // Reach them through the lexical entry scope — it only
+                // exposes that entry's own members while inside its body.
+                // Restricted to a `this` receiver: another enum-typed value
+                // is not statically the same entry, so `x::entryMember` stays
+                // unresolved the way kotlinc reports it.
+                guard let receiver,
+                      case .thisRef = ast.arena.expr(receiver),
+                      let (_, receiverSymbol) = resolveClassTypeSymbol(
+                          nonNullReceiver, sema: sema
+                      )
+                else {
+                    return nil
+                }
+                return ctx.cachedScopeLookup(member).compactMap { symbolID -> (symbol: SymbolID, type: TypeID)? in
+                    guard let symbol = ctx.cachedSymbol(symbolID),
+                          symbol.kind == .property,
+                          let ownerID = sema.symbols.parentSymbol(for: symbolID),
+                          let owner = ctx.cachedSymbol(ownerID),
+                          sema.symbols.enumOwnerSymbol(for: owner) == receiverSymbol.id,
+                          sema.symbols.extensionPropertyReceiverType(for: symbolID) == nil,
+                          let propertyType = sema.symbols.propertyType(for: symbolID)
+                    else {
+                        return nil
+                    }
+                    return (symbolID, propertyType)
+                }.first
+            }()
             let companionMemberProperty: (symbol: SymbolID, type: TypeID)? = {
                 guard unboundClassType != nil,
                       let (_, ownerSymbol) = resolveClassTypeSymbol(nonNullReceiver, sema: sema)
@@ -697,7 +785,7 @@ extension ExprTypeChecker {
                 // `resolveExtensionPropertyGetter` resolves a plain
                 // `receiver.length` read: scan scope-visible `.property`
                 // symbols for one whose recorded extension receiver type
-                // accepts `nonNullReceiver`.
+                // accepts the actual receiver type, including nullability.
                 if candidates.isEmpty, unboundClassType != nil {
                     let companionExtensions = companionExtensionCallableReferenceCandidates(
                         named: member,
@@ -719,7 +807,7 @@ extension ExprTypeChecker {
                             return false
                         }
                         return driver.callChecker.extensionSyntheticFallbackReceiverMatches(
-                            callSiteReceiver: nonNullReceiver,
+                            callSiteReceiver: effectiveReceiverType,
                             declaredReceiver: declaredReceiver,
                             sema: sema
                         )
@@ -733,7 +821,7 @@ extension ExprTypeChecker {
                             return false
                         }
                         return driver.callChecker.extensionSyntheticFallbackReceiverMatches(
-                            callSiteReceiver: nonNullReceiver,
+                            callSiteReceiver: effectiveReceiverType,
                             declaredReceiver: declaredReceiver,
                             sema: sema
                         )
@@ -782,7 +870,7 @@ extension ExprTypeChecker {
                         if unboundClassType != nil {
                             guard let resolution = resolveExtensionPropertyReferenceType(
                                 propertySymbol,
-                                receiverType: nonNullReceiver,
+                                receiverType: effectiveReceiverType,
                                 fallbackPropertyType: propertyType,
                                 sema: sema,
                                 interner: interner
@@ -813,7 +901,7 @@ extension ExprTypeChecker {
                         let resultType = bindPropertyCallableRef(
                             id,
                             propertySymbol: extensionPropertyReference.symbol,
-                            ownerType: unboundClassType != nil ? nonNullReceiver : nil,
+                            ownerType: unboundClassType != nil ? effectiveReceiverType : nil,
                             isUnbound: unboundClassType != nil,
                             expectedType: expectedType,
                             range: range,

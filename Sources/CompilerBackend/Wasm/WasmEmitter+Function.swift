@@ -293,6 +293,16 @@ final class WasmFunctionEmission {
             code.i64Const(Int64(slot))
             return
         }
+        // Library member implementations reach vtable/itable registrations
+        // as symbolRefs without a materialized function — map known stdlib
+        // members onto their wasm helpers so the slot stays callable.
+        if let thunk = ctx.memberThunkInfo(for: symbol) {
+            let helperIndex = ctx.emittedHelperIndex(
+                for: thunk.helper, argumentCount: thunk.arity
+            )
+            code.i64Const(Int64(ctx.module.tableSlot(forFunction: helperIndex)))
+            return
+        }
         // Nominal types and other symbols carry a stable identity value.
         code.i64Const(Int64(max(1, symbol.rawValue)))
     }
@@ -629,11 +639,10 @@ final class WasmFunctionEmission {
         case let .vtable(slot):
             emitVtableIndex(receiver: receiver, slot: slot)
         case let .itable(interfaceSlot, methodSlot):
-            emitVtableIndex(
+            emitItableIndex(
                 receiver: receiver,
-                slot: WasmModuleContext.WasmLayout.vtableDirectSlots
-                    + interfaceSlot * WasmModuleContext.WasmLayout.itableStride
-                    + methodSlot
+                interfaceSlot: interfaceSlot,
+                methodSlot: methodSlot
             )
         case let .itableDynamic(interfaceTypeID, methodSlot):
             // Resolve the interface slot from the object's iface map. A
@@ -660,8 +669,8 @@ final class WasmFunctionEmission {
     }
 
     /// Pushes `vtable[slot]` of the receiver as a funcref-table index (i32).
-    /// The vtable pointer lives in body slot 1 (base+8); a null vtable traps
-    /// instead of silently calling a wrong table entry.
+    /// The vtable pointer lives in body slot 1 (base+8); a null vtable or an
+    /// empty slot traps instead of silently calling a wrong table entry.
     private func emitVtableIndex(receiver: KIRExprID, slot: Int) {
         resolveValue(receiver)
         code.op(WasmOpcode.i32WrapI64)
@@ -674,6 +683,51 @@ final class WasmFunctionEmission {
         code.localGet(scratchLocal)
         code.op(WasmOpcode.i32WrapI64)
         code.i64Load(offset: UInt64(slot * 8))
+        code.localTee(scratchLocal)
+        code.op(WasmOpcode.i64Eqz)
+        code.openIf()
+        code.op(WasmOpcode.unreachable)
+        code.end()
+        code.localGet(scratchLocal)
+        code.op(WasmOpcode.i32WrapI64)
+    }
+
+    /// Pushes `itable[interfaceSlot*stride + methodSlot]` of the receiver as a
+    /// funcref-table index (i32). The itable buffer pointer lives in the
+    /// vtable header at `vtableItablePtrOffset`; a null vtable, missing itable
+    /// buffer, or empty slot traps rather than misdispatching.
+    private func emitItableIndex(receiver: KIRExprID, interfaceSlot: Int, methodSlot: Int) {
+        resolveValue(receiver)
+        code.op(WasmOpcode.i32WrapI64)
+        code.i64Load(offset: UInt64(WasmModuleContext.WasmLayout.vtableSlotOffset))
+        code.localTee(scratchLocal)
+        code.op(WasmOpcode.i64Eqz)
+        code.openIf()
+        code.op(WasmOpcode.unreachable)
+        code.end()
+        code.localGet(scratchLocal)
+        code.op(WasmOpcode.i32WrapI64)
+        code.i32Const(Int32(WasmModuleContext.WasmLayout.vtableItablePtrOffset))
+        code.op(WasmOpcode.i32Add)
+        code.i64Load(offset: 0)
+        code.localTee(scratchLocal)
+        code.op(WasmOpcode.i64Eqz)
+        code.openIf()
+        code.op(WasmOpcode.unreachable)
+        code.end()
+        code.localGet(scratchLocal)
+        code.op(WasmOpcode.i32WrapI64)
+        code.i64Load(
+            offset: UInt64(
+                (interfaceSlot * WasmModuleContext.WasmLayout.itableStride + methodSlot) * 8
+            )
+        )
+        code.localTee(scratchLocal)
+        code.op(WasmOpcode.i64Eqz)
+        code.openIf()
+        code.op(WasmOpcode.unreachable)
+        code.end()
+        code.localGet(scratchLocal)
         code.op(WasmOpcode.i32WrapI64)
     }
 

@@ -270,6 +270,23 @@ struct VarianceCheckTests {
         }
     }
 
+    @Test
+    func unsafeVarianceOnSupertypeArgumentPreservesUnannotatedCheck() throws {
+        let source = """
+        interface Cell<T>
+        abstract class ReadOnly<out T> : Cell<@UnsafeVariance T>
+        abstract class Invalid<out T> : Cell<T>
+        """
+
+        try withTemporaryFiles(contents: [source]) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
+            try runSema(ctx)
+
+            let errors = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-VARIANCE" }
+            #expect(errors.count == 1, "\(ctx.diagnostics.diagnostics)")
+        }
+    }
+
     @Test(arguments: [
         ("in", "fun leak() = item", 1),
         ("in", "val value get() = item", 1),
