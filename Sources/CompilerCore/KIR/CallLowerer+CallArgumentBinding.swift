@@ -59,14 +59,9 @@ extension CallLowerer {
                     instructions.append(.constValue(result: tokenExpr, value: .symbolRef(tokenSymbol)))
                 }
                 if parameter.nullability == .nullable {
-                    let flagValue = RuntimeTypeCheckToken.nullableFlag
-                    let flag = arena.appendExpr(.intLiteral(flagValue), type: intType)
-                    instructions.append(.constValue(result: flag, value: .intLiteral(flagValue)))
-                    let adjustedToken = arena.appendTemporary(type: intType)
-                    instructions.append(.call(callee: interner.intern("kk_bitwise_or"),
-                                              arguments: [tokenExpr, flag], result: adjustedToken,
-                                              canThrow: false))
-                    arguments.append(adjustedToken)
+                    arguments.append(RuntimeTypeCheckToken.emitNullableToken(
+                        tokenExpr, sema: sema, interner: interner, arena: arena, instructions: &instructions
+                    ))
                 } else {
                     arguments.append(tokenExpr)
                 }
