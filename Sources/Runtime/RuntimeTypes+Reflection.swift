@@ -223,6 +223,7 @@ let runtimeKClassMetadataRegistry = RuntimeKClassMetadataRegistry()
 final class RuntimeKConstructorRegistry: @unchecked Sendable {
     private let lock = NSLock()
     private var constructorsByClassRaw: [Int: [Int]] = [:]
+    private var initializedBuiltinArrays: Set<Int> = []
 
     func register(classRaw: Int, constructorRaw: Int) {
         guard classRaw != 0, classRaw != runtimeNullSentinelInt,
@@ -232,7 +233,26 @@ final class RuntimeKConstructorRegistry: @unchecked Sendable {
         }
         lock.lock()
         defer { lock.unlock() }
+        guard !initializedBuiltinArrays.contains(classRaw) else { return }
         constructorsByClassRaw[classRaw, default: []].append(constructorRaw)
+    }
+
+    func builtinArrayInitialized(for classRaw: Int) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return initializedBuiltinArrays.contains(classRaw)
+    }
+
+    func clearBuiltinArrayConstructors(for classRaw: Int) {
+        lock.lock()
+        defer { lock.unlock() }
+        constructorsByClassRaw.removeValue(forKey: classRaw)
+    }
+
+    func markBuiltinArrayInitialized(for classRaw: Int) {
+        lock.lock()
+        defer { lock.unlock() }
+        initializedBuiltinArrays.insert(classRaw)
     }
 
     func constructors(for classRaw: Int) -> [Int] {
@@ -261,6 +281,7 @@ final class RuntimeKConstructorRegistry: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         constructorsByClassRaw.removeAll()
+        initializedBuiltinArrays.removeAll()
     }
 }
 
@@ -269,6 +290,19 @@ let runtimeKConstructorRegistry = RuntimeKConstructorRegistry()
 final class RuntimeKMemberRegistry: @unchecked Sendable {
     private let lock = NSLock()
     private var membersByClassRaw: [Int: [Int]] = [:]
+    private var initializedBuiltinClasses: Set<Int> = []
+
+    func builtinMembersInitialized(for classRaw: Int) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return initializedBuiltinClasses.contains(classRaw)
+    }
+
+    func markBuiltinMembersInitialized(for classRaw: Int) {
+        lock.lock()
+        defer { lock.unlock() }
+        initializedBuiltinClasses.insert(classRaw)
+    }
 
     func register(classRaw: Int, memberRaw: Int) {
         guard classRaw != 0, classRaw != runtimeNullSentinelInt,
@@ -287,6 +321,12 @@ final class RuntimeKMemberRegistry: @unchecked Sendable {
         return membersByClassRaw[classRaw] ?? []
     }
 
+    func remove(classRaw: Int, members: Set<Int>) {
+        lock.lock()
+        defer { lock.unlock() }
+        membersByClassRaw[classRaw]?.removeAll { members.contains($0) }
+    }
+
     func functions(for classRaw: Int) -> [Int] {
         members(for: classRaw, matching: RuntimeKFunctionBox.self)
     }
@@ -299,6 +339,7 @@ final class RuntimeKMemberRegistry: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         membersByClassRaw.removeAll()
+        initializedBuiltinClasses.removeAll()
     }
 
     private func members<T: AnyObject>(for classRaw: Int, matching type: T.Type) -> [Int] {
@@ -461,6 +502,7 @@ enum RuntimeKParameterFlags {
 
 final class RuntimeKParameterBox {
     var typeToken: Int?
+    var reflectedTypeRaw: Int = 0
     var arrayComponentType: Int?
     var callableOwner = 0
     var boundArguments: [Int] = []

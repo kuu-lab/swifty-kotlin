@@ -68,6 +68,11 @@ class RuntimeArrayBox {
         }
     }
 
+    func value(at index: Int) -> RuntimeValue {
+        if let bytes = storage.nativeBytes { return RuntimeValue(raw: Int(Int8(bitPattern: bytes[index]))) }
+        return storage.values[index]
+    }
+
     /// Stores a raw field value together with the static tag needed by
     /// Any-erased operations such as `hashCode()`.
     func setValue(_ value: Int, at index: Int, anyFallbackTag: Int32) {
