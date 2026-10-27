@@ -1327,6 +1327,19 @@ extension DataFlowSemaPhase {
                     ),
                     for: secCtorSymbol
                 )
+                registerAnnotations(
+                    secondaryCtor.annotations,
+                    symbol: secCtorSymbol,
+                    declRange: declarationRangeIncludingAnnotationTokens(
+                        secondaryCtor.annotations, declarationRange: secondaryCtor.range
+                    ),
+                    sourceFileID: sourceFileID,
+                    sourceFile: sourceFile,
+                    sourceManager: sourceManager,
+                    interner: interner,
+                    symbols: symbols,
+                    diagnostics: diagnostics
+                )
             }
 
             if isValueClassDeclaration(nestedClass) {

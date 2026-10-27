@@ -420,6 +420,43 @@ extension ExprTypeChecker {
             )
         }
 
+        let annotationSema = DataFlowSemaPhase()
+        if hasPrimaryConstructor, let primaryConstructor = constructorSymbols.first {
+            annotationSema.registerAnnotations(
+                classDecl.primaryConstructorAnnotations,
+                symbol: primaryConstructor,
+                declRange: classDecl.range,
+                sourceFileID: ctx.currentFileID,
+                sourceFile: sourceFile,
+                sourceManager: ctx.visibilityChecker.sourceManager,
+                interner: interner,
+                symbols: sema.symbols,
+                diagnostics: sema.diagnostics
+            )
+            driver.declChecker.typeCheckPrimaryConstructorAnnotationFactories(
+                classDecl.primaryConstructorAnnotations,
+                symbol: primaryConstructor,
+                ctx: classCtx
+            )
+        }
+        for (index, constructor) in classDecl.secondaryConstructors.enumerated() {
+            let symbolIndex = index + (hasPrimaryConstructor ? 1 : 0)
+            guard constructorSymbols.indices.contains(symbolIndex) else { continue }
+            annotationSema.registerAnnotations(
+                constructor.annotations,
+                symbol: constructorSymbols[symbolIndex],
+                declRange: annotationSema.declarationRangeIncludingAnnotationTokens(
+                    constructor.annotations, declarationRange: constructor.range
+                ),
+                sourceFileID: ctx.currentFileID,
+                sourceFile: sourceFile,
+                sourceManager: ctx.visibilityChecker.sourceManager,
+                interner: interner,
+                symbols: sema.symbols,
+                diagnostics: sema.diagnostics
+            )
+        }
+
         let propertySymbolsByDecl = registerLocalNominalMemberProperties(
             classDecl.memberProperties,
             ownerFQName: classFQName,

@@ -545,6 +545,10 @@ extension DeclTypeChecker {
                 }
             }
 
+            if let currentCtorSymbolID {
+                typeCheckAnnotationFactories(ctor.annotations, symbol: currentCtorSymbolID, ctx: constructorCtx)
+            }
+
             constructorCtx.allowsValPropertyInitialization = true
             if ctor.delegationCall == nil, hasPrimaryConstructor {
                 sema.diagnostics.error(
