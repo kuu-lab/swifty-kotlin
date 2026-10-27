@@ -45,4 +45,15 @@ struct FloatingPointRangeCollectionTests {
         try runSema(ctx)
         #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
     }
+
+    @Test
+    func keepsUserRangeToExtensionForDifferentRightOperand() throws {
+        TestStdlibCache.shared.prepare()
+        let ctx = makeContextFromSource("""
+        operator fun Double.rangeTo(end: String): String = end
+        fun test(): String = 1.0.."custom"
+        """, allowDefaultStdlibLibrary: true)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+    }
 }
