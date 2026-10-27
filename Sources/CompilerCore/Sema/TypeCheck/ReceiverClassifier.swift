@@ -96,9 +96,8 @@ struct ReceiverClassifier {
     }
 
     func isChannelReceiverType(_ type: TypeID) -> Bool {
-        matchesKnownType(type) { knownNames, symbol in
-            knownNames.isChannelSymbol(symbol)
-        }
+        guard let (_, symbol) = resolveClassTypeSymbol(type, sema: sema) else { return false }
+        return symbol.fqName == KnownCompilerNames(interner: interner).kotlinxCoroutinesChannelFQName
     }
 
     func isIterableLikeReceiver(receiverID: ExprID) -> Bool {
