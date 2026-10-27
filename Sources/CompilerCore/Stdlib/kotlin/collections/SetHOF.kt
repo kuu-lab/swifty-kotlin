@@ -299,7 +299,7 @@ public fun <T : Comparable<T>> Set<T>.maxOrNull(): T? {
     var best: T? = null
     for (element in this) {
         val current = best
-        if (current == null || element.compareTo(current) > 0) best = element
+        if (current == null || current.compareTo(element) < 0) best = element
     }
     return best
 }
@@ -308,7 +308,7 @@ public fun <T : Comparable<T>> Set<T>.minOrNull(): T? {
     var best: T? = null
     for (element in this) {
         val current = best
-        if (current == null || element.compareTo(current) < 0) best = element
+        if (current == null || current.compareTo(element) > 0) best = element
     }
     return best
 }
