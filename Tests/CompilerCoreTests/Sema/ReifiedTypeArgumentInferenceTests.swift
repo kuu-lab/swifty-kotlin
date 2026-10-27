@@ -6,6 +6,43 @@ import Testing
 @Suite
 struct ReifiedTypeArgumentInferenceTests {
     @Test
+    func definitelyNonNullTypeParameterCanBeForwardedToReifiedReceiver() throws {
+        let source = """
+        class Box<T> { constructor() }
+        inline fun <reified T> T.wrap(): Box<T> = Box<T>()
+        inline fun <reified U> typed(value: U & Any): Box<*> = value.wrap()
+        fun <U> erased(value: U & Any): Box<*> = value.wrap()
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let context = makeCompilationContext(inputs: [path], includeStdlib: false)
+            try runSema(context)
+
+            let errors = context.diagnostics.diagnostics.filter { $0.severity == .error }
+            #expect(errors.isEmpty, "Unexpected diagnostics: \(errors)")
+        }
+    }
+
+    @Test
+    func nativeArrayOfAcceptsDefinitelyNonNullTypeParameter() throws {
+        let source = """
+        package kotlin
+
+        fun <T> arrayOf(vararg elements: T): Array<T> = null!!
+        inline fun <reified U> typed(value: U & Any): Array<*> = arrayOf(value)
+        fun <U> erased(value: U & Any): Array<*> = arrayOf(value)
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let context = makeCompilationContext(inputs: [path], includeStdlib: false)
+            try runSema(context)
+
+            let errors = context.diagnostics.diagnostics.filter { $0.severity == .error }
+            #expect(errors.isEmpty, "Unexpected diagnostics: \(errors)")
+        }
+    }
+
+    @Test
     func nativeArrayOfIntrinsicRejectsInferredIntersection() throws {
         let source = """
         package kotlin
