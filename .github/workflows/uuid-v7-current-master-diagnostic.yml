@@ -1,0 +1,115 @@
+name: UUID v7 current-master Linux diagnostic
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  uuid-v7-current-master-diagnostic:
+    name: UUID v7 source-only current-master Linux diagnostic
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Prepare Linux runner
+        uses: ./.github/actions/setup-self-hosted
+      - name: Setup Swift
+        uses: ./.github/actions/setup-swift
+        with:
+          swift-version: "6.3"
+      - name: Setup LLVM
+        uses: ./.github/actions/setup-llvm
+      - name: Setup release SwiftPM cache
+        uses: ./.github/actions/setup-swiftpm-cache
+        with:
+          swift-version: "6.3"
+          build-variant: release-kswiftc
+          save: "false"
+      - name: Record runner resources and toolchain
+        run: |
+          uname -a
+          nproc
+          lscpu
+          cat /proc/loadavg
+          free -h
+          swift --version
+          llvm-config --version
+      - name: Build release compiler at this revision
+        env:
+          SWIFT_BUILD_JOBS: "4"
+          SWIFT_XSWIFTC_FLAGS: -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency
+        run: |
+          swift build -c release --product kswiftc -j "$SWIFT_BUILD_JOBS" $SWIFT_XSWIFTC_FLAGS
+          echo "KSWIFTC=$(swift build -c release --show-bin-path)/kswiftc" >> "$GITHUB_ENV"
+      - name: Record compiler identity
+        run: |
+          git rev-parse HEAD^
+          sha256sum "$KSWIFTC"
+      - name: Run exact O0 candidate-only source case
+        env:
+          DIFF_COMPILE_TIMEOUT: "180"
+          DIFF_RUN_TIMEOUT: "30"
+          KSWIFTK_KIR_VERIFY: "1"
+          DIFF_ARTIFACT_ROOT: ${{ runner.temp }}/uuid-v7-diagnostic/o0-artifacts
+        run: |
+          mkdir -p "$RUNNER_TEMP/uuid-v7-diagnostic"
+          set +e
+          /usr/bin/time -v env DIFF_KSWIFTC_FLAGS="--no-incremental" \
+            bash Scripts/diff_kotlinc.sh --no-parallel --keep-temp --force-run-skipped \
+              --compile-timeout 180 --run-timeout 30 Scripts/diff_cases/uuid_v7_clock.kt \
+              > "$RUNNER_TEMP/uuid-v7-diagnostic/o0.log" 2>&1
+          result=$?
+          set -e
+          cat "$RUNNER_TEMP/uuid-v7-diagnostic/o0.log"
+          echo "O0_EXIT=$result" >> "$RUNNER_TEMP/uuid-v7-diagnostic/results.txt"
+      - name: Run exact O2 candidate-only source case with Nightly timeout
+        env:
+          DIFF_COMPILE_TIMEOUT: "180"
+          DIFF_RUN_TIMEOUT: "30"
+          KSWIFTK_KIR_VERIFY: "1"
+          DIFF_ARTIFACT_ROOT: ${{ runner.temp }}/uuid-v7-diagnostic/o2-180-artifacts
+        run: |
+          set +e
+          /usr/bin/time -v env DIFF_KSWIFTC_FLAGS="-O2 --no-incremental" \
+            bash Scripts/diff_kotlinc.sh --no-parallel --keep-temp --force-run-skipped \
+              --compile-timeout 180 --run-timeout 30 Scripts/diff_cases/uuid_v7_clock.kt \
+              > "$RUNNER_TEMP/uuid-v7-diagnostic/o2-180.log" 2>&1
+          result=$?
+          set -e
+          cat "$RUNNER_TEMP/uuid-v7-diagnostic/o2-180.log"
+          echo "O2_180_EXIT=$result" >> "$RUNNER_TEMP/uuid-v7-diagnostic/results.txt"
+      - name: Run O2 with phase timings and extended diagnostic timeout
+        env:
+          DIFF_COMPILE_TIMEOUT: "900"
+          DIFF_RUN_TIMEOUT: "30"
+          KSWIFTK_KIR_VERIFY: "1"
+          DIFF_KSWIFTC_FLAGS: "-O2 --no-incremental -Xfrontend time-phases"
+          DIFF_ARTIFACT_ROOT: ${{ runner.temp }}/uuid-v7-diagnostic/o2-profile-artifacts
+        run: |
+          export TMPDIR="$RUNNER_TEMP/uuid-v7-diagnostic-tmp"
+          mkdir -p "$TMPDIR"
+          set +e
+          /usr/bin/time -v bash Scripts/diff_kotlinc.sh --no-parallel --keep-temp --force-run-skipped \
+            --compile-timeout 900 --run-timeout 30 Scripts/diff_cases/uuid_v7_clock.kt \
+            > "$RUNNER_TEMP/uuid-v7-diagnostic/o2-profile.log" 2>&1
+          result=$?
+          set -e
+          cat "$RUNNER_TEMP/uuid-v7-diagnostic/o2-profile.log"
+          echo "O2_PROFILE_EXIT=$result" >> "$RUNNER_TEMP/uuid-v7-diagnostic/results.txt"
+          candidate_dir="$(find "$TMPDIR" -mindepth 1 -maxdepth 1 -type d -name 'kswiftk-candidate-only-*' | head -1)"
+          if [[ -n "$candidate_dir" ]]; then
+            cp -a "$candidate_dir" "$RUNNER_TEMP/uuid-v7-diagnostic/"
+            if [[ -f "$candidate_dir/candidate_compile.stderr" ]]; then
+              cat "$candidate_dir/candidate_compile.stderr"
+            fi
+          fi
+      - name: Upload diagnostic output
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: uuid-v7-current-master-diagnostic-${{ github.run_id }}
+          path: ${{ runner.temp }}/uuid-v7-diagnostic
+          if-no-files-found: warn
+          retention-days: 7
