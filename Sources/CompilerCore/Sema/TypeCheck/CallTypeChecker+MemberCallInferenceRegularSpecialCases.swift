@@ -194,6 +194,43 @@ extension CallTypeChecker {
             // special-cased here.
             switch (memberName, args.count) {
             case ("send", 1):
+                let nullableReceiver = !safeCall && sema.types.nullability(of: receiverType) == .nullable
+                let parameterType = channelSendParameterType(lookupReceiverType, sema: sema, interner: interner)
+                let validShape = explicitTypeArgs.isEmpty && !args[0].isSpread
+                    && (args[0].label == nil || args[0].label == interner.intern("element"))
+                    && parameterType != nil
+                let compatibleArgument = parameterType.map { sema.types.isSubtype(argTypes[0], $0) } ?? false
+                if nullableReceiver || !validShape || !compatibleArgument,
+                   let extensionType = tryBindShadowedExtensionCallFallback(
+                       request, receiverType: receiverType, lookupReceiverType: lookupReceiverType,
+                       memberLookupType: memberLookupType, argTypes: argTypes,
+                       isClassNameReceiver: isClassNameReceiver, isSuperCall: isSuperCall,
+                       propagateAmbiguity: true, locals: &locals
+                   )
+                {
+                    return extensionType
+                }
+                if nullableReceiver {
+                    sema.diagnostics.error(
+                        "KSWIFTK-SEMA-0026",
+                        "Only safe (?.) or non-null asserted (!!.) calls are allowed on a nullable receiver.",
+                        range: range
+                    )
+                    return driver.helpers.bindAndReturnErrorType(id, sema: sema)
+                }
+                guard validShape, let parameterType
+                else {
+                    sema.diagnostics.error("KSWIFTK-SEMA-0002", "No viable overload found for call.", range: range)
+                    return driver.helpers.bindAndReturnErrorType(id, sema: sema)
+                }
+                if !compatibleArgument {
+                    sema.diagnostics.error(
+                        "KSWIFTK-TYPE-0001",
+                        "Argument type mismatch: actual type is '\(sema.types.renderType(argTypes[0]))', but '\(sema.types.renderType(parameterType))' was expected.",
+                        range: ast.arena.exprRange(args[0].expr) ?? range
+                    )
+                    return driver.helpers.bindAndReturnErrorType(id, sema: sema)
+                }
                 let resultType = sema.types.unitType
                 let finalType = safeCall ? sema.types.makeNullable(resultType) : resultType
                 sema.bindings.bindExprType(id, type: finalType)

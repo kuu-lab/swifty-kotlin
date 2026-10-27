@@ -27,6 +27,27 @@ extension TypeCheckDriver {
            function.isSuspend {
             names.append("invoke")
         }
+        // Channel send/receive intrinsics have no call binding, but still
+        // require the same suspension context as the source declarations.
+        let channelCall: (receiver: ExprID, callee: InternedString, typeArgsEmpty: Bool, args: [CallArgument])?
+        switch ast.arena.expr(id) {
+        case let .memberCall(receiver, callee, typeArgs, args, _),
+             let .safeMemberCall(receiver, callee, typeArgs, args, _):
+            channelCall = (receiver, callee, typeArgs.isEmpty, args)
+        default:
+            channelCall = nil
+        }
+        if sema.bindings.callBinding(for: id) == nil,
+           let channelCall,
+           (interner.resolve(channelCall.callee) == "send" && channelCall.args.count == 1
+               || interner.resolve(channelCall.callee) == "receive" && channelCall.args.isEmpty
+                   && channelCall.typeArgsEmpty && ast.arena.isExplicitCall(id)),
+           let resultType = sema.bindings.exprType(for: id), resultType != sema.types.errorType,
+           let receiverType = sema.bindings.exprType(for: channelCall.receiver),
+           ReceiverClassifier(sema: sema, interner: interner).isChannelReceiverType(receiverType)
+        {
+            names.append(interner.resolve(channelCall.callee))
+        }
         return names
     }
 

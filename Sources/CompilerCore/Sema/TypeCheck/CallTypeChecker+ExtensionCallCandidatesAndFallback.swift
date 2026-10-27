@@ -318,6 +318,7 @@ extension CallTypeChecker {
         argTypes: [TypeID],
         isClassNameReceiver: Bool,
         isSuperCall: Bool,
+        propagateAmbiguity: Bool = false,
         locals: inout LocalBindings
     ) -> TypeID? {
         let id = request.id
@@ -774,6 +775,12 @@ extension CallTypeChecker {
             ) {
                 resolved = retried
             }
+        }
+        if propagateAmbiguity, let diagnostic = resolved.diagnostic,
+           diagnostic.code == "KSWIFTK-SEMA-0003"
+        {
+            sema.diagnostics.emit(diagnostic)
+            return driver.helpers.bindAndReturnErrorType(id, sema: sema)
         }
         guard resolved.diagnostic == nil, let chosen = resolved.chosenCallee else {
             return nil
