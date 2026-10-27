@@ -99,10 +99,23 @@ extension CallTypeChecker {
         {
             return result
         }
+        // Channel.send bypasses ordinary overload resolution, so supply its
+        // element type before context-free inference of its sole argument.
+        let channelSendParameter = interner.resolve(calleeName) == "send" && args.count == 1
+            ? channelSendParameterType(receiverType, sema: sema, interner: interner)
+            : nil
         // Skip lambda literals and callable refs so that their first inference
         // happens inside prepareCallArguments with a contextual expected type,
         // preventing a stale no-expectedType binding from poisoning the cache.
         let argTypes = args.map { arg -> TypeID in
+            if let channelSendParameter {
+                if channelSendDefersArgument(arg, parameterType: channelSendParameter, ctx: ctx) {
+                    return sema.types.anyType
+                }
+                return driver.inferExpr(
+                    arg.expr, ctx: ctx, locals: &locals, expectedType: channelSendParameter
+                )
+            }
             if let expr = ast.arena.expr(arg.expr) {
                 switch expr {
                 case .lambdaLiteral, .callableRef:
