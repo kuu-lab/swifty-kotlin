@@ -325,27 +325,21 @@ extension BuildASTPhase {
         var entries: [SuperTypeEntry] = []
         var current: [Token] = []
         var depth = BracketDepth()
-        var delegateLambdaBraceDepth = 0
+        var delegateBraceTracker = DelegateExpressionBraceTracker()
         while index < tokens.count {
             let token = tokens[index]
-            if delegateLambdaBraceDepth > 0 {
+            if depth.isAtTopLevel {
                 if token.kind == .symbol(.lBrace) {
-                    delegateLambdaBraceDepth += 1
-                } else if token.kind == .symbol(.rBrace) {
-                    delegateLambdaBraceDepth -= 1
-                }
-                current.append(token)
-                index += 1
-                continue
-            }
-            if depth.isAngleParenTopLevel {
-                if token.kind == .symbol(.lBrace) {
-                    if current.last?.kind == .softKeyword(.by) {
-                        // The first brace after `by` belongs to a lambda
-                        // delegate. A later top-level brace is the declaration
-                        // body and stays outside the supertype entry.
-                        delegateLambdaBraceDepth = 1
+                    if delegateBraceTracker.braceContinuesDelegateExpression() {
+                        // The brace belongs to the delegate expression
+                        // (`by { ... }`, `by when (x) { ... }`, `by if (c)
+                        // { } else { }`, `by object : C { }`, ...) and stays
+                        // inside the supertype entry. A top-level brace the
+                        // delegate expression cannot contain is the
+                        // declaration body and stays outside the entry.
+                        delegateBraceTracker.note(token.kind, atTopLevel: true)
                         current.append(token)
+                        depth.track(token.kind)
                         index += 1
                         continue
                     }
@@ -357,7 +351,7 @@ extension BuildASTPhase {
                 if case .softKeyword(.where) = token.kind {
                     break
                 }
-                if token.kind == .symbol(.comma) {
+                if token.kind == .symbol(.comma), delegateBraceTracker.commaEndsSupertypeEntry {
                     if let entry = parseSuperTypeEntry(from: current, interner: interner, astArena: astArena) {
                         entries.append(entry)
                     } else {
@@ -368,11 +362,13 @@ extension BuildASTPhase {
                         )
                     }
                     current.removeAll(keepingCapacity: true)
+                    delegateBraceTracker.reset()
                     index += 1
                     continue
                 }
             }
 
+            delegateBraceTracker.note(token.kind, atTopLevel: depth.isAtTopLevel)
             depth.track(token.kind)
             current.append(token)
             index += 1
@@ -411,7 +407,10 @@ extension BuildASTPhase {
         let exprTokens: [Token]
         if let byIndex {
             typeTokens = Array(tokens[..<byIndex])
-            exprTokens = Array(tokens[(byIndex + 1)...]).filter { $0.kind != .symbol(.semicolon) }
+            // Remove only entry-level semicolons; semicolons inside delegate
+            // bodies (`by when (x) { 1 -> f(); g() ... }`) are part of the
+            // expression's own statements and must remain available.
+            exprTokens = filterTopLevelSemicolons(tokens[(byIndex + 1)...])
         } else {
             typeTokens = tokens
             exprTokens = []
