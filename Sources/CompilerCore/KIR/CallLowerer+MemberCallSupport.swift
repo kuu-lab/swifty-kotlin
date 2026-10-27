@@ -441,6 +441,87 @@ extension CallLowerer {
         )
     }
 
+    /// Unbox an erased value after flow typing narrows it to a non-null value
+    /// class. The resulting KIR value keeps the value-class type but carries
+    /// its raw representation, matching a typed value-class parameter.
+    func materializeSmartcastedValueClassValue(
+        _ value: KIRExprID,
+        boundType: TypeID?,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        instructions: inout [KIRInstruction]
+    ) -> KIRExprID? {
+        guard let boundType,
+              let targetClass = resolveClassType(boundType, sema: sema),
+              let targetSymbol = sema.symbols.symbol(targetClass.classSymbol),
+              targetSymbol.flags.contains(.valueType),
+              sema.symbols.effectiveValueClassUnderlyingType(for: targetClass.classSymbol) != nil,
+              let storedType = arena.exprType(value)
+        else {
+            return nil
+        }
+        switch sema.types.kind(of: storedType) {
+        case .any, .typeParam:
+            break
+        default:
+            return nil
+        }
+
+        let targetType = sema.types.make(.classType(targetClass))
+        let result = arena.appendTemporary(type: targetType)
+        if let valueClassSymbol = nullableUnderlyingValueClassSymbol(
+            of: sema.types.kind(of: targetType), types: sema.types, symbols: sema.symbols
+        ) {
+            emitValueClassUnboxCall(
+                value: value,
+                classSymbol: valueClassSymbol,
+                result: result,
+                resultType: targetType,
+                types: sema.types,
+                symbols: sema.symbols,
+                interner: interner,
+                arena: arena,
+                into: &instructions
+            )
+            return result
+        }
+
+        let targetKind = resolveValueClassKind(
+            sema.types.kind(of: targetType), types: sema.types, symbols: sema.symbols
+        )
+        if case .primitive(_, .nonNull) = targetKind,
+           let unboxCallee = BoxingCalleeTable(interner: interner).unboxCallee(
+               for: targetKind, requireNonNull: true, preferStaticPrimitive: true
+           )
+        {
+            instructions.append(.call(
+                callee: unboxCallee,
+                arguments: [value],
+                result: result,
+                canThrow: false
+            ))
+            return result
+        }
+        if let valueClassSymbol = referenceBackedValueClassSymbol(
+            of: sema.types.kind(of: targetType), types: sema.types, symbols: sema.symbols
+        ) {
+            emitValueClassUnboxCall(
+                value: value,
+                classSymbol: valueClassSymbol,
+                result: result,
+                resultType: targetType,
+                types: sema.types,
+                symbols: sema.symbols,
+                interner: interner,
+                arena: arena,
+                into: &instructions
+            )
+            return result
+        }
+        return nil
+    }
+
     private func smartcastStorageNeedsNullablePrimitiveAlias(
         _ storedKind: TypeKind,
         primitive: PrimitiveType
