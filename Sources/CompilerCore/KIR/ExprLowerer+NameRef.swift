@@ -28,7 +28,11 @@ extension ExprLowerer {
            }) ?? true,
            let localValue = driver.ctx.localValue(for: paramSymbol)
         {
-            return driver.callLowerer.materializeSmartcastedPrimitiveValue(
+            return driver.callLowerer.materializeSmartcastedValueClassValue(
+                localValue, boundType: boundType, sema: sema, arena: arena,
+                interner: interner,
+                instructions: &instructions
+            ) ?? driver.callLowerer.materializeSmartcastedPrimitiveValue(
                 localValue, boundType: boundType, sema: sema, arena: arena,
                 instructions: &instructions
             ) ?? localValue
@@ -225,7 +229,11 @@ extension ExprLowerer {
                !driver.ctx.isMutableCaptureBoxed(symbol),
                let localValue = driver.ctx.localValue(for: symbol)
             {
-                return driver.callLowerer.materializeSmartcastedPrimitiveValue(
+                return driver.callLowerer.materializeSmartcastedValueClassValue(
+                    localValue, boundType: boundType, sema: sema, arena: arena,
+                    interner: interner,
+                    instructions: &instructions
+                ) ?? driver.callLowerer.materializeSmartcastedPrimitiveValue(
                     localValue, boundType: boundType, sema: sema, arena: arena,
                     instructions: &instructions
                 ) ?? localValue
@@ -665,6 +673,13 @@ extension ExprLowerer {
                     return delegateValue
                 }
                 if let localValue = driver.ctx.localValue(for: symbol) {
+                    if let narrowed = driver.callLowerer.materializeSmartcastedValueClassValue(
+                        localValue, boundType: boundType, sema: sema, arena: arena,
+                        interner: interner,
+                        instructions: &instructions
+                    ) {
+                        return narrowed
+                    }
                     if let narrowed = driver.callLowerer.materializeSmartcastedPrimitiveValue(
                         localValue, boundType: boundType, sema: sema, arena: arena,
                         instructions: &instructions
@@ -719,6 +734,13 @@ extension ExprLowerer {
                    instructions: &instructions
                )
             {
+                if let narrowed = driver.callLowerer.materializeSmartcastedValueClassValue(
+                    loadedValue, boundType: boundType, sema: sema, arena: arena,
+                    interner: interner,
+                    instructions: &instructions
+                ) {
+                    return narrowed
+                }
                 if let narrowed = driver.callLowerer.materializeSmartcastedPrimitiveValue(
                     loadedValue, boundType: boundType, sema: sema, arena: arena,
                     instructions: &instructions
@@ -734,7 +756,11 @@ extension ExprLowerer {
                 symbol: symbol, sema: sema, arena: arena, interner: interner,
                 instructions: &instructions
             ) {
-                return driver.callLowerer.materializeSmartcastedPrimitiveValue(
+                return driver.callLowerer.materializeSmartcastedValueClassValue(
+                    delegateValue, boundType: boundType, sema: sema, arena: arena,
+                    interner: interner,
+                    instructions: &instructions
+                ) ?? driver.callLowerer.materializeSmartcastedPrimitiveValue(
                     delegateValue, boundType: boundType, sema: sema, arena: arena,
                     instructions: &instructions
                 ) ?? delegateValue
@@ -747,6 +773,13 @@ extension ExprLowerer {
                 // primitive here so every downstream consumer (conversion
                 // callees, operator intrinsics, member calls) sees a raw
                 // value, not the box handle.
+                if let narrowed = driver.callLowerer.materializeSmartcastedValueClassValue(
+                    localValue, boundType: boundType, sema: sema, arena: arena,
+                    interner: interner,
+                    instructions: &instructions
+                ) {
+                    return narrowed
+                }
                 if let narrowed = driver.callLowerer.materializeSmartcastedPrimitiveValue(
                     localValue, boundType: boundType, sema: sema, arena: arena,
                     instructions: &instructions
