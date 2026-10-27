@@ -168,6 +168,7 @@ struct BuildKIRRegressionTests {
             "ForLowering",
             "CollectionLiteralLowering",
             "FlowLowering",
+            "IntroducedAtVersionOverloading",
             "ValueClassUnboxing",
             "PropertyLowering",
             "JvmStaticLowering",
