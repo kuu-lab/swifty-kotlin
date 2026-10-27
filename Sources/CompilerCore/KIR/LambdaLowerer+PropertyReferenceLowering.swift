@@ -137,6 +137,26 @@ extension LambdaLowerer {
                 interner: interner
             )
             : nil
+        // `KProperty0/1.getDelegate` needs full kotlin-reflect support, which
+        // this runtime does not provide. JVM compiled without kotlin-reflect.jar
+        // throws KotlinReflectionNotSupportedError from getDelegate (the
+        // JetBrains getDelegateWithoutReflection testData); give the wrapper a
+        // throwing implementation so the same catch behavior holds here.
+        // `canThrow` must be marked on the signature: when an itable bridge is
+        // synthesized (e.g. KProperty1 whose erased `T` receiver differs from
+        // the concrete owner type), the bridge consults `implSig.canThrow` to
+        // decide whether to hand the impl a real outThrown slot. `false` would
+        // pass nullThrownPointer and silently swallow the throw.
+        let getDelegateMethodSymbol = definePropertyReferenceMethod(
+            name: "getDelegate",
+            wrapperSymbol: wrapperSymbol,
+            wrapperFQName: wrapperFQName,
+            parameterTypes: shape.arity == 0 ? [] : [accessor.ownerType ?? sema.types.anyType],
+            returnType: sema.types.nullableAnyType,
+            canThrow: true,
+            sema: sema,
+            interner: interner
+        )
 
         let itableSlots = Dictionary(
             uniqueKeysWithValues: interfaceSymbols.enumerated().map { index, symbol in
@@ -185,6 +205,13 @@ extension LambdaLowerer {
                 interner: interner
             )
         }
+        emitPropertyReferenceGetDelegate(
+            methodSymbol: getDelegateMethodSymbol,
+            wrapperType: wrapperType,
+            sema: sema,
+            arena: arena,
+            interner: interner
+        )
 
         let intType = sema.types.intType
         let slotCount = Int64(max(2 + captureFields.count, 1))
@@ -211,6 +238,7 @@ extension LambdaLowerer {
             interfaceSymbols: interfaceSymbols,
             getterMethodSymbol: getterMethodSymbol,
             setterMethodSymbol: setterMethodSymbol,
+            getDelegateMethodSymbol: getDelegateMethodSymbol,
             sema: sema,
             arena: arena,
             interner: interner,
@@ -829,6 +857,7 @@ extension LambdaLowerer {
         wrapperFQName: [InternedString],
         parameterTypes: [TypeID],
         returnType: TypeID,
+        canThrow: Bool = false,
         sema: SemaModule,
         interner: StringInterner
     ) -> SymbolID {
@@ -863,6 +892,7 @@ extension LambdaLowerer {
                 ))),
                 parameterTypes: parameterTypes,
                 returnType: returnType,
+                canThrow: canThrow,
                 valueParameterSymbols: parameterSymbols
             ),
             for: methodSymbol
@@ -1124,12 +1154,50 @@ extension LambdaLowerer {
         ))))
     }
 
+    /// `getDelegate()` on a property-reference wrapper has no delegate storage
+    /// to return: full kotlin-reflect is absent, so the call throws
+    /// `KotlinReflectionNotSupportedError` — the same behavior the JVM shows
+    /// for `PropertyReference.getDelegate()` without kotlin-reflect.jar.
+    private func emitPropertyReferenceGetDelegate(
+        methodSymbol: SymbolID,
+        wrapperType: TypeID,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner
+    ) {
+        let receiverSymbol = driver.callSupportLowerer.syntheticReceiverParameterSymbol(functionSymbol: methodSymbol)
+        let parameterSymbols = sema.symbols.functionSignature(for: methodSymbol)?.valueParameterSymbols ?? []
+        let params = [KIRParameter(symbol: receiverSymbol, type: wrapperType)] + parameterSymbols.compactMap { symbol in
+            sema.symbols.propertyType(for: symbol).map { KIRParameter(symbol: symbol, type: $0) }
+        }
+        var body: [KIRInstruction] = [.beginBlock]
+        let thrown = arena.appendTemporary(type: sema.types.nullableAnyType)
+        body.append(.call(
+            callee: interner.intern("__kk_kotlin_reflection_not_supported_error_new"),
+            arguments: [],
+            result: thrown,
+            canThrow: false
+        ))
+        body.append(.rethrow(value: thrown))
+        body.append(.endBlock)
+        driver.ctx.appendGeneratedCallableDecl(arena.appendDecl(.function(KIRFunction(
+            symbol: methodSymbol,
+            name: interner.intern("getDelegate"),
+            params: params,
+            returnType: sema.types.nullableAnyType,
+            body: body,
+            isSuspend: false,
+            isInline: false
+        ))))
+    }
+
     private func registerPropertyReferenceInterfaces(
         wrapperValue: KIRExprID,
         wrapperSymbol: SymbolID,
         interfaceSymbols: [SymbolID],
         getterMethodSymbol: SymbolID,
         setterMethodSymbol: SymbolID?,
+        getDelegateMethodSymbol: SymbolID,
         sema: SemaModule,
         arena: KIRArena,
         interner: StringInterner,
@@ -1160,6 +1228,7 @@ extension LambdaLowerer {
                 switch interner.resolve(methodInfo.name) {
                 case "get", "invoke": implementation = getterMethodSymbol
                 case "set": implementation = setterMethodSymbol
+                case "getDelegate": implementation = getDelegateMethodSymbol
                 default: implementation = nil
                 }
                 guard let implementation else { continue }
