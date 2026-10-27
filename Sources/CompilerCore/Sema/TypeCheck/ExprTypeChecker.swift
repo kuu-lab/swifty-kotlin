@@ -743,6 +743,11 @@ final class ExprTypeChecker {
             {
                 let refinedType: TypeID = if sema.types.isSubtype(castLocal.0, targetType) {
                     castLocal.0 // already a subtype, no need for intersection
+                } else if targetType == sema.types.anyType {
+                    // A successful cast to Any removes nullability without
+                    // changing the concrete type. Preserve T & Any for type
+                    // parameters, whose bare T may still contain null.
+                    sema.types.definitelyNonNullForm(of: castLocal.0)
                 } else if sema.types.isSubtype(targetType, castLocal.0) {
                     targetType // target is more specific
                 } else {
