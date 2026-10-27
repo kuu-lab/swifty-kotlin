@@ -1,4 +1,4 @@
-private extension CallExpr {
+extension CallExpr {
     func replacingArgumentTypes(_ replacements: [Int: TypeID]) -> CallExpr {
         guard !replacements.isEmpty else {
             return self
@@ -445,7 +445,8 @@ extension OverloadResolver {
 
         let javaMapArgument = javaCollectionsMapArgument(fqName: symbol.fqName, signature: signature, call: call, ctx: ctx)
         guard javaMapArgument.compatible else { return .rejected }
-        let mappedCall = javaMapArgument.replacement.map { call.replacingArgumentTypes([0: $0]) } ?? call
+        let mappedCall = javaMapArgument.replacement.map { call.replacingArgumentTypes([0: $0]) }
+            ?? javaCheckedListCall(call, symbol: symbol, signature: signature, ctx: ctx)
         let call = javaCollectionsCall(mappedCall, fqName: symbol.fqName, signature: signature, ctx: ctx)
 
         let typeVarBySymbol = ctx.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
