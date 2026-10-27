@@ -725,7 +725,27 @@ extension ExprTypeChecker {
             }
         }
 
-        let allCandidateIDs = ctx.cachedScopeLookup(name)
+        // Same namespace rule as `inferLocalAssignExpr`: a tier binding the
+        // name only to callables (or to member properties no implicit
+        // receiver can reach) must not hide an outer-scope assignable
+        // property, so `counter += 1` inside a class declaring `fun counter`
+        // still writes the top-level `var counter` (KUU-3576). `.object`
+        // candidates stay visible for the singleton operator path below.
+        let allCandidateIDs = ctx.cachedScopeLookup(name, matching: { candidateID in
+            guard let candidate = ctx.cachedSymbol(candidateID) else { return false }
+            if candidate.kind == .object {
+                return true
+            }
+            guard candidate.kind == .property else { return false }
+            guard let parentID = sema.symbols.parentSymbol(for: candidateID),
+                  let parentSymbol = ctx.cachedSymbol(parentID)
+            else {
+                return true
+            }
+            return parentSymbol.kind == .package || parentSymbol.kind == .object
+                || (ctx.implicitReceiverType != nil
+                    && (parentSymbol.kind == .class || parentSymbol.kind == .object || parentSymbol.kind == .interface))
+        })
         let dslBlockedIDs = allCandidateIDs.filter { ctx.isCandidateBlockedByDslMarker($0) }
         let dslFilteredIDs = allCandidateIDs.filter { !ctx.isCandidateBlockedByDslMarker($0) }
         let (visibleIDs, _) = ctx.filterByVisibility(dslFilteredIDs)
