@@ -3,6 +3,19 @@ private let comparableRuntimeTypeID: Int64 = runtimeStableNominalTypeID(fqName: 
 private let comparatorRuntimeTypeID: Int64 = runtimeStableNominalTypeID(fqName: "kotlin.Comparator")
 
 func runtimeCompareValues(_ lhs: Int, _ rhs: Int) -> Int {
+    // KUU-3621: a receiver carrying a registered Comparable.compareTo itable
+    // entry — a nominal class, or an interface-implementing value class that
+    // stays boxed for polymorphic dispatch — must invoke that override before
+    // any shortcut below can fire. JVM dispatches compareTo virtually even
+    // for `x.compareTo(x)`; the identity shortcut previously returned 0 for a
+    // boxed value-class receiver compared with itself, and the scalar path
+    // would compare the tagged underlying payload instead of reaching the
+    // user implementation. Operands without a Comparable itable entry
+    // (primitive boxes, strings, plain objects) return nil here and fall
+    // through to the existing fallbacks unchanged.
+    if let comparableResult = runtimeCompareComparableValues(lhs: lhs, rhs: rhs) {
+        return comparableResult
+    }
     if lhs == rhs {
         return 0
     }
@@ -13,9 +26,6 @@ func runtimeCompareValues(_ lhs: Int, _ rhs: Int) -> Int {
     }
     if let scalarResult = runtimeCompareScalarValues(lhs, rhs) {
         return scalarResult
-    }
-    if let comparableResult = runtimeCompareComparableValues(lhs: lhs, rhs: rhs) {
-        return comparableResult
     }
     let lhsRendered = runtimeElementToString(lhs)
     let rhsRendered = runtimeElementToString(rhs)
