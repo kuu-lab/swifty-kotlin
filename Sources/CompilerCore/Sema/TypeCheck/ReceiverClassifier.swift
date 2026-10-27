@@ -73,7 +73,13 @@ struct ReceiverClassifier {
 
     func isArrayLikeType(_ type: TypeID) -> Bool {
         matchesKnownType(type) { knownNames, symbol in
-            knownNames.isArrayLikeName(symbol.name)
+            // Only the bundled kotlin.<Name> array classes (and fqName-less
+            // synthetic stubs) have the raw-array runtime representation. A
+            // user declaration that shadows the default-imported name keeps
+            // ordinary object semantics (KUU-3615).
+            (symbol.fqName.isEmpty
+                || symbol.fqName == [interner.intern("kotlin"), symbol.name])
+                && knownNames.isArrayLikeName(symbol.name)
         }
     }
 

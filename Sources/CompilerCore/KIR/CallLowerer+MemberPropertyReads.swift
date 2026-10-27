@@ -777,8 +777,14 @@ extension CallLowerer {
         // Array-like types (Array, IntArray, LongArray, etc.) expose
         // properties such as `size` via runtime helper functions rather than
         // object field layout, so let the collection fallback lower them.
+        // Only the bundled kotlin.<Name> classes (and fqName-less synthetic
+        // stubs) qualify — a user class that shadows the imported name keeps
+        // ordinary member layout (KUU-3615).
         let knownNames = KnownCompilerNames(interner: interner)
-        if knownNames.isArrayLikeName(ownerInfo.name) {
+        if ownerInfo.fqName.isEmpty
+            || ownerInfo.fqName == [interner.intern("kotlin"), ownerInfo.name],
+           knownNames.isArrayLikeName(ownerInfo.name)
+        {
             return nil
         }
 

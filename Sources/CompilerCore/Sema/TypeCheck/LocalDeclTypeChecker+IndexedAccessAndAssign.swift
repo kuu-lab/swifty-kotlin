@@ -490,9 +490,11 @@ extension LocalDeclTypeChecker {
                     if isBuiltinArray { return nil }
                 }
             }
-            // Built-in array assignment only handles one index. For multiple
-            // indices the applicable operator may be an extension whose value
-            // type differs from the array element type.
+            // The raw array write-back only exists for a single index; for a
+            // multi-index `a[i, j] = v` the outer array's element type is
+            // unrelated to the operator `set()`'s value parameter, so it must
+            // not steer value inference (e.g. `cells[i, j] = f()` on
+            // `Array<CharArray>` must not expect `CharArray`).
             guard indices.count == 1 else { return nil }
             return driver.helpers.arrayElementType(for: receiverType, sema: sema, interner: interner)
         }()
