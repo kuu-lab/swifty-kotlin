@@ -27,6 +27,8 @@ private func runtimeTakeObjectForRelease(_ rawValue: Int) -> UnsafeMutableRawPoi
             return false
         }
         state.retainedAtomicReferenceHandles.remove(key)
+        state.managedObjectPointers.remove(key)
+        state.pendingGCRoots.remove(key)
         return state.objectPointers.remove(key) != nil
     }
     guard removed else {

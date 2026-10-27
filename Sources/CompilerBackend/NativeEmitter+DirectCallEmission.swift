@@ -60,6 +60,7 @@ extension NativeEmitter.FunctionEmissionContext {
             _ = bindings.buildBr(builder, destination: continueBlock)
         } else {
             storeOutThrownIfNonNull(exceptionHandle, suffix: "len_npe_\(instructionIndex)")
+            emitGCFrameLeave(returning: exceptionHandle)
             _ = bindings.buildRet(builder, value: zeroReturnValue)
         }
 
