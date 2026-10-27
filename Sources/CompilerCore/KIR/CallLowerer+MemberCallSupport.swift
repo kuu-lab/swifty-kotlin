@@ -32,7 +32,12 @@ struct MemberCallReceiver {
 /// This is a free function (not a `CallLowerer` method) so every lowering pass
 /// that dispatches through these Any bridges shares the exact same tag computation.
 func computeAnyFallbackTag(for type: TypeID, sema: SemaModule) -> Int64 {
-    switch sema.types.kind(of: sema.types.makeNonNullable(type)) {
+    let nonNullableKind = sema.types.kind(of: sema.types.makeNonNullable(type))
+    // Value-class receivers are unboxed at this call boundary, so their raw
+    // payload needs the same tag as the underlying primitive (e.g. Long).
+    // Otherwise an explicitly-invoked Any.equals compares a raw Long as Int
+    // against the boxed Long argument and rejects equal values.
+    return switch resolveValueClassKind(nonNullableKind, types: sema.types, symbols: sema.symbols) {
     case .primitive(.boolean, _):
         2
     case .stringStruct:
@@ -60,6 +65,22 @@ func computeAnyFallbackTag(for type: TypeID, sema: SemaModule) -> Int64 {
     default:
         1
     }
+}
+
+func usesPrimitiveAnyFallbackRepresentation(for type: TypeID, sema: SemaModule) -> Bool {
+    let kind = sema.types.kind(of: sema.types.makeNonNullable(type))
+    if case .primitive = kind {
+        return true
+    }
+    guard case let .classType(classType) = kind,
+          let symbol = sema.symbols.symbol(classType.classSymbol),
+          symbol.kind != .enumClass,
+          symbol.flags.contains(.valueType),
+          case .primitive = resolveValueClassKind(kind, types: sema.types, symbols: sema.symbols)
+    else {
+        return false
+    }
+    return true
 }
 
 /// Boxes a statically non-null Long, ULong, or Double before generic hash
