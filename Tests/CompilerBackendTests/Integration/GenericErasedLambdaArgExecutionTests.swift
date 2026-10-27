@@ -1,8 +1,24 @@
+import CompilerCore
 import TestStdlibCache
 import Testing
 
 @Suite(.serialized)
 struct GenericErasedLambdaArgExecutionTests {
+    @Test(arguments: [true, false])
+    func nullableStringThroughImportedInlineBody(allowDefaultStdlibLibrary: Bool) throws {
+        TestStdlibCache.shared.prepare()
+        let source = try diffCaseSource("kotlin_test_null.kt", file: #filePath)
+        for optLevel in [OptimizationLevel.O0, .O2] {
+            try compileAndRunKotlin(
+                source,
+                expectedOutput: "present\n7\nExpected value to be null, but was: <value>.\ncustom. Expected value to be not null.\n. Expected value to be null, but was: <1>.\n0\nlazy null message. Expected value to be null, but was: <value>.\n1\nblock\n1\ndeprecated failure. Expected value to be not null.\n1\n",
+                moduleName: "NullableStringImportedInline",
+                allowDefaultStdlibLibrary: allowDefaultStdlibLibrary,
+                optLevel: optLevel
+            )
+        }
+    }
+
     /// KUU-3438: a nullable-underlying value class returned through a generic
     /// function-value call must be unboxed before reaching a concrete use site.
     @Test(arguments: [true, false])
