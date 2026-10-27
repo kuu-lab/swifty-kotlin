@@ -76,24 +76,22 @@ public val Channel<*>.isClosedForReceive: Boolean
     get() = this.__kkChannelIsClosedForReceive() != 0
 
 // hasNext() performs the blocking receive and next() returns the value peeked
-// by the last hasNext(). Star-projected receivers mirror the close()/isClosed*
-// extensions above: the loop variable's element type is recovered from the
-// Channel<T> being iterated, not from next()'s declared return, so these do not
-// need to thread <T>.
+// by the last hasNext(). Preserve the channel element type through the
+// iterator so both for-loops and direct next() calls retain their types.
 @KsSymbolName("kk_channel_iterator")
-private external fun Channel<*>.__kkChannelIterator(): ChannelIterator<*>
+private external fun <E> Channel<E>.__kkChannelIterator(): ChannelIterator<E>
 
 @KsSymbolName("kk_channel_iterator_hasNext")
 private external fun ChannelIterator<*>.__kkChannelIteratorHasNext(): Int
 
 @KsSymbolName("kk_channel_iterator_next")
-private external fun ChannelIterator<*>.__kkChannelIteratorNext(): Any?
+private external fun <E> ChannelIterator<E>.__kkChannelIteratorNext(): E
 
-public operator fun Channel<*>.iterator(): ChannelIterator<*> =
+public operator fun <E> Channel<E>.iterator(): ChannelIterator<E> =
     this.__kkChannelIterator()
 
 public operator fun ChannelIterator<*>.hasNext(): Boolean =
     this.__kkChannelIteratorHasNext() != 0
 
-public operator fun ChannelIterator<*>.next(): Any? =
+public operator fun <E> ChannelIterator<E>.next(): E =
     this.__kkChannelIteratorNext()
