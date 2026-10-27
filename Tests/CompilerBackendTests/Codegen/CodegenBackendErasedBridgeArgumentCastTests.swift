@@ -33,6 +33,20 @@ struct CodegenBackendErasedBridgeArgumentCastTests {
         )
     }
 
+    @Test(arguments: [0, 2])
+    func uncheckedComparableArgumentThrowsClassCastException(
+        optimization: Int
+    ) throws {
+        let optLevel = try #require(OptimizationLevel(rawValue: optimization))
+        try assertKotlinOutput(
+            source("kuu_3598_erased_comparable_argument_bridge"),
+            moduleName: "KUU3598ErasedComparableArgumentBridge",
+            expected: "OK\n-1\n",
+            optLevel: optLevel,
+            allowDefaultStdlibLibrary: true
+        )
+    }
+
     @Test(arguments: [0, 2], [true, false])
     func erasedReferenceArgumentChecksPreserveValidCallsAndRejectBeforeBody(
         optimization: Int,
