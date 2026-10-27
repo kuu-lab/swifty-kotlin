@@ -556,8 +556,7 @@ final class ExprTypeChecker {
             )
             let subjectNonNull = sema.types.makeNonNullable(subjectType)
             let targetNonNull = sema.types.makeNonNullable(targetType)
-            if case let .functionType(functionType) = sema.types.kind(of: targetType),
-               !functionType.isSuspend,
+            if case .functionType = sema.types.kind(of: targetType),
                !sema.types.isSubtype(
                    subjectNonNull,
                    targetNonNull
