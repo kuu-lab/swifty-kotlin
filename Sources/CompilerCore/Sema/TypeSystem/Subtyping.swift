@@ -1407,6 +1407,39 @@ extension TypeSystem {
         return nil
     }
 
+    /// The unique structural function type carried by `type`: the type itself
+    /// when it is a function type, or the single `.functionType` conjunct of a
+    /// smart-cast intersection such as `(Boolean) -> Any & KFunction<*>`
+    /// (KUU-3652). Nested intersection conjuncts are flattened; a nullable
+    /// conjunct reads as non-null because the intersection itself proves the
+    /// value non-null. Returns nil when no conjunct — or more than one
+    /// distinct conjunct — is a function type.
+    func uniqueStructuralFunctionType(for type: TypeID) -> FunctionType? {
+        switch kind(of: type) {
+        case let .functionType(function):
+            return function
+        case let .intersection(parts):
+            var found: FunctionType?
+            var pending = Array(parts)
+            while let part = pending.popLast() {
+                switch kind(of: makeNonNullable(part)) {
+                case let .functionType(partFunction):
+                    if let existing = found, existing != partFunction {
+                        return nil
+                    }
+                    found = partFunction
+                case let .intersection(nested):
+                    pending.append(contentsOf: nested)
+                default:
+                    break
+                }
+            }
+            return found
+        default:
+            return nil
+        }
+    }
+
     func nominalFunctionType(for type: TypeID) -> FunctionType? {
         guard case let .classType(classType) = kind(of: type) else {
             return nil
