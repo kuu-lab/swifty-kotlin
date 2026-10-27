@@ -1553,6 +1553,8 @@ extension DataFlowSemaPhase {
                     thisType: companionType
                 )
                 collectSyntheticEnumCompanionMembers(
+                    ownerSymbol: nestedSymbol,
+                    ownerFQName: nestedFQName,
                     companionSymbol: companionSymbol,
                     companionFQName: companionFQName,
                     enumType: nestedType,

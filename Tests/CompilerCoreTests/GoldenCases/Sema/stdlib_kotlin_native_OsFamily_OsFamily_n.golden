@@ -2,8 +2,8 @@ symbol fq=kotlin.native.OsFamily.Companion.valueOf.name[kind=vparam;origin=unkno
 symbol fq=main[kind=fun;params=;ret=Unit;origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
 file fstdlib_kotlin_native_OsFamily_OsFamily_n package=_ annotations=[@file:OptIn(kotlin.experimental.ExperimentalNativeApi::class)]
   decl main[kind=fun;params=;ret=Unit;origin=fixture] fun main sym=main[kind=fun;params=;ret=Unit;origin=fixture]
-expr e@6:13 name(OsFamily) type=kotlin.native.OsFamily.Companion ref=kotlin.native.OsFamily[kind=enum]
-expr e@6:13#1 memberCall recv=e@6:13 callee=entries args=[] type=kotlin.enums.EnumEntries<kotlin.native.OsFamily> ref=kotlin.native.OsFamily.Companion.entries[kind=prop;type=kotlin.enums.EnumEntries<kotlin.native.OsFamily>]
+expr e@6:13 name(OsFamily) type=kotlin.native.OsFamily ref=kotlin.native.OsFamily[kind=enum]
+expr e@6:13#1 memberCall recv=e@6:13 callee=entries args=[] type=kotlin.enums.EnumEntries<kotlin.native.OsFamily> ref=kotlin.native.OsFamily.entries[kind=prop;type=kotlin.enums.EnumEntries<kotlin.native.OsFamily>]
 expr e@6:13#2 memberCall recv=e@6:13#1 callee=size args=[] type=Int ref=kotlin.collections.List.size[kind=prop;type=Int]
 expr e@6:5 call callee=e@6:5#1 args=[_:e@6:13#2] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
 expr e@7:13 name(OsFamily) type=kotlin.native.OsFamily ref=kotlin.native.OsFamily[kind=enum]

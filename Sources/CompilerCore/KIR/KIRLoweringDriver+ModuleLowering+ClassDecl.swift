@@ -88,7 +88,7 @@ extension KIRLoweringDriver {
         // MemberLowerer has already emitted nested constructors recursively.
         // Add the reflection initializers and enum helpers here only once.
         lowerNestedClassConstructors(
-            nestedClasses: classDecl.nestedClasses,
+            nestedDecls: classDecl.nestedClasses + allNestedObjects,
             shared: shared,
             compilationCtx: compilationCtx,
             declIDs: &declIDs
@@ -104,15 +104,20 @@ extension KIRLoweringDriver {
         return declIDs
     }
 
-    private func lowerNestedClassConstructors(
-        nestedClasses: [DeclID],
+    /// Walks nested declarations (classes, objects, interfaces and their
+    /// companions, transitively) so constructor reflection initializers and
+    /// enum constructor-property helpers are synthesized for every enum in
+    /// the tree — including enums nested under objects, whose member bodies
+    /// `MemberLowerer` already emitted but which never reached this pass.
+    func lowerNestedClassConstructors(
+        nestedDecls: [DeclID],
         shared: KIRLoweringSharedContext,
         compilationCtx: CompilationContext,
         declIDs: inout [KIRDeclID]
     ) {
         let ast = shared.ast
         let sema = shared.sema
-        for declID in nestedClasses {
+        for declID in nestedDecls {
             guard let decl = ast.arena.decl(declID),
                   let nestedSymbol = sema.bindings.declSymbols[declID]
             else {
@@ -125,8 +130,12 @@ extension KIRLoweringDriver {
                     ownerSymbol: nestedSymbol,
                     shared: shared
                 ))
+                var deeper = nestedClass.nestedClasses + nestedClass.nestedObjects
+                if let companionDeclID = nestedClass.companionObject {
+                    deeper.append(companionDeclID)
+                }
                 lowerNestedClassConstructors(
-                    nestedClasses: nestedClass.nestedClasses,
+                    nestedDecls: deeper,
                     shared: shared,
                     compilationCtx: compilationCtx,
                     declIDs: &declIDs
@@ -138,6 +147,24 @@ extension KIRLoweringDriver {
                     shared: shared,
                     compilationCtx: compilationCtx
                 ))
+            case let .objectDecl(nestedObject):
+                lowerNestedClassConstructors(
+                    nestedDecls: nestedObject.nestedClasses + nestedObject.nestedObjects,
+                    shared: shared,
+                    compilationCtx: compilationCtx,
+                    declIDs: &declIDs
+                )
+            case let .interfaceDecl(nestedInterface):
+                var deeper = nestedInterface.nestedClasses + nestedInterface.nestedObjects
+                if let companionDeclID = nestedInterface.companionObject {
+                    deeper.append(companionDeclID)
+                }
+                lowerNestedClassConstructors(
+                    nestedDecls: deeper,
+                    shared: shared,
+                    compilationCtx: compilationCtx,
+                    declIDs: &declIDs
+                )
             default:
                 break
             }

@@ -973,6 +973,10 @@ extension CallLowerer {
     ) -> InternedString? {
         guard let info = sema.symbols.symbol(propertySymbol),
               info.kind == .property,
+              // Enum-class statics (the synthetic `Enum.entries` stub) have
+              // no per-entry storage to read through the placeholder helper
+              // (KUU-3544).
+              !info.flags.contains(.static),
               let ownerSymbol = enumClassOwnerSymbol(forProperty: propertySymbol, sema: sema)
         else {
             return nil

@@ -520,7 +520,10 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
             existingFunctionSymbols: existingFunctionSymbols,
             interner: ctx.interner
         )
-        // valueOf and entries live on the companion (Color.valueOf, Color.entries)
+        // valueOf and the `entries$get` helper live on the companion
+        // (Color.valueOf). The synthetic `entries` property itself is owned
+        // by the enum class (KUU-3544); EnumEntriesLoweringPass resolves this
+        // getter through its companion fallback.
         let valueOfOwner: SemanticSymbol = if let companionSymbol = sema.symbols.companionObjectSymbolIfKnown(for: nominalSymbol.id),
                                               let companionSym = sema.symbols.symbol(companionSymbol)
         {
