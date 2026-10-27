@@ -76,6 +76,22 @@ final class ControlFlowTypeChecker {
         switch sema.types.kind(of: nonNullIterableType) {
         case .classType, .typeParam, .intersection:
             break
+        case .primitive:
+            // Primitive receivers (e.g. `for (i in 1)`) cannot carry members,
+            // but a user extension such as `operator fun <T : Any>
+            // T?.iterator()` still applies — its nullable type-parameter
+            // receiver admits the non-null value (KUU-3583). A primitive type
+            // may still be a scalar range handle (`1..5` lowered as Int), so
+            // range-marked iterables keep their dedicated path.
+            guard !sema.bindings.isRangeExpr(iterableExpr),
+                  !sema.bindings.isCharRangeExpr(iterableExpr),
+                  !sema.bindings.isUIntRangeExpr(iterableExpr),
+                  !sema.bindings.isULongRangeExpr(iterableExpr),
+                  !sema.bindings.isFloatingPointRangeExpr(iterableExpr),
+                  !Self.isRangeExpression(iterableExpr, ast: ctx.ast)
+            else {
+                return nil
+            }
         default:
             return nil
         }
