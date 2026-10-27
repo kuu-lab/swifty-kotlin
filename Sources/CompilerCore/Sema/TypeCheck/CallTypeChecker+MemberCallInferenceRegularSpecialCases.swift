@@ -201,8 +201,18 @@ extension CallTypeChecker {
             // KUU-1453: `ch.receive` without parentheses is property-access
             // syntax on a function — fall through so the invocation-syntax
             // check rejects it like any other bound function.
-            case ("receive", 0) where ast.arena.isExplicitCall(id):
-                let resultType = sema.types.nullableAnyType
+            case ("receive", 0) where ast.arena.isExplicitCall(id) && explicitTypeArgs.isEmpty:
+                let resultType: TypeID
+                if let element = resolveClassType(lookupReceiverType, sema: sema)?.args.first {
+                    switch element {
+                    case let .invariant(type), let .out(type):
+                        resultType = type
+                    case .in, .star:
+                        resultType = sema.types.nullableAnyType
+                    }
+                } else {
+                    resultType = sema.types.nullableAnyType
+                }
                 let finalType = safeCall ? sema.types.makeNullable(resultType) : resultType
                 sema.bindings.bindExprType(id, type: finalType)
                 return finalType
