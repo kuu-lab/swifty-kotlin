@@ -490,7 +490,46 @@ func anyToStringBridgeSymbolForImplementation(
             resultType: receiverType, types: sema.types, symbols: sema.symbols,
             interner: interner, arena: arena, into: &body
         )
-        receiverForCall = unboxedReceiver
+        if case let .classType(receiverClass) = rawReceiverKind,
+           let declaredUnderlyingType = sema.symbols.effectiveValueClassUnderlyingType(for: vcSymbol)
+        {
+            let underlyingType = sema.types.substituteNominalTypeParameters(
+                in: declaredUnderlyingType,
+                owner: vcSymbol,
+                ownerArgs: receiverClass.args
+            )
+            let primitiveUpperBound = resolvePrimitiveValueUpperBound(
+                of: underlyingType,
+                types: sema.types,
+                symbols: sema.symbols
+            )
+            if let primitiveUpperBound,
+               case .primitive(_, .nonNull) = sema.types.kind(of: primitiveUpperBound),
+               let unboxCallee = BoxingCalleeTable(interner: interner).unboxCallee(
+                   for: primitiveUpperBound,
+                   types: sema.types,
+                   requireNonNull: true,
+                   preferStaticPrimitive: true
+               )
+            {
+                // Erased generic value classes may arrive as a primitive box
+                // tagged with the value-class ID. The nominal unbox above
+                // unwraps RuntimeObjectBox payloads, while this static unbox
+                // also extracts primitive boxes such as RuntimeFloatBox.
+                let primitiveReceiver = arena.appendTemporary(type: primitiveUpperBound)
+                body.append(.call(
+                    callee: unboxCallee,
+                    arguments: [unboxedReceiver],
+                    result: primitiveReceiver,
+                    canThrow: false
+                ))
+                receiverForCall = primitiveReceiver
+            } else {
+                receiverForCall = unboxedReceiver
+            }
+        } else {
+            receiverForCall = unboxedReceiver
+        }
     } else if rawReceiverKind != resolvedReceiverKind,
        let unboxCallee = BoxingCalleeTable(interner: interner).unboxCallee(
            for: resolvedReceiverKind,
