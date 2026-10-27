@@ -176,9 +176,14 @@ extension KotlinParser {
             let isValueParameterDefaultExpressionStart = parsesValueParameters
                 && valueParameterInDefaultValue && startsAnonymousValueParameterDefault()
             let isWhenSubjectVariablePrefix = whenSubjectVariablePrefixEnd.map { stream.index < $0 } == true
+            // `object : T {}` / `fun (...) = ...` start expression operands,
+            // not declarations — an anonymous expression on its own line is a
+            // valid argument inside the group (e.g. an enum entry's
+            // `FOO("x", object : Callback { ... })`).
             if closingSymbols.count == 1, hasLeadingNewline(token), isLikelyTopLevelDeclarationStart(token),
                !isValueParameterPrefix, !isValueParameterDefaultExpressionStart,
-               !isWhenSubjectVariablePrefix {
+               !isWhenSubjectVariablePrefix, !isObjectExpressionStart(token),
+               !isAnonymousFunctionExpressionStart() {
                 break
             }
 
