@@ -407,3 +407,47 @@ enum RuntimeTypeCheckToken {
         return payload == 0 ? 1 : payload
     }
 }
+
+/// The runtime erasure an unchecked/erased boundary can verify against:
+/// a type parameter's first upper bound, resolved transitively when bounds
+/// reference other type parameters, or the type itself when it already
+/// carries a runtime classifier. Kotlin/JVM checkcasts `as T` against
+/// exactly this erasure — `R : C, I1, I2` checks `C` and leaves the rest
+/// unchecked. Returns nil when there is no bound or the bound encodes no
+/// runtime classifier (`.any`/`.unknown`), where only the null contract
+/// is observable.
+func kirCheckableCastErasure(of type: TypeID, sema: SemaModule) -> TypeID? {
+    var visited: Set<SymbolID> = []
+    var current = type
+    while case let .typeParam(parameter) = sema.types.kind(of: current) {
+        guard visited.insert(parameter.symbol).inserted,
+              let bound = sema.symbols.typeParameterUpperBounds(for: parameter.symbol).first
+        else {
+            return nil
+        }
+        current = bound
+    }
+    switch RuntimeTypeCheckToken.classify(type: current, sema: sema).category {
+    case .unknown, .any:
+        return nil
+    default:
+        return current
+    }
+}
+
+/// Whether `kk_op_cast` can verify a value arriving through an erased ABI
+/// boundary against this classifier. Enum classifiers are excluded: enum
+/// values cross erased slots as raw ordinals (or ordinal IntBoxes), neither
+/// of which carries the nominal tag the nominal check requires, so the cast
+/// would falsely throw. `Nothing` (`.null`) accepts only the null value the
+/// erased boundary still needs to let through.
+func kirErasedBoundaryCheckable(_ type: TypeID, sema: SemaModule) -> Bool {
+    switch RuntimeTypeCheckToken.classify(type: type, sema: sema).category {
+    case .unknown, .any, .null:
+        return false
+    case let .nominal(symbol):
+        return sema.symbols.symbol(symbol)?.kind != .enumClass
+    default:
+        return true
+    }
+}

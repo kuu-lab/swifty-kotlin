@@ -86,6 +86,34 @@ extension CallLowerer {
             let paramExpr = arena.appendExpr(.symbolRef(param.symbol), type: param.type)
             body.append(.constValue(result: paramExpr, value: .symbolRef(param.symbol)))
             let lambdaParamType = allValueTypes[index]
+            var forwardedParamExpr = paramExpr
+            if let checkType = kirCheckableCastErasure(of: lambdaParamType, sema: sema),
+               kirErasedBoundaryCheckable(checkType, sema: sema)
+            {
+                // KUU-3535: this adapter is the erased FunctionN invoke
+                // boundary — the argument arrives as raw ABI bits that may
+                // carry the wrong type (e.g. `extract(any as T)` with an
+                // unbounded erasure). Emit the same checkcast Kotlin/JVM's
+                // invoke bridge performs so a mismatch throws a catchable
+                // ClassCastException instead of trapping inside the callee.
+                let erasedOperand = arena.appendTemporary(type: sema.types.nullableAnyType)
+                body.append(.copy(from: paramExpr, to: erasedOperand))
+                let typeToken = driver.exprLowerer.lowerTypeCheckTokenExpr(
+                    targetType: checkType,
+                    sema: sema,
+                    interner: interner,
+                    arena: arena,
+                    instructions: &body
+                )
+                let checked = arena.appendTemporary(type: param.type)
+                body.append(.call(
+                    callee: interner.intern("kk_op_cast"),
+                    arguments: [erasedOperand, typeToken],
+                    result: checked,
+                    canThrow: true
+                ))
+                forwardedParamExpr = checked
+            }
             if let valueClassSymbol = nullableUnderlyingValueClassSymbol(
                 of: sema.types.kind(of: lambdaParamType),
                 types: sema.types,
@@ -97,7 +125,7 @@ extension CallLowerer {
                 // the raw value-class payload.
                 let unboxedExpr = arena.appendTemporary(type: lambdaParamType)
                 emitValueClassUnboxCall(
-                    value: paramExpr,
+                    value: forwardedParamExpr,
                     classSymbol: valueClassSymbol,
                     result: unboxedExpr,
                     resultType: lambdaParamType,
@@ -127,11 +155,11 @@ extension CallLowerer {
             guard param.type != normalizedLambdaParamType,
                   let unboxCallee
             else {
-                callArguments.append(paramExpr)
+                callArguments.append(forwardedParamExpr)
                 continue
             }
             let unboxedExpr = arena.appendTemporary(type: lambdaParamType)
-            body.append(.call(callee: unboxCallee, arguments: [paramExpr], result: unboxedExpr, canThrow: false))
+            body.append(.call(callee: unboxCallee, arguments: [forwardedParamExpr], result: unboxedExpr, canThrow: false))
             callArguments.append(unboxedExpr)
         }
 

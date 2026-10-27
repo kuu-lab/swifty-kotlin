@@ -612,29 +612,45 @@ extension ExprLowerer {
             )
 
         case let .call(calleeExpr, _, args, _):
-            return driver.callLowerer.lowerCallExpr(
-                exprID,
-                calleeExpr: calleeExpr,
-                args: args,
-                ast: ast,
+            return checkedErasedGenericCallResult(
+                driver.callLowerer.lowerCallExpr(
+                    exprID,
+                    calleeExpr: calleeExpr,
+                    args: args,
+                    ast: ast,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    propertyConstantInitializers: propertyConstantInitializers,
+                    instructions: &instructions
+                ),
+                exprID: exprID,
+                boundType: boundType,
                 sema: sema,
-                arena: arena,
                 interner: interner,
-                propertyConstantInitializers: propertyConstantInitializers,
+                arena: arena,
                 instructions: &instructions
             )
 
         case let .memberCall(receiverExpr, calleeName, _, args, _):
-            return driver.callLowerer.lowerMemberCallExpr(
-                exprID,
-                receiverExpr: receiverExpr,
-                calleeName: calleeName,
-                args: args,
-                ast: ast,
+            return checkedErasedGenericCallResult(
+                driver.callLowerer.lowerMemberCallExpr(
+                    exprID,
+                    receiverExpr: receiverExpr,
+                    calleeName: calleeName,
+                    args: args,
+                    ast: ast,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    propertyConstantInitializers: propertyConstantInitializers,
+                    instructions: &instructions
+                ),
+                exprID: exprID,
+                boundType: boundType,
                 sema: sema,
-                arena: arena,
                 interner: interner,
-                propertyConstantInitializers: propertyConstantInitializers,
+                arena: arena,
                 instructions: &instructions
             )
 
@@ -700,16 +716,24 @@ extension ExprLowerer {
             return result
 
         case let .safeMemberCall(receiverExpr, calleeName, _, args, _):
-            return driver.callLowerer.lowerSafeMemberCallExpr(
-                exprID,
-                receiverExpr: receiverExpr,
-                calleeName: calleeName,
-                args: args,
-                ast: ast,
+            return checkedErasedGenericCallResult(
+                driver.callLowerer.lowerSafeMemberCallExpr(
+                    exprID,
+                    receiverExpr: receiverExpr,
+                    calleeName: calleeName,
+                    args: args,
+                    ast: ast,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    propertyConstantInitializers: propertyConstantInitializers,
+                    instructions: &instructions
+                ),
+                exprID: exprID,
+                boundType: boundType,
                 sema: sema,
-                arena: arena,
                 interner: interner,
-                propertyConstantInitializers: propertyConstantInitializers,
+                arena: arena,
                 instructions: &instructions
             )
 

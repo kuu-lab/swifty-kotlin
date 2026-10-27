@@ -99,6 +99,13 @@ extension LambdaLowerer {
         let closureExpr = arena.appendExpr(.symbolRef(closureParam.symbol), type: closureParam.type)
         body.append(.constValue(result: closureExpr, value: .symbolRef(closureParam.symbol)))
 
+        // The thrown slot and the adapter's single rethrow exit are created
+        // up front so erased-argument checkcasts can share them with the
+        // inner lambda call.
+        let thrownResult = arena.appendTemporary(type: sema.types.nullableAnyType)
+        let continueLabel = driver.ctx.makeLoopLabel()
+        let rethrowLabel = driver.ctx.makeLoopLabel()
+
         let arrayGet = interner.intern("kk_array_get_inbounds")
         var callArguments: [KIRExprID] = []
         for (captureIndex, captureExpr) in captureArguments.enumerated() {
@@ -122,8 +129,37 @@ extension LambdaLowerer {
         for param in valueParams {
             let paramExpr = arena.appendExpr(.symbolRef(param.symbol), type: param.type)
             body.append(.constValue(result: paramExpr, value: .symbolRef(param.symbol)))
+            var forwardedExpr = paramExpr
+            if let checkType = kirCheckableCastErasure(of: param.type, sema: sema),
+               kirErasedBoundaryCheckable(checkType, sema: sema) {
+                // KUU-3535: the erased invoke ABI hands this bridge the raw
+                // argument bits. Checkcast against the declared parameter
+                // type — the same bridge checkcast Kotlin/JVM emits — so a
+                // wrong-type call throws a catchable ClassCastException
+                // instead of reaching the body and trapping on a missing
+                // vtable/itable entry.
+                let erasedOperand = arena.appendTemporary(type: sema.types.nullableAnyType)
+                body.append(.copy(from: paramExpr, to: erasedOperand))
+                let typeToken = driver.exprLowerer.lowerTypeCheckTokenExpr(
+                    targetType: checkType,
+                    sema: sema,
+                    interner: interner,
+                    arena: arena,
+                    instructions: &body
+                )
+                let checked = arena.appendTemporary(type: param.type)
+                body.append(.call(
+                    callee: interner.intern("kk_op_cast"),
+                    arguments: [erasedOperand, typeToken],
+                    result: checked,
+                    canThrow: true,
+                    thrownResult: thrownResult
+                ))
+                body.append(.jumpIfNotNull(value: thrownResult, target: rethrowLabel))
+                forwardedExpr = checked
+            }
             let normalizedParamExpr = normalizeHOFPrimitiveParameter(
-                paramExpr,
+                forwardedExpr,
                 type: param.type,
                 sema: sema,
                 arena: arena,
@@ -151,7 +187,6 @@ extension LambdaLowerer {
         let adapterReturnType = boxedReturnType ?? lambdaReturnType
 
         let callResult = arena.appendTemporary(type: concreteReturnType)
-        let thrownResult = arena.appendTemporary(type: sema.types.nullableAnyType)
         body.append(.constValue(result: thrownResult, value: .null))
         body.append(.call(
             symbol: lambdaSymbol,
@@ -161,8 +196,6 @@ extension LambdaLowerer {
             canThrow: true,
             thrownResult: thrownResult
         ))
-        let continueLabel = driver.ctx.makeLoopLabel()
-        let rethrowLabel = driver.ctx.makeLoopLabel()
         body.append(.jumpIfNotNull(value: thrownResult, target: rethrowLabel))
         body.append(.jump(continueLabel))
         body.append(.label(rethrowLabel))
