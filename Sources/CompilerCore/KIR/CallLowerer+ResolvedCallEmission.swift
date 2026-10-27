@@ -283,8 +283,9 @@ extension CallLowerer {
                 }
             }
         }
-        let callNormalized: NormalizedCallResult = if callBinding != nil {
-            driver.callSupportLowerer.normalizedCallArguments(
+        let callNormalized: NormalizedCallResult
+        if callBinding != nil {
+            callNormalized = driver.callSupportLowerer.normalizedCallArguments(
                 providedArguments: callableArguments,
                 callBinding: callBinding,
                 chosenCallee: chosen,
@@ -299,9 +300,33 @@ extension CallLowerer {
                 instructions: &instructions
             )
         } else {
-            NormalizedCallResult(
+            var callableValueArguments = callableArguments
+            if let callableValueCallBinding,
+               case let .functionType(functionType) = sema.types.kind(
+                   of: sema.types.makeNonNullable(callableValueCallBinding.functionType)
+               )
+            {
+                for (argumentIndex, parameterIndex) in callableValueCallBinding.parameterMapping {
+                    guard callableValueArguments.indices.contains(argumentIndex),
+                          sourceArgExprs.indices.contains(argumentIndex),
+                          functionType.params.indices.contains(parameterIndex)
+                    else {
+                        continue
+                    }
+                    callableValueArguments[argumentIndex] = adaptSuspendFunctionValueArgument(
+                        callableValueArguments[argumentIndex],
+                        sourceExpr: sourceArgExprs[argumentIndex],
+                        parameterType: functionType.params[parameterIndex],
+                        sema: sema,
+                        arena: arena,
+                        interner: interner,
+                        instructions: &instructions
+                    )
+                }
+            }
+            callNormalized = NormalizedCallResult(
                 arguments: normalizedCallableValueArguments(
-                    providedArguments: callableArguments,
+                    providedArguments: callableValueArguments,
                     callableValueCallBinding: callableValueCallBinding,
                     sema: sema
                 ),
