@@ -80,4 +80,24 @@ struct CompilerSubPhaseTimingTests {
         timer.endPhase()
         #expect(timer.phaseRecords[1].subRecords.map(\.name) == ["imports.lazyMaterialize"])
     }
+
+    @Test
+    func testKIRDumpIsTimedAsItsOwnPhase() throws {
+        try withTemporaryFile(contents: "fun main(): Int = 42") { path in
+            let output = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
+            defer { try? FileManager.default.removeItem(atPath: output + ".kir") }
+            let ctx = makeCompilationContext(inputs: [path], outputPath: output, includeStdlib: false)
+            let timer = PhaseTimer()
+            ctx.installPhaseTimer(timer)
+            try runFrontend(ctx)
+            try SemaPhase().run(ctx)
+            try BuildKIRPhase().run(ctx)
+            try LoweringPhase().run(ctx)
+            CompilerDriver().emitKIRDump(ctx: ctx)
+            #expect(!ctx.diagnostics.hasError)
+            let dump = try #require(timer.phaseRecords.first { $0.name == "KIRDump" })
+            #expect(dump.subRecords.map(\.name) == ["render", "write"])
+            #expect(FileManager.default.fileExists(atPath: output + ".kir"))
+        }
+    }
 }
