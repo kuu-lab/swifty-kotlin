@@ -32,6 +32,36 @@ func maybeUnbox(_ value: Int) -> Int {
     return value
 }
 
+/// `maybeUnbox` for values crossing into a Kotlin callback: collection-HOF
+/// element arguments and the `closureRaw` capture payload. Unlike
+/// `maybeUnbox`, this keeps `RuntimeLongBox`/`RuntimeULongBox` boxed — their
+/// payloads collide bit-for-bit with `runtimeNullSentinelInt`
+/// (`Long.MIN_VALUE`, `ULong` `2^63`), so unwrapping them at the boundary
+/// would hand the callee a value indistinguishable from null for a
+/// `Long?`/`ULong?` parameter (KUU-3661). Callees that declare non-null
+/// `Long`/`ULong` parameters unbox inside their entry points
+/// (`kk_unbox_long`/`kk_unbox_ulong` emitted by LambdaLowerer /
+/// InlineErasedLambdaABI), the same convention `RuntimeFloatBox`/
+/// `RuntimeDoubleBox` already rely on — `maybeUnbox` never unwraps those.
+@inline(__always)
+func maybeUnboxForCollectionLambdaBoundary(_ value: Int) -> Int {
+    guard let ptr = UnsafeMutableRawPointer(bitPattern: value) else {
+        return value
+    }
+    let isObjectPointer = runtimeStorage.withGCLock { state in
+        state.objectPointers.contains(UInt(bitPattern: ptr))
+    }
+    guard isObjectPointer else {
+        return value
+    }
+    if tryCast(ptr, to: RuntimeLongBox.self) != nil
+        || tryCast(ptr, to: RuntimeULongBox.self) != nil
+    {
+        return value
+    }
+    return maybeUnbox(value)
+}
+
 func runtimeNormalizeNullableCollectionValue(_ raw: Int) -> Int? {
     if raw == runtimeNullSentinelInt {
         return nil

@@ -161,6 +161,7 @@ struct InlineErasedLambdaABITests {
         )
         let genericType = types.make(.typeParam(TypeParamType(symbol: genericSymbol)))
         let nullableIntType = types.makeNullable(types.intType)
+        let nullableLongType = types.makeNullable(types.longType)
         let sema = makeSemaModule(
             symbols: symbols,
             types: types,
@@ -180,6 +181,7 @@ struct InlineErasedLambdaABITests {
                 KIRParameter(symbol: SymbolID(rawValue: 11), type: types.intType),
                 KIRParameter(symbol: SymbolID(rawValue: 12), type: nullableIntType),
                 KIRParameter(symbol: SymbolID(rawValue: 13), type: genericType),
+                KIRParameter(symbol: SymbolID(rawValue: 14), type: nullableLongType),
             ],
             returnType: types.intType,
             body: [],
@@ -187,6 +189,7 @@ struct InlineErasedLambdaABITests {
             isInline: false
         )
         let erasedArguments = [
+            arena.appendTemporary(),
             arena.appendTemporary(),
             arena.appendTemporary(),
             arena.appendTemporary(),
@@ -205,9 +208,18 @@ struct InlineErasedLambdaABITests {
         // Nullable primitives use sentinel-aware unboxing at erased boundaries.
         #expect(unboxedArguments[1] != erasedArguments[1])
         #expect(arena.exprType(unboxedArguments[1]) == nullableIntType)
-        #expect(unboxedArguments[2] == erasedArguments[2])
+        // An erased argument bound to a type-parameter parameter keeps the
+        // declared type on a typed copy so a later smart cast can still unbox it.
+        #expect(unboxedArguments[2] != erasedArguments[2])
+        #expect(arena.exprType(unboxedArguments[2]) == genericType)
+        // A Long? parameter keeps box-or-sentinel form: kk_unbox_long on a boxed
+        // Long.MIN_VALUE would emit the null sentinel's bits, so the boundary
+        // normalizes through kk_box_long instead (KUU-3661).
+        #expect(unboxedArguments[3] != erasedArguments[3])
+        #expect(arena.exprType(unboxedArguments[3]) == nullableLongType)
         #expect(callNames(in: body, interner: interner) == [
             LoweringTestRuntime.name("unbox_int"), LoweringTestRuntime.name("unbox_int"),
+            LoweringTestRuntime.name("box_long"),
         ])
 
         let returnedInt = arena.appendExpr(.intLiteral(7), type: types.intType)

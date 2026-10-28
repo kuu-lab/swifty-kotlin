@@ -187,6 +187,33 @@ enum InlineErasedLambdaABI {
         return primitive
     }
 
+    /// A nullable primitive kind whose raw representation can collide with the
+    /// null sentinel (Long.MIN_VALUE, ULong 2^63, Double -0.0). A lambda
+    /// parameter of one of these types must keep the box-or-sentinel
+    /// representation it receives across the erased boundary: unboxing a boxed
+    /// colliding element would produce the same bits as null (KUU-3661).
+    private static func nullableSentinelCollidingPrimitive(
+        of type: TypeID?,
+        ctx: KIRContext
+    ) -> PrimitiveType? {
+        guard let type, let types = ctx.sema?.types,
+              let symbols = ctx.sema?.symbols
+        else {
+            return nil
+        }
+        let resolvedKind = resolveValueClassKind(
+            types.kind(of: type),
+            types: types,
+            symbols: symbols
+        )
+        guard case let .primitive(primitive, .nullable) = resolvedKind,
+              primitive == .long || primitive == .ulong || primitive == .double
+        else {
+            return nil
+        }
+        return primitive
+    }
+
     /// Both nullabilities of a resolved primitive kind. Nullable parameters of
     /// a spliced lambda still arrive boxed across the erased boundary and need
     /// the sentinel-aware `kk_unbox_*` (which maps null to the primitive's
@@ -259,6 +286,32 @@ enum InlineErasedLambdaABI {
                 let typedArgument = module.arena.appendTemporary(type: parameterType)
                 body.append(.copy(from: arguments[index], to: typedArgument))
                 normalized[index] = typedArgument
+                continue
+            }
+
+            // A Long?/ULong?/Double? parameter keeps the box-or-sentinel
+            // representation: unboxing a boxed Long.MIN_VALUE / 2^63 / -0.0
+            // element here would produce the same bits as the null sentinel,
+            // so a real value would later read as null (KUU-3661). The
+            // boxing callee passes boxes and the sentinel through verbatim —
+            // and boxes any raw bits that arrived unwrapped — which is
+            // exactly the normalization a nullable primitive slot needs.
+            if argumentIsErased,
+               let sentinelColliding = nullableSentinelCollidingPrimitive(
+                   of: parameterType, ctx: ctx
+               )
+            {
+                let bound = module.arena.appendTemporary(type: parameterType)
+                body.append(.call(
+                    callee: ABILoweringPass.primitiveBoxingCallee(
+                        for: sentinelColliding,
+                        interner: ctx.interner
+                    ),
+                    arguments: [arguments[index]],
+                    result: bound,
+                    canThrow: false
+                ))
+                normalized[index] = bound
                 continue
             }
 
