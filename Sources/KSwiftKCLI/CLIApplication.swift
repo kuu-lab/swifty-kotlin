@@ -25,6 +25,10 @@ func printCLIError(_ error: CLIParseError) {
         print("Unknown option: \(option)")
     case let .incompatibleStdlibOptions(message):
         print(message)
+    case let .incompatibleJVMTargetOptions(message):
+        print(message)
+    case let .unsupportedJVMTarget(value):
+        print("Unsupported JVM target: \(value) (expected 1.8 or 9–26)")
     case .stdlibOnlyRequiresLibraryEmit:
         print("--stdlib-only requires --emit library")
     case let .unsupportedStdlibProfile(value):

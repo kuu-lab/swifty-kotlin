@@ -11,8 +11,8 @@ final class JVMCodegenPhase: CompilerPhase {
         }
         do {
             // Validate and construct all bytes before touching the destination.
-            let classFile = try JVMClassFile.emit(program)
-            var classes = try program.classes.map { ($0.name + ".class", try JVMClassFile.emit($0, program: program)) }
+            let classFile = try JVMClassFile.emit(program, target: ctx.options.jvmTarget)
+            var classes = try program.classes.map { ($0.name + ".class", try JVMClassFile.emit($0, program: program, target: ctx.options.jvmTarget)) }
             if ctx.options.stdlibOnly {
                 let coverage = try JVMStdlibCoverage.report(program, classFiles: [(program.internalClassName + ".class", classFile)] + classes)
                 classes.append(("META-INF/kswiftk-stdlib-coverage.json", coverage))

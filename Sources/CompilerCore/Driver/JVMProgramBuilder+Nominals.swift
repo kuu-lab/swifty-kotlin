@@ -225,6 +225,7 @@ extension JVMProgramBuilder {
                     declaration: c,
                     isValue: isJvmInlineValue
                 )
+                plan.isJvmRecord = sema.symbols.annotations(for: symbol).contains { $0.annotationFQName == "kotlin.jvm.JvmRecord" }
                 classes[symbol] = plan
                 try collectNominals(c.nestedClasses + c.nestedObjects, outer: symbol)
                 if let companion = c.companionObject { try collectNominals([companion], outer: symbol, companion: true) }
@@ -412,6 +413,15 @@ extension JVMProgramBuilder {
         }
         result.isObject = plan.isObject; result.isCompanion = plan.companionOwner != nil
         result.isData = plan.modifiers.contains(.data); result.isEnum = plan.isEnum
+        result.recordComponents = plan.isJvmRecord
+            ? try dataProperties(plan).map { property in
+                JVMRecordComponent(
+                    name: property.name,
+                    type: property.type,
+                    genericSignature: property.genericSignature == property.type.descriptor ? nil : property.genericSignature
+                )
+            }
+            : []
         result.isSealed = plan.modifiers.contains(.sealed)
         result.isInner = plan.isInner
         if let field = try outerField(plan) { result.extraFields.append(field) }

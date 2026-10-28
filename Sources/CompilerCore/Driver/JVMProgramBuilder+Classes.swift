@@ -19,6 +19,7 @@ final class JVMClassPlan {
     var delegatedMethods: [(SymbolID, JVMForeignMethod, JVMForeignMethod, JVMField)] = []
     var delegatedProperties: [(JVMProperty, JVMProperty, JVMField)] = []
     var anonymousSuper: JVMForeignMethod?
+    var isJvmRecord = false
     var enclosingMethod: JVMEnclosingMethod?
     var isInner: Bool { declaration?.isInner == true }
     var isObject: Bool { object != nil && !isAnonymous }
@@ -120,6 +121,7 @@ extension JVMProgramBuilder {
                 Self.isIdentifier(String(component))
                     || plan.isAnonymous && !component.isEmpty && component.utf8.allSatisfy { (48...57).contains($0) }
             }) else { throw JVMFrontendError(message: "JVM classes require ASCII names.") }
+            if plan.isJvmRecord { plan.superclass = "java/lang/Record" }
             if let parent = plan.enumParent { plan.superclass = classes[parent]!.name }
             for parent in plan.enumParent == nil ? sema.symbols.directSupertypes(for: plan.symbol) : [] {
                 let sourceName = try className(parent)
@@ -145,7 +147,7 @@ extension JVMProgramBuilder {
             let functionIDs = plan.declaration?.memberFunctions ?? plan.interface!.memberFunctions
             for id in functionIDs {
                 guard case let .funDecl(f) = ast.arena.decl(id), let symbol = sema.bindings.declSymbol(for: id) else { throw JVMFrontendError(message: "Missing JVM member function.") }
-                guard !plan.isInterface || !f.modifiers.contains(.private) else { throw JVMFrontendError(message: "JVM M5 targets Java 8; private interface methods are unsupported.", range: f.range) }
+                guard !plan.isInterface || !f.modifiers.contains(.private) else { throw JVMFrontendError(message: "JVM M5 does not support private interface methods.", range: f.range) }
                 let ref = try functionReference(f, symbol: symbol, member: true)
                 var method = JVMForeignMethod(owner: plan.name, name: ref.name, descriptor: ref.descriptor, parameters: ref.parameters, result: ref.result, isStatic: false, isInterface: plan.isInterface, isAbstract: f.modifiers.contains(.abstract) || (plan.isInterface && f.body == .unit))
                 method.isSpecial = f.modifiers.contains(.private)
@@ -184,7 +186,7 @@ extension JVMProgramBuilder {
                   p.modifiers.subtracting([.public, .private, .protected, .internal, .open, .final, .abstract, .override, .lateinit, .const]).isEmpty,
                   p.getter?.isInline != true, p.setter?.isInline != true,
                   p.getter?.annotations.isEmpty ?? true, p.setter?.annotations.isEmpty ?? true else { throw JVMFrontendError(message: "Unsupported JVM property declaration.") }
-            guard !plan.isInterface || (!p.modifiers.contains(.private) && p.getter?.visibility != .private && p.setter?.visibility != .private) else { throw JVMFrontendError(message: "JVM M5 targets Java 8; private interface accessors are unsupported.", range: p.range) }
+            guard !plan.isInterface || (!p.modifiers.contains(.private) && p.getter?.visibility != .private && p.setter?.visibility != .private) else { throw JVMFrontendError(message: "JVM M5 does not support private interface accessors.", range: p.range) }
             let name = context.interner.resolve(p.name)
             let type = plan.isAnnotation ? try annotationElementType(self.type(propertyType)) : try self.type(propertyType)
             let extensionReceiverSemantic = sema.symbols.extensionPropertyReceiverType(for: symbol)
@@ -196,7 +198,7 @@ extension JVMProgramBuilder {
             let capital = String(name.prefix(1)).uppercased() + name.dropFirst()
             let booleanIs = name.hasPrefix("is") && name.count > 2 && name.dropFirst(2).first!.isUppercase
             let collectionGetter = collectionPropertyGetter(plan, name: name)
-            let getterName = collectionGetter ?? (plan.isAnnotation ? name : (booleanIs ? name : "get" + capital))
+            let getterName = plan.isJvmRecord ? name : (collectionGetter ?? (plan.isAnnotation ? name : (booleanIs ? name : "get" + capital)))
             let setterName = booleanIs ? "set" + name.dropFirst(2) : "set" + capital
             var getter = JVMForeignMethod(owner: plan.name, name: getterName, descriptor: "(" + getterParameters.map(\.descriptor).joined() + ")" + type.descriptor, parameters: getterParameters, result: type, isStatic: plan.isFacade, isInterface: plan.isInterface, isAbstract: isAbstract)
             getter.isSpecial = !plan.isFacade && (p.getter?.visibility == .private || p.modifiers.contains(.private))
@@ -328,6 +330,9 @@ extension JVMProgramBuilder {
                 let id = sema.types.make(.classType(ClassType(classSymbol: parent, args: args)))
                 if source == "kotlin/Any" { parentSignatures["java/lang/Object"] = "Ljava/lang/Object;" }
                 else { parentSignatures[JVMClasspathIndex.builtinName(source) ?? source] = try signatureType(id) }
+            }
+            if plan.isJvmRecord {
+                result.kotlinSupertypes = [.named("java/lang/Record", [], nullable: false)]
             }
             if plan.isEnum { parentSignatures["java/lang/Enum"] = "Ljava/lang/Enum<L" + plan.name + ";>;" }
             let parents = ([plan.superclass] + plan.interfaces).map { parentSignatures[$0] ?? "L" + $0 + ";" }
