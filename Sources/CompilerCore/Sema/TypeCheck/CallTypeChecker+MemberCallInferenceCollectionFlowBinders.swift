@@ -62,9 +62,7 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
     @discardableResult
     func bindBundledSequenceDestinationSourceFunction(
         typeArguments: [TypeID],
-        parameterMapping: [Int: Int]? = nil,
-        locals: inout LocalBindings
-    ) -> Bool {
+        parameterMapping: [Int: Int]? = nil) -> Bool {
         let parameterMapping = parameterMapping
             ?? Dictionary(uniqueKeysWithValues: args.indices.map { ($0, $0) })
         guard isSequenceReceiver else {
@@ -109,9 +107,7 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
         parameterMapping: [Int: Int]? = nil,
         matchingParameterType: TypeID? = nil,
         receiverElementType: TypeID? = nil,
-        requireMutableListReceiver: Bool = false,
-        locals: inout LocalBindings
-    ) -> Bool {
+        requireMutableListReceiver: Bool = false) -> Bool {
         let parameterMapping = parameterMapping
             ?? Dictionary(uniqueKeysWithValues: args.indices.map { ($0, $0) })
         let typeMatches: (TypeID, TypeID) -> Bool = {
@@ -187,7 +183,7 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
     /// Uses the regular overload resolver so default arguments and named labels
     /// are handled correctly.
     @discardableResult
-    func bindBundledListBinarySearchSource(elementType: TypeID, locals: inout LocalBindings) -> Bool {
+    func bindBundledListBinarySearchSource() -> Bool {
         let calleeStr = interner.resolve(calleeName)
         guard calleeStr == "binarySearch" || calleeStr == "binarySearchBy" else { return false }
         guard (!isSequenceReceiver || isListFactoryReceiver),
@@ -234,9 +230,7 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
         allowNominalIterableReceiver: Bool = false,
         allowCollectionReceiver: Bool = false,
         allowConcreteForEachReceiver: Bool = false,
-        receiverElementType: TypeID? = nil,
-        locals: inout LocalBindings
-    ) -> Bool {
+        receiverElementType: TypeID? = nil) -> Bool {
         // KSP-978: Generic Iterable group-family calls use the bundled
         // source declarations. Concrete List receivers keep the List path
         // unless an exact specialized Iterable overload opts in below, and
@@ -377,7 +371,7 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
     /// The bundled `Iterable` `*With`/`sortedWith` overloads only take
     /// Comparator parameters, so a function-typed argument must not bind to
     /// them.
-    func isComparatorTypedArgument(_ argExprID: ExprID, locals: inout LocalBindings) -> Bool {
+    func isComparatorTypedArgument(_ argExprID: ExprID) -> Bool {
         let comparatorFQName: [InternedString] = [interner.intern("kotlin"), interner.intern("Comparator")]
         guard let comparatorSymbol = sema.symbols.lookup(fqName: comparatorFQName),
               let argType = sema.bindings.exprType(for: argExprID),
@@ -393,7 +387,7 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
     /// ListCollectionOps.kt, so every other element type falls through to
     /// this function); call order, not a guard here, keeps the List fast
     /// path from being overridden when it already bound.
-    func bindBundledIterableSumSource(locals: inout LocalBindings) -> TypeID? {
+    func bindBundledIterableSumSource() -> TypeID? {
         guard !isSequenceReceiver,
               !isRangeReceiver,
               isCollectionReceiver,
@@ -456,9 +450,7 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
     /// same HOF lambda expr).
     func bindIterableSumOfSourceForSelectorType(
         collectionElementType: TypeID,
-        selectorReturnType: TypeID,
-        locals: inout LocalBindings
-    ) -> TypeID? {
+        selectorReturnType: TypeID) -> TypeID? {
         let sourceFQName = [
             interner.intern("kotlin"),
             interner.intern("collections"),
@@ -553,7 +545,7 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
         guard let returnType = bindIterableSumOfSourceForSelectorType(
             collectionElementType: collectionElementType,
             selectorReturnType: selectorReturnType
-        , locals: &locals) else {
+        ) else {
             return nil
         }
         if let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef {
@@ -567,9 +559,7 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
         collectionElementType: TypeID,
         resultElementType: TypeID,
         returnsSequence: Bool,
-        destinationType: TypeID? = nil,
-        locals: inout LocalBindings
-    ) -> Bool {
+        destinationType: TypeID? = nil) -> Bool {
         guard !isSequenceReceiver,
               isIterableReceiver,
               !receiverClassification.isListReceiver,
@@ -938,7 +928,7 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
     // collection-owner resolver, so bind the source declaration after the
     // lambda has been contextualized.
     @discardableResult
-    func bindBundledGenericOnEachSourceFunction(typeArguments: [TypeID], locals: inout LocalBindings) -> Bool {
+    func bindBundledGenericOnEachSourceFunction(typeArguments: [TypeID]) -> Bool {
         guard !isSequenceReceiver,
               !isArrayReceiver,
               args.count == 1,
@@ -1014,7 +1004,7 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
     /// ranges, and crashed at runtime. Keeping the call-site name
     /// (`iterator`) but the target name mangled avoids widening that
     /// pool while still binding the correct implementation here.
-    func bindBundledMapIteratorSourceFunction(locals: inout LocalBindings) -> TypeID? {
+    func bindBundledMapIteratorSourceFunction() -> TypeID? {
         // MutableMap.iterator() has a more specific source-backed overload
         // whose mutable entry type and runtime bridge must win. Let the
         // regular member resolver select that overload instead of binding
@@ -1095,9 +1085,7 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
 
     func sequenceSourceReceiverElementMatches(
         _ signature: FunctionSignature,
-        actualElementType: TypeID,
-        locals: inout LocalBindings
-    ) -> Bool {
+        actualElementType: TypeID) -> Bool {
         // Generic Sequence<T> extensions accept every element type. A
         // monomorphic extension, however, must only be selected when
         // its concrete receiver element matches the actual receiver.
@@ -1138,7 +1126,7 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                     && sequenceSourceReceiverElementMatches(
                         signature,
                         actualElementType: collectionElementType
-                    , locals: &locals)
+                    )
             }) {
                 chosenCallee = candidate
                 break
@@ -1187,7 +1175,7 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                     && sequenceSourceReceiverElementMatches(
                         signature,
                         actualElementType: collectionElementType
-                    , locals: &locals)
+                    )
             }) {
                 sema.bindings.bindCall(id, binding: CallBinding(
                     chosenCallee: chosen,
@@ -1212,9 +1200,7 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
     /// would capture every selector type (upstream exposes exactly the
     /// Int/Long/Double/UInt/ULong family).
     func bindSequenceSumOfSourceForSelectorType(
-        selectorReturnType: TypeID,
-        locals: inout LocalBindings
-    ) -> TypeID? {
+        selectorReturnType: TypeID) -> TypeID? {
         let sourcePackages: [[InternedString]] = [
             [interner.intern("kotlin"), interner.intern("sequences")],
             [interner.intern("kotlin"), interner.intern("collections")],
@@ -1326,7 +1312,7 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                     && sequenceSourceReceiverElementMatches(
                         signature,
                         actualElementType: collectionElementType
-                    , locals: &locals)
+                    )
             }
 
             // `Sequence<Sequence<T>>.flatten()` and
