@@ -154,6 +154,7 @@ extension MemberLowerer {
             let getterExtraArgs = buildCustomDelegateGetterArgs(
                 propertySymbol: propertySymbol,
                 delegateValue: delegateHandleExprID,
+                ast: shared.ast,
                 sema: sema,
                 arena: arena,
                 interner: interner,
@@ -214,6 +215,7 @@ extension MemberLowerer {
                 propertySymbol: propertySymbol,
                 valueExprID: valueExprID,
                 delegateValue: delegateHandleExprID,
+                ast: shared.ast,
                 sema: sema,
                 arena: arena,
                 interner: interner,
@@ -419,6 +421,7 @@ extension MemberLowerer {
     private func buildCustomDelegateGetterArgs(
         propertySymbol: SymbolID,
         delegateValue: KIRExprID? = nil,
+        ast: ASTModule?,
         sema: SemaModule,
         arena: KIRArena,
         interner: StringInterner,
@@ -437,6 +440,7 @@ extension MemberLowerer {
             arena: arena,
             interner: interner,
             delegateValue: delegateValue,
+            ast: ast,
             body: &body
         )
         return [thisRefExprID, kPropertyExprID]
@@ -446,6 +450,7 @@ extension MemberLowerer {
         propertySymbol: SymbolID,
         valueExprID: KIRExprID,
         delegateValue: KIRExprID? = nil,
+        ast: ASTModule?,
         sema: SemaModule,
         arena: KIRArena,
         interner: StringInterner,
@@ -454,6 +459,7 @@ extension MemberLowerer {
         buildCustomDelegateGetterArgs(
             propertySymbol: propertySymbol,
             delegateValue: delegateValue,
+            ast: ast,
             sema: sema,
             arena: arena,
             interner: interner,
@@ -487,6 +493,7 @@ extension MemberLowerer {
             arena: arena,
             interner: interner,
             isLocal: true,
+            ast: nil,
             body: &body
         )
         instructions = body.instructions
@@ -500,6 +507,7 @@ extension MemberLowerer {
         interner: StringInterner,
         isLocal: Bool = false,
         delegateValue: KIRExprID? = nil,
+        ast: ASTModule? = nil,
         body: inout KIRLoweringEmitContext
     ) -> KIRExprID {
         driver.emitKPropertyStubCreate(
@@ -509,6 +517,7 @@ extension MemberLowerer {
             interner: interner,
             isLocal: isLocal,
             delegateValue: delegateValue,
+            ast: ast,
             emit: &body
         )
     }

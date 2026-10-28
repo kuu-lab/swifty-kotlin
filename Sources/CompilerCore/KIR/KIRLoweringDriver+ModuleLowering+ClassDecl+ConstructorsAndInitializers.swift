@@ -1175,6 +1175,7 @@ extension KIRLoweringDriver {
             arena: arena,
             interner: shared.interner,
             delegateValue: delegateValue,
+            ast: shared.ast,
             emit: &body
         )
         let provideDelegateName = shared.interner.intern("provideDelegate")

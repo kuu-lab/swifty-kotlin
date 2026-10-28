@@ -17,6 +17,7 @@ extension KIRLoweringDriver {
         interner: StringInterner,
         isLocal: Bool = false,
         delegateValue: KIRExprID? = nil,
+        ast: ASTModule? = nil,
         emit body: inout KIRLoweringEmitContext
     ) -> KIRExprID {
         let propertyName = sema.symbols.symbol(propertySymbol)?.name ?? interner.intern("")
@@ -64,6 +65,21 @@ extension KIRLoweringDriver {
             stubArguments.append(isMutableExprID)
             stubCalleeName = "__kk_kproperty_stub_create_local"
         } else {
+            // KUU-3194: prefer a real accessor-backed wrapper object so the
+            // KProperty value dispatches get/set/invoke to the generated
+            // accessors. Fall back to the metadata-only runtime stub when the
+            // property shape is not representable as a wrapper.
+            if let wrapperValue = lambdaLowerer.lowerDelegatedPropertyStubWrapper(
+                propertySymbol: propertySymbol,
+                propertyName: propertyName,
+                ast: ast,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &body.instructions
+            ) {
+                return wrapperValue
+            }
             let arityExprID = arena.appendExpr(.intLiteral(hasReceiver ? 1 : 0), type: sema.types.intType)
             body.append(.constValue(result: arityExprID, value: .intLiteral(hasReceiver ? 1 : 0)))
             let isMutableExprID = arena.appendExpr(.intLiteral(isMutable ? 1 : 0), type: sema.types.intType)
@@ -136,6 +152,7 @@ extension KIRLoweringDriver {
             arena: arena,
             interner: interner,
             delegateValue: delegateObjExpr,
+            ast: shared.ast,
             emit: &initInstructions
         )
 
