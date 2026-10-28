@@ -184,8 +184,8 @@ extension CallTypeChecker {
         let interner = ctx.interner
         let knownNames = KnownCompilerNames(interner: interner)
 
-        let isChannelReceiver = ReceiverClassifier(sema: sema, interner: interner)
-            .isChannelReceiverType(lookupReceiverType)
+        let receiverClassifier = ReceiverClassifier(sema: sema, interner: interner)
+        let isChannelReceiver = receiverClassifier.isChannelReceiverType(lookupReceiverType)
         if !isClassNameReceiver, isChannelReceiver {
             let memberName = interner.resolve(calleeName)
             // KSP-678: close / isClosedForReceive / isClosedForSend are resolved
@@ -202,6 +202,14 @@ extension CallTypeChecker {
             // syntax on a function — fall through so the invocation-syntax
             // check rejects it like any other bound function.
             case ("receive", 0) where ast.arena.isExplicitCall(id) && explicitTypeArgs.isEmpty:
+                // This direct-call shortcut has no suspend FunctionSignature
+                // binding for the post-inference context validator to inspect.
+                // Only the kotlinx.coroutines Channel surface owns this rule;
+                // same-named user classes continue through ordinary resolution.
+                guard receiverClassifier.isKotlinxCoroutinesChannelType(lookupReceiverType) else {
+                    break
+                }
+                driver.specialSuspendingCallNames[id] = memberName
                 let resultType: TypeID
                 if let element = resolveClassType(lookupReceiverType, sema: sema)?.args.first {
                     switch element {

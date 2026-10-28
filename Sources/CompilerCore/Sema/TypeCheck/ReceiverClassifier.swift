@@ -151,6 +151,15 @@ struct ReceiverClassifier {
         return findChannelBound(type)
     }
 
+    /// Channel's suspend special case must not capture unrelated classes that
+    /// happen to share its simple name. Keep this exact predicate separate from
+    /// the legacy receiver fallback used by the runtime lowering path.
+    func isKotlinxCoroutinesChannelType(_ type: TypeID) -> Bool {
+        matchesKnownType(type) { knownNames, symbol in
+            knownNames.symbolMatches(symbol, fqName: knownNames.kotlinxCoroutinesChannelFQName)
+        }
+    }
+
     func isIterableLikeReceiver(receiverID: ExprID) -> Bool {
         isIterableLikeType(receiverType(for: receiverID))
     }
