@@ -351,14 +351,6 @@ final class KIRLoweringContext {
         currentImplicitReceiverExprID = nil
     }
 
-    func saveQualifiedThisReceivers() -> [InternedString: KIRExprID] {
-        qualifiedThisReceiverExprsByLabel
-    }
-
-    func restoreQualifiedThisReceivers(_ receivers: [InternedString: KIRExprID]) {
-        qualifiedThisReceiverExprsByLabel = receivers
-    }
-
     func qualifiedThisReceiverExprID(for label: InternedString) -> KIRExprID? {
         qualifiedThisReceiverExprsByLabel[label]
     }
