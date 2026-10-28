@@ -97,8 +97,15 @@ extension ExprLowerer {
                 if driver.ctx.localDelegateStorage(for: sym) != nil { return true }
                 if sym == driver.ctx.activeImplicitReceiverSymbol(),
                    driver.ctx.activeImplicitReceiverExprID() != nil { return true }
-                guard let referencedSymbol = sema.symbols.symbol(sym),
-                      referencedSymbol.kind == .local
+                guard let referencedSymbol = sema.symbols.symbol(sym) else {
+                    // Synthetic receiver/parameter symbols (an enclosing
+                    // extension function's `this`, a labeled lambda's receiver)
+                    // never enter the symbol table, but `this@name` binds them
+                    // like any other value — capture them when a live binding
+                    // exists in the enclosing scope (KUU-3671).
+                    return driver.ctx.localValue(for: sym) != nil
+                }
+                guard referencedSymbol.kind == .local
                         || referencedSymbol.kind == .valueParameter
                         || referencedSymbol.flags.contains(.localFunction)
                 else {
