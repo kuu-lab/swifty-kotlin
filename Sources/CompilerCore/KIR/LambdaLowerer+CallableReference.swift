@@ -2,7 +2,6 @@ extension LambdaLowerer {
     private func lowerCallableReferenceAdapter(
         _ exprID: ExprID,
         targetSymbol: SymbolID,
-        targetName: InternedString?,
         binding: CallBinding,
         isUnbound: Bool,
         captureArguments: [KIRExprID],
@@ -14,9 +13,7 @@ extension LambdaLowerer {
         sema: SemaModule,
         arena: KIRArena,
         interner: StringInterner,
-        propertyConstantInitializers: [SymbolID: KIRExprKind],
-        instructions: inout [KIRInstruction]
-    ) -> (symbol: SymbolID, name: InternedString) {
+        propertyConstantInitializers: [SymbolID: KIRExprKind]) -> (symbol: SymbolID, name: InternedString) {
         let callableSymbol = driver.ctx.syntheticLambdaSymbol(for: exprID)
         let callableName = syntheticLambdaName(for: exprID, interner: interner)
         let contextInputCount = functionType.contextReceivers.count
@@ -975,7 +972,6 @@ extension LambdaLowerer {
                 let adapter = lowerCallableReferenceAdapter(
                     exprID,
                     targetSymbol: callTargetSymbol,
-                    targetName: callTargetName,
                     binding: callableReferenceBinding,
                     isUnbound: isUnbound,
                     captureArguments: captureArguments,
@@ -987,9 +983,7 @@ extension LambdaLowerer {
                     sema: sema,
                     arena: arena,
                     interner: interner,
-                    propertyConstantInitializers: propertyConstantInitializers,
-                    instructions: &instructions
-                )
+                    propertyConstantInitializers: propertyConstantInitializers)
                 samTarget = (adapter.symbol, adapter.name, false)
             } else {
                 samTarget = (callTargetSymbol, callTargetName, reifiedThunk != nil)
@@ -1106,7 +1100,6 @@ extension LambdaLowerer {
             let adapter = lowerCallableReferenceAdapter(
                 exprID,
                 targetSymbol: callTargetSymbol,
-                targetName: callTargetName,
                 binding: callableReferenceBinding,
                 isUnbound: isUnbound,
                 captureArguments: captureArguments,
@@ -1118,9 +1111,7 @@ extension LambdaLowerer {
                 sema: sema,
                 arena: arena,
                 interner: interner,
-                propertyConstantInitializers: propertyConstantInitializers,
-                instructions: &instructions
-            )
+                propertyConstantInitializers: propertyConstantInitializers)
             callableSymbol = adapter.symbol
             callableName = adapter.name
         } else if let callTargetSymbol, isConstructorTarget {

@@ -450,7 +450,7 @@ extension ControlFlowLowerer {
         // reaches the same nominal check as a value held in an IntRange
         // variable.
         guard let (_, symbol) = resolveClassTypeSymbol(nonNullType, sema: sema),
-              isRangeLikeClass(symbol, sema: sema, interner: interner)
+              isRangeLikeClass(symbol, interner: interner)
         else {
             return false
         }

@@ -74,8 +74,7 @@ final class ReifiedEnumValuesLoweringPass: LoweringPass {
                         sema.types.make(.classType(ClassType(classSymbol: $0, args: [.invariant(enumType)], nullability: .nonNull)))
                     } ?? sema.types.anyType
                     let values = emitEnumEntryCollection(
-                        classType: classType, nominalSymbol: nominalSymbol, boundType: arrayType,
-                        kind: .enumValues, runtimeCalleeName: "kk_enum_make_values_array",
+                        classType: classType, nominalSymbol: nominalSymbol, boundType: arrayType, runtimeCalleeName: "kk_enum_make_values_array",
                         sema: sema, arena: module.arena, interner: ctx.interner, instructions: &generated
                     )
                     for generatedInstruction in generated { body.append(generatedInstruction) }
