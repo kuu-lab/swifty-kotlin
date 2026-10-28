@@ -17,6 +17,8 @@ public fun ByteArray.sortDescending(): Unit = null!!
 public fun ByteArray.sortedArray(): ByteArray = null!!
 public fun ByteArray.sortedArrayDescending(): ByteArray = null!!
 public fun ByteArray.binarySearch(element: Byte, fromIndex: Int = 0, toIndex: Int = size): Int = null!!
+public fun ByteArray.sorted(): List<Byte> = null!!
+public fun ByteArray.sum(): Int = null!!
 
 public infix fun ShortArray?.contentEquals(other: ShortArray?): Boolean = null!!
 public fun ShortArray?.contentHashCode(): Int = null!!
@@ -28,6 +30,8 @@ public fun ShortArray.sortDescending(): Unit = null!!
 public fun ShortArray.sortedArray(): ShortArray = null!!
 public fun ShortArray.sortedArrayDescending(): ShortArray = null!!
 public fun ShortArray.binarySearch(element: Short, fromIndex: Int = 0, toIndex: Int = size): Int = null!!
+public fun ShortArray.sorted(): List<Short> = null!!
+public fun ShortArray.sum(): Int = null!!
 
 public infix fun IntArray?.contentEquals(other: IntArray?): Boolean = null!!
 public fun IntArray?.contentHashCode(): Int = null!!
@@ -39,6 +43,8 @@ public fun IntArray.sortDescending(): Unit = null!!
 public fun IntArray.sortedArray(): IntArray = null!!
 public fun IntArray.sortedArrayDescending(): IntArray = null!!
 public fun IntArray.binarySearch(element: Int, fromIndex: Int = 0, toIndex: Int = size): Int = null!!
+public fun IntArray.sorted(): List<Int> = null!!
+public fun IntArray.sum(): Int = null!!
 
 public infix fun LongArray?.contentEquals(other: LongArray?): Boolean = null!!
 public fun LongArray?.contentHashCode(): Int = null!!
@@ -50,6 +56,8 @@ public fun LongArray.sortDescending(): Unit = null!!
 public fun LongArray.sortedArray(): LongArray = null!!
 public fun LongArray.sortedArrayDescending(): LongArray = null!!
 public fun LongArray.binarySearch(element: Long, fromIndex: Int = 0, toIndex: Int = size): Int = null!!
+public fun LongArray.sorted(): List<Long> = null!!
+public fun LongArray.sum(): Long = null!!
 
 public infix fun FloatArray?.contentEquals(other: FloatArray?): Boolean = null!!
 public fun FloatArray?.contentHashCode(): Int = null!!
@@ -61,6 +69,8 @@ public fun FloatArray.sortDescending(): Unit = null!!
 public fun FloatArray.sortedArray(): FloatArray = null!!
 public fun FloatArray.sortedArrayDescending(): FloatArray = null!!
 public fun FloatArray.binarySearch(element: Float, fromIndex: Int = 0, toIndex: Int = size): Int = null!!
+public fun FloatArray.sorted(): List<Float> = null!!
+public fun FloatArray.sum(): Float = null!!
 
 public infix fun DoubleArray?.contentEquals(other: DoubleArray?): Boolean = null!!
 public fun DoubleArray?.contentHashCode(): Int = null!!
@@ -72,6 +82,8 @@ public fun DoubleArray.sortDescending(): Unit = null!!
 public fun DoubleArray.sortedArray(): DoubleArray = null!!
 public fun DoubleArray.sortedArrayDescending(): DoubleArray = null!!
 public fun DoubleArray.binarySearch(element: Double, fromIndex: Int = 0, toIndex: Int = size): Int = null!!
+public fun DoubleArray.sorted(): List<Double> = null!!
+public fun DoubleArray.sum(): Double = null!!
 
 public infix fun BooleanArray?.contentEquals(other: BooleanArray?): Boolean = null!!
 public fun BooleanArray?.contentHashCode(): Int = null!!
@@ -88,6 +100,7 @@ public fun CharArray.sortDescending(): Unit = null!!
 public fun CharArray.sortedArray(): CharArray = null!!
 public fun CharArray.sortedArrayDescending(): CharArray = null!!
 public fun CharArray.binarySearch(element: Char, fromIndex: Int = 0, toIndex: Int = size): Int = null!!
+public fun CharArray.sorted(): List<Char> = null!!
 
 public fun <T> Array<T>.reversedArray(): Array<T> = null!!
 public fun <T> Array<out T>.sort(): Unit = null!!
