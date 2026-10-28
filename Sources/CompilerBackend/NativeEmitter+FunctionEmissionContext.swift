@@ -46,11 +46,8 @@ extension NativeEmitter {
         var coroutineRegisterRootFunction: LLVMFunction?
         var coroutineUnregisterRootFunction: LLVMFunction?
         var gcRootStoreFunction: LLVMFunction?
-        var gcFramePushFunction: LLVMFunction?
         var gcFrameLeaveFunction: LLVMFunction?
         var gcRootFrameActive = false
-        var gcRootArrayType: LLVMCAPIBindings.LLVMTypeRef?
-        var gcRootArrayPointer: LLVMCAPIBindings.LLVMValueRef?
         var gcRootSlotsByExpression: [Int32: LLVMCAPIBindings.LLVMValueRef] = [:]
         var gcRootSlotsByParameter: [Int: LLVMCAPIBindings.LLVMValueRef] = [:]
 
