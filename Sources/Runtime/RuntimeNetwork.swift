@@ -101,18 +101,6 @@ private final class RuntimeHTTPClientBox {
         )
     }
 
-    func setConnectTimeoutMillis(_ value: Int) {
-        lock.lock()
-        connectTimeoutMillis = max(0, value)
-        lock.unlock()
-    }
-
-    func setReadTimeoutMillis(_ value: Int) {
-        lock.lock()
-        readTimeoutMillis = max(0, value)
-        lock.unlock()
-    }
-
     func setFollowRedirects(_ value: Bool) {
         lock.lock()
         followRedirects = value
@@ -725,24 +713,6 @@ public func kk_http_headers_firstValue(_ headersRaw: Int, _ nameRaw: Int) -> Int
         return runtimeNullSentinelInt
     }
     return runtimeMakeUTF8StringRaw(value)
-}
-
-@_cdecl("kk_http_client_setConnectTimeoutMillis")
-public func kk_http_client_setConnectTimeoutMillis(_ clientRaw: Int, _ timeoutMillis: Int) -> Int {
-    guard let client = runtimeHTTPClientBox(from: clientRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_http_client_setConnectTimeoutMillis received invalid client handle")
-    }
-    client.setConnectTimeoutMillis(timeoutMillis)
-    return 0
-}
-
-@_cdecl("kk_http_client_setReadTimeoutMillis")
-public func kk_http_client_setReadTimeoutMillis(_ clientRaw: Int, _ timeoutMillis: Int) -> Int {
-    guard let client = runtimeHTTPClientBox(from: clientRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_http_client_setReadTimeoutMillis received invalid client handle")
-    }
-    client.setReadTimeoutMillis(timeoutMillis)
-    return 0
 }
 
 public func kk_http_client_setFollowRedirects(_ clientRaw: Int, _ enabled: Int) -> Int {
