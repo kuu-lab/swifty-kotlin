@@ -648,6 +648,25 @@ extension CallTypeChecker {
                 // receiver identity separately from the lexical dispatch owner.
                 sema.bindings.markImplicitExtensionReceiver(id, symbol: symbol)
             }
+            if sema.bindings.implicitReceiverOuterReceiver(for: id) == nil,
+               let owner = sema.symbols.memberExtensionOwnerSymbol(for: chosen),
+               let outerEntry = ctx.implicitReceiverMemberLookupEntries().first(where: { entry in
+                   driver.helpers.allNominalSymbols(
+                       of: entry.type,
+                       types: sema.types,
+                       symbols: sema.symbols,
+                       interner: interner
+                   ).contains { root in
+                       root == owner || sema.types.isNominalSubtypeSymbol(root, of: owner)
+                   }
+               }),
+               let receiverSymbol = outerEntry.symbol
+            {
+                // Scope lookup records a member extension's extension receiver
+                // above, but KIR also needs the lexical owner for its dispatch
+                // receiver slot when an inner receiver lambda shadows `this`.
+                sema.bindings.markImplicitReceiverOuterReceiver(id, symbol: receiverSymbol)
+            }
             if let calleeName, let receiverType = callImplicitReceiverType,
                let owner = sema.symbols.parentSymbol(for: chosen),
                let receiverClass = resolveClassType(receiverType, sema: sema),
