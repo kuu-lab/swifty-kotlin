@@ -19,7 +19,6 @@ struct KlibDeclImportTests {
         let types: TypeSystem
         let interner: StringInterner
         let diagnostics: DiagnosticEngine
-        let work: DataFlowSemaPhase.LibraryImportDeferredWork
     }
 
     /// Runs the real `loadImportedLibrarySymbols` path with the fixture klib
@@ -47,7 +46,7 @@ struct KlibDeclImportTests {
         let interner = StringInterner()
         let symbols = SymbolTable()
         let types = TypeSystem()
-        let work = DataFlowSemaPhase().loadImportedLibrarySymbols(
+        _ = DataFlowSemaPhase().loadImportedLibrarySymbols(
             options: ctx.options,
             symbols: symbols,
             types: types,
@@ -59,8 +58,7 @@ struct KlibDeclImportTests {
             symbols: symbols,
             types: types,
             interner: interner,
-            diagnostics: diagnostics,
-            work: work
+            diagnostics: diagnostics
         )
     }
 
