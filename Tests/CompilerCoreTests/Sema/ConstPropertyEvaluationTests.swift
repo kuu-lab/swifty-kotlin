@@ -314,6 +314,33 @@ struct ConstPropertyEvaluationTests {
     }
 
     @Test
+    func foldsFloatingFloorModWithInfiniteDivisor() throws {
+        let ctx = makeContextFromSource("""
+        package infiniteModConstants
+        const val DOUBLE_NEGATIVE = (-1.0).mod(Double.POSITIVE_INFINITY)
+        const val DOUBLE_POSITIVE = 1.0.mod(Double.NEGATIVE_INFINITY)
+        const val DOUBLE_SAME_SIGN = 1.0.mod(Double.POSITIVE_INFINITY)
+        const val FLOAT_NEGATIVE = (-1.0f).mod(Float.POSITIVE_INFINITY)
+        """)
+        try runSema(ctx)
+
+        #expect(ctx.diagnostics.diagnostics.filter { $0.severity == .error }.isEmpty)
+        let sema = try #require(ctx.sema)
+        let expected: [String: KIRExprKind] = [
+            "DOUBLE_NEGATIVE": .doubleLiteral(.infinity),
+            "DOUBLE_POSITIVE": .doubleLiteral(-.infinity),
+            "DOUBLE_SAME_SIGN": .doubleLiteral(1.0),
+            "FLOAT_NEGATIVE": .floatLiteral(.infinity),
+        ]
+        for (name, value) in expected {
+            let symbol = try #require(sema.symbols.lookup(
+                fqName: ["infiniteModConstants", name].map { ctx.interner.intern($0) }
+            ))
+            #expect(sema.symbols.constValueExprKind(for: symbol) == value, "Incorrect constant for \(name)")
+        }
+    }
+
+    @Test
     func foldsCharCodeNumericConversionConstInitializers() throws {
         let ctx = makeContextFromSource("""
         package charCodeConstants

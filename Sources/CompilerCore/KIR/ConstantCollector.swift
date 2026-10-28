@@ -774,6 +774,8 @@ struct ConstantCollector {
         return width == 32 ? Int64(Int32(truncatingIfNeeded: adjusted)) : adjusted
     }
 
+    /// An infinite divisor still takes the sign-correction branch: Kotlin's
+    /// `(-1.0).mod(Double.POSITIVE_INFINITY)` is `Infinity`, not `-1.0`.
     private func floatingFloorMod<T: BinaryFloatingPoint>(_ lhs: T, _ rhs: T) -> T? {
         // Kotlin: `if (r != 0.0 && r.sign != other.sign) r + other else r`.
         // An infinite divisor still takes the adjustment: (-1.0).mod(+Inf) is +Inf.
