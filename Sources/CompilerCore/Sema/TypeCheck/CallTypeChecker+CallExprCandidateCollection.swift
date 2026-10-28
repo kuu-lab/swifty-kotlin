@@ -29,6 +29,20 @@ extension CallTypeChecker {
         let interner = ctx.interner
         let knownNames = KnownCompilerNames(interner: interner)
 
+        if let target = ctx.annotationConstructionTarget,
+           target.call == id,
+           let annotationClass = sema.symbols.symbol(target.annotationClass),
+           annotationClass.kind == .annotationClass {
+            let constructorName = interner.intern("<init>")
+            let constructors = sema.symbols.lookupAll(fqName: annotationClass.fqName + [constructorName]).filter {
+                sema.symbols.parentSymbol(for: $0) == target.annotationClass
+            }
+            let (visible, invisible) = ctx.filterByVisibility(constructors)
+            candidates.append(contentsOf: visible)
+            callInvisible.append(contentsOf: invisible)
+            return nil
+        }
+
         if let calleeName {
             let scopeSelection = scopeCallCandidatesAfterInapplicableMembers(
                 named: calleeName, args: args, range: range,

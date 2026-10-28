@@ -1,6 +1,18 @@
 import Foundation
 
 extension DataFlowSemaPhase {
+    func declarationRangeIncludingAnnotationTokens(
+        _ annotations: [AnnotationNode], declarationRange: SourceRange
+    ) -> SourceRange {
+        let annotationStarts = annotations.compactMap { $0.constructionTokens?.first?.range.start }
+            .filter { $0.file == declarationRange.start.file }
+        guard let firstAnnotationStart = annotationStarts.min(by: { $0.offset < $1.offset }),
+              firstAnnotationStart.offset < declarationRange.start.offset else {
+            return declarationRange
+        }
+        return SourceRange(start: firstAnnotationStart, end: declarationRange.end)
+    }
+
     func contextParameterValueDeclarations(
         _ contextReceivers: [ContextReceiverDecl],
         interner: StringInterner

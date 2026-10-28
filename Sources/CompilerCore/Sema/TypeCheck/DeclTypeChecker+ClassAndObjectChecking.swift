@@ -131,6 +131,14 @@ extension DeclTypeChecker {
             ctx: ctx
         )
         let classBodyLocals = baseLocals.merging(primaryCtorLocals) { _, new in new }
+        let primaryConstructor = ctx.sema.symbols.symbols(atDeclSite: classDecl.range)
+            .compactMap({ ctx.sema.symbols.symbol($0) })
+            .first(where: { $0.kind == .constructor })
+        typeCheckPrimaryConstructorAnnotationFactories(
+            classDecl.primaryConstructorAnnotations,
+            symbol: primaryConstructor?.id,
+            ctx: classCtx
+        )
         if let companionDeclID = classDecl.companionObject {
             // Infer both sides first: companion bodies may use inferred instance members.
             let diagnosticSnapshot = diagnostics.count

@@ -252,7 +252,9 @@ extension DataFlowSemaPhase {
                 registerAnnotations(
                     secondaryCtor.annotations,
                     symbol: secCtorSymbol,
-                    declRange: secondaryCtor.range,
+                    declRange: declarationRangeIncludingAnnotationTokens(
+                        secondaryCtor.annotations, declarationRange: secondaryCtor.range
+                    ),
                     sourceFileID: file.fileID,
                     sourceFile: file,
                     sourceManager: sourceManager,

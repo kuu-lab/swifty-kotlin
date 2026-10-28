@@ -198,6 +198,9 @@ struct TypeInferenceContext: CustomStringConvertible {
     /// Only the outer annotation constructor can reuse earlier application checks.
     /// Nested expressions and constructor-specific markers still need checking.
     var annotationOptInValidation: (owner: SymbolID, range: SourceRange?, markers: Set<SymbolID>)?
+    /// The annotation class already resolved from declaration metadata for the
+    /// synthetic constructor call that replays one annotation application.
+    var annotationConstructionTarget: (call: ExprID, annotationClass: SymbolID)?
     /// Opt-ins retained when local functions replace the current declaration.
     var inheritedOptInMarkers: Set<SymbolID> = []
     /// When a nested lambda introduces a receiver whose class carries the same
