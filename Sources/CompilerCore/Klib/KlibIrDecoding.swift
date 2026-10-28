@@ -98,7 +98,6 @@ package enum KlibIrDecoding {
             nameIndex: proto.int32(4),
             nameOld: proto.string(1),
             lineStartOffsets: lineOffsets,
-            firstRelevantLineIndex: proto.int32(3) ?? 0
         )
     }
 
@@ -109,7 +108,6 @@ package enum KlibIrDecoding {
             fileEntryId: proto.int32(7),
             fqName: proto.int32List(3),
             annotations: proto.decodedList(4, annotation),
-            explicitlyExportedToCompiler: proto.int64List(5)
         )
     }
 
@@ -233,7 +231,6 @@ package enum KlibIrDecoding {
             extensionReceiver: proto.decoded(5, valueParameter),
             regularParameters: proto.decodedList(6, valueParameter),
             bodyIndex: proto.int32(7),
-            companionExtensionClass: proto.optionalSymbol(10)
         )
     }
 
@@ -248,7 +245,6 @@ package enum KlibIrDecoding {
         try KlibClass(
             base: proto.required(1, name: "class.base", declarationBase),
             nameIndex: requiredInt32(proto, 2, "class.name"),
-            thisReceiver: proto.decoded(3, valueParameter),
             typeParameters: proto.decodedList(4, typeParameter),
             declarations: proto.decodedList(5, declaration),
             superTypes: proto.int32List(6),
@@ -259,7 +255,6 @@ package enum KlibIrDecoding {
 
     private static func inlineClassRepresentation(_ proto: ProtoFields) throws -> KlibInlineClassRepresentation {
         try KlibInlineClassRepresentation(
-            underlyingPropertyName: requiredInt32(proto, 1, "inline_class_representation.underlying_property_name"),
             underlyingPropertyType: requiredInt32(proto, 2, "inline_class_representation.underlying_property_type")
         )
     }
@@ -275,7 +270,6 @@ package enum KlibIrDecoding {
             base: proto.required(1, name: "enum_entry.base", declarationBase),
             nameIndex: requiredInt32(proto, 2, "enum_entry.name"),
             initializerIndex: proto.int32(3),
-            correspondingClass: proto.decoded(4, `class`)
         )
     }
 
@@ -291,7 +285,6 @@ package enum KlibIrDecoding {
         try KlibFunction(
             base: proto.required(1, name: "function.base", functionBase),
             overridden: proto.symbolList(2),
-            preparedInlineFileEntryId: proto.int32(3)
         )
     }
 
