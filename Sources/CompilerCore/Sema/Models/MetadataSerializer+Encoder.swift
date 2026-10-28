@@ -640,6 +640,7 @@ package final class MetadataEncoder {
         var valueParameterCallsInPlaceKinds: [InvocationKind?] = []
         var canThrow = false
         var valueParameterNames: [String] = []
+        var hasStableParameterNames = true
         var reifiedTypeParameterIndices: Set<Int> = []
         var defaultStubExternalLinkName: String?
         var externalLinkName = symbols.externalLinkName(for: symbol.id)
@@ -697,6 +698,7 @@ package final class MetadataEncoder {
                 ? signature.valueParameterHasDefaultValues
                 : Array(repeating: false, count: signature.valueParameterHasDefaultValues.count)
             canThrow = signature.canThrow
+            hasStableParameterNames = signature.hasStableParameterNames
             valueParameterNames = signature.valueParameterSymbols.compactMap { paramSymbol in
                 symbols.symbol(paramSymbol).map { interner.resolve($0.name) }
             }
@@ -1113,6 +1115,7 @@ package final class MetadataEncoder {
             },
             canThrow: canThrow,
             valueParameterNames: valueParameterNames,
+            hasStableParameterNames: hasStableParameterNames,
             reifiedTypeParameterIndices: reifiedTypeParameterIndices,
             defaultStubExternalLinkName: defaultStubExternalLinkName,
             externalLinkName: externalLinkName,
@@ -1395,6 +1398,9 @@ package final class MetadataEncoder {
                 }
                 if !record.valueParameterNames.isEmpty {
                     fields.append("paramNames=\(record.valueParameterNames.joined(separator: ","))")
+                }
+                if !record.hasStableParameterNames {
+                    fields.append("unstableParams=1")
                 }
                 if !record.reifiedTypeParameterIndices.isEmpty {
                     let indices = record.reifiedTypeParameterIndices.sorted().map(String.init).joined(separator: ",")

@@ -8,6 +8,8 @@ public func kk_object_new(_ length: Int, _ classId: Int) -> Int {
     let key = UInt(bitPattern: opaque)
     runtimeStorage.withGCLock { state in
         state.objectPointers.insert(key)
+        state.managedObjectPointers.insert(key)
+        state.pendingGCRoots.insert(key)
     }
     runtimeStorage.withMetadataLock { state in
         state.objectTypeByPointer[key] = Int64(classId)

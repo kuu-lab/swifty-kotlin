@@ -208,6 +208,8 @@ extension CallTypeChecker {
                     case let .invariant(type), let .out(type):
                         resultType = type
                     case .in, .star:
+                        // A contravariant or star projection exposes only the
+                        // Channel element parameter's nullable Any upper bound.
                         resultType = sema.types.nullableAnyType
                     }
                 } else {

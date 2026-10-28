@@ -183,13 +183,32 @@ source 側へ優先させる修正、imported 拡張関数を shadow された i
 call 引数位置で推論不能だったもので、elvis 引数へ「レシーバの型引数で置換した候補パラメータ型」を
 文脈期待型として渡す修正で解消した（`ContravariantContinuationConstraintTests` に回帰テストあり）。
 ktor_utils は 26 errors、ktor_http は 324 errors まで減少（`io.ktor.utils.io.*` の
-kklib リンクと `this[key]!! += v` の parse/sema 対応で大半のカスケードが解消）。kotlinx_io は
-master 取り込み後のドリフトで 5 errors（`ByteString` 同名ファクトリ関数からの companion 参照、
-`UByte.compareTo` 未解決、vararg 再ディスパッチの3系統）に戻っている。
+kklib リンクと `this[key]!! += v` の parse/sema 対応で大半のカスケードが解消）。
+
+その後の master（`0263706381` 時点）では bundled stdlib が `kotlinx.io.*` を提供するように
+なった。上流 kotlinx-io モジュールを `-I` でリンクすると、bundled stdlib が同名
+declaration の所有権を持つため上流側がすべて `KSWIFTK-LIB-0031` で無視され、逆に解決が
+壊れる（ktor_io で 195 errors）。そのため `module_deps` は kotlinx_io を下流にリンクしない
+構成に更新した。この構成での最新計測値:
+
+| モジュール | exit | files | errors | warnings |
+|---|---|---|---|---|
+| kotlinx_io | 0 | 30 | 0 | 0 |
+| ktor_io | 0 | 45 | 0 | 1 |
+| ktor_utils | 1 | 55 | 21 | 8 |
+| ktor_http | 1 | 62 | 341 | 0 |
+
+- kotlinx_io は上流ソースが完全クリーンにコンパイルできる（旧5件のドリフトは解消）
+- ktor_io は引き続き 0 errors。consumer ハーネスも O0/O2 とも PASS
+- ktor_utils の残りは、未リンクの上流依存（`kotlinx.serialization` の `KSerializer` /
+  `Serializable`、coroutines 内部 API の `recoverStackTrace` / `isDispatchNeeded`）が大半で、
+  実ギャップは SEMA-INFER / TYPE-0001 / SEMA-0308 / SEMA-0104 など数件
+- ktor_http の 341 は `io.ktor.util.*` 未解決のカスケードが主因（ktor_utils.kklib が
+  未生成のため全 import が落ちる）。ktor_utils が通るまで実数はマスクされる
 
 ## まとめ
 
 pinned `ktor-io` は consumer まで含めて O0/O2 で動作し、`ktor_build.sh` の ktor_io プローブも
-依存リンク込みで 0 errors に到達した。一方で ktor_utils / ktor_http の standalone コンパイルは
+0 errors を維持している。一方で ktor_utils / ktor_http の standalone コンパイルは
 依然失敗し、Ktor 全体をビルド可能にするにはさらに大きな作業（kotlinx.serialization /
-atomicfu / kotlinx.coroutines のAPI実装、kotlinx_io の残存5件など）が必要になる。
+atomicfu / kotlinx.coroutines のAPI実装、ktor_utils の残存ギャップなど）が必要になる。

@@ -302,6 +302,7 @@ extension NativeEmitter.FunctionEmissionContext {
         storeOutThrownIfNonNull(zeroValue, suffix: "entry")
 
         emitStackOverflowGuard()
+        prepareGCRootFrame(allocaBuilder: allocaBuilder)
 
         for (instructionIndex, instruction) in function.body.enumerated() {
             // Lowering may leave dead expression tails after an unconditional
@@ -571,6 +572,7 @@ extension NativeEmitter.FunctionEmissionContext {
                             )
                             bindings.positionBuilder(builder, at: thrownBlock)
                             storeOutThrownIfNonNull(thrownValue, suffix: "notnull_throw_\(instructionIndex)")
+                            emitGCFrameLeave(returning: thrownValue)
                             _ = bindings.buildRet(builder, value: zeroReturnValue)
                             currentBlock = continueBlock
                             bindings.positionBuilder(builder, at: continueBlock)
@@ -738,6 +740,7 @@ extension NativeEmitter.FunctionEmissionContext {
                     ) ?? resolved
                 }
                 if let globalPtr = globalVariables[symbol] {
+                    registerGCRootForGlobal(symbol, slot: globalPtr)
                     _ = bindings.buildStore(builder, value: resolved, pointer: globalPtr)
                 }
 
@@ -746,6 +749,7 @@ extension NativeEmitter.FunctionEmissionContext {
                     continue
                 }
                 if let globalPtr = globalVariables[symbol] {
+                    registerGCRootForGlobal(symbol, slot: globalPtr)
                     if let loaded = bindings.buildLoad(
                         builder, type: int64Type, pointer: globalPtr,
                         name: nameCounter.nextName("load_global_")
@@ -778,6 +782,7 @@ extension NativeEmitter.FunctionEmissionContext {
                 }
                 let resolved = resolveValue(value)
                 storeOutThrownIfNonNull(resolved, suffix: "rethrow_\(instructionIndex)")
+                emitGCFrameLeave(returning: resolved)
                 _ = bindings.buildRet(builder, value: zeroReturnValue)
 
             case let .returnIfEqual(lhs, rhs):
@@ -801,6 +806,7 @@ extension NativeEmitter.FunctionEmissionContext {
                 _ = bindings.buildCondBr(builder, condition: condition, thenBlock: trueBlock, elseBlock: falseBlock)
 
                 bindings.positionBuilder(builder, at: trueBlock)
+                emitGCFrameLeave(returning: lhsValue)
                 _ = bindings.buildRet(builder, value: lhsValue)
 
                 currentBlock = falseBlock
@@ -810,6 +816,7 @@ extension NativeEmitter.FunctionEmissionContext {
                 guard !bindings.hasTerminator(currentBlock) else {
                     continue
                 }
+                emitGCFrameLeave(returning: nil)
                 _ = bindings.buildRet(builder, value: zeroReturnValue)
 
             case let .returnValue(value):
@@ -830,6 +837,7 @@ extension NativeEmitter.FunctionEmissionContext {
                         suffix: "return_\(instructionIndex)"
                     )
                 }
+                emitGCFrameLeave(returning: returnValue)
                 _ = bindings.buildRet(builder, value: returnValue)
 
             case .resumeNonLocalReturn:
@@ -860,14 +868,17 @@ extension NativeEmitter.FunctionEmissionContext {
                             suffix: "nonlocal_return_\(instructionIndex)"
                         )
                     }
+                    emitGCFrameLeave(returning: returnValue)
                     _ = bindings.buildRet(builder, value: returnValue)
                 } else {
+                    emitGCFrameLeave(returning: nil)
                     _ = bindings.buildRet(builder, value: zeroReturnValue)
                 }
             }
         }
 
         if !bindings.hasTerminator(currentBlock) {
+            emitGCFrameLeave(returning: nil)
             _ = bindings.buildRet(builder, value: zeroReturnValue)
         }
     }

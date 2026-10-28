@@ -35,7 +35,12 @@ func isPrimitiveArrayType(
         return false
     }
     let knownNames = KnownCompilerNames(interner: interner)
+    // Only the bundled kotlin.<Name> arrays (and fqName-less synthetic stubs)
+    // share the raw-array runtime representation; a user class that shadows
+    // the imported name is an ordinary nominal type (KUU-3615).
     return classType.args.isEmpty
+        && (symbol.fqName.isEmpty
+            || symbol.fqName == [interner.intern("kotlin"), symbol.name])
         && symbol.name != knownNames.array
         && knownNames.isArrayLikeName(symbol.name)
 }
@@ -103,7 +108,9 @@ func runtimeArrayNominalTypeID(
         return nil
     }
     let knownNames = KnownCompilerNames(interner: interner)
-    guard knownNames.isArrayLikeName(symbol.name) else {
+    guard symbol.fqName.isEmpty
+        || symbol.fqName == [interner.intern("kotlin"), symbol.name],
+          knownNames.isArrayLikeName(symbol.name) else {
         return nil
     }
     return RuntimeTypeCheckToken.stableNominalTypeID(

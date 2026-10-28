@@ -73,11 +73,15 @@ extension CallTypeChecker {
             return callableReferenceFunctionType
         }()
         let resolvedLookupReceiverType = resolvedBuilderInferenceType(lookupReceiverType, ctx: ctx)
+        let channelBoundReceiverType = interner.resolve(calleeName) == "receive"
+            ? ReceiverClassifier(sema: sema, interner: interner).channelUpperBoundType(of: lookupReceiverType)
+            : nil
         let effectiveReceiverType = companionReceiverType
             ?? mutableMapSuperReceiverType
             ?? rangeSourceMemberLookupType
             ?? rangeExtensionLookupType
             ?? callableReferenceExtensionReceiverType
+            ?? channelBoundReceiverType
             ?? resolvedLookupReceiverType
         // STDLIB-pipeline §5: take/drop/chunked/windowed have real require()
         // validation in SequenceWindowChunk.kt as of MIGRATION-SEQ-005. When
