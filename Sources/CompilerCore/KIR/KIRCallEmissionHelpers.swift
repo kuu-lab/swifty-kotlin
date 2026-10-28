@@ -69,6 +69,24 @@ func boxValueForAnySlot<C: RangeReplaceableCollection>(
         )
         return boxedResult
     }
+    // A reference payload needs the same nominal wrapper: the underlying
+    // object may be shared outside the value class, so it cannot be tagged
+    // in place. `boxingCallee` emits the `kk_value_class_box` marker for
+    // these at reference boundaries; an erased `Any` slot needs it too, or
+    // `V(obj)` would arrive as the bare `obj` handle and compare equal to it
+    // (KUU-3616).
+    if let symbols,
+       let vcSymbol = referenceBackedValueClassSymbol(of: rawKind, types: types, symbols: symbols)
+    {
+        let effectiveResultType = resultType ?? types.anyType
+        let boxedResult = arena.appendTemporary(type: effectiveResultType)
+        emitValueClassBoxCall(
+            value: value, classSymbol: vcSymbol, result: boxedResult,
+            resultType: effectiveResultType, types: types, symbols: symbols,
+            interner: interner, arena: arena, into: &instructions
+        )
+        return boxedResult
+    }
     let resolvedKind = resolveValueClassKind(rawKind, types: types, symbols: symbols)
     let table = boxingCalleeTable ?? BoxingCalleeTable(interner: interner)
     guard let boxCallee = table.boxCallee(for: resolvedKind, requireNonNull: requireNonNull) else {

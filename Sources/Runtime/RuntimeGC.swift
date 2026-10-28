@@ -196,6 +196,12 @@ struct MetadataState {
     // Enum Class handles outlive the boxed entry used to obtain javaClass.
     var enumClassifierIDs: Set<Int64> = []
     var objectTypeByPointer: [UInt: Int64] = [:]
+    /// Nominal type IDs that belong to value classes — every class ID
+    /// `kk_tag_value_class_box`/`kk_value_class_box` has tagged a box with.
+    /// `objectTypeByPointer` also tags lists, map entries, iterators and other
+    /// runtime internals, so equality cannot treat every tagged pointer as a
+    /// value-class box; this set distinguishes them (KUU-3616).
+    var valueClassTypeIDs: Set<Int64> = []
     var arrayTypeIDsByPointer: [UInt: Set<Int64>] = [:]
     var typeParents: [Int64: Set<Int64>] = [:]
     /// Set once the static reflection hierarchy edges are in `typeParents`;

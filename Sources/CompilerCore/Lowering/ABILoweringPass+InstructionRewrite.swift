@@ -174,8 +174,12 @@ extension ABILoweringPass {
                     // form, so a raw non-null ordinal must still be boxed.
                     return classType.nullability != .nonNull
                 }
+                // `kotlin.Any`'s members (equals/hashCode/toString) bridge to
+                // the tagged `kk_any_member_*` runtime entry points, so their
+                // receiver is the same erased boundary as an interface's.
                 return info.kind == .interface
                     || info.fqName == ["kotlin", "Enum"].map(interner.intern)
+                    || info.fqName == ["kotlin", "Any"].map(interner.intern)
             default:
                 return false
             }
@@ -239,6 +243,11 @@ extension ABILoweringPass {
         // dispatches through `this`'s itable, so an enum receiver -- a raw
         // ordinal until something widens it -- must arrive as its box, the
         // same way an enum value argument for an interface parameter does.
+        // A value-class receiver is raw the same way: `s.equals(x)` (and the
+        // `!=` desugaring of `s != x`) reaches kk_any_member_equals with `s`'s
+        // bare payload, which the bridge would then compare as an ordinary
+        // String/Int. JVM boxed equality is nominal, so the receiver needs
+        // the class's tagged box before the Any bridge (KUU-3616).
         if receiverOffset > 0, arguments.indices.contains(receiverIndex),
            case let receiver = arguments[receiverIndex],
            let receiverType = signature.receiverType,
@@ -246,7 +255,7 @@ extension ABILoweringPass {
            case let .classType(argClass) = types.kind(of: argType),
            argClass.nullability == .nonNull,
            let argInfo = symbols?.symbol(argClass.classSymbol),
-           argInfo.kind == .enumClass,
+           argInfo.kind == .enumClass || argInfo.flags.contains(.valueType),
            enumReceiverNeedsBoxing(receiverType)
         {
             boxedArguments[receiverIndex] = boxValueForAnySlot(
