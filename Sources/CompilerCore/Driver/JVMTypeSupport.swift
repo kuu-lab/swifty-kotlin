@@ -25,7 +25,7 @@ extension JVMClasspathIndex {
         if name == "kotlin/NoSuchElementException" { return "java/util/NoSuchElementException" }
         if name == "kotlin/CharSequence" { return "java/lang/CharSequence" }
         if name == "kotlin/Number" { return "java/lang/Number" }
-        if name == "kotlin/Pair" || name == "java/io/Serializable" { return name }
+        if name == "kotlin/Pair" || name == "kotlin/Triple" || name == "java/io/Serializable" { return name }
         if name == "kotlin/Comparator" { return "java/util/Comparator" }
         if name == "kotlin/Comparable" { return "java/lang/Comparable" }
         // KUU-3537: kotlin.Cloneable is a typealias for java.lang.Cloneable on
