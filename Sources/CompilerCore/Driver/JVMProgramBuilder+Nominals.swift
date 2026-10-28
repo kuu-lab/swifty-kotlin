@@ -32,14 +32,6 @@ extension JVMClasspathIndex {
         return ctx.jvmRuntimeClassAliases[sourceName] ?? sourceName
     }
 
-    static func anonymousObjectName(
-        _ symbol: SymbolID,
-        sema: SemaModule,
-        ctx: CompilationContext
-    ) -> JVMAnonymousObjectNameInfo? {
-        anonymousObjectName(symbol, sema: sema, ctx: ctx, resolvingAnonymous: [symbol])
-    }
-
     private static func anonymousObjectName(
         _ symbol: SymbolID,
         sema: SemaModule,
