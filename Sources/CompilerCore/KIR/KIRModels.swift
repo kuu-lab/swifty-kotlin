@@ -816,7 +816,7 @@ public final class KIRModule {
             appendRegisterList(arguments, to: &out)
             appendRegisterSlot(" ret=", result, to: &out)
             out += canThrow ? " thrown=true" : " thrown=false"
-            appendRegisterSlot(" thrownResult=", thrownResult, to: &out)
+            appendThrownResult(thrownResult, to: &out)
             if isSuperCall {
                 out += " super=1"
             }
@@ -831,7 +831,7 @@ public final class KIRModule {
             appendRegisterList(arguments, to: &out)
             appendRegisterSlot(" ret=", result, to: &out)
             out += canThrow ? " thrown=true" : " thrown=false"
-            appendRegisterSlot(" thrownResult=", thrownResult, to: &out)
+            appendThrownResult(thrownResult, to: &out)
             switch dispatch {
             case let .vtable(slot):
                 out += " dispatch=vtable[\(slot)]"
@@ -858,14 +858,14 @@ public final class KIRModule {
             out += "return r\(value.rawValue)"
         case let .nonLocalReturn(value, target):
             if let value {
-                out += "nonLocalReturn r\(value.rawValue)" + (target.map { " target=\($0.dumpDescription)" } ?? "")
+                out += "nonLocalReturn r\(value.rawValue)" + (target.map { " target=\($0.dumpDescription(names: names))" } ?? "")
             } else {
-                out += "nonLocalReturnUnit" + (target.map { " target=\($0.dumpDescription)" } ?? "")
+                out += "nonLocalReturnUnit" + (target.map { " target=\($0.dumpDescription(names: names))" } ?? "")
             }
         case .beginFinallyGuard:
             out += "beginFinallyGuard"
         case let .beginNonLocalReturnScope(value, target, function):
-            out += "beginNonLocalReturnScope r\(value.rawValue), L\(target)" + (function.map { " function=\($0.dumpDescription)" } ?? "")
+            out += "beginNonLocalReturnScope r\(value.rawValue), L\(target)" + (function.map { " function=\($0.dumpDescription(names: names))" } ?? "")
         case .endNonLocalReturnScope:
             out += "endNonLocalReturnScope"
         case let .resumeNonLocalReturn(value):
@@ -904,6 +904,14 @@ public final class KIRModule {
         out += "]"
     }
 
+    /// Most calls have no thrown-result slot; omitting the "_" placeholder
+    /// removes one of the most repeated tokens in large dumps.
+    private func appendThrownResult(_ register: KIRExprID?, to out: inout String) {
+        if let register {
+            out += " thrownResult=r\(register.rawValue)"
+        }
+    }
+
     private func appendRegisterSlot(_ label: String, _ register: KIRExprID?, to out: inout String) {
         out += label
         if let register {
@@ -913,10 +921,9 @@ public final class KIRModule {
         }
     }
 
-    /// Spells out what reflection-based `String(describing:)` printed for
-    /// these payloads, so the dump keeps its format without a Mirror walk per
-    /// constant. Floating-point payloads were printed through their debug
-    /// representation, which `String(reflecting:)` reproduces.
+    /// Payload spellings follow the old reflection-derived format except for
+    /// symbol ids, which print as `s<N>` like `storeGlobal`. Floating-point
+    /// payloads use their debug representation, as reflection did.
     private func valueDescription(_ value: KIRExprKind, names: KIRDumpNames) -> String {
         switch value {
         case let .intLiteral(literal):
@@ -1014,21 +1021,21 @@ struct KIRDumpOutput {
     }
 }
 
-/// Reflection-free spellings of the payload types the dump used to print
-/// through `String(describing:)`; `KIRDumpFormatTests` pins them.
+/// Compact spellings for ids the dump used to print through reflection as
+/// `CompilerCore.SymbolID(rawValue: N)`; `KIRDumpFormatTests` pins them.
 private extension SymbolID {
     var dumpDescription: String {
-        "CompilerCore.SymbolID(rawValue: \(rawValue))"
+        "s\(rawValue)"
     }
 }
 
 private extension KIRReturnTarget {
-    var dumpDescription: String {
+    func dumpDescription(names: KIRDumpNames) -> String {
         switch self {
         case let .function(symbol):
             "function(\(symbol.dumpDescription))"
         case let .importedFunction(name):
-            "importedFunction(CompilerCore.InternedString(rawValue: \(name.rawValue)))"
+            "importedFunction(\"\(names.resolve(name))\")"
         }
     }
 }

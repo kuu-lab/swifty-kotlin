@@ -3,8 +3,7 @@
 import Testing
 
 /// Pins `KIRModule.dump` byte-for-byte across every instruction and constant
-/// shape, so renderer optimizations can be checked against the format the
-/// reflection-based implementation produced.
+/// shape, so renderer optimizations cannot drift the format.
 @Suite
 struct KIRDumpFormatTests {
     static func makeModule() -> (KIRModule, StringInterner, SymbolTable) {
@@ -183,8 +182,8 @@ struct KIRDumpFormatTests {
       const r0=charLiteral(65)
       const r0=boolLiteral(false)
       const r0=stringLiteral("a"b")
-      const r0=symbolRef(CompilerCore.SymbolID(rawValue: 0))
-      const r0=symbolRef(CompilerCore.SymbolID(rawValue: -42))
+      const r0=symbolRef(s0)
+      const r0=symbolRef(s-42)
       const r0=externSymbolAddress("kk_extern")
       const r0=temporary(9)
       const r0=null
@@ -206,23 +205,23 @@ struct KIRDumpFormatTests {
       unary unaryPlus r0 -> r1
       unary unaryMinus r0 -> r1
       nullAssert r0 -> r1
-      call kk_plain symbol=_ args=[] ret=_ thrown=false thrownResult=_
+      call kk_plain symbol=_ args=[] ret=_ thrown=false
       call callee symbol=callee args=[r0, r1] ret=r2 thrown=true thrownResult=r3 super=1 qualifiedSuper=1
-      virtualCall v symbol=callee receiver=r0 args=[r1] ret=r2 thrown=false thrownResult=_ dispatch=vtable[4]
+      virtualCall v symbol=callee receiver=r0 args=[r1] ret=r2 thrown=false dispatch=vtable[4]
       virtualCall i symbol=_ receiver=r0 args=[] ret=_ thrown=true thrownResult=r3 dispatch=itable[1:2]
-      virtualCall d symbol=_ receiver=r0 args=[r1, r2] ret=r3 thrown=false thrownResult=_ dispatch=itableDynamic[-5:6]
+      virtualCall d symbol=_ receiver=r0 args=[r1, r2] ret=r3 thrown=false dispatch=itableDynamic[-5:6]
       jumpIfNotNull r0 -> L7
       copy r0 -> r1
       storeGlobal r0 -> s1
       loadGlobal s1 -> r1
       rethrow r2
       returnIfEqual r0, r1
-      nonLocalReturn r0 target=function(CompilerCore.SymbolID(rawValue: 0))
-      nonLocalReturnUnit target=importedFunction(CompilerCore.InternedString(rawValue: 9))
+      nonLocalReturn r0 target=function(s0)
+      nonLocalReturnUnit target=importedFunction("imported")
       nonLocalReturn r1
       nonLocalReturnUnit
       beginFinallyGuard
-      beginNonLocalReturnScope r0, L8 function=function(CompilerCore.SymbolID(rawValue: 0))
+      beginNonLocalReturnScope r0, L8 function=function(s0)
       beginNonLocalReturnScope r1, L9
       endNonLocalReturnScope
       resumeNonLocalReturn r2
