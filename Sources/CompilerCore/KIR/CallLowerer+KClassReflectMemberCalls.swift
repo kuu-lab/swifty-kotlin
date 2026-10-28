@@ -517,20 +517,7 @@ extension CallLowerer {
             case .stringStruct:
                 return "java.lang.String"
             case let .primitive(primitive, _):
-                switch primitive {
-                case .boolean: return "boolean"
-                case .char: return "char"
-                case .int: return "int"
-                case .long: return "long"
-                case .float: return "float"
-                case .double: return "double"
-                case .byte: return "byte"
-                case .short: return "short"
-                case .uint: return "kotlin.UInt"
-                case .ulong: return "kotlin.ULong"
-                case .ubyte: return "kotlin.UByte"
-                case .ushort: return "kotlin.UShort"
-                }
+                return javaReflectionName(of: primitive)
             case let .classType(classType):
                 guard let typeSymbol = sema.symbols.symbol(classType.classSymbol) else {
                     return "java.lang.Object"
@@ -882,6 +869,12 @@ extension CallLowerer {
         ))
     }
 
+    /// Java reflection renders signed primitives by their JVM keyword and
+    /// unsigned ones by their Kotlin class name.
+    private func javaReflectionName(of primitive: PrimitiveType) -> String {
+        [.uint, .ulong, .ubyte, .ushort].contains(primitive) ? "kotlin." + primitive.kotlinName : primitive.rawValue
+    }
+
     private func javaReflectionTypeName(
         _ type: TypeID,
         sema: SemaModule,
@@ -893,20 +886,7 @@ extension CallLowerer {
         case .nothing: return "java.lang.Void"
         case .stringStruct: return "java.lang.String"
         case let .primitive(primitive, _):
-            switch primitive {
-            case .boolean: return "boolean"
-            case .char: return "char"
-            case .int: return "int"
-            case .long: return "long"
-            case .float: return "float"
-            case .double: return "double"
-            case .byte: return "byte"
-            case .short: return "short"
-            case .uint: return "kotlin.UInt"
-            case .ulong: return "kotlin.ULong"
-            case .ubyte: return "kotlin.UByte"
-            case .ushort: return "kotlin.UShort"
-            }
+            return javaReflectionName(of: primitive)
         case let .classType(classType):
             return sema.symbols.symbol(classType.classSymbol)
                 .map { $0.fqName.map(interner.resolve).joined(separator: ".") }
