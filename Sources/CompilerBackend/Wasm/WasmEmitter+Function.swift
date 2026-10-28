@@ -730,18 +730,5 @@ final class WasmFunctionEmission {
         code.localGet(scratchLocal)
         code.op(WasmOpcode.i32WrapI64)
     }
-
-    /// Loads a 64-bit slot at `object + byteOffset`, handling negative header
-    /// offsets via i32 address arithmetic.
-    func emitLoad(from id: KIRExprID, byteOffset: Int64) {
-        resolveValue(id)
-        code.op(WasmOpcode.i32WrapI64)
-        if byteOffset < 0 {
-            code.i32Const(Int32(byteOffset))
-            code.op(WasmOpcode.i32Add)
-            code.i64Load(offset: 0)
-        } else {
-            code.i64Load(offset: UInt64(byteOffset))
-        }
-    }
 }
+
