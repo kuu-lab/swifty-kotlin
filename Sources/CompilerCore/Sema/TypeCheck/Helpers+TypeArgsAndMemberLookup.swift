@@ -1191,27 +1191,79 @@ extension TypeCheckHelpers {
         ownerSymbol: SymbolID,
         sema: SemaModule
     ) -> TypeID {
-        var current = sema.types.makeNonNullable(sema.types.capturedReadableUpperBound(of: receiverType))
-        var visited: Set<SymbolID> = []
-        while case let .typeParam(parameter) = sema.types.kind(of: current),
-              visited.insert(parameter.symbol).inserted
-        {
-            var next: TypeID?
-            for bound in sema.types.declaredUpperBounds(for: parameter.symbol) {
-                let candidate = sema.types.makeNonNullable(sema.types.capturedReadableUpperBound(of: bound))
-                switch sema.types.kind(of: candidate) {
-                case let .classType(classType)
-                    where sema.types.isNominalSubtypeSymbol(classType.classSymbol, of: ownerSymbol):
-                    return candidate
-                case .typeParam:
-                    next = next ?? candidate
-                default:
+        // A nominal already conforming to `ownerSymbol` resolves to itself; a
+        // type parameter walks its declared bounds to that nominal.
+        func nominalSubtypeOfOwner(in start: TypeID) -> TypeID? {
+            var current = sema.types.makeNonNullable(
+                sema.types.capturedReadableUpperBound(of: start)
+            )
+            var visited: Set<SymbolID> = []
+            while case let .typeParam(parameter) = sema.types.kind(of: current),
+                  visited.insert(parameter.symbol).inserted
+            {
+                var next: TypeID?
+                for bound in sema.types.declaredUpperBounds(for: parameter.symbol) {
+                    let candidate = sema.types.makeNonNullable(
+                        sema.types.capturedReadableUpperBound(of: bound)
+                    )
+                    switch sema.types.kind(of: candidate) {
+                    case let .classType(classType)
+                        where sema.types.isNominalSubtypeSymbol(classType.classSymbol, of: ownerSymbol):
+                        return candidate
+                    case .typeParam:
+                        next = next ?? candidate
+                    default:
+                        continue
+                    }
+                }
+                guard let next else { break }
+                current = next
+            }
+            guard case let .classType(classType) = sema.types.kind(of: current),
+                  sema.types.isNominalSubtypeSymbol(classType.classSymbol, of: ownerSymbol)
+            else {
+                return nil
+            }
+            return current
+        }
+
+        let nonNullReceiver = sema.types.makeNonNullable(
+            sema.types.capturedReadableUpperBound(of: receiverType)
+        )
+        // A smart cast keeps the declared type as one intersection conjunct and
+        // the concrete target as another (`Feature<T> & BooleanFeature`). A
+        // member declared on the generic conjunct substitutes owner type
+        // arguments through the concrete implementation
+        // (`BooleanFeature : Feature<Boolean>`) — the read is
+        // `Feature<Boolean>.default`, not `T` (KUU-3129).
+        if case let .intersection(parts) = sema.types.kind(of: nonNullReceiver) {
+            var conjuncts: [(type: TypeID, symbol: SymbolID)] = []
+            for part in parts {
+                guard let partReceiver = nominalSubtypeOfOwner(in: part),
+                      case let .classType(classType) = sema.types.kind(of: partReceiver)
+                else {
                     continue
                 }
+                conjuncts.append((partReceiver, classType.classSymbol))
             }
-            guard let next else { break }
-            current = next
+            // Prefer the most-derived conjunct (`BooleanFeature` over
+            // `Feature<T>`): it is a nominal subtype of every other conjunct.
+            if let mostDerived = conjuncts.first(where: { conjunct in
+                conjuncts.allSatisfy { other in
+                    other.symbol == conjunct.symbol
+                        || sema.types.isNominalSubtypeSymbol(conjunct.symbol, of: other.symbol)
+                }
+            }) {
+                return mostDerived.type
+            }
+            // Without a single most-derived conjunct the smart-cast target is
+            // still appended after the declared type, so the last qualifying
+            // conjunct is the concrete implementation.
+            if let lastConjunct = conjuncts.last {
+                return lastConjunct.type
+            }
+            return nonNullReceiver
         }
-        return current
+        return nominalSubtypeOfOwner(in: receiverType) ?? nonNullReceiver
     }
 }
