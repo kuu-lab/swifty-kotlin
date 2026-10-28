@@ -34,6 +34,7 @@ public final class LoweringPhase: CompilerPhase {
             ForLoweringPass(),
             CollectionLiteralLoweringPass(),
             FlowLoweringPass(),
+            IntroducedAtVersionOverloadingLoweringPass(),
 
             ValueClassUnboxingPass(), // VAL-001: must run before PropertyLowering
             PropertyLoweringPass(),

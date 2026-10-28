@@ -73,7 +73,9 @@ extension ExprTypeChecker {
         // classifiers without values. A nested interface, for example, must
         // not hide an outer object with the same name. Qualifiers still need
         // classifier lookup for qualified types and companion members.
-        let valueCandidateIDs = ctx.cachedScopeLookup(name) { symbolID in
+        // Interface-inherited classifiers are rejected and collected so the
+        // callable fallback below cannot bind them either.
+        let valueLookup = ctx.valueScopeLookup(name) { symbolID in
             guard let symbol = ctx.cachedSymbol(symbolID) else { return false }
             if isQualifier {
                 return symbol.kind != .function && symbol.kind != .constructor
@@ -89,10 +91,12 @@ extension ExprTypeChecker {
                 return true
             }
         }
+        let valueCandidateIDs = valueLookup.matches
+        let inheritedInterfaceClassifiers = valueLookup.inheritedInterfaces
         let allCandidateIDs: [SymbolID] = if !valueCandidateIDs.isEmpty || isQualifier {
             valueCandidateIDs
         } else {
-            ctx.cachedScopeLookup(name)
+            ctx.cachedScopeLookup(name).filter { !inheritedInterfaceClassifiers.contains($0) }
         }
         let dslBlockedIDs = allCandidateIDs.filter { ctx.isCandidateBlockedByDslMarker($0) }
         let dslFilteredIDs = allCandidateIDs.filter { !ctx.isCandidateBlockedByDslMarker($0) }
@@ -102,6 +106,9 @@ extension ExprTypeChecker {
         if candidates.isEmpty {
             let nominalFallbackIDs = sema.symbols.lookupByShortName(name).filter { symbolID in
                 guard let symbol = sema.symbols.symbol(symbolID) else {
+                    return false
+                }
+                if inheritedInterfaceClassifiers.contains(symbolID) {
                     return false
                 }
                 // Bundled classifiers obey the file's imports. The global

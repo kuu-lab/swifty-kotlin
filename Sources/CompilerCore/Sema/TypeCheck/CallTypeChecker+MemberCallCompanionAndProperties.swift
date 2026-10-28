@@ -14,7 +14,16 @@ extension CallTypeChecker {
     ) -> Bool {
         let sema = ctx.sema
         if case let .nameRef(name, _) = ctx.ast.arena.expr(receiverID) {
-            return ctx.cachedScopeLookup(name).contains {
+            if let bound = sema.bindings.identifierSymbol(for: receiverID),
+               let symbol = sema.symbols.symbol(bound) {
+                switch symbol.kind {
+                case .class, .interface, .object, .enumClass, .annotationClass, .typeAlias:
+                    break
+                default:
+                    return false
+                }
+            }
+            return ctx.valueScopeLookup(name).matches.contains {
                 sema.symbols.symbol($0)?.kind == .typeAlias
             }
         }

@@ -223,7 +223,7 @@ extension DataFlowSemaPhase {
 
         if case let .classDecl(classDecl) = decl,
            ctx.symbols.symbol(symbol)?.kind == .enumClass {
-            validateEnumAbstractOverrideImplementations(
+            validateEnumEntryAbstractCompleteness(
                 classDecl,
                 ownerSymbol: symbol,
                 ctx: ctx
@@ -235,10 +235,9 @@ extension DataFlowSemaPhase {
         }
     }
 
-    /// Enum entries act as the concrete variants of an enum class. Any
-    /// `abstract override` declared in the enum body must be implemented by
-    /// every entry body.
-    private func validateEnumAbstractOverrideImplementations(
+    /// Every enum entry is a concrete variant of the enum class, so it must
+    /// implement each abstract member that the enum class still owes.
+    private func validateEnumEntryAbstractCompleteness(
         _ classDecl: ClassDecl,
         ownerSymbol: SymbolID,
         ctx: OpenFinalOverrideContext
@@ -246,93 +245,180 @@ extension DataFlowSemaPhase {
         guard let owner = ctx.symbols.symbol(ownerSymbol) else { return }
         let ownerName = owner.fqName.map { ctx.interner.resolve($0) }.joined(separator: ".")
 
-        for memberDeclID in classDecl.memberFunctions {
-            guard let memberDecl = ctx.ast.arena.decl(memberDeclID),
-                  case let .funDecl(memberFunction) = memberDecl,
-                  memberFunction.modifiers.contains(.abstract),
-                  memberFunction.modifiers.contains(.override),
-                  let memberSymbol = ctx.bindings.declSymbols[memberDeclID],
-                  let memberSignature = ctx.symbols.functionSignature(for: memberSymbol)
-            else {
-                continue
-            }
+        let declaredMemberDeclIDs = classDecl.memberFunctions + classDecl.memberProperties
+        let declaredMembers = declaredMemberDeclIDs.compactMap { ctx.bindings.declSymbols[$0] }
+        var requirements = declaredMembers.filter {
+            ctx.symbols.symbol($0)?.flags.contains(.abstractType) == true
+        }
 
-            for entry in classDecl.enumEntries {
-                let implemented = entry.memberFunctions.contains { entryMemberDeclID in
-                    guard let entryMemberDecl = ctx.ast.arena.decl(entryMemberDeclID),
-                          case let .funDecl(entryFunction) = entryMemberDecl,
-                          entryFunction.name == memberFunction.name,
-                          entryFunction.modifiers.contains(.override),
-                          let entryMemberSymbol = ctx.bindings.declSymbols[entryMemberDeclID],
-                          let entrySignature = ctx.symbols.functionSignature(for: entryMemberSymbol),
-                          let entryOwner = ctx.symbols.parentSymbol(for: entryMemberSymbol),
-                          entrySignature.receiverType == memberSignature.receiverType,
-                          entrySignature.isSuspend == memberSignature.isSuspend,
-                          methodUpperBoundsMatch(
-                              source: entrySignature,
-                              target: memberSignature,
-                              sourceOwner: entryOwner,
-                              targetOwner: ownerSymbol,
-                              instanceOwner: ownerSymbol,
-                              types: ctx.types
-                          ),
-                          methodIdentityParameterTypesMatch(
-                              candidateParameterTypes: alignedMethodParameterTypes(
-                                  source: entrySignature,
-                                  target: memberSignature,
-                                  sourceOwner: entryOwner,
-                                  instanceOwner: ownerSymbol,
-                                  types: ctx.types
-                              ),
-                              interfaceParameterTypes: memberSignature.parameterTypes,
-                              types: ctx.types
-                          ),
-                          entrySignature.contextReceiverTypes.count == memberSignature.contextReceiverTypes.count
-                    else {
-                        return false
-                    }
-
-                    let sourceParameters = Array(entrySignature.typeParameterSymbols.dropFirst(
-                        entrySignature.classTypeParameterCount
-                    ))
-                    let targetParameters = Array(memberSignature.typeParameterSymbols.dropFirst(
-                        memberSignature.classTypeParameterCount
-                    ))
-                    let alignedContextReceivers = entrySignature.contextReceiverTypes.map { receiverType in
-                        let specialized = specializeMethodOwnerType(
-                            receiverType,
-                            owner: ctx.symbols.parentSymbol(for: entryMemberSymbol),
-                            instanceOwner: ownerSymbol,
-                            types: ctx.types
-                        )
-                        return alphaAlignedMethodType(
-                            specialized,
-                            sourceParameters: sourceParameters,
-                            targetParameters: targetParameters,
-                            types: ctx.types
-                        )
-                    }
-                    guard methodIdentityParameterTypesMatch(
-                        candidateParameterTypes: alignedContextReceivers,
-                        interfaceParameterTypes: memberSignature.contextReceiverTypes,
-                        types: ctx.types
-                    ) else {
-                        return false
-                    }
-                    guard entryFunction.returnType != nil, memberFunction.returnType != nil else {
-                        return true
-                    }
-                    return ctx.types.isSubtype(entrySignature.returnType, memberSignature.returnType)
+        let inheritedRequirements = unimplementedAbstractMembers(
+            for: ownerSymbol,
+            overriddenNames: [],
+            delegatedInterfaces: ctx.symbols.delegatedInterfaces(forClass: ownerSymbol),
+            symbols: ctx.symbols,
+            types: ctx.types,
+            interner: ctx.interner
+        )
+        for inherited in inheritedRequirements {
+            if let enumMember = declaredMembers.first(where: {
+                enumMemberOverridesAbstractMember($0, inherited, ownerSymbol: ownerSymbol, ctx: ctx)
+            }) {
+                if ctx.symbols.symbol(enumMember)?.flags.contains(.abstractType) == true {
+                    requirements.append(enumMember)
                 }
+            } else {
+                requirements.append(inherited)
+            }
+        }
 
-                guard !implemented else { continue }
+        var seenRequirements: Set<SymbolID> = []
+        requirements = requirements.filter { seenRequirements.insert($0).inserted }
+
+        for entry in classDecl.enumEntries {
+            for requirement in requirements {
+                guard !enumEntryImplementsAbstractMember(
+                    requirement,
+                    entry: entry,
+                    ownerSymbol: ownerSymbol,
+                    ctx: ctx
+                ), let abstractMember = ctx.symbols.symbol(requirement)
+                else {
+                    continue
+                }
                 ctx.diagnostics.error(
                     "KSWIFTK-SEMA-ABSTRACT",
-                    "Enum entry '\(ownerName).\(ctx.interner.resolve(entry.name))' must override abstract member '\(ctx.interner.resolve(memberFunction.name))'.",
+                    "Enum entry '\(ownerName).\(ctx.interner.resolve(entry.name))' does not implement abstract member '\(ctx.interner.resolve(abstractMember.name))'.",
                     range: entry.range
                 )
             }
         }
+    }
+
+    private func enumMemberOverridesAbstractMember(
+        _ member: SymbolID,
+        _ abstractMember: SymbolID,
+        ownerSymbol: SymbolID,
+        ctx: OpenFinalOverrideContext
+    ) -> Bool {
+        guard ctx.symbols.symbol(member)?.flags.contains(.overrideMember) == true else {
+            return false
+        }
+        switch ctx.symbols.symbol(member)?.kind {
+        case .function:
+            return overrideFunctionSignatureMatches(
+                childMember: member,
+                parentMember: abstractMember,
+                childOwner: ownerSymbol,
+                requireCovariantReturn: false,
+                ctx: ctx
+            )
+        case .property:
+            return enumPropertyOverrideMatches(
+                childMember: member,
+                abstractMember: abstractMember,
+                childOwner: ownerSymbol,
+                ctx: ctx
+            )
+        default:
+            return false
+        }
+    }
+
+    private func enumEntryImplementsAbstractMember(
+        _ abstractMember: SymbolID,
+        entry: EnumEntryDecl,
+        ownerSymbol: SymbolID,
+        ctx: OpenFinalOverrideContext
+    ) -> Bool {
+        for memberDeclID in entry.memberFunctions {
+            guard let memberDecl = ctx.ast.arena.decl(memberDeclID),
+                  case let .funDecl(function) = memberDecl,
+                  function.modifiers.contains(.override),
+                  let member = ctx.bindings.declSymbols[memberDeclID],
+                  ctx.symbols.symbol(member)?.flags.contains(.abstractType) != true,
+                  overrideFunctionSignatureMatches(
+                      childMember: member,
+                      parentMember: abstractMember,
+                      childOwner: ownerSymbol,
+                      requireCovariantReturn: false,
+                      ctx: ctx
+                  )
+            else {
+                continue
+            }
+            return true
+        }
+
+        for memberDeclID in entry.memberProperties {
+            guard let memberDecl = ctx.ast.arena.decl(memberDeclID),
+                  case let .propertyDecl(property) = memberDecl,
+                  property.modifiers.contains(.override),
+                  let member = ctx.bindings.declSymbols[memberDeclID],
+                  ctx.symbols.symbol(member)?.flags.contains(.abstractType) != true,
+                  enumPropertyOverrideMatches(
+                      childMember: member,
+                      abstractMember: abstractMember,
+                      childOwner: ownerSymbol,
+                      ctx: ctx
+                  )
+            else {
+                continue
+            }
+            return true
+        }
+        return false
+    }
+
+    private func enumPropertyOverrideMatches(
+        childMember: SymbolID,
+        abstractMember: SymbolID,
+        childOwner: SymbolID,
+        ctx: OpenFinalOverrideContext
+    ) -> Bool {
+        guard let child = ctx.symbols.symbol(childMember),
+              child.kind == .property,
+              let abstract = ctx.symbols.symbol(abstractMember),
+              abstract.kind == .property,
+              child.name == abstract.name,
+              let childType = ctx.symbols.propertyType(for: childMember),
+              let abstractView = abstractMemberViewFromClass(
+                  abstractMember,
+                  for: childOwner,
+                  symbols: ctx.symbols,
+                  types: ctx.types
+              ),
+              (ctx.symbols.memberExtensionOwnerSymbol(for: childMember) != nil)
+                == (abstractView.extensionReceiverType != nil)
+        else {
+            return false
+        }
+
+        let childReceiver = ctx.symbols.memberExtensionOwnerSymbol(for: childMember) != nil
+            ? ctx.symbols.extensionPropertyReceiverType(for: childMember)
+            : nil
+        let childReceiverTypes = childReceiver.map { [$0] } ?? []
+        let abstractReceiverTypes = abstractView.extensionReceiverType.map { [$0] } ?? []
+        guard methodIdentityParameterTypesMatch(
+            candidateParameterTypes: childReceiverTypes,
+            interfaceParameterTypes: abstractReceiverTypes,
+            types: ctx.types
+        ) else {
+            return false
+        }
+
+        let childIsMutable = child.flags.contains(.mutable)
+        guard childIsMutable || !abstractView.isMutable else {
+            return false
+        }
+        if abstractView.isMutable {
+            return childType == abstractView.resultType
+        }
+        if ctx.types.typeContainsAnyTypeParam(childType)
+            || ctx.types.typeContainsAnyTypeParam(abstractView.resultType)
+        {
+            return childType == abstractView.resultType
+        }
+        return ctx.types.isSubtype(childType, abstractView.resultType)
     }
 
     private func validateDataClassConstructorParams(

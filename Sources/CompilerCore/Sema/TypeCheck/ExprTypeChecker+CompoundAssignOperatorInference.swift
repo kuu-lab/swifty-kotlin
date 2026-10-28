@@ -1073,25 +1073,6 @@ extension ExprTypeChecker {
             )
             return driver.helpers.bindAndReturnErrorType(id, sema: sema)
         }
-        if isMutable, let setterVisibility = sema.symbols.propertySetterVisibility(for: writeSymbol),
-           let propSymbol
-        {
-            let setter = SemanticSymbol(
-                id: propSymbol.id, kind: propSymbol.kind, name: propSymbol.name, fqName: propSymbol.fqName,
-                declSite: propSymbol.declSite, visibility: setterVisibility, flags: propSymbol.flags
-            )
-            if !ctx.visibilityChecker.isAccessible(
-                setter, fromFile: ctx.currentFileID, enclosingClass: ctx.enclosingClassSymbol
-            ) {
-                driver.helpers.emitVisibilityError(
-                    for: setter,
-                    name: interner.resolve(calleeName),
-                    range: range,
-                    diagnostics: sema.diagnostics
-                )
-                return driver.helpers.bindAndReturnErrorType(id, sema: sema)
-            }
-        }
         driver.helpers.checkOptIn(
             for: writeSymbol, ctx: ctx, range: range, diagnostics: ctx.sema.diagnostics
         )
@@ -1146,6 +1127,29 @@ extension ExprTypeChecker {
                 return sema.types.errorType
             }
             return resolvedType
+        }
+
+        // A successful `plusAssign` mutates the value returned by the getter
+        // without invoking the property setter. Setter visibility only gates
+        // the binary-operator fallback that writes a replacement value.
+        if isMutable, let setterVisibility = sema.symbols.propertySetterVisibility(for: writeSymbol),
+           let propSymbol
+        {
+            let setter = SemanticSymbol(
+                id: propSymbol.id, kind: propSymbol.kind, name: propSymbol.name, fqName: propSymbol.fqName,
+                declSite: propSymbol.declSite, visibility: setterVisibility, flags: propSymbol.flags
+            )
+            if !ctx.visibilityChecker.isAccessible(
+                setter, fromFile: ctx.currentFileID, enclosingClass: ctx.enclosingClassSymbol
+            ) {
+                driver.helpers.emitVisibilityError(
+                    for: setter,
+                    name: interner.resolve(calleeName),
+                    range: range,
+                    diagnostics: sema.diagnostics
+                )
+                return driver.helpers.bindAndReturnErrorType(id, sema: sema)
+            }
         }
 
         if let resolvedType = bindCompoundAssignmentOperatorCall(

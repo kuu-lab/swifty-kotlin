@@ -65,6 +65,42 @@ extension LLVMCAPIBindings {
         return name.withCString { buildAllocaFn(builder, type, $0) }
     }
 
+    func arrayType(element: LLVMTypeRef?, count: Int) -> LLVMTypeRef? {
+        guard count > 0, count <= Int(UInt32.max), let arrayTypeFn else {
+            return nil
+        }
+        return arrayTypeFn(element, UInt32(count))
+    }
+
+    func buildArrayElementPointer(
+        _ builder: LLVMBuilderRef?,
+        context: LLVMContextRef?,
+        arrayType: LLVMTypeRef?,
+        arrayPointer: LLVMValueRef?,
+        index: Int,
+        name: String
+    ) -> LLVMValueRef? {
+        guard index >= 0,
+              let buildInBoundsGEP2Fn,
+              let int32Type = int32TypeFn?(context),
+              let zero = constInt(int32Type, value: 0),
+              let elementIndex = constInt(int32Type, value: UInt64(index))
+        else {
+            return nil
+        }
+        var indices: [LLVMValueRef?] = [zero, elementIndex]
+        return name.withCString { cName in
+            buildInBoundsGEP2Fn(
+                builder,
+                arrayType,
+                arrayPointer,
+                &indices,
+                UInt32(indices.count),
+                cName
+            )
+        }
+    }
+
     @discardableResult
     func buildStore(_ builder: LLVMBuilderRef?, value: LLVMValueRef?, pointer: LLVMValueRef?) -> LLVMValueRef? {
         guard let buildStoreFn else {

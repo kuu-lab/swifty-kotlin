@@ -60,6 +60,7 @@ extension NativeEmitter.FunctionEmissionContext {
 
             bindings.positionBuilder(builder, at: thrownBlock)
             storeOutThrownIfNonNull(thrownValue, suffix: "\(namePrefix)throw_\(instructionIndex)")
+            emitGCFrameLeave(returning: thrownValue)
             _ = bindings.buildRet(builder, value: zeroReturnValue)
 
             currentBlock = continueBlock
@@ -168,6 +169,7 @@ extension NativeEmitter.FunctionEmissionContext {
 
         bindings.positionBuilder(builder, at: throwBlock)
         storeOutThrownIfNonNull(errorHandle, suffix: "soe")
+        emitGCFrameLeave(returning: errorHandle)
         _ = bindings.buildRet(builder, value: zeroReturnValue)
 
         currentBlock = okBlock

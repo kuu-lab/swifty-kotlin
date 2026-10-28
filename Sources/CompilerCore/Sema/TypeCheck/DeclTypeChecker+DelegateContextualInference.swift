@@ -690,6 +690,7 @@ extension DeclTypeChecker {
                         returnType: substitute(signature.returnType),
                         valueParameterHasDefaultValues: signature.valueParameterHasDefaultValues,
                         valueParameterIsVararg: signature.valueParameterIsVararg,
+                        hasStableParameterNames: signature.hasStableParameterNames,
                         typeParameterSymbols: Array(signature.typeParameterSymbols.dropFirst(signature.classTypeParameterCount))
                     )
                     return DelegateConventionContextCandidate(

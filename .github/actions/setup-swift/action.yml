@@ -16,6 +16,33 @@ runs:
       with:
         swift-version: ${{ inputs.swift-version }}
 
+    - name: Shim libxml2.so.2 on newer Ubuntu runners
+      if: runner.os == 'Linux'
+      shell: bash
+      run: |
+        # Swift toolchains older than the first ubuntu2604 build link
+        # libxml2.so.2, but Ubuntu 26.04 ships libxml2 2.13+ whose soname is
+        # libxml2.so.16. Symlink the installed soname, mirroring
+        # swiftlang/swift-docker#550. No-op once a libxml2.so.2 provider (or a
+        # native ubuntu2604 toolchain) exists.
+        multiarch="$(dpkg-architecture -qDEB_HOST_MULTIARCH 2>/dev/null || echo x86_64-linux-gnu)"
+        libdir="/usr/lib/${multiarch}"
+        if [[ -e "${libdir}/libxml2.so.2" ]]; then
+          exit 0
+        fi
+        if ! compgen -G "${libdir}/libxml2.so.*" > /dev/null; then
+          sudo apt-get update
+          sudo apt-get install -y libxml2
+        fi
+        newest="$(find "${libdir}" -maxdepth 1 -name 'libxml2.so.*' -not -name 'libxml2.so' | sort -V | tail -1)"
+        if [[ -z "$newest" ]]; then
+          echo "No libxml2 shared object found under ${libdir} to shim libxml2.so.2" >&2
+          exit 1
+        fi
+        sudo ln -sf "$newest" "${libdir}/libxml2.so.2"
+        sudo ldconfig
+        echo "Shimmed ${libdir}/libxml2.so.2 -> $newest"
+
     - name: Use Xcode Swift on macOS
       if: runner.os == 'macOS'
       shell: bash

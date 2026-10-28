@@ -679,26 +679,27 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                     signature = stubSignatureByName[effectiveCallee]
                     recoveredStubSignature = signature != nil
                 }
-                // Default stubs do not have Sema signatures. Their KIR params
-                // include the receiver as an ordinary argument, so recover the
-                // concrete signature when an enum slot needs ABI adaptation.
+                // Generated callables — `$default` stubs, callable-reference
+                // wrappers, lambda adapters, SAM thunks — mint their own
+                // symbols, so neither a Sema signature nor a
+                // synthetic-call-target stub signature exists for them. Their
+                // declared KIR params are the call ABI: recover the signature
+                // so arguments crossing into erased or nullable slots are
+                // boxed instead of arriving as raw words (e.g. a `Double`
+                // argument into a `(Double?) -> String` adapter reaching the
+                // body as the null sentinel — KUU-3649). The enum-parameter
+                // stub recovery this replaces was the same rule gated on one
+                // shape.
                 if signature == nil,
-                   let stubSymbol = effectiveCallSymbol,
-                   SyntheticSymbolScheme.isSyntheticCallTarget(stubSymbol),
-                   !SyntheticSymbolScheme.isLikelySyntheticPropertyAccessor(stubSymbol),
-                   let stub = module.arena.function(for: stubSymbol),
-                   let types,
-                   stub.params.contains(where: { parameter in
-                       guard case let .classType(classType) = types.kind(of: parameter.type) else { return false }
-                       return classType.nullability == .nonNull
-                           && symbols?.symbol(classType.classSymbol)?.kind == .enumClass
-                   })
+                   let callSymbol = effectiveCallSymbol,
+                   let generatedFunction = module.arena.function(for: callSymbol)
                 {
                     signature = FunctionSignature(
-                        parameterTypes: stub.params.map(\.type),
-                        returnType: stub.returnType,
-                        isSuspend: stub.isSuspend
+                        parameterTypes: generatedFunction.params.map(\.type),
+                        returnType: generatedFunction.returnType,
+                        isSuspend: generatedFunction.isSuspend
                     )
+                    recoveredStubSignature = true
                 }
                 // ABI-002: see boundaryBridgeSignatureByLinkName above.
                 if signature == nil, effectiveCallSymbol == nil {

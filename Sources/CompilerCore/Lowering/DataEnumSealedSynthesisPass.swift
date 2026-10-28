@@ -988,6 +988,7 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
                 valueParameterHasDefaultValues: signature.valueParameterHasDefaultValues,
                 valueParameterIsVararg: signature.valueParameterIsVararg,
                 valueParameterAllowsNonLocalReturn: signature.valueParameterAllowsNonLocalReturn,
+                hasStableParameterNames: existingSignature.hasStableParameterNames,
                 typeParameterSymbols: existingSignature.typeParameterSymbols,
                 reifiedTypeParameterIndices: existingSignature.reifiedTypeParameterIndices,
                 typeParameterUpperBounds: existingSignature.typeParameterUpperBounds,
@@ -1060,6 +1061,7 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
                 valueParameterAllowsNonLocalReturn: signature.valueParameterAllowsNonLocalReturn.isEmpty
                     ? params.map { _ in true }
                     : signature.valueParameterAllowsNonLocalReturn,
+                hasStableParameterNames: signature.hasStableParameterNames,
                 typeParameterSymbols: []
             ),
             for: functionSymbol
