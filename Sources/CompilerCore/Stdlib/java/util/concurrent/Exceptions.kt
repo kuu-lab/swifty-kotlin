@@ -1,8 +1,8 @@
 package java.util.concurrent
 
 // KUU-3059: the java.util.concurrent exception family. CancellationException
-// is intentionally absent — the bundled surface reuses
-// kotlinx.coroutines.CancellationException like CompletableFuture does.
+// stays source-backed by kotlin.coroutines.cancellation, avoiding a dependency
+// on the optional kotlinx.coroutines package.
 
 public open class ExecutionException : Exception {
     public constructor() : super()

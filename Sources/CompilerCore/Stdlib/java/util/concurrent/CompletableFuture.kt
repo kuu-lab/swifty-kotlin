@@ -3,7 +3,7 @@
 package java.util.concurrent
 
 import kotlinx.atomicfu.locks.ParkingSupport
-import kotlinx.coroutines.CancellationException
+import kotlin.coroutines.cancellation.CancellationException
 
 public open class CompletableFuture<T> : Future<T>, CompletionStage<T> {
     private var result: T? = null

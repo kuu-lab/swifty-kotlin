@@ -237,11 +237,12 @@ scope を `all` として生成するため、consumer は同じ records を再�
 
 - 範囲の定義: `StdlibProfile.minimalExcludedPackagePrefixes`（`Driver/StdlibProfile.swift`）。ファイル先頭の
   `package` 宣言で収録を判定し（ディレクトリ名ではない）、prefix はパッケージ区切り単位で照合する。
-  現在の除外は `kotlinx.coroutines` / `kotlinx.serialization` / `kotlinx.atomicfu` / `kswiftk.atomicfu` /
-  `kotlin.test` / `kotlin.uuid` / `kotlin.io.path` / `java.sql|net|security|text`。
+  現在の除外は `kotlinx.coroutines` / `kotlinx.serialization` / `kotlinx.atomicfu`（exact package のみ） /
+  `kswiftk.atomicfu` / `kotlin.test` / `kotlin.io.path` / `java.sql|security|text`。
   既定 import 範囲（root・collections・ranges・sequences・text・io・comparisons・coroutines・reflect・time …）は
   すべて収録する。`kotlinx.io`・`kotlinx.cinterop`・`platform.*`・`kotlin.concurrent`・`kotlin.experimental`・
-  `kotlin.io.encoding`・`kotlin.js`・`java.nio`・`java.math` は収録側 source が参照するため除外できない
+  `kotlin.io.encoding`・`kotlin.js`・`java.net`・`java.nio`・`java.math`・`kotlin.uuid`・
+  `kotlinx.atomicfu.locks` は収録側 source が参照するため除外できない
   （除外すると `--stdlib-only --profile minimal` のビルドが unresolved reference で失敗する。
   除外を増やすときはこのビルドが通ることが条件）。
 - artifact: manifest に `stdlibProfile: "minimal"` を書き（`full` は従来どおり省略）、`stdlibManifestHash` は
