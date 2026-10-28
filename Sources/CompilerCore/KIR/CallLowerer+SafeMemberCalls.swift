@@ -130,7 +130,28 @@ extension CallLowerer {
             return comparableCharResult
         }
 
-        let result = arena.appendTemporary(type: boundType ?? sema.types.anyType)
+        // KUU-3670: a member property declared `T` on a generic owner crosses
+        // the read boundary as a raw erased handle. Keeping the safe-call
+        // merge slot at the erased type preserves the handle until the
+        // claim-site checkcast instead of reinterpreting it as the
+        // substituted representation first.
+        let safeCallDeclaresErasedProperty: Bool = {
+            let memberSymbol = sema.bindings.identifierSymbol(for: exprID)
+                ?? sema.bindings.callBindings[exprID]?.chosenCallee
+            guard let memberSymbol,
+                  let declaredType = sema.symbols.propertyType(for: memberSymbol)
+                    ?? sema.symbols.propertySymbol(forAccessor: memberSymbol)
+                        .flatMap({ sema.symbols.propertyType(for: $0) })
+            else {
+                return false
+            }
+            return kirIsNonReifiedErasedABIType(declaredType, sema: sema)
+        }()
+        let result = arena.appendTemporary(
+            type: safeCallDeclaresErasedProperty
+                ? sema.types.nullableAnyType
+                : boundType ?? sema.types.anyType
+        )
         let safeReceiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
         let nonNullSafeReceiverType = sema.types.makeNonNullable(safeReceiverType)
         let isCoroutineReceiver = if case .primitive = sema.types.kind(of: nonNullSafeReceiverType) {

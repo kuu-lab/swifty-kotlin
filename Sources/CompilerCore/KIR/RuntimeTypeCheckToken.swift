@@ -435,6 +435,38 @@ func kirCheckableCastErasure(of type: TypeID, sema: SemaModule) -> TypeID? {
     }
 }
 
+/// The type parameter inside a definitely-non-null `T & Any` intersection,
+/// or nil for every other shape.
+func kirDefinitelyNotNullTypeParameter(of type: TypeID, sema: SemaModule) -> TypeID? {
+    guard case let .intersection(parts) = sema.types.kind(of: type),
+          parts.count == 2,
+          parts.contains(where: { sema.types.kind(of: $0) == .any(.nonNull) }),
+          let typeParameter = parts.first(where: {
+              if case .typeParam = sema.types.kind(of: $0) { return true }
+              return false
+          })
+    else {
+        return nil
+    }
+    return typeParameter
+}
+
+/// Whether a declared member type still travels through the erased ABI: a
+/// non-reified type parameter, or its definitely-non-null `T & Any` shape.
+/// Reified parameters and concrete classifiers keep their real
+/// representation and never need an erased-boundary checkcast.
+func kirIsNonReifiedErasedABIType(_ type: TypeID, sema: SemaModule) -> Bool {
+    if let typeParameterType = kirDefinitelyNotNullTypeParameter(of: type, sema: sema) {
+        return kirIsNonReifiedErasedABIType(typeParameterType, sema: sema)
+    }
+    guard case let .typeParam(parameter) = sema.types.kind(of: type),
+          let symbol = sema.symbols.symbol(parameter.symbol)
+    else {
+        return false
+    }
+    return !symbol.flags.contains(.reifiedTypeParameter)
+}
+
 /// Whether `kk_op_cast` can verify a value arriving through an erased ABI
 /// boundary against this classifier. Enum classifiers are excluded: enum
 /// values cross erased slots as raw ordinals (or ordinal IntBoxes), neither
@@ -484,13 +516,18 @@ func kirIsNonReifiedErasedReturnType(_ type: TypeID, sema: SemaModule) -> Bool {
     return !symbol.flags.contains(.reifiedTypeParameter)
 }
 
-/// True when a generic call or property getter's substituted result can be
-/// checked before the erased ABI result is converted to its native representation.
-func kirShouldCheckErasedGenericCallResult(
+/// The resolved `(bound, checkType)` pair for a generic call or property
+/// getter's substituted result crossing the erased ABI boundary — nil when
+/// no boundary checkcast is required. For a property read the claim type is
+/// the member's own static type (`d.x : String?`), which Kotlin checkcasts
+/// regardless of what the surrounding expression expects — e.g.
+/// `println(d.x)` still checkcasts on JVM — so it takes precedence over the
+/// context-expected type; call results keep the context-expected type.
+func kirErasedGenericCallClaimCheck(
     exprID: ExprID,
     boundType: TypeID?,
     sema: SemaModule
-) -> Bool {
+) -> (bound: TypeID, checkType: TypeID)? {
     let chosenCallee = sema.bindings.callBindings[exprID]?.chosenCallee
     let propertySymbol: SymbolID? = if let chosenCallee {
         sema.symbols.accessorOwnerProperty(for: chosenCallee)
@@ -518,12 +555,26 @@ func kirShouldCheckErasedGenericCallResult(
     } else {
         nil
     }
+    let bound = propertySymbol != nil
+        ? sema.bindings.exprType(for: exprID) ?? boundType
+        : boundType ?? sema.bindings.exprType(for: exprID)
     guard let declaredReturnType,
           kirIsNonReifiedErasedReturnType(declaredReturnType, sema: sema),
-          let bound = boundType ?? sema.bindings.exprType(for: exprID),
-          let checkType = kirCheckableCastErasure(of: bound, sema: sema)
+          let bound,
+          let checkType = kirCheckableCastErasure(of: bound, sema: sema),
+          kirErasedBoundaryCheckable(checkType, sema: sema)
     else {
-        return false
+        return nil
     }
-    return kirErasedBoundaryCheckable(checkType, sema: sema)
+    return (bound, checkType)
+}
+
+/// True when a generic call or property getter's substituted result can be
+/// checked before the erased ABI result is converted to its native representation.
+func kirShouldCheckErasedGenericCallResult(
+    exprID: ExprID,
+    boundType: TypeID?,
+    sema: SemaModule
+) -> Bool {
+    kirErasedGenericCallClaimCheck(exprID: exprID, boundType: boundType, sema: sema) != nil
 }
