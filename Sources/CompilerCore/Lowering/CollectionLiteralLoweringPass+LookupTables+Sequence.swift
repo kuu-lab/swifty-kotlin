@@ -22,7 +22,6 @@ struct SequenceLookupNames {
     let kkSequenceToSetName: InternedString
     let kkSequenceToMapName: InternedString
     let kkSequenceToCollectionName: InternedString
-    let kkSequenceGroupByName: InternedString
     let kkSequenceMaxName: InternedString
     let kkSequenceMaxOrNullName: InternedString
     let kkSequenceMinOrNullName: InternedString
@@ -44,14 +43,6 @@ struct SequenceLookupNames {
     let toListName: InternedString
     let constrainOnceName: InternedString
     let toCollectionName: InternedString
-    let toUByteArrayName: InternedString
-    let toUShortArrayName: InternedString
-    let toCharArrayName: InternedString
-    let toBooleanArrayName: InternedString
-    let toShortArrayName: InternedString
-    let toDoubleArrayName: InternedString
-    let toFloatArrayName: InternedString
-    let toByteArrayName: InternedString
     let toSetName: InternedString
     let toMapName: InternedString
     let takeName: InternedString
@@ -80,7 +71,6 @@ struct SequenceLookupNames {
         kkSequenceToSetName = interner.intern("kk_sequence_toSet")
         kkSequenceToMapName = interner.intern("kk_sequence_toMap")
         kkSequenceToCollectionName = interner.intern("kk_sequence_toCollection")
-        kkSequenceGroupByName = interner.intern("kk_sequence_groupBy")
         kkSequenceMaxName = interner.intern("kk_sequence_max")
         kkSequenceMaxOrNullName = interner.intern("kk_sequence_maxOrNull")
         kkSequenceMinOrNullName = interner.intern("kk_sequence_minOrNull")
@@ -102,14 +92,6 @@ struct SequenceLookupNames {
         toListName = interner.intern("toList")
         constrainOnceName = interner.intern("constrainOnce")
         toCollectionName = interner.intern("toCollection")
-        toUByteArrayName = interner.intern("toUByteArray")
-        toUShortArrayName = interner.intern("toUShortArray")
-        toCharArrayName = interner.intern("toCharArray")
-        toBooleanArrayName = interner.intern("toBooleanArray")
-        toShortArrayName = interner.intern("toShortArray")
-        toDoubleArrayName = interner.intern("toDoubleArray")
-        toFloatArrayName = interner.intern("toFloatArray")
-        toByteArrayName = interner.intern("toByteArray")
         toSetName = interner.intern("toSet")
         toMapName = interner.intern("toMap")
         takeName = interner.intern("take")
