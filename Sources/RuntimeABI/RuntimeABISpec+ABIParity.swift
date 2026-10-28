@@ -510,10 +510,6 @@ public extension RuntimeABISpec {
         abiParitySpec("kk_future_result", parameters: [
             p("futureHandle", .intptr),
         ]),
-        abiParitySpec("kk_http_body_publishers_noBody", parameters: [
-            p("bodyPublishersRaw", .intptr),
-        ],
-            isThrowing: false),
         abiParitySpec("__kk_input_stream_mark", parameters: [
             p("streamRaw", .intptr),
             p("readLimitRaw", .intptr),
