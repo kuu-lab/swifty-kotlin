@@ -8,7 +8,18 @@ struct JVMClassInfo {
     let methods: [JVMForeignMethod]
     var fields: [JVMForeignField] = []
     var bridgeMethods: [JVMForeignMethod] = []
+    var classTypeParameterNames: [String] = []
+    var innerClasses: [JVMInnerClassInfo] = []
+    var hasInnerClassesAttribute = false
+    var hasEnclosingMethod = false
     var isInterface: Bool { flags & 0x0200 != 0 }
+}
+
+struct JVMInnerClassInfo {
+    let name: String
+    let outerName: String?
+    let innerName: String?
+    let access: UInt16
 }
 
 struct JVMForeignField {
@@ -42,6 +53,112 @@ struct JVMClassReader {
         let count = try u2()
         for _ in 0..<count { _ = try u2(); let size = try u4(); try skip(Int(size)) }
     }
+    private mutating func classAttributes() throws -> (signature: String?, innerClasses: [JVMInnerClassInfo], hasInnerClassesAttribute: Bool, hasEnclosingMethod: Bool) {
+        let count = try u2()
+        var signature: String?
+        var innerClasses: [JVMInnerClassInfo] = []
+        var hasInnerClassesAttribute = false
+        var hasEnclosingMethod = false
+        for _ in 0..<count {
+            let attributeName = try text(Int(u2()))
+            let size = try u4()
+            guard size <= UInt32(bytes.count - offset) else { throw Invalid() }
+            let end = offset + Int(size)
+            switch attributeName {
+            case "Signature":
+                guard signature == nil, size == 2 else { throw Invalid() }
+                signature = try text(Int(u2()))
+            case "InnerClasses":
+                guard !hasInnerClassesAttribute, size >= 2 else { throw Invalid() }
+                hasInnerClassesAttribute = true
+                let entryCount = Int(try u2())
+                guard size == UInt32(2 + entryCount * 8) else { throw Invalid() }
+                for _ in 0..<entryCount {
+                    let innerIndex = Int(try u2())
+                    let outerIndex = Int(try u2())
+                    let innerNameIndex = Int(try u2())
+                    let access = try u2()
+                    innerClasses.append(JVMInnerClassInfo(
+                        name: try className(innerIndex),
+                        outerName: outerIndex == 0 ? nil : try className(outerIndex),
+                        innerName: innerNameIndex == 0 ? nil : try text(innerNameIndex),
+                        access: access
+                    ))
+                }
+            case "EnclosingMethod":
+                guard !hasEnclosingMethod, size == 4 else { throw Invalid() }
+                hasEnclosingMethod = true
+                try skip(Int(size))
+            default:
+                try skip(Int(size))
+            }
+            guard offset == end else { throw Invalid() }
+        }
+        return (signature, innerClasses, hasInnerClassesAttribute, hasEnclosingMethod)
+    }
+
+    private static func classTypeParameterNames(in signature: String?) throws -> [String] {
+        guard let signature, signature.first == "<" else { return [] }
+        let scalars = Array(signature)
+        var index = 1
+        var names: [String] = []
+
+        func parseReferenceType() throws {
+            guard index < scalars.count else { throw Invalid() }
+            switch scalars[index] {
+            case "[":
+                index += 1
+                try parseType()
+            case "T":
+                index += 1
+                while index < scalars.count, scalars[index] != ";" { index += 1 }
+                guard index < scalars.count else { throw Invalid() }
+                index += 1
+            case "L":
+                index += 1
+                while index < scalars.count {
+                    switch scalars[index] {
+                    case ";": index += 1; return
+                    case "<":
+                        index += 1
+                        while index < scalars.count, scalars[index] != ">" {
+                            if scalars[index] == "*" { index += 1; continue }
+                            if scalars[index] == "+" || scalars[index] == "-" { index += 1 }
+                            try parseReferenceType()
+                        }
+                        guard index < scalars.count else { throw Invalid() }
+                        index += 1
+                    default: index += 1
+                    }
+                }
+                throw Invalid()
+            default: throw Invalid()
+            }
+        }
+        func parseType() throws {
+            guard index < scalars.count else { throw Invalid() }
+            if "BCDFIJSZ".contains(scalars[index]) { index += 1; return }
+            try parseReferenceType()
+        }
+
+        while index < scalars.count, scalars[index] != ">" {
+            let start = index
+            while index < scalars.count, scalars[index] != ":" { index += 1 }
+            guard index < scalars.count, index > start else { throw Invalid() }
+            let name = String(scalars[start..<index])
+            guard JVMProgramBuilder.isIdentifier(name) else { throw Invalid() }
+            names.append(name)
+            index += 1
+            if index < scalars.count, scalars[index] != ":" { try parseReferenceType() }
+            while index < scalars.count, scalars[index] == ":" {
+                index += 1
+                try parseReferenceType()
+            }
+        }
+        guard index < scalars.count, scalars[index] == ">" else { throw Invalid() }
+        return names
+    }
+
     mutating func read() throws -> JVMClassInfo {
         guard try u4() == 0xCAFEBABE else { throw Invalid() }
         _ = try u2(); guard try u2() >= 45 else { throw Invalid() }
@@ -110,9 +227,21 @@ struct JVMClassReader {
             }
             try attributes()
         }
-        try attributes()
+        let classAttributes = try classAttributes()
         guard offset == bytes.count else { throw Invalid() }
-        return JVMClassInfo(name: name, flags: flags, superclass: superclass, interfaces: interfaces, methods: methods, fields: fields, bridgeMethods: bridgeMethods)
+        return JVMClassInfo(
+            name: name,
+            flags: flags,
+            superclass: superclass,
+            interfaces: interfaces,
+            methods: methods,
+            fields: fields,
+            bridgeMethods: bridgeMethods,
+            classTypeParameterNames: try Self.classTypeParameterNames(in: classAttributes.signature),
+            innerClasses: classAttributes.innerClasses,
+            hasInnerClassesAttribute: classAttributes.hasInnerClassesAttribute,
+            hasEnclosingMethod: classAttributes.hasEnclosingMethod
+        )
     }
 }
 

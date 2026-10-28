@@ -20,8 +20,16 @@ struct ValueClassSecondaryConstructorExecutionTests {
             constructor() : this(0) {}
         }
 
+        @JvmInline value class W(val x: Int) {
+            constructor(a: Int, b: Int) : this(a + b)
+            constructor(a: Long, b: Int) : this(a.toInt(), b)
+        }
+
         fun main() {
-            val matches = V("abc").x == 3 && calls == 1 && IC().i == 0
+            // W exercises secondaries with more than one parameter, both
+            // called directly and through secondary-to-secondary delegation.
+            val matches = V("abc").x == 3 && calls == 1 && IC().i == 0 &&
+                W(1, 2).x == 3 && W(2L, 3).x == 5
             // Divide by zero only when a value or constructor side effect is wrong.
             val divisor = if (matches) 1 else 0
             val probe = 1 / divisor

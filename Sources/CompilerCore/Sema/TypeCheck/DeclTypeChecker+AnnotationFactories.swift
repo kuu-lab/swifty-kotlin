@@ -49,6 +49,21 @@ extension DeclTypeChecker {
                 tokens.append(Token(kind: .symbol(.lParen), range: last.range))
                 tokens.append(Token(kind: .symbol(.rParen), range: last.range))
             }
+            // A fully qualified classifier is already resolved by the header
+            // pass. Replay it through a local alias so package components are
+            // not reinterpreted as ordinary expressions. Keep the source name
+            // in that alias for diagnostics, and leave simple names unchanged.
+            let constructionScope: Scope
+            if annotation.name.contains(".") {
+                let alias = ctx.interner.intern(annotation.name)
+                guard let argumentStart = tokens.firstIndex(where: { $0.kind == .symbol(.lParen) }) else { continue }
+                tokens.replaceSubrange(0..<argumentStart, with: [Token(kind: .identifier(alias), range: first.range)])
+                let scope = BaseScope(parent: ctx.scope, symbols: sema.symbols)
+                scope.insertWithAlias(annotationSymbol, asName: alias)
+                constructionScope = scope
+            } else {
+                constructionScope = ctx.scope
+            }
             let parser = BuildASTPhase.ExpressionParser(
                 tokens: tokens, interner: ctx.interner, astArena: ctx.ast.arena, diagnostics: sema.diagnostics
             )
@@ -78,7 +93,7 @@ extension DeclTypeChecker {
                                          expectedType: expectedType)
                 }
             }
-            var constructionContext = ctx.with(currentDeclSymbol: symbol)
+            var constructionContext = ctx.copying(scope: constructionScope, currentDeclSymbol: .some(symbol))
             constructionContext.annotationOptInValidation = (
                 owner: annotationSymbol, range: ctx.ast.arena.exprRange(construction),
                 markers: sema.bindings.validatedAnnotationOptInMarkers[usageID] ?? []

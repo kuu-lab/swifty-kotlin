@@ -138,6 +138,7 @@ final class MetadataDecoder {
             contractImplicationEffects: rec.contractImplicationEffects,
             canThrow: rec.canThrow,
             valueParameterNames: rec.valueParameterNames,
+            hasStableParameterNames: rec.hasStableParameterNames,
             reifiedTypeParameterIndices: rec.reifiedTypeParameterIndices,
             defaultStubExternalLinkName: rec.defaultStubExternalLinkName,
             externalLinkName: rec.externalLinkName,
@@ -203,6 +204,7 @@ final class MetadataDecoder {
         var contractImplicationEffects: [ContractImplicationEffect] = []
         var canThrow: Bool = false
         var valueParameterNames: [String] = []
+        var hasStableParameterNames: Bool = true
         var reifiedTypeParameterIndices: Set<Int> = []
         var defaultStubExternalLinkName: String?
         var externalLinkName: String?
@@ -331,6 +333,8 @@ final class MetadataDecoder {
             record.canThrow = value == "1" || value == "true"
         case "paramNames":
             record.valueParameterNames = value.split(separator: ",").map(String.init)
+        case "unstableParams":
+            record.hasStableParameterNames = !(value == "1" || value == "true")
         case "reified":
             record.reifiedTypeParameterIndices = Set(
                 value.split(separator: ",").compactMap { Int($0.trimmingCharacters(in: .whitespaces)) }

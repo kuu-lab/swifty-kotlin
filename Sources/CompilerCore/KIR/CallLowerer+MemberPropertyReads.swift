@@ -777,8 +777,14 @@ extension CallLowerer {
         // Array-like types (Array, IntArray, LongArray, etc.) expose
         // properties such as `size` via runtime helper functions rather than
         // object field layout, so let the collection fallback lower them.
+        // Only the bundled kotlin.<Name> classes (and fqName-less synthetic
+        // stubs) qualify — a user class that shadows the imported name keeps
+        // ordinary member layout (KUU-3615).
         let knownNames = KnownCompilerNames(interner: interner)
-        if knownNames.isArrayLikeName(ownerInfo.name) {
+        if ownerInfo.fqName.isEmpty
+            || ownerInfo.fqName == [interner.intern("kotlin"), ownerInfo.name],
+           knownNames.isArrayLikeName(ownerInfo.name)
+        {
             return nil
         }
 
@@ -967,6 +973,16 @@ extension CallLowerer {
            let propertyInfo = sema.symbols.symbol(propertySymbol),
            propertyInfo.kind == .property || propertyInfo.kind == .field
         {
+            if propertyInfo.flags.contains(.static) {
+                // Enum-class statics (the synthetic `Enum.entries` stub) are
+                // not instance storage: reading them through `this` still
+                // resolves the class-level stub. Preserve the property symbol
+                // so EnumEntriesLoweringPass routes it to `entries$get`
+                // (KUU-3544).
+                let result = arena.appendExpr(.symbolRef(propertySymbol), type: resultType)
+                instructions.append(.constValue(result: result, value: .symbolRef(propertySymbol)))
+                return result
+            }
             let propertyName = propertyInfo.name
             let helperName = interner.intern("$enumConstructorProperty$\(ownerSymbol.rawValue)$\(interner.resolve(propertyName))")
             let result = arena.appendTemporary(type: resultType)

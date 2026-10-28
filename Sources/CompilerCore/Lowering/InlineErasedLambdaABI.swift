@@ -385,9 +385,16 @@ enum InlineErasedLambdaABI {
         guard isErasedType(parameterType, ctx: ctx),
               let types = ctx.sema?.types,
               let argumentType = module.arena.exprType(argument),
-              case .stringStruct = types.kind(of: argumentType)
+              case let .stringStruct(nullability) = types.kind(of: argumentType)
         else {
             return argument
+        }
+        if nullability != .nonNull {
+            // A typed copy lets the backend preserve the null sentinel while
+            // bridging a nullable flat String to an erased slot.
+            let boxed = module.arena.appendTemporary(type: types.nullableAnyType)
+            body.append(.copy(from: argument, to: boxed))
+            return boxed
         }
         let boxed = module.arena.appendTemporary(type: types.anyType)
         body.append(.call(
@@ -461,14 +468,19 @@ enum InlineErasedLambdaABI {
                     canThrow: false
                 ))
                 boxed[index] = boxedResult
-            case .stringStruct:
+            case let .stringStruct(nullability):
                 // String arguments arrive as flat aggregates, but an erased
                 // parameter slot must carry the boxed handle the imported body
                 // unwraps (`kk_string_to_flat` inside e.g. `"x".let { ... }`).
                 // Substituting the aggregate directly smears its fields across
-                // the call's argument registers (KUU-3234). Nullable receivers
-                // reach `?.let` only on the non-null branch, so boxing them via
-                // the same flat-to-box callee is still correct.
+                // the call's argument registers (KUU-3234). Nullable arguments
+                // also need the null-aware aggregate-to-handle bridge.
+                if nullability != .nonNull {
+                    let boxedResult = module.arena.appendTemporary(type: types.nullableAnyType)
+                    body.append(.copy(from: arguments[index], to: boxedResult))
+                    boxed[index] = boxedResult
+                    continue
+                }
                 let boxedResult = module.arena.appendTemporary(type: types.anyType)
                 body.append(.call(
                     callee: ctx.interner.intern("kk_string_from_flat"),
