@@ -14,8 +14,6 @@ package struct ProtoFields {
 
     private var values: [Int: [WireValue]] = [:]
 
-    package static let empty = ProtoFields()
-
     private init() {}
 
     package init(_ bytes: ArraySlice<UInt8>) throws {
