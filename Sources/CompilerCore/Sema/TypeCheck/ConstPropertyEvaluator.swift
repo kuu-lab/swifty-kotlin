@@ -381,6 +381,13 @@ final class ConstPropertyEvaluator {
         let path = owner.fqName.map { interner.resolve($0) }
         guard path.count == 3, path[0] == "kotlin", path[2] == "Companion" else { return nil }
         let member = interner.resolve(info.name)
+        let sizeBits: [String: Int64] = [
+            "Byte": 8, "UByte": 8, "Short": 16, "UShort": 16, "Int": 32, "UInt": 32,
+            "Float": 32, "Long": 64, "ULong": 64, "Double": 64,
+        ]
+        if let bits = sizeBits[path[1]], member == "SIZE_BITS" || member == "SIZE_BYTES" {
+            return .intLiteral(member == "SIZE_BITS" ? bits : bits / 8)
+        }
         switch (path[1], member) {
         case ("Char", "MIN_VALUE"): return .charLiteral(0)
         case ("Char", "MAX_VALUE"): return .charLiteral(65535)
@@ -409,22 +416,6 @@ final class ConstPropertyEvaluator {
         case ("Double", "POSITIVE_INFINITY"): return .doubleLiteral(.infinity)
         case ("Double", "NEGATIVE_INFINITY"): return .doubleLiteral(-.infinity)
         case ("Double", "NaN"): return .doubleLiteral(Double(bitPattern: 0x7FF8_0000_0000_0000))
-        case ("Byte", "SIZE_BITS"): return .intLiteral(8)
-        case ("Byte", "SIZE_BYTES"): return .intLiteral(1)
-        case ("Short", "SIZE_BITS"): return .intLiteral(16)
-        case ("Short", "SIZE_BYTES"): return .intLiteral(2)
-        case ("Int", "SIZE_BITS"), ("Float", "SIZE_BITS"): return .intLiteral(32)
-        case ("Int", "SIZE_BYTES"), ("Float", "SIZE_BYTES"): return .intLiteral(4)
-        case ("Long", "SIZE_BITS"), ("Double", "SIZE_BITS"): return .intLiteral(64)
-        case ("Long", "SIZE_BYTES"), ("Double", "SIZE_BYTES"): return .intLiteral(8)
-        case ("UByte", "SIZE_BITS"): return .intLiteral(8)
-        case ("UByte", "SIZE_BYTES"): return .intLiteral(1)
-        case ("UShort", "SIZE_BITS"): return .intLiteral(16)
-        case ("UShort", "SIZE_BYTES"): return .intLiteral(2)
-        case ("UInt", "SIZE_BITS"): return .intLiteral(32)
-        case ("UInt", "SIZE_BYTES"): return .intLiteral(4)
-        case ("ULong", "SIZE_BITS"): return .intLiteral(64)
-        case ("ULong", "SIZE_BYTES"): return .intLiteral(8)
         default: return nil
         }
     }
