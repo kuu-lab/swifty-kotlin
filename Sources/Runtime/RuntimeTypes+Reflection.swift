@@ -404,7 +404,9 @@ final class RuntimeKNestedClassRegistry: @unchecked Sendable {
         guard nestedToken != 0 else { return }
         lock.lock()
         defer { lock.unlock() }
-        entries[typeToken, default: []].append((nestedToken, nestedNameRaw))
+        if !entries[typeToken, default: []].contains(where: { $0.token == nestedToken }) {
+            entries[typeToken, default: []].append((nestedToken, nestedNameRaw))
+        }
     }
 
     func nestedClasses(for typeToken: Int) -> [(token: Int, nameRaw: Int)] {
