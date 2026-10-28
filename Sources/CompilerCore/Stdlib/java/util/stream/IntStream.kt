@@ -54,8 +54,8 @@ public class IntStream private constructor(private val values: IntArray) {
     public fun average(): OptionalDouble {
         val values = consumeValues()
         if (values.isEmpty()) return OptionalDouble.empty()
-        var total = 0
-        for (value in values) total += value
+        var total = 0L
+        for (value in values) total += value.toLong()
         return OptionalDouble.of(total.toDouble() / values.size.toDouble())
     }
 
