@@ -107,23 +107,7 @@ final class FlowLoweringPass: LoweringPass, ParallelLoweringPass {
             }
             for instruction in function.body {
                 switch instruction {
-                case let .call(_, callee, arguments, _, _, _, _, _):
-                    guard callee == flowName,
-                          arguments.count == 1
-                    else {
-                        continue
-                    }
-                    let lambdaArg = arguments[0]
-                    if let symbol = symbolByExprRaw[lambdaArg.rawValue] {
-                        flowBuilderFunctionSymbols.insert(symbol)
-                        if let lambdaName = functionNameBySymbol[symbol] {
-                            flowBuilderFunctionNames.insert(lambdaName)
-                        }
-                    }
-                    // Keep convention-based fallback for synthetic lambda names.
-                    let fallbackLambdaName = interner.intern("kk_lambda_\(lambdaArg.rawValue)")
-                    flowBuilderFunctionNames.insert(fallbackLambdaName)
-                case let .virtualCall(_, callee, _, arguments, _, _, _, _):
+                case let .call(_, callee, arguments, _, _, _, _, _), let .virtualCall(_, callee, _, arguments, _, _, _, _):
                     guard callee == flowName,
                           arguments.count == 1
                     else {
