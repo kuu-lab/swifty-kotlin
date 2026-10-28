@@ -607,6 +607,7 @@ extension DataFlowSemaPhase {
 
             if memberMeta.hasOverride {
                 validateOverrideTarget(
+                    memberDecl: memberDecl,
                     memberName: memberMeta.name,
                     memberRange: memberMeta.range,
                     ownerSymbol: symbol,
@@ -972,6 +973,7 @@ extension DataFlowSemaPhase {
     }
 
     private func validateOverrideTarget(
+        memberDecl: Decl,
         memberName: InternedString,
         memberRange: SourceRange,
         ownerSymbol: SymbolID,
@@ -1053,6 +1055,22 @@ extension DataFlowSemaPhase {
         }
 
         if isMemberOverridable(parentSym, parent: parent) {
+            // An overriding function inherits default parameter values from
+            // the overridden declaration; redeclaring them is rejected by
+            // kotlinc ("an overriding function is not allowed to specify
+            // default values for its parameters"). This phase runs before
+            // `inheritDefaultArgumentValuesForOverrides`, so a non-nil
+            // `defaultValue` here always comes from the source.
+            if case let .funDecl(fun) = memberDecl,
+               fun.valueParams.contains(where: { $0.defaultValue != nil }) {
+                let name = ctx.interner.resolve(memberName)
+                ctx.diagnostics.error(
+                    "KSWIFTK-SEMA-OVERRIDE-DEFAULT-ARGS",
+                    "An overriding function is not allowed to specify default values for its parameters: '\(name)'.",
+                    range: memberRange
+                )
+            }
+
             if let returnType = returnType {
                 validateReturnTypeCovariance(
                     childReturnType: returnType,
