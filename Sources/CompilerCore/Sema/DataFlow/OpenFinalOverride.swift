@@ -622,6 +622,12 @@ extension DataFlowSemaPhase {
                     memberSymbol: memberSymbol,
                     ctx: ctx
                 )
+                validatePropertyTypeOverride(
+                    memberDecl: memberDecl,
+                    ownerSymbol: symbol,
+                    memberSymbol: memberSymbol,
+                    ctx: ctx
+                )
                 validateAbstractOverrideConstraints(
                     memberMeta: memberMeta,
                     ownerSymbol: symbol,
@@ -1222,6 +1228,75 @@ extension DataFlowSemaPhase {
             ctx.diagnostics.error(
                 "KSWIFTK-SEMA-OVERRIDE-MUTABILITY",
                 "'var' property '\(name)' defined in '\(ownerName)' cannot be overridden by 'val' property.",
+                range: memberRange
+            )
+            return
+        }
+    }
+
+    /// Kotlin property override type rules:
+    ///   - `val` overriding `val`: the child type must be a *subtype* of the
+    ///     parent's (covariant read). Widening is rejected.
+    ///   - `var` overriding `val`: only the getter participates, so the same
+    ///     covariance applies.
+    ///   - `var` overriding `var`: the property is read AND written, so the
+    ///     child type must equal the parent type (invariant) — neither
+    ///     widening nor narrowing is allowed. kotlinc reports "type of 'var x'
+    ///     doesn't match the type of the overridden 'var' property".
+    /// A `val`-over-`var` pair is left to `validateValVarMutabilityOverride`
+    /// (it is rejected for mutability reasons regardless of types).
+    /// Types that mention type parameters are skipped: substitution-sensitive
+    /// checks belong to the generic-covariance path.
+    ///
+    /// When the override has no explicit type annotation the symbol stores the
+    /// `anyType` placeholder (see `extractMemberMeta` for the function case),
+    /// which would false-positive against any concrete parent type. Such
+    /// inferred-type overrides are skipped here: checking the *inferred* type
+    /// needs initializer expression types that this phase does not bind.
+    private func validatePropertyTypeOverride(
+        memberDecl: Decl,
+        ownerSymbol: SymbolID,
+        memberSymbol: SymbolID,
+        ctx: OpenFinalOverrideContext
+    ) {
+        guard case let .propertyDecl(prop) = memberDecl,
+              prop.type != nil,
+              let memberSym = ctx.symbols.symbol(memberSymbol),
+              memberSym.kind == .property,
+              let childType = ctx.symbols.propertyType(for: memberSymbol),
+              !typeContainsAnyTypeParam(childType, types: ctx.types)
+        else { return }
+
+        let memberName = prop.name
+        let memberRange = prop.range
+        let childIsVar = memberSym.flags.contains(.mutable)
+        for parent in findAllInheritedMembers(
+            named: memberName,
+            for: ownerSymbol,
+            symbols: ctx.symbols
+        ) {
+            guard let parentSym = ctx.symbols.symbol(parent.memberID),
+                  parentSym.kind == .property,
+                  let parentType = ctx.symbols.propertyType(for: parent.memberID),
+                  !typeContainsAnyTypeParam(parentType, types: ctx.types)
+            else { continue }
+
+            let parentIsVar = parentSym.flags.contains(.mutable)
+            if !childIsVar && parentIsVar {
+                continue // 'val' over 'var': mutability check reports instead
+            }
+            let getterCovariant = ctx.types.isSubtype(childType, parentType)
+            let invariant = !childIsVar || !parentIsVar
+                || ctx.types.isSubtype(parentType, childType)
+            if getterCovariant && invariant { continue }
+
+            let name = ctx.interner.resolve(memberName)
+            let ownerName = ctx.interner.resolve(parent.ownerName)
+            let parentTypeStr = ctx.types.renderType(parentType)
+            let childTypeStr = ctx.types.renderType(childType)
+            ctx.diagnostics.error(
+                "KSWIFTK-SEMA-OVERRIDE-TYPE",
+                "Type of '\(name)' doesn't match the type of the overridden property '\(parentTypeStr)' defined in '\(ownerName)' (found '\(childTypeStr)').",
                 range: memberRange
             )
             return
