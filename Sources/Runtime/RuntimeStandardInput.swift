@@ -26,13 +26,17 @@ final class RuntimeStdioInputStreamBox: RuntimeInputStreamBox {
             return -1
         }
         while true {
+            let gcBlocking = runtimeGCSafepoints.beginBlockingIfEnrolled()
             let value = fgetc(stream)
-            if value == EOF, ferror(stream) != 0 {
-                if errno == EINTR {
+            let readErrno = errno
+            let hasError = value == EOF && ferror(stream) != 0
+            if gcBlocking { runtimeGCSafepoints.endBlocking() }
+            if hasError {
+                if readErrno == EINTR {
                     clearerr(stream)
                     continue
                 }
-                failure = String(cString: strerror(errno))
+                failure = String(cString: strerror(readErrno))
             }
             return Int(value)
         }

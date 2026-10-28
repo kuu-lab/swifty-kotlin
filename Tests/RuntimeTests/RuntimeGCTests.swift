@@ -3,6 +3,11 @@ import Dispatch
 import Foundation
 import RuntimeABI
 import Testing
+#if canImport(Darwin)
+import Darwin
+#elseif canImport(Glibc)
+import Glibc
+#endif
 
 private final class ConcurrentFrameSlot: @unchecked Sendable {
     let pointer: UnsafeMutablePointer<UnsafeMutableRawPointer?>
@@ -20,6 +25,11 @@ private final class ConcurrentFrameSlot: @unchecked Sendable {
 
 private final class ConcurrentParkerHolder: @unchecked Sendable {
     var parker: RuntimeAtomicfuParker?
+}
+
+private final class ConcurrentStdioProbe: @unchecked Sendable {
+    let stream: RuntimeStdioInputStreamBox
+    init(_ stream: RuntimeStdioInputStreamBox) { self.stream = stream }
 }
 
 private final class ConcurrentArrayViewProbe: @unchecked Sendable {
@@ -2891,6 +2901,219 @@ struct RuntimeGCTests {
             #expect(finished.wait(timeout: .now() + 10) == .success)
         }
     }
+
+    @Test func inputReadDoesNotBlockCollectionOfAnEnrolledMutator() {
+        var descriptors = [Int32](repeating: -1, count: 2)
+        #expect(pipe(&descriptors) == 0)
+        guard descriptors[0] >= 0, descriptors[1] >= 0 else { return }
+        let readDescriptor = descriptors[0]
+        let writeDescriptor = descriptors[1]
+        guard let file = fdopen(readDescriptor, "r") else {
+            close(readDescriptor)
+            close(writeDescriptor)
+            Issue.record("fdopen failed")
+            return
+        }
+        let probe = ConcurrentStdioProbe(RuntimeStdioInputStreamBox(stream: file))
+        defer { close(writeDescriptor) }
+        let waiting = DispatchSemaphore(value: 0)
+        let finished = DispatchSemaphore(value: 0)
+        let collected = DispatchSemaphore(value: 0)
+        DispatchQueue.global().async {
+            defer {
+                probe.stream.close()
+                finished.signal()
+            }
+            __kk_gc_mutator_enter()
+            waiting.signal()
+            #expect(probe.stream.readByte() == 65)
+            __kk_gc_mutator_leave()
+        }
+        #expect(waiting.wait(timeout: .now() + 5) == .success)
+        DispatchQueue.global().async {
+            kk_gc_collect()
+            collected.signal()
+        }
+        let earlyCollection = collected.wait(timeout: .now() + 2)
+        #expect(earlyCollection == .success)
+        let finishedBeforeWrite = finished.wait(timeout: .now()) == .success
+        #expect(!finishedBeforeWrite)
+        if !finishedBeforeWrite {
+            var byte: UInt8 = 65
+            #expect(write(writeDescriptor, &byte, 1) == 1)
+        }
+        if earlyCollection == .timedOut {
+            #expect(collected.wait(timeout: .now() + 10) == .success)
+        }
+        if !finishedBeforeWrite {
+            #expect(finished.wait(timeout: .now() + 10) == .success)
+        }
+    }
+
+    @Test func fileReadDoesNotBlockCollectionOfAnEnrolledMutator() {
+        var descriptors = [Int32](repeating: -1, count: 2)
+        #expect(pipe(&descriptors) == 0)
+        guard descriptors[0] >= 0, descriptors[1] >= 0 else { return }
+        let readDescriptor = descriptors[0]
+        let writeDescriptor = descriptors[1]
+        defer { close(writeDescriptor) }
+        let buffer = kk_array_new(1)
+        let waiting = DispatchSemaphore(value: 0)
+        let finished = DispatchSemaphore(value: 0)
+        let collected = DispatchSemaphore(value: 0)
+        DispatchQueue.global().async {
+            defer {
+                close(readDescriptor)
+                _ = runtimeReleaseObject(buffer)
+                finished.signal()
+            }
+            __kk_gc_mutator_enter()
+            kk_gc_shadow_push()
+            kk_gc_shadow_set(0, buffer)
+            waiting.signal()
+            var thrown = 0
+            #expect(__kk_io_fs_read(Int(readDescriptor), buffer, 0, 1, &thrown) == 1)
+            #expect(thrown == 0)
+            #expect(kk_array_get_inbounds(buffer, 0) == 65)
+            kk_gc_shadow_pop(0, 0)
+            __kk_gc_mutator_leave()
+        }
+        #expect(waiting.wait(timeout: .now() + 5) == .success)
+        DispatchQueue.global().async {
+            kk_gc_collect()
+            collected.signal()
+        }
+        let earlyCollection = collected.wait(timeout: .now() + 2)
+        #expect(earlyCollection == .success)
+        let finishedBeforeWrite = finished.wait(timeout: .now()) == .success
+        #expect(!finishedBeforeWrite)
+        if !finishedBeforeWrite {
+            var byte: UInt8 = 65
+            #expect(write(writeDescriptor, &byte, 1) == 1)
+        }
+        if earlyCollection == .timedOut {
+            #expect(collected.wait(timeout: .now() + 10) == .success)
+        }
+        if !finishedBeforeWrite {
+            #expect(finished.wait(timeout: .now() + 10) == .success)
+        }
+    }
+
+    @Test func fileWriteDoesNotBlockCollectionOfAnEnrolledMutator() {
+        var descriptors = [Int32](repeating: -1, count: 2)
+        #expect(pipe(&descriptors) == 0)
+        guard descriptors[0] >= 0, descriptors[1] >= 0 else { return }
+        let readDescriptor = descriptors[0]
+        let writeDescriptor = descriptors[1]
+        defer {
+            close(readDescriptor)
+            close(writeDescriptor)
+        }
+        let originalFlags = fcntl(writeDescriptor, F_GETFL)
+        guard originalFlags >= 0, fcntl(writeDescriptor, F_SETFL, originalFlags | O_NONBLOCK) == 0 else {
+            Issue.record("Could not configure pipe for the GC write test")
+            return
+        }
+        let fill = [UInt8](repeating: 0, count: 4096)
+        var filled = 0
+        while true {
+            let count = fill.withUnsafeBytes { buffer in
+                write(writeDescriptor, buffer.baseAddress!, buffer.count)
+            }
+            if count < 0, errno == EAGAIN { break }
+            guard count > 0, filled < 16 * 1024 * 1024 else {
+                Issue.record("Could not fill pipe for the GC write test")
+                return
+            }
+            filled += count
+        }
+        guard fcntl(writeDescriptor, F_SETFL, originalFlags) == 0 else {
+            Issue.record("Could not restore blocking pipe mode")
+            return
+        }
+        let source = kk_array_new(1)
+        _ = kk_array_set(source, 0, 65, nil)
+        defer { _ = runtimeReleaseObject(source) }
+        let waiting = DispatchSemaphore(value: 0)
+        let finished = DispatchSemaphore(value: 0)
+        let collected = DispatchSemaphore(value: 0)
+        DispatchQueue.global().async {
+            __kk_gc_mutator_enter()
+            kk_gc_shadow_push()
+            kk_gc_shadow_set(0, source)
+            waiting.signal()
+            var thrown = 0
+            #expect(__kk_io_fs_write(Int(writeDescriptor), source, 0, 1, &thrown) == 0)
+            #expect(thrown == 0)
+            kk_gc_shadow_pop(0, 0)
+            __kk_gc_mutator_leave()
+            finished.signal()
+        }
+        #expect(waiting.wait(timeout: .now() + 5) == .success)
+        DispatchQueue.global().async {
+            kk_gc_collect()
+            collected.signal()
+        }
+        let earlyCollection = collected.wait(timeout: .now() + 2)
+        #expect(earlyCollection == .success)
+        let finishedBeforeDrain = finished.wait(timeout: .now()) == .success
+        #expect(!finishedBeforeDrain)
+        if !finishedBeforeDrain {
+            var drain = [UInt8](repeating: 0, count: 4096)
+            let count = drain.withUnsafeMutableBytes { buffer in
+                read(readDescriptor, buffer.baseAddress!, buffer.count)
+            }
+            #expect(count > 0)
+        }
+        if earlyCollection == .timedOut {
+            #expect(collected.wait(timeout: .now() + 10) == .success)
+        }
+        if !finishedBeforeDrain {
+            #expect(finished.wait(timeout: .now() + 10) == .success)
+        }
+    }
+
+    #if canImport(Darwin)
+    @Test func foundationLockWaitDoesNotBlockCollectionOfAnEnrolledMutator() {
+        var thrown = 0
+        let lock = __kk_foundation_lock_create(&thrown)
+        #expect(thrown == 0)
+        defer { runtimeForeignResourceDiscardUnattached(lock) }
+        _ = __kk_foundation_lock_lock(lock, &thrown)
+        #expect(thrown == 0)
+        let waiting = DispatchSemaphore(value: 0)
+        let finished = DispatchSemaphore(value: 0)
+        let collected = DispatchSemaphore(value: 0)
+        DispatchQueue.global().async {
+            __kk_gc_mutator_enter()
+            waiting.signal()
+            var failure = 0
+            _ = __kk_foundation_lock_lock(lock, &failure)
+            #expect(failure == 0)
+            _ = __kk_foundation_lock_unlock(lock, &failure)
+            __kk_gc_mutator_leave()
+            finished.signal()
+        }
+        #expect(waiting.wait(timeout: .now() + 5) == .success)
+        DispatchQueue.global().async {
+            kk_gc_collect()
+            collected.signal()
+        }
+        let earlyCollection = collected.wait(timeout: .now() + 2)
+        #expect(earlyCollection == .success)
+        let finishedBeforeUnlock = finished.wait(timeout: .now()) == .success
+        #expect(!finishedBeforeUnlock)
+        _ = __kk_foundation_lock_unlock(lock, &thrown)
+        #expect(thrown == 0)
+        if earlyCollection == .timedOut {
+            #expect(collected.wait(timeout: .now() + 10) == .success)
+        }
+        if !finishedBeforeUnlock {
+            #expect(finished.wait(timeout: .now() + 10) == .success)
+        }
+    }
+
+    #endif
 
     @Test func shadowFrameWritesRemainStableDuringCollection() {
         withDummyTypeInfo { typeInfo in
