@@ -318,14 +318,6 @@ public extension RuntimeABISpec {
             p("throwOnInvalidSequence", .intptr),
             p("outThrown", .nullableIntptrPointer),
         ]),
-        abiParitySpec("kk_cinterop_writeBits", parameters: [
-            p("ptr", .intptr),
-            p("offset", .intptr),
-            p("size", .intptr),
-            p("value", .intptr),
-        ],
-            returnType: .void,
-            isThrowing: false),
         abiParitySpec("kk_uLongArray_toCValues", parameters: [
             p("arrayRaw", .intptr),
         ],
