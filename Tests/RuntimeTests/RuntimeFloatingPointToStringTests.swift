@@ -74,6 +74,8 @@ struct RuntimeFloatingPointToStringTests {
             (5 * Float.leastNonzeroMagnitude, "7.0E-45"),
             (7 * Float.leastNonzeroMagnitude, "9.8E-45"),
             (8 * Float.leastNonzeroMagnitude, "1.1E-44"),
+            (21 * Float.leastNonzeroMagnitude, "2.9E-44"),
+            (71 * Float.leastNonzeroMagnitude, "9.9E-44"),
             (-3 * Float.leastNonzeroMagnitude, "-4.2E-45"),
         ]
         for (value, expected) in floats {

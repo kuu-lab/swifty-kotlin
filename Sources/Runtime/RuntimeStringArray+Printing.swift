@@ -295,7 +295,7 @@ private func runtimeFinishFloatingPointFormat(rendered: String, useScientific: B
 
 /// JDK 19+ `toString` widens a one-digit shortest decimal to the closest
 /// decimal of length 1 or 2 (`9.9E-324`, not Ryu's `1e-323`). That only
-/// changes the result below 1e-322 (Float: 1e-44), where the two-digit grid
+/// changes the result below 1e-322 (Float: 1e-43), where the two-digit grid
 /// is finer than the subnormal spacing; there every value is printed with
 /// two digits. `units` is the magnitude in units of 10^`unitExponent`.
 private func runtimeJavaSmallSubnormalText(units: Double, unitExponent: Int, isNegative: Bool) -> String {
@@ -333,7 +333,7 @@ func runtimeFormatFloatingPoint(_ value: Float) -> String {
     if value == 0.0 && value.sign == .minus { return "-0.0" }
     let magnitude = abs(value)
     let subnormalUnits = magnitude / Float.leastNonzeroMagnitude
-    if magnitude != 0, subnormalUnits <= 7 {
+    if magnitude != 0, subnormalUnits <= 71 {
         return runtimeJavaSmallSubnormalText(
             units: Double(subnormalUnits) * 1.4012984643248171, unitExponent: -45, isNegative: value < 0
         )

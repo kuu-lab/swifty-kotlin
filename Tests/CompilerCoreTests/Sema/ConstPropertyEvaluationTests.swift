@@ -321,6 +321,7 @@ struct ConstPropertyEvaluationTests {
         const val DOUBLE_TEN = "" + 10 * Double.MIN_VALUE
         const val FLOAT_THREE = "" + 3 * Float.MIN_VALUE
         const val FLOAT_MIN = "" + Float.MIN_VALUE
+        const val FLOAT_SEVENTY_ONE = "" + 71 * Float.MIN_VALUE
         """)
         try runSema(ctx)
 
@@ -328,7 +329,7 @@ struct ConstPropertyEvaluationTests {
         let sema = try #require(ctx.sema)
         let expected = [
             "DOUBLE_TWO": "9.9E-324", "DOUBLE_TEN": "4.9E-323",
-            "FLOAT_THREE": "4.2E-45", "FLOAT_MIN": "1.4E-45",
+            "FLOAT_THREE": "4.2E-45", "FLOAT_MIN": "1.4E-45", "FLOAT_SEVENTY_ONE": "9.9E-44",
         ]
         for (name, text) in expected {
             let symbol = try #require(sema.symbols.lookup(

@@ -1032,7 +1032,7 @@ struct ConstantCollector {
         if value == 0.0 && value.sign == .minus { return "-0.0" }
         let magnitude = abs(value)
         let subnormalUnits = magnitude / Float.leastNonzeroMagnitude
-        if magnitude != 0, subnormalUnits <= 7 {
+        if magnitude != 0, subnormalUnits <= 71 {
             return javaSmallSubnormalConcatText(
                 units: Double(subnormalUnits) * 1.4012984643248171, unitExponent: -45, isNegative: value < 0
             )
@@ -1044,7 +1044,7 @@ struct ConstantCollector {
     }
 
     /// Mirrors `runtimeJavaSmallSubnormalText`: JDK 19+ prints subnormals
-    /// below 1e-322 (Float: 1e-44) with the closest two-digit decimal.
+    /// below 1e-322 (Float: 1e-43) with the closest two-digit decimal.
     private func javaSmallSubnormalConcatText(units: Double, unitExponent: Int, isNegative: Bool) -> String {
         let tenths = (units * 10).rounded()
         let (digits, exponent) = tenths < 100

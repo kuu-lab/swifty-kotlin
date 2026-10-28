@@ -1,5 +1,5 @@
 // DIFF_JVM
-// JDK 19+ prints subnormals below 1e-322 (Float: 1e-44) with the closest two-digit decimal.
+// JDK 19+ prints subnormals below 1e-322 (Float: 1e-43) with the closest two-digit decimal.
 const val D1 = "" + 1 * Double.MIN_VALUE
 const val D2 = "" + 2 * Double.MIN_VALUE
 const val D3 = "" + 3 * Double.MIN_VALUE
@@ -13,6 +13,8 @@ const val F3 = "" + 3 * Float.MIN_VALUE
 const val F5 = "" + 5 * Float.MIN_VALUE
 const val F7 = "" + 7 * Float.MIN_VALUE
 const val F8 = "" + 8 * Float.MIN_VALUE
+const val F21 = "" + 21 * Float.MIN_VALUE
+const val F71 = "" + 71 * Float.MIN_VALUE
 
 fun main() {
     println(D1)
@@ -28,8 +30,10 @@ fun main() {
     println(F5)
     println(F7)
     println(F8)
+    println(F21)
+    println(F71)
     for (k in 1..25) println(k * Double.MIN_VALUE)
-    for (k in 1..10) println(k * Float.MIN_VALUE)
+    for (k in 1..80) println(k * Float.MIN_VALUE)
     println(-2 * Double.MIN_VALUE)
     println(0.0)
     println(0.0f)
