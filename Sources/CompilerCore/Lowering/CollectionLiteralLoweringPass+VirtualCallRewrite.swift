@@ -4,7 +4,6 @@ extension CollectionVirtualCallRewriteLoweringPass {
     struct VirtualCallRewriteContext {
         let module: KIRModule
         let lookup: CollectionLiteralLookupTables
-        let functionBody: [KIRInstruction]
         let sema: SemaModule?
         let interner: StringInterner
     }
