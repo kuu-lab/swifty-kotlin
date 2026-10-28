@@ -131,19 +131,13 @@ enum InlineExprAliasing {
     /// not counted as definitions here.
     static func definedResult(in instruction: KIRInstruction) -> KIRExprID? {
         switch instruction {
-        case let .constValue(result, _):
+        case let .constValue(result, _),
+             let .binary(_, _, _, result),
+             let .unary(_, _, result),
+             let .nullAssert(_, result),
+             let .loadGlobal(result, _):
             result
-        case let .binary(_, _, _, result):
-            result
-        case let .call(_, _, _, result, _, _, _, _):
-            result
-        case let .virtualCall(_, _, _, _, result, _, _, _):
-            result
-        case let .unary(_, _, result):
-            result
-        case let .nullAssert(_, result):
-            result
-        case let .loadGlobal(result, _):
+        case let .call(_, _, _, result, _, _, _, _), let .virtualCall(_, _, _, _, result, _, _, _):
             result
         default:
             nil
