@@ -70,6 +70,15 @@ extension KIRLoweringDriver {
             files.append(KIRFile(fileID: file.fileID, decls: declIDs))
         }
 
+        // Synthetic companion anchors restored from the bundled library have
+        // no source declaration in this module to allocate their singleton.
+        // Materialize any referenced anchor, just as source-backed companions
+        // allocate their singleton during declaration lowering.
+        let syntheticCompanionDecls = synthesizeReferencedSyntheticCompanions(shared: shared)
+        if !syntheticCompanionDecls.isEmpty, let firstFile = files.first {
+            files[0] = KIRFile(fileID: firstFile.fileID, decls: firstFile.decls + syntheticCompanionDecls)
+        }
+
         // Bundled stdlib files skipped from output can still be referenced by
         // enum constructor-property reads (e.g. `CpuArchitecture.ARM64.bitness`),
         // which are emitted as `$enumConstructorProperty$` placeholder calls.
