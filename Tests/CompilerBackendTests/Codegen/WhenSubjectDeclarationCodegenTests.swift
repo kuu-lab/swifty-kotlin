@@ -41,5 +41,25 @@ struct WhenSubjectDeclarationCodegenTests {
             expected: "literal\n8\n42\n43\npresent\n3\n42\n"
         )
     }
+
+    @Test func valueClassSubjectMatchesExtensionPropertyValue() throws {
+        try assertKotlinOutput(
+            """
+            value class IL(val value: Long)
+            val Number.toIL get() = IL(this.toLong())
+
+            fun main() {
+                val value = 0
+                val result = when (val subject = value.toIL) {
+                    0.toIL -> "OK"
+                    else -> "bad"
+                }
+                println(result)
+            }
+            """,
+            moduleName: "WhenValueClassExtensionProperty",
+            expected: "OK\n"
+        )
+    }
 }
 #endif

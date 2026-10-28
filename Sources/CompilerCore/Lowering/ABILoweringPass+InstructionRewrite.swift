@@ -317,6 +317,44 @@ extension ABILoweringPass {
             )
             boxedArguments[receiverIndex] = boxedResult
         }
+        // A primitive passed as a reference-typed extension receiver (for
+        // example, `0` to `val Number.value`) must cross the same boxing
+        // boundary as a primitive value parameter. Otherwise the accessor's
+        // `Number` body receives the raw scalar and virtual conversions see
+        // it as a null receiver.
+        if receiverOffset > 0, arguments.indices.contains(receiverIndex),
+           boxedArguments[receiverIndex] == arguments[receiverIndex],
+           let receiverType = signature.receiverType,
+           let argType = intrinsicArgType(arguments[receiverIndex], arena: module.arena, types: types),
+           let boxCallee = boxingCallee(
+               argType: argType,
+               paramType: receiverType,
+               callee: callee,
+               types: types,
+               interner: interner,
+               boxingCalleeTable: boxingCalleeTable,
+               symbols: symbols,
+               boxTypeParamBoundary: boxTypeParamArguments,
+               preferStaticPrimitive: true
+           )
+        {
+            let boxedResult = module.arena.appendTemporary(type: receiverType)
+            emitBoxCallWithValueClassTag(
+                boxCallee: boxCallee,
+                value: arguments[receiverIndex],
+                rawSourceKind: types.kind(of: argType),
+                result: boxedResult,
+                resultType: receiverType,
+                types: types,
+                symbols: symbols,
+                interner: interner,
+                arena: module.arena,
+                sema: sema,
+                cache: cache,
+                into: &newBody
+            )
+            boxedArguments[receiverIndex] = boxedResult
+        }
         let parameterTypes = signature.parameterTypes
         let varargFlags = signature.valueParameterIsVararg
         for argIndex in arguments.indices {
