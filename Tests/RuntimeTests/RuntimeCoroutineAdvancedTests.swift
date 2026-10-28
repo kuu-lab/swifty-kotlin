@@ -161,9 +161,10 @@ func advcoro_produce_values(_ continuation: Int, _ outThrown: UnsafeMutablePoint
     let channel = Int(kk_coroutine_launcher_arg_get(continuation, 0))
     let seed = Int(kk_coroutine_launcher_arg_get(continuation, 1))
     outThrown?.pointee = 0
-    _ = kk_channel_send(channel, seed, continuation)
-    _ = kk_channel_send(channel, seed + 1, continuation)
-    _ = kk_channel_send(channel, seed + 2, continuation)
+    // This native callback has no suspend state machine, so use blocking sends.
+    _ = kk_channel_send(channel, seed, 0)
+    _ = kk_channel_send(channel, seed + 1, 0)
+    _ = kk_channel_send(channel, seed + 2, 0)
     return kk_coroutine_state_exit(continuation, 0)
 }
 

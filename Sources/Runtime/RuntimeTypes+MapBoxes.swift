@@ -469,8 +469,24 @@ final class RuntimeMutableMapIteratorBox {
 
 extension RuntimeMapBox: RuntimeChildReferenceProviding {
     var childRefs: [Int] {
-        keyValues.compactMap(\.childReferenceRawValue)
-            + entryValues.compactMap(\.childReferenceRawValue)
+        var references: [Int] = []
+        var current = self
+        while true {
+            let metadata: [Int?] = [
+                current.comparatorRaw, current.defaultValueFnPtr, current.defaultValueClosureRaw,
+                current.rangeView?.lowerBoundRaw, current.rangeView?.upperBoundRaw,
+                current.rangeBounds?.lowerBoundRaw, current.rangeBounds?.upperBoundRaw,
+            ]
+            references.append(contentsOf: metadata.compactMap { $0 }.filter { $0 != 0 && $0 != runtimeNullSentinelInt })
+            if let backingMap = current.backingMap {
+                references.append(Int(bitPattern: Unmanaged.passUnretained(backingMap).toOpaque()))
+                current = backingMap
+            } else {
+                references.append(contentsOf: current.keyStorage.compactMap(\.childReferenceRawValue))
+                references.append(contentsOf: current.valueStorage.compactMap(\.childReferenceRawValue))
+                return references
+            }
+        }
     }
 }
 

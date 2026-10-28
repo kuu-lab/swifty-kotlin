@@ -11,7 +11,7 @@ func noncancellable_return_block_job(_ continuation: Int, _ outThrown: UnsafeMut
 @_cdecl("noncancellable_throw_from_block")
 func noncancellable_throw_from_block(_ continuation: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     let state = runtimeContinuationState(from: continuation)
-    state?.launcherArgs[0] = Int64(state?.jobHandle?.identityHandle ?? 0)
+    state?.setLauncherArg(0, value: Int64(state?.jobHandle?.identityHandle ?? 0))
     outThrown?.pointee = runtimeAllocateIllegalStateException(message: "cleanup")
     return 0
 }
@@ -152,7 +152,9 @@ struct RuntimeNonCancellableTests {
             to: Int.self
         )
         _ = kk_with_context_full(kk_non_cancellable_instance(), entry, continuation)
-        let blockJob = try #require(runtimeJobHandle(from: Int(state.launcherArgs[0] ?? 0)))
+        let blockJob = try state.withRetainedLauncherArgs { args in
+            try #require(runtimeJobHandle(from: Int(args[0] ?? 0)))
+        }
         #expect(blockJob.isFailedSnapshot())
         #expect(blockJob.completedSnapshot())
         #expect(state.jobHandle === original)

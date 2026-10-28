@@ -39,8 +39,10 @@ struct StdlibArtifactRegressionTests {
         )
         do {
             try runToKIR(ctx)
+            try assertNoDiagnosticErrors(ctx)
             try LoweringPhase().run(ctx)
             try CodegenPhase().run(ctx)
+            try assertNoDiagnosticErrors(ctx)
         } catch {
             throw CompilerPipelineError.invalidInput(
                 "Fresh stdlib artifact build failed: \(error); diagnostics: \(ctx.diagnostics.diagnostics)"

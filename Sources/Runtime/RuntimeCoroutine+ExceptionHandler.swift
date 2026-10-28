@@ -59,6 +59,10 @@ func runtimeHandleUncaughtCoroutineException(
         handler.handler(runtimeRegisterObject(context), exceptionRaw)
         return
     }
+    runtimeReportUncaughtException(exceptionRaw)
+}
+
+func runtimeReportUncaughtException(_ exceptionRaw: Int) {
     let threadName: String
     if Thread.isMainThread {
         threadName = "main"

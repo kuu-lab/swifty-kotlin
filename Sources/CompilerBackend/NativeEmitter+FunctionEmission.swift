@@ -302,6 +302,7 @@ extension NativeEmitter.FunctionEmissionContext {
         storeOutThrownIfNonNull(zeroValue, suffix: "entry")
 
         emitStackOverflowGuard()
+        emitGCShadowPush()
 
         for (instructionIndex, instruction) in function.body.enumerated() {
             // Lowering may leave dead expression tails after an unconditional
@@ -571,6 +572,7 @@ extension NativeEmitter.FunctionEmissionContext {
                             )
                             bindings.positionBuilder(builder, at: thrownBlock)
                             storeOutThrownIfNonNull(thrownValue, suffix: "notnull_throw_\(instructionIndex)")
+                            emitGCShadowPop(thrown: thrownValue)
                             _ = bindings.buildRet(builder, value: zeroReturnValue)
                             currentBlock = continueBlock
                             bindings.positionBuilder(builder, at: continueBlock)
@@ -706,7 +708,7 @@ extension NativeEmitter.FunctionEmissionContext {
                             suffix: "copy_global_\(instructionIndex)"
                         ) ?? copySource
                     }
-                    _ = bindings.buildStore(builder, value: copySource, pointer: globalPtr)
+                    emitGCGlobalStore(symbol: targetSymbol, pointer: globalPtr, value: copySource)
                 } else {
                     if stringAggregateBridge.isStringAggregateType(fromType), !stringAggregateBridge.isStringAggregateType(toType) {
                         copySource = stringAggregateBridge.bridgeStringAggregateToRuntimeRaw(
@@ -721,6 +723,7 @@ extension NativeEmitter.FunctionEmissionContext {
                     }
                     if let alloca = copyTargetAllocas[to.rawValue] {
                         _ = bindings.buildStore(builder, value: copySource, pointer: alloca)
+                        emitGCShadowSet(to, value: copySource)
                     } else {
                         storeResult(to, copySource)
                     }
@@ -738,7 +741,7 @@ extension NativeEmitter.FunctionEmissionContext {
                     ) ?? resolved
                 }
                 if let globalPtr = globalVariables[symbol] {
-                    _ = bindings.buildStore(builder, value: resolved, pointer: globalPtr)
+                    emitGCGlobalStore(symbol: symbol, pointer: globalPtr, value: resolved)
                 }
 
             case let .loadGlobal(result, symbol):
@@ -778,6 +781,7 @@ extension NativeEmitter.FunctionEmissionContext {
                 }
                 let resolved = resolveValue(value)
                 storeOutThrownIfNonNull(resolved, suffix: "rethrow_\(instructionIndex)")
+                emitGCShadowPop(thrown: resolved)
                 _ = bindings.buildRet(builder, value: zeroReturnValue)
 
             case let .returnIfEqual(lhs, rhs):
@@ -801,6 +805,7 @@ extension NativeEmitter.FunctionEmissionContext {
                 _ = bindings.buildCondBr(builder, condition: condition, thenBlock: trueBlock, elseBlock: falseBlock)
 
                 bindings.positionBuilder(builder, at: trueBlock)
+                emitGCShadowPop(result: lhsValue)
                 _ = bindings.buildRet(builder, value: lhsValue)
 
                 currentBlock = falseBlock
@@ -810,6 +815,7 @@ extension NativeEmitter.FunctionEmissionContext {
                 guard !bindings.hasTerminator(currentBlock) else {
                     continue
                 }
+                emitGCShadowPop()
                 _ = bindings.buildRet(builder, value: zeroReturnValue)
 
             case let .returnValue(value):
@@ -830,6 +836,7 @@ extension NativeEmitter.FunctionEmissionContext {
                         suffix: "return_\(instructionIndex)"
                     )
                 }
+                emitGCShadowPop(result: returnValue)
                 _ = bindings.buildRet(builder, value: returnValue)
 
             case .resumeNonLocalReturn:
@@ -860,14 +867,17 @@ extension NativeEmitter.FunctionEmissionContext {
                             suffix: "nonlocal_return_\(instructionIndex)"
                         )
                     }
+                    emitGCShadowPop(result: returnValue)
                     _ = bindings.buildRet(builder, value: returnValue)
                 } else {
+                    emitGCShadowPop()
                     _ = bindings.buildRet(builder, value: zeroReturnValue)
                 }
             }
         }
 
         if !bindings.hasTerminator(currentBlock) {
+            emitGCShadowPop()
             _ = bindings.buildRet(builder, value: zeroReturnValue)
         }
     }

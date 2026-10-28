@@ -26,7 +26,14 @@ private func runtimeTakeObjectForRelease(_ rawValue: Int) -> UnsafeMutableRawPoi
         guard state.pinnedObjectCounts[key] == nil, state.stableRefCounts[key] == nil else {
             return false
         }
+        if state.identityPrimitiveBoxHandles.remove(key) != nil {
+            state.identityPrimitiveBoxCache = state.identityPrimitiveBoxCache.filter { $0.value != rawValue }
+            state.enumIdentityBoxCache = state.enumIdentityBoxCache.filter { $0.value != rawValue }
+        }
         state.retainedAtomicReferenceHandles.remove(key)
+        state.retainedObjectHeapFields.removeValue(forKey: key)
+        state.tracedObjectReferences.removeValue(forKey: key)
+        state.tracedResultGenerations.removeValue(forKey: key)
         return state.objectPointers.remove(key) != nil
     }
     guard removed else {

@@ -29,25 +29,95 @@ class RuntimeArrayBox {
 
     private let storage: Storage
 
+    /// Mutate shared array/object fields and their managed-heap roots under
+    /// one lock. Primitive byte storage cannot contain managed references.
+    private func mutateObjectFields(index: Int? = nil, _ mutation: () -> Void) {
+        storage.viewLock.lock()
+        defer { storage.viewLock.unlock() }
+        let owner = UInt(bitPattern: Unmanaged.passUnretained(self).toOpaque())
+        let mutateByteStorage = runtimeStorage.withGCLock { state -> Bool in
+            if storage.nativeBytes != nil {
+                state.retainedArrayHeapFields.removeValue(forKey: ObjectIdentifier(storage))
+                return true
+            }
+            mutation()
+            guard state.objectPointers.contains(owner) else { return false }
+            if let index {
+                recordManagedHeapFieldLocked(index: index, state: &state)
+            } else {
+                recordManagedHeapFieldsLocked(owner: owner, state: &state)
+            }
+            return false
+        }
+        if mutateByteStorage { mutation() }
+    }
+
+    private func recordManagedHeapFieldLocked(index: Int, state: inout GCState) {
+        let storageID = ObjectIdentifier(storage)
+        if let raw = storage.values[index].childReferenceRawValue,
+           state.heapObjects[UInt(bitPattern: raw)] != nil || state.objectPointers.contains(UInt(bitPattern: raw)) {
+            if let roots = state.retainedArrayHeapFields[storageID], roots.storage === storage {
+                roots.fields[index] = UInt(bitPattern: raw)
+            } else {
+                state.retainedArrayHeapFields[storageID] = RuntimeStorageHeapRoots(
+                    storage: storage, fields: [index: UInt(bitPattern: raw)]
+                )
+            }
+        } else {
+            guard let roots = state.retainedArrayHeapFields[storageID],
+                  roots.storage === storage else { return }
+            roots.fields.removeValue(forKey: index)
+            if roots.fields.isEmpty {
+                state.retainedArrayHeapFields.removeValue(forKey: storageID)
+            }
+        }
+    }
+
+    func recordManagedHeapFieldsLocked(owner: UInt, state: inout GCState) {
+        guard state.objectPointers.contains(owner), storage.nativeBytes == nil else { return }
+        let storageID = ObjectIdentifier(storage)
+        var fields: [Int: UInt] = [:]
+        for (index, value) in storage.values.enumerated() {
+            if let raw = value.childReferenceRawValue,
+               state.heapObjects[UInt(bitPattern: raw)] != nil || state.objectPointers.contains(UInt(bitPattern: raw)) {
+                fields[index] = UInt(bitPattern: raw)
+            }
+        }
+        if fields.isEmpty {
+            state.retainedArrayHeapFields.removeValue(forKey: storageID)
+        } else {
+            state.retainedArrayHeapFields[storageID] = RuntimeStorageHeapRoots(storage: storage, fields: fields)
+        }
+    }
+
     var values: [RuntimeValue] {
         get {
+            storage.viewLock.lock()
+            defer { storage.viewLock.unlock() }
             storage.pullBytes()
             return storage.values
         }
         set {
-            storage.values = newValue
-            storage.pushBytes()
+            mutateObjectFields {
+                storage.values = newValue
+                storage.pushBytes()
+            }
         }
     }
 
     var elements: [Int] {
         get {
+            storage.viewLock.lock()
             storage.pullBytes()
-            return storage.values.map(\.legacyRawValue)
+            let snapshot = storage.values
+            storage.viewLock.unlock()
+            return snapshot.map(\.legacyRawValue)
         }
         set {
-            storage.values = newValue.map { RuntimeValue(raw: $0) }
-            storage.pushBytes()
+            mutateObjectFields {
+                storage.values = newValue.map { RuntimeValue(raw: $0) }
+                storage.pushBytes()
+            }
         }
     }
 
@@ -56,41 +126,64 @@ class RuntimeArrayBox {
     /// loop access O(n) per iteration.
     subscript(index: Int) -> Int {
         get {
-            if let bytes = storage.nativeBytes { return Int(Int8(bitPattern: bytes[index])) }
-            return storage.values[index].legacyRawValue
+            storage.viewLock.lock()
+            let value: RuntimeValue
+            if let bytes = storage.nativeBytes {
+                value = RuntimeValue(raw: Int(Int8(bitPattern: bytes[index])))
+            } else {
+                value = storage.values[index]
+            }
+            storage.viewLock.unlock()
+            return value.legacyRawValue
         }
         set {
-            if let bytes = storage.nativeBytes { bytes[index] = UInt8(truncatingIfNeeded: newValue) }
-            storage.values[index] = RuntimeValue(
-                raw: newValue,
-                anyFallbackTag: storage.values[index].anyFallbackTag
-            )
+            mutateObjectFields(index: index) {
+                if let bytes = storage.nativeBytes { bytes[index] = UInt8(truncatingIfNeeded: newValue) }
+                storage.values[index] = RuntimeValue(
+                    raw: newValue,
+                    anyFallbackTag: storage.values[index].anyFallbackTag
+                )
+            }
         }
     }
 
     /// Stores a raw field value together with the static tag needed by
     /// Any-erased operations such as `hashCode()`.
     func setValue(_ value: Int, at index: Int, anyFallbackTag: Int32) {
-        if let bytes = storage.nativeBytes { bytes[index] = UInt8(truncatingIfNeeded: value) }
-        storage.values[index] = RuntimeValue(raw: value, anyFallbackTag: anyFallbackTag)
+        mutateObjectFields(index: index) {
+            if let bytes = storage.nativeBytes { bytes[index] = UInt8(truncatingIfNeeded: value) }
+            storage.values[index] = RuntimeValue(raw: value, anyFallbackTag: anyFallbackTag)
+        }
     }
 
     func setValue(_ value: RuntimeValue, at index: Int) {
-        if let bytes = storage.nativeBytes { bytes[index] = UInt8(truncatingIfNeeded: value.legacyRawValue) }
-        storage.values[index] = runtimeValuePreservingAnyFallbackTag(value, existing: storage.values[index])
+        mutateObjectFields(index: index) {
+            if let bytes = storage.nativeBytes { bytes[index] = UInt8(truncatingIfNeeded: value.legacyRawValue) }
+            storage.values[index] = runtimeValuePreservingAnyFallbackTag(value, existing: storage.values[index])
+        }
     }
 
     func nativeByteAddress(at index: Int) -> UnsafeMutablePointer<UInt8>? {
-        guard index >= 0, index < count else { return nil }
+        storage.viewLock.lock()
+        defer { storage.viewLock.unlock() }
+        guard index >= 0, index < storage.values.count else { return nil }
         if storage.nativeBytes == nil {
-            storage.nativeBytes = .allocate(capacity: count)
-            storage.pushBytes()
+            let bytes = UnsafeMutableBufferPointer<UInt8>.allocate(capacity: storage.values.count)
+            for (index, value) in storage.values.enumerated() {
+                bytes[index] = UInt8(truncatingIfNeeded: value.legacyRawValue)
+            }
+            runtimeStorage.withGCLock { state in
+                storage.nativeBytes = bytes
+                state.retainedArrayHeapFields.removeValue(forKey: ObjectIdentifier(storage))
+            }
         }
         return storage.nativeBytes?.baseAddress?.advanced(by: index)
     }
 
     var count: Int {
-        storage.values.count
+        storage.viewLock.lock()
+        defer { storage.viewLock.unlock() }
+        return storage.values.count
     }
 
     init(length: Int) {
@@ -129,7 +222,16 @@ class RuntimeArrayBox {
 
 final class RuntimeObjectBox: RuntimeArrayBox {
     let classID: Int64
-    var coroutineJobHandle: Int = 0
+    private let coroutineJobHandleLock = NSLock()
+    private var storedCoroutineJobHandle: Int = 0
+    var coroutineJobHandle: Int {
+        withCoroutineJobHandle { $0 }
+    }
+    func withCoroutineJobHandle<Result>(_ body: (inout Int) -> Result) -> Result {
+        coroutineJobHandleLock.lock()
+        defer { coroutineJobHandleLock.unlock() }
+        return body(&storedCoroutineJobHandle)
+    }
     var backingListBox: RuntimeListBox?
     var backingSetBox: RuntimeSetBox?
     var backingMapBox: RuntimeMapBox?
@@ -163,8 +265,8 @@ final class RuntimeObjectBox: RuntimeArrayBox {
 }
 
 final class RuntimePairBox {
-    var firstValue: RuntimeValue
-    var secondValue: RuntimeValue
+    let firstValue: RuntimeValue
+    private(set) var secondValue: RuntimeValue
     // MutableMap.MutableEntry pairs retain the destination map so entry.value
     // and setValue() observe subsequent mutations through the live view.
     var mutableMapRaw: Int = 0
@@ -181,6 +283,20 @@ final class RuntimePairBox {
     init(firstValue: RuntimeValue, secondValue: RuntimeValue) {
         self.firstValue = firstValue
         self.secondValue = secondValue
+    }
+
+    func setSecondValue(_ value: RuntimeValue, returning previous: Int? = nil) {
+        let threadID = ObjectIdentifier(Thread.current)
+        runtimeStorage.withGCLock { state in
+            if let previous {
+                runtimeRecordShadowHandoffLocked(previous, threadID: threadID, state: &state)
+            }
+            secondValue = value
+            let owner = UInt(bitPattern: Unmanaged.passUnretained(self).toOpaque())
+            if state.objectPointers.contains(owner) {
+                recordRetainedBoxManagedHeapFieldsLocked(self, owner: owner, state: &state)
+            }
+        }
     }
 }
 

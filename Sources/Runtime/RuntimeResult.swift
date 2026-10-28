@@ -14,15 +14,56 @@ private func resultBoxFromRaw(_ raw: Int) -> RuntimeResultBox? {
     resolveRuntimeHandle(raw, as: RuntimeResultBox.self)
 }
 
-private func resultBoxFromRawOrThrow(
+final class RuntimeResultAccess {
+    let box: RuntimeResultBox
+    private let gcRootStorage = RuntimeCoroutineRootStorage()
+    private let hasTracedRoot: Bool
+
+    init(box: RuntimeResultBox, owner: UInt, state: inout GCState) {
+        self.box = box
+        let references = state.tracedObjectReferences[owner]
+        hasTracedRoot = references != nil
+        if let references {
+            state.tracedResultLeaseRoots[ObjectIdentifier(gcRootStorage)] = RuntimeTracedLeaseRoots(
+                storage: gcRootStorage, references: references
+            )
+        }
+    }
+
+    deinit {
+        guard hasTracedRoot else { return }
+        let storageID = ObjectIdentifier(gcRootStorage)
+        runtimeStorage.withGCLock { state in
+            guard state.tracedResultLeaseRoots[storageID]?.storage === gcRootStorage else { return }
+            state.tracedResultLeaseRoots.removeValue(forKey: storageID)
+        }
+    }
+}
+
+func runtimeResultAccessFromRaw(_ raw: Int) -> RuntimeResultAccess? {
+    guard raw != runtimeNullSentinelInt, let pointer = UnsafeMutableRawPointer(bitPattern: raw) else {
+        return nil
+    }
+    let resolved: (RuntimeResultAccess?, AnyObject?) = runtimeStorage.withGCLock { state in
+        guard state.objectPointers.contains(UInt(bitPattern: raw)) else { return (nil, nil) }
+        let basePointer = runtimePrimitiveBoxBasePointer(from: raw) ?? pointer
+        let object = Unmanaged<AnyObject>.fromOpaque(basePointer).retain().takeRetainedValue()
+        guard let box = object as? RuntimeResultBox else { return (nil, object) }
+        return (RuntimeResultAccess(box: box, owner: UInt(bitPattern: raw), state: &state), nil)
+    }
+    withExtendedLifetime(resolved.1) {}
+    return resolved.0
+}
+
+private func runtimeResultAccessFromRawOrThrow(
     _ resultRaw: Int,
     outThrown: UnsafeMutablePointer<Int>?
-) -> RuntimeResultBox? {
-    guard let box = resultBoxFromRaw(resultRaw) else {
+) -> RuntimeResultAccess? {
+    guard let access = runtimeResultAccessFromRaw(resultRaw) else {
         outThrown?.pointee = runtimeAllocateThrowable(message: "Result is null")
         return nil
     }
-    return box
+    return access
 }
 
 func runtimeResultSuccess(_ value: Int) -> Int {
@@ -47,20 +88,22 @@ func runtimeResultIsFailure(_ resultRaw: Int) -> Bool {
 }
 
 func runtimeResultValueOrNull(_ resultRaw: Int) -> Int {
-    guard let box = resultBoxFromRaw(resultRaw), box.isSuccess else {
+    guard let access = runtimeResultAccessFromRaw(resultRaw), access.box.isSuccess else {
         return runtimeNullSentinelInt
     }
-    return box.value
+    defer { withExtendedLifetime(access) {} }
+    return access.box.value
 }
 
 func runtimeResultExceptionOrNull(_ resultRaw: Int) -> Int {
-    guard let box = resultBoxFromRaw(resultRaw) else {
+    guard let access = runtimeResultAccessFromRaw(resultRaw) else {
         return runtimeNullSentinelInt
     }
-    if box.isSuccess {
+    defer { withExtendedLifetime(access) {} }
+    if access.box.isSuccess {
         return runtimeNullSentinelInt
     }
-    return box.exception
+    return access.box.exception
 }
 
 private func runtimeResultInvoke0(fnPtr: Int, closureRaw: Int) -> (result: Int, thrown: Int) {
@@ -100,7 +143,9 @@ func runtimeResultGetOrThrow(
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
     outThrown?.pointee = 0
-    guard let box = resultBoxFromRawOrThrow(resultRaw, outThrown: outThrown) else { return 0 }
+    guard let access = runtimeResultAccessFromRawOrThrow(resultRaw, outThrown: outThrown) else { return 0 }
+    let box = access.box
+    defer { withExtendedLifetime(access) {} }
     if box.isSuccess {
         return box.value
     }
@@ -140,7 +185,9 @@ func runtimeResultGetOrElse(
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
     outThrown?.pointee = 0
-    guard let box = resultBoxFromRawOrThrow(resultRaw, outThrown: outThrown) else { return 0 }
+    guard let access = runtimeResultAccessFromRawOrThrow(resultRaw, outThrown: outThrown) else { return 0 }
+    let box = access.box
+    defer { withExtendedLifetime(access) {} }
     if box.isSuccess {
         return box.value
     }
@@ -154,7 +201,9 @@ func runtimeResultMap(
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
     outThrown?.pointee = 0
-    guard let box = resultBoxFromRawOrThrow(resultRaw, outThrown: outThrown) else { return 0 }
+    guard let access = runtimeResultAccessFromRawOrThrow(resultRaw, outThrown: outThrown) else { return 0 }
+    let box = access.box
+    defer { withExtendedLifetime(access) {} }
     if !box.isSuccess {
         return runtimeResultFailure(box.exception)
     }
@@ -176,7 +225,9 @@ func runtimeResultFold(
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
     outThrown?.pointee = 0
-    guard let box = resultBoxFromRawOrThrow(resultRaw, outThrown: outThrown) else { return 0 }
+    guard let access = runtimeResultAccessFromRawOrThrow(resultRaw, outThrown: outThrown) else { return 0 }
+    let box = access.box
+    defer { withExtendedLifetime(access) {} }
     if box.isSuccess {
         return runtimeResultInvoke1(
             fnPtr: successFnPtr,
@@ -200,7 +251,9 @@ func runtimeResultOnSuccess(
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
     outThrown?.pointee = 0
-    guard let box = resultBoxFromRawOrThrow(resultRaw, outThrown: outThrown) else { return 0 }
+    guard let access = runtimeResultAccessFromRawOrThrow(resultRaw, outThrown: outThrown) else { return 0 }
+    let box = access.box
+    defer { withExtendedLifetime(access) {} }
     if box.isSuccess {
         var thrown = 0
         _ = runtimeResultInvoke1(fnPtr: fnPtr, closureRaw: closureRaw, value: box.value, outThrown: &thrown)
@@ -219,7 +272,9 @@ func runtimeResultOnFailure(
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
     outThrown?.pointee = 0
-    guard let box = resultBoxFromRawOrThrow(resultRaw, outThrown: outThrown) else { return 0 }
+    guard let access = runtimeResultAccessFromRawOrThrow(resultRaw, outThrown: outThrown) else { return 0 }
+    let box = access.box
+    defer { withExtendedLifetime(access) {} }
     if !box.isSuccess {
         var thrown = 0
         _ = runtimeResultInvoke1(fnPtr: fnPtr, closureRaw: closureRaw, value: box.exception, outThrown: &thrown)
@@ -238,7 +293,9 @@ func runtimeResultRecover(
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
     outThrown?.pointee = 0
-    guard let box = resultBoxFromRawOrThrow(resultRaw, outThrown: outThrown) else { return 0 }
+    guard let access = runtimeResultAccessFromRawOrThrow(resultRaw, outThrown: outThrown) else { return 0 }
+    let box = access.box
+    defer { withExtendedLifetime(access) {} }
     if box.isSuccess {
         return runtimeResultSuccess(box.value)
     }
@@ -258,7 +315,9 @@ func runtimeResultRecoverCatching(
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
     outThrown?.pointee = 0
-    guard let box = resultBoxFromRawOrThrow(resultRaw, outThrown: outThrown) else { return 0 }
+    guard let access = runtimeResultAccessFromRawOrThrow(resultRaw, outThrown: outThrown) else { return 0 }
+    let box = access.box
+    defer { withExtendedLifetime(access) {} }
     if box.isSuccess {
         return runtimeResultSuccess(box.value)
     }

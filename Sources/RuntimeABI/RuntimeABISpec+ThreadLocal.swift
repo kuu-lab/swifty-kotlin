@@ -14,5 +14,10 @@ public extension RuntimeABISpec {
         threadLocalHasValueBridgeSpec,
         threadLocalValueBridgeSpec,
         threadLocalStoreBridgeSpec,
+        abi.nt("__kk_thread_local_remove", "receiver"),
+        abi.nt("__kk_thread_non_daemon_start"),
+        abi.nt("__kk_thread_non_daemon_finish"),
+        abi.nt("__kk_thread_wait_non_daemon"),
+        abi.nt("__kk_thread_report_uncaught", "exception"),
     ]
 }

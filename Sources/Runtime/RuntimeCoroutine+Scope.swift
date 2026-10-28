@@ -363,7 +363,9 @@ final class RuntimeCoroutineScope: @unchecked Sendable {
                     if !consumed, releaseOriginalHandles {
                         Unmanaged<AnyObject>.fromOpaque(ptr).release()
                         runtimeStorage.withGCLock { state in
-                            state.objectPointers.remove(UInt(bitPattern: ptr))
+                            let key = UInt(bitPattern: ptr)
+                            state.objectPointers.remove(key)
+                            state.retainedObjectHeapFields.removeValue(forKey: key)
                         }
                     }
                 }
@@ -628,7 +630,7 @@ public func kk_coroutine_scope_async_with_cont(
     childScope.blockingScheduler = scope.blockingScheduler
     childScope.parent = scope
     let childHandle = runtimeRegisterObject(childScope)
-    state.launcherArgs[Int64(scopeSlotRaw)] = Int64(childHandle)
+    state.setLauncherArg(Int64(scopeSlotRaw), value: Int64(childHandle))
     state.scope = childScope
     state.builderContext = context
     if context.dispatcher == 0 {
@@ -773,7 +775,7 @@ public func __kk_coroutine_scope_launch_context_with_cont(
         runtimeStructuredPanic("launch received an invalid continuation")
     }
     return runtimeScopeLaunch(scopeHandle, contextRaw, start) { task, childScope, childHandle, finish in
-        state.launcherArgs[Int64(scopeSlotRaw)] = Int64(childHandle)
+    state.setLauncherArg(Int64(scopeSlotRaw), value: Int64(childHandle))
         state.scope = childScope
         state.builderContext = childScope.context
         state.jobHandle = task.completionJob

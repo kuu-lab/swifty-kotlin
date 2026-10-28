@@ -526,5 +526,25 @@ final class RuntimeSetBox {
 // Only types that store `Int` child handles need to conform.
 
 extension RuntimeSetBox: RuntimeChildReferenceProviding {
-    var childRefs: [Int] { values.compactMap(\.childReferenceRawValue) }
+    var childRefs: [Int] {
+        var references: [Int] = []
+        var current = self
+        while true {
+            let metadata: [Int?] = [
+                current.comparatorRaw, current.rangeView?.lowerBoundRaw, current.rangeView?.upperBoundRaw,
+                current.rangeBounds?.lowerBoundRaw, current.rangeBounds?.upperBoundRaw,
+            ]
+            references.append(contentsOf: metadata.compactMap { $0 }.filter { $0 != 0 && $0 != runtimeNullSentinelInt })
+            if let viewParent = current.viewParent {
+                references.append(Int(bitPattern: Unmanaged.passUnretained(viewParent).toOpaque()))
+                current = viewParent
+            } else if let backingMapRaw = current.backingMapRaw {
+                references.append(backingMapRaw)
+                return references
+            } else {
+                references.append(contentsOf: current.storage.compactMap(\.childReferenceRawValue))
+                return references
+            }
+        }
+    }
 }

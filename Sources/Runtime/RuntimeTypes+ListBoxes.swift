@@ -680,7 +680,26 @@ extension RuntimeListBox: RuntimeChildReferenceProviding {
         }
     }
 
-    var childRefs: [Int] { indices.compactMap { childReference(at: $0) } }
+    var childRefs: [Int] {
+        var references: [Int] = []
+        var current = self
+        while true {
+            switch current.storage {
+            case let .mapValuesViewOf(mapRaw):
+                if mapRaw != 0 { references.append(mapRaw) }
+                return references
+            case let .reversedViewOf(base):
+                references.append(Int(bitPattern: Unmanaged.passUnretained(base).toOpaque()))
+                current = base
+            case let .subList(slice):
+                references.append(Int(bitPattern: Unmanaged.passUnretained(slice.base).toOpaque()))
+                current = slice.base
+            default:
+                references.append(contentsOf: current.indices.compactMap { current.childReference(at: $0) })
+                return references
+            }
+        }
+    }
 }
 
 extension RuntimeArrayDequeBox: RuntimeChildReferenceProviding {

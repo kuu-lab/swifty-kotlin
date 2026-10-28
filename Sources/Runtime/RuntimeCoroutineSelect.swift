@@ -68,8 +68,14 @@ final class RuntimeSelectClause: @unchecked Sendable {
     /// registered waiter. Written under `runtimeSelectClaimLock`.
     var delivered = false
     var deliveredStatus = 0
-    var deliveredValue = 0
-    var deliveredCause = 0
+    var deliveredValue = 0 {
+        didSet { valueRoot = RuntimeGCRootedValue(deliveredValue) }
+    }
+    var deliveredCause = 0 {
+        didSet { causeRoot = RuntimeGCRootedValue(deliveredCause) }
+    }
+    private var valueRoot: RuntimeGCRootedValue?
+    private var causeRoot: RuntimeGCRootedValue?
     /// `true` while a channel waiter registered for this clause is queued.
     var waiterRegistered = false
 }
@@ -82,11 +88,14 @@ final class RuntimeSelectClause: @unchecked Sendable {
 final class RuntimeSelectWaiter: @unchecked Sendable {
     weak var clause: RuntimeSelectClause?
     /// The offered element for send-side waiters (`0` for receivers).
-    let value: Int
+    private let valueRoot: RuntimeGCRootedValue
+    var value: Int { valueRoot.value }
+
+    func rootedValue() -> Int { valueRoot.rootedValue() }
 
     init(clause: RuntimeSelectClause, value: Int) {
         self.clause = clause
-        self.value = value
+        self.valueRoot = RuntimeGCRootedValue(value)
     }
 }
 

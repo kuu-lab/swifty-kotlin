@@ -248,7 +248,9 @@ private func runtimeAllocateArrayBox(length: Int) -> Int {
     let arrayBox = RuntimeArrayBox(length: length)
     let opaque = UnsafeMutableRawPointer(Unmanaged.passRetained(arrayBox).toOpaque())
     runtimeStorage.withGCLock { state in
-        state.objectPointers.insert(UInt(bitPattern: opaque))
+        let key = UInt(bitPattern: opaque)
+        state.objectPointers.insert(key)
+        arrayBox.recordManagedHeapFieldsLocked(owner: key, state: &state)
     }
     return Int(bitPattern: opaque)
 }
@@ -575,7 +577,9 @@ public func __kk_throwable_suppressedRaw(_ throwableRaw: Int) -> Int {
     }
     let opaque = UnsafeMutableRawPointer(Unmanaged.passRetained(arrayBox).toOpaque())
     runtimeStorage.withGCLock { state in
-        state.objectPointers.insert(UInt(bitPattern: opaque))
+        let key = UInt(bitPattern: opaque)
+        state.objectPointers.insert(key)
+        arrayBox.recordManagedHeapFieldsLocked(owner: key, state: &state)
     }
     return Int(bitPattern: opaque)
 }

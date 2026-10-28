@@ -54,27 +54,29 @@ private func runTimeoutBlock(
     let blockJob = RuntimeJobHandle()
     blockJob.debugName = "TimeoutCoroutine"
     if let blockState = runtimeContinuationState(from: blockContinuation) {
-        blockState.launcherArgs = runtimeContinuationState(from: continuation)?.launcherArgs ?? [:]
+        runtimeContinuationState(from: continuation)?.withRetainedLauncherArgs { args in
+            blockState.replaceLauncherArgs(args)
+        }
         blockState.scope = scope
         blockState.jobHandle = blockJob
         blockJob.continuationState = blockState
     }
     blockJob.markStarted()
 
-    final class ResultBox: @unchecked Sendable {
-        var value = 0
-        var thrown = 0
-    }
-    let resultBox = ResultBox()
+    let resultBox = RuntimeCoroutineResultStorage()
     let deadline = DispatchTime.now() + .milliseconds(timeoutMillis)
 
     let workItem = DispatchWorkItem {
-        resultBox.value = runSuspendEntryLoopWithContinuation(
+        kk_gc_shadow_push()
+        defer { runtimePopNativeGCShadowFrame(0, 0) }
+        var thrown = 0
+        let value = runSuspendEntryLoopWithContinuation(
             entryPointRaw: entryPointRaw,
             continuation: blockContinuation,
-            outThrown: &resultBox.thrown
+            outThrown: &thrown
         )
-        if resultBox.thrown != 0 {
+        resultBox.store(result: value, thrown: thrown)
+        if thrown != 0 {
             scope.cancel()
         }
     }
@@ -97,7 +99,9 @@ private func runTimeoutBlock(
         )
     } else {
         DispatchQueue.global().async(execute: workItem)
+        let gcBlocking = runtimeGCSafepoints.beginBlockingIfEnrolled()
         timedOut = workItem.wait(timeout: deadline) == .timedOut
+        if gcBlocking { runtimeGCSafepoints.endBlocking() }
     }
     if timedOut {
         workItem.cancel()
@@ -110,8 +114,9 @@ private func runTimeoutBlock(
     }
     let childFailure = kk_coroutine_scope_wait(scopeHandle)
     let childThrown = childFailure == runtimeNullSentinelInt ? 0 : childFailure
-    let thrown = resultBox.thrown != 0 ? resultBox.thrown : childThrown
-    return (false, thrown == 0 ? resultBox.value : 0, thrown)
+    let result = resultBox.load()
+    let thrown = result.thrown != 0 ? result.thrown : childThrown
+    return (false, thrown == 0 ? result.result : 0, thrown)
 }
 
 /// If the block does not complete within `timeoutMillis`, a
@@ -344,8 +349,7 @@ func runSuspendEntryLoopWithContinuation(
     // only thread able to run the queued work this coroutine waits for, so the
     // sync path drains the loop against this predicate instead.
     let syncCompleted = RuntimeCompletionFlag()
-    final class ResultBox: @unchecked Sendable { var value: Int = 0 }
-    let resultBox = ResultBox()
+    let resultBox = RuntimeCoroutineResultStorage()
 
     // CORO-003: Install the scope carried by this continuation into the
     // task-scope map so that child launches dispatched on this thread can
@@ -433,6 +437,12 @@ func runSuspendEntryLoopWithContinuation(
     taskKeyBox.outerJob = outerJob
 
     loopBodyBox.body = {
+        // A generated entry point transfers its return and exception to this
+        // frame before native completion code or a nested wait can run.
+        kk_gc_shadow_push()
+        var burstResult = 0
+        var burstThrown = 0
+        defer { runtimePopNativeGCShadowFrame(burstResult, burstThrown) }
         RuntimeCoroutineDebugProbes.shared.markRunning(continuation: continuation)
         // Run every burst -- the initial one kicked off below and each resumed
         // one -- with the bound event loop installed, so a `launch{}` inside
@@ -456,6 +466,10 @@ func runSuspendEntryLoopWithContinuation(
             thrownValue = 0
             contState?.consumeCancellableDelivery()
             result = entryPoint(continuation, &thrownValue)
+            burstResult = result
+            burstThrown = thrownValue
+            kk_gc_shadow_set(0, result)
+            kk_gc_shadow_set(1, thrownValue)
             // A suspend-point callee that already completed exceptionally
             // before the machine suspended (a thrown direct suspend call, an
             // await on an already-failed task) marks the state for inline
@@ -486,8 +500,7 @@ func runSuspendEntryLoopWithContinuation(
                 loopBodyBox.body = nil
                 onCompletion(0, thrownValue)
             } else {
-                outThrown?.pointee = thrownValue
-                resultBox.value = 0
+                resultBox.store(result: 0, thrown: thrownValue)
                 syncCompleted.set()
                 completionGate?.signal()
                 callerEventLoop?.wake()
@@ -508,8 +521,7 @@ func runSuspendEntryLoopWithContinuation(
                 loopBodyBox.body = nil
                 onCompletion(result, 0)
             } else {
-                outThrown?.pointee = 0
-                resultBox.value = result
+                resultBox.store(result: result, thrown: 0)
                 syncCompleted.set()
                 completionGate?.signal()
                 callerEventLoop?.wake()
@@ -530,8 +542,7 @@ func runSuspendEntryLoopWithContinuation(
                 loopBodyBox.body = nil
                 onCompletion(0, 0)
             } else {
-                outThrown?.pointee = 0
-                resultBox.value = 0
+                resultBox.store(result: 0, thrown: 0)
                 syncCompleted.set()
                 completionGate?.signal()
                 callerEventLoop?.wake()
@@ -604,7 +615,7 @@ func runSuspendEntryLoopWithContinuation(
             // queued on that same loop, so keep draining instead.
             loop.run(until: { syncCompleted.isSet })
         } else {
-            gate.wait()
+            runtimeWaitDrainingEventLoop(gate)
         }
 
         // Break the strong reference cycle: loopBodyBox -> closure -> loopBodyBox
@@ -614,7 +625,9 @@ func runSuspendEntryLoopWithContinuation(
         RuntimeCoroutineScopeTaskKey.restoreKey(outerTaskKey)
         RuntimeJobHandle.current = outerJob
 
-        return resultBox.value
+        let completed = resultBox.load()
+        outThrown?.pointee = completed.thrown
+        return completed.result
     }
 
     // Async path: return immediately.  The resume continuation chain handles

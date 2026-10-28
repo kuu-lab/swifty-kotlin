@@ -139,7 +139,9 @@ func runtimeMakeArrayRaw(_ values: [Int]) -> Int {
     }
     let pointer = UnsafeMutableRawPointer(Unmanaged.passRetained(box).toOpaque())
     runtimeStorage.withGCLock { state in
-        state.objectPointers.insert(UInt(bitPattern: pointer))
+        let key = UInt(bitPattern: pointer)
+        state.objectPointers.insert(key)
+        box.recordManagedHeapFieldsLocked(owner: key, state: &state)
     }
     return Int(bitPattern: pointer)
 }
