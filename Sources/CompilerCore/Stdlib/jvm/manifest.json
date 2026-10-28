@@ -155,6 +155,11 @@
       "excludeFromStdlibBuild": true
     },
     {
+      "path": "declarations/IntProgression.kt",
+      "virtualPath": "<kswiftk-jvm>/int-progression.kt",
+      "excludeFromStdlibBuild": true
+    },
+    {
       "path": "declarations/IntRange.kt",
       "virtualPath": "<kswiftk-jvm>/m19-ranges.kt",
       "excludeFromStdlibBuild": true

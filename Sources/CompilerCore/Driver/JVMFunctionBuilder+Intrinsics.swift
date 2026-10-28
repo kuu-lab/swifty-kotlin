@@ -671,7 +671,7 @@ extension JVMFunctionBuilder {
             }
         }
         else if source.type.isCharSequence { elementType = .char }
-        else if source.type.referenceName == "kotlin/ranges/IntRange" { elementType = .int }
+        else if source.type.referenceName == "kotlin/ranges/IntRange" || source.type.referenceName == "kotlin/ranges/IntProgression" { elementType = .int }
         else if source.type.referenceName?.hasPrefix("[") == true { elementType = try arrayComponent(source.type) }
         else if let semantic = program.sema.bindings.exprType(for: iterable), case let .classType(t) = program.sema.types.kind(of: semantic), let arg = t.args.first {
             switch arg {
