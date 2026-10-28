@@ -30,14 +30,6 @@ func runtimeMapEntryNew(key: Int, value: Int) -> Int {
 }
 
 @inline(__always)
-func runtimeMapEntryNew(key: RuntimeValue, value: RuntimeValue) -> Int {
-    let raw = runtimePairNew(firstValue: key, secondValue: value)
-    runtimeRegisterObjectType(rawValue: raw, classID: mapEntryRuntimeTypeID)
-    runtimeRegisterMapEntryGetters(raw)
-    return raw
-}
-
-@inline(__always)
 func runtimeMutableMapEntryNew(mapRaw: Int, key: Int, value: Int) -> Int {
     registerMapEntryTypeEdgesOnce()
     let raw = registerRuntimeObject(RuntimePairBox(first: key, second: value))

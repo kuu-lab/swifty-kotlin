@@ -32,7 +32,6 @@ final class RuntimeDeepRecursiveFunctionBox {
 private let deepRecursiveCrossFunctionSentinel = -1
 
 final class RuntimeDeepRecursiveScopeBox {
-    let function: RuntimeDeepRecursiveFunctionBox
     var currentFunction: RuntimeDeepRecursiveFunctionBox
     var value: Int = 0
     /// Completion for the invocation about to start. `0` is the root `invoke`
@@ -52,8 +51,7 @@ final class RuntimeDeepRecursiveScopeBox {
     var continuationStateByHandle: [Int: RuntimeContinuationState] = [:]
 
     init(function: RuntimeDeepRecursiveFunctionBox) {
-        self.function = function
-        self.currentFunction = function
+        currentFunction = function
     }
 }
 
