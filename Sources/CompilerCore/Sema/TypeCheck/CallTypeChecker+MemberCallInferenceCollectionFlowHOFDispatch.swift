@@ -9,9 +9,7 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                 receiverType: receiverType,
                 sema: sema,
                 interner: interner,
-                ctx: ctx,
-                locals: &locals
-            )
+                ctx: ctx)
             collectionMapTypes = {
                 guard let classType = resolveClassType(receiverType, sema: sema),
                       classType.args.count >= 2

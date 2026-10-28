@@ -352,7 +352,6 @@ extension CallTypeChecker {
             memberName: memberName,
             argCount: args.count,
             receiverElementType: receiverElementType,
-            accumulatorType: accumulatorType ?? sema.types.anyType,
             sema: sema
         ),
             args.indices.contains(expectation.argumentIndex)
@@ -377,7 +376,6 @@ extension CallTypeChecker {
             memberName: memberName,
             receiverID: receiverID,
             elementType: receiverElementType,
-            accumulatorType: accumulatorType ?? sema.types.anyType,
             sema: sema,
             interner: interner
         )
@@ -421,7 +419,6 @@ extension CallTypeChecker {
         memberName: String,
         receiverID: ExprID,
         elementType: TypeID,
-        accumulatorType: TypeID,
         sema: SemaModule,
         interner: StringInterner
     ) -> TypeID {
@@ -470,7 +467,6 @@ extension CallTypeChecker {
         memberName: String,
         argCount: Int,
         receiverElementType: TypeID,
-        accumulatorType: TypeID,
         sema: SemaModule
     ) -> (argumentIndex: Int, expectedType: TypeID)? {
         if memberName == "copyOf", argCount == 2 {

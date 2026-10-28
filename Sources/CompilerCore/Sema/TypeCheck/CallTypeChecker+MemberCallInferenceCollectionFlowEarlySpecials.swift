@@ -8,9 +8,7 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                 receiverType: receiverType,
                 sema: sema,
                 interner: interner,
-                ctx: ctx,
-                locals: &locals
-            )
+                ctx: ctx)
             guard args.count == 1 else {
                 didReturnNil = true
                 return nil
@@ -74,9 +72,7 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                 receiverType: receiverType,
                 sema: sema,
                 interner: interner,
-                ctx: ctx,
-                locals: &locals
-            )
+                ctx: ctx)
             let expectedArgumentCount = calleeStr == "elementAtOrElse" ? 2 : 1
             guard args.count == expectedArgumentCount else {
                 didReturnNil = true
@@ -138,9 +134,7 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                 receiverType: receiverType,
                 sema: sema,
                 interner: interner,
-                ctx: ctx,
-                locals: &locals
-            )
+                ctx: ctx)
             let mutableSourceArguments: [TypeID] = [elementType]
             let bound: Bool
             let resultType: TypeID
@@ -242,9 +236,7 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                     receiverType: receiverType,
                     sema: sema,
                     interner: interner,
-                    ctx: ctx,
-                    locals: &locals
-                )
+                    ctx: ctx)
             } else {
                 sema.types.anyType
             }
@@ -312,9 +304,7 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                 receiverType: receiverType,
                 sema: sema,
                 interner: interner,
-                ctx: ctx,
-                locals: &locals
-            )
+                ctx: ctx)
             let otherType = sema.bindings.exprTypes[args[0].expr]
                 ?? driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals)
             let otherElementType: TypeID
@@ -397,9 +387,7 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                 receiverType: receiverType,
                 sema: sema,
                 interner: interner,
-                ctx: ctx,
-                locals: &locals
-            )
+                ctx: ctx)
             let resultType = if isSequenceReceiver {
                 makeSyntheticSequenceType(
                     symbols: sema.symbols,
@@ -578,9 +566,7 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                 receiverType: receiverType,
                 sema: sema,
                 interner: interner,
-                ctx: ctx,
-                locals: &locals
-            )
+                ctx: ctx)
             let resultElementType = sema.types.makeNonNullable(receiverElementType)
             let resultType: TypeID = if isSequenceReceiver {
                 makeSyntheticSequenceType(
@@ -692,9 +678,7 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                 receiverType: receiverType,
                 sema: sema,
                 interner: interner,
-                ctx: ctx,
-                locals: &locals
-            )
+                ctx: ctx)
             let lambdaExpectedType = sema.types.make(.functionType(FunctionType(
                 params: [collectionElementType],
                 returnType: sema.types.intType,
@@ -722,9 +706,7 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                 receiverType: receiverType,
                 sema: sema,
                 interner: interner,
-                ctx: ctx,
-                locals: &locals
-            )
+                ctx: ctx)
             let typeArguments: [TypeID]
             if isMapReceiver,
                let mapClassType = resolveClassType(sema.types.makeNonNullable(receiverType), sema: sema),

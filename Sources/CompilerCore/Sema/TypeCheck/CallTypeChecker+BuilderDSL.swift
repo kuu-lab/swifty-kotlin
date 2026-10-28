@@ -162,7 +162,7 @@ extension CallTypeChecker {
         return match.returnType
     }
 
-    func builderDSLKind(for name: InternedString, interner: StringInterner) -> BuilderDSLKind? {
+    func builderDSLKind() -> BuilderDSLKind? {
         // buildList, buildSet, and buildMap are fully Kotlinized (KSP-622, KSP-623)
         // and use @ExperimentalTypeInference. They no longer use builder-DSL special handling.
         return nil
@@ -1335,9 +1335,7 @@ extension CallTypeChecker {
         args: [CallArgument],
         ctx: TypeInferenceContext,
         locals: inout LocalBindings,
-        expectedType: TypeID?,
-        ast: ASTModule
-    ) -> TypeID? {
+        expectedType: TypeID?) -> TypeID? {
         let sema = ctx.sema
         let interner = ctx.interner
         let knownNames = KnownCompilerNames(interner: interner)
