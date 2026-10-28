@@ -1841,7 +1841,12 @@ final class ExprTypeChecker {
 
         guard let chosen = resolved.chosenCallee else {
             // Primitive arrays retain their scalar runtime membership path.
+            // Only bundled kotlin.<Name> arrays (and fqName-less synthetic
+            // stubs) qualify — a user class that shadows the imported name is
+            // an ordinary nominal (KUU-3615).
             if let (_, symbol) = resolveClassTypeSymbol(nonNullContainerType, sema: sema),
+               symbol.fqName.isEmpty
+                   || symbol.fqName == [interner.intern("kotlin"), symbol.name],
                let arrayElement = driver.callChecker.primitiveArrayElementType(
                    className: symbol.name, sema: sema, interner: interner
                ),

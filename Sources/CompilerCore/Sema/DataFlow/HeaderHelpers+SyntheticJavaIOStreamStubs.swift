@@ -1227,7 +1227,8 @@ extension DataFlowSemaPhase {
                         isSuspend: existingSignature.isSuspend,
                         valueParameterSymbols: existingSignature.valueParameterSymbols,
                         valueParameterHasDefaultValues: defaults,
-                        valueParameterIsVararg: varargs
+                        valueParameterIsVararg: varargs,
+                        hasStableParameterNames: existingSignature.hasStableParameterNames
                     ),
                     for: existing
                 )
@@ -1339,7 +1340,8 @@ extension DataFlowSemaPhase {
                         isSuspend: existingSignature.isSuspend,
                         valueParameterSymbols: existingSignature.valueParameterSymbols,
                         valueParameterHasDefaultValues: existingSignature.valueParameterHasDefaultValues,
-                        valueParameterIsVararg: existingSignature.valueParameterIsVararg
+                        valueParameterIsVararg: existingSignature.valueParameterIsVararg,
+                        hasStableParameterNames: existingSignature.hasStableParameterNames
                     ),
                     for: existing
                 )

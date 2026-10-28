@@ -743,6 +743,9 @@ extension DataFlowSemaPhase {
                     valueParameterHasDefaultValues: params.paramHasDefaultValues,
                     valueParameterIsVararg: params.paramIsVararg,
                     valueParameterAllowsNonLocalReturn: params.paramAllowsNonLocalReturn,
+                    hasStableParameterNames: !symbols.annotations(for: symbol).contains {
+                        $0.annotationFQName == "kotlin.internal.NonStableParameterNames"
+                    },
                     typeParameterSymbols: typeParamResult.typeParameterSymbols,
                     reifiedTypeParameterIndices: typeParamResult.reifiedIndices,
                     typeParameterUpperBoundsList: upperBoundsByTypeParam

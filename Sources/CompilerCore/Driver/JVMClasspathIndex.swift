@@ -8,6 +8,7 @@ final class JVMClasspathIndex {
     var methods: [SymbolID: JVMForeignMethod] = [:]
     var extensionSymbols: Set<SymbolID> = []
     private var hierarchyClasses: [String: JVMClassInfo] = [:]
+    private var innerClassMetadata: [String: JVMInnerClassInfo] = [:]
 
     static func load(_ paths: [String]) throws -> JVMClasspathIndex {
         let result = JVMClasspathIndex()
@@ -18,9 +19,6 @@ final class JVMClasspathIndex {
             guard info.name + ".class" == path else { throw JVMFrontendError(message: "JVM class name does not match entry path: \(info.name) in \(path)") }
             guard seen.insert(info.name).inserted else { return }
             result.hierarchyClasses[info.name] = info
-            guard info.flags & 1 != 0, !info.name.contains("$"),
-                  info.name.split(separator: "/").allSatisfy({ JVMProgramBuilder.isIdentifier(String($0)) }) else { return }
-            if result.classes[info.name] == nil { result.classes[info.name] = info }
         }
         for path in paths {
             var directory: ObjCBool = false
@@ -45,9 +43,78 @@ final class JVMClasspathIndex {
                 }
             }
         }
+        result.indexInnerClasses()
+        for info in result.hierarchyClasses.values where result.isImportableClassifier(info.name, visited: []) {
+            result.classes[info.name] = info
+        }
         result.importInheritedMembers()
         return result
     }
+
+    private func indexInnerClasses() {
+        var ownersWithAuthoritativeMetadata: Set<String> = []
+        for info in hierarchyClasses.values where info.hasInnerClassesAttribute {
+            ownersWithAuthoritativeMetadata.insert(info.name)
+            for entry in info.innerClasses where entry.outerName == info.name {
+                innerClassMetadata[entry.name] = entry
+            }
+        }
+        for info in hierarchyClasses.values {
+            guard let selfEntry = info.innerClasses.first(where: { $0.name == info.name }),
+                  let outer = selfEntry.outerName,
+                  !ownersWithAuthoritativeMetadata.contains(outer),
+                  innerClassMetadata[selfEntry.name] == nil else { continue }
+            innerClassMetadata[selfEntry.name] = selfEntry
+        }
+    }
+
+    private func isImportableClassifier(_ name: String, visited: Set<String>) -> Bool {
+        guard !visited.contains(name), let info = hierarchyClasses[name],
+              info.flags & 0x1000 == 0, !info.hasEnclosingMethod else { return false }
+        if let entry = innerClassMetadata[name] {
+            guard let outer = entry.outerName, let shortName = entry.innerName,
+                  [UInt16(1), UInt16(4)].contains(entry.access & 0x0007), entry.access & 0x1000 == 0,
+                  JVMProgramBuilder.isIdentifier(shortName), name.hasPrefix(outer + "$"),
+                  isImportableClassifier(outer, visited: visited.union([name])) else { return false }
+            return true
+        }
+        guard info.flags & 1 != 0, !name.contains("$"),
+              name.split(separator: "/").allSatisfy({ JVMProgramBuilder.isIdentifier(String($0)) }) else { return false }
+        return true
+    }
+
+    private func nestedClassDeclarations(of owner: String, indentation: String = "    ") -> String {
+        let children = innerClassMetadata.values
+            .filter { $0.outerName == owner && classes[$0.name] != nil }
+            .sorted { ($0.innerName ?? "") < ($1.innerName ?? "") }
+        var source = ""
+        for entry in children {
+            guard let name = entry.innerName, let info = classes[entry.name] else { continue }
+            let typeParameters = info.classTypeParameterNames.isEmpty
+                ? ""
+                : "<" + info.classTypeParameterNames.map { "`\($0)`" }.joined(separator: ", ") + ">"
+            let visibility = entry.access & 0x0007 == 0x0004 ? "protected " : ""
+            if info.flags & 0x2000 != 0 {
+                source += indentation + visibility + "annotation class `\(name)`\(typeParameters)\n"
+                continue
+            }
+            if info.flags & 0x4000 != 0 {
+                source += indentation + visibility + "enum class `\(name)`\(typeParameters) { }\n"
+                continue
+            }
+            if info.isInterface {
+                source += indentation + visibility + "interface `\(name)`\(typeParameters) {\n"
+            } else {
+                let classKind = info.flags & 0x0400 != 0 ? "abstract class " : (info.flags & 0x0010 != 0 ? "class " : "open class ")
+                let isInner = entry.access & 0x0008 == 0
+                source += indentation + visibility + (isInner ? "inner " : "") + classKind + "`\(name)`\(typeParameters) private constructor() {\n"
+            }
+            source += nestedClassDeclarations(of: entry.name, indentation: indentation + "    ")
+            source += indentation + "}\n"
+        }
+        return source
+    }
+
     private func importInheritedMembers() {
         func key(_ method: JVMForeignMethod) -> String {
             method.name + method.descriptor.prefix(through: method.descriptor.firstIndex(of: ")")!)
@@ -122,7 +189,13 @@ final class JVMClasspathIndex {
             for bridge in bridges where abstractMethods.contains(key(bridge)) && !methods.contains(where: { key($0) == key(bridge) }) {
                 methods.append(accessibleMethod(bridge, on: info))
             }
-            classes[info.name] = JVMClassInfo(name: info.name, flags: info.flags, superclass: superclass, interfaces: interfaces, methods: methods, fields: info.fields)
+            var imported = JVMClassInfo(name: info.name, flags: info.flags, superclass: superclass, interfaces: interfaces, methods: methods, fields: info.fields)
+            imported.bridgeMethods = bridges
+            imported.classTypeParameterNames = info.classTypeParameterNames
+            imported.innerClasses = info.innerClasses
+            imported.hasInnerClassesAttribute = info.hasInnerClassesAttribute
+            imported.hasEnclosingMethod = info.hasEnclosingMethod
+            classes[info.name] = imported
         }
     }
     func expose(_ type: JVMValueType) -> Bool {
@@ -184,6 +257,7 @@ final class JVMClasspathIndex {
     func inject(into ctx: CompilationContext) throws {
         let provided = try JVMStdlibCatalog.nominalNames(in: ctx)
         for info in classes.values.sorted(by: { $0.name < $1.name }) {
+            guard innerClassMetadata[info.name] == nil else { continue }
             // The frontend's Kotlin/JDK mapped declarations carry generic source
             // types. Importing the same erased class again would shadow them.
             if info.name.hasPrefix("kotlin/") || provided.contains(info.name) || Self.builtinName(info.name) != nil || ["kotlin/Unit", "kotlin/Function", "kotlin/Metadata"].contains(info.name) || info.name.hasPrefix("kotlin/jvm/functions/Function") { continue }
@@ -222,10 +296,19 @@ final class JVMClasspathIndex {
                     }
                 }
             } else {
-                if info.isInterface { source += (isSAM(info.name) ? "fun interface `\(short)`" : "interface `\(short)`") }
+                if info.isInterface {
+                    source += isSAM(info.name) ? "fun interface `\(short)`" : "interface `\(short)`"
+                    if !info.classTypeParameterNames.isEmpty {
+                        source += "<" + info.classTypeParameterNames.map { "`\($0)`" }.joined(separator: ", ") + ">"
+                    }
+                }
                 else {
                     source += info.flags & 0x0400 != 0 ? "abstract class " : (info.flags & 0x0010 != 0 ? "class " : "open class ")
-                    source += "`\(short)` "
+                    source += "`\(short)`"
+                    if !info.classTypeParameterNames.isEmpty {
+                        source += "<" + info.classTypeParameterNames.map { "`\($0)`" }.joined(separator: ", ") + ">"
+                    }
+                    source += " "
                     source += own.contains(where: { $0.isConstructor && $0.parameters.isEmpty }) ? "()" : "protected constructor()"
                 }
                 var parents: [String] = []
@@ -275,6 +358,7 @@ final class JVMClasspathIndex {
                     }
                     source += "}\n"
                 }
+                source += nestedClassDeclarations(of: info.name)
                 source += "}\n"
             }
             let path = "<kswiftk-jvm-import>/" + info.name + ".kt"
@@ -333,6 +417,7 @@ final class JVMClasspathIndex {
                 valueParameterIsVararg: signature.valueParameterIsVararg,
                 valueParameterAllowsNonLocalReturn: signature.valueParameterAllowsNonLocalReturn,
                 hasExplicitInlineParameterMetadata: signature.hasExplicitInlineParameterMetadata,
+                hasStableParameterNames: signature.hasStableParameterNames,
                 typeParameterSymbols: signature.typeParameterSymbols, reifiedTypeParameterIndices: signature.reifiedTypeParameterIndices,
                 typeParameterUpperBoundsList: signature.typeParameterUpperBoundsList, classTypeParameterCount: signature.classTypeParameterCount
             ), for: symbol.id)

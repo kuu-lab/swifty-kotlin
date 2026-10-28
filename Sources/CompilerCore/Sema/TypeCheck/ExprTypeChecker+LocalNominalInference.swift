@@ -574,7 +574,8 @@ extension ExprTypeChecker {
                 declID: nestedClassDeclID,
                 ctx: classCtx,
                 solver: driver.solver,
-                diagnostics: sema.diagnostics
+                diagnostics: sema.diagnostics,
+                baseLocals: outerLocalsSnapshot
             )
         }
         for nestedObjectDeclID in classDecl.nestedObjects {
@@ -711,9 +712,7 @@ extension ExprTypeChecker {
         ))
         capturedSymbols.formUnion(collectNestedInnerClassCaptures(
             classDecl.nestedClasses,
-            outerReceiverSymbols: Set(
-                ctx.outerReceiverTypes.compactMap(\.symbol) + ctx.implicitReceiverStack.map(\.symbol)
-            ),
+            outerSymbols: captureOuterSymbols,
             ast: ast,
             sema: sema
         ))
@@ -832,7 +831,7 @@ extension ExprTypeChecker {
 
     private func collectNestedInnerClassCaptures(
         _ nestedClassDeclIDs: [DeclID],
-        outerReceiverSymbols: Set<SymbolID>,
+        outerSymbols: Set<SymbolID>,
         ast: ASTModule,
         sema: SemaModule
     ) -> Set<SymbolID> {
@@ -855,7 +854,7 @@ extension ExprTypeChecker {
                     inBody: function.body,
                     ast: ast,
                     sema: sema,
-                    outerSymbols: outerReceiverSymbols,
+                    outerSymbols: outerSymbols,
                     skipNestedClosures: false
                 ))
             }
@@ -869,7 +868,7 @@ extension ExprTypeChecker {
                         constructor.valueParams.compactMap(\.defaultValue)
                             + (constructor.delegationCall?.args.map(\.expr) ?? [])
                     },
-                captureOuterSymbols: outerReceiverSymbols,
+                captureOuterSymbols: outerSymbols,
                 ast: ast,
                 sema: sema
             ))

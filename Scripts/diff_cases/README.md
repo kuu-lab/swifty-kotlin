@@ -82,6 +82,7 @@ retain the stdout diff, KIR, crash diagnostics, and a reproduction script.
 - `comparator_basic.kt`: Comparator 合成（compareBy / compareByDescending / thenBy / thenByDescending / thenComparator / nullsFirst / nullsLast / naturalOrder / reverseOrder / reversed）の parity
 - `comparator_comparing_int.kt`: `Comparator.comparingInt` のコンパイル、整数境界を含む比較結果、同値キー、selector の評価回数の JVM parity（KUU-2226）
 - `java_util_collections_sort_list_parameter.kt`: `Collections.sort` が read-only 宣言の `List<T>` を受け取り、可変 backing をソートし、read-only 実体では `UnsupportedOperationException` を保つ parity（KUU-3422）
+- `java_util_stream_single_use.kt`: `IntStream.boxed()` / `mapToObj()` から generic `Stream` を一度だけ使えること、中間・終端処理後の再使用で `IllegalStateException` になることの parity（KUU-3644）
 - `sequence_lazy.kt`: `Sequence<T>` lazy evaluation chain（`asSequence` → `map` → `filter` → `toList`）の parity
 - `stdlib_collection_hof.kt`: collection HOF（map/filter/flatMap/fold/reduce/any/all/none/groupBy/groupingBy.fold/sortedBy/find/count/first/last）と capture lambda の parity
 - `stdlib_kotlin_collections_n_check.kt`: `@PublishedApi internal` collection overflow checks; candidate-only expected-output coverage for negative, zero, positive, and boundary `Int` values
