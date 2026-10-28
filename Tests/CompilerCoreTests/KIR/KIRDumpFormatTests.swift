@@ -109,6 +109,18 @@ struct KIRDumpFormatTests {
         #expect(empty.dump(interner: interner, symbols: nil) == "lowerings: NormalizeBlocks")
     }
 
+    @Test(arguments: [1, 7, 64, 1 << 20])
+    func testStreamedChunksConcatenateToDump(chunkBytes: Int) {
+        let (module, interner, symbols) = Self.makeModule()
+        var chunks: [String] = []
+        module.dump(interner: interner, symbols: symbols, chunkBytes: chunkBytes) { chunks.append($0) }
+        #expect(chunks.joined() == Self.expected)
+        #expect(!chunks.contains(""))
+        if chunkBytes > 1 {
+            #expect(chunks.dropLast().allSatisfy { $0.utf8.count >= chunkBytes })
+        }
+    }
+
     static let expected = #"""
     decl[0] function #0 callee params=1 suspend=true inline=false
       nop

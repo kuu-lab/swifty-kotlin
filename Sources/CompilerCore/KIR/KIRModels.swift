@@ -645,18 +645,52 @@ public final class KIRModule {
     }
 
     public func dump(interner: StringInterner, symbols: SymbolTable?) -> String {
+        var output = KIRDumpOutput(reservingBytes: estimatedDumpLineCount() * KIRDumpOutput.estimatedBytesPerLine)
+        renderDump(interner: interner, symbols: symbols, into: &output) { _ in }
+        return output.text
+    }
+
+    /// Streams the dump through `write` in chunks of roughly `chunkBytes`, so
+    /// a multi-megabyte dump never has to be resident as one String. The
+    /// concatenated chunks equal `dump(interner:symbols:)`.
+    public func dump(
+        interner: StringInterner,
+        symbols: SymbolTable?,
+        chunkBytes: Int,
+        write: (String) throws -> Void
+    ) rethrows {
+        var output = KIRDumpOutput(reservingBytes: chunkBytes)
+        try renderDump(interner: interner, symbols: symbols, into: &output) { output in
+            if output.byteCount >= chunkBytes {
+                try write(output.drain(reservingBytes: chunkBytes))
+            }
+        }
+        if output.byteCount > 0 {
+            try write(output.drain(reservingBytes: 0))
+        }
+    }
+
+    /// `flush` runs after every line, letting the streaming variant hand off
+    /// full chunks while the String variant keeps everything.
+    private func renderDump(
+        interner: StringInterner,
+        symbols: SymbolTable?,
+        into output: inout KIRDumpOutput,
+        flush: (inout KIRDumpOutput) throws -> Void
+    ) rethrows {
         let names = KIRDumpNames(interner)
-        var output = KIRDumpOutput(estimatedLineCount: estimatedDumpLineCount())
         for (index, decl) in arena.declarations.enumerated() {
             switch decl {
             case let .function(function):
                 let name = names.resolve(function.name)
                 output.appendLine("decl[\(index)] function #\(function.symbol.rawValue) \(name) params=\(function.params.count) suspend=\(function.isSuspend) inline=\(function.isInline)")
+                try flush(&output)
                 for instruction in function.body {
                     output.appendLine { line in
                         line += "  "
                         appendInstruction(instruction, names: names, symbols: symbols, to: &line)
                     }
+                    try flush(&output)
                 }
             case .global:
                 output.appendLine("decl[\(index)] global")
@@ -668,11 +702,11 @@ public final class KIRModule {
                     output.appendLine("decl[\(index)] type")
                 }
             }
+            try flush(&output)
         }
         if !executedLowerings.isEmpty {
             output.appendLine("lowerings: \(executedLowerings.joined(separator: ", "))")
         }
-        return output.text
     }
 
     private func estimatedDumpLineCount() -> Int {
@@ -881,13 +915,27 @@ struct KIRDumpNames {
 /// match `joined(separator:)`.
 struct KIRDumpOutput {
     /// Typical dump line length; only sizes the initial reservation.
-    private static let estimatedBytesPerLine = 64
+    static let estimatedBytesPerLine = 64
 
     private(set) var text = ""
     private var isEmpty = true
 
-    init(estimatedLineCount: Int) {
-        text.reserveCapacity(estimatedLineCount * Self.estimatedBytesPerLine)
+    init(reservingBytes: Int) {
+        text.reserveCapacity(reservingBytes)
+    }
+
+    /// O(1) for the native UTF-8 storage the dump builds.
+    var byteCount: Int {
+        text.utf8.count
+    }
+
+    /// Hands off the buffered text while keeping separator state, so the
+    /// next line still gets its leading "\n".
+    mutating func drain(reservingBytes: Int) -> String {
+        let chunk = text
+        text = ""
+        text.reserveCapacity(reservingBytes)
+        return chunk
     }
 
     mutating func appendLine(_ line: String) {
