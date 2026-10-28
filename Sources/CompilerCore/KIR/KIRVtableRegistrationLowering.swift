@@ -1143,12 +1143,14 @@ func itableBridgeSymbolForMethod(
         }
     }
     func hasBoxableValueRepresentation(_ type: TypeID) -> Bool {
+        let kind = sema.types.kind(of: type)
         let resolvedKind = resolveValueClassKind(
-            sema.types.kind(of: type),
+            kind,
             types: sema.types,
             symbols: sema.symbols
         )
         return BoxingCalleeTable(interner: interner).boxCallee(for: resolvedKind, requireNonNull: true) != nil
+            || referenceBackedValueClassSymbol(of: kind, types: sema.types, symbols: sema.symbols) != nil
     }
     let needsErasedValueReturnBoxing = isErasedValueSlot(interfaceSig.returnType)
         && hasBoxableValueRepresentation(implementationReturnType)
