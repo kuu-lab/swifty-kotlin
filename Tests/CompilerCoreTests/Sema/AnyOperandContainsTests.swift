@@ -117,6 +117,17 @@ struct AnyOperandContainsTests {
         #expect(ctx.diagnostics.diagnostics.contains { $0.severity == .error })
     }
 
+    @Test func customLongContainsRejectsDoubleLiteralOperand() throws {
+        let ctx = makeContextFromSource("""
+        class LongR {
+            operator fun contains(value: Long): Boolean = value == 5L
+        }
+        fun check(): Boolean = 5.0 in LongR()
+        """)
+        try runSema(ctx)
+        #expect(ctx.diagnostics.diagnostics.contains { $0.severity == .error })
+    }
+
     @Test func anyOperandsResolveIterableContains() throws {
         let ctx = makeContextFromSource("""
         fun check(x: Any, nullable: Any?, range: IntRange, values: Iterable<Int>) {
