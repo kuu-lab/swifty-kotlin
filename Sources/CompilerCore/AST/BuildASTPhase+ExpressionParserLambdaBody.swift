@@ -100,7 +100,7 @@ extension BuildASTPhase.ExpressionParser {
     private func parseLambdaBodyStatement(from group: ArraySlice<Token>) -> ExprID? {
         let phase = BuildASTPhase(diagnostics: diagnostics)
         if let localFun = phase.parseLocalFunDeclExpr(
-            from: BuildASTPhase.skipLeadingLocalAnnotations(Array(group), interner: interner),
+            from: Array(group),
             interner: interner, astArena: astArena
         ) {
             return localFun
