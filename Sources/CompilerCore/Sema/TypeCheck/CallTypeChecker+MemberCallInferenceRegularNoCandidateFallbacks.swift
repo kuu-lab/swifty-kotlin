@@ -110,6 +110,15 @@ extension CallTypeChecker {
             return (property, propertyType)
         }()
         if let propResult = callableProperty {
+            // The losing member-candidate attempt may have inferred these
+            // arguments against its own parameter list and left error
+            // diagnostics inside their ranges. The property invoke re-infers
+            // them, so stale argument errors must not leak past a successful
+            // bind (KUU-3145).
+            for argument in args {
+                guard let argumentRange = ast.arena.exprRange(argument.expr) else { continue }
+                sema.diagnostics.removeErrorDiagnostics(containedIn: argumentRange)
+            }
             if let propSymbol = sema.symbols.symbol(propResult.symbol),
                !ctx.visibilityChecker.isAccessible(propSymbol, fromFile: ctx.currentFileID, enclosingClass: ctx.enclosingClassSymbol)
             {
@@ -186,6 +195,36 @@ extension CallTypeChecker {
                     return finalType
                 }
             }
+        }
+
+        // A package-scope property whose value has receiver-function type is
+        // still a valid invoke target for `receiver.name(args)` (KUU-3145):
+        // `a.x { }` resolves `x` even when member/extension candidates named
+        // `x` were collected but produced no viable callee. It ranks below
+        // member and extension properties — `val A.x` beats a same-named
+        // package `val x`, while an inapplicable member or extension does not
+        // shadow it — so it is tried only after those paths, under the same
+        // scope-priority cap and visibility/argument-shape checks. The no-
+        // candidate path reaches the same fallback directly through
+        // inferRegularMemberCallWithoutCandidates.
+        if !isClassNameReceiver, !isSuperReceiver,
+           !args.isEmpty || ast.arena.isExplicitCall(id),
+           let packageProperty = ctx.cachedScopeLookup(calleeName).first(where: {
+               sema.symbols.symbol($0)?.kind == .property
+                   && sema.symbols.extensionPropertyReceiverType(for: $0) == nil
+           }),
+           ctx.cachedSymbol(packageProperty).map({
+               ctx.visibilityChecker.isAccessible($0, fromFile: ctx.currentFileID, enclosingClass: ctx.enclosingClassSymbol)
+           }) == true,
+           maximumPropertyPriority.map({
+               callableInvocationScopePriority(packageProperty, named: calleeName, ctx: ctx) <= $0
+           }) ?? true,
+           callablePropertyAcceptsArgumentShape(
+               packageProperty, request: request, argTypes: argTypes,
+               receiverType: memberLookupType, locals: invocationLocals
+           ),
+           let result = inferLexicalExtensionCallableInvocation(request, receiverType: memberLookupType, locals: &locals) {
+            return result
         }
 
         return nil

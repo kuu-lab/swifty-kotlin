@@ -646,8 +646,12 @@ extension CallTypeChecker {
                   ) {
             candidateType = property.type
         } else {
+            // Package-scope properties only: extension properties carry a
+            // receiver on the property itself and resolve through
+            // resolveExtensionPropertyGetter instead (KUU-3145).
             candidateType = ctx.cachedScopeLookup(name).first(where: {
                 sema.symbols.symbol($0)?.kind == .property
+                    && sema.symbols.extensionPropertyReceiverType(for: $0) == nil
             }).flatMap { sema.symbols.propertyType(for: $0) }
         }
         guard let candidateType,
@@ -677,6 +681,16 @@ extension CallTypeChecker {
             {
                 return nil
             }
+        }
+
+        // A losing earlier candidate attempt may have inferred these
+        // arguments against the wrong parameter list and left error
+        // diagnostics inside their ranges. They are re-inferred below under
+        // the receiver-function's own parameters, so stale argument errors
+        // must not leak past a successful bind (KUU-3145).
+        for argument in request.args {
+            guard let argumentRange = ctx.ast.arena.exprRange(argument.expr) else { continue }
+            sema.diagnostics.removeErrorDiagnostics(containedIn: argumentRange)
         }
 
         let calleeExpr = ctx.ast.arena.appendExpr(.nameRef(name, request.range))
