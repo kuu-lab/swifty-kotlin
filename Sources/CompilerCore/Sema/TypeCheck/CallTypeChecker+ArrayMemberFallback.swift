@@ -126,7 +126,7 @@ extension CallTypeChecker {
         "associate", "associateBy", "associateWith",
         "associateTo", "associateByTo", "associateWithTo",
         "indexOf", "lastIndexOf", "indexOfFirst", "indexOfLast", "fill", "getOrNull",
-        "sortedBy", "sortedByDescending", "sortedWith", "joinTo",
+        "sortedBy", "sortedByDescending", "sortedWith", "sortWith", "joinTo",
         "distinctBy", "minByOrNull", "maxByOrNull", "intersect", "union", "subtract",
     ]
 
