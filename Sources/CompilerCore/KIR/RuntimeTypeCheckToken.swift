@@ -300,18 +300,6 @@ enum RuntimeTypeCheckToken {
         switch sema.types.kind(of: type) {
         case .nothing:
             return "Void"
-        case .primitive(.long, _):
-            return PrimitiveType.long.kotlinName
-        case .primitive(.char, _):
-            return PrimitiveType.char.kotlinName
-        case .primitive(.float, _):
-            return PrimitiveType.float.kotlinName
-        case .primitive(.double, _):
-            return PrimitiveType.double.kotlinName
-        case .primitive(.byte, _):
-            return PrimitiveType.byte.kotlinName
-        case .primitive(.short, _):
-            return PrimitiveType.short.kotlinName
         case let .classType(classType):
             guard let symbol = sema.symbols.symbol(classType.classSymbol) else {
                 return nil
@@ -327,43 +315,10 @@ enum RuntimeTypeCheckToken {
 
     static func qualifiedName(of type: TypeID, sema: SemaModule, interner: StringInterner) -> String? {
         let descriptor = classify(type: type, sema: sema)
+        if let name = descriptor.category.simpleName {
+            return "kotlin." + name
+        }
         switch descriptor.category {
-        case .any:
-            return "kotlin.Any"
-        case .string:
-            return "kotlin.String"
-        case .int:
-            return "kotlin.Int"
-        case .boolean:
-            return "kotlin.Boolean"
-        case .null:
-            return "kotlin.Nothing"
-        case .uint:
-            return "kotlin.UInt"
-        case .ulong:
-            return "kotlin.ULong"
-        case .ubyte:
-            return "kotlin.UByte"
-        case .ushort:
-            return "kotlin.UShort"
-        case .byte:
-            return "kotlin.Byte"
-        case .short:
-            return "kotlin.Short"
-        case .long:
-            return "kotlin.Long"
-        case .double:
-            return "kotlin.Double"
-        case .float:
-            return "kotlin.Float"
-        case .char:
-            return "kotlin.Char"
-        case .unit:
-            return "kotlin.Unit"
-        // Function types render their FunctionN classifier from the token
-        // payload at runtime; no source-level hint is needed.
-        case .function:
-            return nil
         case let .nominal(symbolID):
             guard let symbol = sema.symbols.symbol(symbolID) else {
                 return nil
@@ -377,6 +332,10 @@ enum RuntimeTypeCheckToken {
             if case .nothing = sema.types.kind(of: type) {
                 return "java.lang.Void"
             }
+            return nil
+        // Function types render their FunctionN classifier from the token
+        // payload at runtime; no source-level hint is needed.
+        default:
             return nil
         }
     }
