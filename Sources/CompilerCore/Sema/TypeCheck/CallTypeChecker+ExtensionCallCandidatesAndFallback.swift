@@ -685,6 +685,14 @@ extension CallTypeChecker {
                 cachedNonLambdaArgTypes[index] = argTypes[index]
             }
         }
+        // The losing member attempt may have inferred these arguments
+        // against its own parameter list and left error diagnostics inside
+        // their ranges. The extension retry re-infers them, so stale
+        // argument errors must not leak past a winning candidate (KUU-3145).
+        for argument in args {
+            guard let argumentRange = ast.arena.exprRange(argument.expr) else { continue }
+            sema.diagnostics.removeErrorDiagnostics(containedIn: argumentRange)
+        }
         let preparedArgs = prepareCallArguments(
             args: args,
             callRange: range,
