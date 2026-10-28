@@ -118,6 +118,105 @@ struct KIRInterfacePropertyDispatchTests {
         }
     }
 
+    /// kt2477: a `private` member — whether on the superclass or on a
+    /// sibling interface — never implements an interface property, so it
+    /// must not be selected as the itable getter for `A.c`. The interface's
+    /// own (possibly `private`) declaration remains the fallback for its own
+    /// slot.
+    @Test
+    func privateMembersAreNotSelectedAsInterfacePropertyGetter() throws {
+        let source = """
+        interface Kt2477A {
+            val c: Int
+                get() = 1
+        }
+
+        interface Kt2477B {
+            private val c: Int
+                get() = 2
+        }
+
+        open class Kt2477C {
+            private val c: Int = 3
+        }
+
+        class Kt2477D : Kt2477C(), Kt2477A, Kt2477B
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], includeStdlib: false)
+            try runSema(ctx)
+            #expect(!ctx.diagnostics.hasError)
+            let sema = try #require(ctx.sema)
+            let cName = ctx.interner.intern("c")
+            let aC = try #require(sema.symbols.lookup(
+                fqName: [ctx.interner.intern("Kt2477A"), cName]
+            ))
+            let bC = try #require(sema.symbols.lookup(
+                fqName: [ctx.interner.intern("Kt2477B"), cName]
+            ))
+            let dClass = try #require(sema.symbols.lookup(
+                fqName: [ctx.interner.intern("Kt2477D")]
+            ))
+
+            #expect(
+                kirFindOverridePropertyGetter(for: aC, in: dClass, sema: sema)
+                    == SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: aC)
+            )
+            // The sibling interface's private slot keeps its own default.
+            #expect(
+                kirFindOverridePropertyGetter(for: bC, in: dClass, sema: sema)
+                    == SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: bC)
+            )
+        }
+    }
+
+    /// kt2477 (method shape): the same name-only search used for interface
+    /// methods must likewise skip `private` members on the class chain and
+    /// on unrelated interfaces.
+    @Test
+    func privateMembersAreNotSelectedAsInterfaceMethodImplementation() throws {
+        let source = """
+        interface Kt2477MethodA {
+            fun c(): Int = 1
+        }
+
+        interface Kt2477MethodB {
+            private fun c(): Int = 2
+        }
+
+        open class Kt2477MethodC {
+            private fun c(): Int = 3
+        }
+
+        class Kt2477MethodD : Kt2477MethodC(), Kt2477MethodA, Kt2477MethodB
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], includeStdlib: false)
+            try runSema(ctx)
+            #expect(!ctx.diagnostics.hasError)
+            let sema = try #require(ctx.sema)
+            let cName = ctx.interner.intern("c")
+            let aC = try #require(sema.symbols.lookup(
+                fqName: [ctx.interner.intern("Kt2477MethodA"), cName]
+            ))
+            let bC = try #require(sema.symbols.lookup(
+                fqName: [ctx.interner.intern("Kt2477MethodB"), cName]
+            ))
+            let dClass = try #require(sema.symbols.lookup(
+                fqName: [ctx.interner.intern("Kt2477MethodD")]
+            ))
+
+            #expect(
+                kirFindOverrideMethod(for: aC, in: dClass, sema: sema, interner: ctx.interner)
+                    == aC
+            )
+            #expect(
+                kirFindOverrideMethod(for: bC, in: dClass, sema: sema, interner: ctx.interner)
+                    == bC
+            )
+        }
+    }
+
     @Test
     func emptyInterfaceSetterTableCanBeRequestedRepeatedly() throws {
         try withTemporaryFile(contents: "interface EmptySetterTable {}\n") { path in
