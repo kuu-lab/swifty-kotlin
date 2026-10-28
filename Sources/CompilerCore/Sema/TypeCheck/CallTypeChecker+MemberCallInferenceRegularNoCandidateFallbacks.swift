@@ -1443,9 +1443,11 @@ extension CallTypeChecker {
         // A non-safe `x.invoke` on a nullable function value is rejected
         // like `x(args)` — `x?.invoke` unwraps the receiver first, so the
         // check only excludes the unsafe form (KUU-644).
+        // A smart-cast intersection (`f as KFunction<*>`) resolves `invoke`
+        // through its unique structural function conjunct as well (KUU-3652).
         if !isClassNameReceiver,
            calleeStr == "invoke",
-           case let .functionType(invokeFunctionType) = sema.types.kind(of: memberLookupType),
+           let invokeFunctionType = sema.types.uniqueStructuralFunctionType(for: memberLookupType),
            invokeFunctionType.nullability != .nullable
         {
             var invokeCalleeType = memberLookupType

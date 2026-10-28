@@ -1,26 +1,5 @@
 
 extension CallTypeChecker {
-    /// A smart cast can retain a function type as one component of an
-    /// intersection, for example after checking a callable as KFunction.
-    /// Use it only when there is one unambiguous structural function type.
-    func singleStructuralFunctionType(in type: TypeID, sema: SemaModule) -> FunctionType? {
-        var functionTypes: Set<FunctionType> = []
-        var visited: Set<TypeID> = []
-        func collect(_ type: TypeID) {
-            guard visited.insert(type).inserted else { return }
-            switch sema.types.kind(of: sema.types.makeNonNullable(type)) {
-            case let .functionType(function):
-                functionTypes.insert(function)
-            case let .intersection(parts):
-                for part in parts { collect(part) }
-            default:
-                break
-            }
-        }
-        collect(type)
-        return functionTypes.count == 1 ? functionTypes.first : nil
-    }
-
     func markRangeCallBindings(
         _ id: ExprID,
         chosen: SymbolID,
@@ -361,10 +340,17 @@ extension CallTypeChecker {
         case let .functionType(type):
             functionType = type
         case .intersection:
-            guard let type = singleStructuralFunctionType(in: nonNullCalleeType, sema: sema) else {
+            // A smart cast (`f as KFunction<*>`) or a positive `is` branch
+            // narrows a stable local to an intersection such as
+            // `(Boolean) -> Any & KFunction<*>`. The value stays invocable
+            // through its structural conjunct — select it only when the
+            // intersection holds one unique function type; a genuinely
+            // ambiguous set of conjuncts keeps the unresolved path
+            // (KUU-3652).
+            guard let structuralFunction = sema.types.uniqueStructuralFunctionType(for: nonNullCalleeType) else {
                 return nil
             }
-            functionType = type
+            functionType = structuralFunction
         case let .classType(classType):
             guard case .receiverMustBePresent = arityPolicy,
                   sema.symbols.inheritsExtensionFunctionTypeSupertype(classType.classSymbol)
@@ -556,6 +542,9 @@ extension CallTypeChecker {
                 diagnostics: ctx.sema.diagnostics
             )
         }
+        // Downstream readers require the bound `functionType` to be a
+        // structural `.functionType`; nominal function interfaces and
+        // smart-cast intersections both collapse to the selected conjunct.
         let callableValueFunctionType: TypeID = if case .functionType = sema.types.kind(of: nonNullCalleeType) {
             nonNullCalleeType
         } else {

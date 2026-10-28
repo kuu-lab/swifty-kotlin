@@ -667,8 +667,12 @@ extension CallTypeChecker {
         } else {
             nil
         }
+        // Smart-cast intersections (`f as KFunction<*>`) keep their unique
+        // structural conjunct for lambda/argument hints as well (KUU-3652).
         if let callableValueType,
-           let calleeFunctionType = singleStructuralFunctionType(in: callableValueType, sema: sema) {
+           let calleeFunctionType = sema.types.uniqueStructuralFunctionType(
+               for: sema.types.makeNonNullable(callableValueType)
+           ) {
             let expectedArgumentTypes: [TypeID]?
             if let receiver = calleeFunctionType.receiver,
                args.count == calleeFunctionType.params.count + 1 {

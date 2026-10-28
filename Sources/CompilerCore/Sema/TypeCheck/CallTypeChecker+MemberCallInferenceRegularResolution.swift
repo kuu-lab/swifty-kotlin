@@ -228,9 +228,11 @@ extension CallTypeChecker {
         // Callable references also retain their structural function type here.
         // The reflective KFunction lookup view above is for metadata/extensions;
         // it must not hide the parameter types needed for explicit invocation.
+        // A smart-cast intersection (`f as KFunction<*>`) keeps its unique
+        // structural function conjunct invocable the same way (KUU-3652).
         if calleeName == knownNames.invoke,
            explicitTypeArgs.isEmpty,
-           case let .functionType(invokeFunctionType) = sema.types.kind(of: baseLookupReceiverType),
+           let invokeFunctionType = sema.types.uniqueStructuralFunctionType(for: baseLookupReceiverType),
            invokeFunctionType.nullability != .nullable,
            let result = inferCallableValueInvocation(
                id,
