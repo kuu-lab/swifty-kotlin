@@ -48,6 +48,59 @@ struct SuspendConversionTests {
         }
     }
 
+    @Test func acceptsSuspendConversionForExtensionFunctionValueInvocation() throws {
+        let source = """
+        fun box(): String {
+            val foo: String.(suspend () -> Unit) -> String = { this }
+            val f: () -> Unit = {}
+            return "OK".foo(f)
+        }
+        """
+        try withTemporaryFiles(contents: [source]) { paths in
+            let ctx = makeCompilationContext(inputs: paths, includeStdlib: false)
+            try runSema(ctx)
+            #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics.map { $0.message })")
+
+            let sema = try #require(ctx.sema)
+            let binding = try #require(sema.bindings.callableValueCalls.values.first {
+                $0.extensionCallableExpr != nil
+            })
+            #expect(binding.parameterMapping == [1: 0])
+        }
+    }
+
+    @Test func prefersFunctionOverloadWithoutSuspendConversion() throws {
+        let source = """
+        var foo1 = false
+        var foo2 = false
+        fun foo(x: () -> Int) { foo1 = true }
+        fun foo(x: suspend () -> Int) { foo2 = true }
+        fun test(f: () -> Int, g: suspend () -> Int) {
+            foo(f)
+            foo(g)
+        }
+        """
+        try withTemporaryFiles(contents: [source]) { paths in
+            let ctx = makeCompilationContext(inputs: paths, includeStdlib: false)
+            try runSema(ctx)
+            #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics.map { $0.message })")
+
+            let sema = try #require(ctx.sema)
+            let selectedSuspendModifiers = sema.bindings.callBindings.values.compactMap { binding -> Bool? in
+                guard sema.symbols.symbol(binding.chosenCallee)?.name == ctx.interner.intern("foo"),
+                      let signature = sema.symbols.functionSignature(for: binding.chosenCallee),
+                      case let .functionType(functionType) = sema.types.kind(of: signature.parameterTypes[0])
+                else {
+                    return nil
+                }
+                return functionType.isSuspend
+            }
+            #expect(selectedSuspendModifiers.count == 2)
+            #expect(selectedSuspendModifiers.contains(false))
+            #expect(selectedSuspendModifiers.contains(true))
+        }
+    }
+
     @Test func acceptsCallableReferencesForSuspendConversionAndUnitCoercion() throws {
         let source = """
         fun consume(action: suspend () -> Unit) {}

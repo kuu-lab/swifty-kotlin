@@ -2198,14 +2198,30 @@ extension OverloadResolver {
         call: CallExpr,
         typeSystem: TypeSystem
     ) -> Bool {
-        // Between function and SAM parameters, Kotlin prefers the callable
-        // overload that accepts the function value without adaptation. Keep
-        // nominal overloads (for example SAM versus Any) on the usual rules.
+        // Kotlin prefers the callable overload that accepts the function value
+        // without adaptation. Keep nominal overloads (for example SAM versus
+        // Any) on the usual rules.
         var prefersFunctionParameter = false
         for (index, pair) in zip(lhs.instantiatedParameterTypes, rhs.instantiatedParameterTypes).enumerated() {
-            guard case .functionType = typeSystem.kind(of: call.args[index].type) else { continue }
             let lhsIsFunction: Bool = if case .functionType = typeSystem.kind(of: pair.0) { true } else { false }
             let rhsIsFunction: Bool = if case .functionType = typeSystem.kind(of: pair.1) { true } else { false }
+            if lhsIsFunction, rhsIsFunction {
+                let lhsRequiresSuspendConversion = typeSystem.suspendConversionType(
+                    from: call.args[index].type,
+                    to: pair.0
+                ) != nil
+                let rhsRequiresSuspendConversion = typeSystem.suspendConversionType(
+                    from: call.args[index].type,
+                    to: pair.1
+                ) != nil
+                if lhsRequiresSuspendConversion != rhsRequiresSuspendConversion {
+                    if lhsRequiresSuspendConversion {
+                        return false
+                    }
+                    prefersFunctionParameter = true
+                }
+            }
+            guard case .functionType = typeSystem.kind(of: call.args[index].type) else { continue }
             func isSam(_ type: TypeID) -> Bool {
                 guard case let .classType(nominal) = typeSystem.kind(of: type) else { return false }
                 return typeSystem.symbolTable?.symbol(nominal.classSymbol)?.flags.contains(.funInterface) == true

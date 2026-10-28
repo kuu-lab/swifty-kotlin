@@ -621,6 +621,10 @@ extension CallTypeChecker {
                 )
             }
         }
+        argumentType = sema.types.functionArgumentConversionType(
+            from: argumentType,
+            to: parameterType
+        ) ?? argumentType
         driver.emitSubtypeConstraint(
             left: argumentType, right: parameterType, range: range,
             solver: ConstraintSolver(), sema: sema, diagnostics: sema.diagnostics
@@ -692,7 +696,8 @@ extension CallTypeChecker {
             if integerLiteralFitsParameter(argument.expr, parameterType: parameter, ctx: ctx) { continue }
             if let argumentType = sema.bindings.exprType(for: argument.expr),
                ctx.ast.arena.expr(argument.expr)?.isLambdaOrCallableRef != true,
-               !sema.types.isSubtype(argumentType, parameter)
+               !sema.types.isSubtype(argumentType, parameter),
+               sema.types.functionArgumentConversionType(from: argumentType, to: parameter) == nil
             {
                 return nil
             }
