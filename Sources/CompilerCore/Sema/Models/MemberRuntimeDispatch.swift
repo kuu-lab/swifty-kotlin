@@ -260,9 +260,7 @@ enum MemberRuntimeDispatch {
 
     static func stringReceiverKind(
         receiverType: TypeID,
-        sema: SemaModule,
-        interner: StringInterner
-    ) -> MemberDispatchReceiverKind? {
+        sema: SemaModule) -> MemberDispatchReceiverKind? {
         let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
         if sema.types.isSubtype(nonNullReceiverType, sema.types.stringType) {
             return .string

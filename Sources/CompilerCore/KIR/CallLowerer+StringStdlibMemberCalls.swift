@@ -15,9 +15,7 @@ extension CallLowerer {
         let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
         guard let receiverKind = MemberRuntimeDispatch.stringReceiverKind(
             receiverType: receiverType,
-            sema: sema,
-            interner: interner
-        ) else {
+            sema: sema) else {
             return nil
         }
         let memberName = interner.resolve(calleeName)

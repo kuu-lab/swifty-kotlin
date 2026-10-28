@@ -17,7 +17,6 @@ extension CallTypeChecker {
         isClassNameReceiver: Bool,
         classNameReceiverNominalSymbol: SymbolID?,
         isSuperCall: Bool,
-        typeAliasConstructor: TypeAliasConstructorContext? = nil,
         locals: inout LocalBindings
     ) -> TypeID? {
         let id = request.id

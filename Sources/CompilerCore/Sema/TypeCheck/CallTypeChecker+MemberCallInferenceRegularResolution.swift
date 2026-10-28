@@ -93,7 +93,7 @@ extension CallTypeChecker {
            case let .functionType(functionType) = sema.types.kind(of: callableReceiverType),
            functionType.isCallableReference,
            let result = inferCallableReferenceMember(
-               id, receiverID: receiverID, functionType: functionType, calleeName: calleeName,
+               id, functionType: functionType, calleeName: calleeName,
                args: args, safeCall: safeCall, ctx: ctx, locals: &locals
            )
         {
@@ -188,7 +188,7 @@ extension CallTypeChecker {
            functionType.isCallableReference
         {
             if let result = inferCallableReferenceMember(
-                id, receiverID: receiverID, functionType: functionType, calleeName: calleeName,
+                id, functionType: functionType, calleeName: calleeName,
                 args: args, safeCall: safeCall, ctx: ctx, locals: &locals
             ) {
                 return result
@@ -671,7 +671,6 @@ extension CallTypeChecker {
             isClassNameReceiver: isClassNameReceiver,
             classNameReceiverNominalSymbol: classNameReceiverNominalSymbol,
             isSuperCall: isSuperCall,
-            typeAliasConstructor: typeAliasConstructor,
             locals: &locals
         ) {
             return result
