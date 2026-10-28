@@ -744,9 +744,11 @@ struct ConstantCollector {
         return width == 32 ? Int64(Int32(truncatingIfNeeded: adjusted)) : adjusted
     }
 
+    /// An infinite divisor still takes the sign-correction branch: Kotlin's
+    /// `(-1.0).mod(Double.POSITIVE_INFINITY)` is `Infinity`, not `-1.0`.
     private func floatingFloorMod<T: BinaryFloatingPoint>(_ lhs: T, _ rhs: T) -> T? {
         let remainder = lhs.truncatingRemainder(dividingBy: rhs)
-        guard remainder != 0, remainder.isFinite, rhs.isFinite, (remainder < 0) != (rhs < 0) else {
+        guard remainder != 0, !remainder.isNaN, (remainder < 0) != (rhs < 0) else {
             return remainder
         }
         return remainder + rhs
