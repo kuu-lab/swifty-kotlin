@@ -21,13 +21,6 @@ struct DefaultArgumentMask: Equatable, Sendable {
         words = Array(repeating: 0, count: wordCount)
     }
 
-    init(words: [Int64]) {
-        // Words alone cannot report the declared parameter count, so treat
-        // every bit of their capacity as occupiable — the super-call marker
-        // then moves to a trailing word whenever it could overlap index 30.
-        parameterCount = words.count * Self.bitsPerWord
-        self.words = words.isEmpty ? [0] : words
-    }
 
     var hasSetBits: Bool {
         words.contains { $0 != 0 }

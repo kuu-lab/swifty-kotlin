@@ -36,12 +36,6 @@ enum GoldenHarnessSemaFormat {
         return argument
     }
 
-    static func renderFunctionSignature(
-        _ signature: FunctionSignature,
-        types: TypeSystem
-    ) -> String {
-        renderFunctionSignature(signature, renderType: types.renderType)
-    }
 
     /// The default overload above preserves the historical formatter API;
     /// GoldenHarnessStableRenderContext uses this overload so source-backed

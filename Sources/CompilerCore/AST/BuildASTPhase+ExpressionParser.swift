@@ -10,9 +10,6 @@ extension BuildASTPhase {
             angle == 0 && paren == 0 && bracket == 0 && brace == 0
         }
 
-        var isAngleParenTopLevel: Bool {
-            angle == 0 && paren == 0
-        }
 
         /// Deliberately excludes `angle`, matching `hasUnclosedStatementDelimiter`
         /// (`BuildASTPhase+BodyParsing.swift`): an unmatched `<`/`>` from a

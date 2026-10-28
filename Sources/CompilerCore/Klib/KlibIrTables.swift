@@ -136,10 +136,6 @@ package struct KlibIrMultiTable {
     package var rowCount: Int { rowOffsets.count - 1 }
 
     /// Whole row payload including its embedded inner table header.
-    package func row(_ index: Int) throws -> ArraySlice<UInt8> {
-        let rowOffset = try checkedRowOffset(index)
-        return bytes[rowOffset ..< rowOffsets[index + 1]]
-    }
 
     package func columnCount(row: Int) throws -> Int {
         try innerOffsets(row: row).count - 1

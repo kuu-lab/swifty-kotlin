@@ -405,47 +405,6 @@ final class RuntimeSequenceCoroutine: @unchecked Sendable {
     }
 
 
-    func materializeAll() -> [Int] {
-        stateLock.lock()
-        if fullyMaterialized {
-            let elems = materializedElements
-            stateLock.unlock()
-            return elems
-        }
-        stateLock.unlock()
-
-        while true {
-            stateLock.lock()
-            if let value = consumePendingValueLocked() {
-                materializedElements.append(value)
-                stateLock.unlock()
-                continue
-            }
-            if finished {
-                fullyMaterialized = true
-                let elems = materializedElements
-                stateLock.unlock()
-                return elems
-            }
-            stateLock.unlock()
-
-            awaitProducerYield()
-
-            stateLock.lock()
-            if let value = consumePendingValueLocked() {
-                materializedElements.append(value)
-                stateLock.unlock()
-                continue
-            }
-            if finished {
-                fullyMaterialized = true
-                let elems = materializedElements
-                stateLock.unlock()
-                return elems
-            }
-            stateLock.unlock()
-        }
-    }
 
     private func requestProducerStep() {
         ensureStarted()

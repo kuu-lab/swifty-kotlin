@@ -256,25 +256,4 @@ func syntheticFunctionParameters(
     }
 }
 
-func syntheticFunctionParameters(
-    _ parameters: [(name: String, type: TypeID, hasDefault: Bool)]
-) -> [(name: String, type: TypeID, hasDefault: Bool, isVararg: Bool)] {
-    parameters.map { parameter in
-        (name: parameter.name, type: parameter.type, hasDefault: parameter.hasDefault, isVararg: false)
-    }
-}
 
-func syntheticFunctionParameters(
-    _ parameters: [(name: String, type: TypeID)],
-    hasDefaultValues: [Bool],
-    isVararg: [Bool]
-) -> [(name: String, type: TypeID, hasDefault: Bool, isVararg: Bool)] {
-    parameters.enumerated().map { index, parameter in
-        (
-            name: parameter.name,
-            type: parameter.type,
-            hasDefault: hasDefaultValues[index],
-            isVararg: isVararg[index]
-        )
-    }
-}
