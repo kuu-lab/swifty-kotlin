@@ -35,8 +35,6 @@ struct ReceiverPredicateEquivalenceTests {
         let sema: SemaModule
         let callLowerer: CallLowerer
         let callChecker: CallTypeChecker
-        private let typeCheckDriver: TypeCheckDriver
-        private let kirDriver: KIRLoweringDriver
         private let sourceManager: SourceManager
 
         init() {
@@ -66,8 +64,6 @@ struct ReceiverPredicateEquivalenceTests {
 
             self.interner = interner
             self.sema = sema
-            self.typeCheckDriver = typeCheckDriver
-            self.kirDriver = kirDriver
             self.callLowerer = CallLowerer(driver: kirDriver)
             self.callChecker = CallTypeChecker(driver: typeCheckDriver)
             self.sourceManager = SourceManager()

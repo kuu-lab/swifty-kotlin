@@ -20,7 +20,6 @@ struct IONumericAPIContractTests {
             let name: String
             let type: String
             let `default`: Bool
-            let defaultExpression: String?
         }
         let rowID: String
         let fqName: String
