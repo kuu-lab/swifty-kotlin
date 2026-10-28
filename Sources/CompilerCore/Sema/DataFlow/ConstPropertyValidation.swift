@@ -51,7 +51,7 @@ extension DataFlowSemaPhase {
         // References are evaluated after type checking has bound all
         // initializers to their symbols.
         if let initExpr = propertyDecl.initializer {
-            let constCollector = ConstantCollector()
+            let constCollector = ConstantCollector(floatingPointComparison: .constantEvaluation)
             if let constKind = constCollector.literalConstantExpr(initExpr, ast: ast, interner: interner) {
                 symbols.setConstValueExprKind(
                     constCollector.convertConstant(constKind, to: resolvedType, types: types),

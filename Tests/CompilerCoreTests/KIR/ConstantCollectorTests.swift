@@ -214,5 +214,32 @@ struct ConstantCollectorTests {
         let hasIntLiteral42 = mapping.values.contains { if case .intLiteral(42) = $0 { return true }; return false }
         #expect(!hasIntLiteral42, "Function call result should not be collected as constant")
     }
+    @Test func testNonConstFloatingEqualityFoldsWithIEEE754Semantics() throws {
+        let ctx = makeContextFromSource("""
+        package floatingEquality
+        val SIGNED_ZERO_EQ = 0.0 == -0.0
+        val SIGNED_ZERO_NE = 0.0 != -0.0
+        val FLOAT_SIGNED_ZERO_EQ = 0.0f == -0.0f
+        val NAN_EQ = (0.0 / 0.0) == (0.0 / 0.0)
+        val NAN_NE = (0.0 / 0.0) != (0.0 / 0.0)
+        const val CONST_SIGNED_ZERO_EQ = 0.0 == -0.0
+        """)
+        try runSema(ctx)
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let mapping = collector.collectPropertyConstantInitializers(
+            ast: ast, sema: sema, interner: ctx.interner, sourceByFileID: buildSourceByFileID(ctx: ctx)
+        )
+        let expected: [String: Bool] = [
+            "SIGNED_ZERO_EQ": true, "SIGNED_ZERO_NE": false, "FLOAT_SIGNED_ZERO_EQ": true,
+            "NAN_EQ": false, "NAN_NE": true,
+            // kotlinc's constant evaluator keeps boxed equality for `const val`.
+            "CONST_SIGNED_ZERO_EQ": false,
+        ]
+        for (name, value) in expected {
+            let symbol = try #require(sema.symbols.lookup(fqName: ["floatingEquality", name].map { ctx.interner.intern($0) }))
+            #expect(mapping[symbol] == .boolLiteral(value), "Incorrect folded value for \(name)")
+        }
+    }
 }
 #endif

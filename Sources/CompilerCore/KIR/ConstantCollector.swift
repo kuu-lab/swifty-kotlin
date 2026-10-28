@@ -1,8 +1,17 @@
 import Foundation
 
 struct ConstantCollector {
+    /// kotlinc's constant evaluator compares boxed floating-point values
+    /// (`NaN == NaN`, `-0.0 != 0.0`), but a folded non-`const` initializer must
+    /// keep the IEEE 754 result the same expression has at runtime.
+    enum FloatingPointComparison {
+        case ieee754
+        case constantEvaluation
+    }
+
     var resolvedConstant: ((ExprID) -> KIRExprKind?)? = nil
     var canFoldMemberCall: ((ExprID) -> Bool)? = nil
+    var floatingPointComparison: FloatingPointComparison = .ieee754
 
     func collectPropertyConstantInitializers(
         ast: ASTModule,
@@ -339,8 +348,10 @@ struct ConstantCollector {
 
     private func floatingPointComparison<T: BinaryFloatingPoint>(_ op: BinaryOp, _ lhs: T, _ rhs: T) -> KIRExprKind? {
         switch op {
-        case .equal: .boolLiteral(kotlinConstantFloatingPointEquals(lhs, rhs))
-        case .notEqual: .boolLiteral(!kotlinConstantFloatingPointEquals(lhs, rhs))
+        case .equal where floatingPointComparison == .constantEvaluation:
+            .boolLiteral(kotlinConstantFloatingPointEquals(lhs, rhs))
+        case .notEqual where floatingPointComparison == .constantEvaluation:
+            .boolLiteral(!kotlinConstantFloatingPointEquals(lhs, rhs))
         default: comparison(op, lhs, rhs)
         }
     }

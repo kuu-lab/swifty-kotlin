@@ -61,7 +61,8 @@ final class ConstPropertyEvaluator {
     func constantExpression(_ expression: ExprID) -> KIRExprKind? {
         let collector = ConstantCollector(
             resolvedConstant: { [self] expr in resolvedConstant(for: expr) },
-            canFoldMemberCall: { [self] expr in canFoldMemberCall(expr) }
+            canFoldMemberCall: { [self] expr in canFoldMemberCall(expr) },
+            floatingPointComparison: .constantEvaluation
         )
         if let value = collector.literalConstantExpr(expression, ast: ast, interner: interner) { return value }
         if sema.bindings.exprType(for: expression) == sema.types.stringType,
