@@ -1008,6 +1008,17 @@ struct TypeCheckHelpers {
                             return false
                         }
                         guard !symbol.fqName.starts(with: kotlinReflectPackage) else { return false }
+                        // A nested classifier is never reachable by its bare
+                        // short name: Kotlin scopes it to the declaring
+                        // classifier's body. Only package members (top-level
+                        // declarations) may satisfy this recovery path, so a
+                        // subtype's `Entry` cannot silently name
+                        // `Contract.Entry` (KUU-3637, KUU-3636).
+                        if let parent = sema.symbols.parentSymbol(for: candidate),
+                           sema.symbols.symbol(parent)?.kind != .package
+                        {
+                            return false
+                        }
                         // Local classes resolve only through their lexical scope,
                         // including self-references while collecting their headers.
                         if symbol.kind == .class, symbol.flags.contains(.synthetic),

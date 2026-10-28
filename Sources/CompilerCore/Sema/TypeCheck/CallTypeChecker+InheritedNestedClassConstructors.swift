@@ -14,6 +14,11 @@ extension CallTypeChecker {
         return lexicalOwners.contains(declaringOwner)
     }
 
+    /// Nested classifiers are inherited through the superclass chain only:
+    /// an interface's nested classifiers never enter the simple-name scope
+    /// of a subtype, even when the interface is reached through a superclass
+    /// (KUU-3637, KUU-3636). Only `.class` supertypes are expanded, so
+    /// interfaces are never visited at any depth.
     func inheritedNestedClassifiers(
         named name: InternedString,
         in ctx: TypeInferenceContext
@@ -21,8 +26,13 @@ extension CallTypeChecker {
         guard let enclosingClass = ctx.enclosingClassSymbol else { return [] }
 
         let sema = ctx.sema
+        let classSupertypes: (SymbolID) -> [SymbolID] = { owner in
+            sema.symbols.directSupertypes(for: owner).filter { supertype in
+                ctx.cachedSymbol(supertype)?.kind == .class
+            }
+        }
         let typeKinds: Set<SymbolKind> = [.class, .enumClass, .annotationClass, .object]
-        var pendingOwners = sema.symbols.directSupertypes(for: enclosingClass)
+        var pendingOwners = classSupertypes(enclosingClass)
         var visited: Set<SymbolID> = [enclosingClass]
 
         while !pendingOwners.isEmpty {
@@ -54,7 +64,7 @@ extension CallTypeChecker {
                 }
                 matches.append(contentsOf: accessibleMatches)
                 if accessibleMatches.isEmpty {
-                    nextOwners.append(contentsOf: sema.symbols.directSupertypes(for: ownerID))
+                    nextOwners.append(contentsOf: classSupertypes(ownerID))
                 }
             }
             if !matches.isEmpty {
