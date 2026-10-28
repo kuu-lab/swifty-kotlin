@@ -87,10 +87,36 @@ extension LocalDeclTypeChecker {
             return sema.types.errorType
         }
 
-        var (elementType, operatorResolved) = resolveIndexedGetElement(
+        var elementType: TypeID
+        var operatorResolved = false
+        switch resolveIndexedGetElement(
             id: id, receiverType: receiverType, getCandidates: getCandidates, getCall: getCall,
             ctx: ctx
-        )
+        ) {
+        case let .resolved(resolvedElementType):
+            elementType = resolvedElementType
+            operatorResolved = true
+        case .noCandidate:
+            // The raw read-modify-write below lowers to kk_array_get /
+            // kk_array_set, so it is only valid on a genuine array receiver.
+            // A non-array receiver with no `get` candidate at all must reject
+            // like `x[i]` would, instead of indexing foreign memory (KUU-3667).
+            guard isConcreteArrayLikeReceiverType(receiverType, sema: sema, interner: interner) else {
+                ctx.sema.diagnostics.error(
+                    "KSWIFTK-SEMA-0024",
+                    "Unresolved member function 'get'.",
+                    range: range
+                )
+                sema.bindings.bindExprType(id, type: sema.types.errorType)
+                return sema.types.errorType
+            }
+            elementType = driver.helpers.arrayElementType(
+                for: receiverType, sema: sema, interner: interner
+            ) ?? sema.types.anyType
+        case .failed:
+            sema.bindings.bindExprType(id, type: sema.types.errorType)
+            return sema.types.errorType
+        }
         if ctx.ast.arena.isNullAssertedCompoundAssignRead(id) {
             // `a[i]!! += v`: the `!!` applies to the element read by `get()`.
             elementType = sema.types.definitelyNonNullForm(of: elementType)
@@ -591,21 +617,29 @@ extension LocalDeclTypeChecker {
         )
     }
 
-    /// Returns (elementType, wasResolved).
+    /// Outcome of resolving `operator fun get` for the read half of
+    /// `a[i] op= v`.
+    private enum IndexedGetResolution {
+        /// A `get` operator was resolved and bound; payload is the element type.
+        case resolved(TypeID)
+        /// No `get` candidate exists at all. The caller may still use the
+        /// built-in array path, but only for a genuine array receiver.
+        case noCandidate
+        /// `get` candidates existed but none accepted the arguments. A
+        /// diagnostic was emitted; the caller must reject the expression.
+        case failed
+    }
+
     private func resolveIndexedGetElement(
         id: ExprID,
         receiverType: TypeID,
         getCandidates: [SymbolID],
         getCall: CallExpr,
         ctx: TypeInferenceContext
-    ) -> (TypeID, Bool) {
+    ) -> IndexedGetResolution {
         let sema = ctx.sema
-        let interner = ctx.interner
-        let fallback = driver.helpers.arrayElementType(
-            for: receiverType, sema: sema, interner: interner
-        ) ?? sema.types.anyType
 
-        guard !getCandidates.isEmpty else { return (fallback, false) }
+        guard !getCandidates.isEmpty else { return .noCandidate }
 
         let resolved = ctx.resolver.resolveCall(
             candidates: getCandidates,
@@ -614,7 +648,29 @@ extension LocalDeclTypeChecker {
         )
         guard let chosen = resolved.chosenCallee,
               let signature = sema.symbols.functionSignature(for: chosen)
-        else { return (fallback, false) }
+        else {
+            // KUU-3667: `get` candidates existed but failed argument checking
+            // (e.g. `map[1] += v` on `Map<String, V>` where the Int key does
+            // not satisfy `get(key: K)`). A genuine array receiver keeps the
+            // legacy raw read-modify-write fallback, whose Int-index/element
+            // constraints report the same diagnostics they always have. On a
+            // non-array receiver, emit the resolve diagnostic and reject; the
+            // built-in fallback would otherwise accept the expression and
+            // panic at runtime.
+            if isConcreteArrayLikeReceiverType(receiverType, sema: sema, interner: ctx.interner) {
+                return .noCandidate
+            }
+            if let diagnostic = resolved.diagnostic {
+                ctx.sema.diagnostics.emit(diagnostic)
+            } else {
+                ctx.sema.diagnostics.error(
+                    "KSWIFTK-SEMA-0002",
+                    "No viable overload found for operator 'get'.",
+                    range: getCall.range
+                )
+            }
+            return .failed
+        }
 
         sema.bindings.bindCall(id, binding: CallBinding(
             chosenCallee: chosen,
@@ -632,7 +688,7 @@ extension LocalDeclTypeChecker {
             substitution: resolved.substitutedTypeArguments,
             typeVarBySymbol: typeVarBySymbol
         )
-        return (elementType, true)
+        return .resolved(elementType)
     }
 
     private func compoundOpResultType(
