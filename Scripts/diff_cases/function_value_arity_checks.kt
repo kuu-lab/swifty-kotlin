@@ -4,11 +4,31 @@ fun returnedLambda(): (Int) -> Int = { it * 2 }
 fun returnedReference(): (Int, Int) -> Int = ::add
 fun String.appendNumber(n: Int): String = this + n
 
+class CallableReferenceTarget {
+    fun member(): String = "member"
+}
+
+fun CallableReferenceTarget.extension(): String = "extension"
+fun callableReferenceTopLevel(target: CallableReferenceTarget): String = "top"
+
 class Adder(val offset: Int) {
     fun add(n: Int): Int = offset + n
 }
 
 fun main() {
+    // KUU-3679: non-capturing String-returning references cross the Function1 callback ABI.
+    val callableReferenceTarget = CallableReferenceTarget()
+    val callableReferenceLambda: (CallableReferenceTarget) -> String = { it.member() }
+    val memberReference: (CallableReferenceTarget) -> String = CallableReferenceTarget::member
+    val extensionReference: (CallableReferenceTarget) -> String = CallableReferenceTarget::extension
+    val topLevelReference: (CallableReferenceTarget) -> String = ::callableReferenceTopLevel
+    println((callableReferenceLambda as Function1<CallableReferenceTarget, String>).invoke(callableReferenceTarget))
+    println((memberReference as Function1<CallableReferenceTarget, String>).invoke(callableReferenceTarget))
+    println((extensionReference as Function1<CallableReferenceTarget, String>).invoke(callableReferenceTarget))
+    println((topLevelReference as Function1<CallableReferenceTarget, String>).invoke(callableReferenceTarget))
+    val erasedMemberReference: Any = memberReference
+    println((erasedMemberReference as Function1<CallableReferenceTarget, String>).invoke(callableReferenceTarget))
+
     val l: (Int) -> Int = { it * 2 }
     println(l is Function1<*, *>)
     println(l is Function2<*, *, *>)
