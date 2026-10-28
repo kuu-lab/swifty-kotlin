@@ -300,18 +300,6 @@ extension DataFlowSemaPhase {
 
         // MARK: - Import-phase resolvers
 
-        /// Claims every entry at `fqName` by its raw index string — the
-        /// resolver path has no interned segments to render.
-        @discardableResult
-        func claimEntries(fqNameString: String) -> Bool {
-            buildMapsIfNeeded()
-            guard let indexes = pendingByFQName.removeValue(forKey: Substring(fqNameString)) else { return false }
-            for index in indexes {
-                claim(index: index)
-            }
-            return true
-        }
-
         /// Resolves a producer external link name, registering its entry if
         /// still pending. Getter links resolve through the property's
         /// synthesized accessor, which exists only once the property's own
