@@ -319,27 +319,7 @@ public final class TypeSystem {
             .primitive(.byte, .nonNull),
             .primitive(.short, .nonNull),
         ]
-        kindToID = [
-            .error: errorType,
-            .unit: unitType,
-            .nothing(.nonNull): nothingType,
-            .nothing(.nullable): nullableNothingType,
-            .any(.nonNull): anyType,
-            .any(.nullable): nullableAnyType,
-            .primitive(.boolean, .nonNull): booleanType,
-            .primitive(.char, .nonNull): charType,
-            .primitive(.int, .nonNull): intType,
-            .primitive(.long, .nonNull): longType,
-            .primitive(.float, .nonNull): floatType,
-            .primitive(.double, .nonNull): doubleType,
-            .stringStruct(.nonNull): stringType,
-            .primitive(.uint, .nonNull): uintType,
-            .primitive(.ulong, .nonNull): ulongType,
-            .primitive(.ubyte, .nonNull): ubyteType,
-            .primitive(.ushort, .nonNull): ushortType,
-            .primitive(.byte, .nonNull): byteType,
-            .primitive(.short, .nonNull): shortType,
-        ]
+        kindToID = Dictionary(uniqueKeysWithValues: idToKind.enumerated().map { ($1, TypeID(rawValue: Int32($0))) })
     }
 
     /// Returns `true` when the type is definitely non-nullable, either because
