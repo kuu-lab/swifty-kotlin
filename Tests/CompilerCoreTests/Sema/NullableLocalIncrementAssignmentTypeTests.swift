@@ -5,6 +5,23 @@ import Testing
 @Suite
 struct NullableLocalIncrementAssignmentTypeTests {
     @Test
+    func nullablePrimitiveIncExtensionCanCallPrimitiveIncAfterNullCheck() throws {
+        let ctx = makeContextFromSource("""
+        operator fun Int?.inc(): Int {
+            if (this != null) return this.inc()
+            throw NullPointerException()
+        }
+        fun incrementNullable() {
+            var value: Int? = 10
+            value++
+        }
+        """)
+        try runSema(ctx)
+
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+    }
+
+    @Test
     func nullableIncAndDecResultsFitDeclaredNullableLocalType() throws {
         let ctx = makeContextFromSource("""
         class C

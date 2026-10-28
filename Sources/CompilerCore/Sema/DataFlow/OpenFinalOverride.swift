@@ -85,6 +85,19 @@ extension DataFlowSemaPhase {
             memberFunctions = classDecl.memberFunctions
             nestedDeclarations = classDecl.nestedClasses + classDecl.nestedObjects
                 + (classDecl.companionObject.map { [$0] } ?? [])
+            if let ownerSymbol = ctx.bindings.declSymbols[declID],
+               ctx.symbols.symbol(ownerSymbol)?.kind == .enumClass
+            {
+                // Enum-entry body properties can infer their type from an
+                // initializer or custom getter. Their header type is only a
+                // placeholder, so check abstract completeness after body
+                // type checking has published the inferred property types.
+                validateEnumEntryAbstractCompleteness(
+                    classDecl,
+                    ownerSymbol: ownerSymbol,
+                    ctx: ctx
+                )
+            }
             for entry in classDecl.enumEntries {
                 for memberDeclID in entry.memberFunctions {
                     validateInferredOverrideReturnType(of: memberDeclID, ctx: ctx)
@@ -220,15 +233,6 @@ extension DataFlowSemaPhase {
             symbol: symbol,
             ctx: ctx
         )
-
-        if case let .classDecl(classDecl) = decl,
-           ctx.symbols.symbol(symbol)?.kind == .enumClass {
-            validateEnumEntryAbstractCompleteness(
-                classDecl,
-                ownerSymbol: symbol,
-                ctx: ctx
-            )
-        }
 
         if case let .interfaceDecl(interfaceDecl) = decl {
             validateInterfaceProtectedMembers(interfaceDecl, ctx: ctx)

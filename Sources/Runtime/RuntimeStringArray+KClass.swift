@@ -30,7 +30,17 @@ public func __kk_type_token_simple_name(_ typeToken: Int, _ nameHint: Int) -> In
         }
         return nameHint
     }
-    let name = switch base {
+    let name = runtimeBuiltinTokenSimpleName(base) ?? "Unknown"
+    let utf8 = Array(name.utf8)
+    return utf8.withUnsafeBufferPointer { buf in
+        Int(bitPattern: kk_string_from_utf8(buf.baseAddress!, Int32(buf.count)))
+    }
+}
+
+/// Simple names of the builtin type-token bases; their qualified names are
+/// `kotlin.` + the simple name.
+private func runtimeBuiltinTokenSimpleName(_ base: Int64) -> String? {
+    switch base {
     case RuntimeTypeTokenEncoding.anyBase:
         "Any"
     case RuntimeTypeTokenEncoding.stringBase:
@@ -64,11 +74,7 @@ public func __kk_type_token_simple_name(_ typeToken: Int, _ nameHint: Int) -> In
     case RuntimeTypeTokenEncoding.unitBase:
         "Unit"
     default:
-        "Unknown"
-    }
-    let utf8 = Array(name.utf8)
-    return utf8.withUnsafeBufferPointer { buf in
-        Int(bitPattern: kk_string_from_utf8(buf.baseAddress!, Int32(buf.count)))
+        nil
     }
 }
 
@@ -86,28 +92,12 @@ public func __kk_type_token_qualified_name(_ typeToken: Int, _ nameHint: Int) ->
     let base = token & RuntimeTypeTokenEncoding.baseMask
     let payload = (token >> RuntimeTypeTokenEncoding.payloadShift) & RuntimeTypeTokenEncoding.payloadMask
     let (functionArity, isSuspendFunction) = RuntimeTypeTokenEncoding.functionPayloadParts(payload)
-    let qualifiedName: String? = switch base {
-    case RuntimeTypeTokenEncoding.functionBase:
+    let qualifiedName: String? = if base == RuntimeTypeTokenEncoding.functionBase {
         isSuspendFunction
             ? "kotlin.coroutines.intrinsics.SuspendFunction\(functionArity)"
             : "kotlin.Function\(functionArity)"
-    case RuntimeTypeTokenEncoding.anyBase:     "kotlin.Any"
-    case RuntimeTypeTokenEncoding.stringBase:  "kotlin.String"
-    case RuntimeTypeTokenEncoding.intBase:     "kotlin.Int"
-    case RuntimeTypeTokenEncoding.uintBase:    "kotlin.UInt"
-    case RuntimeTypeTokenEncoding.ulongBase:   "kotlin.ULong"
-    case RuntimeTypeTokenEncoding.ubyteBase:   "kotlin.UByte"
-    case RuntimeTypeTokenEncoding.ushortBase:  "kotlin.UShort"
-    case RuntimeTypeTokenEncoding.byteBase:     "kotlin.Byte"
-    case RuntimeTypeTokenEncoding.shortBase:    "kotlin.Short"
-    case RuntimeTypeTokenEncoding.booleanBase: "kotlin.Boolean"
-    case RuntimeTypeTokenEncoding.longBase:    "kotlin.Long"
-    case RuntimeTypeTokenEncoding.doubleBase:  "kotlin.Double"
-    case RuntimeTypeTokenEncoding.floatBase:   "kotlin.Float"
-    case RuntimeTypeTokenEncoding.charBase:    "kotlin.Char"
-    case RuntimeTypeTokenEncoding.nullBase:    "kotlin.Nothing"
-    case RuntimeTypeTokenEncoding.unitBase:    "kotlin.Unit"
-    default: nil
+    } else {
+        runtimeBuiltinTokenSimpleName(base).map { "kotlin." + $0 }
     }
     if let qualifiedName {
         let utf8 = Array(qualifiedName.utf8)
