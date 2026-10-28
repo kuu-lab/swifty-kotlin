@@ -701,7 +701,7 @@ struct ConstantCollector {
             return integerFloorDiv(left, right, width: 32).map { .intLiteral($0) }
         case let (.longLiteral(left), .longLiteral(right)):
             return integerFloorDiv(left, right).map { .longLiteral($0) }
-        case let (.longLiteral(left), .intLiteral(right)):
+        case let (.longLiteral(left), .intLiteral(right)), let (.intLiteral(left), .longLiteral(right)):
             return integerFloorDiv(left, right).map { .longLiteral($0) }
         default:
             return nil
@@ -712,10 +712,11 @@ struct ConstantCollector {
         switch (lhs, rhs) {
         case let (.intLiteral(left), .intLiteral(right)):
             return integerFloorMod(left, right, width: 32).map { .intLiteral($0) }
-        case let (.longLiteral(left), .longLiteral(right)):
+        case let (.longLiteral(left), .longLiteral(right)), let (.intLiteral(left), .longLiteral(right)):
             return integerFloorMod(left, right).map { .longLiteral($0) }
+        // `Long.mod(Int)` returns Int: the result is bounded by the Int divisor.
         case let (.longLiteral(left), .intLiteral(right)):
-            return integerFloorMod(left, right).map { .longLiteral($0) }
+            return integerFloorMod(left, right).map { .intLiteral($0) }
         case let (.floatLiteral(left), .floatLiteral(right)):
             return floatingFloorMod(left, right).map { .floatLiteral(Double($0)) }
         case let (.doubleLiteral(left), .doubleLiteral(right)):
