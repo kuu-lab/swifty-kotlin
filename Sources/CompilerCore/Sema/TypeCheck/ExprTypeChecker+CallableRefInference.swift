@@ -336,6 +336,31 @@ extension ExprTypeChecker {
         // may degrade to Any for classes without companion objects).
         let effectiveReceiverType = unboundClassType ?? receiverType
 
+        // BUG-164: callable references must also support SAM-conversion to a
+        // functional interface expected type, the same way lambda literals do.
+        // Computed before candidate collection: the extension-vs-companion
+        // preference below already needs the expected function shape.
+        let expectedFunctionType: TypeID?
+        let expectedSamInterfaceType: TypeID?
+        if let expectedType {
+            if case .functionType = sema.types.kind(of: expectedType) {
+                expectedFunctionType = expectedType
+                expectedSamInterfaceType = nil
+            } else if let functionType = sema.types.nominalFunctionType(for: expectedType) {
+                expectedFunctionType = sema.types.make(.functionType(functionType))
+                expectedSamInterfaceType = nil
+            } else if let samFT = driver.helpers.samCallableReferenceFunctionType(for: expectedType, sema: sema) {
+                expectedFunctionType = sema.types.make(.functionType(samFT))
+                expectedSamInterfaceType = expectedType
+            } else {
+                expectedFunctionType = nil
+                expectedSamInterfaceType = nil
+            }
+        } else {
+            expectedFunctionType = nil
+            expectedSamInterfaceType = nil
+        }
+
         var candidates: [SymbolID] = []
         // Resolve receiver members before the bare-property shortcut below:
         // a package `val flush` must not hide `Writer.flush` for `::flush` in
@@ -703,6 +728,54 @@ extension ExprTypeChecker {
                 }
                 return property
             }()
+            // A same-named non-extension function in a nearer scope must
+            // not hide a legal receiver extension. Filter for applicable
+            // extensions during scope lookup so only matching candidates
+            // participate in shadowing. Keep member candidates above as
+            // the higher-priority tier.
+            func isApplicableExtensionReferenceCandidate(_ symbolID: SymbolID) -> Bool {
+                guard let symbol = ctx.cachedSymbol(symbolID),
+                      symbol.kind == .function,
+                      !(symbol.flags.contains(.expectDeclaration)
+                          && sema.symbols.actualSymbol(for: symbolID) != nil),
+                      sema.symbols.memberExtensionOwnerSymbol(for: symbolID) == nil,
+                      driver.helpers.declaresExtensionReceiver(
+                          symbolID,
+                          sema: sema,
+                          interner: interner
+                      ),
+                      let signature = sema.symbols.functionSignature(for: symbolID),
+                      let declaredReceiver = signature.receiverType
+                else {
+                    return false
+                }
+                return driver.callChecker.extensionSyntheticFallbackReceiverMatches(
+                    callSiteReceiver: nonNullReceiver,
+                    declaredReceiver: declaredReceiver,
+                    sema: sema
+                )
+            }
+            // Local functions can be present in value-position locals even
+            // when this callable-reference scope lookup cannot see them.
+            // Match direct explicit-receiver calls: applicable local
+            // extensions form the nearest candidate tier and shadow
+            // package extensions with the same name.
+            func applicableExtensionReferenceCandidates() -> [SymbolID] {
+                let localExtensionCandidates = ctx.scope.lookup(member, matching: { symbolID in
+                    ctx.cachedSymbol(symbolID)?.flags.contains(.localFunction) == true
+                        && isApplicableExtensionReferenceCandidate(symbolID)
+                })
+                if !localExtensionCandidates.isEmpty {
+                    return localExtensionCandidates
+                }
+                if let local = locals[member],
+                   ctx.cachedSymbol(local.symbol)?.flags.contains(.localFunction) == true,
+                   isApplicableExtensionReferenceCandidate(local.symbol)
+                {
+                    return [local.symbol]
+                }
+                return ctx.scope.lookup(member, matching: isApplicableExtensionReferenceCandidate)
+            }
             if !memberCandidates.isEmpty {
                 candidates = memberCandidates
                 hasExplicitMemberCandidates = true
@@ -725,17 +798,60 @@ extension ExprTypeChecker {
                     )
                 }
             } else if let companionCallableReference {
-                // A class-name companion reference is bound to the singleton
-                // receiver and therefore has no leading class input.
-                candidates = companionCallableReference.candidates
-                companionCallableReferenceReceiverType = companionCallableReference.receiverType
-                if let property = companionMemberProperty {
-                    propertyReferenceCandidate = (
-                        property.symbol,
-                        nil,
-                        false,
-                        property.type
-                    )
+                // KUU-3674 (Kotlin 1.4 rule, exercised by JetBrains
+                // referenceToCompanionMember.kt): `Type::name` prefers an
+                // applicable package-level extension over a companion-object
+                // member. Companion members reachable through the class name
+                // rank *below* extensions — only a member declared on the
+                // class itself would outrank them (handled above). The bound
+                // companion shape still wins when an expected function type
+                // rules every extension out: `() -> String` selects the bound
+                // companion `foo`, while `(B) -> String` selects `fun B.foo()`.
+                let extensionCandidates = applicableExtensionReferenceCandidates()
+                let fittingExtensions: [SymbolID]
+                if let expectedFunctionType {
+                    let postponedReturnParameter = driver.helpers
+                        .postponedCallableReferenceReturnTypeParameter(
+                            expectedFunctionType,
+                            inferenceParameters: ctx.callableReferenceInferenceParameters,
+                            sema: sema
+                        )
+                    fittingExtensions = extensionCandidates.filter { candidate in
+                        guard let signature = sema.symbols.functionSignature(for: candidate)
+                        else {
+                            return false
+                        }
+                        return driver.helpers.contextualCallableReferenceBinding(
+                            for: signature,
+                            targetSymbol: candidate,
+                            bindReceiver: false,
+                            unboundReceiverType: unboundClassType,
+                            expectedFunctionType: expectedFunctionType,
+                            postponedReturnTypeParameter: postponedReturnParameter,
+                            interner: interner,
+                            availableContextReceiverTypes: availableContextReceiverTypes,
+                            sema: sema
+                        ) != nil
+                    }
+                } else {
+                    fittingExtensions = extensionCandidates
+                }
+                if !fittingExtensions.isEmpty {
+                    candidates = fittingExtensions
+                } else {
+                    // A class-name companion reference is bound to the
+                    // singleton receiver and therefore has no leading class
+                    // input.
+                    candidates = companionCallableReference.candidates
+                    companionCallableReferenceReceiverType = companionCallableReference.receiverType
+                    if let property = companionMemberProperty {
+                        propertyReferenceCandidate = (
+                            property.symbol,
+                            nil,
+                            false,
+                            property.type
+                        )
+                    }
                 }
             } else {
                 // Property references use the same inheritance-aware lookup as
@@ -925,52 +1041,10 @@ extension ExprTypeChecker {
                     }
 
                 }
-                // A same-named non-extension function in a nearer scope must
-                // not hide a legal receiver extension. Filter for applicable
-                // extensions during scope lookup so only matching candidates
-                // participate in shadowing. Keep member candidates above as
-                // the higher-priority tier.
-                func isApplicableExtensionReferenceCandidate(_ symbolID: SymbolID) -> Bool {
-                    guard let symbol = ctx.cachedSymbol(symbolID),
-                          symbol.kind == .function,
-                          !(symbol.flags.contains(.expectDeclaration)
-                              && sema.symbols.actualSymbol(for: symbolID) != nil),
-                          sema.symbols.memberExtensionOwnerSymbol(for: symbolID) == nil,
-                          driver.helpers.declaresExtensionReceiver(
-                              symbolID,
-                              sema: sema,
-                              interner: interner
-                          ),
-                          let signature = sema.symbols.functionSignature(for: symbolID),
-                          let declaredReceiver = signature.receiverType
-                    else {
-                        return false
-                    }
-                    return driver.callChecker.extensionSyntheticFallbackReceiverMatches(
-                        callSiteReceiver: nonNullReceiver,
-                        declaredReceiver: declaredReceiver,
-                        sema: sema
-                    )
-                }
-                // Local functions can be present in value-position locals even
-                // when this callable-reference scope lookup cannot see them.
-                // Match direct explicit-receiver calls: applicable local
-                // extensions form the nearest candidate tier and shadow
-                // package extensions with the same name.
-                let localExtensionCandidates = ctx.scope.lookup(member, matching: { symbolID in
-                    ctx.cachedSymbol(symbolID)?.flags.contains(.localFunction) == true
-                        && isApplicableExtensionReferenceCandidate(symbolID)
-                })
-                if !localExtensionCandidates.isEmpty {
-                    candidates = localExtensionCandidates
-                } else if let local = locals[member],
-                          ctx.cachedSymbol(local.symbol)?.flags.contains(.localFunction) == true,
-                          isApplicableExtensionReferenceCandidate(local.symbol)
-                {
-                    candidates = [local.symbol]
-                } else {
-                    candidates = ctx.scope.lookup(member, matching: isApplicableExtensionReferenceCandidate)
-                }
+                // Members and companion members above keep their higher
+                // priority tiers; this receiver-extension lookup is the
+                // last fallback before constructor references.
+                candidates = applicableExtensionReferenceCandidates()
                 // `Outer::Nested` where `Nested` is a nested (non-inner) class
                 // is a constructor reference `(Args...) -> Outer.Nested`. It
                 // has no receiver parameter, so it is folded into the bound
@@ -1378,28 +1452,6 @@ extension ExprTypeChecker {
             unboundCallableReceiverType = nil
         }
 
-        // BUG-164: callable references must also support SAM-conversion to a
-        // functional interface expected type, the same way lambda literals do.
-        let expectedFunctionType: TypeID?
-        let expectedSamInterfaceType: TypeID?
-        if let expectedType {
-            if case .functionType = sema.types.kind(of: expectedType) {
-                expectedFunctionType = expectedType
-                expectedSamInterfaceType = nil
-            } else if let functionType = sema.types.nominalFunctionType(for: expectedType) {
-                expectedFunctionType = sema.types.make(.functionType(functionType))
-                expectedSamInterfaceType = nil
-            } else if let samFT = driver.helpers.samCallableReferenceFunctionType(for: expectedType, sema: sema) {
-                expectedFunctionType = sema.types.make(.functionType(samFT))
-                expectedSamInterfaceType = expectedType
-            } else {
-                expectedFunctionType = nil
-                expectedSamInterfaceType = nil
-            }
-        } else {
-            expectedFunctionType = nil
-            expectedSamInterfaceType = nil
-        }
         let expectedCallableReferenceReturnType = expectedType.flatMap {
             driver.helpers.reflectiveCallableReferenceReturnType(from: $0, sema: sema)
         }
