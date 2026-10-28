@@ -206,7 +206,6 @@ extension DataFlowSemaPhase {
         // Kotlin source (StateFlow.kt), so no synthetic constructor or member
         // stubs are registered here.
         let channelMembers = coroutineMemberRows(of: channelSymbol, type: channelType, symbols: symbols, interner: interner)
-        channelMembers.fn("send", "kk_channel_send", [(name: "value", type: types.anyType)], ret: types.unitType)
         let channelElementType = types.nominalTypeParameterSymbols(for: channelSymbol).first.map {
             types.make(.typeParam(TypeParamType(symbol: $0, nullability: .nonNull)))
         } ?? types.anyType

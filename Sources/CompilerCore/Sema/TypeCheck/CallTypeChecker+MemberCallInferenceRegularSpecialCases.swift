@@ -188,16 +188,12 @@ extension CallTypeChecker {
         let isChannelReceiver = receiverClassifier.isChannelReceiverType(lookupReceiverType)
         if !isClassNameReceiver, isChannelReceiver {
             let memberName = interner.resolve(calleeName)
-            // KSP-678: close / isClosedForReceive / isClosedForSend are resolved
-            // through bundled Kotlin source (Channels.kt) via normal candidate
-            // resolution below; only the suspension core send / receive are
-            // special-cased here.
+            // KSP-678: send is resolved through the bundled SendChannel member
+            // so its element type, variance, and suspend contract use ordinary
+            // candidate resolution. close / isClosedForReceive /
+            // isClosedForSend also resolve through bundled Kotlin source;
+            // only receive needs a direct result-type binding here.
             switch (memberName, args.count) {
-            case ("send", 1):
-                let resultType = sema.types.unitType
-                let finalType = safeCall ? sema.types.makeNullable(resultType) : resultType
-                sema.bindings.bindExprType(id, type: finalType)
-                return finalType
             // KUU-1453: `ch.receive` without parentheses is property-access
             // syntax on a function — fall through so the invocation-syntax
             // check rejects it like any other bound function.
