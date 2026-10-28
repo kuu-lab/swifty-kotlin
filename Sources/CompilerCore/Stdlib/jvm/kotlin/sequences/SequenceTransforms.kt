@@ -489,3 +489,15 @@ public fun <T : Any> Sequence<T?>.requireNoNulls(): Sequence<T> {
         }
     }
 }
+
+public operator fun <T> Sequence<T>.plus(element: T): Sequence<T> =
+    sequenceOf(this, sequenceOf(element)).flatten()
+
+public operator fun <T> Sequence<T>.plus(elements: Array<out T>): Sequence<T> =
+    sequenceOf(this, elements.asSequence()).flatten()
+
+public operator fun <T> Sequence<T>.plus(elements: Iterable<T>): Sequence<T> =
+    sequenceOf(this, elements.asSequence()).flatten()
+
+public operator fun <T> Sequence<T>.plus(elements: Sequence<T>): Sequence<T> =
+    sequenceOf(this, elements).flatten()
