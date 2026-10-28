@@ -1,4 +1,3 @@
-import RuntimeABI
 
 private let runtimeJavaClassTypeID = runtimeStableNominalTypeID(fqName: "java.lang.Class")
 
