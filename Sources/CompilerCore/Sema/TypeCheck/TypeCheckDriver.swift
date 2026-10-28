@@ -2,6 +2,8 @@ struct LocalBindings: ExpressibleByDictionaryLiteral, Sequence {
     typealias Value = (type: TypeID, symbol: SymbolID, isMutable: Bool, isInitialized: Bool)
     private var bindings: [InternedString: Value]
     var memberFlow: [DataFlowReference: VariableFlowState] = [:]
+    var variableFacts: [SymbolID: DataFlowValueFacts] = [:]
+    var invalidatedVariableFacts: Set<SymbolID> = []
 
     init(dictionaryLiteral elements: (InternedString, Value)...) {
         bindings = Dictionary(uniqueKeysWithValues: elements)
@@ -27,6 +29,28 @@ struct LocalBindings: ExpressibleByDictionaryLiteral, Sequence {
 
     mutating func invalidateMembers(root: SymbolID) {
         memberFlow = memberFlow.filter { $0.key.root != root }
+        variableFacts.removeValue(forKey: root)
+        invalidatedVariableFacts.insert(root)
+    }
+
+    mutating func joinVariableFacts(from branches: [LocalBindings]) {
+        guard let first = branches.first else { return }
+        invalidatedVariableFacts = branches.reduce(into: Set<SymbolID>()) {
+            $0.formUnion($1.invalidatedVariableFacts)
+        }
+        var joined = first.variableFacts
+        for branch in branches.dropFirst() {
+            for symbol in Array(joined.keys) {
+                guard let other = branch.variableFacts[symbol],
+                      let current = joined[symbol]
+                else {
+                    joined.removeValue(forKey: symbol)
+                    continue
+                }
+                joined[symbol] = current.joining(other)
+            }
+        }
+        variableFacts = joined.filter { !$0.value.isEmpty }
     }
 }
 
@@ -40,6 +64,8 @@ final class TypeCheckDriver {
     var isCheckingAnnotationConstruction = false
     /// Lexical boundaries retained until overload and lambda inference finish.
     var callSuspensionContexts: [ExprID: SuspensionContext] = [:]
+    /// Compiler-special calls that suspend without an ordinary call binding.
+    var specialSuspendingCallNames: [ExprID: String] = [:]
     /// Reads of the restricted `kotlin.coroutines.coroutineContext` property
     /// need the same post-inference suspension-context validation as calls.
     var coroutineContextPropertySuspensionContexts: [ExprID: SuspensionContext] = [:]
@@ -540,7 +566,11 @@ final class TypeCheckDriver {
                     }
                     switch decl {
                     case let .propertyDecl(property):
-                        guard declChecker.canSafelyPrecheckInferredProperty(property, in: inferCtx) else {
+                        guard declChecker.canSafelyPrecheckInferredProperty(
+                            property,
+                            symbol: symbol,
+                            in: inferCtx
+                        ) else {
                             continue
                         }
                         declChecker.typeCheckBoundPropertyDecl(

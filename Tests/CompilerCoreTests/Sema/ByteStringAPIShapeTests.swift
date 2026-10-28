@@ -3,6 +3,7 @@
 import Foundation
 import TestStdlibCache
 import Testing
+@testable import CompilerTestSupport
 
 /// Pinned API declarations are checked independently of their execution-test results.
 /// KLIB property/getter and PublishedApi duplicates are views of one semantic symbol.

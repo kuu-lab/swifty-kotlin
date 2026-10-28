@@ -173,11 +173,16 @@ extension KIRLoweringDriver {
                 shared: shared,
                 body: &body
             )
-            emitClassDelegationInitializers(
-                ownerSymbol: ownerSymbol,
-                receiverID: ctx.activeImplicitReceiverExprID()!,
-                shared: shared, body: &body
-            )
+            // Enum entries are ordinal-backed and initialized inside
+            // $enumEnsureInit$; their delegate handles are stored there by
+            // emitEnumEntryConstructorInitialization instead.
+            if sema.symbols.symbol(ownerSymbol)?.kind != .enumClass {
+                emitClassDelegationInitializers(
+                    ownerSymbol: ownerSymbol,
+                    receiverID: ctx.activeImplicitReceiverExprID()!,
+                    shared: shared, body: &body
+                )
+            }
             emitClassBodyInitializers(
                 classDecl: classDecl, shared: shared, body: &body
             )
@@ -490,16 +495,20 @@ extension KIRLoweringDriver {
         let sema = shared.sema
         let arena = shared.arena
 
+        // Only primary-constructor properties represent constructor storage.
+        // A member extension may reuse their name but is not initialized here.
         let propertySymbolsByName: [InternedString: SymbolID] = Dictionary(
-            uniqueKeysWithValues: classDecl.memberProperties.compactMap { declID in
+            classDecl.memberProperties.compactMap { declID -> (InternedString, SymbolID)? in
                 guard let symbol = sema.bindings.declSymbols[declID],
                       let decl = shared.ast.arena.decl(declID),
-                      case let .propertyDecl(propertyDecl) = decl
+                      case let .propertyDecl(propertyDecl) = decl,
+                      propertyDecl.isSynthesizedPrimaryConstructorProperty
                 else {
                     return nil
                 }
                 return (propertyDecl.name, symbol)
-            }
+            },
+            uniquingKeysWith: { first, _ in first }
         )
 
         guard let receiverID = ctx.activeImplicitReceiverExprID(),
@@ -616,6 +625,17 @@ extension KIRLoweringDriver {
             }
             let delegateValue = lowerExpr(delegateExpr, shared: shared, emit: &body)
 
+            // Enum values are ordinal-backed: the delegate handle lives in a
+            // per-entry global slot populated by $enumEnsureInit$, matching
+            // how ordinary enum stored properties are kept.
+            if let slotSymbol = ctx.enumEntryStorageSlots[fieldSymbol] {
+                let slotType = sema.symbols.propertyType(for: fieldSymbol) ?? sema.types.anyType
+                let slotRef = arena.appendExpr(.symbolRef(slotSymbol), type: slotType)
+                body.append(.constValue(result: slotRef, value: .symbolRef(slotSymbol)))
+                body.append(.copy(from: delegateValue, to: slotRef))
+                continue
+            }
+
             guard let fieldOffset = shared.sema.symbols.nominalLayout(for: ownerSymbol)?.fieldOffsets[fieldSymbol] else {
                 continue
             }
@@ -705,11 +725,11 @@ extension KIRLoweringDriver {
         if let explicitField = prop.explicitBackingField {
             let targetSymbol = sema.symbols.backingFieldSymbol(for: propSymbol) ?? propSymbol
             let backingFieldType = sema.symbols.propertyType(for: targetSymbol) ?? sema.types.anyType
-            if !isDefaultFieldInitializer(
-                explicitField.initializer, fieldType: backingFieldType, shared: shared
-            ) {
+            if let initializer = explicitField.initializer,
+               !isDefaultFieldInitializer(initializer, fieldType: backingFieldType, shared: shared)
+            {
                 let initValue = lowerPropertyInitializerValue(
-                    explicitField.initializer,
+                    initializer,
                     shared: shared, emit: &body
                 )
                 emitFieldStore(
@@ -1102,16 +1122,10 @@ extension KIRLoweringDriver {
             type: sema.symbols.functionSignature(for: provideDelegateSymbol)?.returnType
                 ?? sema.types.anyType
         )
-        let provideDelegateArguments = memberLowerer.prependingMemberExtensionDispatchReceiver(
-            to: [delegateValue, thisRefExprID, kPropertyExprID],
-            for: provideDelegateSymbol,
-            sema: sema
-        )
-        body.append(.call(
+        body.append(memberLowerer.dispatchedDelegateMemberCall(
             symbol: provideDelegateSymbol, callee: provideDelegateName,
-            arguments: provideDelegateArguments,
-            result: provideDelegateResult,
-            canThrow: false
+            receiver: delegateValue, extraArguments: [thisRefExprID, kPropertyExprID],
+            result: provideDelegateResult, sema: sema, interner: shared.interner
         ))
         return provideDelegateResult
     }
@@ -1391,7 +1405,7 @@ extension KIRLoweringDriver {
                 sourceRange: classDecl.range
             ))
         )
-        ctx.registerCompanionInitializer(symbol: initializerSymbol, name: initializerName)
+        ctx.registerReflectionInitializer(symbol: initializerSymbol, name: initializerName)
         return [declID] + ctx.drainGeneratedCallableDecls()
     }
 

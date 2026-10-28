@@ -263,10 +263,49 @@ extension DataFlowSemaPhase {
             }
         }
 
-        return optionalTypesEquivalent(lhs.receiverType, rhs.receiverType)
-            && equivalentTypes(lhs.contextReceiverTypes, rhs.contextReceiverTypes)
-            && equivalentTypes(lhs.contextParameterTypes, rhs.contextParameterTypes)
-            && equivalentTypes(lhs.parameterTypes, rhs.parameterTypes)
+        guard optionalTypesEquivalent(lhs.receiverType, rhs.receiverType),
+              equivalentTypes(lhs.contextReceiverTypes, rhs.contextReceiverTypes),
+              equivalentTypes(lhs.contextParameterTypes, rhs.contextParameterTypes),
+              equivalentTypes(lhs.parameterTypes, rhs.parameterTypes)
+        else { return false }
+
+        // A directly used type parameter erases to its first upper bound. Keep
+        // overloads such as <T : CharSequence> f(T) and <T : Number> f(T)
+        // distinct, while retaining conflicts for equal or reordered bounds.
+        func hasDifferentDirectTypeParameterBounds(_ left: TypeID, _ right: TypeID) -> Bool {
+            guard case let .typeParam(leftParameter) = types.kind(of: left),
+                  case let .typeParam(rightParameter) = types.kind(of: right),
+                  let leftIndex = lhsTypeParameterIndices[leftParameter.symbol],
+                  let rightIndex = rhsTypeParameterIndices[rightParameter.symbol],
+                  leftIndex == rightIndex
+            else { return false }
+            let leftBounds = lhs.typeParameterUpperBoundsList.indices.contains(leftIndex)
+                ? lhs.typeParameterUpperBoundsList[leftIndex] : []
+            let rightBounds = rhs.typeParameterUpperBoundsList.indices.contains(rightIndex)
+                ? rhs.typeParameterUpperBoundsList[rightIndex] : []
+            if leftBounds.count == rightBounds.count,
+               leftBounds.allSatisfy({ leftBound in rightBounds.contains { equivalent(leftBound, $0) } }) {
+                return false
+            }
+            let leftFirst = leftBounds.first ?? types.nullableAnyType
+            let rightFirst = rightBounds.first ?? types.nullableAnyType
+            switch (types.kind(of: leftFirst), types.kind(of: rightFirst)) {
+            case let (.classType(leftClass), .classType(rightClass)):
+                return leftClass.classSymbol != rightClass.classSymbol
+            case (.classType, .any), (.any, .classType):
+                return true
+            default:
+                return false
+            }
+        }
+
+        let lhsDirectParameters = (lhs.receiverType.map { [$0] } ?? [])
+            + lhs.contextReceiverTypes + lhs.contextParameterTypes + lhs.parameterTypes
+        let rhsDirectParameters = (rhs.receiverType.map { [$0] } ?? [])
+            + rhs.contextReceiverTypes + rhs.contextParameterTypes + rhs.parameterTypes
+        return !zip(lhsDirectParameters, rhsDirectParameters).contains { pair in
+            hasDifferentDirectTypeParameterBounds(pair.0, pair.1)
+        }
     }
 
     private func normalizedVarargFlags(_ flags: [Bool], count: Int) -> [Bool] {

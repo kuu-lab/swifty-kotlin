@@ -2,6 +2,7 @@
 @testable import CompilerCore
 import Foundation
 import Testing
+@testable import CompilerTestSupport
 
 /// KUU-3019: a function body's type-check result, once stored, must be
 /// restorable into a different compilation of the same source with different

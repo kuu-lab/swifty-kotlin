@@ -506,11 +506,13 @@ extension CallLowerer {
 
         // Unlike the receiver-lambda sugar just below, `receiverExpr` here IS
         // the callable value itself, not a separate dispatch receiver.
+        // A smart-cast intersection (`f as KFunction<*>`) exposes the same
+        // `invoke` sugar through its unique structural conjunct (KUU-3652).
         if interner.resolve(calleeName) == "invoke",
            sema.bindings.callableValueCalls[exprID] != nil,
-           case .functionType = sema.types.kind(
-               of: sema.types.makeNonNullable(sema.bindings.exprType(for: receiverExpr) ?? sema.types.anyType)
-           )
+           sema.types.uniqueStructuralFunctionType(
+               for: sema.types.makeNonNullable(sema.bindings.exprType(for: receiverExpr) ?? sema.types.anyType)
+           ) != nil
         {
             let loweredReceiverID = driver.lowerExpr(receiverExpr, shared: shared, emit: &instructions)
             if let invokeResult = tryLowerFunctionTypeInvokeMemberCall(

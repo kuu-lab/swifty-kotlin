@@ -408,9 +408,18 @@ extension CallTypeChecker {
             substitution: resolved.substitutedTypeArguments,
             ctx: ctx
         )
+        let projectionReceiverType: TypeID = if interner.resolve(calleeName) == "receive",
+                                                let channelBoundReceiverType = ReceiverClassifier(
+                                                    sema: sema,
+                                                    interner: interner
+                                                ).channelUpperBoundType(of: lookupReceiverType) {
+            channelBoundReceiverType
+        } else {
+            lookupReceiverType
+        }
         if let signature = sema.symbols.functionSignature(for: chosen),
            let varianceResult = sema.types.buildVarianceProjectionSubstitutions(
-               receiverType: lookupReceiverType,
+               receiverType: projectionReceiverType,
                signature: signature,
                symbols: sema.symbols
            )

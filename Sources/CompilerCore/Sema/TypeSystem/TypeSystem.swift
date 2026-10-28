@@ -27,6 +27,7 @@ struct TypeSystemSemaSnapshot: Codable {
     let stringClassSymbol: SymbolID?
     let charClassSymbol: SymbolID?
     let anyClassSymbol: SymbolID?
+    let arrayClassSymbol: SymbolID?
     let unitClassSymbol: SymbolID?
 }
 
@@ -173,6 +174,10 @@ public final class TypeSystem {
     /// as `stringClassSymbol`.
     public internal(set) var anyClassSymbol: SymbolID?
 
+    /// The source-backed `kotlin.Array` class. LUB synthesis uses this anchor
+    /// to retain its member surface with an out-projected element type.
+    public internal(set) var arrayClassSymbol: SymbolID?
+
     /// The source-backed `kotlin.Unit` object symbol used to resolve members on
     /// the builtin Unit value representation.
     public internal(set) var unitClassSymbol: SymbolID?
@@ -231,6 +236,7 @@ public final class TypeSystem {
         worker.stringClassSymbol = stringClassSymbol
         worker.charClassSymbol = charClassSymbol
         worker.anyClassSymbol = anyClassSymbol
+        worker.arrayClassSymbol = arrayClassSymbol
         worker.unitClassSymbol = unitClassSymbol
         worker.symbolTable = symbolTable
         return worker
@@ -1114,6 +1120,7 @@ extension TypeSystem {
             stringClassSymbol: stringClassSymbol,
             charClassSymbol: charClassSymbol,
             anyClassSymbol: anyClassSymbol,
+            arrayClassSymbol: arrayClassSymbol,
             unitClassSymbol: unitClassSymbol
         )
     }
@@ -1191,6 +1198,7 @@ extension TypeSystem {
         stringClassSymbol = snapshot.stringClassSymbol.map(mapSymbol)
         charClassSymbol = snapshot.charClassSymbol.map(mapSymbol)
         anyClassSymbol = snapshot.anyClassSymbol.map(mapSymbol)
+        arrayClassSymbol = snapshot.arrayClassSymbol.map(mapSymbol)
         unitClassSymbol = snapshot.unitClassSymbol.map(mapSymbol)
         return typeMap
     }

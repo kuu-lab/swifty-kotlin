@@ -2,6 +2,7 @@
 @testable import CompilerCore
 import Foundation
 import Testing
+@testable import CompilerTestSupport
 
 /// KUU-2180: an Elvis fallback with an empty vararg call can use the non-null
 /// left-hand type to infer a still-unbound generic constructor argument.

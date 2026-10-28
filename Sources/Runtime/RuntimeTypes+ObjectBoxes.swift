@@ -68,6 +68,11 @@ class RuntimeArrayBox {
         }
     }
 
+    func value(at index: Int) -> RuntimeValue {
+        if let bytes = storage.nativeBytes { return RuntimeValue(raw: Int(Int8(bitPattern: bytes[index]))) }
+        return storage.values[index]
+    }
+
     /// Stores a raw field value together with the static tag needed by
     /// Any-erased operations such as `hashCode()`.
     func setValue(_ value: Int, at index: Int, anyFallbackTag: Int32) {
@@ -379,10 +384,18 @@ final class RuntimeFunctionValueBox {
 extension RuntimeArrayBox: RuntimeChildReferenceProviding {
     var childRefs: [Int] {
         let fieldRefs = values.compactMap(\.childReferenceRawValue)
-        if let objectBox = self as? RuntimeObjectBox,
-           let backingMapBox = objectBox.backingMapBox {
-            let storageRefs = objectBox.backingMapRaw == 0 ? [] : [objectBox.backingMapRaw]
-            return fieldRefs + storageRefs + backingMapBox.childRefs
+        if let objectBox = self as? RuntimeObjectBox {
+            let directRefs = [
+                objectBox.coroutineJobHandle,
+                objectBox.backingMapRaw,
+                objectBox.throwableMessageRaw,
+                objectBox.throwableCause,
+                objectBox.throwableStackTraceElementsRaw,
+            ] + objectBox.throwableSuppressed
+            let nestedRefs = (objectBox.backingListBox?.childRefs ?? [])
+                + (objectBox.backingSetBox?.childRefs ?? [])
+                + (objectBox.backingMapBox?.childRefs ?? [])
+            return fieldRefs + directRefs.filter { $0 != 0 } + nestedRefs
         }
         return fieldRefs
     }
@@ -399,4 +412,8 @@ extension RuntimeTripleBox: RuntimeChildReferenceProviding {
     var childRefs: [Int] {
         [firstValue, secondValue, thirdValue].compactMap(\.childReferenceRawValue)
     }
+}
+
+extension RuntimeFunctionValueBox: RuntimeChildReferenceProviding {
+    var childRefs: [Int] { closureRaw == 0 ? [] : [closureRaw] }
 }

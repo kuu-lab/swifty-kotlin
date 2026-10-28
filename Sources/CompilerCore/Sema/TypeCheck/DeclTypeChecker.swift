@@ -294,18 +294,6 @@ final class DeclTypeChecker {
             let explicitFieldType = explicitField.type.flatMap { _ in
                 backingFieldSymbol.flatMap { sema.symbols.propertyType(for: $0) }
             }
-            let expectedType = explicitFieldType ?? inferredPropertyType
-            var locals: LocalBindings = initialLocals
-            if expectedType != nil {
-                sema.bindings.markSourceDeclaredExpectedType(explicitField.initializer)
-            }
-            let initializerType = driver.inferExpr(
-                explicitField.initializer,
-                ctx: ctx.with(initializingPropertySymbol: symbol),
-                locals: &locals,
-                expectedType: expectedType
-            )
-
             if let explicitFieldType {
                 if let declaredPropertyType = inferredPropertyType {
                     driver.emitSubtypeConstraint(
@@ -316,28 +304,45 @@ final class DeclTypeChecker {
                 } else {
                     inferredPropertyType = explicitFieldType
                 }
-                driver.emitSubtypeConstraint(
-                    left: initializerType, right: explicitFieldType,
-                    range: property.range, solver: solver,
-                    sema: sema, diagnostics: diagnostics
-                )
-            } else if let declaredPropertyType = inferredPropertyType {
-                driver.emitSubtypeConstraint(
-                    left: initializerType, right: declaredPropertyType,
-                    range: property.range, solver: solver,
-                    sema: sema, diagnostics: diagnostics
-                )
-                if !property.isVar,
-                   !sema.symbols.propertyHasCustomGetter(for: symbol),
-                   sema.types.isSubtype(initializerType, declaredPropertyType),
-                   let backingFieldSymbol
-                {
-                    sema.symbols.setPropertyType(initializerType, for: backingFieldSymbol)
+            }
+
+            if let initializer = explicitField.initializer {
+                let expectedType = explicitFieldType ?? inferredPropertyType
+                var locals: LocalBindings = initialLocals
+                if expectedType != nil {
+                    sema.bindings.markSourceDeclaredExpectedType(initializer)
                 }
-            } else {
-                inferredPropertyType = initializerType
-                if let backingFieldSymbol {
-                    sema.symbols.setPropertyType(initializerType, for: backingFieldSymbol)
+                let initializerType = driver.inferExpr(
+                    initializer,
+                    ctx: ctx.with(initializingPropertySymbol: symbol),
+                    locals: &locals,
+                    expectedType: expectedType
+                )
+
+                if let explicitFieldType {
+                    driver.emitSubtypeConstraint(
+                        left: initializerType, right: explicitFieldType,
+                        range: property.range, solver: solver,
+                        sema: sema, diagnostics: diagnostics
+                    )
+                } else if let declaredPropertyType = inferredPropertyType {
+                    driver.emitSubtypeConstraint(
+                        left: initializerType, right: declaredPropertyType,
+                        range: property.range, solver: solver,
+                        sema: sema, diagnostics: diagnostics
+                    )
+                    if !property.isVar,
+                       !sema.symbols.propertyHasCustomGetter(for: symbol),
+                       sema.types.isSubtype(initializerType, declaredPropertyType),
+                       let backingFieldSymbol
+                    {
+                        sema.symbols.setPropertyType(initializerType, for: backingFieldSymbol)
+                    }
+                } else {
+                    inferredPropertyType = initializerType
+                    if let backingFieldSymbol {
+                        sema.symbols.setPropertyType(initializerType, for: backingFieldSymbol)
+                    }
                 }
             }
         }
@@ -346,7 +351,7 @@ final class DeclTypeChecker {
         // nested receiver lambdas in getter/setter bodies.
         let extRecv = sema.symbols
             .extensionPropertyReceiverType(for: symbol)
-        let accessorCtx: TypeInferenceContext = if let extRecv {
+        var accessorCtx: TypeInferenceContext = if let extRecv {
             ctx.copying(implicitReceiverType: extRecv).withOuterReceiver(
                 label: property.name,
                 type: extRecv,
@@ -354,6 +359,13 @@ final class DeclTypeChecker {
             )
         } else {
             ctx
+        }
+        if let extRecv {
+            accessorCtx = addingCompanionLookupReceiver(
+                to: accessorCtx,
+                receiverType: extRecv,
+                enabled: property.modifiers.contains(.companion)
+            )
         }
 
         if let getter = property.getter {

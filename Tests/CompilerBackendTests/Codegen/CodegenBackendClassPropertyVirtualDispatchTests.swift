@@ -21,6 +21,23 @@ import Testing
 struct CodegenBackendClassPropertyVirtualDispatchTests {
 
     @Test
+    func testOverriddenBareDefaultAccessorsDispatchThroughGenericBase() throws {
+        let source = try diffCaseSource("overridden_bare_property_accessors.kt")
+            .replacingOccurrences(of: "    println(\"OK\")\n", with: "")
+        for optLevel in [OptimizationLevel.O0, .O2] {
+            try assertKotlinOutput(
+                source,
+                moduleName: "KUU3607BareDefaultAccessors",
+                expected: "",
+                optLevel: optLevel,
+                includeStdlib: false,
+                allowDefaultStdlibLibrary: false,
+                prepareTestStdlibCache: false
+            )
+        }
+    }
+
+    @Test
     func testStoredPropertyReadThroughBaseTypedReference() throws {
         // The canonical minimal repro from TODO.md BUG-227.
         let source = """

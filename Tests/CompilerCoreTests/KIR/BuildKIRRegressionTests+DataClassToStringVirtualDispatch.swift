@@ -2,6 +2,7 @@
 @testable import CompilerCore
 import Testing
 import TestStdlibCache
+@testable import CompilerTestSupport
 
 extension BuildKIRRegressionTests {
     /// `kotlin.Any.toString` slots found in the synthesized `toString` body of

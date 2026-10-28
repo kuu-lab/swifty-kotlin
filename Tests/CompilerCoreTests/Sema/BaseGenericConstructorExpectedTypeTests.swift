@@ -3,6 +3,7 @@
 import Testing
 import Foundation
 import TestStdlibCache
+@testable import CompilerTestSupport
 
 @Suite
 struct BaseGenericConstructorExpectedTypeTests {

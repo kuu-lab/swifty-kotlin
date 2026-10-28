@@ -590,14 +590,55 @@ extension LambdaLowerer {
             )
         }
         let isUnbound = sema.bindings.isUnboundCallableRef(exprID)
-        let callableReferenceBinding = sema.bindings.callableReferenceBinding(for: exprID)
-        let isAdaptedCallableReference = callableReferenceBinding?.isCallableReferenceAdapter == true
         let targetSymbol = resolveCallableRefTargetSymbol(
             exprID: exprID,
             receiverExpr: receiverExpr,
             memberName: memberName,
             sema: sema
         )
+        let existingBinding = sema.bindings.callableReferenceBinding(for: exprID)
+        let referenceFunctionType = (sema.bindings.samUnderlyingFunctionType(for: exprID) ?? boundType).flatMap {
+            type -> FunctionType? in
+            guard case let .functionType(function) = sema.types.kind(of: type) else { return nil }
+            return function
+        }
+        let receiverType = isUnbound
+            ? (referenceFunctionType?.receiver ?? referenceFunctionType?.params.first)
+            : receiverExpr.flatMap { sema.bindings.exprType(for: $0) }
+        let needsPrimitiveToStringAdapter: Bool = {
+            guard let targetSymbol, let receiverType,
+                  sema.symbols.externalLinkName(for: targetSymbol) == "kk_any_member_to_string",
+                  case let .primitive(primitive, _) = sema.types.kind(of: receiverType)
+            else { return false }
+            switch primitive {
+            case .boolean, .char, .float, .double, .long, .ulong:
+                return true
+            default:
+                return false
+            }
+        }()
+        let callableReferenceBinding: CallBinding?
+        if needsPrimitiveToStringAdapter, let targetSymbol {
+            // The Any member bridge expects an object-like receiver. Route raw
+            // primitive receivers through the same typed path as a direct call.
+            callableReferenceBinding = CallBinding(
+                chosenCallee: existingBinding?.chosenCallee ?? targetSymbol,
+                substitutedTypeArguments: existingBinding?.substitutedTypeArguments ?? [],
+                parameterMapping: existingBinding?.parameterMapping ?? [:],
+                contextParameterArgumentMapping: existingBinding?.contextParameterArgumentMapping ?? [:],
+                defaultArgumentOwner: existingBinding?.defaultArgumentOwner,
+                dispatchReceiverSymbol: existingBinding?.dispatchReceiverSymbol,
+                contextParameterReceiverSymbols: existingBinding?.contextParameterReceiverSymbols ?? [],
+                isCallableReferenceAdapter: true,
+                boundContextParameterTypes: existingBinding?.boundContextParameterTypes ?? []
+            )
+        } else {
+            callableReferenceBinding = existingBinding
+        }
+        // An ABI wrapper is not a Kotlin callable-reference adaptation. Only
+        // an actual adaptation changes the reference's KFunction identity.
+        let isAdaptedCallableReference = existingBinding?.isCallableReferenceAdapter == true
+        let requiresCallableReferenceAdapter = callableReferenceBinding?.isCallableReferenceAdapter == true
         let isInnerConstructorTarget = targetSymbol.flatMap { target -> Bool? in
             guard sema.symbols.symbol(target)?.kind == .constructor,
                   let owner = sema.symbols.parentSymbol(for: target)
@@ -638,7 +679,7 @@ extension LambdaLowerer {
         if let receiverExpr,
            !isUnbound,
            (targetSymbol.flatMap({ sema.symbols.symbol($0)?.kind }) != .constructor
-               || isAdaptedCallableReference || isInnerConstructorTarget)
+               || requiresCallableReferenceAdapter || isInnerConstructorTarget)
         {
             let loweredReceiver = driver.lowerExpr(
                 receiverExpr,
@@ -836,7 +877,7 @@ extension LambdaLowerer {
         var callTargetName: InternedString?
         // A reference to an interface / open / abstract member function must
         // dispatch virtually; the declaring symbol alone is only a stub.
-        if !isAdaptedCallableReference,
+        if !requiresCallableReferenceAdapter,
            sema.bindings.callableRefKind(for: exprID) == .functionRef,
            let targetSymbol,
            let thunk = virtualFunctionReferenceThunk(
@@ -860,7 +901,7 @@ extension LambdaLowerer {
         let reifiedTargetSymbol = sema.bindings.callableRefKind(for: exprID) == .propertyRef
             ? callableReferenceBinding?.chosenCallee ?? targetSymbol
             : targetSymbol
-        let reifiedThunk = isAdaptedCallableReference ? nil : reifiedTargetSymbol.flatMap { target in
+        let reifiedThunk = requiresCallableReferenceAdapter ? nil : reifiedTargetSymbol.flatMap { target in
             reifiedFunctionType.flatMap { function in
                 reifiedCallableReferenceThunk(
                     exprID, targetSymbol: target, functionType: function,
@@ -1445,12 +1486,12 @@ extension LambdaLowerer {
         // Bound references need per-value storage: the same target pointer can
         // also represent an unbound reference with a different arity. Boxing
         // preserves the receiver when the value escapes the KIR callable table.
-        // Suspend references also need a box without captures: their launcher
-        // thunk supplies the continuation-only entry ABI instead of calling a
-        // raw Kotlin method pointer through the ordinary function ABI.
+        // Suspend references and primitive toString wrappers also need a box
+        // without captures. The former supply a continuation-only entry ABI;
+        // the latter return a flat String and need a function-value adapter.
         let callableValue: KIRExprID
         if case let .functionType(functionType) = sema.types.kind(of: callableType),
-           !captureArguments.isEmpty || functionType.isSuspend,
+           !captureArguments.isEmpty || functionType.isSuspend || needsPrimitiveToStringAdapter,
            let materialized = materializeEscapingCallableValue(
                exprID: exprID,
                lambdaSymbol: callableSymbol,
@@ -2041,14 +2082,24 @@ extension LambdaLowerer {
             )
         }
         if refKind == .functionRef {
-            let anonymous = interner.resolve(memberName).hasPrefix("__AnonymousFunction_")
+            let anonymous = targetSymbol.map {
+                sema.symbols.isAnonymousFunction($0, interner: interner)
+            } ?? false
+            let functionType: FunctionType? = if case let .functionType(type) = sema.types.kind(of: callableType) {
+                type
+            } else {
+                nil
+            }
             emitFunctionDescription(
                 value: taggedExpr,
-                description: anonymous ? "kotlin.Function\(arity)" : functionReferenceDescription(
-                    name: memberName, type: callableType, targetSymbol: targetSymbol,
-                    sema: sema, interner: interner
-                ),
-                identity: anonymous,
+                description: anonymous
+                    ? functionType.map { functionTypeDescription($0, sema: sema, interner: interner) }
+                        ?? "kotlin.Function\(arity)"
+                    : functionReferenceDescription(
+                        name: memberName, type: callableType, targetSymbol: targetSymbol,
+                        sema: sema, interner: interner
+                    ),
+                identity: anonymous && functionType == nil,
                 sema: sema, arena: arena, interner: interner, instructions: &instructions
             )
         }

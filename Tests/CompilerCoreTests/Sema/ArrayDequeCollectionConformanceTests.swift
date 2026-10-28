@@ -1,5 +1,6 @@
 import Testing
 @testable import CompilerCore
+@testable import CompilerTestSupport
 
 @Suite
 struct ArrayDequeCollectionConformanceTests {

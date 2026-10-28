@@ -2,6 +2,7 @@
 @testable import CompilerCore
 import Foundation
 import Testing
+@testable import CompilerTestSupport
 
 /// Legacy snapshot archive coverage. Normal stdlib artifacts now use
 /// compact-indexed lazy imports and do not emit or consume this archive.

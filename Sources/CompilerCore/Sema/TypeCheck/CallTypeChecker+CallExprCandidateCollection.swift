@@ -21,11 +21,27 @@ extension CallTypeChecker {
         callInvisible: inout [SemanticSymbol],
         knownApplicableImplicitMembers: inout Set<SymbolID>,
         typeNameCompanionInvokeCandidates: inout Set<SymbolID>,
-        typeNameCompanionInvokeReceiverType: inout TypeID?
+        typeNameCompanionInvokeReceiverType: inout TypeID?,
+        preferredInheritedNestedConstructors: inout Set<SymbolID>,
+        outerNestedConstructorFallbacks: inout Set<SymbolID>
     ) -> TypeID? {
         let sema = ctx.sema
         let interner = ctx.interner
         let knownNames = KnownCompilerNames(interner: interner)
+
+        if let target = ctx.annotationConstructionTarget,
+           target.call == id,
+           let annotationClass = sema.symbols.symbol(target.annotationClass),
+           annotationClass.kind == .annotationClass {
+            let constructorName = interner.intern("<init>")
+            let constructors = sema.symbols.lookupAll(fqName: annotationClass.fqName + [constructorName]).filter {
+                sema.symbols.parentSymbol(for: $0) == target.annotationClass
+            }
+            let (visible, invisible) = ctx.filterByVisibility(constructors)
+            candidates.append(contentsOf: visible)
+            callInvisible.append(contentsOf: invisible)
+            return nil
+        }
 
         if let calleeName {
             let scopeSelection = scopeCallCandidatesAfterInapplicableMembers(
@@ -37,7 +53,7 @@ extension CallTypeChecker {
                 guard let symbol = ctx.cachedSymbol(candidate) else { return false }
                 return symbol.kind == .function || symbol.kind == .constructor
             }
-            if let receiverEntry = ctx.implicitReceiverMemberLookupEntries().first(where: { entry in
+            let matchingReceiverEntry = ctx.implicitReceiverMemberLookupEntries().first(where: { entry in
                 allCallCandidates.contains { candidate in
                     guard let declaredReceiver = sema.symbols.functionSignature(for: candidate)?.receiverType else {
                         return false
@@ -51,12 +67,24 @@ extension CallTypeChecker {
                         sema: sema
                     )
                 }
-            }) {
-                callImplicitReceiverType = receiverEntry.type
+            })
+            if let matchingReceiverEntry {
+                callImplicitReceiverType = matchingReceiverEntry.type
+            } else if let companion = allCallCandidates.compactMap({
+                ctx.inheritedCompanionReceiver(for: $0)
+            }).first {
+                callImplicitReceiverType = sema.types.make(.classType(ClassType(
+                    classSymbol: companion,
+                    args: [],
+                    nullability: .nonNull
+                )))
             }
             let dslBlockedCandidates = allCallCandidates.filter { ctx.isCandidateBlockedByDslMarker($0) }
             let dslFiltered = allCallCandidates.filter { !ctx.isCandidateBlockedByDslMarker($0) }
-            let (vis, invis) = ctx.filterByVisibility(dslFiltered)
+            let (vis, invis) = ctx.filterByVisibility(
+                dslFiltered,
+                protectedAccessReceiverType: callImplicitReceiverType
+            )
             candidates = vis
             implicitReceiverScopeCandidates = vis
             callInvisible = invis
@@ -134,6 +162,39 @@ extension CallTypeChecker {
                             .map(\.symbol)
                         callImplicitReceiverType = extensionReceiverType
                     }
+                }
+            }
+            let candidatesAreSourceCompanionMembers = !candidates.isEmpty && candidates.allSatisfy { candidate in
+                guard let companion = sema.symbols.parentSymbol(for: candidate),
+                      let owner = sema.symbols.parentSymbol(for: companion)
+                else {
+                    return false
+                }
+                return sema.symbols.companionObjectSymbol(for: owner) == companion
+            }
+            if (candidates.isEmpty || candidatesAreSourceCompanionMembers), locals[calleeName] == nil {
+                for receiver in ctx.implicitReceiverMemberLookupEntries() {
+                    guard let receiverSymbol = receiver.symbol,
+                          let owner = sema.symbols.parentSymbol(for: receiverSymbol),
+                          sema.symbols.companionBlockObjectSymbol(
+                            for: owner,
+                            interner: interner
+                          ) == receiverSymbol
+                    else {
+                        continue
+                    }
+                    let blockMembers = driver.helpers.collectMemberFunctionCandidates(
+                        named: calleeName,
+                        receiverType: receiver.type,
+                        sema: sema,
+                        interner: interner
+                    ).filter { !scopeSelection.excludedMembers.contains($0) }
+                    let visibleBlockMembers = ctx.filterByVisibility(blockMembers).visible
+                    guard !visibleBlockMembers.isEmpty else { continue }
+                    candidates = visibleBlockMembers
+                    callImplicitReceiverType = receiver.type
+                    mergedImplicitReceiverMembers = visibleBlockMembers
+                    break
                 }
             }
             if candidates.isEmpty,
@@ -423,12 +484,45 @@ extension CallTypeChecker {
                     else { return nil }
                     return local.symbol
                 }
-                let classSym = localClassSymbol
+                var classSym = localClassSymbol
                     ?? scopedClassSymbols.first(where: { isLexicallyDeclaredClassifier($0, in: ctx) })
                     ?? inheritedClassSymbols.first
                     ?? scopedClassSymbols.first
+                if let selected = classSym,
+                   isInheritedNestedInterface(selected, in: ctx)
+                {
+                    // An inherited interface has no constructor in this call
+                    // tier; do not let it hide a visible outer classifier's
+                    // constructor. Keep lexical interfaces and inherited
+                    // concrete classes on their existing resolution paths.
+                    let outerClassSymbols = ctx.scope.lookupClassifier(calleeName, matching: { candidate in
+                        guard let symbol = ctx.cachedSymbol(candidate) else { return false }
+                        return symbol.kind == .class || symbol.kind == .enumClass
+                            || symbol.kind == .annotationClass || symbol.kind == .object
+                    }).filter { candidate in
+                        guard let symbol = ctx.cachedSymbol(candidate),
+                              symbol.flags.contains(.expectDeclaration)
+                        else { return true }
+                        return sema.symbols.actualSymbol(for: candidate) == nil
+                    }
+                    if let outerClassSymbol = outerClassSymbols.first {
+                        classSym = outerClassSymbol
+                    }
+                }
+                let outerClassifierFallbacks: [SymbolID] = if let classSym,
+                    isInheritedNestedClassifier(classSym, in: ctx)
+                {
+                    outerScopeClassifiers(named: calleeName, in: ctx).filter { $0 != classSym }
+                } else {
+                    []
+                }
                 if let classSym, let classSymbol = ctx.cachedSymbol(classSym) {
-                    if let companionSymbol = sema.symbols.companionObjectSymbol(for: classSym) {
+                    let companionInvokeReceiverSymbols = [
+                        sema.symbols.companionBlockObjectSymbol(for: classSym, interner: interner),
+                        sema.symbols.companionObjectSymbol(for: classSym),
+                    ].compactMap { $0 }
+                    var foundCompanionInvoke = false
+                    for companionSymbol in companionInvokeReceiverSymbols {
                         let companionType = sema.symbols.propertyType(for: companionSymbol)
                             ?? sema.types.make(.classType(ClassType(
                                 classSymbol: companionSymbol,
@@ -443,6 +537,7 @@ extension CallTypeChecker {
                         ).filter { candidate in
                             sema.symbols.symbol(candidate)?.flags.contains(.operatorFunction) == true
                         }
+                        guard !invokeCandidates.isEmpty else { continue }
                         let (visibleInvokes, invisibleInvokes) = ctx.filterByVisibility(invokeCandidates)
                         candidates.append(contentsOf: visibleInvokes)
                         callInvisible.append(contentsOf: invisibleInvokes)
@@ -450,6 +545,52 @@ extension CallTypeChecker {
                         if !visibleInvokes.isEmpty {
                             typeNameCompanionInvokeReceiverType = companionType
                         }
+                        foundCompanionInvoke = true
+                        break
+                    }
+                    if !foundCompanionInvoke, callInvisible.isEmpty {
+                        let ownerType = sema.types.make(.classType(ClassType(
+                            classSymbol: classSym,
+                            args: [],
+                            nullability: .nonNull
+                        )))
+                        let extensionInvokes = companionExtensionFunctionCandidates(
+                            named: interner.intern("invoke"),
+                            ownerReceiverType: ownerType,
+                            ctx: ctx
+                        ).filter { candidate in
+                            sema.symbols.symbol(candidate)?.flags.contains(.operatorFunction) == true
+                        }
+                        let (visibleInvokes, invisibleInvokes) = ctx.filterByVisibility(extensionInvokes)
+                        candidates.append(contentsOf: visibleInvokes)
+                        callInvisible.append(contentsOf: invisibleInvokes)
+                        typeNameCompanionInvokeCandidates.formUnion(visibleInvokes)
+                        if !visibleInvokes.isEmpty {
+                            callImplicitReceiverType = ownerType
+                            typeNameCompanionInvokeReceiverType = ownerType
+                        }
+                    }
+
+                    // An inherited nested classifier owns the first chance to
+                    // resolve an unqualified constructor call. Keep constructors
+                    // from the next lexical/import/package classifier tier as
+                    // fallback candidates so a mismatch, abstract class, or
+                    // inaccessible class/constructor does not mask them.
+                    for fallbackClassID in outerClassifierFallbacks {
+                        guard let fallbackClass = ctx.cachedSymbol(fallbackClassID),
+                              fallbackClass.kind != .interface,
+                              !fallbackClass.flags.contains(.abstractType)
+                        else {
+                            continue
+                        }
+                        let appended = appendClassConstructorCandidates(
+                            for: fallbackClassID,
+                            to: &candidates,
+                            typeNameCompanionInvokeCandidates: typeNameCompanionInvokeCandidates,
+                            ctx: ctx
+                        )
+                        outerNestedConstructorFallbacks.formUnion(appended.visible)
+                        callInvisible.append(contentsOf: appended.invisible)
                     }
 
                     if classSymbol.kind == .interface {
@@ -472,60 +613,16 @@ extension CallTypeChecker {
                             return sema.types.errorType
                         }
                     } else {
-                        let initName = interner.intern("<init>")
-                        let ctorFQName = classSymbol.fqName + [initName]
-                        // Constructors share an FQName across expect/actual
-                        // classes, but only the selected classifier owns the
-                        // constructor candidates for this call.
-                        let ctorSymbols = sema.symbols.lookupAll(fqName: ctorFQName).filter {
-                            sema.symbols.parentSymbol(for: $0) == classSym
+                        let appended = appendClassConstructorCandidates(
+                            for: classSym,
+                            to: &candidates,
+                            typeNameCompanionInvokeCandidates: typeNameCompanionInvokeCandidates,
+                            ctx: ctx
+                        )
+                        if isInheritedNestedClassifier(classSym, in: ctx) {
+                            preferredInheritedNestedConstructors.formUnion(appended.visible)
                         }
-                        if !ctorSymbols.isEmpty {
-                            let (ctorVis, ctorInvis) = ctx.filterByVisibility(ctorSymbols)
-                            // Some synthetic stdlib types register a class
-                            // constructor whose signature exactly duplicates a
-                            // coexisting top-level factory function's signature
-                            // (e.g. kotlin.io.path.Path's synthetic
-                            // `<init>(String)` alongside the top-level `fun
-                            // Path(pathString: String): Path`). Without this
-                            // filter the duplicate becomes a second,
-                            // indistinguishable overload candidate and every
-                            // call to that name falsely resolves as ambiguous.
-                            // Hidden compatibility factories are present in
-                            // metadata but must not suppress an identically shaped
-                            // constructor. They are intentionally retained by
-                            // filterByVisibility when no other function overload
-                            // exists so a direct call to a removed function still
-                            // receives the deprecation diagnostic; constructors are
-                            // merged only here, so discard the hidden duplicate now.
-                            let constructorParameterTypes = ctorVis.compactMap {
-                                sema.symbols.functionSignature(for: $0)?.parameterTypes
-                            }
-                            candidates.removeAll { existingID in
-                                guard isHiddenByDeprecationOrVersionAnnotation(existingID, symbols: sema.symbols),
-                                      let signature = sema.symbols.functionSignature(for: existingID)
-                                else {
-                                    return false
-                                }
-                                return constructorParameterTypes.contains(signature.parameterTypes)
-                            }
-                            let newCtorVis = ctorVis.filter { ctorID in
-                                guard let ctorSignature = sema.symbols.functionSignature(for: ctorID) else {
-                                    return true
-                                }
-                                return !candidates.contains { existingID in
-                                    // A same-signature companion `invoke` is a
-                                    // distinct call target: Kotlin prefers the
-                                    // constructor when applicable, then falls
-                                    // back to `invoke` when it is not.
-                                    !typeNameCompanionInvokeCandidates.contains(existingID)
-                                        && sema.symbols.functionSignature(for: existingID)?.parameterTypes
-                                        == ctorSignature.parameterTypes
-                                }
-                            }
-                            candidates.append(contentsOf: newCtorVis)
-                            callInvisible.append(contentsOf: ctorInvis)
-                        }
+                        callInvisible.append(contentsOf: appended.invisible)
                     }
                 }
             }

@@ -2,6 +2,7 @@
 @testable import CompilerCore
 import RuntimeABI
 import Testing
+@testable import CompilerTestSupport
 
 extension BuildKIRRegressionTests {
 

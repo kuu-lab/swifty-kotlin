@@ -517,7 +517,9 @@ extension CallLowerer {
         let isKClassReceiver = isKClassReceiverType(
             anyFallbackReceiverType, sema: sema, interner: interner
         )
-        let allowsAnyFallback: Bool = if isKClassReceiver {
+        let allowsAnyFallback: Bool = if isKClassReceiver
+            || usesPrimitiveAnyFallbackRepresentation(for: anyFallbackReceiverType, sema: sema)
+        {
             true
         } else {
             switch sema.types.kind(of: nonNullAnyFallbackReceiverType) {
@@ -529,6 +531,12 @@ extension CallLowerer {
                 // All type parameters have an implicit upper bound of Any? in Kotlin,
                 // so Any methods (toString, hashCode, equals) are always available on
                 // type parameter receivers (STDLIB-GEN-055).
+                true
+            case .nothing:
+                // A `Nothing?` receiver (`null` literal, `v: Nothing?`) unwraps to
+                // non-null `Nothing` under a safe call. Its member scope is `Any`'s,
+                // so `toString`/`hashCode`/`equals` resolve to the tagged
+                // `kk_any_*` fallback, matching `Any?` receivers (KUU-3146).
                 true
             default:
                 nonNullAnyFallbackReceiverType == sema.types.anyType

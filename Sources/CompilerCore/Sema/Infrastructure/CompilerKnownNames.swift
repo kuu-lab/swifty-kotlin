@@ -1323,7 +1323,8 @@ package struct KnownCompilerNames {
     ]
 
     func isConcreteListLikeSymbol(_ symbol: SemanticSymbol) -> Bool {
-        symbol.name == list || symbol.name == mutableList
+        // Fall back to simple names only for synthetic symbols (no FQN).
+        (symbol.fqName.isEmpty && (symbol.name == list || symbol.name == mutableList))
             || symbolMatches(symbol, fqName: kotlinCollectionsArrayListFQName)
             || symbolMatches(symbol, fqName: kotlinCollectionsListFQName)
             || symbolMatches(symbol, fqName: kotlinCollectionsMutableListFQName)
@@ -1382,7 +1383,12 @@ package struct KnownCompilerNames {
         if isSetLikeSymbol(symbol) {
             return .set
         }
-        if isArrayLikeName(symbol.name) {
+        // Only the bundled kotlin.<Name> arrays (and fqName-less synthetic
+        // stubs) have array semantics; a user class that shadows the
+        // default-imported name is an ordinary nominal (KUU-3615).
+        if isArrayLikeName(symbol.name),
+           symbol.fqName.isEmpty || symbol.fqName.first == kotlin
+        {
             return .array
         }
         if isConcreteListLikeSymbol(symbol) {

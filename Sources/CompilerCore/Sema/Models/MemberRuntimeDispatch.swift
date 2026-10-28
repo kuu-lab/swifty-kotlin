@@ -111,12 +111,15 @@ enum MemberRuntimeDispatch {
     }
 
     /// Maps a class symbol to its range/progression receiver kind by nominal
-    /// name. Every runtime value of these classes is a RuntimeRangeBox, so
+    /// fully qualified name. Every runtime value of these classes is a RuntimeRangeBox, so
     /// members *declared on* them are only ever invoked on boxes.
     static func rangeReceiverKind(
         forClassSymbol symbol: SemanticSymbol,
         interner: StringInterner
     ) -> MemberDispatchReceiverKind? {
+        guard symbol.fqName.map(interner.resolve).dropLast() == ["kotlin", "ranges"] else {
+            return nil
+        }
         switch interner.resolve(symbol.name) {
         case "IntProgression":
             return .intProgression

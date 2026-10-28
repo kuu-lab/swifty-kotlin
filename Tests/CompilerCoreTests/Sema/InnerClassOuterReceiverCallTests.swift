@@ -2,6 +2,7 @@
 @testable import CompilerCore
 import Foundation
 import Testing
+@testable import CompilerTestSupport
 
 @Suite
 struct InnerClassOuterReceiverCallTests {
@@ -103,6 +104,19 @@ struct InnerClassOuterReceiverCallTests {
         """) { ctx in
             #expect(!ctx.diagnostics.hasError,
                     "Expected nested class calls to resolve through the enclosing object, got: \(ctx.diagnostics.diagnostics.map(\.message))")
+        }
+    }
+
+    @Test func nestedClassSuperConstructorArgumentCanUseEnclosingObjectThis() throws {
+        try withSemaContext("""
+        open class Base(val value: String)
+        object Owner {
+            class Nested : Base(this.answer())
+            fun answer(): String = "OK"
+        }
+        """) { ctx in
+            #expect(!ctx.diagnostics.hasError,
+                    "Expected nested class super arguments to resolve the enclosing object's this, got: \(ctx.diagnostics.diagnostics.map(\.message))")
         }
     }
 

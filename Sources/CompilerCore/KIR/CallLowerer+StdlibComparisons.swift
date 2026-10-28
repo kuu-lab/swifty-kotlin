@@ -173,6 +173,12 @@ extension CallLowerer {
         let boolType = sema.types.booleanType
         let intType = sema.types.intType
         let primitiveOp: KIRBinaryOp = isMin ? .lessThan : .greaterThan
+        // JVM extrema folds invoke `compare(current, candidate)` — the running
+        // best first — and replace it when the comparison loses: `> 0` for
+        // min, `< 0` for max. Emitting `compare(candidate, current)` instead
+        // reverses the outcome for degenerate (non-antisymmetric) comparators
+        // and Comparable.compareTo implementations (KUU-3660).
+        let extremaOp: KIRBinaryOp = isMin ? .greaterThan : .lessThan
 
         let isComparatorOverload = signature.parameterTypes.contains(where: { paramType in
             isComparatorType(paramType, sema: sema, interner: interner)
@@ -301,14 +307,14 @@ extension CallLowerer {
                 )
                 instructions.append(.call(
                     callee: interner.intern("kk_compare_any"),
-                    arguments: [candidateExpr, currentExpr],
+                    arguments: [currentExpr, candidateExpr],
                     result: compareResultExpr,
                     canThrow: false
                 ))
                 conditionExpr = arena.appendTemporary(type: boolType
                 )
                 instructions.append(.binary(
-                    op: primitiveOp,
+                    op: extremaOp,
                     lhs: compareResultExpr,
                     rhs: zeroExpr,
                     result: conditionExpr
@@ -344,14 +350,14 @@ extension CallLowerer {
                 )
                 instructions.append(.call(
                     callee: interner.intern("__kk_compare_with_comparator"),
-                    arguments: [loweredArgIDs[comparatorArgIndex], boxedCandidate, boxedCurrent],
+                    arguments: [loweredArgIDs[comparatorArgIndex], boxedCurrent, boxedCandidate],
                     result: compareResultExpr,
                     canThrow: true
                 ))
                 conditionExpr = arena.appendTemporary(type: boolType
                 )
                 instructions.append(.binary(
-                    op: primitiveOp,
+                    op: extremaOp,
                     lhs: compareResultExpr,
                     rhs: zeroExpr,
                     result: conditionExpr

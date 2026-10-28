@@ -2,6 +2,7 @@
 @testable import CompilerCore
 import Foundation
 import Testing
+@testable import CompilerTestSupport
 
 /// KUU-3019: the fingerprint must be a function of a function's own content,
 /// never of how many symbols, types or expressions were created before it.

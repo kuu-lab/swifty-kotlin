@@ -1,6 +1,7 @@
 #if canImport(Testing)
 @testable import CompilerCore
 import Testing
+@testable import CompilerTestSupport
 
 @Suite struct InterfaceDelegationCompletenessTests {
     private static let positiveContext = Result {
@@ -158,6 +159,30 @@ import Testing
         """)
         try runSema(ctx)
         #expect(!ctx.diagnostics.hasError, "Got: \(ctx.diagnostics.diagnostics)")
+    }
+
+    @Test func delegatedMembersAreVisibleInsideDelegatingClassMethods() throws {
+        let ctx = makeContextFromSource("""
+        interface Trait { fun foo() = "O"; fun bar(): String }
+        class SimpleClass : Trait { override fun bar() = "K" }
+        class ComplexClass : Trait by SimpleClass() {
+            fun qux() = foo() + bar()
+        }
+        fun directCall(complex: ComplexClass): String = complex.foo()
+        """)
+        try runSema(ctx)
+
+        #expect(!ctx.diagnostics.hasError, "Got: \(ctx.diagnostics.diagnostics)")
+        let sema = try #require(ctx.sema)
+        let delegatingClass = try #require(sema.symbols.lookup(fqName: [ctx.interner.intern("ComplexClass")]))
+        let forwardingMethods = Set(sema.symbols.classDelegationForwardingMethodSymbols(forClass: delegatingClass))
+        let resolvedDelegatedCalls = sema.bindings.callBindings.values.filter {
+            forwardingMethods.contains($0.chosenCallee)
+        }
+        #expect(
+            resolvedDelegatedCalls.count == 3,
+            "Expected foo() and bar() in qux(), plus complex.foo(), to bind to forwarding methods"
+        )
     }
 
     @Test func directDelegationSatisfiesSiblingInterfaceAbstractMember() throws {

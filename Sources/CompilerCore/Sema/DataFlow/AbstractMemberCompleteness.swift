@@ -9,6 +9,18 @@
 /// abstract member compiled where kotlinc rejects it. Same structural cause as
 /// the vtable-slot gap solved by `VtableOverrideMatching.swift`.
 
+/// Member requirements key off the member's *override family*: a member
+/// extension and a regular member that share a name are unrelated for
+/// override purposes — `fun Any?.toString()` can neither implement nor be
+/// implemented by `fun toString()` (KUU-3656). Grouping both under one name
+/// bucket let `Any.toString()` "cover" an interface's abstract
+/// `Any?.toString()`, so a class that never implemented the member extension
+/// was wrongly accepted.
+private struct MemberRequirementKey: Hashable {
+    let name: InternedString
+    let isMemberExtension: Bool
+}
+
 /// Collects all abstract member symbol IDs from the entire supertype chain of a
 /// class, filtering out those that have been concretely overridden by
 /// intermediate classes. Ordered by symbol ID so callers emit diagnostics
@@ -23,8 +35,8 @@ func collectInheritedAbstractMembers(
     for classSymbol: SymbolID,
     symbols: SymbolTable
 ) -> [SymbolID] {
-    var abstractMembersByName: [InternedString: [SymbolID]] = [:]
-    var concreteOwnersByName: [InternedString: [SymbolID]] = [:]
+    var abstractMembersByKey: [MemberRequirementKey: [SymbolID]] = [:]
+    var concreteOwnersByKey: [MemberRequirementKey: [SymbolID]] = [:]
     var visited: Set<SymbolID> = [classSymbol]
     var queue = symbols.directSupertypes(for: classSymbol)
 
@@ -37,10 +49,14 @@ func collectInheritedAbstractMembers(
         for childID in children {
             guard let childSym = symbols.symbol(childID) else { continue }
             guard childSym.kind == .function || childSym.kind == .property else { continue }
+            let requirementKey = MemberRequirementKey(
+                name: childSym.name,
+                isMemberExtension: childSym.flags.contains(.memberExtension)
+            )
             if childSym.flags.contains(.abstractType) {
-                abstractMembersByName[childSym.name, default: []].append(childID)
+                abstractMembersByKey[requirementKey, default: []].append(childID)
             } else if let owner = symbols.parentSymbol(for: childID) {
-                concreteOwnersByName[childSym.name, default: []].append(owner)
+                concreteOwnersByKey[requirementKey, default: []].append(owner)
             }
         }
 
@@ -48,8 +64,8 @@ func collectInheritedAbstractMembers(
     }
 
     var result: [SymbolID] = []
-    for (name, abstractMembers) in abstractMembersByName {
-        let concreteOwners = concreteOwnersByName[name] ?? []
+    for (requirementKey, abstractMembers) in abstractMembersByKey {
+        let concreteOwners = concreteOwnersByKey[requirementKey] ?? []
         for abstractMember in abstractMembers {
             let covered = concreteOwners.contains { concreteOwner in
                 guard let abstractOwner = symbols.parentSymbol(for: abstractMember) else {
@@ -212,7 +228,7 @@ private func delegatedProvidedMembers(
 /// Substitutes the abstract member's signature through the type arguments the
 /// class applies to the member's owner, so both sides of a coverage check are
 /// expressed in the class's view.
-private func abstractMemberViewFromClass(
+func abstractMemberViewFromClass(
     _ abstractMember: SymbolID,
     for classSymbol: SymbolID,
     symbols: SymbolTable,
@@ -316,7 +332,9 @@ private func delegationProvides(
 
 /// The inherited abstract members `classSymbol` still owes an implementation
 /// for: everything `collectInheritedAbstractMembers` finds, minus the names
-/// this type provides an `override` for, minus anything owned by an interface
+/// this type provides an `override` for (member-extension overrides satisfy
+/// member-extension requirements only — same override-family split as
+/// `MemberRequirementKey`, KUU-3656), minus anything owned by an interface
 /// satisfied through `by` delegation (CLASS-008), including delegates declared
 /// by class ancestors. A `by` delegation also supplies concrete
 /// implementations for its interface's members, so a matching abstract member
@@ -324,6 +342,7 @@ private func delegationProvides(
 func unimplementedAbstractMembers(
     for classSymbol: SymbolID,
     overriddenNames: Set<InternedString>,
+    overriddenMemberExtensionNames: Set<InternedString>,
     delegatedInterfaces: [SymbolID],
     symbols: SymbolTable,
     types: TypeSystem,
@@ -375,7 +394,10 @@ func unimplementedAbstractMembers(
         {
             return false
         }
-        if overriddenNames.contains(abstractSym.name) {
+        let isMemberExtension = abstractSym.flags.contains(.memberExtension)
+        if (isMemberExtension ? overriddenMemberExtensionNames : overriddenNames)
+            .contains(abstractSym.name)
+        {
             return false
         }
         guard !providedMembers.isEmpty,

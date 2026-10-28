@@ -388,7 +388,7 @@ public func __kk_kparameter_get_type(_ raw: Int) -> Int {
     guard let box = runtimeKParameterBox(from: raw) else {
         return runtimeNullSentinelInt
     }
-    return box.typeRaw
+    return box.reflectedTypeRaw != 0 ? box.reflectedTypeRaw : box.typeRaw
 }
 
 @_cdecl("__kk_kparameter_is_optional")

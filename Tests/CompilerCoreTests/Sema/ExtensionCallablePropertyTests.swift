@@ -1,5 +1,6 @@
 @testable import CompilerCore
 import Testing
+@testable import CompilerTestSupport
 
 @Suite
 struct ExtensionCallablePropertyTests {
@@ -117,6 +118,35 @@ struct ExtensionCallablePropertyTests {
         """)
         try runSema(propertyCall)
         #expect(propertyCall.diagnostics.hasError, "A non-callable Int property must not be accepted as a function call")
+    }
+
+    @Test
+    func moreSpecificExtensionPropertyReceiverWinsBeforeInvokeResolution() throws {
+        let ctx = makeContextFromSource("""
+        open class A { fun invoke(f: A.() -> Unit) = 1 }
+        class B { operator fun invoke(f: B.() -> Unit) = 2 }
+        open class C
+        val C.attr: A get() = A()
+        open class D : C()
+        val D.attr: B get() = B()
+        fun use(): Int = D().attr {}
+        """)
+        try runToKIR(ctx)
+
+        #expect(!ctx.diagnostics.hasError, "The D.attr overload should be selected: \(ctx.diagnostics.diagnostics)")
+        let sema = try #require(ctx.sema)
+        let getterCall = try #require(sema.bindings.extensionPropertyGetterCalls.values.first { call in
+            guard let property = sema.symbols.parentSymbol(for: call.chosenCallee) else { return false }
+            return sema.symbols.symbol(property)?.name == ctx.interner.intern("attr")
+        })
+        let property = try #require(sema.symbols.parentSymbol(for: getterCall.chosenCallee))
+        let receiverType = try #require(sema.symbols.extensionPropertyReceiverType(for: property))
+        guard case let .classType(receiver) = sema.types.kind(of: receiverType) else {
+            Issue.record("Expected D.attr's extension receiver to be nominal")
+            return
+        }
+        let receiverName = try #require(sema.symbols.symbol(receiver.classSymbol)?.name)
+        #expect(ctx.interner.resolve(receiverName) == "D")
     }
 
     @Test

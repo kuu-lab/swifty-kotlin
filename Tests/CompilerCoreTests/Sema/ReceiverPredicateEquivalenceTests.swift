@@ -2,6 +2,7 @@
 @testable import CompilerCore
 import Foundation
 import Testing
+@testable import CompilerTestSupport
 
 @Suite
 struct ReceiverPredicateEquivalenceTests {
@@ -204,11 +205,9 @@ struct ReceiverPredicateEquivalenceTests {
                 expected: [.sequence, .concreteCollection, .collectionAggregate]
             ),
             TypeCase(
-                name: "user List<String> (simple-name fallback)",
+                name: "user List<String> (non-stdlib FQN)",
                 type: fixture.classType(["com", "example", "List"], kind: .class, args: genericString),
-                expected: [
-                    .listLike, .strictList, .listCollection, .concreteCollection, .collectionAggregate,
-                ]
+                expected: []
             ),
             TypeCase(
                 name: "user Set<String> (non-synthetic FQN)",
@@ -216,9 +215,9 @@ struct ReceiverPredicateEquivalenceTests {
                 expected: []
             ),
             TypeCase(
-                name: "user MutableSet<String> (simple-name fallback)",
+                name: "user MutableSet<String> (non-stdlib FQN)",
                 type: fixture.classType(["com", "example", "MutableSet"], kind: .class, args: genericString),
-                expected: [.mutableSetLike, .strictMutableSet]
+                expected: []
             ),
             TypeCase(
                 name: "synthetic Set<String> without FQN",
@@ -241,9 +240,14 @@ struct ReceiverPredicateEquivalenceTests {
                 expected: [.regex]
             ),
             TypeCase(
-                name: "user Channel (simple-name fallback)",
-                type: fixture.classType(["com", "example", "Channel"], kind: .class),
+                name: "kotlinx.coroutines Channel<String>",
+                type: fixture.classType(["kotlinx", "coroutines", "channels", "Channel"], args: genericString),
                 expected: [.channel]
+            ),
+            TypeCase(
+                name: "user Channel (non-stdlib FQN)",
+                type: fixture.classType(["com", "example", "Channel"], kind: .class),
+                expected: []
             ),
             TypeCase(
                 name: "user Job (simple-name fallback)",

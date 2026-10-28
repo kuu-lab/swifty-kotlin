@@ -1,3 +1,5 @@
+@file:OptIn(ExperimentalUnsignedTypes::class)
+
 package kotlin.collections
 
 import kotlin.comparisons.naturalOrder
@@ -94,6 +96,25 @@ public fun <T> Array<T>.sortedArrayWith(comparator: Comparator<in T>): Array<T> 
     val result = this.copyOf()
     result.stableSortWith(comparator)
     return result
+}
+
+@Suppress("UNCHECKED_CAST")
+public fun <T> Array<out T>.sortWith(comparator: Comparator<in T>) {
+    (this as Array<T>).stableSortWith(comparator)
+}
+
+@Suppress("UNCHECKED_CAST")
+public fun <T> Array<out T>.sortWith(comparator: Comparator<in T>, fromIndex: Int, toIndex: Int) {
+    checkBinarySearchBounds(this.size, fromIndex, toIndex)
+    if (toIndex - fromIndex <= 1) return
+    val array = this as Array<T>
+    val sorted = array.copyOfRange(fromIndex, toIndex)
+    sorted.stableSortWith(comparator)
+    var index = 0
+    while (index < sorted.size) {
+        array[fromIndex + index] = sorted[index]
+        index += 1
+    }
 }
 
 public fun <T> Array<T>.binarySearch(element: T, fromIndex: Int = 0, toIndex: Int = this.size): Int {

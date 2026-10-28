@@ -123,15 +123,11 @@ final class OperatorLoweringPass: LoweringPass, ParallelLoweringPass {
             return
         }
 
-        // `P == null` / `P != null` where the non-literal side is statically
-        // non-null is a tautology the JVM answers without a runtime check
-        // (e.g. a `Long?` local smart-cast to `Long` after `v = Long.MIN_VALUE`,
-        // or a plain `x != null` on a non-null primitive). Folding is required
-        // for correctness, not just an optimization: unboxing the operand
-        // yields raw bits that can equal the null sentinel (Long.MIN_VALUE,
-        // -0.0), which a raw kk_op_eq/ne would then misread as `null`.
-        // Nullable/platform operands are excluded — those may genuinely hold
-        // null and take the sentinel-safe path below.
+        // A non-null Long/ULong/Double/Float compared with null can have the
+        // same raw bits as the null sentinel. Keep folding those cases because
+        // this unboxed representation cannot distinguish a cast null from a
+        // valid value with the sentinel bits. Other non-null values can safely
+        // use the runtime comparison, which preserves unchecked-cast nulls.
         if op == .equal || op == .notEqual {
             func isNullLiteral(_ exprID: KIRExprID) -> Bool {
                 arena.expr(exprID) == .null
@@ -139,7 +135,9 @@ final class OperatorLoweringPass: LoweringPass, ParallelLoweringPass {
             func isNonNullPrimitiveLike(_ exprID: KIRExprID) -> Bool {
                 guard let types, let typeID = arena.exprType(exprID) else { return false }
                 let kind = resolveValueClassKind(types.kind(of: typeID), types: types, symbols: symbols)
-                if case .primitive(_, .nonNull) = kind { return true }
+                if case let .primitive(primitive, .nonNull) = kind {
+                    return primitive.rawValueCollidesWithNullSentinel
+                }
                 return false
             }
             let lhsIsNull = isNullLiteral(lhs)
@@ -170,8 +168,8 @@ final class OperatorLoweringPass: LoweringPass, ParallelLoweringPass {
         // below via needsStructuralEquality.
         if op == .equal || op == .notEqual {
             let sentinelCollidingKinds: Set<PrimitiveType> = [.long, .ulong, .double, .float]
-            let lhsNullableKind = nullablePrimitiveKind(lhs, arena: arena, types: types)
-            let rhsNullableKind = nullablePrimitiveKind(rhs, arena: arena, types: types)
+            let lhsNullableKind = nullablePrimitiveKind(lhs, arena: arena, types: types, symbols: symbols)
+            let rhsNullableKind = nullablePrimitiveKind(rhs, arena: arena, types: types, symbols: symbols)
             let lhsNeedsSentinelSafeCompare = (lhsNullableKind.map(sentinelCollidingKinds.contains) ?? false)
                 || isNullableSentinelCollidingValueClass(lhs, arena: arena, types: types, symbols: symbols)
             let rhsNeedsSentinelSafeCompare = (rhsNullableKind.map(sentinelCollidingKinds.contains) ?? false)
@@ -192,11 +190,11 @@ final class OperatorLoweringPass: LoweringPass, ParallelLoweringPass {
                 if lhsNeedsSentinelSafeCompare {
                     nullableSide = lhs
                     peerSide = rhs
-                    peerIsNullable = isNullableOrPlatform(rhs, arena: arena, types: types)
+                    peerIsNullable = isNullableOrPlatform(rhs, arena: arena, types: types, symbols: symbols)
                 } else {
                     nullableSide = rhs
                     peerSide = lhs
-                    peerIsNullable = isNullableOrPlatform(lhs, arena: arena, types: types)
+                    peerIsNullable = isNullableOrPlatform(lhs, arena: arena, types: types, symbols: symbols)
                 }
                 let intType = types?.make(.primitive(.int, .nonNull))
                 // The flag encodes the peer's nature, not just nullability:
@@ -211,13 +209,13 @@ final class OperatorLoweringPass: LoweringPass, ParallelLoweringPass {
                 // bit-pattern compare runtimeNonNullValuesEqual applies.
                 let flagValue: Int64 = {
                     if peerIsNullable {
-                        switch nullablePrimitiveKind(peerSide, arena: arena, types: types) {
+                        switch nullablePrimitiveKind(peerSide, arena: arena, types: types, symbols: symbols) {
                         case .double: return 4
                         case .float: return 5
                         default: return 1
                         }
                     }
-                    switch nonNullPrimitiveKind(peerSide, arena: arena, types: types) {
+                    switch nonNullPrimitiveKind(peerSide, arena: arena, types: types, symbols: symbols) {
                     case .double: return 2
                     case .float: return 3
                     default: return 0
@@ -243,28 +241,33 @@ final class OperatorLoweringPass: LoweringPass, ParallelLoweringPass {
         // Nullable primitives also cannot use kk_op_eq/ne: ABI unbox of a
         // null sentinel maps to 0 and would collapse `null == false`.
         let needsStructuralEquality = (op == .equal || op == .notEqual)
-            && (isReferenceType(lhs, arena: arena, types: types) || isReferenceType(rhs, arena: arena, types: types)
+            && (isReferenceType(lhs, arena: arena, types: types, symbols: symbols)
+                || isReferenceType(rhs, arena: arena, types: types, symbols: symbols)
                 || isNullablePrimitive(lhs, arena: arena, types: types) || isNullablePrimitive(rhs, arena: arena, types: types))
 
         var effectiveLhs = lhs
         var effectiveRhs = rhs
         if needsStructuralEquality {
             effectiveLhs = boxFloatingOperandForReferenceEquality(
-                lhs, peer: rhs, arena: arena, interner: interner, types: types, newBody: &newBody
+                lhs, peer: rhs, arena: arena, interner: interner,
+                types: types, symbols: symbols, newBody: &newBody
             )
             effectiveRhs = boxFloatingOperandForReferenceEquality(
-                rhs, peer: lhs, arena: arena, interner: interner, types: types, newBody: &newBody
+                rhs, peer: lhs, arena: arena, interner: interner,
+                types: types, symbols: symbols, newBody: &newBody
             )
         }
 
-        let useArithmeticUpperBounds = [.add, .subtract, .multiply, .divide, .modulo].contains(op)
+        let usePrimitiveUpperBounds = [.add, .subtract, .multiply, .divide, .modulo,
+                                       .equal, .notEqual,
+                                       .lessThan, .lessOrEqual, .greaterThan, .greaterOrEqual].contains(op)
         let lhsRank = needsStructuralEquality ? 0 : primitiveRank(
             for: lhs, arena: arena, types: types, symbols: symbols,
-            resolveTypeParameterUpperBound: useArithmeticUpperBounds
+            resolveTypeParameterUpperBound: usePrimitiveUpperBounds
         )
         let rhsRank = needsStructuralEquality ? 0 : primitiveRank(
             for: rhs, arena: arena, types: types, symbols: symbols,
-            resolveTypeParameterUpperBound: useArithmeticUpperBounds
+            resolveTypeParameterUpperBound: usePrimitiveUpperBounds
         )
         let rank = max(lhsRank, rhsRank)
         let isUnsigned = isUnsignedOperand(lhs, arena: arena, types: types)
@@ -320,10 +323,11 @@ final class OperatorLoweringPass: LoweringPass, ParallelLoweringPass {
         arena: KIRArena,
         interner: StringInterner,
         types: TypeSystem?,
+        symbols: SymbolTable?,
         newBody: inout KIRLoweringEmitContext
     ) -> KIRExprID {
         guard let types,
-              isReferenceType(peer, arena: arena, types: types),
+              isReferenceType(peer, arena: arena, types: types, symbols: symbols),
               let typeID = arena.exprType(operand),
               case let .primitive(primitive, .nonNull) = types.kind(of: typeID),
               primitive == .double || primitive == .float,
@@ -347,9 +351,17 @@ final class OperatorLoweringPass: LoweringPass, ParallelLoweringPass {
         nullablePrimitiveKind(exprID, arena: arena, types: types) != nil
     }
 
-    private func nullablePrimitiveKind(_ exprID: KIRExprID, arena: KIRArena, types: TypeSystem?) -> PrimitiveType? {
+    private func nullablePrimitiveKind(
+        _ exprID: KIRExprID,
+        arena: KIRArena,
+        types: TypeSystem?,
+        symbols: SymbolTable? = nil
+    ) -> PrimitiveType? {
         guard let types, let typeID = arena.exprType(exprID) else { return nil }
-        if case let .primitive(primitiveType, .nullable) = types.kind(of: typeID) {
+        let resolvedType = symbols.flatMap {
+            resolvePrimitiveValueUpperBound(of: typeID, types: types, symbols: $0)
+        } ?? typeID
+        if case let .primitive(primitiveType, .nullable) = types.kind(of: resolvedType) {
             return primitiveType
         }
         return nil
@@ -369,9 +381,17 @@ final class OperatorLoweringPass: LoweringPass, ParallelLoweringPass {
         return primitive.rawValueCollidesWithNullSentinel
     }
 
-    private func nonNullPrimitiveKind(_ exprID: KIRExprID, arena: KIRArena, types: TypeSystem?) -> PrimitiveType? {
+    private func nonNullPrimitiveKind(
+        _ exprID: KIRExprID,
+        arena: KIRArena,
+        types: TypeSystem?,
+        symbols: SymbolTable?
+    ) -> PrimitiveType? {
         guard let types, let typeID = arena.exprType(exprID) else { return nil }
-        if case let .primitive(primitiveType, .nonNull) = types.kind(of: typeID) {
+        let resolvedType = symbols.flatMap {
+            resolvePrimitiveValueUpperBound(of: typeID, types: types, symbols: $0)
+        } ?? typeID
+        if case let .primitive(primitiveType, .nonNull) = types.kind(of: resolvedType) {
             return primitiveType
         }
         return nil
@@ -383,13 +403,26 @@ final class OperatorLoweringPass: LoweringPass, ParallelLoweringPass {
     /// `kk_nullable_primitive_eq/ne` can determine its nullness via the
     /// object-pointer registry regardless of the specific type kind
     /// (`Nothing?` null literals, `Any?`, nullable references, `T?`).
-    private func isNullableOrPlatform(_ exprID: KIRExprID, arena: KIRArena, types: TypeSystem?) -> Bool {
+    private func isNullableOrPlatform(
+        _ exprID: KIRExprID,
+        arena: KIRArena,
+        types: TypeSystem?,
+        symbols: SymbolTable?
+    ) -> Bool {
         guard let types, let typeID = arena.exprType(exprID) else { return false }
-        return types.nullability(of: typeID) != .nonNull
+        let resolvedType = symbols.flatMap {
+            resolvePrimitiveValueUpperBound(of: typeID, types: types, symbols: $0)
+        } ?? typeID
+        return types.nullability(of: resolvedType) != .nonNull
     }
 
     /// String is a compiler aggregate, so pointer comparison is insufficient.
-    private func isReferenceType(_ exprID: KIRExprID, arena: KIRArena, types: TypeSystem?) -> Bool {
+    private func isReferenceType(
+        _ exprID: KIRExprID,
+        arena: KIRArena,
+        types: TypeSystem?,
+        symbols: SymbolTable?
+    ) -> Bool {
         guard let types, let typeID = arena.exprType(exprID) else { return false }
         switch types.kind(of: typeID) {
         case .stringStruct:
@@ -399,8 +432,19 @@ final class OperatorLoweringPass: LoweringPass, ParallelLoweringPass {
         case .classType, .any, .functionType:
             return true
         case .typeParam:
+            if let symbols,
+               let upperBound = resolvePrimitiveArithmeticUpperBound(
+                   of: typeID, types: types, symbols: symbols
+               ),
+               case let .primitive(primitive, .nonNull) = types.kind(of: upperBound),
+               primitive == .float || primitive == .double
+            {
+                return false
+            }
             // Type parameters have an Any? upper bound by default, so equality on them
             // must use structural equality (e.g. String values in a generic Map function).
+            // A non-null floating-point upper bound is an exception: it uses scalar
+            // IEEE equality rather than boxed `Double.equals`/`Float.equals`.
             return true
         default:
             return false

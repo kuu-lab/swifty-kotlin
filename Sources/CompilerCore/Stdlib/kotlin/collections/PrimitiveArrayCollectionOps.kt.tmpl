@@ -144,7 +144,7 @@ public inline fun <R : Comparable<R>> {{T}}Array.minByOrNull(selector: ({{T}}) -
     while (index < size) {
         val element = this[index]
         val key = selector(element)
-        if (key < bestKey) {
+        if (bestKey > key) {
             bestElement = element
             bestKey = key
         }

@@ -1,6 +1,7 @@
 #if canImport(Testing)
 @testable import CompilerCore
 import Testing
+@testable import CompilerTestSupport
 
 @Suite
 struct SuspendConversionTests {
@@ -47,47 +48,56 @@ struct SuspendConversionTests {
         }
     }
 
-    @Test func acceptsNominalFunctionClassesForSuspendConversion() throws {
+    @Test func acceptsSuspendConversionForExtensionFunctionValueInvocation() throws {
         let source = """
-        fun consumeExtension(action: suspend Int.() -> Unit) {}
-        fun consumeRegular(action: suspend (Int) -> Unit) {}
-        class ExtensionAction : Int.() -> Unit {
-            override fun invoke(p1: Int) {}
-        }
-        class RegularAction : (Int) -> Unit {
-            override fun invoke(p1: Int) {}
-        }
-        fun forward(extensionAction: ExtensionAction, regularAction: RegularAction) {
-            consumeExtension(extensionAction)
-            consumeRegular(regularAction)
-            val constructedExtensionAction = ExtensionAction()
-            val constructedRegularAction = RegularAction()
-            consumeExtension(constructedExtensionAction)
-            consumeRegular(constructedRegularAction)
-            consumeExtension(ExtensionAction())
-            consumeRegular(RegularAction())
-            1.(ExtensionAction())()
-            regularAction(1)
+        fun box(): String {
+            val foo: String.(suspend () -> Unit) -> String = { this }
+            val f: () -> Unit = {}
+            return "OK".foo(f)
         }
         """
         try withTemporaryFiles(contents: [source]) { paths in
             let ctx = makeCompilationContext(inputs: paths, includeStdlib: false)
             try runSema(ctx)
             #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics.map { $0.message })")
+
+            let sema = try #require(ctx.sema)
+            let binding = try #require(sema.bindings.callableValueCalls.values.first {
+                $0.extensionCallableExpr != nil
+            })
+            #expect(binding.parameterMapping == [1: 0])
         }
     }
 
-    @Test func rejectsRegularFunctionClassAsExtensionReceiverCallable() throws {
+    @Test func prefersFunctionOverloadWithoutSuspendConversion() throws {
         let source = """
-        class RegularAction : (Int) -> Unit {
-            override fun invoke(p1: Int) {}
+        var foo1 = false
+        var foo2 = false
+        fun foo(x: () -> Int) { foo1 = true }
+        fun foo(x: suspend () -> Int) { foo2 = true }
+        fun test(f: () -> Int, g: suspend () -> Int) {
+            foo(f)
+            foo(g)
         }
-        fun main() { 1.(RegularAction())() }
         """
         try withTemporaryFiles(contents: [source]) { paths in
             let ctx = makeCompilationContext(inputs: paths, includeStdlib: false)
             try runSema(ctx)
-            #expect(ctx.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-SEMA-0002" })
+            #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics.map { $0.message })")
+
+            let sema = try #require(ctx.sema)
+            let selectedSuspendModifiers = sema.bindings.callBindings.values.compactMap { binding -> Bool? in
+                guard sema.symbols.symbol(binding.chosenCallee)?.name == ctx.interner.intern("foo"),
+                      let signature = sema.symbols.functionSignature(for: binding.chosenCallee),
+                      case let .functionType(functionType) = sema.types.kind(of: signature.parameterTypes[0])
+                else {
+                    return nil
+                }
+                return functionType.isSuspend
+            }
+            #expect(selectedSuspendModifiers.count == 2)
+            #expect(selectedSuspendModifiers.contains(false))
+            #expect(selectedSuspendModifiers.contains(true))
         }
     }
 
@@ -142,8 +152,6 @@ struct SuspendConversionTests {
         "fun number(action: suspend (Int) -> Int) {}\nfun bad(action: (Int) -> String) { number(action) }",
         "fun bad(action: (Int, Int) -> Unit) { consume(action) }",
         "fun bad(action: ((Int) -> Unit)?) { consume(action) }",
-        "class WrongAction : String.() -> Unit { override fun invoke(p1: String) {} }\nfun bad(action: WrongAction) { consume(action) }",
-        "class NullableAction : Int.() -> Unit { override fun invoke(p1: Int) {} }\nfun bad(action: NullableAction?) { consume(action) }",
         "fun ordinary(action: (Int) -> Unit) {}\nfun bad(action: suspend (Int) -> Unit) { ordinary(action) }",
         "fun bad(action: (Int) -> Unit) { val stored: suspend (Int) -> Unit = action }",
     ])

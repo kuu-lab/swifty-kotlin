@@ -110,6 +110,17 @@ func appendRuntimeArrayComponentTag<Instructions: RangeReplaceableCollection>(
     instructions: inout Instructions
 ) -> KIRExprID where Instructions.Element == KIRInstruction {
     guard let typeID = runtimeArrayNominalTypeID(arrayType, sema: sema, interner: interner) else { return array }
+    // KUU-3537: arrays are never constructed via kk_object_new, so their
+    // declared supertypes (e.g. `IntArray : Cloneable`) would otherwise never
+    // reach the runtime type graph — emit the ancestry edges at the same
+    // point the nominal tag is applied, for both the native `typeParents`
+    // table and the WASM `is_assignable` edge walk.
+    if let arrayType, case let .classType(arrayClass) = sema.types.kind(of: arrayType) {
+        appendTypeAncestryRegistrations(
+            rootSymbol: arrayClass.classSymbol, sema: sema, arena: arena,
+            interner: interner, instructions: &instructions
+        )
+    }
     let typeIDExpr = arena.appendExpr(.intLiteral(typeID), type: sema.types.intType)
     instructions.append(.constValue(result: typeIDExpr, value: .intLiteral(typeID)))
     let nominallyTagged = arena.appendTemporary(type: arrayType)

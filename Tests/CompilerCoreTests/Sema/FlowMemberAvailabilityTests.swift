@@ -1,6 +1,7 @@
 @testable import CompilerCore
 import Foundation
 import Testing
+@testable import CompilerTestSupport
 
 /// KUU-1351: `onErrorReturn`/`onErrorResume`/`delayEach` are not
 /// kotlinx-coroutines `Flow` operators (kotlinx has `catch`/`retry`/`retryWhen`

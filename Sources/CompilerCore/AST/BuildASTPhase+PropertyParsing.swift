@@ -757,8 +757,8 @@ extension BuildASTPhase {
         let rawHeaderTokens = collectDirectTokens(from: accessorNodeID, in: arena).filter { token in
             token.kind != .symbol(.semicolon)
         }
-        let annotations = annotationsFromTokens(rawHeaderTokens, interner: interner)
         guard let accessorStart = inlineAccessorStartIndex(in: rawHeaderTokens, bodyIsSiblingBlock: true) else { return }
+        let annotations = annotationsFromTokens(Array(rawHeaderTokens[..<accessorStart]), interner: interner)
         let headerTokens = Array(rawHeaderTokens[accessorStart...])
         guard let firstToken = headerTokens.first else { return }
 
@@ -818,8 +818,8 @@ extension BuildASTPhase {
         let rawHeaderTokens = collectDirectTokens(from: statementID, in: arena).filter { token in
             token.kind != .symbol(.semicolon)
         }
-        let annotations = annotationsFromTokens(rawHeaderTokens, interner: interner)
         guard let accessorStart = inlineAccessorStartIndex(in: rawHeaderTokens, bodyIsSiblingBlock: true) else { return }
+        let annotations = annotationsFromTokens(Array(rawHeaderTokens[..<accessorStart]), interner: interner)
         let headerTokens = Array(rawHeaderTokens[accessorStart...])
         guard let firstToken = headerTokens.first else {
             return
@@ -1189,7 +1189,13 @@ extension BuildASTPhase {
         }
 
         guard index < tokens.count, tokens[index].kind == .symbol(.assign) else {
-            return nil
+            let trailingTokens = tokens.dropFirst(index)
+            guard fieldType != nil,
+                  trailingTokens.allSatisfy({ $0.kind == .symbol(.semicolon) })
+            else {
+                return nil
+            }
+            return ExplicitBackingField(type: fieldType)
         }
         index += 1
 

@@ -1,6 +1,7 @@
 #if canImport(Testing)
 @testable import CompilerCore
 import Testing
+@testable import CompilerTestSupport
 
 // A statically class-typed or value-class-typed value is represented at
 // runtime as a heap pointer or (for a non-nullable value class) its raw

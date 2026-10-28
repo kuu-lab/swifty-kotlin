@@ -149,7 +149,7 @@ extension LocalDeclTypeChecker {
         let getCall = CallExpr(range: range, calleeName: getName, args: zip(indices, indexTypes).map { index, type in
             let literal = driver.callChecker.integerLiteralValues(index, ast: ast)
             return CallArg(type: type, signedIntegerLiteral: literal.signed, unsignedIntegerLiteral: literal.unsigned)
-        })
+        }, dispatchReceiverTypes: ctx.implicitReceiverMemberLookupEntries().map(\.type))
         // Member existence does not imply applicability. Probe without emitting
         // diagnostics, retaining even ambiguous viable members ahead of extensions.
         if ctx.resolver.probeCall(
@@ -189,7 +189,10 @@ extension LocalDeclTypeChecker {
                         substitutedTypeArguments: resolved.substitutedTypeArguments
                             .sorted(by: { $0.key.rawValue < $1.key.rawValue })
                             .map { _, value in value },
-                        parameterMapping: resolved.parameterMapping
+                        parameterMapping: resolved.parameterMapping,
+                        dispatchReceiverSymbol: indexedOperatorDispatchReceiverSymbol(
+                            for: chosen, named: getName, ctx: ctx
+                        )
                     )
                 )
                 sema.bindings.bindCallableTarget(id, target: .symbol(chosen))
@@ -333,6 +336,11 @@ extension LocalDeclTypeChecker {
             ctx.cachedSymbol($0)?.flags.contains(.operatorFunction) == true
         }
         if setCandidates.isEmpty {
+            setCandidates = collectIndexedOperatorMemberExtensionCandidates(
+                named: setName, receiverType: receiverType, ctx: ctx
+            )
+        }
+        if setCandidates.isEmpty {
             let nonNullReceiver = sema.types.makeNonNullable(receiverType)
             // An unrelated nearer extension must not hide an applicable set
             // from an outer scope (e.g. the default-imported MutableMap.set).
@@ -415,14 +423,23 @@ extension LocalDeclTypeChecker {
             indexTypes.append(indexType)
         }
 
+        let isBuiltinArray = builtinArrayElementType(for: receiverType, sema: sema, interner: interner) != nil
+        let contextSetCandidates: [SymbolID] = {
+            guard isBuiltinArray else { return setCandidates }
+            let extensions = collectIndexedOperatorExtensionCandidates(
+                named: setName, receiverType: receiverType, locals: locals, ctx: ctx
+            )
+            return setCandidates + extensions.filter { !setCandidates.contains($0) }
+        }()
+
         // Determine the expected element type so integer literals can be
         // narrowed for built-in array assignment and operator-set calls
         // (e.g. ByteArray[0] = 9).
         let valueParameterIndex = indices.count
         let setValueExpectedType: TypeID? = {
-            if !setCandidates.isEmpty {
+            if !contextSetCandidates.isEmpty {
                 var valueTypes: [TypeID] = []
-                for candidate in setCandidates {
+                for candidate in contextSetCandidates {
                     guard let sig = sema.symbols.functionSignature(for: candidate),
                           sig.parameterTypes.count > valueParameterIndex,
                           let valueParameterType = sig.parameterTypes.last
@@ -443,19 +460,61 @@ extension LocalDeclTypeChecker {
                         receiverType: receiverType,
                         sema: sema
                     )
+                    if isBuiltinArray,
+                       !driver.callChecker.typeMentionsTypeParameter(paramType, sema: sema)
+                    {
+                        // Probe the already inferred indices using this setter's
+                        // own value type. Inapplicable array members must not
+                        // provide the context for an extension's assigned value.
+                        let indexArgs = zip(indices, indexTypes).map { expr, type in
+                            let literal = driver.callChecker.integerLiteralValues(expr, ast: ast)
+                            return CallArg(type: type, signedIntegerLiteral: literal.signed, unsignedIntegerLiteral: literal.unsigned)
+                        }
+                        let probe = CallExpr(
+                            range: range,
+                            calleeName: setName,
+                            args: indexArgs + [CallArg(type: paramType, bindsToLastParameter: true)],
+                            dispatchReceiverTypes: ctx.implicitReceiverMemberLookupEntries().map(\.type)
+                        )
+                        if ctx.resolver.probeCall(
+                            candidates: [candidate], call: probe, expectedType: nil,
+                            implicitReceiverType: receiverType, ctx: sema
+                        ).viableCandidates.isEmpty {
+                            continue
+                        }
+                    }
                     valueTypes.append(sema.types.makeNonNullable(paramType))
                 }
-                if let first = valueTypes.first, valueTypes.dropFirst().allSatisfy({ $0 == first }) {
-                    return first
+                if let first = valueTypes.first {
+                    if valueTypes.dropFirst().allSatisfy({ $0 == first }) { return first }
+                    if isBuiltinArray { return nil }
                 }
             }
+            // The raw array write-back only exists for a single index; for a
+            // multi-index `a[i, j] = v` the outer array's element type is
+            // unrelated to the operator `set()`'s value parameter, so it must
+            // not steer value inference (e.g. `cells[i, j] = f()` on
+            // `Array<CharArray>` must not expect `CharArray`).
+            guard indices.count == 1 else { return nil }
             return driver.helpers.arrayElementType(for: receiverType, sema: sema, interner: interner)
         }()
+        let setValueTypeHasUnresolvedTypeParameter: Bool = {
+            guard let setValueExpectedType, !contextSetCandidates.isEmpty else { return false }
+            return contextSetCandidates.contains { candidate in
+                guard let signature = sema.symbols.functionSignature(for: candidate) else {
+                    return true
+                }
+                return ctx.resolver.containsTypeVariable(
+                    setValueExpectedType,
+                    typeVarBySymbol: sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols),
+                    typeSystem: sema.types
+                )
+            }
+        }()
 
-        // Pass concrete contextual numeric types or a fully-substituted function
-        // type as the expected type; a still-generic element type (e.g. an
-        // unsubstituted `MutableMap.set` value type `T`) must not influence
-        // inference of non-literal values.
+        // Pass concrete contextual numeric types for literal narrowing, and
+        // fully-substituted function or class types for nested calls. A
+        // setter's unresolved type parameter must not influence other values.
         let valueExpectedType: TypeID? = {
             guard let setValueExpectedType else { return nil }
             let nonNull = sema.types.makeNonNullable(setValueExpectedType)
@@ -473,6 +532,15 @@ extension LocalDeclTypeChecker {
                     return nil
                 }
                 return nonNull
+            case .classType:
+                // A nested generic constructor or factory call needs its
+                // fully substituted class type before argument inference.
+                guard driver.callChecker.isInferableNestedCallExpr(valueExpr, ast: ast),
+                      !setValueTypeHasUnresolvedTypeParameter
+                else {
+                    return nil
+                }
+                return nonNull
             default:
                 return nil
             }
@@ -486,7 +554,12 @@ extension LocalDeclTypeChecker {
             return CallArg(type: type, signedIntegerLiteral: literal.signed, unsignedIntegerLiteral: literal.unsigned)
         }
         setCallArgs.append(CallArg(type: valueType, bindsToLastParameter: true))
-        let setCall = CallExpr(range: range, calleeName: setName, args: setCallArgs)
+        let setCall = CallExpr(
+            range: range,
+            calleeName: setName,
+            args: setCallArgs,
+            dispatchReceiverTypes: ctx.implicitReceiverMemberLookupEntries().map(\.type)
+        )
         // A single-index member cannot handle a multi-index assignment.
         // Preserve applicable (including ambiguous) members, but try lexical
         // operator extensions when none of the collected candidates applies.
@@ -520,12 +593,37 @@ extension LocalDeclTypeChecker {
                         substitutedTypeArguments: resolved.substitutedTypeArguments
                             .sorted(by: { $0.key.rawValue < $1.key.rawValue })
                             .map { _, value in value },
-                        parameterMapping: resolved.parameterMapping
+                        parameterMapping: resolved.parameterMapping,
+                        dispatchReceiverSymbol: indexedOperatorDispatchReceiverSymbol(
+                            for: chosen, named: setName, ctx: ctx
+                        )
                     )
                 )
                 sema.bindings.bindCallableTarget(id, target: .symbol(chosen))
                 sema.bindings.bindExprType(id, type: sema.types.unitType)
                 return sema.types.unitType
+            }
+            // KUU-3667: `set` candidates existed but none accepted the
+            // arguments (e.g. `map[1] = v` on `Map<String, V>` where the
+            // MutableMap.set extension rejects the Int key). A non-array
+            // receiver must emit the resolve diagnostic and reject — falling
+            // through to the built-in array fallback would accept the write
+            // and lower to kk_array_set on a non-array receiver, which panics
+            // at runtime. A genuine array receiver instead keeps the legacy
+            // constraint fallback below, which reports the same diagnostics
+            // it always has (e.g. an element literal that cannot narrow).
+            guard isBuiltinArray else {
+                if let diagnostic = resolved.diagnostic {
+                    ctx.sema.diagnostics.emit(diagnostic)
+                } else {
+                    ctx.sema.diagnostics.error(
+                        "KSWIFTK-SEMA-0002",
+                        "No viable overload found for operator 'set'.",
+                        range: range
+                    )
+                }
+                sema.bindings.bindExprType(id, type: sema.types.errorType)
+                return sema.types.errorType
             }
         }
 
@@ -579,6 +677,21 @@ extension LocalDeclTypeChecker {
                 sema.bindings.bindExprType(id, type: sema.types.errorType)
                 return sema.types.errorType
             }
+        }
+        // The built-in array fallback only exists for genuine array receivers
+        // (including the synthetic array shells used by --no-stdlib / .kklib
+        // builds, which carry no `set` member). A non-array receiver reaching
+        // this point has no applicable indexed-`set` convention at all; reject
+        // instead of lowering to kk_array_set on a foreign object layout
+        // (KUU-3667).
+        guard isBuiltinArray else {
+            ctx.sema.diagnostics.error(
+                "KSWIFTK-SEMA-0024",
+                "Unresolved member function 'set'.",
+                range: range
+            )
+            sema.bindings.bindExprType(id, type: sema.types.errorType)
+            return sema.types.errorType
         }
         driver.emitSubtypeConstraint(
             left: indexTypes[0],

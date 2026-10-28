@@ -1,6 +1,7 @@
 #if canImport(Testing)
 @testable import CompilerCore
 import Testing
+@testable import CompilerTestSupport
 
 /// BUG-186: Byte/Short overloads must be distinct and resolve to the correct overload.
 @Suite

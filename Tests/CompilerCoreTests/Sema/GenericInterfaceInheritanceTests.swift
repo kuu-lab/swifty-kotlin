@@ -1,6 +1,7 @@
 #if canImport(Testing)
 @testable import CompilerCore
 import Testing
+@testable import CompilerTestSupport
 
 /// KSP-682: regression coverage for binding supertype type arguments when a
 /// generic declaration forwards its own type parameters to a generic supertype

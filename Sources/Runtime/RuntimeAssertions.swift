@@ -392,6 +392,43 @@ final class RuntimeErrorBox: RuntimeThrowableBox {
     }
 }
 
+final class RuntimeExceptionInInitializerErrorBox: RuntimeThrowableBox {
+    override var exceptionFQName: String {
+        "java.lang.ExceptionInInitializerError"
+    }
+
+    override var exceptionHierarchyFQNames: [String] {
+        [
+            "java.lang.ExceptionInInitializerError",
+            "kotlin.Error",
+            "java.lang.Error",
+            "kotlin.Throwable",
+        ]
+    }
+
+    override var renderedMessage: String {
+        runtimeRenderedExceptionMessage("ExceptionInInitializerError", message)
+    }
+}
+
+final class RuntimeKotlinReflectionNotSupportedErrorBox: RuntimeThrowableBox {
+    override var exceptionFQName: String {
+        "kotlin.KotlinReflectionNotSupportedError"
+    }
+
+    override var exceptionHierarchyFQNames: [String] {
+        [
+            "kotlin.KotlinReflectionNotSupportedError",
+            "kotlin.Error",
+            "kotlin.Throwable",
+        ]
+    }
+
+    override var renderedMessage: String {
+        runtimeRenderedExceptionMessage("KotlinReflectionNotSupportedError", message)
+    }
+}
+
 final class RuntimeOutOfMemoryErrorBox: RuntimeThrowableBox {
     override var exceptionFQName: String {
         "kotlin.OutOfMemoryError"
@@ -648,6 +685,18 @@ func runtimeAllocateKotlinNothingValueException(message: String?, cause: Int = 0
 
 func runtimeAllocateError(message: String?, cause: Int = 0, messageRaw: Int = 0) -> Int {
     return runtimeRegisterThrowable(RuntimeErrorBox(message: message, cause: cause, messageRaw: messageRaw))
+}
+
+func runtimeAllocateExceptionInInitializerError(message: String?, cause: Int = 0, messageRaw: Int = 0) -> Int {
+    return runtimeRegisterThrowable(
+        RuntimeExceptionInInitializerErrorBox(message: message, cause: cause, messageRaw: messageRaw)
+    )
+}
+
+func runtimeAllocateKotlinReflectionNotSupportedError(message: String?, cause: Int = 0, messageRaw: Int = 0) -> Int {
+    return runtimeRegisterThrowable(
+        RuntimeKotlinReflectionNotSupportedErrorBox(message: message, cause: cause, messageRaw: messageRaw)
+    )
 }
 
 func runtimeAllocateOutOfMemoryError(message: String?, cause: Int = 0, messageRaw: Int = 0) -> Int {
@@ -1198,6 +1247,57 @@ public func kk_error_new_message_cause(_ messageRaw: Int, _ causeRaw: Int) -> In
 @_cdecl("__kk_error_new_cause")
 public func kk_error_new_cause(_ causeRaw: Int) -> Int {
     runtimeAllocateError(
+        message: runtimeCauseToString(from: causeRaw),
+        cause: (causeRaw == 0 || causeRaw == runtimeNullSentinelInt) ? 0 : causeRaw
+    )
+}
+
+@_cdecl("__kk_exception_in_initializer_error_new")
+public func kk_exception_in_initializer_error_new() -> Int {
+    runtimeAllocateExceptionInInitializerError(message: nil)
+}
+
+@_cdecl("__kk_exception_in_initializer_error_new_message")
+public func kk_exception_in_initializer_error_new_message(_ messageRaw: Int) -> Int {
+    runtimeAllocateExceptionInInitializerError(
+        message: runtimeExceptionMessage(from: messageRaw, defaultMessage: nil),
+        messageRaw: messageRaw
+    )
+}
+
+@_cdecl("__kk_exception_in_initializer_error_new_cause")
+public func kk_exception_in_initializer_error_new_cause(_ causeRaw: Int) -> Int {
+    runtimeAllocateExceptionInInitializerError(
+        message: runtimeCauseToString(from: causeRaw),
+        cause: (causeRaw == 0 || causeRaw == runtimeNullSentinelInt) ? 0 : causeRaw
+    )
+}
+
+@_cdecl("__kk_kotlin_reflection_not_supported_error_new")
+public func kk_kotlin_reflection_not_supported_error_new() -> Int {
+    runtimeAllocateKotlinReflectionNotSupportedError(message: nil)
+}
+
+@_cdecl("__kk_kotlin_reflection_not_supported_error_new_message")
+public func kk_kotlin_reflection_not_supported_error_new_message(_ messageRaw: Int) -> Int {
+    runtimeAllocateKotlinReflectionNotSupportedError(
+        message: runtimeExceptionMessage(from: messageRaw, defaultMessage: nil),
+        messageRaw: messageRaw
+    )
+}
+
+@_cdecl("__kk_kotlin_reflection_not_supported_error_new_message_cause")
+public func kk_kotlin_reflection_not_supported_error_new_message_cause(_ messageRaw: Int, _ causeRaw: Int) -> Int {
+    runtimeAllocateKotlinReflectionNotSupportedError(
+        message: runtimeExceptionMessage(from: messageRaw, defaultMessage: nil),
+        cause: (causeRaw == 0 || causeRaw == runtimeNullSentinelInt) ? 0 : causeRaw,
+        messageRaw: messageRaw
+    )
+}
+
+@_cdecl("__kk_kotlin_reflection_not_supported_error_new_cause")
+public func kk_kotlin_reflection_not_supported_error_new_cause(_ causeRaw: Int) -> Int {
+    runtimeAllocateKotlinReflectionNotSupportedError(
         message: runtimeCauseToString(from: causeRaw),
         cause: (causeRaw == 0 || causeRaw == runtimeNullSentinelInt) ? 0 : causeRaw
     )

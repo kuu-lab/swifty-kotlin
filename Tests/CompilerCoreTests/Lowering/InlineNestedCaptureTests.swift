@@ -1,6 +1,7 @@
 #if canImport(Testing)
 @testable import CompilerCore
 import Testing
+@testable import CompilerTestSupport
 
 struct InlineNestedCaptureTests {
     @Test(arguments: [false, true])

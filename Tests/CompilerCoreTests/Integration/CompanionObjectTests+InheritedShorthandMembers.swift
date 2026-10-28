@@ -1,8 +1,42 @@
 #if canImport(Testing)
 @testable import CompilerCore
 import Testing
+@testable import CompilerTestSupport
 
 extension CompanionObjectTests {
+    @Test func protectedInheritedCompanionMemberIsCallableFromEnclosingClass() throws {
+        let source = """
+        open class A { protected fun foo() = "OK" }
+        class B {
+            companion object : A()
+            fun bar() = foo()
+            fun invalidReceiver(value: A) = value.foo()
+        }
+        fun main() { println(B().bar()) }
+        """
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+        #expect(ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0041" }.count == 1)
+        #expect(!ctx.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-SEMA-0023" })
+    }
+
+    @Test func testProtectedCompanionMembersInNestedClasses() throws {
+        let source = """
+        open class A {
+            companion object { protected fun foo(): String = "OK" }
+            fun outer(): String = foo()
+            class B : A() { fun bar(): String = foo() }
+            class C { fun bar(): String = foo() }
+        }
+        fun outside(): String = A.foo()
+        """
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.count == 1, "\(errors)")
+        #expect(errors.first?.code == "KSWIFTK-SEMA-0041")
+    }
+
     @Test func testBaseCompanionMembersResolveUnqualifiedInDerivedInstanceMembers() throws {
         let source = """
         open class Root {

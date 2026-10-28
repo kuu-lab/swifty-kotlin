@@ -19,6 +19,7 @@ final class JVMClassPlan {
     var delegatedMethods: [(SymbolID, JVMForeignMethod, JVMForeignMethod, JVMField)] = []
     var delegatedProperties: [(JVMProperty, JVMProperty, JVMField)] = []
     var anonymousSuper: JVMForeignMethod?
+    var enclosingMethod: JVMEnclosingMethod?
     var isInner: Bool { declaration?.isInner == true }
     var isObject: Bool { object != nil && !isAnonymous }
     var isEnum: Bool { declaration?.modifiers.contains(.enumModifier) == true && enumParent == nil }

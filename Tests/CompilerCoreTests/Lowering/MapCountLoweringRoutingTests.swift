@@ -2,6 +2,7 @@
 @testable import CompilerCore
 import Foundation
 import Testing
+@testable import CompilerTestSupport
 
 /// RF-LOWER-CALL-012 follow-up: pin the routing of `Map<K, V>.count(predicate)`.
 ///

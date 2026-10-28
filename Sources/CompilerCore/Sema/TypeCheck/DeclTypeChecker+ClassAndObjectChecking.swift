@@ -98,9 +98,28 @@ extension DeclTypeChecker {
         symbol: SymbolID,
         ctx: TypeInferenceContext,
         solver: ConstraintSolver,
-        diagnostics: DiagnosticEngine
+        diagnostics: DiagnosticEngine,
+        baseLocals: LocalBindings = [:]
     ) {
         typeCheckAnnotationFactories(classDecl.annotations, symbol: symbol, ctx: ctx)
+        if let classSymbol = ctx.sema.symbols.symbol(symbol) {
+            let constructorPath = classSymbol.fqName + [ctx.interner.intern("<init>")]
+            let constructors = ctx.sema.symbols.lookupAll(fqName: constructorPath)
+            if !classDecl.primaryConstructorAnnotations.isEmpty,
+               let constructor = constructors.first(where: {
+                   ctx.sema.symbols.symbol($0)?.declSite == classDecl.range
+               })
+            {
+                typeCheckAnnotationFactories(classDecl.primaryConstructorAnnotations, symbol: constructor, ctx: ctx)
+            }
+            for declaration in classDecl.secondaryConstructors where !declaration.annotations.isEmpty {
+                if let constructor = constructors.first(where: {
+                    ctx.sema.symbols.symbol($0)?.declSite == declaration.range
+                }) {
+                    typeCheckAnnotationFactories(declaration.annotations, symbol: constructor, ctx: ctx)
+                }
+            }
+        }
         var allNestedObjects = classDecl.nestedObjects
         if let companionDeclID = classDecl.companionObject {
             allNestedObjects.append(companionDeclID)
@@ -111,6 +130,15 @@ extension DeclTypeChecker {
             nestedObjects: allNestedObjects,
             ctx: ctx
         )
+        let classBodyLocals = baseLocals.merging(primaryCtorLocals) { _, new in new }
+        let primaryConstructor = ctx.sema.symbols.symbols(atDeclSite: classDecl.range)
+            .compactMap({ ctx.sema.symbols.symbol($0) })
+            .first(where: { $0.kind == .constructor })
+        typeCheckPrimaryConstructorAnnotationFactories(
+            classDecl.primaryConstructorAnnotations,
+            symbol: primaryConstructor?.id,
+            ctx: classCtx
+        )
         if let companionDeclID = classDecl.companionObject {
             // Infer both sides first: companion bodies may use inferred instance members.
             let diagnosticSnapshot = diagnostics.count
@@ -119,7 +147,8 @@ extension DeclTypeChecker {
                 memberProperties: classDecl.memberProperties,
                 nestedClasses: classDecl.nestedClasses,
                 ctx: classCtx,
-                propertyInitializerLocals: primaryCtorLocals,
+                propertyInitializerLocals: classBodyLocals,
+                memberFunctionBaseLocals: baseLocals,
                 solver: solver,
                 diagnostics: diagnostics
             )
@@ -139,12 +168,17 @@ extension DeclTypeChecker {
             nestedClasses: classDecl.nestedClasses,
             nestedObjects: allNestedObjects,
             ctx: classCtx,
-            propertyInitializerLocals: primaryCtorLocals,
+            propertyInitializerLocals: classBodyLocals,
+            memberFunctionBaseLocals: baseLocals,
+            nestedClassBaseLocals: baseLocals,
             solver: solver,
             diagnostics: diagnostics
         )
-        typeCheckInitBlocks(classDecl.initBlocks, ctx: classCtx, baseLocals: primaryCtorLocals)
-        typeCheckPrimaryConstructorDefaultValues(classDecl, ctx: classCtx, solver: solver, diagnostics: diagnostics)
+        typeCheckInitBlocks(classDecl.initBlocks, ctx: classCtx, baseLocals: classBodyLocals)
+        typeCheckPrimaryConstructorDefaultValues(
+            classDecl, ctx: classCtx, solver: solver, diagnostics: diagnostics,
+            baseLocals: baseLocals
+        )
         if classDecl.modifiers.contains(.annotationClass) {
             for parameter in classDecl.primaryConstructorParams {
                 if let value = parameter.defaultValue { validateAnnotationDefaultValue(value, ctx: classCtx) }
@@ -153,7 +187,13 @@ extension DeclTypeChecker {
         typeCheckEnumEntryConstructorArguments(
             classDecl, symbol: symbol, ctx: classCtx, solver: solver, diagnostics: diagnostics
         )
-        typeCheckPrimaryConstructorSuperDelegation(classDecl, symbol: symbol, ctx: classCtx)
+        typeCheckPrimaryConstructorSuperDelegation(
+            classDecl,
+            symbol: symbol,
+            ctx: classCtx,
+            extraLocals: baseLocals,
+            outerReceiversToKeep: ctx.singletonObjectOuterReceivers
+        )
         let explicitSuperclassSymbol = explicitClassSuperclassSymbol(classDecl, ctx: classCtx)
         typeCheckSecondaryConstructors(
             classDecl.secondaryConstructors,
@@ -162,9 +202,13 @@ extension DeclTypeChecker {
             diagnostics: diagnostics,
             ownerSymbol: symbol,
             hasPrimaryConstructor: classDecl.hasPrimaryConstructorSyntax,
-            explicitSuperclassSymbol: explicitSuperclassSymbol
+            explicitSuperclassSymbol: explicitSuperclassSymbol,
+            baseLocals: baseLocals
         )
-        typeCheckClassDelegation(classDecl, symbol: symbol, ctx: classCtx, solver: solver, diagnostics: diagnostics)
+        typeCheckClassDelegation(
+            classDecl, symbol: symbol, ctx: classCtx, solver: solver,
+            diagnostics: diagnostics, baseLocals: baseLocals
+        )
         typeCheckEnumEntryMemberBodies(
             classDecl,
             enumSymbol: symbol,
@@ -358,11 +402,20 @@ extension DeclTypeChecker {
         // declaration scope, so visit them before lowering can emit the
         // constructor call. This also records constant-property bindings for
         // expressions such as `Base64(STANDARD_ALPHABET, 0)`.
+        // They run before this object is initialized, so `this` and the
+        // enclosing instance's members stay out of scope; only enclosing
+        // singleton objects (and other kept outer receivers) remain —
+        // `object Inner : Base(this.foo())` inside `object Outer` resolves
+        // `this` to Outer, while the same expression inside a class is
+        // rejected (KUU-3595).
         var superclassArgumentLocals: LocalBindings = [:]
         bindObjectSuperConstructorCall(
             objectDecl,
             symbol: symbol,
-            ctx: ctx,
+            ctx: ctx.copying(
+                implicitReceiverType: .some(nil),
+                outerReceiverTypes: ctx.singletonObjectOuterReceivers
+            ).excludingEnclosingClassReceiver(),
             locals: &superclassArgumentLocals
         )
 
@@ -479,6 +532,7 @@ extension DeclTypeChecker {
         nestedClasses: [DeclID] = [],
         ctx: TypeInferenceContext,
         propertyInitializerLocals: LocalBindings = [:],
+        memberFunctionBaseLocals: LocalBindings = [:],
         solver: ConstraintSolver,
         diagnostics: DiagnosticEngine
     ) {
@@ -519,7 +573,8 @@ extension DeclTypeChecker {
                     symbol: symbol,
                     ctx: ctx.with(currentDeclSymbol: symbol),
                     solver: solver,
-                    diagnostics: diagnostics
+                    diagnostics: diagnostics,
+                    baseLocals: memberFunctionBaseLocals
                 )
                 diagnostics.truncate(to: diagnosticSnapshot)
 
@@ -571,6 +626,8 @@ extension DeclTypeChecker {
         nestedObjects: [DeclID],
         ctx: TypeInferenceContext,
         propertyInitializerLocals: LocalBindings = [:],
+        memberFunctionBaseLocals: LocalBindings = [:],
+        nestedClassBaseLocals: LocalBindings = [:],
         solver: ConstraintSolver,
         diagnostics: DiagnosticEngine
     ) {
@@ -582,6 +639,7 @@ extension DeclTypeChecker {
             nestedClasses: nestedClasses,
             ctx: ctx,
             propertyInitializerLocals: propertyInitializerLocals,
+            memberFunctionBaseLocals: memberFunctionBaseLocals,
             solver: solver,
             diagnostics: diagnostics
         )
@@ -611,7 +669,13 @@ extension DeclTypeChecker {
         // Nested types can also expose inferred companion properties. Resolve
         // them before enclosing functions see the header's `Any?` placeholder.
         for declID in nestedClasses {
-            typeCheckNestedClassDecl(declID: declID, ctx: ctx, solver: solver, diagnostics: diagnostics)
+            typeCheckNestedClassDecl(
+                declID: declID,
+                ctx: ctx,
+                solver: solver,
+                diagnostics: diagnostics,
+                baseLocals: nestedClassBaseLocals
+            )
         }
 
         // Recheck properties after nested classes publish inferred member
@@ -649,7 +713,8 @@ extension DeclTypeChecker {
                 symbol: symbol,
                 ctx: ctx.with(currentDeclSymbol: symbol),
                 solver: solver,
-                diagnostics: diagnostics
+                diagnostics: diagnostics,
+                baseLocals: memberFunctionBaseLocals
             )
         }
 
@@ -692,7 +757,8 @@ extension DeclTypeChecker {
         declID: DeclID,
         ctx: TypeInferenceContext,
         solver: ConstraintSolver,
-        diagnostics: DiagnosticEngine
+        diagnostics: DiagnosticEngine,
+        baseLocals: LocalBindings = [:]
     ) {
         guard let decl = ctx.ast.arena.decl(declID),
               let symbol = ctx.sema.bindings.declSymbols[declID]
@@ -706,7 +772,8 @@ extension DeclTypeChecker {
                 symbol: symbol,
                 ctx: nestedCtx.with(currentDeclSymbol: symbol),
                 solver: solver,
-                diagnostics: diagnostics
+                diagnostics: diagnostics,
+                baseLocals: classDecl.isInner ? baseLocals : [:]
             )
         case let .interfaceDecl(nestedInterface):
             let nestedCtx = ctx.copying(outerReceiverTypes: [])
@@ -732,20 +799,63 @@ extension DeclTypeChecker {
         ctx: TypeInferenceContext
     ) -> ClassMemberScope {
         let sema = ctx.sema
-        func insertCompanionMembers(of classSymbol: SymbolID, into scope: BaseScope) {
+        func companionMemberScope(of classSymbol: SymbolID, parent: Scope) -> Scope {
             guard let companionSymbol = sema.symbols.companionObjectSymbol(for: classSymbol),
-                  let companion = sema.symbols.symbol(companionSymbol)
+                  sema.symbols.symbol(companionSymbol) != nil
             else {
-                return
+                return parent
             }
-            for memberSymbol in sema.symbols.children(ofFQName: companion.fqName) {
-                guard let member = sema.symbols.symbol(memberSymbol),
-                      member.kind == .property || member.kind == .field || member.kind == .function
+
+            var inheritedOwnersByDepth: [[SymbolID]] = []
+            var pending = sema.symbols.directSupertypes(for: companionSymbol).map { ($0, 1) }
+            var visitedOwners: Set<SymbolID> = [companionSymbol]
+            var index = 0
+            while index < pending.count {
+                let (owner, depth) = pending[index]
+                index += 1
+                guard visitedOwners.insert(owner).inserted,
+                      sema.symbols.symbol(owner) != nil
                 else {
                     continue
                 }
-                scope.insert(memberSymbol)
+                while inheritedOwnersByDepth.count < depth {
+                    inheritedOwnersByDepth.append([])
+                }
+                inheritedOwnersByDepth[depth - 1].append(owner)
+                pending.append(contentsOf: sema.symbols.directSupertypes(for: owner).map { ($0, depth + 1) })
             }
+
+            func insertMembers(
+                of owners: [SymbolID],
+                into scope: BaseScope,
+                inherited: Bool,
+                functionsOnly: Bool
+            ) {
+                for owner in owners {
+                    guard let ownerInfo = sema.symbols.symbol(owner) else { continue }
+                    for memberSymbol in sema.symbols.children(ofFQName: ownerInfo.fqName) {
+                        guard let member = sema.symbols.symbol(memberSymbol),
+                              member.kind == .function
+                                || !functionsOnly && (member.kind == .property || member.kind == .field),
+                              !inherited || member.visibility != .private
+                        else {
+                            continue
+                        }
+                        scope.insert(memberSymbol)
+                    }
+                }
+            }
+
+            var memberScopeParent = parent
+            for owners in inheritedOwnersByDepth.reversed() {
+                let inheritedScope = BaseScope(parent: memberScopeParent, symbols: sema.symbols)
+                insertMembers(of: owners, into: inheritedScope, inherited: true, functionsOnly: true)
+                memberScopeParent = inheritedScope
+            }
+
+            let ownScope = BaseScope(parent: memberScopeParent, symbols: sema.symbols)
+            insertMembers(of: [companionSymbol], into: ownScope, inherited: false, functionsOnly: false)
+            return ownScope
         }
 
         // A class inherits the unqualified companion shorthand of its class
@@ -772,13 +882,10 @@ extension DeclTypeChecker {
             }
 
             for superclass in inheritedClassSymbols.reversed() {
-                let inheritedCompanionScope = BaseScope(parent: companionScopeParent, symbols: sema.symbols)
-                insertCompanionMembers(of: superclass, into: inheritedCompanionScope)
-                companionScopeParent = inheritedCompanionScope
+                companionScopeParent = companionMemberScope(of: superclass, parent: companionScopeParent)
             }
         }
-        let companionScope = BaseScope(parent: companionScopeParent, symbols: sema.symbols)
-        insertCompanionMembers(of: ownerSymbol, into: companionScope)
+        let companionScope = companionMemberScope(of: ownerSymbol, parent: companionScopeParent)
 
         let classScope = ClassMemberScope(
             parent: companionScope,
@@ -799,6 +906,14 @@ extension DeclTypeChecker {
             if let symbol = sema.bindings.declSymbols[declID] {
                 classScope.insert(symbol)
             }
+        }
+
+        // Class delegation forwarders are synthetic symbols, not AST members,
+        // but must be visible to unqualified calls in the delegating class body.
+        for forwardingSymbol in sema.symbols.classDelegationForwardingMethodSymbols(forClass: ownerSymbol)
+            + sema.symbols.classDelegationForwardingPropertySymbols(forClass: ownerSymbol)
+        {
+            classScope.insert(forwardingSymbol)
         }
 
         // Inner classes declared in a supertype are inherited members, so

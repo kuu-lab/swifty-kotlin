@@ -1,6 +1,7 @@
 #if canImport(Testing)
 @testable import CompilerCore
 import Testing
+@testable import CompilerTestSupport
 
 /// KUU-3099: a `?.` short-circuits the rest of its postfix chain, so the
 /// value/index arguments of `a?.b = v` and `a?.b[i] = v` may never run. The

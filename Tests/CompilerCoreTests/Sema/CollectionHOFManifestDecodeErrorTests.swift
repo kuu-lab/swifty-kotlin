@@ -2,6 +2,7 @@
 @testable import CompilerCore
 import Foundation
 import Testing
+@testable import CompilerTestSupport
 
 /// Tests that collection HOF type inference works correctly even when external
 /// library metadata is missing or unavailable — bundled Kotlin declarations

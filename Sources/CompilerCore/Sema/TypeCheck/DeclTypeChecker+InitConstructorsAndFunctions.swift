@@ -481,6 +481,8 @@ extension DeclTypeChecker {
             initCtx.enclosingFunctionProhibitsExpressionBodyReturn = false
             _ = inferFunctionBodyType(block, ctx: initCtx, locals: &locals, expectedType: nil)
             runningLocals.memberFlow = locals.memberFlow
+            runningLocals.variableFacts = locals.variableFacts
+            runningLocals.invalidatedVariableFacts = locals.invalidatedVariableFacts
         }
     }
 
@@ -541,6 +543,10 @@ extension DeclTypeChecker {
                         baseLocals: baseLocals
                     )
                 }
+            }
+
+            if let currentCtorSymbolID {
+                typeCheckAnnotationFactories(ctor.annotations, symbol: currentCtorSymbolID, ctx: constructorCtx)
             }
 
             constructorCtx.allowsValPropertyInitialization = true
@@ -627,6 +633,22 @@ extension DeclTypeChecker {
             if candidates.isEmpty {
                 emitUnresolvedDelegation(delegation: delegation, sema: sema)
             } else {
+                // Delegation arguments evaluate before the delegating instance
+                // exists, so `this` and the class's own members stay out of
+                // scope — the same treatment primary-constructor supertype
+                // arguments get in `typeCheckPrimaryConstructorSuperDelegation`.
+                // Enclosing receivers that survive construction (singleton
+                // objects, capturable outer `this` values) remain visible, so
+                // `object Host { class C : B { init() : super(this.f()) } }`
+                // resolves `this` to Host (KUU-3595).
+                let delegationArgCtx = ctx.copying(
+                    implicitReceiverType: .some(nil),
+                    outerReceiverTypes: ctx.outerReceiverTypes.filter { entry in
+                        guard case let .classType(classType) = sema.types.kind(of: entry.type)
+                        else { return true }
+                        return classType.classSymbol != ownerSymbol
+                    }
+                ).excludingEnclosingClassReceiver()
                 let resolved = inferConstructorDelegationArguments(
                     delegation.args,
                     candidates: candidates,
@@ -638,7 +660,7 @@ extension DeclTypeChecker {
                             superclassSymbol: explicitSuperclassSymbol,
                             ctx: ctx
                         ),
-                    ctx: ctx,
+                    ctx: delegationArgCtx,
                     locals: &locals
                 )
                 if let chosenCallee = resolved.chosenCallee, let currentCtorSymbolID {
@@ -1064,6 +1086,11 @@ extension DeclTypeChecker {
                 type: extensionReceiverType,
                 symbol: SyntheticSymbolScheme.receiverParameterSymbol(for: symbol)
             )
+            functionCtx = addingCompanionLookupReceiver(
+                to: functionCtx,
+                receiverType: extensionReceiverType,
+                enabled: function.modifiers.contains(.companion)
+            )
         }
         // Propagate suppression flag so that individual `return` statements inside
         // functions with inferred return types also skip the platform-type warning.
@@ -1316,6 +1343,7 @@ extension DeclTypeChecker {
                     valueParameterIsVararg: signature.valueParameterIsVararg,
                     valueParameterAllowsNonLocalReturn: signature.valueParameterAllowsNonLocalReturn,
                     hasExplicitInlineParameterMetadata: signature.hasExplicitInlineParameterMetadata,
+                    hasStableParameterNames: signature.hasStableParameterNames,
                     typeParameterSymbols: signature.typeParameterSymbols,
                     reifiedTypeParameterIndices: signature.reifiedTypeParameterIndices,
                     typeParameterUpperBounds: signature.typeParameterUpperBounds,

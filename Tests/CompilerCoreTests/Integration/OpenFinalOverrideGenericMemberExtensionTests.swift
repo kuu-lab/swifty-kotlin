@@ -2,6 +2,7 @@
 import CompilerCore
 import Testing
 import TestStdlibCache
+@testable import CompilerTestSupport
 
 /// KUU-2260: method type parameters have declaration-local identities, so equivalent
 /// member extension overrides must be compared after alpha-alignment.

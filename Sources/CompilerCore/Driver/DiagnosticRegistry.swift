@@ -134,6 +134,7 @@ enum DiagnosticRegistry {
         "API_VERSION": ["KSWIFTK-SEMA-API-VERSION"],
         "OPT_IN_USAGE": ["KSWIFTK-SEMA-OPT-IN"],
         "UNCHECKED_IS": ["KSWIFTK-SEMA-ERASED-TYPE"],
+        "CANNOT_CHECK_FOR_ERASED": ["KSWIFTK-SEMA-ERASED-TYPE"],
         "ANNOTATION_TARGET": ["KSWIFTK-SEMA-ANNOTATION-TARGET"],
         "NON_REPEATABLE_ANNOTATION": ["KSWIFTK-SEMA-ANNOTATION-NOT-REPEATABLE"],
         "ANNOTATION_ARGUMENT_MUST_BE_CONST": ["KSWIFTK-SEMA-ANNOTATION-ARGUMENT-CONST"],
@@ -141,6 +142,9 @@ enum DiagnosticRegistry {
         "TOO_MANY_ARGUMENTS": ["KSWIFTK-SEMA-ANNOTATION-ARGUMENT-ARITY"],
         "NO_VALUE_FOR_PARAMETER": ["KSWIFTK-SEMA-ANNOTATION-ARGUMENT-ARITY"],
         "DATA_CLASS_COPY_VISIBILITY": ["KSWIFTK-SEMA-DATA-COPY-VISIBILITY"],
+        // kotlinc gates local `inline` functions behind this diagnostic name;
+        // the local-function modifier check reports it as KSWIFTK-SEMA-0400.
+        "NOT_YET_SUPPORTED_LOCAL_INLINE_FUNCTION": ["KSWIFTK-SEMA-0400"],
     ]
 
 
@@ -1184,6 +1188,12 @@ enum DiagnosticRegistry {
             pass: "SEMA",
             defaultSeverity: .error,
             summary: "Type constraints are not allowed when no type parameters are declared."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0446",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "A data class componentN() conflicts with a user-declared member."
         ),
     ]
 

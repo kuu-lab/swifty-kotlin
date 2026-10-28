@@ -1,6 +1,7 @@
 #if canImport(Testing)
 @testable import CompilerCore
 import Testing
+@testable import CompilerTestSupport
 
 /// KUU-1358: the `sumOf` selector overloads mirror upstream with only
 /// Int/Long/Double/UInt/ULong selector return types. A selector returning any

@@ -60,6 +60,26 @@ extension CallLowerer {
                 ))
                 return result
             }
+            // A nullable Float?/Double?/ULong? receiver shares the runtime
+            // null sentinel's bit pattern with an in-range value (0.0, -0.0,
+            // or a ULong of exactly 2^63), and kk_any_to_string decodes those
+            // tags before checking the sentinel — so a real null would render
+            // as that value. Route primitive receivers through the guarded
+            // helper, which null-checks nullable tag-5/6/7 values first and
+            // boxes a statically non-null Long so Long.MIN_VALUE renders its
+            // digits instead of "null" (KUU-3661).
+            if case .primitive = sema.types.kind(of: nonNullAnyFallbackReceiverType) {
+                let converted = emitAnyToStringWithNullGuard(
+                    valueID: loweredReceiverID,
+                    valueType: anyFallbackReceiverType,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    instructions: &instructions
+                )
+                instructions.append(.copy(from: converted, to: result))
+                return result
+            }
             let tag = anyFallbackTag(for: anyFallbackReceiverType, sema: sema)
             let intType = sema.types.make(.primitive(.int, .nonNull))
             let tagID = arena.appendExpr(.intLiteral(tag), type: intType)

@@ -9,6 +9,7 @@ struct CodegenBackendSuspendFunctionTypeCheckTests {
     @Test
     func testIsAndCastsCheckSuspendMarkerAndFunctionArity() throws {
         let source = """
+        @Suppress("CANNOT_CHECK_FOR_ERASED")
         fun main() {
             val suspendedZero: suspend () -> Int = { 5 }
             val plainZero: () -> Int = { 6 }

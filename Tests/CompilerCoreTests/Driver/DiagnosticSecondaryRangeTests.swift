@@ -2,6 +2,7 @@
 @testable import CompilerCore
 import Foundation
 import Testing
+@testable import CompilerTestSupport
 
 // ARCH-031: `Diagnostic.secondaryRanges` are populated for type mismatches
 // (expected type's origin) and ambiguous overloads (candidate declaration

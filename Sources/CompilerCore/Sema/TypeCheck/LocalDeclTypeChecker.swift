@@ -142,11 +142,19 @@ final class LocalDeclTypeChecker {
                     }
                 }
             } else if let initializerType {
-                localType = initializer.flatMap {
+                let retypedInitializerType = initializer.flatMap {
                     driver.helpers.retypeClassNameAsCompanionValue(
                         $0, currentType: initializerType, ast: ast, sema: sema
                     )
                 } ?? initializerType
+                localType = isMutable
+                    ? inferredMutableLocalStorageType(
+                        initializer: initializer,
+                        initializerType: initializerType,
+                        ctx: ctx,
+                        locals: locals
+                    ) ?? retypedInitializerType
+                    : retypedInitializerType
             } else {
                 localType = sema.types.errorType
             }
@@ -279,6 +287,60 @@ final class LocalDeclTypeChecker {
         }
         sema.bindings.bindExprType(id, type: sema.types.unitType)
         return sema.types.unitType
+    }
+
+    private func inferredMutableLocalStorageType(
+        initializer: ExprID?,
+        initializerType: TypeID,
+        ctx: TypeInferenceContext,
+        locals: LocalBindings
+    ) -> TypeID? {
+        let sema = ctx.sema
+        guard initializerType != sema.types.errorType,
+              initializerType != sema.types.nothingType,
+              let initializer,
+              let reference = ctx.dataFlow.resolveStableReference(
+                  initializer,
+                  locals: locals,
+                  ast: ctx.ast,
+                  sema: sema,
+                  interner: ctx.interner
+              ),
+              reference.isStable,
+              reference.symbol.properties.isEmpty,
+              reference.type == initializerType,
+              let declaredType = declaredType(for: reference.symbol, ctx: ctx),
+              declaredType != initializerType,
+              sema.types.isSubtype(initializerType, declaredType)
+        else {
+            return nil
+        }
+
+        // A mutable copy of a stable reference keeps its declared storage type,
+        // even when reads of that reference are flow-narrowed in this branch.
+        return declaredType
+    }
+
+    private func declaredType(
+        for reference: DataFlowReference,
+        ctx: TypeInferenceContext
+    ) -> TypeID? {
+        let sema = ctx.sema
+        if let propertyType = sema.symbols.propertyType(for: reference.root) {
+            return propertyType
+        }
+        guard let owner = sema.symbols.valueParameterOwner(for: reference.root),
+              let signature = sema.symbols.functionSignature(for: owner),
+              let index = signature.valueParameterSymbols.firstIndex(of: reference.root)
+        else {
+            return nil
+        }
+        return driver.declChecker.localTypeForParameter(
+            at: index,
+            signature: signature,
+            sema: sema,
+            interner: ctx.interner
+        )
     }
 
     func inferLocalAssignExpr(
@@ -460,6 +522,12 @@ final class LocalDeclTypeChecker {
                     return false
                 }()
                 if setterIsAccessible {
+                    if member.writeSymbol != nil {
+                        driver.exprChecker.collectReceiverBuilderPropertyWriteConstraint(
+                            valueType: valueType, writeType: writeType,
+                            value: value, range: range, ctx: ctx
+                        )
+                    }
                     driver.emitSubtypeConstraint(
                         left: valueType,
                         right: writeType,

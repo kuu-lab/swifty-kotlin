@@ -46,13 +46,17 @@ public object Collections {
         return Comparator { first, second -> comparator.compare(second, first) }
     }
 
-    public fun <T> sort(list: MutableList<T>?) {
+    public fun <T> sort(list: List<T>?) {
         sort(list, null)
     }
 
-    public fun <T> sort(list: MutableList<T>?, comparator: Comparator<in T>?) {
+    @Suppress("UNCHECKED_CAST")
+    public fun <T> sort(list: List<T>?, comparator: Comparator<in T>?) {
         val target = list!!
-        target.sortWith(comparator ?: collectionsNaturalComparator())
+        if (target !is MutableList<*> || target is CollectionsUnmodifiableList<*>) {
+            throw UnsupportedOperationException()
+        }
+        (target as MutableList<T>).sortWith(comparator ?: collectionsNaturalComparator())
     }
 
     public fun <T> shuffle(list: MutableList<T>?) {

@@ -1,4 +1,4 @@
-private extension CallExpr {
+extension CallExpr {
     func replacingArgumentTypes(_ replacements: [Int: TypeID]) -> CallExpr {
         guard !replacements.isEmpty else {
             return self
@@ -445,7 +445,8 @@ extension OverloadResolver {
 
         let javaMapArgument = javaCollectionsMapArgument(fqName: symbol.fqName, signature: signature, call: call, ctx: ctx)
         guard javaMapArgument.compatible else { return .rejected }
-        let mappedCall = javaMapArgument.replacement.map { call.replacingArgumentTypes([0: $0]) } ?? call
+        let mappedCall = javaMapArgument.replacement.map { call.replacingArgumentTypes([0: $0]) }
+            ?? javaCheckedListCall(call, symbol: symbol, signature: signature, ctx: ctx)
         let call = javaCollectionsCall(mappedCall, fqName: symbol.fqName, signature: signature, ctx: ctx)
 
         let typeVarBySymbol = ctx.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
@@ -1099,6 +1100,9 @@ extension OverloadResolver {
             return upperBounds.contains(where: ctx.types.isDefinitelyNonNull)
         }
 
+        let constraintsBeforeElvisLhsHint = constraints
+        let inputsBeforeElvisLhsHint = inputConstraints
+        var hasElvisLhsHintConstraints = false
         if let expectedType, expectedType != ctx.types.unitType {
             if call.elvisLhsExpectedTypeHint {
                 let methodTypeParameters = signature.typeParameterSymbols.dropFirst(
@@ -1123,6 +1127,7 @@ extension OverloadResolver {
                     )
                     constraints.append(contentsOf: returnDecomposed)
                     inputConstraints.append(contentsOf: returnDecomposed)
+                    hasElvisLhsHintConstraints = !returnDecomposed.isEmpty
                 }
             } else if hasInferredNonNullBoundedReturnParameter() {
                 // A non-null upper bound lets a call infer from the non-null
@@ -1222,6 +1227,24 @@ extension OverloadResolver {
                 // Retry without it; any still-unresolved type variable will
                 // receive the ordinary inference diagnostic below.
                 constraints = constraintsBeforeElvisRhsHint
+                solveResult = solveConstraints(
+                    constraints,
+                    solver: solver,
+                    typeSystem: ctx.types
+                )
+            }
+        }
+        if hasElvisLhsHintConstraints {
+            switch solveResult {
+            case .success:
+                break
+            case .constraintFailure, .rejected:
+                // An Elvis branch expectation is only an inference hint. It
+                // cannot invalidate a type argument already determined by the
+                // call's nullable inputs; the enclosing expression is checked
+                // against its expected type separately.
+                constraints = constraintsBeforeElvisLhsHint
+                inputConstraints = inputsBeforeElvisLhsHint
                 solveResult = solveConstraints(
                     constraints,
                     solver: solver,
@@ -1697,19 +1720,33 @@ extension OverloadResolver {
             let constraintParameterType: TypeID
             let constraintArgumentType: TypeID
             if !arg.isSpread,
-               case .functionType = typeSystem.kind(of: argType),
                let samFunction = TypeCheckHelpers().samFunctionType(for: paramType, sema: sema)
             {
-                constraintParameterType = typeSystem.withNullability(
+                let samFunctionType = typeSystem.withNullability(
                     typeSystem.nullability(of: paramType),
                     for: typeSystem.make(.functionType(samFunction))
                 )
-                // Function argument adaptations also apply when the target is
-                // represented by a SAM interface at this call site.
-                constraintArgumentType = typeSystem.functionArgumentConversionType(
-                    from: argType,
-                    to: constraintParameterType
-                ) ?? argType
+                let functionArgumentType: TypeID?
+                if case .functionType = typeSystem.kind(of: argType) {
+                    functionArgumentType = argType
+                } else {
+                    functionArgumentType = typeSystem.functionTypeWitness(
+                        from: argType,
+                        compatibleWith: samFunctionType
+                    )
+                }
+                if let functionArgumentType {
+                    constraintParameterType = samFunctionType
+                    // Function argument adaptations also apply when the target is
+                    // represented by a SAM interface at this call site.
+                    constraintArgumentType = typeSystem.functionArgumentConversionType(
+                        from: functionArgumentType,
+                        to: constraintParameterType
+                    ) ?? functionArgumentType
+                } else {
+                    constraintParameterType = paramType
+                    constraintArgumentType = argType
+                }
             } else {
                 constraintParameterType = paramType
                 constraintArgumentType = argType
@@ -2161,14 +2198,30 @@ extension OverloadResolver {
         call: CallExpr,
         typeSystem: TypeSystem
     ) -> Bool {
-        // Between function and SAM parameters, Kotlin prefers the callable
-        // overload that accepts the function value without adaptation. Keep
-        // nominal overloads (for example SAM versus Any) on the usual rules.
+        // Kotlin prefers the callable overload that accepts the function value
+        // without adaptation. Keep nominal overloads (for example SAM versus
+        // Any) on the usual rules.
         var prefersFunctionParameter = false
         for (index, pair) in zip(lhs.instantiatedParameterTypes, rhs.instantiatedParameterTypes).enumerated() {
-            guard case .functionType = typeSystem.kind(of: call.args[index].type) else { continue }
             let lhsIsFunction: Bool = if case .functionType = typeSystem.kind(of: pair.0) { true } else { false }
             let rhsIsFunction: Bool = if case .functionType = typeSystem.kind(of: pair.1) { true } else { false }
+            if lhsIsFunction, rhsIsFunction {
+                let lhsRequiresSuspendConversion = typeSystem.suspendConversionType(
+                    from: call.args[index].type,
+                    to: pair.0
+                ) != nil
+                let rhsRequiresSuspendConversion = typeSystem.suspendConversionType(
+                    from: call.args[index].type,
+                    to: pair.1
+                ) != nil
+                if lhsRequiresSuspendConversion != rhsRequiresSuspendConversion {
+                    if lhsRequiresSuspendConversion {
+                        return false
+                    }
+                    prefersFunctionParameter = true
+                }
+            }
+            guard case .functionType = typeSystem.kind(of: call.args[index].type) else { continue }
             func isSam(_ type: TypeID) -> Bool {
                 guard case let .classType(nominal) = typeSystem.kind(of: type) else { return false }
                 return typeSystem.symbolTable?.symbol(nominal.classSymbol)?.flags.contains(.funInterface) == true

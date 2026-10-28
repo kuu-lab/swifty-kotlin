@@ -37,6 +37,37 @@ struct ReceiverLambdaMemberExtensionExecutionTests {
         """, expected: "a\n2\n6\n", fromSource: fromSource, optimization: optimization)
     }
 
+    @Test
+    func memberExtensionGetAndSetDispatchInsideAnonymousObject() throws {
+        try assertOutput("""
+        fun <T, R> myWith(receiver: T, block: T.() -> R): R = receiver.block()
+        object Foo2 { operator fun Any?.get(key: String) = "OK" }
+        object Main {
+            fun bar() = myWith(Foo2) {
+                val x = object { val y = 38["Hello!"] }
+                x.y
+            }
+        }
+        fun main() { println(Main.bar()) }
+        """, expected: "OK\n", fromSource: false, optimization: 0)
+
+        try assertOutput("""
+        var result = "fail"
+        fun <T, R> myWith(receiver: T, block: T.() -> R): R = receiver.block()
+        object Foo2 {
+            operator fun Any?.get(key: String) = "OK"
+            operator fun Any?.set(key: String, value: String) { result = value }
+        }
+        object Main {
+            fun bar() = myWith(Foo2) {
+                val x = object { init { 38["Hello!"] = "OK" } }
+                result
+            }
+        }
+        fun main() { println(Main.bar()) }
+        """, expected: "OK\n", fromSource: false, optimization: 0)
+    }
+
     private func assertOutput(_ source: String, expected: String, fromSource: Bool, optimization: Int) throws {
         try withTemporaryFile(contents: source) { path in
             let output = FileManager.default.temporaryDirectory

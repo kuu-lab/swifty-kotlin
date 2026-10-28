@@ -2,6 +2,7 @@
 @testable import CompilerCore
 import Foundation
 import Testing
+@testable import CompilerTestSupport
 
 /// BUG-218: private top-level callables are file-scoped, while JVM-erased
 /// conflicts for same-file and non-private declarations remain diagnostics.

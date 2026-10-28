@@ -1,6 +1,7 @@
 #if canImport(Testing)
 @testable import CompilerCore
 import Testing
+@testable import CompilerTestSupport
 
 /// KSP-956: non-empty mapOf calls must use the fixed-Pair or vararg overload
 /// selected by arity, while both overloads keep the shared collection lowering.

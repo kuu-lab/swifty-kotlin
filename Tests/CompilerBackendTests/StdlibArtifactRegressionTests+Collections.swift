@@ -80,6 +80,44 @@ extension StdlibArtifactRegressionTests {
         }
     }
 
+    /// KUU-3084: List-returning stdlib calls must use the same nominal List
+    /// type as a user's `List` annotation when loaded from the default artifact.
+    @Test
+    func testListReturningExtensionsKeepListTypeIdentityThroughDefaultArtifact() throws {
+        _ = try testStdlibArtifactPath()
+        try withTemporaryFile(contents: """
+        fun main() {
+            val values = listOf("a", "b")
+            val mapped: List<String> = values.map { it }
+            val sliced: List<String> = values.slice(0..1)
+            val sublisted: List<String> = values.subList(0, 2)
+            println(mapped.size)
+            println(sliced.size)
+            println(sublisted.size)
+        }
+        """) { userPath in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString).path
+            let ctx = makeCompilationContext(
+                inputs: [userPath],
+                moduleName: "ListReturnDefaultArtifact",
+                emit: .executable,
+                outputPath: outputBase,
+                includeStdlib: true,
+                allowDefaultStdlibLibrary: true
+            )
+            try runToKIR(ctx)
+            #expect(!ctx.diagnostics.hasError, "diagnostics: \(ctx.diagnostics.diagnostics)")
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            #expect(result.exitCode == 0)
+            #expect(result.stdout.replacingOccurrences(of: "\r\n", with: "\n") == "2\n2\n2\n")
+        }
+    }
+
     /// RF-GOLDEN-004: source-backed collection flags must not change the
     /// iterator route after the stdlib is serialized and imported. A concrete
     /// A concrete List receiver keeps the list bridge, while Iterable/MutableList

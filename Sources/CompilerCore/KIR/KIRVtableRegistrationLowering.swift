@@ -490,7 +490,46 @@ func anyToStringBridgeSymbolForImplementation(
             resultType: receiverType, types: sema.types, symbols: sema.symbols,
             interner: interner, arena: arena, into: &body
         )
-        receiverForCall = unboxedReceiver
+        if case let .classType(receiverClass) = rawReceiverKind,
+           let declaredUnderlyingType = sema.symbols.effectiveValueClassUnderlyingType(for: vcSymbol)
+        {
+            let underlyingType = sema.types.substituteNominalTypeParameters(
+                in: declaredUnderlyingType,
+                owner: vcSymbol,
+                ownerArgs: receiverClass.args
+            )
+            let primitiveUpperBound = resolvePrimitiveValueUpperBound(
+                of: underlyingType,
+                types: sema.types,
+                symbols: sema.symbols
+            )
+            if let primitiveUpperBound,
+               case .primitive(_, .nonNull) = sema.types.kind(of: primitiveUpperBound),
+               let unboxCallee = BoxingCalleeTable(interner: interner).unboxCallee(
+                   for: primitiveUpperBound,
+                   types: sema.types,
+                   requireNonNull: true,
+                   preferStaticPrimitive: true
+               )
+            {
+                // Erased generic value classes may arrive as a primitive box
+                // tagged with the value-class ID. The nominal unbox above
+                // unwraps RuntimeObjectBox payloads, while this static unbox
+                // also extracts primitive boxes such as RuntimeFloatBox.
+                let primitiveReceiver = arena.appendTemporary(type: primitiveUpperBound)
+                body.append(.call(
+                    callee: unboxCallee,
+                    arguments: [unboxedReceiver],
+                    result: primitiveReceiver,
+                    canThrow: false
+                ))
+                receiverForCall = primitiveReceiver
+            } else {
+                receiverForCall = unboxedReceiver
+            }
+        } else {
+            receiverForCall = unboxedReceiver
+        }
     } else if rawReceiverKind != resolvedReceiverKind,
        let unboxCallee = BoxingCalleeTable(interner: interner).unboxCallee(
            for: resolvedReceiverKind,
@@ -764,17 +803,20 @@ func appendObjectVtablePropertyAccessorRegistrations<C: RangeReplaceableCollecti
         } else if let decoded = SyntheticSymbolScheme.decodedPropertyAccessor(
             implementation.dispatchAccessor
         ),
-            decoded.kind == .getter,
             let propertyType = sema.symbols.propertyType(for: decoded.property),
             let propertyOwner = sema.symbols.parentSymbol(for: decoded.property)
         {
+            // The slot keeps the root property's ABI. A specialized override
+            // may use a different representation for either the getter's
+            // result or the setter's value (for example T versus String).
+            let isGetter = decoded.kind == .getter
             let interfaceReceiver = sema.types.make(.classType(ClassType(
                 classSymbol: propertyOwner, args: [], nullability: .nonNull
             )))
             let interfaceSignature = FunctionSignature(
                 receiverType: interfaceReceiver,
-                parameterTypes: [],
-                returnType: propertyType,
+                parameterTypes: isGetter ? [] : [propertyType],
+                returnType: isGetter ? propertyType : sema.types.unitType,
                 canThrow: true
             )
 
@@ -791,11 +833,18 @@ func appendObjectVtablePropertyAccessorRegistrations<C: RangeReplaceableCollecti
                 )))
             let implementationSignature = FunctionSignature(
                 receiverType: implementationReceiver,
-                parameterTypes: [],
-                returnType: implementationFunction?.returnType
-                    ?? implementationMetadata?.returnType
-                    ?? implementationPropertyType
-                    ?? propertyType,
+                parameterTypes: isGetter ? [] : [
+                    implementationFunction?.params.last?.type
+                        ?? implementationMetadata?.parameterTypes.last
+                        ?? implementationPropertyType
+                        ?? propertyType,
+                ],
+                returnType: isGetter
+                    ? (implementationFunction?.returnType
+                        ?? implementationMetadata?.returnType
+                        ?? implementationPropertyType
+                        ?? propertyType)
+                    : sema.types.unitType,
                 canThrow: implementationMetadata?.canThrow ?? true
             )
             accessorFn = itableBridgeSymbolForMethod(

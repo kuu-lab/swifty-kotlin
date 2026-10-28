@@ -255,12 +255,44 @@ func runtimeObjectTypeID(rawValue: Int) -> Int64? {
     }
 }
 
+/// The nominal type ID a *value class* box was tagged with, or nil when
+/// `rawValue` is not a boxed value class. `objectTypeByPointer` also tags
+/// runtime-internal objects (lists, map entries, pairs, ...), so membership
+/// in `valueClassTypeIDs` is the discriminator — see `kk_tag_value_class_box`.
+/// Equality consults this so a boxed value class can never unwrap into its
+/// underlying type's payload comparison against an unboxed peer (KUU-3616).
+func runtimeValueClassTypeID(rawValue: Int) -> Int64? {
+    guard let ptr = UnsafeMutableRawPointer(bitPattern: rawValue) else {
+        return nil
+    }
+    return runtimeStorage.withMetadataLock { state in
+        guard let classID = state.objectTypeByPointer[UInt(bitPattern: ptr)],
+              state.valueClassTypeIDs.contains(classID)
+        else {
+            return nil
+        }
+        return classID
+    }
+}
+
 func runtimeRegisterArrayType(rawValue: Int, typeID: Int64) {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: rawValue), typeID != 0 else {
         return
     }
     runtimeStorage.withMetadataLock { state in
-        state.arrayTypeIDsByPointer[UInt(bitPattern: ptr), default: []].insert(typeID)
+        var ids = state.arrayTypeIDsByPointer[UInt(bitPattern: ptr), default: []]
+        ids.insert(typeID)
+        // KUU-3537: `is`/`as` checks on arrays consult the flat per-instance
+        // type set (`runtimeArrayHasType`), never the `typeParents` graph.
+        // Arrays are also never constructed through `kk_object_new`, so no
+        // `kk_type_register_iface` edge exists for them either. Tagging a
+        // Cloneable array class therefore implies the interface on both
+        // representations: JVM parity, where every array is Cloneable.
+        if runtimeCloneableArrayTypeIDs.contains(typeID) {
+            ids.insert(runtimeCloneableNominalTypeID)
+            state.typeParents[typeID, default: []].insert(runtimeCloneableNominalTypeID)
+        }
+        state.arrayTypeIDsByPointer[UInt(bitPattern: ptr)] = ids
     }
 }
 

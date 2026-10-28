@@ -54,6 +54,7 @@ final class CLICompilerService: @unchecked Sendable {
             IncrementalCompilationCache.environmentFingerprintProvider = { options in
                 incrementalEnvironmentFingerprint(for: options)
             }
+            let timing = options.stdlibOnly ? StdlibBuildTiming.start(kind: "cli-stdlib-only") : nil
             let exitCode = driver.run(options: options)
             if exitCode == 0, options.stdlibOnly {
                 StdlibArtifactBuilder.attachRuntimePrelinkIfAvailable(
@@ -61,6 +62,7 @@ final class CLICompilerService: @unchecked Sendable {
                     target: options.target
                 )
             }
+            timing?.finish(success: exitCode == 0)
             return Int32(exitCode)
         } catch let error as CLIParseError {
             if error == .usageRequested {

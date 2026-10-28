@@ -20,40 +20,44 @@ import kotlin.internal.KsSymbolName
 // registered before the normal bundled header collection pass; the fallback
 // fires when the sole synthetic anchor is needed instead (`--no-stdlib` /
 // precompiled `.kklib`, no bundled source parsed).
-public class Array<T> private constructor() {
+// KUU-3537: `Array` and the signed primitive arrays implement `Cloneable`,
+// matching the JVM where every array type is `java.lang.Cloneable`. The
+// unsigned arrays stay off the list: on the JVM they are value classes over
+// the signed arrays and are *not* Cloneable.
+public class Array<T> private constructor() : Cloneable {
     public operator fun get(index: Int): T = this[index]
     public operator fun set(index: Int, value: T) { this[index] = value }
 }
 
-public class BooleanArray private constructor() {
+public class BooleanArray private constructor() : Cloneable {
     public operator fun get(index: Int): Boolean = this[index]
     public operator fun set(index: Int, value: Boolean) { this[index] = value }
 }
-public class ByteArray private constructor() {
+public class ByteArray private constructor() : Cloneable {
     public operator fun get(index: Int): Byte = this[index]
     public operator fun set(index: Int, value: Byte) { this[index] = value }
 }
-public class CharArray private constructor() {
+public class CharArray private constructor() : Cloneable {
     public operator fun get(index: Int): Char = this[index]
     public operator fun set(index: Int, value: Char) { this[index] = value }
 }
-public class DoubleArray private constructor() {
+public class DoubleArray private constructor() : Cloneable {
     public operator fun get(index: Int): Double = this[index]
     public operator fun set(index: Int, value: Double) { this[index] = value }
 }
-public class FloatArray private constructor() {
+public class FloatArray private constructor() : Cloneable {
     public operator fun get(index: Int): Float = this[index]
     public operator fun set(index: Int, value: Float) { this[index] = value }
 }
-public class IntArray private constructor() {
+public class IntArray private constructor() : Cloneable {
     public operator fun get(index: Int): Int = this[index]
     public operator fun set(index: Int, value: Int) { this[index] = value }
 }
-public class LongArray private constructor() {
+public class LongArray private constructor() : Cloneable {
     public operator fun get(index: Int): Long = this[index]
     public operator fun set(index: Int, value: Long) { this[index] = value }
 }
-public class ShortArray private constructor() {
+public class ShortArray private constructor() : Cloneable {
     public operator fun get(index: Int): Short = this[index]
     public operator fun set(index: Int, value: Short) { this[index] = value }
 }

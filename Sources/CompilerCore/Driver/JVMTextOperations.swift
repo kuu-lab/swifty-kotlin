@@ -67,6 +67,9 @@ struct JVMTextOperation {
                 let element: JVMValueType = char ? .char : (name == "contains" ? sequence : .string)
                 let parameter = name == "startsWith" ? "prefix" : (name == "endsWith" ? "suffix" : (char ? "char" : "other"))
                 add(name, [p(parameter, char ? "Char" : (name == "contains" ? "CharSequence" : "String"), element), p("ignoreCase", "Boolean", .boolean, "false")], sourceResult: "Boolean", result: .boolean, jvmReceiver: char || name == "contains" ? sequence : .string)
+                if name == "contains" {
+                    add(name, [p(parameter, char ? "Char" : "CharSequence", element), p("ignoreCase", "Boolean", .boolean, "false")], sourceResult: "Boolean", result: .boolean, receiver: "CharSequence", jvmReceiver: sequence)
+                }
             }
         }
         add("startsWith", [p("prefix", "String", .string), p("startIndex", "Int", .int), p("ignoreCase", "Boolean", .boolean, "false")], sourceResult: "Boolean", result: .boolean)

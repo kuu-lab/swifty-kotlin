@@ -96,7 +96,14 @@ extension CallTypeChecker {
             // Primitive arrays (IntArray, DoubleArray, ...) have no type argument;
             // their element type comes from the class itself (BUG-158: a
             // `joinToString(..., transform)` lambda must see the real element type
-            // rather than an erased `Any`).
+            // rather than an erased `Any`). Only bundled kotlin.<Name> arrays
+            // (and fqName-less synthetic stubs) qualify — a user class that
+            // shadows the imported name is an ordinary nominal (KUU-3615).
+            guard symbol.fqName.isEmpty
+                || symbol.fqName == [interner.intern("kotlin"), symbol.name]
+            else {
+                return sema.types.anyType
+            }
             return primitiveArrayElementType(
                 className: symbol.name,
                 sema: sema,

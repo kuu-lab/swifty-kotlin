@@ -1,6 +1,7 @@
 #if canImport(Testing)
 @testable import CompilerCore
 import Testing
+@testable import CompilerTestSupport
 
 /// KSP-410 / BUG-170: a lone type parameter with an upper bound (`R : Any`)
 /// inferred purely from a nullable-returning lambda body used to fail with

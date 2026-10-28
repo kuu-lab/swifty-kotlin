@@ -1,6 +1,11 @@
 @testable import Runtime
 import Testing
 
+private let reflectedArrayInitializer: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, index, thrown in
+    thrown?.pointee = 0
+    return index + 1
+}
+
 // MARK: - STDLIB-REFLECT-ABI-002 / ABI-003 Tests
 // Coverage for:
 //   ABI-002: KClass.members returns real member handles registered via
@@ -80,6 +85,338 @@ struct RuntimeKClassCastAndMembersTests {
 
         let primary = __kk_kconstructor_create(makeRuntimeString("<init>"), 1, 0, 0, 1, 0, kclass)
         #expect(__kk_kclass_primary_constructor(kclass) == primary)
+    }
+
+    @Test func builtinStringConstructorIsStableAndCallable() throws {
+        let kclass = __kk_kclass_create(Int(RuntimeTypeTokenEncoding.stringBase), 0)
+        let first = try runtimeListElements(from: __kk_kclass_constructors(kclass))
+        let second = try runtimeListElements(from: __kk_kclass_constructors(kclass))
+        #expect(first.count == 1)
+        #expect(second == first)
+        let constructor = try #require(first.first)
+        let arguments = registerRuntimeObject(RuntimeListBox(elements: []))
+        var thrown = 0
+        let value = __kk_kcallable_call(constructor, arguments, &thrown)
+        #expect(thrown == 0)
+        #expect(extractString(from: UnsafeMutableRawPointer(bitPattern: value)) == "")
+        #expect(__kk_kclass_primary_constructor(kclass) == constructor)
+    }
+
+    @Test func builtinStringMembersExposeRealCallableMetadata() throws {
+        let kclass = __kk_kclass_create(Int(RuntimeTypeTokenEncoding.stringBase), 0)
+        let members = try runtimeListElements(from: __kk_kclass_members(kclass))
+        #expect(try runtimeListElements(from: __kk_kclass_members(kclass)) == members)
+        let functions = try runtimeListElements(from: __kk_kclass_member_functions(kclass))
+        let properties = try runtimeListElements(from: __kk_kclass_member_properties(kclass))
+        let declared = try runtimeListElements(from: __kk_kclass_declared_member_functions(kclass))
+        #expect(!declared.contains { runtimeStringFromRaw(__kk_kcallable_get_name($0)) == "hashCode" })
+        func named(_ name: String, in handles: [Int]) throws -> Int {
+            try #require(handles.first { runtimeStringFromRaw(__kk_kcallable_get_name($0)) == name })
+        }
+        let get = try named("get", in: functions)
+        let length = try named("length", in: properties)
+        let text = makeRuntimeString("abc")
+        var thrown = 0
+        let getArguments = registerRuntimeObject(RuntimeListBox(elements: [text, kk_box_int(1)]))
+        let character = __kk_kcallable_call(get, getArguments, &thrown)
+        #expect(thrown == 0)
+        #expect(kk_unbox_char(character) == 98)
+        let lengthArguments = registerRuntimeObject(RuntimeListBox(elements: [text]))
+        let count = __kk_kcallable_call(length, lengthArguments, &thrown)
+        #expect(thrown == 0)
+        #expect(kk_unbox_int(count) == 3)
+        let getPointer = kk_itable_lookup_dynamic(length, Int(kProperty1RuntimeTypeID), 0)
+        #expect(getPointer != 0)
+        let getProperty = unsafeBitCast(getPointer, to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self)
+        #expect(kk_unbox_int(getProperty(length, text, &thrown)) == 3)
+        #expect(thrown == 0)
+        let subSequence = try named("subSequence", in: functions)
+        let subSequenceArguments = registerRuntimeObject(RuntimeListBox(elements: [text, kk_box_int(1), kk_box_int(3)]))
+        let substring = __kk_kcallable_call(subSequence, subSequenceArguments, &thrown)
+        #expect(thrown == 0)
+        #expect(runtimeStringFromRaw(substring) == "bc")
+        func invoke(_ name: String, _ values: [Int]) throws -> Int {
+            let callable = try named(name, in: functions)
+            let arguments = registerRuntimeObject(RuntimeListBox(elements: values))
+            thrown = 0
+            let result = __kk_kcallable_call(callable, arguments, &thrown)
+            #expect(thrown == 0)
+            return result
+        }
+        #expect(try runtimeStringFromRaw(invoke("toString", [text])) == "abc")
+        #expect(try kk_unbox_bool(invoke("equals", [text, makeRuntimeString("abc")])) == 1)
+        #expect(try kk_unbox_bool(invoke("equals", [text, runtimeNullSentinelInt])) == 0)
+        #expect(try kk_unbox_int(invoke("compareTo", [text, makeRuntimeString("abd")])) < 0)
+        #expect(try kk_unbox_int(invoke("hashCode", [text])) == 96354)
+        #expect(try runtimeStringFromRaw(invoke("plus", [text, makeRuntimeString("d")])) == "abcd")
+        let parameters = try runtimeListElements(from: __kk_kcallable_get_metadata(get, 0))
+        #expect(parameters.count == 2)
+        #expect(__kk_kparameter_get_kind(parameters[0]) == 0)
+        #expect(__kk_kparameter_get_kind(parameters[1]) == 3)
+        #expect(__kk_ktype_classifier(__kk_kparameter_get_type(parameters[0])) == kclass)
+        #expect(__kk_ktype_classifier(__kk_kparameter_get_type(parameters[1])) == __kk_kclass_create(Int(RuntimeTypeTokenEncoding.intBase), 0))
+        #expect(__kk_ktype_classifier(__kk_kcallable_get_return_type(get)) == __kk_kclass_create(Int(RuntimeTypeTokenEncoding.charBase), 0))
+        #expect(runtimeStringFromRaw(__kk_kcallable_get_name(length)) == "length")
+        #expect(try runtimeListElements(from: __kk_kclass_member_properties(__kk_kclass_create(Int(RuntimeTypeTokenEncoding.intBase), 0))).isEmpty)
+    }
+
+    @Test func primitiveCommonMembersAreTypedAndCallable() throws {
+        let samples: [(Int64, Int, String)] = [
+            (RuntimeTypeTokenEncoding.intBase, kk_box_int(42), "42"),
+            (RuntimeTypeTokenEncoding.longBase, kk_box_long(42), "42"),
+            (RuntimeTypeTokenEncoding.shortBase, kk_box_short(42), "42"),
+            (RuntimeTypeTokenEncoding.byteBase, kk_box_byte(42), "42"),
+            (RuntimeTypeTokenEncoding.floatBase, kk_box_float(kk_float_to_bits(1.5)), "1.5"),
+            (RuntimeTypeTokenEncoding.doubleBase, kk_box_double(kk_double_to_bits(1.5)), "1.5"),
+            (RuntimeTypeTokenEncoding.booleanBase, kk_box_bool(1), "true"),
+            (RuntimeTypeTokenEncoding.charBase, kk_box_char(65), "A"),
+            (RuntimeTypeTokenEncoding.uintBase, kk_box_uint(42), "42"),
+            (RuntimeTypeTokenEncoding.ulongBase, kk_box_ulong(42), "42"),
+            (RuntimeTypeTokenEncoding.ubyteBase, kk_box_ubyte(42), "42"),
+            (RuntimeTypeTokenEncoding.ushortBase, kk_box_ushort(42), "42"),
+            (RuntimeTypeTokenEncoding.unitBase, kk_box_unit(0), "kotlin.Unit"),
+            (RuntimeTypeTokenEncoding.anyBase, kk_box_int(42), "42"),
+        ]
+        for (token, value, expected) in samples {
+            let kclass = __kk_kclass_create(Int(token), 0)
+            let functions = try runtimeListElements(from: __kk_kclass_member_functions(kclass))
+            #expect(try runtimeListElements(from: __kk_kclass_member_functions(kclass)) == functions)
+            func named(_ name: String) throws -> Int {
+                try #require(functions.first { runtimeStringFromRaw(__kk_kcallable_get_name($0)) == name })
+            }
+            let toString = try named("toString")
+            let equals = try named("equals")
+            _ = try named("hashCode")
+            var thrown = 0
+            let args = registerRuntimeObject(RuntimeListBox(elements: [value]))
+            let rendered = __kk_kcallable_call(toString, args, &thrown)
+            #expect(thrown == 0)
+            #expect(runtimeStringFromRaw(rendered) == expected)
+            let equalArgs = registerRuntimeObject(RuntimeListBox(elements: [value, value]))
+            #expect(kk_unbox_bool(__kk_kcallable_call(equals, equalArgs, &thrown)) == 1)
+            #expect(thrown == 0)
+            let parameters = try runtimeListElements(from: __kk_kcallable_get_metadata(toString, 0))
+            #expect(parameters.count == 1)
+            #expect(__kk_ktype_classifier(__kk_kparameter_get_type(parameters[0])) == kclass)
+            if token == RuntimeTypeTokenEncoding.intBase || token == RuntimeTypeTokenEncoding.unitBase {
+                let declared = try runtimeListElements(from: __kk_kclass_declared_member_functions(kclass))
+                #expect(!declared.contains { runtimeStringFromRaw(__kk_kcallable_get_name($0)) == "hashCode" })
+                if token == RuntimeTypeTokenEncoding.unitBase {
+                    #expect(!declared.contains { runtimeStringFromRaw(__kk_kcallable_get_name($0)) == "equals" })
+                }
+            }
+        }
+    }
+
+    @Test func intArithmeticConstructorsAndUIntDataMetadata() throws {
+        let intClass = __kk_kclass_create(Int(RuntimeTypeTokenEncoding.intBase), 0)
+        let functions = try runtimeListElements(from: __kk_kclass_member_functions(intClass))
+        #expect(functions.count == 65)
+        func overload(_ name: String, _ operand: Int64) throws -> Int {
+            try #require(functions.first { raw in
+                guard runtimeStringFromRaw(__kk_kcallable_get_name(raw)) == name,
+                      let parameters = try? runtimeListElements(from: __kk_kcallable_get_metadata(raw, 0)),
+                      parameters.count == 2 else { return false }
+                return __kk_ktype_classifier(__kk_kparameter_get_type(parameters[1]))
+                    == __kk_kclass_create(Int(operand), 0)
+            })
+        }
+        func call(_ function: Int, _ left: Int, _ right: Int, _ thrown: inout Int) -> Int {
+            let args = registerRuntimeObject(RuntimeListBox(elements: [left, right]))
+            return __kk_kcallable_call(function, args, &thrown)
+        }
+        var thrown = 0
+        let plus = try overload("plus", RuntimeTypeTokenEncoding.intBase)
+        #expect(kk_unbox_int(call(plus, kk_box_int(Int(Int32.max)), kk_box_int(1), &thrown)) == Int(Int32.min))
+        #expect(thrown == 0)
+        let longPlus = try overload("plus", RuntimeTypeTokenEncoding.longBase)
+        #expect(kk_unbox_long(call(longPlus, kk_box_int(2), kk_box_long(3), &thrown)) == 5)
+        let longMin = call(longPlus, kk_box_int(0), kk_box_long_nonnull(Int.min), &thrown)
+        #expect(longMin != runtimeNullSentinelInt)
+        #expect(kk_unbox_long(longMin) == Int.min)
+        let floatPlus = try overload("plus", RuntimeTypeTokenEncoding.floatBase)
+        #expect(kk_bits_to_float(kk_unbox_float(call(floatPlus, kk_box_int(2), kk_box_float(kk_float_to_bits(0.5)), &thrown))) == 2.5)
+        let doubleDivide = try overload("div", RuntimeTypeTokenEncoding.doubleBase)
+        let negativeZero = call(doubleDivide, kk_box_int(0), kk_box_double(kk_double_to_bits(-1.0)), &thrown)
+        #expect(negativeZero != runtimeNullSentinelInt)
+        #expect(kk_unbox_double_nonnull(negativeZero) == kk_double_to_bits(-0.0))
+        let shift = try overload("ushr", RuntimeTypeTokenEncoding.intBase)
+        #expect(kk_unbox_int(call(shift, kk_box_int(-1), kk_box_int(1), &thrown)) == Int(Int32.max))
+        let rangeUntil = try overload("rangeUntil", RuntimeTypeTokenEncoding.intBase)
+        let range = try #require(runtimeRangeBox(from: call(rangeUntil, kk_box_int(2), kk_box_int(5), &thrown)))
+        #expect(range.first == 2 && range.last == 4)
+        let divide = try overload("div", RuntimeTypeTokenEncoding.intBase)
+        #expect(kk_unbox_int(call(divide, kk_box_int(Int(Int32.min)), kk_box_int(-1), &thrown)) == Int(Int32.min))
+        _ = call(divide, kk_box_int(1), kk_box_int(0), &thrown)
+        #expect(thrown != 0)
+        let constructors = try runtimeListElements(from: __kk_kclass_constructors(intClass))
+        #expect(constructors.count == 1)
+        let constructor = try #require(constructors.first)
+        #expect(__kk_kclass_primary_constructor(intClass) == constructor)
+        #expect(kk_unbox_int(__kk_kcallable_get_metadata(constructor, 2)) == 3)
+        #expect(try runtimeListElements(from: __kk_kcallable_get_metadata(constructor, 0)).isEmpty)
+        #expect(__kk_ktype_classifier(__kk_kcallable_get_return_type(constructor)) == intClass)
+
+        for (token, maxValue, minValue, value) in [
+            (RuntimeTypeTokenEncoding.byteBase, 127, -128, kk_box_byte(127)),
+            (RuntimeTypeTokenEncoding.shortBase, 32767, -32768, kk_box_short(32767)),
+        ] {
+            let klass = __kk_kclass_create(Int(token), 0)
+            let members = try runtimeListElements(from: __kk_kclass_member_functions(klass))
+            #expect(members.count == 58)
+            let increment = try #require(members.first { runtimeStringFromRaw(__kk_kcallable_get_name($0)) == "inc" })
+            #expect(__kk_ktype_classifier(__kk_kcallable_get_return_type(increment)) == klass)
+            let args = registerRuntimeObject(RuntimeListBox(elements: [value]))
+            thrown = 0
+            #expect(kk_unbox_int(__kk_kcallable_call(increment, args, &thrown)) == minValue)
+            #expect(thrown == 0)
+            #expect(kk_unbox_int(value) == maxValue)
+        }
+        let longClass = __kk_kclass_create(Int(RuntimeTypeTokenEncoding.longBase), 0)
+        let longFunctions = try runtimeListElements(from: __kk_kclass_member_functions(longClass))
+        #expect(longFunctions.count == 65)
+        func longOverload(_ name: String, _ operand: Int64) throws -> Int {
+            try #require(longFunctions.first { raw in
+                guard runtimeStringFromRaw(__kk_kcallable_get_name(raw)) == name,
+                      let parameters = try? runtimeListElements(from: __kk_kcallable_get_metadata(raw, 0)),
+                      parameters.count == 2 else { return false }
+                return __kk_ktype_classifier(__kk_kparameter_get_type(parameters[1]))
+                    == __kk_kclass_create(Int(operand), 0)
+            })
+        }
+        let longAdd = try longOverload("plus", RuntimeTypeTokenEncoding.longBase)
+        let wrapped = call(longAdd, kk_box_long_nonnull(Int.max), kk_box_long_nonnull(1), &thrown)
+        #expect(thrown == 0)
+        #expect(wrapped != runtimeNullSentinelInt && kk_unbox_long(wrapped) == Int.min)
+        let longDiv = try longOverload("div", RuntimeTypeTokenEncoding.longBase)
+        let quotient = call(longDiv, kk_box_long_nonnull(Int.min), kk_box_long_nonnull(-1), &thrown)
+        #expect(thrown == 0 && quotient != runtimeNullSentinelInt && kk_unbox_long(quotient) == Int.min)
+        let longShift = try longOverload("ushr", RuntimeTypeTokenEncoding.intBase)
+        #expect(kk_unbox_long(call(longShift, kk_box_long_nonnull(-1), kk_box_int(1), &thrown)) == Int.max)
+        let longRange = try longOverload("rangeUntil", RuntimeTypeTokenEncoding.longBase)
+        let longRangeValue = try #require(runtimeRangeBox(from: call(longRange, kk_box_long_nonnull(2), kk_box_long_nonnull(5), &thrown)))
+        #expect(longRangeValue.kind == .longRange && longRangeValue.first == 2 && longRangeValue.last == 4)
+
+        let uintClass = __kk_kclass_create(Int(RuntimeTypeTokenEncoding.uintBase), 0)
+        let properties = try runtimeListElements(from: __kk_kclass_member_properties(uintClass))
+        let data = try #require(properties.first { runtimeStringFromRaw(__kk_kcallable_get_name($0)) == "data" })
+        #expect(kk_unbox_int(__kk_kcallable_get_metadata(data, 2)) == 2)
+        #expect(__kk_ktype_classifier(__kk_kcallable_get_return_type(data)) == intClass)
+        let args = registerRuntimeObject(RuntimeListBox(elements: [kk_box_uint(Int(UInt32.max))]))
+        thrown = 0
+        #expect(kk_unbox_int(__kk_kcallable_call(data, args, &thrown)) == -1)
+        #expect(thrown == 0)
+        let getPointer = kk_itable_lookup_dynamic(data, Int(kProperty1RuntimeTypeID), 0)
+        #expect(getPointer != 0)
+        let getProperty = unsafeBitCast(getPointer, to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self)
+        #expect(kk_unbox_int(getProperty(data, kk_box_uint(Int(UInt32.max)), &thrown)) == -1)
+        let unsignedCases: [(Int64, Int, Int64)] = [
+            (RuntimeTypeTokenEncoding.ubyteBase, kk_box_ubyte(255), RuntimeTypeTokenEncoding.byteBase),
+            (RuntimeTypeTokenEncoding.ushortBase, kk_box_ushort(65535), RuntimeTypeTokenEncoding.shortBase),
+            (RuntimeTypeTokenEncoding.ulongBase, kk_box_ulong(-1), RuntimeTypeTokenEncoding.longBase),
+        ]
+        for (token, value, underlyingToken) in unsignedCases {
+            let klass = __kk_kclass_create(Int(token), 0)
+            let properties = try runtimeListElements(from: __kk_kclass_member_properties(klass))
+            let property = try #require(properties.first { runtimeStringFromRaw(__kk_kcallable_get_name($0)) == "data" })
+            #expect(__kk_ktype_classifier(__kk_kcallable_get_return_type(property)) == __kk_kclass_create(Int(underlyingToken), 0))
+            let values = registerRuntimeObject(RuntimeListBox(elements: [value]))
+            let result = __kk_kcallable_call(property, values, &thrown)
+            #expect(thrown == 0)
+            #expect((underlyingToken == RuntimeTypeTokenEncoding.longBase ? kk_unbox_long(result) : kk_unbox_int(result)) == -1)
+        }
+        for (token, input, underlyingToken) in [
+            (RuntimeTypeTokenEncoding.ubyteBase, kk_box_byte(-1), RuntimeTypeTokenEncoding.byteBase),
+            (RuntimeTypeTokenEncoding.ushortBase, kk_box_short(-1), RuntimeTypeTokenEncoding.shortBase),
+            (RuntimeTypeTokenEncoding.uintBase, kk_box_int(-1), RuntimeTypeTokenEncoding.intBase),
+            (RuntimeTypeTokenEncoding.ulongBase, kk_box_long_nonnull(Int.min), RuntimeTypeTokenEncoding.longBase),
+        ] {
+            let klass = __kk_kclass_create(Int(token), 0)
+            let constructor = __kk_kclass_primary_constructor(klass)
+            #expect(constructor != runtimeNullSentinelInt)
+            #expect(kk_unbox_int(__kk_kcallable_get_metadata(constructor, 2)) == 2)
+            let parameters = try runtimeListElements(from: __kk_kcallable_get_metadata(constructor, 0))
+            #expect(parameters.count == 1)
+            #expect(__kk_ktype_classifier(__kk_kparameter_get_type(parameters[0])) == __kk_kclass_create(Int(underlyingToken), 0))
+            let values = registerRuntimeObject(RuntimeListBox(elements: [input]))
+            let result = __kk_kcallable_call(constructor, values, &thrown)
+            #expect(thrown == 0)
+            #expect(kk_op_is(result, Int(token)) == 1)
+            if token == RuntimeTypeTokenEncoding.ulongBase { #expect(kk_unbox_ulong(result) == Int.min) }
+        }
+        let unsignedArithmetic: [(Int64, Int, Int, Int)] = [
+            (RuntimeTypeTokenEncoding.ubyteBase, kk_box_ubyte(255), kk_box_ubyte(1), 256),
+            (RuntimeTypeTokenEncoding.ushortBase, kk_box_ushort(65535), kk_box_ushort(1), 65536),
+            (RuntimeTypeTokenEncoding.uintBase, kk_box_uint(Int(UInt32.max)), kk_box_uint(1), 0),
+            (RuntimeTypeTokenEncoding.ulongBase, kk_box_ulong_nonnull(-1), kk_box_ulong_nonnull(1), 0),
+        ]
+        for (token, left, right, expected) in unsignedArithmetic {
+            let klass = __kk_kclass_create(Int(token), 0)
+            let members = try runtimeListElements(from: __kk_kclass_member_functions(klass))
+            #expect(members.count == (token == RuntimeTypeTokenEncoding.uintBase || token == RuntimeTypeTokenEncoding.ulongBase ? 55 : 53))
+            let plus = try #require(members.first { raw in
+                guard runtimeStringFromRaw(__kk_kcallable_get_name(raw)) == "plus",
+                      let parameters = try? runtimeListElements(from: __kk_kcallable_get_metadata(raw, 0)),
+                      parameters.count == 2 else { return false }
+                return __kk_ktype_classifier(__kk_kparameter_get_type(parameters[1])) == klass
+            })
+            thrown = 0
+            let result = call(plus, left, right, &thrown)
+            #expect(thrown == 0)
+            #expect((token == RuntimeTypeTokenEncoding.ulongBase ? kk_unbox_ulong(result) : kk_unbox_int(result)) == expected)
+            #expect(__kk_kfunction_is_inline(plus) == 1)
+            #expect(__kk_kfunction_is_operator(plus) == 1)
+        }
+        let ulongClass = __kk_kclass_create(Int(RuntimeTypeTokenEncoding.ulongBase), 0)
+        let ulongData = try #require(try runtimeListElements(from: __kk_kclass_member_properties(ulongClass)).first)
+        let ulongArgs = registerRuntimeObject(RuntimeListBox(elements: [kk_box_ulong_nonnull(Int.min)]))
+        let signedMin = __kk_kcallable_call(ulongData, ulongArgs, &thrown)
+        #expect(signedMin != runtimeNullSentinelInt)
+        #expect(kk_unbox_long(signedMin) == Int.min)
+        let unitClass = __kk_kclass_create(Int(RuntimeTypeTokenEncoding.unitBase), 0)
+        #expect(try runtimeListElements(from: __kk_kclass_constructors(unitClass)).isEmpty)
+        let booleanClass = __kk_kclass_create(Int(RuntimeTypeTokenEncoding.booleanBase), 0)
+        let booleanFunctions = try runtimeListElements(from: __kk_kclass_member_functions(booleanClass))
+        #expect(booleanFunctions.count == 8)
+        let not = try #require(booleanFunctions.first { runtimeStringFromRaw(__kk_kcallable_get_name($0)) == "not" })
+        let boolArguments = registerRuntimeObject(RuntimeListBox(elements: [kk_box_bool(1)]))
+        #expect(kk_unbox_bool(__kk_kcallable_call(not, boolArguments, &thrown)) == 0)
+        #expect(thrown == 0)
+        let charClass = __kk_kclass_create(Int(RuntimeTypeTokenEncoding.charBase), 0)
+        let charFunctions = try runtimeListElements(from: __kk_kclass_member_functions(charClass))
+        #expect(charFunctions.count == 18)
+        let charIncrement = try #require(charFunctions.first { runtimeStringFromRaw(__kk_kcallable_get_name($0)) == "inc" })
+        let charArguments = registerRuntimeObject(RuntimeListBox(elements: [kk_box_char(65535)]))
+        #expect(kk_unbox_char(__kk_kcallable_call(charIncrement, charArguments, &thrown)) == 0)
+        #expect(thrown == 0)
+        for token in [RuntimeTypeTokenEncoding.floatBase, RuntimeTypeTokenEncoding.doubleBase] {
+            let klass = __kk_kclass_create(Int(token), 0)
+            let members = try runtimeListElements(from: __kk_kclass_member_functions(klass))
+            #expect(members.count == 50)
+            func floatingOverload(_ name: String, _ operand: Int64) throws -> Int {
+                try #require(members.first { raw in
+                    guard runtimeStringFromRaw(__kk_kcallable_get_name(raw)) == name,
+                          let parameters = try? runtimeListElements(from: __kk_kcallable_get_metadata(raw, 0)),
+                          parameters.count == 2 else { return false }
+                    return __kk_ktype_classifier(__kk_kparameter_get_type(parameters[1]))
+                        == __kk_kclass_create(Int(operand), 0)
+                })
+            }
+            let compare = try floatingOverload("compareTo", token)
+            let negativeZero = token == RuntimeTypeTokenEncoding.floatBase
+                ? kk_box_float(kk_float_to_bits(-0.0)) : kk_box_double_nonnull(kk_double_to_bits(-0.0))
+            let positiveZero = token == RuntimeTypeTokenEncoding.floatBase
+                ? kk_box_float(kk_float_to_bits(0.0)) : kk_box_double_nonnull(kk_double_to_bits(0.0))
+            #expect(kk_unbox_int(call(compare, negativeZero, positiveZero, &thrown)) == -1)
+            let nan = token == RuntimeTypeTokenEncoding.floatBase
+                ? kk_box_float(kk_float_to_bits(.nan)) : kk_box_double_nonnull(kk_double_to_bits(.nan))
+            #expect(kk_unbox_int(call(compare, nan, positiveZero, &thrown)) == 1)
+            #expect(kk_unbox_int(call(compare, nan, nan, &thrown)) == 0)
+            let toInt = try #require(members.first { runtimeStringFromRaw(__kk_kcallable_get_name($0)) == "toInt" })
+            let args = registerRuntimeObject(RuntimeListBox(elements: [nan]))
+            #expect(kk_unbox_int(__kk_kcallable_call(toInt, args, &thrown)) == 0)
+            #expect(thrown == 0)
+        }
     }
 
     @Test func registerMemberReturnsZero() {
@@ -188,6 +525,96 @@ struct RuntimeKClassCastAndMembersTests {
         // After reset, members should be cleared.
         let afterReset = runtimeKMemberRegistry.members(for: kclass)
         #expect(afterReset.isEmpty)
+    }
+
+    @Test
+    func builtinArrayPropertiesAndConstructors() throws {
+        for name in ["BooleanArray", "ByteArray", "ShortArray", "IntArray", "LongArray", "FloatArray", "DoubleArray", "CharArray", "UIntArray", "UByteArray", "UShortArray", "ULongArray"] {
+            let typeID = runtimeStableNominalTypeID(fqName: "kotlin.\(name)")
+            let token = (typeID << RuntimeTypeTokenEncoding.payloadShift) | RuntimeTypeTokenEncoding.nominalBase
+            let klass = __kk_kclass_create(Int(token), makeRuntimeString("kotlin.\(name)"))
+            let properties = try runtimeListElements(from: __kk_kclass_member_properties(klass))
+            let size = try #require(properties.first { runtimeStringFromRaw(__kk_kcallable_get_name($0)) == "size" })
+            let array = kk_array_new(3)
+            runtimeRegisterArrayType(rawValue: array, typeID: typeID)
+            var thrown = 0
+            let value = __kk_kcallable_call(size, registerRuntimeObject(RuntimeListBox(elements: [array])), &thrown)
+            #expect(thrown == 0)
+            #expect(kk_unbox_int(value) == 3)
+            let constructors = try runtimeListElements(from: __kk_kclass_constructors(klass))
+            #expect(constructors.count == 2)
+            let primary = __kk_kclass_primary_constructor(klass)
+            #expect(constructors.contains(primary))
+            let sizeConstructor = try #require(constructors.first { constructor in
+                let params = try? runtimeListBox(from: __kk_kcallable_get_metadata(constructor, 0))
+                guard let params, params.elements.count == 1,
+                      let parameter = runtimeKParameterBox(from: params.elements[0]) else { return false }
+                return runtimeStringFromRaw(parameter.nameRaw) == "size"
+            })
+            let created = __kk_kcallable_call(sizeConstructor, registerRuntimeObject(RuntimeListBox(elements: [kk_box_int(4)])), &thrown)
+            #expect(thrown == 0)
+            #expect(kk_array_size(created) == 4)
+            if name == "IntArray" || name == "UIntArray" {
+                let functions = try runtimeListElements(from: __kk_kclass_member_functions(klass))
+                let names = Set(functions.compactMap { runtimeStringFromRaw(__kk_kcallable_get_name($0)) })
+                #expect(names.isSuperset(of: ["get", "set", "equals", "hashCode", "iterator", "toString"]))
+                let declared = try runtimeListElements(from: __kk_kclass_declared_member_functions(klass))
+                let declaredNames = Set(declared.compactMap { runtimeStringFromRaw(__kk_kcallable_get_name($0)) })
+                if name == "IntArray" {
+                    #expect(declaredNames == ["clone", "get", "iterator", "set"])
+                } else {
+                    #expect(declaredNames.contains("equals"))
+                }
+                let get = try #require(functions.first { runtimeStringFromRaw(__kk_kcallable_get_name($0)) == "get" })
+                let set = try #require(functions.first { runtimeStringFromRaw(__kk_kcallable_get_name($0)) == "set" })
+                let element = name == "IntArray" ? kk_box_int(42) : kk_box_uint(42)
+                let setterArgs = registerRuntimeObject(RuntimeListBox(elements: [created, kk_box_int(1), element]))
+                _ = __kk_kcallable_call(set, setterArgs, &thrown)
+                #expect(thrown == 0)
+                let getterArgs = registerRuntimeObject(RuntimeListBox(elements: [created, kk_box_int(1)]))
+                #expect(kk_unbox_int(__kk_kcallable_call(get, getterArgs, &thrown)) == 42)
+                #expect(thrown == 0)
+                if name == "IntArray" {
+                    let initializedConstructor = try #require(constructors.first { constructor in
+                        (try? runtimeListBox(from: __kk_kcallable_get_metadata(constructor, 0)).elements.count) == 2
+                    })
+                    let initializer = kk_function_create_1(unsafeBitCast(reflectedArrayInitializer, to: Int.self), 0, &thrown)
+                    let initializedArgs = registerRuntimeObject(RuntimeListBox(elements: [kk_box_int(3), initializer]))
+                    let initialized = __kk_kcallable_call(initializedConstructor, initializedArgs, &thrown)
+                    #expect(thrown == 0)
+                    #expect(kk_array_get(initialized, 2, &thrown) == 3)
+                    let clone = try #require(functions.first { runtimeStringFromRaw(__kk_kcallable_get_name($0)) == "clone" })
+                    let copied = __kk_kcallable_call(clone, registerRuntimeObject(RuntimeListBox(elements: [created])), &thrown)
+                    #expect(thrown == 0)
+                    #expect(copied != created)
+                    #expect(kk_array_get(copied, 1, &thrown) == 42)
+                } else {
+                    let contains = try #require(functions.first { runtimeStringFromRaw(__kk_kcallable_get_name($0)) == "contains" })
+                    let args = registerRuntimeObject(RuntimeListBox(elements: [created, element]))
+                    #expect(kk_unbox_bool(__kk_kcallable_call(contains, args, &thrown)) == 1)
+                    #expect(thrown == 0)
+                }
+            }
+            if name.hasPrefix("U") {
+                let storage = try #require(properties.first { runtimeStringFromRaw(__kk_kcallable_get_name($0)) == "storage" })
+                let underlying = __kk_kcallable_call(storage, registerRuntimeObject(RuntimeListBox(elements: [created])), &thrown)
+                #expect(thrown == 0)
+                #expect(kk_array_size(underlying) == 4)
+                _ = kk_array_set(underlying, 0, 17, &thrown)
+                #expect(kk_array_get(created, 0, &thrown) == 17)
+                if name == "UIntArray" {
+                    _ = kk_array_set(underlying, 0, -1, &thrown)
+                    let functions = try runtimeListElements(from: __kk_kclass_member_functions(klass))
+                    let get = try #require(functions.first { runtimeStringFromRaw(__kk_kcallable_get_name($0)) == "get" })
+                    let contains = try #require(functions.first { runtimeStringFromRaw(__kk_kcallable_get_name($0)) == "contains" })
+                    let getterArgs = registerRuntimeObject(RuntimeListBox(elements: [created, kk_box_int(0)]))
+                    #expect(kk_unbox_int(__kk_kcallable_call(get, getterArgs, &thrown)) == 4_294_967_295)
+                    let containsArgs = registerRuntimeObject(RuntimeListBox(elements: [created, kk_box_uint(4_294_967_295)]))
+                    #expect(kk_unbox_bool(__kk_kcallable_call(contains, containsArgs, &thrown)) == 1)
+                    #expect(thrown == 0)
+                }
+            }
+        }
     }
 
     // MARK: - ABI-003: __kk_kclass_cast

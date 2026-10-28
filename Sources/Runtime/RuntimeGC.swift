@@ -1,5 +1,6 @@
 import Dispatch
 import Foundation
+import RuntimeCAtomics
 
 struct HeapObjectRecord {
     let pointer: UnsafeMutableRawPointer
@@ -9,6 +10,10 @@ struct HeapObjectRecord {
 struct ActiveFrameRecord {
     let functionID: UInt32
     let frameBase: UnsafeMutableRawPointer?
+    /// Non-nil for compiler-emitted shadow frames whose root slots are stored
+    /// contiguously at `frameBase`.
+    let rootCount: Int?
+    let threadID: UInt
 }
 
 struct FrameMapDescriptorC {
@@ -115,6 +120,17 @@ struct RuntimeGCInfoSnapshot {
 
 struct GCState {
     var heapObjects: [UInt: HeapObjectRecord] = [:]
+    /// `kk_object_new` boxes use ARC storage but participate in the same
+    /// reachability pass as `kk_alloc` objects. `objectPointers` remains the
+    /// handle registry; this set identifies the subset the collector owns.
+    var managedObjectPointers: Set<UInt> = []
+    /// New allocations and values crossing a generated function return are
+    /// held here until a shadow root slot is published or the next collection
+    /// completes. This closes the short handoff window between runtime calls.
+    var pendingGCRoots: Set<UInt> = []
+    /// ARC releases are deferred until after `gcLock` is released so object
+    /// deinitializers may safely call back into the runtime.
+    var retiredManagedObjects: [UnsafeMutableRawPointer] = []
     var nextForeignResourceToken: Int = 1
     var foreignResources: [Int: RuntimeForeignResourceLease] = [:]
     var retiredForeignResources: [RuntimeForeignResourceLease] = []
@@ -180,6 +196,12 @@ struct MetadataState {
     // Enum Class handles outlive the boxed entry used to obtain javaClass.
     var enumClassifierIDs: Set<Int64> = []
     var objectTypeByPointer: [UInt: Int64] = [:]
+    /// Nominal type IDs that belong to value classes — every class ID
+    /// `kk_tag_value_class_box`/`kk_value_class_box` has tagged a box with.
+    /// `objectTypeByPointer` also tags lists, map entries, iterators and other
+    /// runtime internals, so equality cannot treat every tagged pointer as a
+    /// value-class box; this set distinguishes them (KUU-3616).
+    var valueClassTypeIDs: Set<Int64> = []
     var arrayTypeIDsByPointer: [UInt: Set<Int64>] = [:]
     var typeParents: [Int64: Set<Int64>] = [:]
     /// Set once the static reflection hierarchy edges are in `typeParents`;
@@ -532,7 +554,7 @@ public func kk_gc_collect(_ gcRaw: Int = 0) {
     let callableRoots = runtimeCallableRoots()
     let firstPauseRequestTimeNs = runtimeGCNowNanos()
     var passEpoch: Int64 = 0
-    let retired = runtimeStorage.withGCLock { state -> [RuntimeForeignResourceLease] in
+    let retired = runtimeStorage.withGCLock { state -> ([RuntimeForeignResourceLease], [UnsafeMutableRawPointer]) in
         let firstPauseStartTimeNs = runtimeGCNowNanos()
         let stats = performMarkAndSweepLocked(
             state: &state,
@@ -542,6 +564,8 @@ public func kk_gc_collect(_ gcRaw: Int = 0) {
         let firstPauseEndTimeNs = runtimeGCNowNanos()
         let retired = state.retiredForeignResources
         state.retiredForeignResources.removeAll()
+        let retiredManagedObjects = state.retiredManagedObjects
+        state.retiredManagedObjects.removeAll()
         let endTimeNs = runtimeGCNowNanos()
         state.gcEpoch += 1
         passEpoch = state.gcEpoch
@@ -563,9 +587,12 @@ public func kk_gc_collect(_ gcRaw: Int = 0) {
             memoryUsageBeforeBytes: stats.memoryUsageBeforeBytes,
             memoryUsageAfterBytes: stats.memoryUsageAfterBytes
         )
-        return retired
+        return (retired, retiredManagedObjects)
     }
-    withExtendedLifetime(retired) {} // ARC destruction outside gcLock.
+    withExtendedLifetime(retired.0) {} // ARC destruction outside gcLock.
+    for pointer in retired.1 {
+        Unmanaged<AnyObject>.fromOpaque(pointer).release()
+    }
     let postGcCleanupTimeNs = runtimeGCNowNanos()
     runtimeStorage.withGCLock { state in
         // A newer pass may have already published its own snapshot; only patch
@@ -692,15 +719,18 @@ public func kk_gc_main_thread_finalizer_processor_min_time_between_tasks_store(_
     return 0
 }
 
-// These Swift helpers remain available to Runtime tests. Restore their C exports
-// only when the Kotlin compiler has a global-root emission path.
-public func kk_register_global_root(_ slot: UnsafeMutablePointer<UnsafeMutableRawPointer?>?) {
+// Kotlin global slots are registered by generated code before loading or
+// storing a reference-valued global.
+@discardableResult
+@_cdecl("kk_register_global_root")
+public func kk_register_global_root(_ slot: UnsafeMutablePointer<UnsafeMutableRawPointer?>?) -> Int {
     guard let slot else {
-        return
+        return 0
     }
     runtimeStorage.withGCLock { state in
         state.globalRootSlots.insert(UInt(bitPattern: slot))
     }
+    return 0
 }
 
 public func kk_unregister_global_root(_ slot: UnsafeMutablePointer<UnsafeMutableRawPointer?>?) {
@@ -735,7 +765,12 @@ public func kk_register_frame_map(_ functionID: UInt32, _ mapPtr: UnsafeRawPoint
 @_cdecl("kk_push_frame")
 public func kk_push_frame(_ functionID: UInt32, _ frameBase: UnsafeMutableRawPointer?) {
     runtimeStorage.withGCLock { state in
-        state.activeFrames.append(ActiveFrameRecord(functionID: functionID, frameBase: frameBase))
+        state.activeFrames.append(ActiveFrameRecord(
+            functionID: functionID,
+            frameBase: frameBase,
+            rootCount: nil,
+            threadID: UInt(kkrt_current_thread_id())
+        ))
     }
 }
 
@@ -743,10 +778,66 @@ public func kk_push_frame(_ functionID: UInt32, _ frameBase: UnsafeMutableRawPoi
 @_cdecl("kk_pop_frame")
 public func kk_pop_frame() {
     runtimeStorage.withGCLock { state in
-        if !state.activeFrames.isEmpty {
-            _ = state.activeFrames.removeLast()
+        let threadID = UInt(kkrt_current_thread_id())
+        if let index = state.activeFrames.lastIndex(where: { $0.threadID == threadID }) {
+            state.activeFrames.remove(at: index)
         }
     }
+}
+
+/// Publishes compiler-owned raw Kotlin reference slots as a GC frame. Slots
+/// are updated through `kk_gc_root_store`, which shares `gcLock` with the
+/// collector so a pass never races a partially written root.
+@_cdecl("kk_gc_push_root_frame")
+public func kk_gc_push_root_frame(_ rootSlots: UnsafeMutableRawPointer?, _ rootCount: Int) -> Int {
+    guard let rootSlots, rootCount > 0 else {
+        return 0
+    }
+    runtimeStorage.withGCLock { state in
+        state.activeFrames.append(ActiveFrameRecord(
+            functionID: 0,
+            frameBase: rootSlots,
+            rootCount: rootCount,
+            threadID: UInt(kkrt_current_thread_id())
+        ))
+    }
+    return 0
+}
+
+/// Stores a raw reference into a compiler shadow slot and retires any pending
+/// allocation/return handoff for that same object in one critical section.
+@_cdecl("kk_gc_root_store")
+public func kk_gc_root_store(_ slot: UnsafeMutablePointer<Int>?, _ value: Int) -> Int {
+    guard let slot else {
+        return 0
+    }
+    runtimeStorage.withGCLock { state in
+        slot.pointee = value
+        state.pendingGCRoots.remove(UInt(bitPattern: value))
+    }
+    return 0
+}
+
+/// Leaves a generated Kotlin frame. The return value is kept alive until the
+/// caller publishes it into its own slot, closing the return handoff window.
+@_cdecl("kk_gc_frame_leave")
+public func kk_gc_frame_leave(_ returnValue: Int, _ hasRootFrame: Int) -> Int {
+    runtimeStorage.withGCLock { state in
+        if hasRootFrame != 0 {
+            let threadID = UInt(kkrt_current_thread_id())
+            if let index = state.activeFrames.lastIndex(where: { $0.threadID == threadID }) {
+                state.activeFrames.remove(at: index)
+            }
+        }
+        let key = UInt(bitPattern: returnValue)
+        if state.heapObjects[key] != nil
+            || state.managedObjectPointers.contains(key)
+            || state.objectPointers.contains(key)
+        {
+            state.pendingGCRoots.insert(key)
+        }
+    }
+    return 0
 }
 
 @_cdecl("kk_register_coroutine_root")
@@ -812,6 +903,7 @@ func kk_runtime_reset_gc() {
         state.frameMaps.removeAll(keepingCapacity: false)
         state.activeFrames.removeAll(keepingCapacity: false)
         state.coroutineRoots.removeAll(keepingCapacity: false)
+        state.pendingGCRoots.removeAll(keepingCapacity: false)
         state.pinnedObjectCounts.removeAll(keepingCapacity: false)
         state.stableRefCounts.removeAll(keepingCapacity: false)
         state.gcEpoch = 0
@@ -968,12 +1060,12 @@ func kk_runtime_reset_delegate() {
 func performMarkAndSweepLocked(state: inout GCState, threadLocalValues: [UInt: [ObjectIdentifier: Int]] = [:], callableRoots: [Int] = []) -> RuntimeGCMarkSweepStats {
     var stats = RuntimeGCMarkSweepStats()
     stats.memoryUsageBeforeBytes = state.heapObjects.values.reduce(Int64(0)) { $0 &+ Int64($1.byteCount) }
-    guard !state.heapObjects.isEmpty else {
+    guard !state.heapObjects.isEmpty || !state.managedObjectPointers.isEmpty else {
         return stats
     }
 
     var worklist: [UnsafeMutableRawPointer] = []
-    worklist.reserveCapacity(state.heapObjects.count)
+    worklist.reserveCapacity(state.heapObjects.count + state.managedObjectPointers.count)
     collectRootPointersLocked(state: state, threadLocalValues: threadLocalValues, counts: &stats.rootSet, into: &worklist)
     var resolvedCallableRoots = 0
     for rawRoot in callableRoots {
@@ -997,20 +1089,36 @@ func performMarkAndSweepLocked(state: inout GCState, threadLocalValues: [UInt: [
     collectRetainedAtomicPayloadRootsLocked(state: state, into: &worklist)
     stats.rootSet.stableReferences += Int64(seededLeaseRoots + worklist.count - retainedAtomicRootsStart)
 
+    var markedManagedObjects: Set<UInt> = []
+    markedManagedObjects.reserveCapacity(state.managedObjectPointers.count)
+    var visitedRuntimeBoxes: Set<UInt> = []
     while let current = worklist.popLast() {
         let key = UInt(bitPattern: current)
-        guard let object = state.heapObjects[key] else {
-            continue
+        if let object = state.heapObjects[key] {
+            let header = object.pointer.assumingMemoryBound(to: KKObjHeader.self)
+            if (header.pointee.flags & kkObjMarkFlag) == 0 {
+                header.pointee.flags |= kkObjMarkFlag
+                stats.markedCount += 1
+                appendObjectChildrenLocked(of: object, into: &worklist)
+                for lease in state.foreignResources.values where lease.owner == key {
+                    worklist.append(contentsOf: (lease.dependentRoots + lease.attachmentRoots).compactMap(UnsafeMutableRawPointer.init(bitPattern:)))
+                }
+            }
         }
-        let header = object.pointer.assumingMemoryBound(to: KKObjHeader.self)
-        if (header.pointee.flags & kkObjMarkFlag) != 0 {
-            continue
+
+        if state.managedObjectPointers.contains(key),
+           markedManagedObjects.insert(key).inserted
+        {
+            stats.markedCount += 1
         }
-        header.pointee.flags |= kkObjMarkFlag
-        stats.markedCount += 1
-        appendObjectChildrenLocked(of: object, into: &worklist)
-        for lease in state.foreignResources.values where lease.owner == key {
-            worklist.append(contentsOf: (lease.dependentRoots + lease.attachmentRoots).compactMap(UnsafeMutableRawPointer.init(bitPattern:)))
+
+        // Retained runtime containers are not swept by this pass, but walking
+        // their direct child handles lets a reachable Kotlin object retain
+        // objects held through arrays, lists, sets, maps, and closure boxes.
+        if state.objectPointers.contains(key),
+           visitedRuntimeBoxes.insert(key).inserted
+        {
+            appendRuntimeBoxChildrenLocked(of: current, state: state, into: &worklist)
         }
     }
 
@@ -1036,7 +1144,50 @@ func performMarkAndSweepLocked(state: inout GCState, threadLocalValues: [UInt: [
         }
     }
     state.heapObjects = survivors
+
+    for key in Array(state.managedObjectPointers) where !markedManagedObjects.contains(key) {
+        guard let pointer = UnsafeMutableRawPointer(bitPattern: key) else {
+            continue
+        }
+        state.managedObjectPointers.remove(key)
+        state.pendingGCRoots.remove(key)
+        _ = state.objectPointers.remove(key)
+        removeRuntimeObjectMetadata(forObjectKey: key)
+        runtimeForgetFrozenObject(Int(bitPattern: pointer))
+        state.retiredManagedObjects.append(pointer)
+        stats.sweptCount += 1
+    }
+    state.pendingGCRoots.removeAll(keepingCapacity: false)
     return stats
+}
+
+private func appendRuntimeBoxChildrenLocked(
+    of pointer: UnsafeMutableRawPointer,
+    state: GCState,
+    into worklist: inout [UnsafeMutableRawPointer]
+) {
+    let rawValue = Int(bitPattern: pointer)
+    let basePointer = runtimePrimitiveBoxBasePointer(from: rawValue) ?? pointer
+    let object = Unmanaged<AnyObject>.fromOpaque(basePointer).takeUnretainedValue()
+    guard let provider = object as? RuntimeChildReferenceProviding else {
+        return
+    }
+    for rawChild in provider.childRefs {
+        guard rawChild != 0,
+              rawChild != runtimeNullSentinelInt,
+              let child = UnsafeMutableRawPointer(bitPattern: rawChild)
+        else {
+            continue
+        }
+        let childKey = UInt(bitPattern: child)
+        guard state.heapObjects[childKey] != nil
+                || state.managedObjectPointers.contains(childKey)
+                || state.objectPointers.contains(childKey)
+        else {
+            continue
+        }
+        worklist.append(child)
+    }
 }
 
 func collectRootPointersLocked(state: GCState, threadLocalValues: [UInt: [ObjectIdentifier: Int]], counts: inout RuntimeGCRootSetCounts, into worklist: inout [UnsafeMutableRawPointer]) {
@@ -1051,6 +1202,23 @@ func collectRootPointersLocked(state: GCState, threadLocalValues: [UInt: [Object
     }
 
     for frame in state.activeFrames {
+        if let rootCount = frame.rootCount,
+           let frameBase = frame.frameBase
+        {
+            let slots = frameBase.assumingMemoryBound(to: Int.self)
+            for index in 0 ..< rootCount {
+                let raw = slots[index]
+                guard raw != 0,
+                      raw != runtimeNullSentinelInt,
+                      let value = UnsafeMutableRawPointer(bitPattern: raw)
+                else {
+                    continue
+                }
+                worklist.append(value)
+                counts.stackReferences += 1
+            }
+            continue
+        }
         guard let frameBase = frame.frameBase,
               let offsets = state.frameMaps[frame.functionID]
         else {
@@ -1063,6 +1231,14 @@ func collectRootPointersLocked(state: GCState, threadLocalValues: [UInt: [Object
                 counts.stackReferences += 1
             }
         }
+    }
+
+    for pendingRoot in state.pendingGCRoots {
+        guard let ptr = UnsafeMutableRawPointer(bitPattern: pendingRoot) else {
+            continue
+        }
+        worklist.append(ptr)
+        counts.stackReferences += 1
     }
 
     for root in state.coroutineRoots {

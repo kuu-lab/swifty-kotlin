@@ -1,6 +1,7 @@
 @testable import CompilerCore
 import Foundation
 import Testing
+@testable import CompilerTestSupport
 
 @Suite
 struct ReceiverLambdaMemberExtensionTests {
@@ -129,6 +130,64 @@ struct ReceiverLambdaMemberExtensionTests {
         #expect(sema.symbols.symbol(owner)?.name == ctx.interner.intern("Containing"))
         #expect(fooCall.contextParameterReceiverSymbols.count == 1)
         #expect(fooCall.contextParameterReceiverSymbols.allSatisfy { $0 != nil })
+    }
+
+    @Test
+    func memberExtensionGetResolvesInsideAnonymousObjectInReceiverLambda() throws {
+        let ctx = makeContext("""
+        fun <T, R> myWith(receiver: T, block: T.() -> R): R = receiver.block()
+        object Foo2 { operator fun Any?.get(key: String) = "OK" }
+        object Main {
+            fun bar() = myWith(Foo2) {
+                val x = object { val y = 38["Hello!"] }
+                x.y
+            }
+        }
+        """)
+        try runToKIR(ctx)
+        #expect(!ctx.diagnostics.hasError, "Got: \(ctx.diagnostics.diagnostics)")
+
+        let sema = try #require(ctx.sema)
+        let getCalls = sema.bindings.callBindings.values.filter {
+            sema.symbols.symbol($0.chosenCallee)?.name == ctx.interner.intern("get")
+                && sema.symbols.memberExtensionOwnerSymbol(for: $0.chosenCallee) != nil
+        }
+        #expect(getCalls.count == 1)
+        let owner = try #require(getCalls.first.flatMap {
+            sema.symbols.memberExtensionOwnerSymbol(for: $0.chosenCallee)
+        })
+        #expect(sema.symbols.symbol(owner)?.name == ctx.interner.intern("Foo2"))
+    }
+
+    @Test
+    func memberExtensionSetResolvesInsideAnonymousObjectInitInReceiverLambda() throws {
+        let ctx = makeContext("""
+        var result = "fail"
+        fun <T, R> myWith(receiver: T, block: T.() -> R): R = receiver.block()
+        object Foo2 {
+            operator fun Any?.get(key: String) = "OK"
+            operator fun Any?.set(key: String, value: String) { result = value }
+        }
+        object Main {
+            fun bar() = myWith(Foo2) {
+                val x = object { init { 38["Hello!"] = "OK" } }
+                result
+            }
+        }
+        """)
+        try runToKIR(ctx)
+        #expect(!ctx.diagnostics.hasError, "Got: \(ctx.diagnostics.diagnostics)")
+
+        let sema = try #require(ctx.sema)
+        let setCalls = sema.bindings.callBindings.values.filter {
+            sema.symbols.symbol($0.chosenCallee)?.name == ctx.interner.intern("set")
+                && sema.symbols.memberExtensionOwnerSymbol(for: $0.chosenCallee) != nil
+        }
+        #expect(setCalls.count == 1)
+        let owner = try #require(setCalls.first.flatMap {
+            sema.symbols.memberExtensionOwnerSymbol(for: $0.chosenCallee)
+        })
+        #expect(sema.symbols.symbol(owner)?.name == ctx.interner.intern("Foo2"))
     }
 
     private func makeContext(_ source: String) -> CompilationContext {

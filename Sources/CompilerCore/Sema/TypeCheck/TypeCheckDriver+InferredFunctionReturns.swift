@@ -1,4 +1,35 @@
 extension TypeCheckDriver {
+    func inferDelegatedForwardingMethodReturnTypesIfNeeded(for candidates: [SymbolID]) {
+        let forwardingMethods = candidates.compactMap { candidate -> (forwarding: SymbolID, source: SymbolID)? in
+            guard let info = sema.symbols.classDelegationForwardingMethodInfo(for: candidate) else {
+                return nil
+            }
+            return (candidate, info.interfaceMethodSymbol)
+        }
+        guard !forwardingMethods.isEmpty else { return }
+
+        inferFunctionReturnTypesIfNeeded(for: forwardingMethods.map(\.source))
+
+        for method in forwardingMethods {
+            guard let sourceSignature = sema.symbols.functionSignature(for: method.source),
+                  let forwardingSignature = sema.symbols.functionSignature(for: method.forwarding),
+                  let returnType = sema.symbols.substitutedClassDelegationForwardingMethodReturnType(
+                    sourceSignature.returnType,
+                    for: method.forwarding,
+                    types: sema.types
+                  )
+            else {
+                continue
+            }
+            if forwardingSignature.returnType != returnType {
+                sema.symbols.setFunctionSignature(
+                    forwardingSignature.replacingReturnType(returnType),
+                    for: method.forwarding
+                )
+            }
+        }
+    }
+
     func registerInferredReturnFunctions(
         in declarationID: DeclID,
         context: TypeInferenceContext,

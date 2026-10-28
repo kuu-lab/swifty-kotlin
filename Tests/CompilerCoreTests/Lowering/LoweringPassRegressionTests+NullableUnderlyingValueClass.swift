@@ -2,6 +2,7 @@
 @testable import CompilerCore
 import Foundation
 import Testing
+@testable import CompilerTestSupport
 
 /// A value class whose underlying representation can carry null (`String?`,
 /// another nullable-underlying value class, or an erased type parameter)

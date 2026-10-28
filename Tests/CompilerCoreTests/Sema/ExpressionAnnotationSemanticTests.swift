@@ -1,6 +1,7 @@
 @testable import CompilerCore
 import TestStdlibCache
 import Testing
+@testable import CompilerTestSupport
 
 func makeExpressionAnnotationContext(inputs: [String]) throws -> CompilationContext {
     TestStdlibCache.shared.prepare()

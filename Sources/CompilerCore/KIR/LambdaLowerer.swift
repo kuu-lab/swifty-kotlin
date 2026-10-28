@@ -606,6 +606,7 @@ final class LambdaLowerer {
                lambdaReturnType: lambdaReturnType,
                captureBindings: captureBindings,
                samMethodReceiverType: functionType?.receiver,
+               samMethodContextParameterTypes: functionType?.contextReceivers ?? [],
                samMethodParamTypes: functionType?.params ?? lambdaParameterTypes,
                sema: sema,
                arena: arena,
@@ -699,8 +700,10 @@ final class LambdaLowerer {
             }
             emitFunctionDescription(
                 value: lambdaValueExpr,
-                description: "kotlin.Function\(lambdaParameterTypes.count)",
-                identity: true,
+                description: functionType.map {
+                    functionTypeDescription($0, sema: sema, interner: interner)
+                } ?? "kotlin.Function\(lambdaParameterTypes.count)",
+                identity: functionType == nil,
                 sema: sema, arena: arena, interner: interner, instructions: &instructions
             )
         }
@@ -928,6 +931,7 @@ final class LambdaLowerer {
                lambdaReturnType: lambdaReturnType,
                captureBindings: [],
                samMethodReceiverType: functionType?.receiver,
+               samMethodContextParameterTypes: functionType?.contextReceivers ?? [],
                samMethodParamTypes: functionType?.params ?? lambdaParameterTypes,
                sema: sema,
                arena: arena,
@@ -965,8 +969,10 @@ final class LambdaLowerer {
         if !hasNonLocalReturn {
             emitFunctionDescription(
                 value: lambdaValueExpr,
-                description: "kotlin.Function\(lambdaParameterTypes.count)",
-                identity: true,
+                description: functionType.map {
+                    functionTypeDescription($0, sema: sema, interner: interner)
+                } ?? "kotlin.Function\(lambdaParameterTypes.count)",
+                identity: functionType == nil,
                 sema: sema, arena: arena, interner: interner, instructions: &instructions
             )
         }

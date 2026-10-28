@@ -116,6 +116,18 @@ extension ExprTypeChecker {
         ctx: TypeInferenceContext
     ) -> TypeID {
         let sema = ctx.sema
+        // Enum entry bodies are checked as members of their enum class, but
+        // that class is not listed in its own direct-supertype graph. Kotlin
+        // nevertheless accepts `super<Enum>.member()` to reach the enum
+        // implementation from an entry override.
+        if let entrySuperContext = ctx.enumEntrySuperContext,
+           entrySuperContext.ownerSymbol == classSymbol,
+           isEnumEntryMemberBody(classSymbol: classSymbol, ctx: ctx),
+           ctx.cachedSymbol(classSymbol)?.name == qualifier
+        {
+            sema.bindings.bindExprType(id, type: entrySuperContext.type)
+            return entrySuperContext.type
+        }
         let supertypes = sema.symbols.directSupertypes(for: classSymbol)
         for superID in supertypes {
             guard let superSym = ctx.cachedSymbol(superID) else { continue }
@@ -216,6 +228,15 @@ extension ExprTypeChecker {
                         id,
                         symbol: SyntheticSymbolScheme.receiverParameterSymbol(for: currentDeclSymbol)
                     )
+                } else if case let .classType(objectType) = sema.types.kind(of: qualifiedType),
+                          sema.symbols.symbol(objectType.classSymbol)?.kind == .object
+                {
+                    // `this@Object` names a singleton, not a capturable
+                    // receiver. Bind the object symbol so KIR emits the
+                    // singleton load — including from nested-class supertype
+                    // arguments, where no implicit receiver is active and the
+                    // fallback would read the not-yet-initialized `this`.
+                    sema.bindings.bindIdentifier(id, symbol: objectType.classSymbol)
                 }
                 sema.bindings.bindExprType(id, type: qualifiedType)
                 return qualifiedType
@@ -228,6 +249,18 @@ extension ExprTypeChecker {
             )
             sema.bindings.bindExprType(id, type: sema.types.errorType)
             return sema.types.errorType
+        }
+        // A nested class's supertype arguments run before its own receiver is
+        // initialized, but an enclosing object is a singleton and remains
+        // available. Bind `this` to the object symbol so KIR loads that value
+        // instead of falling back to the not-yet-initialized class receiver.
+        if ctx.implicitReceiverType == nil,
+           let outerObjectReceiver = ctx.singletonObjectOuterReceivers.last,
+           case let .classType(objectType) = sema.types.kind(of: outerObjectReceiver.type)
+        {
+            sema.bindings.bindIdentifier(id, symbol: objectType.classSymbol)
+            sema.bindings.bindExprType(id, type: outerObjectReceiver.type)
+            return outerObjectReceiver.type
         }
         guard let receiverType = ctx.implicitReceiverType else {
             ctx.sema.diagnostics.error(

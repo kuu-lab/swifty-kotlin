@@ -18,7 +18,9 @@ func runtimeTestMakeArray(_ elements: [Int]) -> Int {
 
 func runtimeTestMakeList(_ elements: [Int]) -> Int {
     let arrayRaw = runtimeTestMakeArray(elements)
-    return kk_list_of(arrayRaw, elements.count)
+    // `kk_list_of` freezes its box (#11376); tests mutate these lists, so
+    // build through the non-freezing ArrayList bridge instead.
+    return kk_array_list_of(arrayRaw, elements.count)
 }
 
 func makeByteArray(_ bytes: [Int]) -> Int {

@@ -2,6 +2,7 @@
 import Foundation
 @testable import CompilerCore
 import Testing
+@testable import CompilerTestSupport
 
 @Suite
 struct BundledStdlibTemplateTests {
@@ -145,9 +146,10 @@ struct BundledStdlibTemplateTests {
     }
 
     /// `PrimitiveArrayHOF.kt.tmpl` replaced six hand-written files. Their virtual
-    /// paths fix declaration order (hence SymbolIDs and goldens), and the drift
-    /// between element types was carried over verbatim: normalizing it changes
-    /// behavior and belongs in a separate change with diff cases.
+    /// paths fix declaration order (hence SymbolIDs and goldens). The former
+    /// unsigned-array drift — indexOf, forEachIndexed, max, min, maxOrNull and
+    /// minOrNull on UIntArray only — was normalized in KUU-3627 to all four
+    /// unsigned element types; the remaining drift is marked in the template.
     @Test
     func testPrimitiveArrayHOFTemplateKeepsSixPathsAndDrift() throws {
         let sources = try BundledStdlib.collectBundledStdlibSources()
@@ -159,19 +161,23 @@ struct BundledStdlibTemplateTests {
             return String(decoding: source.contents, as: UTF8.self)
         }
         let ints = try text(0), bytes = try text(1), unsignedSmall = try text(4), unsignedWide = try text(5)
-        // Only IntArray.forEach is inline, and only IntArray has scanIndexed.
+        // Only IntArray.forEach is inline; scanIndexed is shared by every type.
         #expect(ints.contains("public inline fun IntArray.forEach("))
         #expect(ints.contains("public fun LongArray.forEach(") && bytes.contains("public fun ByteArray.forEach("))
-        #expect(ints.contains("IntArray.scanIndexed(") && !ints.contains("LongArray.scanIndexed("))
+        #expect(ints.contains("IntArray.scanIndexed(") && ints.contains("LongArray.scanIndexed("))
         // IntArray.map alone has no blank line before mapIndexed.
         #expect(ints.contains("}\npublic fun <R> IntArray.mapIndexed("))
         #expect(ints.contains("}\n\npublic fun <R> LongArray.mapIndexed("))
-        // Unsigned arrays carry extra accessors; UInt alone has six more.
-        #expect(unsignedSmall.contains("UByteArray.elementAt(") && !unsignedSmall.contains("UByteArray.forEachIndexed("))
+        // Signed arrays keep these HOFs in their per-type files, not here.
+        #expect(!ints.contains("IntArray.forEachIndexed(") && !ints.contains("IntArray.maxOrNull("))
+        // Unsigned arrays carry extra accessors and all six shared HOFs.
+        #expect(unsignedSmall.contains("UByteArray.elementAt(") && unsignedSmall.contains("UByteArray.forEachIndexed("))
+        #expect(unsignedSmall.contains("public fun UByteArray.max(): UByte") && unsignedSmall.contains("public fun UShortArray.min(): UShort"))
+        #expect(unsignedSmall.contains("UByteArray.indexOf(") && unsignedSmall.contains("UShortArray.maxOrNull("))
         #expect(unsignedWide.contains("UIntArray.forEachIndexed(") && unsignedWide.contains("UIntArray.maxOrNull("))
         #expect(unsignedWide.contains("public fun UIntArray.max(): UInt") && unsignedWide.contains("public fun UIntArray.min(): UInt"))
-        #expect(!unsignedWide.contains("public fun ULongArray.max()") && !unsignedWide.contains("public fun ULongArray.min()"))
-        #expect(unsignedWide.contains("ULongArray.elementAt(") && !unsignedWide.contains("ULongArray.indexOf("))
+        #expect(unsignedWide.contains("public fun ULongArray.max()") && unsignedWide.contains("public fun ULongArray.min()"))
+        #expect(unsignedWide.contains("ULongArray.elementAt(") && unsignedWide.contains("ULongArray.indexOf("))
     }
 
     /// `PrimitiveArrayCollectionOps.kt.tmpl` replaced one hand-written file of

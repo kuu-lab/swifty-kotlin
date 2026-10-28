@@ -1,6 +1,7 @@
 #if canImport(Testing)
 @testable import CompilerCore
 import Testing
+@testable import CompilerTestSupport
 
 /// KSP-CAP-007 / BUG-014: local `by`-delegated declarations (`fun f() { val x by Prop() }`)
 /// used to bind `x` straight to the delegate instance's own KIR value, never calling the

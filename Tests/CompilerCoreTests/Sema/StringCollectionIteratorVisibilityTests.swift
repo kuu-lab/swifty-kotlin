@@ -1,5 +1,6 @@
 @testable import CompilerCore
 import Testing
+@testable import CompilerTestSupport
 
 /// SLOP-010: the source-backed CharSequence iterator is an implementation
 /// detail, while the public conversion and iteration extensions remain usable.

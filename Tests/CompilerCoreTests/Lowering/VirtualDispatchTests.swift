@@ -2,6 +2,7 @@
 @testable import CompilerCore
 import Foundation
 import Testing
+@testable import CompilerTestSupport
 
 /// Tests for virtual dispatch (vtable/itable) lowering, codegen, and backend emission (P5-25).
 @Suite struct VirtualDispatchTests {

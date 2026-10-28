@@ -402,6 +402,13 @@ public func kk_op_is(_ value: Int, _ typeToken: Int) -> Int {
         return runtimeIsUnitValue(value) ? 1 : 0
 
     case RuntimeTypeTokenEncoding.nominalBase:
+        // Coroutine state handles are live runtime objects rather than Kotlin
+        // allocations, so they do not carry the usual nominal type metadata.
+        if payload == runtimeStableNominalTypeID(fqName: "kotlin.coroutines.Continuation"),
+           runtimeContinuationState(from: value) != nil
+        {
+            return 1
+        }
         // Raw callable references and adapted closure boxes retain reflection
         // identity in callable metadata rather than an object allocation tag.
         let isFunctionReference = runtimeStorage.withDelegateLock { state in

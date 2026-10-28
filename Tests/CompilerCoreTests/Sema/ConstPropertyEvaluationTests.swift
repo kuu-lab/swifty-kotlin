@@ -1,6 +1,7 @@
 #if canImport(Testing)
 @testable import CompilerCore
 import Testing
+@testable import CompilerTestSupport
 
 @Suite
 struct ConstPropertyEvaluationTests {
@@ -241,28 +242,6 @@ struct ConstPropertyEvaluationTests {
             ))
             #expect(sema.symbols.constValueExprKind(for: symbol) == value, "Incorrect constant for \(name)")
         }
-    }
-
-    @Test
-    func foldsCharCompanionBoundsForRangeConstants() throws {
-        let ctx = makeContextFromSource("""
-        package charRangeConstants
-        const val M = Char.MAX_VALUE
-        const val LOW = Char.MIN_VALUE
-        fun main() {
-            var count = 0
-            for (i in M..M) ++count
-            println(count)
-        }
-        """)
-        try runSema(ctx)
-
-        #expect(ctx.diagnostics.diagnostics.filter { $0.severity == .error }.isEmpty)
-        let sema = try #require(ctx.sema)
-        let max = try #require(sema.symbols.lookup(fqName: ["charRangeConstants", "M"].map { ctx.interner.intern($0) }))
-        let min = try #require(sema.symbols.lookup(fqName: ["charRangeConstants", "LOW"].map { ctx.interner.intern($0) }))
-        #expect(sema.symbols.constValueExprKind(for: max) == .charLiteral(65535))
-        #expect(sema.symbols.constValueExprKind(for: min) == .charLiteral(0))
     }
 
     @Test

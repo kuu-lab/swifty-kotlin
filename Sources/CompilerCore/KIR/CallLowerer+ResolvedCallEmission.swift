@@ -249,10 +249,53 @@ extension CallLowerer {
         ) {
             return emptyArray
         }
-        let result = arena.appendTemporary(type: boundType ?? sema.types.anyType)
-        let callNormalized: NormalizedCallResult = if callBinding != nil {
-            driver.callSupportLowerer.normalizedCallArguments(
-                providedArguments: loweredArgIDs,
+        let preservesErasedGenericResult = kirShouldCheckErasedGenericCallResult(
+            exprID: exprID,
+            boundType: boundType,
+            sema: sema
+        )
+        let result = arena.appendTemporary(
+            type: preservesErasedGenericResult
+                ? sema.types.nullableAnyType
+                : (boundType ?? sema.types.anyType)
+        )
+        var callableArguments = loweredArgIDs
+        if loweredCallable != nil,
+           let binding = callableValueCallBinding,
+           case let .functionType(functionType) = sema.types.kind(of: sema.types.makeNonNullable(binding.functionType)),
+           functionType.receiver == nil,
+           functionType.contextReceivers.isEmpty,
+           functionType.params.count == callableArguments.count
+        {
+            for index in callableArguments.indices {
+                let parameterIndex = binding.parameterMapping[index] ?? index
+                guard functionType.params.indices.contains(parameterIndex),
+                      let sourceType = arena.exprType(callableArguments[index]),
+                      case let .primitive(sourcePrimitive, .nonNull) = sema.types.kind(of: sourceType)
+                else { continue }
+                let parameterType = functionType.params[parameterIndex]
+                switch sema.types.kind(of: parameterType) {
+                case .any:
+                    callableArguments[index] = boxValueForAnySlot(
+                        callableArguments[index], sourceType: sourceType,
+                        types: sema.types, symbols: sema.symbols, interner: interner,
+                        arena: arena, resultType: parameterType, requireNonNull: true,
+                        sema: sema, into: &instructions
+                    )
+                case let .primitive(parameterPrimitive, .nullable) where parameterPrimitive == sourcePrimitive:
+                    callableArguments[index] = normalizedValueForNullablePrimitiveSlot(
+                        callableArguments[index], slotType: parameterType,
+                        types: sema.types, arena: arena, into: &instructions
+                    )
+                default:
+                    break
+                }
+            }
+        }
+        let callNormalized: NormalizedCallResult
+        if callBinding != nil {
+            callNormalized = driver.callSupportLowerer.normalizedCallArguments(
+                providedArguments: callableArguments,
                 callBinding: callBinding,
                 chosenCallee: chosen,
                 spreadFlags: args.map(\.isSpread),
@@ -266,9 +309,33 @@ extension CallLowerer {
                 instructions: &instructions
             )
         } else {
-            NormalizedCallResult(
+            var callableValueArguments = callableArguments
+            if let callableValueCallBinding,
+               case let .functionType(functionType) = sema.types.kind(
+                   of: sema.types.makeNonNullable(callableValueCallBinding.functionType)
+               )
+            {
+                for (argumentIndex, parameterIndex) in callableValueCallBinding.parameterMapping {
+                    guard callableValueArguments.indices.contains(argumentIndex),
+                          sourceArgExprs.indices.contains(argumentIndex),
+                          functionType.params.indices.contains(parameterIndex)
+                    else {
+                        continue
+                    }
+                    callableValueArguments[argumentIndex] = adaptSuspendFunctionValueArgument(
+                        callableValueArguments[argumentIndex],
+                        sourceExpr: sourceArgExprs[argumentIndex],
+                        parameterType: functionType.params[parameterIndex],
+                        sema: sema,
+                        arena: arena,
+                        interner: interner,
+                        instructions: &instructions
+                    )
+                }
+            }
+            callNormalized = NormalizedCallResult(
                 arguments: normalizedCallableValueArguments(
-                    providedArguments: loweredArgIDs,
+                    providedArguments: callableValueArguments,
                     callableValueCallBinding: callableValueCallBinding,
                     sema: sema
                 ),
@@ -705,13 +772,12 @@ extension CallLowerer {
                ["kk_any_member_to_string", "kk_any_member_hashCode", "kk_any_member_equals"]
                    .contains(linkName),
                let receiverType = arena.exprType(extensionReceiver) ?? signature.receiverType,
-               case .primitive = sema.types.kind(of: sema.types.makeNonNullable(receiverType))
+               usesPrimitiveAnyFallbackRepresentation(for: receiverType, sema: sema)
             {
-                // `kotlin.Any` member stubs are bindable on primitive
-                // receivers, whose runtime representation is a raw scalar
-                // rather than an object pointer. The member-dispatch bridge
-                // would read that raw word as a pointer, so emit the tagged
-                // `kk_any_*` fallbacks explicit `x.toString()` calls use.
+                // Primitive and unboxed primitive-backed value-class
+                // receivers carry raw scalars rather than object pointers.
+                // The member-dispatch bridge would read that raw word as a
+                // pointer, so use the tagged `kk_any_*` fallback instead.
                 if linkName == "kk_any_member_to_string", args.isEmpty {
                     let converted = emitAnyToStringWithNullGuard(
                         valueID: extensionReceiver, valueType: receiverType,

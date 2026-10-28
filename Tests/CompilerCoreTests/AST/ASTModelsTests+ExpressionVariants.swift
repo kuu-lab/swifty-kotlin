@@ -1,6 +1,7 @@
 #if canImport(Testing)
 @testable import CompilerCore
 import Testing
+@testable import CompilerTestSupport
 
 extension ASTModelsTests {
     // MARK: - Expr variants
@@ -564,6 +565,60 @@ extension ASTModelsTests {
         #expect(id0.rawValue == 0)
         #expect(id1.rawValue == 1)
         #expect(id2.rawValue == 2)
+    }
+
+    @Test
+    func testASTArenaIndexesCallArgumentParentsAndTracksAppends() {
+        let interner = StringInterner()
+        let range = makeRange(start: 0, end: 1)
+        let arena = ASTArena()
+        let body = arena.appendExpr(.intLiteral(1, range))
+        let lambda = arena.appendExpr(.lambdaLiteral(params: [], body: body, range: range))
+        let otherArgument = arena.appendExpr(.intLiteral(2, range))
+        let callee = arena.appendExpr(.nameRef(interner.intern("consume"), range))
+        let topLevelCall = arena.appendExpr(.call(
+            callee: callee,
+            typeArgs: [],
+            args: [
+                CallArgument(expr: otherArgument),
+                CallArgument(expr: lambda),
+                CallArgument(expr: lambda)
+            ],
+            range: range
+        ))
+        let receiver = arena.appendExpr(.nameRef(interner.intern("receiver"), range))
+        let memberCall = arena.appendExpr(.memberCall(
+            receiver: receiver,
+            callee: interner.intern("consume"),
+            typeArgs: [],
+            args: [CallArgument(expr: lambda)],
+            range: range
+        ))
+        let safeMemberCall = arena.appendExpr(.safeMemberCall(
+            receiver: receiver,
+            callee: interner.intern("consume"),
+            typeArgs: [],
+            args: [CallArgument(expr: lambda)],
+            range: range
+        ))
+
+        let initialParents = [
+            ASTCallArgumentParent(callExprID: topLevelCall, argumentIndex: 1),
+            ASTCallArgumentParent(callExprID: memberCall, argumentIndex: 0),
+            ASTCallArgumentParent(callExprID: safeMemberCall, argumentIndex: 0)
+        ]
+        #expect(arena.callArgumentParents(of: lambda) == initialParents)
+
+        let appendedCall = arena.appendExpr(.memberCall(
+            receiver: receiver,
+            callee: interner.intern("consume"),
+            typeArgs: [],
+            args: [CallArgument(expr: lambda)],
+            range: range
+        ))
+        #expect(arena.callArgumentParents(of: lambda) == initialParents + [
+            ASTCallArgumentParent(callExprID: appendedCall, argumentIndex: 0)
+        ])
     }
 
     @Test

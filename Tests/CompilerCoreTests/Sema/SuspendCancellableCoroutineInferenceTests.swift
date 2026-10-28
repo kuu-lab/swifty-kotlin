@@ -1,4 +1,4 @@
-import CompilerTestSupport
+@testable import CompilerTestSupport
 import Foundation
 @testable import CompilerCore
 import TestStdlibCache

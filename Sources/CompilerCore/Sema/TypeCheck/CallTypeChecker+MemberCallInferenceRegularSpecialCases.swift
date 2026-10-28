@@ -11,6 +11,7 @@ extension CallTypeChecker {
         isSuperCall: Bool,
         lookupReceiverType: TypeID,
         memberLookupType: TypeID,
+        callableReferenceFunctionType: TypeID?,
         locals: LocalBindings
     ) -> TypeID? {
         let id = request.id
@@ -23,6 +24,7 @@ extension CallTypeChecker {
         let ast = ctx.ast
         let sema = ctx.sema
         let interner = ctx.interner
+        let extensionPropertyReceiverType = callableReferenceFunctionType ?? memberLookupType
         let entryMemberProperty: (symbol: SymbolID, type: TypeID)? = {
             guard case let .thisRef(label?, _) = ast.arena.expr(request.receiverID),
                   let entrySymbol = ctx.enumEntryReceiverSymbol(forQualifiedThisLabel: label)
@@ -50,14 +52,14 @@ extension CallTypeChecker {
            let preferredSourcePackage = preferredBundledStdlibPackage(
                sourceFile: sourceFile,
                candidates: sema.symbols.lookupByShortName(calleeName),
-               receiverType: memberLookupType,
+               receiverType: extensionPropertyReceiverType,
                sema: sema
            ),
            let extensionPropertyType = resolveExtensionPropertyGetter(
                id: id,
                calleeName: calleeName,
                range: range,
-               receiverType: memberLookupType,
+               receiverType: extensionPropertyReceiverType,
                expectedType: expectedType,
                ctx: ctx,
                preferredSourcePackage: preferredSourcePackage
@@ -143,7 +145,7 @@ extension CallTypeChecker {
                id: id,
                calleeName: calleeName,
                range: range,
-               receiverType: memberLookupType,
+               receiverType: extensionPropertyReceiverType,
                expectedType: expectedType,
                ctx: ctx
            )
@@ -182,8 +184,8 @@ extension CallTypeChecker {
         let interner = ctx.interner
         let knownNames = KnownCompilerNames(interner: interner)
 
-        let isChannelReceiver = ReceiverClassifier(sema: sema, interner: interner)
-            .isChannelReceiverType(lookupReceiverType)
+        let receiverClassifier = ReceiverClassifier(sema: sema, interner: interner)
+        let isChannelReceiver = receiverClassifier.isChannelReceiverType(lookupReceiverType)
         if !isClassNameReceiver, isChannelReceiver {
             let memberName = interner.resolve(calleeName)
             // KSP-678: close / isClosedForReceive / isClosedForSend are resolved
@@ -199,8 +201,28 @@ extension CallTypeChecker {
             // KUU-1453: `ch.receive` without parentheses is property-access
             // syntax on a function — fall through so the invocation-syntax
             // check rejects it like any other bound function.
-            case ("receive", 0) where ast.arena.isExplicitCall(id):
-                let resultType = sema.types.nullableAnyType
+            case ("receive", 0) where ast.arena.isExplicitCall(id) && explicitTypeArgs.isEmpty:
+                // This direct-call shortcut has no suspend FunctionSignature
+                // binding for the post-inference context validator to inspect.
+                // Only the kotlinx.coroutines Channel surface owns this rule;
+                // same-named user classes continue through ordinary resolution.
+                guard receiverClassifier.isKotlinxCoroutinesChannelType(lookupReceiverType) else {
+                    break
+                }
+                driver.specialSuspendingCallNames[id] = memberName
+                let resultType: TypeID
+                if let element = resolveClassType(lookupReceiverType, sema: sema)?.args.first {
+                    switch element {
+                    case let .invariant(type), let .out(type):
+                        resultType = type
+                    case .in, .star:
+                        // A contravariant or star projection exposes only the
+                        // Channel element parameter's nullable Any upper bound.
+                        resultType = sema.types.nullableAnyType
+                    }
+                } else {
+                    resultType = sema.types.nullableAnyType
+                }
                 let finalType = safeCall ? sema.types.makeNullable(resultType) : resultType
                 sema.bindings.bindExprType(id, type: finalType)
                 return finalType
@@ -337,7 +359,9 @@ extension CallTypeChecker {
                 local.symbol, request: request, argumentTypes: argTypes, receiverType: memberLookupType
             )
         }()
-        if !isSuperCall, ast.arena.isExplicitCall(id),
+        // `a.f { }` carries a trailing lambda without `()`, so a non-empty
+        // argument list counts as a call the same way `isExplicitCall` does.
+        if !isSuperCall, !args.isEmpty || ast.arena.isExplicitCall(id),
            !hasReceiverMember,
            localExtensionMatchesCallShape,
            let result = inferLexicalExtensionCallableInvocation(request, receiverType: receiverType, locals: &locals)

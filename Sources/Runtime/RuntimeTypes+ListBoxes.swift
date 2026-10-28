@@ -680,7 +680,12 @@ extension RuntimeListBox: RuntimeChildReferenceProviding {
         }
     }
 
-    var childRefs: [Int] { indices.compactMap { childReference(at: $0) } }
+    var childRefs: [Int] {
+        if case let .mapValuesViewOf(mapRaw) = storage {
+            return mapRaw == 0 ? [] : [mapRaw]
+        }
+        return indices.compactMap { childReference(at: $0) }
+    }
 }
 
 extension RuntimeArrayDequeBox: RuntimeChildReferenceProviding {

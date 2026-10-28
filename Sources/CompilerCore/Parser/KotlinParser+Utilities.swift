@@ -176,9 +176,14 @@ extension KotlinParser {
             let isValueParameterDefaultExpressionStart = parsesValueParameters
                 && valueParameterInDefaultValue && startsAnonymousValueParameterDefault()
             let isWhenSubjectVariablePrefix = whenSubjectVariablePrefixEnd.map { stream.index < $0 } == true
+            // `object : T {}` / `fun (...) = ...` start expression operands,
+            // not declarations — an anonymous expression on its own line is a
+            // valid argument inside the group (e.g. an enum entry's
+            // `FOO("x", object : Callback { ... })`).
             if closingSymbols.count == 1, hasLeadingNewline(token), isLikelyTopLevelDeclarationStart(token),
                !isValueParameterPrefix, !isValueParameterDefaultExpressionStart,
-               !isWhenSubjectVariablePrefix {
+               !isWhenSubjectVariablePrefix, !isObjectExpressionStart(token),
+               !isAnonymousFunctionExpressionStart() {
                 break
             }
 
@@ -1092,6 +1097,101 @@ enum ParserBoundaryPolicy {
             return !nonSplittingNewlineSymbols.contains(symbol)
         }
         return true
+    }
+}
+
+/// Tracks a `by` delegate expression while flat-scanning a class/object
+/// supertype list, so a top-level `{` can be classified as part of the
+/// delegate expression — the body of `when`, `if`/`else`, `try`/`catch`/
+/// `finally`, or `do`, an object literal's body, or a lambda directly after
+/// `by` — versus the declaration's own body. kotlinc never parses a
+/// trailing lambda in this position: `C by run { x }` reports "function
+/// invocation 'run(...)' expected" and treats the brace as the class body.
+struct DelegateExpressionBraceTracker {
+    /// A top-level `by` introduced a delegate expression in the current
+    /// supertype entry.
+    private(set) var sawBy = false
+    /// An `object` literal's body brace is still expected; commas before it
+    /// separate the literal's own supertypes, not class supertype entries.
+    private(set) var objectPendingBody = false
+    /// The token consumed just before the current position.
+    private var previous: TokenKind?
+    /// For each open `(`-group, whether it directly follows a control
+    /// keyword whose body is a brace block (`when (x) {`, `if (c) {`,
+    /// `catch (e) {`, ...).
+    private var parenFollowsControlKeyword: [Bool] = []
+    /// Whether the most recently consumed `)` closed such a paren group.
+    private var closedParenFollowsControlKeyword = false
+
+    /// Records `kind` as consumed. `atTopLevel` is the caller's bracket
+    /// depth state *before* this token, so `by`, `object`, and entry-ending
+    /// commas only count outside every open group.
+    mutating func note(_ kind: TokenKind, atTopLevel: Bool) {
+        if atTopLevel {
+            if kind == .softKeyword(.by) {
+                sawBy = true
+            } else if kind == .symbol(.comma), !objectPendingBody {
+                // A top-level comma starts the next supertype entry.
+                sawBy = false
+            }
+            if sawBy, kind == .keyword(.object) {
+                objectPendingBody = true
+            }
+            if objectPendingBody, kind == .symbol(.lBrace) {
+                objectPendingBody = false
+            }
+        }
+        if sawBy {
+            switch kind {
+            case .symbol(.lParen):
+                parenFollowsControlKeyword.append(Self.isBraceBodiedControlKeyword(previous))
+            case .symbol(.rParen):
+                closedParenFollowsControlKeyword = parenFollowsControlKeyword.popLast() ?? false
+            default:
+                break
+            }
+        }
+        previous = kind
+    }
+
+    /// Ends the current supertype entry after a `,` that was consumed as an
+    /// entry separator rather than fed through `note`.
+    mutating func reset() {
+        self = DelegateExpressionBraceTracker()
+    }
+
+    /// A top-level `,` ends a supertype entry unless it separates an object
+    /// literal's own supertypes (`by object : A, B { ... }`).
+    var commaEndsSupertypeEntry: Bool {
+        !objectPendingBody
+    }
+
+    /// Whether a `{` at the current top-level position belongs to the
+    /// delegate expression rather than starting the declaration body.
+    func braceContinuesDelegateExpression() -> Bool {
+        guard sawBy else { return false }
+        if objectPendingBody { return true }
+        switch previous {
+        case .softKeyword(.by),
+             .keyword(.when), .keyword(.if), .keyword(.else),
+             .keyword(.try), .keyword(.finally), .keyword(.do),
+             .keyword(.object):
+            return true
+        case .symbol(.rParen):
+            return closedParenFollowsControlKeyword
+        default:
+            return false
+        }
+    }
+
+    private static func isBraceBodiedControlKeyword(_ kind: TokenKind?) -> Bool {
+        switch kind {
+        case .keyword(.when), .keyword(.if), .keyword(.catch),
+             .keyword(.for), .keyword(.while):
+            return true
+        default:
+            return false
+        }
     }
 }
 

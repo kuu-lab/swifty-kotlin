@@ -196,10 +196,14 @@ private let runtimeFunctionInterfaceTypeIDs = (0...22).map {
     runtimeStableNominalTypeID(fqName: "kotlin.Function.Function\($0)")
 }
 
-func runtimeCallableObjectPair(from rawValue: Int) -> (fnPtr: Int, closureRaw: Int, arity: Int)? {
+func runtimeCallableObjectPair(
+    from rawValue: Int,
+    arity expectedArity: Int? = nil
+) -> (fnPtr: Int, closureRaw: Int, arity: Int)? {
     let registration = runtimeStorage.withMetadataLock { state -> (Int, Int)? in
         guard let slots = state.objectInterfaceSlots[UInt(bitPattern: rawValue)] else { return nil }
         for (arity, typeID) in runtimeFunctionInterfaceTypeIDs.enumerated() {
+            guard expectedArity == nil || expectedArity == arity else { continue }
             if let slot = slots[typeID] { return (arity, slot) }
         }
         return nil
@@ -229,12 +233,12 @@ private func runtimeFunctionInvocationPair(
         }
         return (box.fnPtr, box.closureRaw)
     }
-    if let object = runtimeCallableObjectPair(from: rawValue) {
-        guard object.arity == arity else {
-            outThrown?.pointee = runtimeFunctionInvokeInvalidArity(expected: arity, actual: object.arity)
-            return nil
-        }
+    if let object = runtimeCallableObjectPair(from: rawValue, arity: arity) {
         return (object.fnPtr, object.closureRaw)
+    }
+    if let object = runtimeCallableObjectPair(from: rawValue) {
+        outThrown?.pointee = runtimeFunctionInvokeInvalidArity(expected: arity, actual: object.arity)
+        return nil
     }
     outThrown?.pointee = runtimeAllocateThrowable(message: "Invalid function value")
     return nil

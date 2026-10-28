@@ -2,6 +2,7 @@
 @testable import CompilerCore
 import Foundation
 import Testing
+@testable import CompilerTestSupport
 
 extension VirtualDispatchTests {
     // MARK: - 11. InlineLoweringPass: virtualCall alias resolution

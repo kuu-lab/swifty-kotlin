@@ -593,8 +593,9 @@ extension BuildASTPhase.ExpressionParser {
                     continue
                 }
                 if let name = tokenText(token) {
-                    let nameStr = interner.resolve(name)
-                    if nameStr == "_" {
+                    // Only a bare `_` skips the entry; a backticked `` `_` `` is
+                    // a real variable named `_` that the loop body can use.
+                    if case .identifier = token.kind, interner.resolve(name) == "_" {
                         destructuringNames.append(nil)
                     } else {
                         destructuringNames.append(name)
@@ -605,7 +606,13 @@ extension BuildASTPhase.ExpressionParser {
                        let propertyToken = current(),
                        let propertyName = tokenText(propertyToken)
                     {
-                        property = interner.resolve(propertyName) == "_" ? nil : propertyName
+                        if case .identifier = propertyToken.kind,
+                           interner.resolve(propertyName) == "_"
+                        {
+                            property = nil
+                        } else {
+                            property = propertyName
+                        }
                         _ = consume()
                     }
                     destructuringProperties.append(property)

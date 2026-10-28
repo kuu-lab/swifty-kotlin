@@ -2,6 +2,7 @@
 @testable import CompilerCore
 import Foundation
 import Testing
+@testable import CompilerTestSupport
 
 @Suite
 struct DataClassComponentNTests {
@@ -406,6 +407,60 @@ struct DataClassComponentNTests {
                     "Source \(index) should compile without other errors, got: \(errors.map { "\($0.code): \($0.message)" })"
                 )
             }
+        }
+    }
+
+    @Test
+    func testDataClassComponentNConflictsWithUserDeclaration() throws {
+        let sources: [String] = [
+            """
+            data class P(var x: Int) {
+                operator fun component1() = x
+                operator fun component2() = x + 1
+            }
+
+            fun destructure(value: P) {
+                val (first, second) = value
+            }
+            """,
+            """
+            data class Q(val x: Int) {
+                fun component1(offset: Int) = x + offset
+            }
+            """,
+        ]
+
+        try withTemporaryFiles(contents: sources) { paths in
+            let ctx = makeCompilationContext(inputs: paths, includeStdlib: false)
+            try runSema(ctx)
+
+            let conflictingDiagnostics = diagnosticsForPath(paths[0], in: ctx).filter {
+                $0.severity == .error && $0.code == "KSWIFTK-SEMA-0446"
+            }
+            #expect(
+                conflictingDiagnostics.count == 1,
+                "Expected a conflict for the user-declared component1(), got: \(diagnosticsForPath(paths[0], in: ctx).map { "\($0.code): \($0.message)" })"
+            )
+            let conflict = try #require(conflictingDiagnostics.first)
+            #expect(
+                conflict.message.contains("component1()"),
+                "Expected the diagnostic to identify component1(), got: \(conflict.message)"
+            )
+
+            let overloadErrors = diagnosticsForPath(paths[1], in: ctx).filter { $0.severity == .error }
+            #expect(
+                overloadErrors.isEmpty,
+                "A parameterized component1 overload should coexist with the generated component: \(overloadErrors.map { "\($0.code): \($0.message)" })"
+            )
+
+            let sema = try #require(ctx.sema)
+            let generatedComponent = sema.symbols.lookupAll(fqName: [
+                ctx.interner.intern("Q"),
+                ctx.interner.intern("component1"),
+            ]).first { id in
+                sema.symbols.symbol(id)?.flags.contains(.synthetic) == true
+            }
+            #expect(generatedComponent != nil, "Expected the generated component1() to remain alongside the overload")
         }
     }
 

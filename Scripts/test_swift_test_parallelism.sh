@@ -8,6 +8,8 @@ trap 'rm -rf "$TEST_DIR"' EXIT
 mkdir -p "$TEST_DIR/repo/Scripts/lib" "$TEST_DIR/repo/Tests" "$TEST_DIR/bin"
 cp "$SCRIPT_DIR/swift_test.sh" "$TEST_DIR/repo/Scripts/"
 cp "$SCRIPT_DIR/lib/common.sh" "$TEST_DIR/repo/Scripts/lib/"
+cp "$SCRIPT_DIR/lib/check_swift_test_filter.py" "$SCRIPT_DIR/lib/swift_build_slots.py" \
+    "$SCRIPT_DIR/lib/test_stdlib_provenance.py" "$TEST_DIR/repo/Scripts/lib/"
 
 cat > "$TEST_DIR/bin/swift" <<'EOF'
 #!/usr/bin/env bash
@@ -24,8 +26,8 @@ run_wrapper() {
     env -u SWIFT_TEST_WORKERS \
         -u SWT_EXPERIMENTAL_MAXIMUM_PARALLELIZATION_WIDTH \
         -u SWIFT_ENABLE_COMPILE_CACHE -u SWIFT_ENABLE_CACHE_REMARKS \
-        -u GITHUB_ACTIONS -u SWIFT_TEST_PRODUCT -u SWIFT_BUILD_SYSTEM \
-        PATH="$TEST_DIR/bin:$PATH" SWIFT_TEST_BUILD_JOBS=2 \
+        -u GITHUB_ACTIONS -u CI -u SWIFT_TEST_PRODUCT -u SWIFT_BUILD_SYSTEM \
+        PATH="$TEST_DIR/bin:$PATH" SWIFT_TEST_BUILD_JOBS=2 SWIFT_BUILD_SLOTS=0 \
         "$@" > "$TEST_DIR/output" 2>&1
 }
 

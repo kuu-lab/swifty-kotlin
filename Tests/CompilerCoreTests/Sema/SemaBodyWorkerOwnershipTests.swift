@@ -2,6 +2,7 @@
 @testable import CompilerCore
 import Foundation
 import Testing
+@testable import CompilerTestSupport
 
 private final class OwnershipInferenceWork: @unchecked Sendable {
     let worker: SemaBodyWorker

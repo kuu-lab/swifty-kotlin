@@ -2,6 +2,7 @@
 @testable import CompilerCore
 import Testing
 import TestStdlibCache
+@testable import CompilerTestSupport
 
 /// KUU-2412: a same-package value must not hide a default-imported function call.
 @Suite

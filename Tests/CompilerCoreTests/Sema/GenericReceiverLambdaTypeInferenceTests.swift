@@ -1,6 +1,7 @@
 #if canImport(Testing)
 @testable import CompilerCore
 import Testing
+@testable import CompilerTestSupport
 
 /// KSP-CAP-008: generic receiver `T.() -> Unit` lambdas must be type-checked
 /// with the concrete call-site receiver type substituted for `T`, so that

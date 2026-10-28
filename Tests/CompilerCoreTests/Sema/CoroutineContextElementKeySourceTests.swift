@@ -1,8 +1,45 @@
 @testable import CompilerCore
 import Testing
+import TestStdlibCache
+@testable import CompilerTestSupport
 
 @Suite
 struct CoroutineContextElementKeySourceTests {
+    @Test(arguments: [false, true])
+    func userKeyValueIsChosenAndUnrelatedObjectRejected(useLibrary: Bool) throws {
+        if useLibrary { TestStdlibCache.shared.prepare() }
+        let source = """
+        import kotlin.coroutines.CoroutineContext
+        object Key : CoroutineContext.Key<Element>
+        class Element : CoroutineContext.Element {
+            override val key: CoroutineContext.Key<*> = Key
+        }
+        object Wrong
+        class BadElement : CoroutineContext.Element {
+            override val key: CoroutineContext.Key<*> = Wrong
+        }
+        """
+        let context = makeContextFromSource(
+            source, emit: useLibrary ? .executable : .kirDump,
+            allowDefaultStdlibLibrary: useLibrary
+        )
+        try runSema(context)
+        if useLibrary { #expect(context.options.stdlibLibraryPath != nil) }
+        let errors = context.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.count == 1, "\(errors)")
+        #expect(errors.first?.code == "KSWIFTK-TYPE-0001")
+        let sema = try #require(context.sema)
+        let ast = try #require(context.ast)
+        let keyObject = try #require(sema.symbols.lookup(fqName: [context.interner.intern("Key")]))
+        let boundKeyReferences = ast.arena.exprs.enumerated().compactMap { index, expression -> SymbolID? in
+            guard case let .nameRef(name, range) = expression,
+                  context.interner.resolve(name) == "Key",
+                  context.sourceManager.origin(of: range.start.file) == .user else { return nil }
+            return sema.bindings.identifierSymbol(for: ExprID(rawValue: Int32(index)))
+        }
+        #expect(boundKeyReferences.contains(keyObject))
+    }
+
     @Test
     func baseContextBridgeSlotsAndSignatures() throws {
         let ctx = makeContextFromSource("""

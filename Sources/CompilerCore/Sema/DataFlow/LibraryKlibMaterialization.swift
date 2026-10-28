@@ -391,6 +391,7 @@ private struct KlibRecordMaterializer {
                 isOperator: base.base.flags.isOperator,
                 isInfix: base.base.flags.isInfix,
                 isOverride: !overridden.isEmpty,
+                hasStableParameterNames: kind != .function || !base.base.flags.hasNonStableParameterNames,
                 valueParameterIsVararg: base.regularParameters.map { $0.varargElementType != nil },
                 valueParameterHasDefaultValues: base.regularParameters.map { $0.defaultValueIndex != nil },
                 valueParameterNames: base.regularParameters.map {

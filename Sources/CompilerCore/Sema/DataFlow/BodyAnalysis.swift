@@ -162,8 +162,11 @@ extension DataFlowSemaPhase {
                             usageRange: usageRange,
                             ast: ast,
                             symbols: symbols,
+                            types: types,
                             sourceManager: sourceManager,
-                            interner: interner
+                            interner: interner,
+                            relativeOwnerFQName: relativeOwnerFQName,
+                            recursionDepth: recursionDepth
                         )
                     } else {
                         candidates = []
@@ -187,8 +190,11 @@ extension DataFlowSemaPhase {
                         usageRange: usageRange,
                         ast: ast,
                         symbols: symbols,
+                        types: types,
                         sourceManager: sourceManager,
-                        interner: interner
+                        interner: interner,
+                        relativeOwnerFQName: relativeOwnerFQName,
+                        recursionDepth: recursionDepth
                     )
                 } else {
                     candidates = []
@@ -519,8 +525,11 @@ extension DataFlowSemaPhase {
         usageRange: SourceRange?,
         ast: ASTModule,
         symbols: SymbolTable,
+        types: TypeSystem,
         sourceManager: SourceManager?,
-        interner: StringInterner
+        interner: StringInterner,
+        relativeOwnerFQName: [InternedString]? = nil,
+        recursionDepth: Int = 0
     ) -> [SemanticSymbol] {
         let currentPackage = currentPackageFQName
             ?? usageRange.flatMap { ast.file(for: $0.start.file)?.packageFQName }
@@ -529,13 +538,63 @@ extension DataFlowSemaPhase {
         let enforcesWildcardImportVisibility =
             usageRange.flatMap { sourceManager?.origin(of: $0.start.file) } == .user
                 && imports.contains(where: \.isWildcard)
+        // A nested classifier's simple name is scoped to its declaring
+        // classifier's body: the bare-name recovery may only re-bind it when
+        // a lexical nominal owner inherits it through its superclass chain
+        // (interfaces never contribute nested classifiers, KUU-3637/KUU-3636).
+        // The owner path may name a member (`Child.value`), so every nominal
+        // prefix contributes. Supertype edges are not bound yet at header
+        // time, so the written supertype clauses are resolved instead; only
+        // class-kind owners qualify, matching Kotlin's superclass-only rule.
+        let inheritedNestedParentIDs: Set<SymbolID> = {
+            guard let relativeOwnerFQName,
+                  recursionDepth < DataFlowSemaPhase.maxStructuralRecursionDepth
+            else { return [] }
+            var ownerPath = relativeOwnerFQName
+            var result: Set<SymbolID> = []
+            while !ownerPath.isEmpty {
+                defer { ownerPath.removeLast() }
+                guard let ownerID = symbols.lookupAll(fqName: ownerPath)
+                    .compactMap({ symbols.symbol($0) })
+                    .first(where: { isNominalTypeSymbol($0.kind) })?.id
+                else { continue }
+                for instanceType in declaredSupertypeInstanceTypes(
+                    of: ownerID,
+                    ownerFQName: ownerPath,
+                    ast: ast,
+                    symbols: symbols,
+                    types: types,
+                    interner: interner,
+                    currentPackageFQName: currentPackageFQName,
+                    imports: imports,
+                    visited: [ownerID],
+                    depth: recursionDepth + 1
+                ) {
+                    guard case let .classType(classType) = types.kind(of: types.makeNonNullable(instanceType)),
+                          symbols.symbol(classType.classSymbol)?.kind == .class
+                    else { continue }
+                    result.insert(classType.classSymbol)
+                }
+            }
+            return result
+        }()
         return symbols.lookupByShortName(shortName).compactMap { symbols.symbol($0) }.filter { symbol in
             guard isNominalTypeSymbol(symbol.kind) else { return false }
             // kotlin.reflect declarations require an explicit import.
             guard !symbol.fqName.starts(with: kotlinReflectPackage) else { return false }
+            let parentID = symbols.parentSymbol(for: symbol.id)
+            // The classifier legitimately visible through an enclosing
+            // owner's superclass chain is in scope regardless of import shape.
+            if let parentID, inheritedNestedParentIDs.contains(parentID) { return true }
+            if let parentID,
+               symbols.symbol(parentID)?.kind != .package
+            {
+                return false
+            }
             // Wildcard imports must not widen short-name recovery beyond the
             // current/default/imported package paths (KUU-3295). Other header
-            // paths retain legacy recovery for nested and forward references.
+            // paths retain legacy recovery for top-level and forward
+            // references.
             guard enforcesWildcardImportVisibility else { return true }
             let fqName = symbol.fqName
             if let currentPackage, fqName == currentPackage + [shortName] {

@@ -520,7 +520,10 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
             existingFunctionSymbols: existingFunctionSymbols,
             interner: ctx.interner
         )
-        // valueOf and entries live on the companion (Color.valueOf, Color.entries)
+        // valueOf and the `entries$get` helper live on the companion
+        // (Color.valueOf). The synthetic `entries` property itself is owned
+        // by the enum class (KUU-3544); EnumEntriesLoweringPass resolves this
+        // getter through its companion fallback.
         let valueOfOwner: SemanticSymbol = if let companionSymbol = sema.symbols.companionObjectSymbolIfKnown(for: nominalSymbol.id),
                                               let companionSym = sema.symbols.symbol(companionSymbol)
         {
@@ -672,7 +675,11 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
         let propertiesByName = Dictionary(
             symbols.children(of: owner.id)
                 .compactMap { symbols.symbol($0) }
-                .filter { $0.kind == .property && !$0.flags.contains(.synthetic) }
+                .filter {
+                    $0.kind == .property
+                        && !$0.flags.contains(.synthetic)
+                        && !symbols.hasExtensionPropertyReceiver($0.id)
+                }
                 .map { ($0.name, $0) },
             uniquingKeysWith: { first, _ in first }
         )
@@ -840,7 +847,14 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
                 }
                 return symbol
             }
-        let propertiesByName = Dictionary(uniqueKeysWithValues: childProperties.map { ($0.name, $0) })
+        // A member extension can share the constructor property's name, but it
+        // is not the stored property represented by that constructor parameter.
+        let propertiesByName = Dictionary(
+            childProperties
+                .filter { !sema.symbols.hasExtensionPropertyReceiver($0.id) }
+                .map { ($0.name, $0) },
+            uniquingKeysWith: { first, _ in first }
+        )
 
         guard let primaryCtorSymbol = sema.symbols.children(of: owner.id)
             .compactMap({ childID -> SymbolID? in
@@ -974,6 +988,7 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
                 valueParameterHasDefaultValues: signature.valueParameterHasDefaultValues,
                 valueParameterIsVararg: signature.valueParameterIsVararg,
                 valueParameterAllowsNonLocalReturn: signature.valueParameterAllowsNonLocalReturn,
+                hasStableParameterNames: existingSignature.hasStableParameterNames,
                 typeParameterSymbols: existingSignature.typeParameterSymbols,
                 reifiedTypeParameterIndices: existingSignature.reifiedTypeParameterIndices,
                 typeParameterUpperBounds: existingSignature.typeParameterUpperBounds,
@@ -1046,6 +1061,7 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
                 valueParameterAllowsNonLocalReturn: signature.valueParameterAllowsNonLocalReturn.isEmpty
                     ? params.map { _ in true }
                     : signature.valueParameterAllowsNonLocalReturn,
+                hasStableParameterNames: signature.hasStableParameterNames,
                 typeParameterSymbols: []
             ),
             for: functionSymbol

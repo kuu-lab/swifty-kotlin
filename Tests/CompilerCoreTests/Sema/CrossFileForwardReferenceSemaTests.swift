@@ -1,6 +1,7 @@
 @testable import CompilerCore
 import Foundation
 import Testing
+@testable import CompilerTestSupport
 
 /// BUG-159: top-level signatures must resolve types declared in files that are
 /// processed later, independently of the order in which inputs are given.

@@ -1,6 +1,7 @@
 #if canImport(Testing)
 @testable import CompilerCore
 import Testing
+@testable import CompilerTestSupport
 
 extension LoweringPassRegressionTests {
     // KUU-1431: lambdas inlined into the enclosing instruction stream (the

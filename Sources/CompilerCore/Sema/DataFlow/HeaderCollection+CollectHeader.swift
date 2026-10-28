@@ -75,6 +75,8 @@ extension DataFlowSemaPhase {
                 fqName: fqName,
                 namespacePrefix: "$class",
                 declSite: classDecl.range,
+                currentPackageFQName: file.packageFQName,
+                imports: file.imports,
                 ast: ast,
                 symbols: symbols,
                 types: types,
@@ -252,7 +254,9 @@ extension DataFlowSemaPhase {
                 registerAnnotations(
                     secondaryCtor.annotations,
                     symbol: secCtorSymbol,
-                    declRange: secondaryCtor.range,
+                    declRange: declarationRangeIncludingAnnotationTokens(
+                        secondaryCtor.annotations, declarationRange: secondaryCtor.range
+                    ),
                     sourceFileID: file.fileID,
                     sourceFile: file,
                     sourceManager: sourceManager,
@@ -490,6 +494,8 @@ extension DataFlowSemaPhase {
                     thisType: companionType
                 )
                 collectSyntheticEnumCompanionMembers(
+                    ownerSymbol: symbol,
+                    ownerFQName: fqName,
                     companionSymbol: companionSymbol,
                     companionFQName: companionFQName,
                     enumType: classType,
@@ -507,6 +513,8 @@ extension DataFlowSemaPhase {
                 fqName: fqName,
                 namespacePrefix: "$iface",
                 declSite: interfaceDecl.range,
+                currentPackageFQName: file.packageFQName,
+                imports: file.imports,
                 ast: ast,
                 symbols: symbols,
                 types: types,
@@ -741,6 +749,9 @@ extension DataFlowSemaPhase {
                     valueParameterHasDefaultValues: params.paramHasDefaultValues,
                     valueParameterIsVararg: params.paramIsVararg,
                     valueParameterAllowsNonLocalReturn: params.paramAllowsNonLocalReturn,
+                    hasStableParameterNames: !symbols.annotations(for: symbol).contains {
+                        $0.annotationFQName == "kotlin.internal.NonStableParameterNames"
+                    },
                     typeParameterSymbols: typeParamResult.typeParameterSymbols,
                     reifiedTypeParameterIndices: typeParamResult.reifiedIndices,
                     typeParameterUpperBoundsList: upperBoundsByTypeParam

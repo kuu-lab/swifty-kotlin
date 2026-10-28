@@ -100,13 +100,32 @@ extension BuildASTPhase.ExpressionParser {
                     // retaining commas inside calls and generic argument lists.
                     let delegateStart = index
                     var depth = BuildASTPhase.BracketDepth()
+                    var delegateBraceTracker = DelegateExpressionBraceTracker()
+                    delegateBraceTracker.note(.softKeyword(.by), atTopLevel: true)
                     while let token = current() {
-                        if depth.isAtTopLevel,
-                           [.symbol(.lBrace), .symbol(.comma), .symbol(.semicolon),
-                            .symbol(.rParen), .symbol(.rBrace)].contains(token.kind)
-                        {
-                            break
+                        if depth.isAtTopLevel {
+                            if token.kind == .symbol(.lBrace),
+                               delegateBraceTracker.braceContinuesDelegateExpression()
+                            {
+                                // A brace that belongs to the delegate
+                                // expression (`by when (x) { ... }`,
+                                // `by object : C { }`, ...) is part of the
+                                // expression; a later top-level brace is the
+                                // object literal's body.
+                                delegateBraceTracker.note(token.kind, atTopLevel: true)
+                                depth.track(token.kind)
+                                _ = consume()
+                                continue
+                            }
+                            if [.symbol(.lBrace), .symbol(.semicolon),
+                                .symbol(.rParen), .symbol(.rBrace)].contains(token.kind)
+                                || (token.kind == .symbol(.comma)
+                                    && delegateBraceTracker.commaEndsSupertypeEntry)
+                            {
+                                break
+                            }
                         }
+                        delegateBraceTracker.note(token.kind, atTopLevel: depth.isAtTopLevel)
                         // Parenthesized expressions may contain comparisons;
                         // those angle tokens are not header type arguments.
                         if depth.isBracketBraceParenTopLevel
@@ -417,7 +436,13 @@ extension BuildASTPhase.ExpressionParser {
         else {
             return
         }
-        names.append(interner.resolve(name) == "_" ? nil : name)
+        // Only a bare `_` skips the entry; a backticked `` `_` `` binds a real
+        // variable named `_`, matching kotlinc.
+        if case .identifier = entry[firstIndex].kind, interner.resolve(name) == "_" {
+            names.append(nil)
+        } else {
+            names.append(name)
+        }
     }
 
     private func wrapLambdaDestructuring(

@@ -13,8 +13,18 @@ extension ExprLowerer {
             propertyConstantInitializers: propertyConstantInitializers,
             instructions: &instructions
         )
+        let sourceType = sema.bindings.exprTypes[exprID]
+        let samFunctionType: TypeID? = if let sourceType,
+                                         case .functionType = sema.types.kind(of: sourceType) {
+            // Preserve source nullability so a null function stays a null SAM.
+            sourceType
+        } else {
+            // Projected and intersection types may only expose their callable
+            // shape through the underlying SAM binding.
+            sema.bindings.samUnderlyingFunctionType(for: exprID) ?? sourceType
+        }
         if sema.bindings.isSamConversion(exprID),
-           let type = sema.bindings.exprTypes[exprID],
+           let type = samFunctionType,
            case let .functionType(function) = sema.types.kind(of: type)
         {
             let loweredValueCanBeFunction: Bool = {
@@ -464,6 +474,12 @@ extension ExprLowerer {
 
         case let .returnExpr(value, label, _):
             let targetsFunction = sema.bindings.functionReturnLambdaPaths[exprID] != nil
+            let returnTargetSymbol = sema.bindings.identifierSymbol(for: exprID)
+                ?? (label == nil ? driver.ctx.currentFunctionSymbol : nil)
+            let returnsFromConstructor = returnTargetSymbol
+                .flatMap { sema.symbols.symbol($0)?.kind == .constructor } ?? false
+            let discardsConstructorUnitReturn = returnsFromConstructor
+                && value.map { sema.bindings.exprTypes[$0] == sema.types.unitType } == true
             let outerLambdaTarget: KIRReturnTarget? = {
                 guard let target = sema.bindings.lambdaReturnTargets[exprID],
                       sema.bindings.lambdaReturnLambdaPaths[exprID]?.isEmpty == false else { return nil }
@@ -491,6 +507,7 @@ extension ExprLowerer {
                 instructions.append(.constValue(result: unit, value: .unit))
                 return unit
             }
+            let returnValue: KIRExprID?
             if let value {
                 let lowered = lowerExpr(
                     value,
@@ -501,22 +518,35 @@ extension ExprLowerer {
                     propertyConstantInitializers: propertyConstantInitializers,
                     instructions: &instructions
                 )
-                // A bare variable read resolves to the variable's own storage
-                // register (see `driver.ctx.localValue(for:)` above), not a
-                // copy. If this return is inside a try-with-finally,
-                // `inlineAllEnclosingFinallyBlocks` below runs the finally body
-                // next -- if it reassigns that same variable, `lowered` would
-                // retroactively observe the mutation. Snapshot into a fresh
-                // register first, same as the `val a = b` aliasing guard in the
-                // `.localDecl` case above.
-                let returnValue: KIRExprID
-                if isBareVariableRead(value, ast: ast), !driver.ctx.enclosingFinallyBlocks().isEmpty {
-                    let snapshot = arena.appendTemporary(type: arena.exprType(lowered) ?? sema.types.anyType)
-                    instructions.append(.copy(from: lowered, to: snapshot))
-                    returnValue = snapshot
+                if discardsConstructorUnitReturn {
+                    // Kotlin treats `return Unit` in a constructor like `return`:
+                    // evaluate the expression, then leave without returning Unit
+                    // in place of the constructed instance.
+                    returnValue = nil
                 } else {
-                    returnValue = lowered
+                    // A bare variable read resolves to the variable's own storage
+                    // register (see `driver.ctx.localValue(for:)` above), not a
+                    // copy. If this return is inside a try-with-finally,
+                    // `inlineAllEnclosingFinallyBlocks` below runs the finally body
+                    // next -- if it reassigns that same variable, `lowered` would
+                    // retroactively observe the mutation. Snapshot into a fresh
+                    // register first, same as the `val a = b` aliasing guard in the
+                    // `.localDecl` case above.
+                    if isBareVariableRead(value, ast: ast), !driver.ctx.enclosingFinallyBlocks().isEmpty {
+                        let snapshot = arena.appendTemporary(type: arena.exprType(lowered) ?? sema.types.anyType)
+                        instructions.append(.copy(from: lowered, to: snapshot))
+                        returnValue = snapshot
+                    } else {
+                        returnValue = lowered
+                    }
                 }
+            } else {
+                returnValue = nil
+            }
+
+            let effectiveReturnValue = returnValue
+                ?? (returnsFromConstructor ? driver.ctx.activeImplicitReceiverExprID() : nil)
+            if let returnValue = effectiveReturnValue {
                 if let outerLambdaTarget {
                     instructions.append(.nonLocalReturn(returnValue, target: outerLambdaTarget))
                 } else if label == nil || targetsFunction, driver.ctx.currentLambdaAllowsNonLocalReturn {
@@ -590,29 +620,45 @@ extension ExprLowerer {
             )
 
         case let .call(calleeExpr, _, args, _):
-            return driver.callLowerer.lowerCallExpr(
-                exprID,
-                calleeExpr: calleeExpr,
-                args: args,
-                ast: ast,
+            return checkedErasedGenericCallResult(
+                driver.callLowerer.lowerCallExpr(
+                    exprID,
+                    calleeExpr: calleeExpr,
+                    args: args,
+                    ast: ast,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    propertyConstantInitializers: propertyConstantInitializers,
+                    instructions: &instructions
+                ),
+                exprID: exprID,
+                boundType: boundType,
                 sema: sema,
-                arena: arena,
                 interner: interner,
-                propertyConstantInitializers: propertyConstantInitializers,
+                arena: arena,
                 instructions: &instructions
             )
 
         case let .memberCall(receiverExpr, calleeName, _, args, _):
-            return driver.callLowerer.lowerMemberCallExpr(
-                exprID,
-                receiverExpr: receiverExpr,
-                calleeName: calleeName,
-                args: args,
-                ast: ast,
+            return checkedErasedGenericCallResult(
+                driver.callLowerer.lowerMemberCallExpr(
+                    exprID,
+                    receiverExpr: receiverExpr,
+                    calleeName: calleeName,
+                    args: args,
+                    ast: ast,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    propertyConstantInitializers: propertyConstantInitializers,
+                    instructions: &instructions
+                ),
+                exprID: exprID,
+                boundType: boundType,
                 sema: sema,
-                arena: arena,
                 interner: interner,
-                propertyConstantInitializers: propertyConstantInitializers,
+                arena: arena,
                 instructions: &instructions
             )
 
@@ -678,16 +724,24 @@ extension ExprLowerer {
             return result
 
         case let .safeMemberCall(receiverExpr, calleeName, _, args, _):
-            return driver.callLowerer.lowerSafeMemberCallExpr(
-                exprID,
-                receiverExpr: receiverExpr,
-                calleeName: calleeName,
-                args: args,
-                ast: ast,
+            return checkedErasedGenericCallResult(
+                driver.callLowerer.lowerSafeMemberCallExpr(
+                    exprID,
+                    receiverExpr: receiverExpr,
+                    calleeName: calleeName,
+                    args: args,
+                    ast: ast,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    propertyConstantInitializers: propertyConstantInitializers,
+                    instructions: &instructions
+                ),
+                exprID: exprID,
+                boundType: boundType,
                 sema: sema,
-                arena: arena,
                 interner: interner,
-                propertyConstantInitializers: propertyConstantInitializers,
+                arena: arena,
                 instructions: &instructions
             )
 

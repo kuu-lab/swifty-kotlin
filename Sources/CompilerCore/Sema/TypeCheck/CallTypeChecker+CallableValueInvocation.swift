@@ -26,6 +26,7 @@ extension CallTypeChecker {
         } else if let symbol = sema.symbols.symbol(chosen) {
             let name = interner.resolve(symbol.name)
             isRangeConstructor = ["rangeTo", "until", "rangeUntil", "downTo", "step", "fromClosedRange"].contains(name)
+                && symbol.fqName.map(interner.resolve).starts(with: ["kotlin", "ranges"])
                 && driver.helpers.isRangeLikeType(returnType, sema: sema, interner: interner)
         } else {
             isRangeConstructor = false
@@ -338,6 +339,18 @@ extension CallTypeChecker {
         switch sema.types.kind(of: nonNullCalleeType) {
         case let .functionType(type):
             functionType = type
+        case .intersection:
+            // A smart cast (`f as KFunction<*>`) or a positive `is` branch
+            // narrows a stable local to an intersection such as
+            // `(Boolean) -> Any & KFunction<*>`. The value stays invocable
+            // through its structural conjunct — select it only when the
+            // intersection holds one unique function type; a genuinely
+            // ambiguous set of conjuncts keeps the unresolved path
+            // (KUU-3652).
+            guard let structuralFunction = sema.types.uniqueStructuralFunctionType(for: nonNullCalleeType) else {
+                return nil
+            }
+            functionType = structuralFunction
         case let .classType(classType):
             guard case .receiverMustBePresent = arityPolicy,
                   sema.symbols.inheritsExtensionFunctionTypeSupertype(classType.classSymbol)
@@ -529,10 +542,13 @@ extension CallTypeChecker {
                 diagnostics: ctx.sema.diagnostics
             )
         }
-        let callableValueFunctionType: TypeID = if case .classType = sema.types.kind(of: nonNullCalleeType) {
-            sema.types.make(.functionType(functionType))
-        } else {
+        // Downstream readers require the bound `functionType` to be a
+        // structural `.functionType`; nominal function interfaces and
+        // smart-cast intersections both collapse to the selected conjunct.
+        let callableValueFunctionType: TypeID = if case .functionType = sema.types.kind(of: nonNullCalleeType) {
             nonNullCalleeType
+        } else {
+            sema.types.make(.functionType(functionType))
         }
         // A bare receiver-function call in an escaping lambda reads an outer
         // `this` even when its body contains no ordinary member reference.
@@ -605,6 +621,10 @@ extension CallTypeChecker {
                 )
             }
         }
+        argumentType = sema.types.functionArgumentConversionType(
+            from: argumentType,
+            to: parameterType
+        ) ?? argumentType
         driver.emitSubtypeConstraint(
             left: argumentType, right: parameterType, range: range,
             solver: ConstraintSolver(), sema: sema, diagnostics: sema.diagnostics
@@ -645,8 +665,12 @@ extension CallTypeChecker {
                   ) {
             candidateType = property.type
         } else {
+            // Package-scope properties only: extension properties carry a
+            // receiver on the property itself and resolve through
+            // resolveExtensionPropertyGetter instead (KUU-3145).
             candidateType = ctx.cachedScopeLookup(name).first(where: {
                 sema.symbols.symbol($0)?.kind == .property
+                    && sema.symbols.extensionPropertyReceiverType(for: $0) == nil
             }).flatMap { sema.symbols.propertyType(for: $0) }
         }
         guard let candidateType,
@@ -672,10 +696,21 @@ extension CallTypeChecker {
             if integerLiteralFitsParameter(argument.expr, parameterType: parameter, ctx: ctx) { continue }
             if let argumentType = sema.bindings.exprType(for: argument.expr),
                ctx.ast.arena.expr(argument.expr)?.isLambdaOrCallableRef != true,
-               !sema.types.isSubtype(argumentType, parameter)
+               !sema.types.isSubtype(argumentType, parameter),
+               sema.types.functionArgumentConversionType(from: argumentType, to: parameter) == nil
             {
                 return nil
             }
+        }
+
+        // A losing earlier candidate attempt may have inferred these
+        // arguments against the wrong parameter list and left error
+        // diagnostics inside their ranges. They are re-inferred below under
+        // the receiver-function's own parameters, so stale argument errors
+        // must not leak past a successful bind (KUU-3145).
+        for argument in request.args {
+            guard let argumentRange = ctx.ast.arena.exprRange(argument.expr) else { continue }
+            sema.diagnostics.removeErrorDiagnostics(containedIn: argumentRange)
         }
 
         let calleeExpr = ctx.ast.arena.appendExpr(.nameRef(name, request.range))

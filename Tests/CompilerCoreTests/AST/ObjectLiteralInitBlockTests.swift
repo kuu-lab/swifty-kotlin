@@ -2,6 +2,7 @@
 @testable import CompilerCore
 import Foundation
 import Testing
+@testable import CompilerTestSupport
 
 /// An `init {}` member in an object expression used to make
 /// `parseObjectLiteralDecl` reject the whole body (`nil` decl), so the literal

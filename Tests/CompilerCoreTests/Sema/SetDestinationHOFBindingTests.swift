@@ -1,6 +1,7 @@
 @testable import CompilerCore
 import Foundation
 import Testing
+@testable import CompilerTestSupport
 
 /// KUU-1389: `Set`/`Collection`-family receivers inherit `filterTo`,
 /// `filterNotTo`, and `filterIndexedTo` from `Iterable<T>` upstream, but the

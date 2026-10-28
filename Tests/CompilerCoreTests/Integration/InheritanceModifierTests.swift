@@ -3,6 +3,7 @@ import Foundation
 import Testing
 import TestStdlibCache
 @testable import CompilerCore
+@testable import CompilerTestSupport
 
 @Suite struct InheritanceModifierTests {
 
@@ -648,6 +649,185 @@ import TestStdlibCache
                 let sampleDiags = diagnosticsForPath(path, in: ctx)
                 assertNoDiagnostic("KSWIFTK-SEMA-OVERRIDE", in: sampleDiags)
                 #expect(!sampleDiags.hasError)
+            }
+        }
+    }
+
+    // KUU-3515: interface member extensions on Any shadow Any members but do not override them.
+    @Test func testAnyMemberExtensionsDoNotRequireOverrideWhenInheritedByDataClass() throws {
+        let source = """
+        interface A {
+            fun Any.equals(other: Any?): Boolean = false
+            fun Any.hashCode(): Int = 0
+            fun Any.toString(): String = ""
+        }
+
+        data class B(val x: Int) : A
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            let sampleDiags = diagnosticsForPath(path, in: ctx)
+            assertNoDiagnostic("KSWIFTK-SEMA-OVERRIDE", in: sampleDiags)
+            #expect(!sampleDiags.hasError, "Unexpected diagnostics: \(sampleDiags)")
+        }
+    }
+
+    // KUU-3601: nullable-receiver member extensions declared inside an interface
+    // or class never hide kotlin.Any members — members always win over
+    // extensions, so no `override` modifier is required. A member extension that
+    // re-declares a supertype's member extension does still hide it, matching
+    // kotlinc (JetBrains
+    // codegen/box/extensionFunctions/memberExtensionEqualsHashCodeToStringInInterface.kt).
+    @Test func testNullableAnyMemberExtensionsDoNotHideAnyMembers() throws {
+        let acceptingSources = [
+            """
+            interface AssertDSL {
+                infix fun Any?.equals(other: Any?) {
+                }
+
+                fun Any?.toString(): String = ""
+                fun Any?.hashCode(): Int = 0
+            }
+
+            class C(val x: Int) : AssertDSL
+            """,
+            """
+            class Holder {
+                fun Any?.toString(): String = ""
+                fun Any?.hashCode(): Int = 0
+            }
+            """,
+            """
+            open class Base {
+                open fun Any?.toString(): String = ""
+            }
+            class Impl : Base() {
+                override fun Any?.toString(): String = ""
+            }
+            """,
+        ]
+        // A member extension re-declared in a subtype still hides the
+        // supertype's member extension and therefore needs `override`.
+        let rejectingSources = [
+            """
+            interface A { fun Any?.toString(): String = "a" }
+            interface B : A { fun Any?.toString(): String = "b" }
+            """,
+            """
+            open class P { open fun Any?.toString(): String = "p" }
+            class C : P() { fun Any?.toString(): String = "c" }
+            """,
+        ]
+        try withTemporaryFiles(contents: acceptingSources + rejectingSources) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
+            try runSema(ctx)
+
+            for path in paths.prefix(acceptingSources.count) {
+                let sampleDiags = diagnosticsForPath(path, in: ctx)
+                assertNoDiagnostic("KSWIFTK-SEMA-OVERRIDE", in: sampleDiags)
+                #expect(!sampleDiags.hasError, "Unexpected diagnostics: \(sampleDiags)")
+            }
+            for path in paths.suffix(rejectingSources.count) {
+                let sampleDiags = diagnosticsForPath(path, in: ctx)
+                assertHasDiagnostic("KSWIFTK-SEMA-OVERRIDE", in: sampleDiags)
+            }
+        }
+    }
+
+    // KUU-3656: an abstract member extension declared on an interface must be
+    // implemented by concrete implementors, exactly like a regular abstract
+    // member. Member extensions and regular members are distinct override
+    // families: `Any.toString()` never satisfies an `Any?.toString()`
+    // requirement, and a regular `override fun toString()` does not either.
+    @Test func testAbstractMemberExtensionInInterfaceMustBeImplemented() throws {
+        // Every sample uses unique top-level names: all files share one
+        // compilation, so reusing `I`/`C` would duplicate declarations and let
+        // requirements leak across samples.
+        let rejectingSources = [
+            // The reported case: the member extension's name collides with a
+            // concrete kotlin.Any member.
+            """
+            interface MissingToString { fun Any?.toString(): String }
+            class MissesToString : MissingToString
+            """,
+            // A name with no kotlin.Any namesake is required too.
+            """
+            interface MissingFoo { fun Any?.foo(): String }
+            class MissesFoo : MissingFoo
+            """,
+            // Member-extension properties are required as well.
+            """
+            interface MissingTag { val Any?.tag: String }
+            class MissesTag : MissingTag
+            """,
+            // A regular member override does not implement the member
+            // extension requirement.
+            """
+            interface RegularDoesNotCount { fun Any?.toString(): String }
+            class OverridesRegular : RegularDoesNotCount {
+                override fun toString(): String = "c"
+            }
+            """,
+            // The obligation flows through an abstract intermediate class to
+            // the first concrete subclass.
+            """
+            interface Deferred { fun Any?.toString(): String }
+            abstract class Defers : Deferred
+            class ConcreteSubclass : Defers()
+            """,
+            // Objects are checked the same way.
+            """
+            interface ObjectMissing { fun Any?.toString(): String }
+            object ConcreteObject : ObjectMissing
+            """,
+        ]
+        let acceptingSources = [
+            // Declaring the abstract member extension is legal on the
+            // interface itself.
+            """
+            interface DeclaresOnly { fun Any?.toString(): String }
+            fun inspect(i: DeclaresOnly): DeclaresOnly = i
+            """,
+            // A member-extension override satisfies the requirement.
+            """
+            interface OverridesExtension { fun Any?.toString(): String }
+            class ProvidesExtension : OverridesExtension {
+                override fun Any?.toString(): String = "c"
+            }
+            """,
+            // Abstract classes may defer the requirement.
+            """
+            interface DeferredOk { fun Any?.toString(): String }
+            abstract class StaysAbstract : DeferredOk
+            """,
+            // A concrete member extension inherited from another supertype
+            // satisfies the requirement.
+            """
+            interface NeedsExtension { fun Any?.toString(): String }
+            open class ProvidesInherited { fun Any?.toString(): String = "b" }
+            class InheritsExtension : ProvidesInherited(), NeedsExtension
+            """,
+            // An intermediate interface may provide the implementation.
+            """
+            interface NeedsViaChild { fun Any?.toString(): String }
+            interface ProvidesViaChild : NeedsViaChild { override fun Any?.toString(): String = "j" }
+            class UsesChildInterface : ProvidesViaChild
+            """,
+        ]
+        try withTemporaryFiles(contents: rejectingSources + acceptingSources) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
+            try runSema(ctx)
+
+            for path in paths.prefix(rejectingSources.count) {
+                let sampleDiags = diagnosticsForPath(path, in: ctx)
+                assertHasDiagnostic("KSWIFTK-SEMA-ABSTRACT", in: sampleDiags)
+            }
+            for path in paths.suffix(acceptingSources.count) {
+                let sampleDiags = diagnosticsForPath(path, in: ctx)
+                assertNoDiagnostic("KSWIFTK-SEMA-ABSTRACT", in: sampleDiags)
+                #expect(!sampleDiags.hasError, "Unexpected diagnostics: \(sampleDiags)")
             }
         }
     }

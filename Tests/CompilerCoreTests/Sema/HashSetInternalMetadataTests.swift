@@ -2,6 +2,7 @@
 import RuntimeABI
 import Testing
 import TestStdlibCache
+@testable import CompilerTestSupport
 
 @Suite
 struct HashSetInternalMetadataTests {

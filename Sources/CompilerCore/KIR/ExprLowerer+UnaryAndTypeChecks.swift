@@ -161,22 +161,71 @@ extension ExprLowerer {
     /// runtime classifier (`.any`/`.unknown`), where the cast keeps the
     /// null-contract-only behavior.
     private func checkableCastErasure(of type: TypeID, sema: SemaModule) -> TypeID? {
-        var visited: Set<SymbolID> = []
-        var current = type
-        while case let .typeParam(parameter) = sema.types.kind(of: current) {
-            guard visited.insert(parameter.symbol).inserted,
-                  let bound = sema.symbols.typeParameterUpperBounds(for: parameter.symbol).first
-            else {
-                return nil
-            }
-            current = bound
+        kirCheckableCastErasure(of: type, sema: sema)
+    }
+
+    /// KUU-3535: a non-reified generic return crosses the call boundary in
+    /// erased form — the callee's own `as T` cannot verify it, so
+    /// Kotlin/JVM emits the checkcast where the result is claimed at the
+    /// substituted type. Mirror that here: when the resolved callee's
+    /// declared return type erases to a type parameter and the call-site
+    /// type carries a runtime classifier, guard the result with
+    /// `kk_op_cast` so a wrong-type value throws a catchable
+    /// ClassCastException carrying both class names instead of corrupting
+    /// a later virtual dispatch.
+    func checkedErasedGenericCallResult(
+        _ resultID: KIRExprID,
+        exprID: ExprID,
+        boundType: TypeID?,
+        sema: SemaModule,
+        interner: StringInterner,
+        arena: KIRArena,
+        instructions: inout [KIRInstruction]
+    ) -> KIRExprID {
+        guard kirShouldCheckErasedGenericCallResult(
+                  exprID: exprID,
+                  boundType: boundType,
+                  sema: sema
+              ),
+              let bound = boundType ?? sema.bindings.exprType(for: exprID),
+              let checkType = checkableCastErasure(of: bound, sema: sema)
+        else {
+            return resultID
         }
-        switch RuntimeTypeCheckToken.classify(type: current, sema: sema).category {
-        case .unknown, .any:
-            return nil
-        default:
-            return current
+        // Generic call results keep the erased representation, including
+        // boxed primitives, until after the type check.
+        let erasedOperand = arena.appendTemporary(type: sema.types.nullableAnyType)
+        instructions.append(.copy(from: resultID, to: erasedOperand))
+        let typeToken = lowerTypeCheckTokenExpr(
+            targetType: checkType,
+            sema: sema,
+            interner: interner,
+            arena: arena,
+            instructions: &instructions
+        )
+        let primitiveBound: TypeID? = if case .primitive(_, .nonNull) = sema.types.kind(of: bound) {
+            bound
+        } else {
+            nil
         }
+        let checked = arena.appendTemporary(
+            type: primitiveBound == nil ? bound : sema.types.nullableAnyType
+        )
+        instructions.append(.call(
+            callee: interner.intern("kk_op_cast"),
+            arguments: [erasedOperand, typeToken],
+            result: checked,
+            canThrow: true
+        ))
+        if let primitiveBound,
+           let unboxed = driver.callLowerer.materializePrimitiveValue(
+               checked, toType: primitiveBound, sema: sema, arena: arena,
+               instructions: &instructions
+           )
+        {
+            return unboxed
+        }
+        return checked
     }
 
     /// Both sides name the same class once `?` is stripped (`N` vs `N?`).
@@ -363,25 +412,17 @@ extension ExprLowerer {
             ))
             return result
         }
-        // An unbounded T erases to Any. For a non-null cast target, use the
-        // erased cast helper so a null value fails as a cast (CCE) rather than
-        // as an explicit `!!`-style null assertion (NPE).
+        // An unbounded T erases to Any, so a cast that only needs the
+        // non-null contract reduces to a null assertion: Kotlin/JVM reports
+        // a null-to-non-null cast as NullPointerException (`x as (T & Any)`
+        // is a null check, like `x!!`), and `kk_op_cast` itself maps the
+        // same failure to NPE. The erased cast helper used at delegated
+        // property boundaries deliberately reports ClassCastException
+        // instead, so it must not be reused here (KUU-3534, KUU-3176).
         // A safe cast with no runtime classifier is a pass-through: null is
         // still a valid nullable result of `as?`.
         if !isSafe, !operandIsNonNull, targetRequiresNonNull {
-            let nonNullAnyToken = lowerTypeCheckTokenExpr(
-                targetType: sema.types.anyType,
-                sema: sema,
-                interner: interner,
-                arena: arena,
-                instructions: &instructions
-            )
-            instructions.append(.call(
-                callee: interner.intern("kk_op_cast_erased_return"),
-                arguments: [operandID, nonNullAnyToken],
-                result: result,
-                canThrow: true
-            ))
+            instructions.append(.nullAssert(operand: operandID, result: result))
         } else {
             instructions.append(.copy(from: operandID, to: result))
         }
@@ -553,13 +594,34 @@ extension ExprLowerer {
                 )
             }
         }
-        let result = arena.appendTemporary(type: boundType ?? sema.types.anyType)
+        let resultType = boundType ?? sema.types.anyType
+        let primitiveCastType = sema.bindings.castTargetType(for: exprID).flatMap { targetType -> TypeID? in
+            guard !isSafe,
+                  case .primitive(_, .nonNull) = sema.types.kind(of: targetType)
+            else { return nil }
+            return targetType
+        }
+        // `kk_op_cast` validates and returns the erased value, which is still
+        // boxed when the target is a non-null primitive. Preserve that erased
+        // result type here so ABI lowering inserts the required unbox before
+        // primitive operators consume it (including IEEE comparisons).
+        let castResult = arena.appendTemporary(
+            type: primitiveCastType == nil ? resultType : sema.types.nullableAnyType
+        )
         instructions.append(.call(
             callee: interner.intern(isSafe ? "kk_op_safe_cast" : "kk_op_cast"),
             arguments: [operandID, typeToken],
-            result: result,
+            result: castResult,
             canThrow: !isSafe
         ))
-        return result
+        if let primitiveCastType,
+           let unboxed = driver.callLowerer.materializePrimitiveValue(
+               castResult, toType: primitiveCastType, sema: sema, arena: arena,
+               instructions: &instructions
+           )
+        {
+            return unboxed
+        }
+        return castResult
     }
 }

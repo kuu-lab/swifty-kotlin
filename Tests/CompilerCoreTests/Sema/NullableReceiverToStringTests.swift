@@ -1,6 +1,7 @@
 #if canImport(Testing)
 @testable import CompilerCore
 import Testing
+@testable import CompilerTestSupport
 
 /// Regression coverage for KUU-751: Kotlin's `Any?.toString()` extension must
 /// be callable from nullable receivers, including a null literal.

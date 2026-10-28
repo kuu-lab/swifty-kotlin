@@ -1,6 +1,7 @@
 #if canImport(Testing)
 @testable import CompilerCore
 import Testing
+@testable import CompilerTestSupport
 
 /// A lambda parameter (`it` or a named parameter) used as a `when` subject
 /// must be smart-cast in `is` branches just like a regular function
@@ -362,5 +363,130 @@ struct WhenSubjectSmartCastTests {
         try runSema(ctx)
         assertHasDiagnostic("KSWIFTK-SEMA-0071", in: ctx)
     }
+
+    @Test func testWhenExhaustivenessUsesNegativeDataFlowFacts() throws {
+        let source = """
+        fun boolean(b: Boolean): Int {
+            if (b == false) return 1
+            return when (b) { true -> 2 }
+        }
+
+        fun nullableTrue(b: Boolean?): Int {
+            if ((b == true) == false) return 1
+            return when (b) { true -> 2 }
+        }
+
+        fun nullableFalseOrNull(b: Boolean?): Int {
+            if ((b == true) == true) return 1
+            return when (b) { null -> 2; false -> 3 }
+        }
+
+        enum class Color { RED, GREEN, BLUE }
+        fun enumTwo(color: Color): Int {
+            if (color == Color.RED) return 1
+            return when (color) { Color.GREEN -> 2; Color.BLUE -> 3 }
+        }
+        fun enumOne(color: Color): Int {
+            if (color == Color.RED) throw AssertionError()
+            if (color == Color.GREEN) throw AssertionError()
+            return when (color) { Color.BLUE -> 3 }
+        }
+
+        sealed class Variant {
+            object A : Variant()
+            object B : Variant()
+            object C : Variant()
+        }
+        fun sealedTwo(value: Variant): Int {
+            if (value is Variant.A) return 1
+            return when (value) { Variant.B -> 2; Variant.C -> 3 }
+        }
+        fun sealedOne(value: Variant): Int {
+            if (value is Variant.A) return 1
+            if (value is Variant.B) return 2
+            return when (value) { Variant.C -> 3 }
+        }
+        fun sealedShortCircuit(value: Variant): Int {
+            (value is Variant.A) && throw AssertionError()
+            return when (value) { Variant.B -> 2; Variant.C -> 3 }
+        }
+        """
+
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+        let nonExhaustiveErrors = ctx.diagnostics.diagnostics.filter {
+            $0.code == "KSWIFTK-SEMA-0004" || $0.code == "KSWIFTK-SEMA-0071"
+        }
+        #expect(nonExhaustiveErrors.isEmpty, "Got: \(nonExhaustiveErrors)")
+    }
+
+    /// Negative control for terminating-branch exclusion: a branch that
+    /// completes normally does not remove enum entries from the residual set,
+    /// so the `when` must still reject (KUU-3130).
+    @Test func testWhenExhaustivenessStillRequiresEntriesAfterNonTerminatingIf() throws {
+        let source = """
+        enum class MiniState { A, B, C }
+        fun sink() {}
+        fun excluded(value: MiniState): Int {
+            if (value == MiniState.A) return 1
+            return when (value) {
+                MiniState.B -> 2
+                MiniState.C -> 3
+            }
+        }
+        fun notExcluded(value: MiniState, flag: Boolean): Int {
+            if (value == MiniState.A && flag) sink()
+            return when (value) {
+                MiniState.B -> 2
+                MiniState.C -> 3
+            }
+        }
+        """
+
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+        let errors = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0004" }
+        #expect(errors.count == 1, "Got: \(errors)")
+    }
+
+    @Test func testConjunctionFallthroughDoesNotInventGenericSmartCast() throws {
+        let source = """
+        interface Marker { fun mark() }
+        class Box<T : Any>(val value: T)
+        class Carrier<T : Any>(val ordering: Any?) {
+            fun accept(entry: Box<T>) {}
+            fun offer(element: T) {
+                if (element == null) return
+                if (ordering == null && element !is Marker) return
+                val entry = Box(element)
+                accept(entry)
+            }
+        }
+        fun <T : Any> positive(element: T) {
+            if (element !is Marker) return
+            element.mark()
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], includeStdlib: false)
+            try runSema(ctx)
+            #expect(!ctx.diagnostics.hasError, "Unexpected diagnostics: \(ctx.diagnostics.diagnostics)")
+        }
+
+        let invalid = source + """
+
+        fun <T : Any> invalid(element: T, ordering: Any?) {
+            if (element == null) return
+            if (ordering == null && element !is Marker) return
+            element.mark()
+        }
+        """
+        try withTemporaryFile(contents: invalid) { path in
+            let ctx = makeCompilationContext(inputs: [path], includeStdlib: false)
+            try runSema(ctx)
+            #expect(ctx.diagnostics.hasError, "Expected the unproven Marker call to be rejected: \(ctx.diagnostics.diagnostics)")
+        }
+    }
+
 }
 #endif

@@ -88,7 +88,7 @@ extension BuildASTPhase.ExpressionParser {
     ///     // desugars to (with a fresh, unspellable synthetic name):
     ///     { fun __AnonymousFunction_7_142(x: Int): Int { return x * 2 }; ::__AnonymousFunction_7_142 }
     ///
-    /// Block bodies and malformed expression-body recovery reuse local-function semantics.
+    /// Block and plain expression bodies reuse local-function semantics.
     ///
     /// A `label@ fun(...)` prefix reuses the label as the synthetic function
     /// name so `return@label` resolves like a function-name labeled return.
@@ -177,7 +177,10 @@ extension BuildASTPhase.ExpressionParser {
         let expressionBody: ExprID?
         let headerEndIndex = index
         if matches(.symbol(.assign)) {
-            if let token = current() {
+            // Context and extension receiver expression bodies still require
+            // their existing rejection until their closure lowering is fixed.
+            if (functionStartIndex != expressionStartIndex || lParenIndex != functionStartIndex + 1),
+               let token = current() {
                 diagnostics?.error(
                     "KSWIFTK-PARSE-0001",
                     "Expected '{' for anonymous function body.",
@@ -219,6 +222,7 @@ extension BuildASTPhase.ExpressionParser {
             index = expressionStartIndex
             return nil
         }
+        astArena.markAnonymousFunction(localFunExprID)
 
         let range = SourceRange(start: tokens[expressionStartIndex].range.start, end: tokens[endIndex - 1].range.end)
         let callableRefID = astArena.appendExpr(.callableRef(receiver: nil, member: syntheticName, range: range))

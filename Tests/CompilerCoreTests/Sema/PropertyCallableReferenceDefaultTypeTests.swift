@@ -3,6 +3,7 @@
 import Foundation
 import TestStdlibCache
 import Testing
+@testable import CompilerTestSupport
 
 /// KSP-496 follow-up: `inferCallableRefExpr` (`ExprTypeChecker+NameLambdaAndCallableRefInference.swift`)
 /// used to fall back to the property's own *value* type when a property
@@ -20,6 +21,22 @@ import Testing
 /// function references.
 @Suite
 struct PropertyCallableReferenceDefaultTypeTests {
+    @Test func nullableExtensionPropertyReferences() throws {
+        let ctx = makeContextFromSource("""
+        class A
+        val A?.foo: String get() = "O"
+        var <T> T.bar: T get() = this; set(v) {}
+        fun test() {
+            val ref = A?::foo
+            val value: String = ref(null)
+            String?::bar.set(null, null)
+        }
+        """)
+        try runSema(ctx)
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.isEmpty, "Unexpected diagnostics: \(errors)")
+    }
+
     private func classTypeSymbol(
         for exprID: ExprID,
         sema: SemaModule

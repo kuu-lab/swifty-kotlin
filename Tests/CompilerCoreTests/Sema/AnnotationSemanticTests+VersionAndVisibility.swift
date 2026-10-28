@@ -2,6 +2,7 @@
 @testable import CompilerCore
 import Foundation
 import Testing
+@testable import CompilerTestSupport
 
 /// `SinceKotlin` / data-class copy-visibility / DSL-marker / and other
 /// version- and visibility-related annotation tests, split out from

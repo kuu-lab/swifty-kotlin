@@ -1,6 +1,7 @@
 #if canImport(Testing)
 @testable import CompilerCore
 import Testing
+@testable import CompilerTestSupport
 
 extension LoweringABIAndPropertyRegressionTests {
     @Test(arguments: [PrimitiveType.float, .double])

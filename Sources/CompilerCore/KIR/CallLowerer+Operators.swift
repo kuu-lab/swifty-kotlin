@@ -67,34 +67,28 @@ extension CallLowerer {
         }
         let intType = sema.types.make(.primitive(.int, .nonNull))
         let stringType = sema.types.stringType
-        // `P == null` / `P != null` with a statically non-null operand is a
-        // tautology on the JVM. Folding before operand lowering keeps the
-        // floating-point `!=` path below from desugaring `-0.0 != null` into
-        // a Double compare (-0.0 != 0.0 → false), and keeps sentinel-aliased
-        // raw bits (Long.MIN_VALUE, -0.0) out of kk_op_eq/ne.
-        // OperatorLoweringPass folds the residual `.binary` form for operands
-        // that only resolve to a non-null primitive after value-class
-        // unwrapping.
+        // Keep sentinel-colliding primitive operands out of raw floating-point
+        // comparison paths (`-0.0 != null` must be true). Other non-null
+        // operands must retain the runtime comparison so unchecked casts that
+        // produce null are observed by `==`/`!=`.
         if op == .equal || op == .notEqual {
             func isNullLiteralExpr(_ e: ExprID) -> Bool {
                 guard let kind = ast.arena.expr(e) else { return false }
                 if case .nullLiteral = kind { return true }
                 return false
             }
-            func isNonNullPrimitiveExpr(_ e: ExprID) -> Bool {
+            func isSentinelCollidingPrimitiveExpr(_ e: ExprID) -> Bool {
                 guard let typeID = sema.bindings.exprTypes[e],
-                      case .primitive(_, .nonNull) = sema.types.kind(of: typeID)
+                      case let .primitive(primitive, .nonNull) = sema.types.kind(of: typeID)
                 else { return false }
-                return true
+                return primitive.rawValueCollidesWithNullSentinel
             }
             let lhsIsNullLiteral = isNullLiteralExpr(lhs)
             let rhsIsNullLiteral = isNullLiteralExpr(rhs)
             if lhsIsNullLiteral != rhsIsNullLiteral,
-               isNonNullPrimitiveExpr(lhsIsNullLiteral ? rhs : lhs)
+               isSentinelCollidingPrimitiveExpr(lhsIsNullLiteral ? rhs : lhs)
             {
-                // The comparison result is statically known, but evaluating
-                // the non-null operand may still call code with side effects
-                // or exceptions. Lower it before replacing the comparison.
+                // Evaluate the operand even though the comparison itself folds.
                 _ = driver.lowerExpr(
                     lhsIsNullLiteral ? rhs : lhs,
                     ast: ast,
@@ -323,13 +317,10 @@ extension CallLowerer {
             ))
             return result
         }
-        // Comparing a statically non-null operand against `null` (`Nothing?`)
-        // is a constant: `==`/`===` are always false, `!=`/`!==` always true.
-        // Folding here also avoids the kk_op_eq/ne raw path, where a non-null
-        // Long/ULong/Double/Float whose bits equal the null sentinel (e.g.
-        // Long.MIN_VALUE produced by nullable flow narrowing) would compare
-        // equal to null.
-        if op == .equal || op == .notEqual || op == .identityEqual || op == .notIdentityEqual {
+        // Identity comparison against null can be folded from static types.
+        // Structural equality must stay value-based: unchecked casts can
+        // produce a runtime null even when the expression has a non-null type.
+        if op == .identityEqual || op == .notIdentityEqual {
             func isNullLiteralOperand(_ expr: ExprID) -> Bool {
                 guard let type = sema.bindings.exprTypes[expr],
                       case let .nothing(nullability) = sema.types.kind(of: type)
@@ -896,8 +887,14 @@ extension CallLowerer {
         // (this compiler currently accepts it too; tracked separately as
         // BUG-262), so the widening below is a no-op for legal `!=` sources.
         case .lessThan, .lessOrEqual, .greaterThan, .greaterOrEqual, .notEqual:
-            let lhsTypeID = arena.exprType(lhsID) ?? sema.bindings.exprTypes[lhs]
-            let rhsTypeID = arena.exprType(rhsID) ?? sema.bindings.exprTypes[rhs]
+            let lhsSourceTypeID = arena.exprType(lhsID) ?? sema.bindings.exprTypes[lhs]
+            let rhsSourceTypeID = arena.exprType(rhsID) ?? sema.bindings.exprTypes[rhs]
+            let lhsTypeID = lhsSourceTypeID.flatMap {
+                resolvePrimitiveArithmeticUpperBound(of: $0, types: sema.types, symbols: sema.symbols)
+            } ?? lhsSourceTypeID
+            let rhsTypeID = rhsSourceTypeID.flatMap {
+                resolvePrimitiveArithmeticUpperBound(of: $0, types: sema.types, symbols: sema.symbols)
+            } ?? rhsSourceTypeID
             let lhsIsFloatingPoint = lhsTypeID.map { isFloatingPointPrimitiveType($0, types: sema.types) } ?? false
             let rhsIsFloatingPoint = rhsTypeID.map { isFloatingPointPrimitiveType($0, types: sema.types) } ?? false
             let isReferenceNotEqual = op == .notEqual && [lhsTypeID, rhsTypeID].contains { typeID in

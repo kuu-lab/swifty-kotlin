@@ -183,6 +183,7 @@ extension DeclTypeChecker {
                     delegateExpr,
                     propertySymbol: symbol,
                     valueType: $0,
+                    isMutable: isVar,
                     ctx: ctx,
                     locals: locals
                 )
@@ -289,6 +290,11 @@ extension DeclTypeChecker {
         }
 
         let provideDelegateName = interner.intern("provideDelegate")
+        let expectedProvidedType = isVar ? result.flatMap {
+            inferProvidedMutableDelegateType(
+                delegateType, propertySymbol: symbol, valueType: $0, ctx: ctx, locals: locals
+            )
+        } : nil
         let provideDelegateResolution = resolvePropertyDelegateFunction(
             named: provideDelegateName,
             receiverType: delegateType,
@@ -296,7 +302,7 @@ extension DeclTypeChecker {
                 for: symbol,
                 ctx: ctx
             ).prefix(2)),
-            expectedType: nil,
+            expectedType: expectedProvidedType,
             range: delegateCallRange,
             ctx: ctx,
             locals: locals

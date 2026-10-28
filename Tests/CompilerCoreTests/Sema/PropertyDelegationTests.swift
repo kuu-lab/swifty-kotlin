@@ -3,6 +3,7 @@
 import Foundation
 import TestStdlibCache
 import Testing
+@testable import CompilerTestSupport
 
 // MARK: - SymbolTable Delegate Storage Tests
 
@@ -1065,6 +1066,10 @@ struct SemaDelegateTypeCheckTests {
         val nullable by nullableMap
         var mutable by mutableMapOf("mutable" to 4)
         val defaulted by emptyMap<String, Int>().withDefault { 5 }
+        class InitializedMapOwner {
+            val map: Map<String, String> = hashMapOf("a" to "all")
+            val a by map
+        }
         class Owner(val map: Map<String, Int>, val mutableMap: MutableMap<String, Int>) {
             val member by map
             var writable by mutableMap
@@ -1088,6 +1093,20 @@ struct SemaDelegateTypeCheckTests {
             #expect(!diagnostics.contains { $0.severity == .error },
                     "Map delegates: \(diagnostics.map { "\($0.code): \($0.message)" }.joined(separator: " | "))")
             let sema = try #require(ctx.sema)
+            let initializedMapOwner = try #require(sema.symbols.lookup(
+                fqName: ["kuu1050", "InitializedMapOwner"].map(ctx.interner.intern)
+            ))
+            let initializedMapDelegate = try #require(childSymbol(
+                named: "a",
+                kind: .property,
+                package: "kuu1050",
+                className: "InitializedMapOwner",
+                sema: sema,
+                interner: ctx.interner
+            ))
+            #expect(sema.symbols.parentSymbol(for: initializedMapDelegate) == initializedMapOwner)
+            #expect(sema.symbols.propertyType(for: initializedMapDelegate) == sema.types.stringType)
+            #expect(sema.symbols.delegateGetValueSymbol(for: initializedMapDelegate) != nil)
             struct ExpectedProperty {
                 let name: String
                 let expectedType: TypeID

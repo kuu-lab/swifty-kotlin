@@ -2,6 +2,7 @@
 @testable import CompilerCore
 import Foundation
 import Testing
+@testable import CompilerTestSupport
 
 /// RF-LOWER-CALL-010: pin how the List search / predicate group
 /// (`find*` / `indexOf*` / `contains*` / `count` / `any` / `all` / `none` /

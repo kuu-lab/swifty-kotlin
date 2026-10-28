@@ -1,7 +1,7 @@
 import Foundation
 @testable import CompilerBackend
 @testable import CompilerCore
-import CompilerTestSupport
+@testable import CompilerTestSupport
 import TestStdlibCache
 import Testing
 
@@ -126,6 +126,45 @@ struct FunInterfaceConstructorReferenceExecutionTests {
 
         try assertCompilationSucceeded(makeTestDriver().runForTesting(options: CompilerOptions(
             moduleName: "SamConstructorFunctionCastFromAny",
+            inputs: [input],
+            outputPath: output,
+            emit: .executable,
+            target: defaultTargetTriple(),
+            optLevel: try #require(OptimizationLevel(rawValue: 0)),
+            stdlibLibraryPath: try testStdlibArtifactPath(),
+            allowDefaultStdlibLibrary: true
+        )))
+
+        let result = try CommandRunner.run(executable: output, arguments: [])
+        #expect(result.exitCode == 0, "\(result.stderr)")
+        #expect(result.stdout == "OK\n")
+    }
+
+    @Test
+    func samConstructorDispatchesAfterNullableFunctionCastFromAny() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let input = directory.appendingPathComponent("sam-constructor-nullable-function-cast-from-any.kt").path
+        let output = directory.appendingPathComponent("sam-constructor-nullable-function-cast-from-any").path
+        try """
+        fun interface KRunnable { fun invoke() }
+
+        fun test(a: Any?) {
+            a as () -> Unit
+            KRunnable(a).invoke()
+        }
+
+        fun main() {
+            var called = false
+            test { called = true }
+            println(if (called) "OK" else "Fail")
+        }
+        """.write(toFile: input, atomically: true, encoding: .utf8)
+
+        try assertCompilationSucceeded(makeTestDriver().runForTesting(options: CompilerOptions(
+            moduleName: "SamConstructorNullableFunctionCastFromAny",
             inputs: [input],
             outputPath: output,
             emit: .executable,

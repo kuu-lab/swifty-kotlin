@@ -2,6 +2,7 @@
 @testable import CompilerCore
 import Foundation
 import Testing
+@testable import CompilerTestSupport
 
 /// KSP-706: `kotlin.Pair`/`kotlin.Triple` are forward-declared from bundled
 /// `Tuples.kt`/`Pair/Stdlib.kt` before early synthetic stub registration runs

@@ -174,12 +174,12 @@ extension TypeCheckHelpers {
                     ?? params[index]
             }
         }
-        let isAnonymous: Bool = {
-            guard let targetSymbol, let name = sema.symbols.symbol(targetSymbol)?.name, let interner else {
-                return false
-            }
-            return interner.resolve(name).hasPrefix("__AnonymousFunction_")
-        }()
+        let isAnonymous: Bool
+        if let targetSymbol, let interner {
+            isAnonymous = sema.symbols.isAnonymousFunction(targetSymbol, interner: interner)
+        } else {
+            isAnonymous = false
+        }
         if !bindReceiver, let receiverType = unboundReceiverType ?? signature.receiverType {
             if isAnonymous {
                 return sema.types.make(.functionType(FunctionType(
@@ -690,12 +690,12 @@ extension TypeCheckHelpers {
             }
 
             let types = sema.types
-            let isAnonymousExtension: Bool = {
-                guard let targetSymbol, let name = sema.symbols.symbol(targetSymbol)?.name, let interner else {
-                    return false
-                }
-                return interner.resolve(name).hasPrefix("__AnonymousFunction_")
-            }()
+            let isAnonymousExtension: Bool
+            if let targetSymbol, let interner {
+                isAnonymousExtension = sema.symbols.isAnonymousFunction(targetSymbol, interner: interner)
+            } else {
+                isAnonymousExtension = false
+            }
             let receiverOffset = !bindReceiver && (unboundReceiverType != nil || signature.receiverType != nil) && !isAnonymousExtension ? 1 : 0
             let expectedArity = (expected.receiver == nil ? 0 : 1) + expected.params.count
             let expectedValueArity = isAnonymousExtension ? expected.params.count : (expectedArity - receiverOffset)
@@ -771,15 +771,21 @@ extension TypeCheckHelpers {
                         let expectedType = expectedInputs[expectedIndex]
                         let targetKind = types.kind(of: types.makeNonNullable(params[shapeIndex]))
                         let expectedKind = types.kind(of: types.makeNonNullable(expectedType))
-                        let targetIsErased: Bool = switch targetKind {
-                        case .any, .typeParam: true
-                        default: false
+                        guard case .primitive = expectedKind else { continue }
+                        switch targetKind {
+                        case .any:
+                            params[shapeIndex] = expectedType
+                        case let .typeParam(parameter):
+                            if !signature.typeParameterSymbols.contains(parameter.symbol) {
+                                params[shapeIndex] = expectedType
+                            }
+                        default:
+                            continue
                         }
-                        guard targetIsErased, case .primitive = expectedKind else { continue }
                         // A contravariant reference from an erased parameter to
                         // a primitive input needs a wrapper so the input is
-                        // boxed before the referenced function receives it.
-                        params[shapeIndex] = expectedType
+                        // boxed before the referenced function receives it. Keep
+                        // callee type parameters until inference has used them.
                         requiresErasedPrimitiveInputAdapter = true
                     }
                 }

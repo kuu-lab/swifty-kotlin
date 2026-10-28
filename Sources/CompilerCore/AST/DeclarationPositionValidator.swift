@@ -169,6 +169,13 @@ struct DeclarationPositionValidator {
             emitNotApplicable(name, to: target, range: decl.range)
         }
 
+        if modifiers.contains(.companion) {
+            let isCompanionExtension = if case .file = site { decl.receiverType != nil } else { false }
+            if !isCompanionExtension {
+                emitNotApplicable("companion", to: target, range: decl.range)
+            }
+        }
+
         switch site {
         case .file:
             for (modifier, name) in Self.topLevelFunForbidden where modifiers.contains(modifier) {
@@ -277,6 +284,13 @@ struct DeclarationPositionValidator {
                 continue
             }
             emitNotApplicable(name, to: target, range: decl.range)
+        }
+
+        if modifiers.contains(.companion) {
+            let isCompanionExtension = if case .file = site { decl.receiverType != nil } else { false }
+            if !isCompanionExtension {
+                emitNotApplicable("companion", to: target, range: decl.range)
+            }
         }
 
         switch site {
@@ -1308,7 +1322,7 @@ struct DeclarationPositionValidator {
     private static let funImpossibleModifiers: [(Modifiers, String)] = [
         (.data, "data"), (.sealed, "sealed"), (.inner, "inner"),
         (.enumModifier, "enum"), (.value, "value"), (.annotationClass, "annotation"),
-        (.companion, "companion"), (.const, "const"), (.lateinit, "lateinit"),
+        (.const, "const"), (.lateinit, "lateinit"),
         (.vararg, "vararg"), (.crossinline, "crossinline"), (.noinline, "noinline"),
         (.funModifier, "fun"),
     ]
@@ -1321,7 +1335,7 @@ struct DeclarationPositionValidator {
     private static let propertyImpossibleModifiers: [(Modifiers, String)] = [
         (.data, "data"), (.sealed, "sealed"), (.inner, "inner"),
         (.enumModifier, "enum"), (.value, "value"), (.annotationClass, "annotation"),
-        (.companion, "companion"), (.suspend, "suspend"), (.tailrec, "tailrec"),
+        (.suspend, "suspend"), (.tailrec, "tailrec"),
         (.inline, "inline"), (.operator, "operator"), (.infix, "infix"),
         (.external, "external"), (.vararg, "vararg"), (.crossinline, "crossinline"),
         (.noinline, "noinline"), (.funModifier, "fun"),

@@ -1,6 +1,7 @@
 #if canImport(Testing)
 @testable import CompilerCore
 import Testing
+@testable import CompilerTestSupport
 
 @Suite
 struct BundledStdlibDiagnosticsTests {
@@ -128,6 +129,37 @@ struct BundledStdlibDiagnosticsTests {
             #expect(
                 deprecatedErrors.count == 3,
                 "Expected 3 deprecation errors for merge/flatten/scanReduce stubs: \(ctx.diagnostics.diagnostics)"
+            )
+        }
+    }
+
+    /// KUU-3374: bundled String case-conversion deprecations stay warnings at API 2.4.
+    @Test
+    func testDeprecatedStringCaseConversionsEmitWarningsWithoutErrors() throws {
+        let source = """
+        fun main() {
+            println("Abc".decapitalize())
+            println("aBc".capitalize())
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            let deprecations = ctx.diagnostics.diagnostics.filter {
+                $0.code == "KSWIFTK-SEMA-DEPRECATED"
+            }
+            #expect(
+                deprecations.count == 2,
+                "Expected both deprecated APIs to warn: \(ctx.diagnostics.diagnostics)"
+            )
+            #expect(
+                deprecations.allSatisfy { $0.severity == .warning },
+                "Expected warnings, got: \(deprecations)"
+            )
+            #expect(
+                !ctx.diagnostics.hasError,
+                "Deprecation warnings must not fail compilation: \(ctx.diagnostics.diagnostics)"
             )
         }
     }

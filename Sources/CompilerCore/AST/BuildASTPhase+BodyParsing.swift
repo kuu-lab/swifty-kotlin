@@ -447,6 +447,21 @@ extension BuildASTPhase {
         return depth.paren > 0 || depth.bracket > 0 || depth.brace > 0
     }
 
+    /// Whether a `{` that starts the next statement line continues the
+    /// previous group. Kotlin only attaches such a block when the previous
+    /// tokens still expect a body — a declaration or literal header
+    /// (`fun f(): Int`, `object : I`, `class C`) or a keyword whose grammar
+    /// production is a braced body (`try`, `do`, subject-less `when`,
+    /// `init`, `suspend` for a suspending lambda literal) — or when they
+    /// end in an explicit call suffix (`name(…)` or
+    /// `name<…>`), as in `run()` + `{ }`. (`else`/`catch`/`finally` tails and
+    /// `x is T`-style operator tails merge earlier in
+    /// `isContinuationBoundary`, so they never reach this check.)
+    ///
+    /// A bare name or value (`Unit`, `x`, `a[i]`, `(x)`, `x!!`, `return`) is
+    /// a complete expression: the block starts a new statement instead of
+    /// becoming a call argument, so `val tmp = Unit` followed by `{ }` never
+    /// resolves as `Unit { }` (KUU-3144).
     static func canAcceptTrailingLambda<C: BidirectionalCollection>(on tokens: C) -> Bool where C.Element == Token {
         if isUninitializedLocalPropertyDeclaration(tokens) {
             return false
@@ -454,19 +469,110 @@ extension BuildASTPhase {
         guard let last = tokens.last else {
             return false
         }
-        if let first = tokens.first,
-           case let .keyword(keyword) = first.kind,
-           [.if, .for, .while, .do, .when, .try, .catch, .finally].contains(keyword)
-        {
-            return false
+        if hasPendingBracedBodyHeader(tokens) {
+            return true
         }
         switch last.kind {
-        case .identifier, .backtickedIdentifier, .softKeyword, .keyword:
-            return true
-        case .symbol(.rParen), .symbol(.rBracket), .symbol(.greaterThan), .symbol(.bangBang):
+        case .symbol(.rParen):
+            return endsWithCallArgumentList(tokens)
+        case .symbol(.greaterThan):
+            return endsWithNameTypeArguments(tokens)
+        case .keyword(.try), .keyword(.do), .keyword(.when),
+             .keyword(.suspend), .softKeyword(.`init`):
             return true
         default:
             return false
+        }
+    }
+
+    /// Whether the group is a header whose `{ }` body has not opened yet: a
+    /// local `fun`/`class`/`object`/`interface` declaration or an
+    /// `object : T` / `fun () : T` literal with its body on the next line.
+    /// The keyword must sit at the group's top level — a `fun`/`object`
+    /// inside a call's parentheses is part of a nested expression, not a
+    /// header awaiting its body.
+    private static func hasPendingBracedBodyHeader<C: Collection>(_ tokens: C) -> Bool where C.Element == Token {
+        var depth = BracketDepth()
+        var awaitsBody = false
+        for token in tokens {
+            if depth.isBracketBraceParenTopLevel {
+                switch token.kind {
+                case .keyword(.fun), .keyword(.object), .keyword(.class), .keyword(.interface):
+                    awaitsBody = true
+                case .symbol(.lBrace):
+                    // A body block already opened at this level, so the
+                    // header is complete and a later `{` is a new statement.
+                    awaitsBody = false
+                default:
+                    break
+                }
+            }
+            depth.track(token.kind)
+        }
+        return awaitsBody
+    }
+
+    /// Whether the group's last `)` closes a call's value-argument list: the
+    /// matching `(` directly follows a callee (`name(`, `f<T>(`, `a[i](`,
+    /// `f()(`, `{ }(`). A parenthesized expression (`(x)`, `= (x)`) and a
+    /// control-flow condition (`if (x)`) have no callee before their `(`, so
+    /// a `{` on the next line cannot be a trailing lambda there.
+    private static func endsWithCallArgumentList<C: BidirectionalCollection>(_ tokens: C) -> Bool where C.Element == Token {
+        var depth = 0
+        var index = tokens.index(before: tokens.endIndex)
+        while true {
+            switch tokens[index].kind {
+            case .symbol(.rParen):
+                depth += 1
+            case .symbol(.lParen):
+                depth -= 1
+                if depth == 0 {
+                    guard index > tokens.startIndex else { return false }
+                    switch tokens[tokens.index(before: index)].kind {
+                    case .identifier, .backtickedIdentifier, .softKeyword,
+                         .symbol(.rParen), .symbol(.rBracket), .symbol(.rBrace),
+                         .symbol(.greaterThan):
+                        return true
+                    default:
+                        return false
+                    }
+                }
+            default:
+                break
+            }
+            if index == tokens.startIndex { return false }
+            index = tokens.index(before: index)
+        }
+    }
+
+    /// Whether the group ends in a type-argument list applied to a callee
+    /// (`name<T>`): the `<` matching the trailing `>` directly follows a
+    /// name. A comparison `x < y >` has no such receiver-free shape, so its
+    /// `>` does not accept a trailing lambda on the next line.
+    private static func endsWithNameTypeArguments<C: BidirectionalCollection>(_ tokens: C) -> Bool where C.Element == Token {
+        var depth = 0
+        var index = tokens.index(before: tokens.endIndex)
+        while true {
+            switch tokens[index].kind {
+            case .symbol(.greaterThan):
+                depth += 1
+            case .symbol(.lessThan):
+                depth -= 1
+                if depth == 0 {
+                    guard index > tokens.startIndex else { return false }
+                    switch tokens[tokens.index(before: index)].kind {
+                    case .identifier, .backtickedIdentifier, .softKeyword,
+                         .symbol(.greaterThan):
+                        return true
+                    default:
+                        return false
+                    }
+                }
+            default:
+                break
+            }
+            if index == tokens.startIndex { return false }
+            index = tokens.index(before: index)
         }
     }
 
@@ -524,9 +630,10 @@ extension BuildASTPhase {
             return expr
         }
         undoFailedSpeculation()
-        let strippedRaw = Self.skipLeadingLocalAnnotations(raw, interner: interner)
+        // Local fun parsing strips leading annotations itself so it can attach
+        // declaration-level `@Suppress` to the produced declaration.
         let strippedFiltered = Self.skipLeadingLocalAnnotations(filtered, interner: interner)
-        if let expr = parseLocalFunDeclExpr(from: strippedRaw, interner: interner, astArena: astArena) {
+        if let expr = parseLocalFunDeclExpr(from: raw, interner: interner, astArena: astArena) {
             return expr
         }
         undoFailedSpeculation()

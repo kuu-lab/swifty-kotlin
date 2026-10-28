@@ -1,8 +1,49 @@
 #if canImport(Testing)
 @testable import CompilerCore
 import Testing
+@testable import CompilerTestSupport
 
 struct InlineErasedLambdaABITests {
+    @Test
+    func nullableStringArgumentsUseNullAwareErasedSlotBridge() {
+        let interner = StringInterner()
+        let arena = KIRArena()
+        let types = TypeSystem()
+        let symbols = SymbolTable()
+        let diagnostics = DiagnosticEngine()
+        let sema = makeSemaModule(symbols: symbols, types: types, diagnostics: diagnostics).ctx
+        let ctx = makeKIRContext(
+            moduleName: "NullableStringInlineABI", interner: interner, sema: sema, diagnostics: diagnostics
+        )
+        let module = KIRModule(files: [], arena: arena)
+        let nullable = arena.appendTemporary(type: types.makeNullable(types.stringType))
+        let target = KIRFunction(
+            symbol: SymbolID(rawValue: 40), name: interner.intern("acceptErased"),
+            params: [KIRParameter(symbol: SymbolID(rawValue: 41), type: types.nullableAnyType)],
+            returnType: types.unitType, body: [], isSuspend: false, isInline: true
+        )
+        var directBody = KIRLoweringEmitContext()
+        let direct = InlineErasedLambdaABI.boxPrimitiveArgumentsForErasedParameters(
+            arguments: [nullable], inlineTarget: target, module: module, ctx: ctx, into: &directBody
+        )
+        #expect(direct.count == 1)
+        #expect(arena.exprType(direct[0]) == types.nullableAnyType)
+        #expect(directBody.contains {
+            if case let .copy(from, to) = $0 { return from == nullable && to == direct[0] }
+            return false
+        })
+
+        var boundBody = KIRLoweringEmitContext()
+        let bound = InlineErasedLambdaABI.bindStringArgumentToErasedParameter(
+            nullable, parameterType: types.nullableAnyType, module: module, ctx: ctx, into: &boundBody
+        )
+        #expect(arena.exprType(bound) == types.nullableAnyType)
+        #expect(boundBody.contains {
+            if case let .copy(from, to) = $0 { return from == nullable && to == bound }
+            return false
+        })
+    }
+
     @Test
     func nestedCallbackDoesNotBorrowTheOuterMessageReturnType() {
         let interner = StringInterner()
@@ -120,6 +161,7 @@ struct InlineErasedLambdaABITests {
         )
         let genericType = types.make(.typeParam(TypeParamType(symbol: genericSymbol)))
         let nullableIntType = types.makeNullable(types.intType)
+        let nullableLongType = types.makeNullable(types.longType)
         let sema = makeSemaModule(
             symbols: symbols,
             types: types,
@@ -139,6 +181,7 @@ struct InlineErasedLambdaABITests {
                 KIRParameter(symbol: SymbolID(rawValue: 11), type: types.intType),
                 KIRParameter(symbol: SymbolID(rawValue: 12), type: nullableIntType),
                 KIRParameter(symbol: SymbolID(rawValue: 13), type: genericType),
+                KIRParameter(symbol: SymbolID(rawValue: 14), type: nullableLongType),
             ],
             returnType: types.intType,
             body: [],
@@ -146,6 +189,7 @@ struct InlineErasedLambdaABITests {
             isInline: false
         )
         let erasedArguments = [
+            arena.appendTemporary(),
             arena.appendTemporary(),
             arena.appendTemporary(),
             arena.appendTemporary(),
@@ -164,9 +208,18 @@ struct InlineErasedLambdaABITests {
         // Nullable primitives use sentinel-aware unboxing at erased boundaries.
         #expect(unboxedArguments[1] != erasedArguments[1])
         #expect(arena.exprType(unboxedArguments[1]) == nullableIntType)
-        #expect(unboxedArguments[2] == erasedArguments[2])
+        // An erased argument bound to a type-parameter parameter keeps the
+        // declared type on a typed copy so a later smart cast can still unbox it.
+        #expect(unboxedArguments[2] != erasedArguments[2])
+        #expect(arena.exprType(unboxedArguments[2]) == genericType)
+        // A Long? parameter keeps box-or-sentinel form: kk_unbox_long on a boxed
+        // Long.MIN_VALUE would emit the null sentinel's bits, so the boundary
+        // normalizes through kk_box_long instead (KUU-3661).
+        #expect(unboxedArguments[3] != erasedArguments[3])
+        #expect(arena.exprType(unboxedArguments[3]) == nullableLongType)
         #expect(callNames(in: body, interner: interner) == [
             LoweringTestRuntime.name("unbox_int"), LoweringTestRuntime.name("unbox_int"),
+            LoweringTestRuntime.name("box_long"),
         ])
 
         let returnedInt = arena.appendExpr(.intLiteral(7), type: types.intType)

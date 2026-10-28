@@ -1,6 +1,7 @@
 @testable import CompilerCore
 import Foundation
 import Testing
+@testable import CompilerTestSupport
 
 /// KSP-651: declaration-site variance projection must not swallow star projections,
 /// otherwise `List<*>` / `Sequence<*>` arguments leave the callee's type variables

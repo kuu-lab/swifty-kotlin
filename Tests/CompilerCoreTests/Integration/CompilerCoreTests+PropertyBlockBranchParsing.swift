@@ -2,6 +2,7 @@
 @testable import CompilerCore
 import Foundation
 import Testing
+@testable import CompilerTestSupport
 
 // BUG-047: a top-level (or class member) property initializer ending in an
 // expression with several top-level `{ }` blocks (`if/else`, `else if` chains)

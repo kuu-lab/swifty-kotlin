@@ -2,6 +2,7 @@
 @testable import CompilerCore
 import Foundation
 import Testing
+@testable import CompilerTestSupport
 
 /// kotlinc rejects an `if` without `else` wherever its value is consumed as an
 /// expression (`INVALID_IF_AS_EXPRESSION`: "'if' must have both main and 'else'

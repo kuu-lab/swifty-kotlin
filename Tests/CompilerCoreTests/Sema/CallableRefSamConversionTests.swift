@@ -1,6 +1,7 @@
 #if canImport(Testing)
 @testable import CompilerCore
 import Testing
+@testable import CompilerTestSupport
 
 /// BUG-164: callable references must be eligible for SAM conversion when the
 /// expected type is a functional interface parameter of a function call.

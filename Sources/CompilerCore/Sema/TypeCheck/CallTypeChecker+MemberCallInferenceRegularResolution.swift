@@ -228,9 +228,11 @@ extension CallTypeChecker {
         // Callable references also retain their structural function type here.
         // The reflective KFunction lookup view above is for metadata/extensions;
         // it must not hide the parameter types needed for explicit invocation.
+        // A smart-cast intersection (`f as KFunction<*>`) keeps its unique
+        // structural function conjunct invocable the same way (KUU-3652).
         if calleeName == knownNames.invoke,
            explicitTypeArgs.isEmpty,
-           case let .functionType(invokeFunctionType) = sema.types.kind(of: baseLookupReceiverType),
+           let invokeFunctionType = sema.types.uniqueStructuralFunctionType(for: baseLookupReceiverType),
            invokeFunctionType.nullability != .nullable,
            let result = inferCallableValueInvocation(
                id,
@@ -337,7 +339,14 @@ extension CallTypeChecker {
                 && sema.types.isUnsigned(receiver) == sema.types.isUnsigned(argument)
             return bothArithmetic ? receiver : nil
         }()
-        let memberLookupType = rangeSourceMemberLookupType ?? rangeExtensionLookupType ?? primitiveComparisonReceiver ?? lookupReceiverType
+        let channelBoundReceiverType = interner.resolve(calleeName) == "receive"
+            ? ReceiverClassifier(sema: sema, interner: interner).channelUpperBoundType(of: lookupReceiverType)
+            : nil
+        let memberLookupType = rangeSourceMemberLookupType
+            ?? rangeExtensionLookupType
+            ?? primitiveComparisonReceiver
+            ?? channelBoundReceiverType
+            ?? lookupReceiverType
 
         // A precompiled `UIntRange.contains(UInt)` can otherwise lose to the
         // inherited `ClosedRange<T>.contains(T)` member before the ordinary
@@ -527,6 +536,7 @@ extension CallTypeChecker {
             isSuperCall: isSuperCall,
             lookupReceiverType: lookupReceiverType,
             memberLookupType: memberLookupType,
+            callableReferenceFunctionType: callableReferenceFunctionType,
             locals: locals
         ) {
             return result
@@ -606,6 +616,8 @@ extension CallTypeChecker {
             return result
         }
         var candidates = filtered.candidates
+
+        driver.inferDelegatedForwardingMethodReturnTypesIfNeeded(for: candidates)
 
         let receiverSelection = selectRegularMemberCallReceiverAndFallbacks(
             request,

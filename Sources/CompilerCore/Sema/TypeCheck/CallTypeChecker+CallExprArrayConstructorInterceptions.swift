@@ -278,6 +278,24 @@ extension CallTypeChecker {
     ) -> (name: InternedString, elementType: TypeID?)? {
         guard let calleeName, locals[calleeName] == nil else { return nil }
         if knownNames.isArrayLikeName(calleeName) {
+            // A declaration that does not come from the kotlin.* default
+            // imports — a file-local or same-package classifier, typealias,
+            // or callable — shadows the bundled kotlin.<Name> array type.
+            // Leave the call to ordinary call resolution so `UIntArray(5)`
+            // reaches the user declaration instead of the array intrinsic
+            // (KUU-3615). fqName-less synthetic stubs are compiler-owned and
+            // cannot shadow.
+            let isShadowedByNonKotlinSymbol = ctx.cachedScopeLookup(calleeName).contains { candidate in
+                guard let symbol = ctx.cachedSymbol(candidate),
+                      !symbol.fqName.isEmpty
+                else {
+                    return false
+                }
+                return symbol.fqName.first != ctx.interner.intern("kotlin")
+            }
+            if isShadowedByNonKotlinSymbol {
+                return nil
+            }
             return (calleeName, nil)
         }
 

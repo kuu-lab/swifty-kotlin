@@ -9,13 +9,22 @@ import java.util.function.IntPredicate
 import java.util.function.IntUnaryOperator
 
 public class IntStream private constructor(private val values: IntArray) {
+    private var consumed: Boolean = false
+
+    private fun consumeValues(): IntArray {
+        if (consumed) throw IllegalStateException("stream has already been operated upon or closed")
+        consumed = true
+        return values
+    }
+
     public fun filter(predicate: IntPredicate): IntStream {
         val result = mutableListOf<Int>()
-        for (value in values) if (predicate.test(value)) result.add(value)
+        for (value in consumeValues()) if (predicate.test(value)) result.add(value)
         return IntStream.of(*result.toIntArray())
     }
 
     public fun map(mapper: IntUnaryOperator): IntStream {
+        val values = consumeValues()
         val result = IntArray(values.size)
         var index = 0
         while (index < values.size) {
@@ -27,25 +36,31 @@ public class IntStream private constructor(private val values: IntArray) {
 
     public fun <R> mapToObj(mapper: IntFunction<out R>): Stream<R> {
         val result = mutableListOf<R>()
-        for (value in values) result.add(mapper.apply(value))
+        for (value in consumeValues()) result.add(mapper.apply(value))
         return Stream.fromIterable(result)
     }
 
     public fun forEach(action: IntConsumer) {
-        for (value in values) action.accept(value)
+        for (value in consumeValues()) action.accept(value)
     }
 
-    public fun count(): Long = values.size.toLong()
+    public fun count(): Long = consumeValues().size.toLong()
     public fun sum(): Int {
         var result = 0
-        for (value in values) result += value
+        for (value in consumeValues()) result += value
         return result
     }
 
-    public fun average(): OptionalDouble = if (values.isEmpty()) OptionalDouble.empty()
-    else OptionalDouble.of(sum().toDouble() / values.size.toDouble())
+    public fun average(): OptionalDouble {
+        val values = consumeValues()
+        if (values.isEmpty()) return OptionalDouble.empty()
+        var total = 0L
+        for (value in values) total += value.toLong()
+        return OptionalDouble.of(total.toDouble() / values.size.toDouble())
+    }
 
     public fun min(): OptionalInt {
+        val values = consumeValues()
         if (values.isEmpty()) return OptionalInt.empty()
         var result = values[0]
         var index = 1
@@ -54,6 +69,7 @@ public class IntStream private constructor(private val values: IntArray) {
     }
 
     public fun max(): OptionalInt {
+        val values = consumeValues()
         if (values.isEmpty()) return OptionalInt.empty()
         var result = values[0]
         var index = 1
@@ -61,23 +77,26 @@ public class IntStream private constructor(private val values: IntArray) {
         return OptionalInt.of(result)
     }
 
-    public fun findFirst(): OptionalInt = if (values.isEmpty()) OptionalInt.empty() else OptionalInt.of(values[0])
+    public fun findFirst(): OptionalInt {
+        val values = consumeValues()
+        return if (values.isEmpty()) OptionalInt.empty() else OptionalInt.of(values[0])
+    }
     public fun findAny(): OptionalInt = findFirst()
-    public fun toArray(): IntArray = values.copyOf()
-    public fun boxed(): Stream<Int> = Stream.of(*values.toTypedArray())
+    public fun toArray(): IntArray = consumeValues().copyOf()
+    public fun boxed(): Stream<Int> = Stream.of(*consumeValues().toTypedArray())
     public fun reduce(identity: Int, operator: IntBinaryOperator): Int {
         var result = identity
-        for (value in values) result = operator.applyAsInt(result, value)
+        for (value in consumeValues()) result = operator.applyAsInt(result, value)
         return result
     }
 
     public fun anyMatch(predicate: IntPredicate): Boolean {
-        for (value in values) if (predicate.test(value)) return true
+        for (value in consumeValues()) if (predicate.test(value)) return true
         return false
     }
 
     public fun allMatch(predicate: IntPredicate): Boolean {
-        for (value in values) if (!predicate.test(value)) return false
+        for (value in consumeValues()) if (!predicate.test(value)) return false
         return true
     }
 

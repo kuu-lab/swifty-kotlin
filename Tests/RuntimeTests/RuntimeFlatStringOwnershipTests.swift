@@ -74,6 +74,25 @@ struct RuntimeFlatStringOwnershipTests {
         #expect(bridgedRaw == raw)
     }
 
+    /// KUU-3614: a null `String?` flattens to a nil data pointer, and boxing
+    /// it must yield the raw-boundary null sentinel rather than a bare 0 —
+    /// `runtimeValuesEqual`/`kk_structural_eq` (and every `== null`/Elvis/`?.`
+    /// check) recognize only `runtimeNullSentinelInt` as null in erased slots.
+    @Test func fromFlatNilDataReturnsNullSentinel() {
+        let raw = kk_string_from_flat(nil, 0, 0, 0)
+
+        #expect(raw == runtimeNullSentinelInt)
+
+        var length = -1
+        var byteCount = -1
+        var hash = -1
+        let flatData = kk_string_to_flat(raw, &length, &byteCount, &hash)
+        #expect(flatData == nil)
+        #expect(length == 0)
+        #expect(byteCount == 0)
+        #expect(hash == 0)
+    }
+
     @Test func flatStringReleaseFreesAndIsIdempotent() {
         let flat = registerFlat("kuu-815-release")
         let before = runtimeFlatStringLiveStorageCountForTesting()

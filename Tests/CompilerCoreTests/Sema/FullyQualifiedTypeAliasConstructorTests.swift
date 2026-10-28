@@ -3,6 +3,7 @@
 import Foundation
 import Testing
 import TestStdlibCache
+@testable import CompilerTestSupport
 
 @Suite
 struct FullyQualifiedTypeAliasConstructorTests {
@@ -108,6 +109,68 @@ struct FullyQualifiedTypeAliasConstructorTests {
             #expect(sema.symbols.symbol(binding.chosenCallee)?.kind == .constructor)
             let owner = try #require(sema.symbols.parentSymbol(for: binding.chosenCallee))
             #expect(sema.symbols.symbol(owner)?.fqName.map(ctx.interner.resolve) == expectedOwner)
+        }
+    }
+
+    @Test func resolvesJavaUtilDateWithIntEpochLiteral() throws {
+        let dateSource = """
+        package java.util
+        public class Date(
+            internal val epochMilliseconds: Long,
+        ) {
+            public constructor() : this(0L)
+            public fun getTime(): Long = epochMilliseconds
+        }
+        """
+        let usageSource = """
+        fun main() {
+            val date = java.util.Date(0)
+            val epoch: Long = date.getTime()
+            java.util.Date()
+        }
+        """
+        try withTemporaryFiles(contents: [dateSource, usageSource]) { paths in
+            let ctx = makeCompilationContext(
+                inputs: paths,
+                includeStdlib: false,
+                allowDefaultStdlibLibrary: false
+            )
+            // Keep the bundled Date constructor shape without compiling the full stdlib artifact.
+            _ = ctx.sourceManager.addFile(
+                path: paths[0], contents: Data(dateSource.utf8), origin: .bundledStdlib
+            )
+            _ = ctx.sourceManager.addFile(path: paths[1], contents: Data(usageSource.utf8))
+            try runSema(ctx)
+            #expect(!ctx.diagnostics.hasError, "Expected Date(0) to resolve: \(ctx.diagnostics.diagnostics)")
+
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
+            let dateCalls = memberCallExprIDs(
+                named: "Date", in: ast, path: paths[1], ctx: ctx, interner: ctx.interner
+            )
+            let dateCall = try #require(dateCalls.first { call in
+                guard case let .memberCall(_, _, _, arguments, _) = ast.arena.expr(call) else { return false }
+                return arguments.count == 1
+            })
+            let defaultCall = try #require(dateCalls.first { call in
+                guard case let .memberCall(_, _, _, arguments, _) = ast.arena.expr(call) else { return false }
+                return arguments.isEmpty
+            })
+            guard case let .memberCall(_, _, _, arguments, _) = ast.arena.expr(dateCall) else {
+                Issue.record("Expected java.util.Date(0) to be a member-call expression")
+                return
+            }
+            let argument = try #require(arguments.first)
+            let binding = try #require(sema.bindings.callBinding(for: dateCall))
+            let signature = try #require(sema.symbols.functionSignature(for: binding.chosenCallee))
+            let owner = try #require(sema.symbols.parentSymbol(for: binding.chosenCallee))
+            let defaultBinding = try #require(sema.bindings.callBinding(for: defaultCall))
+
+            #expect(sema.symbols.symbol(binding.chosenCallee)?.kind == .constructor)
+            #expect(sema.symbols.symbol(owner)?.fqName.map(ctx.interner.resolve) == ["java", "util", "Date"])
+            #expect(signature.parameterTypes == [sema.types.longType])
+            #expect(sema.bindings.exprType(for: argument.expr) == sema.types.longType)
+            #expect(sema.symbols.functionSignature(for: defaultBinding.chosenCallee)?.parameterTypes.isEmpty == true)
         }
     }
 }

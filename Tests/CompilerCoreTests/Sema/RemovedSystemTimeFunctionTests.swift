@@ -1,5 +1,6 @@
 @testable import CompilerCore
 import Testing
+@testable import CompilerTestSupport
 
 /// KUU-1263/KUU-1468: clock getters unavailable in Kotlin/JVM must not resolve through bundled source.
 @Suite

@@ -230,6 +230,13 @@ final class ClassMemberScope: BaseScope {
     /// the class body: `Sub.M` names `Outer.I` through `Sub`'s inherited
     /// member scope (KUU-3250). Only type-like kinds qualify so value
     /// lookups keep their existing candidate sets.
+    ///
+    /// Kotlin inherits nested classifiers through the superclass chain only:
+    /// a nested classifier reachable solely via an interface supertype is
+    /// unresolved by simple name (`Child : Contract` cannot name
+    /// `Contract.Entry` as `Entry`), even when the interface sits behind a
+    /// superclass in the chain. Interfaces therefore end the walk instead of
+    /// being expanded (KUU-3637, KUU-3636).
     override func deferredCandidates(for name: InternedString) -> [SymbolID] {
         var result: [SymbolID] = []
         var seen: Set<SymbolID> = [ownerSymbol]
@@ -251,6 +258,7 @@ final class ClassMemberScope: BaseScope {
             }
             for superSymbol in memberLookupSymbols.directSupertypes(for: current)
                 where seen.insert(superSymbol).inserted {
+                guard memberLookupSymbols.symbol(superSymbol)?.kind == .class else { continue }
                 queue.append(superSymbol)
             }
         }

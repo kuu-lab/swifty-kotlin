@@ -188,6 +188,36 @@ extension CallLowerer {
            ownerInfo.kind == .class || ownerInfo.kind == .interface
                || (ownerInfo.kind == .object && sema.bindings.isObjectLiteralPropertySymbol(propertySymbol))
         {
+            // KUU-3522: `super.foo = value` on an interface property must
+            // invoke the syntactically selected supertype's default setter
+            // directly. Itable dispatch targets the receiver's runtime
+            // override — inside an overriding accessor that is this very
+            // setter, so the call recurses until the process traps. This
+            // mirrors the read side, where `isSuperQualifiedReceiver`
+            // bypasses `tryLowerInterfaceItablePropertyGetterRead` for a
+            // direct accessor call.
+            if case .superRef = ast.arena.expr(receiverExpr),
+               ownerInfo.kind == .interface,
+               memberPropertyUsesSetterAccessor(propertySymbol, ast: ast, sema: sema)
+            {
+                let setterSymbol = sema.symbols.extensionPropertySetterAccessor(for: propertySymbol)
+                    ?? SyntheticSymbolScheme.propertySetterAccessorSymbol(for: propertySymbol)
+                let result = arena.appendTemporary(type: sema.types.unitType)
+                let setterArguments = propertyAccessorArguments(
+                    for: setterSymbol, arguments: [receiverID, valueID], callExprID: exprID,
+                    sema: sema, arena: arena, interner: interner, instructions: &instructions
+                )
+                instructions.append(.call(
+                    symbol: setterSymbol,
+                    callee: interner.intern("set"),
+                    arguments: setterArguments,
+                    result: result,
+                    canThrow: false
+                ))
+                let unit = arena.appendExpr(.unit, type: sema.types.unitType)
+                instructions.append(.constValue(result: unit, value: .unit))
+                return unit
+            }
             // An interface has no per-instance storage of its own, so a
             // stored/abstract `var` written through an interface-typed
             // receiver cannot use a concrete field offset (the same reason
@@ -973,6 +1003,10 @@ extension CallLowerer {
     ) -> InternedString? {
         guard let info = sema.symbols.symbol(propertySymbol),
               info.kind == .property,
+              // Enum-class statics (the synthetic `Enum.entries` stub) have
+              // no per-entry storage to read through the placeholder helper
+              // (KUU-3544).
+              !info.flags.contains(.static),
               let ownerSymbol = enumClassOwnerSymbol(forProperty: propertySymbol, sema: sema)
         else {
             return nil

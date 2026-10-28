@@ -308,6 +308,31 @@ struct CodegenBackendScopeFunctionEdgeCasesTests {
     }
 
     @Test
+    func testNamedContextFunctionInvokesContextFunctionParameter() throws {
+        let source = """
+        import kotlin.ExperimentalContextParameters
+
+        @OptIn(ExperimentalContextParameters::class)
+        fun <A, R> context(ctx: A, block: context(A) () -> R): R = block(ctx)
+
+        @OptIn(ExperimentalContextParameters::class)
+        context(a: Int)
+        fun f() = a
+
+        @OptIn(ExperimentalContextParameters::class)
+        fun main() {
+            println(context(3) { f() })
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "NamedContextFunctionParameter",
+            expected: "3\n"
+        )
+    }
+
+    @Test
     func testCrossinlineWrapperCapturesContextParameter() throws {
         let source = """
         import kotlin.ExperimentalContextParameters

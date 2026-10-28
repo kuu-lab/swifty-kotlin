@@ -1,6 +1,7 @@
 #if canImport(Testing)
 @testable import CompilerCore
 import Testing
+@testable import CompilerTestSupport
 
 /// TYPE-103: Verify that `arrayOf()` preserves element types and that
 /// array-specific members are not incorrectly resolved on `Any` receivers.

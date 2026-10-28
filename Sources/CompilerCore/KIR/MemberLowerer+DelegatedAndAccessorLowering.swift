@@ -288,14 +288,9 @@ extension MemberLowerer {
         driver.ctx.clearImplicitReceiver()
     }
 
-    /// Uses itable virtual dispatch when the resolved symbol is an interface's
-    /// abstract declaration (KSP-491: `Lazy<T>`/`ReadWriteProperty<Any?, T>`
-    /// factories like `lazy`/`Delegates.observable` are declared to return
-    /// the interface type, so Sema always resolves `getValue`/`setValue` to
-    /// the interface's abstract member, never the concrete implementation
-    /// class's override -- a direct `.call` to an abstract member has no
-    /// body to run. `.custom` delegates constructed directly (`by Foo()`)
-    /// resolve to Foo's own concrete member and keep using direct dispatch).
+    /// Delegate conventions dispatch through the interface or class slot when
+    /// the resolved member can be overridden. A factory may return an abstract
+    /// delegate type even though the runtime object supplies the implementation.
     /// The delegate handle's static type is erased to `Any` in `$delegate_x`
     /// storage, so this always uses the dynamic (runtime type ID) itable
     /// lookup rather than a statically-known slot.
@@ -331,6 +326,21 @@ extension MemberLowerer {
                 result: result,
                 canThrow: false,
                 dispatch: .itableDynamic(interfaceTypeID: interfaceTypeID, methodSlot: methodSlot)
+            )
+        }
+        if let symbol,
+           let dispatch = resolveVirtualDispatchKind(
+               callee: symbol, receiverTypeID: nil, sema: sema, interner: interner
+           )
+        {
+            return .virtualCall(
+                symbol: symbol,
+                callee: callee,
+                receiver: dispatchReceiver ?? receiver,
+                arguments: dispatchReceiver.map { _ in [receiver] + extraArguments } ?? extraArguments,
+                result: result,
+                canThrow: false,
+                dispatch: dispatch
             )
         }
         let arguments = dispatchReceiver.map { [$0, receiver] + extraArguments }
