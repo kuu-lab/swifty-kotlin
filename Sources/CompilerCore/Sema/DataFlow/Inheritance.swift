@@ -1553,6 +1553,7 @@ extension DataFlowSemaPhase {
             switch decl {
             case let .classDecl(classDecl):
                 queue.append(contentsOf: classDecl.nestedClasses + classDecl.nestedObjects)
+                queue.append(contentsOf: classDecl.enumEntries.flatMap(\.nestedClasses))
                 if let companion = classDecl.companionObject { queue.append(companion) }
             case let .interfaceDecl(interfaceDecl):
                 queue.append(contentsOf: interfaceDecl.nestedClasses + interfaceDecl.nestedObjects)

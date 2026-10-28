@@ -636,6 +636,51 @@ extension KIRLoweringDriver {
                 continue
             }
 
+            let storedDelegateValue: KIRExprID
+            let enumEntryOwner = sema.bindings.identifierSymbols[delegateExpr].flatMap { symbol -> SymbolID? in
+                guard sema.symbols.symbol(symbol)?.kind == .field,
+                      let owner = sema.symbols.parentSymbol(for: symbol),
+                      sema.symbols.symbol(owner)?.kind == .enumClass
+                else {
+                    return nil
+                }
+                return owner
+            }
+            let enumEntryType = enumEntryOwner.map {
+                sema.types.make(.classType(ClassType(
+                    classSymbol: $0,
+                    args: [],
+                    nullability: .nonNull
+                )))
+            }
+            let delegateSourceType = enumEntryType
+                ?? sema.bindings.exprTypes[delegateExpr]
+                ?? arena.exprType(delegateValue)
+            if let delegateSourceType,
+               case let .classType(enumType) = sema.types.kind(of: delegateSourceType),
+               sema.symbols.symbol(enumType.classSymbol)?.kind == .enumClass
+            {
+                // Enum values are raw ordinals until they cross a reference
+                // boundary. A class-delegation field is an interface handle,
+                // so store the boxed enum entry rather than ordinal zero as
+                // a null pointer.
+                storedDelegateValue = boxValueForAnySlot(
+                    delegateValue,
+                    sourceType: delegateSourceType,
+                    types: sema.types,
+                    symbols: sema.symbols,
+                    interner: shared.interner,
+                    arena: arena,
+                    resultType: sema.symbols.propertyType(for: fieldSymbol),
+                    requireNonNull: true,
+                    sema: sema,
+                    cache: ctx.nominalDispatchCache,
+                    into: &body.instructions
+                )
+            } else {
+                storedDelegateValue = delegateValue
+            }
+
             guard let fieldOffset = shared.sema.symbols.nominalLayout(for: ownerSymbol)?.fieldOffsets[fieldSymbol] else {
                 continue
             }
@@ -645,7 +690,7 @@ extension KIRLoweringDriver {
             let unusedResult = arena.appendTemporary(type: shared.sema.types.anyType)
             body.append(.call(
                 callee: shared.interner.intern("kk_array_set"),
-                arguments: [receiverID, offsetExpr, delegateValue],
+                arguments: [receiverID, offsetExpr, storedDelegateValue],
                 result: unusedResult,
                 canThrow: true,
                 isSuperCall: false
