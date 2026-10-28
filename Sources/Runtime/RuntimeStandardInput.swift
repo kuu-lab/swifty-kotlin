@@ -52,17 +52,6 @@ final class RuntimeStdioInputStreamBox: RuntimeInputStreamBox {
         return skipped
     }
 
-    override func read(into list: RuntimeListBox) -> Int {
-        failure = nil
-        guard list.count > 0 else { return 0 }
-        // A short read is legal. Reading one byte avoids blocking until an
-        // entire caller-provided buffer is filled on interactive input.
-        let byte = readByte()
-        guard byte != -1 else { return -1 }
-        list[0] = Int(Int8(bitPattern: UInt8(byte)))
-        return 1
-    }
-
     override func readAllBytes() -> [Int] {
         var bytes: [Int] = []
         while true {
@@ -72,7 +61,7 @@ final class RuntimeStdioInputStreamBox: RuntimeInputStreamBox {
         }
     }
 
-    override func drainRemaining() -> Data {
+    func drainRemaining() -> Data {
         Data(readAllBytes().map { UInt8(truncatingIfNeeded: $0) })
     }
 
