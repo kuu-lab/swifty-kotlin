@@ -1265,23 +1265,14 @@ package final class MetadataEncoder {
         var currentID = symbols.parentSymbolIfKnown(for: symbolID)
         while let parentID = currentID, let parent = symbols.symbol(parentID) {
             if Self.nominalKinds.contains(parent.kind) {
+                // The second disjunct: source-backed bundled enums may reuse a
+                // synthetic nominal shell (synthetic flag set, declSite nil)
+                // while still carrying a tracked sourceFileID. Callers that opt
+                // in treat those as source-backed too.
                 if parent.kind == .enumClass,
-                   !parent.flags.contains(.synthetic),
-                   parent.declSite != nil {
-                    if let sourceFileID = symbols.sourceFileID(for: parent.id),
-                       excludedSourceFileIDs.contains(sourceFileID.rawValue)
-                    {
-                        return false
-                    }
-                    return true
-                }
-                // Source-backed bundled enums may reuse a synthetic nominal
-                // shell (synthetic flag set, declSite nil) while still carrying
-                // a tracked sourceFileID. Callers that opt in treat those as
-                // source-backed too.
-                if allowShellBackedEnum,
-                   parent.kind == .enumClass,
-                   parent.declSite != nil || symbols.sourceFileID(for: parent.id) != nil {
+                   (!parent.flags.contains(.synthetic) && parent.declSite != nil)
+                       || (allowShellBackedEnum
+                           && (parent.declSite != nil || symbols.sourceFileID(for: parent.id) != nil)) {
                     if let sourceFileID = symbols.sourceFileID(for: parent.id),
                        excludedSourceFileIDs.contains(sourceFileID.rawValue)
                     {
