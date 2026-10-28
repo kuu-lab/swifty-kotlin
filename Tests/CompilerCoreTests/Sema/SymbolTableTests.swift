@@ -36,6 +36,23 @@ struct SymbolTableTests {
     }
 
     @Test
+    func testNameOfMatchesSymbolName() {
+        let interner = StringInterner()
+        let symbols = SymbolTable()
+        let id = symbols.define(
+            kind: .function,
+            name: interner.intern("named"),
+            fqName: [interner.intern("pkg"), interner.intern("named")],
+            declSite: nil,
+            visibility: .public
+        )
+        #expect(symbols.name(of: id) == symbols.symbol(id)?.name)
+        #expect(symbols.name(of: id) == interner.intern("named"))
+        #expect(symbols.name(of: SymbolID.invalid) == nil)
+        #expect(symbols.name(of: SymbolID(rawValue: 999)) == nil)
+    }
+
+    @Test
     func testSymbolPreservesFields() throws {
         let interner = StringInterner()
         let symbols = SymbolTable()
