@@ -282,6 +282,18 @@ public struct JVMProperty {
     public var customSetter: Bool = false
 }
 
+public struct JVMRecordComponent {
+    public let name: String
+    public let type: JVMValueType
+    public let genericSignature: String?
+
+    public init(name: String, type: JVMValueType, genericSignature: String? = nil) {
+        self.name = name
+        self.type = type
+        self.genericSignature = genericSignature
+    }
+}
+
 public struct JVMEnclosingMethod {
     public let owner: String
     public let name: String
@@ -323,6 +335,7 @@ public struct JVMClass {
     public var annotationConstructor: JVMFunction? = nil
     public var underlyingProperty: String? = nil
     public var annotations: [JVMAnnotation] = []
+    public var recordComponents: [JVMRecordComponent] = []
     public var typeAliases: [JVMTypeAlias] = []
     public var isFunInterface = false
     public var genericSignature: String? = nil
