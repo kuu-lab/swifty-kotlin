@@ -39,10 +39,7 @@ extension NativeEmitter.FunctionEmissionContext {
             return
         }
 
-        gcRootArrayType = arrayType
-        gcRootArrayPointer = arrayPointer
         gcRootFrameActive = true
-        gcFramePushFunction = pushFunction
         gcRootStoreFunction = storeFunction
         gcFrameLeaveFunction = leaveFunction
 

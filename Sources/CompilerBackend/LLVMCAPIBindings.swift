@@ -83,7 +83,6 @@ final class LLVMCAPIBindings {
     typealias LLVMBuildNotFn = @convention(c) (LLVMBuilderRef?, LLVMValueRef?, UnsafePointer<CChar>?) -> LLVMValueRef?
     typealias LLVMBuildICmpFn = @convention(c) (LLVMBuilderRef?, UInt32, LLVMValueRef?, LLVMValueRef?, UnsafePointer<CChar>?) -> LLVMValueRef?
     typealias LLVMBuildZExtFn = @convention(c) (LLVMBuilderRef?, LLVMValueRef?, LLVMTypeRef?, UnsafePointer<CChar>?) -> LLVMValueRef?
-    typealias LLVMBuildTruncFn = @convention(c) (LLVMBuilderRef?, LLVMValueRef?, LLVMTypeRef?, UnsafePointer<CChar>?) -> LLVMValueRef?
     typealias LLVMBuildAllocaFn = @convention(c) (LLVMBuilderRef?, LLVMTypeRef?, UnsafePointer<CChar>?) -> LLVMValueRef?
     typealias LLVMBuildStoreFn = @convention(c) (LLVMBuilderRef?, LLVMValueRef?, LLVMValueRef?) -> LLVMValueRef?
     typealias LLVMBuildLoad2Fn = @convention(c) (LLVMBuilderRef?, LLVMTypeRef?, LLVMValueRef?, UnsafePointer<CChar>?) -> LLVMValueRef?
@@ -313,7 +312,6 @@ final class LLVMCAPIBindings {
     let buildNotFn: LLVMBuildNotFn?
     let buildICmpFn: LLVMBuildICmpFn
     let buildZExtFn: LLVMBuildZExtFn?
-    let buildTruncFn: LLVMBuildTruncFn?
     let buildAllocaFn: LLVMBuildAllocaFn?
     let buildStoreFn: LLVMBuildStoreFn?
     let buildLoad2Fn: LLVMBuildLoad2Fn?
@@ -432,7 +430,6 @@ final class LLVMCAPIBindings {
         buildNotFn: LLVMBuildNotFn?,
         buildICmpFn: @escaping LLVMBuildICmpFn,
         buildZExtFn: LLVMBuildZExtFn?,
-        buildTruncFn: LLVMBuildTruncFn?,
         buildAllocaFn: LLVMBuildAllocaFn?,
         buildStoreFn: LLVMBuildStoreFn?,
         buildLoad2Fn: LLVMBuildLoad2Fn?,
@@ -551,7 +548,6 @@ final class LLVMCAPIBindings {
         self.buildNotFn = buildNotFn
         self.buildICmpFn = buildICmpFn
         self.buildZExtFn = buildZExtFn
-        self.buildTruncFn = buildTruncFn
         self.buildAllocaFn = buildAllocaFn
         self.buildStoreFn = buildStoreFn
         self.buildLoad2Fn = buildLoad2Fn
