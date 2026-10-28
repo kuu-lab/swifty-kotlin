@@ -51,6 +51,18 @@
       "runtimeFacade": "kotlin/math/MathKt"
     },
     {
+      "path": "kotlin/comparisons/Comparisons.kt",
+      "virtualPath": "<kswiftk-jvm>/comparisons.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/comparisons/ComparisonsKt"
+    },
+    {
+      "path": "kotlin/comparisons/ComparisonFactories.kt",
+      "virtualPath": "<kswiftk-jvm>/comparison-factories.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/comparisons/ComparisonsKt__ComparisonsKt"
+    },
+    {
       "path": "declarations/JavaCollections.kt",
       "virtualPath": "<kswiftk-jvm>/javaCollections.kt",
       "excludeFromStdlibBuild": false,
