@@ -14,7 +14,7 @@ public inline fun <T, R : Comparable<R>> Array<out T>.minByOrNull(selector: (T) 
     while (index < size) {
         val element = this[index]
         val key = selector(element)
-        if (key < bestKey) {
+        if (bestKey > key) {
             bestElement = element
             bestKey = key
         }
@@ -32,7 +32,7 @@ public inline fun <T, R : Comparable<R>> Array<out T>.maxByOrNull(selector: (T) 
     while (index < size) {
         val element = this[index]
         val key = selector(element)
-        if (key > bestKey) {
+        if (bestKey < key) {
             bestElement = element
             bestKey = key
         }

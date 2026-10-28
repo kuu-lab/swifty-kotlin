@@ -47,7 +47,7 @@ internal fun <T, R : Comparable<R>> MutableList<T>.stableSortBySelector(
                     j -= 1
                 }
             } else {
-                while (j >= start && compareValuesBy(this[j], element, selector) > 0) {
+                while (j >= start && compareValuesBy(element, this[j], selector) < 0) {
                     this[j + 1] = this[j]
                     j -= 1
                 }
@@ -72,7 +72,7 @@ internal fun <T, R : Comparable<R>> MutableList<T>.stableSortBySelector(
             var k = i
             if (descending) {
                 while (a < mid && b < end) {
-                    if (compareValuesBy(src[b], src[a], selector) > 0) {
+                    if (compareValuesBy(src[a], src[b], selector) < 0) {
                         dst[k] = src[b]
                         b += 1
                     } else {
@@ -131,7 +131,7 @@ internal fun <T> MutableList<T>.stableSortByComparison(comparison: (T, T) -> Int
         while (i < end) {
             val element = this[i]
             var j = i - 1
-            while (j >= start && comparison(this[j], element) > 0) {
+            while (j >= start && comparison(element, this[j]) < 0) {
                 this[j + 1] = this[j]
                 j -= 1
             }
@@ -201,7 +201,7 @@ internal fun <T> Array<T>.stableSortWith(comparator: Comparator<T>) {
         while (i < end) {
             val element = this[i]
             var j = i - 1
-            while (j >= start && comparator.compare(this[j], element) > 0) {
+            while (j >= start && comparator.compare(element, this[j]) < 0) {
                 this[j + 1] = this[j]
                 j -= 1
             }
@@ -273,7 +273,7 @@ internal fun <T> MutableList<T>.stableSortWith(comparator: Comparator<T>) {
         while (i < end) {
             val element = this[i]
             var j = i - 1
-            while (j >= start && comparator.compare(this[j], element) > 0) {
+            while (j >= start && comparator.compare(element, this[j]) < 0) {
                 this[j + 1] = this[j]
                 j -= 1
             }
