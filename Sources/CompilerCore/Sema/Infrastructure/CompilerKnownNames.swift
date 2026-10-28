@@ -37,79 +37,9 @@ package enum KnownCompilerAnnotation: CaseIterable {
     case nativeThreadLocal
     case inlineOnly
 
+    /// Every known annotation's simple name is the last component of its qualified name.
     var simpleName: String {
-        switch self {
-        case .deprecated:
-            "Deprecated"
-        case .deprecatedSinceKotlin:
-            "DeprecatedSinceKotlin"
-        case .replaceWith:
-            "ReplaceWith"
-        case .metadata:
-            "Metadata"
-        case .requiresOptIn:
-            "RequiresOptIn"
-        case .repeatable:
-            "Repeatable"
-        case .target:
-            "Target"
-        case .experimentalStdlibApi:
-            "ExperimentalStdlibApi"
-        case .experimentalVersionOverloading:
-            "ExperimentalVersionOverloading"
-        case .jvmStatic:
-            "JvmStatic"
-        case .jvmName:
-            "JvmName"
-        case .jvmField:
-            "JvmField"
-        case .jvmOverloads:
-            "JvmOverloads"
-        case .throws_:
-            "Throws"
-        case .rootThrows:
-            "Throws"
-        case .suppress:
-            "Suppress"
-        case .dslMarker:
-            "DslMarker"
-        case .parameterName:
-            "ParameterName"
-        case .publishedApi:
-            "PublishedApi"
-        case .wasExperimental:
-            "WasExperimental"
-        case .sinceKotlin:
-            "SinceKotlin"
-        case .introducedAt:
-            "IntroducedAt"
-        case .optIn:
-            "OptIn"
-        case .subclassOptInRequired:
-            "SubclassOptInRequired"
-        case .consistentCopyVisibility:
-            "ConsistentCopyVisibility"
-        case .exposedCopyVisibility:
-            "ExposedCopyVisibility"
-        case .optionalExpectation:
-            "OptionalExpectation"
-        case .builderInference:
-            "BuilderInference"
-        case .experimentalTypeInference:
-            "ExperimentalTypeInference"
-        case .overloadResolutionByLambdaReturnType:
-            "OverloadResolutionByLambdaReturnType"
-        case .contextFunctionTypeParams:
-            "ContextFunctionTypeParams"
-        case .unsafeVariance:
-            "UnsafeVariance"
-        case .ksSymbolName:
-            "KsSymbolName"
-        case .nativeThreadLocal:
-            "ThreadLocal"
-        case .inlineOnly:
-            "InlineOnly"
-        }
+        String(qualifiedName[qualifiedName.index(after: qualifiedName.lastIndex(of: ".")!)...])
     }
 
     var qualifiedName: String {
