@@ -230,12 +230,12 @@ protocol IndexedLibraryEntryProvider: AnyObject {
     /// libraries, so each drain is capped by `SymbolTable.importDrainEpoch`.
     var importOrder: Int { get }
     /// Register every pending entry whose FQ name equals `fqName`.
-    func drainEntries(fqName: [InternedString], into symbols: SymbolTable)
+    func drainEntries(fqName: [InternedString])
     /// Register every pending entry declared directly under `parentFQName`,
     /// including extension records reparented to that nominal owner.
-    func drainChildren(parentFQName: [InternedString], into symbols: SymbolTable)
+    func drainChildren(parentFQName: [InternedString])
     /// Register every pending declaration-kind entry with this simple name.
-    func drainEntries(shortName: InternedString, into symbols: SymbolTable)
+    func drainEntries(shortName: InternedString)
     /// Whether the index contains declarations nested under `fqName` — the
     /// signal that justifies synthesizing a package shell for that path.
     func containsEntriesNested(under fqName: [InternedString]) -> Bool
@@ -624,7 +624,7 @@ public final class SymbolTable {
         else { return }
         defer { fqNameDrainInProgress.remove(fqName) }
         for provider in indexedLibraryProviders where provider.importOrder <= importDrainEpoch {
-            provider.drainEntries(fqName: fqName, into: self)
+            provider.drainEntries(fqName: fqName)
         }
         guard synthesizePackage else { return }
         let alreadyHasPackage = byFQName[fqName]?.contains(where: { symbol($0)?.kind == .package }) == true
@@ -662,7 +662,7 @@ public final class SymbolTable {
         defer { childrenDrainInProgress.remove(parentFQName) }
         var claimedPrefixes: Set<[InternedString]> = []
         for provider in indexedLibraryProviders where provider.importOrder <= importDrainEpoch {
-            provider.drainChildren(parentFQName: parentFQName, into: self)
+            provider.drainChildren(parentFQName: parentFQName)
             for prefix in provider.packagePrefixes(under: parentFQName) {
                 claimedPrefixes.insert(prefix)
             }
@@ -680,7 +680,7 @@ public final class SymbolTable {
         else { return }
         defer { shortNameDrainInProgress.remove(shortName) }
         for provider in indexedLibraryProviders where provider.importOrder <= importDrainEpoch {
-            provider.drainEntries(shortName: shortName, into: self)
+            provider.drainEntries(shortName: shortName)
         }
     }
 

@@ -63,8 +63,7 @@ func boxValueForAnySlot<C: RangeReplaceableCollection>(
         let effectiveResultType = resultType ?? types.anyType
         let boxedResult = arena.appendTemporary(type: effectiveResultType)
         emitValueClassBoxCall(
-            value: value, classSymbol: vcSymbol, result: boxedResult,
-            resultType: effectiveResultType, types: types, symbols: symbols,
+            value: value, classSymbol: vcSymbol, result: boxedResult, types: types, symbols: symbols,
             interner: interner, arena: arena, into: &instructions
         )
         return boxedResult
@@ -81,8 +80,7 @@ func boxValueForAnySlot<C: RangeReplaceableCollection>(
         let effectiveResultType = resultType ?? types.anyType
         let boxedResult = arena.appendTemporary(type: effectiveResultType)
         emitValueClassBoxCall(
-            value: value, classSymbol: vcSymbol, result: boxedResult,
-            resultType: effectiveResultType, types: types, symbols: symbols,
+            value: value, classSymbol: vcSymbol, result: boxedResult, types: types, symbols: symbols,
             interner: interner, arena: arena, into: &instructions
         )
         return boxedResult
@@ -511,7 +509,7 @@ func valueClassBoxTargetIsBoxed(_ kind: TypeKind, symbols: SymbolTable?) -> Bool
 /// value-class box that `kk_value_class_unbox` must unwrap back to the `V`
 /// payload (KUU-3115). Any `.classType` qualifies: the helper's class-ID check
 /// makes it a no-op for payloads that arrive already unboxed.
-func valueClassUnboxSourceIsBoxed(_ kind: TypeKind, symbols: SymbolTable?) -> Bool {
+func valueClassUnboxSourceIsBoxed(_ kind: TypeKind) -> Bool {
     switch kind {
     case .any, .typeParam, .classType:
         return true
@@ -528,7 +526,6 @@ func emitValueClassBoxCall<C: RangeReplaceableCollection>(
     value: KIRExprID,
     classSymbol: SymbolID,
     result: KIRExprID,
-    resultType: TypeID?,
     types: TypeSystem,
     symbols: SymbolTable,
     interner: StringInterner,
@@ -552,7 +549,6 @@ func emitValueClassUnboxCall<C: RangeReplaceableCollection>(
     value: KIRExprID,
     classSymbol: SymbolID,
     result: KIRExprID,
-    resultType: TypeID?,
     types: TypeSystem,
     symbols: SymbolTable,
     interner: StringInterner,
@@ -624,7 +620,6 @@ func emitBoxCallWithValueClassTag<C: RangeReplaceableCollection>(
             ordinal: value,
             classSymbol: classType.classSymbol,
             result: result,
-            resultType: resultType,
             types: types,
             symbols: symbols,
             interner: interner,
@@ -646,8 +641,7 @@ func emitBoxCallWithValueClassTag<C: RangeReplaceableCollection>(
         || nullableUnderlyingValueClassSymbol(of: rawSourceKind, types: types, symbols: symbols) != nil
     {
         emitValueClassBoxCall(
-            value: value, classSymbol: classType.classSymbol, result: result,
-            resultType: resultType, types: types, symbols: symbols,
+            value: value, classSymbol: classType.classSymbol, result: result, types: types, symbols: symbols,
             interner: interner, arena: arena, into: &instructions
         )
         return
@@ -702,7 +696,6 @@ func emitEnumOrdinalBoxCall<C: RangeReplaceableCollection>(
     ordinal: KIRExprID,
     classSymbol: SymbolID,
     result: KIRExprID,
-    resultType: TypeID?,
     types: TypeSystem,
     symbols: SymbolTable,
     interner: StringInterner,

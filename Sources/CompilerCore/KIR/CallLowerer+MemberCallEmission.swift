@@ -680,7 +680,6 @@ extension CallLowerer {
                 ordinal: receiver.loweredID,
                 classSymbol: receiverClassType.classSymbol,
                 result: boxedReceiver,
-                resultType: sema.types.anyType,
                 types: sema.types,
                 symbols: sema.symbols,
                 interner: interner,

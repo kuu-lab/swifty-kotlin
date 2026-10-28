@@ -220,7 +220,7 @@ extension DataFlowSemaPhase {
 
         // MARK: - IndexedLibraryEntryProvider
 
-        func drainEntries(fqName: [InternedString], into symbols: SymbolTable) {
+        func drainEntries(fqName: [InternedString]) {
             buildMapsIfNeeded()
             guard let indexes = pendingByFQName.removeValue(forKey: Substring(render(fqName))) else { return }
             for index in indexes {
@@ -228,7 +228,7 @@ extension DataFlowSemaPhase {
             }
         }
 
-        func drainChildren(parentFQName: [InternedString], into symbols: SymbolTable) {
+        func drainChildren(parentFQName: [InternedString]) {
             buildMapsIfNeeded()
             guard let indexes = pendingChildren.removeValue(forKey: Substring(render(parentFQName))) else { return }
             for index in indexes {
@@ -236,7 +236,7 @@ extension DataFlowSemaPhase {
             }
         }
 
-        func drainEntries(shortName: InternedString, into symbols: SymbolTable) {
+        func drainEntries(shortName: InternedString) {
             buildMapsIfNeeded()
             guard let indexes = pendingByShortName.removeValue(forKey: Substring(interner.resolve(shortName))) else { return }
             for index in indexes {
