@@ -1100,13 +1100,13 @@ enum ParserBoundaryPolicy {
     }
 }
 
-/// Tracks a `by` delegate expression while flat-scanning a class/object
-/// supertype list, so a top-level `{` can be classified as part of the
-/// delegate expression — the body of `when`, `if`/`else`, `try`/`catch`/
-/// `finally`, or `do`, an object literal's body, or a lambda directly after
-/// `by` — versus the declaration's own body. kotlinc never parses a
-/// trailing lambda in this position: `C by run { x }` reports "function
-/// invocation 'run(...)' expected" and treats the brace as the class body.
+/// Tracks a `by` delegate expression while flat-scanning class/object headers
+/// and property initializers containing object literals, so a top-level `{`
+/// can be classified as part of the delegate expression — the body of `when`,
+/// `if`/`else`, `try`/`catch`/`finally`, or `do`, an object literal's body, or a
+/// lambda directly after `by` — versus the declaration's own body. kotlinc
+/// never parses a trailing lambda in this position: `C by run { x }` reports
+/// "function invocation 'run(...)' expected" and treats the brace as the class body.
 struct DelegateExpressionBraceTracker {
     /// A top-level `by` introduced a delegate expression in the current
     /// supertype entry.
