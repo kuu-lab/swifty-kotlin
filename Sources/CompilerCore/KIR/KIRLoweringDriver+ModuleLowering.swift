@@ -84,6 +84,18 @@ extension KIRLoweringDriver {
             compilationCtx: compilationCtx
         )
 
+        // KUU-3675: compiler-synthetic and initializer-less imported
+        // companion objects (e.g. `kotlin.String.Companion`) have no source
+        // declaration and no artifact initializer, so nothing ever populated
+        // their root slots. Synthesize eager handles for them before the
+        // companion-initializer call list is built.
+        let uninitializedCompanionDeclIDs = synthesizeUninitializedCompanionHandles(
+            shared: shared
+        )
+        if !uninitializedCompanionDeclIDs.isEmpty {
+            files.append(KIRFile(fileID: .invalid, decls: uninitializedCompanionDeclIDs))
+        }
+
         // Object and companion handles must exist before any top-level
         // initializer can trigger their lazy bodies. Keep these allocation-only
         // calls ahead of user-visible property initialization.

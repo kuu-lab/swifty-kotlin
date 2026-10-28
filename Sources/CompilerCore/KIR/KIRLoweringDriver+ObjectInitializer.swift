@@ -494,6 +494,202 @@ extension KIRLoweringDriver {
         return declIDs
     }
 
+    /// KUU-3675: companion objects that never got an initializer from any
+    /// source — compiler-synthetic companions like `kotlin.String.Companion`
+    /// and the primitive companions created by
+    /// `ensureSyntheticPrimitiveCompanionSymbol` (no AST object declaration
+    /// exists for `synthesizeCompanionInitializerIfNeeded` to lower), plus
+    /// imported stub companions an artifact recorded without initializer
+    /// metadata — kept an empty root slot. `symbolRef`/`loadGlobal` then read
+    /// the weak-import zero value, which is not a tagged object, so any
+    /// nominal `kk_op_cast` on the companion (the erased-boundary casts in
+    /// lambda/function-value adapters, `as`/`is` checks) threw at runtime.
+    /// Synthesize the same eager handle a source companion's initializer
+    /// produces — `kk_object_new` + `storeGlobal` + the dispatch
+    /// registrations — and run it from module initialization, so the
+    /// singleton is a real object. Registered through
+    /// `registerCompanionInitializer` (not `SymbolTable`'s initializer link
+    /// tables) so the consumer keeps its weak/local slot definition instead
+    /// of switching to an external reference nothing defines.
+    func synthesizeUninitializedCompanionHandles(
+        shared: KIRLoweringSharedContext
+    ) -> [KIRDeclID] {
+        let sema = shared.sema
+        let arena = shared.arena
+
+        var existingGlobals: Set<SymbolID> = []
+        for declaration in arena.declarations {
+            if case let .global(global) = declaration {
+                existingGlobals.insert(global.symbol)
+            }
+        }
+
+        var declIDs: [KIRDeclID] = []
+        for symbolInfo in sema.symbols.allSymbols() where symbolInfo.kind == .object {
+            let objectSymbol = symbolInfo.id
+            guard let ownerSymbol = sema.symbols.parentSymbolIfKnown(for: objectSymbol),
+                  sema.symbols.companionObjectSymbolIfKnown(for: ownerSymbol) == objectSymbol
+            else { continue }
+            // A source `companion object` declaration already produced an
+            // initializer via `synthesizeCompanionInitializerIfNeeded`;
+            // synthetic stubs and initializer-less imported companions are
+            // the only ones still missing a handle.
+            guard symbolInfo.flags.contains(.synthetic)
+                  || symbolInfo.flags.contains(.importedLibrary),
+                  !symbolInfo.flags.contains(.expectDeclaration)
+            else { continue }
+            // An artifact-recorded initializer shell (or a runtime-provided
+            // external handle) already populates the slot.
+            guard sema.symbols.objectInitializerSymbolIfKnown(for: objectSymbol) == nil,
+                  sema.symbols.companionObjectInitializerSymbolIfKnown(for: ownerSymbol) == nil,
+                  sema.symbols.externalLinkNameIfKnown(for: objectSymbol)?.isEmpty != false
+            else { continue }
+
+            let companionType = sema.types.make(.classType(ClassType(
+                classSymbol: objectSymbol, args: [], nullability: .nonNull
+            )))
+            if !existingGlobals.contains(objectSymbol) {
+                declIDs.append(arena.appendDecl(.global(KIRGlobal(
+                    symbol: objectSymbol, type: companionType
+                ))))
+                existingGlobals.insert(objectSymbol)
+            }
+            declIDs.append(contentsOf: synthesizeCompanionHandleInitFunction(
+                objectSymbol: objectSymbol,
+                ownerSymbol: ownerSymbol,
+                companionType: companionType,
+                shared: shared
+            ))
+        }
+        return declIDs
+    }
+
+    /// Emits the `__companion_init_<owner>_<object>` function for
+    /// ``synthesizeUninitializedCompanionHandles``. The name keeps the
+    /// established metadata convention, so a `.kklib` built from this module
+    /// re-exports the initializer and downstream consumers can call it
+    /// instead of synthesizing their own. The allocation is guarded by a
+    /// zero check: more than one module can legitimately emit an initializer
+    /// for the same shared root slot (two consumers of an artifact that has
+    /// none), and the first allocation must win so `===` identity stays
+    /// stable across module boundaries.
+    private func synthesizeCompanionHandleInitFunction(
+        objectSymbol: SymbolID,
+        ownerSymbol: SymbolID,
+        companionType: TypeID,
+        shared: KIRLoweringSharedContext
+    ) -> [KIRDeclID] {
+        let sema = shared.sema
+        let arena = shared.arena
+        let interner = shared.interner
+
+        let initializerSymbol = ctx.allocateSyntheticGeneratedSymbol()
+        let initializerName = interner.intern(
+            "__companion_init_\(ownerSymbol.rawValue)_\(objectSymbol.rawValue)"
+        )
+
+        ctx.resetScopeForFunction()
+        ctx.beginCallableLoweringScope()
+
+        var body: KIRLoweringEmitContext = [.beginBlock]
+        let intType = sema.types.intType
+
+        let initLabel = ctx.makeLoopLabel()
+        let doneLabel = ctx.makeLoopLabel()
+        let slotExpr = arena.appendExpr(.symbolRef(objectSymbol), type: intType)
+        body.append(.loadGlobal(result: slotExpr, symbol: objectSymbol))
+        let zeroExpr = arena.appendExpr(.intLiteral(0), type: intType)
+        body.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
+        body.append(.jumpIfEqual(lhs: slotExpr, rhs: zeroExpr, target: initLabel))
+        body.append(.jump(doneLabel))
+        body.append(.label(initLabel))
+
+        let layout = sema.symbols.nominalLayout(for: objectSymbol)
+        let slotCount = Int64(max(layout?.instanceSizeWords ?? 1, 1))
+        let slotCountExpr = arena.appendExpr(.intLiteral(slotCount), type: intType)
+        body.append(.constValue(result: slotCountExpr, value: .intLiteral(slotCount)))
+        let classIDValue = RuntimeTypeCheckToken.stableNominalTypeID(
+            symbol: objectSymbol, sema: sema, interner: interner
+        )
+        let classIDExpr = arena.appendExpr(.intLiteral(classIDValue), type: intType)
+        body.append(.constValue(result: classIDExpr, value: .intLiteral(classIDValue)))
+        let allocatedObject = arena.appendTemporary(type: companionType)
+        body.append(.call(
+            callee: interner.intern("kk_object_new"),
+            arguments: [slotCountExpr, classIDExpr],
+            result: allocatedObject,
+            canThrow: false
+        ))
+        body.append(.storeGlobal(value: allocatedObject, symbol: objectSymbol))
+
+        appendNominalSupertypeEdgeRegistrations(
+            childSymbol: objectSymbol,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            instructions: &body.instructions
+        )
+        appendObjectItableMethodRegistrations(
+            objectValue: allocatedObject,
+            nominalSymbol: objectSymbol,
+            driver: self,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            instructions: &body.instructions
+        )
+        appendObjectVtableMethodRegistrations(
+            objectValue: allocatedObject,
+            nominalSymbol: objectSymbol,
+            driver: self,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            instructions: &body.instructions
+        )
+        appendObjectAnyToStringRegistration(
+            objectValue: allocatedObject,
+            nominalSymbol: objectSymbol,
+            driver: self,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            instructions: &body.instructions
+        )
+        callLowerer.emitKClassMetadataRegistration(
+            objectSymbol: objectSymbol,
+            typeID: classIDValue,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            instructions: &body.instructions
+        )
+
+        body.append(.label(doneLabel))
+        body.append(.returnUnit)
+        body.append(.endBlock)
+
+        let initDeclID = arena.appendDecl(
+            .function(
+                KIRFunction(
+                    symbol: initializerSymbol,
+                    name: initializerName,
+                    params: [],
+                    returnType: sema.types.unitType,
+                    body: body,
+                    isSuspend: false,
+                    isInline: false
+                )
+            )
+        )
+        ctx.registerCompanionInitializer(symbol: initializerSymbol, name: initializerName)
+
+        var declIDs = ctx.drainGeneratedCallableDecls()
+        declIDs.insert(initDeclID, at: 0)
+        ctx.clearImplicitReceiver()
+        return declIDs
+    }
+
     /// BUG-274: the object's heap handle already exists (allocated eagerly by
     /// `synthesizeObjectInitializer`), so this function only needs to
     /// `loadGlobal` it before delegating to the superclass constructor.

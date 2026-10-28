@@ -325,5 +325,74 @@ import Testing
         #expect(!ctx.diagnostics.hasError)
     }
 
+    // MARK: - Synthetic builtin companion handle (KUU-3675)
+
+    /// KUU-3675: synthetic companions such as `kotlin.String.Companion` have
+    /// no AST object declaration, so no initializer was ever synthesized for
+    /// them and their global root slots stayed zero. Any nominal cast on the
+    /// companion value (the erased-boundary cast inside a function-value
+    /// adapter) then threw at runtime. `synthesizeUninitializedCompanionHandles`
+    /// must emit an eager `__companion_init` that allocates and stores a real
+    /// singleton handle, and `main` must call it before user code runs.
+    @Test func testSyntheticCompanionHandleInitializerIsEmitted() throws {
+        let source = """
+        fun <T> T.f(E: (y: T) -> String): Boolean = E(this).isEmpty()
+        fun main() = println((String).f { v -> "" })
+        """
+        let ctx = makeContextFromSource(source)
+        try runToKIR(ctx)
+
+        #expect(!ctx.diagnostics.hasError)
+        let module = try #require(ctx.kir)
+        let sema = try #require(ctx.sema)
+        let interner = ctx.interner
+
+        let kotlinName = interner.intern("kotlin")
+        let stringName = interner.intern("String")
+        guard let stringSymbol = sema.symbols.lookup(fqName: [kotlinName, stringName]),
+              let companionSymbol = sema.symbols.companionObjectSymbol(for: stringSymbol)
+        else {
+            Issue.record("kotlin.String.Companion was not registered")
+            return
+        }
+
+        #expect(module.arena.declarations.contains { declaration in
+            guard case let .global(global) = declaration else { return false }
+            return global.symbol == companionSymbol
+        })
+
+        let expectedName = interner.intern(
+            "__companion_init_\(stringSymbol.rawValue)_\(companionSymbol.rawValue)"
+        )
+        let initFunction = try #require(
+            module.arena.declarations.compactMap { declaration -> KIRFunction? in
+                guard case let .function(function) = declaration,
+                      function.name == expectedName
+                else { return nil }
+                return function
+            }.first,
+            "no __companion_init function was synthesized for kotlin.String.Companion"
+        )
+        #expect(initFunction.body.contains { instruction in
+            guard case let .call(_, callee, _, _, _, _, _, _) = instruction else { return false }
+            return interner.resolve(callee) == "kk_object_new"
+        })
+        #expect(initFunction.body.contains { instruction in
+            guard case let .storeGlobal(_, symbol) = instruction else { return false }
+            return symbol == companionSymbol
+        })
+
+        let mainCallsInitializer = module.arena.declarations.contains { declaration in
+            guard case let .function(function) = declaration,
+                  interner.resolve(function.name) == "main"
+            else { return false }
+            return function.body.contains { instruction in
+                guard case let .call(symbol, _, _, _, _, _, _, _) = instruction else { return false }
+                return symbol == initFunction.symbol
+            }
+        }
+        #expect(mainCallsInitializer)
+    }
+
 }
 #endif
