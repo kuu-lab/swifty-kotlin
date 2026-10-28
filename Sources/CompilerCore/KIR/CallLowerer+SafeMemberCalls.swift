@@ -1458,13 +1458,21 @@ extension CallLowerer {
                     interner: interner
                 )
             } ?? false
+            let usesClassReceiverListGetRuntimeBridge = chosen.map {
+                isClassReceiverListGetRuntimeBridge(
+                    $0,
+                    receiverTypeID: receiverTypeForDispatch,
+                    sema: sema
+                )
+            } ?? false
             if !isSuperCall,
                !isRuntimeRangeReceiver,
                let chosen,
                (!hasExternalLink
                    || isClockRuntimeVirtualBridge(chosen, sema: sema)
                    || usesIteratorRuntimeVirtualBridge
-                   || usesBoxedCollectionVirtualBridge),
+                   || usesBoxedCollectionVirtualBridge
+                   || usesClassReceiverListGetRuntimeBridge),
                let dispatchKind = resolveVirtualDispatch(
                    callee: chosen,
                    receiverTypeID: dispatchReceiver.flatMap { arena.exprType($0) } ?? receiverTypeForDispatch,
@@ -1478,7 +1486,7 @@ extension CallLowerer {
                 {
                     vcArguments.removeFirst()
                 }
-                let virtualCalleeName = usesIteratorRuntimeVirtualBridge
+                let virtualCalleeName = usesIteratorRuntimeVirtualBridge || usesClassReceiverListGetRuntimeBridge
                     ? (sema.symbols.symbol(chosen)?.name ?? resolvedCalleeName)
                     : resolvedCalleeName
                 let virtualInstruction: KIRInstruction = .virtualCall(
@@ -1640,6 +1648,26 @@ extension CallLowerer {
         default:
             return false
         }
+    }
+
+    /// A class-typed `ArrayList.get` call must dispatch through the Kotlin
+    /// vtable so a subclass override wins over the runtime list-storage bridge.
+    /// Interface-typed collection boxes keep calling the bridge directly.
+    func isClassReceiverListGetRuntimeBridge(
+        _ callee: SymbolID,
+        receiverTypeID: TypeID?,
+        sema: SemaModule
+    ) -> Bool {
+        guard sema.symbols.externalLinkName(for: callee) == "__kk_list_get",
+              let parent = sema.symbols.parentSymbol(for: callee),
+              sema.symbols.symbol(parent)?.kind == .class,
+              let receiverTypeID,
+              let (_, receiverSymbol) = resolveClassTypeSymbol(receiverTypeID, sema: sema),
+              receiverSymbol.kind == .class
+        else {
+            return false
+        }
+        return true
     }
 
     /// Thin wrapper over the free `resolveVirtualDispatchKind` (below, outside
