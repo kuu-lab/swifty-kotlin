@@ -272,6 +272,20 @@ extension JVMFunctionBuilder {
                     resolved: program.expressionType(id)
                 ))
             }
+            if member == "sortedWith", args.count == 1 {
+                let iterableType = JVMValueType.reference("java/lang/Iterable", nullable: false)
+                let comparatorType = JVMValueType.reference("java/util/Comparator", nullable: false)
+                let source = try convert(requireValue(receiverID), to: iterableType)
+                let comparator = try convert(requireValue(args[0].expr), to: comparatorType)
+                return JVMIntrinsicResult(value: try jdkCall(
+                    "kotlin/collections/CollectionsKt",
+                    "sortedWith",
+                    [iterableType, comparatorType],
+                    .reference("java/util/List", nullable: false),
+                    arguments: [source, comparator],
+                    resolved: program.expressionType(id)
+                ))
+            }
             // JDK collection interfaces retain the virtual Object contract;
             // their implementations provide structural equality and hashing.
             if ["hashCode", "toString"].contains(member), args.isEmpty {
