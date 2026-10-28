@@ -1528,6 +1528,12 @@ extension CallLowerer {
             return nil
         }
 
+        if calleeName == knownNames.zip, argumentCount == 4 {
+            // Keep Iterable.zip(transform) on its inline source path so the
+            // callback's non-local return is expanded into the caller.
+            return nil
+        }
+
         if calleeName == knownNames.zip,
            let chosenCallee,
            sema.symbols.isSourceBackedSymbol(chosenCallee),

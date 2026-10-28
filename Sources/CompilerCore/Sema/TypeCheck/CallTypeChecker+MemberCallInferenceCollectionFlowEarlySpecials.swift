@@ -365,7 +365,17 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
             } else {
                 sema.types.anyType
             }
-            _ = bindBundledIterableSourceFunction(typeArguments: sourceTypeArguments, locals: &locals)
+            let didBindSource = bindBundledIterableSourceFunction(
+                typeArguments: sourceTypeArguments,
+                locals: &locals
+            )
+            if didBindSource,
+               args.count >= 2,
+               let lambdaExpr = ast.arena.expr(args[1].expr),
+               lambdaExpr.isLambdaOrCallableRef
+            {
+                sema.bindings.unmarkCollectionHOFLambdaExpr(args[1].expr)
+            }
             let finalType = safeCall ? sema.types.makeNullable(resultType) : resultType
             sema.bindings.markCollectionExpr(id)
             sema.bindings.bindExprType(id, type: finalType)
