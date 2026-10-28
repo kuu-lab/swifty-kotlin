@@ -171,6 +171,18 @@ extension CoroutineLoweringPass {
                     isSuperCall: call.isSuperCall
                 )
             )
+            if resultUnboxing != nil, let wrapperResult, let anyType = rewrite.anyType {
+                let suspendedExpr = rewrite.module.arena.appendTemporary(type: anyType)
+                instructions.append(.call(
+                    callee: rewrite.ctx.interner.intern("kk_coroutine_suspended"),
+                    arguments: [],
+                    result: suspendedExpr,
+                    canThrow: false
+                ))
+                // The erased wrapper result carries COROUTINE_SUSPENDED unchanged.
+                // Preserve it before interpreting the word as a value-class payload.
+                instructions.append(.returnIfEqual(lhs: wrapperResult, rhs: suspendedExpr))
+            }
             if let callResult = call.result, let resultUnboxing, let wrapperResult {
                 if let classSymbol = resultUnboxing.classSymbol,
                    let sema = rewrite.ctx.sema
