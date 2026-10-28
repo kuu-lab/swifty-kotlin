@@ -310,7 +310,29 @@ extension BuildASTPhase.ExpressionParser {
         }
         let hasTypeParameters = sanitized.index(after: declarationIndex) < sanitized.endIndex
             && sanitized[sanitized.index(after: declarationIndex)].kind == .symbol(.lessThan)
-        if hasLeadingAnnotation || hasTypeParameters {
+        // `val O.e` inside an object literal is a member extension property:
+        // a top-level `.` in the header (before `:`, `=`, or an accessor/`by`
+        // suffix) separates the receiver type from the property name. The
+        // hand-rolled local-decl prefix parser cannot read receiver-qualified
+        // names, so route these through the regular declaration builder, which
+        // preserves `PropertyDecl.receiverType`.
+        var hasReceiverQualifier = false
+        var headerDepth = BuildASTPhase.BracketDepth()
+        scanHeader: for token in sanitized.dropFirst(declarationIndex + 1) {
+            defer { headerDepth.track(token.kind) }
+            guard headerDepth.isAtTopLevel else { continue }
+            switch token.kind {
+            case .symbol(.dot), .symbol(.questionDot):
+                hasReceiverQualifier = true
+                break scanHeader
+            case .symbol(.colon), .symbol(.assign),
+                 .softKeyword(.by), .softKeyword(.get), .softKeyword(.set):
+                break scanHeader
+            default:
+                continue
+            }
+        }
+        if hasLeadingAnnotation || hasTypeParameters || hasReceiverQualifier {
             // The hand-built property path below uses a local-declaration parser
             // that does not consume declaration annotations. Reparse annotated
             // members through the normal declaration builder so their
