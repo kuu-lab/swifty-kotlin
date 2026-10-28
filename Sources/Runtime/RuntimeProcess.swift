@@ -14,7 +14,9 @@ private final class RuntimeProcessBox: @unchecked Sendable {
     }
 
     func waitFor() -> Int {
+        let gcBlocking = runtimeGCSafepoints.beginBlockingIfEnrolled()
         process.waitUntilExit()
+        if gcBlocking { runtimeGCSafepoints.endBlocking() }
         return Int(process.terminationStatus)
     }
 

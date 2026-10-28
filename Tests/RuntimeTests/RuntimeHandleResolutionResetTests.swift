@@ -17,7 +17,7 @@ struct RuntimeHandleResolutionResetTests {
     func testRangeHandleStaysUsableAcrossGCReset() {
         let range = kk_op_rangeTo(1, 5)
 
-        kk_runtime_reset_gc()
+        #expect(kk_runtime_reset_gc())
 
         #expect(runtimeRangeBox(from: range) != nil)
         var thrown = 0
@@ -33,7 +33,7 @@ struct RuntimeHandleResolutionResetTests {
             _ = kk_array_set(array, index, index + 1, nil)
         }
 
-        kk_runtime_reset_gc()
+        #expect(kk_runtime_reset_gc())
 
         #expect(runtimeArrayBox(from: array) != nil)
         #expect(kk_native_byteArray_getLongAt(array, 0) == 0x0807_0605_0403_0201)
@@ -43,7 +43,7 @@ struct RuntimeHandleResolutionResetTests {
     func testStringHandleStaysUsableAcrossGCReset() {
         let string = makeString("ab")
 
-        kk_runtime_reset_gc()
+        #expect(kk_runtime_reset_gc())
 
         #expect(runtimeStringFromRaw(string) == "ab")
         #expect(runtimeStringUTF16CodeUnits(string) == Array("ab".utf16))
@@ -58,7 +58,7 @@ struct RuntimeHandleResolutionResetTests {
         #expect(runtimeIsObjectPointerRaw(threadLocal))
         #expect(runtimeIsObjectPointerRaw(kClass))
 
-        kk_runtime_force_reset()
+        #expect(runtimeTryForceReset())
 
         #expect(!runtimeIsObjectPointerRaw(threadLocal))
         #expect(!runtimeIsObjectPointerRaw(kClass))
@@ -70,12 +70,19 @@ struct RuntimeHandleResolutionResetTests {
     @Test
     func testHandlesStayUsableWhileAnotherThreadResetsGlobalState() {
         let resetsFinished = DispatchSemaphore(value: 0)
+        let successfulReset = DispatchSemaphore(value: 0)
+        let startResets = DispatchSemaphore(value: 0)
+        let firstRange = kk_op_rangeTo(1, 5)
         DispatchQueue.global(qos: .userInitiated).async {
+            startResets.wait()
             for _ in 0..<500 {
-                kk_runtime_reset_gc()
+                if kk_runtime_reset_gc() { successfulReset.signal() }
             }
             resetsFinished.signal()
         }
+        startResets.signal()
+        #expect(successfulReset.wait(timeout: .now() + 5) == .success)
+        #expect(runtimeRangeBox(from: firstRange) != nil)
 
         for _ in 0..<500 {
             let range = kk_op_rangeTo(1, 5)

@@ -45,6 +45,9 @@ private func runTimeoutBlock(
     entryPointRaw: Int,
     continuation: Int
 ) -> (timedOut: Bool, result: Int, thrown: Int) {
+    // Protect setup as well as the queued callback from a concurrent test reset.
+    let callerResetLease = RuntimeGCResetWorkLease()
+    defer { callerResetLease.finish() }
     let scopeHandle = kk_coroutine_scope_new()
     let scope = Unmanaged<RuntimeCoroutineScope>.fromOpaque(
         UnsafeMutableRawPointer(bitPattern: scopeHandle)!
@@ -66,7 +69,12 @@ private func runTimeoutBlock(
     let resultBox = RuntimeCoroutineResultStorage()
     let deadline = DispatchTime.now() + .milliseconds(timeoutMillis)
 
+    // A reset must also see a queued callback before its worker starts and
+    // pushes a shadow frame. The completion notification covers cancellation
+    // before execution as well as the normal and timed-out paths.
+    let workerResetLease = RuntimeGCResetWorkLease()
     let workItem = DispatchWorkItem {
+        defer { workerResetLease.finish() }
         kk_gc_shadow_push()
         defer { runtimePopNativeGCShadowFrame(0, 0) }
         var thrown = 0
@@ -80,6 +88,7 @@ private func runTimeoutBlock(
             scope.cancel()
         }
     }
+    workItem.notify(queue: DispatchQueue.global()) { workerResetLease.finish() }
     // The block itself runs off-loop (on the global pool) so its suspensions
     // never depend on the caller's queue. The caller, though, may be draining a
     // runBlocking event loop; parking it with `workItem.wait` would stall every

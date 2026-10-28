@@ -286,7 +286,9 @@ private final class RuntimeHTTPSessionDelegate: NSObject, URLSessionDataDelegate
     }
 
     func waitForResult() -> (response: HTTPURLResponse?, body: String, error: Error?) {
+        let gcBlocking = runtimeGCSafepoints.beginBlockingIfEnrolled()
         semaphore.wait()
+        if gcBlocking { runtimeGCSafepoints.endBlocking() }
         lock.lock()
         defer { lock.unlock() }
         return (response, responseBody, error)

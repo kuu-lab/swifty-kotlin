@@ -250,7 +250,7 @@ struct RuntimeAtomicfuSynchronizationTests {
         }
         try #require(observation != nil)
 
-        kk_runtime_reset_gc()
+        #expect(kk_runtime_reset_gc())
 
         #expect(runtimeForeignResource(token, as: NSObject.self) == nil)
         #expect(observation == nil)

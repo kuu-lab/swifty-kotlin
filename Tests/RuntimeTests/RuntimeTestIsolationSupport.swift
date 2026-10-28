@@ -52,16 +52,23 @@ struct RuntimeIsolationTrait: SuiteTrait, TestTrait, TestScoping {
             for: lockSet,
             testName: test.name
         )
-        resetRuntimeState(for: lockSet)
-        resetAdditionalState()
-
-        defer {
-            resetAdditionalState()
-            resetRuntimeState(for: lockSet)
+        guard await resetRuntimeState(for: lockSet, additional: resetAdditionalState) else {
             releaseSemaphores(acquiredSemaphores)
+            throw RuntimeIsolationResetTimeoutError(testName: test.name)
         }
 
-        try await function()
+        let testResult: Result<Void, Error>
+        do {
+            try await function()
+            testResult = .success(())
+        } catch {
+            testResult = .failure(error)
+        }
+        if !(await resetRuntimeState(for: lockSet, additional: resetAdditionalState)) {
+            Issue.record("Runtime reset did not reach a quiescent state after \(test.name)")
+        }
+        releaseSemaphores(acquiredSemaphores)
+        try testResult.get()
     }
 }
 
@@ -86,6 +93,14 @@ private struct RuntimeIsolationLockTimeoutError: Error, CustomStringConvertible 
 
     var description: String {
         "Runtime test isolation lock timed out for \(testName)"
+    }
+}
+
+private struct RuntimeIsolationResetTimeoutError: Error, CustomStringConvertible {
+    let testName: String
+
+    var description: String {
+        "Runtime reset did not reach a quiescent state before \(testName)"
     }
 }
 
@@ -138,7 +153,7 @@ func runtimeIsolationResetFunctions(for lockSet: RuntimeLockSet) -> [() -> Void]
     case .none:
         return []
     case .gcOnly:
-        return [kk_runtime_reset_gc]
+        return [{ _ = kk_runtime_reset_gc() }]
     case .metadataOnly:
         return [kk_runtime_reset_metadata]
     case .flowOnly:
@@ -148,13 +163,13 @@ func runtimeIsolationResetFunctions(for lockSet: RuntimeLockSet) -> [() -> Void]
     case .delegateOnly:
         return [kk_runtime_reset_delegate]
     case .gcAndMetadata:
-        return [kk_runtime_reset_gc, kk_runtime_reset_metadata]
+        return [{ _ = kk_runtime_reset_gc() }, kk_runtime_reset_metadata]
     case .gcAndFlow:
-        return [kk_runtime_reset_gc, kk_runtime_reset_flow]
+        return [{ _ = kk_runtime_reset_gc() }, kk_runtime_reset_flow]
     case .gcAndThreadLocal:
-        return [kk_runtime_reset_gc, kk_runtime_reset_thread_local]
+        return [{ _ = kk_runtime_reset_gc() }, kk_runtime_reset_thread_local]
     case .gcAndDelegate:
-        return [kk_runtime_reset_gc, kk_runtime_reset_delegate]
+        return [{ _ = kk_runtime_reset_gc() }, kk_runtime_reset_delegate]
     case .all:
         return [{ kk_runtime_force_reset() }]
     }
@@ -215,9 +230,31 @@ private func releaseSemaphores(_ semaphores: [DispatchSemaphore]) {
     }
 }
 
-private func resetRuntimeState(for lockSet: RuntimeLockSet) {
-    for reset in runtimeIsolationResetFunctions(for: lockSet) {
-        reset()
+private func resetRuntimeState(
+    for lockSet: RuntimeLockSet,
+    additional: @escaping @Sendable () -> Void
+) async -> Bool {
+    await withCheckedContinuation { continuation in
+        DispatchQueue.global(qos: .userInitiated).async {
+            let resets = runtimeIsolationResetFunctions(for: lockSet)
+            guard !resets.isEmpty else {
+                additional()
+                continuation.resume(returning: true)
+                return
+            }
+            let deadline = Date().addingTimeInterval(30)
+            repeat {
+                if runtimeWithQuiescentGCFrames({
+                    for reset in resets { reset() }
+                    additional()
+                }) {
+                    continuation.resume(returning: true)
+                    return
+                }
+                Thread.sleep(forTimeInterval: 0.001)
+            } while Date() < deadline
+            continuation.resume(returning: false)
+        }
     }
 }
 

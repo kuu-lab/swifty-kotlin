@@ -6,6 +6,8 @@ import Testing
 // MARK: - C-callable helpers for advanced coroutine tests
 
 private let advancedCoroTestState = AdvancedCoroutineTestState()
+private let timeoutResetWorkerEntered = DispatchSemaphore(value: 0)
+private let timeoutResetWorkerRelease = DispatchSemaphore(value: 0)
 
 /// File-level storage for the throwable raw value used in advcoro_fail_with_exc.
 private nonisolated(unsafe) var advCoroFailExcRaw: Int = 0
@@ -71,6 +73,14 @@ func advcoro_long_delay_then_return(_ continuation: Int, _ outThrown: UnsafeMuta
     }
     outThrown?.pointee = 0
     return kk_coroutine_state_exit(continuation, 55)
+}
+
+@_cdecl("advcoro_timeout_reset_block")
+func advcoro_timeout_reset_block(_ continuation: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    timeoutResetWorkerEntered.signal()
+    _ = timeoutResetWorkerRelease.wait(timeout: .now() + 10)
+    outThrown?.pointee = 0
+    return kk_coroutine_state_exit(continuation, 0)
 }
 
 /// A suspend function that delays, sets a spill slot with a "live value", then reads it back.
@@ -426,6 +436,40 @@ struct RuntimeCoroutineAdvancedTests {
         // Use a 0 ms timeout: the block should not complete in time.
         let result = kk_with_timeout_or_null(0, entryRaw, continuation)
         #expect(result == runtimeNullSentinelInt, "withTimeoutOrNull should return the null sentinel when block exceeds timeout")
+    }
+
+    @Test func testResetWaitsForTimedOutWorkerToUnwind() {
+        var needsRelease = true
+        defer { if needsRelease { timeoutResetWorkerRelease.signal() } }
+        let entry = unsafeBitCast(
+            advcoro_timeout_reset_block as @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int,
+            to: Int.self
+        )
+        let continuation = kk_coroutine_continuation_new(8831)
+        let callerFinished = DispatchSemaphore(value: 0)
+        DispatchQueue.global().async {
+            let result = kk_with_timeout_or_null(100, entry, continuation)
+            #expect(result == runtimeNullSentinelInt)
+            callerFinished.signal()
+        }
+        let entered = timeoutResetWorkerEntered.wait(timeout: .now() + 5) == .success
+        #expect(entered)
+        guard entered else { return }
+        let callerCompleted = callerFinished.wait(timeout: .now() + 5) == .success
+        #expect(callerCompleted)
+        guard callerCompleted else { return }
+        #expect(runtimeStorage.withGCLock { $0.pendingResetWork == 1 })
+        #expect(!kk_runtime_reset_gc())
+        timeoutResetWorkerRelease.signal()
+        needsRelease = false
+        let deadline = Date().addingTimeInterval(5)
+        var quiescent = runtimeWithQuiescentGCFrames {}
+        while !quiescent, Date() < deadline {
+            Thread.sleep(forTimeInterval: 0.001)
+            quiescent = runtimeWithQuiescentGCFrames {}
+        }
+        #expect(quiescent)
+        if quiescent { #expect(kk_runtime_reset_gc()) }
     }
 
     // MARK: - BUG-190: a timed-out block must not resume its caller's continuation

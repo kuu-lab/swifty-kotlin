@@ -29,6 +29,60 @@ struct GCShadowFrame {
     var handoffs: Set<Int> = []
 }
 
+private final class RuntimeResetFrameGate: @unchecked Sendable {
+    let lock = NSRecursiveLock()
+}
+
+private let runtimeResetFrameGate = RuntimeResetFrameGate()
+
+private func runtimeWithResetFrameGate<T>(_ body: () -> T) -> T {
+    runtimeResetFrameGate.lock.lock()
+    defer { runtimeResetFrameGate.lock.unlock() }
+    return body()
+}
+
+/// Keep frame creation and a multi-part test reset mutually exclusive. A
+/// failed attempt does not change any runtime state.
+@discardableResult
+func runtimeWithQuiescentGCFrames(_ body: () -> Void) -> Bool {
+    runtimeWithResetFrameGate {
+        let isQuiescent = runtimeStorage.withGCLock { state in
+            state.shadowFrames.isEmpty && state.activeFrames.isEmpty && state.pendingResetWork == 0
+        }
+        guard isQuiescent else { return false }
+        body()
+        return true
+    }
+}
+
+/// Protect a queued native callback before it has had a chance to push its
+/// first shadow frame. Its owner finishes the lease after the callback exits.
+final class RuntimeGCResetWorkLease: @unchecked Sendable {
+    private let lock = NSLock()
+    private var active = true
+
+    init() {
+        runtimeWithResetFrameGate {
+            runtimeStorage.withGCLock { $0.pendingResetWork += 1 }
+        }
+    }
+
+    func finish() {
+        lock.lock()
+        guard active else {
+            lock.unlock()
+            return
+        }
+        active = false
+        lock.unlock()
+        runtimeWithResetFrameGate {
+            runtimeStorage.withGCLock { $0.pendingResetWork -= 1 }
+        }
+    }
+
+    deinit { finish() }
+}
+
 @discardableResult
 func runtimeRecordShadowHandoffLocked(
     _ value: Int, threadID: ObjectIdentifier, state: inout GCState
@@ -243,6 +297,7 @@ struct GCState {
     // Shadow roots contain raw ABI words. Registry membership is checked by the
     // collector before any word is treated as a managed pointer.
     var shadowFrames: [ObjectIdentifier: [GCShadowFrame]] = [:]
+    var pendingResetWork = 0
     var coroutineRoots: Set<UInt> = []
     /// Per-target refcount for `kotlin.native.ref.Pinned<T>` (kk_pin_object/
     /// kk_unpin_object). Every pin call returns an independent `RuntimePinnedBox`
@@ -1045,10 +1100,12 @@ public func kk_register_frame_map(_ functionID: UInt32, _ mapPtr: UnsafeRawPoint
 @_cdecl("kk_push_frame")
 public func kk_push_frame(_ functionID: UInt32, _ frameBase: UnsafeMutableRawPointer?) {
     let threadID = ObjectIdentifier(Thread.current)
-    runtimeStorage.withGCLock { state in
-        state.activeFrames[threadID, default: []].append(
-            ActiveFrameRecord(functionID: functionID, frameBase: frameBase, rootCount: nil)
-        )
+    runtimeWithResetFrameGate {
+        runtimeStorage.withGCLock { state in
+            state.activeFrames[threadID, default: []].append(
+                ActiveFrameRecord(functionID: functionID, frameBase: frameBase, rootCount: nil)
+            )
+        }
     }
 }
 
@@ -1086,10 +1143,12 @@ public func kk_pop_frame() {
 public func kk_gc_push_root_frame(_ rootSlots: UnsafeMutableRawPointer?, _ rootCount: Int) -> Int {
     guard let rootSlots, rootCount > 0 else { return 0 }
     let threadID = ObjectIdentifier(Thread.current)
-    runtimeStorage.withGCLock { state in
-        state.activeFrames[threadID, default: []].append(
-            ActiveFrameRecord(functionID: 0, frameBase: rootSlots, rootCount: rootCount)
-        )
+    runtimeWithResetFrameGate {
+        runtimeStorage.withGCLock { state in
+            state.activeFrames[threadID, default: []].append(
+                ActiveFrameRecord(functionID: 0, frameBase: rootSlots, rootCount: rootCount)
+            )
+        }
     }
     return 0
 }
@@ -1131,8 +1190,10 @@ public func kk_gc_frame_leave(_ returnValue: Int, _ hasRootFrame: Int) -> Int {
 @discardableResult
 public func kk_gc_shadow_push() -> Int {
     let threadID = ObjectIdentifier(Thread.current)
-    runtimeStorage.withGCLock { state in
-        state.shadowFrames[threadID, default: []].append(GCShadowFrame())
+    runtimeWithResetFrameGate {
+        runtimeStorage.withGCLock { state in
+            state.shadowFrames[threadID, default: []].append(GCShadowFrame())
+        }
     }
     return 0
 }
@@ -1242,12 +1303,19 @@ public func kk_runtime_heap_object_count() -> UInt32 {
 // DEAD-CDECL-TEST-HOOK: RUNTIME-RESET - Runtime tests isolate process-global runtime state.
 @_cdecl("kk_runtime_force_reset")
 public func kk_runtime_force_reset() {
-    kk_runtime_reset_gc()
-    kk_runtime_reset_metadata()
-    kk_runtime_reset_flow()
-    kk_runtime_reset_thread_local()
-    kk_runtime_reset_delegate()
-    runtimeResetDebugState()
+    _ = runtimeTryForceReset()
+}
+
+@discardableResult
+func runtimeTryForceReset() -> Bool {
+    runtimeWithQuiescentGCFrames {
+        guard runtimeTryResetGC() else { return }
+        kk_runtime_reset_metadata()
+        kk_runtime_reset_flow()
+        kk_runtime_reset_thread_local()
+        kk_runtime_reset_delegate()
+        runtimeResetDebugState()
+    }
 }
 
 /// `objectPointers` is deliberately preserved: every entry is a box the runtime
@@ -1257,58 +1325,68 @@ public func kk_runtime_force_reset() {
 /// unresolvable live handle surfaces as a KSWIFTK-RUNTIME-0001 invalid-handle
 /// panic (invalid range/array/string handle). Entries are removed by whoever
 /// releases the box.
-func kk_runtime_reset_gc() {
-    runtimeResetAtomicfuParkingCaches()
-    let retired = runtimeStorage.withGCLock { state -> [RuntimeForeignResourceLease] in
-        var retired = state.retiredForeignResources
-        state.retiredForeignResources.removeAll()
-        for token in Array(state.foreignResources.keys) {
-            if state.foreignResources[token]?.owner != nil,
-               let lease = state.foreignResources.removeValue(forKey: token) { retired.append(lease) }
-        }
-        for (key, object) in state.heapObjects {
-            runtimeForgetFrozenObject(Int(bitPattern: key))
-            object.pointer.deallocate()
-        }
-        state.heapObjects.removeAll(keepingCapacity: false)
-        // Registered ARC boxes survive reset. Preserve their edges to other
-        // registered boxes, but discard references to the freed kk_alloc heap.
-        let registered = state.objectPointers
-        state.retainedObjectHeapFields = state.retainedObjectHeapFields.reduce(into: [:]) { retained, entry in
-            guard registered.contains(entry.key) else { return }
-            let fields = entry.value.filter { registered.contains($0.value) }
-            if !fields.isEmpty { retained[entry.key] = fields }
-        }
-        func keepRegisteredFields(_ mirrors: inout [ObjectIdentifier: RuntimeStorageHeapRoots]) {
-            mirrors = mirrors.filter { $0.value.storage != nil }
-            for roots in mirrors.values {
-                roots.fields = roots.fields.filter { registered.contains($0.value) }
+@discardableResult
+func kk_runtime_reset_gc() -> Bool {
+    runtimeTryResetGC()
+}
+
+/// Test isolation cannot destroy frame records or their heap while a native
+/// callback is still unwinding on another thread. In that case leave the
+/// runtime intact; a later isolation reset can run after those frames exit.
+private func runtimeTryResetGC() -> Bool {
+    runtimeWithQuiescentGCFrames {
+        runtimeResetAtomicfuParkingCaches()
+        let retired = runtimeStorage.withGCLock { state -> [RuntimeForeignResourceLease] in
+            var retired = state.retiredForeignResources
+            state.retiredForeignResources.removeAll()
+            for token in Array(state.foreignResources.keys) {
+                if state.foreignResources[token]?.owner != nil,
+                   let lease = state.foreignResources.removeValue(forKey: token) { retired.append(lease) }
             }
+            for (key, object) in state.heapObjects {
+                runtimeForgetFrozenObject(Int(bitPattern: key))
+                object.pointer.deallocate()
+            }
+            state.heapObjects.removeAll(keepingCapacity: false)
+            // Registered ARC boxes survive reset. Preserve their edges to other
+            // registered boxes, but discard references to the freed kk_alloc heap.
+            let registered = state.objectPointers
+            state.retainedObjectHeapFields = state.retainedObjectHeapFields.reduce(into: [:]) { retained, entry in
+                guard registered.contains(entry.key) else { return }
+                let fields = entry.value.filter { registered.contains($0.value) }
+                if !fields.isEmpty { retained[entry.key] = fields }
+            }
+            func keepRegisteredFields(_ mirrors: inout [ObjectIdentifier: RuntimeStorageHeapRoots]) {
+                mirrors = mirrors.filter { $0.value.storage != nil }
+                for roots in mirrors.values {
+                    roots.fields = roots.fields.filter { registered.contains($0.value) }
+                }
+            }
+            keepRegisteredFields(&state.retainedArrayHeapFields)
+            keepRegisteredFields(&state.retainedCoroutineHeapFields)
+            keepRegisteredFields(&state.retainedFutureHeapFields)
+            state.arrayStorageByOwner = state.arrayStorageByOwner.filter { registered.contains($0.key) }
+            state.objectJobHandles = state.objectJobHandles.filter { registered.contains($0.key) }
+            state.tracedResultLeaseRoots = state.tracedResultLeaseRoots.filter { $0.value.storage != nil }
+            pruneTracedObjectReferencesLocked(state: &state)
+            state.globalRootSlots.removeAll(keepingCapacity: false)
+            state.globalWordRootSlots.removeAll(keepingCapacity: false)
+            state.threadLocalGlobalValues.removeAll(keepingCapacity: false)
+            state.frameMaps.removeAll(keepingCapacity: false)
+            state.activeFrames.removeAll(keepingCapacity: false)
+            state.shadowFrames.removeAll(keepingCapacity: false)
+            state.coroutineRoots.removeAll(keepingCapacity: false)
+            state.pendingGCRoots.removeAll(keepingCapacity: false)
+            state.pinnedObjectCounts.removeAll(keepingCapacity: false)
+            state.stableRefCounts.removeAll(keepingCapacity: false)
+            state.gcEpoch = 0
+            state.lastGCInfo = nil
+            return retired
         }
-        keepRegisteredFields(&state.retainedArrayHeapFields)
-        keepRegisteredFields(&state.retainedCoroutineHeapFields)
-        keepRegisteredFields(&state.retainedFutureHeapFields)
-        state.arrayStorageByOwner = state.arrayStorageByOwner.filter { registered.contains($0.key) }
-        state.objectJobHandles = state.objectJobHandles.filter { registered.contains($0.key) }
-        state.tracedResultLeaseRoots = state.tracedResultLeaseRoots.filter { $0.value.storage != nil }
-        pruneTracedObjectReferencesLocked(state: &state)
-        state.globalRootSlots.removeAll(keepingCapacity: false)
-        state.globalWordRootSlots.removeAll(keepingCapacity: false)
-        state.threadLocalGlobalValues.removeAll(keepingCapacity: false)
-        state.frameMaps.removeAll(keepingCapacity: false)
-        state.activeFrames.removeAll(keepingCapacity: false)
-        state.shadowFrames.removeAll(keepingCapacity: false)
-        state.coroutineRoots.removeAll(keepingCapacity: false)
-        state.pendingGCRoots.removeAll(keepingCapacity: false)
-        state.pinnedObjectCounts.removeAll(keepingCapacity: false)
-        state.stableRefCounts.removeAll(keepingCapacity: false)
-        state.gcEpoch = 0
-        state.lastGCInfo = nil
-        return retired
+        withExtendedLifetime(retired) {}
+        runtimeGCTuningState.reset()
+        resetCaseInsensitiveOrderCache()
     }
-    withExtendedLifetime(retired) {}
-    runtimeGCTuningState.reset()
-    resetCaseInsensitiveOrderCache()
 }
 
 func kk_runtime_reset_metadata() {

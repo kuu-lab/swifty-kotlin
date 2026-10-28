@@ -107,49 +107,55 @@ private class TimerState {
         val handle = ParkingSupport.currentThreadHandle()
         guard.lock()
         try { workerHandle = handle } finally { guard.unlock() }
-        while (true) {
-            var entry: TimerEntry? = null
-            var waitMillis = -1L
-            guard.lock()
-            try {
-                if (cancelled) return
-                var earliest = -1
-                var i = 0
-                while (i < tasks.size) {
-                    if (tasks[i].task.isCancelled) { tasks.removeAt(i); continue }
-                    if (earliest < 0 || tasks[i].time < tasks[earliest].time) earliest = i
-                    i += 1
-                }
-                if (earliest >= 0) {
-                    val candidate = tasks[earliest]
-                    val now = System.currentTimeMillis()
-                    if (candidate.time <= now) entry = tasks.removeAt(earliest)
-                    else waitMillis = candidate.time - now
-                } else if (ownerIsGone()) {
-                    return
-                }
-            } finally { guard.unlock() }
-            if (entry == null) {
-                // Recheck an idle timer's weak owner even if no task wakes it.
-                ParkingSupport.park(if (waitMillis < 0L) 100L.milliseconds else waitMillis.milliseconds)
-                continue
+        while (runOneIteration()) {}
+    }
+
+    // Task references must leave the worker's frame after each iteration. A
+    // completed task may capture its Timer, so keeping it in this long-lived
+    // loop would prevent the weak owner from ever being collected.
+    private fun runOneIteration(): Boolean {
+        var entry: TimerEntry? = null
+        var waitMillis = -1L
+        guard.lock()
+        try {
+            if (cancelled) return false
+            var earliest = -1
+            var i = 0
+            while (i < tasks.size) {
+                if (tasks[i].task.isCancelled) { tasks.removeAt(i); continue }
+                if (earliest < 0 || tasks[i].time < tasks[earliest].time) earliest = i
+                i += 1
             }
-            val task = entry.task
-            val startedAt = System.currentTimeMillis()
-            try {
-                val scheduledTime = if (entry.period != 0L && !entry.fixedRate) startedAt else entry.time
-                if (task.prepareRun(scheduledTime, entry.period != 0L)) task.run()
-            } catch (exception: Throwable) {
-                cancel()
-                throw exception
+            if (earliest >= 0) {
+                val candidate = tasks[earliest]
+                val now = System.currentTimeMillis()
+                if (candidate.time <= now) entry = tasks.removeAt(earliest)
+                else waitMillis = candidate.time - now
+            } else if (ownerIsGone()) {
+                return false
             }
-            if (entry.period != 0L && !task.isCancelled) {
-                val previous = if (entry.fixedRate) entry.time else startedAt
-                entry.time = if (entry.period > Long.MAX_VALUE - previous) Long.MAX_VALUE else previous + entry.period
-                guard.lock()
-                try { if (!cancelled && !task.isCancelled) tasks.add(entry) } finally { guard.unlock() }
-            }
+        } finally { guard.unlock() }
+        if (entry == null) {
+            // Recheck an idle timer's weak owner even if no task wakes it.
+            ParkingSupport.park(if (waitMillis < 0L) 100L.milliseconds else waitMillis.milliseconds)
+            return true
         }
+        val task = entry.task
+        val startedAt = System.currentTimeMillis()
+        try {
+            val scheduledTime = if (entry.period != 0L && !entry.fixedRate) startedAt else entry.time
+            if (task.prepareRun(scheduledTime, entry.period != 0L)) task.run()
+        } catch (exception: Throwable) {
+            cancel()
+            throw exception
+        }
+        if (entry.period != 0L && !task.isCancelled) {
+            val previous = if (entry.fixedRate) entry.time else startedAt
+            entry.time = if (entry.period > Long.MAX_VALUE - previous) Long.MAX_VALUE else previous + entry.period
+            guard.lock()
+            try { if (!cancelled && !task.isCancelled) tasks.add(entry) } finally { guard.unlock() }
+        }
+        return true
     }
 }
 public class Timer private constructor(name: String?, isDaemon: Boolean, marker: Unit) {

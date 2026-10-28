@@ -2756,6 +2756,142 @@ struct RuntimeGCTests {
         }
     }
 
+    @Test(arguments: [false, true])
+    func resetPreservesInFlightNestedShadowFrames(fullReset: Bool) {
+        let result = kk_object_new(0, 0x36_26_20)
+        let thrown = kk_object_new(0, 0x36_26_21)
+        let resultWeak = kk_weak_ref_create(result)
+        let thrownWeak = kk_weak_ref_create(thrown)
+        let ready = DispatchSemaphore(value: 0)
+        let resume = DispatchSemaphore(value: 0)
+        let finished = DispatchSemaphore(value: 0)
+
+        DispatchQueue.global().async {
+            defer { finished.signal() }
+            kk_gc_shadow_push()
+            kk_gc_shadow_push()
+            kk_gc_shadow_set(0, result)
+            kk_gc_shadow_set(1, thrown)
+            ready.signal()
+            guard resume.wait(timeout: .now() + 10) == .success else {
+                Issue.record("reset test worker was not resumed")
+                kk_gc_shadow_pop(0, 0)
+                kk_gc_shadow_pop(0, 0)
+                return
+            }
+            let depth = kk_gc_shadow_depth()
+            #expect(depth == 2)
+            guard depth == 2 else { return }
+            kk_gc_shadow_pop(result, thrown)
+            kk_gc_collect()
+            #expect(kk_weak_ref_get(resultWeak) == result)
+            #expect(kk_weak_ref_get(thrownWeak) == thrown)
+            kk_gc_shadow_pop(0, 0)
+        }
+
+        let started = ready.wait(timeout: .now() + 10) == .success
+        #expect(started)
+        if started {
+            let didReset = fullReset ? runtimeTryForceReset() : kk_runtime_reset_gc()
+            #expect(!didReset)
+            #expect(runtimeStorage.withGCLock { $0.managedObjectPointers.contains(UInt(bitPattern: result)) })
+            #expect(runtimeStorage.withGCLock { $0.managedObjectPointers.contains(UInt(bitPattern: thrown)) })
+        }
+        resume.signal()
+        let completed = finished.wait(timeout: .now() + 10) == .success
+        #expect(completed)
+        guard completed else { return }
+        kk_gc_collect()
+        #expect(kk_weak_ref_get(resultWeak) == runtimeNullSentinelInt)
+        #expect(kk_weak_ref_get(thrownWeak) == runtimeNullSentinelInt)
+        _ = kk_object_release(resultWeak)
+        _ = kk_object_release(thrownWeak)
+    }
+
+    @Test func resetPreservesActiveRootFrameAndAllowsLaterReset() {
+        withDummyTypeInfo { typeInfo in
+            let object = kk_alloc(16, typeInfo)
+            let slot = UnsafeMutablePointer<Int>.allocate(capacity: 1)
+            slot.initialize(to: Int(bitPattern: object))
+            defer { slot.deinitialize(count: 1); slot.deallocate() }
+            _ = kk_gc_push_root_frame(UnsafeMutableRawPointer(slot), 1)
+            #expect(!kk_runtime_reset_gc())
+            #expect(runtimeStorage.withGCLock { $0.heapObjects[UInt(bitPattern: object)] != nil })
+            _ = kk_gc_frame_leave(0, 1)
+            #expect(kk_runtime_reset_gc())
+            #expect(runtimeStorage.withGCLock { $0.heapObjects[UInt(bitPattern: object)] == nil })
+        }
+    }
+
+    @Test func resetDefersQueuedNativeWorkUntilItsLeaseFinishes() {
+        withDummyTypeInfo { typeInfo in
+            let object = kk_alloc(16, typeInfo)
+            let lease = RuntimeGCResetWorkLease()
+            #expect(!runtimeWithQuiescentGCFrames {})
+            #expect(!kk_runtime_reset_gc())
+            #expect(runtimeStorage.withGCLock { $0.heapObjects[UInt(bitPattern: object)] != nil })
+            lease.finish()
+            lease.finish()
+            #expect(runtimeWithQuiescentGCFrames {})
+            #expect(kk_runtime_reset_gc())
+            #expect(runtimeStorage.withGCLock { $0.heapObjects[UInt(bitPattern: object)] == nil })
+        }
+    }
+
+    @Test func frameCreationWaitsUntilCompositeResetFinishes() {
+        let attempted = DispatchSemaphore(value: 0)
+        let created = DispatchSemaphore(value: 0)
+        let finished = DispatchSemaphore(value: 0)
+        let performed = runtimeWithQuiescentGCFrames {
+            DispatchQueue.global().async {
+                attempted.signal()
+                kk_gc_shadow_push()
+                created.signal()
+                kk_gc_shadow_pop(0, 0)
+                finished.signal()
+            }
+            #expect(attempted.wait(timeout: .now() + 5) == .success)
+            #expect(created.wait(timeout: .now() + .milliseconds(30)) == .timedOut)
+            for reset in runtimeIsolationResetFunctions(for: .gcAndMetadata) { reset() }
+        }
+        #expect(performed)
+        #expect(created.wait(timeout: .now() + 5) == .success)
+        #expect(finished.wait(timeout: .now() + 5) == .success)
+    }
+
+    @Test func processWaitDoesNotBlockCollectionOfAnEnrolledMutator() {
+        let command = registerRuntimeObject(RuntimeStringBox("/bin/sleep\0" + "5"))
+        defer { _ = runtimeReleaseObject(command) }
+        let process = __kk_process_start(command)
+        #expect(process != 0)
+        guard process != 0 else { return }
+        let waiting = DispatchSemaphore(value: 0)
+        let finished = DispatchSemaphore(value: 0)
+        let collected = DispatchSemaphore(value: 0)
+        DispatchQueue.global().async {
+            __kk_gc_mutator_enter()
+            waiting.signal()
+            _ = __kk_process_wait_for(process)
+            __kk_gc_mutator_leave()
+            finished.signal()
+        }
+        #expect(waiting.wait(timeout: .now() + 5) == .success)
+        DispatchQueue.global().async {
+            kk_gc_collect()
+            collected.signal()
+        }
+        let earlyCollection = collected.wait(timeout: .now() + 2)
+        #expect(earlyCollection == .success)
+        if earlyCollection == .timedOut {
+            #expect(collected.wait(timeout: .now() + 10) == .success)
+        }
+        let finishedBeforeCollection = finished.wait(timeout: .now()) == .success
+        #expect(!finishedBeforeCollection)
+        if !finishedBeforeCollection {
+            #expect(finished.wait(timeout: .now() + 10) == .success)
+        }
+    }
+
     @Test func shadowFrameWritesRemainStableDuringCollection() {
         withDummyTypeInfo { typeInfo in
             let first = ConcurrentFrameSlot(kk_alloc(16, typeInfo))
@@ -3026,7 +3162,7 @@ struct RuntimeGCTests {
         let child = kk_object_new(0, 0x36_26_0D)
         let weak = kk_weak_ref_create(child)
         _ = kk_array_set_typed(parent, 0, child, 0)
-        kk_runtime_reset_gc()
+        #expect(kk_runtime_reset_gc())
         kk_register_coroutine_root(UnsafeMutableRawPointer(bitPattern: parent))
         kk_gc_collect()
         #expect(kk_weak_ref_get(weak) == child)
@@ -3040,7 +3176,7 @@ struct RuntimeGCTests {
         let child = kk_object_new(0, 0x36_26_0E)
         let weak = kk_weak_ref_create(child)
         let result = runtimeResultSuccess(child)
-        kk_runtime_reset_gc()
+        #expect(kk_runtime_reset_gc())
         kk_register_coroutine_root(UnsafeMutableRawPointer(bitPattern: result))
         kk_gc_collect()
         #expect(kk_weak_ref_get(weak) == child)
@@ -3203,6 +3339,11 @@ struct RuntimeGCTests {
 
     @Test func testLastGCInfoRecordsPassStatistics() {
         withDummyTypeInfo { ti in
+            kk_gc_collect()
+            guard let baseline = lastGCInfoSnapshot() else {
+                Issue.record("baseline pass should have been recorded")
+                return
+            }
             _ = kk_alloc(16, ti)
             kk_gc_collect()
 
@@ -3210,10 +3351,10 @@ struct RuntimeGCTests {
             #expect(snapshot != nil)
             guard let snapshot else { return }
 
-            #expect(snapshot.epoch == 1)
+            #expect(snapshot.epoch == baseline.epoch + 1)
             #expect(snapshot.sweptCount == 1)
             #expect(snapshot.keptCount == 0)
-            #expect(snapshot.markedCount == 0)
+            #expect(snapshot.markedCount == baseline.markedCount)
             #expect(snapshot.memoryUsageBeforeBytes == Int64(MemoryLayout<KKObjHeader>.stride))
             #expect(snapshot.memoryUsageAfterBytes == 0)
 
@@ -3296,7 +3437,7 @@ struct RuntimeGCTests {
 
             // kk_alloc pads requests below the object-header stride (16 bytes).
             let header = Int64(MemoryLayout<KKObjHeader>.stride)
-            #expect(snapshot.markedCount == 4)
+            #expect(snapshot.markedCount == baseline.markedCount + 4)
             #expect(snapshot.keptCount == 4)
             #expect(snapshot.sweptCount == 1)
             #expect(snapshot.memoryUsageBeforeBytes == 24 + header * 4)
