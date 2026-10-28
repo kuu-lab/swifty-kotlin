@@ -118,7 +118,7 @@ struct RuntimeMetadataAPITests {
             isInterface: false,
             isObject: false,
             isEnumClass: false,
-            isAnnotationClass: false,
+
             isAbstract: false,
             fieldCount: 2,
             memberCount: 3,
@@ -162,7 +162,7 @@ struct RuntimeMetadataAPITests {
             isInterface: false,
             isObject: false,
             isEnumClass: false,
-            isAnnotationClass: false,
+
             isAbstract: false,
             fieldCount: 0,
             memberCount: 0,

@@ -27,7 +27,7 @@ struct RuntimeKClassMetadataTests {
             isInterface: false,
             isObject: false,
             isEnumClass: false,
-            isAnnotationClass: false,
+
             isAbstract: false,
             fieldCount: 3,
             memberCount: 7,
@@ -64,7 +64,7 @@ struct RuntimeKClassMetadataTests {
             isInterface: false,
             isObject: false,
             isEnumClass: false,
-            isAnnotationClass: false,
+
             isAbstract: false,
             fieldCount: 2,
             memberCount: 5,
@@ -94,7 +94,7 @@ struct RuntimeKClassMetadataTests {
             isInterface: false,
             isObject: false,
             isEnumClass: false,
-            isAnnotationClass: false,
+
             isAbstract: false,
             fieldCount: 0,
             memberCount: 0,
@@ -129,7 +129,7 @@ struct RuntimeKClassMetadataTests {
             isInterface: false,
             isObject: false,
             isEnumClass: false,
-            isAnnotationClass: false,
+
             isAbstract: false,
             fieldCount: 4,
             memberCount: 6,

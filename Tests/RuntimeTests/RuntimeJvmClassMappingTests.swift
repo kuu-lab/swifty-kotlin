@@ -207,7 +207,7 @@ struct RuntimeJvmClassMappingTests {
             isInterface: false,
             isObject: false,
             isEnumClass: true,
-            isAnnotationClass: false,
+
             isAbstract: false,
             fieldCount: 0,
             memberCount: 0,

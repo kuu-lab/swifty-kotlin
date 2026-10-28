@@ -9,7 +9,7 @@ struct EnumSetClassHandleTests {
         runtimeKClassMetadataRegistry.register(typeToken: token, entry: RuntimeKClassMetadataEntry(
             qualifiedName: "EnumSetBridgeEnum", simpleName: "EnumSetBridgeEnum", supertypeDisplayNames: [],
             isDataClass: false, isSealedClass: false, isValueClass: false, isInterface: false,
-            isObject: false, isEnumClass: true, isAnnotationClass: false, isAbstract: false,
+            isObject: false, isEnumClass: true, isAbstract: false,
             fieldCount: 0, memberCount: 0, constructorCount: 0, isFinal: true, isOpen: false,
             visibility: "public", typeParameterCount: 0
         ))
