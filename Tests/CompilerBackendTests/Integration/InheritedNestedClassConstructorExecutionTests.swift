@@ -31,6 +31,35 @@ struct InheritedNestedClassConstructorExecutionTests {
     }
 
     @Test(arguments: [0, 2])
+    func artifactModeFallsBackToOuterConstructorWhenInheritedNestedConstructorDoesNotApply(optimization: Int) throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let stdlib = try testStdlibArtifactPath()
+        let source = directory.appendingPathComponent("source.kt").path
+        let program = """
+        open class Base { class Entry(val number: Int) }
+        class Entry(val text: String)
+        class Child : Base() { fun value() = Entry("outer") }
+        fun main() { println(Child().value().text) }
+        """
+        try program.write(toFile: source, atomically: true, encoding: .utf8)
+        let output = directory.appendingPathComponent("source-program").path
+        let result = try compile(
+            input: source,
+            moduleName: "InheritedNestedOuterFallbackArtifactO\(optimization)",
+            output: output,
+            emit: .executable,
+            optimization: optimization,
+            stdlib: stdlib,
+            allowDefaultStdlibLibrary: false
+        )
+        try assertCompilationSucceeded(result, context: "outer constructor fallback O\(optimization)")
+        try assertOutput(of: output, expectedOutput: "outer\n")
+    }
+
+    @Test(arguments: [0, 2])
     func freshLibraryAllowsSubclassAndRejectsUnrelatedProtectedCall(optimization: Int) throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
@@ -172,9 +201,10 @@ struct InheritedNestedClassConstructorExecutionTests {
         return makeTestDriver().runForTesting(options: options)
     }
 
-    private func assertOutput(of executable: String) throws {
+    private func assertOutput(of executable: String, expectedOutput: String? = nil) throws {
         let result = try CommandRunner.run(executable: executable, arguments: [])
+        let expected = expectedOutput ?? self.expectedOutput
         #expect(result.exitCode == 0, "Execution stderr: \(result.stderr)")
-        #expect(result.stdout.replacingOccurrences(of: "\r\n", with: "\n") == expectedOutput)
+        #expect(result.stdout.replacingOccurrences(of: "\r\n", with: "\n") == expected)
     }
 }

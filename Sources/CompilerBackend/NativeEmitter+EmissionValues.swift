@@ -248,8 +248,14 @@ extension NativeEmitter.FunctionEmissionContext {
             return value
         }
         if let expression = module.arena.expr(id) {
+            if case let .symbolRef(symbol) = expression,
+               let globalPointer = globalVariables[symbol]
+            {
+                registerGCRootForGlobal(symbol, slot: globalPointer)
+            }
             let constant = valueForConstant(expression, expressionRawID: id.rawValue)
             values[id.rawValue] = constant
+            storeGCRoot(for: id, value: constant)
             return constant
         }
         return zeroValue
@@ -326,6 +332,7 @@ extension NativeEmitter.FunctionEmissionContext {
                     suffix: nameCounter.nextName("store_result_global_")
                 ) ?? storedValue
             }
+            registerGCRootForGlobal(targetSymbol, slot: globalPointer)
             _ = bindings.buildStore(builder, value: globalValue, pointer: globalPointer)
         }
         if let alloca = copyTargetAllocas[result.rawValue],
@@ -334,6 +341,7 @@ extension NativeEmitter.FunctionEmissionContext {
             _ = bindings.buildStore(builder, value: storedValue, pointer: alloca)
         }
         values[result.rawValue] = storedValue
+        storeGCRoot(for: result, value: storedValue)
     }
 
     func blockForLabel(_ label: Int32) -> LLVMCAPIBindings.LLVMBasicBlockRef? {

@@ -81,6 +81,7 @@ final class JvmOverloadsLoweringPass: LoweringPass {
                         valueParameterHasDefaultValues: Array(repeating: false, count: keepCount),
                         valueParameterIsVararg: keptVarargFlags,
                         valueParameterAllowsNonLocalReturn: Array(originalSignature.valueParameterAllowsNonLocalReturn.prefix(keepCount)),
+                        hasStableParameterNames: originalSignature.hasStableParameterNames,
                         typeParameterSymbols: originalSignature.typeParameterSymbols,
                         reifiedTypeParameterIndices: originalSignature.reifiedTypeParameterIndices,
                         typeParameterUpperBounds: originalSignature.typeParameterUpperBounds,
@@ -129,6 +130,11 @@ final class JvmOverloadsLoweringPass: LoweringPass {
         symbols: SymbolTable
     ) -> (signature: FunctionSignature, keepParameterCounts: [Int])? {
         guard let signature = symbols.functionSignature(for: function.symbol),
+              !signature.valueParameterSymbols.contains(where: { parameter in
+                  symbols.annotations(for: parameter).contains {
+                      KnownCompilerAnnotation.introducedAt.matches($0.annotationFQName)
+                  }
+              }),
               symbols.annotations(for: function.symbol).contains(where: {
                   KnownCompilerAnnotation.jvmOverloads.matches($0.annotationFQName)
               })

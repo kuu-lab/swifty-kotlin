@@ -24,7 +24,7 @@ struct FunctionTypeIsCheckTests {
             let ctx = makeCompilationContext(inputs: [path], includeStdlib: false)
             try runSema(ctx)
             let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-            #expect(errors.count == 8)
+            #expect(errors.count == 11)
             #expect(errors.allSatisfy { $0.code == "KSWIFTK-SEMA-ERASED-TYPE" })
             #expect(errors.allSatisfy { $0.message.contains("Cannot check for instance of erased type") })
             let ast = try #require(ctx.ast)
@@ -42,6 +42,23 @@ struct FunctionTypeIsCheckTests {
                 }
                 #expect(sema.bindings.exprType(for: check) == sema.types.booleanType)
             }
+        }
+    }
+
+    @Test
+    func testSuppressedErasedSuspendChecksDoNotHideUnsuppressedChecks() throws {
+        let source = """
+        @Suppress("CANNOT_CHECK_FOR_ERASED")
+        fun suppressed(x: Any) = x is suspend (Int) -> Int
+        fun known(x: suspend (Int) -> Int) = x is suspend (Int) -> Int
+        fun unknown(x: Any) = x is suspend (Int) -> Int
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], includeStdlib: false)
+            try runSema(ctx)
+            let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+            #expect(errors.count == 1, "\(errors)")
+            #expect(errors.first?.code == "KSWIFTK-SEMA-ERASED-TYPE")
         }
     }
 

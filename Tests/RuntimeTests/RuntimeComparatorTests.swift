@@ -111,6 +111,10 @@ private func withComparatorObject(mode: Int, body: (Int) -> Void) {
 
 @Suite(.runtimeIsolation(.all))
 struct RuntimeComparatorTests {
+    private func __kk_comparable_compareTo(_ lhs: Int, _ rhs: Int) -> Int {
+        Runtime.__kk_comparable_compareTo(lhs, rhs, nil)
+    }
+
     // MARK: - compareBy ascending
 
     // MARK: - compareByDescending

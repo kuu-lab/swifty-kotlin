@@ -7,7 +7,7 @@ file fstdlib_kotlin_RequiresOptIn_Level_Level_n package=golden.sema
   decl golden.sema.levelValues[kind=fun;params=;ret=kotlin.Array<kotlin.RequiresOptIn.Level>;origin=fixture] fun levelValues sym=golden.sema.levelValues[kind=fun;params=;ret=kotlin.Array<kotlin.RequiresOptIn.Level>;origin=fixture]
 expr e@4:5 memberCall recv=e@4:5#1 callee=RequiresOptIn args=[] type=kotlin.RequiresOptIn ref=kotlin.RequiresOptIn[kind=anno]
 expr e@4:5#2 memberCall recv=e@4:5 callee=Level args=[] type=kotlin.RequiresOptIn.Level ref=kotlin.RequiresOptIn.Level[kind=enum]
-expr e@4:5#3 memberCall recv=e@4:5#2 callee=entries args=[] type=kotlin.enums.EnumEntries<kotlin.RequiresOptIn.Level> call=kotlin.entries.$get[kind=fun;recv=kotlin.RequiresOptIn.Level;params=;ret=kotlin.enums.EnumEntries<kotlin.RequiresOptIn.Level>]
+expr e@4:5#3 memberCall recv=e@4:5#2 callee=entries args=[] type=kotlin.enums.EnumEntries<kotlin.RequiresOptIn.Level> ref=kotlin.RequiresOptIn.Level.entries[kind=prop;type=kotlin.enums.EnumEntries<kotlin.RequiresOptIn.Level>]
 expr e@7:5 memberCall recv=e@7:5#1 callee=RequiresOptIn args=[] type=kotlin.RequiresOptIn ref=kotlin.RequiresOptIn[kind=anno]
 expr e@7:5#2 memberCall recv=e@7:5 callee=Level args=[] type=kotlin.RequiresOptIn.Level ref=kotlin.RequiresOptIn.Level[kind=enum]
 expr e@7:40 string(WARNING) type=String

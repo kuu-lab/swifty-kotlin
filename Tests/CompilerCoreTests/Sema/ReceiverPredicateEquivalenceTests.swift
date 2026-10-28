@@ -240,9 +240,14 @@ struct ReceiverPredicateEquivalenceTests {
                 expected: [.regex]
             ),
             TypeCase(
-                name: "user Channel (simple-name fallback)",
-                type: fixture.classType(["com", "example", "Channel"], kind: .class),
+                name: "kotlinx.coroutines Channel<String>",
+                type: fixture.classType(["kotlinx", "coroutines", "channels", "Channel"], args: genericString),
                 expected: [.channel]
+            ),
+            TypeCase(
+                name: "user Channel (non-stdlib FQN)",
+                type: fixture.classType(["com", "example", "Channel"], kind: .class),
+                expected: []
             ),
             TypeCase(
                 name: "user Job (simple-name fallback)",

@@ -1100,6 +1100,9 @@ extension OverloadResolver {
             return upperBounds.contains(where: ctx.types.isDefinitelyNonNull)
         }
 
+        let constraintsBeforeElvisLhsHint = constraints
+        let inputsBeforeElvisLhsHint = inputConstraints
+        var hasElvisLhsHintConstraints = false
         if let expectedType, expectedType != ctx.types.unitType {
             if call.elvisLhsExpectedTypeHint {
                 let methodTypeParameters = signature.typeParameterSymbols.dropFirst(
@@ -1124,6 +1127,7 @@ extension OverloadResolver {
                     )
                     constraints.append(contentsOf: returnDecomposed)
                     inputConstraints.append(contentsOf: returnDecomposed)
+                    hasElvisLhsHintConstraints = !returnDecomposed.isEmpty
                 }
             } else if hasInferredNonNullBoundedReturnParameter() {
                 // A non-null upper bound lets a call infer from the non-null
@@ -1223,6 +1227,24 @@ extension OverloadResolver {
                 // Retry without it; any still-unresolved type variable will
                 // receive the ordinary inference diagnostic below.
                 constraints = constraintsBeforeElvisRhsHint
+                solveResult = solveConstraints(
+                    constraints,
+                    solver: solver,
+                    typeSystem: ctx.types
+                )
+            }
+        }
+        if hasElvisLhsHintConstraints {
+            switch solveResult {
+            case .success:
+                break
+            case .constraintFailure, .rejected:
+                // An Elvis branch expectation is only an inference hint. It
+                // cannot invalidate a type argument already determined by the
+                // call's nullable inputs; the enclosing expression is checked
+                // against its expected type separately.
+                constraints = constraintsBeforeElvisLhsHint
+                inputConstraints = inputsBeforeElvisLhsHint
                 solveResult = solveConstraints(
                     constraints,
                     solver: solver,
