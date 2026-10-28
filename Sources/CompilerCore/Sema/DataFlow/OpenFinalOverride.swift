@@ -254,6 +254,7 @@ extension DataFlowSemaPhase {
         let inheritedRequirements = unimplementedAbstractMembers(
             for: ownerSymbol,
             overriddenNames: [],
+            overriddenMemberExtensionNames: [],
             delegatedInterfaces: ctx.symbols.delegatedInterfaces(forClass: ownerSymbol),
             symbols: ctx.symbols,
             types: ctx.types,
