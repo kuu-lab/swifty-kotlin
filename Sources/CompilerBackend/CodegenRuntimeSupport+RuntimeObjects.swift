@@ -54,6 +54,29 @@ private final class RuntimeObjectCache: @unchecked Sendable {
     }
 }
 
+// The runtime source fingerprint re-reads every Runtime/RuntimeABI source,
+// so a key is resolved once per (configuration, target, packageRoot) and
+// reused by every later caller — the prefetch path warms the key the
+// linker discovery would otherwise recompute per compile.
+private final class RuntimeBuildCacheKeyMemo: @unchecked Sendable {
+    private let lock = NSLock()
+    private var keys: [String: String] = [:]
+
+    func value(for key: String) -> String? {
+        lock.lock()
+        defer { lock.unlock() }
+        return keys[key]
+    }
+
+    func store(_ value: String, for key: String) {
+        lock.lock()
+        defer { lock.unlock() }
+        keys[key] = value
+    }
+}
+
+private let runtimeBuildCacheKeyMemo = RuntimeBuildCacheKeyMemo()
+
 enum CodegenRuntimeSupportError: Error, CustomStringConvertible {
     case runtimeObjectsUnavailable(String)
     case runtimeBuildFailed(String)
@@ -506,6 +529,20 @@ extension CodegenRuntimeSupport {
     static func runtimePackageRootURL(
         environment: [String: String] = ProcessInfo.processInfo.environment
     ) throws -> URL {
+        // Resolution walks ancestors checking Package.swift verification;
+        // KSWIFTK_PACKAGE_ROOT is the only input that changes the outcome.
+        let memoKey = "root\u{0}\(environment["KSWIFTK_PACKAGE_ROOT"] ?? "")"
+        if let cachedPath = runtimeBuildCacheKeyMemo.value(for: memoKey) {
+            return URL(fileURLWithPath: cachedPath, isDirectory: true)
+        }
+        let resolved = try resolveRuntimePackageRootURL(environment: environment)
+        runtimeBuildCacheKeyMemo.store(resolved.path, for: memoKey)
+        return resolved
+    }
+
+    private static func resolveRuntimePackageRootURL(
+        environment: [String: String]
+    ) throws -> URL {
         // KSWIFTK_PACKAGE_ROOT is an explicit development override, so a value
         // that resolves to nothing or fails verification is rejected loudly
         // rather than silently falling through to an implicit root.
@@ -696,7 +733,14 @@ extension CodegenRuntimeSupport {
         configuration: RuntimeBuildConfiguration,
         packageRoot: URL
     ) throws -> String {
-        "runtime-nocov-v4-\(configuration.rawValue)-\(targetTripleString(target))-\(try runtimeSourceFingerprint(packageRoot: packageRoot))"
+        let memoKey = [configuration.rawValue, targetTripleString(target), packageRoot.standardizedFileURL.path]
+            .joined(separator: "\u{0}")
+        if let memoized = runtimeBuildCacheKeyMemo.value(for: memoKey) {
+            return memoized
+        }
+        let key = "runtime-nocov-v4-\(configuration.rawValue)-\(targetTripleString(target))-\(try runtimeSourceFingerprint(packageRoot: packageRoot))"
+        runtimeBuildCacheKeyMemo.store(key, for: memoKey)
+        return key
     }
 
     // Hashes file contents under package-relative paths so the key is identical
