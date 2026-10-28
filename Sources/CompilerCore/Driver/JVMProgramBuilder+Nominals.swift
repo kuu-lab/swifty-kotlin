@@ -416,16 +416,19 @@ extension JVMProgramBuilder {
         result.isInner = plan.isInner
         if let field = try outerField(plan) { result.extraFields.append(field) }
         if plan.isAnonymous { result.emitMetadata = false; result.extraFields += plan.captures.map(\.field) }
+        result.enclosingMethod = plan.enclosingMethod
         if plan.isAnonymous {
-            result.outerName = JVMClasspathIndex.anonymousObjectName(
-                plan.symbol,
-                sema: sema,
-                ctx: context
-            )?.enclosingClassName
+            result.outerName = nil
             result.innerName = nil
+        } else if let outerName = plan.outer.flatMap({ classes[$0]?.name }) {
+            result.outerName = outerName
+            result.innerName = String(plan.name.split(separator: "$").last!)
+        } else if plan.enclosingMethod != nil, let declaration = plan.declaration {
+            result.outerName = nil
+            result.innerName = context.interner.resolve(declaration.name)
         } else {
-            result.outerName = plan.outer.flatMap { classes[$0]?.name }
-            result.innerName = result.outerName == nil ? nil : String(plan.name.split(separator: "$").last!)
+            result.outerName = nil
+            result.innerName = nil
         }
         result.nestedNames = classes.values.filter { $0.outer == plan.symbol && $0.enumParent == nil }.map { String($0.name.split(separator: "$").last!) }.sorted()
         result.companionName = classes.values.first(where: { $0.companionOwner == plan.symbol }).map { context.interner.resolve(sema.symbols.symbol($0.symbol)!.name) }

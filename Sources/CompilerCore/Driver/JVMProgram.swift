@@ -282,6 +282,18 @@ public struct JVMProperty {
     public var customSetter: Bool = false
 }
 
+public struct JVMEnclosingMethod {
+    public let owner: String
+    public let name: String
+    public let descriptor: String
+
+    public init(owner: String, name: String, descriptor: String) {
+        self.owner = owner
+        self.name = name
+        self.descriptor = descriptor
+    }
+}
+
 public struct JVMClass {
     public let name: String
     public let superclass: String
@@ -301,6 +313,7 @@ public struct JVMClass {
     public var isSealed = false
     public var outerName: String? = nil
     public var innerName: String? = nil
+    public var enclosingMethod: JVMEnclosingMethod? = nil
     public var nestedNames: [String] = []
     public var companionName: String? = nil
     public var sealedSubclasses: [String] = []

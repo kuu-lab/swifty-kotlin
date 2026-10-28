@@ -84,6 +84,7 @@ extension JVMFunctionBuilder {
 
     func anonymousObject(_ id: ExprID) throws -> JVMValue {
         guard case let .objectLiteral(_, decl?, range) = arena.expr(id), let symbol = program.sema.bindings.declSymbol(for: decl), let plan = program.classes[symbol] else { throw fail("Missing JVM anonymous object declaration.", id) }
+        if plan.enclosingMethod == nil { plan.enclosingMethod = currentEnclosingMethod }
         plan.escapesInline = plan.escapesInline || declaration.isInline || !inlineStack.isEmpty
         let visible = localCaptureEnvironment()
         var used: Set<SymbolID> = []
