@@ -359,10 +359,7 @@ extension CallTypeChecker {
                     range: range,
                     diagnostics: ctx.sema.diagnostics
                 )
-                if bindExpression {
-                    return driver.helpers.bindAndReturnErrorType(id, sema: sema)
-                }
-                return sema.types.errorType
+                return driver.helpers.bindAndReturnErrorType(id, sema: sema)
             }
             return nil
         }
