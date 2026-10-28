@@ -537,6 +537,7 @@ extension CallLowerer {
             self.memberExtensionDispatchReceiver(
                 for: $0,
                 callExprID: callExprID,
+                dispatchReceiverSymbol: callBinding?.dispatchReceiverSymbol,
                 sema: sema,
                 arena: arena,
                 interner: interner,
