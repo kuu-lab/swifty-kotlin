@@ -338,6 +338,15 @@ extension CallTypeChecker {
             // so Any methods (toString, hashCode, equals) are always available on
             // type parameter receivers (STDLIB-GEN-055).
             true
+        case .nothing(.nonNull):
+            // `Nothing` is a subtype of every Kotlin type including `Any`, so its
+            // member scope is `Any`'s and `toString`/`hashCode`/`equals` are the
+            // single valid candidates. A safe call unwraps a `Nothing?` receiver
+            // to non-null `Nothing`; resolving to `Any`'s member here (instead of
+            // collecting unrelated `toString` extensions that the bottom type is
+            // nominally a subtype of) matches kotlinc for `null?.toString()`
+            // (KUU-3146). Non-safe `Nothing` receivers keep ordinary resolution.
+            safeCall
         default:
             anyFallbackReceiverType == sema.types.anyType || anyFallbackReceiverType == sema.types.nullableAnyType
         }

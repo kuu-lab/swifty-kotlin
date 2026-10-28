@@ -532,6 +532,12 @@ extension CallLowerer {
                 // so Any methods (toString, hashCode, equals) are always available on
                 // type parameter receivers (STDLIB-GEN-055).
                 true
+            case .nothing:
+                // A `Nothing?` receiver (`null` literal, `v: Nothing?`) unwraps to
+                // non-null `Nothing` under a safe call. Its member scope is `Any`'s,
+                // so `toString`/`hashCode`/`equals` resolve to the tagged
+                // `kk_any_*` fallback, matching `Any?` receivers (KUU-3146).
+                true
             default:
                 nonNullAnyFallbackReceiverType == sema.types.anyType
             }
