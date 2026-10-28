@@ -191,7 +191,9 @@ public func kk_string_get(_ strRaw: Int, _ indexRaw: Int, _ outThrown: UnsafeMut
     guard indexRaw >= 0, indexRaw < codeUnits.count else {
         runtimeSetThrown(
             outThrown,
-            runtimeAllocateStringIndexOutOfBoundsException(message: "index=\(indexRaw), length=\(codeUnits.count)")
+            runtimeAllocateStringIndexOutOfBoundsException(
+                message: "Index \(indexRaw) out of bounds for length \(codeUnits.count)"
+            )
         )
         return 0
     }
@@ -215,7 +217,9 @@ public func kk_char_sequence_get(
     guard indexRaw >= 0, indexRaw < codeUnits.count else {
         runtimeSetThrown(
             outThrown,
-            runtimeAllocateStringIndexOutOfBoundsException(message: "index=\(indexRaw), length=\(codeUnits.count)")
+            runtimeAllocateStringIndexOutOfBoundsException(
+                message: "Index \(indexRaw) out of bounds for length \(codeUnits.count)"
+            )
         )
         return 0
     }
@@ -241,7 +245,7 @@ public func kk_char_sequence_subSequence(
         runtimeSetThrown(
             outThrown,
             runtimeAllocateStringIndexOutOfBoundsException(
-                message: "startIndex=\(startIndex), endIndex=\(endIndex), length=\(codeUnits.count)"
+                message: "Range [\(startIndex), \(endIndex)) out of bounds for length \(codeUnits.count)"
             )
         )
         return 0
@@ -267,7 +271,9 @@ public func __kk_string_get_flat(
     guard let unit = lookup.unit else {
         runtimeSetThrown(
             outThrown,
-            runtimeAllocateStringIndexOutOfBoundsException(message: "index=\(indexRaw), length=\(lookup.utf16Length)")
+            runtimeAllocateStringIndexOutOfBoundsException(
+                message: "Index \(indexRaw) out of bounds for length \(lookup.utf16Length)"
+            )
         )
         return 0
     }

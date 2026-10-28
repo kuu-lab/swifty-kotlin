@@ -20,7 +20,9 @@ public fun String.substring(startIndex: Int): String {
     val chars = this.toString().toList()
     val length = chars.size
     if (startIndex < 0 || startIndex > length) {
-        throw IndexOutOfBoundsException("begin $startIndex, end $length, length $length")
+        throw java.lang.StringIndexOutOfBoundsException(
+            "Range [$startIndex, $length) out of bounds for length $length"
+        )
     }
     return buildStringFromCharRange(chars, startIndex, length)
 }
@@ -29,7 +31,9 @@ public fun String.substring(startIndex: Int, endIndex: Int): String {
     val chars = this.toString().toList()
     val length = chars.size
     if (startIndex < 0 || endIndex > length || startIndex > endIndex) {
-        throw IndexOutOfBoundsException("begin $startIndex, end $endIndex, length $length")
+        throw java.lang.StringIndexOutOfBoundsException(
+            "Range [$startIndex, $endIndex) out of bounds for length $length"
+        )
     }
     return buildStringFromCharRange(chars, startIndex, endIndex)
 }
@@ -64,7 +68,9 @@ public fun String.slice(indices: Iterable<Int>): String {
     val sb = StringBuilder()
     for (index in indices) {
         if (index < 0 || index >= length) {
-            throw IndexOutOfBoundsException("index $index out of range [0, $length)")
+            throw java.lang.StringIndexOutOfBoundsException(
+                "Index $index out of bounds for length $length"
+            )
         }
         sb.append(chars[index])
     }
@@ -90,12 +96,24 @@ public fun CharSequence.slice(indices: Iterable<Int>): CharSequence {
 }
 
 public fun String.removeRange(startIndex: Int, endIndex: Int): String {
+    // JVM delegates to CharSequence.removeRange, which checks reversed ranges
+    // first, short-circuits empty removals before any bounds check, and lets the
+    // negative StringBuilder capacity surface as NegativeArraySizeException.
+    if (endIndex < startIndex) {
+        throw IndexOutOfBoundsException("End index ($endIndex) is less than start index ($startIndex).")
+    }
+    if (endIndex == startIndex) {
+        return this
+    }
     val chars = this.toString().toList()
     val length = chars.size
-    if (startIndex < 0 || startIndex > length || endIndex < 0 || endIndex > length || startIndex > endIndex) {
-        throw IndexOutOfBoundsException("start=$startIndex, end=$endIndex, length=$length")
+    val sb = StringBuilder(length - (endIndex - startIndex))
+    if (startIndex < 0 || startIndex > length) {
+        throw IndexOutOfBoundsException("Range [0, $startIndex) out of bounds for length $length")
     }
-    val sb = StringBuilder()
+    if (endIndex > length) {
+        throw IndexOutOfBoundsException("Range [$endIndex, $length) out of bounds for length $length")
+    }
     sb.append(buildStringFromCharRange(chars, 0, startIndex))
     sb.append(buildStringFromCharRange(chars, endIndex, length))
     return sb.toString()
@@ -105,10 +123,18 @@ public fun String.removeRange(range: IntRange): String =
     this.removeRange(range.first, range.last + 1)
 
 public fun String.replaceRange(startIndex: Int, endIndex: Int, replacement: CharSequence): String {
+    // JVM appends through StringBuilder(CharSequence, start, end): the reversed
+    // range check runs first, then the start bound, then the end bound.
+    if (endIndex < startIndex) {
+        throw IndexOutOfBoundsException("End index ($endIndex) is less than start index ($startIndex).")
+    }
     val chars = this.toString().toList()
     val length = chars.size
-    if (startIndex < 0 || startIndex > length || endIndex < 0 || endIndex > length || startIndex > endIndex) {
-        throw IndexOutOfBoundsException("start=$startIndex, end=$endIndex, length=$length")
+    if (startIndex < 0 || startIndex > length) {
+        throw IndexOutOfBoundsException("Range [0, $startIndex) out of bounds for length $length")
+    }
+    if (endIndex > length) {
+        throw IndexOutOfBoundsException("Range [$endIndex, $length) out of bounds for length $length")
     }
     val sb = StringBuilder()
     sb.append(buildStringFromCharRange(chars, 0, startIndex))
