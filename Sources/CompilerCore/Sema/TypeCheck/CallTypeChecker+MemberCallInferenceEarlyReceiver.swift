@@ -139,7 +139,12 @@ extension CallTypeChecker {
                ownerNominalSymbol: ownerSymbol,
                memberName: calleeName,
                sema: sema
-           )
+           ),
+           // An explicit `()` on a nested `object` is a function invocation,
+           // not a value read — fall through so `invoke` can dispatch
+           // (KUU-3662).
+           !(ast.arena.isExplicitCall(id)
+               && sema.symbols.symbol(staticMember.symbol)?.kind == .object)
         {
             if let memberSymbol = sema.symbols.symbol(staticMember.symbol),
                !ctx.visibilityChecker.isAccessible(
