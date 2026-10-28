@@ -880,6 +880,18 @@ extension LocalDeclTypeChecker {
         }
         if ast.arena.isInfixFunction(id) { functionFlags.insert(.infixFunction) }
         if ast.arena.isOperatorFunction(id) { functionFlags.insert(.operatorFunction) }
+        if ast.arena.isLocalInlineFunction(id) {
+            // kotlinc gates local `inline` behind
+            // `NOT_YET_SUPPORTED_LOCAL_INLINE_FUNCTION`; emit here so a
+            // covering `@Suppress` (already registered during DataFlow) filters
+            // the diagnostic through the normal emission path.
+            ctx.sema.diagnostics.error(
+                "KSWIFTK-SEMA-0400",
+                "local inline functions are not yet supported.",
+                range: range
+            )
+            functionFlags.insert(.inlineFunction)
+        }
         if isSuspend {
             functionFlags.insert(.suspendFunction)
         }

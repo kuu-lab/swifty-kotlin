@@ -524,9 +524,10 @@ extension BuildASTPhase {
             return expr
         }
         undoFailedSpeculation()
-        let strippedRaw = Self.skipLeadingLocalAnnotations(raw, interner: interner)
+        // Local fun parsing strips leading annotations itself so it can attach
+        // declaration-level `@Suppress` to the produced declaration.
         let strippedFiltered = Self.skipLeadingLocalAnnotations(filtered, interner: interner)
-        if let expr = parseLocalFunDeclExpr(from: strippedRaw, interner: interner, astArena: astArena) {
+        if let expr = parseLocalFunDeclExpr(from: raw, interner: interner, astArena: astArena) {
             return expr
         }
         undoFailedSpeculation()

@@ -60,7 +60,7 @@ extension BuildASTPhase.ExpressionParser {
                 }
             }
             var statement: ExprID? = localFunctionParser.parseLocalFunDeclExpr(
-                from: strippedGroup, interner: interner, astArena: astArena
+                from: Array(group), interner: interner, astArena: astArena
             )
             if statement == nil {
                 undoFailedSpeculation()

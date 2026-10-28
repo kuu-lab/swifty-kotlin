@@ -141,6 +141,9 @@ enum DiagnosticRegistry {
         "TOO_MANY_ARGUMENTS": ["KSWIFTK-SEMA-ANNOTATION-ARGUMENT-ARITY"],
         "NO_VALUE_FOR_PARAMETER": ["KSWIFTK-SEMA-ANNOTATION-ARGUMENT-ARITY"],
         "DATA_CLASS_COPY_VISIBILITY": ["KSWIFTK-SEMA-DATA-COPY-VISIBILITY"],
+        // kotlinc gates local `inline` functions behind this diagnostic name;
+        // the local-function modifier check reports it as KSWIFTK-SEMA-0400.
+        "NOT_YET_SUPPORTED_LOCAL_INLINE_FUNCTION": ["KSWIFTK-SEMA-0400"],
     ]
 
 

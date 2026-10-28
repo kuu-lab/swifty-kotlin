@@ -43,7 +43,6 @@ struct LocalOperatorFunctionParsingTests {
 
     @Test(arguments: [
         ("private fun helper() {}", "KSWIFTK-SEMA-0400"),
-        ("inline fun helper() {}", "KSWIFTK-SEMA-0400"),
         ("operator fun Int.notAnOperator(): Int = this", "KSWIFTK-SEMA-0416"),
         ("operator fun mod(a: Int): Int = a", "KSWIFTK-SEMA-0416"),
         // KUU-3149: local operator functions are never members, so only the
@@ -62,5 +61,18 @@ struct LocalOperatorFunctionParsingTests {
         _ = ctx.sourceManager.addFile(path: path, contents: Data("fun probe() { \(declaration) }".utf8))
         try runFrontend(ctx)
         #expect(ctx.diagnostics.diagnostics.contains { $0.code == diagnostic })
+    }
+
+    /// The local-`inline` diagnostic is deferred to sema so a covering
+    /// `@Suppress("NOT_YET_SUPPORTED_LOCAL_INLINE_FUNCTION")` can silence it;
+    /// a BuildAST-time error would abort the pipeline before suppressions are
+    /// registered.
+    @Test
+    func unsuppressedLocalInlineFunctionRemainsRejected() throws {
+        let path = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".kt").path
+        let ctx = makeCompilationContext(inputs: [path], includeStdlib: false, allowDefaultStdlibLibrary: false)
+        _ = ctx.sourceManager.addFile(path: path, contents: Data("fun probe() { inline fun helper() {} }".utf8))
+        try runSema(ctx)
+        #expect(ctx.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-SEMA-0400" })
     }
 }
