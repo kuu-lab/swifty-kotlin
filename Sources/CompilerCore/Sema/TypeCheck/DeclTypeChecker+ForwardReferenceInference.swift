@@ -69,9 +69,19 @@ extension DeclTypeChecker {
                 currentDeclSymbol: symbol,
                 enclosingClassSymbol: symbol
             )
-        let primaryConstructorLocals = primaryConstructorParameterLocals(
+        var primaryConstructorLocals = primaryConstructorParameterLocals(
             classDecl: classDecl,
             ctx: classContext
+        )
+        // Property initializers run with the class receiver but do not pass
+        // through the member-function local-binding setup. Give `this` the
+        // same synthetic receiver identity so data-flow narrowing (for
+        // example, `this is Subtype`) is visible inside initializer branches.
+        primaryConstructorLocals[ctx.interner.intern("this")] = (
+            classType,
+            SyntheticSymbolScheme.receiverParameterSymbol(for: symbol),
+            false,
+            true
         )
         return (classType, classContext, primaryConstructorLocals)
     }

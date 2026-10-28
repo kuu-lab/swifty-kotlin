@@ -790,6 +790,28 @@ extension LambdaLowerer {
             // safely resolve — not memory corruption from reading a
             // wrong-typed object's fields.
             captureArguments.append(implicitReceiver)
+        } else if !isUnbound,
+                  !isSingletonOwnedPropertyRef,
+                  sema.bindings.callableRefKind(for: exprID) == .propertyRef,
+                  let receiverType = sema.bindings.implicitReceiverMemberReceiverType(for: exprID),
+                  let receiverOwner = nominalSymbol(
+                      for: sema.types.makeNonNullable(receiverType),
+                      types: sema.types
+                  ),
+                  let implicitReceiver = driver.ctx.activeImplicitReceiverExprID(),
+                  let capturedReceiver = resolveOuterChainValue(
+                      from: implicitReceiver,
+                      to: receiverOwner,
+                      sema: sema,
+                      arena: arena,
+                      interner: interner,
+                      instructions: &instructions
+                  )
+        {
+            // The selected implicit receiver can be an enclosing instance
+            // reached through one or more inner-class `$outer` fields. Capture
+            // that instance, rather than the currently active inner `this`.
+            captureArguments.append(capturedReceiver)
         } else if sema.bindings.implicitReceiverMemberNames[exprID] != nil,
                   let targetSymbol,
                   let declaredReceiver = sema.symbols.functionSignature(for: targetSymbol)?.receiverType,
@@ -996,6 +1018,21 @@ extension LambdaLowerer {
         // pointer directly to the runtime HOF implementation.
         let isCollectionHOFReference = sema.bindings.isCollectionHOFLambdaExpr(exprID)
         let needsHOFWrapper = isCollectionHOFReference && reifiedThunk == nil
+        // A non-capturing callable reference otherwise points directly at the
+        // Kotlin function entry point. FunctionN.invoke uses the flat callback
+        // ABI, where String results are returned as erased handles, so wrap
+        // String-returning references before they can escape as function values.
+        let needsFunctionValueStringReturnWrapper: Bool = {
+            guard sema.bindings.callableRefKind(for: exprID) == .functionRef,
+                  captureArguments.isEmpty,
+                  let boundType,
+                  case let .functionType(functionType) = sema.types.kind(of: boundType),
+                  case .stringStruct = sema.types.kind(of: functionType.returnType)
+            else {
+                return false
+            }
+            return true
+        }()
         // Keep the referenced function's Kotlin ABI and adapt it through a
         // callable thunk that can use the runtime's flat String callback ABI.
         let needsTopLevelStringReturnWrapper: Bool = {
@@ -1267,6 +1304,7 @@ extension LambdaLowerer {
             driver.ctx.appendGeneratedCallableDecl(wrapperDecl)
         } else if let callTargetSymbol,
                   needsHOFWrapper || needsInlineWrapper || needsTopLevelStringReturnWrapper
+                    || needsFunctionValueStringReturnWrapper
         {
             // HOF callbacks use a closure parameter. Ordinary inline references
             // keep the Kotlin signature and pass each bound capture directly.

@@ -48,6 +48,19 @@ struct StdlibProfileTests {
     }
 
     @Test
+    func minimalSourcesKeepTransitiveSupportPackages() throws {
+        let sources = try BundledStdlib.collectBundledStdlibSources(profile: .minimal)
+        let packages = Set(sources.map { StdlibProfile.declaredPackage(in: $0.contents) })
+
+        // java.nio.file.Path, java.util.UUID, and java.util.concurrent are
+        // retained sources, so their support packages must remain in the artifact.
+        #expect(packages.contains("java.net"))
+        #expect(packages.contains("kotlin.uuid"))
+        #expect(packages.contains("kotlinx.atomicfu.locks"))
+        #expect(!packages.contains("kotlinx.atomicfu"))
+    }
+
+    @Test
     func profilesHaveDistinctManifestHashes() {
         #expect(BundledStdlib.manifestHash(profile: .full) != BundledStdlib.manifestHash(profile: .minimal))
         #expect(BundledStdlib.manifestHash() == BundledStdlib.manifestHash(profile: .full))

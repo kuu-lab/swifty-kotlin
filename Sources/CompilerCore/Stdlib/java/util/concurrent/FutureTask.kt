@@ -6,7 +6,7 @@ import java.lang.Runnable
 import kotlinx.atomicfu.locks.ParkingHandle
 import kotlinx.atomicfu.locks.ParkingSupport
 import kotlinx.atomicfu.locks.SynchronizedObject
-import kotlinx.coroutines.CancellationException
+import kotlin.coroutines.cancellation.CancellationException
 import kotlin.concurrent.Volatile
 
 // KUU-3059: java.util.concurrent.RunnableFuture / FutureTask — the

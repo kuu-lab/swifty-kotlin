@@ -463,7 +463,7 @@ extension BuildASTPhase {
     /// becoming a call argument, so `val tmp = Unit` followed by `{ }` never
     /// resolves as `Unit { }` (KUU-3144).
     static func canAcceptTrailingLambda<C: BidirectionalCollection>(on tokens: C) -> Bool where C.Element == Token {
-        if isUninitializedLocalPropertyDeclaration(tokens) {
+        if isLocalPropertyDeclarationEndingWithName(tokens) {
             return false
         }
         guard let last = tokens.last else {
@@ -576,27 +576,31 @@ extension BuildASTPhase {
         }
     }
 
-    /// A local property without an initializer is a declaration, not an
-    /// expression that can receive a trailing lambda on the next line.
-    private static func isUninitializedLocalPropertyDeclaration<C: Collection>(
+    /// A local property declaration ending in a name is complete before a
+    /// lambda on the following line. A call-shaped initializer ending in `)`
+    /// can still take a trailing lambda across the newline.
+    private static func isLocalPropertyDeclarationEndingWithName<C: BidirectionalCollection>(
         _ tokens: C
     ) -> Bool where C.Element == Token {
         var depth = BracketDepth()
-        var sawLocalPropertyKeyword = false
+        var sawLocalProperty = false
         for token in tokens {
             if depth.isBracketBraceParenTopLevel {
-                switch token.kind {
-                case .keyword(.val), .keyword(.var):
-                    sawLocalPropertyKeyword = true
-                case .symbol(.assign):
-                    return false
-                default:
-                    break
+                if token.kind == .keyword(.val) || token.kind == .keyword(.var) {
+                    sawLocalProperty = true
                 }
             }
             depth.track(token.kind)
         }
-        return sawLocalPropertyKeyword
+        guard sawLocalProperty, let last = tokens.last else {
+            return false
+        }
+        switch last.kind {
+        case .identifier, .backtickedIdentifier, .softKeyword:
+            return true
+        default:
+            return false
+        }
     }
 
     /// Shared by the CST-driven top-level path (blockExpressions) and the

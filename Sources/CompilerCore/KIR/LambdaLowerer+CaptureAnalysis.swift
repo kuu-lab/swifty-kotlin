@@ -31,6 +31,9 @@ extension LambdaLowerer {
         if activeImplicitReceiverValue(forCapturedReceiver: symbol, sema: sema) != nil {
             return true
         }
+        if canLoadCapturedLocalFromEnclosingInnerInstance(symbol, sema: sema) {
+            return true
+        }
         guard let semanticSymbol = sema.symbols.symbol(symbol) else {
             return false
         }
@@ -42,6 +45,35 @@ extension LambdaLowerer {
         }
         if sema.bindings.isContractCallsInPlaceInitializedSymbol(symbol) {
             return true
+        }
+        return false
+    }
+
+    /// A nested inner class's super-constructor arguments run in its `<init>`
+    /// function, where enclosing locals are available only through the `$outer`
+    /// chain and the local nominal's capture fields.
+    private func canLoadCapturedLocalFromEnclosingInnerInstance(
+        _ symbol: SymbolID,
+        sema: SemaModule
+    ) -> Bool {
+        guard let currentFunction = driver.ctx.currentFunctionSymbol,
+              var owner = sema.symbols.parentSymbol(for: currentFunction)
+        else {
+            return false
+        }
+        var visited: Set<SymbolID> = []
+        while visited.insert(owner).inserted {
+            if sema.bindings.objectLiteralCaptureSymbols(for: owner).contains(symbol),
+               sema.symbols.nominalLayout(for: owner)?.fieldOffsets[symbol] != nil
+            {
+                return true
+            }
+            guard sema.symbols.symbol(owner)?.flags.contains(.innerClass) == true,
+                  let outerOwner = sema.symbols.parentSymbol(for: owner)
+            else {
+                return false
+            }
+            owner = outerOwner
         }
         return false
     }
@@ -86,6 +118,25 @@ extension LambdaLowerer {
                 guard let accessorBody else { continue }
                 roots.append(contentsOf: accessorBodyRootExprs(accessorBody))
             }
+        }
+        return roots
+    }
+
+    /// Object literal property initializers and `init` blocks execute inline
+    /// at the construction site, so an enclosing lambda must forward their
+    /// references through its own capture list.
+    func objectLiteralInlineInitializerRootExprs(_ objectDecl: ObjectDecl, ast: ASTModule) -> [ExprID] {
+        var roots: [ExprID] = []
+        for propertyID in objectDecl.memberProperties {
+            guard let decl = ast.arena.decl(propertyID),
+                  case let .propertyDecl(property) = decl
+            else {
+                continue
+            }
+            roots.append(contentsOf: [property.initializer, property.delegateExpression].compactMap { $0 })
+        }
+        for initBlock in objectDecl.initBlocks {
+            roots.append(contentsOf: accessorBodyRootExprs(initBlock))
         }
         return roots
     }
@@ -334,10 +385,13 @@ extension LambdaLowerer {
             for delegateExpr in objectDecl.superTypeEntries.compactMap(\.delegateExpression) {
                 collectBoundIdentifierSymbols(in: delegateExpr, ast: ast, sema: sema, referenced: &referenced, seen: &seen)
             }
-            // KSP-CAP-018: an accessor body's captures are materialized into
-            // the literal's instance fields at construction time, which happens
-            // in this lambda's body — so the value has to reach the lambda
-            // first. Member *function* bodies need no equivalent entry here.
+            for rootExprID in objectLiteralInlineInitializerRootExprs(objectDecl, ast: ast) {
+                collectBoundIdentifierSymbols(
+                    in: rootExprID, ast: ast, sema: sema, referenced: &referenced, seen: &seen
+                )
+            }
+            // KSP-CAP-018: accessor captures are materialized into the
+            // literal's fields during construction and must reach this lambda.
             for propertyID in objectDecl.memberProperties {
                 guard let propertyDecl = ast.arena.decl(propertyID),
                       case let .propertyDecl(property) = propertyDecl
@@ -728,6 +782,11 @@ extension LambdaLowerer {
                 return true
             }
             if objectDecl.superTypeEntries.compactMap(\.delegateExpression).contains(where: {
+                containsImplicitReceiverReference(in: $0, ast: ast)
+            }) {
+                return true
+            }
+            if objectLiteralInlineInitializerRootExprs(objectDecl, ast: ast).contains(where: {
                 containsImplicitReceiverReference(in: $0, ast: ast)
             }) {
                 return true

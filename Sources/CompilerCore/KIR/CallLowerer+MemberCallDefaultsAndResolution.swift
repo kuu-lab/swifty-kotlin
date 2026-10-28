@@ -260,11 +260,22 @@ extension CallLowerer {
             && receiverTypeForDispatch.map {
                 isSetLikeType($0, sema: sema, interner: interner)
             } == true
+        // A source subclass of a runtime-box collection nominal is a real
+        // `kk_object_new` object with a registered vtable; its inherited
+        // `__kk_*` members (e.g. `ArrayList.get`) must dispatch through the
+        // vtable slot so a Kotlin override is not bypassed (KUU-3669).
+        let usesBoxedCollectionVirtualBridge = isRuntimeBoxedCollectionVirtualBridge(
+            chosenCallee,
+            receiverTypeID: receiverTypeForDispatch,
+            sema: sema,
+            interner: interner
+        )
         guard listIteratorInheritedDispatch != nil
             || !kirIsRuntimeBridgedCallee(chosenCallee, sema: sema)
             || isClockRuntimeVirtualBridge(chosenCallee, sema: sema)
             || usesIteratorRuntimeVirtualBridge
             || usesRuntimeSetContainsVirtualBridge
+            || usesBoxedCollectionVirtualBridge
         else { return nil }
         guard !isRuntimeRangeReceiver,
               let dispatchKind = resolveVirtualDispatch(
@@ -287,7 +298,12 @@ extension CallLowerer {
             result: result,
             canThrow: isIteratorNextName(interner.resolve(calleeName))
                 || isIteratorNextName(interner.resolve(virtualCalleeName))
-                || sema.symbols.externalLinkName(for: dispatchCallee).map(isIteratorNextName) == true,
+                || sema.symbols.externalLinkName(for: dispatchCallee).map(isIteratorNextName) == true
+                // `__kk_list_get` and friends declare outThrown in their ABI;
+                // the indirect call must carry the channel to the looked-up
+                // implementation and propagate a thrown exception (KUU-3669).
+                || (usesBoxedCollectionVirtualBridge
+                    && needsThrownChannel(calleeName: calleeName, interner: interner)),
             dispatch: dispatchKind
         )
     }

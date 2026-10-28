@@ -59,6 +59,40 @@ public enum OptimizationLevel: Int {
     case O3
 }
 
+/// A supported JVM bytecode target. JVM classfile versions start at 52 for
+/// Java 8 and advance by one for each subsequent Java release.
+public enum JVMTarget: String, Equatable, Sendable {
+    case java8 = "1.8"
+    case java9 = "9"
+    case java10 = "10"
+    case java11 = "11"
+    case java12 = "12"
+    case java13 = "13"
+    case java14 = "14"
+    case java15 = "15"
+    case java16 = "16"
+    case java17 = "17"
+    case java18 = "18"
+    case java19 = "19"
+    case java20 = "20"
+    case java21 = "21"
+    case java22 = "22"
+    case java23 = "23"
+    case java24 = "24"
+    case java25 = "25"
+    case java26 = "26"
+
+    public var release: Int {
+        self == .java8 ? 8 : Int(rawValue)!
+    }
+
+    public var classFileMajorVersion: UInt16 {
+        UInt16(release + 44)
+    }
+
+    public var supportsJvmRecords: Bool { release >= 16 }
+}
+
 public enum EmitMode: String, Sendable {
     case executable
     case object
@@ -111,6 +145,8 @@ public struct CompilerOptions: Equatable {
     public var entryPointFQName: String?
     /// JVM classpath entries, in lookup order (JAR files or class directories).
     public var jvmClasspath: [String]
+    /// Target Java release for generated JVM classfiles.
+    public var jvmTarget: JVMTarget
 
     /// `kswiftc --run`: execute the program right after compiling it, using the
     /// KIR interpreter when it covers the program (see `KIRInterpreter`).
@@ -214,6 +250,7 @@ public struct CompilerOptions: Equatable {
         allowDefaultStdlibLibrary: Bool = true,
         entryPointFQName: String? = nil,
         jvmClasspath: [String] = [],
+        jvmTarget: JVMTarget = .java8,
         stdlibProfile: StdlibProfile = .full
     ) {
         self.moduleName = moduleName
@@ -248,6 +285,7 @@ public struct CompilerOptions: Equatable {
         self.stdlibOnly = stdlibOnly
         self.entryPointFQName = entryPointFQName
         self.jvmClasspath = jvmClasspath
+        self.jvmTarget = jvmTarget
         self.stdlibProfile = stdlibProfile
     }
 

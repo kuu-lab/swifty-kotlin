@@ -1,6 +1,7 @@
 // DIFF_CANDIDATE_ONLY_FROM_SOURCE: exercises the internal
 // Uuid.generateV7(clock) seam, which is only reachable when compiling bundled
 // stdlib sources into the same module; there is no JVM kotlinc reference.
+// DIFF_CANDIDATE_ONLY_FROM_SOURCE_COMPILE_TIMEOUT: 600
 // EXPECT-STDOUT: same-ms increasing: true
 // EXPECT-STDOUT: same-ms counter steps of 1: true
 // EXPECT-STDOUT: same-ms timestamp kept: true

@@ -24,20 +24,24 @@ public enum StdlibProfile: String, CaseIterable, Sendable {
     /// streams), `kotlinx.cinterop` and `platform.*` (`kotlinx.io` Apple sources),
     /// `kotlin.concurrent` (atomics behind coroutines and `kotlin.native.concurrent`),
     /// `kotlin.experimental` (`@OptIn` on collection sources), `kotlin.io.encoding`
-    /// (`kotlinx.io.bytestring`), `kotlin.js` and `java.nio`/`java.math`.
-    /// When a kept source starts depending on one of these packages the
-    /// stdlib-only build fails, which is the signal to move the prefix out of
-    /// this list.
+    /// (`kotlinx.io.bytestring`), `kotlin.js`, `java.net` (`java.nio.file.Path`),
+    /// `java.nio`/`java.math`, `kotlin.uuid` (`java.util.UUID`), and
+    /// `kotlinx.atomicfu.locks` (the retained `java.util.concurrent` implementations).
+    /// When a kept source starts depending on an excluded package the
+    /// stdlib-only build fails, which is the signal to update the exclusion
+    /// rule so that dependency remains in the profile.
+    /// An exact-package exclusion keeps required child packages visible.
+    static let minimalExcludedExactPackages: Set<String> = [
+        "kotlinx.atomicfu",
+    ]
+
     static let minimalExcludedPackagePrefixes: [String] = [
         "kotlinx.coroutines",
         "kotlinx.serialization",
-        "kotlinx.atomicfu",
         "kswiftk.atomicfu",
         "kotlin.test",
-        "kotlin.uuid",
         "kotlin.io.path",
         "java.sql",
-        "java.net",
         "java.security",
         "java.text",
     ]
@@ -60,8 +64,11 @@ public enum StdlibProfile: String, CaseIterable, Sendable {
         }
     }
 
-    /// Whether `package` (a dotted name) is covered by an excluded prefix.
+    /// Whether `package` (a dotted name) is excluded from the minimal profile.
     public static func isExcludedFromMinimal(package: String) -> Bool {
+        if minimalExcludedExactPackages.contains(package) {
+            return true
+        }
         for prefix in minimalExcludedPackagePrefixes
             where package == prefix || package.hasPrefix(prefix + ".")
         {

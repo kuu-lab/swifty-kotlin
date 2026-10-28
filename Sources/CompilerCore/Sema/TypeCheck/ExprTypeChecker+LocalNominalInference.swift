@@ -749,7 +749,10 @@ extension ExprTypeChecker {
         ))
         capturedSymbols.formUnion(collectNestedInnerClassCaptures(
             classDecl.nestedClasses,
-            outerSymbols: captureOuterSymbols,
+            outerReceiverSymbols: Set(
+                ctx.outerReceiverTypes.compactMap(\.symbol) + ctx.implicitReceiverStack.map(\.symbol)
+            ),
+            superConstructorCaptureSymbols: captureOuterSymbols,
             ast: ast,
             sema: sema
         ))
@@ -868,7 +871,8 @@ extension ExprTypeChecker {
 
     private func collectNestedInnerClassCaptures(
         _ nestedClassDeclIDs: [DeclID],
-        outerSymbols: Set<SymbolID>,
+        outerReceiverSymbols: Set<SymbolID>,
+        superConstructorCaptureSymbols: Set<SymbolID>,
         ast: ASTModule,
         sema: SemaModule
     ) -> Set<SymbolID> {
@@ -891,7 +895,7 @@ extension ExprTypeChecker {
                     inBody: function.body,
                     ast: ast,
                     sema: sema,
-                    outerSymbols: outerSymbols,
+                    outerSymbols: outerReceiverSymbols,
                     skipNestedClosures: false
                 ))
             }
@@ -899,13 +903,30 @@ extension ExprTypeChecker {
                 memberProperties: nestedClass.memberProperties,
                 includePropertyInitializers: true,
                 extraBodies: nestedClass.initBlocks + nestedClass.secondaryConstructors.map(\.body),
-                extraExprRoots: nestedClass.superTypeEntries.flatMap(\.constructorArgs).map(\.expr)
-                    + nestedClass.primaryConstructorParams.compactMap(\.defaultValue)
-                    + nestedClass.secondaryConstructors.flatMap { constructor in
-                        constructor.valueParams.compactMap(\.defaultValue)
-                            + (constructor.delegationCall?.args.map(\.expr) ?? [])
-                    },
-                captureOuterSymbols: outerSymbols,
+                extraExprRoots: nestedClass.primaryConstructorParams.compactMap(\.defaultValue)
+                    + nestedClass.secondaryConstructors.flatMap { $0.valueParams.compactMap(\.defaultValue) },
+                captureOuterSymbols: outerReceiverSymbols,
+                ast: ast,
+                sema: sema
+            ))
+            // A local class must retain enclosing locals referenced by a
+            // nested inner class's super-constructor arguments. Other nested
+            // member roots keep the existing receiver-only capture behavior.
+            let superConstructorExprRoots = nestedClass.superTypeEntries.flatMap(\.constructorArgs).map(\.expr)
+                + nestedClass.secondaryConstructors.flatMap { constructor -> [ExprID] in
+                    guard let delegationCall = constructor.delegationCall,
+                          delegationCall.kind == .super_
+                    else {
+                        return []
+                    }
+                    return delegationCall.args.map(\.expr)
+                }
+            capturedSymbols.formUnion(collectLocalNominalCaptureSymbols(
+                memberProperties: [],
+                includePropertyInitializers: false,
+                extraBodies: [],
+                extraExprRoots: superConstructorExprRoots,
+                captureOuterSymbols: superConstructorCaptureSymbols,
                 ast: ast,
                 sema: sema
             ))

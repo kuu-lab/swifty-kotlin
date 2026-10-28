@@ -6,6 +6,18 @@ import Testing
 
 @Suite
 struct CodegenBackendGenericOverrideBridgeTests {
+    private func source(_ filename: String) throws -> String {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        return try String(
+            contentsOf: root.appendingPathComponent("Scripts/diff_cases/\(filename).kt"),
+            encoding: .utf8
+        )
+    }
+
     @Test
     func testGenericOverrideBridgeBoxesUnitForAnyReturn() throws {
         let source = """
@@ -34,6 +46,33 @@ struct CodegenBackendGenericOverrideBridgeTests {
         }
         """
         try assertKotlinOutput(source, moduleName: "GenericOverridePropertyBridge", expected: "81\n81\n")
+    }
+
+    @Test
+    func testGenericPropertyGetterBridgeRejectsWrongTypeArgument() throws {
+        try assertKotlinOutput(
+            source("kuu_3670_generic_property_bridge_test20"),
+            moduleName: "KUU3670GenericPropertyGetterBridge",
+            expected: "OK\n"
+        )
+    }
+
+    @Test
+    func testGenericNullablePropertySetterAndGetterBridgeRejectWrongType() throws {
+        try assertKotlinOutput(
+            source("kuu_3670_generic_property_bridge_test21"),
+            moduleName: "KUU3670GenericNullablePropertyBridge",
+            expected: "OK\n"
+        )
+    }
+
+    @Test
+    func testGenericOverrideBridgeWithNothingParameter() throws {
+        try assertKotlinOutput(
+            source("kuu_3670_generic_property_bridge_test24"),
+            moduleName: "KUU3670GenericNothingOverrideBridge",
+            expected: "OK\n"
+        )
     }
 
     @Test

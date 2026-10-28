@@ -157,4 +157,16 @@ struct GenericErasedLambdaArgExecutionTests {
             moduleName: "KUU3506GenericHigherOrderFunctionValueCall"
         )
     }
+
+    /// KUU-3675: a generic extension on `String.Companion` must contextualize
+    /// and invoke its lambda argument with the companion receiver as `T`.
+    @Test
+    func genericExtensionOnStringCompanionWithLambdaArgument() throws {
+        TestStdlibCache.shared.prepare()
+        try compileAndRunKotlin(
+            try diffCaseSource("generic_extension_companion_lambda.kt", file: #filePath),
+            expectedOutput: "true\n",
+            moduleName: "KUU3675GenericExtensionCompanionLambda"
+        )
+    }
 }

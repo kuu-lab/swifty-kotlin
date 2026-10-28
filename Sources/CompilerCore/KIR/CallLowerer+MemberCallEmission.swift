@@ -537,6 +537,7 @@ extension CallLowerer {
             self.memberExtensionDispatchReceiver(
                 for: $0,
                 callExprID: callExprID,
+                dispatchReceiverSymbol: callBinding?.dispatchReceiverSymbol,
                 sema: sema,
                 arena: arena,
                 interner: interner,
@@ -1291,6 +1292,14 @@ extension CallLowerer {
             || chosenCallee.map({ isClockRuntimeVirtualBridge($0, sema: sema) }) == true
             || chosenCallee.map({
                 isIteratorRuntimeVirtualBridge(
+                    $0,
+                    receiverTypeID: receiver.type(in: sema),
+                    sema: sema,
+                    interner: interner
+                )
+            }) == true
+            || chosenCallee.map({
+                isRuntimeBoxedCollectionVirtualBridge(
                     $0,
                     receiverTypeID: receiver.type(in: sema),
                     sema: sema,
