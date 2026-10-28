@@ -86,7 +86,7 @@ extension JVMClasspathIndex {
             return owner
         }
 
-        let functions = snapshot.declarations.enumerated().compactMap { index, declaration -> (range: SourceRange, name: String, owner: SymbolID?, parent: SymbolID?, symbol: SymbolID)? in
+        let functions = snapshot.declarations.enumerated().compactMap { index, declaration -> (range: SourceRange, name: String, owner: SymbolID?, parent: SymbolID?, symbol: SymbolID, topLevel: Bool)? in
             guard case let .funDecl(function) = declaration,
                   contains(function.range, objectRange)
             else {
@@ -95,12 +95,14 @@ extension JVMClasspathIndex {
             let declID = DeclID(rawValue: Int32(index))
             guard let functionSymbol = sema.bindings.declSymbols[declID] else { return nil }
             let parent = sema.symbols.parentSymbol(for: functionSymbol)
+            let topLevel = file.topLevelDecls.contains(declID)
             return (
                 function.range,
                 ctx.interner.resolve(function.name),
-                nominalOwner(parent),
+                topLevel ? nil : nominalOwner(parent),
                 parent,
-                functionSymbol
+                functionSymbol,
+                topLevel
             )
         }.sorted { span($0.range) < span($1.range) }
         let function = functions.first
@@ -114,10 +116,16 @@ extension JVMClasspathIndex {
                 let declID = DeclID(rawValue: Int32(index))
                 guard let symbol = sema.bindings.declSymbols[declID] else { return nil }
                 let parent = sema.symbols.parentSymbol(for: symbol)
-                guard nominalOwner(parent) == selected.owner else { return nil }
-                if selected.owner == nil,
-                   (parent != selected.parent || candidate.range.start.file != selected.range.start.file) {
-                    return nil
+                if selected.topLevel {
+                    guard file.topLevelDecls.contains(declID),
+                          candidate.range.start.file == selected.range.start.file else { return nil }
+                } else {
+                    guard !file.topLevelDecls.contains(declID),
+                          nominalOwner(parent) == selected.owner else { return nil }
+                    if selected.owner == nil,
+                       (parent != selected.parent || candidate.range.start.file != selected.range.start.file) {
+                        return nil
+                    }
                 }
                 return (candidate.range, symbol)
             }.sorted { $0.range.start.offset < $1.range.start.offset }
