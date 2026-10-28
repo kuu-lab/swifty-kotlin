@@ -60,8 +60,6 @@ final class ConsolePrintLoweringPass: LoweringPass, ParallelLoweringPass {
                     ),
                        self.rewritePrintCall(
                            isPrintln: printKind == .println,
-                           symbol: symbol,
-                           callee: callee,
                            arguments: arguments,
                            result: result,
                            arena: module.arena,
@@ -135,8 +133,6 @@ final class ConsolePrintLoweringPass: LoweringPass, ParallelLoweringPass {
 
     private func rewritePrintCall(
         isPrintln: Bool,
-        symbol: SymbolID?,
-        callee: InternedString,
         arguments: [KIRExprID],
         result: KIRExprID?,
         arena: KIRArena,
