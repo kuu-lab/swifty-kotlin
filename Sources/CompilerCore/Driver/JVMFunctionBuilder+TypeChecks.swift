@@ -61,7 +61,7 @@ extension JVMFunctionBuilder {
         mark(no); instructions.append(.constant(.null, result)); mark(end)
         return result
     }
-    func instanceCheck(_ source: ExprID, target: TypeRefID, negated: Bool, id: ExprID) throws -> JVMValue {
+    func instanceCheck(_ source: ExprID, negated: Bool, id: ExprID) throws -> JVMValue {
         guard let semantic = program.sema.bindings.isCheckTargetType(for: id) else { throw fail("Missing JVM runtime type check.", id) }
         return try instanceCheckValue(requireValue(source), semantic: semantic, negated: negated, id: id)
     }
