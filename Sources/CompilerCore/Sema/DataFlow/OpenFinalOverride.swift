@@ -261,9 +261,18 @@ extension DataFlowSemaPhase {
             interner: ctx.interner
         )
         for inherited in inheritedRequirements {
-            if let enumMember = declaredMembers.first(where: {
-                enumMemberOverridesAbstractMember($0, inherited, ownerSymbol: ownerSymbol, ctx: ctx)
-            }) {
+            let satisfyingDeclID = declaredMemberDeclIDs.first { declID in
+                guard let member = ctx.bindings.declSymbols[declID] else { return false }
+                return enumMemberOverridesAbstractMember(
+                    member, inherited,
+                    memberDeclID: declID,
+                    ownerSymbol: ownerSymbol,
+                    ctx: ctx
+                )
+            }
+            if let satisfyingDeclID,
+               let enumMember = ctx.bindings.declSymbols[satisfyingDeclID]
+            {
                 if ctx.symbols.symbol(enumMember)?.flags.contains(.abstractType) == true {
                     requirements.append(enumMember)
                 }
@@ -298,6 +307,7 @@ extension DataFlowSemaPhase {
     private func enumMemberOverridesAbstractMember(
         _ member: SymbolID,
         _ abstractMember: SymbolID,
+        memberDeclID: DeclID,
         ownerSymbol: SymbolID,
         ctx: OpenFinalOverrideContext
     ) -> Bool {
@@ -314,10 +324,17 @@ extension DataFlowSemaPhase {
                 ctx: ctx
             )
         case .property:
+            let childTypeIsInferred: Bool
+            if case let .propertyDecl(property) = ctx.ast.arena.decl(memberDeclID) {
+                childTypeIsInferred = property.type == nil
+            } else {
+                childTypeIsInferred = false
+            }
             return enumPropertyOverrideMatches(
                 childMember: member,
                 abstractMember: abstractMember,
                 childOwner: ownerSymbol,
+                childTypeIsInferred: childTypeIsInferred,
                 ctx: ctx
             )
         default:
@@ -360,6 +377,7 @@ extension DataFlowSemaPhase {
                       childMember: member,
                       abstractMember: abstractMember,
                       childOwner: ownerSymbol,
+                      childTypeIsInferred: property.type == nil,
                       ctx: ctx
                   )
             else {
@@ -374,6 +392,7 @@ extension DataFlowSemaPhase {
         childMember: SymbolID,
         abstractMember: SymbolID,
         childOwner: SymbolID,
+        childTypeIsInferred: Bool,
         ctx: OpenFinalOverrideContext
     ) -> Bool {
         guard let child = ctx.symbols.symbol(childMember),
@@ -381,7 +400,6 @@ extension DataFlowSemaPhase {
               let abstract = ctx.symbols.symbol(abstractMember),
               abstract.kind == .property,
               child.name == abstract.name,
-              let childType = ctx.symbols.propertyType(for: childMember),
               let abstractView = abstractMemberViewFromClass(
                   abstractMember,
                   for: childOwner,
@@ -409,6 +427,18 @@ extension DataFlowSemaPhase {
 
         let childIsMutable = child.flags.contains(.mutable)
         guard childIsMutable || !abstractView.isMutable else {
+            return false
+        }
+        // An `override val x = …` whose type is inferred carries only the
+        // `Any?` placeholder at this phase — inference runs during type
+        // checking. The name + override modifier already establish the
+        // implementation, matching the name-based accounting
+        // unimplementedAbstractMembers applies to ordinary classes via
+        // collectOverriddenMemberNames.
+        if childTypeIsInferred {
+            return true
+        }
+        guard let childType = ctx.symbols.propertyType(for: childMember) else {
             return false
         }
         if abstractView.isMutable {
