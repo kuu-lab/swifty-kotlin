@@ -1,4 +1,3 @@
-import RuntimeABI
 
 struct ListLookupNames {
     let listOfName: InternedString

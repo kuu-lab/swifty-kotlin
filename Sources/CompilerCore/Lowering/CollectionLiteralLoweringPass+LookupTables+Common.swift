@@ -1,4 +1,3 @@
-import RuntimeABI
 
 struct CommonLookupNames {
     let sumName: InternedString

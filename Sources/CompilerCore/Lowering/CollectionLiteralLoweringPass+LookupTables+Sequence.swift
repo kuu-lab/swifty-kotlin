@@ -1,4 +1,3 @@
-import RuntimeABI
 
 struct SequenceLookupNames {
     let kkSequenceMapName: InternedString

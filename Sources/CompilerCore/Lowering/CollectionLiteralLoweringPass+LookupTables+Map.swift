@@ -1,4 +1,3 @@
-import RuntimeABI
 
 struct MapLookupNames {
     let mapOfName: InternedString
