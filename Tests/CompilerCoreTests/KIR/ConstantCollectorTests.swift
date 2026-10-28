@@ -222,6 +222,8 @@ struct ConstantCollectorTests {
         val FLOAT_SIGNED_ZERO_EQ = 0.0f == -0.0f
         val NAN_EQ = (0.0 / 0.0) == (0.0 / 0.0)
         val NAN_NE = (0.0 / 0.0) != (0.0 / 0.0)
+        val NEGATIVE_ZERO_LT = -0.0 < 0.0
+        val NAN_GT = (0.0 / 0.0) > 1.0
         const val CONST_SIGNED_ZERO_EQ = 0.0 == -0.0
         """)
         try runSema(ctx)
@@ -232,7 +234,7 @@ struct ConstantCollectorTests {
         )
         let expected: [String: Bool] = [
             "SIGNED_ZERO_EQ": true, "SIGNED_ZERO_NE": false, "FLOAT_SIGNED_ZERO_EQ": true,
-            "NAN_EQ": false, "NAN_NE": true,
+            "NAN_EQ": false, "NAN_NE": true, "NEGATIVE_ZERO_LT": false, "NAN_GT": false,
             // kotlinc's constant evaluator keeps boxed equality for `const val`.
             "CONST_SIGNED_ZERO_EQ": false,
         ]

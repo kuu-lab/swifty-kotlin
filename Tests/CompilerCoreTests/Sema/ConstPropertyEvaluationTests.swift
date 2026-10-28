@@ -314,6 +314,35 @@ struct ConstPropertyEvaluationTests {
     }
 
     @Test
+    func foldsFloatingRelationalOperatorsWithCompareToOrder() throws {
+        let ctx = makeContextFromSource("""
+        package floatingOrderConstants
+        const val NEGATIVE_ZERO_LT = -0.0 < 0.0
+        const val ZERO_LE_NEGATIVE_ZERO = 0.0 <= -0.0
+        const val NAN_GT = Double.NaN > 1.0
+        const val NAN_LT = Double.NaN < 1.0
+        const val NAN_GE_NAN = Double.NaN >= Double.NaN
+        const val FLOAT_NEGATIVE_ZERO_LT = -0.0f < 0.0f
+        const val ORDINARY_LT = 1.0 < 2.0
+        """)
+        try runSema(ctx)
+
+        #expect(ctx.diagnostics.diagnostics.filter { $0.severity == .error }.isEmpty)
+        let sema = try #require(ctx.sema)
+        let expected: [String: Bool] = [
+            "NEGATIVE_ZERO_LT": true, "ZERO_LE_NEGATIVE_ZERO": false,
+            "NAN_GT": true, "NAN_LT": false, "NAN_GE_NAN": true,
+            "FLOAT_NEGATIVE_ZERO_LT": true, "ORDINARY_LT": true,
+        ]
+        for (name, value) in expected {
+            let symbol = try #require(sema.symbols.lookup(
+                fqName: ["floatingOrderConstants", name].map { ctx.interner.intern($0) }
+            ))
+            #expect(sema.symbols.constValueExprKind(for: symbol) == .boolLiteral(value), "Incorrect constant for \(name)")
+        }
+    }
+
+    @Test
     func foldsCharCodeNumericConversionConstInitializers() throws {
         let ctx = makeContextFromSource("""
         package charCodeConstants

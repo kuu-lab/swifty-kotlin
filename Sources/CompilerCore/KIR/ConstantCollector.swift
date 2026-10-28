@@ -2,8 +2,8 @@ import Foundation
 
 struct ConstantCollector {
     /// kotlinc's constant evaluator compares boxed floating-point values
-    /// (`NaN == NaN`, `-0.0 != 0.0`), but a folded non-`const` initializer must
-    /// keep the IEEE 754 result the same expression has at runtime.
+    /// (`NaN == NaN`, `-0.0 != 0.0`, `-0.0 < 0.0`), but a folded non-`const`
+    /// initializer must keep the IEEE 754 result the same expression has at runtime.
     enum FloatingPointComparison {
         case ieee754
         case constantEvaluation
@@ -346,20 +346,11 @@ struct ConstantCollector {
         }
     }
 
+    /// The constant evaluator orders through `compareTo`, so relational
+    /// operators see `-0.0 < 0.0` and NaN above every other value too.
     private func floatingPointComparison<T: BinaryFloatingPoint>(_ op: BinaryOp, _ lhs: T, _ rhs: T) -> KIRExprKind? {
-        switch op {
-        case .equal where floatingPointComparison == .constantEvaluation:
-            .boolLiteral(kotlinConstantFloatingPointEquals(lhs, rhs))
-        case .notEqual where floatingPointComparison == .constantEvaluation:
-            .boolLiteral(!kotlinConstantFloatingPointEquals(lhs, rhs))
-        default: comparison(op, lhs, rhs)
-        }
-    }
-
-    private func kotlinConstantFloatingPointEquals<T: BinaryFloatingPoint>(_ lhs: T, _ rhs: T) -> Bool {
-        if lhs.isNaN || rhs.isNaN { return lhs.isNaN && rhs.isNaN }
-        if lhs == 0, rhs == 0 { return lhs.sign == rhs.sign }
-        return lhs == rhs
+        guard floatingPointComparison == .constantEvaluation else { return comparison(op, lhs, rhs) }
+        return comparison(op, compareFloatingPoint(lhs, rhs), 0)
     }
 
     private func integerBinaryOp(_ op: BinaryOp, _ lhs: Int64, _ rhs: Int64, width: Int = 64) -> Int64? {
