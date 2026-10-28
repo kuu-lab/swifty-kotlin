@@ -164,6 +164,7 @@ extension ExprLowerer {
         kirCheckableCastErasure(of: type, sema: sema)
     }
 
+
     /// KUU-3535: a non-reified generic return crosses the call boundary in
     /// erased form — the callee's own `as T` cannot verify it, so
     /// Kotlin/JVM emits the checkcast where the result is claimed at the
