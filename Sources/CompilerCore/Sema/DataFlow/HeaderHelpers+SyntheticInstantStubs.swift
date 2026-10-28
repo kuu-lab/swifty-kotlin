@@ -59,7 +59,7 @@ extension DataFlowSemaPhase {
         // Instant.now() / fromEpochMilliseconds() are implemented in
         // Stdlib/kotlin/time/Instant.kt. The companion object must exist so
         // extension functions on Instant.Companion can resolve.
-        _ = ensureInstantCompanionSymbol(
+        _ = ensureSyntheticCompanionSymbol(
             ownerSymbol: instantSymbol,
             symbols: symbols,
             interner: interner
@@ -88,7 +88,8 @@ extension DataFlowSemaPhase {
         instantMethods.fn("__kk_instant_until", "kk_instant_until", [(name: "other", type: instantType)], ret: longType)
     }
 
-    private func ensureInstantCompanionSymbol(
+    /// Shared by the Instant, Clock and Duration synthetic stubs.
+    func ensureSyntheticCompanionSymbol(
         ownerSymbol: SymbolID,
         symbols: SymbolTable,
         interner: StringInterner
@@ -107,7 +108,7 @@ extension DataFlowSemaPhase {
         // A precompiled stdlib artifact declares the companion object before
         // synthetic registration runs. Reuse that symbol so imported
         // companion extension signatures and the source-level shorthand
-        // (`Instant.fromEpochMilliseconds(...)`) resolve to one nominal type.
+        // (e.g. `Instant.fromEpochMilliseconds(...)`) resolve to one nominal type.
         if let importedCompanion = symbols.lookupAll(fqName: companionFQName)
             .compactMap({ symbols.symbol($0) })
             .first(where: { $0.kind == .object || $0.kind == .class || $0.kind == .interface })

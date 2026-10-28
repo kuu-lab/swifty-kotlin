@@ -38,48 +38,11 @@ extension DataFlowSemaPhase {
             interner: interner
         )
         // Clock.Companion is a public namespace object in the Kotlin API.
-        _ = ensureClockCompanionSymbol(
+        _ = ensureSyntheticCompanionSymbol(
             ownerSymbol: clockSymbol,
             symbols: symbols,
             interner: interner
         )
-    }
-
-    private func ensureClockCompanionSymbol(
-        ownerSymbol: SymbolID,
-        symbols: SymbolTable,
-        interner: StringInterner
-    ) -> [InternedString] {
-        if let existingCompanion = symbols.companionObjectSymbol(for: ownerSymbol),
-           let companionInfo = symbols.symbol(existingCompanion)
-        {
-            return companionInfo.fqName
-        }
-
-        guard let ownerInfo = symbols.symbol(ownerSymbol) else {
-            return []
-        }
-        let companionName = interner.intern("Companion")
-        let companionFQName = ownerInfo.fqName + [companionName]
-        if let importedCompanion = symbols.lookupAll(fqName: companionFQName)
-            .compactMap({ symbols.symbol($0) })
-            .first(where: { $0.kind == .object || $0.kind == .class || $0.kind == .interface })
-        {
-            symbols.setParentSymbol(ownerSymbol, for: importedCompanion.id)
-            symbols.setCompanionObjectSymbol(importedCompanion.id, for: ownerSymbol)
-            return companionFQName
-        }
-        let companionSymbol = symbols.define(
-            kind: .object,
-            name: companionName,
-            fqName: companionFQName,
-            declSite: nil,
-            visibility: .public,
-            flags: [.synthetic, .static]
-        )
-        symbols.setParentSymbol(ownerSymbol, for: companionSymbol)
-        symbols.setCompanionObjectSymbol(companionSymbol, for: ownerSymbol)
-        return companionFQName
     }
 
 }
