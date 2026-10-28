@@ -588,12 +588,6 @@ public func kk_http_request_builder_build(_ builderRaw: Int, _ outThrown: Unsafe
     return registerRuntimeObject(RuntimeHttpRequestBox(url: url, method: builder.method, headers: builder.headers, body: builder.body))
 }
 
-@_cdecl("kk_http_body_publishers_noBody")
-public func kk_http_body_publishers_noBody(_ bodyPublishersRaw: Int) -> Int {
-    _ = bodyPublishersRaw
-    return registerRuntimeObject(RuntimeHttpBodyPublisherBox(data: nil))
-}
-
 public func kk_http_body_publishers_ofString(_ bodyPublishersRaw: Int, _ bodyRaw: Int) -> Int {
     _ = bodyPublishersRaw
     let text = networkString(from: bodyRaw, caller: #function)
