@@ -128,6 +128,7 @@ func registerSyntheticFunctionStub(
                 valueParameterSymbols: existingSignature.valueParameterSymbols,
                 valueParameterHasDefaultValues: parameters.map(\.hasDefault),
                 valueParameterIsVararg: parameters.map(\.isVararg),
+                hasStableParameterNames: existingSignature.hasStableParameterNames,
                 typeParameterSymbols: typeParameterSymbols.isEmpty
                     ? existingSignature.typeParameterSymbols
                     : typeParameterSymbols,

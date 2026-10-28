@@ -337,7 +337,14 @@ extension CallTypeChecker {
                 && sema.types.isUnsigned(receiver) == sema.types.isUnsigned(argument)
             return bothArithmetic ? receiver : nil
         }()
-        let memberLookupType = rangeSourceMemberLookupType ?? rangeExtensionLookupType ?? primitiveComparisonReceiver ?? lookupReceiverType
+        let channelBoundReceiverType = interner.resolve(calleeName) == "receive"
+            ? ReceiverClassifier(sema: sema, interner: interner).channelUpperBoundType(of: lookupReceiverType)
+            : nil
+        let memberLookupType = rangeSourceMemberLookupType
+            ?? rangeExtensionLookupType
+            ?? primitiveComparisonReceiver
+            ?? channelBoundReceiverType
+            ?? lookupReceiverType
 
         // A precompiled `UIntRange.contains(UInt)` can otherwise lose to the
         // inherited `ClosedRange<T>.contains(T)` member before the ordinary

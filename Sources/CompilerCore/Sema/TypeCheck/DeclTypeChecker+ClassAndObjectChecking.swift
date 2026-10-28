@@ -98,9 +98,28 @@ extension DeclTypeChecker {
         symbol: SymbolID,
         ctx: TypeInferenceContext,
         solver: ConstraintSolver,
-        diagnostics: DiagnosticEngine
+        diagnostics: DiagnosticEngine,
+        baseLocals: LocalBindings = [:]
     ) {
         typeCheckAnnotationFactories(classDecl.annotations, symbol: symbol, ctx: ctx)
+        if let classSymbol = ctx.sema.symbols.symbol(symbol) {
+            let constructorPath = classSymbol.fqName + [ctx.interner.intern("<init>")]
+            let constructors = ctx.sema.symbols.lookupAll(fqName: constructorPath)
+            if !classDecl.primaryConstructorAnnotations.isEmpty,
+               let constructor = constructors.first(where: {
+                   ctx.sema.symbols.symbol($0)?.declSite == classDecl.range
+               })
+            {
+                typeCheckAnnotationFactories(classDecl.primaryConstructorAnnotations, symbol: constructor, ctx: ctx)
+            }
+            for declaration in classDecl.secondaryConstructors where !declaration.annotations.isEmpty {
+                if let constructor = constructors.first(where: {
+                    ctx.sema.symbols.symbol($0)?.declSite == declaration.range
+                }) {
+                    typeCheckAnnotationFactories(declaration.annotations, symbol: constructor, ctx: ctx)
+                }
+            }
+        }
         var allNestedObjects = classDecl.nestedObjects
         if let companionDeclID = classDecl.companionObject {
             allNestedObjects.append(companionDeclID)
@@ -111,6 +130,7 @@ extension DeclTypeChecker {
             nestedObjects: allNestedObjects,
             ctx: ctx
         )
+        let classBodyLocals = baseLocals.merging(primaryCtorLocals) { _, new in new }
         if let companionDeclID = classDecl.companionObject {
             // Infer both sides first: companion bodies may use inferred instance members.
             let diagnosticSnapshot = diagnostics.count
@@ -119,7 +139,8 @@ extension DeclTypeChecker {
                 memberProperties: classDecl.memberProperties,
                 nestedClasses: classDecl.nestedClasses,
                 ctx: classCtx,
-                propertyInitializerLocals: primaryCtorLocals,
+                propertyInitializerLocals: classBodyLocals,
+                memberFunctionBaseLocals: baseLocals,
                 solver: solver,
                 diagnostics: diagnostics
             )
@@ -139,12 +160,17 @@ extension DeclTypeChecker {
             nestedClasses: classDecl.nestedClasses,
             nestedObjects: allNestedObjects,
             ctx: classCtx,
-            propertyInitializerLocals: primaryCtorLocals,
+            propertyInitializerLocals: classBodyLocals,
+            memberFunctionBaseLocals: baseLocals,
+            nestedClassBaseLocals: baseLocals,
             solver: solver,
             diagnostics: diagnostics
         )
-        typeCheckInitBlocks(classDecl.initBlocks, ctx: classCtx, baseLocals: primaryCtorLocals)
-        typeCheckPrimaryConstructorDefaultValues(classDecl, ctx: classCtx, solver: solver, diagnostics: diagnostics)
+        typeCheckInitBlocks(classDecl.initBlocks, ctx: classCtx, baseLocals: classBodyLocals)
+        typeCheckPrimaryConstructorDefaultValues(
+            classDecl, ctx: classCtx, solver: solver, diagnostics: diagnostics,
+            baseLocals: baseLocals
+        )
         if classDecl.modifiers.contains(.annotationClass) {
             for parameter in classDecl.primaryConstructorParams {
                 if let value = parameter.defaultValue { validateAnnotationDefaultValue(value, ctx: classCtx) }
@@ -157,6 +183,7 @@ extension DeclTypeChecker {
             classDecl,
             symbol: symbol,
             ctx: classCtx,
+            extraLocals: baseLocals,
             outerReceiversToKeep: ctx.singletonObjectOuterReceivers
         )
         let explicitSuperclassSymbol = explicitClassSuperclassSymbol(classDecl, ctx: classCtx)
@@ -167,9 +194,13 @@ extension DeclTypeChecker {
             diagnostics: diagnostics,
             ownerSymbol: symbol,
             hasPrimaryConstructor: classDecl.hasPrimaryConstructorSyntax,
-            explicitSuperclassSymbol: explicitSuperclassSymbol
+            explicitSuperclassSymbol: explicitSuperclassSymbol,
+            baseLocals: baseLocals
         )
-        typeCheckClassDelegation(classDecl, symbol: symbol, ctx: classCtx, solver: solver, diagnostics: diagnostics)
+        typeCheckClassDelegation(
+            classDecl, symbol: symbol, ctx: classCtx, solver: solver,
+            diagnostics: diagnostics, baseLocals: baseLocals
+        )
         typeCheckEnumEntryMemberBodies(
             classDecl,
             enumSymbol: symbol,
@@ -493,6 +524,7 @@ extension DeclTypeChecker {
         nestedClasses: [DeclID] = [],
         ctx: TypeInferenceContext,
         propertyInitializerLocals: LocalBindings = [:],
+        memberFunctionBaseLocals: LocalBindings = [:],
         solver: ConstraintSolver,
         diagnostics: DiagnosticEngine
     ) {
@@ -533,7 +565,8 @@ extension DeclTypeChecker {
                     symbol: symbol,
                     ctx: ctx.with(currentDeclSymbol: symbol),
                     solver: solver,
-                    diagnostics: diagnostics
+                    diagnostics: diagnostics,
+                    baseLocals: memberFunctionBaseLocals
                 )
                 diagnostics.truncate(to: diagnosticSnapshot)
 
@@ -585,6 +618,8 @@ extension DeclTypeChecker {
         nestedObjects: [DeclID],
         ctx: TypeInferenceContext,
         propertyInitializerLocals: LocalBindings = [:],
+        memberFunctionBaseLocals: LocalBindings = [:],
+        nestedClassBaseLocals: LocalBindings = [:],
         solver: ConstraintSolver,
         diagnostics: DiagnosticEngine
     ) {
@@ -596,6 +631,7 @@ extension DeclTypeChecker {
             nestedClasses: nestedClasses,
             ctx: ctx,
             propertyInitializerLocals: propertyInitializerLocals,
+            memberFunctionBaseLocals: memberFunctionBaseLocals,
             solver: solver,
             diagnostics: diagnostics
         )
@@ -625,7 +661,13 @@ extension DeclTypeChecker {
         // Nested types can also expose inferred companion properties. Resolve
         // them before enclosing functions see the header's `Any?` placeholder.
         for declID in nestedClasses {
-            typeCheckNestedClassDecl(declID: declID, ctx: ctx, solver: solver, diagnostics: diagnostics)
+            typeCheckNestedClassDecl(
+                declID: declID,
+                ctx: ctx,
+                solver: solver,
+                diagnostics: diagnostics,
+                baseLocals: nestedClassBaseLocals
+            )
         }
 
         // Recheck properties after nested classes publish inferred member
@@ -663,7 +705,8 @@ extension DeclTypeChecker {
                 symbol: symbol,
                 ctx: ctx.with(currentDeclSymbol: symbol),
                 solver: solver,
-                diagnostics: diagnostics
+                diagnostics: diagnostics,
+                baseLocals: memberFunctionBaseLocals
             )
         }
 
@@ -706,7 +749,8 @@ extension DeclTypeChecker {
         declID: DeclID,
         ctx: TypeInferenceContext,
         solver: ConstraintSolver,
-        diagnostics: DiagnosticEngine
+        diagnostics: DiagnosticEngine,
+        baseLocals: LocalBindings = [:]
     ) {
         guard let decl = ctx.ast.arena.decl(declID),
               let symbol = ctx.sema.bindings.declSymbols[declID]
@@ -720,7 +764,8 @@ extension DeclTypeChecker {
                 symbol: symbol,
                 ctx: nestedCtx.with(currentDeclSymbol: symbol),
                 solver: solver,
-                diagnostics: diagnostics
+                diagnostics: diagnostics,
+                baseLocals: classDecl.isInner ? baseLocals : [:]
             )
         case let .interfaceDecl(nestedInterface):
             let nestedCtx = ctx.copying(outerReceiverTypes: [])

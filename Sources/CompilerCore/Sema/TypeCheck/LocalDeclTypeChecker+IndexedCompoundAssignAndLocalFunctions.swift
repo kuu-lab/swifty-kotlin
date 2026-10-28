@@ -481,7 +481,12 @@ extension LocalDeclTypeChecker {
         guard let (_, symbol) = resolveClassTypeSymbol(receiverType, sema: sema) else {
             return false
         }
-        return knownNames.isArrayLikeName(symbol.name)
+        // Only the bundled kotlin.<Name> array classes (and fqName-less
+        // synthetic stubs) use the raw array runtime path; a user class that
+        // shadows the imported name keeps ordinary member dispatch (KUU-3615).
+        return (symbol.fqName.isEmpty
+            || symbol.fqName == [interner.intern("kotlin"), symbol.name])
+            && knownNames.isArrayLikeName(symbol.name)
     }
 
     /// Resolve `operator fun set` for the write-back half of `a[i] op= v` and,

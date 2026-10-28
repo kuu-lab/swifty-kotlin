@@ -116,16 +116,57 @@ extension JVMProgramBuilder {
                 if source == "kotlin/coroutines/Continuation", case .unit = sema.types.kind(of: id) { return "Lkotlin/Unit;" }
                 return try signatureType(id, boxed: true, parameterPosition: parameterPosition)
             }
-            let args = try t.args.enumerated().map { i, arg -> String in
-                switch arg {
-                case let .invariant(t):
-                    let variance = parameterPosition && variances.indices.contains(i) ? variances[i] : .invariant
-                    return (variance == .out ? "+" : (variance == .in ? "-" : "")) + (try argument(t))
-                case let .in(t): return "-" + (try argument(t))
-                case let .out(t): return "+" + (try argument(t))
-                case .star: return "*"
+            func arguments(_ values: [TypeArg], variances: [TypeVariance]) throws -> String {
+                try values.enumerated().map { i, arg -> String in
+                    switch arg {
+                    case let .invariant(t):
+                        let variance = parameterPosition && variances.indices.contains(i) ? variances[i] : .invariant
+                        return (variance == .out ? "+" : (variance == .in ? "-" : "")) + (try argument(t))
+                    case let .in(t): return "-" + (try argument(t))
+                    case let .out(t): return "+" + (try argument(t))
+                    case .star: return "*"
+                    }
+                }.joined()
+            }
+            let args = try arguments(t.args, variances: variances)
+            if !t.enclosingTypeArgs.isEmpty,
+               erased.referenceName == source,
+               sema.symbols.symbol(t.classSymbol)?.flags.contains(.innerClass) == true
+            {
+                var owners: [SymbolID] = []
+                var nextOwner = sema.symbols.parentSymbol(for: t.classSymbol)
+                while let owner = nextOwner, let symbol = sema.symbols.symbol(owner) {
+                    owners.append(owner)
+                    guard symbol.flags.contains(.innerClass) else { break }
+                    nextOwner = sema.symbols.parentSymbol(for: owner)
                 }
-            }.joined()
+                owners.reverse()
+                let expectedCount = owners.reduce(0) { $0 + sema.types.nominalTypeParameterSymbols(for: $1).count }
+                if expectedCount == t.enclosingTypeArgs.count, let first = owners.first {
+                    var currentName = try className(first)
+                    var result = "L" + currentName
+                    var offset = 0
+                    var validChain = true
+                    for (index, owner) in owners.enumerated() {
+                        if index > 0 {
+                            let name = try className(owner)
+                            guard name.hasPrefix(currentName + "$") else { validChain = false; break }
+                            result += "." + String(name.dropFirst(currentName.count + 1))
+                            currentName = name
+                        }
+                        let count = sema.types.nominalTypeParameterSymbols(for: owner).count
+                        let ownerArgs = Array(t.enclosingTypeArgs[offset ..< offset + count])
+                        let rendered = try arguments(ownerArgs, variances: sema.types.nominalTypeParameterVariances(for: owner))
+                        if !rendered.isEmpty { result += "<" + rendered + ">" }
+                        offset += count
+                    }
+                    if validChain, offset == expectedCount, source.hasPrefix(currentName + "$") {
+                        result += "." + String(source.dropFirst(currentName.count + 1))
+                        if !args.isEmpty { result += "<" + args + ">" }
+                        return result + ";"
+                    }
+                }
+            }
             return "L" + erased.referenceName! + (args.isEmpty ? "" : "<" + args + ">") + ";"
         default:
             let t = try type(id)

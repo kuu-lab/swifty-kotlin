@@ -640,6 +640,7 @@ package final class MetadataEncoder {
         var valueParameterCallsInPlaceKinds: [InvocationKind?] = []
         var canThrow = false
         var valueParameterNames: [String] = []
+        var hasStableParameterNames = true
         var reifiedTypeParameterIndices: Set<Int> = []
         var defaultStubExternalLinkName: String?
         var externalLinkName = symbols.externalLinkName(for: symbol.id)
@@ -697,6 +698,7 @@ package final class MetadataEncoder {
                 ? signature.valueParameterHasDefaultValues
                 : Array(repeating: false, count: signature.valueParameterHasDefaultValues.count)
             canThrow = signature.canThrow
+            hasStableParameterNames = signature.hasStableParameterNames
             valueParameterNames = signature.valueParameterSymbols.compactMap { paramSymbol in
                 symbols.symbol(paramSymbol).map { interner.resolve($0.name) }
             }
@@ -828,20 +830,45 @@ package final class MetadataEncoder {
             // unresolved global slot for the property itself.
             let enumEntriesGetterSymbol: SymbolID? = {
                 guard symbol.name == interner.intern("entries"),
-                      let companionID = symbols.parentSymbol(for: symbol.id),
-                      let companion = symbols.symbol(companionID),
-                      companion.kind == .object,
-                      let enumID = symbols.parentSymbol(for: companionID),
-                      let enumSymbol = symbols.symbol(enumID),
-                      enumSymbol.kind == .enumClass,
-                      symbols.companionObjectSymbol(for: enumID) == companionID
+                      let ownerID = symbols.parentSymbol(for: symbol.id),
+                      let owner = symbols.symbol(ownerID)
                 else {
                     return nil
                 }
-                let getterFQName = companion.fqName + [interner.intern("entries$get")]
-                return symbols.lookupAll(fqName: getterFQName).first { candidate in
-                    symbols.symbol(candidate)?.kind == .function
+                // Kotlin's synthetic `entries` is owned by the enum class
+                // itself (KUU-3544); artifacts emitted before that move keep
+                // it on the companion object, so accept both parents.
+                let enumID: SymbolID? = if owner.kind == .enumClass {
+                    ownerID
+                } else if owner.kind == .object,
+                          let parentEnumID = symbols.parentSymbol(for: ownerID),
+                          symbols.companionObjectSymbol(for: parentEnumID) == ownerID
+                {
+                    parentEnumID
+                } else {
+                    nil
                 }
+                guard let enumID,
+                      let enumSymbol = symbols.symbol(enumID),
+                      enumSymbol.kind == .enumClass
+                else {
+                    return nil
+                }
+                let entriesGetName = interner.intern("entries$get")
+                var getterFQNames = [enumSymbol.fqName + [entriesGetName]]
+                if let companionID = symbols.companionObjectSymbol(for: enumID),
+                   let companion = symbols.symbol(companionID)
+                {
+                    getterFQNames.append(companion.fqName + [entriesGetName])
+                }
+                for getterFQName in getterFQNames {
+                    if let getter = symbols.lookupAll(fqName: getterFQName).first(where: { candidate in
+                        symbols.symbol(candidate)?.kind == .function
+                    }) {
+                        return getter
+                    }
+                }
+                return nil
             }()
             let getterSymbol = enumEntriesGetterSymbol
                 ?? symbols.extensionPropertyGetterAccessor(for: symbol.id)
@@ -1088,6 +1115,7 @@ package final class MetadataEncoder {
             },
             canThrow: canThrow,
             valueParameterNames: valueParameterNames,
+            hasStableParameterNames: hasStableParameterNames,
             reifiedTypeParameterIndices: reifiedTypeParameterIndices,
             defaultStubExternalLinkName: defaultStubExternalLinkName,
             externalLinkName: externalLinkName,
@@ -1370,6 +1398,9 @@ package final class MetadataEncoder {
                 }
                 if !record.valueParameterNames.isEmpty {
                     fields.append("paramNames=\(record.valueParameterNames.joined(separator: ","))")
+                }
+                if !record.hasStableParameterNames {
+                    fields.append("unstableParams=1")
                 }
                 if !record.reifiedTypeParameterIndices.isEmpty {
                     let indices = record.reifiedTypeParameterIndices.sorted().map(String.init).joined(separator: ",")

@@ -196,6 +196,7 @@ extension DataFlowSemaPhase {
                 valueParameterIsVararg: signature.valueParameterIsVararg,
                 valueParameterAllowsNonLocalReturn: signature.valueParameterAllowsNonLocalReturn,
                 hasExplicitInlineParameterMetadata: signature.hasExplicitInlineParameterMetadata,
+                hasStableParameterNames: signature.hasStableParameterNames,
                 typeParameterSymbols: signature.typeParameterSymbols,
                 reifiedTypeParameterIndices: signature.reifiedTypeParameterIndices,
                 typeParameterUpperBounds: signature.typeParameterUpperBounds,

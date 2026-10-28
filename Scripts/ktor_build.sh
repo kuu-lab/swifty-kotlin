@@ -99,12 +99,15 @@ module_sources() {
 # with `-I <dep>.kklib` when its artifact from a previous module compile exists
 # in $OUT_DIR, so single-module runs degrade gracefully to the unresolved
 # imports the module would see without its dependencies.
+# kotlinx_io is intentionally not linked into downstream modules: the bundled
+# stdlib now provides kotlinx.io.* and takes ownership over an explicitly
+# imported upstream module (KSWIFTK-LIB-0031), which breaks resolution.
 module_deps() {
   case "$1" in
     kotlinx_io) echo "" ;;
-    ktor_io) echo "kotlinx_io" ;;
-    ktor_utils) echo "kotlinx_io ktor_io" ;;
-    ktor_http) echo "kotlinx_io ktor_io ktor_utils" ;;
+    ktor_io) echo "" ;;
+    ktor_utils) echo "ktor_io" ;;
+    ktor_http) echo "ktor_io ktor_utils" ;;
     *) echo "" ;;
   esac
 }
@@ -144,7 +147,7 @@ for module in $MODULES; do
   error_count=$(grep -c 'error KSWIFTK' "$log" || true)
   warning_count=$(grep -c 'warning KSWIFTK' "$log" || true)
   top_codes=$(grep -o 'KSWIFTK-[A-Z]*-[0-9A-Z]*' "$log" | sort | uniq -c | sort -rn | head -5 \
-    | awk '{printf "%s:%s;", $2, $1}')
+    | awk '{printf "%s:%s;", $2, $1}' || true)
   echo -e "$module\t$exit_code\t${#files[@]}\t$error_count\t$warning_count\t$top_codes" >> "$TSV"
   echo "== $module: exit=$exit_code files=${#files[@]} errors=$error_count warnings=$warning_count =="
 done

@@ -88,7 +88,7 @@ extension KIRLoweringDriver {
         // MemberLowerer has already emitted nested constructors recursively.
         // Add the reflection initializers and enum helpers here only once.
         lowerNestedClassConstructors(
-            nestedClasses: classDecl.nestedClasses,
+            nestedDecls: classDecl.nestedClasses + allNestedObjects,
             shared: shared,
             compilationCtx: compilationCtx,
             declIDs: &declIDs
@@ -104,15 +104,20 @@ extension KIRLoweringDriver {
         return declIDs
     }
 
-    private func lowerNestedClassConstructors(
-        nestedClasses: [DeclID],
+    /// Walks nested declarations (classes, objects, interfaces and their
+    /// companions, transitively) so constructor reflection initializers and
+    /// enum constructor-property helpers are synthesized for every enum in
+    /// the tree — including enums nested under objects, whose member bodies
+    /// `MemberLowerer` already emitted but which never reached this pass.
+    func lowerNestedClassConstructors(
+        nestedDecls: [DeclID],
         shared: KIRLoweringSharedContext,
         compilationCtx: CompilationContext,
         declIDs: inout [KIRDeclID]
     ) {
         let ast = shared.ast
         let sema = shared.sema
-        for declID in nestedClasses {
+        for declID in nestedDecls {
             guard let decl = ast.arena.decl(declID),
                   let nestedSymbol = sema.bindings.declSymbols[declID]
             else {
@@ -125,8 +130,12 @@ extension KIRLoweringDriver {
                     ownerSymbol: nestedSymbol,
                     shared: shared
                 ))
+                var deeper = nestedClass.nestedClasses + nestedClass.nestedObjects
+                if let companionDeclID = nestedClass.companionObject {
+                    deeper.append(companionDeclID)
+                }
                 lowerNestedClassConstructors(
-                    nestedClasses: nestedClass.nestedClasses,
+                    nestedDecls: deeper,
                     shared: shared,
                     compilationCtx: compilationCtx,
                     declIDs: &declIDs
@@ -138,6 +147,24 @@ extension KIRLoweringDriver {
                     shared: shared,
                     compilationCtx: compilationCtx
                 ))
+            case let .objectDecl(nestedObject):
+                lowerNestedClassConstructors(
+                    nestedDecls: nestedObject.nestedClasses + nestedObject.nestedObjects,
+                    shared: shared,
+                    compilationCtx: compilationCtx,
+                    declIDs: &declIDs
+                )
+            case let .interfaceDecl(nestedInterface):
+                var deeper = nestedInterface.nestedClasses + nestedInterface.nestedObjects
+                if let companionDeclID = nestedInterface.companionObject {
+                    deeper.append(companionDeclID)
+                }
+                lowerNestedClassConstructors(
+                    nestedDecls: deeper,
+                    shared: shared,
+                    compilationCtx: compilationCtx,
+                    declIDs: &declIDs
+                )
             default:
                 break
             }
@@ -472,11 +499,14 @@ extension KIRLoweringDriver {
         let ownerType = sema.types.make(.classType(ClassType(
             classSymbol: ownerSym.id, args: [], nullability: .nonNull
         )))
+        let extensionReceiverType = sema.symbols.extensionPropertyReceiverType(for: forwardingSymbol)
         let accessorFunctionSymbol: SymbolID = switch accessorKind {
         case .getter:
-            SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: forwardingSymbol)
+            sema.symbols.extensionPropertyGetterAccessor(for: forwardingSymbol)
+                ?? SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: forwardingSymbol)
         case .setter:
-            SyntheticSymbolScheme.propertySetterAccessorSymbol(for: forwardingSymbol)
+            sema.symbols.extensionPropertySetterAccessor(for: forwardingSymbol)
+                ?? SyntheticSymbolScheme.propertySetterAccessorSymbol(for: forwardingSymbol)
         }
         let accessorName = interner.intern(accessorKind == .getter ? "get" : "set")
         let returnType = accessorKind == .getter ? propType : sema.types.unitType
@@ -486,17 +516,46 @@ extension KIRLoweringDriver {
         ctx.setCurrentFunctionSymbol(accessorFunctionSymbol)
 
         let receiverSymbol = callSupportLowerer.syntheticReceiverParameterSymbol(functionSymbol: forwardingSymbol)
-        var params: [KIRParameter] = [KIRParameter(symbol: receiverSymbol, type: ownerType)]
-        ctx.setImplicitReceiver(
-            symbol: receiverSymbol,
-            exprID: arena.appendExpr(.symbolRef(receiverSymbol), type: ownerType)
-        )
+        var params: [KIRParameter] = []
+        var body: KIRLoweringEmitContext = [.beginBlock]
+        let dispatchReceiverExprID: KIRExprID
+        let extensionReceiverExprID: KIRExprID?
+        if let extensionReceiverType {
+            let dispatchReceiverSymbol = SyntheticSymbolScheme.receiverParameterSymbol(for: classSymbol)
+            dispatchReceiverExprID = arena.appendExpr(.symbolRef(dispatchReceiverSymbol), type: ownerType)
+            params.append(KIRParameter(symbol: dispatchReceiverSymbol, type: ownerType))
+            body.append(.constValue(
+                result: dispatchReceiverExprID,
+                value: .symbolRef(dispatchReceiverSymbol)
+            ))
+
+            let extensionReceiverExpr = arena.appendExpr(.symbolRef(receiverSymbol), type: extensionReceiverType)
+            extensionReceiverExprID = extensionReceiverExpr
+            params.append(KIRParameter(symbol: receiverSymbol, type: extensionReceiverType))
+            ctx.setImplicitReceiver(symbol: receiverSymbol, exprID: extensionReceiverExpr)
+            body.append(.constValue(result: extensionReceiverExpr, value: .symbolRef(receiverSymbol)))
+        } else {
+            dispatchReceiverExprID = arena.appendExpr(.symbolRef(receiverSymbol), type: ownerType)
+            extensionReceiverExprID = nil
+            params.append(KIRParameter(symbol: receiverSymbol, type: ownerType))
+            ctx.setImplicitReceiver(symbol: receiverSymbol, exprID: dispatchReceiverExprID)
+            body.append(.constValue(result: dispatchReceiverExprID, value: .symbolRef(receiverSymbol)))
+        }
+
+        let semanticAccessorSignature = sema.symbols.functionSignature(for: accessorFunctionSymbol)
+        let contextParameters = zip(
+            semanticAccessorSignature?.contextParameterSymbols ?? [],
+            semanticAccessorSignature?.contextParameterTypes ?? []
+        ).map { symbol, type in
+            let value = arena.appendExpr(.symbolRef(symbol), type: type)
+            return (parameter: KIRParameter(symbol: symbol, type: type), value: value)
+        }
+        params.append(contentsOf: contextParameters.map(\.parameter))
+        for parameter in contextParameters {
+            body.append(.constValue(result: parameter.value, value: .symbolRef(parameter.parameter.symbol)))
+        }
 
         var valueExprID: KIRExprID?
-        var body: KIRLoweringEmitContext = [.beginBlock]
-        if let receiverBinding = ctx.activeImplicitReceiver() {
-            body.append(.constValue(result: receiverBinding.exprID, value: .symbolRef(receiverBinding.symbol)))
-        }
         if accessorKind == .setter {
             let valueParamSymbol = SyntheticSymbolScheme.setterValueParameterSymbol(for: forwardingSymbol)
             params.append(KIRParameter(symbol: valueParamSymbol, type: propType))
@@ -528,7 +587,7 @@ extension KIRLoweringDriver {
                     propertyName: fieldName,
                     interner: interner
                 ),
-                arguments: [ctx.activeImplicitReceiverExprID()!],
+                arguments: [dispatchReceiverExprID],
                 result: delegateResultID,
                 canThrow: false,
                 isSuperCall: false
@@ -539,7 +598,7 @@ extension KIRLoweringDriver {
             body.append(.constValue(result: offsetExpr, value: .intLiteral(Int64(offset))))
             body.append(.call(
                 callee: interner.intern("kk_array_get"),
-                arguments: [ctx.activeImplicitReceiverExprID()!, offsetExpr],
+                arguments: [dispatchReceiverExprID, offsetExpr],
                 result: delegateResultID,
                 canThrow: true,
                 isSuperCall: false
@@ -586,7 +645,12 @@ extension KIRLoweringDriver {
         }
         body.append(.jump(fallbackLabel))
 
-        let callArgs: [KIRExprID] = valueExprID.map { [delegateResultID, $0] } ?? [delegateResultID]
+        var accessorArguments = extensionReceiverExprID.map { [$0] } ?? []
+        accessorArguments.append(contentsOf: contextParameters.map(\.value))
+        if let valueExprID {
+            accessorArguments.append(valueExprID)
+        }
+        let callArgs = [delegateResultID] + accessorArguments
         for (target, label) in zip(dispatchTargets, branchLabels) {
             body.append(.label(label))
             let targetCallee = sema.symbols.externalLinkName(for: target.accessorSymbol)
@@ -650,10 +714,11 @@ extension KIRLoweringDriver {
                 interner: interner
             )
             body.append(.virtualCall(
-                symbol: SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: info.interfacePropertySymbol),
+                symbol: sema.symbols.extensionPropertyGetterAccessor(for: info.interfacePropertySymbol)
+                    ?? SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: info.interfacePropertySymbol),
                 callee: accessorName,
                 receiver: delegateResultID,
-                arguments: [],
+                arguments: accessorArguments,
                 result: resultExprID,
                 canThrow: false,
                 dispatch: .itableDynamic(

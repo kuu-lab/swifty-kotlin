@@ -304,8 +304,9 @@ extension DataFlowSemaPhase {
     /// Registers the synthetic `values(): Array<T>` static factory on an enum
     /// class itself (e.g. `Direction.values()`), mirroring how real Kotlin
     /// exposes `values()` as a pseudo-static member of the enum class rather
-    /// than its companion. Unlike `valueOf`/`entries` (registered on the
-    /// companion by `collectSyntheticEnumCompanionMembers`), `values()` is
+    /// than its companion. Like `entries` (also registered on the enum class
+    /// by `collectSyntheticEnumCompanionMembers`), and unlike `valueOf`
+    /// (registered on the companion), `values()` is
     /// looked up directly under the enum class's own FQ name by the
     /// class-name-receiver static-call resolution path (see
     /// `inferRegularMemberCall`'s `staticMethodFQName` lookup), so its owner
@@ -389,7 +390,21 @@ extension DataFlowSemaPhase {
         scope.insert(funcSymbol)
     }
 
+    /// Registers the synthetic enum API that Kotlin exposes through the enum
+    /// class name: `valueOf` on the companion (`E.Companion.valueOf`, reached
+    /// by `E.valueOf` through companion shorthand) and `entries` on the enum
+    /// class itself (`E.entries`). Kotlin synthesizes `Enum.entries` directly
+    /// on the enum class — it is never a companion member — so
+    /// `E.Companion.entries` stays a user-declared member (or unresolved)
+    /// while `E.entries` keeps returning the synthetic `EnumEntries` list
+    /// even when a companion `val entries`, a nested `object entries`, or a
+    /// constructor `val entries` exists. Those user declarations register
+    /// first and keep winning member/instance lookups by declaration order;
+    /// the qualified `E.entries` read resolves the `.static` synthetic
+    /// instead (KUU-3544).
     func collectSyntheticEnumCompanionMembers(
+        ownerSymbol: SymbolID,
+        ownerFQName: [InternedString],
         companionSymbol: SymbolID,
         companionFQName: [InternedString],
         enumType: TypeID,
@@ -447,8 +462,18 @@ extension DataFlowSemaPhase {
         guard let enumEntriesSymbol = symbols.lookup(fqName: enumEntriesFQName) else { return }
 
         let entriesName = interner.intern("entries")
-        let entriesFQName = companionFQName + [entriesName]
-        if symbols.lookupAll(fqName: entriesFQName).compactMap({ symbols.symbol($0) }).allSatisfy({ $0.kind != .property }) {
+        let entriesFQName = ownerFQName + [entriesName]
+        // Always synthesize `entries` on the enum class: Kotlin generates it
+        // unconditionally and lets ordinary member-scope order shadow it, so a
+        // user instance property (for example a primary-constructor
+        // `val entries`) coexists with the synthetic and keeps winning
+        // instance lookups. Only an already-registered static `entries` (an
+        // imported or re-registered stub) suppresses a second definition.
+        let hasStaticEntries = symbols.lookupAll(fqName: entriesFQName).contains { candidate in
+            guard let candidateSymbol = symbols.symbol(candidate) else { return false }
+            return candidateSymbol.kind == .property && candidateSymbol.flags.contains(.static)
+        }
+        if !hasStaticEntries {
             let entriesType = types.make(.classType(ClassType(
                 classSymbol: enumEntriesSymbol,
                 args: [.invariant(enumType)],
@@ -462,9 +487,13 @@ extension DataFlowSemaPhase {
                 visibility: .public,
                 flags: [.synthetic, .static]
             )
-            symbols.setParentSymbol(companionSymbol, for: propSymbol)
-            symbols.setPropertyType(entriesType, for: propSymbol)
-            scope.insert(propSymbol)
+            // `define` may return an existing symbol at this FQName — only
+            // annotate the one that is actually the synthetic stub so a
+            // user-declared `entries` keeps its own type and ownership.
+            if symbols.symbol(propSymbol)?.flags.contains(.synthetic) == true {
+                symbols.setParentSymbol(ownerSymbol, for: propSymbol)
+                symbols.setPropertyType(entriesType, for: propSymbol)
+            }
         }
     }
 }

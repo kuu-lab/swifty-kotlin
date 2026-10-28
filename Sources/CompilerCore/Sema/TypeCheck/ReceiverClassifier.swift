@@ -73,7 +73,13 @@ struct ReceiverClassifier {
 
     func isArrayLikeType(_ type: TypeID) -> Bool {
         matchesKnownType(type) { knownNames, symbol in
-            knownNames.isArrayLikeName(symbol.name)
+            // Only the bundled kotlin.<Name> array classes (and fqName-less
+            // synthetic stubs) have the raw-array runtime representation. A
+            // user declaration that shadows the default-imported name keeps
+            // ordinary object semantics (KUU-3615).
+            (symbol.fqName.isEmpty
+                || symbol.fqName == [interner.intern("kotlin"), symbol.name])
+                && knownNames.isArrayLikeName(symbol.name)
         }
     }
 
@@ -96,9 +102,53 @@ struct ReceiverClassifier {
     }
 
     func isChannelReceiverType(_ type: TypeID) -> Bool {
-        matchesKnownType(type) { knownNames, symbol in
-            knownNames.isChannelSymbol(symbol)
+        guard let (_, symbol) = resolveClassTypeSymbol(type, sema: sema) else { return false }
+        return symbol.fqName == KnownCompilerNames(interner: interner).kotlinxCoroutinesChannelFQName
+    }
+
+    /// Returns a Channel-compatible nominal view reached through a type
+    /// parameter's upper bounds. Keep this separate from the exact-receiver
+    /// predicate so existing Channel-specific call fallbacks do not erase the
+    /// type parameter's own member-resolution path.
+    func channelUpperBoundType(of type: TypeID) -> TypeID? {
+        guard case .typeParam = sema.types.kind(of: type) else {
+            return nil
         }
+        let channelFQName = ["kotlinx", "coroutines", "channels", "Channel"].map(interner.intern)
+        guard let channelSymbol = sema.symbols.lookupNominal(fqName: channelFQName) else {
+            return nil
+        }
+
+        var visitedTypeParameters: Set<SymbolID> = []
+        func findChannelBound(_ candidate: TypeID) -> TypeID? {
+            let readable = sema.types.makeNonNullable(sema.types.capturedReadableUpperBound(of: candidate))
+            switch sema.types.kind(of: readable) {
+            case let .classType(classType):
+                guard sema.types.isNominalSubtypeSymbol(classType.classSymbol, of: channelSymbol) else {
+                    return nil
+                }
+                return readable
+            case let .intersection(parts):
+                for part in parts {
+                    if let match = findChannelBound(part) { return match }
+                }
+                return nil
+            case let .typeParam(parameter):
+                guard visitedTypeParameters.insert(parameter.symbol).inserted else {
+                    return nil
+                }
+                let bounds = parameter.capture.map { [$0.upper] }
+                    ?? sema.types.declaredUpperBounds(for: parameter.symbol)
+                for bound in bounds {
+                    if let match = findChannelBound(bound) { return match }
+                }
+                return nil
+            default:
+                return nil
+            }
+        }
+
+        return findChannelBound(type)
     }
 
     func isIterableLikeReceiver(receiverID: ExprID) -> Bool {
