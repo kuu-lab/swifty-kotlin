@@ -52,11 +52,12 @@ final class CallLowerer {
         ast: ASTModule,
         sema: SemaModule,
         callBinding: CallBinding?,
-        chosen: SymbolID?
+        chosen: SymbolID?,
+        intrinsicInline: Bool = false
     ) -> Bool {
         guard case .lambdaLiteral = ast.arena.expr(argumentExpr),
               let chosen,
-              sema.symbols.symbol(chosen)?.flags.contains(.inlineFunction) == true,
+              intrinsicInline || sema.symbols.symbol(chosen)?.flags.contains(.inlineFunction) == true,
               let signature = sema.symbols.functionSignature(for: chosen)
         else {
             return false
