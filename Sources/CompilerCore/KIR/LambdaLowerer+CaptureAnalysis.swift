@@ -31,6 +31,9 @@ extension LambdaLowerer {
         if activeImplicitReceiverValue(forCapturedReceiver: symbol, sema: sema) != nil {
             return true
         }
+        if canLoadCapturedLocalFromEnclosingInnerInstance(symbol, sema: sema) {
+            return true
+        }
         guard let semanticSymbol = sema.symbols.symbol(symbol) else {
             return false
         }
@@ -42,6 +45,35 @@ extension LambdaLowerer {
         }
         if sema.bindings.isContractCallsInPlaceInitializedSymbol(symbol) {
             return true
+        }
+        return false
+    }
+
+    /// A nested inner class's super-constructor arguments run in its `<init>`
+    /// function, where enclosing locals are available only through the `$outer`
+    /// chain and the local nominal's capture fields.
+    private func canLoadCapturedLocalFromEnclosingInnerInstance(
+        _ symbol: SymbolID,
+        sema: SemaModule
+    ) -> Bool {
+        guard let currentFunction = driver.ctx.currentFunctionSymbol,
+              var owner = sema.symbols.parentSymbol(for: currentFunction)
+        else {
+            return false
+        }
+        var visited: Set<SymbolID> = []
+        while visited.insert(owner).inserted {
+            if sema.bindings.objectLiteralCaptureSymbols(for: owner).contains(symbol),
+               sema.symbols.nominalLayout(for: owner)?.fieldOffsets[symbol] != nil
+            {
+                return true
+            }
+            guard sema.symbols.symbol(owner)?.flags.contains(.innerClass) == true,
+                  let outerOwner = sema.symbols.parentSymbol(for: owner)
+            else {
+                return false
+            }
+            owner = outerOwner
         }
         return false
     }

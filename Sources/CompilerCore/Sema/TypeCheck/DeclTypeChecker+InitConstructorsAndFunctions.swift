@@ -138,17 +138,14 @@ extension DeclTypeChecker {
     /// checked with the primary constructor parameters seeded as locals — the
     /// same scope `typeCheckClassDelegation` builds for `by` expressions.
     /// `extraLocals` seeds the delegation-argument scope with bindings that
-    /// outrank nothing but sit alongside the ctor params — used by the
-    /// KUU-555 local-class path, where `Base(x)` can reference a captured
-    /// outer local; named classes pass the default `[:]`.
-    /// `outerReceiversToKeep` is likewise local-class-only: a local class's
-    /// `<init>` runs as an independent KIR function, so its supertype
-    /// arguments may legitimately resolve members on the *enclosing* `this`
-    /// (captured into an instance field) — e.g. `class Y : C(x)` inside a
-    /// member of `B`. Keeping the receiver lets the name-ref path record
-    /// `implicitReceiverOuterReceiver`, which is what marks that `this` for
-    /// capture. Named classes keep the default `nil` → `[]`: their
-    /// supertype args genuinely cannot see an outer instance.
+    /// outrank nothing but sit alongside the ctor params — used by local
+    /// classes and their nested inner classes, where `Base(x)` can reference
+    /// an outer local captured by the local class.
+    /// `outerReceiversToKeep` lets a local class or inner member class resolve
+    /// members on its enclosing `this`, which is captured into an instance
+    /// field and available before superclass delegation. Non-inner named
+    /// classes keep the default `nil` → `[]`: their supertype arguments cannot
+    /// see an outer instance.
     func typeCheckPrimaryConstructorSuperDelegation(
         _ classDecl: ClassDecl,
         symbol: SymbolID,
