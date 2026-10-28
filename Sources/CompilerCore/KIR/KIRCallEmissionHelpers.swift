@@ -57,17 +57,6 @@ func boxValueForAnySlot<C: RangeReplaceableCollection>(
     let rawKind = types.kind(of: sourceType)
     // A nullable-underlying value class has no primitive box callee; its `Any`
     // representation is the nominal `kk_value_class_box` box (KUU-3115).
-    if let symbols,
-       let vcSymbol = nullableUnderlyingValueClassSymbol(of: rawKind, types: types, symbols: symbols)
-    {
-        let effectiveResultType = resultType ?? types.anyType
-        let boxedResult = arena.appendTemporary(type: effectiveResultType)
-        emitValueClassBoxCall(
-            value: value, classSymbol: vcSymbol, result: boxedResult, types: types, symbols: symbols,
-            interner: interner, arena: arena, into: &instructions
-        )
-        return boxedResult
-    }
     // A reference payload needs the same nominal wrapper: the underlying
     // object may be shared outside the value class, so it cannot be tagged
     // in place. `boxingCallee` emits the `kk_value_class_box` marker for
@@ -75,7 +64,8 @@ func boxValueForAnySlot<C: RangeReplaceableCollection>(
     // `V(obj)` would arrive as the bare `obj` handle and compare equal to it
     // (KUU-3616).
     if let symbols,
-       let vcSymbol = referenceBackedValueClassSymbol(of: rawKind, types: types, symbols: symbols)
+       let vcSymbol = nullableUnderlyingValueClassSymbol(of: rawKind, types: types, symbols: symbols)
+           ?? referenceBackedValueClassSymbol(of: rawKind, types: types, symbols: symbols)
     {
         let effectiveResultType = resultType ?? types.anyType
         let boxedResult = arena.appendTemporary(type: effectiveResultType)
