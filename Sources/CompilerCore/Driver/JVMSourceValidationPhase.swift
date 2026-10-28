@@ -364,7 +364,7 @@ private struct JVMSourceGrammar {
         case .symbol(.bang) where tokens.indices.contains(index + 1) && [TokenKind.keyword(.in), .keyword(.is)].contains(tokens[index + 1].kind): 4
         case .symbol(.lessThan), .symbol(.lessOrEqual), .symbol(.greaterThan), .symbol(.greaterOrEqual): 4
         case .symbol(.dotDot), .symbol(.dotDotLt): 5
-        case let .identifier(name) where ["zip", "matches", "downTo", "step", "to", "until", "and", "or", "xor", "shl", "shr", "ushr"].contains(context.interner.resolve(name)): 5
+        case .identifier: 5
         case .symbol(.plus), .symbol(.minus): 6
         case .symbol(.star), .symbol(.slash), .symbol(.percent): 7
         default: nil
