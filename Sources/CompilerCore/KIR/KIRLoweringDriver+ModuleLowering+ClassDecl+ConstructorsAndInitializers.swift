@@ -820,7 +820,8 @@ extension KIRLoweringDriver {
         shared: KIRLoweringSharedContext
     ) -> Bool {
         let collector = ConstantCollector(
-            resolvedConstant: { shared.sema.bindings.constExprValue(for: $0) }
+            resolvedConstant: { shared.sema.bindings.constExprValue(for: $0) },
+            floatingPointComparisonSemantics: .ieee754
         )
         guard let value = collector.literalConstantExpr(
             exprID, ast: shared.ast, interner: shared.interner

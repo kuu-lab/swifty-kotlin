@@ -342,6 +342,33 @@ struct ConstPropertyEvaluationTests {
     }
 
     @Test
+    func foldsFloatingFloorModWithInfiniteDivisor() throws {
+        let ctx = makeContextFromSource("""
+        package infiniteModConstants
+        const val DOUBLE_NEGATIVE = (-1.0).mod(Double.POSITIVE_INFINITY)
+        const val DOUBLE_POSITIVE = 1.0.mod(Double.NEGATIVE_INFINITY)
+        const val DOUBLE_SAME_SIGN = 1.0.mod(Double.POSITIVE_INFINITY)
+        const val FLOAT_NEGATIVE = (-1.0f).mod(Float.POSITIVE_INFINITY)
+        """)
+        try runSema(ctx)
+
+        #expect(ctx.diagnostics.diagnostics.filter { $0.severity == .error }.isEmpty)
+        let sema = try #require(ctx.sema)
+        let expected: [String: KIRExprKind] = [
+            "DOUBLE_NEGATIVE": .doubleLiteral(.infinity),
+            "DOUBLE_POSITIVE": .doubleLiteral(-.infinity),
+            "DOUBLE_SAME_SIGN": .doubleLiteral(1.0),
+            "FLOAT_NEGATIVE": .floatLiteral(.infinity),
+        ]
+        for (name, value) in expected {
+            let symbol = try #require(sema.symbols.lookup(
+                fqName: ["infiniteModConstants", name].map { ctx.interner.intern($0) }
+            ))
+            #expect(sema.symbols.constValueExprKind(for: symbol) == value, "Incorrect constant for \(name)")
+        }
+    }
+
+    @Test
     func foldsCharCodeNumericConversionConstInitializers() throws {
         let ctx = makeContextFromSource("""
         package charCodeConstants
@@ -365,6 +392,72 @@ struct ConstPropertyEvaluationTests {
                 fqName: ["charCodeConstants", name].map { ctx.interner.intern($0) }
             ))
             #expect(sema.symbols.constValueExprKind(for: symbol) == value, "Incorrect constant for \(name)")
+        }
+    }
+
+    /// kotlinc's constant evaluator orders floating-point values with
+    /// `compareTo` (-0.0 < 0.0, NaN above everything), folds `mod` with an
+    /// infinite divisor through the sign adjustment, and evaluates
+    /// `Double`/`Float` conversions with saturation.
+    @Test
+    func foldsFloatingPointOrderingModAndConversionsLikeKotlinc() throws {
+        let ctx = makeContextFromSource("""
+        package floatingConstEval
+        const val INF = 1.0 / 0.0
+        const val NAN_LT = 0.0 < Double.NaN
+        const val NAN_GE = Double.NaN >= 1.0
+        const val NEG_ZERO_LT = -0.0 < 0.0
+        const val NEG_ZERO_GE = -0.0 >= 0.0
+        const val FLOAT_NAN_GT = Float.NaN > Float.POSITIVE_INFINITY
+        const val MIXED_NAN_LT = 1 < Double.NaN
+        const val MOD_POS_INF = (-1.0).mod(INF)
+        const val MOD_NEG_INF = 1.0.mod(-INF)
+        const val FLOAT_MOD_INF = (-1.0f).mod(1.0f / 0.0f)
+        const val TO_INT = 3.9.toInt()
+        const val NEG_TO_INT = (-3.9).toInt()
+        const val NAN_TO_INT = Double.NaN.toInt()
+        const val BIG_TO_INT = 1.0E300.toInt()
+        const val SMALL_TO_LONG = (-1.0E300).toLong()
+        const val FLOAT_TO_LONG = (-2.5f).toLong()
+        const val TO_FLOAT = 1.1.toFloat()
+        const val TO_DOUBLE = 0.1f.toDouble()
+        """)
+        try runSema(ctx)
+        #expect(ctx.diagnostics.diagnostics.filter { $0.severity == .error }.isEmpty)
+        let sema = try #require(ctx.sema)
+        let expected: [String: KIRExprKind] = [
+            "NAN_LT": .boolLiteral(true), "NAN_GE": .boolLiteral(true),
+            "NEG_ZERO_LT": .boolLiteral(true), "NEG_ZERO_GE": .boolLiteral(false),
+            "FLOAT_NAN_GT": .boolLiteral(true), "MIXED_NAN_LT": .boolLiteral(true),
+            "MOD_POS_INF": .doubleLiteral(.infinity), "MOD_NEG_INF": .doubleLiteral(-.infinity),
+            "FLOAT_MOD_INF": .floatLiteral(.infinity),
+            "TO_INT": .intLiteral(3), "NEG_TO_INT": .intLiteral(-3), "NAN_TO_INT": .intLiteral(0),
+            "BIG_TO_INT": .intLiteral(Int64(Int32.max)), "SMALL_TO_LONG": .longLiteral(.min),
+            "FLOAT_TO_LONG": .longLiteral(-2),
+            "TO_FLOAT": .floatLiteral(Double(Float(1.1))), "TO_DOUBLE": .doubleLiteral(Double(Float(0.1))),
+        ]
+        for (name, value) in expected {
+            let symbol = try #require(sema.symbols.lookup(fqName: ["floatingConstEval", name].map { ctx.interner.intern($0) }))
+            #expect(sema.symbols.constValueExprKind(for: symbol) == value, "Incorrect constant for \(name)")
+        }
+    }
+
+    /// `1u + 2u` is not foldable here, so the String concatenation must not
+    /// render it as the text "1" + "2"; kotlinc rejects the initializer.
+    @Test
+    func rejectsUnsignedArithmeticInsideStringConcatenation() throws {
+        let ctx = makeContextFromSource("""
+        package unsignedConcat
+        const val TEXT = "u " + (1u + 2u)
+        const val LONG_TEXT = "l " + (1uL + 2uL)
+        """)
+        try runSema(ctx)
+        let errors = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0083" }
+        #expect(errors.count == 2, "Expected unsigned arithmetic concat to be non-constant: \(errors)")
+        let sema = try #require(ctx.sema)
+        for name in ["TEXT", "LONG_TEXT"] {
+            let symbol = try #require(sema.symbols.lookup(fqName: ["unsignedConcat", name].map { ctx.interner.intern($0) }))
+            #expect(sema.symbols.constValueExprKind(for: symbol) == nil)
         }
     }
 
