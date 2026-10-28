@@ -438,6 +438,44 @@ extension CallTypeChecker {
         return nil
     }
 
+    func inferQualifiedNestedClassifierSamConstruction(
+        _ id: ExprID,
+        calleeName: InternedString,
+        classifierSymbol: SymbolID,
+        args: [CallArgument],
+        ctx: TypeInferenceContext,
+        locals: inout LocalBindings,
+        expectedType: TypeID?,
+        explicitTypeArgs: [TypeID]
+    ) -> TypeID? {
+        guard args.count == 1,
+              args[0].label == nil,
+              !args[0].isSpread,
+              isSamConvertibleArgument(args[0].expr, ast: ctx.ast),
+              let classifier = ctx.cachedSymbol(classifierSymbol),
+              classifier.kind == .interface,
+              classifier.flags.contains(.funInterface),
+              samConstructorTarget(
+                  named: calleeName,
+                  qualifiedName: classifier.fqName,
+                  ctx: ctx
+              )?.interfaceSymbol == classifierSymbol
+        else {
+            return nil
+        }
+
+        return inferSamConstructorCallExpr(
+            id,
+            calleeName: calleeName,
+            qualifiedName: classifier.fqName,
+            argExpr: args[0].expr,
+            ctx: ctx,
+            locals: &locals,
+            expectedType: expectedType,
+            explicitTypeArgs: explicitTypeArgs
+        )
+    }
+
     private func inferSamConstructorCallExpr(
         _ id: ExprID,
         calleeName: InternedString,

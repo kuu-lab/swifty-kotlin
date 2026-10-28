@@ -58,18 +58,12 @@ struct InheritedInterfaceNestedClassifierTests {
 
     @Test
     func qualifiedInterfaceSamConstructorResolves() throws {
-        // The qualified form is the Kotlin workaround and must keep working.
         let ctx = try context("""
         interface Contract { fun interface Entry { fun get(): String } }
-        class Child : Contract { fun value(): Contract.Entry = Contract.Entry { "sam" } }
+        fun value(): Contract.Entry = Contract.Entry { "sam" }
         """, library: false)
         try runSema(ctx)
-        // Qualified SAM-construction calls (`Contract.Entry { ... }`) are not
-        // dispatched yet — a pre-existing gap that also rejects the same shape
-        // at top level, unrelated to inherited-classifier lookup.
-        withKnownIssue("qualified fun-interface calls do not reach SAM construction") {
-            #expect(!ctx.diagnostics.hasError, "Unexpected: \(ctx.diagnostics.diagnostics)")
-        }
+        #expect(!ctx.diagnostics.hasError, "Unexpected: \(ctx.diagnostics.diagnostics)")
     }
 
     // MARK: - Companion invoke through a nested interface (KUU-3636)
@@ -108,15 +102,10 @@ struct InheritedInterfaceNestedClassifierTests {
                 companion object { operator fun invoke(text: String): String = "invoke:" + text }
             }
         }
-        class Child : Contract { fun value(): String = Contract.Entry("inner") }
+        fun value(): String = Contract.Entry("inner")
         """, library: false)
         try runSema(ctx)
-        // Qualified companion `invoke` calls (`Contract.Entry("inner")`) are
-        // not dispatched yet — a pre-existing gap that also rejects the same
-        // shape at top level, unrelated to inherited-classifier lookup.
-        withKnownIssue("qualified companion-invoke calls are not dispatched") {
-            #expect(!ctx.diagnostics.hasError, "Unexpected: \(ctx.diagnostics.diagnostics)")
-        }
+        #expect(!ctx.diagnostics.hasError, "Unexpected: \(ctx.diagnostics.diagnostics)")
     }
 
     // MARK: - Ordinary nested-class constructors
