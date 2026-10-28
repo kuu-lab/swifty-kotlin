@@ -37,6 +37,12 @@ final class RuntimeCPointerBox: @unchecked Sendable {
     }
 }
 
+private let runtimeCPointerNominalTypeID = runtimeStableNominalTypeID(fqName: "kotlinx.cinterop.CPointer")
+
+func registerRuntimeCPointer(_ pointer: RuntimeCPointerBox) -> Int {
+    registerRuntimeObject(pointer, typeID: runtimeCPointerNominalTypeID)
+}
+
 final class RuntimeCOpaquePointerBox: @unchecked Sendable {
     let address: UInt
     init(address: UInt) {
@@ -46,7 +52,7 @@ final class RuntimeCOpaquePointerBox: @unchecked Sendable {
 
 @_cdecl("kk_cpointer_new")
 public func kk_cpointer_new(_ address: Int) -> Int {
-    registerRuntimeObject(RuntimeCPointerBox(address: UInt(bitPattern: address)))
+    registerRuntimeCPointer(RuntimeCPointerBox(address: UInt(bitPattern: address)))
 }
 
 func resolveCPointerBox(from handle: Int) -> RuntimeCPointerBox? {
