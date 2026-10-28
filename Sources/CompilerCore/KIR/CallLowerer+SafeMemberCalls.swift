@@ -1450,12 +1450,21 @@ extension CallLowerer {
                     interner: interner
                 )
             } ?? false
+            let usesBoxedCollectionVirtualBridge = chosen.map {
+                isRuntimeBoxedCollectionVirtualBridge(
+                    $0,
+                    receiverTypeID: receiverTypeForDispatch,
+                    sema: sema,
+                    interner: interner
+                )
+            } ?? false
             if !isSuperCall,
                !isRuntimeRangeReceiver,
                let chosen,
                (!hasExternalLink
                    || isClockRuntimeVirtualBridge(chosen, sema: sema)
-                   || usesIteratorRuntimeVirtualBridge),
+                   || usesIteratorRuntimeVirtualBridge
+                   || usesBoxedCollectionVirtualBridge),
                let dispatchKind = resolveVirtualDispatch(
                    callee: chosen,
                    receiverTypeID: dispatchReceiver.flatMap { arena.exprType($0) } ?? receiverTypeForDispatch,
@@ -1478,7 +1487,12 @@ extension CallLowerer {
                     receiver: dispatchReceiver ?? loweredReceiverID,
                     arguments: vcArguments,
                     result: memberResult,
-                    canThrow: false,
+                    // Boxed-collection bridges (`__kk_list_get` and friends)
+                    // declare the outThrown channel in their ABI; the virtual
+                    // call must append it so the looked-up implementation's
+                    // exception path stays intact.
+                    canThrow: usesBoxedCollectionVirtualBridge
+                        && needsThrownChannel(calleeName: virtualCalleeName, interner: interner),
                     dispatch: dispatchKind
                 )
                 // KUU-763: floating-point range boxes carry no itable, so a
@@ -1562,6 +1576,70 @@ extension CallLowerer {
               sema.symbols.symbol(receiverClassType.classSymbol)?.kind == .class
         else { return false }
         return true
+    }
+
+    /// Collection nominals whose own constructor is rewritten to a runtime box
+    /// factory (`ArrayList()` → `__kk_array_list_of`, `HashSet()` →
+    /// `__kk_hash_set_of`, `TreeMap()` → `__kk_tree_map_of`, and so on) produce
+    /// `Runtime*Box` handles rather than `kk_object_new` objects, so a bridged
+    /// member such as `ArrayList.get` (`__kk_list_get`) must keep its direct
+    /// runtime call for receivers typed by those nominals. A source subclass
+    /// of them — `class StringList : ArrayList<String>` — still allocates a
+    /// real object and registers its vtable overrides at construction, so the
+    /// same bridged member must dispatch through the inherited vtable slot to
+    /// reach the override (KUU-3669). The receiver's own nominal layout is the
+    /// membership oracle: only a class that actually inherits the callee's
+    /// slot carries an object vtable entry for it.
+    func isRuntimeBoxedCollectionVirtualBridge(
+        _ callee: SymbolID,
+        receiverTypeID: TypeID?,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> Bool {
+        guard kirIsRuntimeBridgedCallee(callee, sema: sema),
+              let receiverTypeID,
+              let owner = sema.symbols.parentSymbol(for: callee),
+              case let .classType(receiverClassType) = sema.types.kind(
+                  of: sema.types.makeNonNullable(receiverTypeID)
+              ),
+              let receiverSymbol = sema.symbols.symbol(receiverClassType.classSymbol),
+              receiverSymbol.kind == .class,
+              receiverClassType.classSymbol != owner,
+              !isRuntimeBoxedCollectionNominal(
+                  receiverClassType.classSymbol, sema: sema, interner: interner
+              ),
+              sema.symbols.nominalLayout(for: receiverClassType.classSymbol)?
+                  .vtableSlots[callee] != nil
+        else { return false }
+        return true
+    }
+
+    /// Nominals whose construction produces a `Runtime*Box` handle instead of
+    /// a `kk_object_new` object — `ArrayList`/`HashSet`/`TreeMap` and friends
+    /// lower their constructors to `__kk_*_of` factories and `ArrayDeque`
+    /// allocates a `RuntimeArrayDequeBox`. A vtable dispatch on one of those
+    /// exact types reads a slot the box never registered, so their receivers
+    /// stay on direct runtime calls; user-defined subclasses between them and
+    /// the receiver are the `kk_object_new` objects that do carry the slot.
+    private func isRuntimeBoxedCollectionNominal(
+        _ classSymbol: SymbolID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> Bool {
+        guard let symbol = sema.symbols.symbol(classSymbol) else { return false }
+        switch symbol.fqName.map(interner.resolve) {
+        case ["kotlin", "collections", "ArrayList"],
+             ["kotlin", "collections", "ArrayDeque"],
+             ["kotlin", "collections", "HashSet"],
+             ["kotlin", "collections", "LinkedHashSet"],
+             ["kotlin", "collections", "HashMap"],
+             ["kotlin", "collections", "LinkedHashMap"],
+             ["java", "util", "TreeSet"],
+             ["java", "util", "TreeMap"]:
+            return true
+        default:
+            return false
+        }
     }
 
     /// Thin wrapper over the free `resolveVirtualDispatchKind` (below, outside

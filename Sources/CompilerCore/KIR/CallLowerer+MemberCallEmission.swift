@@ -1296,6 +1296,14 @@ extension CallLowerer {
                     sema: sema,
                     interner: interner
                 )
+            }) == true
+            || chosenCallee.map({
+                isRuntimeBoxedCollectionVirtualBridge(
+                    $0,
+                    receiverTypeID: receiver.type(in: sema),
+                    sema: sema,
+                    interner: interner
+                )
             }) == true,
            let inst = tryEmitVirtualDispatch(
                chosenCallee: chosenCallee, calleeName: loweredCallee,
