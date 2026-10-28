@@ -1814,7 +1814,18 @@ func kirFindOverrideMethod(
     var bestDefault: (distance: Int, symbol: SymbolID)?
     let interfaceSupertypes = transitiveInterfaces
         ?? kirTransitiveInterfaceSupertypes(of: nominalSymbol, sema: sema)
+    // A candidate can implement `interfaceMethod` only from the interface
+    // that declares it or from a descendant — an unrelated interface's
+    // same-named member is not an override (kt2477 shape: `B.c` must not fill
+    // `A.c`'s itable slot).
+    let interfaceOwner = sema.symbols.parentSymbol(for: interfaceMethod)
     for interfaceSymbol in interfaceSupertypes {
+        if let interfaceOwner,
+           interfaceSymbol != interfaceOwner,
+           !kirTransitiveInterfaceSupertypes(of: interfaceSymbol, sema: sema).contains(interfaceOwner)
+        {
+            continue
+        }
         guard let found = kirFindMatchingMethod(
             matching: interfaceMethod,
             on: interfaceSymbol,
@@ -1861,6 +1872,14 @@ private func kirFindMatchingMethod(
               candidateSym.name == methodSym.name,
               sema.symbols.parentSymbol(for: candidate) == nominal
         else {
+            continue
+        }
+        // A `private` member never overrides — except `interfaceMethod`
+        // itself, whose own declaration is the required default for its own
+        // itable slot even when it is `private` (kt2477).
+        if candidate != interfaceMethod,
+           candidateSym.visibility == .private
+        {
             continue
         }
         // Interface fallback must use a body-bearing source declaration;

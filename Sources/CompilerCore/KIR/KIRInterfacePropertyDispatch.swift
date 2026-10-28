@@ -215,6 +215,11 @@ func kirFindOverridePropertyGetter(
     guard let propertySym = sema.symbols.symbol(interfaceProperty) else {
         return nil
     }
+    // A candidate implements `interfaceProperty` only from the interface
+    // that declares it or from a descendant interface — an unrelated
+    // interface's same-named member is not an override. `nil` when the owner
+    // is unknown keeps the legacy name-only fallback.
+    let interfaceOwner = sema.symbols.parentSymbol(for: interfaceProperty)
 
     var visited: Set<SymbolID> = []
     var current: SymbolID? = nominalSymbol
@@ -226,6 +231,12 @@ func kirFindOverridePropertyGetter(
                   candidateSym.kind == .property,
                   sema.symbols.parentSymbol(for: candidate) == nominal
             else {
+                continue
+            }
+            // A `private` member never overrides, so it cannot implement an
+            // interface member — e.g. `C`'s `private val c` must not fill
+            // `A.c`'s itable slot (kt2477).
+            if candidateSym.visibility == .private {
                 continue
             }
             return sema.symbols.extensionPropertyGetterAccessor(for: candidate)
@@ -265,6 +276,15 @@ func kirFindOverridePropertyGetter(
                 queue.append(supertype)
             }
         }
+        // An interface unrelated to `interfaceProperty`'s owner cannot hold
+        // a default for it: `B.c` is not a `A.c` implementation even when the
+        // names collide (kt2477).
+        if let interfaceOwner,
+           iface != interfaceOwner,
+           !kirTransitiveInterfaceSupertypes(of: iface, sema: sema).contains(interfaceOwner)
+        {
+            continue
+        }
         guard let ifaceSym = sema.symbols.symbol(iface) else { continue }
         let ifacePropertyFQName = ifaceSym.fqName + [propertySym.name]
         for candidate in sema.symbols.lookupAll(fqName: ifacePropertyFQName) {
@@ -272,6 +292,14 @@ func kirFindOverridePropertyGetter(
                   candidateSym.kind == .property,
                   sema.symbols.parentSymbol(for: candidate) == iface
             else {
+                continue
+            }
+            // A `private` member never overrides — except the interface
+            // property's own declaration, which is the required default for
+            // its own itable slot even when it is `private`.
+            if candidate != interfaceProperty,
+               candidateSym.visibility == .private
+            {
                 continue
             }
             return sema.symbols.extensionPropertyGetterAccessor(for: candidate)
@@ -296,6 +324,10 @@ private func kirFindOverridePropertyGetter(
               candidateSym.kind == .property,
               sema.symbols.parentSymbol(for: candidate) == nominalSymbol
         else {
+            continue
+        }
+        // A `private` member never overrides (kt2477).
+        if candidateSym.visibility == .private {
             continue
         }
         return sema.symbols.extensionPropertyGetterAccessor(for: candidate)
@@ -370,6 +402,9 @@ func kirFindOverridePropertySetter(
     guard let propertySym = sema.symbols.symbol(interfaceProperty) else {
         return nil
     }
+    // See `kirFindOverridePropertyGetter`: only the declaring interface or a
+    // descendant can hold a default for `interfaceProperty`.
+    let interfaceOwner = sema.symbols.parentSymbol(for: interfaceProperty)
 
     var visited: Set<SymbolID> = []
     var current: SymbolID? = nominalSymbol
@@ -381,6 +416,10 @@ func kirFindOverridePropertySetter(
                   candidateSym.kind == .property,
                   sema.symbols.parentSymbol(for: candidate) == nominal
             else {
+                continue
+            }
+            // A `private` member never overrides (kt2477).
+            if candidateSym.visibility == .private {
                 continue
             }
             return sema.symbols.extensionPropertySetterAccessor(for: candidate)
@@ -410,6 +449,12 @@ func kirFindOverridePropertySetter(
                 queue.append(supertype)
             }
         }
+        if let interfaceOwner,
+           iface != interfaceOwner,
+           !kirTransitiveInterfaceSupertypes(of: iface, sema: sema).contains(interfaceOwner)
+        {
+            continue
+        }
         guard let ifaceSym = sema.symbols.symbol(iface) else { continue }
         let ifacePropertyFQName = ifaceSym.fqName + [propertySym.name]
         for candidate in sema.symbols.lookupAll(fqName: ifacePropertyFQName) {
@@ -417,6 +462,13 @@ func kirFindOverridePropertySetter(
                   candidateSym.kind == .property,
                   sema.symbols.parentSymbol(for: candidate) == iface
             else {
+                continue
+            }
+            // A `private` member never overrides — except the interface
+            // property's own declaration (kt2477).
+            if candidate != interfaceProperty,
+               candidateSym.visibility == .private
+            {
                 continue
             }
             return sema.symbols.extensionPropertySetterAccessor(for: candidate)
