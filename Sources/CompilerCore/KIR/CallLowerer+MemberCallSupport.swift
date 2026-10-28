@@ -32,12 +32,24 @@ struct MemberCallReceiver {
 /// This is a free function (not a `CallLowerer` method) so every lowering pass
 /// that dispatches through these Any bridges shares the exact same tag computation.
 func computeAnyFallbackTag(for type: TypeID, sema: SemaModule) -> Int64 {
-    let nonNullableKind = sema.types.kind(of: sema.types.makeNonNullable(type))
+    // Value classes can expose a raw primitive through a generic type
+    // parameter when their receiver is unboxed. Preserve that primitive's
+    // renderer tag so a generic `T.toString()` decodes Float/Double bits
+    // instead of interpreting them as an Int or pointer.
+    let tagType = resolvePrimitiveValueUpperBound(
+        of: type,
+        types: sema.types,
+        symbols: sema.symbols
+    ) ?? sema.types.makeNonNullable(type)
     // Value-class receivers are unboxed at this call boundary, so their raw
     // payload needs the same tag as the underlying primitive (e.g. Long).
     // Otherwise an explicitly-invoked Any.equals compares a raw Long as Int
     // against the boxed Long argument and rejects equal values.
-    return switch resolveValueClassKind(nonNullableKind, types: sema.types, symbols: sema.symbols) {
+    return switch resolveValueClassKind(
+        sema.types.kind(of: sema.types.makeNonNullable(tagType)),
+        types: sema.types,
+        symbols: sema.symbols
+    ) {
     case .primitive(.boolean, _):
         2
     case .stringStruct:
