@@ -264,7 +264,18 @@ extension DataFlowSemaPhase {
             types: ctx.types,
             interner: ctx.interner
         )
+        let kotlinPkg = [ctx.interner.intern("kotlin")]
+        let comparableSymbol = ctx.types.comparableInterfaceSymbol
+            ?? ctx.symbols.lookup(fqName: kotlinPkg + [ctx.interner.intern("Comparable")])
+        let enumProvidesComparable = comparableSymbol != nil
+            && ctx.symbols.lookup(fqName: kotlinPkg + [ctx.interner.intern("Enum")]).map({
+                ctx.symbols.directSupertypes(for: ownerSymbol).contains($0)
+            }) == true
         for inherited in inheritedRequirements {
+            if enumProvidesComparable,
+               ctx.symbols.parentSymbol(for: inherited) == comparableSymbol {
+                continue
+            }
             let satisfyingDeclID = declaredMemberDeclIDs.first { declID in
                 guard let member = ctx.bindings.declSymbols[declID] else { return false }
                 return enumMemberOverridesAbstractMember(
