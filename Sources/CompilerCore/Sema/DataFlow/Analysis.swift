@@ -298,6 +298,39 @@ final class DataFlowAnalyzer {
         return variables
     }
 
+    /// Narrows each stable side of an equality comparison to the other side's
+    /// type when that type is strictly more precise (Kotlin smart cast on
+    /// `x === y` / `x == y`).
+    private func narrowStateForTypedEquality(
+        lhsID: ExprID,
+        rhsID: ExprID,
+        base: DataFlowState,
+        locals: LocalBindings,
+        ast: ASTModule,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> DataFlowState {
+        var state = base
+        for (exprID, otherID) in [(lhsID, rhsID), (rhsID, lhsID)] {
+            guard let (symbol, currentType, isStable) = resolveStableReference(
+                exprID, locals: locals, ast: ast, sema: sema, interner: interner
+            ), isStable,
+               let otherType = sema.bindings.exprTypes[otherID],
+               sema.types.isSubtype(otherType, currentType),
+               !sema.types.isSubtype(currentType, otherType)
+            else {
+                continue
+            }
+            state[symbol] = VariableFlowState(
+                possibleTypes: [otherType],
+                nullability: sema.types.nullability(of: otherType),
+                isStable: true,
+                valueFacts: state[symbol]?.valueFacts ?? DataFlowValueFacts()
+            )
+        }
+        return state
+    }
+
     private func branchOnBinary(
         op: BinaryOp,
         lhsID: ExprID,
@@ -408,7 +441,17 @@ final class DataFlowAnalyzer {
             if let safeCallBranch {
                 return safeCallBranch
             }
-            return ConditionBranch(trueState: base, falseState: base)
+            // `x === y` / `x == y` narrows the wider side to the tighter type on
+            // the equality-true branch (the false branch of `!==`/`!=`).
+            let typedEqualityTrueState = narrowStateForTypedEquality(
+                lhsID: lhsID, rhsID: rhsID,
+                base: base, locals: locals,
+                ast: ast, sema: sema, interner: interner
+            )
+            if op == .notEqual || op == .notIdentityEqual {
+                return ConditionBranch(trueState: base, falseState: typedEqualityTrueState)
+            }
+            return ConditionBranch(trueState: typedEqualityTrueState, falseState: base)
         case .logicalAnd:
             let left = branchOnCondition(
                 lhsID, base: base, locals: locals,
