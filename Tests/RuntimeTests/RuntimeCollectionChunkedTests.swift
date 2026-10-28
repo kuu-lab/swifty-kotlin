@@ -15,7 +15,7 @@ struct RuntimeCollectionChunkedTests {
             #expect(result == runtimeExceptionCaughtSentinel)
             let throwable = throwableBox(from: thrown)
             #expect(throwable?.exceptionFQName == "kotlin.IllegalArgumentException")
-            #expect(throwable?.message == "size must be positive, but was \(size)")
+            #expect(throwable?.message == "size \(size) must be greater than zero.")
         }
     }
 
@@ -30,7 +30,7 @@ struct RuntimeCollectionChunkedTests {
             #expect(result == runtimeExceptionCaughtSentinel)
             let throwable = throwableBox(from: thrown)
             #expect(throwable?.exceptionFQName == "kotlin.IllegalArgumentException")
-            #expect(throwable?.message == "size must be positive, but was \(size)")
+            #expect(throwable?.message == "size \(size) must be greater than zero.")
         }
     }
 

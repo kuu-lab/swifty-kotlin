@@ -324,9 +324,26 @@ public func kk_list_of(_ arrayRaw: Int, _ count: Int) -> Int {
     if count > 0, let array = runtimeArrayBox(from: arrayRaw) {
         elements = Array(array.elements.prefix(count))
     }
+    // JVM factories map to distinct implementations: `listOf()` is the shared
+    // EmptyList, `listOf(e)` a SingletonList, and `listOf(e1, e2, ...)` a
+    // java.util.Arrays$ArrayList. Their bounds-check failures produce
+    // different exception types/messages, so keep the nominal tags distinct.
+    if elements.isEmpty {
+        return emptyListSingletonRaw
+    }
     let list = RuntimeListBox(elements: elements)
     list.freeze()
-    return registerRuntimeObject(list, typeID: listRuntimeTypeID)
+    return registerRuntimeObject(
+        list,
+        typeID: elements.count == 1 ? singletonListRuntimeTypeID : arraysBackedListRuntimeTypeID
+    )
+}
+
+@_cdecl("__kk_singleton_list_of")
+public func kk_singleton_list_of(_ element: Int) -> Int {
+    let list = RuntimeListBox(elements: [element])
+    list.freeze()
+    return registerRuntimeObject(list, typeID: singletonListRuntimeTypeID)
 }
 
 @_cdecl("__kk_array_list_of")
@@ -424,14 +441,43 @@ public func kk_list_get(
         return 0
     }
     guard list.indices.contains(index) else {
-        runtimeSetThrown(
-            outThrown,
-            runtimeAllocateIndexOutOfBoundsException(message: "Index \(index) out of bounds for length \(list.count)")
-        )
+        runtimeSetThrown(outThrown, runtimeListGetOutOfBounds(listRaw: listRaw, list: list, index: index))
         return 0
     }
     guard runtimeCheckListView(list, outThrown: outThrown) else { return 0 }
     return list[index]
+}
+
+/// JVM `List.get` failures depend on the concrete implementation class:
+/// `EmptyList` reports "Empty list doesn't contain element at index i.",
+/// `SingletonList` the `AbstractList` checkIndex text, `Arrays$ArrayList` (the
+/// `listOf(e1, e2)` and `asList` implementations) a raw
+/// `ArrayIndexOutOfBoundsException`, `ArrayDeque` its own lowercase format,
+/// and everything else the `Objects.checkIndex` message.
+func runtimeListGetOutOfBounds(listRaw: Int, list: RuntimeListBox, index: Int) -> Int {
+    if listRaw == emptyListSingletonRaw {
+        return runtimeAllocateIndexOutOfBoundsException(
+            message: "Empty list doesn't contain element at index \(index).")
+    }
+    if list.isDequeStorageView {
+        return runtimeAllocateIndexOutOfBoundsException(
+            message: "index: \(index), size: \(list.count)")
+    }
+    if list.isReversedStorageView {
+        return runtimeAllocateIndexOutOfBoundsException(
+            message: "Element index \(index) must be in range [0..\(list.count - 1)].")
+    }
+    let objectTypeID = runtimeObjectTypeID(rawValue: listRaw)
+    if objectTypeID == singletonListRuntimeTypeID {
+        return runtimeAllocateIndexOutOfBoundsException(
+            message: "Index: \(index), Size: \(list.count)")
+    }
+    if objectTypeID == arraysBackedListRuntimeTypeID || list.isArrayStorageView {
+        return runtimeAllocateArrayIndexOutOfBoundsException(
+            message: "Index \(index) out of bounds for length \(list.count)")
+    }
+    return runtimeAllocateIndexOutOfBoundsException(
+        message: "Index \(index) out of bounds for length \(list.count)")
 }
 
 /// `EnumEntries.get` checks bounds and reports Kotlin's
@@ -627,14 +673,34 @@ public func kk_list_subList(
         runtimeSetThrown(outThrown, runtimeAllocateThrowable(message: "List reference is null."))
         return 0
     }
-    guard fromIndex >= 0,
-          toIndex <= list.count
-    else {
+    // `EmptyList.subList` has its own bounds contract: only (0, 0) is legal
+    // and returns the same shared instance; anything else reports both
+    // indices without a size field.
+    if listRaw == emptyListSingletonRaw {
+        if fromIndex == 0 && toIndex == 0 {
+            return emptyListSingletonRaw
+        }
         runtimeSetThrown(
             outThrown,
             runtimeAllocateIndexOutOfBoundsException(
-                message: "fromIndex: \(fromIndex), toIndex: \(toIndex), size: \(list.count)"
+                message: "fromIndex: \(fromIndex), toIndex: \(toIndex)"
             )
+        )
+        return 0
+    }
+    // JDK `AbstractList`/`ArrayList` subList range checks run in this order
+    // and use per-bound messages.
+    guard fromIndex >= 0 else {
+        runtimeSetThrown(
+            outThrown,
+            runtimeAllocateIndexOutOfBoundsException(message: "fromIndex = \(fromIndex)")
+        )
+        return 0
+    }
+    guard toIndex <= list.count else {
+        runtimeSetThrown(
+            outThrown,
+            runtimeAllocateIndexOutOfBoundsException(message: "toIndex = \(toIndex)")
         )
         return 0
     }
@@ -679,10 +745,7 @@ public func kk_list_iterator_next(
         return runtimeExceptionCaughtSentinel
     }
     guard iter.index < iter.values.count else {
-        return runtimeThrowIteratorExhausted(
-            outThrown,
-            message: "List iterator has no next element."
-        )
+        return runtimeThrowIteratorExhausted(outThrown)
     }
     let value = iter.currentValue?(iter.index) ?? iter.values[iter.index]
     iter.lastReturnedIndex = iter.index
@@ -1159,7 +1222,7 @@ public func kk_mutable_list_removeFirst(_ listRaw: Int, _ outThrown: UnsafeMutab
     guard let list = runtimeListBox(from: listRaw),
           list.count > 0
     else {
-        outThrown?.pointee = runtimeAllocateNoSuchElementException(message: "List is empty.")
+        outThrown?.pointee = runtimeAllocateNoSuchElementException(message: nil)
         return 0
     }
     return list.withMutableValues { $0.removeFirst().legacyRawValue }
@@ -1181,7 +1244,7 @@ public func kk_mutable_list_removeLast(_ listRaw: Int, _ outThrown: UnsafeMutabl
     guard let list = runtimeListBox(from: listRaw),
           list.count > 0
     else {
-        outThrown?.pointee = runtimeAllocateNoSuchElementException(message: "List is empty.")
+        outThrown?.pointee = runtimeAllocateNoSuchElementException(message: nil)
         return 0
     }
     return list.withMutableValues { $0.removeLast().legacyRawValue }

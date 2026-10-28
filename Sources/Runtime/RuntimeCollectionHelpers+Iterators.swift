@@ -200,7 +200,7 @@ private let runtimeListIteratorHasPreviousThunk: @convention(c) (Int, UnsafeMuta
 private let runtimeListIteratorPreviousThunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { raw, outThrown in
     outThrown?.pointee = 0
     guard let iter = runtimeListIteratorBox(from: raw), listIteratorCanGoBack(iter) else {
-        runtimeSetThrown(outThrown, runtimeAllocateNoSuchElementException(message: "List iterator has no previous element."))
+        runtimeSetThrown(outThrown, runtimeAllocateNoSuchElementException(message: nil))
         return 0
     }
     return kk_list_iterator_previous(raw)

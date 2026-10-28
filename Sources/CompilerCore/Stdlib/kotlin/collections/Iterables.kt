@@ -628,14 +628,12 @@ public inline fun <T> Iterable<T>.lastOrNull(predicate: (T) -> Boolean): T? {
 }
 
 // KSP-970: generic Iterable element access keeps the List fast path while
-// using one iterator traversal for non-List receivers.
+// using one iterator traversal for non-List receivers. The List branch
+// delegates to `get` directly so bounds errors keep the implementation's own
+// exception type and message (kotlin.collections.ElementAtOrElseKt).
 public fun <T> Iterable<T>.elementAt(index: Int): T {
     if (this is List) {
-        val list = this
-        if (index < 0 || index >= list.size) {
-            throw IndexOutOfBoundsException("Index $index out of bounds for length ${list.size}")
-        }
-        return list[index]
+        return (this as List<T>)[index]
     }
     return elementAtOrElse(index) { throw IndexOutOfBoundsException("Collection doesn't contain element at index $index.") }
 }

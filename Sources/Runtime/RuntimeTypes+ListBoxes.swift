@@ -327,6 +327,26 @@ final class RuntimeListBox {
         return false
     }
 
+    /// `Array<T>.asList()` / primitive-array views behave like
+    /// `java.util.Arrays$ArrayList` on the JVM: their `get` fails with
+    /// `ArrayIndexOutOfBoundsException`, unlike plain `List` implementations.
+    var isArrayStorageView: Bool {
+        if case .arrayViewOf = storage { return true }
+        return false
+    }
+
+    var isDequeStorageView: Bool {
+        if case .dequeViewOf = storage { return true }
+        return false
+    }
+
+    /// `List.asReversed()` views report bounds failures with Kotlin's own
+    /// `checkElementIndex` message rather than the delegate implementation's.
+    var isReversedStorageView: Bool {
+        if case .reversedViewOf = storage { return true }
+        return false
+    }
+
     var usesReferenceEquality: Bool {
         guard case let .mapValuesViewOf(raw) = storage else { return false }
         return runtimeMapBox(from: raw)?.usesReferenceEquality == true

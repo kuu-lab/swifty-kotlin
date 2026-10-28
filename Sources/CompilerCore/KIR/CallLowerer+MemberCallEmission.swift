@@ -1385,15 +1385,32 @@ extension CallLowerer {
                 bridgeArguments[bridgeArguments.count - 2] = split.fnPtrExpr
                 bridgeArguments[bridgeArguments.count - 1] = split.envPtrExpr
             }
+            let bridgeThrownResult = bridgeCall.canThrow
+                ? arena.appendTemporary(type: sema.types.nullableAnyType)
+                : nil
             instructions.append(.call(
                 callee: bridgeCall.callee,
                 arguments: bridgeArguments,
                 result: result,
                 canThrow: bridgeCall.canThrow,
-                thrownResult: bridgeCall.canThrow ? arena.appendTemporary(type: sema.types.nullableAnyType) : nil,
+                thrownResult: bridgeThrownResult,
                 isSuperCall: isSuperCall,
                 qualifiedSuperType: qualifiedSuperType
             ))
+            // Without a rethrow the callee's thrown value would stay in the
+            // temp forever: outside an explicit try region nobody reads the
+            // thrownResult slot, so `list.chunked(0)` silently produced the
+            // exception sentinel instead of throwing. Inside a try this is a
+            // no-op — the guarded copy+check already diverted on a throw.
+            if let bridgeThrownResult {
+                let continueLabel = driver.ctx.makeLoopLabel()
+                let rethrowLabel = driver.ctx.makeLoopLabel()
+                instructions.append(.jumpIfNotNull(value: bridgeThrownResult, target: rethrowLabel))
+                instructions.append(.jump(continueLabel))
+                instructions.append(.label(rethrowLabel))
+                instructions.append(.rethrow(value: bridgeThrownResult))
+                instructions.append(.label(continueLabel))
+            }
             return
         }
         let throwingCallees = Self.throwingMemberCalleeNames

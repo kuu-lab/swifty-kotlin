@@ -80,7 +80,7 @@ public inline fun <T> List<T>.reduceIndexedOrNull(operation: (Int, T, T) -> T): 
 }
 
 public inline fun <T> List<T>.reduceRight(operation: (T, T) -> T): T {
-    if (size == 0) throw UnsupportedOperationException("Empty collection can't be reduced.")
+    if (size == 0) throw UnsupportedOperationException("Empty list can't be reduced.")
     var accumulator = this[size - 1]
     var i = size - 2
     while (i >= 0) {
@@ -91,7 +91,7 @@ public inline fun <T> List<T>.reduceRight(operation: (T, T) -> T): T {
 }
 
 public inline fun <T> List<T>.reduceRightIndexed(operation: (Int, T, T) -> T): T {
-    if (size == 0) throw UnsupportedOperationException("Empty collection can't be reduced.")
+    if (size == 0) throw UnsupportedOperationException("Empty list can't be reduced.")
     var accumulator = this[size - 1]
     var i = size - 2
     while (i >= 0) {

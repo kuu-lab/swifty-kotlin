@@ -27,12 +27,10 @@ public fun <T> List<T>.getOrElse(index: Int, defaultValue: (Int) -> T): T {
     return defaultValue(index)
 }
 
-public fun <T> List<T>.elementAt(index: Int): T {
-    if (index < 0 || index >= size) {
-        throw IndexOutOfBoundsException("Index $index out of bounds for length $size")
-    }
-    return this[index]
-}
+// JVM resolves `elementAt` through `Iterable.elementAt`, whose List branch
+// delegates to `get` so bounds errors keep the implementation's own exception
+// type and message.
+public fun <T> List<T>.elementAt(index: Int): T = this[index]
 
 public fun <T> List<T>.elementAtOrNull(index: Int): T? {
     if (index >= 0 && index < size) {

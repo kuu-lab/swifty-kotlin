@@ -341,7 +341,7 @@ public func kk_list_bridge_chunked(_ listRaw: Int, _ size: Int, _ outThrown: Uns
     outThrown?.pointee = 0
     guard size > 0 else {
         outThrown?.pointee = runtimeAllocateIllegalArgumentException(
-            message: "size must be positive, but was \(size)"
+            message: "size \(size) must be greater than zero."
         )
         return runtimeExceptionCaughtSentinel
     }
@@ -364,7 +364,7 @@ public func kk_list_bridge_chunked_transform(_ listRaw: Int, _ size: Int, _ fnPt
     outThrown?.pointee = 0
     guard size > 0 else {
         outThrown?.pointee = runtimeAllocateIllegalArgumentException(
-            message: "size must be positive, but was \(size)"
+            message: "size \(size) must be greater than zero."
         )
         return runtimeExceptionCaughtSentinel
     }
@@ -391,15 +391,11 @@ private func validateListWindowedArguments(
     outThrown: UnsafeMutablePointer<Int>?
 ) -> Bool {
     outThrown?.pointee = 0
-    if size <= 0 {
+    // JVM checks both arguments together and reports a single message naming
+    // both values, even when only one of them is invalid.
+    if size <= 0 || step <= 0 {
         outThrown?.pointee = runtimeAllocateIllegalArgumentException(
-            message: "size must be positive, but was \(size)"
-        )
-        return false
-    }
-    if step <= 0 {
-        outThrown?.pointee = runtimeAllocateIllegalArgumentException(
-            message: "step must be positive, but was \(step)"
+            message: "Both size \(size) and step \(step) must be greater than zero."
         )
         return false
     }
@@ -415,7 +411,7 @@ public func kk_list_bridge_windowed(
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
     guard validateListWindowedArguments(size: size, step: step, outThrown: outThrown) else {
-        return registerRuntimeObject(RuntimeListBox(elements: []))
+        return runtimeExceptionCaughtSentinel
     }
     guard let elements = runtimeCollectionOrArrayElements(from: listRaw) else {
         invalidContainerPanic(#function, "collection")
@@ -446,7 +442,7 @@ public func kk_list_bridge_windowed_transform(
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
     guard validateListWindowedArguments(size: size, step: step, outThrown: outThrown) else {
-        return registerRuntimeObject(RuntimeListBox(elements: []))
+        return runtimeExceptionCaughtSentinel
     }
     guard let elements = runtimeCollectionOrArrayElements(from: listRaw) else {
         invalidContainerPanic(#function, "collection")

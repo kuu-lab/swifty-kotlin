@@ -33,7 +33,14 @@ public inline fun <T> Array<out T>.dropWhile(predicate: (T) -> Boolean): List<T>
     return result
 }
 
-public fun <T> Array<out T>.slice(indices: IntRange): List<T> = asList().slice(indices)
+// JVM `Array.slice` is `copyOfRange(start, endInclusive + 1).asList()`:
+// it materializes a copy (not a view) and its bounds errors come from the
+// copyOfRange checks.
+public fun <T> Array<out T>.slice(indices: IntRange): List<T> {
+    if (indices.isEmpty()) return emptyList()
+    @Suppress("UNCHECKED_CAST")
+    return (this as Array<T>).copyOfRange(indices.start, indices.endInclusive + 1).asList()
+}
 
 public fun <T> Array<out T>.slice(indices: Iterable<Int>): List<T> = asList().slice(indices)
 

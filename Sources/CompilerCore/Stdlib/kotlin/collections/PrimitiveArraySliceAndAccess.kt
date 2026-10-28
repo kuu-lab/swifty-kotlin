@@ -12,7 +12,10 @@ public fun IntArray.drop(n: Int): List<Int> = asList().drop(n)
 
 public fun IntArray.dropLast(n: Int): List<Int> = asList().dropLast(n)
 
-public fun IntArray.slice(indices: IntRange): List<Int> = asList().slice(indices)
+public fun IntArray.slice(indices: IntRange): List<Int> {
+    if (indices.isEmpty()) return emptyList()
+    return copyOfRange(indices.start, indices.endInclusive + 1).asList()
+}
 
 public fun IntArray.slice(indices: Iterable<Int>): List<Int> = asList().slice(indices)
 
@@ -73,7 +76,10 @@ public fun LongArray.drop(n: Int): List<Long> = asList().drop(n)
 
 public fun LongArray.dropLast(n: Int): List<Long> = asList().dropLast(n)
 
-public fun LongArray.slice(indices: IntRange): List<Long> = asList().slice(indices)
+public fun LongArray.slice(indices: IntRange): List<Long> {
+    if (indices.isEmpty()) return emptyList()
+    return copyOfRange(indices.start, indices.endInclusive + 1).asList()
+}
 
 public fun LongArray.slice(indices: Iterable<Int>): List<Long> = asList().slice(indices)
 
@@ -134,7 +140,10 @@ public fun ByteArray.drop(n: Int): List<Byte> = asList().drop(n)
 
 public fun ByteArray.dropLast(n: Int): List<Byte> = asList().dropLast(n)
 
-public fun ByteArray.slice(indices: IntRange): List<Byte> = asList().slice(indices)
+public fun ByteArray.slice(indices: IntRange): List<Byte> {
+    if (indices.isEmpty()) return emptyList()
+    return copyOfRange(indices.start, indices.endInclusive + 1).asList()
+}
 
 public fun ByteArray.slice(indices: Iterable<Int>): List<Byte> = asList().slice(indices)
 
@@ -195,7 +204,10 @@ public fun ShortArray.drop(n: Int): List<Short> = asList().drop(n)
 
 public fun ShortArray.dropLast(n: Int): List<Short> = asList().dropLast(n)
 
-public fun ShortArray.slice(indices: IntRange): List<Short> = asList().slice(indices)
+public fun ShortArray.slice(indices: IntRange): List<Short> {
+    if (indices.isEmpty()) return emptyList()
+    return copyOfRange(indices.start, indices.endInclusive + 1).asList()
+}
 
 public fun ShortArray.slice(indices: Iterable<Int>): List<Short> = asList().slice(indices)
 
@@ -256,7 +268,10 @@ public fun CharArray.drop(n: Int): List<Char> = asList().drop(n)
 
 public fun CharArray.dropLast(n: Int): List<Char> = asList().dropLast(n)
 
-public fun CharArray.slice(indices: IntRange): List<Char> = asList().slice(indices)
+public fun CharArray.slice(indices: IntRange): List<Char> {
+    if (indices.isEmpty()) return emptyList()
+    return copyOfRange(indices.start, indices.endInclusive + 1).asList()
+}
 
 public fun CharArray.slice(indices: Iterable<Int>): List<Char> = asList().slice(indices)
 
@@ -317,7 +332,10 @@ public fun BooleanArray.drop(n: Int): List<Boolean> = asList().drop(n)
 
 public fun BooleanArray.dropLast(n: Int): List<Boolean> = asList().dropLast(n)
 
-public fun BooleanArray.slice(indices: IntRange): List<Boolean> = asList().slice(indices)
+public fun BooleanArray.slice(indices: IntRange): List<Boolean> {
+    if (indices.isEmpty()) return emptyList()
+    return copyOfRange(indices.start, indices.endInclusive + 1).asList()
+}
 
 public fun BooleanArray.slice(indices: Iterable<Int>): List<Boolean> = asList().slice(indices)
 
@@ -378,7 +396,10 @@ public fun FloatArray.drop(n: Int): List<Float> = asList().drop(n)
 
 public fun FloatArray.dropLast(n: Int): List<Float> = asList().dropLast(n)
 
-public fun FloatArray.slice(indices: IntRange): List<Float> = asList().slice(indices)
+public fun FloatArray.slice(indices: IntRange): List<Float> {
+    if (indices.isEmpty()) return emptyList()
+    return copyOfRange(indices.start, indices.endInclusive + 1).asList()
+}
 
 public fun FloatArray.slice(indices: Iterable<Int>): List<Float> = asList().slice(indices)
 
@@ -444,7 +465,10 @@ public fun DoubleArray.drop(n: Int): List<Double> = asList().drop(n)
 
 public fun DoubleArray.dropLast(n: Int): List<Double> = asList().dropLast(n)
 
-public fun DoubleArray.slice(indices: IntRange): List<Double> = asList().slice(indices)
+public fun DoubleArray.slice(indices: IntRange): List<Double> {
+    if (indices.isEmpty()) return emptyList()
+    return copyOfRange(indices.start, indices.endInclusive + 1).asList()
+}
 
 public fun DoubleArray.slice(indices: Iterable<Int>): List<Double> = asList().slice(indices)
 
