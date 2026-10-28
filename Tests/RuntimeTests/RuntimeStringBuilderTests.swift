@@ -4,6 +4,10 @@ import Testing
 
 @Suite(.serialized)
 struct RuntimeStringBuilderTests {
+    private func __kk_comparable_compareTo(_ lhs: Int, _ rhs: Int) -> Int {
+        Runtime.__kk_comparable_compareTo(lhs, rhs, nil)
+    }
+
     @Test(arguments: [0, 1, 16, 100, 200])
     func testCapacityConstructorReservesRequestedStorage(capacity: Int) {
         var thrown = 123

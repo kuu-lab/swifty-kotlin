@@ -492,6 +492,8 @@ extension DataFlowSemaPhase {
                     thisType: companionType
                 )
                 collectSyntheticEnumCompanionMembers(
+                    ownerSymbol: symbol,
+                    ownerFQName: fqName,
                     companionSymbol: companionSymbol,
                     companionFQName: companionFQName,
                     enumType: classType,
@@ -745,6 +747,9 @@ extension DataFlowSemaPhase {
                     valueParameterHasDefaultValues: params.paramHasDefaultValues,
                     valueParameterIsVararg: params.paramIsVararg,
                     valueParameterAllowsNonLocalReturn: params.paramAllowsNonLocalReturn,
+                    hasStableParameterNames: !symbols.annotations(for: symbol).contains {
+                        $0.annotationFQName == "kotlin.internal.NonStableParameterNames"
+                    },
                     typeParameterSymbols: typeParamResult.typeParameterSymbols,
                     reifiedTypeParameterIndices: typeParamResult.reifiedIndices,
                     typeParameterUpperBoundsList: upperBoundsByTypeParam

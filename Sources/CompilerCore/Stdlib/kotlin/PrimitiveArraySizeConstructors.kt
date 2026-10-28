@@ -1,3 +1,5 @@
+@file:OptIn(ExperimentalUnsignedTypes::class)
+
 package kotlin
 
 import kotlin.internal.KsSymbolName

@@ -624,6 +624,42 @@ extension CallLowerer {
         ) {
             return
         }
+        if finalArguments.first == receiver.loweredID,
+           finalArguments.count == 2,
+           sourceArgExprs.count == 1,
+           let chosenCallee,
+           sema.symbols.externalLinkName(for: chosenCallee) == "kk_any_member_equals",
+           let receiverType = receiver.type(in: sema),
+           usesPrimitiveAnyFallbackRepresentation(for: receiverType, sema: sema)
+        {
+            // Primitive and unboxed primitive-backed value-class receivers
+            // are raw scalars, so the object member bridge would misread the
+            // payload as a pointer. Use the tagged Any equality bridge.
+            let intType = sema.types.make(.primitive(.int, .nonNull))
+            let receiverTag = computeAnyFallbackTag(for: receiverType, sema: sema)
+            let receiverTagID = arena.appendExpr(.intLiteral(receiverTag), type: intType)
+            instructions.append(.constValue(result: receiverTagID, value: .intLiteral(receiverTag)))
+
+            let argType = sema.bindings.exprTypes[sourceArgExprs[0]] ?? sema.types.anyType
+            let argTag = computeAnyFallbackTag(for: argType, sema: sema)
+            let argTagID = arena.appendExpr(.intLiteral(argTag), type: intType)
+            instructions.append(.constValue(result: argTagID, value: .intLiteral(argTag)))
+
+            let boxedResult = arena.appendTemporary(type: sema.types.makeNullable(sema.types.booleanType))
+            instructions.append(.call(
+                callee: interner.intern("kk_any_equals"),
+                arguments: [receiver.loweredID, receiverTagID, finalArguments[1], argTagID],
+                result: boxedResult,
+                canThrow: false
+            ))
+            instructions.append(.call(
+                callee: interner.intern("kk_unbox_bool_static"),
+                arguments: [boxedResult],
+                result: result,
+                canThrow: false
+            ))
+            return
+        }
         // Enum values are raw ordinals while they remain statically enum-typed.
         // Enum.equals(Any?) is an Any-boundary call, so box the receiver with
         // its nominal class ID before reaching the shared Any bridge. Without

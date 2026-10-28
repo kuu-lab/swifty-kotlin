@@ -1598,6 +1598,27 @@ extension DataFlowSemaPhase {
         }
     }
 
+    private struct DelegationPropertyKey {
+        let name: InternedString
+        let extensionReceiverType: TypeID?
+
+        func matches(_ other: DelegationPropertyKey, types: TypeSystem) -> Bool {
+            guard name == other.name else { return false }
+            switch (extensionReceiverType, other.extensionReceiverType) {
+            case let (lhs?, rhs?):
+                return methodIdentityParameterTypesMatch(
+                    candidateParameterTypes: [rhs],
+                    interfaceParameterTypes: [lhs],
+                    types: types
+                )
+            case (nil, nil):
+                return true
+            default:
+                return false
+            }
+        }
+    }
+
     private func delegationDispatchKey(
         for method: SemanticSymbol,
         signature: FunctionSignature,
@@ -1676,12 +1697,15 @@ extension DataFlowSemaPhase {
                                                              ? nil : signature.receiverType,
                                                          methodUpperBounds: methodTypeParameterBounds(signature, types: types)))
         }
-        var classPropertyNames: Set<InternedString> = []
+        var classPropertyKeys: [DelegationPropertyKey] = []
         for propDeclID in memberProperties {
             guard let propSymbol = bindings.declSymbols[propDeclID],
                   let propSym = symbols.symbol(propSymbol)
             else { continue }
-            classPropertyNames.insert(propSym.name)
+            classPropertyKeys.append(DelegationPropertyKey(
+                name: propSym.name,
+                extensionReceiverType: symbols.extensionPropertyReceiverType(for: propSymbol)
+            ))
         }
         let classTypeParameterSymbols = types.nominalTypeParameterSymbols(for: classSymbol)
 
@@ -1702,7 +1726,7 @@ extension DataFlowSemaPhase {
             var ownerQueue: [SymbolID] = [interfaceSymbol]
             var visitedOwners: Set<SymbolID> = []
             var seenMethodKeys = classMethodKeys
-            var seenPropertyNames = classPropertyNames
+            var seenPropertyKeys = classPropertyKeys
             while !ownerQueue.isEmpty {
                 let ownerInterface = ownerQueue.removeFirst()
                 guard visitedOwners.insert(ownerInterface).inserted,
@@ -1766,11 +1790,24 @@ extension DataFlowSemaPhase {
                             symbols: symbols, types: types, interner: interner
                         )
                     case .property:
-                        guard seenPropertyNames.insert(memberSym.name).inserted,
-                              let propertyType = symbols.propertyType(for: memberSym.id)
+                        guard let propertyType = symbols.propertyType(for: memberSym.id)
                         else { continue }
+                        let propertyReceiverType = symbols.extensionPropertyReceiverType(for: memberSym.id).map {
+                            substituteDelegationType(
+                                $0, substitution: substitution, typeVarBySymbol: typeVarBySymbol, types: types
+                            )
+                        }
+                        let propertyKey = DelegationPropertyKey(
+                            name: memberSym.name,
+                            extensionReceiverType: propertyReceiverType
+                        )
+                        guard !seenPropertyKeys.contains(where: { propertyKey.matches($0, types: types) }) else {
+                            continue
+                        }
+                        seenPropertyKeys.append(propertyKey)
                         synthesizeForwardingProperty(
                             propertySym: memberSym, propertyType: propertyType,
+                            extensionReceiverType: propertyReceiverType,
                             range: range, classSymbol: classSymbol, classFQName: classFQName,
                             interfaceSymbol: ownerInterface, fieldSymbol: fieldSymbol,
                             substitution: substitution, typeVarBySymbol: typeVarBySymbol,
@@ -2009,6 +2046,7 @@ extension DataFlowSemaPhase {
     private func synthesizeForwardingProperty(
         propertySym: SemanticSymbol,
         propertyType: TypeID,
+        extensionReceiverType: TypeID?,
         range: SourceRange,
         classSymbol: SymbolID,
         classFQName: [InternedString],
@@ -2018,9 +2056,12 @@ extension DataFlowSemaPhase {
         typeVarBySymbol: [SymbolID: TypeVarID],
         symbols: SymbolTable,
         types: TypeSystem,
-        interner _: StringInterner
+        interner: StringInterner
     ) {
         var flags: SymbolFlags = [.synthetic, .overrideMember]
+        if extensionReceiverType != nil {
+            flags.insert(.memberExtension)
+        }
         if propertySym.flags.contains(.mutable) {
             flags.insert(.mutable)
         }
@@ -2030,17 +2071,78 @@ extension DataFlowSemaPhase {
             fqName: classFQName + [propertySym.name],
             declSite: range,
             visibility: propertySym.visibility,
-            flags: flags
+            flags: flags,
+            isExtensionProperty: extensionReceiverType != nil
         )
         symbols.setParentSymbol(classSymbol, for: forwardingSymbol)
-        symbols.setPropertyType(
-            substituteDelegationType(
-                propertyType, substitution: substitution,
-                typeVarBySymbol: typeVarBySymbol, types: types
-            ),
-            for: forwardingSymbol
+        let forwardedPropertyType = substituteDelegationType(
+            propertyType, substitution: substitution,
+            typeVarBySymbol: typeVarBySymbol, types: types
         )
+        symbols.setPropertyType(forwardedPropertyType, for: forwardingSymbol)
         symbols.setPropertyHasCustomGetter(true, for: forwardingSymbol)
+
+        if let extensionReceiverType {
+            symbols.setExtensionPropertyReceiverType(extensionReceiverType, for: forwardingSymbol)
+            let classTypeParameters = types.nominalTypeParameterSymbols(for: classSymbol)
+            let classTypeParameterBounds = classTypeParameters.map {
+                symbols.typeParameterUpperBounds(for: $0)
+            }
+
+            func synthesizeAccessor(isSetter: Bool) {
+                let accessorName = interner.intern(isSetter ? "set" : "get")
+                let accessorSymbol = symbols.define(
+                    kind: .function,
+                    name: accessorName,
+                    fqName: classFQName + [propertySym.name, interner.intern(isSetter ? "$set" : "$get")],
+                    declSite: range,
+                    visibility: propertySym.visibility,
+                    flags: [.synthetic]
+                )
+                symbols.setParentSymbol(forwardingSymbol, for: accessorSymbol)
+                symbols.setAccessorOwnerProperty(forwardingSymbol, for: accessorSymbol)
+
+                let sourceAccessor = isSetter
+                    ? symbols.extensionPropertySetterAccessor(for: propertySym.id)
+                    : symbols.extensionPropertyGetterAccessor(for: propertySym.id)
+                let sourceSignature = sourceAccessor.flatMap { symbols.functionSignature(for: $0) }
+                let signature = FunctionSignature(
+                    receiverType: extensionReceiverType,
+                    contextReceiverTypes: (sourceSignature?.contextReceiverTypes ?? []).map {
+                        substituteDelegationType(
+                            $0, substitution: substitution, typeVarBySymbol: typeVarBySymbol, types: types
+                        )
+                    },
+                    contextParameterSymbols: sourceSignature?.contextParameterSymbols ?? [],
+                    contextParameterTypes: (sourceSignature?.contextParameterTypes ?? []).map {
+                        substituteDelegationType(
+                            $0, substitution: substitution, typeVarBySymbol: typeVarBySymbol, types: types
+                        )
+                    },
+                    parameterTypes: isSetter ? [forwardedPropertyType] : [],
+                    returnType: isSetter ? types.unitType : forwardedPropertyType,
+                    canThrow: true,
+                    typeParameterSymbols: classTypeParameters,
+                    typeParameterUpperBoundsList: classTypeParameterBounds,
+                    classTypeParameterCount: classTypeParameters.count
+                )
+                symbols.setFunctionSignature(signature, for: accessorSymbol)
+                if isSetter {
+                    symbols.setExtensionPropertySetterAccessor(accessorSymbol, for: forwardingSymbol)
+                } else {
+                    symbols.setExtensionPropertyGetterAccessor(accessorSymbol, for: forwardingSymbol)
+                }
+            }
+
+            synthesizeAccessor(isSetter: false)
+            if propertySym.flags.contains(.mutable) {
+                synthesizeAccessor(isSetter: true)
+            }
+        }
+
+        if let setterVisibility = symbols.propertySetterVisibility(for: propertySym.id) {
+            symbols.setPropertySetterVisibility(setterVisibility, for: forwardingSymbol)
+        }
 
         symbols.addClassDelegationForwardingProperty(
             forwardingSymbol,

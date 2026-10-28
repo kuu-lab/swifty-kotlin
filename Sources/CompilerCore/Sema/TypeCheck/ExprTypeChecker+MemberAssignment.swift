@@ -34,13 +34,37 @@ extension ExprTypeChecker {
     ) -> TypeID {
         let sema = ctx.sema
         let inferredReceiver = driver.inferExpr(receiver, ctx: ctx, locals: &locals, expectedType: nil)
-        let receiverType = driver.helpers.retypeClassNameAsCompanionValue(
+        var receiverType = driver.helpers.retypeClassNameAsCompanionValue(
             receiver, currentType: inferredReceiver, ast: ctx.ast, sema: sema
         ) ?? inferredReceiver
+        // KUU-3522: `super.foo = value` must pick the supertype that declares
+        // `foo`, exactly like `super.foo` reads and `super.foo()` calls do.
+        // An unqualified `super` in a class with only interface supertypes
+        // otherwise stays typed `kotlin.Any` (the implicit class superclass)
+        // and the write lookup reports SEMA-0022.
+        if !isSafeCall, receiverType != sema.types.errorType {
+            receiverType = driver.callChecker.resolveSuperMemberReceiverType(
+                receiverID: receiver,
+                receiverType: receiverType,
+                calleeName: name,
+                isPropertyAccess: true,
+                ctx: ctx
+            )
+        }
+        // The invalid super receiver already emitted its own diagnostic;
+        // looking a member up on the error type adds a second, unrelated
+        // "unresolved" error.
+        if receiverType == sema.types.errorType,
+           case .superRef = ctx.ast.arena.expr(receiver)
+        {
+            sema.bindings.bindExprType(id, type: sema.types.errorType)
+            return sema.types.errorType
+        }
         let nonNullReceiver = sema.types.makeNonNullable(receiverType)
-        if let member = driver.helpers.lookupMemberPropertyForWrite(
+        let memberResult = driver.helpers.lookupMemberPropertyForWrite(
             named: name, receiverType: nonNullReceiver, sema: sema
-        ) {
+        )
+        if let member = memberResult {
             let writeSymbol = member.writeSymbol ?? member.symbol
             // Resolve the write type before inferring the RHS, including contextual
             // integer literals and lambdas. The read type is unsafe for projections.

@@ -26,6 +26,17 @@ extension CallTypeChecker {
                 continue
             }
 
+            // A definitely-non-null type parameter is represented as T & Any.
+            // It can be forwarded to a reified call without inferring a
+            // multi-bound intersection type.
+            let nonAnyParts = parts.filter { $0 != sema.types.anyType }
+            if parts.count == 2, nonAnyParts.count == 1,
+               case let .typeParam(parameter) = sema.types.kind(of: nonAnyParts[0]),
+               parameter.capture == nil
+            {
+                continue
+            }
+
             let parameterName = sema.symbols.symbol(typeParameter).map { driver.interner.resolve($0.name) } ?? "T"
             let renderedParts = parts.map { part in
                 "'\(sema.types.displayName(of: part, symbols: sema.symbols, interner: driver.interner))'"

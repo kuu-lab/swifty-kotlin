@@ -501,7 +501,12 @@ extension ExprTypeChecker {
         // while rejecting the RHS type. Kotlin then considers visible operator
         // extensions; keep member precedence by retrying only when the current
         // candidates have no viable call.
-        if op == .rangeTo,
+        // The fallback below can rediscover the generic stdlib rangeTo after
+        // it was excluded above. Same-type floating-point operands use the
+        // built-in range even when there is no concrete member candidate.
+        let isBuiltinFloatingRangePair = (lhs == sema.types.doubleType && rhs == sema.types.doubleType)
+            || (lhs == sema.types.floatType && rhs == sema.types.floatType)
+        if op == .rangeTo, !isBuiltinFloatingRangePair,
            ctx.resolver.probeCall(
                candidates: operatorCandidates,
                call: operatorCall,

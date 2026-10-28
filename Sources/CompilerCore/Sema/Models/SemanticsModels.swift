@@ -177,6 +177,10 @@ public struct FunctionSignature: Hashable, Sendable, Codable {
     public let valueParameterAllowsNonLocalReturn: [Bool]
     /// False for legacy imported signatures whose inline permissions were inferred.
     public let hasExplicitInlineParameterMetadata: Bool
+    /// Whether callers may rely on the declaration's value-parameter names.
+    /// Java methods have names in their class metadata, but Kotlin/JVM does not
+    /// permit callers to use them as named arguments.
+    public let hasStableParameterNames: Bool
     public let typeParameterSymbols: [SymbolID]
     public let reifiedTypeParameterIndices: Set<Int>
     public let typeParameterUpperBounds: [TypeID?]
@@ -202,6 +206,7 @@ public struct FunctionSignature: Hashable, Sendable, Codable {
         valueParameterIsVararg: [Bool] = [],
         valueParameterAllowsNonLocalReturn: [Bool] = [],
         hasExplicitInlineParameterMetadata: Bool = true,
+        hasStableParameterNames: Bool = true,
         typeParameterSymbols: [SymbolID] = [],
         reifiedTypeParameterIndices: Set<Int> = [],
         typeParameterUpperBounds: [TypeID?] = [],
@@ -222,6 +227,7 @@ public struct FunctionSignature: Hashable, Sendable, Codable {
         self.valueParameterIsVararg = valueParameterIsVararg
         self.valueParameterAllowsNonLocalReturn = valueParameterAllowsNonLocalReturn
         self.hasExplicitInlineParameterMetadata = hasExplicitInlineParameterMetadata
+        self.hasStableParameterNames = hasStableParameterNames
         self.typeParameterSymbols = typeParameterSymbols
         self.reifiedTypeParameterIndices = reifiedTypeParameterIndices
         let normalizedUpperBoundsList: [[TypeID]] = if !typeParameterUpperBoundsList.isEmpty {
@@ -252,11 +258,64 @@ public struct FunctionSignature: Hashable, Sendable, Codable {
             valueParameterIsVararg: valueParameterIsVararg,
             valueParameterAllowsNonLocalReturn: valueParameterAllowsNonLocalReturn,
             hasExplicitInlineParameterMetadata: hasExplicitInlineParameterMetadata,
+            hasStableParameterNames: hasStableParameterNames,
             typeParameterSymbols: typeParameterSymbols,
             reifiedTypeParameterIndices: reifiedTypeParameterIndices,
             typeParameterUpperBounds: typeParameterUpperBounds,
             typeParameterUpperBoundsList: typeParameterUpperBoundsList,
             classTypeParameterCount: classTypeParameterCount
+        )
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case receiverType
+        case contextReceiverTypes
+        case contextParameterSymbols
+        case contextParameterTypes
+        case parameterTypes
+        case returnType
+        case isSuspend
+        case canThrow
+        case valueParameterSymbols
+        case valueParameterUnsafeVarianceTypeParameterSymbols
+        case valueParameterHasDefaultValues
+        case valueParameterIsVararg
+        case valueParameterAllowsNonLocalReturn
+        case hasExplicitInlineParameterMetadata
+        case hasStableParameterNames
+        case typeParameterSymbols
+        case reifiedTypeParameterIndices
+        case typeParameterUpperBounds
+        case typeParameterUpperBoundsList
+        case classTypeParameterCount
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(
+            receiverType: try container.decodeIfPresent(TypeID.self, forKey: .receiverType),
+            contextReceiverTypes: try container.decode([TypeID].self, forKey: .contextReceiverTypes),
+            contextParameterSymbols: try container.decode([SymbolID].self, forKey: .contextParameterSymbols),
+            contextParameterTypes: try container.decode([TypeID].self, forKey: .contextParameterTypes),
+            parameterTypes: try container.decode([TypeID].self, forKey: .parameterTypes),
+            returnType: try container.decode(TypeID.self, forKey: .returnType),
+            isSuspend: try container.decode(Bool.self, forKey: .isSuspend),
+            canThrow: try container.decode(Bool.self, forKey: .canThrow),
+            valueParameterSymbols: try container.decode([SymbolID].self, forKey: .valueParameterSymbols),
+            valueParameterUnsafeVarianceTypeParameterSymbols: try container.decode(
+                [Set<SymbolID>].self,
+                forKey: .valueParameterUnsafeVarianceTypeParameterSymbols
+            ),
+            valueParameterHasDefaultValues: try container.decode([Bool].self, forKey: .valueParameterHasDefaultValues),
+            valueParameterIsVararg: try container.decode([Bool].self, forKey: .valueParameterIsVararg),
+            valueParameterAllowsNonLocalReturn: try container.decode([Bool].self, forKey: .valueParameterAllowsNonLocalReturn),
+            hasExplicitInlineParameterMetadata: try container.decode(Bool.self, forKey: .hasExplicitInlineParameterMetadata),
+            hasStableParameterNames: try container.decodeIfPresent(Bool.self, forKey: .hasStableParameterNames) ?? true,
+            typeParameterSymbols: try container.decode([SymbolID].self, forKey: .typeParameterSymbols),
+            reifiedTypeParameterIndices: try container.decode(Set<Int>.self, forKey: .reifiedTypeParameterIndices),
+            typeParameterUpperBounds: try container.decode([TypeID?].self, forKey: .typeParameterUpperBounds),
+            typeParameterUpperBoundsList: try container.decode([[TypeID]].self, forKey: .typeParameterUpperBoundsList),
+            classTypeParameterCount: try container.decode(Int.self, forKey: .classTypeParameterCount)
         )
     }
 }

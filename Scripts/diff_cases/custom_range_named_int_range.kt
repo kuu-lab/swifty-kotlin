@@ -3,8 +3,8 @@ class IntRange {
 }
 
 class C {
-    operator fun rangeTo(i: Int) = IntRange()
-    operator fun rangeTo(i: Double) = IntRange()
+    operator fun rangeTo(i: Int): IntRange = IntRange()
+    operator fun rangeTo(i: Double): IntRange = IntRange()
 }
 
 fun main() {

@@ -69,21 +69,34 @@ extension ExprTypeChecker {
             sema.bindings.bindExprType(id, type: local.type)
             return local.type
         }
-        // A bare name in value or qualifier position cannot denote a function
-        // or constructor — `foo` needs `foo()` or `::foo` — so a scope tier
-        // that binds the name only to callables must not hide an outer-scope
-        // property or object, e.g. a member `fun foo` shadowing the top-level
-        // `var foo` inside an inner-class init (KUU-3576). When callables are
-        // the only bindings anywhere, keep them so a non-qualifier `foo`
-        // still reaches the "function invocation expected" diagnostic.
-        let valueCandidateIDs = ctx.cachedScopeLookup(name) { symbolID in
+        // Bare value lookup must skip scopes that contain only callables or
+        // classifiers without values. A nested interface, for example, must
+        // not hide an outer object with the same name. Qualifiers still need
+        // classifier lookup for qualified types and companion members.
+        // Interface-inherited classifiers are rejected and collected so the
+        // callable fallback below cannot bind them either.
+        let valueLookup = ctx.valueScopeLookup(name) { symbolID in
             guard let symbol = ctx.cachedSymbol(symbolID) else { return false }
-            return symbol.kind != .function && symbol.kind != .constructor
+            if isQualifier {
+                return symbol.kind != .function && symbol.kind != .constructor
+            }
+            switch symbol.kind {
+            case .function, .constructor, .package, .typeParameter, .label:
+                return false
+            case .class, .interface, .enumClass, .annotationClass:
+                return sema.symbols.companionObjectSymbol(for: symbolID) != nil
+            case .typeAlias:
+                return expandTypeAliasValueTarget(symbol, sema: sema) != nil
+            case .object, .property, .field, .backingField, .valueParameter, .local:
+                return true
+            }
         }
+        let valueCandidateIDs = valueLookup.matches
+        let inheritedInterfaceClassifiers = valueLookup.inheritedInterfaces
         let allCandidateIDs: [SymbolID] = if !valueCandidateIDs.isEmpty || isQualifier {
             valueCandidateIDs
         } else {
-            ctx.cachedScopeLookup(name)
+            ctx.cachedScopeLookup(name).filter { !inheritedInterfaceClassifiers.contains($0) }
         }
         let dslBlockedIDs = allCandidateIDs.filter { ctx.isCandidateBlockedByDslMarker($0) }
         let dslFilteredIDs = allCandidateIDs.filter { !ctx.isCandidateBlockedByDslMarker($0) }
@@ -93,6 +106,9 @@ extension ExprTypeChecker {
         if candidates.isEmpty {
             let nominalFallbackIDs = sema.symbols.lookupByShortName(name).filter { symbolID in
                 guard let symbol = sema.symbols.symbol(symbolID) else {
+                    return false
+                }
+                if inheritedInterfaceClassifiers.contains(symbolID) {
                     return false
                 }
                 // Bundled classifiers obey the file's imports. The global

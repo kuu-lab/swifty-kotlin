@@ -537,32 +537,37 @@ final class ValueClassUnboxingPass: LoweringPass, ParallelLoweringPass {
                         }
                         continue
                     }
+                    if let boxedReceiver = arguments.first,
+                       allocExprs.contains(boxedReceiver),
+                       secondaryValueClassCtors.contains(ctorSymbol),
+                       let offset = ctorUnderlyingFieldOffset[ctorSymbol],
+                       let owner = symbols.parentSymbol(for: ctorSymbol),
+                       symbols.effectiveValueClassUnderlyingType(for: owner) != nil
+                    {
+                        // Secondary constructors can have multiple explicit
+                        // parameters. Keep their body call and extract the
+                        // delegated primary constructor's payload afterward.
+                        result.append(.call(
+                            symbol: symbol,
+                            callee: callee,
+                            arguments: arguments,
+                            result: nil,
+                            canThrow: canThrow,
+                            thrownResult: thrownResult,
+                            isSuperCall: isSuperCall,
+                            qualifiedSuperType: qualifiedSuperType
+                        ))
+                        resultLocations.append(location)
+                        _ = appendSecondaryValueClassResultExtraction(
+                            boxedReceiver: boxedReceiver,
+                            ctorSymbol: ctorSymbol,
+                            offset: offset,
+                            callResult: callResult,
+                            location: location
+                        )
+                        continue
+                    }
                     if arguments.count == 2, allocExprs.contains(arguments[0]) {
-                        if secondaryValueClassCtors.contains(ctorSymbol),
-                           let offset = ctorUnderlyingFieldOffset[ctorSymbol],
-                           let owner = symbols.parentSymbol(for: ctorSymbol),
-                           symbols.effectiveValueClassUnderlyingType(for: owner) != nil
-                        {
-                            result.append(.call(
-                                symbol: symbol,
-                                callee: callee,
-                                arguments: arguments,
-                                result: nil,
-                                canThrow: canThrow,
-                                thrownResult: thrownResult,
-                                isSuperCall: isSuperCall,
-                                qualifiedSuperType: qualifiedSuperType
-                            ))
-                            resultLocations.append(location)
-                            _ = appendSecondaryValueClassResultExtraction(
-                                boxedReceiver: arguments[0],
-                                ctorSymbol: ctorSymbol,
-                                offset: offset,
-                                callResult: callResult,
-                                location: location
-                            )
-                            continue
-                        }
                         if mustExecute {
                             // Keep the call so the constructor body (init
                             // blocks, parameter checks) still runs; then

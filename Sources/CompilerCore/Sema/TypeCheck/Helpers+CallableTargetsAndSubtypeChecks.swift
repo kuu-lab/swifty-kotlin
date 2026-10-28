@@ -771,15 +771,21 @@ extension TypeCheckHelpers {
                         let expectedType = expectedInputs[expectedIndex]
                         let targetKind = types.kind(of: types.makeNonNullable(params[shapeIndex]))
                         let expectedKind = types.kind(of: types.makeNonNullable(expectedType))
-                        let targetIsErased: Bool = switch targetKind {
-                        case .any, .typeParam: true
-                        default: false
+                        guard case .primitive = expectedKind else { continue }
+                        switch targetKind {
+                        case .any:
+                            params[shapeIndex] = expectedType
+                        case let .typeParam(parameter):
+                            if !signature.typeParameterSymbols.contains(parameter.symbol) {
+                                params[shapeIndex] = expectedType
+                            }
+                        default:
+                            continue
                         }
-                        guard targetIsErased, case .primitive = expectedKind else { continue }
                         // A contravariant reference from an erased parameter to
                         // a primitive input needs a wrapper so the input is
-                        // boxed before the referenced function receives it.
-                        params[shapeIndex] = expectedType
+                        // boxed before the referenced function receives it. Keep
+                        // callee type parameters until inference has used them.
                         requiresErasedPrimitiveInputAdapter = true
                     }
                 }
