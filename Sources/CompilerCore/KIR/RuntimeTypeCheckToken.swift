@@ -475,15 +475,31 @@ func kirIsNonReifiedErasedReturnType(_ type: TypeID, sema: SemaModule) -> Bool {
     return !symbol.flags.contains(.reifiedTypeParameter)
 }
 
-/// True when a generic call's substituted result can be checked before the
-/// erased ABI result is converted to its native representation.
+/// True when a generic call or property getter's substituted result can be
+/// checked before the erased ABI result is converted to its native representation.
 func kirShouldCheckErasedGenericCallResult(
     exprID: ExprID,
     boundType: TypeID?,
     sema: SemaModule
 ) -> Bool {
-    let declaredReturnType: TypeID? = if let chosenCallee = sema.bindings.callBindings[exprID]?.chosenCallee,
-                                         let signature = sema.symbols.functionSignature(for: chosenCallee)
+    let chosenCallee = sema.bindings.callBindings[exprID]?.chosenCallee
+    let propertySymbol: SymbolID? = if let chosenCallee {
+        sema.symbols.accessorOwnerProperty(for: chosenCallee)
+            ?? sema.symbols.propertySymbol(forAccessor: chosenCallee)
+            ?? (sema.symbols.symbol(chosenCallee)?.kind == .property ? chosenCallee : nil)
+            ?? sema.symbols.parentSymbol(for: chosenCallee).flatMap { parent in
+                sema.symbols.symbol(parent)?.kind == .property ? parent : nil
+            }
+    } else {
+        sema.bindings.identifierSymbol(for: exprID).flatMap { symbol in
+            sema.symbols.symbol(symbol)?.kind == .property ? symbol : nil
+        }
+    }
+    let declaredReturnType: TypeID? = if let propertySymbol {
+        sema.symbols.propertyType(for: propertySymbol)
+            ?? chosenCallee.flatMap { sema.symbols.functionSignature(for: $0)?.returnType }
+    } else if let chosenCallee,
+              let signature = sema.symbols.functionSignature(for: chosenCallee)
     {
         signature.returnType
     } else if let callableBinding = sema.bindings.callableValueCalls[exprID],
