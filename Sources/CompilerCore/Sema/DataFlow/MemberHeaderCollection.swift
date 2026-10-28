@@ -1149,6 +1149,8 @@ extension DataFlowSemaPhase {
                 fqName: nestedFQName,
                 namespacePrefix: "$class",
                 declSite: nestedClass.range,
+                currentPackageFQName: sourcePackageFQName,
+                imports: sourceImports,
                 ast: ast,
                 symbols: symbols,
                 types: types,

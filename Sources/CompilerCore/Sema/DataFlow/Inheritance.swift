@@ -864,13 +864,20 @@ extension DataFlowSemaPhase {
     /// types are inherited like other members (KUU-3250). The owner's own
     /// children are already covered by the `scope + path` fqName lookup,
     /// so only supertypes are walked, closest first.
-    private func inheritedMemberClassifierSymbol(
+    ///
+    /// Kotlin inherits nested classifiers through the superclass chain only,
+    /// so only class supertypes are expanded: an interface supertype never
+    /// contributes its nested classifiers to a subtype's simple-name scope,
+    /// even when reached through a superclass (KUU-3637, KUU-3636).
+    func inheritedMemberClassifierSymbol(
         path: [InternedString],
         owner: SymbolID,
         symbols: SymbolTable
     ) -> SymbolID? {
         var seen: Set<SymbolID> = [owner]
-        var queue = symbols.directSupertypes(for: owner)
+        var queue = symbols.directSupertypes(for: owner).filter { supertype in
+            symbols.symbol(supertype)?.kind == .class
+        }
         var index = 0
         while index < queue.count {
             let current = queue[index]
@@ -895,6 +902,7 @@ extension DataFlowSemaPhase {
             }
             for superSymbol in symbols.directSupertypes(for: current)
                 where seen.insert(superSymbol).inserted {
+                guard symbols.symbol(superSymbol)?.kind == .class else { continue }
                 queue.append(superSymbol)
             }
         }

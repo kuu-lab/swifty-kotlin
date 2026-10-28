@@ -129,6 +129,17 @@ extension ExprTypeChecker {
                     // scope or imports, not the global classifier short-name index.
                     return false
                 case .class, .interface, .enumClass, .annotationClass, .typeAlias:
+                    // A nested classifier's simple name is only visible
+                    // inside its declaring classifier's scope chain, so this
+                    // global recovery path may only re-bind top-level
+                    // (package-member) declarations. Without the limit a
+                    // subtype's bare `Entry` silently names `Contract.Entry`
+                    // through an interface supertype (KUU-3637, KUU-3636).
+                    if let parent = sema.symbols.parentSymbol(for: symbolID),
+                       sema.symbols.symbol(parent)?.kind != .package
+                    {
+                        return false
+                    }
                     return true
                 default:
                     return false

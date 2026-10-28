@@ -117,5 +117,13 @@ func resolveAnnotationSymbol(
     }
 
     guard allowGlobalShortNameFallback else { return nil }
-    return symbols.lookupByShortName(shortName).first(where: { symbols.symbol($0)?.kind == .annotationClass })
+    // The bare-name recovery path may only re-bind top-level
+    // (package-member) declarations: a nested classifier's simple name is
+    // scoped to its declaring classifier's body and never leaks into a
+    // subtype's scope through an interface supertype (KUU-3637, KUU-3636).
+    return symbols.lookupByShortName(shortName).first(where: { candidate in
+        guard symbols.symbol(candidate)?.kind == .annotationClass else { return false }
+        guard let parent = symbols.parentSymbol(for: candidate) else { return true }
+        return symbols.symbol(parent)?.kind == .package
+    })
 }
