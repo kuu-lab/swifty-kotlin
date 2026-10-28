@@ -121,6 +121,48 @@ struct KIRDumpFormatTests {
         }
     }
 
+    /// Crosses both the parallel threshold and several render batches, and
+    /// checks declaration order against a hand-built expectation.
+    @Test
+    func testParallelRenderingKeepsDeclarationOrder() {
+        let interner = StringInterner()
+        let symbols = SymbolTable()
+        let types = TypeSystem()
+        let owner = symbols.define(
+            kind: .class, name: interner.intern("Owner"),
+            fqName: [interner.intern("Owner")], declSite: nil, visibility: .public, flags: []
+        )
+        let arena = KIRArena()
+        var expectedLines: [String] = []
+        for index in 0 ..< 600 {
+            switch index % 3 {
+            case 0:
+                let name = interner.intern("fn\(index)")
+                _ = arena.appendDecl(.function(KIRFunction(
+                    symbol: SymbolID(rawValue: Int32(index)), name: name, params: [], returnType: types.unitType,
+                    body: [.label(Int32(index)), .returnUnit], isSuspend: false, isInline: false
+                )))
+                expectedLines += [
+                    "decl[\(index)] function #\(index) fn\(index) params=0 suspend=false inline=false",
+                    "  label L\(index)",
+                    "  returnUnit",
+                ]
+            case 1:
+                _ = arena.appendDecl(.global(KIRGlobal(symbol: owner, type: types.anyType)))
+                expectedLines.append("decl[\(index)] global")
+            default:
+                _ = arena.appendDecl(.nominalType(KIRNominalType(symbol: owner)))
+                expectedLines.append("decl[\(index)] type Owner")
+            }
+        }
+        let module = KIRModule(files: [], arena: arena)
+        let expected = expectedLines.joined(separator: "\n")
+        #expect(module.dump(interner: interner, symbols: symbols) == expected)
+        var chunks: [String] = []
+        module.dump(interner: interner, symbols: symbols, chunkBytes: 100) { chunks.append($0) }
+        #expect(chunks.joined() == expected)
+    }
+
     static let expected = #"""
     decl[0] function #0 callee params=1 suspend=true inline=false
       nop

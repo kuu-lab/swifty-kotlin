@@ -458,6 +458,26 @@ public final class KIRArena {
     }
 }
 
+/// Dump rendering only reads the module, interner snapshot and symbol table;
+/// results land in distinct slots under the lock, matching
+/// `ParallelTransformWork`.
+private final class ParallelDumpWork: @unchecked Sendable {
+    let module: KIRModule
+    let declarations: [KIRDecl]
+    let names: KIRDumpNames
+    let symbols: SymbolTable?
+    let lock = NSLock()
+    var results: [String]
+
+    init(module: KIRModule, declarations: [KIRDecl], names: KIRDumpNames, symbols: SymbolTable?, batch: Range<Int>) {
+        self.module = module
+        self.declarations = declarations
+        self.names = names
+        self.symbols = symbols
+        results = Array(repeating: "", count: batch.count)
+    }
+}
+
 private final class ParallelTransformWork: @unchecked Sendable {
     let functions: [(Int, KIRFunction)]
     let transform: (KIRFunction) -> KIRFunction
@@ -670,7 +690,9 @@ public final class KIRModule {
         }
     }
 
-    /// `flush` runs after every line, letting the streaming variant hand off
+    /// Declarations render independently, so each batch fans out across
+    /// cores and is then appended in declaration order; `flush` runs after
+    /// every appended declaration, letting the streaming variant hand off
     /// full chunks while the String variant keeps everything.
     private func renderDump(
         interner: StringInterner,
@@ -679,33 +701,73 @@ public final class KIRModule {
         flush: (inout KIRDumpOutput) throws -> Void
     ) rethrows {
         let names = KIRDumpNames(interner)
-        for (index, decl) in arena.declarations.enumerated() {
-            switch decl {
-            case let .function(function):
-                let name = names.resolve(function.name)
-                output.appendLine("decl[\(index)] function #\(function.symbol.rawValue) \(name) params=\(function.params.count) suspend=\(function.isSuspend) inline=\(function.isInline)")
+        let declarations = arena.declarations
+        var batchStart = 0
+        while batchStart < declarations.count {
+            let batch = batchStart ..< min(batchStart + Self.dumpBatchSize, declarations.count)
+            for rendered in renderDeclarations(declarations, in: batch, names: names, symbols: symbols) {
+                output.appendLine(rendered)
                 try flush(&output)
-                for instruction in function.body {
-                    output.appendLine { line in
-                        line += "  "
-                        appendInstruction(instruction, names: names, symbols: symbols, to: &line)
-                    }
-                    try flush(&output)
-                }
-            case .global:
-                output.appendLine("decl[\(index)] global")
-            case let .nominalType(nominal):
-                if let symbolName = symbols?.name(of: nominal.symbol) {
-                    let name = names.resolve(symbolName)
-                    output.appendLine("decl[\(index)] type \(name)")
-                } else {
-                    output.appendLine("decl[\(index)] type")
-                }
             }
-            try flush(&output)
+            batchStart = batch.upperBound
         }
         if !executedLowerings.isEmpty {
             output.appendLine("lowerings: \(executedLowerings.joined(separator: ", "))")
+        }
+    }
+
+    /// Bounds how much rendered-but-unwritten text a streamed dump holds.
+    private static let dumpBatchSize = 256
+    /// Below this, thread fan-out costs more than rendering serially.
+    private static let parallelDumpThreshold = 8
+
+    private func renderDeclarations(
+        _ declarations: [KIRDecl],
+        in batch: Range<Int>,
+        names: KIRDumpNames,
+        symbols: SymbolTable?
+    ) -> [String] {
+        guard batch.count >= Self.parallelDumpThreshold else {
+            return batch.map { renderDeclaration(declarations[$0], index: $0, names: names, symbols: symbols) }
+        }
+        let work = ParallelDumpWork(module: self, declarations: declarations, names: names, symbols: symbols, batch: batch)
+        DispatchQueue.concurrentPerform(iterations: batch.count) { offset in
+            let index = batch.lowerBound + offset
+            let rendered = work.module.renderDeclaration(
+                work.declarations[index], index: index, names: work.names, symbols: work.symbols
+            )
+            work.lock.lock()
+            work.results[offset] = rendered
+            work.lock.unlock()
+        }
+        return work.results
+    }
+
+    fileprivate func renderDeclaration(
+        _ decl: KIRDecl,
+        index: Int,
+        names: KIRDumpNames,
+        symbols: SymbolTable?
+    ) -> String {
+        switch decl {
+        case let .function(function):
+            var output = KIRDumpOutput(reservingBytes: (function.body.count + 1) * KIRDumpOutput.estimatedBytesPerLine)
+            let name = names.resolve(function.name)
+            output.appendLine("decl[\(index)] function #\(function.symbol.rawValue) \(name) params=\(function.params.count) suspend=\(function.isSuspend) inline=\(function.isInline)")
+            for instruction in function.body {
+                output.appendLine { line in
+                    line += "  "
+                    appendInstruction(instruction, names: names, symbols: symbols, to: &line)
+                }
+            }
+            return output.text
+        case .global:
+            return "decl[\(index)] global"
+        case let .nominalType(nominal):
+            if let symbolName = symbols?.name(of: nominal.symbol) {
+                return "decl[\(index)] type \(names.resolve(symbolName))"
+            }
+            return "decl[\(index)] type"
         }
     }
 
