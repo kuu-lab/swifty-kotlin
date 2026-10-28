@@ -400,41 +400,18 @@ private func charBase10DigitValue(_ scalar: UnicodeScalar) -> Int? {
     return nil
 }
 
+// Index == kotlin.text.CharCategory ordinal; keep in sync with its synthetic entries.
+private let charCategoryOrdinals: [Unicode.GeneralCategory] = [
+    .unassigned, .uppercaseLetter, .lowercaseLetter, .titlecaseLetter, .modifierLetter,
+    .otherLetter, .nonspacingMark, .enclosingMark, .spacingMark, .decimalNumber, .letterNumber,
+    .otherNumber, .spaceSeparator, .lineSeparator, .paragraphSeparator, .control, .format,
+    .privateUse, .surrogate, .dashPunctuation, .openPunctuation, .closePunctuation,
+    .connectorPunctuation, .otherPunctuation, .mathSymbol, .currencySymbol, .modifierSymbol,
+    .otherSymbol, .initialPunctuation, .finalPunctuation
+]
+
 private func charCategoryToInt(_ category: Unicode.GeneralCategory) -> Int {
-    // Keep ordinals in sync with kotlin.text.CharCategory synthetic entries.
-    switch category {
-    case .unassigned: return 0
-    case .uppercaseLetter: return 1
-    case .lowercaseLetter: return 2
-    case .titlecaseLetter: return 3
-    case .modifierLetter: return 4
-    case .otherLetter: return 5
-    case .nonspacingMark: return 6
-    case .enclosingMark: return 7
-    case .spacingMark: return 8
-    case .decimalNumber: return 9
-    case .letterNumber: return 10
-    case .otherNumber: return 11
-    case .spaceSeparator: return 12
-    case .lineSeparator: return 13
-    case .paragraphSeparator: return 14
-    case .control: return 15
-    case .format: return 16
-    case .privateUse: return 17
-    case .surrogate: return 18
-    case .dashPunctuation: return 19
-    case .openPunctuation: return 20
-    case .closePunctuation: return 21
-    case .connectorPunctuation: return 22
-    case .otherPunctuation: return 23
-    case .mathSymbol: return 24
-    case .currencySymbol: return 25
-    case .modifierSymbol: return 26
-    case .otherSymbol: return 27
-    case .initialPunctuation: return 28
-    case .finalPunctuation: return 29
-    @unknown default: return 0
-    }
+    charCategoryOrdinals.firstIndex(of: category) ?? 0
 }
 
 private func charDirectionalityToInt(_ scalar: UnicodeScalar) -> Int {
