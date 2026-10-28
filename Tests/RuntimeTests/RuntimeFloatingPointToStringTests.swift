@@ -53,6 +53,35 @@ struct RuntimeFloatingPointToStringTests {
     }
 
     @Test
+    func testSmallSubnormalsUseClosestTwoDigitDecimal() {
+        // JDK 19+ widens a one-digit shortest decimal to the closest one- or
+        // two-digit decimal; Ryu alone prints 1e-323 / 3e-45 for these.
+        let doubles: [(Double, String)] = [
+            (2 * Double.leastNonzeroMagnitude, "9.9E-324"),
+            (3 * Double.leastNonzeroMagnitude, "1.5E-323"),
+            (8 * Double.leastNonzeroMagnitude, "4.0E-323"),
+            (10 * Double.leastNonzeroMagnitude, "4.9E-323"),
+            (20 * Double.leastNonzeroMagnitude, "9.9E-323"),
+            (21 * Double.leastNonzeroMagnitude, "1.04E-322"),
+            (-2 * Double.leastNonzeroMagnitude, "-9.9E-324"),
+        ]
+        for (value, expected) in doubles {
+            #expect(runtimeFormatFloatingPoint(value) == expected)
+        }
+        let floats: [(Float, String)] = [
+            (2 * Float.leastNonzeroMagnitude, "2.8E-45"),
+            (3 * Float.leastNonzeroMagnitude, "4.2E-45"),
+            (5 * Float.leastNonzeroMagnitude, "7.0E-45"),
+            (7 * Float.leastNonzeroMagnitude, "9.8E-45"),
+            (8 * Float.leastNonzeroMagnitude, "1.1E-44"),
+            (-3 * Float.leastNonzeroMagnitude, "-4.2E-45"),
+        ]
+        for (value, expected) in floats {
+            #expect(runtimeFormatFloatingPoint(value) == expected)
+        }
+    }
+
+    @Test
     func testFloatDecimalRange() {
         #expect(runtimeFormatFloatingPoint(Float(0.0)) == "0.0")
         #expect(runtimeFormatFloatingPoint(Float(-0.0)) == "-0.0")

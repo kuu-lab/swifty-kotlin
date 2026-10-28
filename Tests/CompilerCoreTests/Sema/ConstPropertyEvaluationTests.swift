@@ -314,6 +314,34 @@ struct ConstPropertyEvaluationTests {
     }
 
     @Test
+    func foldsSmallSubnormalConcatenationWithJavaDigits() throws {
+        let ctx = makeContextFromSource("""
+        package subnormalTextConstants
+        const val DOUBLE_TWO = "" + 2 * Double.MIN_VALUE
+        const val DOUBLE_TEN = "" + 10 * Double.MIN_VALUE
+        const val FLOAT_THREE = "" + 3 * Float.MIN_VALUE
+        const val FLOAT_MIN = "" + Float.MIN_VALUE
+        """)
+        try runSema(ctx)
+
+        #expect(ctx.diagnostics.diagnostics.filter { $0.severity == .error }.isEmpty)
+        let sema = try #require(ctx.sema)
+        let expected = [
+            "DOUBLE_TWO": "9.9E-324", "DOUBLE_TEN": "4.9E-323",
+            "FLOAT_THREE": "4.2E-45", "FLOAT_MIN": "1.4E-45",
+        ]
+        for (name, text) in expected {
+            let symbol = try #require(sema.symbols.lookup(
+                fqName: ["subnormalTextConstants", name].map { ctx.interner.intern($0) }
+            ))
+            #expect(
+                sema.symbols.constValueExprKind(for: symbol) == .stringLiteral(ctx.interner.intern(text)),
+                "Incorrect constant for \(name)"
+            )
+        }
+    }
+
+    @Test
     func foldsCharCodeNumericConversionConstInitializers() throws {
         let ctx = makeContextFromSource("""
         package charCodeConstants
