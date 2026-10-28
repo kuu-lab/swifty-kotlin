@@ -1,4 +1,3 @@
-import RuntimeABI
 
 struct SetLookupNames {
     let setOfName: InternedString

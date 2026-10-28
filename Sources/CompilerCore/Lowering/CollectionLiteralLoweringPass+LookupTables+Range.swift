@@ -1,4 +1,3 @@
-import RuntimeABI
 
 struct RangeLookupNames {
     // Range iterator names (emitted by ForLoweringPass)
