@@ -2,6 +2,7 @@
 @testable import CompilerCore
 import Foundation
 import Testing
+@testable import CompilerTestSupport
 
 private func extractSuperCallFlags(
     from body: [KIRInstruction],
@@ -240,6 +241,41 @@ struct SuperCallAndQualifiedThisTests {
         #expect(directBaseCalls.count == 1)
         #expect(superBaseCalls.allSatisfy { sema.symbols.parentSymbol(for: $0) == enumSymbol })
         #expect(directBaseCalls.allSatisfy { sema.symbols.parentSymbol(for: $0) == enumSymbol })
+    }
+
+    @Test func testQualifiedEnumEntrySuperCallsEnumBaseImplementation() throws {
+        let ctx = makeContextFromSource("""
+        enum class E {
+            E1 { override fun f() = super<E>.f() + "O" },
+            E2 { override fun f() = super<E>.f() + "K" };
+            open fun f() = ""
+        }
+        """)
+        try runToKIR(ctx)
+
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics.map(\.message))")
+        let module = try #require(ctx.kir)
+        let sema = try #require(ctx.sema)
+        let enumSymbol = try #require(sema.symbols.lookup(fqName: [ctx.interner.intern("E")]))
+        let qualifiedSuperCalls = findAllKIRFunctions(in: module).flatMap { function in
+            function.body.compactMap { instruction -> (SymbolID, SymbolID)? in
+                guard case let .call(symbol, callee, _, _, _, _, isSuperCall, qualifiedSuperType) = instruction,
+                      callee == ctx.interner.intern("f"),
+                      isSuperCall,
+                      let symbol,
+                      let qualifiedSuperType
+                else {
+                    return nil
+                }
+                return (symbol, qualifiedSuperType)
+            }
+        }
+
+        #expect(qualifiedSuperCalls.count == 2)
+        for (callee, qualifiedSuperType) in qualifiedSuperCalls {
+            #expect(qualifiedSuperType == enumSymbol)
+            #expect(sema.symbols.parentSymbol(for: callee) == enumSymbol)
+        }
     }
 
     @Test(arguments: ["Root", "Other", "Missing"])

@@ -97,9 +97,13 @@ extension ExprTypeChecker {
             return nil
         }
 
-        let companionSymbol = sema.symbols.companionObjectSymbol(for: ownerSymbol.id)
+        let companionSymbol = sema.symbols.companionBlockObjectSymbol(
+            for: ownerSymbol.id,
+            interner: interner
+        ) ?? sema.symbols.companionObjectSymbol(for: ownerSymbol.id)
             ?? sema.symbols.actualSymbol(for: ownerSymbol.id).flatMap {
-                sema.symbols.companionObjectSymbol(for: $0)
+                sema.symbols.companionBlockObjectSymbol(for: $0, interner: interner)
+                    ?? sema.symbols.companionObjectSymbol(for: $0)
             }
         guard let companionSymbol else { return nil }
 
@@ -332,6 +336,31 @@ extension ExprTypeChecker {
         // may degrade to Any for classes without companion objects).
         let effectiveReceiverType = unboundClassType ?? receiverType
 
+        // BUG-164: callable references must also support SAM-conversion to a
+        // functional interface expected type, the same way lambda literals do.
+        // Computed before candidate collection: the extension-vs-companion
+        // preference below already needs the expected function shape.
+        let expectedFunctionType: TypeID?
+        let expectedSamInterfaceType: TypeID?
+        if let expectedType {
+            if case .functionType = sema.types.kind(of: expectedType) {
+                expectedFunctionType = expectedType
+                expectedSamInterfaceType = nil
+            } else if let functionType = sema.types.nominalFunctionType(for: expectedType) {
+                expectedFunctionType = sema.types.make(.functionType(functionType))
+                expectedSamInterfaceType = nil
+            } else if let samFT = driver.helpers.samCallableReferenceFunctionType(for: expectedType, sema: sema) {
+                expectedFunctionType = sema.types.make(.functionType(samFT))
+                expectedSamInterfaceType = expectedType
+            } else {
+                expectedFunctionType = nil
+                expectedSamInterfaceType = nil
+            }
+        } else {
+            expectedFunctionType = nil
+            expectedSamInterfaceType = nil
+        }
+
         var candidates: [SymbolID] = []
         // Resolve receiver members before the bare-property shortcut below:
         // a package `val flush` must not hide `Writer.flush` for `::flush` in
@@ -449,6 +478,63 @@ extension ExprTypeChecker {
                     implicitPropertyType = memberProperty?.type
                     return []
                 }
+                // Enum entry members are owned by the entry's field symbol
+                // `X.B`, not by the enum class `X` itself, so receiver-type
+                // member lookup above never reaches them — even though they
+                // are members of the entry's implicit `this`. Reach them
+                // through the lexical entry scope (it only exposes that
+                // entry's own members while inside its body) when the enum
+                // owner matches the implicit receiver's nominal type.
+                if let (_, implicitReceiverSymbol) = resolveClassTypeSymbol(
+                    nonNullImplicitReceiver, sema: sema
+                ) {
+                    let enumEntryMembers = ctx.cachedScopeLookup(member).filter { symbolID in
+                        guard let symbol = ctx.cachedSymbol(symbolID),
+                              let ownerID = sema.symbols.parentSymbol(for: symbolID),
+                              let owner = ctx.cachedSymbol(ownerID),
+                              sema.symbols.enumOwnerSymbol(for: owner) == implicitReceiverSymbol.id
+                        else {
+                            return false
+                        }
+                        switch symbol.kind {
+                        case .function:
+                            guard let declaredReceiver = sema.symbols.functionSignature(
+                                for: symbolID
+                            )?.receiverType else {
+                                return false
+                            }
+                            return driver.callChecker.extensionSyntheticFallbackReceiverMatches(
+                                callSiteReceiver: nonNullImplicitReceiver,
+                                declaredReceiver: declaredReceiver,
+                                sema: sema
+                            )
+                        case .property:
+                            return sema.symbols.extensionPropertyReceiverType(for: symbolID) == nil
+                        default:
+                            return false
+                        }
+                    }
+                    let (enumEntryFunctions, enumEntryProperties) = enumEntryMembers.reduce(
+                        into: ([SymbolID](), [SymbolID]())
+                    ) { buckets, symbolID in
+                        switch ctx.cachedSymbol(symbolID)?.kind {
+                        case .function: buckets.0.append(symbolID)
+                        case .property: buckets.1.append(symbolID)
+                        default: break
+                        }
+                    }
+                    let visibleEnumEntryMembers = ctx.filterByVisibility(enumEntryFunctions).0
+                    if !visibleEnumEntryMembers.isEmpty {
+                        implicitBoundReceiver = implicitReceiver
+                        return visibleEnumEntryMembers
+                    }
+                    if let property = ctx.filterByVisibility(enumEntryProperties).0.first {
+                        implicitBoundReceiver = implicitReceiver
+                        implicitPropertyCandidate = property
+                        implicitPropertyType = sema.symbols.propertyType(for: property)
+                        return []
+                    }
+                }
                 let visibleExtensions = ctx.filterByVisibility(implicitExtensionCandidates).0
                 if !visibleExtensions.isEmpty {
                     implicitBoundReceiver = implicitReceiver
@@ -497,6 +583,7 @@ extension ExprTypeChecker {
         var isConstructorReference = false
         var unboundInnerConstructorReceiverType: TypeID?
         var isImplicitlyBoundMember = false
+        var hasExplicitMemberCandidates = false
         var companionCallableReferenceReceiverType: TypeID?
         var propertyReferenceCandidate: (symbol: SymbolID, ownerType: TypeID?, isUnbound: Bool, type: TypeID)?
         if let effectiveReceiverType {
@@ -578,16 +665,51 @@ extension ExprTypeChecker {
                 named: member,
                 receiverType: nonNullReceiver,
                 sema: sema
-            )
+            ) ?? {
+                // `this::member` inside an enum entry body: the entry's own
+                // members are owned by the entry's field symbol `X.B`, not by
+                // the enum class `X`, so `lookupMemberProperty` never reaches
+                // them even though `this` statically is the entry instance.
+                // Reach them through the lexical entry scope — it only
+                // exposes that entry's own members while inside its body.
+                // Restricted to a `this` receiver: another enum-typed value
+                // is not statically the same entry, so `x::entryMember` stays
+                // unresolved the way kotlinc reports it.
+                guard let receiver,
+                      case .thisRef = ast.arena.expr(receiver),
+                      let (_, receiverSymbol) = resolveClassTypeSymbol(
+                          nonNullReceiver, sema: sema
+                      )
+                else {
+                    return nil
+                }
+                return ctx.cachedScopeLookup(member).compactMap { symbolID -> (symbol: SymbolID, type: TypeID)? in
+                    guard let symbol = ctx.cachedSymbol(symbolID),
+                          symbol.kind == .property,
+                          let ownerID = sema.symbols.parentSymbol(for: symbolID),
+                          let owner = ctx.cachedSymbol(ownerID),
+                          sema.symbols.enumOwnerSymbol(for: owner) == receiverSymbol.id,
+                          sema.symbols.extensionPropertyReceiverType(for: symbolID) == nil,
+                          let propertyType = sema.symbols.propertyType(for: symbolID)
+                    else {
+                        return nil
+                    }
+                    return (symbolID, propertyType)
+                }.first
+            }()
             let companionMemberProperty: (symbol: SymbolID, type: TypeID)? = {
                 guard unboundClassType != nil,
                       let (_, ownerSymbol) = resolveClassTypeSymbol(nonNullReceiver, sema: sema)
                 else {
                     return nil
                 }
-                let companionSymbol = sema.symbols.companionObjectSymbol(for: ownerSymbol.id)
+                let companionSymbol = sema.symbols.companionBlockObjectSymbol(
+                    for: ownerSymbol.id,
+                    interner: interner
+                ) ?? sema.symbols.companionObjectSymbol(for: ownerSymbol.id)
                     ?? sema.symbols.actualSymbol(for: ownerSymbol.id).flatMap {
-                        sema.symbols.companionObjectSymbol(for: $0)
+                        sema.symbols.companionBlockObjectSymbol(for: $0, interner: interner)
+                            ?? sema.symbols.companionObjectSymbol(for: $0)
                     }
                 guard let companionSymbol else { return nil }
                 let companionType = sema.symbols.propertyType(for: companionSymbol)
@@ -606,8 +728,57 @@ extension ExprTypeChecker {
                 }
                 return property
             }()
+            // A same-named non-extension function in a nearer scope must
+            // not hide a legal receiver extension. Filter for applicable
+            // extensions during scope lookup so only matching candidates
+            // participate in shadowing. Keep member candidates above as
+            // the higher-priority tier.
+            func isApplicableExtensionReferenceCandidate(_ symbolID: SymbolID) -> Bool {
+                guard let symbol = ctx.cachedSymbol(symbolID),
+                      symbol.kind == .function,
+                      !(symbol.flags.contains(.expectDeclaration)
+                          && sema.symbols.actualSymbol(for: symbolID) != nil),
+                      sema.symbols.memberExtensionOwnerSymbol(for: symbolID) == nil,
+                      driver.helpers.declaresExtensionReceiver(
+                          symbolID,
+                          sema: sema,
+                          interner: interner
+                      ),
+                      let signature = sema.symbols.functionSignature(for: symbolID),
+                      let declaredReceiver = signature.receiverType
+                else {
+                    return false
+                }
+                return driver.callChecker.extensionSyntheticFallbackReceiverMatches(
+                    callSiteReceiver: nonNullReceiver,
+                    declaredReceiver: declaredReceiver,
+                    sema: sema
+                )
+            }
+            // Local functions can be present in value-position locals even
+            // when this callable-reference scope lookup cannot see them.
+            // Match direct explicit-receiver calls: applicable local
+            // extensions form the nearest candidate tier and shadow
+            // package extensions with the same name.
+            func applicableExtensionReferenceCandidates() -> [SymbolID] {
+                let localExtensionCandidates = ctx.scope.lookup(member, matching: { symbolID in
+                    ctx.cachedSymbol(symbolID)?.flags.contains(.localFunction) == true
+                        && isApplicableExtensionReferenceCandidate(symbolID)
+                })
+                if !localExtensionCandidates.isEmpty {
+                    return localExtensionCandidates
+                }
+                if let local = locals[member],
+                   ctx.cachedSymbol(local.symbol)?.flags.contains(.localFunction) == true,
+                   isApplicableExtensionReferenceCandidate(local.symbol)
+                {
+                    return [local.symbol]
+                }
+                return ctx.scope.lookup(member, matching: isApplicableExtensionReferenceCandidate)
+            }
             if !memberCandidates.isEmpty {
                 candidates = memberCandidates
+                hasExplicitMemberCandidates = true
                 if unboundClassType != nil,
                    let memberProperty,
                    sema.symbols.extensionPropertyReceiverType(for: memberProperty.symbol) == nil
@@ -627,17 +798,60 @@ extension ExprTypeChecker {
                     )
                 }
             } else if let companionCallableReference {
-                // A class-name companion reference is bound to the singleton
-                // receiver and therefore has no leading class input.
-                candidates = companionCallableReference.candidates
-                companionCallableReferenceReceiverType = companionCallableReference.receiverType
-                if let property = companionMemberProperty {
-                    propertyReferenceCandidate = (
-                        property.symbol,
-                        nil,
-                        false,
-                        property.type
-                    )
+                // KUU-3674 (Kotlin 1.4 rule, exercised by JetBrains
+                // referenceToCompanionMember.kt): `Type::name` prefers an
+                // applicable package-level extension over a companion-object
+                // member. Companion members reachable through the class name
+                // rank *below* extensions — only a member declared on the
+                // class itself would outrank them (handled above). The bound
+                // companion shape still wins when an expected function type
+                // rules every extension out: `() -> String` selects the bound
+                // companion `foo`, while `(B) -> String` selects `fun B.foo()`.
+                let extensionCandidates = applicableExtensionReferenceCandidates()
+                let fittingExtensions: [SymbolID]
+                if let expectedFunctionType {
+                    let postponedReturnParameter = driver.helpers
+                        .postponedCallableReferenceReturnTypeParameter(
+                            expectedFunctionType,
+                            inferenceParameters: ctx.callableReferenceInferenceParameters,
+                            sema: sema
+                        )
+                    fittingExtensions = extensionCandidates.filter { candidate in
+                        guard let signature = sema.symbols.functionSignature(for: candidate)
+                        else {
+                            return false
+                        }
+                        return driver.helpers.contextualCallableReferenceBinding(
+                            for: signature,
+                            targetSymbol: candidate,
+                            bindReceiver: false,
+                            unboundReceiverType: unboundClassType,
+                            expectedFunctionType: expectedFunctionType,
+                            postponedReturnTypeParameter: postponedReturnParameter,
+                            interner: interner,
+                            availableContextReceiverTypes: availableContextReceiverTypes,
+                            sema: sema
+                        ) != nil
+                    }
+                } else {
+                    fittingExtensions = extensionCandidates
+                }
+                if !fittingExtensions.isEmpty {
+                    candidates = fittingExtensions
+                } else {
+                    // A class-name companion reference is bound to the
+                    // singleton receiver and therefore has no leading class
+                    // input.
+                    candidates = companionCallableReference.candidates
+                    companionCallableReferenceReceiverType = companionCallableReference.receiverType
+                    if let property = companionMemberProperty {
+                        propertyReferenceCandidate = (
+                            property.symbol,
+                            nil,
+                            false,
+                            property.type
+                        )
+                    }
                 }
             } else {
                 // Property references use the same inheritance-aware lookup as
@@ -689,20 +903,78 @@ extension ExprTypeChecker {
                 // `resolveExtensionPropertyGetter` resolves a plain
                 // `receiver.length` read: scan scope-visible `.property`
                 // symbols for one whose recorded extension receiver type
-                // accepts `nonNullReceiver`.
+                // accepts the actual receiver type, including nullability.
+                if candidates.isEmpty, unboundClassType != nil {
+                    let companionExtensions = companionExtensionCallableReferenceCandidates(
+                        named: member,
+                        receiverType: nonNullReceiver,
+                        ctx: ctx
+                    )
+                    if !companionExtensions.isEmpty {
+                        candidates = companionExtensions
+                        companionCallableReferenceReceiverType = nonNullReceiver
+                    }
+                }
                 if candidates.isEmpty {
                     let extensionPropertyCandidates = ctx.cachedScopeLookup(member).filter { symbolID in
                         guard let symbol = ctx.cachedSymbol(symbolID),
                               symbol.kind == .property,
+                              let declaredReceiver = sema.symbols.extensionPropertyReceiverType(for: symbolID),
+                              !isCompanionExtension(symbolID, ctx: ctx)
+                        else {
+                            return false
+                        }
+                        return driver.callChecker.extensionSyntheticFallbackReceiverMatches(
+                            callSiteReceiver: effectiveReceiverType,
+                            declaredReceiver: declaredReceiver,
+                            sema: sema
+                        )
+                    }
+                    let companionExtensionProperty = unboundClassType == nil ? nil : ctx.cachedScopeLookup(member).first { symbolID in
+                        guard let symbol = ctx.cachedSymbol(symbolID),
+                              symbol.kind == .property,
+                              isCompanionExtension(symbolID, ctx: ctx),
                               let declaredReceiver = sema.symbols.extensionPropertyReceiverType(for: symbolID)
                         else {
                             return false
                         }
                         return driver.callChecker.extensionSyntheticFallbackReceiverMatches(
-                            callSiteReceiver: nonNullReceiver,
+                            callSiteReceiver: effectiveReceiverType,
                             declaredReceiver: declaredReceiver,
                             sema: sema
                         )
+                    }
+                    if let companionExtensionProperty,
+                       let propertyType = sema.symbols.propertyType(for: companionExtensionProperty),
+                       let resolution = resolveExtensionPropertyReferenceType(
+                           companionExtensionProperty,
+                           receiverType: nonNullReceiver,
+                           fallbackPropertyType: propertyType,
+                           sema: sema,
+                           interner: interner
+                       )
+                    {
+                        let resultType = bindPropertyCallableRef(
+                            id,
+                            propertySymbol: companionExtensionProperty,
+                            ownerType: nil,
+                            isUnbound: false,
+                            expectedType: expectedType,
+                            range: range,
+                            ctx: ctx,
+                            sema: sema,
+                            interner: interner,
+                            resolvedPropertyType: resolution.valueType
+                        )
+                        if let specialization = resolution.specialization,
+                           let getter = sema.symbols.extensionPropertyGetterAccessor(for: companionExtensionProperty)
+                        {
+                            bindCallableReferenceBinding(
+                                id, target: getter, specialization: specialization,
+                                range: range, ctx: ctx
+                            )
+                        }
+                        return resultType
                     }
                     var extensionPropertyReference: (
                         symbol: SymbolID,
@@ -716,7 +988,7 @@ extension ExprTypeChecker {
                         if unboundClassType != nil {
                             guard let resolution = resolveExtensionPropertyReferenceType(
                                 propertySymbol,
-                                receiverType: nonNullReceiver,
+                                receiverType: effectiveReceiverType,
                                 fallbackPropertyType: propertyType,
                                 sema: sema,
                                 interner: interner
@@ -747,7 +1019,7 @@ extension ExprTypeChecker {
                         let resultType = bindPropertyCallableRef(
                             id,
                             propertySymbol: extensionPropertyReference.symbol,
-                            ownerType: unboundClassType != nil ? nonNullReceiver : nil,
+                            ownerType: unboundClassType != nil ? effectiveReceiverType : nil,
                             isUnbound: unboundClassType != nil,
                             expectedType: expectedType,
                             range: range,
@@ -767,53 +1039,12 @@ extension ExprTypeChecker {
                         }
                         return resultType
                     }
+
                 }
-                // A same-named non-extension function in a nearer scope must
-                // not hide a legal receiver extension. Filter for applicable
-                // extensions during scope lookup so only matching candidates
-                // participate in shadowing. Keep member candidates above as
-                // the higher-priority tier.
-                func isApplicableExtensionReferenceCandidate(_ symbolID: SymbolID) -> Bool {
-                    guard let symbol = ctx.cachedSymbol(symbolID),
-                          symbol.kind == .function,
-                          !(symbol.flags.contains(.expectDeclaration)
-                              && sema.symbols.actualSymbol(for: symbolID) != nil),
-                          sema.symbols.memberExtensionOwnerSymbol(for: symbolID) == nil,
-                          driver.helpers.declaresExtensionReceiver(
-                              symbolID,
-                              sema: sema,
-                              interner: interner
-                          ),
-                          let signature = sema.symbols.functionSignature(for: symbolID),
-                          let declaredReceiver = signature.receiverType
-                    else {
-                        return false
-                    }
-                    return driver.callChecker.extensionSyntheticFallbackReceiverMatches(
-                        callSiteReceiver: nonNullReceiver,
-                        declaredReceiver: declaredReceiver,
-                        sema: sema
-                    )
-                }
-                // Local functions can be present in value-position locals even
-                // when this callable-reference scope lookup cannot see them.
-                // Match direct explicit-receiver calls: applicable local
-                // extensions form the nearest candidate tier and shadow
-                // package extensions with the same name.
-                let localExtensionCandidates = ctx.scope.lookup(member, matching: { symbolID in
-                    ctx.cachedSymbol(symbolID)?.flags.contains(.localFunction) == true
-                        && isApplicableExtensionReferenceCandidate(symbolID)
-                })
-                if !localExtensionCandidates.isEmpty {
-                    candidates = localExtensionCandidates
-                } else if let local = locals[member],
-                          ctx.cachedSymbol(local.symbol)?.flags.contains(.localFunction) == true,
-                          isApplicableExtensionReferenceCandidate(local.symbol)
-                {
-                    candidates = [local.symbol]
-                } else {
-                    candidates = ctx.scope.lookup(member, matching: isApplicableExtensionReferenceCandidate)
-                }
+                // Members and companion members above keep their higher
+                // priority tiers; this receiver-extension lookup is the
+                // last fallback before constructor references.
+                candidates = applicableExtensionReferenceCandidates()
                 // `Outer::Nested` where `Nested` is a nested (non-inner) class
                 // is a constructor reference `(Args...) -> Outer.Nested`. It
                 // has no receiver parameter, so it is folded into the bound
@@ -1221,28 +1452,6 @@ extension ExprTypeChecker {
             unboundCallableReceiverType = nil
         }
 
-        // BUG-164: callable references must also support SAM-conversion to a
-        // functional interface expected type, the same way lambda literals do.
-        let expectedFunctionType: TypeID?
-        let expectedSamInterfaceType: TypeID?
-        if let expectedType {
-            if case .functionType = sema.types.kind(of: expectedType) {
-                expectedFunctionType = expectedType
-                expectedSamInterfaceType = nil
-            } else if let functionType = sema.types.nominalFunctionType(for: expectedType) {
-                expectedFunctionType = sema.types.make(.functionType(functionType))
-                expectedSamInterfaceType = nil
-            } else if let samFT = driver.helpers.samCallableReferenceFunctionType(for: expectedType, sema: sema) {
-                expectedFunctionType = sema.types.make(.functionType(samFT))
-                expectedSamInterfaceType = expectedType
-            } else {
-                expectedFunctionType = nil
-                expectedSamInterfaceType = nil
-            }
-        } else {
-            expectedFunctionType = nil
-            expectedSamInterfaceType = nil
-        }
         let expectedCallableReferenceReturnType = expectedType.flatMap {
             driver.helpers.reflectiveCallableReferenceReturnType(from: $0, sema: sema)
         }
@@ -1437,7 +1646,7 @@ extension ExprTypeChecker {
             && !candidates.isEmpty
             && expectedFunctionType == nil
             && expectedCallableReferenceReturnType == nil
-        let chosen: SymbolID? = if hasUncontextualPropertyFunctionOverload {
+        var chosen: SymbolID? = if hasUncontextualPropertyFunctionOverload {
             nil
         } else {
             driver.helpers.chooseCallableReferenceTarget(
@@ -1471,6 +1680,75 @@ extension ExprTypeChecker {
                 interner: interner,
                 resolvedPropertyType: candidate.type
             )
+        }
+
+        // An inapplicable member must not hide an extension callable reference
+        // with a compatible expected function type (for example Int::toString
+        // as (Int, Int) -> String). Preserve member priority when one matches.
+        if chosen == nil,
+           hasExplicitMemberCandidates,
+           !isConstructorReference,
+           !isImplicitlyBoundMember,
+           companionCallableReferenceReceiverType == nil,
+           let expectedFunctionType,
+           let effectiveReceiverType
+        {
+            let nonNullReceiver = sema.types.makeNonNullable(effectiveReceiverType)
+            func isApplicableExtension(_ symbolID: SymbolID) -> Bool {
+                guard let symbol = ctx.cachedSymbol(symbolID),
+                      symbol.kind == .function,
+                      !(symbol.flags.contains(.expectDeclaration)
+                          && sema.symbols.actualSymbol(for: symbolID) != nil),
+                      sema.symbols.memberExtensionOwnerSymbol(for: symbolID) == nil,
+                      driver.helpers.declaresExtensionReceiver(symbolID, sema: sema, interner: interner),
+                      let declaredReceiver = sema.symbols.functionSignature(for: symbolID)?.receiverType
+                else { return false }
+                return driver.callChecker.extensionSyntheticFallbackReceiverMatches(
+                    callSiteReceiver: nonNullReceiver,
+                    declaredReceiver: declaredReceiver,
+                    sema: sema
+                )
+            }
+            let localExtensions = ctx.scope.lookup(member, matching: { symbolID in
+                ctx.cachedSymbol(symbolID)?.flags.contains(.localFunction) == true
+                    && isApplicableExtension(symbolID)
+            })
+            let extensions: [SymbolID]
+            if !localExtensions.isEmpty {
+                extensions = localExtensions
+            } else if let local = locals[member],
+                      ctx.cachedSymbol(local.symbol)?.flags.contains(.localFunction) == true,
+                      isApplicableExtension(local.symbol)
+            {
+                extensions = [local.symbol]
+            } else {
+                extensions = ctx.scope.lookup(member, matching: isApplicableExtension)
+            }
+            if extensions.count == 1 {
+                driver.inferFunctionReturnTypesIfNeeded(for: extensions)
+            }
+            let matching = extensions.filter { candidate in
+                guard let signature = sema.symbols.functionSignature(for: candidate) else { return false }
+                return driver.helpers.contextualCallableReferenceBinding(
+                    for: signature,
+                    targetSymbol: candidate,
+                    bindReceiver: isBoundReceiver,
+                    boundReceiver: boundReceiverType.map { (candidate, $0) },
+                    unboundReceiverType: unboundCallableReceiverType,
+                    expectedFunctionType: expectedFunctionType,
+                    postponedReturnTypeParameter: postponedReturnParameter,
+                    interner: interner,
+                    availableContextReceiverTypes: availableContextReceiverTypes,
+                    sema: sema
+                ) != nil
+            }
+            let mostSpecific = driver.callChecker.preferMostSpecificMemberReceiverCandidates(
+                matching, receiverType: nonNullReceiver, sema: sema, interner: interner
+            )
+            if mostSpecific.count == 1 {
+                candidates = mostSpecific
+                chosen = mostSpecific[0]
+            }
         }
 
         if let chosen,
@@ -1783,6 +2061,64 @@ extension ExprTypeChecker {
         sema.bindings.bindCaptureSymbols(id, symbols: fallbackCaptures)
         sema.bindings.bindExprType(id, type: fallbackType)
         return fallbackType
+    }
+
+    private func companionExtensionCallableReferenceCandidates(
+        named name: InternedString,
+        receiverType: TypeID,
+        ctx: TypeInferenceContext
+    ) -> [SymbolID] {
+        let sema = ctx.sema
+        var candidates = ctx.cachedScopeLookup(name)
+        for file in ctx.ast.files {
+            for declID in file.topLevelDecls {
+                guard case let .funDecl(function)? = ctx.ast.arena.decl(declID),
+                      function.name == name,
+                      function.modifiers.contains(.companion),
+                      function.receiverType != nil,
+                      let symbol = sema.bindings.declSymbols[declID],
+                      !candidates.contains(symbol)
+                else {
+                    continue
+                }
+                candidates.append(symbol)
+            }
+        }
+        return candidates.filter { candidate in
+            guard let symbol = sema.symbols.symbol(candidate),
+                  symbol.kind == .function,
+                  isCompanionExtension(candidate, ctx: ctx),
+                  let declaredReceiver = sema.symbols.functionSignature(for: candidate)?.receiverType
+            else {
+                return false
+            }
+            return driver.callChecker.extensionSyntheticFallbackReceiverMatches(
+                callSiteReceiver: receiverType,
+                declaredReceiver: declaredReceiver,
+                sema: sema
+            )
+        }
+    }
+
+    private func isCompanionExtension(_ symbolID: SymbolID, ctx: TypeInferenceContext) -> Bool {
+        guard let symbol = ctx.sema.symbols.symbol(symbolID),
+              let sourceFileID = symbol.declSite?.start.file,
+              let file = ctx.ast.file(for: sourceFileID)
+        else {
+            return false
+        }
+        for declID in file.topLevelDecls {
+            guard let decl = ctx.ast.arena.decl(declID) else { continue }
+            switch decl {
+            case let .funDecl(function) where function.range == symbol.declSite:
+                return function.modifiers.contains(.companion) && function.receiverType != nil
+            case let .propertyDecl(property) where property.range == symbol.declSite:
+                return property.modifiers.contains(.companion) && property.receiverType != nil
+            default:
+                continue
+            }
+        }
+        return false
     }
 
     /// REFL-PRIMOP: `Int::plus` / `Int::times` (and the other primitive

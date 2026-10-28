@@ -108,7 +108,8 @@ struct ASTIDRemapper {
             memberProperties: value.memberProperties.map { remap($0) },
             nestedClasses: value.nestedClasses.map { remap($0) },
             nestedObjects: value.nestedObjects.map { remap($0) },
-            companionObject: value.companionObject.map { remap($0) }
+            companionObject: value.companionObject.map { remap($0) },
+            companionBlockObject: value.companionBlockObject.map { remap($0) }
         )
     }
 
@@ -126,7 +127,8 @@ struct ASTIDRemapper {
             memberProperties: value.memberProperties.map { remap($0) },
             nestedClasses: value.nestedClasses.map { remap($0) },
             nestedObjects: value.nestedObjects.map { remap($0) },
-            companionObject: value.companionObject.map { remap($0) }
+            companionObject: value.companionObject.map { remap($0) },
+            companionBlockObject: value.companionBlockObject.map { remap($0) }
         )
     }
 
@@ -195,7 +197,7 @@ struct ASTIDRemapper {
     func remap(_ value: ExplicitBackingField) -> ExplicitBackingField {
         ExplicitBackingField(
             type: value.type.map { remap($0) },
-            initializer: remap(value.initializer)
+            initializer: value.initializer.map { remap($0) }
         )
     }
 

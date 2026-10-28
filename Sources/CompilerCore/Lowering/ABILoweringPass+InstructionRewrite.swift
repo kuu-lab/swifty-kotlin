@@ -94,6 +94,45 @@ extension ABILoweringPass {
             )
             return unboxed
         }
+        // A specialized value-class override receives the erased interface
+        // argument after its nominal cast. Recover the payload before calling
+        // the concrete implementation, including floating-point values whose
+        // raw bits cannot safely be unboxed later from a non-null copy.
+        func unboxErasedValueClass(_ argument: KIRExprID, to targetType: TypeID) -> KIRExprID? {
+            guard let symbols,
+                  case let .classType(targetClass) = types.kind(of: targetType),
+                  targetClass.nullability == .nonNull,
+                  symbols.symbol(targetClass.classSymbol)?.flags.contains(.valueType) == true,
+                  let argumentType = intrinsicArgType(argument, arena: module.arena, types: types)
+            else { return nil }
+            switch types.kind(of: argumentType) {
+            case .typeParam, .any:
+                break
+            default:
+                return nil
+            }
+            let targetKind = resolveValueClassKind(types.kind(of: targetType), types: types, symbols: symbols)
+            if case .primitive(_, .nonNull) = targetKind,
+               let callee = boxingCalleeTable.unboxCallee(
+                   for: targetKind, requireNonNull: true, preferStaticPrimitive: true
+               )
+            {
+                return emitNonThrowingCall(
+                    callee: callee, arg: argument, resultType: targetType,
+                    arena: module.arena, into: &newBody
+                )
+            }
+            if referenceBackedValueClassSymbol(of: types.kind(of: targetType), types: types, symbols: symbols) != nil {
+                let unboxed = module.arena.appendTemporary(type: targetType)
+                emitValueClassUnboxCall(
+                    value: argument, classSymbol: targetClass.classSymbol, result: unboxed,
+                    resultType: targetType, types: types, symbols: symbols,
+                    interner: interner, arena: module.arena, into: &newBody
+                )
+                return unboxed
+            }
+            return nil
+        }
         if receiverOffset > 0, arguments.indices.contains(receiverIndex),
            let receiverType = signature.receiverType,
            let unboxed = unboxNullableEnum(arguments[receiverIndex], to: receiverType)
@@ -135,8 +174,12 @@ extension ABILoweringPass {
                     // form, so a raw non-null ordinal must still be boxed.
                     return classType.nullability != .nonNull
                 }
+                // `kotlin.Any`'s members (equals/hashCode/toString) bridge to
+                // the tagged `kk_any_member_*` runtime entry points, so their
+                // receiver is the same erased boundary as an interface's.
                 return info.kind == .interface
                     || info.fqName == ["kotlin", "Enum"].map(interner.intern)
+                    || info.fqName == ["kotlin", "Any"].map(interner.intern)
             default:
                 return false
             }
@@ -200,6 +243,11 @@ extension ABILoweringPass {
         // dispatches through `this`'s itable, so an enum receiver -- a raw
         // ordinal until something widens it -- must arrive as its box, the
         // same way an enum value argument for an interface parameter does.
+        // A value-class receiver is raw the same way: `s.equals(x)` (and the
+        // `!=` desugaring of `s != x`) reaches kk_any_member_equals with `s`'s
+        // bare payload, which the bridge would then compare as an ordinary
+        // String/Int. JVM boxed equality is nominal, so the receiver needs
+        // the class's tagged box before the Any bridge (KUU-3616).
         if receiverOffset > 0, arguments.indices.contains(receiverIndex),
            case let receiver = arguments[receiverIndex],
            let receiverType = signature.receiverType,
@@ -207,7 +255,7 @@ extension ABILoweringPass {
            case let .classType(argClass) = types.kind(of: argType),
            argClass.nullability == .nonNull,
            let argInfo = symbols?.symbol(argClass.classSymbol),
-           argInfo.kind == .enumClass,
+           argInfo.kind == .enumClass || argInfo.flags.contains(.valueType),
            enumReceiverNeedsBoxing(receiverType)
         {
             boxedArguments[receiverIndex] = boxValueForAnySlot(
@@ -225,16 +273,58 @@ extension ABILoweringPass {
                 into: &newBody.instructions
             )
         }
-        // A `.typeParam` extension receiver is erased at the same ABI boundary
-        // as a type-parameter value argument: the callee body reads `this` as
-        // an Any slot. A primitive receiver must therefore be boxed, or its
-        // raw word is reinterpreted as a pointer — e.g. `'c'.myToString()`
-        // rendering `99` instead of `c`. Enum receivers keep the dedicated
-        // tagged box above (a plain `kk_box_int` would lose the entry name).
+        // A receiver whose formal type is an erased slot — a `.typeParam`
+        // extension receiver, `Any`/`Any?`, or any other reference boundary —
+        // is read by the callee body as an object handle. A primitive receiver
+        // must therefore be boxed, or its raw word is reinterpreted as a
+        // pointer — e.g. `'c'.myToString()` rendering `99` instead of `c`, or
+        // a `Boolean::toString` callable reference printing `1`/`null`
+        // through `kk_any_member_to_string` (KUU-3638/KUU-3649). `boxingCallee`
+        // itself decides whether the receiver type is an erased boundary, so
+        // no typeParam-specific check is needed here. Enum receivers keep the
+        // dedicated tagged box above (a plain `kk_box_int` would lose the
+        // entry name).
         if receiverOffset > 0, arguments.indices.contains(receiverIndex),
            boxedArguments[receiverIndex] == arguments[receiverIndex],
            let receiverType = signature.receiverType,
-           case .typeParam = types.kind(of: types.makeNonNullable(receiverType)),
+           let argType = intrinsicArgType(arguments[receiverIndex], arena: module.arena, types: types),
+           let boxCallee = boxingCallee(
+               argType: argType,
+               paramType: receiverType,
+               callee: callee,
+               types: types,
+               interner: interner,
+               boxingCalleeTable: boxingCalleeTable,
+               symbols: symbols,
+               boxTypeParamBoundary: boxTypeParamArguments,
+               preferStaticPrimitive: true
+           )
+        {
+            let boxedResult = module.arena.appendTemporary(type: receiverType)
+            emitBoxCallWithValueClassTag(
+                boxCallee: boxCallee,
+                value: arguments[receiverIndex],
+                rawSourceKind: types.kind(of: argType),
+                result: boxedResult,
+                resultType: receiverType,
+                types: types,
+                symbols: symbols,
+                interner: interner,
+                arena: module.arena,
+                sema: sema,
+                cache: cache,
+                into: &newBody
+            )
+            boxedArguments[receiverIndex] = boxedResult
+        }
+        // A primitive passed as a reference-typed extension receiver (for
+        // example, `0` to `val Number.value`) must cross the same boxing
+        // boundary as a primitive value parameter. Otherwise the accessor's
+        // `Number` body receives the raw scalar and virtual conversions see
+        // it as a null receiver.
+        if receiverOffset > 0, arguments.indices.contains(receiverIndex),
+           boxedArguments[receiverIndex] == arguments[receiverIndex],
+           let receiverType = signature.receiverType,
            let argType = intrinsicArgType(arguments[receiverIndex], arena: module.arena, types: types),
            let boxCallee = boxingCallee(
                argType: argType,
@@ -291,6 +381,10 @@ extension ABILoweringPass {
             if let unboxed = unboxNullableUnderlyingValueClass(
                 arguments[argIndex], to: paramType, at: argIndex
             ) {
+                boxedArguments[argIndex] = unboxed
+                continue
+            }
+            if let unboxed = unboxErasedValueClass(arguments[argIndex], to: paramType) {
                 boxedArguments[argIndex] = unboxed
                 continue
             }
@@ -398,12 +492,10 @@ extension ABILoweringPass {
         return (unboxCallee, returnType)
     }
 
-    /// KUU-3115: a call whose declared return type and result-slot type sit on
-    /// opposite sides of a nullable-underlying value class's `V`/`V?` boundary
-    /// needs `kk_value_class_box`/`kk_value_class_unbox` — the primitive
-    /// box/unbox tables cannot express that representation change. Returns the
-    /// value-class symbol, whether the result must be *boxed* (vs unboxed),
-    /// and the callee's declared return type for the intermediate slot.
+    /// A call crossing a nominal value-class box boundary needs
+    /// `kk_value_class_box`/`kk_value_class_unbox`: the primitive tables cannot
+    /// represent nullable payloads or separately wrapped reference payloads.
+    /// Return the class symbol, conversion direction, and declared return type.
     func resolveValueClassResultConversion(
         callSymbol: SymbolID?,
         callee: InternedString,
@@ -436,6 +528,14 @@ extension ABILoweringPass {
             of: rawResultKind, types: types, symbols: symbols
         ), valueClassUnboxSourceIsBoxed(rawReturnKind, symbols: symbols) {
             return (vcSymbol, false, returnType)
+        }
+        if let vcSymbol = referenceBackedValueClassSymbol(of: rawResultKind, types: types, symbols: symbols) {
+            switch rawReturnKind {
+            case .typeParam, .any:
+                return (vcSymbol, false, returnType)
+            default:
+                break
+            }
         }
         if let vcSymbol = nullableUnderlyingValueClassSymbol(
             of: rawReturnKind, types: types, symbols: symbols

@@ -2,6 +2,7 @@
 @testable import CompilerCore
 import Foundation
 import Testing
+@testable import CompilerTestSupport
 
 // KUU-1407: declarations and modifier combinations that Kotlin/JVM rejects
 // must produce diagnostics instead of being silently accepted.

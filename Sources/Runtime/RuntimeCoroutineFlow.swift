@@ -2887,12 +2887,15 @@ public func __kk_flow_flat_map_latest(_ flowHandle: Int, _ mapperFnPtr: Int, _: 
     return runtimeRegisterFlowHandle(derived)
 }
 
-// The suspend transform is passed as a function handle plus an environment slot.
+// Kotlin external calls carry an `outThrown` pointer; the non-throwing
+// compiler intrinsic above keeps its existing dummy-argument ABI.
+// The suspend transform arrives as a single boxed function-value handle:
+// RuntimeFlowLatestFlatMapState.receive resolves it through
+// runtimeFunctionValueBox and drives it via runtimeInvokeSuspendFunction.
 @_cdecl("__kk_flow_flat_map_latest_external")
 public func __kk_flow_flat_map_latest_external(
     _ flowHandle: Int,
     _ mapperFnPtr: Int,
-    _: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
     outThrown?.pointee = 0

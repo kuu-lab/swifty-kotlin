@@ -1,6 +1,7 @@
 @testable import CompilerCore
 import Testing
 import TestStdlibCache
+@testable import CompilerTestSupport
 
 @Suite
 struct FloatingPointRangeCollectionTests {
@@ -40,6 +41,17 @@ struct FloatingPointRangeCollectionTests {
             val ints: List<Int> = (1..3).toList()
             val longs: List<Long> = (1L..3L).toList()
         }
+        """, allowDefaultStdlibLibrary: true)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+    }
+
+    @Test
+    func keepsUserRangeToExtensionForDifferentRightOperand() throws {
+        TestStdlibCache.shared.prepare()
+        let ctx = makeContextFromSource("""
+        operator fun Double.rangeTo(end: String): String = end
+        fun test(): String = 1.0.."custom"
         """, allowDefaultStdlibLibrary: true)
         try runSema(ctx)
         #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")

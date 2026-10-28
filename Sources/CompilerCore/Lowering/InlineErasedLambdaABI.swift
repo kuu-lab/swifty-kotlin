@@ -187,6 +187,33 @@ enum InlineErasedLambdaABI {
         return primitive
     }
 
+    /// A nullable primitive kind whose raw representation can collide with the
+    /// null sentinel (Long.MIN_VALUE, ULong 2^63, Double -0.0). A lambda
+    /// parameter of one of these types must keep the box-or-sentinel
+    /// representation it receives across the erased boundary: unboxing a boxed
+    /// colliding element would produce the same bits as null (KUU-3661).
+    private static func nullableSentinelCollidingPrimitive(
+        of type: TypeID?,
+        ctx: KIRContext
+    ) -> PrimitiveType? {
+        guard let type, let types = ctx.sema?.types,
+              let symbols = ctx.sema?.symbols
+        else {
+            return nil
+        }
+        let resolvedKind = resolveValueClassKind(
+            types.kind(of: type),
+            types: types,
+            symbols: symbols
+        )
+        guard case let .primitive(primitive, .nullable) = resolvedKind,
+              primitive == .long || primitive == .ulong || primitive == .double
+        else {
+            return nil
+        }
+        return primitive
+    }
+
     /// Both nullabilities of a resolved primitive kind. Nullable parameters of
     /// a spliced lambda still arrive boxed across the erased boundary and need
     /// the sentinel-aware `kk_unbox_*` (which maps null to the primitive's
@@ -262,9 +289,43 @@ enum InlineErasedLambdaABI {
                 continue
             }
 
+            // A Long?/ULong?/Double? parameter keeps the box-or-sentinel
+            // representation: unboxing a boxed Long.MIN_VALUE / 2^63 / -0.0
+            // element here would produce the same bits as the null sentinel,
+            // so a real value would later read as null (KUU-3661). The
+            // boxing callee passes boxes and the sentinel through verbatim —
+            // and boxes any raw bits that arrived unwrapped — which is
+            // exactly the normalization a nullable primitive slot needs.
+            if argumentIsErased,
+               let sentinelColliding = nullableSentinelCollidingPrimitive(
+                   of: parameterType, ctx: ctx
+               )
+            {
+                let bound = module.arena.appendTemporary(type: parameterType)
+                body.append(.call(
+                    callee: ABILoweringPass.primitiveBoxingCallee(
+                        for: sentinelColliding,
+                        interner: ctx.interner
+                    ),
+                    arguments: [arguments[index]],
+                    result: bound,
+                    canThrow: false
+                ))
+                normalized[index] = bound
+                continue
+            }
+
             guard argumentIsErased,
                   let primitive = primitiveKind(of: parameterType, ctx: ctx)
             else {
+                continue
+            }
+            if isAlreadyUnboxedPrimitiveArgument(
+                arguments[index],
+                primitive: primitive,
+                ctx: ctx,
+                body: body
+            ) {
                 continue
             }
             let unboxed = module.arena.appendTemporary(type: parameterType)
@@ -277,6 +338,60 @@ enum InlineErasedLambdaABI {
             normalized[index] = unboxed
         }
         return normalized
+    }
+
+    /// Imported inline bodies omit expression types. Preserve the erased ABI
+    /// assumption unless the argument's defining instruction already converted
+    /// the same primitive to its raw representation.
+    private static func isAlreadyUnboxedPrimitiveArgument(
+        _ argument: KIRExprID,
+        primitive: PrimitiveType,
+        ctx: KIRContext,
+        body: KIRLoweringEmitContext
+    ) -> Bool {
+        let unboxTable = BoxingCalleeTable(interner: ctx.interner)
+        var primitiveUnboxCallees: Set<InternedString> = []
+        if let callee = unboxTable.unboxCallee(for: primitive) {
+            primitiveUnboxCallees.insert(callee)
+        }
+        if let types = ctx.sema?.types {
+            let nonNullType = types.make(.primitive(primitive, .nonNull))
+            for preferStaticPrimitive in [false, true] {
+                if let callee = unboxTable.unboxCallee(
+                    for: nonNullType,
+                    types: types,
+                    requireNonNull: true,
+                    preferStaticPrimitive: preferStaticPrimitive
+                ) {
+                    primitiveUnboxCallees.insert(callee)
+                }
+            }
+        }
+        var value = argument
+        var visited: Set<KIRExprID> = []
+
+        while visited.insert(value).inserted {
+            let definition = body.reversed().first { instruction in
+                switch instruction {
+                case let .copy(_, to):
+                    return to == value
+                case let .call(_, _, _, result, _, _, _, _):
+                    return result == value
+                default:
+                    return false
+                }
+            }
+            guard let definition else { return false }
+            switch definition {
+            case let .copy(from, _):
+                value = from
+            case let .call(_, callee, _, _, _, _, _, _):
+                return primitiveUnboxCallees.contains(callee)
+            default:
+                return false
+            }
+        }
+        return false
     }
 
     /// Counterpart of `unboxErasedLambdaArguments`: when the invocation's result
@@ -332,9 +447,16 @@ enum InlineErasedLambdaABI {
         guard isErasedType(parameterType, ctx: ctx),
               let types = ctx.sema?.types,
               let argumentType = module.arena.exprType(argument),
-              case .stringStruct = types.kind(of: argumentType)
+              case let .stringStruct(nullability) = types.kind(of: argumentType)
         else {
             return argument
+        }
+        if nullability != .nonNull {
+            // A typed copy lets the backend preserve the null sentinel while
+            // bridging a nullable flat String to an erased slot.
+            let boxed = module.arena.appendTemporary(type: types.nullableAnyType)
+            body.append(.copy(from: argument, to: boxed))
+            return boxed
         }
         let boxed = module.arena.appendTemporary(type: types.anyType)
         body.append(.call(
@@ -408,14 +530,19 @@ enum InlineErasedLambdaABI {
                     canThrow: false
                 ))
                 boxed[index] = boxedResult
-            case .stringStruct:
+            case let .stringStruct(nullability):
                 // String arguments arrive as flat aggregates, but an erased
                 // parameter slot must carry the boxed handle the imported body
                 // unwraps (`kk_string_to_flat` inside e.g. `"x".let { ... }`).
                 // Substituting the aggregate directly smears its fields across
-                // the call's argument registers (KUU-3234). Nullable receivers
-                // reach `?.let` only on the non-null branch, so boxing them via
-                // the same flat-to-box callee is still correct.
+                // the call's argument registers (KUU-3234). Nullable arguments
+                // also need the null-aware aggregate-to-handle bridge.
+                if nullability != .nonNull {
+                    let boxedResult = module.arena.appendTemporary(type: types.nullableAnyType)
+                    body.append(.copy(from: arguments[index], to: boxedResult))
+                    boxed[index] = boxedResult
+                    continue
+                }
                 let boxedResult = module.arena.appendTemporary(type: types.anyType)
                 body.append(.call(
                     callee: ctx.interner.intern("kk_string_from_flat"),

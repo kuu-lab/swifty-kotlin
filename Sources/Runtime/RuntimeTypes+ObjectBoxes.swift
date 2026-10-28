@@ -29,6 +29,8 @@ class RuntimeArrayBox {
 
     private let storage: Storage
 
+    var gcStorageID: ObjectIdentifier { ObjectIdentifier(storage) }
+
     /// Mutate shared array/object fields and their managed-heap roots under
     /// one lock. Primitive byte storage cannot contain managed references.
     private func mutateObjectFields(index: Int? = nil, _ mutation: () -> Void) {
@@ -41,7 +43,9 @@ class RuntimeArrayBox {
                 return true
             }
             mutation()
-            guard state.objectPointers.contains(owner) else { return false }
+            if state.objectPointers.contains(owner) {
+                state.arrayStorageByOwner[owner] = ObjectIdentifier(storage)
+            }
             if let index {
                 recordManagedHeapFieldLocked(index: index, state: &state)
             } else {
@@ -74,8 +78,11 @@ class RuntimeArrayBox {
     }
 
     func recordManagedHeapFieldsLocked(owner: UInt, state: inout GCState) {
-        guard state.objectPointers.contains(owner), storage.nativeBytes == nil else { return }
+        guard storage.nativeBytes == nil else { return }
         let storageID = ObjectIdentifier(storage)
+        if state.objectPointers.contains(owner) {
+            state.arrayStorageByOwner[owner] = storageID
+        }
         var fields: [Int: UInt] = [:]
         for (index, value) in storage.values.enumerated() {
             if let raw = value.childReferenceRawValue,
@@ -88,6 +95,13 @@ class RuntimeArrayBox {
         } else {
             state.retainedArrayHeapFields[storageID] = RuntimeStorageHeapRoots(storage: storage, fields: fields)
         }
+    }
+
+    /// The caller holds gcLock; reading the mirror avoids taking viewLock.
+    func gcStorageChildRefsLocked(state: GCState) -> [Int] {
+        guard let roots = state.retainedArrayHeapFields[ObjectIdentifier(storage)],
+              roots.storage === storage else { return [] }
+        return roots.fields.values.map { Int(bitPattern: $0) }
     }
 
     var values: [RuntimeValue] {
@@ -145,6 +159,11 @@ class RuntimeArrayBox {
                 )
             }
         }
+    }
+
+    func value(at index: Int) -> RuntimeValue {
+        if let bytes = storage.nativeBytes { return RuntimeValue(raw: Int(Int8(bitPattern: bytes[index]))) }
+        return storage.values[index]
     }
 
     /// Stores a raw field value together with the static tag needed by
@@ -230,7 +249,19 @@ final class RuntimeObjectBox: RuntimeArrayBox {
     func withCoroutineJobHandle<Result>(_ body: (inout Int) -> Result) -> Result {
         coroutineJobHandleLock.lock()
         defer { coroutineJobHandleLock.unlock() }
-        return body(&storedCoroutineJobHandle)
+        let oldValue = storedCoroutineJobHandle
+        let result = body(&storedCoroutineJobHandle)
+        if storedCoroutineJobHandle != oldValue {
+            let owner = UInt(bitPattern: Unmanaged.passUnretained(self).toOpaque())
+            runtimeStorage.withGCLock { state in
+                if state.objectPointers.contains(owner), storedCoroutineJobHandle != 0 {
+                    state.objectJobHandles[owner] = storedCoroutineJobHandle
+                } else {
+                    state.objectJobHandles.removeValue(forKey: owner)
+                }
+            }
+        }
+        return result
     }
     var backingListBox: RuntimeListBox?
     var backingSetBox: RuntimeSetBox?
@@ -495,12 +526,39 @@ final class RuntimeFunctionValueBox {
 extension RuntimeArrayBox: RuntimeChildReferenceProviding {
     var childRefs: [Int] {
         let fieldRefs = values.compactMap(\.childReferenceRawValue)
-        if let objectBox = self as? RuntimeObjectBox,
-           let backingMapBox = objectBox.backingMapBox {
-            let storageRefs = objectBox.backingMapRaw == 0 ? [] : [objectBox.backingMapRaw]
-            return fieldRefs + storageRefs + backingMapBox.childRefs
+        if let objectBox = self as? RuntimeObjectBox {
+            let directRefs = [
+                objectBox.coroutineJobHandle,
+                objectBox.backingMapRaw,
+                objectBox.throwableMessageRaw,
+                objectBox.throwableCause,
+                objectBox.throwableStackTraceElementsRaw,
+            ] + objectBox.throwableSuppressed
+            let nestedRefs = (objectBox.backingListBox?.childRefs ?? [])
+                + (objectBox.backingSetBox?.childRefs ?? [])
+                + (objectBox.backingMapBox?.childRefs ?? [])
+            return fieldRefs + directRefs.filter { $0 != 0 } + nestedRefs
         }
         return fieldRefs
+    }
+
+    /// Array fields and job handles use mirrors to avoid nested locks.
+    func gcChildRefsLocked(state: GCState) -> [Int] {
+        var references = gcStorageChildRefsLocked(state: state)
+        guard let objectBox = self as? RuntimeObjectBox else { return references }
+        let owner = UInt(bitPattern: Unmanaged.passUnretained(objectBox).toOpaque())
+        let directRefs = [
+            state.objectJobHandles[owner] ?? 0,
+            objectBox.backingMapRaw,
+            objectBox.throwableMessageRaw,
+            objectBox.throwableCause,
+            objectBox.throwableStackTraceElementsRaw,
+        ] + objectBox.throwableSuppressed
+        references.append(contentsOf: directRefs.filter { $0 != 0 })
+        references.append(contentsOf: objectBox.backingListBox?.gcChildRefsLocked(state: state) ?? [])
+        references.append(contentsOf: objectBox.backingSetBox?.childRefs ?? [])
+        references.append(contentsOf: objectBox.backingMapBox?.childRefs ?? [])
+        return references
     }
 }
 
@@ -515,4 +573,8 @@ extension RuntimeTripleBox: RuntimeChildReferenceProviding {
     var childRefs: [Int] {
         [firstValue, secondValue, thirdValue].compactMap(\.childReferenceRawValue)
     }
+}
+
+extension RuntimeFunctionValueBox: RuntimeChildReferenceProviding {
+    var childRefs: [Int] { closureRaw == 0 ? [] : [closureRaw] }
 }

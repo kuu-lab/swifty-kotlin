@@ -1,6 +1,7 @@
 #if canImport(Testing)
 @testable import CompilerCore
 import Testing
+@testable import CompilerTestSupport
 
 extension BuildKIRRegressionTests {
     /// KUU-3180: `"1234$a"` where `a` is a member `const val` is a

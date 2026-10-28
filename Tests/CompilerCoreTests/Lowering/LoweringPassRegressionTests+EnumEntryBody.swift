@@ -1,6 +1,7 @@
 #if canImport(Testing)
 @testable import CompilerCore
 import Testing
+@testable import CompilerTestSupport
 
 // Enum values use an ordinal-backed representation in KIR. Entry-body
 // overrides therefore need a generated ordinal switch rather than a heap-backed

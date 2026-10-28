@@ -500,10 +500,11 @@ extension CallTypeChecker {
         }
 
         // MutableList<E>.subList(...): MutableList<E> overrides List<E>.subList(...): List<E>.
+        let subListOwnerFQName = isMutableReceiver
+            ? knownNames.kotlinCollectionsMutableListFQName
+            : knownNames.kotlinCollectionsListFQName
         if memberName == knownNames.subList,
-           let subListOwnerSymbol = sema.symbols.lookupByShortName(
-               isMutableReceiver ? knownNames.mutableList : knownNames.list
-           ).first
+           let subListOwnerSymbol = sema.symbols.lookupNominal(fqName: subListOwnerFQName)
         {
             return sema.types.make(.classType(ClassType(
                 classSymbol: subListOwnerSymbol,
@@ -514,7 +515,7 @@ extension CallTypeChecker {
         if memberName == knownNames.toList
             || memberName == knownNames.slice
             || memberName == knownNames.minusElement,
-           let listSymbol = sema.symbols.lookupByShortName(knownNames.list).first
+           let listSymbol = sema.symbols.lookupNominal(fqName: knownNames.kotlinCollectionsListFQName)
         {
             if memberName == knownNames.minusElement, isSequenceReceiver {
                 return makeSyntheticSequenceType(

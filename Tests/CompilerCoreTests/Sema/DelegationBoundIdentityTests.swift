@@ -1,13 +1,7 @@
 #if canImport(Testing)
 @testable import CompilerCore
 import Testing
-
-func makeBoundIdentityContext(_ source: String) -> CompilationContext {
-    let path = "/virtual/bound-identity.kt"
-    let context = makeCompilationContext(inputs: [path], includeStdlib: false)
-    _ = context.sourceManager.addFile(path: path, contents: .init(source.utf8))
-    return context
-}
+@testable import CompilerTestSupport
 
 @Suite struct DelegationBoundIdentityTests {
     @Test func originalReproducerAcceptsConcreteAndInterfaceCalls() throws {

@@ -1,6 +1,7 @@
 #if canImport(Testing)
 @testable import CompilerCore
 import Testing
+@testable import CompilerTestSupport
 
 /// KSP-1532: `UInt.toChar()` does not exist in Kotlin (verified against
 /// kotlinc 2.4.20 and the v2.3.10 stdlib source, and by reflecting

@@ -183,6 +183,7 @@ extension LLVMCAPIBindings {
 
             return LLVMCAPIBindings(
                 handle: handle,
+                libraryPath: libraryPath,
                 runPassesFn: loadSymbol(handle: handle, name: "LLVMRunPasses", as: LLVMRunPassesFn.self),
                 createPassBuilderOptionsFn: loadSymbol(handle: handle, name: "LLVMCreatePassBuilderOptions", as: LLVMCreatePassBuilderOptionsFn.self),
                 disposePassBuilderOptionsFn: loadSymbol(handle: handle, name: "LLVMDisposePassBuilderOptions", as: LLVMDisposePassBuilderOptionsFn.self),

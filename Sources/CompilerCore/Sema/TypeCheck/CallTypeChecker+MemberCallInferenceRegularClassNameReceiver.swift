@@ -362,6 +362,20 @@ extension CallTypeChecker {
                     nestedOwnerSymbols = shortNameNestedOwners
                 }
             }
+            if let nestedOwner = nestedOwnerSymbols.first,
+               let samType = inferQualifiedNestedClassifierSamConstruction(
+                   id,
+                   calleeName: calleeName,
+                   classifierSymbol: nestedOwner,
+                   args: args,
+                   ctx: ctx,
+                   locals: &locals,
+                   expectedType: expectedType,
+                   explicitTypeArgs: explicitTypeArgs
+               )
+            {
+                return samType
+            }
             // `Owner.Nested` and `Owner.Nested()` share the same zero-arg
             // `.memberCall` shape, but the AST arena records whether parentheses
             // were written. This is mostly unambiguous when
@@ -659,6 +673,17 @@ extension CallTypeChecker {
                         return resultType
                     }
                 }
+            }
+            if nestedCtorCandidates.isEmpty,
+               let nestedOwner = nestedOwnerSymbols.first,
+               let companionInvokeType = inferQualifiedNestedClassifierCompanionInvoke(
+                   request,
+                   classifierSymbol: nestedOwner,
+                   argTypes: argTypes,
+                   locals: &locals
+               )
+            {
+                return companionInvokeType
             }
         }
 

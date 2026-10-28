@@ -2,6 +2,7 @@
 import Foundation
 import Testing
 import TestStdlibCache
+@testable import CompilerTestSupport
 
 /// `kswiftc --run` interpreter: supported programs must produce the exact
 /// output the native path prints, and anything outside the modelled subset must

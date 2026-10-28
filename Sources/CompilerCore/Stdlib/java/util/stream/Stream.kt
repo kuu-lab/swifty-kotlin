@@ -8,96 +8,94 @@ import java.util.function.ToDoubleFunction
 import java.util.function.ToIntFunction
 import java.util.function.ToLongFunction
 
-public class Stream<T> private constructor(private val values: List<T>) {
+public class Stream<T> private constructor(private val values: Sequence<T>) {
+    private var consumed: Boolean = false
+
+    private fun consume(): Sequence<T> {
+        if (consumed) throw IllegalStateException("stream has already been operated upon or closed")
+        consumed = true
+        return values
+    }
+
     public fun filter(predicate: Predicate<T>): Stream<T> =
-        Stream(values.filter { predicate.test(it) })
+        Stream(consume().filter { predicate.test(it) })
 
     public fun <R> map(mapper: Function<T, R>): Stream<R> =
-        Stream(values.map { mapper.apply(it) })
+        Stream(consume().map { mapper.apply(it) })
 
-    public fun <R> flatMap(mapper: Function<T, Stream<R>>): Stream<R> {
-        val result = mutableListOf<R>()
-        for (value in values) for (mapped in mapper.apply(value).values) result.add(mapped)
-        return Stream(result)
-    }
+    public fun <R> flatMap(mapper: Function<T, Stream<R>>): Stream<R> =
+        Stream(consume().flatMap { mapper.apply(it).values })
 
-    public fun distinct(): Stream<T> = Stream(values.distinct())
+    public fun distinct(): Stream<T> = Stream(consume().distinct())
 
-    public fun sorted(comparator: Comparator<in T>): Stream<T> = Stream(values.sortedWith(comparator))
+    public fun sorted(comparator: Comparator<in T>): Stream<T> = Stream(consume().sortedWith(comparator))
 
-    public fun peek(action: Consumer<T>): Stream<T> {
-        for (value in values) action.accept(value)
-        return this
-    }
+    public fun peek(action: Consumer<T>): Stream<T> =
+        Stream(consume().onEach { action.accept(it) })
 
     public fun limit(maxSize: Long): Stream<T> {
         if (maxSize < 0) throw IllegalArgumentException("Max size must be non-negative")
-        if (maxSize >= values.size.toLong()) return this
-        return Stream(values.take(maxSize.toInt()))
+        return Stream(consume().streamLimit(maxSize))
     }
 
     public fun skip(count: Long): Stream<T> {
         if (count < 0) throw IllegalArgumentException("Skip count must be non-negative")
-        if (count >= values.size.toLong()) return empty()
-        return Stream(values.drop(count.toInt()))
+        return Stream(consume().streamSkip(count))
     }
 
     public fun forEach(action: Consumer<T>) {
-        for (value in values) action.accept(value)
+        for (value in consume()) action.accept(value)
     }
 
     public fun forEachOrdered(action: Consumer<T>) = forEach(action)
-    public fun count(): Long = values.size.toLong()
-    public fun anyMatch(predicate: Predicate<T>): Boolean = values.any { predicate.test(it) }
-    public fun allMatch(predicate: Predicate<T>): Boolean = values.all { predicate.test(it) }
-    public fun noneMatch(predicate: Predicate<T>): Boolean = values.none { predicate.test(it) }
-    public fun toList(): List<T> = values.toMutableList()
 
-    public fun <A, R> collect(collector: Collector<T, A, R>): R = collector.collect(values)
+    public fun count(): Long = consume().streamCount()
 
-    public fun collect(collector: ListCollector): List<T> = values.toMutableList()
+    public fun anyMatch(predicate: Predicate<T>): Boolean {
+        for (value in consume()) if (predicate.test(value)) return true
+        return false
+    }
+
+    public fun allMatch(predicate: Predicate<T>): Boolean {
+        for (value in consume()) if (!predicate.test(value)) return false
+        return true
+    }
+
+    public fun noneMatch(predicate: Predicate<T>): Boolean {
+        for (value in consume()) if (predicate.test(value)) return false
+        return true
+    }
+
+    public fun toList(): List<T> = consume().toMutableList()
+
+    public fun <A, R> collect(collector: Collector<T, A, R>): R = collector.collect(consume().toList())
+
+    public fun collect(collector: ListCollector): List<T> = consume().toMutableList()
 
     public fun reduce(identity: T, accumulator: java.util.function.BinaryOperator<T>): T {
         var result = identity
-        for (value in values) result = accumulator.apply(result, value)
+        for (value in consume()) result = accumulator.apply(result, value)
         return result
     }
 
-    public fun mapToInt(mapper: ToIntFunction<T>): IntStream {
-        val result = IntArray(values.size)
-        var index = 0
-        for (value in values) {
-            result[index] = mapper.applyAsInt(value)
-            index++
-        }
-        return IntStream.of(*result)
-    }
+    public fun mapToInt(mapper: ToIntFunction<T>): IntStream =
+        IntStream.fromSequence(consume().map { mapper.applyAsInt(it) })
 
-    public fun mapToLong(mapper: ToLongFunction<T>): LongStream {
-        val result = LongArray(values.size)
-        var index = 0
-        for (value in values) {
-            result[index] = mapper.applyAsLong(value)
-            index++
-        }
-        return LongStream.of(*result)
-    }
+    public fun mapToLong(mapper: ToLongFunction<T>): LongStream =
+        LongStream.fromSequence(consume().map { mapper.applyAsLong(it) })
 
-    public fun mapToDouble(mapper: ToDoubleFunction<T>): DoubleStream {
-        val result = DoubleArray(values.size)
-        var index = 0
-        for (value in values) {
-            result[index] = mapper.applyAsDouble(value)
-            index++
-        }
-        return DoubleStream.of(*result)
-    }
+    public fun mapToDouble(mapper: ToDoubleFunction<T>): DoubleStream =
+        DoubleStream.fromSequence(consume().map { mapper.applyAsDouble(it) })
 
     public companion object {
-        public fun <T> of(vararg values: T): Stream<T> = Stream(values.toList())
+        public fun <T> of(vararg values: T): Stream<T> =
+            Stream(streamSequence { values.iterator() })
 
-        public fun <T> empty(): Stream<T> = Stream(emptyList())
+        public fun <T> empty(): Stream<T> = Stream(streamSequence { emptyList<T>().iterator() })
 
-        internal fun <T> fromIterable(values: Iterable<T>): Stream<T> = Stream(values.toList())
+        internal fun <T> fromIterable(values: Iterable<T>): Stream<T> =
+            Stream(streamSequence { values.iterator() })
+
+        internal fun <T> fromSequence(values: Sequence<T>): Stream<T> = Stream(values)
     }
 }

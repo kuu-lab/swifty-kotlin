@@ -248,7 +248,8 @@ public fun CharSequence.lastIndexOf(char: Char, startIndex: Int = this.length - 
     }
     return -1
 }
-public operator fun CharSequence.contains(other: CharSequence, ignoreCase: Boolean = false): Boolean {
+public operator fun CharSequence.contains(other: CharSequence): Boolean = contains(other, ignoreCase = false)
+public fun CharSequence.contains(other: CharSequence, ignoreCase: Boolean = false): Boolean {
     var index = 0
     val end = this.length - other.length
     while (index <= end) {
@@ -257,7 +258,8 @@ public operator fun CharSequence.contains(other: CharSequence, ignoreCase: Boole
     }
     return false
 }
-public operator fun CharSequence.contains(char: Char, ignoreCase: Boolean = false): Boolean = this.indexOf(char, 0, ignoreCase) >= 0
+public operator fun CharSequence.contains(char: Char): Boolean = contains(char, ignoreCase = false)
+public fun CharSequence.contains(char: Char, ignoreCase: Boolean = false): Boolean = this.indexOf(char, 0, ignoreCase) >= 0
 public fun String.removePrefix(prefix: CharSequence): String = if (regionMatches(this, 0, prefix, false)) __jvmSubstring(this, prefix.length, this.length) else this
 public fun String.removeSuffix(suffix: CharSequence): String = if (regionMatches(this, this.length - suffix.length, suffix, false)) __jvmSubstring(this, 0, this.length - suffix.length) else this
 public fun String.removeSurrounding(prefix: CharSequence, suffix: CharSequence): String {

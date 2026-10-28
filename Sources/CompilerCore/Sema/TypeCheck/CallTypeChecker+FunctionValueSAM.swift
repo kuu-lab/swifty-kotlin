@@ -16,6 +16,11 @@ extension CallTypeChecker {
         {
             return expectedFunctionType
         }
+        if let type = ctx.sema.bindings.exprType(for: exprID),
+           ctx.sema.types.functionTypeWitness(from: type, compatibleWith: expectedFunctionType) != nil
+        {
+            return expectedFunctionType
+        }
         if case let .call(callee, _, _, _) = ctx.ast.arena.expr(exprID),
            case let .nameRef(name, _) = ctx.ast.arena.expr(callee)
         {
@@ -63,8 +68,7 @@ extension CallTypeChecker {
             let sourceType = hasNominalSamType
                 ? sema.bindings.samUnderlyingFunctionType(for: argument.expr) ?? expressionType
                 : expressionType
-            guard case .functionType = sema.types.kind(of: sourceType),
-                  let parameterIndex = resolved.parameterMapping[index],
+            guard let parameterIndex = resolved.parameterMapping[index],
                   signature.parameterTypes.indices.contains(parameterIndex)
             else { continue }
             let interfaceType = sema.types.substituteTypeParameters(
@@ -74,6 +78,16 @@ extension CallTypeChecker {
             )
             guard let function = driver.helpers.samFunctionType(for: interfaceType, sema: sema) else { continue }
             let functionType = sema.types.make(.functionType(function))
+            let hasFunctionView: Bool
+            if case .functionType = sema.types.kind(of: sourceType) {
+                hasFunctionView = true
+            } else {
+                hasFunctionView = sema.types.functionTypeWitness(
+                    from: sourceType,
+                    compatibleWith: functionType
+                ) != nil
+            }
+            guard hasFunctionView else { continue }
             // Resolution has already selected this argument through the SAM
             // function signature. Do not repeat the compatibility check after
             // generic substitution: if it suppresses this binding, KIR passes

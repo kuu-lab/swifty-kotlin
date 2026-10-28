@@ -2,6 +2,7 @@
 @testable import CompilerCore
 import Foundation
 import Testing
+@testable import CompilerTestSupport
 
 /// Sema-level overload resolution tests for Comparator composition APIs (STDLIB-COMP-002).
 /// Covers: compareBy { } single-selector, compareBy(selector1, selector2, ...) multi-selector,

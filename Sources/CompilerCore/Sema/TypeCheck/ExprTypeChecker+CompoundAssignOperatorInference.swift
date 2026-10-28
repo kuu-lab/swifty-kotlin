@@ -725,16 +725,55 @@ extension ExprTypeChecker {
             }
         }
 
-        let allCandidateIDs = ctx.cachedScopeLookup(name)
+        // Same namespace rule as `inferLocalAssignExpr`: a tier binding the
+        // name only to callables (or to member properties no implicit
+        // receiver can reach) must not hide an outer-scope assignable
+        // property, so `counter += 1` inside a class declaring `fun counter`
+        // still writes the top-level `var counter` (KUU-3576). `.object`
+        // candidates stay visible for the singleton operator path below.
+        let allCandidateIDs = ctx.cachedScopeLookup(name, matching: { candidateID in
+            guard let candidate = ctx.cachedSymbol(candidateID) else { return false }
+            if candidate.kind == .object {
+                return true
+            }
+            guard candidate.kind == .property else { return false }
+            guard let parentID = sema.symbols.parentSymbol(for: candidateID),
+                  let parentSymbol = ctx.cachedSymbol(parentID)
+            else {
+                return true
+            }
+            return parentSymbol.kind == .package || parentSymbol.kind == .object
+                || (ctx.implicitReceiverType != nil
+                    && (parentSymbol.kind == .class || parentSymbol.kind == .object || parentSymbol.kind == .interface))
+        })
         let dslBlockedIDs = allCandidateIDs.filter { ctx.isCandidateBlockedByDslMarker($0) }
         let dslFilteredIDs = allCandidateIDs.filter { !ctx.isCandidateBlockedByDslMarker($0) }
         let (visibleIDs, _) = ctx.filterByVisibility(dslFilteredIDs)
         let candidates = visibleIDs.compactMap { ctx.cachedSymbol($0) }
+        var explicitlyImportedObjectProperties: Set<SymbolID> = []
+        for importDecl in ctx.currentASTFile?.imports ?? [] {
+            guard !importDecl.isWildcard,
+                  (importDecl.alias ?? importDecl.path.last) == name
+            else {
+                continue
+            }
+            for candidateID in sema.symbols.lookupAll(fqName: importDecl.path) {
+                guard sema.symbols.symbol(candidateID)?.kind == .property,
+                      let ownerID = sema.symbols.parentSymbol(for: candidateID)
+                else {
+                    continue
+                }
+                if sema.symbols.symbol(ownerID)?.kind == .object {
+                    explicitlyImportedObjectProperties.insert(candidateID)
+                }
+            }
+        }
         let scopeVisibleProperty = candidates.first(where: { sym in
             guard sym.kind == .property else { return false }
             guard let parentID = sema.symbols.parentSymbol(for: sym.id),
                   let parentSym = sema.symbols.symbol(parentID) else { return true }
-            return parentSym.kind == .package || (ctx.implicitReceiverType != nil
+            return parentSym.kind == .package || explicitlyImportedObjectProperties.contains(sym.id)
+                || (ctx.implicitReceiverType != nil
                 && (parentSym.kind == .class || parentSym.kind == .object || parentSym.kind == .interface))
         })
         if let propSymbol = implicitReceiverMember?.symbol ?? scopeVisibleProperty {
@@ -1034,25 +1073,6 @@ extension ExprTypeChecker {
             )
             return driver.helpers.bindAndReturnErrorType(id, sema: sema)
         }
-        if isMutable, let setterVisibility = sema.symbols.propertySetterVisibility(for: writeSymbol),
-           let propSymbol
-        {
-            let setter = SemanticSymbol(
-                id: propSymbol.id, kind: propSymbol.kind, name: propSymbol.name, fqName: propSymbol.fqName,
-                declSite: propSymbol.declSite, visibility: setterVisibility, flags: propSymbol.flags
-            )
-            if !ctx.visibilityChecker.isAccessible(
-                setter, fromFile: ctx.currentFileID, enclosingClass: ctx.enclosingClassSymbol
-            ) {
-                driver.helpers.emitVisibilityError(
-                    for: setter,
-                    name: interner.resolve(calleeName),
-                    range: range,
-                    diagnostics: sema.diagnostics
-                )
-                return driver.helpers.bindAndReturnErrorType(id, sema: sema)
-            }
-        }
         driver.helpers.checkOptIn(
             for: writeSymbol, ctx: ctx, range: range, diagnostics: ctx.sema.diagnostics
         )
@@ -1107,6 +1127,29 @@ extension ExprTypeChecker {
                 return sema.types.errorType
             }
             return resolvedType
+        }
+
+        // A successful `plusAssign` mutates the value returned by the getter
+        // without invoking the property setter. Setter visibility only gates
+        // the binary-operator fallback that writes a replacement value.
+        if isMutable, let setterVisibility = sema.symbols.propertySetterVisibility(for: writeSymbol),
+           let propSymbol
+        {
+            let setter = SemanticSymbol(
+                id: propSymbol.id, kind: propSymbol.kind, name: propSymbol.name, fqName: propSymbol.fqName,
+                declSite: propSymbol.declSite, visibility: setterVisibility, flags: propSymbol.flags
+            )
+            if !ctx.visibilityChecker.isAccessible(
+                setter, fromFile: ctx.currentFileID, enclosingClass: ctx.enclosingClassSymbol
+            ) {
+                driver.helpers.emitVisibilityError(
+                    for: setter,
+                    name: interner.resolve(calleeName),
+                    range: range,
+                    diagnostics: sema.diagnostics
+                )
+                return driver.helpers.bindAndReturnErrorType(id, sema: sema)
+            }
         }
 
         if let resolvedType = bindCompoundAssignmentOperatorCall(

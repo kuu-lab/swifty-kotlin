@@ -1,6 +1,7 @@
 #if canImport(Testing)
     @testable import CompilerCore
     import Testing
+@testable import CompilerTestSupport
 
     struct JsExportAnnotationTests {
         // These tests cover native Sema acceptance and metadata only, not Kotlin/JS export emission.

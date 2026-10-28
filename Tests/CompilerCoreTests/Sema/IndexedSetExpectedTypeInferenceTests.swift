@@ -1,9 +1,32 @@
 #if canImport(Testing)
 @testable import CompilerCore
 import Testing
+@testable import CompilerTestSupport
 
 @Suite
 struct IndexedSetExpectedTypeInferenceTests {
+    @Test
+    func arrayExtensionsDoNotUseInapplicableBuiltinElementContext() throws {
+        let ctx = makeContextFromSource("""
+        class Point
+        operator fun Array<CharArray>.set(point: Point, value: Char) {}
+        operator fun Array<CharArray>.set(index: Int, value: Char) {}
+        operator fun Array<CharArray>.set(x: Int, y: Int, value: Char) {}
+        fun character(): Char = 'x'
+        fun use(grid: Array<CharArray>) {
+            grid[Point()] = character()
+            grid[0] = character()
+            grid[0, 0] = character()
+            var other = grid
+            grid[0, 0] = run { other = grid; 'y' }
+        }
+        operator fun Array<Array<Int>>.set(point: Point, value: Char) {}
+        fun builtin(grid: Array<Array<Int>>) { grid[0] = emptyArray() }
+        """)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+    }
+
     @Test
     func genericExtensionSetContextualizesNestedConstructorArgument() throws {
         let source = """

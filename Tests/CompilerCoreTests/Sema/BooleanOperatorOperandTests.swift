@@ -1,6 +1,7 @@
 #if canImport(Testing)
 @testable import CompilerCore
 import Testing
+@testable import CompilerTestSupport
 
 /// kotlinc rejects `true + true` because `Boolean` has no `plus` member:
 /// with no operator candidates left, the primitive arithmetic fallback used

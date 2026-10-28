@@ -2,6 +2,7 @@
 @testable import CompilerCore
 import Foundation
 import Testing
+@testable import CompilerTestSupport
 
 // MARK: - kotlin.contracts effect model edge case tests
 //

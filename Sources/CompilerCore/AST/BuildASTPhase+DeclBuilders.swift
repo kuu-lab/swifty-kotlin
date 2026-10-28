@@ -104,7 +104,8 @@ extension BuildASTPhase {
             memberProperties: constructorProperties + members.properties,
             nestedClasses: members.nestedClasses,
             nestedObjects: members.nestedObjects,
-            companionObject: members.companionObject
+            companionObject: members.companionObject,
+            companionBlockObject: members.companionBlockObject
         )
     }
 
@@ -227,7 +228,8 @@ extension BuildASTPhase {
             memberProperties: members.properties,
             nestedClasses: members.nestedClasses,
             nestedObjects: members.nestedObjects,
-            companionObject: members.companionObject
+            companionObject: members.companionObject,
+            companionBlockObject: members.companionBlockObject
         )
     }
 

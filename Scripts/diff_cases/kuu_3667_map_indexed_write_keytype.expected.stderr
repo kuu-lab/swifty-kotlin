@@ -1,0 +1,6 @@
+Scripts/diff_cases/kuu_3667_map_indexed_write_keytype.kt:7:5: error KSWIFTK-TYPE-0001: Conflicting bounds for type variable #0: inferred Comparable<*> is not a subtype of String. lower=[Int, String], upper=[String]
+    m[1] = "B"
+    ^
+Scripts/diff_cases/kuu_3667_map_indexed_write_keytype.kt:8:5: error KSWIFTK-TYPE-0001: Type constraint is not satisfied: Int <: String.
+    m[1] += "B"
+    ^

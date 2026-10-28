@@ -6,6 +6,7 @@
 |---|---|---|
 | `swift_test.sh` | ✓ | `swift test` wrapper: parallel defaults, grouped failure summary, golden-update hint, GitHub annotations, crash-signal retry |
 | `swift_build.sh` | – | Coordinate focused local `swift build` invocations with test builds across worktrees |
+| `summarize_stdlib_timings.py` | – | Summarize opt-in stdlib artifact build durations and overlap across processes |
 | `shard_swift_tests.sh` | ✓ | Split one slow test target across CI jobs (`--mode dynamic` per-test / `--mode static` per-suite) |
 | `js_annotations/run_ci.py` | ✓ | JVM-independent annotation/view/reflection source/artifact O0/O2 matrix, runner regressions, and KUU-1480 evidence; see [handoff](../docs/js-annotations-ci-evidence.md) |
 | `diff_kotlinc.sh` | ✓ | Behavioral diff of `kswiftc` vs `kotlinc` over `diff_cases/`, plus candidate-only output checks for target-specific cases; persists failure artifacts |
@@ -69,8 +70,10 @@ Locally, `swift_test.sh` and `swift_build.sh` share a limit of two SwiftPM
 builds at a time across worktrees and divide detected build jobs between those
 slots. Use the build wrapper for focused builds so it participates in the same
 limit, for example `bash Scripts/swift_build.sh --product kswiftc`. The slot is released
-as soon as SwiftPM reports `Build complete!`, so a slow test does not occupy a
-build slot. `SWIFT_BUILD_SLOTS` changes the limit; `0` disables it.
+when SwiftPM reports `Build complete!`, so a slow test does not occupy a build
+slot. The optional worker link described below reacquires a slot only when a
+test requests the stdlib cache.
+`SWIFT_BUILD_SLOTS` changes the limit; `0` disables it.
 `SWIFT_TEST_BUILD_JOBS` for tests, `SWIFT_BUILD_JOBS` for builds, and explicit
 `-j`/`--jobs` take precedence over the automatic per-build job count. CI keeps
 its existing behavior unless slots are explicitly configured. `--skip-build`
@@ -81,6 +84,29 @@ the same directory and slot count. If Python 3 is unavailable, the wrapper
 warns and skips the cross-worktree limit. Direct `swift build`, `swift test`,
 and other scripts do not participate in the limit. If SwiftPM does not emit
 its normal build-complete marker, the slot remains held until it exits.
+
+For focused macOS `swiftbuild` runs of `CompilerCoreTests` or
+`CompilerBackendTests`, the build-slot wrapper can identify an isolated stdlib
+builder linked from the same compiler objects as the test image. It only does
+so when those objects and the toolchain stay unchanged across a test relink,
+the link inputs are known, and the running image and builder match the recorded
+hashes. The worker and test process also compare bundled sources, LLVM, target,
+OS, and environment. A later test-only relink can then reuse the worker's
+stdlib artifact without making test code part of its cache key. Interrupted
+builds use distinct staging paths; staging older than an hour is reclaimed only
+when neither the parent nor worker holds its attempt lock.
+
+The first run after a compiler change, other build systems or configurations,
+custom linker/compiler flags, and any missing or uncertain proof use the full
+test-image fingerprint and compiler environment instead. If that environment
+cannot be identified, shared reuse is disabled. A worker cache may therefore
+need one fresh build before later test-only changes can reuse it. Set
+`KSWIFTK_TEST_STDLIB_PROVENANCE_DISABLE=1` to disable the optimization, or
+`KSWIFTK_TEST_STDLIB_PROVENANCE_DEBUG=1` to diagnose why proof was unavailable.
+The request waits up to 15 seconds for a build slot and proof, then safely falls
+back; `KSWIFTK_TEST_STDLIB_PROVENANCE_WAIT` can set a limit up to 600 seconds.
+Disabling build slots, using `--skip-build`, and invoking `swift test` directly
+also leave the optimization off.
 
 To reduce Golden and other frontend test CPU time locally, build CompilerCore
 with the same debug optimization setting used by CI:
@@ -93,6 +119,23 @@ This opts CompilerCore into `-O` while keeping the debug build configuration.
 It can make stepping through CompilerCore code less direct; omit the setting
 when debugging the compiler. Run without `--skip-build` when changing it so
 the compiler is rebuilt with the requested optimization level.
+
+To measure overlapping stdlib artifact builds across worktrees, set the same
+`KSWIFTK_STDLIB_TIMINGS` path for the test or compiler processes under study:
+
+```bash
+KSWIFTK_STDLIB_TIMINGS=/tmp/kswiftk-stdlib-timings.jsonl bash Scripts/swift_test.sh --filter '<test>'
+python3 Scripts/summarize_stdlib_timings.py /tmp/kswiftk-stdlib-timings.jsonl
+```
+
+The opt-in JSONL log records start/end events for in-process artifact builders
+and `kswiftc --stdlib-only`, including elapsed time and success. It does not
+record source paths or change cache behavior. The summary reports completed,
+failed, incomplete and invalid spans, peak overlap, and duration percentiles.
+An interrupted process can leave an incomplete span; overlap counts use only
+completed spans. Wall-clock changes can invalidate an interval. Logging is
+best-effort and the parent directory must already exist. Keep the file in a
+private location when collecting measurements from concurrent worktrees.
 
 If a run crashes with a signal (e.g. `*** Signal 11: ...` / `exited with
 unexpected signal code`) and no per-test failure line was parsed, the whole
@@ -144,6 +187,13 @@ both serial and parallel runs. The separate `run_candidate_only.sh` lane
 continues to own `// CANDIDATE-ONLY` cases with `.expected.stdout` or
 `.expected.stderr` sidecars. Run `bash Scripts/test_diff_kotlinc_candidate_from_source.sh`
 to verify discovery, source compilation, and exclusion from that lane.
+
+A source-only case whose bundled-source compile has a measured exceptional
+cost may set `// DIFF_CANDIDATE_ONLY_FROM_SOURCE_COMPILE_TIMEOUT: <seconds>`.
+This is a per-case minimum: the effective compile timeout is the greater of
+the marker and the configured `DIFF_COMPILE_TIMEOUT` or `--compile-timeout`.
+Use it only with evidence that the case needs more time; runtime timeout is
+unchanged. Failure artifacts record the effective compile timeout.
 
 ## Runtime ABI link validation
 
@@ -203,10 +253,11 @@ identifier usages in the seed corpus.
 
 ## Golden update workflow
 
-1. Run golden tests without updating fixtures:
+1. Run only the affected golden suite without updating fixtures. For example,
+   for a Sema change:
 
 ```bash
-bash Scripts/swift_test.sh --filter Golden
+bash Scripts/swift_test.sh --filter CompilerCoreTests.GoldenSemaGoldenTests/matchesGolden
 ```
 
 2. Review differences:
@@ -215,11 +266,11 @@ bash Scripts/swift_test.sh --filter Golden
 git diff -- Tests/CompilerCoreTests/GoldenCases
 ```
 
-3. If the parser/sema/lowering change is intentional, update fixtures
+3. If the change is intentional, update the same affected suite
    (the `-swift-version` flags match the CI language mode):
 
 ```bash
-UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6
+UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter CompilerCoreTests.GoldenSemaGoldenTests/matchesGolden -Xswiftc -swift-version -Xswiftc 6
 ```
 
    The Golden tests run `GoldenHarnessWorker` from `./.build/debug/` of the
@@ -237,12 +288,12 @@ git status --short
 git diff -- Tests/CompilerCoreTests/GoldenCases
 ```
 
-5. Validate before commit:
-
-```bash
-bash Scripts/swift_test.sh
-bash Scripts/diff_kotlinc.sh Scripts/diff_cases
-```
+5. Re-run the affected golden suite with the CI language mode and any focused
+   regression tests needed for the change. Run an individual kotlinc diff case
+   when parity is relevant. The full test and diff suites belong in CI unless
+   explicitly requested or needed to reproduce a CI failure. Use the Lexer,
+   Parser, Sema, or Diagnostics suite type name appropriate to the change; the
+   full `--filter Golden` is for changes spanning multiple suites.
 
 ### Golden stability (after harness / concurrency changes)
 
@@ -276,6 +327,11 @@ Run one case:
 ```bash
 bash Scripts/diff_kotlinc.sh Scripts/diff_cases/hello.kt
 ```
+
+The stdlib artifact build has its own 600-second timeout, independent of the
+120-second per-case compile timeout. Override it with `--stdlib-timeout <seconds>`
+or `DIFF_STDLIB_COMPILE_TIMEOUT`; a timeout is reported separately from a
+compiler failure. The same setting is forwarded to candidate-only runs.
 
 For a case without a JVM reference target, add
 `// DIFF_CANDIDATE_ONLY_EXPECTED_OUTPUT: <sidecar-filename>` to the `.kt` file
@@ -555,13 +611,23 @@ the input, such as same-module `expect`/`actual` declarations.
 
 ## Precompiled stdlib artifact for diff runs
 
-`diff_kotlinc.sh` builds a shared stdlib `.kklib` once per shard and references it from
-each candidate compile. The artifact is created under `DIFF_ARTIFACT_ROOT` (default
-`.artifacts/diff_kotlinc/KSwiftKStdlib.kklib`) at runtime and is never committed.
+`diff_kotlinc.sh` resolves a validated stdlib `.kklib` once per shard and references it
+from each candidate compile. A compiler supporting `--cached-stdlib-path` reuses a
+content-keyed artifact based on the compiler executable, bundled resources, loaded libraries,
+target, and process environment. Cache hits are validated by the compiler;
+unknown identity falls back to a fresh build. Older compilers also build a fresh artifact.
+The cache is under the compiler's user caches directory (or `KSWIFTK_STDLIB_CACHE_DIR`).
+Fresh artifacts are created under `DIFF_ARTIFACT_ROOT` and are never committed.
+Diff runs bypass a global compiler daemon by default so artifact generation and case
+compilation use the same requested compiler. Set `DIFF_USE_DAEMON=1` to opt into a
+daemon; automatic cache reuse is then disabled because its compiler may differ.
 
 ```bash
-# Default: build artifact automatically and use it for all cases
+# Default: resolve a validated artifact and use it for all cases
 bash Scripts/diff_kotlinc.sh Scripts/diff_cases
+
+# When the test specifically needs a freshly built artifact
+DIFF_REUSE_STDLIB_CACHE=0 bash Scripts/diff_kotlinc.sh Scripts/diff_cases/hello.kt
 
 # Reuse an existing artifact (useful for local debugging or repro scripts)
 DIFF_STDLIB_LIBRARY=/path/to/KSwiftKStdlib.kklib bash Scripts/diff_kotlinc.sh Scripts/diff_cases
@@ -575,6 +641,8 @@ bash Scripts/diff_kotlinc.sh --stdlib-library /path/to/KSwiftKStdlib.kklib Scrip
 
 The artifact manifest records `libraryKind: stdlib` and `stdlibManifestHash` so
 mismatched compiler/stdlib versions are rejected with `KSWIFTK-LIB-0021` / `KSWIFTK-LIB-0022`.
+An explicitly supplied `--stdlib-library` remains the caller's responsibility;
+the cache identity check applies to automatically resolved artifacts only.
 
 ## CI test sharding
 

@@ -1,6 +1,7 @@
 import Foundation
 @testable import CompilerCore
 import Testing
+@testable import CompilerTestSupport
 
 @Suite
 struct InferenceReuseAfterUnrelatedErrorTests {
@@ -24,6 +25,10 @@ struct InferenceReuseAfterUnrelatedErrorTests {
         })
     }
 
+    // `.timeLimit` requires macOS 13+; the package floor is macOS 12, so the
+    // trait expression must be type-checked under a macOS 13 context. On older
+    // hosts the test is skipped; Linux and macOS 13+ run it normally.
+    @available(macOS 13.0, *)
     @Test(.timeLimit(.minutes(1)), arguments: [false, true])
     func sharedInferredDependenciesRemainBoundedAfterUnrelatedHeaderError(memberProperty: Bool) throws {
         let brokenPath = "/virtual/unrelated-header.kt"

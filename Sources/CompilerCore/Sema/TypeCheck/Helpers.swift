@@ -992,6 +992,33 @@ struct TypeCheckHelpers {
                 // (e.g. `package test; class Foo`) resolve when referenced
                 // by simple name (`Foo`) during type checking.
                 let kotlinReflectPackage = [interner.intern("kotlin"), interner.intern("reflect")]
+                let shortNameCandidates = sema.symbols.lookupByShortName(shortName).filter { candidate in
+                    guard isTypeLikeSymbol(candidate), let symbol = sema.symbols.symbol(candidate) else {
+                        return false
+                    }
+                    guard !symbol.fqName.starts(with: kotlinReflectPackage) else { return false }
+                    // A nested classifier is never reachable by its bare
+                    // short name: Kotlin scopes it to the declaring
+                    // classifier's body. Only package members (top-level
+                    // declarations) may satisfy this recovery path, so a
+                    // subtype's `Entry` cannot silently name
+                    // `Contract.Entry` (KUU-3637, KUU-3636).
+                    if let parent = sema.symbols.parentSymbol(for: candidate),
+                       sema.symbols.symbol(parent)?.kind != .package
+                    {
+                        return false
+                    }
+                    // Local classes resolve only through their lexical scope,
+                    // including self-references while collecting their headers.
+                    if symbol.kind == .class, symbol.flags.contains(.synthetic),
+                       let root = symbol.fqName.first,
+                       interner.resolve(root).hasPrefix("__localdecl_")
+                    {
+                        return false
+                    }
+                    return true
+                }
+                    .sorted(by: sourceFirstThenID)
                 let candidates: [SymbolID] = if !scopeCandidates.isEmpty {
                     scopeCandidates
                 } else if !qualifiedScopeCandidates.isEmpty {
@@ -1000,25 +1027,14 @@ struct TypeCheckHelpers {
                     fqCandidates
                 } else if !nestedCandidates.isEmpty {
                     nestedCandidates
+                } else if !shortNameCandidates.isEmpty {
+                    shortNameCandidates
+                } else if let functionN = sema.types.functionNInterfaceSymbol(named: path, interner: interner) {
+                    [functionN]
                 } else {
                     // Preserve short-name recovery for legacy and generated
                     // type references, but require imports for kotlin.reflect.
-                    sema.symbols.lookupByShortName(shortName).filter { candidate in
-                        guard isTypeLikeSymbol(candidate), let symbol = sema.symbols.symbol(candidate) else {
-                            return false
-                        }
-                        guard !symbol.fqName.starts(with: kotlinReflectPackage) else { return false }
-                        // Local classes resolve only through their lexical scope,
-                        // including self-references while collecting their headers.
-                        if symbol.kind == .class, symbol.flags.contains(.synthetic),
-                           let root = symbol.fqName.first,
-                           interner.resolve(root).hasPrefix("__localdecl_")
-                        {
-                            return false
-                        }
-                        return true
-                    }
-                        .sorted(by: sourceFirstThenID)
+                    []
                 }
                 if let symbolID = candidates.first {
                     if let symbol = sema.symbols.symbol(symbolID),

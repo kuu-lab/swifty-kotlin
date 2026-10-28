@@ -978,6 +978,69 @@ extension DataEnumSealedSynthesisPass {
                 body.append(.call(symbol: arrayToStringSymbol, callee: callee, arguments: [propValue], result: propStr, canThrow: false))
             } else if let nameHelper = resolveEnumOrdinalToNameCallee(for: propType, sema: sema, interner: interner) {
                 body.append(.call(symbol: nameHelper.symbol, callee: nameHelper.callee, arguments: [propValue], result: propStr, canThrow: false))
+            } else if case let .classType(propClassType) = sema.types.kind(of: propType),
+                      sema.symbols.symbol(propClassType.classSymbol)?.flags.contains(.valueType) == true
+            {
+                if let classToString = resolveClassOwnToStringCallee(
+                    for: propType, sema: sema, interner: interner
+                ) {
+                    // Non-null value-class fields have already been unboxed.
+                    // Call the implementation with that payload directly; a
+                    // vtable lookup would treat it as an object pointer.
+                    let toStringCall = { (result: KIRExprID) -> KIRInstruction in
+                        .call(
+                            symbol: classToString.symbol,
+                            callee: classToString.callee,
+                            arguments: [propValue],
+                            result: result,
+                            canThrow: false
+                        )
+                    }
+                    if propIsNullable {
+                        let nonNullLabel = allocateLabel()
+                        let endLabel = allocateLabel()
+                        let nullString = interner.intern("null")
+                        let nullStringExpr = module.arena.appendTemporary(type: stringType)
+                        body.append(.constValue(
+                            result: nullStringExpr,
+                            value: .stringLiteral(nullString)
+                        ))
+                        body.append(.jumpIfNotNull(value: propValue, target: nonNullLabel))
+                        body.append(.copy(from: nullStringExpr, to: propStr))
+                        body.append(.jump(endLabel))
+                        body.append(.label(nonNullLabel))
+                        let innerPropStr = module.arena.appendTemporary(type: stringType)
+                        body.append(toStringCall(innerPropStr))
+                        body.append(.copy(from: innerPropStr, to: propStr))
+                        body.append(.label(endLabel))
+                    } else {
+                        body.append(toStringCall(propStr))
+                    }
+                } else {
+                    // Without an own implementation, preserve the nominal tag
+                    // at the erased Any boundary so primitive payloads keep
+                    // their value-class identity.
+                    let boxedValue = boxValueForAnySlot(
+                        propValue,
+                        sourceType: propType,
+                        types: sema.types,
+                        symbols: sema.symbols,
+                        interner: interner,
+                        arena: module.arena,
+                        resultType: sema.types.anyType,
+                        requireNonNull: propClassType.nullability == .nonNull,
+                        sema: sema,
+                        into: &body
+                    )
+                    let tagExpr = module.arena.appendTemporary(type: intType)
+                    body.append(.constValue(result: tagExpr, value: .intLiteral(1)))
+                    body.append(.call(
+                        callee: interner.intern("kk_any_to_string"),
+                        arguments: [boxedValue, tagExpr],
+                        result: propStr,
+                        canThrow: false
+                    ))
+                }
             } else if let classToString = resolveClassOwnToStringCallee(for: propType, sema: sema, interner: interner) {
                 // KUU-3110: `toString` dispatch must go through the
                 // `kotlin.Any.toString` vtable slot — the runtime member

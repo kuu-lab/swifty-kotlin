@@ -429,7 +429,11 @@ final class ExprTypeChecker {
             return driver.controlFlowChecker.inferTryExpr(id, body: body, catchClauses: catchClauses, finallyExpr: finallyExpr, ctx: ctx, locals: &locals, expectedType: expectedType, isStatementContext: isStatementContext)
 
         case let .binary(op, lhsID, rhsID, range):
-            return inferBinaryExpr(id, op: op, lhsID: lhsID, rhsID: rhsID, range: range, ctx: ctx, locals: &locals, expectedType: expectedType)
+            return inferBinaryExpr(
+                id, op: op, lhsID: lhsID, rhsID: rhsID, range: range,
+                ctx: ctx, locals: &locals, expectedType: expectedType,
+                isStatementContext: isStatementContext
+            )
 
         case let .call(calleeID, typeArgRefs, args, range):
             let explicitTypeArgs = driver.helpers.resolveExplicitTypeArgs(typeArgRefs, ast: ast, sema: sema, interner: interner, scope: ctx.scope, diagnostics: ctx.sema.diagnostics, usageRange: range)
@@ -552,8 +556,7 @@ final class ExprTypeChecker {
             )
             let subjectNonNull = sema.types.makeNonNullable(subjectType)
             let targetNonNull = sema.types.makeNonNullable(targetType)
-            if case let .functionType(functionType) = sema.types.kind(of: targetType),
-               !functionType.isSuspend,
+            if case .functionType = sema.types.kind(of: targetType),
                !sema.types.isSubtype(
                    subjectNonNull,
                    targetNonNull
@@ -739,6 +742,11 @@ final class ExprTypeChecker {
             {
                 let refinedType: TypeID = if sema.types.isSubtype(castLocal.0, targetType) {
                     castLocal.0 // already a subtype, no need for intersection
+                } else if targetType == sema.types.anyType {
+                    // A successful cast to Any removes nullability without
+                    // changing the concrete type. Preserve T & Any for type
+                    // parameters, whose bare T may still contain null.
+                    sema.types.definitelyNonNullForm(of: castLocal.0)
                 } else if sema.types.isSubtype(targetType, castLocal.0) {
                     targetType // target is more specific
                 } else {
@@ -750,7 +758,10 @@ final class ExprTypeChecker {
             return type
 
         case let .nullAssert(exprID, _):
-            let operandType = driver.inferExpr(exprID, ctx: ctx, locals: &locals)
+            let operandType = driver.inferExpr(
+                exprID, ctx: ctx, locals: &locals,
+                expectedType: expectedType.map { sema.types.makeNullable($0) }
+            )
             let type = sema.types.definitelyNonNullForm(of: operandType)
             if let assertSubjectExpr = ast.arena.expr(exprID),
                case let .nameRef(assertVarName, _) = assertSubjectExpr,
@@ -903,6 +914,8 @@ final class ExprTypeChecker {
                     }
                 }
                 locals.memberFlow = blockLocals.memberFlow
+                locals.variableFacts = blockLocals.variableFacts
+                locals.invalidatedVariableFacts = blockLocals.invalidatedVariableFacts
             }
             sema.bindings.bindExprType(id, type: resultType)
             return resultType
@@ -1828,7 +1841,12 @@ final class ExprTypeChecker {
 
         guard let chosen = resolved.chosenCallee else {
             // Primitive arrays retain their scalar runtime membership path.
+            // Only bundled kotlin.<Name> arrays (and fqName-less synthetic
+            // stubs) qualify — a user class that shadows the imported name is
+            // an ordinary nominal (KUU-3615).
             if let (_, symbol) = resolveClassTypeSymbol(nonNullContainerType, sema: sema),
+               symbol.fqName.isEmpty
+                   || symbol.fqName == [interner.intern("kotlin"), symbol.name],
                let arrayElement = driver.callChecker.primitiveArrayElementType(
                    className: symbol.name, sema: sema, interner: interner
                ),

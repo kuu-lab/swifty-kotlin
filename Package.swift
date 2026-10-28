@@ -72,7 +72,7 @@ let package = Package(
         ),
         .target(
             name: "CompilerTestSupport",
-            dependencies: ["CompilerCore"],
+            dependencies: ["CompilerCore", "RuntimeABI"],
             path: "Sources/CompilerTestSupport"
         ),
         .target(
@@ -149,7 +149,7 @@ let package = Package(
         ),
         .testTarget(
             name: "KSwiftKCLITests",
-            dependencies: ["KSwiftKCLI", "CompilerCore"],
+            dependencies: ["KSwiftKCLI", "CompilerCore", "CompilerBackend"],
             path: "Tests/KSwiftKCLITests"
         ),
         .testTarget(

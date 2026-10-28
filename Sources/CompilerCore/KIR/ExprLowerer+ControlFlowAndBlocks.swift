@@ -13,8 +13,18 @@ extension ExprLowerer {
             propertyConstantInitializers: propertyConstantInitializers,
             instructions: &instructions
         )
+        let sourceType = sema.bindings.exprTypes[exprID]
+        let samFunctionType: TypeID? = if let sourceType,
+                                         case .functionType = sema.types.kind(of: sourceType) {
+            // Preserve source nullability so a null function stays a null SAM.
+            sourceType
+        } else {
+            // Projected and intersection types may only expose their callable
+            // shape through the underlying SAM binding.
+            sema.bindings.samUnderlyingFunctionType(for: exprID) ?? sourceType
+        }
         if sema.bindings.isSamConversion(exprID),
-           let type = sema.bindings.exprTypes[exprID],
+           let type = samFunctionType,
            case let .functionType(function) = sema.types.kind(of: type)
         {
             let loweredValueCanBeFunction: Bool = {
@@ -436,15 +446,28 @@ extension ExprLowerer {
             )
 
         case let .indexedAccess(receiverExpr, indices, _):
-            return driver.callLowerer.lowerIndexedAccessExpr(
-                exprID,
-                receiverExpr: receiverExpr,
-                indices: indices,
-                ast: ast,
+            // `list[i]` dispatches the same erased `get` members as the
+            // `.memberCall` spelling, so its result needs the same JVM
+            // checkcast on a non-reified generic return (KUU-3668): a
+            // heap-polluted `MutableList<E>` element must throw
+            // ClassCastException at the typed read, not corrupt the value.
+            return checkedErasedGenericCallResult(
+                driver.callLowerer.lowerIndexedAccessExpr(
+                    exprID,
+                    receiverExpr: receiverExpr,
+                    indices: indices,
+                    ast: ast,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    propertyConstantInitializers: propertyConstantInitializers,
+                    instructions: &instructions
+                ),
+                exprID: exprID,
+                boundType: boundType,
                 sema: sema,
-                arena: arena,
                 interner: interner,
-                propertyConstantInitializers: propertyConstantInitializers,
+                arena: arena,
                 instructions: &instructions
             )
 
@@ -610,29 +633,45 @@ extension ExprLowerer {
             )
 
         case let .call(calleeExpr, _, args, _):
-            return driver.callLowerer.lowerCallExpr(
-                exprID,
-                calleeExpr: calleeExpr,
-                args: args,
-                ast: ast,
+            return checkedErasedGenericCallResult(
+                driver.callLowerer.lowerCallExpr(
+                    exprID,
+                    calleeExpr: calleeExpr,
+                    args: args,
+                    ast: ast,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    propertyConstantInitializers: propertyConstantInitializers,
+                    instructions: &instructions
+                ),
+                exprID: exprID,
+                boundType: boundType,
                 sema: sema,
-                arena: arena,
                 interner: interner,
-                propertyConstantInitializers: propertyConstantInitializers,
+                arena: arena,
                 instructions: &instructions
             )
 
         case let .memberCall(receiverExpr, calleeName, _, args, _):
-            return driver.callLowerer.lowerMemberCallExpr(
-                exprID,
-                receiverExpr: receiverExpr,
-                calleeName: calleeName,
-                args: args,
-                ast: ast,
+            return checkedErasedGenericCallResult(
+                driver.callLowerer.lowerMemberCallExpr(
+                    exprID,
+                    receiverExpr: receiverExpr,
+                    calleeName: calleeName,
+                    args: args,
+                    ast: ast,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    propertyConstantInitializers: propertyConstantInitializers,
+                    instructions: &instructions
+                ),
+                exprID: exprID,
+                boundType: boundType,
                 sema: sema,
-                arena: arena,
                 interner: interner,
-                propertyConstantInitializers: propertyConstantInitializers,
+                arena: arena,
                 instructions: &instructions
             )
 
@@ -698,16 +737,24 @@ extension ExprLowerer {
             return result
 
         case let .safeMemberCall(receiverExpr, calleeName, _, args, _):
-            return driver.callLowerer.lowerSafeMemberCallExpr(
-                exprID,
-                receiverExpr: receiverExpr,
-                calleeName: calleeName,
-                args: args,
-                ast: ast,
+            return checkedErasedGenericCallResult(
+                driver.callLowerer.lowerSafeMemberCallExpr(
+                    exprID,
+                    receiverExpr: receiverExpr,
+                    calleeName: calleeName,
+                    args: args,
+                    ast: ast,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    propertyConstantInitializers: propertyConstantInitializers,
+                    instructions: &instructions
+                ),
+                exprID: exprID,
+                boundType: boundType,
                 sema: sema,
-                arena: arena,
                 interner: interner,
-                propertyConstantInitializers: propertyConstantInitializers,
+                arena: arena,
                 instructions: &instructions
             )
 

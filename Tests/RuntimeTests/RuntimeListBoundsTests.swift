@@ -11,7 +11,9 @@ struct RuntimeListBoundsTests {
             _ = kk_array_set(arrayRaw, index, element, &thrown)
             #expect(thrown == 0)
         }
-        return kk_list_of(arrayRaw, elements.count)
+        // `kk_list_of` freezes its box; mutation tests need the non-freezing
+        // ArrayList bridge.
+        return kk_array_list_of(arrayRaw, elements.count)
     }
 
     @Test

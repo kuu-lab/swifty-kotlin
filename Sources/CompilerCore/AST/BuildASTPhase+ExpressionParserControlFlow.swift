@@ -593,8 +593,9 @@ extension BuildASTPhase.ExpressionParser {
                     continue
                 }
                 if let name = tokenText(token) {
-                    let nameStr = interner.resolve(name)
-                    if nameStr == "_" {
+                    // Only a bare `_` skips the entry; a backticked `` `_` `` is
+                    // a real variable named `_` that the loop body can use.
+                    if case .identifier = token.kind, interner.resolve(name) == "_" {
                         destructuringNames.append(nil)
                     } else {
                         destructuringNames.append(name)
@@ -605,7 +606,13 @@ extension BuildASTPhase.ExpressionParser {
                        let propertyToken = current(),
                        let propertyName = tokenText(propertyToken)
                     {
-                        property = interner.resolve(propertyName) == "_" ? nil : propertyName
+                        if case .identifier = propertyToken.kind,
+                           interner.resolve(propertyName) == "_"
+                        {
+                            property = nil
+                        } else {
+                            property = propertyName
+                        }
                         _ = consume()
                     }
                     destructuringProperties.append(property)
@@ -869,6 +876,7 @@ extension BuildASTPhase.ExpressionParser {
             return nil
         }
         let bodyStartIndex = index
+        let bodyStartsWithBrace = matches(.symbol(.lBrace))
 
         // In `do while (condition);`, the condition keyword immediately
         // follows `do`; parsing it as a nested while expression would lose
@@ -892,7 +900,10 @@ extension BuildASTPhase.ExpressionParser {
             }
         }
 
-        if body != nil, bodyStartIndex < index {
+        // A braced body already has the correct block/lambda structure from
+        // parseControlFlowBodyExpression. Reparsing it recursively duplicates
+        // every nested do-while body and makes deeply nested input exponential.
+        if !bodyStartsWithBrace, body != nil, bodyStartIndex < index {
             let consumedBodyTokens = tokens[bodyStartIndex ..< index]
             if let normalizedBody = parseDoWhileBodyExpression(from: consumedBodyTokens) {
                 body = normalizedBody

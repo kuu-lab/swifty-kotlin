@@ -408,9 +408,30 @@ extension CallTypeChecker {
             substitution: resolved.substitutedTypeArguments,
             ctx: ctx
         )
+        let selectedDispatchReceiverSymbol = sema.symbols.memberExtensionOwnerSymbol(for: chosen).flatMap { owner in
+            ctx.implicitReceiverMemberLookupEntries().first { entry in
+                driver.helpers.allNominalSymbols(
+                    of: entry.type,
+                    types: sema.types,
+                    symbols: sema.symbols,
+                    interner: interner
+                ).contains { receiverSymbol in
+                    receiverSymbol == owner || sema.types.isNominalSubtypeSymbol(receiverSymbol, of: owner)
+                }
+            }?.symbol
+        }
+        let projectionReceiverType: TypeID = if interner.resolve(calleeName) == "receive",
+                                                let channelBoundReceiverType = ReceiverClassifier(
+                                                    sema: sema,
+                                                    interner: interner
+                                                ).channelUpperBoundType(of: lookupReceiverType) {
+            channelBoundReceiverType
+        } else {
+            lookupReceiverType
+        }
         if let signature = sema.symbols.functionSignature(for: chosen),
            let varianceResult = sema.types.buildVarianceProjectionSubstitutions(
-               receiverType: lookupReceiverType,
+               receiverType: projectionReceiverType,
                signature: signature,
                symbols: sema.symbols
            )
@@ -465,6 +486,7 @@ extension CallTypeChecker {
                         .map(\.value),
                     parameterMapping: resolved.parameterMapping,
                     defaultArgumentOwner: resolved.defaultArgumentOwner,
+                    dispatchReceiverSymbol: selectedDispatchReceiverSymbol,
                     contextParameterReceiverSymbols: projectedContextReceiverSymbols
                 )
             )
@@ -491,6 +513,7 @@ extension CallTypeChecker {
             chosen: chosen,
             resolved: resolved,
             sema: sema,
+            dispatchReceiverSymbol: selectedDispatchReceiverSymbol,
             contextParameterReceiverSymbols: selectedContextReceiverSymbols
         )
         // STDLIB-592 definite assignment: `x.let { ... }` / `x.apply { ... }` /

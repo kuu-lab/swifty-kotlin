@@ -129,19 +129,49 @@ public func kk_enum_box_ordinal(_ ordinal: Int, _ namePtr: Int, _ classID: Int) 
     return runtimeEnumIdentityBox(ordinal: ordinal, name: name, classID: Int64(classID))
 }
 
+/// Nominal type ID of `kotlin.Array`, tagged onto every array the enum
+/// `values()`/`enumValues<T>()` helpers hand to Kotlin code. Ordinary array
+/// creation sites emit `kk_array_tag_type` themselves; these intrinsics
+/// allocate inside the runtime, so they must register the same tag or
+/// `values() as Array<...>` / `values().sort()` (which casts to
+/// `Array<Any?>` internally) sees an untyped object and throws
+/// ClassCastException (KUU-3548).
+private let runtimeEnumArrayNominalTypeID: Int64 = runtimeStableNominalTypeID(fqName: "kotlin.Array")
+
+/// Tags a runtime-allocated enum values array as `kotlin.Array` and installs
+/// the reified component descriptor derived from the enum class's stable
+/// nominal type ID, matching the metadata `arrayOf(...)` arrays receive from
+/// `kk_array_tag_type` + `__kk_array_tag_component` at their creation sites.
+/// `classifier` is the encoded type token for the enum class
+/// (`nominalBase | classID << payloadShift`); `0` leaves the component
+/// untagged.
+private func runtimeRegisterEnumValuesArray(_ box: RuntimeArrayBox, classifier: Int) -> Int {
+    let raw = registerRuntimeObject(box)
+    runtimeRegisterArrayType(rawValue: raw, typeID: runtimeEnumArrayNominalTypeID)
+    if classifier != 0 {
+        let component = __kk_array_component_type(classifier, 0)
+        if component != 0 {
+            box.installComponentTypeIfAbsent(component)
+        }
+    }
+    return raw
+}
+
 /// The lowering stage builds an array of enum singleton objects (`RuntimeArrayBox`) and
-/// passes it to this runtime helper together with the declared size.
+/// passes it to this runtime helper together with the declared size and the
+/// enum class's stable nominal type ID.
 /// Returns `RuntimeArrayBox` to match Kotlin JVM's `Array<T>` return type.
 @_cdecl("kk_enum_make_values_array")
-public func kk_enum_make_values_array(_ valuesRaw: Int, _ count: Int) -> Int {
+public func kk_enum_make_values_array(_ valuesRaw: Int, _ count: Int, _ classID: Int) -> Int {
+    let classifier = classID != 0 ? runtimeNominalTypeToken(Int64(classID)) : 0
     guard let values = runtimeArrayBox(from: valuesRaw) else {
-        return registerRuntimeObject(RuntimeArrayBox(length: 0))
+        return runtimeRegisterEnumValuesArray(RuntimeArrayBox(length: 0), classifier: classifier)
     }
 
     let safeCount = max(0, min(count, values.count))
     let box = RuntimeArrayBox(length: safeCount)
     box.values = Array(values.values.prefix(safeCount))
-    return registerRuntimeObject(box)
+    return runtimeRegisterEnumValuesArray(box, classifier: classifier)
 }
 
 /// Registers boxed enum values for a reified `enumValues<T>()` call whose T is
@@ -181,7 +211,9 @@ public func kk_enum_values_for_token(_ typeToken: Int) -> Int {
     }
     let box = RuntimeArrayBox(length: handles.count)
     box.elements = handles
-    return registerRuntimeObject(box)
+    // `typeToken` is the encoded token kk_enum_register_values keyed this
+    // enum under; it doubles as the component classifier for `as Array<E>`.
+    return runtimeRegisterEnumValuesArray(box, classifier: typeToken)
 }
 
 /// `entries` returns `EnumEntries<T>` in Kotlin, which extends `List<E>`.

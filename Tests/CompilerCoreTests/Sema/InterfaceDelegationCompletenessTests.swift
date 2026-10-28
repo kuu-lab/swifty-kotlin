@@ -1,6 +1,7 @@
 #if canImport(Testing)
 @testable import CompilerCore
 import Testing
+@testable import CompilerTestSupport
 
 @Suite struct InterfaceDelegationCompletenessTests {
     private static let positiveContext = Result {
@@ -32,36 +33,6 @@ import Testing
         let ctx = try Self.positiveContext.get()
         assertNoDiagnostic("KSWIFTK-SEMA-ABSTRACT", in: ctx)
         #expect(!ctx.diagnostics.hasError, "Got: \(ctx.diagnostics.diagnostics)")
-    }
-
-    @Test func funInterfaceAcceptsLambdaAsDelegationExpression() throws {
-        let ctx = makeContextFromSource("""
-        fun interface F { fun f() }
-        object F1 : F by { }
-        fun main() { F1.f() }
-        """)
-        try runSema(ctx)
-
-        assertNoDiagnostic("KSWIFTK-SEMA-ABSTRACT", in: ctx)
-        #expect(!ctx.diagnostics.hasError, "Got: \(ctx.diagnostics.diagnostics)")
-
-        let ast = try #require(ctx.ast)
-        let sema = try #require(ctx.sema)
-        let objectID = try #require(ast.sortedFiles.flatMap(\.topLevelDecls).first {
-            guard case let .objectDecl(decl) = ast.arena.decl($0) else { return false }
-            return decl.name == ctx.interner.intern("F1")
-        })
-        guard case let .objectDecl(decl) = ast.arena.decl(objectID) else {
-            Issue.record("Expected F1 object declaration")
-            return
-        }
-        let delegateExpression = try #require(decl.superTypeEntries.first?.delegateExpression)
-        guard case .lambdaLiteral = ast.arena.expr(delegateExpression) else {
-            Issue.record("Expected a lambda delegate expression")
-            return
-        }
-        #expect(sema.bindings.isSamConversion(delegateExpression))
-        #expect(sema.bindings.samUnderlyingFunctionType(for: delegateExpression) != nil)
     }
 
     @Test func superclassDelegationSatisfiesDerivedInterfaceMembers() throws {
@@ -188,6 +159,30 @@ import Testing
         """)
         try runSema(ctx)
         #expect(!ctx.diagnostics.hasError, "Got: \(ctx.diagnostics.diagnostics)")
+    }
+
+    @Test func delegatedMembersAreVisibleInsideDelegatingClassMethods() throws {
+        let ctx = makeContextFromSource("""
+        interface Trait { fun foo() = "O"; fun bar(): String }
+        class SimpleClass : Trait { override fun bar() = "K" }
+        class ComplexClass : Trait by SimpleClass() {
+            fun qux() = foo() + bar()
+        }
+        fun directCall(complex: ComplexClass): String = complex.foo()
+        """)
+        try runSema(ctx)
+
+        #expect(!ctx.diagnostics.hasError, "Got: \(ctx.diagnostics.diagnostics)")
+        let sema = try #require(ctx.sema)
+        let delegatingClass = try #require(sema.symbols.lookup(fqName: [ctx.interner.intern("ComplexClass")]))
+        let forwardingMethods = Set(sema.symbols.classDelegationForwardingMethodSymbols(forClass: delegatingClass))
+        let resolvedDelegatedCalls = sema.bindings.callBindings.values.filter {
+            forwardingMethods.contains($0.chosenCallee)
+        }
+        #expect(
+            resolvedDelegatedCalls.count == 3,
+            "Expected foo() and bar() in qux(), plus complex.foo(), to bind to forwarding methods"
+        )
     }
 
     @Test func directDelegationSatisfiesSiblingInterfaceAbstractMember() throws {

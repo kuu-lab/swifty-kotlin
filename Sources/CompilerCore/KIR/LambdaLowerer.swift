@@ -700,8 +700,10 @@ final class LambdaLowerer {
             }
             emitFunctionDescription(
                 value: lambdaValueExpr,
-                description: "kotlin.Function\(lambdaParameterTypes.count)",
-                identity: true,
+                description: functionType.map {
+                    functionTypeDescription($0, sema: sema, interner: interner)
+                } ?? "kotlin.Function\(lambdaParameterTypes.count)",
+                identity: functionType == nil,
                 sema: sema, arena: arena, interner: interner, instructions: &instructions
             )
         }
@@ -967,8 +969,10 @@ final class LambdaLowerer {
         if !hasNonLocalReturn {
             emitFunctionDescription(
                 value: lambdaValueExpr,
-                description: "kotlin.Function\(lambdaParameterTypes.count)",
-                identity: true,
+                description: functionType.map {
+                    functionTypeDescription($0, sema: sema, interner: interner)
+                } ?? "kotlin.Function\(lambdaParameterTypes.count)",
+                identity: functionType == nil,
                 sema: sema, arena: arena, interner: interner, instructions: &instructions
             )
         }

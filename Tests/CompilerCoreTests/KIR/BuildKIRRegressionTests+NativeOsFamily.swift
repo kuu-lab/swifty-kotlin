@@ -1,6 +1,7 @@
 #if canImport(Testing)
 @testable import CompilerCore
 import Testing
+@testable import CompilerTestSupport
 
 extension BuildKIRRegressionTests {
     @Test
@@ -66,8 +67,10 @@ extension BuildKIRRegressionTests {
         #expect(sema.symbols.symbol(valueOfSymbol)?.kind == .function)
         #expect(sema.symbols.functionSignature(for: valueOfSymbol)?.parameterTypes.count == 1)
 
+        // Synthetic `entries` is owned by the enum class itself, not the
+        // companion (KUU-3544).
         let entriesSymbol = try #require(
-            sema.symbols.lookup(fqName: companionFQName + [interner.intern("entries")])
+            sema.symbols.lookup(fqName: osFamilyFQName + [interner.intern("entries")])
         )
         #expect(sema.symbols.symbol(entriesSymbol)?.kind == .property)
 

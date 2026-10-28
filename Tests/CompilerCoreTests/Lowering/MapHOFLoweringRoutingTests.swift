@@ -2,6 +2,7 @@
 @testable import CompilerCore
 import Foundation
 import Testing
+@testable import CompilerTestSupport
 
 /// RF-LOWER-CALL-012: pin the *production* routing of the Map `map` /
 /// `filter` / `filterNot` / `mapNotNull` / `forEach` / `mapValues` /

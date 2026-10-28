@@ -1,6 +1,7 @@
 #if canImport(Testing)
 @testable import CompilerCore
 import Testing
+@testable import CompilerTestSupport
 
 /// `this is List` (no explicit type argument) on a value already known to be
 /// `Iterable<T>` must narrow to `List<T>`, not an under-specified `List` with

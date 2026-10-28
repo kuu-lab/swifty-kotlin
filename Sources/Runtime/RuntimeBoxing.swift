@@ -723,6 +723,9 @@ public func kk_tag_value_class_box(_ boxedRaw: Int, _ classID: Int) -> Int {
         let clone = RuntimeStringBox(stringBox.value)
         clone.untaggedCanonicalAlias = stringBox.untaggedCanonicalAlias ?? stringBox
         let cloneRaw = registerRuntimeObject(clone)
+        runtimeStorage.withMetadataLock { state in
+            state.valueClassTypeIDs.insert(Int64(classID))
+        }
         runtimeRegisterObjectType(rawValue: cloneRaw, classID: Int64(classID))
         return cloneRaw
     }
@@ -737,6 +740,9 @@ public func kk_tag_value_class_box(_ boxedRaw: Int, _ classID: Int) -> Int {
             return boxedRaw
         }
         return registerTaggedPrimitiveBox(clone, inLockedState: &state)
+    }
+    runtimeStorage.withMetadataLock { state in
+        state.valueClassTypeIDs.insert(Int64(classID))
     }
     runtimeRegisterObjectType(rawValue: effectiveRaw, classID: Int64(classID))
     return effectiveRaw
@@ -775,6 +781,7 @@ public func kk_value_class_box(_ payload: Int, _ classID: Int) -> Int {
     }
     runtimeStorage.withMetadataLock { state in
         state.objectTypeByPointer[key] = Int64(classID)
+        state.valueClassTypeIDs.insert(Int64(classID))
         state.dataClassIDs.insert(Int64(classID))
         // Slots 0-1 are the RuntimeObjectBox header; only slot 2 (the payload)
         // participates in structural equality/hashCode.

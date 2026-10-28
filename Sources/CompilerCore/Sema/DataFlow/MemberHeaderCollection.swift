@@ -452,6 +452,9 @@ extension DataFlowSemaPhase {
                     valueParameterHasDefaultValues: params.paramHasDefaultValues,
                     valueParameterIsVararg: params.paramIsVararg,
                     valueParameterAllowsNonLocalReturn: params.paramAllowsNonLocalReturn,
+                    hasStableParameterNames: !symbols.annotations(for: memberSymbol).contains {
+                        $0.annotationFQName == "kotlin.internal.NonStableParameterNames"
+                    },
                     typeParameterSymbols: allTypeParameterSymbols,
                     reifiedTypeParameterIndices: offsetReifiedIndices,
                     typeParameterUpperBoundsList: memberUpperBounds,
@@ -1146,6 +1149,8 @@ extension DataFlowSemaPhase {
                 fqName: nestedFQName,
                 namespacePrefix: "$class",
                 declSite: nestedClass.range,
+                currentPackageFQName: sourcePackageFQName,
+                imports: sourceImports,
                 ast: ast,
                 symbols: symbols,
                 types: types,
@@ -1323,6 +1328,19 @@ extension DataFlowSemaPhase {
                         classTypeParameterCount: nestedClassTypeParameterSymbols.count
                     ),
                     for: secCtorSymbol
+                )
+                registerAnnotations(
+                    secondaryCtor.annotations,
+                    symbol: secCtorSymbol,
+                    declRange: declarationRangeIncludingAnnotationTokens(
+                        secondaryCtor.annotations, declarationRange: secondaryCtor.range
+                    ),
+                    sourceFileID: sourceFileID,
+                    sourceFile: sourceFile,
+                    sourceManager: sourceManager,
+                    interner: interner,
+                    symbols: symbols,
+                    diagnostics: diagnostics
                 )
             }
 
@@ -1553,6 +1571,8 @@ extension DataFlowSemaPhase {
                     thisType: companionType
                 )
                 collectSyntheticEnumCompanionMembers(
+                    ownerSymbol: nestedSymbol,
+                    ownerFQName: nestedFQName,
                     companionSymbol: companionSymbol,
                     companionFQName: companionFQName,
                     enumType: nestedType,

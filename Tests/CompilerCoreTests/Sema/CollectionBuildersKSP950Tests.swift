@@ -1,6 +1,7 @@
 #if canImport(Testing)
 @testable import CompilerCore
 import Testing
+@testable import CompilerTestSupport
 
 /// KSP-950: the complete build-family surface is owned by CollectionBuilders.kt.
 /// The public overloads and their @PublishedApi internal counterparts must not

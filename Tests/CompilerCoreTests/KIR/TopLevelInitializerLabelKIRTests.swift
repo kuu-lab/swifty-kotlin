@@ -1,6 +1,7 @@
 #if canImport(Testing)
 @testable import CompilerCore
 import Testing
+@testable import CompilerTestSupport
 
 /// BUG-165: top-level property initializers are lowered under their own
 /// function scopes (each restarting label allocation at 10000) and then

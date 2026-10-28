@@ -1,6 +1,7 @@
 @testable import CompilerCore
 import Foundation
 import Testing
+@testable import CompilerTestSupport
 
 // MARK: - STDLIB-TEXT-TYPE-012: kotlin.text.RegexOption enum
 //

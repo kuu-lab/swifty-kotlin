@@ -2,6 +2,7 @@
 import RuntimeABI
 import Foundation
 import Testing
+@testable import CompilerTestSupport
 
 @Suite
 struct RuntimeABIExternalLinkValidationTests {
@@ -803,8 +804,9 @@ struct RuntimeABIExternalLinkValidationTests {
             RuntimeABICType.intptr.rawValue,
             RuntimeABICType.intptr.rawValue,
         ],
-        // The latest-flow bridge receives the suspend mapper as a function
-        // pointer plus environment, then appends the runtime outThrown slot.
+        // The latest-flow bridge receives the flow handle plus the suspend
+        // mapper as a single boxed function-value slot (the runtime resolves
+        // it via runtimeFunctionValueBox), then appends the outThrown slot.
         "__kk_flow_flat_map_latest_external": [
             RuntimeABICType.intptr.rawValue,
             RuntimeABICType.intptr.rawValue,

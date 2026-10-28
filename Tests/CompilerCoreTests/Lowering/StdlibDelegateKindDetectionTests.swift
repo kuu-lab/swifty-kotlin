@@ -1,6 +1,7 @@
 #if canImport(Testing)
 @testable import CompilerCore
 import Testing
+@testable import CompilerTestSupport
 
 /// `StdlibDelegateKind.detect` is the single source of truth both KIR lowering
 /// (`MemberLowerer`) and Sema (`DeclTypeChecker.typeCheckDelegate`) rely on to

@@ -1,5 +1,6 @@
 @testable import CompilerCore
 import Testing
+@testable import CompilerTestSupport
 
 /// KUU-3420: Kotlin 2.4.20 does not resolve these bundled String extensions.
 @Suite

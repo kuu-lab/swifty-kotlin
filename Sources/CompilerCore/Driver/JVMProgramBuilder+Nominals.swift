@@ -225,6 +225,7 @@ extension JVMProgramBuilder {
                     declaration: c,
                     isValue: isJvmInlineValue
                 )
+                plan.isJvmRecord = sema.symbols.annotations(for: symbol).contains { $0.annotationFQName == "kotlin.jvm.JvmRecord" }
                 classes[symbol] = plan
                 try collectNominals(c.nestedClasses + c.nestedObjects, outer: symbol)
                 if let companion = c.companionObject { try collectNominals([companion], outer: symbol, companion: true) }
@@ -412,20 +413,32 @@ extension JVMProgramBuilder {
         }
         result.isObject = plan.isObject; result.isCompanion = plan.companionOwner != nil
         result.isData = plan.modifiers.contains(.data); result.isEnum = plan.isEnum
+        result.recordComponents = plan.isJvmRecord
+            ? try dataProperties(plan).map { property in
+                JVMRecordComponent(
+                    name: property.name,
+                    type: property.type,
+                    genericSignature: property.genericSignature == property.type.descriptor ? nil : property.genericSignature
+                )
+            }
+            : []
         result.isSealed = plan.modifiers.contains(.sealed)
         result.isInner = plan.isInner
         if let field = try outerField(plan) { result.extraFields.append(field) }
         if plan.isAnonymous { result.emitMetadata = false; result.extraFields += plan.captures.map(\.field) }
+        result.enclosingMethod = plan.enclosingMethod
         if plan.isAnonymous {
-            result.outerName = JVMClasspathIndex.anonymousObjectName(
-                plan.symbol,
-                sema: sema,
-                ctx: context
-            )?.enclosingClassName
+            result.outerName = nil
             result.innerName = nil
+        } else if let outerName = plan.outer.flatMap({ classes[$0]?.name }) {
+            result.outerName = outerName
+            result.innerName = String(plan.name.split(separator: "$").last!)
+        } else if plan.enclosingMethod != nil, let declaration = plan.declaration {
+            result.outerName = nil
+            result.innerName = context.interner.resolve(declaration.name)
         } else {
-            result.outerName = plan.outer.flatMap { classes[$0]?.name }
-            result.innerName = result.outerName == nil ? nil : String(plan.name.split(separator: "$").last!)
+            result.outerName = nil
+            result.innerName = nil
         }
         result.nestedNames = classes.values.filter { $0.outer == plan.symbol && $0.enumParent == nil }.map { String($0.name.split(separator: "$").last!) }.sorted()
         result.companionName = classes.values.first(where: { $0.companionOwner == plan.symbol }).map { context.interner.resolve(sema.symbols.symbol($0.symbol)!.name) }

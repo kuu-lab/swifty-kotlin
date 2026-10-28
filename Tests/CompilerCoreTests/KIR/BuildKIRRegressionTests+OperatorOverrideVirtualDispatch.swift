@@ -1,6 +1,7 @@
 #if canImport(Testing)
 @testable import CompilerCore
 import Testing
+@testable import CompilerTestSupport
 
 /// Operator-syntax calls on an open/abstract member operator must lower to a
 /// `.virtualCall` (like `lhs.plus(rhs)` does), not a direct `.call` to the
@@ -49,6 +50,47 @@ extension BuildKIRRegressionTests {
             let virtualCallees = extractVirtualCallees(from: body, interner: ctx.interner)
             #expect(virtualCallees.contains("contains"), "\(probe): got virtual \(virtualCallees), direct \(extractCallees(from: body, interner: ctx.interner))")
         }
+    }
+
+    /// KUU-3669: `ArrayList.get` is an `external` declaration bridged to
+    /// `__kk_list_get`, so member calls were always lowered to a direct `.call`
+    /// and a Kotlin override on a subclass could never be reached. A
+    /// class-typed receiver that is a *source* subclass of the bridged owner
+    /// is a `kk_object_new` object with a registered vtable — `get` must
+    /// dispatch through it. A receiver typed by the box nominal itself
+    /// (`ArrayList`) keeps the direct runtime call: a runtime list box has no
+    /// Kotlin vtable to read.
+    @Test
+    func arrayListGetOnSubclassReceiverDispatchesVirtually() throws {
+        let source = """
+        open class BaseStringList : ArrayList<String>()
+        class StringList : BaseStringList() {
+            public override fun get(index: Int): String = "StringList.get()"
+        }
+        fun probe(l: BaseStringList): String = l.get(0)
+        fun indexProbe(l: BaseStringList): String = l[0]
+        fun directProbe(l: ArrayList<String>): String = l.get(0)
+        """
+        let ctx = makeContextFromSource(source)
+        try runToKIR(ctx)
+        let module = try #require(ctx.kir)
+
+        for probe in ["probe", "indexProbe"] {
+            let body = try findKIRFunctionBody(named: probe, in: module, interner: ctx.interner)
+            let virtualCallees = extractVirtualCallees(from: body, interner: ctx.interner)
+            #expect(
+                virtualCallees.contains("__kk_list_get"),
+                "\(probe): expected virtual __kk_list_get, got virtual \(virtualCallees), direct \(extractCallees(from: body, interner: ctx.interner))"
+            )
+        }
+
+        let directBody = try findKIRFunctionBody(named: "directProbe", in: module, interner: ctx.interner)
+        let directVirtualCallees = extractVirtualCallees(from: directBody, interner: ctx.interner)
+        #expect(
+            !directVirtualCallees.contains("__kk_list_get"),
+            "directProbe: a receiver typed by the box nominal itself must stay a direct __kk_list_get call"
+        )
+        #expect(extractCallees(from: directBody, interner: ctx.interner).contains("__kk_list_get"))
     }
 
     @Test

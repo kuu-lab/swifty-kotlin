@@ -12,6 +12,8 @@ source "$SCRIPT_DIR/lib/common.sh"
 source "$SCRIPT_DIR/diff_kotlinc_cases.sh"
 # shellcheck source=diff_kotlinc_toolchain.sh
 source "$SCRIPT_DIR/diff_kotlinc_toolchain.sh"
+# shellcheck source=diff_kotlinc_cached_stdlib.sh
+source "$SCRIPT_DIR/diff_kotlinc_cached_stdlib.sh"
 # shellcheck source=diff_kotlinc_artifacts.sh
 source "$SCRIPT_DIR/diff_kotlinc_artifacts.sh"
 # shellcheck source=diff_kotlinc_candidate_only.sh
@@ -20,6 +22,7 @@ source "$SCRIPT_DIR/diff_kotlinc_candidate_only.sh"
 source "$SCRIPT_DIR/diff_kotlinc_run_case.sh"
 
 KSWIFTC="${KSWIFTC:-$ROOT_DIR/.build/debug/kswiftc}"
+configure_diff_compiler_process
 # Space-separated arguments appended to each candidate compiler invocation.
 # The shared stdlib artifact intentionally remains at the default optimization
 # level so this lane measures optimization of the case under test.
@@ -96,6 +99,7 @@ EXPECTED_OUTPUT=""
 CANDIDATE_ONLY_EXPECTED=0
 CLEAN_RUNTIME_CACHE=0
 COMPILE_TIMEOUT="${DIFF_COMPILE_TIMEOUT:-120}"
+STDLIB_COMPILE_TIMEOUT="${DIFF_STDLIB_COMPILE_TIMEOUT:-600}"
 RUN_TIMEOUT="${DIFF_RUN_TIMEOUT:-10}"
 # kotlinc -script bundles JVM startup + compilation + execution into a single
 # process, so it belongs on the COMPILE_TIMEOUT scale, not RUN_TIMEOUT (which
@@ -127,6 +131,8 @@ Options:
                      (default: \$DIFF_SHARD_COUNT or 1 = no sharding)
   --compile-timeout <seconds>
                      Per-compiler timeout (default: \$DIFF_COMPILE_TIMEOUT or 120)
+  --stdlib-timeout <seconds>
+                     Stdlib artifact build timeout (default: \$DIFF_STDLIB_COMPILE_TIMEOUT or 600)
   --run-timeout <seconds>
                      Per-program timeout (default: \$DIFF_RUN_TIMEOUT or 10)
   --script-timeout <seconds>
@@ -191,7 +197,13 @@ Environment:
                      -XX:-UsePerfData; set to empty to disable)
   DIFF_STDLIB_LIBRARY
                      Path to an existing KSwiftKStdlib.kklib to reuse; if unset,
-                     the runner builds one under DIFF_ARTIFACT_ROOT
+                     the runner resolves a validated compiler cache when supported
+  DIFF_STDLIB_COMPILE_TIMEOUT
+                     Stdlib artifact build timeout in seconds (default: 600)
+  DIFF_REUSE_STDLIB_CACHE
+                     Set to 0 to build a fresh artifact for this invocation
+  DIFF_USE_DAEMON    Set to 1 to opt into the compiler daemon; automatic
+                     stdlib cache reuse is disabled in this mode
   DIFF_KSWIFTC_FLAGS
                      Space-separated arguments appended to the candidate
                      kswiftc invocation (default: empty)
@@ -296,6 +308,17 @@ while [[ $# -gt 0 ]]; do
         exit 1
       fi
       COMPILE_TIMEOUT="$1"
+      ;;
+    --stdlib-timeout)
+      shift
+      if [[ $# -eq 0 ]]; then
+        echo "--stdlib-timeout requires an argument" >&2
+        exit 1
+      fi
+      STDLIB_COMPILE_TIMEOUT="$1"
+      ;;
+    --stdlib-timeout=*)
+      STDLIB_COMPILE_TIMEOUT="${1#*=}"
       ;;
     --run-timeout)
       shift
@@ -406,6 +429,11 @@ while [[ $# -gt 0 ]]; do
   esac
   shift
 done
+
+if ! [[ "$STDLIB_COMPILE_TIMEOUT" =~ ^[1-9][0-9]*$ ]]; then
+  echo "stdlib timeout must be a positive integer: $STDLIB_COMPILE_TIMEOUT" >&2
+  exit 1
+fi
 
 # Shared by dependency detection functions. Plain grep
 # (POSIX ERE) + find, not rg: this must keep working on hosts/CI jobs without
@@ -743,6 +771,7 @@ fi
 if [[ -f "$TARGET" ]] && is_master_candidate_only_case "$TARGET"; then
   export KSWIFTC DIFF_KSWIFTC_FLAGS
   export DIFF_COMPILE_TIMEOUT="$COMPILE_TIMEOUT"
+  export DIFF_STDLIB_COMPILE_TIMEOUT="$STDLIB_COMPILE_TIMEOUT"
   export DIFF_RUN_TIMEOUT="$RUN_TIMEOUT"
   export DIFF_ARTIFACT_ROOT="$ARTIFACT_ROOT"
   export DIFF_STDLIB_LIBRARY
@@ -1002,6 +1031,7 @@ if (( DIFF_SHARD_COUNT > 1 )); then
   echo "Shard: $DIFF_SHARD_INDEX/$DIFF_SHARD_COUNT (interleaved)"
 fi
 echo "Compile timeout: ${COMPILE_TIMEOUT}s"
+echo "Stdlib build timeout: ${STDLIB_COMPILE_TIMEOUT}s"
 echo "Run timeout: ${RUN_TIMEOUT}s"
 echo "Script timeout: ${SCRIPT_TIMEOUT}s"
 echo "Force run skipped: $FORCE_RUN_SKIPPED"
@@ -1027,7 +1057,7 @@ if [[ "$DIFF_BACKEND" != "native" ]]; then
 elif [[ -n "$DIFF_STDLIB_LIBRARY" ]]; then
   echo "Stdlib artifact: $DIFF_STDLIB_LIBRARY (provided)"
 elif [[ "$STDLIB_ARTIFACT_REQUIRED" -eq 1 ]]; then
-  echo "Stdlib artifact: pending build under $ARTIFACT_ROOT"
+  echo "Stdlib artifact: pending validated cache resolution or fresh build under $ARTIFACT_ROOT"
 else
   echo "Stdlib artifact: not needed for skipped candidate-only cases"
 fi
@@ -1045,6 +1075,7 @@ if [[ "$STDLIB_ARTIFACT_REQUIRED" -eq 1 ]]; then
   # Build or resolve the precompiled stdlib artifact once per shard. Each candidate
   # compile below will reference it with --stdlib-library instead of recompiling
   # bundled stdlib sources.
+  resolve_cached_diff_stdlib || exit 1
   build_stdlib_artifact || exit 1
   echo "Stdlib artifact: $STDLIB_ARTIFACT"
   echo "Stdlib artifact manifest hash: $(stdlib_manifest_hash "$STDLIB_ARTIFACT")"

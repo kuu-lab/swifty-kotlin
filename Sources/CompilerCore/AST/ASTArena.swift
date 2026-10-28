@@ -29,6 +29,7 @@ public struct ASTArenaSnapshot: Codable {
     public let parenthesizedExpressions: Set<ExprID>
     public let localFunContextReceivers: [ExprID: [ContextReceiverDecl]]
     public let localTailrecFunctionExpressions: Set<ExprID>
+    public let localInlineFunctionExpressions: Set<ExprID>
     public let destructuringDeclLayouts: [ExprID: DestructuringDeclLayout]
 
     private enum CodingKeys: String, CodingKey {
@@ -58,6 +59,7 @@ public struct ASTArenaSnapshot: Codable {
         case parenthesizedExpressions
         case localFunContextReceivers
         case localTailrecFunctionExpressions
+        case localInlineFunctionExpressions
         case destructuringDeclLayouts
     }
 
@@ -88,6 +90,7 @@ public struct ASTArenaSnapshot: Codable {
         parenthesizedExpressions: Set<ExprID> = [],
         localFunContextReceivers: [ExprID: [ContextReceiverDecl]] = [:],
         localTailrecFunctionExpressions: Set<ExprID> = [],
+        localInlineFunctionExpressions: Set<ExprID> = [],
         destructuringDeclLayouts: [ExprID: DestructuringDeclLayout] = [:]
     ) {
         self.declarations = declarations
@@ -116,6 +119,7 @@ public struct ASTArenaSnapshot: Codable {
         self.parenthesizedExpressions = parenthesizedExpressions
         self.localFunContextReceivers = localFunContextReceivers
         self.localTailrecFunctionExpressions = localTailrecFunctionExpressions
+        self.localInlineFunctionExpressions = localInlineFunctionExpressions
         self.destructuringDeclLayouts = destructuringDeclLayouts
     }
 
@@ -186,6 +190,9 @@ public struct ASTArenaSnapshot: Codable {
         localTailrecFunctionExpressions = try container.decodeIfPresent(
             Set<ExprID>.self, forKey: .localTailrecFunctionExpressions
         ) ?? []
+        localInlineFunctionExpressions = try container.decodeIfPresent(
+            Set<ExprID>.self, forKey: .localInlineFunctionExpressions
+        ) ?? []
         destructuringDeclLayouts = try container.decodeIfPresent(
             [ExprID: DestructuringDeclLayout].self, forKey: .destructuringDeclLayouts
         ) ?? [:]
@@ -239,12 +246,18 @@ fileprivate struct ASTExpressionRangeIndex: Sendable {
     }
 }
 
+struct ASTCallArgumentParent: Equatable {
+    let callExprID: ExprID
+    let argumentIndex: Int
+}
+
 public final class ASTArena: @unchecked Sendable {
     private let lock = NSLock()
     private var _decls: [Decl] = []
     private var _exprs: [Expr] = []
     private var _typeRefs: [TypeRef] = []
     private var _expressionRangeIndex: ASTExpressionRangeIndex?
+    private var _callArgumentParentsByExpr: [ExprID: [ASTCallArgumentParent]]?
     private var _loopLabels: [ExprID: InternedString] = [:]
     private var _whenSubjectVarNames: [ExprID: InternedString] = [:]
     private var _whenSubjectTypeRefs: [ExprID: TypeRefID] = [:]
@@ -291,6 +304,7 @@ public final class ASTArena: @unchecked Sendable {
     private var _parenthesizedExpressions: Set<ExprID> = []
     private var _localFunContextReceivers: [ExprID: [ContextReceiverDecl]] = [:]
     private var _localTailrecFunctionExpressions: Set<ExprID> = []
+    private var _localInlineFunctionExpressions: Set<ExprID> = []
     private var _destructuringDeclLayouts: [ExprID: DestructuringDeclLayout] = [:]
 
     public var decls: [Decl] {
@@ -333,6 +347,7 @@ public final class ASTArena: @unchecked Sendable {
         _parenthesizedExpressions = snapshot.parenthesizedExpressions
         _localFunContextReceivers = snapshot.localFunContextReceivers
         _localTailrecFunctionExpressions = snapshot.localTailrecFunctionExpressions
+        _localInlineFunctionExpressions = snapshot.localInlineFunctionExpressions
         _destructuringDeclLayouts = snapshot.destructuringDeclLayouts
     }
 
@@ -366,6 +381,7 @@ public final class ASTArena: @unchecked Sendable {
             parenthesizedExpressions: _parenthesizedExpressions,
             localFunContextReceivers: _localFunContextReceivers,
             localTailrecFunctionExpressions: _localTailrecFunctionExpressions,
+            localInlineFunctionExpressions: _localInlineFunctionExpressions,
             destructuringDeclLayouts: _destructuringDeclLayouts
         )
     }
@@ -420,6 +436,9 @@ public final class ASTArena: @unchecked Sendable {
         }
         _localTailrecFunctionExpressions.formUnion(
             snapshot.localTailrecFunctionExpressions.map { remapper.remap($0) }
+        )
+        _localInlineFunctionExpressions.formUnion(
+            snapshot.localInlineFunctionExpressions.map { remapper.remap($0) }
         )
         for (key, value) in snapshot.destructuringDeclLayouts {
             _destructuringDeclLayouts[remapper.remap(key)] = DestructuringDeclLayout(
@@ -544,7 +563,51 @@ public final class ASTArena: @unchecked Sendable {
         let id = ExprID(rawValue: Int32(_exprs.count))
         _exprs.append(expr)
         _expressionRangeIndex = nil
+        if _callArgumentParentsByExpr != nil {
+            Self.addCallArgumentParents(from: expr, callExprID: id, into: &_callArgumentParentsByExpr!)
+        }
         return id
+    }
+
+    /// Returns call expressions that use `argumentExprID` as an argument, in AST order.
+    /// The index is built once and updated as synthesized expressions are appended.
+    func callArgumentParents(of argumentExprID: ExprID) -> [ASTCallArgumentParent] {
+        lock.lock()
+        defer { lock.unlock() }
+
+        if _callArgumentParentsByExpr == nil {
+            var parentsByExpr: [ExprID: [ASTCallArgumentParent]] = [:]
+            for (index, expr) in _exprs.enumerated() {
+                let callExprID = ExprID(rawValue: Int32(index))
+                Self.addCallArgumentParents(from: expr, callExprID: callExprID, into: &parentsByExpr)
+            }
+            _callArgumentParentsByExpr = parentsByExpr
+        }
+
+        return _callArgumentParentsByExpr?[argumentExprID] ?? []
+    }
+
+    private static func addCallArgumentParents(
+        from expression: Expr,
+        callExprID: ExprID,
+        into parentsByExpr: inout [ExprID: [ASTCallArgumentParent]]
+    ) {
+        let arguments: [CallArgument]
+        switch expression {
+        case let .call(_, _, args, _),
+             let .memberCall(_, _, _, args, _),
+             let .safeMemberCall(_, _, _, args, _):
+            arguments = args
+        default:
+            return
+        }
+
+        var seenArgumentExprs: Set<ExprID> = []
+        for (argumentIndex, argument) in arguments.enumerated() where seenArgumentExprs.insert(argument.expr).inserted {
+            parentsByExpr[argument.expr, default: []].append(
+                ASTCallArgumentParent(callExprID: callExprID, argumentIndex: argumentIndex)
+            )
+        }
     }
 
     public func expr(_ id: ExprID) -> Expr? {
@@ -760,6 +823,21 @@ public final class ASTArena: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         return _localTailrecFunctionExpressions.contains(exprID)
+    }
+
+    /// Local functions carrying the source-level `inline` modifier. Sema only
+    /// accepts them under `@Suppress("NOT_YET_SUPPORTED_LOCAL_INLINE_FUNCTION")`,
+    /// matching kotlinc's diagnostic gate.
+    public func markLocalInlineFunction(_ exprID: ExprID) {
+        lock.lock()
+        defer { lock.unlock() }
+        _localInlineFunctionExpressions.insert(exprID)
+    }
+
+    public func isLocalInlineFunction(_ exprID: ExprID) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return _localInlineFunctionExpressions.contains(exprID)
     }
 
     public func markInfixCall(_ exprID: ExprID) {

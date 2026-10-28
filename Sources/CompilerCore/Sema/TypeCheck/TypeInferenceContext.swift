@@ -198,6 +198,9 @@ struct TypeInferenceContext: CustomStringConvertible {
     /// Only the outer annotation constructor can reuse earlier application checks.
     /// Nested expressions and constructor-specific markers still need checking.
     var annotationOptInValidation: (owner: SymbolID, range: SourceRange?, markers: Set<SymbolID>)?
+    /// The annotation class already resolved from declaration metadata for the
+    /// synthetic constructor call that replays one annotation application.
+    var annotationConstructionTarget: (call: ExprID, annotationClass: SymbolID)?
     /// Opt-ins retained when local functions replace the current declaration.
     var inheritedOptInMarkers: Set<SymbolID> = []
     /// When a nested lambda introduces a receiver whose class carries the same
@@ -423,7 +426,13 @@ struct TypeInferenceContext: CustomStringConvertible {
     /// Non-inner nested classes discard enclosing instances, but retain enclosing singleton objects.
     func nestedClassContext(isInner: Bool) -> TypeInferenceContext {
         guard !isInner else { return self }
-        let singletonReceivers = outerReceiverTypes.filter { receiver in
+        return copying(outerReceiverTypes: singletonObjectOuterReceivers)
+    }
+
+    /// Singleton object receivers remain accessible from nested class headers,
+    /// even when the nested class has no enclosing instance of its own.
+    var singletonObjectOuterReceivers: [(label: InternedString, type: TypeID, symbol: SymbolID?)] {
+        outerReceiverTypes.filter { receiver in
             guard receiver.symbol == nil,
                   case let .classType(classType) = sema.types.kind(of: receiver.type)
             else {
@@ -431,7 +440,6 @@ struct TypeInferenceContext: CustomStringConvertible {
             }
             return sema.symbols.symbol(classType.classSymbol)?.kind == .object
         }
-        return copying(outerReceiverTypes: singletonReceivers)
     }
 
     func resolveQualifiedThis(label: InternedString) -> TypeID? {
@@ -479,20 +487,63 @@ struct TypeInferenceContext: CustomStringConvertible {
                 entries.append((type, symbol))
             }
         }
+        func appendCompanionBlockChain(for owner: SymbolID, skipping skippedBlock: SymbolID? = nil) {
+            var queue = [owner]
+            var visited: Set<SymbolID> = []
+            while !queue.isEmpty {
+                let current = queue.removeFirst()
+                guard visited.insert(current).inserted,
+                      let ownerSymbol = sema.symbols.symbol(current)
+                else {
+                    continue
+                }
+                if let companionBlock = sema.symbols.companionBlockObjectSymbol(for: current, interner: interner),
+                   companionBlock != skippedBlock
+                {
+                    appendUnique(
+                        sema.types.make(.classType(ClassType(
+                            classSymbol: companionBlock,
+                            args: [],
+                            nullability: .nonNull
+                        ))),
+                        symbol: companionBlock
+                    )
+                }
+                guard ownerSymbol.kind == .class else { continue }
+                queue.append(contentsOf: sema.symbols.directSupertypes(for: current).filter {
+                    sema.symbols.symbol($0)?.kind == .class
+                })
+            }
+        }
+        func appendReceiverAndCompanionBlock(_ type: TypeID, symbol: SymbolID?) {
+            appendUnique(type, symbol: symbol)
+            guard case let .classType(classType) = sema.types.kind(of: type),
+                  let receiverSymbol = sema.symbols.symbol(classType.classSymbol)
+            else {
+                return
+            }
+            if receiverSymbol.name == interner.intern("$CompanionBlocks"),
+               let owner = sema.symbols.parentSymbol(for: classType.classSymbol)
+            {
+                appendCompanionBlockChain(for: owner, skipping: classType.classSymbol)
+            } else {
+                appendCompanionBlockChain(for: classType.classSymbol)
+            }
+        }
         if let implicitReceiverType {
-            appendUnique(implicitReceiverType, symbol: nil)
+            appendReceiverAndCompanionBlock(implicitReceiverType, symbol: nil)
         }
         for entry in implicitReceiverStack.reversed() {
-            appendUnique(entry.type, symbol: entry.symbol)
+            appendReceiverAndCompanionBlock(entry.type, symbol: entry.symbol)
         }
         for entry in outerReceiverTypes.reversed() {
-            appendUnique(entry.type, symbol: entry.symbol)
+            appendReceiverAndCompanionBlock(entry.type, symbol: entry.symbol)
         }
         if let enclosingClassSymbol, !excludesEnclosingClassReceiver {
             let ownerArgs = sema.types.nominalTypeParameterSymbols(for: enclosingClassSymbol).map {
                 TypeArg.invariant(sema.types.make(.typeParam(TypeParamType(symbol: $0))))
             }
-            appendUnique(
+            appendReceiverAndCompanionBlock(
                 sema.types.make(.classType(ClassType(
                     classSymbol: enclosingClassSymbol,
                     args: ownerArgs,
@@ -543,7 +594,41 @@ struct TypeInferenceContext: CustomStringConvertible {
         return types
     }
 
-    func filterByVisibility(_ candidates: [SymbolID]) -> (visible: [SymbolID], invisible: [SemanticSymbol]) {
+    /// Returns the enclosing class's companion when it inherits the candidate's
+    /// declaring class. Class bodies expose these members through companion
+    /// shorthand, so calls must use that singleton as their dispatch receiver.
+    func inheritedCompanionReceiver(for candidate: SymbolID) -> SymbolID? {
+        guard let candidateSymbol = cachedSymbol(candidate),
+              candidateSymbol.kind == .function,
+              sema.symbols.memberExtensionOwnerSymbol(for: candidate) == nil,
+              sema.symbols.functionSignature(for: candidate)?.receiverType != nil,
+              let declaringOwner = sema.symbols.parentSymbol(for: candidate),
+              let enclosingClassSymbol
+        else {
+            return nil
+        }
+
+        var classQueue = [enclosingClassSymbol]
+        var visitedClasses: Set<SymbolID> = []
+        while !classQueue.isEmpty {
+            let classSymbol = classQueue.removeFirst()
+            guard visitedClasses.insert(classSymbol).inserted else { continue }
+            if let companion = sema.symbols.companionObjectSymbol(for: classSymbol),
+               companion != declaringOwner,
+               sema.types.isNominalSubtypeSymbol(companion, of: declaringOwner) {
+                return companion
+            }
+            classQueue.append(contentsOf: sema.symbols.directSupertypes(for: classSymbol).filter {
+                sema.symbols.symbol($0)?.kind == .class
+            })
+        }
+        return nil
+    }
+
+    func filterByVisibility(
+        _ candidates: [SymbolID],
+        protectedAccessReceiverType: TypeID? = nil
+    ) -> (visible: [SymbolID], invisible: [SemanticSymbol]) {
         var visible: [SymbolID] = []
         var invisible: [SemanticSymbol] = []
         // A hidden compatibility factory must not shadow a usable constructor
@@ -558,7 +643,26 @@ struct TypeInferenceContext: CustomStringConvertible {
             guard !isHiddenByDeprecationOrVersionAnnotation(candidate, symbols: sema.symbols)
                     || !hasNonHiddenCandidate
             else { continue }
-            if visibilityChecker.isAccessible(symbol, fromFile: currentFileID, enclosingClass: enclosingClassSymbol) {
+            let accessibleInEnclosingClass = visibilityChecker.isAccessible(
+                symbol, fromFile: currentFileID, enclosingClass: enclosingClassSymbol
+            )
+            let accessibleThroughEnclosingCompanion: Bool = {
+                guard !accessibleInEnclosingClass,
+                      symbol.visibility == .protected,
+                      let protectedAccessReceiverType,
+                      case let .classType(receiverClass) = sema.types.kind(
+                          of: sema.types.makeNonNullable(protectedAccessReceiverType)
+                      ),
+                      let companion = inheritedCompanionReceiver(for: candidate),
+                      sema.types.isNominalSubtypeSymbol(receiverClass.classSymbol, of: companion)
+                else {
+                    return false
+                }
+                return visibilityChecker.isAccessible(
+                    symbol, fromFile: currentFileID, enclosingClass: companion
+                )
+            }()
+            if accessibleInEnclosingClass || accessibleThroughEnclosingCompanion {
                 visible.append(candidate)
             } else {
                 invisible.append(symbol)
@@ -603,6 +707,51 @@ struct TypeInferenceContext: CustomStringConvertible {
             !isExpectDeclarationSupersededByActual($0)
                 && !isImportedCallableShadowedBySource($0)
         }
+    }
+
+    /// Expression names cannot inherit nested classifiers from an
+    /// interface, but an outer declaration or explicit import can still bind
+    /// the same name. Return the rejected symbols for the global fallback too.
+    func valueScopeLookup(_ name: InternedString) -> (matches: [SymbolID], inheritedInterfaces: Set<SymbolID>) {
+        valueScopeLookup(name) { symbolID in
+            guard let symbol = cachedSymbol(symbolID) else { return false }
+            return symbol.kind != .function && symbol.kind != .constructor
+        }
+    }
+
+    /// Variant of `valueScopeLookup` that applies `predicate` to each
+    /// candidate so the caller can require a specific binding kind (e.g. only
+    /// declarations that denote a value). Interface-inherited classifiers are
+    /// still rejected and collected regardless of the predicate.
+    func valueScopeLookup(
+        _ name: InternedString,
+        matching predicate: (SymbolID) -> Bool
+    ) -> (matches: [SymbolID], inheritedInterfaces: Set<SymbolID>) {
+        var inheritedInterfaces: Set<SymbolID> = []
+        var current: Scope? = scope
+        while let currentScope = current as? BaseScope {
+            let candidates = currentScope.candidates(for: name).filter { symbolID in
+                guard let symbol = cachedSymbol(symbolID),
+                      !isExpectDeclarationSupersededByActual(symbolID),
+                      !isImportedCallableShadowedBySource(symbolID)
+                else { return false }
+                let isClassifier = switch symbol.kind {
+                case .class, .interface, .object, .enumClass, .annotationClass, .typeAlias: true
+                default: false
+                }
+                if isClassifier, let classScope = currentScope as? ClassMemberScope,
+                   let owner = sema.symbols.parentSymbol(for: symbolID),
+                   owner != classScope.owner,
+                   sema.symbols.symbol(owner)?.kind == .interface {
+                    inheritedInterfaces.insert(symbolID)
+                    return false
+                }
+                return predicate(symbolID)
+            }
+            if !candidates.isEmpty { return (candidates, inheritedInterfaces) }
+            current = currentScope.parent
+        }
+        return ([], inheritedInterfaces)
     }
 
     /// A source callable shadows an imported callable at the same FQ name when

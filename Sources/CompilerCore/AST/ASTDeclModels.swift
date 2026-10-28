@@ -174,6 +174,9 @@ public struct ClassDecl: Codable {
     public let nestedClasses: [DeclID]
     public let nestedObjects: [DeclID]
     public let companionObject: DeclID?
+    /// Implementation scope for Kotlin 2.4 companion blocks. Unlike
+    /// `companionObject`, this synthetic object has no source-visible name.
+    public let companionBlockObject: DeclID?
 
     public init(
         range: SourceRange,
@@ -196,7 +199,8 @@ public struct ClassDecl: Codable {
         memberProperties: [DeclID] = [],
         nestedClasses: [DeclID] = [],
         nestedObjects: [DeclID] = [],
-        companionObject: DeclID? = nil
+        companionObject: DeclID? = nil,
+        companionBlockObject: DeclID? = nil
     ) {
         self.range = range
         self.name = name
@@ -219,6 +223,7 @@ public struct ClassDecl: Codable {
         self.nestedClasses = nestedClasses
         self.nestedObjects = nestedObjects
         self.companionObject = companionObject
+        self.companionBlockObject = companionBlockObject
     }
 }
 
@@ -236,6 +241,9 @@ public struct InterfaceDecl: Codable {
     public let nestedClasses: [DeclID]
     public let nestedObjects: [DeclID]
     public let companionObject: DeclID?
+    /// Implementation scope for Kotlin 2.4 companion blocks. Unlike
+    /// `companionObject`, this synthetic object has no source-visible name.
+    public let companionBlockObject: DeclID?
 
     public init(
         range: SourceRange,
@@ -250,7 +258,8 @@ public struct InterfaceDecl: Codable {
         memberProperties: [DeclID] = [],
         nestedClasses: [DeclID] = [],
         nestedObjects: [DeclID] = [],
-        companionObject: DeclID? = nil
+        companionObject: DeclID? = nil,
+        companionBlockObject: DeclID? = nil
     ) {
         self.range = range
         self.name = name
@@ -265,6 +274,7 @@ public struct InterfaceDecl: Codable {
         self.nestedClasses = nestedClasses
         self.nestedObjects = nestedObjects
         self.companionObject = companionObject
+        self.companionBlockObject = companionBlockObject
     }
 }
 
@@ -492,9 +502,10 @@ public struct PropertyAccessorDecl: Equatable, Codable {
 public struct ExplicitBackingField: Codable {
     /// When `nil`, the type is inferred from the initializer expression.
     public let type: TypeRefID?
-    public let initializer: ExprID
+    /// May be omitted when an explicit field type is assigned in an init block.
+    public let initializer: ExprID?
 
-    public init(type: TypeRefID? = nil, initializer: ExprID) {
+    public init(type: TypeRefID? = nil, initializer: ExprID? = nil) {
         self.type = type
         self.initializer = initializer
     }

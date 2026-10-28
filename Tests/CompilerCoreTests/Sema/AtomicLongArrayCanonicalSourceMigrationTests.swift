@@ -1,6 +1,7 @@
 #if canImport(Testing)
 @testable import CompilerCore
 import Testing
+@testable import CompilerTestSupport
 
 /// KSP-1118: the canonical AtomicLongArray constructors are source-backed while
 /// the residual nominal shell and array operations keep their runtime ABI.

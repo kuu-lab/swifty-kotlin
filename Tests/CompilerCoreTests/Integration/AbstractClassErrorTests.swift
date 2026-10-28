@@ -2,6 +2,7 @@
 @testable import CompilerCore
 import Foundation
 import Testing
+@testable import CompilerTestSupport
 
 @Suite struct AbstractClassErrorTests {
 
@@ -144,6 +145,47 @@ import Testing
                 && $0.severity == .error
                 && $0.message.contains("E.MISSING")
         })
+    }
+
+    @Test func testEnumEntriesRequireInheritedRegularAndMemberExtensionImplementations() throws {
+        let ctx = makeContextFromSource("""
+        interface J { fun describe(): String }
+        enum class G : J { A, B }
+
+        interface I { fun Any?.describe(): String }
+        enum class E : I { A, B }
+        enum class CompleteExtension : I {
+            A { override fun Any?.describe(): String = "ok" }
+        }
+
+        interface P { val label: String }
+        enum class MissingProperties : P { A, B }
+        enum class CompleteProperty : P {
+            A { override val label: String = "ok" }
+        }
+
+        enum class OwnAbstract { A, B; abstract fun code(): Int }
+        """)
+        try runSema(ctx)
+
+        let errors = ctx.diagnostics.diagnostics.filter {
+            $0.code == "KSWIFTK-SEMA-ABSTRACT" && $0.severity == .error
+        }
+        let entryNames = errors.compactMap { error -> String? in
+            [
+                "G.A", "G.B", "E.A", "E.B",
+                "MissingProperties.A", "MissingProperties.B",
+                "OwnAbstract.A", "OwnAbstract.B",
+            ]
+                .first { error.message.contains($0) }
+        }
+        #expect(errors.count == 8, "Expected one diagnostic per enum entry: \(errors)")
+        #expect(Set(entryNames) == Set([
+            "G.A", "G.B", "E.A", "E.B",
+            "MissingProperties.A", "MissingProperties.B",
+            "OwnAbstract.A", "OwnAbstract.B",
+        ]))
+        #expect(errors.allSatisfy { $0.message.contains("does not implement abstract member") })
     }
 
     private static let abstractErrorSources: [String] = [

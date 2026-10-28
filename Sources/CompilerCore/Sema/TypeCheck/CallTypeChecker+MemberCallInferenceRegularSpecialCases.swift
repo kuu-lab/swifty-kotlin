@@ -184,25 +184,41 @@ extension CallTypeChecker {
         let interner = ctx.interner
         let knownNames = KnownCompilerNames(interner: interner)
 
-        let isChannelReceiver = ReceiverClassifier(sema: sema, interner: interner)
-            .isChannelReceiverType(lookupReceiverType)
+        let receiverClassifier = ReceiverClassifier(sema: sema, interner: interner)
+        let isChannelReceiver = receiverClassifier.isChannelReceiverType(lookupReceiverType)
         if !isClassNameReceiver, isChannelReceiver {
             let memberName = interner.resolve(calleeName)
-            // KSP-678: close / isClosedForReceive / isClosedForSend are resolved
-            // through bundled Kotlin source (Channels.kt) via normal candidate
-            // resolution below; only the suspension core send / receive are
-            // special-cased here.
+            // KSP-678: send is resolved through the bundled SendChannel member
+            // so its element type, variance, and suspend contract use ordinary
+            // candidate resolution. close / isClosedForReceive /
+            // isClosedForSend also resolve through bundled Kotlin source;
+            // only receive needs a direct result-type binding here.
             switch (memberName, args.count) {
-            case ("send", 1):
-                let resultType = sema.types.unitType
-                let finalType = safeCall ? sema.types.makeNullable(resultType) : resultType
-                sema.bindings.bindExprType(id, type: finalType)
-                return finalType
             // KUU-1453: `ch.receive` without parentheses is property-access
             // syntax on a function — fall through so the invocation-syntax
             // check rejects it like any other bound function.
-            case ("receive", 0) where ast.arena.isExplicitCall(id):
-                let resultType = sema.types.nullableAnyType
+            case ("receive", 0) where ast.arena.isExplicitCall(id) && explicitTypeArgs.isEmpty:
+                // This direct-call shortcut has no suspend FunctionSignature
+                // binding for the post-inference context validator to inspect.
+                // Only the kotlinx.coroutines Channel surface owns this rule;
+                // same-named user classes continue through ordinary resolution.
+                guard receiverClassifier.isKotlinxCoroutinesChannelType(lookupReceiverType) else {
+                    break
+                }
+                driver.specialSuspendingCallNames[id] = memberName
+                let resultType: TypeID
+                if let element = resolveClassType(lookupReceiverType, sema: sema)?.args.first {
+                    switch element {
+                    case let .invariant(type), let .out(type):
+                        resultType = type
+                    case .in, .star:
+                        // A contravariant or star projection exposes only the
+                        // Channel element parameter's nullable Any upper bound.
+                        resultType = sema.types.nullableAnyType
+                    }
+                } else {
+                    resultType = sema.types.nullableAnyType
+                }
                 let finalType = safeCall ? sema.types.makeNullable(resultType) : resultType
                 sema.bindings.bindExprType(id, type: finalType)
                 return finalType
@@ -339,7 +355,9 @@ extension CallTypeChecker {
                 local.symbol, request: request, argumentTypes: argTypes, receiverType: memberLookupType
             )
         }()
-        if !isSuperCall, ast.arena.isExplicitCall(id),
+        // `a.f { }` carries a trailing lambda without `()`, so a non-empty
+        // argument list counts as a call the same way `isExplicitCall` does.
+        if !isSuperCall, !args.isEmpty || ast.arena.isExplicitCall(id),
            !hasReceiverMember,
            localExtensionMatchesCallShape,
            let result = inferLexicalExtensionCallableInvocation(request, receiverType: receiverType, locals: &locals)

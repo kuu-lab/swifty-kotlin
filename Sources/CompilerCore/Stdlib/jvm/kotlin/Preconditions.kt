@@ -39,3 +39,13 @@ public inline fun <T : Any> requireNotNull(value: T?, lazyMessage: () -> Any): T
     if (value == null) throw IllegalArgumentException(lazyMessage().toString())
     return value as T
 }
+
+public inline fun <T : Any> checkNotNull(value: T?): T {
+    if (value == null) throw IllegalStateException("Required value was null.")
+    return value as T
+}
+
+public inline fun <T : Any> checkNotNull(value: T?, lazyMessage: () -> Any): T {
+    if (value == null) throw IllegalStateException(lazyMessage().toString())
+    return value as T
+}

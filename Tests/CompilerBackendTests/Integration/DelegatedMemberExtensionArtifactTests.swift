@@ -1,7 +1,7 @@
 import Foundation
 @testable import CompilerBackend
 @testable import CompilerCore
-import CompilerTestSupport
+@testable import CompilerTestSupport
 import TestStdlibCache
 import Testing
 
@@ -47,6 +47,47 @@ struct DelegatedMemberExtensionArtifactTests {
         let result = try CommandRunner.run(executable: output, arguments: [])
         #expect(result.exitCode == 0, "\(result.stderr)")
         #expect(result.stdout == applyReceiverExpectedOutput)
+    }
+
+    @Test
+    func delegatedInterfaceExtensionPropertyReadWriteRuns() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let input = directory.appendingPathComponent("delegated-extension-property.kt").path
+        try """
+        interface Base { var Int.foo: String }
+        class Impl : Base {
+            var value: String = "OK"
+            override var Int.foo: String
+                get() = value
+                set(v) { value = v }
+        }
+        class D : Base by Impl() {
+            fun read(x: Int) = x.foo
+            fun write(x: Int, value: String) { x.foo = value }
+        }
+        fun main() {
+            val d = D()
+            println(d.read(1))
+            d.write(1, "updated")
+            println(d.read(1))
+        }
+        """.write(toFile: input, atomically: true, encoding: .utf8)
+        let output = directory.appendingPathComponent("delegated-extension-property").path
+        try assertCompilationSucceeded(makeTestDriver().runForTesting(options: CompilerOptions(
+            moduleName: "DelegatedExtensionProperty",
+            inputs: [input],
+            outputPath: output,
+            emit: .executable,
+            target: defaultTargetTriple(),
+            optLevel: .O0,
+            stdlibLibraryPath: try testStdlibArtifactPath(),
+            allowDefaultStdlibLibrary: true
+        )))
+        let result = try CommandRunner.run(executable: output, arguments: [])
+        #expect(result.exitCode == 0, "\(result.stderr)")
+        #expect(result.stdout == "OK\nupdated\n")
     }
 
     private func compileAndRun(fromSource: Bool, optimization: Int) throws {

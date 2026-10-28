@@ -1,5 +1,6 @@
 @testable import CompilerCore
 import Testing
+@testable import CompilerTestSupport
 
 /// KUU-1402: `name@` is a unary prefix on the whole postfix-unary expression,
 /// not just the lambda literal. When a postfix suffix follows the lambda —

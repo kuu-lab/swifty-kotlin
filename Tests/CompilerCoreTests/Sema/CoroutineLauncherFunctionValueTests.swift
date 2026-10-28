@@ -2,6 +2,7 @@
 @testable import CompilerCore
 import Foundation
 import Testing
+@testable import CompilerTestSupport
 
 /// Sema regressions for receiver-bearing coroutine launcher function values (#7513).
 /// Negative diagnostics and user-defined builder shadowing are not visible to

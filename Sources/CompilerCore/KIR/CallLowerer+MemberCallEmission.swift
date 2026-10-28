@@ -537,6 +537,7 @@ extension CallLowerer {
             self.memberExtensionDispatchReceiver(
                 for: $0,
                 callExprID: callExprID,
+                dispatchReceiverSymbol: callBinding?.dispatchReceiverSymbol,
                 sema: sema,
                 arena: arena,
                 interner: interner,
@@ -622,6 +623,42 @@ extension CallLowerer {
             arguments: finalArguments,
             instructions: &instructions
         ) {
+            return
+        }
+        if finalArguments.first == receiver.loweredID,
+           finalArguments.count == 2,
+           sourceArgExprs.count == 1,
+           let chosenCallee,
+           sema.symbols.externalLinkName(for: chosenCallee) == "kk_any_member_equals",
+           let receiverType = receiver.type(in: sema),
+           usesPrimitiveAnyFallbackRepresentation(for: receiverType, sema: sema)
+        {
+            // Primitive and unboxed primitive-backed value-class receivers
+            // are raw scalars, so the object member bridge would misread the
+            // payload as a pointer. Use the tagged Any equality bridge.
+            let intType = sema.types.make(.primitive(.int, .nonNull))
+            let receiverTag = computeAnyFallbackTag(for: receiverType, sema: sema)
+            let receiverTagID = arena.appendExpr(.intLiteral(receiverTag), type: intType)
+            instructions.append(.constValue(result: receiverTagID, value: .intLiteral(receiverTag)))
+
+            let argType = sema.bindings.exprTypes[sourceArgExprs[0]] ?? sema.types.anyType
+            let argTag = computeAnyFallbackTag(for: argType, sema: sema)
+            let argTagID = arena.appendExpr(.intLiteral(argTag), type: intType)
+            instructions.append(.constValue(result: argTagID, value: .intLiteral(argTag)))
+
+            let boxedResult = arena.appendTemporary(type: sema.types.makeNullable(sema.types.booleanType))
+            instructions.append(.call(
+                callee: interner.intern("kk_any_equals"),
+                arguments: [receiver.loweredID, receiverTagID, finalArguments[1], argTagID],
+                result: boxedResult,
+                canThrow: false
+            ))
+            instructions.append(.call(
+                callee: interner.intern("kk_unbox_bool_static"),
+                arguments: [boxedResult],
+                result: result,
+                canThrow: false
+            ))
             return
         }
         // Enum values are raw ordinals while they remain statically enum-typed.
@@ -1260,6 +1297,14 @@ extension CallLowerer {
                     sema: sema,
                     interner: interner
                 )
+            }) == true
+            || chosenCallee.map({
+                isRuntimeBoxedCollectionVirtualBridge(
+                    $0,
+                    receiverTypeID: receiver.type(in: sema),
+                    sema: sema,
+                    interner: interner
+                )
             }) == true,
            let inst = tryEmitVirtualDispatch(
                chosenCallee: chosenCallee, calleeName: loweredCallee,
@@ -1489,6 +1534,12 @@ extension CallLowerer {
             || isConcreteArrayLikeType(receiverType, sema: sema, interner: interner)
         let knownNames = KnownCompilerNames(interner: interner)
         guard isListWindowChunkReceiver else {
+            return nil
+        }
+
+        if calleeName == knownNames.zip, argumentCount == 4 {
+            // Keep Iterable.zip(transform) on its inline source path so the
+            // callback's non-local return is expanded into the caller.
             return nil
         }
 

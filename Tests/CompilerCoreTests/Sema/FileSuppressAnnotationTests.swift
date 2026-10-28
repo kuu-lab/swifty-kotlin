@@ -1,6 +1,7 @@
 #if canImport(Testing)
 @testable import CompilerCore
 import Testing
+@testable import CompilerTestSupport
 
 // Found while investigating a `@file:Suppress("DEPRECATION_ERROR")` header
 // that failed to suppress a deprecation diagnostic raised inside a trailing

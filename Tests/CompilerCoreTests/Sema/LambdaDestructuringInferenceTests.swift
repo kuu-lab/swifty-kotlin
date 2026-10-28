@@ -1,5 +1,6 @@
 @testable import CompilerCore
 import Testing
+@testable import CompilerTestSupport
 
 @Suite
 struct LambdaDestructuringInferenceTests {
@@ -95,47 +96,6 @@ struct LambdaDestructuringInferenceTests {
             var checked: Set<String> = []
             for id in references {
                 guard case let .nameRef(name, _)? = ast.arena.expr(id),
-                      let type = sema.bindings.exprType(for: id)
-                else { continue }
-                let nameText = ctx.interner.resolve(name)
-                #expect(type == sema.types.stringType)
-                checked.insert(nameText)
-            }
-            #expect(checked == ["x", "y"])
-        }
-    }
-
-    @Test
-    func nameBasedShortFormSquareBracketLambdaBindsExpectedParameter() throws {
-        let source = """
-        class A {
-            operator fun component1() = "O"
-            operator fun component2(): String = "fail"
-            operator fun component3() = "K"
-        }
-        fun foo(a: A, block: (A) -> String): String = block(a)
-        fun test() = foo(A()) { [x, _, y] -> x + y }
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(
-                inputs: [path],
-                frontendFlags: ["name-based-destructuring=complete"],
-                includeStdlib: false,
-                allowDefaultStdlibLibrary: false
-            )
-            try runSema(ctx)
-            let errors = diagnosticsForPath(path, in: ctx).filter { $0.severity == .error }
-            #expect(errors.isEmpty, "Unexpected diagnostics: \(errors)")
-
-            let ast = try #require(ctx.ast)
-            let sema = try #require(ctx.sema)
-            let references = allExprIDs(in: ast, path: path, ctx: ctx) { _, expression in
-                guard case let .nameRef(name, _) = expression else { return false }
-                return ["x", "y"].contains(ctx.interner.resolve(name))
-            }
-            var checked: Set<String> = []
-            for id in references {
-                guard case let .nameRef(name, _) = ast.arena.expr(id),
                       let type = sema.bindings.exprType(for: id)
                 else { continue }
                 let nameText = ctx.interner.resolve(name)

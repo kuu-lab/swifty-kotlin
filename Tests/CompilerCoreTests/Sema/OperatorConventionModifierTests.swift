@@ -1,6 +1,7 @@
 #if canImport(Testing)
 @testable import CompilerCore
 import Testing
+@testable import CompilerTestSupport
 
 /// kotlinc requires the `operator` modifier on functions used through
 /// operator syntax (`get`/`set`/`componentN`/`compareTo` conventions).
@@ -255,6 +256,21 @@ struct OperatorConventionModifierTests {
         let ctx = makeContextFromSource(source)
         try runSema(ctx)
         assertNoDiagnostic("KSWIFTK-SEMA-0439", in: ctx)
+        #expect(!ctx.diagnostics.hasError, "Got: \(ctx.diagnostics.diagnostics)")
+    }
+
+    @Test
+    func containsOperatorCanCoexistWithDefaultedOverload() throws {
+        let source = """
+        class Haystack
+        operator fun Haystack.contains(value: Int): Boolean = contains(value, false)
+        fun Haystack.contains(value: Int, ignoreCase: Boolean = false): Boolean = ignoreCase
+        fun operatorCall(haystack: Haystack): Boolean = 1 in haystack
+        fun directCall(haystack: Haystack): Boolean = haystack.contains(1)
+        fun explicitCall(haystack: Haystack): Boolean = haystack.contains(1, true)
+        """
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
         #expect(!ctx.diagnostics.hasError, "Got: \(ctx.diagnostics.diagnostics)")
     }
 

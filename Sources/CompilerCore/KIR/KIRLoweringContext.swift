@@ -132,6 +132,7 @@ final class KIRLoweringContext {
     /// Companion object initializer functions registered during class lowering.
     /// These are called in order during module initialization.
     private var companionInitializerFunctions: [(symbol: SymbolID, name: InternedString)] = []
+    private var reflectionInitializerFunctions: [(symbol: SymbolID, name: InternedString)] = []
 
     /// BUG-274: maps a source-backed `object`/`companion object`'s own
     /// symbol to its lazily-run "ensure initialized" function and its
@@ -728,6 +729,15 @@ final class KIRLoweringContext {
         companionInitializerFunctions
     }
 
+    func registerReflectionInitializer(symbol: SymbolID, name: InternedString) {
+        reflectionInitializerFunctions.append((symbol: symbol, name: name))
+        registerCompanionInitializer(symbol: symbol, name: name)
+    }
+
+    func allReflectionInitializers() -> [(symbol: SymbolID, name: InternedString)] {
+        reflectionInitializerFunctions
+    }
+
     /// BUG-274: registers `objectSymbol`'s lazy "ensure initialized"
     /// function so read/write/call sites that touch its state can insert a
     /// guard call before the eager module-init call is removed for it.
@@ -781,6 +791,7 @@ final class KIRLoweringContext {
         anyToStringBridgeSymbolsByImplementation.removeAll(keepingCapacity: true)
         throwableMessageBridgeSymbolsByGetter.removeAll(keepingCapacity: true)
         companionInitializerFunctions.removeAll(keepingCapacity: true)
+        reflectionInitializerFunctions.removeAll(keepingCapacity: true)
         objectLazyInitBySymbol.removeAll(keepingCapacity: true)
         deferredObjectLazyInitSymbols.removeAll(keepingCapacity: true)
         objectInitializerSymbols.removeAll(keepingCapacity: true)

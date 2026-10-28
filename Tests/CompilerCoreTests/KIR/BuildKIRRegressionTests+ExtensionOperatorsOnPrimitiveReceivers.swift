@@ -2,6 +2,7 @@
 @testable import CompilerCore
 import Foundation
 import Testing
+@testable import CompilerTestSupport
 
 // Regression coverage for extension operators declared on a primitive
 // receiver (e.g. `operator fun Int.times(v: Vec)`) whose parameter type the

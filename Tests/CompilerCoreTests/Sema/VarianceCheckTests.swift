@@ -1,5 +1,6 @@
 @testable import CompilerCore
 import Testing
+@testable import CompilerTestSupport
 
 @Suite
 struct VarianceCheckTests {
@@ -266,6 +267,23 @@ struct VarianceCheckTests {
             try runSema(ctx)
 
             assertNoDiagnostic("KSWIFTK-SEMA-VARIANCE", in: ctx)
+        }
+    }
+
+    @Test
+    func unsafeVarianceOnSupertypeArgumentPreservesUnannotatedCheck() throws {
+        let source = """
+        interface Cell<T>
+        abstract class ReadOnly<out T> : Cell<@UnsafeVariance T>
+        abstract class Invalid<out T> : Cell<T>
+        """
+
+        try withTemporaryFiles(contents: [source]) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
+            try runSema(ctx)
+
+            let errors = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-VARIANCE" }
+            #expect(errors.count == 1, "\(ctx.diagnostics.diagnostics)")
         }
     }
 

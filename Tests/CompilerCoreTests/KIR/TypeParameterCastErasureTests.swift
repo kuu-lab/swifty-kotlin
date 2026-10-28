@@ -58,14 +58,9 @@ struct TypeParameterCastErasureTests {
         return value
     }
 
-    private func containsErasedCastFailure(
-        in body: [KIRInstruction],
-        context: CompilationContext
-    ) -> Bool {
+    private func containsNullAssert(in body: [KIRInstruction]) -> Bool {
         body.contains { instruction in
-            if case let .call(_, callee, _, _, canThrow, _, _, _) = instruction {
-                return context.interner.resolve(callee) == "kk_op_cast_erased_return" && canThrow
-            }
+            if case .nullAssert = instruction { return true }
             return false
         }
     }
@@ -121,23 +116,23 @@ struct TypeParameterCastErasureTests {
         let fnBody = try body(named: "unbounded", in: ctx)
         #expect(kirCalls(to: .opCast, in: fnBody, interner: ctx.interner).isEmpty)
         #expect(kirCalls(to: .opSafeCast, in: fnBody, interner: ctx.interner).isEmpty)
-        #expect(fnBody.contains { instruction in
-            if case .nullAssert = instruction { return true }
-            return false
-        } == false)
+        #expect(!containsNullAssert(in: fnBody))
     }
 
+    /// KUU-3534: a null-to-non-null cast is a NullPointerException, matching
+    /// Kotlin/JVM — the erased cast helper's ClassCastException is for
+    /// delegated property boundaries, not `as` casts.
     @Test
-    func anyBoundParameterUsesErasedCastFailure() throws {
+    func anyBoundParameterUsesNullAssertion() throws {
         let ctx = try context()
         let fnBody = try body(named: "anyBound", in: ctx)
         #expect(kirCalls(to: .opCast, in: fnBody, interner: ctx.interner).isEmpty)
         #expect(kirCalls(to: .opSafeCast, in: fnBody, interner: ctx.interner).isEmpty)
-        #expect(containsErasedCastFailure(in: fnBody, context: ctx))
+        #expect(containsNullAssert(in: fnBody))
     }
 
     @Test
-    func definitelyNotNullArgumentUsesErasedCastFailure() throws {
+    func definitelyNotNullArgumentUsesNullAssertion() throws {
         let source = """
             interface Param<T : Any>
             fun <T> queryParam(param: Param<T & Any>): T = null as T
@@ -148,7 +143,7 @@ struct TypeParameterCastErasureTests {
         try #require(!ctx.diagnostics.hasError)
 
         let fnBody = try body(named: "queryParam", in: ctx)
-        #expect(containsErasedCastFailure(in: fnBody, context: ctx))
+        #expect(containsNullAssert(in: fnBody))
     }
 
     @Test
@@ -162,10 +157,7 @@ struct TypeParameterCastErasureTests {
         try #require(!ctx.diagnostics.hasError)
 
         let fnBody = try body(named: "queryNullable", in: ctx)
-        #expect(!fnBody.contains { instruction in
-            if case .nullAssert = instruction { return true }
-            return false
-        })
+        #expect(!containsNullAssert(in: fnBody))
     }
 }
 #endif

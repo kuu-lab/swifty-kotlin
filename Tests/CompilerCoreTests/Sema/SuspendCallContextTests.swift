@@ -1,5 +1,6 @@
 @testable import CompilerCore
 import Testing
+@testable import CompilerTestSupport
 
 @Suite
 struct SuspendCallContextTests {
@@ -64,6 +65,43 @@ struct SuspendCallContextTests {
             val ref = ::sf
         }
         """)
+        #expect(!result.hasError, "\(result.diagnostics)")
+    }
+
+    @Test
+    func channelReceiveRequiresAnAvailableSuspensionContext() throws {
+        let result = try diagnostics("""
+        import kotlinx.coroutines.runBlocking
+        import kotlinx.coroutines.channels.Channel
+
+        fun consume(block: () -> Unit) { block() }
+        inline fun consumeInline(block: () -> Unit) { block() }
+
+        fun ordinary(ch: Channel<Int>) { ch.receive() }
+        fun ordinaryLambda(ch: Channel<Int>) { consume { ch.receive() } }
+        suspend fun escapingLambda(ch: Channel<Int>) { consume { ch.receive() } }
+        fun safeCall(ch: Channel<Int>?) { ch?.receive() }
+
+        suspend fun suspendCall(ch: Channel<Int>) { ch.receive() }
+        fun blockingCall(ch: Channel<Int>) { runBlocking { ch.receive() } }
+        suspend fun inlineCall(ch: Channel<Int>) { consumeInline { ch.receive() } }
+        """, includeStdlib: true)
+        let errors = result.diagnostics.filter { $0.severity == .error }
+        #expect(errors.count == 4, "\(result.diagnostics)")
+        #expect(errors.allSatisfy { $0.code == "KSWIFTK-SEMA-0308" }, "\(errors)")
+    }
+
+    @Test
+    func unrelatedUserChannelReceiveKeepsItsOwnBinding() throws {
+        let result = try diagnostics("""
+        package user.channels
+
+        class Channel {
+            fun receive(): String = "user"
+        }
+
+        fun ordinary(ch: Channel): String = ch.receive()
+        """, includeStdlib: true)
         #expect(!result.hasError, "\(result.diagnostics)")
     }
 

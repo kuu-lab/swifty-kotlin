@@ -1,7 +1,7 @@
 import Foundation
 @testable import CompilerBackend
 @testable import CompilerCore
-import CompilerTestSupport
+@testable import CompilerTestSupport
 import Testing
 
 @Suite(.serialized)

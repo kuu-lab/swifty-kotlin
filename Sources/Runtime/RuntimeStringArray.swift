@@ -257,7 +257,11 @@ public func kk_string_from_flat(
     _ hash: Int
 ) -> Int {
     guard let data else {
-        return 0
+        // Null `String?` flattens to a nil data pointer; the boxed raw must
+        // carry the canonical null sentinel so `== null`/Elvis/`?.` checks
+        // and erased slot boxing recognize it (KUU-3614). A bare 0 would be
+        // read as a non-null value by `runtimeValuesEqual`/`kk_structural_eq`.
+        return runtimeNullSentinelInt
     }
     // Identity is preserved when `kk_string_to_flat` registered the source
     // box as the buffer's canonicalBox (generic AtomicReference<T> ABI).

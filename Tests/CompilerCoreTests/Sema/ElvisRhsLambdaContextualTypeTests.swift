@@ -1,6 +1,7 @@
 #if canImport(Testing)
 @testable import CompilerCore
 import Testing
+@testable import CompilerTestSupport
 
 /// KUU-1368: an Elvis `?:` right-hand side is checked against the whole
 /// expression's expected type when one exists, and against the LHS's

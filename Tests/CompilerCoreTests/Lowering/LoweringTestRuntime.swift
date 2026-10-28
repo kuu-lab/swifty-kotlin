@@ -1,6 +1,7 @@
 @testable import CompilerCore
 import RuntimeABI
 import Testing
+@testable import CompilerTestSupport
 
 /// Select ABI declarations by operation, leaving their public/internal link
 /// spelling to the canonical extern view. Retired operations are checked via

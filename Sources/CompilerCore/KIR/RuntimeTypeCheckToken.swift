@@ -115,6 +115,26 @@ enum RuntimeTypeCheckToken {
         return token
     }
 
+    static func emitNullableToken(
+        _ token: KIRExprID,
+        sema: SemaModule,
+        interner: StringInterner,
+        arena: KIRArena,
+        instructions: inout [KIRInstruction]
+    ) -> KIRExprID {
+        // Tokens can contain a nominal ID in their upper bits. Use a Long
+        // result so IntegerNarrowingPass does not truncate the bitwise OR.
+        let tokenStorageType = sema.types.longType
+        let flag = arena.appendExpr(.intLiteral(nullableFlag), type: tokenStorageType)
+        instructions.append(.constValue(result: flag, value: .intLiteral(nullableFlag)))
+        let result = arena.appendTemporary(type: tokenStorageType)
+        instructions.append(.call(
+            callee: interner.intern("kk_bitwise_or"), arguments: [token, flag],
+            result: result, canThrow: false
+        ))
+        return result
+    }
+
     static func classify(type: TypeID, sema: SemaModule) -> RuntimeTypeDescriptor {
         let nullable = sema.types.nullability(of: type) == .nullable
         let category: RuntimeTypeCategory
@@ -386,4 +406,124 @@ enum RuntimeTypeCheckToken {
         let payload = Int64(bitPattern: hash) & payloadMask
         return payload == 0 ? 1 : payload
     }
+}
+
+/// The runtime erasure an unchecked/erased boundary can verify against:
+/// a type parameter's first upper bound, resolved transitively when bounds
+/// reference other type parameters, or the type itself when it already
+/// carries a runtime classifier. Kotlin/JVM checkcasts `as T` against
+/// exactly this erasure — `R : C, I1, I2` checks `C` and leaves the rest
+/// unchecked. Returns nil when there is no bound or the bound encodes no
+/// runtime classifier (`.any`/`.unknown`), where only the null contract
+/// is observable.
+func kirCheckableCastErasure(of type: TypeID, sema: SemaModule) -> TypeID? {
+    var visited: Set<SymbolID> = []
+    var current = type
+    while case let .typeParam(parameter) = sema.types.kind(of: current) {
+        guard visited.insert(parameter.symbol).inserted,
+              let bound = sema.symbols.typeParameterUpperBounds(for: parameter.symbol).first
+        else {
+            return nil
+        }
+        current = bound
+    }
+    switch RuntimeTypeCheckToken.classify(type: current, sema: sema).category {
+    case .unknown, .any:
+        return nil
+    default:
+        return current
+    }
+}
+
+/// Whether `kk_op_cast` can verify a value arriving through an erased ABI
+/// boundary against this classifier. Enum classifiers are excluded: enum
+/// values cross erased slots as raw ordinals (or ordinal IntBoxes), neither
+/// of which carries the nominal tag the nominal check requires, so the cast
+/// would falsely throw. `Nothing` (`.null`) accepts only the null value the
+/// erased boundary still needs to let through.
+func kirErasedBoundaryCheckable(_ type: TypeID, sema: SemaModule) -> Bool {
+    switch RuntimeTypeCheckToken.classify(type: type, sema: sema).category {
+    case .unknown, .any, .null:
+        return false
+    case let .nominal(symbol):
+        return sema.symbols.symbol(symbol)?.kind != .enumClass
+    default:
+        return true
+    }
+}
+
+/// Whether a declared function result crosses the ABI as an erased generic
+/// value. A definitely-non-null `T & Any` return still erases to T.
+func kirIsNonReifiedErasedReturnType(_ type: TypeID, sema: SemaModule) -> Bool {
+    let typeParameter: TypeID = if case let .intersection(parts) = sema.types.kind(of: type),
+                                   parts.count == 2,
+                                   parts.contains(where: { sema.types.kind(of: $0) == .any(.nonNull) }),
+                                   let parameter = parts.first(where: {
+                                       if case .typeParam = sema.types.kind(of: $0) { return true }
+                                       return false
+                                   })
+    {
+        parameter
+    } else {
+        type
+    }
+    guard case let .typeParam(parameter) = sema.types.kind(of: typeParameter) else {
+        return false
+    }
+    // Synthetic type-parameter symbols (precompiled/imported declarations
+    // and fallback stubs like List<E>.get) carry negative IDs and never
+    // appear in the local symbol table. Only a materialized symbol can
+    // hold `reifiedTypeParameter`, so an unresolved parameter is always
+    // an erased return — without this, every stdlib generic member
+    // (`List.get`, `MutableMap.get`, ...) silently skipped its JVM
+    // boundary checkcast and let a heap-polluted element through
+    // (KUU-3668).
+    guard let symbol = sema.symbols.symbol(parameter.symbol) else {
+        return true
+    }
+    return !symbol.flags.contains(.reifiedTypeParameter)
+}
+
+/// True when a generic call or property getter's substituted result can be
+/// checked before the erased ABI result is converted to its native representation.
+func kirShouldCheckErasedGenericCallResult(
+    exprID: ExprID,
+    boundType: TypeID?,
+    sema: SemaModule
+) -> Bool {
+    let chosenCallee = sema.bindings.callBindings[exprID]?.chosenCallee
+    let propertySymbol: SymbolID? = if let chosenCallee {
+        sema.symbols.accessorOwnerProperty(for: chosenCallee)
+            ?? sema.symbols.propertySymbol(forAccessor: chosenCallee)
+            ?? (sema.symbols.symbol(chosenCallee)?.kind == .property ? chosenCallee : nil)
+            ?? sema.symbols.parentSymbol(for: chosenCallee).flatMap { parent in
+                sema.symbols.symbol(parent)?.kind == .property ? parent : nil
+            }
+    } else {
+        sema.bindings.identifierSymbol(for: exprID).flatMap { symbol in
+            sema.symbols.symbol(symbol)?.kind == .property ? symbol : nil
+        }
+    }
+    let declaredReturnType: TypeID? = if let propertySymbol {
+        sema.symbols.propertyType(for: propertySymbol)
+            ?? chosenCallee.flatMap { sema.symbols.functionSignature(for: $0)?.returnType }
+    } else if let chosenCallee,
+              let signature = sema.symbols.functionSignature(for: chosenCallee)
+    {
+        signature.returnType
+    } else if let callableBinding = sema.bindings.callableValueCalls[exprID],
+              case let .functionType(functionType) = sema.types.kind(of: callableBinding.functionType)
+    {
+        functionType.returnType
+    } else {
+        nil
+    }
+    guard let declaredReturnType,
+          kirIsNonReifiedErasedReturnType(declaredReturnType, sema: sema),
+          let bound = boundType ?? sema.bindings.exprType(for: exprID),
+          let checkType = kirCheckableCastErasure(of: bound, sema: sema)
+    else {
+        return false
+    }
+    return kirErasedBoundaryCheckable(checkType, sema: sema)
 }

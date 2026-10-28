@@ -73,6 +73,25 @@ struct CodegenBackendDefaultParameterValuesTests {
         try assertKotlinOutput(source, moduleName: "SecondaryCtorDefaultValueConstructorCall", expected: "9\n")
     }
 
+    @Test(arguments: [0, 2])
+    func testSecondaryConstructorDefaultWithThisDelegationInObjectSuperCall(optimization: Int) throws {
+        let optLevel = try #require(OptimizationLevel(rawValue: optimization))
+        let source = """
+        open class Foo(val args: String) {
+            constructor(arg: Any = 1) : this(arg.toString())
+        }
+        object TF : Foo() {}
+        fun box() = object : Foo() {}.args
+        fun main() { println(box()) }
+        """
+        try assertKotlinOutput(
+            source,
+            moduleName: "SecondaryCtorDefaultThisDelegationObjectSuperCall",
+            expected: "1\n",
+            optLevel: optLevel
+        )
+    }
+
     @Test func testDefaultValueExpressionMayReferenceEarlierParameter() throws {
         let source = """
         fun foo(a: Int, b: Int = a + 1): Int = a + b

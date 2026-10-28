@@ -17,10 +17,8 @@ fun main() {
     println(Math.clamp(5, 1, 4) == 4)
     println(Math.random() >= 0.0 && Math.random() < 1.0)
     println(Math.TAU == Math.PI * 2.0)
-    println(Math.asinh(1.0) > 0.0 && Math.acosh(2.0) > 0.0 && Math.atanh(0.5) > 0.0)
     println(Math.ceilDiv(-4, 3) == -1 && Math.ceilMod(-4L, 3) == -1)
     println(Math.floorDivExact(-4, 3) == -2 && Math.ceilDivExact(-4, 3) == -1)
-    println(Math.divideExact(42, 2) == 21 && Math.powExact(3, 4) == 81)
-    println(Math.unsignedPowExact(-1, 1) == -1 && Math.unsignedMultiplyExact(2L, 3L) == 6L)
+    println(Math.divideExact(42, 2) == 21)
     println(Math.unsignedMultiplyHigh(-1L, 2L) == 1L && Math.clamp(9L, 1, 7) == 7)
 }

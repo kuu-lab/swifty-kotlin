@@ -1284,7 +1284,12 @@ public final class SymbolTable {
         return existingNonPackageSymbols.allSatisfy { symbol in
             switch symbol.kind {
             case .property:
-                return symbol.flags.contains(.synthetic)
+                // A `.static` synthetic helper shares a member FQName with a
+                // user instance property without conflict — Kotlin generates
+                // `Enum.entries` on the enum class even when a constructor
+                // `val entries` exists, and member lookups keep declaration
+                // order while static reads resolve the stub (KUU-3544).
+                return symbol.flags.contains(.synthetic) || flags.contains(.static)
             // A source-backed factory can share a FQName with its nominal
             // return type, so its parameter may collide with a residual
             // synthetic property on that type (for example `size`).
@@ -1484,6 +1489,8 @@ public final class SymbolTable {
 
     private var classDelegationForwardingMethodInfo: [SymbolID: (interfaceSymbol: SymbolID, interfaceMethodSymbol: SymbolID, fieldSymbol: SymbolID)] = [:]
 
+    private var classDelegationForwardingMethodReturnTypeSubstitutions: [SymbolID: (substitution: [TypeVarID: TypeID], typeVarBySymbol: [SymbolID: TypeVarID])] = [:]
+
     private var classDelegationForwardingMethodsByClass: [SymbolID: [SymbolID]] = [:]
 
     public func addClassDelegationForwardingMethod(
@@ -1491,9 +1498,15 @@ public final class SymbolTable {
         forClass classSymbol: SymbolID,
         interface interfaceSymbol: SymbolID,
         interfaceMethod interfaceMethodSymbol: SymbolID,
-        field fieldSymbol: SymbolID
+        field fieldSymbol: SymbolID,
+        returnTypeSubstitution: [TypeVarID: TypeID] = [:],
+        returnTypeTypeVarBySymbol: [SymbolID: TypeVarID] = [:]
     ) {
         classDelegationForwardingMethodInfo[forwardingSymbol] = (interfaceSymbol, interfaceMethodSymbol, fieldSymbol)
+        classDelegationForwardingMethodReturnTypeSubstitutions[forwardingSymbol] = (
+            returnTypeSubstitution,
+            returnTypeTypeVarBySymbol
+        )
         classDelegationForwardingMethodsByClass[classSymbol, default: []].append(forwardingSymbol)
     }
 
@@ -1503,6 +1516,21 @@ public final class SymbolTable {
 
     public func classDelegationForwardingMethodInfo(for forwardingSymbol: SymbolID) -> (interfaceSymbol: SymbolID, interfaceMethodSymbol: SymbolID, fieldSymbol: SymbolID)? {
         classDelegationForwardingMethodInfo[forwardingSymbol]
+    }
+
+    func substitutedClassDelegationForwardingMethodReturnType(
+        _ returnType: TypeID,
+        for forwardingSymbol: SymbolID,
+        types: TypeSystem
+    ) -> TypeID? {
+        guard let substitution = classDelegationForwardingMethodReturnTypeSubstitutions[forwardingSymbol] else {
+            return nil
+        }
+        return types.substituteTypeParameters(
+            in: returnType,
+            substitution: substitution.substitution,
+            typeVarBySymbol: substitution.typeVarBySymbol
+        )
     }
 
     private var classDelegationForwardingPropertyInfo: [SymbolID: (interfaceSymbol: SymbolID, interfacePropertySymbol: SymbolID, fieldSymbol: SymbolID)] = [:]
@@ -1869,6 +1897,22 @@ public final class SymbolTable {
     /// registration; this read never invokes the imported metadata loader.
     public func companionObjectSymbolIfKnown(for owner: SymbolID) -> SymbolID? {
         companionObjectSymbols[owner]
+    }
+
+    /// Returns the hidden implementation object used to scope companion-block
+    /// declarations. It is intentionally distinct from a source companion
+    /// object because Kotlin exposes the two through different qualifiers.
+    public func companionBlockObjectSymbol(
+        for owner: SymbolID,
+        interner: StringInterner
+    ) -> SymbolID? {
+        let implementationOwner = actualSymbol(for: owner) ?? owner
+        guard let ownerInfo = symbol(implementationOwner) else { return nil }
+        let blockName = interner.intern("$CompanionBlocks")
+        return lookupAll(fqName: ownerInfo.fqName + [blockName]).first { candidate in
+            parentSymbol(for: candidate) == implementationOwner
+                && symbol(candidate)?.kind == .object
+        }
     }
 
     public func setOuterInstanceFieldSymbol(_ field: SymbolID, for innerClass: SymbolID) {
@@ -2278,6 +2322,7 @@ extension SymbolTable {
                 valueParameterIsVararg: signature.valueParameterIsVararg,
                 valueParameterAllowsNonLocalReturn: signature.valueParameterAllowsNonLocalReturn,
                 hasExplicitInlineParameterMetadata: signature.hasExplicitInlineParameterMetadata,
+                hasStableParameterNames: signature.hasStableParameterNames,
                 typeParameterSymbols: mapSymbols(signature.typeParameterSymbols),
                 reifiedTypeParameterIndices: signature.reifiedTypeParameterIndices,
                 typeParameterUpperBounds: signature.typeParameterUpperBounds.map { $0.map { mapType($0, using: typeMap) } },

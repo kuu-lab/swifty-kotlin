@@ -2,6 +2,7 @@
 @testable import CompilerCore
 import Foundation
 import Testing
+@testable import CompilerTestSupport
 
 /// KSP-699: the `kotlin.collections` factory functions are source-backed
 /// declarations with no bootstrap synthetic stub

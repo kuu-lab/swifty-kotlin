@@ -1,6 +1,7 @@
 #if canImport(Testing)
 @testable import CompilerCore
 import Testing
+@testable import CompilerTestSupport
 
 /// BUG-inner-outer: `inner class` members reading/writing an enclosing
 /// class's fields must go through the synthetic `$outer` link rather than

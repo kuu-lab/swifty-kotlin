@@ -1189,7 +1189,13 @@ extension BuildASTPhase {
         }
 
         guard index < tokens.count, tokens[index].kind == .symbol(.assign) else {
-            return nil
+            let trailingTokens = tokens.dropFirst(index)
+            guard fieldType != nil,
+                  trailingTokens.allSatisfy({ $0.kind == .symbol(.semicolon) })
+            else {
+                return nil
+            }
+            return ExplicitBackingField(type: fieldType)
         }
         index += 1
 

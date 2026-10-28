@@ -333,6 +333,13 @@ final class JVMFunctionBuilder {
     func fail(_ message: String, _ id: ExprID? = nil) -> JVMFrontendError {
         JVMFrontendError(message: message, range: id.flatMap(arena.exprRange) ?? declaration.range)
     }
+    var currentEnclosingMethod: JVMEnclosingMethod {
+        JVMEnclosingMethod(
+            owner: owner?.name ?? program.facadeName,
+            name: reference.name,
+            descriptor: reference.descriptor
+        )
+    }
     func value(_ type: JVMValueType) throws -> JVMValue {
         guard type != .unit, nextSlot + type.width <= 65_535 else { throw fail("JVM local-variable slot limit exceeded or Unit used as a value.") }
         let result = JVMValue(slot: nextSlot, type: type)
@@ -550,7 +557,12 @@ final class JVMFunctionBuilder {
             return type == .unit ? local : try convert(local, to: type)
         case .localFunDecl:
             try localFunction(id); return nil
-        case .localNominalDecl:
+        case let .localNominalDecl(declaration, _):
+            guard let symbol = program.sema.bindings.declSymbol(for: declaration),
+                  let plan = program.classes[symbol] else {
+                throw fail("Missing JVM local class declaration.", id)
+            }
+            if plan.enclosingMethod == nil { plan.enclosingMethod = currentEnclosingMethod }
             return nil
         case let .localDecl(name, mutable, annotation, initializer, delegated, late, _):
             if delegated || late { try specialLocal(id, name: name, mutable: mutable, initializer: initializer, delegated: delegated, late: late); return nil }

@@ -2,6 +2,7 @@
 @testable import CompilerCore
 import Foundation
 import Testing
+@testable import CompilerTestSupport
 
 /// Annotated properties in anonymous object bodies must survive the
 /// object-literal member parser as ordinary property declarations.

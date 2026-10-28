@@ -93,6 +93,8 @@ extension CallTypeChecker {
         memberExtensionReceiverMarks: [SymbolID: SymbolID],
         mergedImplicitReceiverMembers: [SymbolID],
         knownApplicableImplicitMembers: Set<SymbolID>,
+        preferredInheritedNestedConstructors: Set<SymbolID>,
+        outerNestedConstructorFallbacks: Set<SymbolID>,
         expectedTypeOverrides: [Int: TypeID],
         preparedArgs: PreparedCallArguments,
         argTypes: [TypeID]
@@ -183,6 +185,33 @@ extension CallTypeChecker {
             if let candidateSpecificNestedCallTypes {
                 resolvedCandidates.removeAll {
                     candidateSpecificNestedCallTypes.inapplicableCandidates.contains($0)
+                }
+            }
+            let inheritedNestedConstructors = resolvedCandidates.filter {
+                preferredInheritedNestedConstructors.contains($0)
+            }
+            let outerConstructorFallbacks = resolvedCandidates.filter {
+                outerNestedConstructorFallbacks.contains($0)
+            }
+            if !inheritedNestedConstructors.isEmpty, !outerConstructorFallbacks.isEmpty {
+                let constructorCall = CallExpr(
+                    range: range,
+                    calleeName: calleeName ?? InternedString(),
+                    args: zip(args, preparedArgs.argTypes).map { argument, type in
+                        CallArg.source(argument, type: type, callRange: range, ast: ast)
+                    },
+                    explicitTypeArgs: explicitTypeArgs
+                )
+                let inheritedProbe = ctx.resolver.probeCall(
+                    candidates: inheritedNestedConstructors,
+                    call: constructorCall,
+                    expectedType: expectedType,
+                    implicitReceiverType: callImplicitReceiverType,
+                    candidateArgumentTypes: candidateSpecificNestedCallTypes?.argumentTypesByCandidate ?? [:],
+                    ctx: sema
+                )
+                if !inheritedProbe.viableCandidates.isEmpty {
+                    resolvedCandidates.removeAll { outerNestedConstructorFallbacks.contains($0) }
                 }
             }
             var resolvedTypeNameInvokeCandidates = typeNameCompanionInvokeCandidates.intersection(
@@ -571,6 +600,17 @@ extension CallTypeChecker {
                 candidates: [chosen],
                 ctx: ctx
             )[chosen]
+            let companionDispatchReceiver = ctx.inheritedCompanionReceiver(for: chosen).flatMap { companion -> SymbolID? in
+                guard let resolvedImplicitReceiverType,
+                      case let .classType(receiverClass) = sema.types.kind(
+                          of: sema.types.makeNonNullable(resolvedImplicitReceiverType)
+                      ),
+                      sema.types.isNominalSubtypeSymbol(receiverClass.classSymbol, of: companion)
+                else {
+                    return nil
+                }
+                return companion
+            }
             let contextParameterReceiverSymbols = contextParameterReceiverSymbols(
                 for: chosen,
                 substitution: resolved.substitutedTypeArguments,
@@ -581,7 +621,7 @@ extension CallTypeChecker {
                 chosen: chosen,
                 resolved: resolved,
                 sema: sema,
-                dispatchReceiverSymbol: importedDispatchReceiver,
+                dispatchReceiverSymbol: importedDispatchReceiver ?? companionDispatchReceiver,
                 contextParameterReceiverSymbols: contextParameterReceiverSymbols
             )
             if sema.wellKnownSymbols.isContractIntrinsic(for: chosen) {
@@ -607,6 +647,25 @@ extension CallTypeChecker {
                 // through the receiver-tower fallback. Preserve its extension
                 // receiver identity separately from the lexical dispatch owner.
                 sema.bindings.markImplicitExtensionReceiver(id, symbol: symbol)
+            }
+            if sema.bindings.implicitReceiverOuterReceiver(for: id) == nil,
+               let owner = sema.symbols.memberExtensionOwnerSymbol(for: chosen),
+               let outerEntry = ctx.implicitReceiverMemberLookupEntries().first(where: { entry in
+                   driver.helpers.allNominalSymbols(
+                       of: entry.type,
+                       types: sema.types,
+                       symbols: sema.symbols,
+                       interner: interner
+                   ).contains { root in
+                       root == owner || sema.types.isNominalSubtypeSymbol(root, of: owner)
+                   }
+               }),
+               let receiverSymbol = outerEntry.symbol
+            {
+                // Scope lookup records a member extension's extension receiver
+                // above, but KIR also needs the lexical owner for its dispatch
+                // receiver slot when an inner receiver lambda shadows `this`.
+                sema.bindings.markImplicitReceiverOuterReceiver(id, symbol: receiverSymbol)
             }
             if let calleeName, let receiverType = callImplicitReceiverType,
                let owner = sema.symbols.parentSymbol(for: chosen),

@@ -59,6 +59,8 @@ package struct MetadataRecord {
     /// Resolved names of value parameters, in declaration order, used for
     /// named-argument resolution on imported functions.
     package let valueParameterNames: [String]
+    /// Whether callers may use the declaration's value-parameter names.
+    package let hasStableParameterNames: Bool
     /// Indices of reified type parameters, in declaration order, so that
     /// call sites append the correct runtime type-token arguments for inline
     /// functions imported from a precompiled stdlib artifact.
@@ -166,6 +168,7 @@ package struct MetadataRecord {
         contractImplicationEffects: [ContractImplicationEffect] = [],
         canThrow: Bool = false,
         valueParameterNames: [String] = [],
+        hasStableParameterNames: Bool = true,
         reifiedTypeParameterIndices: Set<Int> = [],
         defaultStubExternalLinkName: String? = nil,
         externalLinkName: String? = nil,
@@ -231,6 +234,7 @@ package struct MetadataRecord {
         self.contractImplicationEffects = contractImplicationEffects
         self.canThrow = canThrow
         self.valueParameterNames = valueParameterNames
+        self.hasStableParameterNames = hasStableParameterNames
         self.reifiedTypeParameterIndices = reifiedTypeParameterIndices
         self.defaultStubExternalLinkName = defaultStubExternalLinkName
         self.externalLinkName = externalLinkName

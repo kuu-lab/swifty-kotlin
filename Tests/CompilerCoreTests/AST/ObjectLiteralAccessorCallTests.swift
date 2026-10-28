@@ -1,6 +1,7 @@
 #if canImport(Testing)
 @testable import CompilerCore
 import Testing
+@testable import CompilerTestSupport
 
 @Suite struct ObjectLiteralAccessorCallTests {
     private func firstObject(in ast: ASTModule) -> ObjectDecl? {

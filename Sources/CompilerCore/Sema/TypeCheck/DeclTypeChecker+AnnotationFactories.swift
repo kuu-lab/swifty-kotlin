@@ -1,4 +1,13 @@
 extension DeclTypeChecker {
+    func typeCheckPrimaryConstructorAnnotationFactories(
+        _ annotations: [AnnotationNode],
+        symbol: SymbolID?,
+        ctx: TypeInferenceContext
+    ) {
+        guard !annotations.isEmpty, let symbol else { return }
+        typeCheckAnnotationFactories(annotations, symbol: symbol, ctx: ctx)
+    }
+
     /// Resolve construction in the declaration's lexical context, after headers.
     /// The producer owns the body, including private types and default values.
     func typeCheckAnnotationFactories(
@@ -49,11 +58,29 @@ extension DeclTypeChecker {
                 tokens.append(Token(kind: .symbol(.lParen), range: last.range))
                 tokens.append(Token(kind: .symbol(.rParen), range: last.range))
             }
+            // A fully qualified classifier is already resolved by the header
+            // pass. Replay it through a local alias so package components are
+            // not reinterpreted as ordinary expressions. Keep the source name
+            // in that alias for diagnostics, and leave simple names unchanged.
+            let constructionScope: Scope
+            if annotation.name.contains(".") {
+                let alias = ctx.interner.intern(annotation.name)
+                guard let argumentStart = tokens.firstIndex(where: { $0.kind == .symbol(.lParen) }) else { continue }
+                tokens.replaceSubrange(0..<argumentStart, with: [Token(kind: .identifier(alias), range: first.range)])
+                let scope = BaseScope(parent: ctx.scope, symbols: sema.symbols)
+                scope.insertWithAlias(annotationSymbol, asName: alias)
+                constructionScope = scope
+            } else {
+                constructionScope = ctx.scope
+            }
             let parser = BuildASTPhase.ExpressionParser(
                 tokens: tokens, interner: ctx.interner, astArena: ctx.ast.arena, diagnostics: sema.diagnostics
             )
             parser.allowAnnotationArrayLiterals = true
-            guard let construction = parser.parse() else { continue }
+            guard let parsedConstruction = parser.parse(),
+                  let construction = resolvedAnnotationConstruction(
+                      parsedConstruction, annotationClass: annotationSymbol, ctx: ctx
+                  ) else { continue }
             let wasCheckingAnnotation = driver.isCheckingAnnotationConstruction
             driver.isCheckingAnnotationConstruction = true
             defer { driver.isCheckingAnnotationConstruction = wasCheckingAnnotation }
@@ -78,7 +105,8 @@ extension DeclTypeChecker {
                                          expectedType: expectedType)
                 }
             }
-            var constructionContext = ctx.with(currentDeclSymbol: symbol)
+            var constructionContext = ctx.copying(scope: constructionScope, currentDeclSymbol: .some(symbol))
+            constructionContext.annotationConstructionTarget = (construction, annotationSymbol)
             constructionContext.annotationOptInValidation = (
                 owner: annotationSymbol, range: ctx.ast.arena.exprRange(construction),
                 markers: sema.bindings.validatedAnnotationOptInMarkers[usageID] ?? []
@@ -105,6 +133,28 @@ extension DeclTypeChecker {
             )
         }
         sema.symbols.setAnnotations(records, for: symbol)
+    }
+
+    private func resolvedAnnotationConstruction(
+        _ expression: ExprID,
+        annotationClass: SymbolID,
+        ctx: TypeInferenceContext
+    ) -> ExprID? {
+        let arguments: [CallArgument]
+        let range: SourceRange
+        switch ctx.ast.arena.expr(expression) {
+        case let .call(_, _, arguments_, range_), let .memberCall(_, _, _, arguments_, range_):
+            arguments = arguments_
+            range = range_
+        default:
+            return nil
+        }
+        guard let annotationName = ctx.sema.symbols.symbol(annotationClass)?.name else { return nil }
+        let callee = ctx.ast.arena.appendExpr(.nameRef(annotationName, range))
+        let construction = ctx.ast.arena.appendExpr(.call(
+            callee: callee, typeArgs: [], args: arguments, range: range
+        ))
+        return construction
     }
 
     func validateAnnotationDefaultValue(_ expression: ExprID, ctx: TypeInferenceContext) {

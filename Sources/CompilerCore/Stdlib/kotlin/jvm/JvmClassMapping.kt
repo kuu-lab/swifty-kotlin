@@ -29,5 +29,6 @@ public val <T : Any> KClass<T>.javaObjectType: Class<T>
  * The enum value is boxed at this generic boundary, preserving its declared
  * enum type even when the entry has a class body.
  */
+@Suppress("UNCHECKED_CAST")
 public val <E : Enum<E>> Enum<E>.declaringJavaClass: Class<E>
     get() = this.javaClass() as Class<E>

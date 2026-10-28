@@ -95,6 +95,20 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
             ctx.interner.intern("kk_op_ne"),
             ctx.interner.intern("kk_structural_eq"),
             ctx.interner.intern("kk_structural_ne"),
+            // The sentinel-safe nullable comparison likewise receives its
+            // operands raw: a value-class peer (e.g. `v2 == v1` where `v2`
+            // is `V?` for a Double-backed `V`) must arrive tagged so the
+            // runtime's nominal check can match it against the box the `V?`
+            // slot carries (KUU-3616). The trailing flag literal is a plain
+            // Int and passes through untouched.
+            ctx.interner.intern("kk_nullable_primitive_eq"),
+            ctx.interner.intern("kk_nullable_primitive_ne"),
+            // The signature-less Any-equals fallback takes
+            // (receiver, receiverTag, arg, argTag): the value slots can
+            // carry a raw value-class payload the bridge would otherwise
+            // compare as the bare underlying primitive (KUU-3616). The tag
+            // slots are Int literals and pass through untouched.
+            ctx.interner.intern("kk_any_equals"),
         ]
         // Membership intrinsics (`x in c` / `contains`) receive their element
         // argument raw: enum-typed parameters carry ordinals, while stored
@@ -180,14 +194,11 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
         )
 
         var signatureByName: [InternedString: FunctionSignature] = [:]
-        // `$default` stubs are synthetic symbols outside the symbol table, so
-        // `signatureByName` never contains them: a stub call arrives with
-        // `symbol: nil` and `signature == nil`, leaving every slot unboxed.
-        // The stub's own KIR declaration carries the real ABI parameter list —
-        // dispatch/extension receivers as ordinary leading params, then
-        // defaults, then mask words — so positional argument boxing applies
-        // once the signature is recovered by link name (KUU-3224).
+        // `$default` stubs have no Sema signature. Recover their actual ABI
+        // from the KIR declaration, preferring the synthetic symbol and using
+        // the name for symbol-less calls (KUU-3224).
         var stubSignatureByName: [InternedString: FunctionSignature] = [:]
+        var stubSignatureBySymbol: [SymbolID: FunctionSignature] = [:]
         if let symbols {
             for decl in module.arena.declarations {
                 guard case let .function(fn) = decl else { continue }
@@ -197,11 +208,13 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                 if SyntheticSymbolScheme.isSyntheticCallTarget(fn.symbol),
                    !SyntheticSymbolScheme.isLikelySyntheticPropertyAccessor(fn.symbol)
                 {
-                    stubSignatureByName[fn.name] = FunctionSignature(
+                    let stubSignature = FunctionSignature(
                         parameterTypes: fn.params.map(\.type),
                         returnType: fn.returnType,
                         isSuspend: fn.isSuspend
                     )
+                    stubSignatureByName[fn.name] = stubSignature
+                    stubSignatureBySymbol[fn.symbol] = stubSignature
                 }
             }
         }
@@ -661,35 +674,46 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                         && !isNonThrowingExternalLink)
 
                 var signature: FunctionSignature?
+                var recoveredStubSignature = false
                 if let symbols, let effectiveCallSymbol {
                     signature = symbols.functionSignature(for: effectiveCallSymbol)
+                }
+                // A default stub's symbol identifies its owner even when other
+                // declarations have the same `$default` display name.
+                if signature == nil, let effectiveCallSymbol,
+                   let stubSignature = stubSignatureBySymbol[effectiveCallSymbol]
+                {
+                    signature = stubSignature
+                    recoveredStubSignature = true
                 }
                 if signature == nil {
                     signature = signatureByName[effectiveCallee]
                 }
                 if signature == nil {
                     signature = stubSignatureByName[effectiveCallee]
+                    recoveredStubSignature = signature != nil
                 }
-                // Default stubs do not have Sema signatures. Their KIR params
-                // include the receiver as an ordinary argument, so recover the
-                // concrete signature when an enum slot needs ABI adaptation.
+                // Generated callables — `$default` stubs, callable-reference
+                // wrappers, lambda adapters, SAM thunks — mint their own
+                // symbols, so neither a Sema signature nor a
+                // synthetic-call-target stub signature exists for them. Their
+                // declared KIR params are the call ABI: recover the signature
+                // so arguments crossing into erased or nullable slots are
+                // boxed instead of arriving as raw words (e.g. a `Double`
+                // argument into a `(Double?) -> String` adapter reaching the
+                // body as the null sentinel — KUU-3649). The enum-parameter
+                // stub recovery this replaces was the same rule gated on one
+                // shape.
                 if signature == nil,
-                   let stubSymbol = effectiveCallSymbol,
-                   SyntheticSymbolScheme.isSyntheticCallTarget(stubSymbol),
-                   !SyntheticSymbolScheme.isLikelySyntheticPropertyAccessor(stubSymbol),
-                   let stub = module.arena.function(for: stubSymbol),
-                   let types,
-                   stub.params.contains(where: { parameter in
-                       guard case let .classType(classType) = types.kind(of: parameter.type) else { return false }
-                       return classType.nullability == .nonNull
-                           && symbols?.symbol(classType.classSymbol)?.kind == .enumClass
-                   })
+                   let callSymbol = effectiveCallSymbol,
+                   let generatedFunction = module.arena.function(for: callSymbol)
                 {
                     signature = FunctionSignature(
-                        parameterTypes: stub.params.map(\.type),
-                        returnType: stub.returnType,
-                        isSuspend: stub.isSuspend
+                        parameterTypes: generatedFunction.params.map(\.type),
+                        returnType: generatedFunction.returnType,
+                        isSuspend: generatedFunction.isSuspend
                     )
+                    recoveredStubSignature = true
                 }
                 // ABI-002: see boundaryBridgeSignatureByLinkName above.
                 if signature == nil, effectiveCallSymbol == nil {
@@ -752,11 +776,11 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                         boxingCalleeTable: boxingCalleeTable,
                         callee: effectiveCallee,
                         interner: ctx.interner,
-                        // A name-recovered `$default` stub is a source-generated
+                        // A recovered `$default` stub is a source-generated
                         // Kotlin function, so its type-parameter slots carry
                         // the same boxed values as any Kotlin-source callee.
                         boxTypeParamArguments: isKotlinSourceCallee(effectiveCallSymbol, symbols: symbols)
-                            || stubSignatureByName[effectiveCallee] != nil,
+                            || recoveredStubSignature,
                         preservedBoxedArgumentIndices: preservedBoxedArgumentIndices,
                         sema: ctx.sema,
                         cache: ctx.nominalDispatchCache,
@@ -876,16 +900,58 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                             // `kk_enum_box_ordinal` normalizes boxed and raw
                             // inputs to the cached entry box and keeps the
                             // null sentinel null (KUU-2957).
-                            guard let enumClass = argEnumClasses[i],
-                                  let symbols,
-                                  let enumSymbol = symbols.symbol(enumClass),
-                                  enumBoxingHasOrdinalNameHelper(enumSymbol, symbols: symbols, interner: ctx.interner)
+                            if let enumClass = argEnumClasses[i],
+                               let symbols,
+                               let enumSymbol = symbols.symbol(enumClass),
+                               enumBoxingHasOrdinalNameHelper(enumSymbol, symbols: symbols, interner: ctx.interner)
+                            {
+                                let boxedTemp = module.arena.appendTemporary(type: types.anyType)
+                                emitEnumOrdinalBoxCall(
+                                    ordinal: boxedArguments[i],
+                                    classSymbol: enumClass,
+                                    result: boxedTemp,
+                                    resultType: types.anyType,
+                                    types: types,
+                                    symbols: symbols,
+                                    interner: ctx.interner,
+                                    arena: module.arena,
+                                    sema: ctx.sema,
+                                    cache: ctx.nominalDispatchCache,
+                                    into: &newBody
+                                )
+                                boxedArguments[i] = boxedTemp
+                                continue
+                            }
+                            // A value class is its raw underlying payload
+                            // while statically value-class-typed, so an
+                            // unboxed operand would reach the equality bridge
+                            // indistinguishable from a raw Int/String and
+                            // `A("x") == "x"` would compare payloads. Boxed
+                            // equality is nominal on the JVM, so box the
+                            // operand through the ordinary Any-boundary path
+                            // first — the runtime then sees the class's type
+                            // tag before any payload unwrapping (KUU-3616).
+                            guard let symbols,
+                                  case let .classType(classType) = types.kind(of: argType),
+                                  classType.nullability == .nonNull,
+                                  symbols.symbol(classType.classSymbol)?.flags.contains(.valueType) == true,
+                                  let boxCallee = boxingCallee(
+                                      argType: argType,
+                                      paramType: types.anyType,
+                                      callee: effectiveCallee,
+                                      types: types,
+                                      interner: ctx.interner,
+                                      boxingCalleeTable: boxingCalleeTable,
+                                      symbols: symbols,
+                                      preferStaticPrimitive: true
+                                  )
                             else { continue }
-                            let boxedTemp = module.arena.appendTemporary(type: types.anyType)
-                            emitEnumOrdinalBoxCall(
-                                ordinal: boxedArguments[i],
-                                classSymbol: enumClass,
-                                result: boxedTemp,
+                            let boxedValueClass = module.arena.appendTemporary(type: types.anyType)
+                            emitBoxCallWithValueClassTag(
+                                boxCallee: boxCallee,
+                                value: boxedArguments[i],
+                                rawSourceKind: types.kind(of: argType),
+                                result: boxedValueClass,
                                 resultType: types.anyType,
                                 types: types,
                                 symbols: symbols,
@@ -895,7 +961,7 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                                 cache: ctx.nominalDispatchCache,
                                 into: &newBody
                             )
-                            boxedArguments[i] = boxedTemp
+                            boxedArguments[i] = boxedValueClass
                         default:
                             continue
                         }
@@ -929,18 +995,54 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                         ) else { continue }
                         switch types.kind(of: argType) {
                         case let .classType(classType):
+                            if let symbols,
+                               let enumSymbol = symbols.symbol(classType.classSymbol),
+                               enumSymbol.kind == .enumClass,
+                               enumBoxingHasOrdinalNameHelper(
+                                   enumSymbol, symbols: symbols, interner: ctx.interner
+                               )
+                            {
+                                let boxedTemp = module.arena.appendTemporary(type: types.anyType)
+                                emitEnumOrdinalBoxCall(
+                                    ordinal: boxedArguments[i],
+                                    classSymbol: classType.classSymbol,
+                                    result: boxedTemp,
+                                    resultType: types.anyType,
+                                    types: types,
+                                    symbols: symbols,
+                                    interner: ctx.interner,
+                                    arena: module.arena,
+                                    sema: ctx.sema,
+                                    cache: ctx.nominalDispatchCache,
+                                    into: &newBody
+                                )
+                                boxedArguments[i] = boxedTemp
+                                continue
+                            }
+                            // A value-class probe must carry the same tagged
+                            // box the elements were stored as, or
+                            // `A(1) in listOf(A(1))` misses on the nominal
+                            // tag check (KUU-3616).
                             guard let symbols,
-                                  let enumSymbol = symbols.symbol(classType.classSymbol),
-                                  enumSymbol.kind == .enumClass,
-                                  enumBoxingHasOrdinalNameHelper(
-                                      enumSymbol, symbols: symbols, interner: ctx.interner
+                                  classType.nullability == .nonNull,
+                                  symbols.symbol(classType.classSymbol)?.flags.contains(.valueType) == true,
+                                  let boxCallee = boxingCallee(
+                                      argType: argType,
+                                      paramType: types.anyType,
+                                      callee: effectiveCallee,
+                                      types: types,
+                                      interner: ctx.interner,
+                                      boxingCalleeTable: boxingCalleeTable,
+                                      symbols: symbols,
+                                      preferStaticPrimitive: true
                                   )
                             else { continue }
-                            let boxedTemp = module.arena.appendTemporary(type: types.anyType)
-                            emitEnumOrdinalBoxCall(
-                                ordinal: boxedArguments[i],
-                                classSymbol: classType.classSymbol,
-                                result: boxedTemp,
+                            let boxedValueClass = module.arena.appendTemporary(type: types.anyType)
+                            emitBoxCallWithValueClassTag(
+                                boxCallee: boxCallee,
+                                value: boxedArguments[i],
+                                rawSourceKind: types.kind(of: argType),
+                                result: boxedValueClass,
                                 resultType: types.anyType,
                                 types: types,
                                 symbols: symbols,
@@ -950,7 +1052,7 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                                 cache: ctx.nominalDispatchCache,
                                 into: &newBody
                             )
-                            boxedArguments[i] = boxedTemp
+                            boxedArguments[i] = boxedValueClass
                         case .primitive(let primitive, .nonNull)
                             where primitive != .double && primitive != .float && !containerIsRange:
                             // A bare integral scalar would alias a stored enum
@@ -1058,6 +1160,32 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                             into: &newBody
                         )
                         boxedArguments[0] = boxedResult
+                    } else if let rawArgKind,
+                       case let .classType(argClass) = rawArgKind,
+                       argClass.nullability == .nonNull,
+                       symbols?.symbol(argClass.classSymbol)?.flags.contains(.valueType) == true
+                    {
+                        // No primitive box exists for a value class whose
+                        // underlying type is itself an object — a nullable or
+                        // reference payload (KUU-3115, KUU-3616). `kk_op_cast`
+                        // returns its operand as the cast result, so the
+                        // `.any`-typed result must carry the nominal
+                        // `kk_value_class_box` wrapper: otherwise `r as Any`
+                        // is the bare payload handle and compares equal to it.
+                        boxedArguments[0] = boxValueForAnySlot(
+                            firstArg,
+                            sourceType: argType ?? types.anyType,
+                            types: types,
+                            symbols: symbols,
+                            interner: ctx.interner,
+                            arena: module.arena,
+                            resultType: types.anyType,
+                            requireNonNull: true,
+                            boxingCalleeTable: boxingCalleeTable,
+                            sema: ctx.sema,
+                            cache: ctx.nominalDispatchCache,
+                            into: &newBody
+                        )
                     }
                 }
 
@@ -1248,7 +1376,40 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                 instructions.append(.returnValue(boxedResult))
                 return instructions
             }
+            // Reference-backed value classes take the same wrapper when the
+            // declared return slot is a boxed target — `fun f(): Any = r`
+            // must not leak the payload handle as the Any value (KUU-3616).
+            if let vcSymbol = referenceBackedValueClassSymbol(
+                of: rawValueKind, types: types, symbols: symbols
+            ), valueClassBoxTargetIsBoxed(rawReturnKind, symbols: symbols) {
+                var instructions: [KIRInstruction] = []
+                let boxedResult = module.arena.appendTemporary(type: returnType)
+                emitValueClassBoxCall(
+                    value: value, classSymbol: vcSymbol, result: boxedResult,
+                    resultType: returnType, types: types, symbols: symbols,
+                    interner: interner, arena: module.arena, into: &instructions
+                )
+                instructions.append(.returnValue(boxedResult))
+                return instructions
+            }
             if let vcSymbol = nullableUnderlyingValueClassSymbol(
+                of: rawReturnKind, types: types, symbols: symbols
+            ), valueClassUnboxSourceIsBoxed(rawValueKind, symbols: symbols) {
+                var instructions: [KIRInstruction] = []
+                let unboxed = module.arena.appendTemporary(type: returnType)
+                emitValueClassUnboxCall(
+                    value: value, classSymbol: vcSymbol, result: unboxed,
+                    resultType: returnType, types: types, symbols: symbols,
+                    interner: interner, arena: module.arena, into: &instructions
+                )
+                instructions.append(.returnValue(unboxed))
+                return instructions
+            }
+            // `Any`/type-parameter/`V?` slots may hold a reference-backed
+            // value-class box; an `R` return slot expects the payload, so
+            // unwrap the nominal box the same way copies do — the helper
+            // passes non-matching values through unchanged (KUU-3616).
+            if let vcSymbol = referenceBackedValueClassSymbol(
                 of: rawReturnKind, types: types, symbols: symbols
             ), valueClassUnboxSourceIsBoxed(rawValueKind, symbols: symbols) {
                 var instructions: [KIRInstruction] = []
@@ -1364,6 +1525,39 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
         {
             var instructions: [KIRInstruction] = []
             emitValueClassBoxCall(
+                value: from, classSymbol: vcSymbol, result: to,
+                resultType: toType, types: types, symbols: symbols,
+                interner: interner, arena: module.arena, into: &instructions
+            )
+            return instructions
+        }
+        // A reference-backed value class needs the same nominal wrapper at a
+        // copy boundary: `V` is the bare payload object, so `r as Any` would
+        // otherwise stash the shared `c` handle into the Any slot and compare
+        // equal to it — boxed equality is nominal on the JVM (KUU-3616).
+        if let symbols,
+           let vcSymbol = referenceBackedValueClassSymbol(
+               of: rawFromKind, types: types, symbols: symbols
+           ),
+           valueClassBoxTargetIsBoxed(rawToKind, symbols: symbols)
+        {
+            var instructions: [KIRInstruction] = []
+            emitValueClassBoxCall(
+                value: from, classSymbol: vcSymbol, result: to,
+                resultType: toType, types: types, symbols: symbols,
+                interner: interner, arena: module.arena, into: &instructions
+            )
+            return instructions
+        }
+        // Reference-backed boxes unwrap the same way: an `Any`/`T` slot or a
+        // `V?` slot can carry the wrapper, and `kk_value_class_unbox` passes
+        // payloads and foreign boxes through unchanged (KUU-3616).
+        if let symbols,
+           let vcSymbol = referenceBackedValueClassSymbol(of: rawToKind, types: types, symbols: symbols),
+           valueClassUnboxSourceIsBoxed(rawFromKind, symbols: symbols)
+        {
+            var instructions: [KIRInstruction] = []
+            emitValueClassUnboxCall(
                 value: from, classSymbol: vcSymbol, result: to,
                 resultType: toType, types: types, symbols: symbols,
                 interner: interner, arena: module.arena, into: &instructions

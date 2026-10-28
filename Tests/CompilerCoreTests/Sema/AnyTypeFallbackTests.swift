@@ -1,6 +1,7 @@
 #if canImport(Testing)
 @testable import CompilerCore
 import Testing
+@testable import CompilerTestSupport
 
 /// TYPE-111: Verify that premature `anyType` fallbacks in object literal,
 /// callable reference, and compound assignment inference have been replaced

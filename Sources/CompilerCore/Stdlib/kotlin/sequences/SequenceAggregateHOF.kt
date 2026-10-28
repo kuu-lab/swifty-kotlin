@@ -174,7 +174,7 @@ public fun <T, R : Comparable<R>> Sequence<T>.maxByOrNull(selector: (T) -> R): T
         val elem = elements[i]
         val key = selector(elem)
         val currentBestKey = bestKey
-        if (currentBestKey == null || key.compareTo(currentBestKey) > 0) { bestElem = elem; bestKey = key }
+        if (currentBestKey == null || currentBestKey.compareTo(key) < 0) { bestElem = elem; bestKey = key }
         i += 1
     }
     return bestElem
@@ -189,7 +189,7 @@ public fun <T, R : Comparable<R>> Sequence<T>.minByOrNull(selector: (T) -> R): T
         val elem = elements[i]
         val key = selector(elem)
         val currentBestKey = bestKey
-        if (currentBestKey == null || key.compareTo(currentBestKey) < 0) { bestElem = elem; bestKey = key }
+        if (currentBestKey == null || currentBestKey.compareTo(key) > 0) { bestElem = elem; bestKey = key }
         i += 1
     }
     return bestElem
@@ -204,7 +204,7 @@ public fun <T, R : Comparable<R>> Sequence<T>.minBy(selector: (T) -> R): T {
     while (i < elements.size) {
         val elem = elements[i]
         val key = selector(elem)
-        if (key.compareTo(bestKey) < 0) { bestElem = elem; bestKey = key }
+        if (bestKey.compareTo(key) > 0) { bestElem = elem; bestKey = key }
         i += 1
     }
     return bestElem
@@ -219,7 +219,7 @@ public fun <T, R : Comparable<R>> Sequence<T>.maxBy(selector: (T) -> R): T {
     while (i < elements.size) {
         val elem = elements[i]
         val key = selector(elem)
-        if (key.compareTo(bestKey) > 0) { bestElem = elem; bestKey = key }
+        if (bestKey.compareTo(key) < 0) { bestElem = elem; bestKey = key }
         i += 1
     }
     return bestElem
@@ -242,7 +242,7 @@ public inline fun <T, R : Comparable<R>> Sequence<T>.minOf(selector: (T) -> R): 
     var i = 1
     while (i < elements.size) {
         val key = selector(elements[i])
-        if (key.compareTo(bestKey) < 0) bestKey = key
+        if (bestKey.compareTo(key) > 0) bestKey = key
         i += 1
     }
     return bestKey
@@ -259,7 +259,7 @@ public inline fun <T, R : Comparable<R>> Sequence<T>.maxOf(selector: (T) -> R): 
     var i = 1
     while (i < elements.size) {
         val key = selector(elements[i])
-        if (key.compareTo(bestKey) > 0) bestKey = key
+        if (bestKey.compareTo(key) < 0) bestKey = key
         i += 1
     }
     return bestKey
@@ -276,7 +276,7 @@ public inline fun <T, R : Comparable<R>> Sequence<T>.minOfOrNull(selector: (T) -
     var i = 1
     while (i < elements.size) {
         val key = selector(elements[i])
-        if (key.compareTo(bestKey) < 0) bestKey = key
+        if (bestKey.compareTo(key) > 0) bestKey = key
         i += 1
     }
     return bestKey
@@ -293,7 +293,7 @@ public inline fun <T, R : Comparable<R>> Sequence<T>.maxOfOrNull(selector: (T) -
     var i = 1
     while (i < elements.size) {
         val key = selector(elements[i])
-        if (key.compareTo(bestKey) > 0) bestKey = key
+        if (bestKey.compareTo(key) < 0) bestKey = key
         i += 1
     }
     return bestKey
@@ -306,7 +306,7 @@ public fun <T> Sequence<T>.minWith(comparator: Comparator<in T>): T {
     var i = 1
     while (i < elements.size) {
         val elem = elements[i]
-        if (comparator.compare(elem, best) < 0) best = elem
+        if (comparator.compare(best, elem) > 0) best = elem
         i += 1
     }
     return best
@@ -319,7 +319,7 @@ public fun <T> Sequence<T>.maxWith(comparator: Comparator<in T>): T {
     var i = 1
     while (i < elements.size) {
         val elem = elements[i]
-        if (comparator.compare(elem, best) > 0) best = elem
+        if (comparator.compare(best, elem) < 0) best = elem
         i += 1
     }
     return best
@@ -332,7 +332,7 @@ public fun <T> Sequence<T>.minWithOrNull(comparator: Comparator<in T>): T? {
     var i = 1
     while (i < elements.size) {
         val elem = elements[i]
-        if (comparator.compare(elem, best) < 0) best = elem
+        if (comparator.compare(best, elem) > 0) best = elem
         i += 1
     }
     return best
@@ -345,7 +345,7 @@ public fun <T> Sequence<T>.maxWithOrNull(comparator: Comparator<in T>): T? {
     var i = 1
     while (i < elements.size) {
         val elem = elements[i]
-        if (comparator.compare(elem, best) > 0) best = elem
+        if (comparator.compare(best, elem) < 0) best = elem
         i += 1
     }
     return best
@@ -812,7 +812,7 @@ public fun <T : Comparable<T>> Sequence<T>.maxOrNull(): T? {
     while (i < sz) {
         val element = elements[i]
         val current = best
-        if (current == null || element.compareTo(current) > 0) best = element
+        if (current == null || current.compareTo(element) < 0) best = element
         i += 1
     }
     return best
@@ -873,7 +873,7 @@ public fun <T : Comparable<T>> Sequence<T>.minOrNull(): T? {
     while (i < sz) {
         val element = elements[i]
         val current = best
-        if (current == null || element.compareTo(current) < 0) best = element
+        if (current == null || current.compareTo(element) > 0) best = element
         i += 1
     }
     return best

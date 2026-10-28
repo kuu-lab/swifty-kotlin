@@ -2,6 +2,7 @@
 @testable import CompilerCore
 import Foundation
 import Testing
+@testable import CompilerTestSupport
 
 // MARK: - Multi-file compile benchmarks for frontend parallelization (P5-61)
 

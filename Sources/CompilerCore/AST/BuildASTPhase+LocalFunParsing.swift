@@ -44,6 +44,17 @@ extension BuildASTPhase {
         bodyOverride: FunctionBody? = nil,
         isAnonymousFunction: Bool = false
     ) -> ExprID? {
+        // Leading annotations were already peeled by callers for dispatch;
+        // strip them here instead so declaration-level `@Suppress` can reach
+        // the diagnostics below (kotlinc gates local `inline` behind
+        // `NOT_YET_SUPPORTED_LOCAL_INLINE_FUNCTION`). Only `Suppress` is
+        // forwarded: other annotation kinds were previously dropped, and
+        // re-attaching them as expression annotations would validate them
+        // against the wrong site.
+        let suppressAnnotations = annotationsFromTokens(statementTokens, interner: interner).filter {
+            $0.name.split(separator: ".").last == "Suppress"
+        }
+        let statementTokens = Self.skipLeadingLocalAnnotations(statementTokens, interner: interner)
         guard !statementTokens.isEmpty else {
             return nil
         }
@@ -124,17 +135,14 @@ extension BuildASTPhase {
             )
         }
         // KUU-1407: local functions accept only `suspend`/`infix`/`operator`/
-        // `tailrec` modifiers on JVM; `inline` gets its own error.
+        // `tailrec` modifiers on JVM; `inline` gets its own error. That error
+        // is deferred to sema (`inferLocalFunDeclExpr`): emitting it here would
+        // abort the pipeline before `@Suppress` registrations run, making
+        // `NOT_YET_SUPPORTED_LOCAL_INLINE_FUNCTION` impossible to honor.
         for modifier in leadingModifiers {
             switch modifier.name {
-            case "suspend", "infix", "operator", "tailrec":
+            case "suspend", "infix", "operator", "tailrec", "inline":
                 continue
-            case "inline":
-                diagnostics?.error(
-                    "KSWIFTK-SEMA-0400",
-                    "local inline functions are not yet supported.",
-                    range: modifier.range
-                )
             default:
                 diagnostics?.error(
                     "KSWIFTK-SEMA-0400",
@@ -339,6 +347,12 @@ extension BuildASTPhase {
         }
         if leadingModifiers.contains(where: { $0.name == "tailrec" }) {
             astArena.markLocalTailrecFunction(declaration)
+        }
+        if leadingModifiers.contains(where: { $0.name == "inline" }) {
+            astArena.markLocalInlineFunction(declaration)
+        }
+        if !suppressAnnotations.isEmpty {
+            astArena.prependExpressionAnnotations(suppressAnnotations, for: declaration)
         }
         if isInfix { astArena.markInfixFunction(declaration) }
         if hasOperator { astArena.markOperatorFunction(declaration) }

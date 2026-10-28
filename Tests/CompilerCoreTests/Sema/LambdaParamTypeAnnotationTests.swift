@@ -2,6 +2,7 @@
 @testable import CompilerCore
 import Foundation
 import Testing
+@testable import CompilerTestSupport
 
 /// BUG-046: explicit lambda parameter type annotations (`{ a: Int, b: Int -> ... }`)
 /// must be preserved by the parser and honoured by type inference, including when

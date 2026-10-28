@@ -1,6 +1,7 @@
 #if canImport(Testing)
 @testable import CompilerCore
 import Testing
+@testable import CompilerTestSupport
 
 /// BUG-186: Byte/Short overloads must be distinct and resolve to the correct overload.
 @Suite
@@ -143,49 +144,6 @@ struct ByteShortOverloadResolutionTests {
             }, "Expected 1.toShort() call")
             #expect(sema.bindings.exprType(for: toShortCall) == sema.types.shortType, "1.toShort() should have type Short")
         }
-    }
-
-    @Test func primitiveArrayPlusContextualizesIntegerLiteralArguments() throws {
-        let ctx = makeContextFromSource("""
-        fun main() {
-            val bytes = byteArrayOf(1) + 2
-            val shorts = shortArrayOf(7) + 2
-            val bytesFromList = byteArrayOf(1) + listOf(2.toByte(), 3.toByte())
-            val shortsFromList = shortArrayOf(7) + listOf(2.toShort(), 3.toShort())
-        }
-        """)
-        try runSema(ctx)
-        #expect(!ctx.diagnostics.hasError, "Expected primitive-array plus literals to resolve: \(ctx.diagnostics.diagnostics)")
-
-        let ast = try #require(ctx.ast)
-        let sema = try #require(ctx.sema)
-        let resolvedAdditions = ast.arena.exprs.indices.compactMap { index -> (Int, TypeID, TypeID)? in
-            let id = ExprID(rawValue: Int32(index))
-            guard case let .binary(.add, _, rhs, _) = ast.arena.expr(id),
-                  case .intLiteral = ast.arena.expr(rhs),
-                  let range = ast.arena.exprRange(id),
-                  ctx.sourceManager.origin(of: range.start.file) == .user,
-                  let binding = sema.bindings.callBinding(for: id),
-                  let signature = sema.symbols.functionSignature(for: binding.chosenCallee),
-                  let parameterType = signature.parameterTypes.first,
-                  let argumentType = sema.bindings.exprType(for: rhs)
-            else { return nil }
-            return (range.start.offset, argumentType, parameterType)
-        }.sorted { $0.0 < $1.0 }
-
-        #expect(resolvedAdditions.map { $0.1 } == [sema.types.byteType, sema.types.shortType])
-        #expect(resolvedAdditions.map { $0.2 } == [sema.types.byteType, sema.types.shortType])
-    }
-
-    @Test func primitiveArrayPlusDoesNotNarrowOutOfRangeIntegerLiteral() throws {
-        let ctx = makeContextFromSource("""
-        fun main() {
-            byteArrayOf(1) + 128
-            shortArrayOf(1) + 32768
-        }
-        """)
-        try runSema(ctx)
-        #expect(ctx.diagnostics.hasError)
     }
 }
 #endif

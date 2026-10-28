@@ -1,6 +1,7 @@
 #if canImport(Testing)
 @testable import CompilerCore
 import Testing
+@testable import CompilerTestSupport
 
 // STDLIB-004: Codegen coverage for primitive array factory calls and
 // lambda constructors.  These tests verify the KIR lowering output so

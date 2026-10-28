@@ -1,6 +1,7 @@
 #if canImport(Testing)
 @testable import CompilerCore
 import Testing
+@testable import CompilerTestSupport
 
 /// A suspend lambda that captures a mutable local reaches the unintercepted
 /// entry-point intrinsics as `kk_function_create_N(adapter, closureState)`. The

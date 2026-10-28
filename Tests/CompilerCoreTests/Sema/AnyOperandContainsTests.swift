@@ -1,6 +1,7 @@
 #if canImport(Testing)
 @testable import CompilerCore
 import Testing
+@testable import CompilerTestSupport
 
 @Suite
 struct AnyOperandContainsTests {
@@ -111,6 +112,17 @@ struct AnyOperandContainsTests {
             operator fun contains(value: Long): Boolean = value == 5L
         }
         fun check(value: Int): Boolean = value in LongR()
+        """)
+        try runSema(ctx)
+        #expect(ctx.diagnostics.diagnostics.contains { $0.severity == .error })
+    }
+
+    @Test func customLongContainsRejectsDoubleLiteralOperand() throws {
+        let ctx = makeContextFromSource("""
+        class LongR {
+            operator fun contains(value: Long): Boolean = value == 5L
+        }
+        fun check(): Boolean = 5.0 in LongR()
         """)
         try runSema(ctx)
         #expect(ctx.diagnostics.diagnostics.contains { $0.severity == .error })

@@ -79,6 +79,13 @@ extension ControlFlowTypeChecker {
                     locals[name]?.isMutable ?? false
                 )
             }()
+            let subjectValueFacts: DataFlowValueFacts? = if let subjectLocalBinding,
+                                                               subjectLocalBinding.isStable
+            {
+                ctx.flowState.includingMembers(from: locals)[subjectLocalBinding.symbol]?.valueFacts
+            } else {
+                nil
+            }
             // When the subject is the implicit receiver `this`, narrowing must
             // also update `ctx.implicitReceiverType` so bare-name member
             // access (e.g. `v`, not just `this.v`) resolves against the
@@ -441,7 +448,12 @@ extension ControlFlowTypeChecker {
                 hasFalseCase: hasFalseCase, coveredTypeSymbols: coveredTypeSymbols,
                 negatedTypeCheckTypes: negatedTypeCheckTypes
             )
-            let isExhaustive = ctx.dataFlow.isWhenExhaustive(subjectType: subjectType, branches: summary, sema: sema)
+            let isExhaustive = ctx.dataFlow.isWhenExhaustive(
+                subjectType: subjectType,
+                branches: summary,
+                sema: sema,
+                valueFacts: subjectValueFacts
+            )
             sema.bindings.bindWhenExhaustiveness(id, isExhaustive: isExhaustive)
             // A subject-ful `when` used as a statement (its value discarded) only
             // needs to be exhaustive when the subject is Boolean, enum, or sealed —
@@ -468,7 +480,10 @@ extension ControlFlowTypeChecker {
                 }
                 if !hasQualifiedObjectCondition,
                    let missingBranches = ctx.dataFlow.missingSealedBranches(
-                       subjectType: subjectType, branches: summary, sema: sema
+                       subjectType: subjectType,
+                       branches: summary,
+                       sema: sema,
+                       valueFacts: subjectValueFacts
                    )
                 {
                     let missingNames = missingBranches.map { interner.resolve($0) }.sorted()
@@ -693,6 +708,8 @@ extension ControlFlowTypeChecker {
                 base: locals.memberFlow,
                 sema: sema
             )
+            let flowFactBranches = completingLocals + (isExhaustive ? [] : [locals])
+            locals.joinVariableFacts(from: flowFactBranches)
             let contextualizedTypes = contextualizeLongBranchLiterals(
                 expressions: branches.map(\.body) + (elseExpr.map { [$0] } ?? []),
                 types: branchTypes, ctx: ctx

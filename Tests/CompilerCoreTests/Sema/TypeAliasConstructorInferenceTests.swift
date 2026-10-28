@@ -1,6 +1,7 @@
 @testable import CompilerCore
 import Foundation
 import Testing
+@testable import CompilerTestSupport
 
 @Suite
 struct TypeAliasConstructorInferenceTests {
@@ -77,6 +78,21 @@ struct TypeAliasConstructorInferenceTests {
         fun box(): String {
             val st = ST<String>("O", "K")
             return st.x1 + st.x2
+        }
+        """)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+    }
+
+    @Test func partiallyAppliedGenericTypeAliasConstructorsInferTheirRemainingArguments() throws {
+        let ctx = try context("""
+        fun interface Foo<A, B> { fun invoke(a: A): B }
+        typealias TA<K> = Foo<Int, K>
+        class Bar<X, Y>(val y: Y) { fun foo(x: X): Y = y }
+        typealias TB<M> = Bar<Int, M>
+
+        fun main() {
+            TA { "string" }.invoke(20)
+            TB("3").foo(3)
         }
         """)
         #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")

@@ -2,6 +2,7 @@
 import Foundation
 import TestStdlibCache
 import Testing
+@testable import CompilerTestSupport
 
 @Suite(.serialized)
 struct ProtectedNestedInheritedConstructorTests {

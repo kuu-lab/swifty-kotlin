@@ -1,6 +1,6 @@
 symbol fq=golden.sema.constructKotlinNothingValueException.$0.cause[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
 symbol fq=golden.sema.constructKotlinNothingValueException[kind=fun;params=kotlin.Throwable;ret=kotlin.Throwable;names=[cause];origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.Throwable] ret=kotlin.Throwable
-file fstdlib_kotlin_KotlinNothingValueException_n_n package=golden.sema
+file fstdlib_kotlin_KotlinNothingValueException_n_n package=golden.sema annotations=[@file:Suppress("INVISIBLE_MEMBER","INVISIBLE_REFERENCE")]
   decl golden.sema.constructKotlinNothingValueException[kind=fun;params=kotlin.Throwable;ret=kotlin.Throwable;names=[cause];origin=fixture] fun constructKotlinNothingValueException sym=golden.sema.constructKotlinNothingValueException[kind=fun;params=kotlin.Throwable;ret=kotlin.Throwable;names=[cause];origin=fixture]
 expr e@4:5 call callee=e@4:5#1 args=[] type=kotlin.KotlinNothingValueException call=kotlin.KotlinNothingValueException.<init>[kind=ctor;recv=kotlin.KotlinNothingValueException;params=;ret=kotlin.KotlinNothingValueException]
 expr e@5:33 string(message) type=String

@@ -2,6 +2,7 @@
 @testable import CompilerCore
 import Foundation
 import Testing
+@testable import CompilerTestSupport
 
 // KUU-3236: an inner class used as a supertype requires an implicit receiver
 // of its containing class. kotlinc rejects contexts where no such receiver is

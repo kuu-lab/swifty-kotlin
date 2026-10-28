@@ -2,6 +2,7 @@
 @testable import CompilerCore
 import Foundation
 import Testing
+@testable import CompilerTestSupport
 
 // STDLIB-MATH-001 / STDLIB-MATH-002
 // Sema-level overload resolution tests for kotlin.math.

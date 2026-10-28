@@ -32,6 +32,36 @@ func maybeUnbox(_ value: Int) -> Int {
     return value
 }
 
+/// `maybeUnbox` for values crossing into a Kotlin callback: collection-HOF
+/// element arguments and the `closureRaw` capture payload. Unlike
+/// `maybeUnbox`, this keeps `RuntimeLongBox`/`RuntimeULongBox` boxed — their
+/// payloads collide bit-for-bit with `runtimeNullSentinelInt`
+/// (`Long.MIN_VALUE`, `ULong` `2^63`), so unwrapping them at the boundary
+/// would hand the callee a value indistinguishable from null for a
+/// `Long?`/`ULong?` parameter (KUU-3661). Callees that declare non-null
+/// `Long`/`ULong` parameters unbox inside their entry points
+/// (`kk_unbox_long`/`kk_unbox_ulong` emitted by LambdaLowerer /
+/// InlineErasedLambdaABI), the same convention `RuntimeFloatBox`/
+/// `RuntimeDoubleBox` already rely on — `maybeUnbox` never unwraps those.
+@inline(__always)
+func maybeUnboxForCollectionLambdaBoundary(_ value: Int) -> Int {
+    guard let ptr = UnsafeMutableRawPointer(bitPattern: value) else {
+        return value
+    }
+    let isObjectPointer = runtimeStorage.withGCLock { state in
+        state.objectPointers.contains(UInt(bitPattern: ptr))
+    }
+    guard isObjectPointer else {
+        return value
+    }
+    if tryCast(ptr, to: RuntimeLongBox.self) != nil
+        || tryCast(ptr, to: RuntimeULongBox.self) != nil
+    {
+        return value
+    }
+    return maybeUnbox(value)
+}
+
 func runtimeNormalizeNullableCollectionValue(_ raw: Int) -> Int? {
     if raw == runtimeNullSentinelInt {
         return nil
@@ -213,6 +243,16 @@ func runtimeNonNullValuesEqual(_ lhs: Int, _ rhs: Int) -> Bool {
     }
     if let callableReferenceEquality = runtimeCallableReferenceValuesEqual(lhs, rhs) {
         return callableReferenceEquality
+    }
+    // A boxed value class carries its nominal type ID as a side-table tag
+    // (kk_tag_value_class_box / kk_value_class_box). Boxed equals is nominal
+    // on the JVM — `A("x") == "x"` is false because the operands have
+    // different runtime types — so a tag mismatch, including a tagged box
+    // against an untagged box or a raw value, is unequal before any payload
+    // comparison below can unwrap it. Two boxes of the same value class fall
+    // through and compare payloads, matching the underlying type's `==`.
+    if runtimeValueClassTypeID(rawValue: lhs) != runtimeValueClassTypeID(rawValue: rhs) {
+        return false
     }
     let lhsPtr = UnsafeMutableRawPointer(bitPattern: lhs)
     let rhsPtr = UnsafeMutableRawPointer(bitPattern: rhs)
@@ -654,6 +694,15 @@ private func runtimeNullablePrimitiveEqualityCheck(
     peerIsNullable: Int
 ) -> Bool {
     if peerIsNullable >= 2 {
+        // A nullable slot of a sentinel-colliding value class (e.g. `V?`
+        // wrapping Double) carries that class's tagged box. Boxed equals is
+        // nominal on the JVM, so this IEEE shortcut must not compare a tagged
+        // box's payload bits against a raw or differently-tagged peer; the
+        // flag-0/1 path delegates to runtimeNonNullValuesEqual, which already
+        // applies the same tag check (KUU-3616).
+        if runtimeValueClassTypeID(rawValue: nullableRaw) != runtimeValueClassTypeID(rawValue: peerRaw) {
+            return false
+        }
         // Kotlin `P? == P` on floating point is IEEE-754 once nullness is
         // ruled out (`-0.0 == 0.0`, `NaN != NaN`) — not the boxed `equals`
         // bit-pattern compare runtimeNonNullValuesEqual uses. Flags 2/3 mark

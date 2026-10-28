@@ -70,6 +70,15 @@ extension KIRLoweringDriver {
             files.append(KIRFile(fileID: file.fileID, decls: declIDs))
         }
 
+        // Synthetic companion anchors restored from the bundled library have
+        // no source declaration in this module to allocate their singleton.
+        // Materialize any referenced anchor, just as source-backed companions
+        // allocate their singleton during declaration lowering.
+        let syntheticCompanionDecls = synthesizeReferencedSyntheticCompanions(shared: shared)
+        if !syntheticCompanionDecls.isEmpty, let firstFile = files.first {
+            files[0] = KIRFile(fileID: firstFile.fileID, decls: firstFile.decls + syntheticCompanionDecls)
+        }
+
         // Bundled stdlib files skipped from output can still be referenced by
         // enum constructor-property reads (e.g. `CpuArchitecture.ARM64.bitness`),
         // which are emitted as `$enumConstructorProperty$` placeholder calls.
@@ -83,6 +92,18 @@ extension KIRLoweringDriver {
             shared: shared,
             compilationCtx: compilationCtx
         )
+
+        // KUU-3675: compiler-synthetic and initializer-less imported
+        // companion objects (e.g. `kotlin.String.Companion`) have no source
+        // declaration and no artifact initializer, so nothing ever populated
+        // their root slots. Synthesize eager handles for them before the
+        // companion-initializer call list is built.
+        let uninitializedCompanionDeclIDs = synthesizeUninitializedCompanionHandles(
+            shared: shared
+        )
+        if !uninitializedCompanionDeclIDs.isEmpty {
+            files.append(KIRFile(fileID: .invalid, decls: uninitializedCompanionDeclIDs))
+        }
 
         // Object and companion handles must exist before any top-level
         // initializer can trigger their lazy bodies. Keep these allocation-only
@@ -131,14 +152,22 @@ extension KIRLoweringDriver {
         // initializers. Keep them as a callable entry point in the artifact;
         // importing modules call it before their own property initializers.
         // Object/companion initializers are imported separately, so this
-        // entry point contains only the library's own property writes.
+        // entry point contains reflection registration and the library's own
+        // property writes.
         if case .library = compilationCtx.options.emit,
-           !allTopLevelInitInstructions.isEmpty {
+           !allTopLevelInitInstructions.isEmpty || !ctx.allReflectionInitializers().isEmpty {
             let symbol = ctx.allocateSyntheticGeneratedSymbol()
             let name = compilationCtx.interner.intern(
                 "__kk_library_top_level_init_\(compilationCtx.options.moduleName)"
             )
             var body: KIRLoweringEmitContext = [.beginBlock]
+            for initializer in ctx.allReflectionInitializers() {
+                let result = arena.appendTemporary(type: sema.types.unitType)
+                body.append(.call(
+                    symbol: initializer.symbol, callee: initializer.name,
+                    arguments: [], result: result, canThrow: false
+                ))
+            }
             body.appendRelocatingLabels(contentsOf: allTopLevelInitInstructions)
             body.append(.returnUnit)
             body.append(.endBlock)
@@ -209,20 +238,43 @@ extension KIRLoweringDriver {
 
         for file in skippedFiles {
             var helperDeclIDs: [KIRDeclID] = []
-            for declID in file.topLevelDecls {
-                guard let decl = ast.arena.decl(declID),
-                      case let .classDecl(classDecl) = decl,
-                      let symbol = sema.bindings.declSymbols[declID],
-                      neededOwnerIDs.contains(symbol.rawValue)
-                else {
-                    continue
+            // Enums can be nested under objects/interfaces too, so walk the
+            // whole declaration tree rather than top-level classes only.
+            func synthesizeIfNeeded(declID: DeclID) {
+                guard let decl = ast.arena.decl(declID) else { return }
+                var deeper: [DeclID] = []
+                switch decl {
+                case let .classDecl(classDecl):
+                    if let symbol = sema.bindings.declSymbols[declID],
+                       neededOwnerIDs.contains(symbol.rawValue)
+                    {
+                        helperDeclIDs.append(contentsOf: synthesizeEnumConstructorPropertyHelperFunctions(
+                            classDecl: classDecl,
+                            ownerSymbol: symbol,
+                            shared: shared,
+                            compilationCtx: compilationCtx
+                        ))
+                    }
+                    deeper = classDecl.nestedClasses + classDecl.nestedObjects
+                    if let companionDeclID = classDecl.companionObject {
+                        deeper.append(companionDeclID)
+                    }
+                case let .objectDecl(objectDecl):
+                    deeper = objectDecl.nestedClasses + objectDecl.nestedObjects
+                case let .interfaceDecl(interfaceDecl):
+                    deeper = interfaceDecl.nestedClasses + interfaceDecl.nestedObjects
+                    if let companionDeclID = interfaceDecl.companionObject {
+                        deeper.append(companionDeclID)
+                    }
+                default:
+                    break
                 }
-                helperDeclIDs.append(contentsOf: synthesizeEnumConstructorPropertyHelperFunctions(
-                    classDecl: classDecl,
-                    ownerSymbol: symbol,
-                    shared: shared,
-                    compilationCtx: compilationCtx
-                ))
+                for nestedDeclID in deeper {
+                    synthesizeIfNeeded(declID: nestedDeclID)
+                }
+            }
+            for declID in file.topLevelDecls {
+                synthesizeIfNeeded(declID: declID)
             }
             if !helperDeclIDs.isEmpty {
                 files.append(KIRFile(fileID: file.fileID, decls: helperDeclIDs))
@@ -375,6 +427,12 @@ extension KIRLoweringDriver {
         let kirID = arena.appendDecl(.nominalType(KIRNominalType(symbol: symbol, memberDecls: directMembers)))
         declIDs.append(kirID)
         declIDs.append(contentsOf: allDecls)
+        lowerNestedClassConstructors(
+            nestedDecls: interfaceDecl.nestedClasses + ifaceNestedObjects,
+            shared: shared,
+            compilationCtx: compilationCtx,
+            declIDs: &declIDs
+        )
         return declIDs
     }
 
@@ -406,6 +464,12 @@ extension KIRLoweringDriver {
         var declIDs = [kirID]
         declIDs.append(contentsOf: allDecls)
         declIDs.append(contentsOf: forwardingDecls)
+        lowerNestedClassConstructors(
+            nestedDecls: objectDecl.nestedClasses + objectDecl.nestedObjects,
+            shared: shared,
+            compilationCtx: compilationCtx,
+            declIDs: &declIDs
+        )
 
         // Every source-backed top-level object needs a global slot for its
         // singleton heap pointer. Without it, an object crossing an Any

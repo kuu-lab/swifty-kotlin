@@ -81,10 +81,13 @@ retain the stdout diff, KIR, crash diagnostics, and a reproduction script.
 - `mock_objects.kt`: mock / spy パターン（stubbing, verification, any/eq matcher）の parity
 - `comparator_basic.kt`: Comparator 合成（compareBy / compareByDescending / thenBy / thenByDescending / thenComparator / nullsFirst / nullsLast / naturalOrder / reverseOrder / reversed）の parity
 - `comparator_comparing_int.kt`: `Comparator.comparingInt` のコンパイル、整数境界を含む比較結果、同値キー、selector の評価回数の JVM parity（KUU-2226）
+- `java_util_collections_sort_list_parameter.kt`: `Collections.sort` が read-only 宣言の `List<T>` を受け取り、可変 backing をソートし、read-only 実体では `UnsupportedOperationException` を保つ parity（KUU-3422）
+- `java_util_stream_single_use.kt`: `IntStream.boxed()` / `mapToObj()` から generic `Stream` を一度だけ使えること、中間・終端処理後の再使用で `IllegalStateException` になることの parity（KUU-3644）
 - `sequence_lazy.kt`: `Sequence<T>` lazy evaluation chain（`asSequence` → `map` → `filter` → `toList`）の parity
 - `stdlib_collection_hof.kt`: collection HOF（map/filter/flatMap/fold/reduce/any/all/none/groupBy/groupingBy.fold/sortedBy/find/count/first/last）と capture lambda の parity
 - `stdlib_kotlin_collections_n_check.kt`: `@PublishedApi internal` collection overflow checks; candidate-only expected-output coverage for negative, zero, positive, and boundary `Int` values
 - `array_require_no_nulls.kt`: `Array<T?>.requireNoNulls()` の parity
+- `kuu_3627_unsigned_array_hofs.kt`: `ULongArray` / `UByteArray` / `UShortArray` の `max` / `min` / `maxOrNull` / `minOrNull` / `indexOf` / `forEachIndexed` parity（KUU-3627）
 - `list_binary_search_by.kt`: `List.binarySearchBy(key, fromIndex, toIndex, selector)` の parity
 - `stdlib_string_ops.kt`: String stdlib parity（`trim/split/replace/startsWith/endsWith/contains/toInt/toDouble/format/substring/lowercase/uppercase/toIntOrNull/toDoubleOrNull/indexOf/lastIndexOf/padStart/padEnd/repeat/reversed/toList/toCharArray/drop/take/dropLast/takeLast`）
 - `string_decode_to_string.kt`: `ByteArray.decodeToString` UTF-8, range, strict malformed input, and bounds parity

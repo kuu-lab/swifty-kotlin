@@ -1,6 +1,7 @@
 #if canImport(Testing)
 @testable import CompilerCore
 import Testing
+@testable import CompilerTestSupport
 
 extension CallableReferenceCallByExtensionTests {
     private func checkJVM(_ sources: [String], mode: EmitMode, expectsError: Bool = false) throws {

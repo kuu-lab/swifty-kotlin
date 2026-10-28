@@ -2,6 +2,7 @@
 @testable import CompilerCore
 import Foundation
 import Testing
+@testable import CompilerTestSupport
 
 @Suite
 struct BuildKIRRegressionTests {
@@ -167,6 +168,7 @@ struct BuildKIRRegressionTests {
             "ForLowering",
             "CollectionLiteralLowering",
             "FlowLowering",
+            "IntroducedAtVersionOverloading",
             "ValueClassUnboxing",
             "PropertyLowering",
             "JvmStaticLowering",

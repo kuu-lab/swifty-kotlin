@@ -414,6 +414,26 @@ struct RuntimeGCTests {
         }
     }
 
+    @Test func attachedForeignResourceCaptureFollowsManagedObjectOwner() {
+        withDummyTypeInfo { typeInfo in
+            let owner = kk_object_new(0, 0x36_26_07)
+            let captured = Int(bitPattern: kk_alloc(16, typeInfo))
+            let weak = kk_weak_ref_create(captured)
+            let token = runtimeForeignResourceCreate(NSObject(), roots: [UInt(bitPattern: captured)])
+            #expect(runtimeForeignResourceAttach(token, owner: owner))
+            let root = ConcurrentFrameSlot(UnsafeMutableRawPointer(bitPattern: owner))
+            kk_register_global_root(root.pointer)
+            kk_gc_collect()
+            kk_gc_collect()
+            #expect(kk_weak_ref_get(weak) == captured)
+            kk_unregister_global_root(root.pointer)
+            kk_gc_collect()
+            #expect(kk_weak_ref_get(weak) == runtimeNullSentinelInt)
+            #expect(runtimeForeignResource(token, as: NSObject.self) == nil)
+            _ = kk_object_release(weak)
+        }
+    }
+
     @Test func retainedFunctionValueKeepsManagedCaptureAlive() {
         withDummyTypeInfo { typeInfo in
             let captured = Int(bitPattern: kk_alloc(16, typeInfo))
@@ -911,6 +931,41 @@ struct RuntimeGCTests {
             #expect(kk_weak_ref_get(weak) == runtimeNullSentinelInt)
             #expect(kk_object_release(result) == 1)
         }
+    }
+
+    @Test(arguments: [true, false])
+    func nestedResultKeepsOrdinaryObjectOnlyWhileRooted(isSuccess: Bool) {
+        let value = kk_object_new(0, 0x36_26_08)
+        let weak = kk_weak_ref_create(value)
+        let inner = isSuccess ? runtimeResultSuccess(value) : runtimeResultFailure(value)
+        let outer = runtimeResultSuccess(inner)
+        kk_register_coroutine_root(UnsafeMutableRawPointer(bitPattern: outer))
+        kk_gc_collect() // Consume the allocation handoff.
+        kk_gc_collect()
+        #expect(kk_weak_ref_get(weak) == value)
+        kk_unregister_coroutine_root(UnsafeMutableRawPointer(bitPattern: outer))
+        kk_gc_collect()
+        #expect(kk_weak_ref_get(weak) == runtimeNullSentinelInt)
+        #expect(kk_object_release(outer) == 1)
+        #expect(kk_object_release(inner) == 1)
+        _ = kk_object_release(weak)
+    }
+
+    @Test func resultAccessKeepsOrdinaryObjectAfterOwnerRelease() {
+        let value = kk_object_new(0, 0x36_26_09)
+        let weak = kk_weak_ref_create(value)
+        let result = runtimeResultSuccess(value)
+        var access = runtimeResultAccessFromRaw(result)
+        #expect(access != nil)
+        #expect(kk_object_release(result) == 1)
+        kk_gc_collect() // Consume the allocation handoff.
+        kk_gc_collect()
+        #expect(kk_weak_ref_get(weak) == value)
+        withExtendedLifetime(access) {}
+        access = nil
+        kk_gc_collect()
+        #expect(kk_weak_ref_get(weak) == runtimeNullSentinelInt)
+        _ = kk_object_release(weak)
     }
 
     @Test func nestedResultsTraceManagedPayloadOnlyWhileRooted() {
@@ -1801,6 +1856,9 @@ struct RuntimeGCTests {
     @Test func retainedObjectFieldKeepsManagedAllocationAlive() {
         withDummyTypeInfo { typeInfo in
             let owner = kk_object_new(1, 12345)
+            let ownerRoot = ConcurrentFrameSlot(UnsafeMutableRawPointer(bitPattern: owner))
+            kk_register_global_root(ownerRoot.pointer)
+            defer { kk_unregister_global_root(ownerRoot.pointer) }
             let child = kk_alloc(16, typeInfo)
             let weak = kk_weak_ref_create(Int(bitPattern: child))
             var thrown = 0
@@ -1845,6 +1903,9 @@ struct RuntimeGCTests {
     @Test func replacingObjectFieldStorageUpdatesManagedRoots() {
         withDummyTypeInfo { typeInfo in
             let owner = kk_object_new(1, 12345)
+            let ownerRoot = ConcurrentFrameSlot(UnsafeMutableRawPointer(bitPattern: owner))
+            kk_register_global_root(ownerRoot.pointer)
+            defer { kk_unregister_global_root(ownerRoot.pointer) }
             guard let box = runtimeArrayBox(from: owner) else {
                 Issue.record("Object box was not registered")
                 return
@@ -1870,6 +1931,9 @@ struct RuntimeGCTests {
     @Test func concurrentCollectionPreservesPublishedObjectField() {
         withDummyTypeInfo { typeInfo in
             let owner = kk_object_new(1, 12345)
+            let ownerRoot = ConcurrentFrameSlot(UnsafeMutableRawPointer(bitPattern: owner))
+            kk_register_global_root(ownerRoot.pointer)
+            defer { kk_unregister_global_root(ownerRoot.pointer) }
             let child = kk_alloc(16, typeInfo)
             let weak = kk_weak_ref_create(Int(bitPattern: child))
             let temporary = ConcurrentFrameSlot(child)
@@ -1917,6 +1981,32 @@ struct RuntimeGCTests {
             kk_gc_store_global(slot, 0)
             kk_gc_collect()
             #expect(kk_weak_ref_get(weak) == runtimeNullSentinelInt)
+        }
+    }
+
+    @Test func globalSlotRegisteredByBothFrameSystemsCountsOnce() {
+        withDummyTypeInfo { typeInfo in
+            kk_gc_collect()
+            guard let baseline = lastGCInfoSnapshot() else {
+                Issue.record("baseline pass should have been recorded")
+                return
+            }
+            let object = kk_alloc(16, typeInfo)
+            let slot = UnsafeMutablePointer<Int>.allocate(capacity: 1)
+            slot.initialize(to: 0)
+            let pointerSlot = UnsafeMutableRawPointer(slot).assumingMemoryBound(to: UnsafeMutableRawPointer?.self)
+            defer {
+                kk_unregister_global_root(pointerSlot)
+                runtimeStorage.withGCLock { state in
+                    _ = state.globalWordRootSlots.remove(UInt(bitPattern: slot))
+                }
+                slot.deinitialize(count: 1)
+                slot.deallocate()
+            }
+            _ = kk_register_global_root(pointerSlot)
+            _ = kk_gc_store_global(slot, Int(bitPattern: object))
+            kk_gc_collect()
+            #expect(lastGCInfoSnapshot()?.rootSet.globalReferences == baseline.rootSet.globalReferences + 1)
         }
     }
 
@@ -2884,6 +2974,168 @@ struct RuntimeGCTests {
             kk_gc_collect()
             #expect(kk_runtime_heap_object_count() == 0)
         }
+    }
+
+    @Test func testReachableRuntimeObjectRetainsItsChildrenAndWeakReferencesClearAfterSweep() {
+        let child = kk_object_new(0, 0x36_26_01)
+        let weak = kk_weak_ref_create(child)
+        let parent = kk_object_new(1, 0x36_26_02)
+        _ = kk_array_set_typed(parent, 0, child, 0)
+
+        let rootSlot = UnsafeMutablePointer<UnsafeMutableRawPointer?>.allocate(capacity: 1)
+        rootSlot.initialize(to: UnsafeMutableRawPointer(bitPattern: parent))
+        defer {
+            kk_unregister_global_root(rootSlot)
+            rootSlot.deinitialize(count: 1)
+            rootSlot.deallocate()
+            _ = kk_object_release(weak)
+        }
+        kk_register_global_root(rootSlot)
+
+        // The first pass consumes allocation handoff roots while the explicit
+        // parent root keeps both the parent and its child alive.
+        kk_gc_collect()
+        kk_gc_collect()
+        #expect(kk_weak_ref_get(weak) == child)
+
+        rootSlot.pointee = nil
+        kk_gc_collect()
+        #expect(kk_weak_ref_get(weak) == runtimeNullSentinelInt)
+    }
+
+    @Test func unreachableManagedObjectCycleIsCollected() {
+        let first = kk_object_new(1, 0x36_26_03)
+        let second = kk_object_new(1, 0x36_26_04)
+        let firstWeak = kk_weak_ref_create(first)
+        let secondWeak = kk_weak_ref_create(second)
+        defer {
+            _ = kk_object_release(firstWeak)
+            _ = kk_object_release(secondWeak)
+        }
+        _ = kk_array_set_typed(first, 0, second, 0)
+        _ = kk_array_set_typed(second, 0, first, 0)
+
+        kk_gc_collect() // Consume allocation handoffs.
+        kk_gc_collect()
+        #expect(kk_weak_ref_get(firstWeak) == runtimeNullSentinelInt)
+        #expect(kk_weak_ref_get(secondWeak) == runtimeNullSentinelInt)
+    }
+
+    @Test func managedObjectFieldsSurviveGCReset() {
+        let parent = kk_object_new(1, 0x36_26_0C)
+        let child = kk_object_new(0, 0x36_26_0D)
+        let weak = kk_weak_ref_create(child)
+        _ = kk_array_set_typed(parent, 0, child, 0)
+        kk_runtime_reset_gc()
+        kk_register_coroutine_root(UnsafeMutableRawPointer(bitPattern: parent))
+        kk_gc_collect()
+        #expect(kk_weak_ref_get(weak) == child)
+        kk_unregister_coroutine_root(UnsafeMutableRawPointer(bitPattern: parent))
+        kk_gc_collect()
+        #expect(kk_weak_ref_get(weak) == runtimeNullSentinelInt)
+        _ = kk_object_release(weak)
+    }
+
+    @Test func managedResultPayloadSurvivesGCReset() {
+        let child = kk_object_new(0, 0x36_26_0E)
+        let weak = kk_weak_ref_create(child)
+        let result = runtimeResultSuccess(child)
+        kk_runtime_reset_gc()
+        kk_register_coroutine_root(UnsafeMutableRawPointer(bitPattern: result))
+        kk_gc_collect()
+        #expect(kk_weak_ref_get(weak) == child)
+        kk_unregister_coroutine_root(UnsafeMutableRawPointer(bitPattern: result))
+        kk_gc_collect()
+        #expect(kk_weak_ref_get(weak) == runtimeNullSentinelInt)
+        #expect(kk_object_release(result) == 1)
+        _ = kk_object_release(weak)
+    }
+
+    @Test(arguments: [0, 1, 2, 3, 4, 5])
+    func reachableObjectKeepsAuxiliaryChildren(kind: Int) throws {
+        let parent = kk_object_new(0, 0x36_26_0F)
+        let child = kk_object_new(0, 0x36_26_10)
+        let weak = kk_weak_ref_create(child)
+        let object = try #require(resolveRuntimeHandle(parent, as: RuntimeObjectBox.self))
+        switch kind {
+        case 0:
+            object.backingListBox = RuntimeListBox(elements: [child])
+        case 1:
+            object.backingSetBox = RuntimeSetBox(elements: [child])
+        case 2:
+            object.backingMapBox = RuntimeMapBox(keys: [1], values: [child])
+        case 3:
+            object.throwableCause = child
+        case 4:
+            object.throwableSuppressed = [child]
+        default:
+            let array = RuntimeArrayBox(length: 1)
+            array.elements = [child]
+            object.backingListBox = RuntimeListBox(arrayViewOf: array)
+        }
+        kk_register_coroutine_root(UnsafeMutableRawPointer(bitPattern: parent))
+        kk_gc_collect() // Consume allocation handoffs.
+        kk_gc_collect()
+        #expect(kk_weak_ref_get(weak) == child)
+        kk_unregister_coroutine_root(UnsafeMutableRawPointer(bitPattern: parent))
+        kk_gc_collect()
+        #expect(kk_weak_ref_get(weak) == runtimeNullSentinelInt)
+        _ = kk_object_release(weak)
+    }
+
+    @Test func retainedArrayViewKeepsSharedStorageChildrenAlive() throws {
+        let owner = kk_object_new(1, 0x36_26_05)
+        let child = kk_object_new(0, 0x36_26_06)
+        let weak = kk_weak_ref_create(child)
+        defer { _ = kk_object_release(weak) }
+        _ = kk_array_set_typed(owner, 0, child, 0)
+        let array = try #require(runtimeArrayBox(from: owner))
+        let view = array.primitiveView(rawValue: owner, sourceTypeID: 987_301, targetTypeID: 987_302)
+
+        kk_gc_collect() // Consume allocation handoffs.
+        kk_gc_collect()
+        #expect(kk_weak_ref_get(weak) == child)
+        #expect(kk_object_release(view) == 1)
+        kk_gc_collect()
+        #expect(kk_weak_ref_get(weak) == runtimeNullSentinelInt)
+    }
+
+    @Test func rootedListViewTracesUnregisteredArrayStorage() {
+        let child = kk_object_new(0, 0x36_26_0A)
+        let weak = kk_weak_ref_create(child)
+        let array = RuntimeArrayBox(length: 1)
+        array.elements = [child]
+        let list = registerRuntimeObject(RuntimeListBox(arrayViewOf: array))
+        kk_register_coroutine_root(UnsafeMutableRawPointer(bitPattern: list))
+        kk_gc_collect() // Consume the allocation handoff.
+        kk_gc_collect()
+        #expect(kk_weak_ref_get(weak) == child)
+        kk_unregister_coroutine_root(UnsafeMutableRawPointer(bitPattern: list))
+        kk_gc_collect()
+        #expect(kk_weak_ref_get(weak) == child)
+        #expect(kk_object_release(list) == 1)
+        kk_gc_collect()
+        #expect(kk_weak_ref_get(weak) == runtimeNullSentinelInt)
+        _ = kk_object_release(weak)
+    }
+
+    @Test(arguments: [false, true])
+    func retainedListViewKeepsSharedArrayChildrenAlive(reversed: Bool) throws {
+        let child = kk_object_new(0, 0x36_26_0B)
+        let weak = kk_weak_ref_create(child)
+        let arrayRaw = kk_array_new(1)
+        _ = kk_array_set_typed(arrayRaw, 0, child, 0)
+        let array = try #require(runtimeArrayBox(from: arrayRaw))
+        let base = RuntimeListBox(arrayViewOf: array)
+        let list = registerRuntimeObject(reversed ? RuntimeListBox(reversedViewOf: base) : base)
+        #expect(kk_object_release(arrayRaw) == 1)
+        kk_gc_collect() // Consume the allocation handoff.
+        kk_gc_collect()
+        #expect(kk_weak_ref_get(weak) == child)
+        #expect(kk_object_release(list) == 1)
+        kk_gc_collect()
+        #expect(kk_weak_ref_get(weak) == runtimeNullSentinelInt)
+        _ = kk_object_release(weak)
     }
 
     @Test func testAllocInitializesObjectHeader() {

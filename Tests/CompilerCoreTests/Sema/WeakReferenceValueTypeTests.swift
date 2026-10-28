@@ -1,6 +1,7 @@
 @testable import CompilerCore
 import Testing
 import TestStdlibCache
+@testable import CompilerTestSupport
 
 /// KUU-1666: `.value` must retain the receiver's generic referent type while
 /// the legacy extension import and star projection remain source-compatible.

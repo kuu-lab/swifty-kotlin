@@ -1,6 +1,7 @@
 #if canImport(Testing)
 @testable import CompilerCore
 import Testing
+@testable import CompilerTestSupport
 
 /// A declared expected type must reach a lambda-literal argument/RHS even when
 /// it is only known through the surrounding context rather than the callee's

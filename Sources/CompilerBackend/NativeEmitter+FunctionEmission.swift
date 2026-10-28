@@ -302,6 +302,7 @@ extension NativeEmitter.FunctionEmissionContext {
         storeOutThrownIfNonNull(zeroValue, suffix: "entry")
 
         emitStackOverflowGuard()
+        prepareGCRootFrame(allocaBuilder: allocaBuilder)
         emitGCShadowPush()
 
         for (instructionIndex, instruction) in function.body.enumerated() {
@@ -572,6 +573,7 @@ extension NativeEmitter.FunctionEmissionContext {
                             )
                             bindings.positionBuilder(builder, at: thrownBlock)
                             storeOutThrownIfNonNull(thrownValue, suffix: "notnull_throw_\(instructionIndex)")
+                            emitGCFrameLeave(returning: thrownValue)
                             emitGCShadowPop(thrown: thrownValue)
                             _ = bindings.buildRet(builder, value: zeroReturnValue)
                             currentBlock = continueBlock
@@ -724,6 +726,7 @@ extension NativeEmitter.FunctionEmissionContext {
                     if let alloca = copyTargetAllocas[to.rawValue] {
                         _ = bindings.buildStore(builder, value: copySource, pointer: alloca)
                         emitGCShadowSet(to, value: copySource)
+                        storeGCRoot(for: to, value: copySource)
                     } else {
                         storeResult(to, copySource)
                     }
@@ -741,6 +744,7 @@ extension NativeEmitter.FunctionEmissionContext {
                     ) ?? resolved
                 }
                 if let globalPtr = globalVariables[symbol] {
+                    registerGCRootForGlobal(symbol, slot: globalPtr)
                     emitGCGlobalStore(symbol: symbol, pointer: globalPtr, value: resolved)
                 }
 
@@ -749,6 +753,7 @@ extension NativeEmitter.FunctionEmissionContext {
                     continue
                 }
                 if let globalPtr = globalVariables[symbol] {
+                    registerGCRootForGlobal(symbol, slot: globalPtr)
                     if let loaded = bindings.buildLoad(
                         builder, type: int64Type, pointer: globalPtr,
                         name: nameCounter.nextName("load_global_")
@@ -781,6 +786,7 @@ extension NativeEmitter.FunctionEmissionContext {
                 }
                 let resolved = resolveValue(value)
                 storeOutThrownIfNonNull(resolved, suffix: "rethrow_\(instructionIndex)")
+                emitGCFrameLeave(returning: resolved)
                 emitGCShadowPop(thrown: resolved)
                 _ = bindings.buildRet(builder, value: zeroReturnValue)
 
@@ -805,6 +811,7 @@ extension NativeEmitter.FunctionEmissionContext {
                 _ = bindings.buildCondBr(builder, condition: condition, thenBlock: trueBlock, elseBlock: falseBlock)
 
                 bindings.positionBuilder(builder, at: trueBlock)
+                emitGCFrameLeave(returning: lhsValue)
                 emitGCShadowPop(result: lhsValue)
                 _ = bindings.buildRet(builder, value: lhsValue)
 
@@ -815,6 +822,7 @@ extension NativeEmitter.FunctionEmissionContext {
                 guard !bindings.hasTerminator(currentBlock) else {
                     continue
                 }
+                emitGCFrameLeave(returning: nil)
                 emitGCShadowPop()
                 _ = bindings.buildRet(builder, value: zeroReturnValue)
 
@@ -836,6 +844,7 @@ extension NativeEmitter.FunctionEmissionContext {
                         suffix: "return_\(instructionIndex)"
                     )
                 }
+                emitGCFrameLeave(returning: returnValue)
                 emitGCShadowPop(result: returnValue)
                 _ = bindings.buildRet(builder, value: returnValue)
 
@@ -867,9 +876,11 @@ extension NativeEmitter.FunctionEmissionContext {
                             suffix: "nonlocal_return_\(instructionIndex)"
                         )
                     }
+                    emitGCFrameLeave(returning: returnValue)
                     emitGCShadowPop(result: returnValue)
                     _ = bindings.buildRet(builder, value: returnValue)
                 } else {
+                    emitGCFrameLeave(returning: nil)
                     emitGCShadowPop()
                     _ = bindings.buildRet(builder, value: zeroReturnValue)
                 }
@@ -877,6 +888,7 @@ extension NativeEmitter.FunctionEmissionContext {
         }
 
         if !bindings.hasTerminator(currentBlock) {
+            emitGCFrameLeave(returning: nil)
             emitGCShadowPop()
             _ = bindings.buildRet(builder, value: zeroReturnValue)
         }

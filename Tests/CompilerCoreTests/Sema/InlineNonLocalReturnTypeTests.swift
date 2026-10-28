@@ -1,6 +1,7 @@
 @testable import CompilerCore
 import Testing
 import TestStdlibCache
+@testable import CompilerTestSupport
 
 /// Covers the type of an unlabeled return that exits a lambda passed to an
 /// inline higher-order function. The lambda's Boolean predicate type must not

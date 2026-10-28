@@ -144,6 +144,23 @@ public final class TypeSystem {
     /// `FunctionN` nominal and vice versa (KUU-1084).
     public internal(set) var functionNInterfaceSymbols: [Int: SymbolID] = [:]
 
+    /// Resolves the source-visible `FunctionN` spellings to their compiler-known
+    /// nominal interface symbols. Internally these interfaces live under the
+    /// synthetic `kotlin.Function` package, while Kotlin exposes them from
+    /// `kotlin` and default-imports the simple names.
+    func functionNInterfaceSymbol(named path: [InternedString], interner: StringInterner) -> SymbolID? {
+        guard let name = path.last else { return nil }
+        let kotlinName = interner.intern("kotlin")
+        guard path == [name] || path == [kotlinName, name] else { return nil }
+
+        let nameString = interner.resolve(name)
+        let prefix = "Function"
+        guard nameString.hasPrefix(prefix) else { return nil }
+        let arityText = String(nameString.dropFirst(prefix.count))
+        guard let arity = Int(arityText), String(arity) == arityText else { return nil }
+        return functionNInterfaceSymbols[arity]
+    }
+
     /// The symbols of the synthetic `kotlin.coroutines.SuspendFunctionN`
     /// interfaces, keyed by arity. These keep suspend function types distinct
     /// from regular `FunctionN` types while exposing their suspend `invoke`.

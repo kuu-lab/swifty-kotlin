@@ -1,7 +1,9 @@
 #if canImport(Testing)
 @testable import CompilerCore
 import Foundation
+import TestStdlibCache
 import Testing
+@testable import CompilerTestSupport
 
 @Suite
 struct GenericFunInterfaceParameterLambdaInferenceTests {
@@ -13,6 +15,19 @@ struct GenericFunInterfaceParameterLambdaInferenceTests {
             includeStdlib: false,
             stdlibLibraryPath: nil,
             allowDefaultStdlibLibrary: false
+        )
+        _ = ctx.sourceManager.addFile(path: path, contents: Data(source.utf8))
+        return ctx
+    }
+
+    private func bundledStdlibContext(_ source: String) -> CompilationContext {
+        TestStdlibCache.shared.prepare()
+        let path = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString + ".kt").path
+        let ctx = makeCompilationContext(
+            inputs: [path],
+            stdlibLibraryPath: CompilerOptions.defaultStdlibLibraryPath,
+            allowDefaultStdlibLibrary: true
         )
         _ = ctx.sourceManager.addFile(path: path, contents: Data(source.utf8))
         return ctx
@@ -60,6 +75,19 @@ struct GenericFunInterfaceParameterLambdaInferenceTests {
         let call = try #require(nameRefCallExprID(named: "apply", in: ast, interner: ctx.interner))
         let binding = try #require(sema.bindings.callBinding(for: call))
         #expect(binding.substitutedTypeArguments == [sema.types.intType, sema.types.intType])
+    }
+
+    @Test
+    func contravariantComparatorProjectionAcceptsGenericSamLambda() throws {
+        let ctx = bundledStdlibContext("""
+        fun <T> foo(comparator: kotlin.Comparator<in T>, a: T, b: T) = comparator.compare(a, b)
+        fun main() { foo<Int>({ a, b -> a - b }, 42, 117) }
+        """)
+        try runSema(ctx)
+
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.isEmpty, "A projected Comparator parameter must provide a concrete SAM shape: \(errors)")
+        #expect(try #require(ctx.sema).bindings.samConversionExprs.count == 1)
     }
 
     @Test

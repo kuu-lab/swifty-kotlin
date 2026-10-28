@@ -97,8 +97,15 @@ extension ExprLowerer {
                 if driver.ctx.localDelegateStorage(for: sym) != nil { return true }
                 if sym == driver.ctx.activeImplicitReceiverSymbol(),
                    driver.ctx.activeImplicitReceiverExprID() != nil { return true }
-                guard let referencedSymbol = sema.symbols.symbol(sym),
-                      referencedSymbol.kind == .local
+                guard let referencedSymbol = sema.symbols.symbol(sym) else {
+                    // Synthetic receiver/parameter symbols (an enclosing
+                    // extension function's `this`, a labeled lambda's receiver)
+                    // never enter the symbol table, but `this@name` binds them
+                    // like any other value — capture them when a live binding
+                    // exists in the enclosing scope (KUU-3671).
+                    return driver.ctx.localValue(for: sym) != nil
+                }
+                guard referencedSymbol.kind == .local
                         || referencedSymbol.kind == .valueParameter
                         || referencedSymbol.flags.contains(.localFunction)
                 else {
@@ -420,6 +427,23 @@ extension ExprLowerer {
 
             let isTailrec = ast.arena.isLocalTailrecFunction(exprID)
             if isTailrec { driver.ctx.markTailrecFunction(symbol) }
+            // A source-level `inline` local function expands at its call sites
+            // like a member inline. Bodies that reach outside their own frame
+            // (non-local returns, enclosing loop jumps) cannot be emitted
+            // standalone at all, so they must also be inline-only.
+            let isLocalInline = ast.arena.isLocalInlineFunction(exprID)
+            let bodyRequiresInlining = hasNonLocalLoopJump || (isLocalInline && localFunBodyInstructions.contains { instruction in
+                switch instruction {
+                case .nonLocalReturn(_, let target):
+                    return target != .function(symbol)
+                case .beginNonLocalReturnScope(_, _, let function):
+                    return function != .function(symbol)
+                case .jump(let target):
+                    return KIRExternalLoopJump.label(for: target) != nil
+                default:
+                    return false
+                }
+            })
             let localFunDeclID = arena.appendDecl(
                 .function(
                     KIRFunction(
@@ -430,8 +454,8 @@ extension ExprLowerer {
                         returnType: localFunReturnType,
                         body: localFunBodyInstructions,
                         isSuspend: sig?.isSuspend ?? false,
-                        isInline: hasNonLocalLoopJump,
-                        isInlineOnly: hasNonLocalLoopJump,
+                        isInline: hasNonLocalLoopJump || isLocalInline,
+                        isInlineOnly: bodyRequiresInlining,
                         isTailrec: isTailrec
                     )
                 )

@@ -27,3 +27,6 @@ empty-iterators:false:0:false
 checked-add
 checked-set
 synchronized:0, 1, 2, 3:0, 1
+sizes:1:2:2:2
+updated-sizes:3:3
+bounded-size:2

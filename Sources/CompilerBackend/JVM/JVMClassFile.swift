@@ -1,9 +1,9 @@
 import Foundation
 import CompilerCore
 
-/// Java 8 classfile output with verifier frames for the typed JVM CFG.
+/// JVM classfile output with verifier frames for the typed JVM CFG.
 enum JVMClassFile {
-    static func emit(_ program: JVMProgram) throws -> Data {
+    static func emit(_ program: JVMProgram, target: JVMTarget = .java8) throws -> Data {
         let pool = JVMConstantPool()
         guard program.functions.count < 65_535 else { throw JVMEmissionError.limit("JVM class exceeds the method-count limit.") }
         var methods = try program.functions.map { try emitMethod($0, owner: program.internalClassName, pool: pool) }
@@ -15,17 +15,18 @@ enum JVMClassFile {
             methods.append(JVMMethodCode(name: try pool.utf8("main"), descriptor: try pool.utf8("([Ljava/lang/String;)V"), access: 0x0009, code: launcher.data, stack: 0, locals: 1, frames: nil))
         }
         let metadata = try JVMMetadata.annotation(program, pool: pool)
-        return try write(name: program.internalClassName, superclass: "java/lang/Object", interfaces: [], access: 0x0031, fields: program.properties.compactMap(\.field) + program.extraFields, fieldSignatures: Dictionary(uniqueKeysWithValues: program.properties.compactMap { property in property.field.flatMap { field in property.genericSignature.flatMap { $0 == field.type.descriptor ? nil : (field.name, $0) } } }), methods: methods, sourceFile: program.sourceFileName, metadata: metadata, annotations: program.annotations, signature: nil, innerClasses: innerClasses(program), pool: pool)
+        return try write(name: program.internalClassName, superclass: "java/lang/Object", interfaces: [], access: 0x0031, fields: program.properties.compactMap(\.field) + program.extraFields, fieldSignatures: Dictionary(uniqueKeysWithValues: program.properties.compactMap { property in property.field.flatMap { field in property.genericSignature.flatMap { $0 == field.type.descriptor ? nil : (field.name, $0) } } }), methods: methods, sourceFile: program.sourceFileName, metadata: metadata, annotations: program.annotations, signature: nil, innerClasses: innerClasses(program), availableClassNames: emittedClassNames(program), majorVersion: target.classFileMajorVersion, pool: pool)
     }
-    static func emit(_ type: JVMClass, program: JVMProgram) throws -> Data {
+    static func emit(_ type: JVMClass, program: JVMProgram, target: JVMTarget = .java8) throws -> Data {
         if type.isFileFacade {
             var facade = JVMProgram(internalClassName: type.name, sourceFileName: type.sourceFileName ?? program.sourceFileName, functions: type.functions, hasMain: false, moduleName: program.moduleName)
             facade.properties = type.properties; facade.extraFields = type.extraFields; facade.typeAliases = type.typeAliases
-            return try emit(facade)
+            facade.classes = program.classes
+            return try emit(facade, target: target)
         }
         let pool = JVMConstantPool()
         let methods = try type.functions.map { try emitMethod($0, owner: type.name, pool: pool) }
-        return try write(name: type.name, superclass: type.superclass, interfaces: type.interfaces, access: type.access, fields: type.properties.compactMap(\.field) + type.extraFields, fieldSignatures: Dictionary(uniqueKeysWithValues: type.properties.compactMap { property in property.field.flatMap { field in property.genericSignature.flatMap { $0 == field.type.descriptor ? nil : (field.name, $0) } } }), methods: methods, sourceFile: type.sourceFileName ?? program.sourceFileName, metadata: type.emitMetadata ? try JVMMetadata.annotation(program, type: type, pool: pool) : nil, annotations: type.annotations, signature: type.genericSignature, innerClasses: innerClasses(program), pool: pool)
+        return try write(name: type.name, superclass: type.superclass, interfaces: type.interfaces, access: type.access, fields: type.properties.compactMap(\.field) + type.extraFields, fieldSignatures: Dictionary(uniqueKeysWithValues: type.properties.compactMap { property in property.field.flatMap { field in property.genericSignature.flatMap { $0 == field.type.descriptor ? nil : (field.name, $0) } } }), methods: methods, sourceFile: type.sourceFileName ?? program.sourceFileName, metadata: type.emitMetadata ? try JVMMetadata.annotation(program, type: type, pool: pool) : nil, annotations: type.annotations, signature: type.genericSignature, recordComponents: type.recordComponents, innerClasses: innerClasses(program), availableClassNames: emittedClassNames(program), enclosingMethod: type.enclosingMethod, majorVersion: target.classFileMajorVersion, pool: pool)
     }
     private static func emitMethod(_ function: JVMFunction, owner: String, pool: JVMConstantPool) throws -> JVMMethodCode {
         var method = try JVMMethodEmitter(function: function, owner: owner, pool: pool).emit()
@@ -34,18 +35,54 @@ enum JVMClassFile {
         method.annotationDefault = function.annotationDefault
         return method
     }
-    private static func innerClasses(_ program: JVMProgram) -> [(String, String, String?, UInt16)] {
+    private static func innerClasses(_ program: JVMProgram) -> [(String, String?, String?, UInt16)] {
         program.classes.compactMap { type in
-            guard let outer = type.outerName else { return nil }
-            if type.innerName == nil {
-                return (type.name, outer, nil, 0)
+            if let outer = type.outerName {
+                guard let innerName = type.innerName else { return (type.name, nil, nil, 0) }
+                let visibility: UInt16 = type.modifiers.contains(.private) ? 2 : (type.modifiers.contains(.protected) ? 4 : 1)
+                return (type.name, outer, innerName, (type.access & 0x7610) | visibility | (type.isInner ? 0 : 8))
             }
-            let visibility: UInt16 = type.modifiers.contains(.private) ? 2 : (type.modifiers.contains(.protected) ? 4 : 1)
-            return (type.name, outer, type.innerName, (type.access & 0x7610) | visibility | (type.isInner ? 0 : 8))
+            guard type.enclosingMethod != nil else { return nil }
+            return (type.name, nil, type.innerName, 0x0019)
         }
     }
-    private static func write(name: String, superclass: String, interfaces: [String], access: UInt16, fields: [JVMField], fieldSignatures: [String: String] = [:], methods: [JVMMethodCode], sourceFile: String, metadata: Data?, annotations: [JVMAnnotation] = [], signature: String?, innerClasses: [(String, String, String?, UInt16)] = [], pool: JVMConstantPool) throws -> Data {
+    private static func emittedClassNames(_ program: JVMProgram) -> Set<String> {
+        Set(program.classes.map(\.name)).union([program.internalClassName])
+    }
+    private static func relevantInnerClasses(
+        _ innerClasses: [(String, String?, String?, UInt16)],
+        owner: String,
+        availableClassNames: Set<String>,
+        referencedClassNames: Set<String>
+    ) -> [(String, String?, String?, UInt16)] {
+        let availableInnerClasses = innerClasses.filter { entry in
+            entry.1 == nil || availableClassNames.contains(entry.1!)
+        }
+        var entriesByName: [String: (String, String?, String?, UInt16)] = [:]
+        for entry in availableInnerClasses { entriesByName[entry.0] = entry }
+
+        var relevantNames: Set<String> = []
+        for entry in availableInnerClasses {
+            if entry.0 == owner || (entry.1 == owner && entry.2 != nil) || referencedClassNames.contains(entry.0) {
+                relevantNames.insert(entry.0)
+            }
+        }
+
+        var changed = true
+        while changed {
+            changed = false
+            for entry in availableInnerClasses where relevantNames.contains(entry.0) {
+                if let outer = entry.1, entriesByName[outer] != nil, relevantNames.insert(outer).inserted {
+                    changed = true
+                }
+            }
+        }
+        return availableInnerClasses.filter { relevantNames.contains($0.0) }
+    }
+    private static func write(name: String, superclass: String, interfaces: [String], access: UInt16, fields: [JVMField], fieldSignatures: [String: String] = [:], methods: [JVMMethodCode], sourceFile: String, metadata: Data?, annotations: [JVMAnnotation] = [], signature: String?, recordComponents: [JVMRecordComponent] = [], innerClasses: [(String, String?, String?, UInt16)] = [], availableClassNames: Set<String>, enclosingMethod: JVMEnclosingMethod? = nil, majorVersion: UInt16 = 52, pool: JVMConstantPool) throws -> Data {
         guard methods.count <= 65_535, fields.count <= 65_535, interfaces.count <= 65_535 else { throw JVMEmissionError.limit("JVM member/interface count exceeds the classfile limit.") }
+        guard recordComponents.count <= 65_535 else { throw JVMEmissionError.limit("JVM record component count exceeds the classfile limit.") }
+        guard recordComponents.isEmpty || majorVersion >= 60 else { throw JVMEmissionError.limit("JVM Record attributes require classfile version 60 or later.") }
         let thisClass = try pool.classInfo(name), superClass = try pool.classInfo(superclass)
         let interfaceIndices = try interfaces.map(pool.classInfo)
         let fieldIndices = try fields.map { (try pool.utf8($0.name), try pool.utf8($0.type.descriptor)) }
@@ -64,18 +101,33 @@ enum JVMClassFile {
         }
         let fieldAnnotations = try fields.map { try JVMAnnotations.attributes($0.annotations, deprecated: $0.isDeprecated, pool: pool) }
         let methodAnnotations = try methods.map { try JVMAnnotations.methodAttributes($0, pool: pool) }
-        let innerName = try innerClasses.isEmpty ? nil : pool.utf8("InnerClasses")
-        let innerIndices = try innerClasses.map { entry in
+        let recordAttributeName: UInt16? = recordComponents.isEmpty ? nil : try pool.utf8("Record")
+        let recordComponentIndices = try recordComponents.map { component in
+            (try pool.utf8(component.name), try pool.utf8(component.type.descriptor), try component.genericSignature.map { try pool.utf8($0) })
+        }
+        let relevantInnerClasses = relevantInnerClasses(innerClasses, owner: name, availableClassNames: availableClassNames, referencedClassNames: pool.referencedClassNames)
+        let innerName = try relevantInnerClasses.isEmpty ? nil : pool.utf8("InnerClasses")
+        let innerIndices = try relevantInnerClasses.map { entry in
             (
                 try pool.classInfo(entry.0),
-                try pool.classInfo(entry.1),
+                try entry.1.map { try pool.classInfo($0) } ?? 0,
                 try entry.2.map { try pool.utf8($0) } ?? 0,
                 entry.3
             )
         }
+        let enclosingMethodName = try enclosingMethod == nil ? nil : pool.utf8("EnclosingMethod")
+        let enclosingMethodIndices = try enclosingMethod.map { method in
+            let methodIndex = try method.name == "<clinit>"
+                ? 0
+                : pool.pair(12, pool.utf8(method.name), pool.utf8(method.descriptor))
+            return (
+                try pool.classInfo(method.owner),
+                methodIndex
+            )
+        }
         let bootstrapAttribute = try pool.bootstrapMethodsAttribute()
         var bytes = JVMBytes()
-        bytes.u4(0xCAFEBABE); bytes.u2(0); bytes.u2(52)
+        bytes.u4(0xCAFEBABE); bytes.u2(0); bytes.u2(majorVersion)
         pool.write(to: &bytes)
         bytes.u2(access); bytes.u2(thisClass); bytes.u2(superClass)
         bytes.u2(UInt16(interfaceIndices.count))
@@ -112,16 +164,34 @@ enum JVMClassFile {
             } else { bytes.u2(0) }
             if let generic { bytes.u2(signatureName); bytes.u4(2); bytes.u2(generic) }
         }
-        bytes.u2(UInt16(1 + classAnnotations.count + (classSignature == nil ? 0 : 1) + (innerClasses.isEmpty ? 0 : 1) + (bootstrapAttribute == nil ? 0 : 1))); bytes.u2(sourceName); bytes.u4(2); bytes.u2(sourceIndex)
+        let classAttributeCount = 1 + classAnnotations.count + (classSignature == nil ? 0 : 1) + (relevantInnerClasses.isEmpty ? 0 : 1) + (enclosingMethod == nil ? 0 : 1) + (bootstrapAttribute == nil ? 0 : 1) + (recordAttributeName == nil ? 0 : 1)
+        guard classAttributeCount <= 65_535 else { throw JVMEmissionError.limit("JVM class attribute count exceeds the classfile limit.") }
+        bytes.u2(UInt16(classAttributeCount)); bytes.u2(sourceName); bytes.u4(2); bytes.u2(sourceIndex)
         for (name, data) in classAnnotations { bytes.u2(name); bytes.u4(UInt32(data.count)); bytes.data.append(data) }
         if let classSignature { bytes.u2(signatureName); bytes.u4(2); bytes.u2(classSignature) }
-        if !innerClasses.isEmpty {
+        if !relevantInnerClasses.isEmpty {
             bytes.u2(innerName!); bytes.u4(UInt32(2 + 8 * innerIndices.count)); bytes.u2(UInt16(innerIndices.count))
             for entry in innerIndices { bytes.u2(entry.0); bytes.u2(entry.1); bytes.u2(entry.2); bytes.u2(entry.3) }
+        }
+        if let enclosingMethodIndices {
+            bytes.u2(enclosingMethodName!); bytes.u4(4); bytes.u2(enclosingMethodIndices.0); bytes.u2(enclosingMethodIndices.1)
         }
         if let bootstrapAttribute {
             guard let size = UInt32(exactly: bootstrapAttribute.data.count) else { throw JVMEmissionError.limit("JVM BootstrapMethods attribute exceeds the classfile size limit.") }
             bytes.u2(bootstrapAttribute.nameIndex); bytes.u4(size); bytes.data.append(bootstrapAttribute.data)
+        }
+        if let recordAttributeName {
+            var attribute = JVMBytes()
+            attribute.u2(UInt16(recordComponents.count))
+            for indices in recordComponentIndices {
+                attribute.u2(indices.0); attribute.u2(indices.1)
+                attribute.u2(indices.2 == nil ? 0 : 1)
+                if let generic = indices.2 {
+                    attribute.u2(signatureName); attribute.u4(2); attribute.u2(generic)
+                }
+            }
+            guard let size = UInt32(exactly: attribute.data.count) else { throw JVMEmissionError.limit("JVM Record attribute exceeds the classfile size limit.") }
+            bytes.u2(recordAttributeName); bytes.u4(size); bytes.data.append(attribute.data)
         }
         return bytes.data
     }

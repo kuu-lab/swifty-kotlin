@@ -2,6 +2,7 @@
 @testable import CompilerCore
 import Foundation
 import Testing
+@testable import CompilerTestSupport
 
 @Suite struct SoftKeywordLabelTests {
     // KUU-1266: every reported keyword, plus remaining simpleIdentifier controls.

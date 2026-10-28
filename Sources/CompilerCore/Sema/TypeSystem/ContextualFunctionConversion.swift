@@ -1,4 +1,43 @@
 extension TypeSystem {
+    /// Finds a function-type view of a value through its intersection or
+    /// declared type-parameter bounds when that view can satisfy `target`.
+    /// SAM conversion uses this for values whose static type is an intersection
+    /// type parameter rather than a function type itself.
+    func functionTypeWitness(from source: TypeID, compatibleWith target: TypeID) -> TypeID? {
+        var visitedParameters: Set<SymbolID> = []
+
+        func find(_ candidate: TypeID) -> TypeID? {
+            switch kind(of: candidate) {
+            case .functionType:
+                let converted = functionArgumentConversionType(from: candidate, to: target) ?? candidate
+                return isSubtype(converted, target) ? candidate : nil
+
+            case let .intersection(parts):
+                for part in parts {
+                    if let witness = find(part) { return witness }
+                }
+                return nil
+
+            case let .typeParam(parameter):
+                if let capture = parameter.capture {
+                    return find(withNullability(parameter.nullability, for: capture.upper))
+                }
+                guard visitedParameters.insert(parameter.symbol).inserted else { return nil }
+                for bound in declaredUpperBounds(for: parameter.symbol) {
+                    if let witness = find(withNullability(parameter.nullability, for: bound)) {
+                        return witness
+                    }
+                }
+                return nil
+
+            default:
+                return nil
+            }
+        }
+
+        return find(source)
+    }
+
     /// Reclassifies leading parameters of an ordinary function as context
     /// parameters when an expected context function type supplies that shape.
     func contextualFunctionConversionType(from source: TypeID, to target: TypeID) -> TypeID? {

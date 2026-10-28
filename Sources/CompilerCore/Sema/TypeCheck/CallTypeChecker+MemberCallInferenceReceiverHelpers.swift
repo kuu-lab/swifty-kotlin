@@ -6,6 +6,18 @@ extension CallTypeChecker {
     /// Callers should fall back to `sema.types.anyType` when the result is nil,
     /// following the error-resilient design principle (never crash on missing symbols).
     func lookupStdlibSymbol(_ name: String, symbols: SymbolTable, interner: StringInterner) -> SymbolID? {
+        // KUU-3084: a short-name lookup can select a different nominal List
+        // when a compiled artifact registers same-named declarations in a
+        // different order. Synthetic results must use the classifier resolved
+        // by source-level kotlin.collections.List annotations.
+        if name == "List" || name == "MutableList" {
+            return symbols.lookupNominal(fqName: [
+                interner.intern("kotlin"),
+                interner.intern("collections"),
+                interner.intern(name),
+            ])
+        }
+
         // KUU-3257: `kotlin.collections.List` names both the interface and the
         // `List(size, init)` factory function. `byShortName` preserves
         // registration order, and the stdlib sema snapshot registers the
