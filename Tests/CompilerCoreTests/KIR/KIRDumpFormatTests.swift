@@ -100,6 +100,15 @@ struct KIRDumpFormatTests {
         #expect(dump == Self.expected)
     }
 
+    @Test
+    func testEmptyModulesKeepJoinedSeparatorSemantics() {
+        let interner = StringInterner()
+        let empty = KIRModule(files: [], arena: KIRArena())
+        #expect(empty.dump(interner: interner, symbols: nil) == "")
+        empty.recordLowering("NormalizeBlocks")
+        #expect(empty.dump(interner: interner, symbols: nil) == "lowerings: NormalizeBlocks")
+    }
+
     static let expected = #"""
     decl[0] function #0 callee params=1 suspend=true inline=false
       nop
