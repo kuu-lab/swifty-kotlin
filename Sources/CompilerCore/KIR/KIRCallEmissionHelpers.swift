@@ -893,6 +893,15 @@ private func appendEnumBoxItableRegistrations<C: RangeReplaceableCollection>(
             interner: interner,
             instructions: &instructions
         )
+        appendObjectItablePropertySetterRegistrations(
+            objectValue: boxedValue,
+            nominalSymbol: classSymbol,
+            sema: sema,
+            cache: cache ?? KIRNominalDispatchCache(),
+            arena: arena,
+            interner: interner,
+            instructions: &instructions
+        )
     }
 }
 
