@@ -6,8 +6,13 @@ extension BundledStdlibExecutionTests {
         try compileAndRunKotlin(
             """
             package reflectionnames
+            import kotlin.reflect.KClass
+            import kotlin.reflect.typeOf
             class Outer { class Inner }
             class RuntimeException
+            object Named
+            class Holder { companion object }
+            @OptIn(ExperimentalStdlibApi::class)
             fun main() {
                 val exception = kotlin.RuntimeException::class
                 val list = List::class
@@ -29,6 +34,13 @@ extension BundledStdlibExecutionTests {
                 println(Array<Int>::class.simpleName)
                 println(Array<Array<String>>::class.qualifiedName)
                 println(RuntimeException::class.qualifiedName)
+                println((typeOf<Unit>().classifier as KClass<*>).qualifiedName)
+                println(Named::class.qualifiedName)
+                println(Holder.Companion::class.qualifiedName)
+                class Local
+                val anonymous = object {}
+                println(Local::class.qualifiedName)
+                println(anonymous::class.qualifiedName)
             }
             """,
             expectedOutput: """
@@ -47,6 +59,11 @@ extension BundledStdlibExecutionTests {
             Array
             kotlin.Array
             reflectionnames.RuntimeException
+            kotlin.Unit
+            reflectionnames.Named
+            reflectionnames.Holder.Companion
+            null
+            null
             """ + "\n",
             moduleName: "KUU1303KClassNames",
             allowDefaultStdlibLibrary: fromArtifact

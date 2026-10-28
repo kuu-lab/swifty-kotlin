@@ -367,8 +367,7 @@ extension CallLowerer {
             return name.hasPrefix("__localdecl_") || name.hasPrefix("__ObjectLiteral_")
         }
         if isLocalOrAnonymous
-            || ownerKind.map({ [.function, .property, .local].contains($0) }) == true
-            || (symbol.kind == .object && symbol.flags.contains(.synthetic)) {
+            || ownerKind.map({ [.function, .property, .local].contains($0) }) == true {
             flags |= 1 << 13
         }
         let flagsExpr = arena.appendExpr(.intLiteral(flags), type: intType)
@@ -716,7 +715,7 @@ extension CallLowerer {
         let isLocalOrAnonymous = classInfo?.fqName.contains { component in
             let name = interner.resolve(component)
             return name.hasPrefix("__localdecl_") || name.hasPrefix("__ObjectLiteral_")
-        } == true || (classInfo?.kind == .object && classInfo?.flags.contains(.synthetic) == true)
+        } == true
 
         func lexicallyContainingSymbols(matching predicate: (SemanticSymbol) -> Bool) -> [SemanticSymbol] {
             guard let classRange = classInfo?.declSite else { return [] }
