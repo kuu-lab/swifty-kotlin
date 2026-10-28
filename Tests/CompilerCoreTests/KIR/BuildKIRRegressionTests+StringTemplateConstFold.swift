@@ -64,5 +64,37 @@ extension BuildKIRRegressionTests {
         let callees = extractCallees(from: initFunction.body, interner: ctx.interner)
         #expect(callees.contains(runtimeCallee(.stringConcatFlat)))
     }
+
+    /// A folded `+`/template outside `const val` follows the runtime rules:
+    /// IEEE floating-point equality (`-0.0 == 0.0`, `NaN != NaN`), and an
+    /// unfoldable numeric `+` such as `1u + 2u` stays arithmetic instead of
+    /// being rendered as the concat text "12".
+    @Test func testBuildKIRNonConstStringFoldUsesRuntimeSemantics() throws {
+        let ctx = makeContextFromSource("""
+        fun main() {
+            println("p " + (-0.0 == 0.0))
+            println("a " + (0.0 / 0.0 == 0.0 / 0.0))
+            println("t ${-0.0f == 0.0f}")
+            println("v " + (1u + 2u))
+            println("w " + (1uL + 2uL))
+        }
+        """)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "Unexpected diagnostics: \(ctx.diagnostics.diagnostics)")
+
+        try BuildKIRPhase().run(ctx)
+        let module = try #require(ctx.kir)
+        let mainFunction = try #require(
+            findAllKIRFunctions(in: module).first { ctx.interner.resolve($0.name) == "main" }
+        )
+        let literals = Set(mainFunction.body.compactMap { instruction -> String? in
+            guard case let .constValue(_, value) = instruction,
+                  case let .stringLiteral(text) = value
+            else { return nil }
+            return ctx.interner.resolve(text)
+        })
+        #expect(literals.isSuperset(of: ["p true", "a false", "t true"]), "\(literals)")
+        #expect(literals.isDisjoint(with: ["p false", "a true", "t false", "v 12", "w 12"]), "\(literals)")
+    }
 }
 #endif

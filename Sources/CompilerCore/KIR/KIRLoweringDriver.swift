@@ -17,8 +17,10 @@ final class KIRLoweringDriver {
     private(set) lazy var objectLiteralLowerer = ObjectLiteralLowerer(driver: self)
     private(set) lazy var callSupportLowerer = CallSupportLowerer(driver: self)
 
-    /// Stateless utilities (no back-reference needed)
-    let constantCollector = ConstantCollector()
+    /// Stateless utilities (no back-reference needed). Lowering only folds
+    /// non-`const` expressions here (`const val` values come pre-evaluated
+    /// from Sema), so floating-point comparisons follow IEEE 754.
+    let constantCollector = ConstantCollector(floatingPointComparisonSemantics: .ieee754)
 
     init(ctx: KIRLoweringContext) {
         self.ctx = ctx
