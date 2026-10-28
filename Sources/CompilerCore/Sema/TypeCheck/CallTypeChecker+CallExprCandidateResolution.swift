@@ -93,6 +93,8 @@ extension CallTypeChecker {
         memberExtensionReceiverMarks: [SymbolID: SymbolID],
         mergedImplicitReceiverMembers: [SymbolID],
         knownApplicableImplicitMembers: Set<SymbolID>,
+        preferredInheritedNestedConstructors: Set<SymbolID>,
+        outerNestedConstructorFallbacks: Set<SymbolID>,
         expectedTypeOverrides: [Int: TypeID],
         preparedArgs: PreparedCallArguments,
         argTypes: [TypeID]
@@ -183,6 +185,33 @@ extension CallTypeChecker {
             if let candidateSpecificNestedCallTypes {
                 resolvedCandidates.removeAll {
                     candidateSpecificNestedCallTypes.inapplicableCandidates.contains($0)
+                }
+            }
+            let inheritedNestedConstructors = resolvedCandidates.filter {
+                preferredInheritedNestedConstructors.contains($0)
+            }
+            let outerConstructorFallbacks = resolvedCandidates.filter {
+                outerNestedConstructorFallbacks.contains($0)
+            }
+            if !inheritedNestedConstructors.isEmpty, !outerConstructorFallbacks.isEmpty {
+                let constructorCall = CallExpr(
+                    range: range,
+                    calleeName: calleeName ?? InternedString(),
+                    args: zip(args, preparedArgs.argTypes).map { argument, type in
+                        CallArg.source(argument, type: type, callRange: range, ast: ast)
+                    },
+                    explicitTypeArgs: explicitTypeArgs
+                )
+                let inheritedProbe = ctx.resolver.probeCall(
+                    candidates: inheritedNestedConstructors,
+                    call: constructorCall,
+                    expectedType: expectedType,
+                    implicitReceiverType: callImplicitReceiverType,
+                    candidateArgumentTypes: candidateSpecificNestedCallTypes?.argumentTypesByCandidate ?? [:],
+                    ctx: sema
+                )
+                if !inheritedProbe.viableCandidates.isEmpty {
+                    resolvedCandidates.removeAll { outerNestedConstructorFallbacks.contains($0) }
                 }
             }
             var resolvedTypeNameInvokeCandidates = typeNameCompanionInvokeCandidates.intersection(

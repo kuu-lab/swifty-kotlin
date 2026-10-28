@@ -23,6 +23,27 @@ struct NullAssertionExpectedTypeTests {
     }
 
     @Test
+    func infersGenericReturnThroughNullAssertion() throws {
+        let source = """
+            @Suppress("UNCHECKED_CAST")
+            fun <T> f() = 1L as T
+            fun main() {
+                val x: Int = f()!!
+            }
+            """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], includeStdlib: false)
+            try runSema(ctx)
+            #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+
+            let sema = try #require(ctx.sema)
+            let callExpr = try call(named: "f", path: path, in: ctx)
+            let binding = try #require(sema.bindings.callBinding(for: callExpr))
+            #expect(binding.substitutedTypeArguments == [sema.types.makeNullable(sema.types.intType)])
+        }
+    }
+
+    @Test
     func infersExtensionDelegateConstructorFromReceiver() throws {
         try check("""
             class UserDataProperty<in R>(val key: String) {
@@ -174,6 +195,18 @@ struct NullAssertionExpectedTypeTests {
                 }, "Expected virtual provideDelegate in \(functionName)")
             }
         }
+    }
+
+    private func call(named name: String, path: String, in ctx: CompilationContext) throws -> ExprID {
+        let ast = try #require(ctx.ast)
+        let calls = allExprIDs(in: ast, path: path, ctx: ctx) { _, expr in
+            guard case let .call(callee, _, _, _) = expr,
+                  case let .nameRef(calleeName, _) = ast.arena.expr(callee)
+            else { return false }
+            return ctx.interner.resolve(calleeName) == name
+        }
+        #expect(calls.count == 1)
+        return try #require(calls.first)
     }
 }
 #endif

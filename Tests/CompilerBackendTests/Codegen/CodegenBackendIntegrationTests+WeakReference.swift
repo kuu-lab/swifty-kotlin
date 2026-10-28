@@ -66,6 +66,43 @@ struct CodegenBackendWeakReferenceTests {
         )
     }
 
+    // KUU-3626: ordinary `kk_object_new` instances participate in mark/sweep,
+    // and generated Kotlin frames publish the references live across calls.
+    // The helper's `Foo` frame has returned before System.gc(), so its weak
+    // referent must clear while a separate live local remains usable.
+    @Test
+    func testCodegenWeakReferenceClearsReturnedOrdinaryObjectAfterGC() throws {
+        let source = """
+        @file:OptIn(kotlin.experimental.ExperimentalNativeApi::class)
+
+        import kotlin.native.ref.WeakReference
+
+        class Foo(val x: Int)
+
+        object GlobalHolder { val retained = Foo(9) }
+
+        fun initializeGlobalHolder(): Int = GlobalHolder.retained.x
+
+        fun weakValue(): WeakReference<Foo> = WeakReference(Foo(42))
+
+        fun main() {
+            val live = Foo(7)
+            println(initializeGlobalHolder())
+            val weak = weakValue()
+            java.lang.System.gc()
+            println(GlobalHolder.retained.x)
+            println(live.x)
+            println(weak.value == null)
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "WeakReferenceCollectsReturnedObject",
+            expected: "9\n9\n7\ntrue\n"
+        )
+    }
+
     // KUU-1363: `WeakReference.value` is `get() = this.get()` in bundled
     // kotlin/native/ref/Weak.kt. The frontend used to truncate the accessor's
     // `= expr` body at the `get(` member call, so the compiled getter returned

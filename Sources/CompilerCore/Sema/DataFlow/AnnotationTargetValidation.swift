@@ -427,6 +427,28 @@ extension DataFlowSemaPhase {
         }
         let memberResolutionContext = resolutionContext.within(ownerSymbol?.fqName ?? [])
 
+        let isJvmRecord = decl.annotations.contains { annotation in
+            guard let annotationID = resolveAnnotationSymbol(
+                named: annotation.name, in: file, symbols: symbols, interner: interner,
+                types: resolutionContext.types, enclosingFQName: resolutionContext.enclosingFQName,
+                lexicalEnclosingFQNames: resolutionContext.lexicalEnclosingFQNames
+            ), let symbol = symbols.symbol(annotationID) else { return false }
+            return symbol.fqName.map(interner.resolve) == ["kotlin", "jvm", "JvmRecord"]
+        }
+        if isJvmRecord, case .classDecl = decl, !resolutionContext.hasInferredBodies {
+            // Accessor bodies must be resolved before a local named `field` can
+            // be distinguished from a reference to a record's backing field.
+            bindings.deferAnnotationTargets(declID, lexicalEnclosingFQNames: resolutionContext.lexicalEnclosingFQNames)
+            return
+        }
+        if isJvmRecord {
+            validateJvmRecordDeclaration(
+                decl, ownerSymbol: ownerSymbol, file: file, ast: ast, symbols: symbols,
+                bindings: bindings, diagnostics: diagnostics, interner: interner,
+                resolutionContext: resolutionContext
+            )
+        }
+
         validateAnnotationRepeatability(
             annotations: decl.annotations, file: file, symbols: symbols,
             diagnostics: diagnostics, interner: interner, resolutionContext: resolutionContext
@@ -651,6 +673,81 @@ extension DataFlowSemaPhase {
             }
         case .typeAliasDecl, .enumEntryDecl:
             break
+        }
+    }
+
+    private func validateJvmRecordDeclaration(
+        _ decl: Decl,
+        ownerSymbol: SemanticSymbol?,
+        file: ASTFile,
+        ast: ASTModule,
+        symbols: SymbolTable,
+        bindings: BindingTable,
+        diagnostics: DiagnosticEngine,
+        interner: StringInterner,
+        resolutionContext: AnnotationTargetResolutionContext
+    ) {
+        guard case let .classDecl(record) = decl else {
+            diagnostics.error("KSWIFTK-SEMA-JVM-RECORD", "@JvmRecord requires a data or full value class.", range: decl.range)
+            return
+        }
+        func reject(_ message: String, at range: SourceRange) {
+            diagnostics.error("KSWIFTK-SEMA-JVM-RECORD", message, range: range)
+        }
+        if ownerSymbol?.flags.contains(.synthetic) == true {
+            reject("@JvmRecord cannot be used on a local class.", at: record.range)
+            return
+        }
+        if record.isInner || record.modifiers.contains(.open) || record.modifiers.contains(.abstract)
+            || record.modifiers.contains(.sealed) || record.modifiers.contains(.enumModifier) {
+            reject("@JvmRecord requires a final, non-inner class.", at: record.range)
+            return
+        }
+        let isFullValue = isFullValueClassDeclaration(record, imports: file.imports, enabled: true, interner: interner)
+        guard record.modifiers.contains(.data) || isFullValue else {
+            reject("@JvmRecord requires a data or full value class.", at: record.range)
+            return
+        }
+        if record.primaryConstructorParams.isEmpty {
+            reject("@JvmRecord requires at least one primary constructor parameter.", at: record.range)
+        }
+        for (index, parameter) in record.primaryConstructorParams.enumerated() {
+            if parameter.isMutableProperty {
+                reject("@JvmRecord constructor properties must be val.", at: record.range)
+            }
+            if parameter.isVararg && index != record.primaryConstructorParams.count - 1 {
+                reject("Only the last @JvmRecord constructor parameter may be vararg.", at: record.range)
+            }
+        }
+        for entry in record.superTypeEntries {
+            if entry.delegateExpression != nil {
+                reject("@JvmRecord cannot delegate an interface.", at: entry.range ?? record.range)
+                continue
+            }
+            if entry.hasConstructorCallSyntax {
+                reject("@JvmRecord cannot extend a class.", at: entry.range ?? record.range)
+                continue
+            }
+            if let type = resolveTypeRef(
+                entry.typeRef, ast: ast, symbols: symbols, types: resolutionContext.types,
+                interner: interner, sourceManager: resolutionContext.sourceManager,
+                relativeOwnerFQName: resolutionContext.enclosingFQName,
+                currentPackageFQName: file.packageFQName, imports: file.imports
+            ), case let .classType(classType) = resolutionContext.types.kind(of: type),
+               let superSymbol = symbols.symbol(classType.classSymbol),
+               superSymbol.kind == .class || superSymbol.kind == .enumClass || superSymbol.kind == .object {
+                reject("@JvmRecord cannot extend a class.", at: entry.range ?? record.range)
+            }
+        }
+        for propertyID in record.memberProperties {
+            guard case let .propertyDecl(property) = ast.arena.decl(propertyID),
+                  !property.isSynthesizedPrimaryConstructorProperty else { continue }
+            if property.delegateExpression != nil || propertyAllowsFieldTarget(
+                property, symbol: bindings.declSymbols[propertyID], symbols: symbols,
+                validator: resolutionContext.propertyValidator, bindings: bindings
+            ) {
+                reject("@JvmRecord cannot declare additional instance fields.", at: property.range)
+            }
         }
     }
 

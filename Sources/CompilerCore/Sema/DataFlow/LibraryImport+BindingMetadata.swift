@@ -352,6 +352,7 @@ extension DataFlowSemaPhase {
                         valueParameterIsVararg: Array(repeating: false, count: stubLeadingParameters.count)
                             + signature.valueParameterIsVararg
                             + Array(repeating: false, count: reifiedCount + 1),
+                        hasStableParameterNames: signature.hasStableParameterNames,
                         typeParameterSymbols: signature.typeParameterSymbols,
                         reifiedTypeParameterIndices: signature.reifiedTypeParameterIndices
                     ),

@@ -43,6 +43,7 @@ func remapSnapshotSignature(
         valueParameterIsVararg: signature.valueParameterIsVararg,
         valueParameterAllowsNonLocalReturn: signature.valueParameterAllowsNonLocalReturn,
         hasExplicitInlineParameterMetadata: signature.hasExplicitInlineParameterMetadata,
+        hasStableParameterNames: signature.hasStableParameterNames,
         typeParameterSymbols: signature.typeParameterSymbols.map(symbol),
         reifiedTypeParameterIndices: signature.reifiedTypeParameterIndices,
         typeParameterUpperBounds: signature.typeParameterUpperBounds.map { $0.map(type) },

@@ -423,14 +423,23 @@ extension LocalDeclTypeChecker {
             indexTypes.append(indexType)
         }
 
+        let isBuiltinArray = builtinArrayElementType(for: receiverType, sema: sema, interner: interner) != nil
+        let contextSetCandidates: [SymbolID] = {
+            guard isBuiltinArray else { return setCandidates }
+            let extensions = collectIndexedOperatorExtensionCandidates(
+                named: setName, receiverType: receiverType, locals: locals, ctx: ctx
+            )
+            return setCandidates + extensions.filter { !setCandidates.contains($0) }
+        }()
+
         // Determine the expected element type so integer literals can be
         // narrowed for built-in array assignment and operator-set calls
         // (e.g. ByteArray[0] = 9).
         let valueParameterIndex = indices.count
         let setValueExpectedType: TypeID? = {
-            if !setCandidates.isEmpty {
+            if !contextSetCandidates.isEmpty {
                 var valueTypes: [TypeID] = []
-                for candidate in setCandidates {
+                for candidate in contextSetCandidates {
                     guard let sig = sema.symbols.functionSignature(for: candidate),
                           sig.parameterTypes.count > valueParameterIndex,
                           let valueParameterType = sig.parameterTypes.last
@@ -451,17 +460,47 @@ extension LocalDeclTypeChecker {
                         receiverType: receiverType,
                         sema: sema
                     )
+                    if isBuiltinArray,
+                       !driver.callChecker.typeMentionsTypeParameter(paramType, sema: sema)
+                    {
+                        // Probe the already inferred indices using this setter's
+                        // own value type. Inapplicable array members must not
+                        // provide the context for an extension's assigned value.
+                        let indexArgs = zip(indices, indexTypes).map { expr, type in
+                            let literal = driver.callChecker.integerLiteralValues(expr, ast: ast)
+                            return CallArg(type: type, signedIntegerLiteral: literal.signed, unsignedIntegerLiteral: literal.unsigned)
+                        }
+                        let probe = CallExpr(
+                            range: range,
+                            calleeName: setName,
+                            args: indexArgs + [CallArg(type: paramType, bindsToLastParameter: true)],
+                            dispatchReceiverTypes: ctx.implicitReceiverMemberLookupEntries().map(\.type)
+                        )
+                        if ctx.resolver.probeCall(
+                            candidates: [candidate], call: probe, expectedType: nil,
+                            implicitReceiverType: receiverType, ctx: sema
+                        ).viableCandidates.isEmpty {
+                            continue
+                        }
+                    }
                     valueTypes.append(sema.types.makeNonNullable(paramType))
                 }
-                if let first = valueTypes.first, valueTypes.dropFirst().allSatisfy({ $0 == first }) {
-                    return first
+                if let first = valueTypes.first {
+                    if valueTypes.dropFirst().allSatisfy({ $0 == first }) { return first }
+                    if isBuiltinArray { return nil }
                 }
             }
+            // The raw array write-back only exists for a single index; for a
+            // multi-index `a[i, j] = v` the outer array's element type is
+            // unrelated to the operator `set()`'s value parameter, so it must
+            // not steer value inference (e.g. `cells[i, j] = f()` on
+            // `Array<CharArray>` must not expect `CharArray`).
+            guard indices.count == 1 else { return nil }
             return driver.helpers.arrayElementType(for: receiverType, sema: sema, interner: interner)
         }()
         let setValueTypeHasUnresolvedTypeParameter: Bool = {
-            guard let setValueExpectedType, !setCandidates.isEmpty else { return false }
-            return setCandidates.contains { candidate in
+            guard let setValueExpectedType, !contextSetCandidates.isEmpty else { return false }
+            return contextSetCandidates.contains { candidate in
                 guard let signature = sema.symbols.functionSignature(for: candidate) else {
                     return true
                 }

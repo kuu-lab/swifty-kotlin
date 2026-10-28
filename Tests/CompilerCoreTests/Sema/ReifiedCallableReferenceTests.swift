@@ -12,6 +12,32 @@ struct ReifiedCallableReferenceTests {
     }
 
     @Test(arguments: [false, true])
+    func primitiveContextInfersReifiedCallableReferenceInputs(fromSource: Bool) throws {
+        let context = try frontend(["""
+        inline fun <reified T> name(value: T): String = "name"
+        inline fun <reified A, reified B> pair(first: A, second: B): String = "pair"
+        fun anyName(value: Any): String = "any"
+        val primitive: (Int) -> String = ::name
+        val reference: (String) -> String = ::name
+        val mixed: (String, Int) -> String = ::pair
+        val erased: (Int) -> String = ::anyName
+        """], fromSource: fromSource)
+        try #require(!context.diagnostics.hasError, "\(context.diagnostics.diagnostics)")
+        let sema = try #require(context.sema)
+        let ast = try #require(context.ast)
+        let references = ast.arena.exprs.enumerated().compactMap { index, expression -> ExprID? in
+            let id = ExprID(rawValue: Int32(index))
+            guard isUserSourceExpr(id, in: context), case .callableRef = expression,
+                  sema.bindings.callableReferenceBinding(for: id) != nil else { return nil }
+            return id
+        }
+        let bindings = references.compactMap { sema.bindings.callableReferenceBinding(for: $0) }
+        #expect(bindings.contains { $0.substitutedTypeArguments == [sema.types.intType] && $0.isCallableReferenceAdapter })
+        #expect(bindings.contains { $0.substitutedTypeArguments.count == 2 && $0.substitutedTypeArguments[1] == sema.types.intType && $0.isCallableReferenceAdapter })
+        #expect(bindings.contains { $0.substitutedTypeArguments.isEmpty && $0.isCallableReferenceAdapter })
+    }
+
+    @Test(arguments: [false, true])
     func referencesStoreDeclarationOrderTypeArgumentsAndOuterTokens(fromSource: Bool) throws {
         let source = try String(contentsOf: repository.appendingPathComponent(
             "Scripts/diff_cases/callable_reference_reified_tokens.kt"), encoding: .utf8)
@@ -32,7 +58,9 @@ struct ReifiedCallableReferenceTests {
             let binding = try #require(sema.bindings.callableReferenceBinding(for: reference))
             let signature = try #require(sema.symbols.functionSignature(for: binding.chosenCallee))
             #expect(binding.substitutedTypeArguments.count == signature.typeParameterSymbols.count)
-            #expect(binding.parameterMapping.isEmpty)
+            #expect(binding.parameterMapping == Dictionary(uniqueKeysWithValues:
+                signature.parameterTypes.indices.map { ($0, $0) }
+            ))
             #expect(sema.bindings.callBinding(for: reference) == nil)
             for index in signature.reifiedTypeParameterIndices {
                 let argument = binding.substitutedTypeArguments[index]

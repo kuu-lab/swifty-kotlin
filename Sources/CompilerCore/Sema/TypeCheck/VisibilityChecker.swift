@@ -103,23 +103,30 @@ struct VisibilityChecker {
             guard let enclosingClass else {
                 return false
             }
-            if enclosingClass == ownerClass {
-                return true
-            }
-            if isSubclass(enclosingClass, of: ownerClass) {
-                return true
-            }
-            // The containing class and declarations nested within it can
-            // access protected members of its companion object.
+            // A protected member declared in a companion object is scoped to
+            // the companion's containing class: the class itself, its
+            // subclasses, and every declaration lexically nested inside it —
+            // inner and nested classes included — may access it (KUU-3605).
+            var protectedScopeOwner = ownerClass
             if let companionOwner = symbols.parentSymbol(for: ownerClass),
-               symbols.companionObjectSymbol(for: companionOwner) == ownerClass,
-               (enclosingClass == companionOwner || isLexicallyNested(enclosingClass, within: companionOwner)) {
-                return true
+               symbols.companionObjectSymbol(for: companionOwner) == ownerClass {
+                protectedScopeOwner = companionOwner
             }
-            // Kotlin also grants protected access to declarations lexically
-            // nested inside the owner, including inner classes that are not
-            // themselves subclasses of that owner.
-            return isLexicallyNested(enclosingClass, within: ownerClass)
+            // Protected access is evaluated against every nominal enclosing
+            // the use site, not only the innermost one: a nested or inner
+            // class also sees protected members that an enclosing class can
+            // reach (e.g. a member of an outer class's supertype), and being
+            // lexically nested inside the owner counts as access from within
+            // the owner.
+            var visited: Set<SymbolID> = []
+            var useSiteClass: SymbolID? = enclosingClass
+            while let candidate = useSiteClass, visited.insert(candidate).inserted {
+                if candidate == protectedScopeOwner || isSubclass(candidate, of: protectedScopeOwner) {
+                    return true
+                }
+                useSiteClass = symbols.parentSymbol(for: candidate)
+            }
+            return false
         }
     }
 
@@ -162,18 +169,6 @@ struct VisibilityChecker {
             if visited.contains(current.rawValue) { continue }
             visited.insert(current.rawValue)
             queue.append(contentsOf: symbols.directSupertypes(for: current))
-        }
-        return false
-    }
-
-    private func isLexicallyNested(_ candidate: SymbolID, within owner: SymbolID) -> Bool {
-        var current = symbols.parentSymbol(for: candidate)
-        var visited: Set<SymbolID> = []
-        while let parent = current, visited.insert(parent).inserted {
-            if parent == owner {
-                return true
-            }
-            current = symbols.parentSymbol(for: parent)
         }
         return false
     }

@@ -1851,16 +1851,20 @@ extension DataFlowSemaPhase {
                 )
             }
 
+            // Mirror the source-path registration: Kotlin's synthetic
+            // `Enum.entries` belongs to the enum class, never the companion,
+            // so imported user-declared `entries` members keep their own
+            // ownership and the qualified `E.entries` read stays synthetic
+            // (KUU-3544).
             if let enumEntriesSymbol {
                 let entriesName = interner.intern("entries")
-                let entriesFQName = companionFQName + [entriesName]
-                if let existingEntries = symbols.lookupAll(fqName: entriesFQName)
-                    .compactMap({ symbols.symbol($0) })
-                    .first(where: { $0.kind == .property })
-                {
-                    symbols.insertFlags([.static], for: existingEntries.id)
-                    symbols.setParentSymbol(companionSymbol, for: existingEntries.id)
-                } else {
+                let entriesFQName = enumFQName + [entriesName]
+                let hasStaticEntries = symbols.lookupAll(fqName: entriesFQName).contains { candidate in
+                    guard let candidateSymbol = symbols.symbol(candidate) else { return false }
+                    return candidateSymbol.kind == .property
+                        && candidateSymbol.flags.contains(.static)
+                }
+                if !hasStaticEntries {
                     let entriesType = types.make(.classType(ClassType(
                         classSymbol: enumEntriesSymbol,
                         args: [.invariant(enumType)],
@@ -1874,8 +1878,10 @@ extension DataFlowSemaPhase {
                         visibility: .public,
                         flags: [.synthetic, .static]
                     )
-                    symbols.setParentSymbol(companionSymbol, for: entriesSymbol)
-                    symbols.setPropertyType(entriesType, for: entriesSymbol)
+                    if symbols.symbol(entriesSymbol)?.flags.contains(.synthetic) == true {
+                        symbols.setParentSymbol(enumSymbol, for: entriesSymbol)
+                        symbols.setPropertyType(entriesType, for: entriesSymbol)
+                    }
                 }
             }
 
@@ -1995,6 +2001,7 @@ extension DataFlowSemaPhase {
                     valueParameterIsVararg: signature.valueParameterIsVararg,
                     valueParameterAllowsNonLocalReturn: signature.valueParameterAllowsNonLocalReturn,
                     hasExplicitInlineParameterMetadata: signature.hasExplicitInlineParameterMetadata,
+                    hasStableParameterNames: signature.hasStableParameterNames,
                     typeParameterSymbols: normalizedTypeParameterSymbols,
                     reifiedTypeParameterIndices: signature.reifiedTypeParameterIndices,
                     typeParameterUpperBoundsList: normalizedUpperBoundsList,
@@ -2086,6 +2093,7 @@ extension DataFlowSemaPhase {
                 valueParameterIsVararg: signature.valueParameterIsVararg,
                 valueParameterAllowsNonLocalReturn: signature.valueParameterAllowsNonLocalReturn,
                 hasExplicitInlineParameterMetadata: signature.hasExplicitInlineParameterMetadata,
+                hasStableParameterNames: signature.hasStableParameterNames,
                 typeParameterSymbols: parameters,
                 reifiedTypeParameterIndices: signature.reifiedTypeParameterIndices,
                 typeParameterUpperBoundsList: bounds, classTypeParameterCount: ownerCount
