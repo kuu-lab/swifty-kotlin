@@ -213,7 +213,6 @@ package struct KnownCompilerNames {
     let channel: InternedString
     let job: InternedString
     let deferred: InternedString
-    let dispatchers: InternedString
     let charsets: InternedString
     let throwable: InternedString
     let cancellationException: InternedString
@@ -232,8 +231,6 @@ package struct KnownCompilerNames {
     let emit: InternedString
     let notNull: InternedString
     let emptyListFn: InternedString
-    let emptySetFn: InternedString
-    let emptyMapFn: InternedString
     let buildList: InternedString
     let buildSet: InternedString
     let buildMap: InternedString
@@ -244,7 +241,6 @@ package struct KnownCompilerNames {
     let propertiesName: InternedString
     // STDLIB-REFLECT-065: Annotation reflection (reified-type special cases
     // that were not migrated to bundled Kotlin — see KClasses.kt)
-    let findAnnotationName: InternedString
     let findAssociatedObjectName: InternedString
     let size: InternedString
     let isEmpty: InternedString
@@ -253,7 +249,6 @@ package struct KnownCompilerNames {
     let getOrElse: InternedString
     let getOrPut: InternedString
     let putAll: InternedString
-    let regexCtor: InternedString
     let runBlocking: InternedString
     let launch: InternedString
     let async: InternedString
@@ -288,16 +283,13 @@ package struct KnownCompilerNames {
     // Scope function names (STDLIB-004 / STDLIB-250)
 
     let append: InternedString
-    let appendLine: InternedString
     let appendRange: InternedString
-    let deleteCharAt: InternedString
     let deleteAt: InternedString
     let deleteRange: InternedString
     let get: InternedString
     let sbSet: InternedString
     let insert: InternedString
     let insertRange: InternedString
-    let delete: InternedString
     let setRange: InternedString
     let toString: InternedString
     let clear: InternedString
@@ -305,7 +297,6 @@ package struct KnownCompilerNames {
     let length: InternedString
     // STDLIB-STR-123
     let replace: InternedString
-    let setCharAt: InternedString
     let capacity: InternedString
     let ensureCapacity: InternedString
     let trimToSize: InternedString
@@ -485,7 +476,6 @@ package struct KnownCompilerNames {
     let kotlinTimePackage: [InternedString]
     let kotlinMathPackage: [InternedString]
     let kotlinArrayFQName: [InternedString]
-    let kotlinPairFQName: [InternedString]
     let kotlinComparatorFQName: [InternedString]
     let kotlinIntArrayFQName: [InternedString]
     let kotlinLongArrayFQName: [InternedString]
@@ -569,8 +559,6 @@ package struct KnownCompilerNames {
     let kotlinxCoroutinesRunBlockingFQName: [InternedString]
     let kotlinxCoroutinesLaunchFQName: [InternedString]
     let kotlinxCoroutinesAsyncFQName: [InternedString]
-    let kotlinCoroutinesContinuationFQName: [InternedString]
-    let kotlinCoroutinesSuspendCoroutineUninterceptedOrReturnFQName: [InternedString]
     let kotlinRangesPackageFQName: [InternedString]
     let kotlinResultFQName: [InternedString]
     /// Bundled Kotlin-source Array copy entry points (KSP-1515).
@@ -653,7 +641,6 @@ package struct KnownCompilerNames {
         channel = interner.intern("Channel")
         job = interner.intern("Job")
         deferred = interner.intern("Deferred")
-        dispatchers = interner.intern("Dispatchers")
         charsets = interner.intern("Charsets")
         throwable = interner.intern("Throwable")
         cancellationException = interner.intern("CancellationException")
@@ -672,15 +659,12 @@ package struct KnownCompilerNames {
         emit = interner.intern("emit")
         notNull = interner.intern("notNull")
         emptyListFn = interner.intern("emptyList")
-        emptySetFn = interner.intern("emptySet")
-        emptyMapFn = interner.intern("emptyMap")
         buildList = interner.intern("buildList")
         buildSet = interner.intern("buildSet")
         buildMap = interner.intern("buildMap")
         className = interner.intern("class")
         isInitialized = interner.intern("isInitialized")
         propertiesName = interner.intern("properties")
-        findAnnotationName = interner.intern("findAnnotation")
         findAssociatedObjectName = interner.intern("findAssociatedObject")
         size = interner.intern("size")
         isEmpty = interner.intern("isEmpty")
@@ -689,7 +673,6 @@ package struct KnownCompilerNames {
         getOrElse = interner.intern("getOrElse")
         getOrPut = interner.intern("getOrPut")
         putAll = interner.intern("putAll")
-        regexCtor = interner.intern("Regex")
         runBlocking = interner.intern("runBlocking")
         launch = interner.intern("launch")
         async = interner.intern("async")
@@ -715,16 +698,13 @@ package struct KnownCompilerNames {
         // Scope function names (STDLIB-004 / STDLIB-250)
 
         append = interner.intern("append")
-        appendLine = interner.intern("appendLine")
         appendRange = interner.intern("appendRange")
-        deleteCharAt = interner.intern("deleteCharAt")
         deleteAt = interner.intern("deleteAt")
         deleteRange = interner.intern("deleteRange")
         get = interner.intern("get")
         sbSet = interner.intern("set")
         insert = interner.intern("insert")
         insertRange = interner.intern("insertRange")
-        delete = interner.intern("delete")
         setRange = interner.intern("setRange")
         toString = interner.intern("toString")
         clear = interner.intern("clear")
@@ -732,7 +712,6 @@ package struct KnownCompilerNames {
         length = interner.intern("length")
         // STDLIB-STR-123
         replace = interner.intern("replace")
-        setCharAt = interner.intern("setCharAt")
         capacity = interner.intern("capacity")
         ensureCapacity = interner.intern("ensureCapacity")
         trimToSize = interner.intern("trimToSize")
@@ -781,8 +760,6 @@ package struct KnownCompilerNames {
         kotlinRangesPackageFQName = [kotlin, interner.intern("ranges")]
         kotlinCoroutinesFQName = [kotlin, coroutines]
         kotlinCoroutinesIntrinsicsFQName = [kotlin, coroutines, coroutinesIntrinsics]
-        kotlinCoroutinesContinuationFQName = [kotlin, coroutines, continuation]
-        kotlinCoroutinesSuspendCoroutineUninterceptedOrReturnFQName = [kotlin, coroutines, coroutinesIntrinsics, suspendCoroutineUninterceptedOrReturn]
 
         let resultName = interner.intern("Result")
         kotlinResultFQName = [kotlin, resultName]
@@ -1032,7 +1009,6 @@ package struct KnownCompilerNames {
         kotlinTimePackage = [kotlin, kotlinTime]
         kotlinMathPackage = [kotlin, kotlinMath]
         kotlinArrayFQName = [kotlin, array]
-        kotlinPairFQName = [kotlin, pair]
         kotlinComparatorFQName = [kotlin, comparator]
         kotlinIntArrayFQName = [kotlin, intArray]
         kotlinLongArrayFQName = [kotlin, longArray]
