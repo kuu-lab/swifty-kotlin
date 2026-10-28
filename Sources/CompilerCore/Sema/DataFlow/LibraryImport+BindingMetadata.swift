@@ -216,10 +216,6 @@ extension DataFlowSemaPhase {
                 cache: cache,
                 allowPlaceholders: isStdlibArtifact,
                 phantomTypeParameterSymbols: phantomTypeParameterSymbols,
-                phantomTypeParameterSymbolCount: binding.deferredPhantomTypeParameterSymbolCount,
-                phantomTypeParameterSymbolsProvider: binding.deferredPhantomTypeParameterSymbolCount > 0
-                    ? { binding.materializeDeferredPhantomTypeParameterSymbols() }
-                    : nil,
                 isStdlibArtifact: isStdlibArtifact
             )
             let usesLegacyABI = symbols.symbol(symbol)?.flags.contains(.legacyReifiedClassTokenABI) == true
