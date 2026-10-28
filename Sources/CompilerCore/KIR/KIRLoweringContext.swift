@@ -401,14 +401,6 @@ final class KIRLoweringContext {
         capturedOuterReceiverExprsByOwner[owner] = exprID
     }
 
-    func restoreImplicitReceiver(symbol: SymbolID?, exprID: KIRExprID?) {
-        if let symbol, let exprID {
-            setImplicitReceiver(symbol: symbol, exprID: exprID)
-        } else {
-            clearImplicitReceiver()
-        }
-    }
-
     func withContextReceiverValues<T>(
         _ values: [ContextReceiverValue],
         _ body: () throws -> T
