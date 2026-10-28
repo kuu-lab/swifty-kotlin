@@ -6,6 +6,39 @@ import Testing
 
 extension JVMBackendTests {
     @Test(arguments: [EmitMode.jvmClass, .jvmJar])
+    func ownStdlibCheckNotNullVariantsAreAvailableAndCatchable(mode: EmitMode) throws {
+        let library = try ownStdlibLibrary()
+        let archive = try ZipArchive(data: Data(contentsOf: library))
+        let entry = try #require(archive.entries.first { $0.name == "kotlin/PreconditionsKt.class" })
+        var reader = JVMClassReader(bytes: Array(try archive.contents(of: entry)))
+        let owner = try reader.read()
+        #expect(owner.methods.contains { $0.name == "checkNotNull" && $0.descriptor == "(Ljava/lang/Object;)Ljava/lang/Object;" })
+        #expect(owner.methods.contains { $0.name == "checkNotNull" && $0.descriptor == "(Ljava/lang/Object;Lkotlin/jvm/functions/Function0;)Ljava/lang/Object;" })
+
+        let source = """
+            var messages = 0
+            fun message(): Any { messages++; return "lazy null check" }
+            fun main() {
+                val value: String? = "value"
+                println(checkNotNull(value).length)
+                println(checkNotNull(value) { message() }.length)
+                println(messages)
+                try { checkNotNull(null as String?) }
+                catch (failure: IllegalStateException) { println(failure.message) }
+                try { checkNotNull(null as String?) { message() } }
+                catch (failure: IllegalStateException) { println(failure.message) }
+                println(messages)
+            }
+            """
+        try withWorkspace { root in
+            try runRuntimeParity(source,
+                                 expected: "5\n5\n0\nRequired value was null.\nlazy null check\n1\n",
+                                 mode: mode,
+                                 root: root)
+        }
+    }
+
+    @Test(arguments: [EmitMode.jvmClass, .jvmJar])
     func ownStdlibCheckAndErrorPreserveEvaluationAndFailures(mode: EmitMode) throws {
         let library = try ownStdlibLibrary()
         let archive = try ZipArchive(data: Data(contentsOf: library))
