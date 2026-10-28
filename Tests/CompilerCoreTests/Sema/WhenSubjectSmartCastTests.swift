@@ -419,6 +419,36 @@ struct WhenSubjectSmartCastTests {
         }
         #expect(nonExhaustiveErrors.isEmpty, "Got: \(nonExhaustiveErrors)")
     }
+
+    /// Negative control for terminating-branch exclusion: a branch that
+    /// completes normally does not remove enum entries from the residual set,
+    /// so the `when` must still reject (KUU-3130).
+    @Test func testWhenExhaustivenessStillRequiresEntriesAfterNonTerminatingIf() throws {
+        let source = """
+        enum class MiniState { A, B, C }
+        fun sink() {}
+        fun excluded(value: MiniState): Int {
+            if (value == MiniState.A) return 1
+            return when (value) {
+                MiniState.B -> 2
+                MiniState.C -> 3
+            }
+        }
+        fun notExcluded(value: MiniState, flag: Boolean): Int {
+            if (value == MiniState.A && flag) sink()
+            return when (value) {
+                MiniState.B -> 2
+                MiniState.C -> 3
+            }
+        }
+        """
+
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+        let errors = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0004" }
+        #expect(errors.count == 1, "Got: \(errors)")
+    }
+
     @Test func testConjunctionFallthroughDoesNotInventGenericSmartCast() throws {
         let source = """
         interface Marker { fun mark() }
