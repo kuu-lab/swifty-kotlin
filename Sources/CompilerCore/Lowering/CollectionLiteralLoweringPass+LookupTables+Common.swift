@@ -5,8 +5,6 @@ struct CommonLookupNames {
     let sizeName: InternedString
     let getName: InternedString
     let containsName: InternedString
-    let containsKeyName: InternedString
-    let containsValueName: InternedString
     let isEmptyName: InternedString
     let countName: InternedString
     let addName: InternedString
@@ -22,19 +20,13 @@ struct CommonLookupNames {
     let filterName: InternedString
     let filterNotName: InternedString
     let mapNotNullName: InternedString
-    let filterNotNullName: InternedString
     let requireNoNullsName: InternedString
-    let filterToName: InternedString
-    let filterNotToName: InternedString
     let mapToName: InternedString
     let flatMapToName: InternedString
     let mapNotNullToName: InternedString
     let mapIndexedToName: InternedString
     let mapIndexedNotNullToName: InternedString
     let flatMapIndexedToName: InternedString
-    let filterIsInstanceToName: InternedString
-    let filterIndexedToName: InternedString
-    let filterNotNullToName: InternedString
     let forEachName: InternedString
     let flatMapName: InternedString
     let flatMapIndexedName: InternedString
@@ -63,7 +55,6 @@ struct CommonLookupNames {
     let zipName: InternedString
     let zipWithNextName: InternedString
     let unzipName: InternedString
-    let forEachIndexedName: InternedString
     let onEachName: InternedString
     let onEachIndexedName: InternedString
     let mapIndexedName: InternedString
@@ -71,12 +62,9 @@ struct CommonLookupNames {
     let foldIndexedName: InternedString
     let reduceIndexedName: InternedString
     let filterIndexedName: InternedString
-    let reduceIndexedOrNullName: InternedString
     let runningFoldIndexedName: InternedString
     let runningReduceIndexedName: InternedString
     let scanIndexedName: InternedString
-    let sumByName: InternedString
-    let sumByDoubleName: InternedString
     let maxName: InternedString
     let maxOrNullName: InternedString
     let minOrNullName: InternedString
@@ -86,7 +74,6 @@ struct CommonLookupNames {
     let sortedName: InternedString
     let averageName: InternedString
     let distinctName: InternedString
-    let distinctByName: InternedString
     let shuffledName: InternedString
     let flattenName: InternedString
     let chunkedName: InternedString
@@ -117,21 +104,14 @@ struct CommonLookupNames {
     let listOfNotNullFQName: [InternedString]
     let kotlinName: InternedString
     let initName: InternedString
-    let toName: InternedString
-    let pairName: InternedString
-    let kkPairNewName: InternedString
     let kkPairFirstName: InternedString
     let kkPairSecondName: InternedString
-    let tripleName: InternedString
-    let kkTripleNewName: InternedString
 
     init(interner: StringInterner) {
         sumName = interner.intern("sum")
         sizeName = interner.intern("size")
         getName = interner.intern("get")
         containsName = interner.intern("contains")
-        containsKeyName = interner.intern("containsKey")
-        containsValueName = interner.intern("containsValue")
         isEmptyName = interner.intern("isEmpty")
         countName = interner.intern("count")
         addName = interner.intern("add")
@@ -147,19 +127,13 @@ struct CommonLookupNames {
         filterName = interner.intern("filter")
         filterNotName = interner.intern("filterNot")
         mapNotNullName = interner.intern("mapNotNull")
-        filterNotNullName = interner.intern("filterNotNull")
         requireNoNullsName = interner.intern("requireNoNulls")
-        filterToName = interner.intern("filterTo")
-        filterNotToName = interner.intern("filterNotTo")
         mapToName = interner.intern("mapTo")
         flatMapToName = interner.intern("flatMapTo")
         mapNotNullToName = interner.intern("mapNotNullTo")
         mapIndexedToName = interner.intern("mapIndexedTo")
         mapIndexedNotNullToName = interner.intern("mapIndexedNotNullTo")
         flatMapIndexedToName = interner.intern("flatMapIndexedTo")
-        filterIsInstanceToName = interner.intern("filterIsInstanceTo")
-        filterIndexedToName = interner.intern("filterIndexedTo")
-        filterNotNullToName = interner.intern("filterNotNullTo")
         forEachName = interner.intern("forEach")
         flatMapName = interner.intern("flatMap")
         flatMapIndexedName = interner.intern("flatMapIndexed")
@@ -188,7 +162,6 @@ struct CommonLookupNames {
         zipName = interner.intern("zip")
         zipWithNextName = interner.intern("zipWithNext")
         unzipName = interner.intern("unzip")
-        forEachIndexedName = interner.intern("forEachIndexed")
         onEachName = interner.intern("onEach")
         onEachIndexedName = interner.intern("onEachIndexed")
         mapIndexedName = interner.intern("mapIndexed")
@@ -196,12 +169,9 @@ struct CommonLookupNames {
         foldIndexedName = interner.intern("foldIndexed")
         reduceIndexedName = interner.intern("reduceIndexed")
         filterIndexedName = interner.intern("filterIndexed")
-        reduceIndexedOrNullName = interner.intern("reduceIndexedOrNull")
         runningFoldIndexedName = interner.intern("runningFoldIndexed")
         runningReduceIndexedName = interner.intern("runningReduceIndexed")
         scanIndexedName = interner.intern("scanIndexed")
-        sumByName = interner.intern("sumBy")
-        sumByDoubleName = interner.intern("sumByDouble")
         maxName = interner.intern("max")
         maxOrNullName = interner.intern("maxOrNull")
         minOrNullName = interner.intern("minOrNull")
@@ -211,7 +181,6 @@ struct CommonLookupNames {
         sortedName = interner.intern("sorted")
         averageName = interner.intern("average")
         distinctName = interner.intern("distinct")
-        distinctByName = interner.intern("distinctBy")
         shuffledName = interner.intern("shuffled")
         flattenName = interner.intern("flatten")
         chunkedName = interner.intern("chunked")
@@ -243,12 +212,7 @@ struct CommonLookupNames {
         listOfNotNullFQName = kotlinCollectionsPkg + [interner.intern("listOfNotNull")]
         kotlinName = interner.intern("kotlin")
         initName = interner.intern("<init>")
-        toName = interner.intern("to")
-        pairName = interner.intern("Pair")
-        kkPairNewName = interner.intern("__kk_pair_new")
         kkPairFirstName = interner.intern("__kk_pair_first")
         kkPairSecondName = interner.intern("__kk_pair_second")
-        tripleName = interner.intern("Triple")
-        kkTripleNewName = interner.intern("__kk_triple_new")
     }
 }
