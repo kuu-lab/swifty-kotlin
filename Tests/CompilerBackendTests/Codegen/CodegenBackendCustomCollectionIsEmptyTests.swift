@@ -7,30 +7,6 @@ import Testing
 
 @Suite
 struct CodegenBackendCustomCollectionIsEmptyTests {
-    private func runExecutablePipeline(
-        inputPath: String,
-        moduleName: String,
-        outputPath: String
-    ) throws -> CompilationContext {
-        let options = CompilerOptions(
-            moduleName: moduleName,
-            inputs: [inputPath],
-            outputPath: outputPath,
-            emit: .executable,
-            target: defaultTargetTriple()
-        )
-        let ctx = CompilationContext(
-            options: options,
-            sourceManager: SourceManager(),
-            diagnostics: DiagnosticEngine(),
-            interner: StringInterner()
-        )
-        try runToKIR(ctx)
-        try LoweringPhase().run(ctx)
-        try CodegenPhase().run(ctx)
-        return ctx
-    }
-
     // A user-defined AbstractCollection subclass has no runtime list/set box,
     // so a Collection<T>-typed receiver's isEmpty()/size dispatch through the
     // Collection interface's itable getter slot (kk_itable_lookup_dynamic +
