@@ -142,17 +142,21 @@ def main():
     if platform.system()!='Darwin':raise RuntimeError('Actual Foundation SDK macOS execution required; no Linux substitute')
     root=Path(__file__).resolve().parents[3]
     output=args.receipts.resolve();output.mkdir(parents=True,exist_ok=True)
+    # On macOS swiftbuild supports one test product per target. A bare suite
+    # filter otherwise builds the all-target package test bundle before the
+    # first focused test and can exhaust the metadata stage's deadline.
+    os.environ['SWIFT_BUILD_SYSTEM']='swiftbuild'
     before=snapshots(root)
     (output/'inputs.before.json').write_text(json.dumps(before,indent=2)+'\n')
     stages=[
-        ('metadata','IOAppleAPIContractTests',1200,{
+        ('metadata','CompilerCoreTests','IOAppleAPIContractTests',1200,{
             'sixAppleExtensionsHaveRealTypedPublicSourceAndImportedShapes':2}),
-        ('runtime','RuntimeAppleFoundationTests',900,{
+        ('runtime','RuntimeTests','RuntimeAppleFoundationTests',900,{
             'realNSDataCopiesAndItsLeaseFollowsBoxRelease':1,
             'nativeByteStorageSeesKotlinWritesAndPointerWrites':1,
             'nativeNoCopyStorageAndUnattachedRollbackFollowSDKOwnership':1,
             'actualNSErrorUserInfoKeepsOriginalKotlinCauseIdentity':1}),
-        ('native','IOAppleInteropExecutionTests',3600,{
+        ('native','CompilerBackendTests','IOAppleInteropExecutionTests',3600,{
             'unchangedOriginal25BodiesUseActualFoundation':4,
             'unchangedOriginal25BodiesSurviveRealProducerImport':2,
             'publicOnlyCopiedSDKObjectsAndStreamLifecycles':4,
@@ -168,15 +172,16 @@ def main():
     terminal={'status':'RUNNING','current_stage':'build','completed_stages':[],'failure':None}
     (output/'terminal.json').write_text(json.dumps(terminal,indent=2)+'\n')
     try:
-        execute(['swift','build','-j','4'],600,output/'build',root)
+        execute(['swift','build','--build-system','swiftbuild','-j','4'],600,output/'build',root)
         (output/'build.products.json').write_text(json.dumps(products(root),indent=2)+'\n')
         terminal['completed_stages'].append('build')
-        for name,pattern,limit,expected_methods in stages:
+        for name,target,suite,limit,expected_methods in stages:
             terminal['current_stage']=name
             (output/'terminal.json').write_text(json.dumps(terminal,indent=2)+'\n')
+            pattern=f'^{re.escape(target)}\\.{re.escape(suite)}/'
             execute(['bash','Scripts/swift_test.sh','--no-parallel','-j','4','--filter',pattern],limit,output/name,root)
             log=(output/(name+'.stdout')).read_text(errors='replace')+(output/(name+'.stderr')).read_text(errors='replace')
-            if pattern not in log:raise RuntimeError(f'{name}: selected suite missing')
+            if suite not in log:raise RuntimeError(f'{name}: selected suite missing')
             counts=testing_counts(log,expected_methods)
             (output/(name+'.test-counts.json')).write_text(json.dumps(counts,indent=2)+'\n')
             all_counts[name]=counts

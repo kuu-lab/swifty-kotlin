@@ -13,8 +13,16 @@ extension ExprLowerer {
             propertyConstantInitializers: propertyConstantInitializers,
             instructions: &instructions
         )
-        let samFunctionType = sema.bindings.samUnderlyingFunctionType(for: exprID)
-            ?? sema.bindings.exprTypes[exprID]
+        let sourceType = sema.bindings.exprTypes[exprID]
+        let samFunctionType: TypeID? = if let sourceType,
+                                         case .functionType = sema.types.kind(of: sourceType) {
+            // Preserve source nullability so a null function stays a null SAM.
+            sourceType
+        } else {
+            // Projected and intersection types may only expose their callable
+            // shape through the underlying SAM binding.
+            sema.bindings.samUnderlyingFunctionType(for: exprID) ?? sourceType
+        }
         if sema.bindings.isSamConversion(exprID),
            let type = samFunctionType,
            case let .functionType(function) = sema.types.kind(of: type)

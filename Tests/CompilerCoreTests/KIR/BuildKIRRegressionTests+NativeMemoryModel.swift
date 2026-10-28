@@ -57,8 +57,10 @@ extension BuildKIRRegressionTests {
         let valueOf = try #require(
             sema.symbols.lookup(fqName: companionFQName + [interner.intern("valueOf")])
         )
+        // Synthetic `entries` is owned by the enum class itself, not the
+        // companion (KUU-3544).
         let entries = try #require(
-            sema.symbols.lookup(fqName: companionFQName + [interner.intern("entries")])
+            sema.symbols.lookup(fqName: memoryModelFQName + [interner.intern("entries")])
         )
         let valuesSignature = try #require(sema.symbols.functionSignature(for: values))
         let valueOfSignature = try #require(sema.symbols.functionSignature(for: valueOf))

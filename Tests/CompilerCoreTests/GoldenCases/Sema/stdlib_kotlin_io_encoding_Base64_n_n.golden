@@ -11,7 +11,7 @@ expr e@11:28 name(Base64) type=kotlin.io.encoding.Base64 ref=kotlin.io.encoding.
 expr e@11:28#1 memberCall recv=e@11:28 callee=Default args=[] type=kotlin.io.encoding.Base64.Default ref=kotlin.io.encoding.Base64.Default[kind=obj]
 expr e@14:59 name(Base64) type=kotlin.io.encoding.Base64 ref=kotlin.io.encoding.Base64[kind=class]
 expr e@14:59#1 memberCall recv=e@14:59 callee=PaddingOption args=[] type=kotlin.io.encoding.Base64.PaddingOption ref=kotlin.io.encoding.Base64.PaddingOption[kind=enum]
-expr e@14:59#2 memberCall recv=e@14:59#1 callee=entries args=[] type=kotlin.enums.EnumEntries<kotlin.io.encoding.Base64.PaddingOption> call=kotlin.io.encoding.entries.$get[kind=fun;recv=kotlin.io.encoding.Base64.PaddingOption;params=;ret=kotlin.enums.EnumEntries<kotlin.io.encoding.Base64.PaddingOption>]
+expr e@14:59#2 memberCall recv=e@14:59#1 callee=entries args=[] type=kotlin.enums.EnumEntries<kotlin.io.encoding.Base64.PaddingOption> ref=kotlin.io.encoding.Base64.PaddingOption.entries[kind=prop;type=kotlin.enums.EnumEntries<kotlin.io.encoding.Base64.PaddingOption>]
 expr e@7:8 name(ExperimentalEncodingApi) type=Any ref=kotlin.io.encoding.ExperimentalEncodingApi[kind=anno]
 expr e@7:8#1 callableRef recv=e@7:8 member=class type=KClass<kotlin.io.encoding.ExperimentalEncodingApi>
 expr e@7:2 call callee=e@7:2#1 args=[_:e@7:8#1] type=kotlin.OptIn call=kotlin.OptIn.<init>[kind=ctor;recv=kotlin.OptIn;params=*kotlin.reflect.KClass<out kotlin.Annotation>;ret=kotlin.OptIn;vararg=[1];names=[markerClass]]

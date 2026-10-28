@@ -201,8 +201,20 @@ extension CallTypeChecker {
             // KUU-1453: `ch.receive` without parentheses is property-access
             // syntax on a function — fall through so the invocation-syntax
             // check rejects it like any other bound function.
-            case ("receive", 0) where ast.arena.isExplicitCall(id):
-                let resultType = sema.types.nullableAnyType
+            case ("receive", 0) where ast.arena.isExplicitCall(id) && explicitTypeArgs.isEmpty:
+                let resultType: TypeID
+                if let element = resolveClassType(lookupReceiverType, sema: sema)?.args.first {
+                    switch element {
+                    case let .invariant(type), let .out(type):
+                        resultType = type
+                    case .in, .star:
+                        // A contravariant or star projection exposes only the
+                        // Channel element parameter's nullable Any upper bound.
+                        resultType = sema.types.nullableAnyType
+                    }
+                } else {
+                    resultType = sema.types.nullableAnyType
+                }
                 let finalType = safeCall ? sema.types.makeNullable(resultType) : resultType
                 sema.bindings.bindExprType(id, type: finalType)
                 return finalType
@@ -339,7 +351,9 @@ extension CallTypeChecker {
                 local.symbol, request: request, argumentTypes: argTypes, receiverType: memberLookupType
             )
         }()
-        if !isSuperCall, ast.arena.isExplicitCall(id),
+        // `a.f { }` carries a trailing lambda without `()`, so a non-empty
+        // argument list counts as a call the same way `isExplicitCall` does.
+        if !isSuperCall, !args.isEmpty || ast.arena.isExplicitCall(id),
            !hasReceiverMember,
            localExtensionMatchesCallShape,
            let result = inferLexicalExtensionCallableInvocation(request, receiverType: receiverType, locals: &locals)

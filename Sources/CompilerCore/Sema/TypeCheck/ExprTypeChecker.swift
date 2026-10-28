@@ -556,8 +556,7 @@ final class ExprTypeChecker {
             )
             let subjectNonNull = sema.types.makeNonNullable(subjectType)
             let targetNonNull = sema.types.makeNonNullable(targetType)
-            if case let .functionType(functionType) = sema.types.kind(of: targetType),
-               !functionType.isSuspend,
+            if case .functionType = sema.types.kind(of: targetType),
                !sema.types.isSubtype(
                    subjectNonNull,
                    targetNonNull
@@ -743,6 +742,11 @@ final class ExprTypeChecker {
             {
                 let refinedType: TypeID = if sema.types.isSubtype(castLocal.0, targetType) {
                     castLocal.0 // already a subtype, no need for intersection
+                } else if targetType == sema.types.anyType {
+                    // A successful cast to Any removes nullability without
+                    // changing the concrete type. Preserve T & Any for type
+                    // parameters, whose bare T may still contain null.
+                    sema.types.definitelyNonNullForm(of: castLocal.0)
                 } else if sema.types.isSubtype(targetType, castLocal.0) {
                     targetType // target is more specific
                 } else {
@@ -1837,7 +1841,12 @@ final class ExprTypeChecker {
 
         guard let chosen = resolved.chosenCallee else {
             // Primitive arrays retain their scalar runtime membership path.
+            // Only bundled kotlin.<Name> arrays (and fqName-less synthetic
+            // stubs) qualify — a user class that shadows the imported name is
+            // an ordinary nominal (KUU-3615).
             if let (_, symbol) = resolveClassTypeSymbol(nonNullContainerType, sema: sema),
+               symbol.fqName.isEmpty
+                   || symbol.fqName == [interner.intern("kotlin"), symbol.name],
                let arrayElement = driver.callChecker.primitiveArrayElementType(
                    className: symbol.name, sema: sema, interner: interner
                ),

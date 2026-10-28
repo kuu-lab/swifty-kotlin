@@ -447,6 +447,8 @@ extension CallTypeChecker {
         var knownApplicableImplicitMembers: Set<SymbolID> = []
         var typeNameCompanionInvokeCandidates: Set<SymbolID> = []
         var typeNameCompanionInvokeReceiverType: TypeID?
+        var preferredInheritedNestedConstructors: Set<SymbolID> = []
+        var outerNestedConstructorFallbacks: Set<SymbolID> = []
         var typeAliasConstructor: TypeAliasConstructorContext?
 
         if let inferred = collectCallExprCandidates(
@@ -469,7 +471,9 @@ extension CallTypeChecker {
             callInvisible: &callInvisible,
             knownApplicableImplicitMembers: &knownApplicableImplicitMembers,
             typeNameCompanionInvokeCandidates: &typeNameCompanionInvokeCandidates,
-            typeNameCompanionInvokeReceiverType: &typeNameCompanionInvokeReceiverType
+            typeNameCompanionInvokeReceiverType: &typeNameCompanionInvokeReceiverType,
+            preferredInheritedNestedConstructors: &preferredInheritedNestedConstructors,
+            outerNestedConstructorFallbacks: &outerNestedConstructorFallbacks
         ) {
             return inferred
         }
@@ -544,6 +548,8 @@ extension CallTypeChecker {
         var argumentContextCandidates = candidates
         var argumentContextReceiverType = callImplicitReceiverType
         var preInferredCallableCalleeType: TypeID?
+        let localsBeforeCallee = locals
+        var branchCalleeContextType: TypeID?
         // A call whose callee is another call or indexed access can be an
         // implicit `invoke` chain. Resolve its receiver type before checking
         // trailing lambdas so the selected operator's parameter supplies their
@@ -558,15 +564,35 @@ extension CallTypeChecker {
         // `inferCallableValueCall`.
         if candidates.isEmpty, calleeName == nil,
            let calleeExpr, !calleeExpr.isLambdaOrCallableRef {
+            let calleeCheckpoint = sema.diagnostics.checkpoint()
             let calleeType = driver.inferExpr(calleeID, ctx: ctx, locals: &locals)
-            let invokeCandidates = contextApplicableCallCandidates(
-                implicitInvokeOperatorCandidates(for: calleeType, ctx: ctx),
-                ctx: ctx
-            )
-            if !invokeCandidates.isEmpty {
-                argumentContextCandidates = invokeCandidates
-                argumentContextReceiverType = calleeType
-                preInferredCallableCalleeType = calleeType
+            let needsCallableReferenceContext = sema.diagnostics.diagnostics
+                .dropFirst(calleeCheckpoint)
+                .contains { diagnostic in
+                    diagnostic.severity == .error
+                        && diagnostic.code == "KSWIFTK-TYPE-0001"
+                        && diagnostic.message == "No unambiguous callable reference matches the expected function type."
+                }
+            if needsCallableReferenceContext,
+               let branchContextType = callableReferenceBranchContext(
+                   calleeID, ctx: ctx, expectedReturnType: expectedType
+               )
+            {
+                // Preserve callee-side flow for argument checking. Retry the
+                // branches with the common type of already-resolved references
+                // and re-emit any real callee diagnostics from that pass.
+                sema.diagnostics.rollback(to: calleeCheckpoint)
+                branchCalleeContextType = branchContextType
+            } else {
+                let invokeCandidates = contextApplicableCallCandidates(
+                    implicitInvokeOperatorCandidates(for: calleeType, ctx: ctx),
+                    ctx: ctx
+                )
+                if !invokeCandidates.isEmpty {
+                    argumentContextCandidates = invokeCandidates
+                    argumentContextReceiverType = calleeType
+                    preInferredCallableCalleeType = calleeType
+                }
             }
         }
 
@@ -642,7 +668,7 @@ extension CallTypeChecker {
             nil
         }
         if let callableValueType,
-           case let .functionType(calleeFunctionType) = sema.types.kind(of: sema.types.makeNonNullable(callableValueType)) {
+           let calleeFunctionType = singleStructuralFunctionType(in: callableValueType, sema: sema) {
             let expectedArgumentTypes: [TypeID]?
             if let receiver = calleeFunctionType.receiver,
                args.count == calleeFunctionType.params.count + 1 {
@@ -686,6 +712,13 @@ extension CallTypeChecker {
         )
         let argTypes = preparedArgs.argTypes
 
+        if let branchCalleeContextType {
+            var retryLocals = localsBeforeCallee
+            preInferredCallableCalleeType = driver.inferExpr(
+                calleeID, ctx: ctx, locals: &retryLocals, expectedType: branchCalleeContextType
+            )
+        }
+
         if let inferred = inferSourceBackedCollectionFactoryCall(
             id,
             args: args,
@@ -725,6 +758,8 @@ extension CallTypeChecker {
             memberExtensionReceiverMarks: memberExtensionReceiverMarks,
             mergedImplicitReceiverMembers: mergedImplicitReceiverMembers,
             knownApplicableImplicitMembers: knownApplicableImplicitMembers,
+            preferredInheritedNestedConstructors: preferredInheritedNestedConstructors,
+            outerNestedConstructorFallbacks: outerNestedConstructorFallbacks,
             expectedTypeOverrides: expectedTypeOverrides,
             preparedArgs: preparedArgs,
             argTypes: argTypes
@@ -788,6 +823,59 @@ extension CallTypeChecker {
         }
         sema.bindings.bindExprType(id, type: sema.types.errorType)
         return sema.types.errorType
+    }
+
+    private func callableReferenceBranchContext(
+        _ id: ExprID, ctx: TypeInferenceContext, expectedReturnType: TypeID?
+    ) -> TypeID? {
+        let ast = ctx.ast
+        let sema = ctx.sema
+        func referenceOrThrow(_ id: ExprID) -> [ExprID]? {
+            switch ast.arena.expr(id) {
+            case .callableRef:
+                [id]
+            case .throwExpr:
+                []
+            case let .blockExpr(statements, trailing?, _) where statements.isEmpty:
+                referenceOrThrow(trailing)
+            default:
+                nil
+            }
+        }
+
+        let branchExpressions: [ExprID]
+        switch ast.arena.expr(id) {
+        case let .whenExpr(_, branches, elseExpr, _):
+            guard !branches.isEmpty else { return nil }
+            branchExpressions = branches.map(\.body) + (elseExpr.map { [$0] } ?? [])
+        case let .ifExpr(_, thenExpr, elseExpr?, _):
+            branchExpressions = [thenExpr, elseExpr]
+        default:
+            return nil
+        }
+
+        var resolvedReferenceTypes: [TypeID] = []
+        for expression in branchExpressions {
+            guard let references = referenceOrThrow(expression) else { return nil }
+            for reference in references {
+                guard let type = sema.bindings.exprType(for: reference),
+                      case .functionType = sema.types.kind(of: type) else { continue }
+                resolvedReferenceTypes.append(type)
+            }
+        }
+        guard !resolvedReferenceTypes.isEmpty,
+              case let .functionType(function) = sema.types.kind(of: sema.types.lub(resolvedReferenceTypes))
+        else { return nil }
+
+        return sema.types.make(.functionType(FunctionType(
+            contextReceivers: function.contextReceivers,
+            receiver: function.receiver,
+            params: function.params,
+            returnType: expectedReturnType ?? sema.types.nullableAnyType,
+            isSuspend: function.isSuspend,
+            nullability: .nonNull,
+            throws: function.throws
+        )))
     }
 
     func isStdlibContextHelper(

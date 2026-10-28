@@ -517,7 +517,9 @@ extension CallLowerer {
         let isKClassReceiver = isKClassReceiverType(
             anyFallbackReceiverType, sema: sema, interner: interner
         )
-        let allowsAnyFallback: Bool = if isKClassReceiver {
+        let allowsAnyFallback: Bool = if isKClassReceiver
+            || usesPrimitiveAnyFallbackRepresentation(for: anyFallbackReceiverType, sema: sema)
+        {
             true
         } else {
             switch sema.types.kind(of: nonNullAnyFallbackReceiverType) {

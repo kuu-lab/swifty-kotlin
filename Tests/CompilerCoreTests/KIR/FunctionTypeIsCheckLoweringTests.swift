@@ -45,6 +45,7 @@ struct FunctionTypeIsCheckLoweringTests {
     @Test
     func testErasedSuspendFunctionCheckUsesSuspendAndArityToken() throws {
         let ctx = makeContextFromSource("""
+        @Suppress("CANNOT_CHECK_FOR_ERASED")
         fun check(value: Any): Boolean = value is suspend () -> Int
         """)
         try runToKIR(ctx)
