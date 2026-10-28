@@ -56,6 +56,10 @@ extension JVMBackendTests {
                 println("__x__".trim('_')); println("__x__".trimStart('_')); println("__x__".trimEnd('_'))
                 println("<text>".removeSurrounding("<", ">")); println("prefix:value".removePrefix("prefix:")); println("value:end".removeSuffix(":end"))
                 println("ABC".startsWith("a", ignoreCase = true)); println("ABC".endsWith('c', ignoreCase = true)); println("ABC".contains("b", ignoreCase = true))
+                val sequence: CharSequence = "AbCd"
+                println("Ab" in sequence); println("bc" in sequence); println('b' in sequence); println('a' in sequence)
+                println(sequence.contains(other = "bc", ignoreCase = true)); println(sequence.contains(char = 'a', ignoreCase = true))
+                println(sequence.contains("Ab")); println(sequence.contains('b'))
                 println("a:b:c".substringBefore(':')); println("a:b:c".substringAfter(":")); println("a:b:c".substringBeforeLast(":")); println("a:b:c".substringAfterLast(':'))
                 println("abc".substringBefore("x", "missing")); println("abc".replace("", "-")); println("aAa".replace('a', 'x', true)); println("aAa".replaceFirst("A", "x", true))
                 println("a".compareTo("B", true)); println("abc".indexOf("", 100)); println("abc".lastIndexOf("", 100, true))

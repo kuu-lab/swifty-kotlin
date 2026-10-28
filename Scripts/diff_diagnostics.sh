@@ -51,6 +51,9 @@ Environment:
 Case directives:
   // EXPECT-ACCEPT        Both compilers must accept the source (default)
   // EXPECT-REJECT        Both compilers must reject the source and report the same error lines
+  // EXPECT-ERROR-LINES: reference=<lines> candidate=<lines>
+                          For an intentional location or recovery difference, require each
+                          compiler's exact comma-separated line set on an EXPECT-REJECT case.
   // KOTLINC_FLAGS: <f>   Extra kotlinc flags; restricted to an allowlist of
                          language-feature/diagnostic toggles. Plugin, classpath,
                          JVM and file-reading options are rejected before
@@ -179,6 +182,30 @@ expected_outcome() {
   fi
 }
 
+expected_error_lines() {
+  local case_path="$1" expectation="$2" directive count reference candidate normalized
+  count="$(grep -Ec '^[[:space:]]*//[[:space:]]*EXPECT-ERROR-LINES:' "$case_path" || true)"
+  if (( count == 0 )); then return 0; fi
+  if (( count != 1 )) || [[ "$expectation" != "reject" ]]; then
+    echo "EXPECT-ERROR-LINES requires one EXPECT-REJECT case." >&2
+    return 1
+  fi
+  directive="$(grep -E '^[[:space:]]*//[[:space:]]*EXPECT-ERROR-LINES:' "$case_path")"
+  if [[ ! "$directive" =~ ^[[:space:]]*//[[:space:]]*EXPECT-ERROR-LINES:[[:space:]]*reference=([1-9][0-9]*(,[1-9][0-9]*)*)[[:space:]]+candidate=([1-9][0-9]*(,[1-9][0-9]*)*)[[:space:]]*$ ]]; then
+    echo "Invalid EXPECT-ERROR-LINES directive." >&2
+    return 1
+  fi
+  reference="${BASH_REMATCH[1]}"
+  candidate="${BASH_REMATCH[3]}"
+  for normalized in "$reference" "$candidate"; do
+    if [[ "$(printf '%s\n' "$normalized" | tr ',' '\n' | sort -n -u | tr '\n' ',' | sed 's/,$//')" != "$normalized" ]]; then
+      echo "EXPECT-ERROR-LINES must be sorted and unique." >&2
+      return 1
+    fi
+  done
+  printf '%s\t%s\n' "$reference" "$candidate"
+}
+
 normalize_error_lines() {
   local diagnostics_path="$1"
   {
@@ -250,7 +277,8 @@ run_case() {
   mkdir -p "$tmp_dir"
 
   local ref_exit=0 candidate_exit=0
-  local expectation result_reason result_status artifact_dir=""
+  local expectation line_override expected_ref_lines="" expected_candidate_lines=""
+  local result_reason result_status artifact_dir=""
   local -a kotlinc_flags=()
   if ! validated_kotlinc_flag_argv "$case_path" kotlinc_flags; then
     result_reason="KOTLINC_FLAGS directive rejected"
@@ -268,6 +296,17 @@ run_case() {
     report_case "$case_path" "$result_status" "$artifact_dir" 2 2 '<empty>' '<empty>'
     return 1
   fi
+  if ! line_override="$(expected_error_lines "$case_path" "$expectation")"; then
+    result_reason="invalid expected error line directive"
+    result_status="FAIL"
+    artifact_dir="$(persist_failure "$case_path" "$tmp_dir" "$result_reason" 2 2 '' '')"
+    echo "FAIL $case_path (invalid expected error line directive)"
+    report_case "$case_path" "$result_status" "$artifact_dir" 2 2 '<empty>' '<empty>'
+    return 1
+  fi
+  if [[ -n "$line_override" ]]; then
+    IFS=$'\t' read -r expected_ref_lines expected_candidate_lines <<<"$line_override"
+  fi
 
   # Keep reference and candidate diagnostics separate so artifacts preserve the raw compiler output.
   "$TIMEOUT_CMD" "$COMPILE_TIMEOUT" "$KOTLINC" -Xcontext-parameters "${kotlinc_flags[@]}" "$case_path" \
@@ -284,7 +323,8 @@ run_case() {
   ref_lines="$(lines_display "$tmp_dir/reference.error_lines")"
   candidate_lines="$(lines_display "$tmp_dir/candidate.error_lines")"
 
-  # Two non-zero exits are not enough for parity; both sides need usable, equal error line sets.
+  # Rejections need usable diagnostics and either equal line sets or an
+  # explicitly recorded line set for each compiler.
   if is_timeout_exit "$ref_exit" || is_timeout_exit "$candidate_exit"; then
     result_reason="compiler timeout"
   elif [[ "$expectation" == "accept" && "$ref_exit" -ne 0 && "$candidate_exit" -ne 0 ]]; then
@@ -295,7 +335,9 @@ run_case() {
     result_reason="compile acceptance mismatch (reference=$([[ "$ref_exit" -eq 0 ]] && printf accepted || printf rejected), candidate=$([[ "$candidate_exit" -eq 0 ]] && printf accepted || printf rejected))"
   elif [[ "$ref_exit" -ne 0 && "$candidate_exit" -ne 0 && ( ! -s "$tmp_dir/reference.error_lines" || ! -s "$tmp_dir/candidate.error_lines" ) ]]; then
     result_reason="a rejected compile produced no normalizable error line"
-  elif [[ "$ref_exit" -ne 0 && "$candidate_exit" -ne 0 && "$ref_lines" != "$candidate_lines" ]]; then
+  elif [[ "$ref_exit" -ne 0 && "$candidate_exit" -ne 0 && -n "$line_override" && ( "$ref_lines" != "$expected_ref_lines" || "$candidate_lines" != "$expected_candidate_lines" ) ]]; then
+    result_reason="error line set differs from the case expectation (reference=$ref_lines, candidate=$candidate_lines)"
+  elif [[ "$ref_exit" -ne 0 && "$candidate_exit" -ne 0 && -z "$line_override" && "$ref_lines" != "$candidate_lines" ]]; then
     result_reason="error line set mismatch (reference=$ref_lines, candidate=$candidate_lines)"
   else
     result_reason=""
@@ -346,7 +388,7 @@ if [[ -n "${ARGV_DIR:-}" && -n "$source_file" ]]; then
 fi
 case "$(basename "$source_file")" in
   accept.kt|flags_ok.kt) exit 0 ;;
-  reject_same.kt|reject_candidate_accept.kt|reject_lines.kt)
+  reject_same.kt|reject_candidate_accept.kt|reject_lines.kt|reject_expected_lines.kt|reject_bad_reference.kt|reject_bad_candidate.kt)
     printf '%s\n' "$source_file:2:1: error: fake reference diagnostic" >&2
     exit 1
     ;;
@@ -367,7 +409,7 @@ case "$(basename "$source_file")" in
     exit 1
     ;;
   reject_candidate_accept.kt) exit 0 ;;
-  reject_lines.kt)
+  reject_lines.kt|reject_expected_lines.kt|reject_bad_reference.kt|reject_bad_candidate.kt)
     printf '%s\n' "$source_file:3:3: error KSWIFTK-SEMA-TEST: fake candidate diagnostic" >&2
     exit 1
     ;;
@@ -380,6 +422,11 @@ FAKE_CANDIDATE
   printf '%s\n' '// EXPECT-REJECT' 'val broken = ' >"$self_tmp/reject_same.kt"
   printf '%s\n' '// EXPECT-REJECT' 'val broken = ' >"$self_tmp/reject_candidate_accept.kt"
   printf '%s\n' '// EXPECT-REJECT' 'val broken = ' >"$self_tmp/reject_lines.kt"
+  printf '%s\n' '// EXPECT-REJECT' 'val broken = ' '// EXPECT-ERROR-LINES: reference=2 candidate=3' >"$self_tmp/reject_expected_lines.kt"
+  printf '%s\n' '// EXPECT-REJECT' 'val broken = ' '// EXPECT-ERROR-LINES: reference=4 candidate=3' >"$self_tmp/reject_bad_reference.kt"
+  printf '%s\n' '// EXPECT-REJECT' 'val broken = ' '// EXPECT-ERROR-LINES: reference=2 candidate=4' >"$self_tmp/reject_bad_candidate.kt"
+  printf '%s\n' '// EXPECT-REJECT' 'val broken = ' '// EXPECT-ERROR-LINES: reference=2 candidate=3,0' >"$self_tmp/reject_invalid_lines.kt"
+  printf '%s\n' '// EXPECT-ACCEPT' 'fun main() {}' '// EXPECT-ERROR-LINES: reference=2 candidate=3' >"$self_tmp/accept_with_lines.kt"
   printf '%s\n' '// EXPECT-ACCEPT' \
     '// KOTLINC_FLAGS: -Xexplicit-backing-fields -Xreturn-value-checker=full -jvm-target 21' \
     'fun main() {}' >"$self_tmp/flags_ok.kt"
@@ -395,7 +442,7 @@ FAKE_CANDIDATE
     'fun main() {}' >"$self_tmp/flags_classpath.kt"
 
   local case_path output
-  for case_path in accept.kt reject_same.kt flags_ok.kt; do
+  for case_path in accept.kt reject_same.kt reject_expected_lines.kt flags_ok.kt; do
     output="$self_tmp/$case_path.out"
     if ! DIFF_REQUIRE_JDK21=0 ARGV_DIR="$argv_dir" "$SCRIPT_PATH" --no-parallel --compile-timeout 5 \
       --kswiftc "$candidate_fake" --kotlinc "$ref_fake" --artifact-root "$self_tmp/artifacts" \
@@ -427,13 +474,20 @@ FAKE_CANDIDATE
     fi
   done
 
-  for case_path in reject_candidate_accept.kt reject_lines.kt; do
+  for case_path in reject_candidate_accept.kt reject_lines.kt reject_bad_reference.kt reject_bad_candidate.kt reject_invalid_lines.kt accept_with_lines.kt; do
     output="$self_tmp/$case_path.out"
     if DIFF_REQUIRE_JDK21=0 ARGV_DIR="$argv_dir" "$SCRIPT_PATH" --no-parallel --compile-timeout 5 \
       --kswiftc "$candidate_fake" --kotlinc "$ref_fake" --artifact-root "$self_tmp/artifacts" \
       "$self_tmp/$case_path" >"$output" 2>&1; then
       echo "self-test expected FAIL but passed: $case_path" >&2
       cat "$output" >&2
+      return 1
+    fi
+  done
+  for case_path in reject_invalid_lines.kt accept_with_lines.kt; do
+    if [[ -f "$argv_dir/$case_path.argv" ]] || ! grep -q 'invalid expected error line directive' "$self_tmp/$case_path.out"; then
+      echo "self-test: invalid line expectations must fail before compiler invocation: $case_path" >&2
+      cat "$self_tmp/$case_path.out" >&2
       return 1
     fi
   done

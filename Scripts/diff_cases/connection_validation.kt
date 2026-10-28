@@ -1,4 +1,4 @@
-// CANDIDATE-ONLY: JVM Thread APIs remain unsupported; compare the expected compiler
+// CANDIDATE-ONLY: kotlin.concurrent.thread is unavailable; compare the expected
 // diagnostics with connection_validation.expected.stderr. The JDBC calls now have a native facade.
 import java.sql.Connection
 import java.sql.DriverManager

@@ -38,12 +38,13 @@ struct IOAppleAPIContractTests {
             records = MetadataDecoder().decode(try Data(contentsOf: directory.appendingPathComponent("metadata.bin")))
         }
         for (fqName, receiver, result) in rows {
-            let matches = sema.symbols.allSymbols().filter { symbol in
-                guard symbol.kind == .function, !symbol.flags.contains(.extensionMemberAlias),
-                    symbol.fqName.map(ctx.interner.resolve).joined(separator: ".") == fqName,
-                    let signature = sema.symbols.functionSignature(for: symbol.id),
-                    let type = signature.receiverType else { return false }
-                return encoded(type) == receiver
+            let name = fqName.split(separator: ".").map { ctx.interner.intern(String($0)) }
+            let matches = sema.symbols.lookupAll(fqName: name).compactMap { id -> SemanticSymbol? in
+                guard let signature = sema.symbols.functionSignature(for: id),
+                    let type = signature.receiverType, encoded(type) == receiver,
+                    let symbol = sema.symbols.symbol(id), symbol.kind == .function,
+                    !symbol.flags.contains(.extensionMemberAlias) else { return nil }
+                return symbol
             }
             let symbol = try #require(matches.count == 1 ? matches.first : nil, "\(fqName): \(matches)")
             let signature = try #require(sema.symbols.functionSignature(for: symbol.id))

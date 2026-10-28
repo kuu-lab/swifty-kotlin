@@ -69,6 +69,10 @@ fun String.endsWith(suffix: String, ignoreCase: Boolean = null!!): Boolean = nul
 fun String.endsWith(suffix: Char, ignoreCase: Boolean = null!!): Boolean = null!!
 operator fun String.contains(other: CharSequence, ignoreCase: Boolean = null!!): Boolean = null!!
 operator fun String.contains(char: Char, ignoreCase: Boolean = null!!): Boolean = null!!
+operator fun CharSequence.contains(other: CharSequence): Boolean = null!!
+fun CharSequence.contains(other: CharSequence, ignoreCase: Boolean = null!!): Boolean = null!!
+operator fun CharSequence.contains(char: Char): Boolean = null!!
+fun CharSequence.contains(char: Char, ignoreCase: Boolean = null!!): Boolean = null!!
 fun String.startsWith(prefix: String, startIndex: Int, ignoreCase: Boolean = null!!): Boolean = null!!
 fun String.indexOf(string: String, startIndex: Int = null!!, ignoreCase: Boolean = null!!): Int = null!!
 fun String.indexOf(char: Char, startIndex: Int = null!!, ignoreCase: Boolean = null!!): Int = null!!

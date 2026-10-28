@@ -101,7 +101,12 @@ func runtimeCompareNullableValues(_ a: Int, _ b: Int) -> Int {
 /// concrete primitive or synthetic-stub handler matches (e.g. inside `sorted()` or
 /// `kotlin.comparisons.compareValues`).
 @_cdecl("__kk_comparable_compareTo")
-public func __kk_comparable_compareTo(_ lhsRaw: Int, _ rhsRaw: Int) -> Int {
+public func __kk_comparable_compareTo(
+    _ lhsRaw: Int,
+    _ rhsRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
     let areBoxedOperands = runtimeStorage.withGCLock { state in
         state.objectPointers.contains(UInt(bitPattern: lhsRaw))
             && state.objectPointers.contains(UInt(bitPattern: rhsRaw))
@@ -126,6 +131,13 @@ public func __kk_comparable_compareTo(_ lhsRaw: Int, _ rhsRaw: Int) -> Int {
     if lhs.tag == RuntimeValue.charTag, rhsRaw != runtimeNullSentinelInt {
         // JVM Character.compareTo preserves the code-unit difference, unlike direct Char.compareTo.
         return lhs.payload0 - kk_unbox_char(rhsRaw)
+    }
+    if let comparableResult = runtimeInvokeComparable(
+        lhs: lhsRaw,
+        rhs: rhsRaw,
+        outThrown: outThrown
+    ) {
+        return comparableResult
     }
     return runtimeCompareNullableValues(lhsRaw, rhsRaw)
 }

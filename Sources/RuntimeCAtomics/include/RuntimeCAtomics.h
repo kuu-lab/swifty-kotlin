@@ -12,6 +12,13 @@
 #include <stdint.h>
 #include "RuntimeCStdio.h"
 
+// A process-local key for the calling pthread. Runtime shadow frames use this
+// to remove the matching thread's most recent frame without assuming that
+// calls on different threads are globally nested.
+static inline uintptr_t kkrt_current_thread_id(void) {
+    return (uintptr_t)pthread_self();
+}
+
 // Kotlin atomics carry sequential-consistency visibility guarantees, so every
 // op uses memory_order_seq_cst — matching the full-barrier semantics the
 // previous NSLock-backed storage provided.

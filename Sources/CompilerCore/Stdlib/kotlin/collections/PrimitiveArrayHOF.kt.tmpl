@@ -1,9 +1,9 @@
 // Primitive-array HOF skeletons: one body stamped once per element type (the
-// format is documented on BundledStdlibTemplate). The six outputs are
+// format is documented on BundledStdlibTemplate). The outputs were originally
 // byte-identical to the hand-written PrimitiveArrayHOF*.kt files they replaced,
-// drift included, so declaration order and SymbolIDs did not move. Normalizing
-// the drift (see the //@ note lines) is a behavior change and belongs in a
-// separate change with diff cases.
+// drift included, so declaration order and SymbolIDs did not move. Remaining
+// drift is marked with //@ note lines; normalizing it is a behavior change and
+// belongs in a separate change with diff cases.
 //@ file PrimitiveArrayHOF Int Long
 //@ file PrimitiveArrayHOF+ByteShort Byte Short
 //@ file PrimitiveArrayHOF+DoubleFloat Double Float
@@ -18,8 +18,7 @@ package kotlin.collections
 // through the former kk_array_* runtime HOF bridges.
 
 //@ body
-//@ note The unsigned arrays carry extra accessors ahead of the shared HOFs; UInt alone also has
-//@ note indexOf, forEachIndexed, max, min, maxOrNull and minOrNull.
+//@ note The unsigned arrays carry extra accessors ahead of the shared HOFs.
 //@ only UByte UShort UInt ULong
 public fun {{T}}Array.elementAt(index: Int): {{T}} = this[index]
 
@@ -30,7 +29,7 @@ public inline fun {{T}}Array.elementAtOrElse(index: Int, defaultValue: (Int) -> 
     if (index >= 0 && index < size) this[index] else defaultValue(index)
 
 //@ end
-//@ only UInt
+//@ only UByte UShort UInt ULong
 public fun {{T}}Array.indexOf(element: {{T}}): Int {
     var i = 0
     while (i < this.size) {
@@ -61,7 +60,7 @@ public inline fun {{T}}Array.indexOfLast(predicate: ({{T}}) -> Boolean): Int {
 }
 
 //@ end
-//@ only UInt
+//@ only UByte UShort UInt ULong
 public inline fun {{T}}Array.forEachIndexed(action: (Int, {{T}}) -> Unit) {
     var i = 0
     while (i < this.size) {

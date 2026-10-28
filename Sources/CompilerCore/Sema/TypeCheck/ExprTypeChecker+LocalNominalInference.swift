@@ -574,7 +574,8 @@ extension ExprTypeChecker {
                 declID: nestedClassDeclID,
                 ctx: classCtx,
                 solver: driver.solver,
-                diagnostics: sema.diagnostics
+                diagnostics: sema.diagnostics,
+                baseLocals: outerLocalsSnapshot
             )
         }
         for nestedObjectDeclID in classDecl.nestedObjects {
@@ -624,6 +625,21 @@ extension ExprTypeChecker {
             diagnostics: ctx.sema.diagnostics,
             baseLocals: outerLocalsSnapshot
         )
+        // Member property types must be final before constructor bodies and
+        // `init {}` blocks run: registration seeds inference-initialized
+        // properties with an `Any` placeholder, and bodies checked against it
+        // cannot resolve compound-assignment or other type-directed member
+        // operations (KUU-3596). Named classes, named objects, and object
+        // literals all check members before init blocks for the same reason.
+        typeCheckLocalNominalMemberProperties(
+            classDecl.memberProperties,
+            propertySymbolsByDecl: propertySymbolsByDecl,
+            memberScope: classScope,
+            memberCtx: classCtx,
+            initializerLocals: primaryCtorLocals,
+            accessorBaseLocals: outerLocalsSnapshot,
+            ctx: ctx
+        )
         let explicitSuperclassSymbol = driver.declChecker.explicitClassSuperclassSymbol(classDecl, ctx: classCtx)
         driver.declChecker.typeCheckSecondaryConstructors(
             classDecl.secondaryConstructors,
@@ -639,15 +655,6 @@ extension ExprTypeChecker {
             classDecl.initBlocks,
             ctx: classCtx,
             baseLocals: primaryCtorLocals
-        )
-        typeCheckLocalNominalMemberProperties(
-            classDecl.memberProperties,
-            propertySymbolsByDecl: propertySymbolsByDecl,
-            memberScope: classScope,
-            memberCtx: classCtx,
-            initializerLocals: primaryCtorLocals,
-            accessorBaseLocals: outerLocalsSnapshot,
-            ctx: ctx
         )
 
         var capturedSymbols: Set<SymbolID> = []
@@ -705,9 +712,7 @@ extension ExprTypeChecker {
         ))
         capturedSymbols.formUnion(collectNestedInnerClassCaptures(
             classDecl.nestedClasses,
-            outerReceiverSymbols: Set(
-                ctx.outerReceiverTypes.compactMap(\.symbol) + ctx.implicitReceiverStack.map(\.symbol)
-            ),
+            outerSymbols: captureOuterSymbols,
             ast: ast,
             sema: sema
         ))
@@ -826,7 +831,7 @@ extension ExprTypeChecker {
 
     private func collectNestedInnerClassCaptures(
         _ nestedClassDeclIDs: [DeclID],
-        outerReceiverSymbols: Set<SymbolID>,
+        outerSymbols: Set<SymbolID>,
         ast: ASTModule,
         sema: SemaModule
     ) -> Set<SymbolID> {
@@ -849,7 +854,7 @@ extension ExprTypeChecker {
                     inBody: function.body,
                     ast: ast,
                     sema: sema,
-                    outerSymbols: outerReceiverSymbols,
+                    outerSymbols: outerSymbols,
                     skipNestedClosures: false
                 ))
             }
@@ -863,7 +868,7 @@ extension ExprTypeChecker {
                         constructor.valueParams.compactMap(\.defaultValue)
                             + (constructor.delegationCall?.args.map(\.expr) ?? [])
                     },
-                captureOuterSymbols: outerReceiverSymbols,
+                captureOuterSymbols: outerSymbols,
                 ast: ast,
                 sema: sema
             ))

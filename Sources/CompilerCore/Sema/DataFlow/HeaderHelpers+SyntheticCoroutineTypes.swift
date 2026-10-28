@@ -295,6 +295,23 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
+        let channelTypeParameterSymbols = types.nominalTypeParameterSymbols(for: channelSymbol)
+        let channelElementTypeParameterSymbol = channelTypeParameterSymbols.first
+            ?? ensureSyntheticTypeParameterSymbol(
+                named: "E",
+                in: channelsPkg + [interner.intern("Channel")],
+                symbols: symbols,
+                interner: interner
+            )
+        symbols.setParentSymbol(channelSymbol, for: channelElementTypeParameterSymbol)
+        if channelTypeParameterSymbols.isEmpty {
+            types.setNominalTypeParameterSymbols([channelElementTypeParameterSymbol], for: channelSymbol)
+            types.setNominalTypeParameterVariances([.invariant], for: channelSymbol)
+        }
+        let channelElementType = types.make(.typeParam(TypeParamType(
+            symbol: channelElementTypeParameterSymbol,
+            nullability: .nonNull
+        )))
         // KSP-1573: `Channel.Factory` companion anchor. The bundled
         // RENDEZVOUS / UNLIMITED / CONFLATED / BUFFERED / OPTIONAL_CHANNEL
         // constants in Stdlib/kotlinx/coroutines/channels/Channel.kt are
@@ -458,9 +475,10 @@ extension DataFlowSemaPhase {
         )
         let channelType = types.make(.classType(ClassType(
             classSymbol: channelSymbol,
-            args: [],
+            args: [.invariant(channelElementType)],
             nullability: .nonNull
         )))
+        symbols.setPropertyType(channelType, for: channelSymbol)
         let channelIteratorType = types.make(.classType(ClassType(
             classSymbol: channelIteratorSymbol,
             args: [],

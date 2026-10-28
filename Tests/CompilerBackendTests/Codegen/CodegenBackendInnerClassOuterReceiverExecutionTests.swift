@@ -7,6 +7,24 @@ import Testing
 
 @Suite
 struct CodegenBackendInnerClassOuterReceiverExecutionTests {
+    @Test func genericInnerClassTypeAndConstructionCaptureOuterArguments() throws {
+        // KUU-3608: an unqualified generic inner class captures its outer type
+        // arguments while keeping its own explicit type arguments.
+        try assertKotlinOutput(
+            """
+            class Outer<OP> {
+                inner class Inner<IP>
+                fun <T> withInner(block: Inner<T>.() -> String) = Inner<T>().block()
+            }
+            fun <TT> withOuter(block: Outer<TT>.() -> String) = Outer<TT>().block()
+            fun box() = withOuter<Int> { withInner<Boolean> { "OK" } }
+            fun main() { println(box()) }
+            """,
+            moduleName: "KUU3608GenericUnqualifiedInnerClass",
+            expected: "OK\n"
+        )
+    }
+
     @Test func inheritedLateinitIsInitializedUsesInnerReceiver() throws {
         let source = """
             open class Foo {
@@ -161,6 +179,33 @@ struct CodegenBackendInnerClassOuterReceiverExecutionTests {
             fun main() { println(A("OK").value()) }
             """,
             moduleName: "InnerClassInsideAnonymousObjectOuterCapture",
+            expected: "OK\n"
+        )
+    }
+
+    @Test func deeplyNestedInnerClassesInsideAnonymousObjectsCaptureGenericOuter() throws {
+        try assertKotlinOutput(
+            """
+            class Generic<T>(val t: T) {
+                fun foo(): T {
+                    val o1 = object {
+                        inner class InnerLocal1 {
+                            fun bar(): T {
+                                val o2 = object {
+                                    inner class InnerLocal2 {
+                                        fun baz(): T = t
+                                    }
+                                }
+                                return o2.InnerLocal2().baz()
+                            }
+                        }
+                    }
+                    return o1.InnerLocal1().bar()
+                }
+            }
+            fun main() { println(Generic("OK").foo()) }
+            """,
+            moduleName: "KUU3556NestedInnerClassGenericCapture",
             expected: "OK\n"
         )
     }

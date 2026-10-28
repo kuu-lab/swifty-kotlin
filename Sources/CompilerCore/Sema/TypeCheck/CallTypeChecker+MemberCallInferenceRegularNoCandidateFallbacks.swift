@@ -1708,8 +1708,10 @@ extension CallTypeChecker {
             return fallbackType
         }
 
+        // A trailing lambda (`a.f { }`) is a call too: `isExplicitCall` only
+        // records the `(` token, so admit any call that carries arguments.
         if !isClassNameReceiver,
-           ast.arena.isExplicitCall(id),
+           !args.isEmpty || ast.arena.isExplicitCall(id),
            let result = inferLexicalExtensionCallableInvocation(request, receiverType: receiverType, locals: &locals) {
             return result
         }

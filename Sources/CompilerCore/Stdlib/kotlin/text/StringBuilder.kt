@@ -16,6 +16,20 @@ public class StringBuilder : Appendable, CharSequence, Comparable<StringBuilder>
         return __kk_string_builder_get(index)
     }
 
+    fun getChars(srcBegin: Int, srcEnd: Int, dst: CharArray?, dstBegin: Int) {
+        if (srcBegin < 0 || srcEnd < srcBegin || srcEnd > length) {
+            throw java.lang.StringIndexOutOfBoundsException()
+        }
+        if (dst == null) throw NullPointerException()
+        val count = srcEnd - srcBegin
+        if (dstBegin < 0 || dstBegin > dst.size - count) {
+            throw IndexOutOfBoundsException()
+        }
+        for (offset in 0 until count) {
+            dst[dstBegin + offset] = this[srcBegin + offset]
+        }
+    }
+
     override fun subSequence(startIndex: Int, endIndex: Int): CharSequence =
         toString().substring(startIndex, endIndex)
 
