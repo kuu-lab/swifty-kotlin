@@ -164,6 +164,8 @@ extension DataFlowSemaPhase {
            let ownerType
         {
             collectSyntheticEnumCompanionMembers(
+                ownerSymbol: ownerSymbol,
+                ownerFQName: ownerFQName,
                 companionSymbol: companionSymbol,
                 companionFQName: companionFQName,
                 enumType: ownerType,

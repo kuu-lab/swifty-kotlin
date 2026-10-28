@@ -9,7 +9,7 @@ file fstdlib_kotlin_native_concurrent_FutureState_FutureState_n package=golden.s
   decl golden.sema.futureStateValueOf[kind=fun;params=;ret=kotlin.native.concurrent.FutureState;origin=fixture] fun futureStateValueOf sym=golden.sema.futureStateValueOf[kind=fun;params=;ret=kotlin.native.concurrent.FutureState;origin=fixture]
   decl golden.sema.futureStateValues[kind=fun;params=;ret=kotlin.Array<kotlin.native.concurrent.FutureState>;origin=fixture] fun futureStateValues sym=golden.sema.futureStateValues[kind=fun;params=;ret=kotlin.Array<kotlin.native.concurrent.FutureState>;origin=fixture]
 expr e@7:67 name(FutureState) type=kotlin.native.concurrent.FutureState ref=kotlin.native.concurrent.FutureState[kind=enum]
-expr e@7:67#1 memberCall recv=e@7:67 callee=entries args=[] type=kotlin.enums.EnumEntries<kotlin.native.concurrent.FutureState> call=kotlin.native.concurrent.entries.$get[kind=fun;recv=kotlin.native.concurrent.FutureState;params=;ret=kotlin.enums.EnumEntries<kotlin.native.concurrent.FutureState>]
+expr e@7:67#1 memberCall recv=e@7:67 callee=entries args=[] type=kotlin.enums.EnumEntries<kotlin.native.concurrent.FutureState> ref=kotlin.native.concurrent.FutureState.entries[kind=prop;type=kotlin.enums.EnumEntries<kotlin.native.concurrent.FutureState>]
 expr e@8:31 name(FutureState) type=kotlin.native.concurrent.FutureState ref=kotlin.native.concurrent.FutureState[kind=enum]
 expr e@8:31#1 memberCall recv=e@8:31 callee=COMPUTED args=[] type=kotlin.native.concurrent.FutureState ref=kotlin.native.concurrent.FutureState.COMPUTED[kind=field;type=kotlin.native.concurrent.FutureState]
 expr e@8:31#2 memberCall recv=e@8:31#1 callee=value args=[] type=Int ref=kotlin.native.concurrent.FutureState.value[kind=prop;type=Int]

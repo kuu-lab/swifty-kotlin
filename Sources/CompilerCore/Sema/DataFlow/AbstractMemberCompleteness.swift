@@ -212,7 +212,7 @@ private func delegatedProvidedMembers(
 /// Substitutes the abstract member's signature through the type arguments the
 /// class applies to the member's owner, so both sides of a coverage check are
 /// expressed in the class's view.
-private func abstractMemberViewFromClass(
+func abstractMemberViewFromClass(
     _ abstractMember: SymbolID,
     for classSymbol: SymbolID,
     symbols: SymbolTable,

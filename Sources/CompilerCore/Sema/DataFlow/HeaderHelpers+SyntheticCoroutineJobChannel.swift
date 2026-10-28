@@ -207,7 +207,17 @@ extension DataFlowSemaPhase {
         // stubs are registered here.
         let channelMembers = coroutineMemberRows(of: channelSymbol, type: channelType, symbols: symbols, interner: interner)
         channelMembers.fn("send", "kk_channel_send", [(name: "value", type: types.anyType)], ret: types.unitType)
-        channelMembers.fn("receive", "kk_channel_receive", ret: types.anyType)
+        let channelElementType = types.nominalTypeParameterSymbols(for: channelSymbol).first.map {
+            types.make(.typeParam(TypeParamType(symbol: $0, nullability: .nonNull)))
+        } ?? types.anyType
+        channelMembers.fn(
+            "receive",
+            "kk_channel_receive",
+            ret: channelElementType,
+            typeParameterSymbols: types.nominalTypeParameterSymbols(for: channelSymbol),
+            classTypeParameterCount: types.nominalTypeParameterSymbols(for: channelSymbol).count,
+            isSuspend: true
+        )
         // KSP-678: Channel.close / isClosedForSend / isClosedForReceive are now
         // provided by bundled Kotlin source
         // (Sources/CompilerCore/Stdlib/kotlin/coroutines/channels/Channels.kt),

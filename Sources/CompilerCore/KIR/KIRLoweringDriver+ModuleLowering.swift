@@ -217,20 +217,43 @@ extension KIRLoweringDriver {
 
         for file in skippedFiles {
             var helperDeclIDs: [KIRDeclID] = []
-            for declID in file.topLevelDecls {
-                guard let decl = ast.arena.decl(declID),
-                      case let .classDecl(classDecl) = decl,
-                      let symbol = sema.bindings.declSymbols[declID],
-                      neededOwnerIDs.contains(symbol.rawValue)
-                else {
-                    continue
+            // Enums can be nested under objects/interfaces too, so walk the
+            // whole declaration tree rather than top-level classes only.
+            func synthesizeIfNeeded(declID: DeclID) {
+                guard let decl = ast.arena.decl(declID) else { return }
+                var deeper: [DeclID] = []
+                switch decl {
+                case let .classDecl(classDecl):
+                    if let symbol = sema.bindings.declSymbols[declID],
+                       neededOwnerIDs.contains(symbol.rawValue)
+                    {
+                        helperDeclIDs.append(contentsOf: synthesizeEnumConstructorPropertyHelperFunctions(
+                            classDecl: classDecl,
+                            ownerSymbol: symbol,
+                            shared: shared,
+                            compilationCtx: compilationCtx
+                        ))
+                    }
+                    deeper = classDecl.nestedClasses + classDecl.nestedObjects
+                    if let companionDeclID = classDecl.companionObject {
+                        deeper.append(companionDeclID)
+                    }
+                case let .objectDecl(objectDecl):
+                    deeper = objectDecl.nestedClasses + objectDecl.nestedObjects
+                case let .interfaceDecl(interfaceDecl):
+                    deeper = interfaceDecl.nestedClasses + interfaceDecl.nestedObjects
+                    if let companionDeclID = interfaceDecl.companionObject {
+                        deeper.append(companionDeclID)
+                    }
+                default:
+                    break
                 }
-                helperDeclIDs.append(contentsOf: synthesizeEnumConstructorPropertyHelperFunctions(
-                    classDecl: classDecl,
-                    ownerSymbol: symbol,
-                    shared: shared,
-                    compilationCtx: compilationCtx
-                ))
+                for nestedDeclID in deeper {
+                    synthesizeIfNeeded(declID: nestedDeclID)
+                }
+            }
+            for declID in file.topLevelDecls {
+                synthesizeIfNeeded(declID: declID)
             }
             if !helperDeclIDs.isEmpty {
                 files.append(KIRFile(fileID: file.fileID, decls: helperDeclIDs))
@@ -383,6 +406,12 @@ extension KIRLoweringDriver {
         let kirID = arena.appendDecl(.nominalType(KIRNominalType(symbol: symbol, memberDecls: directMembers)))
         declIDs.append(kirID)
         declIDs.append(contentsOf: allDecls)
+        lowerNestedClassConstructors(
+            nestedDecls: interfaceDecl.nestedClasses + ifaceNestedObjects,
+            shared: shared,
+            compilationCtx: compilationCtx,
+            declIDs: &declIDs
+        )
         return declIDs
     }
 
@@ -414,6 +443,12 @@ extension KIRLoweringDriver {
         var declIDs = [kirID]
         declIDs.append(contentsOf: allDecls)
         declIDs.append(contentsOf: forwardingDecls)
+        lowerNestedClassConstructors(
+            nestedDecls: objectDecl.nestedClasses + objectDecl.nestedObjects,
+            shared: shared,
+            compilationCtx: compilationCtx,
+            declIDs: &declIDs
+        )
 
         // Every source-backed top-level object needs a global slot for its
         // singleton heap pointer. Without it, an object crossing an Any

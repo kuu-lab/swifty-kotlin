@@ -706,6 +706,51 @@ struct TypeInferenceContext: CustomStringConvertible {
         }
     }
 
+    /// Expression names cannot inherit nested classifiers from an
+    /// interface, but an outer declaration or explicit import can still bind
+    /// the same name. Return the rejected symbols for the global fallback too.
+    func valueScopeLookup(_ name: InternedString) -> (matches: [SymbolID], inheritedInterfaces: Set<SymbolID>) {
+        valueScopeLookup(name) { symbolID in
+            guard let symbol = cachedSymbol(symbolID) else { return false }
+            return symbol.kind != .function && symbol.kind != .constructor
+        }
+    }
+
+    /// Variant of `valueScopeLookup` that applies `predicate` to each
+    /// candidate so the caller can require a specific binding kind (e.g. only
+    /// declarations that denote a value). Interface-inherited classifiers are
+    /// still rejected and collected regardless of the predicate.
+    func valueScopeLookup(
+        _ name: InternedString,
+        matching predicate: (SymbolID) -> Bool
+    ) -> (matches: [SymbolID], inheritedInterfaces: Set<SymbolID>) {
+        var inheritedInterfaces: Set<SymbolID> = []
+        var current: Scope? = scope
+        while let currentScope = current as? BaseScope {
+            let candidates = currentScope.candidates(for: name).filter { symbolID in
+                guard let symbol = cachedSymbol(symbolID),
+                      !isExpectDeclarationSupersededByActual(symbolID),
+                      !isImportedCallableShadowedBySource(symbolID)
+                else { return false }
+                let isClassifier = switch symbol.kind {
+                case .class, .interface, .object, .enumClass, .annotationClass, .typeAlias: true
+                default: false
+                }
+                if isClassifier, let classScope = currentScope as? ClassMemberScope,
+                   let owner = sema.symbols.parentSymbol(for: symbolID),
+                   owner != classScope.owner,
+                   sema.symbols.symbol(owner)?.kind == .interface {
+                    inheritedInterfaces.insert(symbolID)
+                    return false
+                }
+                return predicate(symbolID)
+            }
+            if !candidates.isEmpty { return (candidates, inheritedInterfaces) }
+            current = currentScope.parent
+        }
+        return ([], inheritedInterfaces)
+    }
+
     /// A source callable shadows an imported callable at the same FQ name when
     /// their erased signatures match — e.g. upstream `kotlinx.io` sources
     /// vendored over the bundled stdlib copy. Keeping both as call candidates

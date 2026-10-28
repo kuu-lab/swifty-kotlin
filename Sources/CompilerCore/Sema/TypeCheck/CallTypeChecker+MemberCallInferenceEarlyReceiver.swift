@@ -131,17 +131,10 @@ extension CallTypeChecker {
         if args.isEmpty,
            case let .nameRef(receiverName, _) = ast.arena.expr(receiverID),
            locals[receiverName] == nil,
-           let ownerSymbol = ctx.cachedScopeLookup(receiverName).first(where: { candidate in
-               guard let symbol = sema.symbols.symbol(candidate) else {
-                   return false
-               }
-               switch symbol.kind {
-               case .class, .interface, .enumClass:
-                   return true
-               default:
-                   return false
-               }
-           }),
+           !receiverQualifierIsTypeAlias(receiverID: receiverID, ctx: ctx),
+           let ownerSymbol = sema.bindings.identifierSymbol(for: receiverID),
+           let owner = sema.symbols.symbol(ownerSymbol),
+           owner.kind == .class || owner.kind == .interface || owner.kind == .enumClass,
            let staticMember = resolveClassNameMemberValue(
                ownerNominalSymbol: ownerSymbol,
                memberName: calleeName,

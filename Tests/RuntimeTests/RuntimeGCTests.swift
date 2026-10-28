@@ -135,6 +135,33 @@ struct RuntimeGCTests {
         }
     }
 
+    @Test func testReachableRuntimeObjectRetainsItsChildrenAndWeakReferencesClearAfterSweep() {
+        let child = kk_object_new(0, 0x36_26_01)
+        let weak = kk_weak_ref_create(child)
+        let parent = kk_object_new(1, 0x36_26_02)
+        _ = kk_array_set_typed(parent, 0, child, 0)
+
+        let rootSlot = UnsafeMutablePointer<UnsafeMutableRawPointer?>.allocate(capacity: 1)
+        rootSlot.initialize(to: UnsafeMutableRawPointer(bitPattern: parent))
+        defer {
+            kk_unregister_global_root(rootSlot)
+            rootSlot.deinitialize(count: 1)
+            rootSlot.deallocate()
+            _ = kk_object_release(weak)
+        }
+        kk_register_global_root(rootSlot)
+
+        // The first pass consumes allocation handoff roots while the explicit
+        // parent root keeps both the parent and its child alive.
+        kk_gc_collect()
+        kk_gc_collect()
+        #expect(kk_weak_ref_get(weak) == child)
+
+        rootSlot.pointee = nil
+        kk_gc_collect()
+        #expect(kk_weak_ref_get(weak) == runtimeNullSentinelInt)
+    }
+
     @Test func testAllocInitializesObjectHeader() {
         withTestTypeInfo(fieldOffsets: []) { typeInfoPtr in
             let object = kk_alloc(32, UnsafeRawPointer(typeInfoPtr))

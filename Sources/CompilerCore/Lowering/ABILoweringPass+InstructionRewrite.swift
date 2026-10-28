@@ -264,16 +264,20 @@ extension ABILoweringPass {
                 into: &newBody.instructions
             )
         }
-        // A `.typeParam` extension receiver is erased at the same ABI boundary
-        // as a type-parameter value argument: the callee body reads `this` as
-        // an Any slot. A primitive receiver must therefore be boxed, or its
-        // raw word is reinterpreted as a pointer — e.g. `'c'.myToString()`
-        // rendering `99` instead of `c`. Enum receivers keep the dedicated
-        // tagged box above (a plain `kk_box_int` would lose the entry name).
+        // A receiver whose formal type is an erased slot — a `.typeParam`
+        // extension receiver, `Any`/`Any?`, or any other reference boundary —
+        // is read by the callee body as an object handle. A primitive receiver
+        // must therefore be boxed, or its raw word is reinterpreted as a
+        // pointer — e.g. `'c'.myToString()` rendering `99` instead of `c`, or
+        // a `Boolean::toString` callable reference printing `1`/`null`
+        // through `kk_any_member_to_string` (KUU-3638/KUU-3649). `boxingCallee`
+        // itself decides whether the receiver type is an erased boundary, so
+        // no typeParam-specific check is needed here. Enum receivers keep the
+        // dedicated tagged box above (a plain `kk_box_int` would lose the
+        // entry name).
         if receiverOffset > 0, arguments.indices.contains(receiverIndex),
            boxedArguments[receiverIndex] == arguments[receiverIndex],
            let receiverType = signature.receiverType,
-           case .typeParam = types.kind(of: types.makeNonNullable(receiverType)),
            let argType = intrinsicArgType(arguments[receiverIndex], arena: module.arena, types: types),
            let boxCallee = boxingCallee(
                argType: argType,

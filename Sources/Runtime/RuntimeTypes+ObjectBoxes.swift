@@ -384,10 +384,18 @@ final class RuntimeFunctionValueBox {
 extension RuntimeArrayBox: RuntimeChildReferenceProviding {
     var childRefs: [Int] {
         let fieldRefs = values.compactMap(\.childReferenceRawValue)
-        if let objectBox = self as? RuntimeObjectBox,
-           let backingMapBox = objectBox.backingMapBox {
-            let storageRefs = objectBox.backingMapRaw == 0 ? [] : [objectBox.backingMapRaw]
-            return fieldRefs + storageRefs + backingMapBox.childRefs
+        if let objectBox = self as? RuntimeObjectBox {
+            let directRefs = [
+                objectBox.coroutineJobHandle,
+                objectBox.backingMapRaw,
+                objectBox.throwableMessageRaw,
+                objectBox.throwableCause,
+                objectBox.throwableStackTraceElementsRaw,
+            ] + objectBox.throwableSuppressed
+            let nestedRefs = (objectBox.backingListBox?.childRefs ?? [])
+                + (objectBox.backingSetBox?.childRefs ?? [])
+                + (objectBox.backingMapBox?.childRefs ?? [])
+            return fieldRefs + directRefs.filter { $0 != 0 } + nestedRefs
         }
         return fieldRefs
     }
@@ -404,4 +412,8 @@ extension RuntimeTripleBox: RuntimeChildReferenceProviding {
     var childRefs: [Int] {
         [firstValue, secondValue, thirdValue].compactMap(\.childReferenceRawValue)
     }
+}
+
+extension RuntimeFunctionValueBox: RuntimeChildReferenceProviding {
+    var childRefs: [Int] { closureRaw == 0 ? [] : [closureRaw] }
 }

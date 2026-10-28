@@ -27,7 +27,12 @@ package enum CompilerFileSystem {
         at url: URL,
         fileManager: FileManager = .default
     ) -> Bool {
-        guard let attributes = try? fileManager.attributesOfItem(atPath: url.path) else { return false }
-        return attributes[.type] as? FileAttributeType == .typeRegular
+        // `attributesOfItem` pays several xattr syscalls per file — the
+        // stdlib artifact validator walks ~2k objects + inline-KIR blobs
+        // per compile, so use a single stat(2) instead (symlink-following,
+        // same as attributesOfItem).
+        var info = stat()
+        return url.path.withCString { stat($0, &info) == 0 }
+            && (info.st_mode & S_IFMT) == S_IFREG
     }
 }
