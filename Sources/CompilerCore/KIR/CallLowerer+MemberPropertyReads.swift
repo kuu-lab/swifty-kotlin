@@ -841,6 +841,35 @@ extension CallLowerer {
             return nil
         }
 
+        // An enum-typed receiver is still a raw ordinal here. If an entry
+        // body overrides this property, route through its ordinal dispatcher
+        // before attempting the interface itable on that scalar value.
+        if !isSuperQualifiedReceiver,
+           let (_, receiverClassSymbol) = resolveClassTypeSymbol(
+               sema.types.makeNonNullable(receiverType), sema: sema
+           ),
+           receiverClassSymbol.kind == .enumClass
+        {
+            let getter = sema.symbols.extensionPropertyGetterAccessor(for: propertySymbol)
+                ?? SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: propertySymbol)
+            if let dispatch = kirEnumEntryDispatchHelper(
+                for: getter,
+                in: receiverClassSymbol.id,
+                sema: sema,
+                interner: interner
+            ), let dispatchInfo = sema.symbols.symbol(dispatch) {
+                let result = arena.appendTemporary(type: resultType)
+                instructions.append(.call(
+                    symbol: dispatch,
+                    callee: dispatchInfo.name,
+                    arguments: [loweredReceiverID],
+                    result: result,
+                    canThrow: true
+                ))
+                return result
+            }
+        }
+
         // KSP-928: an abstract/open class property is a getter dispatch point,
         // not an instance field or a direct abstract getter stub. In
         // particular, AbstractMap's skeletal methods must observe a concrete
