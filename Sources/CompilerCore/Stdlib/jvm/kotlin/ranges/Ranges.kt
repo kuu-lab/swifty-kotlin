@@ -19,3 +19,38 @@ public inline fun IntRange.all(predicate: (Int) -> Boolean): Boolean {
     for (element in this) if (!predicate(element)) return false
     return true
 }
+
+public interface ClosedFloatingPointRange<T : Comparable<T>> {
+    public val start: T
+    public val endInclusive: T
+    public fun lessThanOrEquals(a: T, b: T): Boolean
+    public operator fun contains(value: T): Boolean
+    public fun isEmpty(): Boolean
+}
+
+public class ClosedDoubleRange(
+    public override val start: Double,
+    public override val endInclusive: Double
+) : ClosedFloatingPointRange<Double> {
+    public override fun lessThanOrEquals(a: Double, b: Double): Boolean = a <= b
+    public override operator fun contains(value: Double): Boolean = value >= start && value <= endInclusive
+    public override fun isEmpty(): Boolean = !(start <= endInclusive)
+    override fun toString(): String = "$start..$endInclusive"
+    override fun equals(other: Any?): Boolean = other is ClosedDoubleRange && (isEmpty() && other.isEmpty() || start == other.start && endInclusive == other.endInclusive)
+    override fun hashCode(): Int = if (isEmpty()) -1 else 31 * start.hashCode() + endInclusive.hashCode()
+}
+
+public class ClosedFloatRange(
+    public override val start: Float,
+    public override val endInclusive: Float
+) : ClosedFloatingPointRange<Float> {
+    public override fun lessThanOrEquals(a: Float, b: Float): Boolean = a <= b
+    public override operator fun contains(value: Float): Boolean = value >= start && value <= endInclusive
+    public override fun isEmpty(): Boolean = !(start <= endInclusive)
+    override fun toString(): String = "$start..$endInclusive"
+    override fun equals(other: Any?): Boolean = other is ClosedFloatRange && (isEmpty() && other.isEmpty() || start == other.start && endInclusive == other.endInclusive)
+    override fun hashCode(): Int = if (isEmpty()) -1 else 31 * start.hashCode() + endInclusive.hashCode()
+}
+
+public operator fun Double.rangeTo(that: Double): ClosedFloatingPointRange<Double> = ClosedDoubleRange(this, that)
+public operator fun Float.rangeTo(that: Float): ClosedFloatingPointRange<Float> = ClosedFloatRange(this, that)
