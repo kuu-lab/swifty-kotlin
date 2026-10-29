@@ -943,27 +943,27 @@ enum WasmRuntimeHelpers {
             emitPrimArrayToListBody(&code, ctx: ctx, conv: .raw,
                                     mutable: false, view: false,
                                     argumentCount: argumentCount)
-        case "__kk_uIntArray_toList":
+        case "__kk_uIntArray_toList", "__kk_uIntArray_asList":
             extraLocals = 7
             emitPrimArrayToListBody(&code, ctx: ctx, conv: .mask(0xFFFF_FFFF),
                                     mutable: false, view: false,
                                     argumentCount: argumentCount)
-        case "__kk_uByteArray_toList":
+        case "__kk_uByteArray_toList", "__kk_uByteArray_asList":
             extraLocals = 7
             emitPrimArrayToListBody(&code, ctx: ctx, conv: .mask(0xFF),
                                     mutable: false, view: false,
                                     argumentCount: argumentCount)
-        case "__kk_uShortArray_toList":
+        case "__kk_uShortArray_toList", "__kk_uShortArray_asList":
             extraLocals = 7
             emitPrimArrayToListBody(&code, ctx: ctx, conv: .mask(0xFFFF),
                                     mutable: false, view: false,
                                     argumentCount: argumentCount)
-        case "__kk_doubleArray_toList":
+        case "__kk_doubleArray_toList", "__kk_doubleArray_asList":
             extraLocals = 7
             emitPrimArrayToListBody(&code, ctx: ctx, conv: .boxDouble,
                                     mutable: false, view: false,
                                     argumentCount: argumentCount)
-        case "__kk_floatArray_toList":
+        case "__kk_floatArray_toList", "__kk_floatArray_asList":
             extraLocals = 7
             emitPrimArrayToListBody(&code, ctx: ctx, conv: .boxFloat,
                                     mutable: false, view: false,
@@ -980,31 +980,6 @@ enum WasmRuntimeHelpers {
             extraLocals = 7
             emitPrimArrayToListBody(&code, ctx: ctx, conv: .raw,
                                     mutable: false, view: true,
-                                    argumentCount: argumentCount)
-        case "__kk_uIntArray_asList":
-            extraLocals = 7
-            emitPrimArrayToListBody(&code, ctx: ctx, conv: .mask(0xFFFF_FFFF),
-                                    mutable: false, view: false,
-                                    argumentCount: argumentCount)
-        case "__kk_uByteArray_asList":
-            extraLocals = 7
-            emitPrimArrayToListBody(&code, ctx: ctx, conv: .mask(0xFF),
-                                    mutable: false, view: false,
-                                    argumentCount: argumentCount)
-        case "__kk_uShortArray_asList":
-            extraLocals = 7
-            emitPrimArrayToListBody(&code, ctx: ctx, conv: .mask(0xFFFF),
-                                    mutable: false, view: false,
-                                    argumentCount: argumentCount)
-        case "__kk_doubleArray_asList":
-            extraLocals = 7
-            emitPrimArrayToListBody(&code, ctx: ctx, conv: .boxDouble,
-                                    mutable: false, view: false,
-                                    argumentCount: argumentCount)
-        case "__kk_floatArray_asList":
-            extraLocals = 7
-            emitPrimArrayToListBody(&code, ctx: ctx, conv: .boxFloat,
-                                    mutable: false, view: false,
                                     argumentCount: argumentCount)
         case "__kk_wasm_prim_array_to_mutable_list":
             extraLocals = 7
