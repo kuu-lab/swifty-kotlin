@@ -144,10 +144,11 @@ extension ExprLowerer {
         expr: Expr?,
         sema: SemaModule
     ) -> TypeID? {
-        if let boundType = sema.bindings.exprTypes[exprID],
-           case .nothing(.nonNull) = sema.types.kind(of: boundType)
-        {
-            return boundType
+        if let boundType = sema.bindings.exprTypes[exprID] {
+            if case .nothing(.nonNull) = sema.types.kind(of: boundType) {
+                return boundType
+            }
+            return nil
         }
 
         let isDirectCall: Bool = switch expr {
