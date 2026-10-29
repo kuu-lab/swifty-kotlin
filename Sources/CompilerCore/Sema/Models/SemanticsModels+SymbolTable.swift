@@ -882,6 +882,17 @@ public final class SymbolTable {
         return symbolsStorage[index]
     }
 
+    /// Reads just the name in place: `symbol(_:)` copies the whole record,
+    /// retaining its `fqName` array, which adds up for the KIR dump's per-call
+    /// symbol labels.
+    public func name(of id: SymbolID) -> InternedString? {
+        let index = Int(id.rawValue)
+        guard index >= 0, index < symbolsStorage.count else {
+            return nil
+        }
+        return symbolsStorage[index].name
+    }
+
     public func insertFlags(_ flags: SymbolFlags, for symbol: SymbolID) {
         let index = Int(symbol.rawValue)
         guard index >= 0, index < symbolsStorage.count else {

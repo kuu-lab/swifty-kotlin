@@ -658,8 +658,8 @@ public final class KIRModule {
             case .global:
                 lines.append("decl[\(index)] global")
             case let .nominalType(nominal):
-                if let symbol = symbols?.symbol(nominal.symbol) {
-                    let name = names.resolve(symbol.name)
+                if let symbolName = symbols?.name(of: nominal.symbol) {
+                    let name = names.resolve(symbolName)
                     lines.append("decl[\(index)] type \(name)")
                 } else {
                     lines.append("decl[\(index)] type")
@@ -702,8 +702,8 @@ public final class KIRModule {
         case let .call(symbol, callee, arguments, result, canThrow, thrownResult, isSuperCall, qualifiedSuperType):
             let calleeName = names.resolve(callee)
             let args = arguments.map { "r\($0.rawValue)" }.joined(separator: ", ")
-            let symbolLabel: String = if let symbol, let sym = symbols?.symbol(symbol) {
-                names.resolve(sym.name)
+            let symbolLabel: String = if let symbol, let name = symbols?.name(of: symbol) {
+                names.resolve(name)
             } else {
                 "_"
             }
@@ -715,8 +715,8 @@ public final class KIRModule {
         case let .virtualCall(symbol, callee, receiver, arguments, result, canThrow, thrownResult, dispatch):
             let calleeName = names.resolve(callee)
             let args = arguments.map { "r\($0.rawValue)" }.joined(separator: ", ")
-            let symbolLabel: String = if let symbol, let sym = symbols?.symbol(symbol) {
-                names.resolve(sym.name)
+            let symbolLabel: String = if let symbol, let name = symbols?.name(of: symbol) {
+                names.resolve(name)
             } else {
                 "_"
             }
