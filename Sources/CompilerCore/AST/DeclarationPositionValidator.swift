@@ -420,7 +420,6 @@ struct DeclarationPositionValidator {
         if modifiers.contains(.abstract)
             || modifiers.contains(.lateinit)
             || modifiers.contains(.expect)
-            || modifiers.contains(.const)
             || decl.initializer != nil
             || decl.delegateExpression != nil
             || decl.explicitBackingField != nil
