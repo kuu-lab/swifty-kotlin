@@ -437,7 +437,20 @@ extension JVMProgramBuilder {
             }
             if classes[symbol] == nil {
                 for child in sema.symbols.children(of: symbol) {
-                    if let method = methods[child] ?? collectionInterfaceMethods[child] ?? textLibraryMethods[child]?.method, let signature = sema.symbols.functionSignature(for: child) {
+                    guard let signature = sema.symbols.functionSignature(for: child) else { continue }
+                    var method = methods[child] ?? collectionInterfaceMethods[child]
+                        ?? context.jvmImports?.methods[child] ?? textLibraryMethods[child]?.method
+                    if method == nil, let sourceName = try? className(symbol),
+                       let childSymbol = sema.symbols.symbol(child) {
+                        let owner = JVMClasspathIndex.builtinName(sourceName) ?? sourceName
+                        let name = context.interner.resolve(childSymbol.name)
+                        let candidates = (context.jvmImports?.classes[owner]?.methods ?? []).filter {
+                            !$0.isStatic && !$0.isConstructor && $0.name == name
+                                && $0.parameters.count == signature.parameterTypes.count
+                        }
+                        if candidates.count == 1 { method = candidates[0] }
+                    }
+                    if let method {
                         specializedParameters[method.owner + method.name + method.descriptor] = try specializedParameterTypes(of: signature, receiver: [], mapping: mapping)
                     }
                 }
