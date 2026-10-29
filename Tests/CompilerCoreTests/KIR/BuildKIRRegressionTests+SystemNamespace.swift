@@ -37,6 +37,28 @@ extension BuildKIRRegressionTests {
         }
     }
 
+    @Test func testDefaultSystemProcessStartNanosLowersThroughBundledMember() throws {
+        let source = """
+        fun main(): Long {
+            return System.processStartNanos()
+        }
+        """
+        let ctx = makeContextFromSource(source)
+        try runToKIR(ctx)
+
+        #expect(!ctx.diagnostics.hasError, "Default System.processStartNanos() must type-check")
+
+        let module = try #require(ctx.kir)
+        let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+        let callees = extractCallees(from: body, interner: ctx.interner)
+
+        #expect(callees.contains("processStartNanos"))
+        #expect(
+            !callees.contains(runtimeCallee(.systemProcessStartNanos)),
+            "User KIR must call the bundled System member instead of the runtime bridge directly"
+        )
+    }
+
     /// KSP-617: measureTime* are bundled Kotlin inline functions, no longer a
     /// KIR special case expanding to paired clock reads.
     @Test func testMeasureTimeCallsLowerToBundledKotlinCallees() throws {
