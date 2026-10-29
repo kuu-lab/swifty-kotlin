@@ -200,7 +200,6 @@ package struct KlibIrFlags {
     package var isStaticField: Bool { bit(6) }
     package var isFakeOverrideField: Bool { bit(7) }
 
-
     package var isLocalVar: Bool { bit(1) }
 
     private func bit(_ index: Int) -> Bool {
@@ -272,7 +271,6 @@ package struct KlibClass {
     package var base: KlibDeclBase
     /// `strings` index.
     package var nameIndex: Int32
-    package var thisReceiver: KlibValueParameter?
     package var typeParameters: [KlibTypeParameter]
     package var declarations: [KlibIrDeclaration]
     /// `types` indices.
@@ -282,7 +280,6 @@ package struct KlibClass {
 }
 
 package struct KlibInlineClassRepresentation {
-    package var underlyingPropertyName: Int32
     /// `types` index.
     package var underlyingPropertyType: Int32
 }
@@ -296,7 +293,6 @@ package struct KlibEnumEntry {
     package var nameIndex: Int32
     /// Index into `bodies` for the initializer expression.
     package var initializerIndex: Int32?
-    package var correspondingClass: KlibClass?
 }
 
 package struct KlibField {
@@ -316,13 +312,11 @@ package struct KlibFunctionBase {
     package var regularParameters: [KlibValueParameter]
     /// Index into `bodies`, absent for abstract/external declarations.
     package var bodyIndex: Int32?
-    package var companionExtensionClass: KlibSymbolRef?
 }
 
 package struct KlibFunction {
     package var base: KlibFunctionBase
     package var overridden: [KlibSymbolRef]
-    package var preparedInlineFileEntryId: Int32?
 }
 
 package struct KlibLocalDelegatedProperty {
@@ -534,7 +528,6 @@ package struct KlibFileEntry {
     package var nameOld: String?
     /// Absolute per-line start offsets, reconstructed from deltas.
     package var lineStartOffsets: [Int32]
-    package var firstRelevantLineIndex: Int32
 }
 
 package struct KlibIrFile {
@@ -546,5 +539,4 @@ package struct KlibIrFile {
     /// `strings` indices forming the package fq name.
     package var fqName: [Int32]
     package var annotations: [KlibAnnotation]
-    package var explicitlyExportedToCompiler: [Int64]
 }
