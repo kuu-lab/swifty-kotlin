@@ -525,6 +525,13 @@ func kirErasedGenericCallClaimCheck(
     else {
         return nil
     }
+    // Calls coerced to Unit evaluate for side effects and discard their
+    // erased result, so no cast of that result is observable in Kotlin.
+    // Property reads retain their own platform-Unit behavior.
+    if propertySymbol == nil,
+       (bound == sema.types.unitType || sema.bindings.unitReturnCoercionExprs.contains(exprID)) {
+        return nil
+    }
     return (bound, checkType)
 }
 
