@@ -193,8 +193,7 @@ extension JVMClasspathIndex {
         }
         suffix.append(String(max(ordinal, 1)))
         return JVMAnonymousObjectNameInfo(
-            binaryName: enclosingClassName + "$" + suffix.joined(separator: "$"),
-            enclosingClassName: enclosingClassName
+            binaryName: enclosingClassName + "$" + suffix.joined(separator: "$")
         )
     }
 
@@ -207,7 +206,6 @@ extension JVMClasspathIndex {
 
 struct JVMAnonymousObjectNameInfo {
     let binaryName: String
-    let enclosingClassName: String
 }
 
 extension JVMProgramBuilder {
