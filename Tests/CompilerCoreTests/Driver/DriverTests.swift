@@ -14,7 +14,7 @@ struct DriverTests {
         let result = CompilerDriver.fallbackDiagnostic(for: error)
         #expect(result != nil)
         #expect(result?.code == "KSWIFTK-PIPELINE-0001")
-        #expect(try #require(result?.message.contains("loading input sources")))
+        #expect(result?.message.contains("loading input sources") == true)
     }
 
     @Test
@@ -23,7 +23,7 @@ struct DriverTests {
         let result = CompilerDriver.fallbackDiagnostic(for: error)
         #expect(result != nil)
         #expect(result?.code == "KSWIFTK-PIPELINE-0002")
-        #expect(try #require(result?.message.contains("bad IR")))
+        #expect(result?.message.contains("bad IR") == true)
     }
 
     @Test
@@ -32,7 +32,7 @@ struct DriverTests {
         let result = CompilerDriver.fallbackDiagnostic(for: error)
         #expect(result != nil)
         #expect(result?.code == "KSWIFTK-PIPELINE-0003")
-        #expect(try #require(result?.message.contains("could not produce")))
+        #expect(result?.message.contains("could not produce") == true)
     }
 
     @Test
