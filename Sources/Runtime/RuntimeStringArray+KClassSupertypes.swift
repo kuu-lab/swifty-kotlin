@@ -1,5 +1,4 @@
 import Foundation
-import RuntimeABI
 
 /// JVM-parity direct supertypes for bundled builtin types. kotlin-reflect reports
 /// JVM-only supertypes (`kotlin.Number`, `java.io.Serializable`,

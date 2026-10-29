@@ -119,11 +119,9 @@ extension DeclTypeChecker {
             ctx: ctx
         )
         guard !factoryTiers.isEmpty else { return nil }
-        // Argument applicability is checked by ordinary call resolution. Avoid
-        // choosing a contextual type from an overload before that check.
-        if !arguments.isEmpty, factoryTiers.reduce(0, { $0 + $1.count }) != 1 {
-            return nil
-        }
+        // Multi-overload factories are allowed through: candidates whose
+        // delegate cannot serve the declared property type fail to infer, and
+        // the single-result guard below still rejects genuine ambiguity.
 
         var inferredTypes: Set<TypeID> = []
         for factoryTier in factoryTiers {
@@ -331,16 +329,25 @@ extension DeclTypeChecker {
             return nil
         }
         // Arguments that constrain factory type parameters must participate in
-        // inference; do not derive a partial expected type without them.
+        // inference; do not derive a partial expected type without them. Bare
+        // class constructors contribute their nominal directly, and literal
+        // arguments have a trivially known type that cannot mislead the solver.
         for (argument, parameterType) in zip(factoryArguments, factory.signature.parameterTypes) {
             if factory.signature.typeParameterSymbols.contains(where: {
                 sema.types.typeContainsTypeParam(parameterType, symbol: $0)
             }) {
-                guard case let .call(callee, typeArgs, args, _) = ctx.ast.arena.expr(argument.expr),
-                      typeArgs.isEmpty, args.isEmpty,
-                      case let .nameRef(name, _) = ctx.ast.arena.expr(callee),
-                      !ctx.scope.lookup(name, matching: { sema.symbols.symbol($0)?.kind == .class }).isEmpty
-                else { return nil }
+                let argExpr = ctx.ast.arena.expr(argument.expr)
+                switch argExpr {
+                case .nullLiteral, .intLiteral, .longLiteral, .uintLiteral, .ulongLiteral,
+                     .floatLiteral, .doubleLiteral, .charLiteral, .boolLiteral, .stringLiteral:
+                    continue
+                default:
+                    guard case let .call(callee, typeArgs, args, _) = argExpr,
+                          typeArgs.isEmpty, args.isEmpty,
+                          case let .nameRef(name, _) = ctx.ast.arena.expr(callee),
+                          !ctx.scope.lookup(name, matching: { sema.symbols.symbol($0)?.kind == .class }).isEmpty
+                    else { return nil }
+                }
             }
         }
         for index in factoryArguments.count ..< factory.signature.parameterTypes.count {

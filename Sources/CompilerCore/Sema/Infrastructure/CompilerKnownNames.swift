@@ -221,7 +221,6 @@ package struct KnownCompilerNames {
     let field: InternedString
     let thisName: InternedString
     package let main: InternedString
-    let with: InternedString
     let run: InternedString
     let withContext: InternedString
     let withTimeout: InternedString
@@ -229,11 +228,7 @@ package struct KnownCompilerNames {
     let suspendCoroutineUninterceptedOrReturn: InternedString
     let flow: InternedString
     let emit: InternedString
-    let notNull: InternedString
     let emptyListFn: InternedString
-    let buildList: InternedString
-    let buildSet: InternedString
-    let buildMap: InternedString
     let className: InternedString
     let isInitialized: InternedString
     // STDLIB-REFLECT-061: KClass member access (remains a compiler special
@@ -263,7 +258,6 @@ package struct KnownCompilerNames {
     // "Sequence" type name (Fn suffix per `emptyListFn`).
     let contextOf: InternedString
     let sequenceFn: InternedString
-    let contract: InternedString
     let compareBy: InternedString
     let compareByDescending: InternedString
     let compareValuesBy: InternedString
@@ -282,24 +276,12 @@ package struct KnownCompilerNames {
 
     // Scope function names (STDLIB-004 / STDLIB-250)
 
-    let append: InternedString
-    let appendRange: InternedString
-    let deleteAt: InternedString
-    let deleteRange: InternedString
     let get: InternedString
     let sbSet: InternedString
-    let insert: InternedString
-    let insertRange: InternedString
-    let setRange: InternedString
     let toString: InternedString
     let clear: InternedString
-    let reverse: InternedString
-    let length: InternedString
     // STDLIB-STR-123
     let replace: InternedString
-    let capacity: InternedString
-    let ensureCapacity: InternedString
-    let trimToSize: InternedString
 
     // Member, type, and package names checked on hot member-call paths
     // (collection fallback, regular resolution, KIR lowering dispatch),
@@ -321,7 +303,6 @@ package struct KnownCompilerNames {
     let contains: InternedString
     let containsAll: InternedString
     let containsKey: InternedString
-    let containsValue: InternedString
     let count: InternedString
     let distinct: InternedString
     let distinctBy: InternedString
@@ -330,12 +311,10 @@ package struct KnownCompilerNames {
     let elementAt: InternedString
     let elementAtOrElse: InternedString
     let elementAtOrNull: InternedString
-    let equals: InternedString
     let filter: InternedString
     let filterIndexed: InternedString
     let filterIsInstance: InternedString
     let filterIsInstanceTo: InternedString
-    let filterNot: InternedString
     let filterNotNull: InternedString
     let filterNotNullTo: InternedString
     let find: InternedString
@@ -352,19 +331,15 @@ package struct KnownCompilerNames {
     let forEach: InternedString
     let format: InternedString
     let getOrNull: InternedString
-    let hashCode: InternedString
     let indexOf: InternedString
     let indexOfFirst: InternedString
     let indexOfLast: InternedString
-    let intersect: InternedString
     let isNullOrEmpty: InternedString
     let iterator: InternedString
     let joinToString: InternedString
     let last: InternedString
     let lastIndexOf: InternedString
     let lastOrNull: InternedString
-    let mapIndexed: InternedString
-    let mapNotNull: InternedString
     let maxBy: InternedString
     let maxByOrNull: InternedString
     let maxOf: InternedString
@@ -388,8 +363,6 @@ package struct KnownCompilerNames {
     let minusElement: InternedString
     let partition: InternedString
     let plus: InternedString
-    let random: InternedString
-    let randomOrNull: InternedString
     let reduce: InternedString
     let reduceIndexed: InternedString
     let reduceIndexedOrNull: InternedString
@@ -424,7 +397,6 @@ package struct KnownCompilerNames {
     let sortedWith: InternedString
     let step: InternedString
     let subList: InternedString
-    let subtract: InternedString
     let sum: InternedString
     let sumBy: InternedString
     let sumByDouble: InternedString
@@ -448,7 +420,6 @@ package struct KnownCompilerNames {
     let toUShortArray: InternedString
     let trimMargin: InternedString
     let typeOf: InternedString
-    let union: InternedString
     let unzip: InternedString
     let windowed: InternedString
     let withDefault: InternedString
@@ -649,7 +620,6 @@ package struct KnownCompilerNames {
         field = interner.intern("field")
         thisName = interner.intern("this")
         main = interner.intern("main")
-        with = interner.intern("with")
         run = interner.intern("run")
         withContext = interner.intern("withContext")
         withTimeout = interner.intern("withTimeout")
@@ -657,11 +627,7 @@ package struct KnownCompilerNames {
         suspendCoroutineUninterceptedOrReturn = interner.intern("suspendCoroutineUninterceptedOrReturn")
         flow = interner.intern("flow")
         emit = interner.intern("emit")
-        notNull = interner.intern("notNull")
         emptyListFn = interner.intern("emptyList")
-        buildList = interner.intern("buildList")
-        buildSet = interner.intern("buildSet")
-        buildMap = interner.intern("buildMap")
         className = interner.intern("class")
         isInitialized = interner.intern("isInitialized")
         propertiesName = interner.intern("properties")
@@ -682,7 +648,6 @@ package struct KnownCompilerNames {
 
         contextOf = interner.intern("contextOf")
         sequenceFn = interner.intern("sequence")
-        contract = interner.intern("contract")
         compareBy = interner.intern("compareBy")
         compareByDescending = interner.intern("compareByDescending")
         compareValuesBy = interner.intern("compareValuesBy")
@@ -697,24 +662,12 @@ package struct KnownCompilerNames {
 
         // Scope function names (STDLIB-004 / STDLIB-250)
 
-        append = interner.intern("append")
-        appendRange = interner.intern("appendRange")
-        deleteAt = interner.intern("deleteAt")
-        deleteRange = interner.intern("deleteRange")
         get = interner.intern("get")
         sbSet = interner.intern("set")
-        insert = interner.intern("insert")
-        insertRange = interner.intern("insertRange")
-        setRange = interner.intern("setRange")
         toString = interner.intern("toString")
         clear = interner.intern("clear")
-        reverse = interner.intern("reverse")
-        length = interner.intern("length")
         // STDLIB-STR-123
         replace = interner.intern("replace")
-        capacity = interner.intern("capacity")
-        ensureCapacity = interner.intern("ensureCapacity")
-        trimToSize = interner.intern("trimToSize")
 
         let kotlin = interner.intern("kotlin")
         let kotlinCoroutines = interner.intern("coroutines")
@@ -849,7 +802,6 @@ package struct KnownCompilerNames {
         contains = interner.intern("contains")
         containsAll = interner.intern("containsAll")
         containsKey = interner.intern("containsKey")
-        containsValue = interner.intern("containsValue")
         count = interner.intern("count")
         distinct = interner.intern("distinct")
         distinctBy = interner.intern("distinctBy")
@@ -858,12 +810,10 @@ package struct KnownCompilerNames {
         elementAt = interner.intern("elementAt")
         elementAtOrElse = interner.intern("elementAtOrElse")
         elementAtOrNull = interner.intern("elementAtOrNull")
-        equals = interner.intern("equals")
         filter = interner.intern("filter")
         filterIndexed = interner.intern("filterIndexed")
         filterIsInstance = interner.intern("filterIsInstance")
         filterIsInstanceTo = interner.intern("filterIsInstanceTo")
-        filterNot = interner.intern("filterNot")
         filterNotNull = interner.intern("filterNotNull")
         filterNotNullTo = interner.intern("filterNotNullTo")
         find = interner.intern("find")
@@ -880,19 +830,15 @@ package struct KnownCompilerNames {
         forEach = interner.intern("forEach")
         format = interner.intern("format")
         getOrNull = interner.intern("getOrNull")
-        hashCode = interner.intern("hashCode")
         indexOf = interner.intern("indexOf")
         indexOfFirst = interner.intern("indexOfFirst")
         indexOfLast = interner.intern("indexOfLast")
-        intersect = interner.intern("intersect")
         isNullOrEmpty = interner.intern("isNullOrEmpty")
         iterator = interner.intern("iterator")
         joinToString = interner.intern("joinToString")
         last = interner.intern("last")
         lastIndexOf = interner.intern("lastIndexOf")
         lastOrNull = interner.intern("lastOrNull")
-        mapIndexed = interner.intern("mapIndexed")
-        mapNotNull = interner.intern("mapNotNull")
         maxBy = interner.intern("maxBy")
         maxByOrNull = interner.intern("maxByOrNull")
         maxOf = interner.intern("maxOf")
@@ -916,8 +862,6 @@ package struct KnownCompilerNames {
         minusElement = interner.intern("minusElement")
         partition = interner.intern("partition")
         plus = interner.intern("plus")
-        random = interner.intern("random")
-        randomOrNull = interner.intern("randomOrNull")
         reduce = interner.intern("reduce")
         reduceIndexed = interner.intern("reduceIndexed")
         reduceIndexedOrNull = interner.intern("reduceIndexedOrNull")
@@ -952,7 +896,6 @@ package struct KnownCompilerNames {
         sortedWith = interner.intern("sortedWith")
         step = interner.intern("step")
         subList = interner.intern("subList")
-        subtract = interner.intern("subtract")
         sum = interner.intern("sum")
         sumBy = interner.intern("sumBy")
         sumByDouble = interner.intern("sumByDouble")
@@ -976,7 +919,6 @@ package struct KnownCompilerNames {
         toUShortArray = interner.intern("toUShortArray")
         trimMargin = interner.intern("trimMargin")
         typeOf = interner.intern("typeOf")
-        union = interner.intern("union")
         unzip = interner.intern("unzip")
         windowed = interner.intern("windowed")
         withDefault = interner.intern("withDefault")
@@ -1068,44 +1010,6 @@ package struct KnownCompilerNames {
         instantValueSemanticsMemberNames = Set(["equals", "hashCode", "toString"].map { interner.intern($0) })
     }
 
-    func builtinType(named name: InternedString, nullability: Nullability = .nonNull, types: TypeSystem) -> TypeID? {
-        switch name {
-        case byte:
-            types.withNullability(nullability, for: types.byteType)
-        case short:
-            types.withNullability(nullability, for: types.shortType)
-        case int:
-            types.withNullability(nullability, for: types.intType)
-        case long:
-            types.withNullability(nullability, for: types.longType)
-        case float:
-            types.withNullability(nullability, for: types.floatType)
-        case double:
-            types.withNullability(nullability, for: types.doubleType)
-        case boolean:
-            types.withNullability(nullability, for: types.booleanType)
-        case char:
-            types.withNullability(nullability, for: types.charType)
-        case string:
-            types.withNullability(nullability, for: types.stringType)
-        case uint:
-            types.withNullability(nullability, for: types.uintType)
-        case ulong:
-            types.withNullability(nullability, for: types.ulongType)
-        case ubyte:
-            types.withNullability(nullability, for: types.ubyteType)
-        case ushort:
-            types.withNullability(nullability, for: types.ushortType)
-        case any:
-            types.withNullability(nullability, for: types.anyType)
-        case unit:
-            types.unitType
-        case nothing:
-            types.withNullability(nullability, for: types.nothingType)
-        default:
-            nil
-        }
-    }
 
     func symbolMatches(_ symbol: SemanticSymbol, fqName: [InternedString]) -> Bool {
         symbol.fqName == fqName

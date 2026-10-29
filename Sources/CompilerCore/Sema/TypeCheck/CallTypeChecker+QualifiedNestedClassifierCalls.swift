@@ -152,7 +152,12 @@ extension CallTypeChecker {
     ) -> NestedClassifierCompanionInvokeTarget? {
         let sema = ctx.sema
         let invokeName = ctx.interner.intern("invoke")
+        // A nested `object` is already the dispatch instance — `Owner.Obj(x)`
+        // invokes `Obj`'s own members — while other classifiers dispatch
+        // through their companion object. The object itself is checked first
+        // so its own `invoke` wins (KUU-3662).
         let companionSymbols = [
+            sema.symbols.symbol(classifierSymbol)?.kind == .object ? classifierSymbol : nil,
             sema.symbols.companionBlockObjectSymbol(
                 for: classifierSymbol,
                 interner: ctx.interner

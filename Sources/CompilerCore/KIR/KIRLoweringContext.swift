@@ -350,14 +350,6 @@ final class KIRLoweringContext {
         currentImplicitReceiverExprID = nil
     }
 
-    func saveQualifiedThisReceivers() -> [InternedString: KIRExprID] {
-        qualifiedThisReceiverExprsByLabel
-    }
-
-    func restoreQualifiedThisReceivers(_ receivers: [InternedString: KIRExprID]) {
-        qualifiedThisReceiverExprsByLabel = receivers
-    }
-
     func qualifiedThisReceiverExprID(for label: InternedString) -> KIRExprID? {
         qualifiedThisReceiverExprsByLabel[label]
     }
@@ -406,14 +398,6 @@ final class KIRLoweringContext {
 
     func setCapturedOuterReceiver(_ exprID: KIRExprID, for owner: SymbolID) {
         capturedOuterReceiverExprsByOwner[owner] = exprID
-    }
-
-    func restoreImplicitReceiver(symbol: SymbolID?, exprID: KIRExprID?) {
-        if let symbol, let exprID {
-            setImplicitReceiver(symbol: symbol, exprID: exprID)
-        } else {
-            clearImplicitReceiver()
-        }
     }
 
     func withContextReceiverValues<T>(

@@ -1,5 +1,4 @@
 import Foundation
-import RuntimeABI
 
 // String is a runtime primitive rather than a lowered class declaration, so
 // its JVM-compatible zero-argument constructor is registered on demand.

@@ -1,4 +1,3 @@
-import RuntimeABI
 
 extension CollectionLiteralLoweringSupport {
     private func isGenericKotlinArrayExpr(
