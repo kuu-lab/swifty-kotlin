@@ -91,6 +91,19 @@ struct GenericFunInterfaceParameterLambdaInferenceTests {
     }
 
     @Test
+    func invariantComparatorParameterAcceptsGenericSamLambda() throws {
+        let ctx = bundledStdlibContext("""
+        fun <T> foo(comparator: kotlin.Comparator<T>, a: T, b: T) = comparator.compare(a, b)
+        fun main() { foo<Int>({ a, b -> a - b }, 42, 117) }
+        """)
+        try runSema(ctx)
+
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.isEmpty, "An invariant Comparator parameter must provide a concrete SAM shape: \(errors)")
+        #expect(try #require(ctx.sema).bindings.samConversionExprs.count == 1)
+    }
+
+    @Test
     func genericSamConstructorInfersFromSiblingValueArgument() throws {
         let ctx = context("""
         fun interface Converter<T, R> { fun convert(t: T): R }
