@@ -14,7 +14,9 @@ func kirErasedDispatchArgumentCastTarget(
     }
 
     func erasedUpperBound(_ type: TypeID) -> TypeID {
-        var current = type
+        // A definitely-non-null `T & Any` parameter erases exactly like T:
+        // unwrap the intersection so its bound drives the classifier check.
+        var current = kirDefinitelyNotNullTypeParameter(of: type, sema: sema) ?? type
         var visited: Set<SymbolID> = []
         while case let .typeParam(parameter) = sema.types.kind(of: current) {
             guard visited.insert(parameter.symbol).inserted,
@@ -28,19 +30,34 @@ func kirErasedDispatchArgumentCastTarget(
     }
 
     let target = erasedUpperBound(implementationType)
+    let targetIsPrimitive: Bool
     switch sema.types.kind(of: target) {
     case .classType, .stringStruct, .functionType, .kClassType:
-        break
+        targetIsPrimitive = false
     case .nothing:
         // Nothing's null token rejects every non-null erased argument.
-        break
+        targetIsPrimitive = false
+    case .primitive:
+        // KUU-3172: the unboxing bridge alone is not enough for primitive
+        // parameters — `kk_unbox_int` & friends pass a wrong-type object
+        // through unchanged, so `Base<T>.foo(x: T)` overridden as
+        // `foo(x: Int)` silently forwarded any reference argument where
+        // the JVM bridge's `checkcast Integer` throws ClassCastException.
+        targetIsPrimitive = true
     default:
-        // Primitive representation changes are handled by the unboxing bridge.
         return nil
     }
     // A bridge checkcast checks the classifier and accepts null independently
-    // of the implementation's non-null contract, preserving nullable bounds.
-    let nullableTarget = sema.types.withNullability(.nullable, for: target)
+    // of the implementation's non-null contract, preserving nullable bounds —
+    // except for primitive targets, whose unboxed representation cannot carry
+    // the null sentinel: a null slipping through the cast would unbox to a
+    // bogus value rather than reach code that still observes it as null.
+    // Honoring the parameter's null contract there matches the JVM bridge's
+    // unbox call, which NPEs on a null argument (KUU-3172).
+    let nullableTarget = targetIsPrimitive
+        && !kirErasedDispatchImplementationAcceptsNull(implementationType, sema: sema)
+        ? sema.types.withNullability(.nonNull, for: target)
+        : sema.types.withNullability(.nullable, for: target)
     let dispatchBound = sema.types.withNullability(.nullable, for: erasedUpperBound(dispatchType))
     guard !sema.types.isSubtype(dispatchBound, nullableTarget) else {
         return nil

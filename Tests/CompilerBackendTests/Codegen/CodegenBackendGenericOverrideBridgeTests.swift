@@ -244,6 +244,33 @@ struct CodegenBackendGenericOverrideBridgeTests {
         try assertKotlinOutput(source, moduleName: "GenericBaseVarReadCheckcast", expected: "OK\n")
     }
 
+    // KUU-3172: kotlin/testData/codegen/box/bridges/test22.kt — an override
+    // narrowing an erased class parameter to a primitive (`foo(x: Int)`)
+    // needs a vtable bridge that checkcasts the boxed argument; the JVM
+    // bridge's `checkcast Integer` throws ClassCastException, but the
+    // unboxing bridge alone passed the wrong-type object through as a raw
+    // word.
+    @Test
+    func testPrimitiveParameterVtableBridgeCheckcastsArgument() throws {
+        try assertKotlinOutput(
+            source("kuu_3172_generic_primitive_bridge_test22"),
+            moduleName: "KUU3172PrimitiveBridgeCheckcast",
+            expected: "OK\n"
+        )
+    }
+
+    // KUU-3172: the same primitive checkcast must cover every boxed
+    // primitive representation (Long/Boolean/Double here), reject the
+    // wrong-type argument, and still dispatch correct-type calls.
+    @Test
+    func testPrimitiveParameterBridgeVariants() throws {
+        try assertKotlinOutput(
+            source("kuu_3172_generic_primitive_bridge_variants"),
+            moduleName: "KUU3172PrimitiveBridgeVariants",
+            expected: "OK\n"
+        )
+    }
+
     // KUU-3670: kotlin/testData/codegen/box/bridges/test24.kt — an override
     // narrowing an erased interface parameter to Nothing needs an itable
     // bridge that checkcasts the argument (always failing for non-null).
