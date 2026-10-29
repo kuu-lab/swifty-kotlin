@@ -77,6 +77,11 @@
       "excludeFromStdlibBuild": false
     },
     {
+      "path": "declarations/ReflectionPropertyException.kt",
+      "virtualPath": "<kswiftk-jvm>/reflectionPropertyException.kt",
+      "excludeFromStdlibBuild": true
+    },
+    {
       "path": "declarations/JavaReflection.kt",
       "virtualPath": "<kswiftk-jvm>/javaReflection.kt",
       "excludeFromStdlibBuild": false
