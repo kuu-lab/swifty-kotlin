@@ -1420,6 +1420,61 @@ extension ExprTypeChecker {
                 parameterSymbols.append(paramSymbol)
             }
 
+            // KUU-3175: `context(...)` clauses on object-literal member
+            // functions must reach the FunctionSignature exactly like named
+            // members do — the signature's contextParameterSymbols/Types feed
+            // both body type checking (named `context(i: C)` params bind to
+            // locals) and KIR parameter emission (leading context params
+            // after the receiver), which the itable dispatch ABI relies on.
+            let contextReceiverTypes = functionDecl.contextReceivers.compactMap { contextReceiver in
+                driver.helpers.resolveTypeRef(
+                    contextReceiver.type,
+                    ast: ast,
+                    sema: sema,
+                    interner: interner,
+                    scope: functionScope,
+                    diagnostics: ctx.sema.diagnostics,
+                    inferenceContext: ctx,
+                    usageRange: functionDecl.range
+                )
+            }
+            var contextParameterTypes: [TypeID] = []
+            var contextParameterSymbols: [SymbolID] = []
+            for param in DataFlowSemaPhase().contextParameterValueDeclarations(
+                functionDecl.contextReceivers,
+                interner: interner
+            ) {
+                let paramType: TypeID = if let typeRefID = param.type {
+                    driver.helpers.resolveTypeRef(
+                        typeRefID,
+                        ast: ast,
+                        sema: sema,
+                        interner: interner,
+                        scope: functionScope,
+                        diagnostics: ctx.sema.diagnostics,
+                        inferenceContext: ctx,
+                        usageRange: functionDecl.range
+                    )
+                } else {
+                    sema.types.anyType
+                }
+                contextParameterTypes.append(paramType)
+
+                let paramSymbol = sema.symbols.define(
+                    kind: .valueParameter,
+                    name: param.name,
+                    fqName: memberFQNamePrefix + [
+                        functionDecl.name, interner.intern("$context"), param.name,
+                    ],
+                    declSite: functionDecl.range,
+                    visibility: .private,
+                    flags: []
+                )
+                sema.symbols.setParentSymbol(memberSymbol, for: paramSymbol)
+                sema.symbols.setPropertyType(paramType, for: paramSymbol)
+                contextParameterSymbols.append(paramSymbol)
+            }
+
             let returnType: TypeID
             if let returnTypeRef = functionDecl.returnType {
                 returnType = driver.helpers.resolveTypeRef(
@@ -1459,6 +1514,9 @@ extension ExprTypeChecker {
             sema.symbols.setFunctionSignature(
                 FunctionSignature(
                     receiverType: receiverType,
+                    contextReceiverTypes: contextReceiverTypes,
+                    contextParameterSymbols: contextParameterSymbols,
+                    contextParameterTypes: contextParameterTypes,
                     parameterTypes: parameterTypes,
                     returnType: returnType,
                     isSuspend: functionDecl.isSuspend,
