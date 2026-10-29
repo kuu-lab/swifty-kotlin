@@ -646,30 +646,39 @@ public final class KIRModule {
 
     public func dump(interner: StringInterner, symbols: SymbolTable?) -> String {
         let names = KIRDumpNames(interner)
-        var lines: [String] = []
+        var output = KIRDumpOutput(estimatedLineCount: estimatedDumpLineCount())
         for (index, decl) in arena.declarations.enumerated() {
             switch decl {
             case let .function(function):
                 let name = names.resolve(function.name)
-                lines.append("decl[\(index)] function #\(function.symbol.rawValue) \(name) params=\(function.params.count) suspend=\(function.isSuspend) inline=\(function.isInline)")
+                output.appendLine("decl[\(index)] function #\(function.symbol.rawValue) \(name) params=\(function.params.count) suspend=\(function.isSuspend) inline=\(function.isInline)")
                 for instruction in function.body {
-                    lines.append("  \(instructionDescription(instruction, names: names, arena: arena, symbols: symbols))")
+                    output.appendLine("  \(instructionDescription(instruction, names: names, arena: arena, symbols: symbols))")
                 }
             case .global:
-                lines.append("decl[\(index)] global")
+                output.appendLine("decl[\(index)] global")
             case let .nominalType(nominal):
                 if let symbolName = symbols?.name(of: nominal.symbol) {
                     let name = names.resolve(symbolName)
-                    lines.append("decl[\(index)] type \(name)")
+                    output.appendLine("decl[\(index)] type \(name)")
                 } else {
-                    lines.append("decl[\(index)] type")
+                    output.appendLine("decl[\(index)] type")
                 }
             }
         }
         if !executedLowerings.isEmpty {
-            lines.append("lowerings: \(executedLowerings.joined(separator: ", "))")
+            output.appendLine("lowerings: \(executedLowerings.joined(separator: ", "))")
         }
-        return lines.joined(separator: "\n")
+        return output.text
+    }
+
+    private func estimatedDumpLineCount() -> Int {
+        arena.declarations.reduce(1) { count, decl in
+            if case let .function(function) = decl {
+                return count + 1 + function.body.count
+            }
+            return count + 1
+        }
     }
 
     private func instructionDescription(
@@ -825,6 +834,31 @@ struct KIRDumpNames {
             return ""
         }
         return values[index]
+    }
+}
+
+/// Builds the dump in one growing buffer: collecting a `[String]` of lines
+/// and joining it kept every line alive as its own allocation and copied the
+/// whole dump a second time. Lines are separated, not terminated, by "\n" to
+/// match `joined(separator:)`.
+struct KIRDumpOutput {
+    /// Typical dump line length; only sizes the initial reservation.
+    private static let estimatedBytesPerLine = 64
+
+    private(set) var text = ""
+    private var isEmpty = true
+
+    init(estimatedLineCount: Int) {
+        text.reserveCapacity(estimatedLineCount * Self.estimatedBytesPerLine)
+    }
+
+    mutating func appendLine(_ line: String) {
+        if isEmpty {
+            isEmpty = false
+        } else {
+            text += "\n"
+        }
+        text += line
     }
 }
 
