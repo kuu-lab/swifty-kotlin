@@ -1355,7 +1355,8 @@ extension CallTypeChecker {
         // source declSite), so the stub-exclusion test must distinguish a
         // genuinely synthetic launcher (kk_produce) from a source-backed
         // decl that merely arrived via .kklib metadata.
-        let produceSymbol = ctx.cachedScopeLookup(calleeName).first { candidate in
+        let nearestCandidates = ctx.cachedScopeLookup(calleeName)
+        func isMatchingBundledProduce(_ candidate: SymbolID) -> Bool {
             guard let symbol = ctx.cachedSymbol(candidate),
                   symbol.kind == .function,
                   !symbol.flags.contains(.synthetic) || symbol.flags.contains(.importedLibrary),
@@ -1366,6 +1367,17 @@ extension CallTypeChecker {
             else { return false }
             return true
         }
+        let directProduce = nearestCandidates.first(where: isMatchingBundledProduce)
+        let nearerCandidatesAreInapplicable = !nearestCandidates.isEmpty && nearestCandidates.allSatisfy { candidate in
+            guard let signature = sema.symbols.functionSignature(for: candidate) else { return false }
+            return !isCallableArityCompatible(signature: signature, argCount: args.count)
+        }
+        // A same-name declaration with too many required arguments does not
+        // hide an imported builder. Resolve its lambda receiver before the
+        // synthetic fallback performs inference without the source signature.
+        let produceSymbol = directProduce ?? (nearerCandidatesAreInapplicable
+            ? ctx.scope.lookup(calleeName, matching: isMatchingBundledProduce).first
+            : nil)
         guard let produceSymbol,
               let signature = sema.symbols.functionSignature(for: produceSymbol),
               let blockParamType = signature.parameterTypes.last
