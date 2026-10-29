@@ -653,7 +653,10 @@ public final class KIRModule {
                 let name = names.resolve(function.name)
                 output.appendLine("decl[\(index)] function #\(function.symbol.rawValue) \(name) params=\(function.params.count) suspend=\(function.isSuspend) inline=\(function.isInline)")
                 for instruction in function.body {
-                    output.appendLine("  \(instructionDescription(instruction, names: names, arena: arena, symbols: symbols))")
+                    output.appendLine { line in
+                        line += "  "
+                        appendInstruction(instruction, names: names, symbols: symbols, to: &line)
+                    }
                 }
             case .global:
                 output.appendLine("decl[\(index)] global")
@@ -681,101 +684,136 @@ public final class KIRModule {
         }
     }
 
-    private func instructionDescription(
+    /// Appends straight into the dump buffer so an instruction line costs no
+    /// intermediate String, and register lists no temporary array.
+    private func appendInstruction(
         _ instruction: KIRInstruction,
         names: KIRDumpNames,
-        arena _: KIRArena,
-        symbols: SymbolTable?
-    ) -> String {
+        symbols: SymbolTable?,
+        to out: inout String
+    ) {
         switch instruction {
         case .nop:
-            return "nop"
+            out += "nop"
         case .beginBlock:
-            return "beginBlock"
+            out += "beginBlock"
         case .endBlock:
-            return "endBlock"
+            out += "endBlock"
         case let .label(id):
-            return "label L\(id)"
+            out += "label L\(id)"
         case let .jump(target):
-            return "jump L\(target)"
+            out += "jump L\(target)"
         case let .jumpIfEqual(lhs, rhs, target):
-            return "jumpIfEqual r\(lhs.rawValue), r\(rhs.rawValue) -> L\(target)"
+            out += "jumpIfEqual r\(lhs.rawValue), r\(rhs.rawValue) -> L\(target)"
         case let .constValue(result, value):
-            return "const r\(result.rawValue)=\(valueDescription(value, names: names))"
+            out += "const r\(result.rawValue)=\(valueDescription(value, names: names))"
         case let .binary(op, lhs, rhs, result):
-            return "binary \(op.dumpName) r\(lhs.rawValue), r\(rhs.rawValue) -> r\(result.rawValue)"
+            out += "binary \(op.dumpName) r\(lhs.rawValue), r\(rhs.rawValue) -> r\(result.rawValue)"
         case let .unary(op, operand, result):
-            return "unary \(op.dumpName) r\(operand.rawValue) -> r\(result.rawValue)"
+            out += "unary \(op.dumpName) r\(operand.rawValue) -> r\(result.rawValue)"
         case let .nullAssert(operand, result):
-            return "nullAssert r\(operand.rawValue) -> r\(result.rawValue)"
+            out += "nullAssert r\(operand.rawValue) -> r\(result.rawValue)"
         case let .call(symbol, callee, arguments, result, canThrow, thrownResult, isSuperCall, qualifiedSuperType):
-            let calleeName = names.resolve(callee)
-            let args = arguments.map { "r\($0.rawValue)" }.joined(separator: ", ")
-            let symbolLabel: String = if let symbol, let name = symbols?.name(of: symbol) {
-                names.resolve(name)
-            } else {
-                "_"
+            out += "call "
+            out += names.resolve(callee)
+            appendSymbolLabel(symbol, names: names, symbols: symbols, to: &out)
+            appendRegisterList(arguments, to: &out)
+            appendRegisterSlot(" ret=", result, to: &out)
+            out += canThrow ? " thrown=true" : " thrown=false"
+            appendRegisterSlot(" thrownResult=", thrownResult, to: &out)
+            if isSuperCall {
+                out += " super=1"
             }
-            let ret = result.map { "r\($0.rawValue)" } ?? "_"
-            let thrownRet = thrownResult.map { "r\($0.rawValue)" } ?? "_"
-            let superTag = isSuperCall ? " super=1" : ""
-            let qualifiedSuperTag = qualifiedSuperType.map { " qualifiedSuper=\($0.rawValue)" } ?? ""
-            return "call \(calleeName) symbol=\(symbolLabel) args=[\(args)] ret=\(ret) thrown=\(canThrow) thrownResult=\(thrownRet)\(superTag)\(qualifiedSuperTag)"
+            if let qualifiedSuperType {
+                out += " qualifiedSuper=\(qualifiedSuperType.rawValue)"
+            }
         case let .virtualCall(symbol, callee, receiver, arguments, result, canThrow, thrownResult, dispatch):
-            let calleeName = names.resolve(callee)
-            let args = arguments.map { "r\($0.rawValue)" }.joined(separator: ", ")
-            let symbolLabel: String = if let symbol, let name = symbols?.name(of: symbol) {
-                names.resolve(name)
-            } else {
-                "_"
-            }
-            let ret = result.map { "r\($0.rawValue)" } ?? "_"
-            let thrownRet = thrownResult.map { "r\($0.rawValue)" } ?? "_"
-            let dispatchLabel = switch dispatch {
+            out += "virtualCall "
+            out += names.resolve(callee)
+            appendSymbolLabel(symbol, names: names, symbols: symbols, to: &out)
+            out += " receiver=r\(receiver.rawValue)"
+            appendRegisterList(arguments, to: &out)
+            appendRegisterSlot(" ret=", result, to: &out)
+            out += canThrow ? " thrown=true" : " thrown=false"
+            appendRegisterSlot(" thrownResult=", thrownResult, to: &out)
+            switch dispatch {
             case let .vtable(slot):
-                "vtable[\(slot)]"
+                out += " dispatch=vtable[\(slot)]"
             case let .itable(interfaceSlot, methodSlot):
-                "itable[\(interfaceSlot):\(methodSlot)]"
+                out += " dispatch=itable[\(interfaceSlot):\(methodSlot)]"
             case let .itableDynamic(interfaceTypeID, methodSlot):
-                "itableDynamic[\(interfaceTypeID):\(methodSlot)]"
+                out += " dispatch=itableDynamic[\(interfaceTypeID):\(methodSlot)]"
             }
-            return "virtualCall \(calleeName) symbol=\(symbolLabel) receiver=r\(receiver.rawValue) args=[\(args)] ret=\(ret) thrown=\(canThrow) thrownResult=\(thrownRet) dispatch=\(dispatchLabel)"
         case let .jumpIfNotNull(value, target):
-            return "jumpIfNotNull r\(value.rawValue) -> L\(target)"
+            out += "jumpIfNotNull r\(value.rawValue) -> L\(target)"
         case let .copy(from, to):
-            return "copy r\(from.rawValue) -> r\(to.rawValue)"
+            out += "copy r\(from.rawValue) -> r\(to.rawValue)"
         case let .storeGlobal(value, symbol):
-            return "storeGlobal r\(value.rawValue) -> s\(symbol.rawValue)"
+            out += "storeGlobal r\(value.rawValue) -> s\(symbol.rawValue)"
         case let .loadGlobal(result, symbol):
-            return "loadGlobal s\(symbol.rawValue) -> r\(result.rawValue)"
+            out += "loadGlobal s\(symbol.rawValue) -> r\(result.rawValue)"
         case let .rethrow(value):
-            return "rethrow r\(value.rawValue)"
+            out += "rethrow r\(value.rawValue)"
         case let .returnIfEqual(lhs, rhs):
-            return "returnIfEqual r\(lhs.rawValue), r\(rhs.rawValue)"
+            out += "returnIfEqual r\(lhs.rawValue), r\(rhs.rawValue)"
         case .returnUnit:
-            return "returnUnit"
+            out += "returnUnit"
         case let .returnValue(value):
-            return "return r\(value.rawValue)"
+            out += "return r\(value.rawValue)"
         case let .nonLocalReturn(value, target):
             if let value {
-                return "nonLocalReturn r\(value.rawValue)" + (target.map { " target=\($0.dumpDescription)" } ?? "")
+                out += "nonLocalReturn r\(value.rawValue)" + (target.map { " target=\($0.dumpDescription)" } ?? "")
             } else {
-                return "nonLocalReturnUnit" + (target.map { " target=\($0.dumpDescription)" } ?? "")
+                out += "nonLocalReturnUnit" + (target.map { " target=\($0.dumpDescription)" } ?? "")
             }
         case .beginFinallyGuard:
-            return "beginFinallyGuard"
+            out += "beginFinallyGuard"
         case let .beginNonLocalReturnScope(value, target, function):
-            return "beginNonLocalReturnScope r\(value.rawValue), L\(target)" + (function.map { " function=\($0.dumpDescription)" } ?? "")
+            out += "beginNonLocalReturnScope r\(value.rawValue), L\(target)" + (function.map { " function=\($0.dumpDescription)" } ?? "")
         case .endNonLocalReturnScope:
-            return "endNonLocalReturnScope"
+            out += "endNonLocalReturnScope"
         case let .resumeNonLocalReturn(value):
-            return "resumeNonLocalReturn r\(value.rawValue)"
+            out += "resumeNonLocalReturn r\(value.rawValue)"
         case let .beginFinallyCleanup(skipping):
-            return "beginFinallyCleanup skipping=\(skipping)"
+            out += "beginFinallyCleanup skipping=\(skipping)"
         case .endFinallyCleanup:
-            return "endFinallyCleanup"
+            out += "endFinallyCleanup"
         case .endFinallyGuard:
-            return "endFinallyGuard"
+            out += "endFinallyGuard"
+        }
+    }
+
+    private func appendSymbolLabel(
+        _ symbol: SymbolID?,
+        names: KIRDumpNames,
+        symbols: SymbolTable?,
+        to out: inout String
+    ) {
+        out += " symbol="
+        if let symbol, let name = symbols?.name(of: symbol) {
+            out += names.resolve(name)
+        } else {
+            out += "_"
+        }
+    }
+
+    private func appendRegisterList(_ registers: [KIRExprID], to out: inout String) {
+        out += " args=["
+        for (position, register) in registers.enumerated() {
+            if position > 0 {
+                out += ", "
+            }
+            out += "r\(register.rawValue)"
+        }
+        out += "]"
+    }
+
+    private func appendRegisterSlot(_ label: String, _ register: KIRExprID?, to out: inout String) {
+        out += label
+        if let register {
+            out += "r\(register.rawValue)"
+        } else {
+            out += "_"
         }
     }
 
@@ -853,12 +891,16 @@ struct KIRDumpOutput {
     }
 
     mutating func appendLine(_ line: String) {
+        appendLine { $0 += line }
+    }
+
+    mutating func appendLine(_ build: (inout String) -> Void) {
         if isEmpty {
             isEmpty = false
         } else {
             text += "\n"
         }
-        text += line
+        build(&text)
     }
 }
 
