@@ -180,6 +180,7 @@ struct ContextualKeywordParameterNameTests {
         "class Box(this: Int)",
         "class Box { constructor(this: Int) {} }",
         "class Box { fun f(vararg this: Int) = 0 }",
+        "class Box { fun f(this vararg: Int) = 0 }",
         "class Box { fun f(@Suppress(\"x\") this: Int) = 0 }",
     ])
     func testThisParameterNameIsRejectedAcrossDeclarationShapes(_ declaration: String) throws {
