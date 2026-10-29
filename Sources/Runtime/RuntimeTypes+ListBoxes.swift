@@ -692,10 +692,68 @@ extension RuntimeListBox: RuntimeChildReferenceProviding {
     }
 
     var childRefs: [Int] {
-        if case let .mapValuesViewOf(mapRaw) = storage {
-            return mapRaw == 0 ? [] : [mapRaw]
+        var references: [Int] = []
+        var current = self
+        while true {
+            switch current.storage {
+            case let .mapValuesViewOf(mapRaw):
+                if mapRaw != 0 { references.append(mapRaw) }
+                return references
+            case let .reversedViewOf(base):
+                references.append(Int(bitPattern: Unmanaged.passUnretained(base).toOpaque()))
+                current = base
+            case let .subList(slice):
+                references.append(Int(bitPattern: Unmanaged.passUnretained(slice.base).toOpaque()))
+                current = slice.base
+            default:
+                references.append(contentsOf: current.indices.compactMap { current.childReference(at: $0) })
+                return references
+            }
         }
-        return indices.compactMap { childReference(at: $0) }
+    }
+
+    /// The collector holds gcLock and must not acquire an array view lock.
+    func gcChildRefsLocked(state: GCState) -> [Int] {
+        var references: [Int] = []
+        var current = self
+        while true {
+            switch current.storage {
+            case let .mapValuesViewOf(mapRaw):
+                if mapRaw != 0 { references.append(mapRaw) }
+                return references
+            case let .reversedViewOf(base):
+                references.append(Int(bitPattern: Unmanaged.passUnretained(base).toOpaque()))
+                current = base
+            case let .subList(slice):
+                references.append(Int(bitPattern: Unmanaged.passUnretained(slice.base).toOpaque()))
+                current = slice.base
+            case let .arrayViewOf(base, kind):
+                if kind == nil { references.append(contentsOf: base.gcStorageChildRefsLocked(state: state)) }
+                return references
+            case let .dequeViewOf(base):
+                references.append(contentsOf: base.childRefs)
+                return references
+            case let .direct(direct):
+                references.append(contentsOf: direct.values.compactMap(\.childReferenceRawValue))
+                return references
+            }
+        }
+    }
+
+    func gcArrayStorageID() -> ObjectIdentifier? {
+        var current = self
+        while true {
+            switch current.storage {
+            case let .reversedViewOf(base):
+                current = base
+            case let .subList(slice):
+                current = slice.base
+            case let .arrayViewOf(base, kind):
+                return kind == nil ? base.gcStorageID : nil
+            case .direct, .dequeViewOf, .mapValuesViewOf:
+                return nil
+            }
+        }
     }
 }
 

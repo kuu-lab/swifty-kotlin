@@ -183,6 +183,7 @@ final class RuntimeJobHandle: @unchecked Sendable {
     private var result: Int = 0
     private var failure: Int = 0
     private var cancelCause: Int = 0
+    private let gcRootStorage = RuntimeCoroutineRootStorage()
     private var cancelMessage: String = "CancellationException"
     private var usesDefaultCancellationMessage = false
     private let defaultCancellationMessageFallback: String
@@ -498,11 +499,41 @@ final class RuntimeJobHandle: @unchecked Sendable {
         }
     }
 
-    func completionSnapshot() -> (completed: Bool, value: Int, exception: Int) {
+    private func terminalValueForJoinLocked() -> Int {
+        let value = terminalValueLocked()
+        let threadID = ObjectIdentifier(Thread.current)
+        runtimeStorage.withGCLock { state in
+            runtimeRecordShadowHandoffLocked(value, threadID: threadID, state: &state)
+        }
+        return value
+    }
+
+    // The job lock is held. The collector uses the mirror and never acquires
+    // the job lock, so publishing values cannot invert the GC lock order.
+    private func setTerminalValuesLocked(result: Int, failure: Int, cancelCause: Int) {
+        runtimeStorage.withGCLock { state in
+            self.result = result
+            self.failure = failure
+            self.cancelCause = cancelCause
+            runtimeRecordCoroutineHeapRootsLocked(
+                [result, failure, cancelCause], storage: gcRootStorage, state: &state
+            )
+        }
+    }
+
+    func completionSnapshot(handoff: RuntimeCompletionHandoff = .all) -> (completed: Bool, value: Int, exception: Int) {
+        let threadID = ObjectIdentifier(Thread.current)
         lock.lock()
         defer { lock.unlock() }
         let cause = completionCauseLocked()
-        return (state.isCompleted && !producerCompletionPending, result, cause == runtimeNullSentinelInt ? 0 : cause)
+        let exception = cause == runtimeNullSentinelInt ? 0 : cause
+        let completed = state.isCompleted && !producerCompletionPending
+        runtimeStorage.withGCLock { state in
+            runtimeRecordCompletionHandoffLocked(
+                handoff, completed: completed, value: result, exception: exception, threadID: threadID, state: &state
+            )
+        }
+        return (completed, result, exception)
     }
 
     /// KUU-CORO-101: the value `invokeOnCompletion` handlers receive as
@@ -528,14 +559,10 @@ final class RuntimeJobHandle: @unchecked Sendable {
         case .new, .active:
             state = .completing
             if successState == .completed {
-                result = value
-                failure = 0
-                cancelCause = 0
+                setTerminalValuesLocked(result: value, failure: 0, cancelCause: 0)
                 state = .completed
             } else if successState == .failed {
-                failure = failureValue
-                result = 0
-                cancelCause = 0
+                setTerminalValuesLocked(result: 0, failure: failureValue, cancelCause: 0)
                 state = .failed
             }
             return true
@@ -544,8 +571,9 @@ final class RuntimeJobHandle: @unchecked Sendable {
             // after observing cancellation. Transition to fully cancelled so that
             // join() can return. The cancelCause is preserved from when cancel() was called.
             if successState == .failed, failureValue != 0, kk_is_cancellation_exception(failureValue) == 0 {
-                failure = cancelCause != 0 && kk_is_cancellation_exception(cancelCause) == 0
+                let resolvedFailure = cancelCause != 0 && kk_is_cancellation_exception(cancelCause) == 0
                     ? cancelCause : failureValue
+                setTerminalValuesLocked(result: result, failure: resolvedFailure, cancelCause: cancelCause)
                 state = .failed
             } else {
                 state = .cancelled
@@ -677,7 +705,7 @@ final class RuntimeJobHandle: @unchecked Sendable {
             return false
         case .cancelling:
             if cancelCause == 0 {
-                cancelCause = resolvedCause
+                setTerminalValuesLocked(result: result, failure: failure, cancelCause: resolvedCause)
             }
             if cancelMessage == "CancellationException" {
                 cancelMessage = message
@@ -688,9 +716,7 @@ final class RuntimeJobHandle: @unchecked Sendable {
         case .new, .active, .completing:
             cancelMessage = message
             usesDefaultCancellationMessage = usesDefaultMessage
-            cancelCause = resolvedCause
-            result = 0
-            failure = 0
+            setTerminalValuesLocked(result: 0, failure: 0, cancelCause: resolvedCause)
             // A job that has not started executing can become terminal
             // immediately. Once execution has begun, keep the intermediate
             // cancelling state so explicit completion mirrors lifecycle
@@ -757,7 +783,7 @@ final class RuntimeJobHandle: @unchecked Sendable {
         RuntimePendingLaunchQueue.flush()
         lock.lock()
         if state.isCompleted, !producerCompletionPending {
-            let value = terminalValueLocked()
+            let value = terminalValueForJoinLocked()
             lock.unlock()
             return value
         }
@@ -770,11 +796,13 @@ final class RuntimeJobHandle: @unchecked Sendable {
             addJoinResumer { _ in loop.wake() }
             loop.run(until: { self.completedSnapshot() })
         } else {
+            let gcBlocking = runtimeGCSafepoints.beginBlockingIfEnrolled()
             completionSemaphore.wait()
+            if gcBlocking { runtimeGCSafepoints.endBlocking() }
             completionSemaphore.signal()
         }
         lock.lock()
-        let value = terminalValueLocked()
+        let value = terminalValueForJoinLocked()
         lock.unlock()
         return value
     }
@@ -902,20 +930,19 @@ private func runtimeBindJobSupportWrapperIfNeeded(_ wrapper: RuntimeObjectBox) -
         sourceTypeID: sourceID,
         targetTypeID: runtimeStableNominalTypeID(fqName: "kotlinx.coroutines.JobSupport")
     ) else { return nil }
-    let job = runtimeStorage.withGCLock { _ -> RuntimeJobHandle? in
-        if wrapper.coroutineJobHandle != 0 {
-            return resolveLiveRuntimeHandle(wrapper.coroutineJobHandle, as: RuntimeJobHandle.self)
+    return wrapper.withCoroutineJobHandle { current -> RuntimeJobHandle? in
+        if current != 0, let existing = resolveLiveRuntimeHandle(current, as: RuntimeJobHandle.self) {
+            return existing
         }
         let job = RuntimeJobHandle()
         job.markStarted()
         job.markBodyless()
-        let jobPtr = UnsafeMutableRawPointer(Unmanaged.passRetained(job).toOpaque())
-        wrapper.coroutineJobHandle = Int(bitPattern: jobPtr)
         job.bindSourceWrapper(wrapper)
         job.nominalJobTypeID = sourceID
+        let jobPtr = UnsafeMutableRawPointer(Unmanaged.passRetained(job).toOpaque())
+        current = Int(bitPattern: jobPtr)
         return job
     }
-    return job
 }
 
 /// CORO-003: Per-thread task key used to index into the task-scope map.

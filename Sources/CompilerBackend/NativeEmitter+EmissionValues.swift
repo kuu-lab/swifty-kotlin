@@ -327,13 +327,14 @@ extension NativeEmitter.FunctionEmissionContext {
                 ) ?? storedValue
             }
             registerGCRootForGlobal(targetSymbol, slot: globalPointer)
-            _ = bindings.buildStore(builder, value: globalValue, pointer: globalPointer)
+            emitGCGlobalStore(symbol: targetSymbol, pointer: globalPointer, value: globalValue)
         }
         if let alloca = copyTargetAllocas[result.rawValue],
            !bindings.hasTerminator(currentBlock)
         {
             _ = bindings.buildStore(builder, value: storedValue, pointer: alloca)
         }
+        emitGCShadowSet(result, value: storedValue)
         values[result.rawValue] = storedValue
         storeGCRoot(for: result, value: storedValue)
     }

@@ -61,6 +61,7 @@ extension NativeEmitter.FunctionEmissionContext {
         } else {
             storeOutThrownIfNonNull(exceptionHandle, suffix: "len_npe_\(instructionIndex)")
             emitGCFrameLeave(returning: exceptionHandle)
+            emitGCShadowPop(thrown: exceptionHandle)
             _ = bindings.buildRet(builder, value: zeroReturnValue)
         }
 
@@ -568,6 +569,24 @@ extension NativeEmitter.FunctionEmissionContext {
         let calleeFunction: NativeEmitter.LLVMFunction?
         let isInternalCall = effectiveSymbol.flatMap { internalFunctions[$0] } != nil
         let effectiveExternalName = effectiveSymbol.flatMap { symbols?.externalLinkName(for: $0) } ?? externalCalleeName
+        if !isInternalCall, fallbackInternal == nil,
+           effectiveExternalName == "kk_weak_ref_get", argumentValues.count == 1,
+           let result, let slot = gcShadowSlot(for: result),
+           let rootedGetter = declareExternalFunction(
+               named: "kk_weak_ref_get_rooted", argumentCount: 2, appendThrownChannel: false
+           ),
+           let value = bindings.buildCall(
+               builder, functionType: rootedGetter.type, callee: rootedGetter.value,
+               arguments: [argumentValues[0], slot], name: "weak_rooted_\(instructionIndex)"
+           )
+        {
+            rawResultValues[result.rawValue] = value
+            storeResult(result, value)
+            if usesThrownChannel {
+                storeResult(thrownResult, zeroValue)
+            }
+            return
+        }
         // Default stubs can forward boxed callbacks without passing through CallLowerer's expansion.
         if !isInternalCall,
            let spec = NativeEmitter.runtimeABIFunctionByName[effectiveExternalName]

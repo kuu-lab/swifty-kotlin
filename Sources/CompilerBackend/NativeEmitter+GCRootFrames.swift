@@ -1,15 +1,16 @@
 import CompilerCore
 
 extension NativeEmitter.FunctionEmissionContext {
-    func prepareGCRootFrame(allocaBuilder: LLVMCAPIBindings.LLVMBuilderRef?) {
+    func prepareGCRootFrame(allocaBuilder: LLVMCAPIBindings.LLVMBuilderRef?) throws {
         let parameterIndices = function.params.indices.filter {
-            isGCRootReferenceType(function.params[$0].type)
+            usesRuntimeCallbackRawABI || isGCRootReferenceType(function.params[$0].type)
         }
         let expressionIDs = Set(function.body.flatMap(gcExpressionIDs(in:)))
             .filter { isGCRootReferenceType(module.arena.exprType($0)) }
             .sorted { $0.rawValue < $1.rawValue }
         let rootCount = parameterIndices.count + expressionIDs.count
-        guard rootCount > 0,
+        guard rootCount > 0 else { return }
+        guard bindings.typeOfFn != nil, bindings.getTypeKindFn != nil,
               let pointerType = typeLowering?.dataPointerType,
               let arrayType = bindings.arrayType(element: int64Type, count: rootCount),
               let arrayPointer = bindings.buildEntryAlloca(
@@ -35,7 +36,7 @@ extension NativeEmitter.FunctionEmissionContext {
                   returnType: int64Type
               )
         else {
-            return
+            throw LLVMBackendError.nativeEmissionFailed("failed to prepare GC root frame")
         }
 
         gcRootFrameActive = true
@@ -52,7 +53,7 @@ extension NativeEmitter.FunctionEmissionContext {
                 index: slotIndex,
                 name: "gc_param_root_\(parameterIndex)"
             ) else {
-                continue
+                throw LLVMBackendError.nativeEmissionFailed("failed to prepare GC parameter root")
             }
             gcRootSlotsByParameter[parameterIndex] = slot
             slotIndex += 1
@@ -66,27 +67,43 @@ extension NativeEmitter.FunctionEmissionContext {
                 index: slotIndex,
                 name: "gc_expr_root_\(expressionID.rawValue)"
             ) else {
-                continue
+                throw LLVMBackendError.nativeEmissionFailed("failed to prepare GC expression root")
             }
             gcRootSlotsByExpression[expressionID.rawValue] = slot
             slotIndex += 1
         }
 
         for slot in Array(gcRootSlotsByParameter.values) + Array(gcRootSlotsByExpression.values) {
-            _ = bindings.buildStore(builder, value: zeroValue, pointer: slot)
+            guard bindings.buildStore(builder, value: zeroValue, pointer: slot) != nil else {
+                throw LLVMBackendError.nativeEmissionFailed("failed to initialize GC root slot")
+            }
+        }
+        // Register the frame with its raw reference parameters already in
+        // place, so a collector never observes a partially published frame.
+        for (parameterIndex, slot) in gcRootSlotsByParameter {
+            guard let value = parameterValues[function.params[parameterIndex].symbol] else {
+                throw LLVMBackendError.nativeEmissionFailed("missing GC root parameter")
+            }
+            guard bindings.typeOfFn?(value) != nil, !bindings.isAggregateStructValue(value) else {
+                throw LLVMBackendError.nativeEmissionFailed("invalid GC root parameter type")
+            }
+            guard bindings.buildStore(builder, value: value, pointer: slot) != nil else {
+                throw LLVMBackendError.nativeEmissionFailed("failed to initialize GC parameter root")
+            }
         }
         guard let countValue = bindings.constInt(int64Type, value: UInt64(rootCount)) else {
             gcRootFrameActive = false
-            return
+            throw LLVMBackendError.nativeEmissionFailed("failed to create GC root count")
         }
-        let pushResult = bindings.buildCall(
+        guard bindings.buildCall(
             builder,
             functionType: pushFunction.type,
             callee: pushFunction.value,
             arguments: [arrayPointer, countValue],
             name: nameCounter.nextName("gc_push_frame_")
-        )
-        _ = pushResult
+        ) != nil else {
+            throw LLVMBackendError.nativeEmissionFailed("failed to register GC root frame")
+        }
 
         for (parameterIndex, slot) in gcRootSlotsByParameter {
             guard let value = parameterValues[function.params[parameterIndex].symbol] else {
@@ -163,13 +180,12 @@ extension NativeEmitter.FunctionEmissionContext {
     }
 
     private func isGCRootReferenceType(_ type: TypeID?) -> Bool {
-        guard let type, let typeSystem else {
-            return false
-        }
+        guard let type, let typeSystem else { return true }
         switch typeSystem.kind(of: type) {
-        case .any, .classType, .typeParam, .functionType, .intersection, .kClassType:
+        case .any, .classType, .typeParam, .functionType, .intersection, .kClassType,
+             .primitive(_, .nullable), .primitive(_, .platformType):
             return true
-        case .error, .unit, .nullableUnit, .platformUnit, .nothing, .stringStruct, .primitive:
+        case .error, .unit, .nullableUnit, .platformUnit, .nothing, .stringStruct, .primitive(_, .nonNull):
             return false
         }
     }

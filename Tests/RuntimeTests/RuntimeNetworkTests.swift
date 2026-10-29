@@ -1,3 +1,4 @@
+import Dispatch
 import Foundation
 @testable import Runtime
 import Testing
@@ -98,9 +99,18 @@ struct RuntimeNetworkTests {
 import http.server
 import socketserver
 import sys
+import time
 
 class Handler(http.server.BaseHTTPRequestHandler):
     def do_GET(self):
+        if self.path == "/slow":
+            time.sleep(5)
+            body = b"slow"
+            self.send_response(200)
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
         if self.path == "/redirect":
             self.send_response(302)
             self.send_header("Location", "/get")
@@ -289,6 +299,49 @@ with ThreadedTCPServer(("127.0.0.1", 0), Handler) as httpd:
         #expect(stringValue(kk_http_response_body(postResponseRaw)) == "POST:payload")
         let postHeadersRaw = kk_http_response_headers(postResponseRaw)
         #expect(stringValue(kk_http_headers_firstValue(postHeadersRaw, runtimeString("X-Method"))) == "POST")
+    }
+
+    @Test func httpWaitDoesNotBlockCollectionOfAnEnrolledMutator() throws {
+        let server = try HTTPTestServer()
+        defer { server.stop() }
+        var thrown = 0
+        let client = kk_http_client_newHttpClient()
+        let handler = kk_http_body_handlers_ofString(0)
+        let uri = runtimeNetworkURI(from: runtimeString("http://127.0.0.1:\(server.port)/slow"), &thrown)
+        #expect(thrown == 0)
+        let builder = kk_http_request_newBuilder_uri(uri)
+        _ = kk_http_request_builder_GET(builder)
+        let request = kk_http_request_builder_build(builder, &thrown)
+        #expect(thrown == 0)
+
+        let waiting = DispatchSemaphore(value: 0)
+        let finished = DispatchSemaphore(value: 0)
+        let collected = DispatchSemaphore(value: 0)
+        DispatchQueue.global().async {
+            __kk_gc_mutator_enter()
+            waiting.signal()
+            var failure = 0
+            let response = kk_http_client_send(client, request, handler, &failure)
+            #expect(failure == 0)
+            #expect(kk_http_response_statusCode(response) == 200)
+            __kk_gc_mutator_leave()
+            finished.signal()
+        }
+        #expect(waiting.wait(timeout: .now() + 5) == .success)
+        DispatchQueue.global().async {
+            kk_gc_collect()
+            collected.signal()
+        }
+        let earlyCollection = collected.wait(timeout: .now() + 2)
+        #expect(earlyCollection == .success)
+        if earlyCollection == .timedOut {
+            #expect(collected.wait(timeout: .now() + 10) == .success)
+        }
+        let finishedBeforeCollection = finished.wait(timeout: .now()) == .success
+        #expect(!finishedBeforeCollection)
+        if !finishedBeforeCollection {
+            #expect(finished.wait(timeout: .now() + 10) == .success)
+        }
     }
 
     @Test func httpClientHonorsFollowRedirectsDisabled() throws {

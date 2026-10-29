@@ -450,7 +450,9 @@ private func runtimeCoroutineElementKeyHandle(for receiver: Int) -> Int {
 func runtimeRegisterObject<T: AnyObject>(_ object: T) -> Int {
     let ptr = UnsafeMutableRawPointer(Unmanaged.passRetained(object).toOpaque())
     runtimeStorage.withGCLock { state in
-        state.objectPointers.insert(UInt(bitPattern: ptr))
+        let key = UInt(bitPattern: ptr)
+        state.objectPointers.insert(key)
+        recordRetainedBoxManagedHeapFieldsLocked(object, owner: key, state: &state)
     }
     return Int(bitPattern: ptr)
 }
@@ -1251,7 +1253,7 @@ private func runtimeInstallWithContextChildContext(
                 guard let childJob = runtimeJobHandle(from: child)
                     ?? runtimeAsyncTask(from: child)?.completionJob else { continue }
                 _ = childJob.join()
-                let failure = childJob.completionSnapshot().exception
+                let failure = childJob.completionSnapshot(handoff: .exception).exception
                 if failure != 0, kk_is_cancellation_exception(failure) == 0 {
                     blockScope.recordBodyFailure(failure)
                     blockScope.cancel(message: "withContext child failed", cause: failure)
@@ -1266,7 +1268,7 @@ private func runtimeInstallWithContextChildContext(
         }
         if failure != 0 { _ = blockJob?.completeExceptionally(with: failure) }
         else { _ = blockJob?.complete(with: 0) }
-        let settledCause = blockJob?.completionSnapshot().exception ?? failure
+        let settledCause = blockJob?.completionSnapshot(handoff: .exception).exception ?? failure
         // A scoped failure is delivered through its caller. Once caught it
         // must not remain in the parent's hierarchy as an unhandled child.
         blockParent?.detachChild(blockJobRaw)

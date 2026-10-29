@@ -30,6 +30,40 @@ enum ChannelBufferOverflow {
     case dropLatest
 }
 
+private struct RuntimeChannelBuffer {
+    private var queue = RuntimeFIFOQueue<RuntimeGCRootedValue>()
+
+    var count: Int { queue.count }
+    var isEmpty: Bool { queue.isEmpty }
+
+    mutating func enqueue(_ value: Int) {
+        queue.enqueue(RuntimeGCRootedValue(value))
+    }
+
+    mutating func dequeue(discard: Bool = false) -> Int? {
+        guard let value = queue.dequeue() else { return nil }
+        return discard ? value.value : value.rootedValue()
+    }
+
+    mutating func drain() {
+        while queue.dequeue() != nil {}
+    }
+}
+
+private struct RuntimeChannelCloseHandler {
+    let fnPtr: Int
+    let closureRaw: Int
+    private let functionRoot: RuntimeGCRootedValue
+    private let captureRoot: RuntimeGCRootedValue
+
+    init(fnPtr: Int, closureRaw: Int) {
+        self.fnPtr = fnPtr
+        self.closureRaw = closureRaw
+        functionRoot = RuntimeGCRootedValue(fnPtr)
+        captureRoot = RuntimeGCRootedValue(closureRaw)
+    }
+}
+
 /// Mutable box for a suspended sender so receivers can mark delivery before
 /// resuming the continuation.  Using a class (reference type) ensures the
 /// `delivered` flag set under the channel lock is visible to the sender
@@ -37,7 +71,10 @@ enum ChannelBufferOverflow {
 final class SuspendedSender: @unchecked Sendable {
     let semaphore: DispatchSemaphore // CORO-004: Keep for backward compatibility during migration
     let continuation: Int
-    let value: Int
+    private let rootedPayload: RuntimeGCRootedValue
+    var value: Int { rootedPayload.value }
+
+    func rootedValue() -> Int { rootedPayload.rootedValue() }
     var resumeClosure: (@Sendable () -> Void)?
 
     /// Set to `true` (under the channel lock) when the sender's value is
@@ -54,7 +91,7 @@ final class SuspendedSender: @unchecked Sendable {
     init(semaphore: DispatchSemaphore, continuation: Int, value: Int) {
         self.semaphore = semaphore
         self.continuation = continuation
-        self.value = value
+        self.rootedPayload = RuntimeGCRootedValue(value)
     }
 }
 
@@ -65,7 +102,12 @@ final class SuspendedReceiver: @unchecked Sendable {
     let continuation: Int
     var resumeClosure: (@Sendable () -> Void)?
     /// The value deposited by a sender. `nil` means woken by close or cancel.
-    var result: Int?
+    private var rootedResultValue: RuntimeGCRootedValue?
+    var result: Int? {
+        get { rootedResultValue?.value }
+        set { rootedResultValue = newValue.map(RuntimeGCRootedValue.init) }
+    }
+    func rootedResult() -> Int? { rootedResultValue?.rootedValue() }
     var cancelledWakeup: Bool = false
 
     init(semaphore: DispatchSemaphore, continuation: Int) {
@@ -181,7 +223,7 @@ final class RuntimeChannelHandle: @unchecked Sendable {
     // `buffer`, `senderQueue`, and `receiverQueue` are head-index FIFO queues:
     // dequeue is O(1) amortized, so draining an UNLIMITED/backed-up channel
     // stays linear instead of quadratic in the buffered element count.
-    private var buffer = RuntimeFIFOQueue<Int>()
+    private var buffer = RuntimeChannelBuffer()
     let capacity: Int
     private(set) var closed = false
     /// `true` when the channel was closed via `cancel(cause:)` (buffer
@@ -191,12 +233,18 @@ final class RuntimeChannelHandle: @unchecked Sendable {
     /// or `0` when the channel is still open or was closed without a cause.
     /// Retained so result-returning operations (`trySend` and friends) can
     /// report the exact close cause via `ChannelResult.exceptionOrNull()`.
-    private(set) var closeCause: Int = 0
+    private(set) var closeCause: Int = 0 {
+        didSet { closeCauseRoot = closeCause == 0 ? nil : RuntimeGCRootedValue(closeCause) }
+    }
+    private var closeCauseRoot: RuntimeGCRootedValue?
     /// Raw handle of the `CancellationException` (or the cause passed to
     /// `cancel(cause:)`) installed by `cancel()`, re-thrown from every
     /// subsequent `send`/`receive` (KUU-1404: JVM `cancel` stores the
     /// cancellation cause on the channel).
-    private var cancelCauseRaw: Int = 0
+    private var cancelCauseRaw: Int = 0 {
+        didSet { cancelCauseRoot = cancelCauseRaw == 0 ? nil : RuntimeGCRootedValue(cancelCauseRaw) }
+    }
+    private var cancelCauseRoot: RuntimeGCRootedValue?
     private let bufferOverflow: ChannelBufferOverflow
 
     // Receivers set `delivered = true` before signaling the semaphore so that
@@ -223,7 +271,7 @@ final class RuntimeChannelHandle: @unchecked Sendable {
     // KSP-1573: `invokeOnClose` handlers, as (fnPtr, closureRaw) function-value
     // pairs.  They run exactly once, on the first successful `close()`, with a
     // nil cause argument until `close(cause:)` lands.
-    private var closeHandlers: [(fnPtr: Int, closureRaw: Int)] = []
+    private var closeHandlers: [RuntimeChannelCloseHandler] = []
 
     init(capacity: Int, bufferOverflow: ChannelBufferOverflow = .suspend) {
         // KUU-1403: `Channel.Factory` negative capacity sentinels resolve here
@@ -324,7 +372,7 @@ final class RuntimeChannelHandle: @unchecked Sendable {
             case .suspend:
                 break
             case .dropOldest:
-                _ = buffer.dequeue()
+                _ = buffer.dequeue(discard: true)
                 buffer.enqueue(value)
                 lock.unlock()
                 return .success
@@ -426,7 +474,7 @@ final class RuntimeChannelHandle: @unchecked Sendable {
             case .suspend:
                 break
             case .dropOldest:
-                _ = buffer.dequeue()
+                _ = buffer.dequeue(discard: true)
                 buffer.enqueue(value)
                 lock.unlock()
                 return .success
@@ -492,13 +540,13 @@ final class RuntimeChannelHandle: @unchecked Sendable {
         if let senderEntry = withSelectClaimLock({ dequeueLiveSenderUnlocked() }) {
             switch senderEntry {
             case .suspended(let sender):
-                let value = sender.value
+                let value = sender.rootedValue()
                 sender.delivered = true
                 lock.unlock()
                 resumeSender(sender)
                 outValue.pointee = value
             case .select(let waiter):
-                let value = waiter.value
+                let value = waiter.rootedValue()
                 lock.unlock()
                 outValue.pointee = value
             }
@@ -540,7 +588,7 @@ final class RuntimeChannelHandle: @unchecked Sendable {
 
         lock.lock()
         let wasCancelled = receiverEntry.cancelledWakeup
-        let value = receiverEntry.result
+        let value = receiverEntry.rootedResult()
         lock.unlock()
 
         // Cancellation only aborts the receive if no sender delivered a value.
@@ -590,13 +638,13 @@ final class RuntimeChannelHandle: @unchecked Sendable {
         if let senderEntry = withSelectClaimLock({ dequeueLiveSenderUnlocked() }) {
             switch senderEntry {
             case .suspended(let sender):
-                let value = sender.value
+                let value = sender.rootedValue()
                 sender.delivered = true
                 lock.unlock()
                 resumeSender(sender)
                 outValue.pointee = value
             case .select(let waiter):
-                let value = waiter.value
+                let value = waiter.rootedValue()
                 lock.unlock()
                 outValue.pointee = value
             }
@@ -724,12 +772,14 @@ final class RuntimeChannelHandle: @unchecked Sendable {
             guard handler.fnPtr != 0 else { continue }
             // `invokeOnClose` receives the close cause (null when none),
             // matching kotlinx's `invokeOnClose(handler: (Throwable?) -> Unit)`.
-            _ = runtimeInvokeCollectionLambda1MaybeWrapped(
-                fnPtr: handler.fnPtr,
-                closureRaw: handler.closureRaw,
-                value: closeCause != 0 ? closeCause : runtimeNullSentinelInt,
-                outThrown: nil
-            )
+            withExtendedLifetime(handler) {
+                _ = runtimeInvokeCollectionLambda1MaybeWrapped(
+                    fnPtr: handler.fnPtr,
+                    closureRaw: handler.closureRaw,
+                    value: closeCause != 0 ? closeCause : runtimeNullSentinelInt,
+                    outThrown: nil
+                )
+            }
         }
         return true
     }
@@ -749,7 +799,7 @@ final class RuntimeChannelHandle: @unchecked Sendable {
         if closed {
             // cancel also discards elements after close. The first close cause
             // and its waiter/handler publication remain authoritative.
-            _ = buffer.drain()
+            buffer.drain()
             lock.unlock()
             return false
         }
@@ -761,7 +811,7 @@ final class RuntimeChannelHandle: @unchecked Sendable {
                 ? closeCause
                 : runtimeAllocateCancellationException(message: "Channel was cancelled")
         }
-        _ = buffer.drain()
+        buffer.drain()
         let pendingSenders = senderQueue.drain()
         let pendingReceivers = receiverQueue.drain()
         let closeSignal = awaitCloseSignal
@@ -792,12 +842,14 @@ final class RuntimeChannelHandle: @unchecked Sendable {
         }
         for handler in pendingCloseHandlers {
             guard handler.fnPtr != 0 else { continue }
-            _ = runtimeInvokeCollectionLambda1MaybeWrapped(
-                fnPtr: handler.fnPtr,
-                closureRaw: handler.closureRaw,
-                value: closeCause != 0 ? closeCause : runtimeNullSentinelInt,
-                outThrown: nil
-            )
+            withExtendedLifetime(handler) {
+                _ = runtimeInvokeCollectionLambda1MaybeWrapped(
+                    fnPtr: handler.fnPtr,
+                    closureRaw: handler.closureRaw,
+                    value: closeCause != 0 ? closeCause : runtimeNullSentinelInt,
+                    outThrown: nil
+                )
+            }
         }
         return true
     }
@@ -808,7 +860,7 @@ final class RuntimeChannelHandle: @unchecked Sendable {
     /// cancelled.
     func cancellationThrowable() -> Int {
         lock.lock()
-        let existing = cancelCauseRaw
+        let existing = cancelCauseRoot?.rootedValue() ?? cancelCauseRaw
         lock.unlock()
         if existing != 0 {
             return existing
@@ -824,18 +876,21 @@ final class RuntimeChannelHandle: @unchecked Sendable {
     func addCloseHandler(fnPtr: Int, closureRaw: Int) -> Bool {
         lock.lock()
         if closed {
-            let retainedCause = closeCause
+            let retainedCause = closeCauseRoot?.rootedValue() ?? closeCause
+            let handler = RuntimeChannelCloseHandler(fnPtr: fnPtr, closureRaw: closureRaw)
             lock.unlock()
             guard fnPtr != 0 else { return false }
-            _ = runtimeInvokeCollectionLambda1MaybeWrapped(
-                fnPtr: fnPtr,
-                closureRaw: closureRaw,
-                value: retainedCause != 0 ? retainedCause : runtimeNullSentinelInt,
-                outThrown: nil
-            )
+            withExtendedLifetime(handler) {
+                _ = runtimeInvokeCollectionLambda1MaybeWrapped(
+                    fnPtr: fnPtr,
+                    closureRaw: closureRaw,
+                    value: retainedCause != 0 ? retainedCause : runtimeNullSentinelInt,
+                    outThrown: nil
+                )
+            }
             return false
         }
-        closeHandlers.append((fnPtr, closureRaw))
+        closeHandlers.append(RuntimeChannelCloseHandler(fnPtr: fnPtr, closureRaw: closureRaw))
         lock.unlock()
         return true
     }
@@ -844,7 +899,7 @@ final class RuntimeChannelHandle: @unchecked Sendable {
     func closeCauseSnapshot() -> Int {
         lock.lock()
         defer { lock.unlock() }
-        return closeCause
+        return closeCauseRoot?.rootedValue() ?? closeCause
     }
 
     /// `true` when no element is currently receivable: the buffer is drained
@@ -1039,6 +1094,13 @@ final class RuntimeChannelHandle: @unchecked Sendable {
     /// claim. Returns a `ChannelResult` box like `__kk_channel_try_receive`.
     /// The lock order is channel `lock` → `runtimeSelectClaimLock`.
     func selectPollReceive(clause: RuntimeSelectClause) -> Int {
+        kk_gc_shadow_push()
+        let result = selectPollReceiveInFrame(clause: clause)
+        runtimePopNativeGCShadowFrame(result, 0)
+        return result
+    }
+
+    private func selectPollReceiveInFrame(clause: RuntimeSelectClause) -> Int {
         lock.lock()
         runtimeSelectClaimLock.lock()
         var resume: SuspendedSender?
@@ -1194,7 +1256,7 @@ final class RuntimeChannelHandle: @unchecked Sendable {
             case .suspend:
                 break
             case .dropOldest:
-                _ = buffer.dequeue()
+                _ = buffer.dequeue(discard: true)
                 buffer.enqueue(value)
                 _ = select.trySelectUnlocked(clause)
                 clause.delivered = true
@@ -1646,15 +1708,20 @@ final class RuntimeChannelResultBox {
     /// `ChannelOperationStatus` raw value (success / closed / cancelled / failed).
     let status: Int
     /// The received element on success, 0 otherwise.
-    let value: Int
+    private let valueRoot: RuntimeGCRootedValue
+    var value: Int { valueRoot.value }
     /// Close cause `Throwable` handle carried by closed/cancelled results
     /// (upstream `Closed.closeCause`), 0 when none.
-    let cause: Int
+    private let causeRoot: RuntimeGCRootedValue
+    var cause: Int { causeRoot.value }
+
+    func rootedValue() -> Int { valueRoot.rootedValue() }
+    func rootedCause() -> Int { causeRoot.rootedValue() }
 
     init(status: Int, value: Int, cause: Int) {
         self.status = status
-        self.value = value
-        self.cause = cause
+        self.valueRoot = RuntimeGCRootedValue(value)
+        self.causeRoot = RuntimeGCRootedValue(cause)
     }
 }
 
@@ -1674,10 +1741,15 @@ private func runtimeChannelResultBox(status: ChannelOperationStatus, value: Int,
 /// `ChannelOperationStatus` that never escapes to Kotlin `ChannelResult`
 /// consumers beyond the select clause predicates.
 func runtimeSelectPollResultBox(status: Int, value: Int = 0, cause: Int = 0) -> Int {
-    registerRuntimeObject(
+    let result = registerRuntimeObject(
         RuntimeChannelResultBox(status: status, value: value, cause: cause),
         typeID: runtimeStableNominalTypeID(fqName: "kotlinx.coroutines.channels.ChannelResult")
     )
+    let threadID = ObjectIdentifier(Thread.current)
+    runtimeStorage.withGCLock { state in
+        runtimeRecordShadowHandoffLocked(result, threadID: threadID, state: &state)
+    }
+    return result
 }
 
 /// Close cause for a send-side operation result box: the channel's retained
@@ -1711,11 +1783,15 @@ public func __kk_channel_try_receive(_ handle: Int) -> Int {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: handle) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_channel_try_receive received invalid channel handle")
     }
+    kk_gc_shadow_push()
+    var result = 0
+    defer { runtimePopNativeGCShadowFrame(result, 0) }
     let channel = Unmanaged<RuntimeChannelHandle>.fromOpaque(ptr).takeUnretainedValue()
     var value = 0
     let status = channel.tryReceive(outValue: &value)
     let cause = channelResultReceiveCause(channel: channel, status: status)
-    return runtimeChannelResultBox(status: status, value: value, cause: cause)
+    result = runtimeChannelResultBox(status: status, value: value, cause: cause)
+    return result
 }
 
 /// KSP-1572: `SendChannel.trySend(element)` bridge returning a `ChannelResult`
@@ -1753,11 +1829,15 @@ public func __kk_channel_receive_catching(_ handle: Int) -> Int {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: handle) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_channel_receive_catching received invalid channel handle")
     }
+    kk_gc_shadow_push()
+    var result = 0
+    defer { runtimePopNativeGCShadowFrame(result, 0) }
     let channel = Unmanaged<RuntimeChannelHandle>.fromOpaque(ptr).takeUnretainedValue()
     var value = 0
     let status = channel.receive(continuation: 0, outValue: &value)
     let cause = channelResultReceiveCause(channel: channel, status: status)
-    return runtimeChannelResultBox(status: status, value: value, cause: cause)
+    result = runtimeChannelResultBox(status: status, value: value, cause: cause)
+    return result
 }
 
 @_cdecl("__kk_channel_result_status")
@@ -1775,7 +1855,7 @@ public func __kk_channel_result_value_or_null(_ boxRaw: Int) -> Int {
     guard let box = channelResultBoxFromRaw(boxRaw), box.status == kChannelResultSuccess else {
         return runtimeNullSentinelInt
     }
-    return box.value
+    return box.rootedValue()
 }
 
 /// Returns the close-cause `Throwable` stored in a `ChannelResult` box, or the
@@ -1786,7 +1866,7 @@ public func __kk_channel_result_cause(_ boxRaw: Int) -> Int {
     guard let box = channelResultBoxFromRaw(boxRaw), box.cause != 0 else {
         return runtimeNullSentinelInt
     }
-    return box.cause
+    return box.rootedCause()
 }
 
 /// `ChannelResult` companion maker (`success` / `failure` / `closed`). The
@@ -1815,10 +1895,10 @@ public func __kk_channel_result_get_or_throw(
     }
     switch box.status {
     case kChannelResultSuccess:
-        return box.value
+        return box.rootedValue()
     case kChannelResultClosed, kChannelResultCancelled:
         if box.cause != 0 {
-            outThrown?.pointee = box.cause
+            outThrown?.pointee = box.rootedCause()
         } else {
             outThrown?.pointee = runtimeAllocateIllegalStateException(
                 message: "Trying to call 'getOrThrow' on a channel closed without a cause"
@@ -1849,7 +1929,7 @@ public func __kk_channel_result_get_or_throw(
 private final class RuntimeChannelIterator: @unchecked Sendable {
     let channel: RuntimeChannelHandle
     /// Most recent value fetched by `hasNext`.  Reset to `nil` after `next`.
-    var peekedValue: Int?
+    private var peekedValue: RuntimeGCRootedValue?
     var done: Bool = false
     private let lock = NSLock()
 
@@ -1863,6 +1943,8 @@ private final class RuntimeChannelIterator: @unchecked Sendable {
     /// `CancellationException` on a cancelled channel instead of just
     /// returning `false`).
     func advance(continuation: Int = 0) -> ChannelOperationStatus {
+        kk_gc_shadow_push()
+        defer { runtimePopNativeGCShadowFrame(0, 0) }
         lock.lock()
         if done {
             lock.unlock()
@@ -1879,14 +1961,14 @@ private final class RuntimeChannelIterator: @unchecked Sendable {
             peekedValue = nil
             return status
         }
-        peekedValue = value
+        peekedValue = RuntimeGCRootedValue(value)
         return .success
     }
 
     func takeValue() -> Int {
         lock.lock()
         defer { lock.unlock() }
-        let v = peekedValue ?? 0
+        let v = peekedValue?.rootedValue() ?? 0
         peekedValue = nil
         return v
     }

@@ -85,7 +85,9 @@ func runtimeMapArrayPair(
 func registerRuntimeObject(_ box: AnyObject) -> Int {
     let opaque = UnsafeMutableRawPointer(Unmanaged.passRetained(box).toOpaque())
     runtimeStorage.withGCLock { state in
-        state.objectPointers.insert(UInt(bitPattern: opaque))
+        let key = UInt(bitPattern: opaque)
+        state.objectPointers.insert(key)
+        recordRetainedBoxManagedHeapFieldsLocked(box, owner: key, state: &state)
     }
     let raw = Int(bitPattern: opaque)
     registerRuntimeCollectionBoxIdentity(raw: raw, box: box)

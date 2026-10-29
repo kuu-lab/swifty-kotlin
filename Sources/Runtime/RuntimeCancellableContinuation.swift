@@ -36,6 +36,7 @@ final class RuntimeCancellableContinuation: @unchecked Sendable {
     private var suspended = false
     private var delivered = false
     private var result: Int = 0
+    private let resultRootStorage = RuntimeCoroutineRootStorage()
     private var cancelCause: Int = 0
     private var cancellationHandler: RuntimeCancellationCallback?
     private var resumeCancellation: RuntimeCancellationCallback?
@@ -47,6 +48,15 @@ final class RuntimeCancellableContinuation: @unchecked Sendable {
 
     init(delegate: Int) {
         self.delegate = delegate
+    }
+
+    // The continuation lock is held. Publish the stored Result and its root
+    // together so a collector cannot observe only one side of the update.
+    private func setResultLocked(_ value: Int) {
+        runtimeStorage.withGCLock { gcState in
+            result = value
+            runtimeRecordCoroutineHeapRootsLocked([value], storage: resultRootStorage, state: &gcState)
+        }
     }
 
     func initParent() {
@@ -138,7 +148,7 @@ final class RuntimeCancellableContinuation: @unchecked Sendable {
                 : runtimeAllocateCancellationException(message: "Continuation delegate exited before delivery")
             state = .cancelled
             cancelCause = cause
-            result = runtimeResultFailure(cause)
+            setResultLocked(runtimeResultFailure(cause))
         } else {
             cause = 0
         }
@@ -181,7 +191,7 @@ final class RuntimeCancellableContinuation: @unchecked Sendable {
             return
         }
         state = .completed
-        result = proposed
+        setResultLocked(proposed)
         resumeCancellation = runtimeResultIsSuccess(proposed) ? callback : nil
         let shouldDispatch = suspended
         lock.unlock()
@@ -213,7 +223,7 @@ final class RuntimeCancellableContinuation: @unchecked Sendable {
         }
         if wasActive { state = .cancelled }
         cancelCause = resolved
-        result = runtimeResultFailure(resolved)
+        setResultLocked(runtimeResultFailure(resolved))
         let handler = cancellationHandler
         let callback = resumeCancellation
         resumeCancellation = nil
@@ -246,7 +256,7 @@ final class RuntimeCancellableContinuation: @unchecked Sendable {
                 && token != 0 ? token : runtimeNullSentinelInt
         }
         state = .reserved
-        result = proposed
+        setResultLocked(proposed)
         self.idempotent = idempotent
         token = runtimeRegisterObject(RuntimeResumeToken())
         return token

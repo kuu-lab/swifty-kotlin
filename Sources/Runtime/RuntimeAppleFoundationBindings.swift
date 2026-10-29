@@ -562,7 +562,15 @@ public func __kk_foundation_lock_lock(_ handle: Int, _ outThrown: UnsafeMutableP
     outThrown?.pointee = 0
     #if canImport(Darwin)
 guard let lock = runtimeForeignResource(handle, as: NSRecursiveLock.self) else { return foundationFailure("Invalid SDK recursive lock", outThrown) }
-lock.lock()
+while !lock.try() {
+    let gcBlocking = runtimeGCSafepoints.beginBlockingIfEnrolled()
+    if !gcBlocking {
+        lock.lock()
+        break
+    }
+    Thread.sleep(forTimeInterval: 0.001)
+    runtimeGCSafepoints.endBlocking()
+}
 return 0
     #else
     return foundationFailure("Apple Foundation requires Darwin", outThrown)

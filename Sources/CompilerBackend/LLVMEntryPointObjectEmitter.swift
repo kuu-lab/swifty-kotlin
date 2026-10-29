@@ -38,6 +38,7 @@ private struct LLVMEntryPointFunctionTypes {
     let writeType: LLVMCAPIBindings.LLVMTypeRef
     let mainType: LLVMCAPIBindings.LLVMTypeRef
     let argumentsType: LLVMCAPIBindings.LLVMTypeRef
+    let waitThreadsType: LLVMCAPIBindings.LLVMTypeRef
 }
 
 private struct LLVMEntryPointFunctions {
@@ -45,6 +46,7 @@ private struct LLVMEntryPointFunctions {
     let writeFunction: LLVMCAPIBindings.LLVMValueRef
     let mainFunction: LLVMCAPIBindings.LLVMValueRef
     let argumentsFunction: LLVMCAPIBindings.LLVMValueRef
+    let waitThreadsFunction: LLVMCAPIBindings.LLVMValueRef
 }
 
 private struct LLVMEntryPointBlocks {
@@ -242,8 +244,14 @@ struct LLVMEntryPointObjectEmitter {
         ) else {
             throw LLVMEntryPointObjectEmitterError.invalidIR("failed to create process arguments function type")
         }
+        guard let waitThreadsType = bindings.functionType(
+            returnType: primitiveTypes.int64Type, parameters: [], isVarArg: false
+        ) else {
+            throw LLVMEntryPointObjectEmitterError.invalidIR("failed to create thread wait function type")
+        }
         return LLVMEntryPointFunctionTypes(
-            entryType: entryType, writeType: writeType, mainType: mainType, argumentsType: argumentsType
+            entryType: entryType, writeType: writeType, mainType: mainType,
+            argumentsType: argumentsType, waitThreadsType: waitThreadsType
         )
     }
 
@@ -270,11 +278,17 @@ struct LLVMEntryPointObjectEmitter {
         ) else {
             throw LLVMEntryPointObjectEmitterError.invalidIR("failed to declare process arguments function")
         }
+        guard let waitThreadsFunction = bindings.addFunction(
+            module: module, name: "__kk_thread_wait_non_daemon", functionType: functionTypes.waitThreadsType
+        ) else {
+            throw LLVMEntryPointObjectEmitterError.invalidIR("failed to declare thread wait function")
+        }
         return LLVMEntryPointFunctions(
             entryFunction: entryFunction,
             writeFunction: writeFunction,
             mainFunction: mainFunction,
-            argumentsFunction: argumentsFunction
+            argumentsFunction: argumentsFunction,
+            waitThreadsFunction: waitThreadsFunction
         )
     }
 
@@ -307,6 +321,7 @@ struct LLVMEntryPointObjectEmitter {
         )
 
         bindings.positionBuilder(builder, at: blocks.successBlock)
+        try emitThreadWait(builder: builder, functionTypes: functionTypes, functions: functions)
         try emitSuccessPath(builder: builder, constants: constants)
     }
 
@@ -429,6 +444,19 @@ struct LLVMEntryPointObjectEmitter {
         return entryResult
     }
 
+    private func emitThreadWait(
+        builder: LLVMCAPIBindings.LLVMBuilderRef,
+        functionTypes: LLVMEntryPointFunctionTypes,
+        functions: LLVMEntryPointFunctions
+    ) throws {
+        guard bindings.buildCall(
+            builder, functionType: functionTypes.waitThreadsType,
+            callee: functions.waitThreadsFunction, arguments: [], name: "wait.threads"
+        ) != nil else {
+            throw LLVMEntryPointObjectEmitterError.invalidIR("failed to emit thread wait")
+        }
+    }
+
     private func emitFailurePath(
         builder: LLVMCAPIBindings.LLVMBuilderRef,
         functionTypes: LLVMEntryPointFunctionTypes,
@@ -451,6 +479,7 @@ struct LLVMEntryPointObjectEmitter {
         ) != nil else {
             throw LLVMEntryPointObjectEmitterError.invalidIR("failed to emit stderr write")
         }
+        try emitThreadWait(builder: builder, functionTypes: functionTypes, functions: functions)
         guard bindings.buildRet(builder, value: constants.one32) != nil else {
             throw LLVMEntryPointObjectEmitterError.invalidIR("failed to emit failure return")
         }

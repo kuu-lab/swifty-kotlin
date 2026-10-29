@@ -18,17 +18,24 @@ public func __kk_job_bind_wrapper(_ wrapperRaw: Int, _ jobRaw: Int, _ parentRaw:
           let wrapper = tryCast(ptr, to: RuntimeObjectBox.self),
           let job = runtimeJobHandle(from: jobRaw)
     else { return jobRaw }
-    job.markBodyless()
-    wrapper.coroutineJobHandle = jobRaw
-    job.bindSourceWrapper(wrapper)
     // KUU-1386: bare handle `is` checks recover the wrapper's nominal (e.g.
     // `coroutineContext.job is CompletableJob`/`is JobImpl`).
-    job.nominalJobTypeID = runtimeObjectTypeID(rawValue: wrapperRaw) ?? 0
+    let sourceID = runtimeObjectTypeID(rawValue: wrapperRaw) ?? 0
+    let (boundRaw, boundJob) = wrapper.withCoroutineJobHandle { current -> (Int, RuntimeJobHandle) in
+        if current != 0, let existing = resolveLiveRuntimeHandle(current, as: RuntimeJobHandle.self) {
+            return (current, existing)
+        }
+        job.markBodyless()
+        job.bindSourceWrapper(wrapper)
+        job.nominalJobTypeID = sourceID
+        current = jobRaw
+        return (jobRaw, job)
+    }
     if let parent = runtimeJobHandle(from: parentRaw) {
-        parent.registerChild(jobRaw)
+        parent.registerChild(boundRaw)
         if !parent.isSupervisorMarker {
-            _ = job.addCompletionHandler(onCancelling: false) { cause in
-                if cause != runtimeNullSentinelInt, job.isFailedSnapshot(),
+            _ = boundJob.addCompletionHandler(onCancelling: false) { cause in
+                if cause != runtimeNullSentinelInt, boundJob.isFailedSnapshot(),
                    !runtimeCoroutineIsCancellationResult(cause)
                 {
                     _ = parent.cancel(cause: cause)
@@ -36,19 +43,19 @@ public func __kk_job_bind_wrapper(_ wrapperRaw: Int, _ jobRaw: Int, _ parentRaw:
             }
         }
     }
-    return jobRaw
+    return boundRaw
 }
 
-private func deferredCompletionSnapshot(_ handle: Int) -> (completed: Bool, value: Int, exception: Int) {
-    if let job = runtimeJobHandle(from: handle) { return job.completionSnapshot() }
-    if let task = runtimeAsyncTask(from: handle) { return task.completionSnapshot() }
+private func deferredCompletionSnapshot(_ handle: Int, handoff: RuntimeCompletionHandoff) -> (completed: Bool, value: Int, exception: Int) {
+    if let job = runtimeJobHandle(from: handle) { return job.completionSnapshot(handoff: handoff) }
+    if let task = runtimeAsyncTask(from: handle) { return task.completionSnapshot(handoff: handoff) }
     return (false, 0, 0)
 }
 
 @_cdecl("__kk_deferred_get_completed")
 public func __kk_deferred_get_completed(_ handle: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
-    let snapshot = deferredCompletionSnapshot(handle)
+    let snapshot = deferredCompletionSnapshot(handle, handoff: .valueOrExceptionWhenCompleted)
     guard snapshot.completed else {
         outThrown?.pointee = runtimeAllocateIllegalStateException(message: "This job has not completed yet")
         return 0
@@ -60,7 +67,7 @@ public func __kk_deferred_get_completed(_ handle: Int, _ outThrown: UnsafeMutabl
 @_cdecl("__kk_deferred_completion_exception")
 public func __kk_deferred_completion_exception(_ handle: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
-    let snapshot = deferredCompletionSnapshot(handle)
+    let snapshot = deferredCompletionSnapshot(handle, handoff: .exceptionWhenCompleted)
     guard snapshot.completed else {
         outThrown?.pointee = runtimeAllocateIllegalStateException(message: "This job has not completed yet")
         return runtimeNullSentinelInt

@@ -68,12 +68,40 @@ final class RuntimeCoroutineSyncGate: @unchecked Sendable {
     }
 }
 
+private final class RuntimeCoroutineArgumentsSnapshot {
+    let values: [Int64: Int64]
+    let gcRootStorage = RuntimeCoroutineRootStorage()
+
+    init(values: [Int64: Int64]) {
+        self.values = values
+    }
+}
+
 final class RuntimeContinuationState: @unchecked Sendable {
     var functionID: Int64
     var label: Int64
-    var completion: Int64
-    var spillSlots: [Int64: Int64]
-    var launcherArgs: [Int64: Int64]
+    private let gcValuesLock = NSLock()
+    private let gcRootStorage = RuntimeCoroutineRootStorage()
+    private var storedCompletion: Int64
+    private var storedThrownException: Int = 0
+    private var storedSpillSlots: [Int64: Int64]
+    private var storedLauncherArgs: [Int64: Int64]
+
+    var completion: Int64 {
+        get {
+            gcValuesLock.lock()
+            defer { gcValuesLock.unlock() }
+            return storedCompletion
+        }
+        set {
+            gcValuesLock.lock()
+            runtimeStorage.withGCLock { state in
+                storedCompletion = newValue
+                recordGCValuesLocked(state: &state)
+            }
+            gcValuesLock.unlock()
+        }
+    }
     // The link from continuation state to job handle is weak on purpose:
     // - to avoid retain cycles between RuntimeJobHandle and RuntimeContinuationState
     // - because job handle lifetime is managed externally and cancellation is best-effort.
@@ -90,7 +118,21 @@ final class RuntimeContinuationState: @unchecked Sendable {
     /// Zero means no exception was thrown.  Set by runSuspendEntryLoopWithContinuation
     /// and consumed by kk_kxmini_launch_with_exception_handler to reliably
     /// distinguish exception returns from normal (possibly non-zero) return values.
-    var thrownException: Int = 0
+    var thrownException: Int {
+        get {
+            gcValuesLock.lock()
+            defer { gcValuesLock.unlock() }
+            return storedThrownException
+        }
+        set {
+            gcValuesLock.lock()
+            runtimeStorage.withGCLock { state in
+                storedThrownException = newValue
+                recordGCValuesLocked(state: &state)
+            }
+            gcValuesLock.unlock()
+        }
+    }
     /// The `runBlocking` event loop this coroutine is bound to, if any.
     ///
     /// Adopted from `RuntimeEventLoop.current` the first time the suspend-entry
@@ -259,11 +301,111 @@ final class RuntimeContinuationState: @unchecked Sendable {
     ) {
         self.functionID = functionID
         self.label = label
-        self.completion = completion
-        self.spillSlots = spillSlots
-        self.launcherArgs = launcherArgs
+        self.storedCompletion = completion
+        self.storedSpillSlots = spillSlots
+        self.storedLauncherArgs = launcherArgs
         self.delayTimers = delayTimers
         RuntimeLiveHandles.register(self)
+        if completion != 0 || !spillSlots.isEmpty || !launcherArgs.isEmpty {
+            runtimeStorage.withGCLock { state in recordGCValuesLocked(state: &state) }
+        }
+    }
+
+    // gcValuesLock and gcLock are held, except during initialization before publication.
+    private func recordGCValuesLocked(state: inout GCState) {
+        let values = [Int(storedCompletion), storedThrownException]
+            + storedSpillSlots.values.map(Int.init)
+            + storedLauncherArgs.values.map(Int.init)
+        runtimeRecordCoroutineHeapRootsLocked(values, storage: gcRootStorage, state: &state)
+    }
+
+    func setSpillSlot(_ index: Int64, value: Int64) {
+        gcValuesLock.lock()
+        runtimeStorage.withGCLock { state in
+            storedSpillSlots[index] = value
+            recordGCValuesLocked(state: &state)
+        }
+        gcValuesLock.unlock()
+    }
+
+    func clearSpillSlots() {
+        gcValuesLock.lock()
+        runtimeStorage.withGCLock { state in
+            storedSpillSlots.removeAll(keepingCapacity: false)
+            recordGCValuesLocked(state: &state)
+        }
+        gcValuesLock.unlock()
+    }
+
+    func setLauncherArg(_ index: Int64, value: Int64, onlyIfAbsent: Bool = false) {
+        gcValuesLock.lock()
+        if !onlyIfAbsent || storedLauncherArgs[index] == nil {
+            runtimeStorage.withGCLock { state in
+                storedLauncherArgs[index] = value
+                recordGCValuesLocked(state: &state)
+            }
+        }
+        gcValuesLock.unlock()
+    }
+
+    func replaceLauncherArgs(_ values: [Int64: Int64]) {
+        gcValuesLock.lock()
+        runtimeStorage.withGCLock { state in
+            storedLauncherArgs = values
+            recordGCValuesLocked(state: &state)
+        }
+        gcValuesLock.unlock()
+    }
+
+    func withRetainedLauncherArgs<Result>(
+        _ body: ([Int64: Int64]) throws -> Result
+    ) rethrows -> Result {
+        gcValuesLock.lock()
+        let snapshot = RuntimeCoroutineArgumentsSnapshot(values: storedLauncherArgs)
+        runtimeStorage.withGCLock { state in
+            runtimeRecordCoroutineHeapRootsLocked(
+                snapshot.values.values.map(Int.init),
+                storage: snapshot.gcRootStorage,
+                state: &state
+            )
+        }
+        gcValuesLock.unlock()
+        return try withExtendedLifetime(snapshot) {
+            try body(snapshot.values)
+        }
+    }
+
+    func rootedCompletion() -> Int {
+        let threadID = ObjectIdentifier(Thread.current)
+        gcValuesLock.lock()
+        defer { gcValuesLock.unlock() }
+        return runtimeStorage.withGCLock { state in
+            let value = Int(storedCompletion)
+            runtimeRecordShadowHandoffLocked(value, threadID: threadID, state: &state)
+            return value
+        }
+    }
+
+    func rootedSpillSlot(_ slot: Int64) -> Int {
+        let threadID = ObjectIdentifier(Thread.current)
+        gcValuesLock.lock()
+        defer { gcValuesLock.unlock() }
+        return runtimeStorage.withGCLock { state in
+            let value = Int(storedSpillSlots[slot] ?? 0)
+            runtimeRecordShadowHandoffLocked(value, threadID: threadID, state: &state)
+            return value
+        }
+    }
+
+    func rootedLauncherArg(_ index: Int64) -> Int64 {
+        let threadID = ObjectIdentifier(Thread.current)
+        gcValuesLock.lock()
+        defer { gcValuesLock.unlock() }
+        return runtimeStorage.withGCLock { state in
+            let value = storedLauncherArgs[index] ?? 0
+            runtimeRecordShadowHandoffLocked(Int(value), threadID: threadID, state: &state)
+            return value
+        }
     }
 
     func configureUninterceptedCoroutine(entryPointRaw: Int, completionContinuation: Int) {
@@ -625,11 +767,18 @@ final class RuntimeContinuationState: @unchecked Sendable {
     /// Generated resume labels receive an exception once. A surrounding catch
     /// may handle it and then suspend again without a child call clearing it.
     func takeThrownException() -> Int {
+        let threadID = ObjectIdentifier(Thread.current)
         stateLock.lock()
         defer { stateLock.unlock() }
-        let thrown = thrownException
-        thrownException = 0
-        return thrown
+        gcValuesLock.lock()
+        defer { gcValuesLock.unlock() }
+        return runtimeStorage.withGCLock { state in
+            let thrown = storedThrownException
+            runtimeRecordShadowHandoffLocked(thrown, threadID: threadID, state: &state)
+            storedThrownException = 0
+            recordGCValuesLocked(state: &state)
+            return thrown
+        }
     }
 
     func installCancellableDelivery(_ continuation: RuntimeCancellableContinuation) -> Bool {
@@ -661,10 +810,16 @@ final class RuntimeContinuationState: @unchecked Sendable {
         cancellableDelivery = nil
         stateLock.unlock()
         guard let delivery else { return }
+        defer { withExtendedLifetime(delivery) {} }
         let result = delivery.takeResultForDelivery()
+        let access = runtimeResultAccessFromRaw(result)
+        defer { withExtendedLifetime(access) {} }
+        let isSuccess = access?.box.isSuccess == true
+        let deliveredValue = isSuccess ? access!.box.value : runtimeNullSentinelInt
+        let deliveredException = isSuccess ? 0 : (access?.box.exception ?? runtimeNullSentinelInt)
         stateLock.lock()
-        completion = Int64(runtimeResultValueOrNull(result))
-        thrownException = runtimeResultIsSuccess(result) ? 0 : runtimeResultExceptionOrNull(result)
+        completion = Int64(deliveredValue)
+        thrownException = deliveredException
         stateLock.unlock()
     }
 
@@ -922,22 +1077,63 @@ enum RuntimeTaskAwaitOutcome: Equatable {
     case suspended
 }
 
+final class RuntimeCoroutineResultStorage: @unchecked Sendable {
+    private let lock = NSLock()
+    private let gcRootStorage = RuntimeCoroutineRootStorage()
+    private var result = 0
+    private var thrown = 0
+
+    func store(result: Int, thrown: Int) {
+        lock.lock()
+        runtimeStorage.withGCLock { state in
+            self.result = result
+            self.thrown = thrown
+            runtimeRecordCoroutineHeapRootsLocked(
+                [result, thrown], storage: gcRootStorage, state: &state
+            )
+        }
+        lock.unlock()
+    }
+
+    func load() -> (result: Int, thrown: Int) {
+        let threadID = ObjectIdentifier(Thread.current)
+        lock.lock()
+        defer { lock.unlock() }
+        return runtimeStorage.withGCLock { state in
+            runtimeRecordShadowHandoffLocked(result, threadID: threadID, state: &state)
+            runtimeRecordShadowHandoffLocked(thrown, threadID: threadID, state: &state)
+            return (result, thrown)
+        }
+    }
+}
+
 private final class RuntimeTaskAwaitSnapshot: @unchecked Sendable {
     private let lock = NSLock()
+    private let gcRootStorage = RuntimeCoroutineRootStorage()
     private var result: Int = 0
     private var thrownException: Int = 0
 
     func store(result: Int, thrownException: Int) {
         lock.lock()
-        self.result = result
-        self.thrownException = thrownException
+        runtimeStorage.withGCLock { state in
+            self.result = result
+            self.thrownException = thrownException
+            runtimeRecordCoroutineHeapRootsLocked(
+                [result, thrownException], storage: gcRootStorage, state: &state
+            )
+        }
         lock.unlock()
     }
 
     func load() -> RuntimeTaskAwaitOutcome {
+        let threadID = ObjectIdentifier(Thread.current)
         lock.lock()
         let value = result
         let thrown = thrownException
+        runtimeStorage.withGCLock { state in
+            runtimeRecordShadowHandoffLocked(value, threadID: threadID, state: &state)
+            runtimeRecordShadowHandoffLocked(thrown, threadID: threadID, state: &state)
+        }
         lock.unlock()
         return .completed(result: value, thrownException: thrown)
     }
@@ -947,6 +1143,7 @@ final class RuntimeAsyncTask: @unchecked Sendable {
     let completionJob = RuntimeJobHandle()
     private let atomicStart: Bool
     private let lock = NSLock()
+    private let gcRootStorage = RuntimeCoroutineRootStorage()
     private var isCompleted = false
     private(set) var isCancelled = false
     private var result: Int = 0
@@ -1108,10 +1305,27 @@ final class RuntimeAsyncTask: @unchecked Sendable {
         return isCompleted && thrownException != 0
     }
 
-    func completionSnapshot() -> (completed: Bool, value: Int, exception: Int) {
+    func completionSnapshot(handoff: RuntimeCompletionHandoff = .all) -> (completed: Bool, value: Int, exception: Int) {
+        let threadID = ObjectIdentifier(Thread.current)
         lock.lock()
         defer { lock.unlock() }
+        runtimeStorage.withGCLock { state in
+            runtimeRecordCompletionHandoffLocked(
+                handoff, completed: isCompleted, value: result, exception: thrownException, threadID: threadID, state: &state
+            )
+        }
         return (isCompleted, result, thrownException)
+    }
+
+    // The task lock is held. GC scans the independent mirror without taking it.
+    private func setTerminalValuesLocked(result: Int, thrownException: Int) {
+        runtimeStorage.withGCLock { state in
+            self.result = result
+            self.thrownException = thrownException
+            runtimeRecordCoroutineHeapRootsLocked(
+                [result, thrownException], storage: gcRootStorage, state: &state
+            )
+        }
     }
 
     func complete(with result: Int) {
@@ -1131,11 +1345,13 @@ final class RuntimeAsyncTask: @unchecked Sendable {
             lock.unlock()
             return
         }
-        self.result = isCancelled ? 0 : result
+        let resolvedResult = isCancelled ? 0 : result
         let cancellationCause = thrownException
-        if !isCancelled || (failure != 0 && kk_is_cancellation_exception(failure) == 0) {
-            thrownException = failure
-        }
+        let cancellationPin = isCancelled && cancellationCause != 0 && cancellationCause != runtimeNullSentinelInt
+            ? RuntimeForeignCallbackPin(root: cancellationCause) : nil
+        let resolvedException = !isCancelled || (failure != 0 && kk_is_cancellation_exception(failure) == 0)
+            ? failure : thrownException
+        setTerminalValuesLocked(result: resolvedResult, thrownException: resolvedException)
         isCompleted = true
         let snapshotResult = self.result
         let snapshotThrown = thrownException
@@ -1148,6 +1364,7 @@ final class RuntimeAsyncTask: @unchecked Sendable {
             // Cancellation may still be publishing the job state on another thread.
             _ = completionJob.cancel(cause: cancellationCause)
         }
+        withExtendedLifetime(cancellationPin) {}
         if snapshotThrown != 0 {
             _ = completionJob.completeExceptionally(with: snapshotThrown)
         } else {
@@ -1165,9 +1382,10 @@ final class RuntimeAsyncTask: @unchecked Sendable {
             return
         }
         isCancelled = true
-        thrownException = cause != 0 && cause != runtimeNullSentinelInt
+        let resolvedCause = cause != 0 && cause != runtimeNullSentinelInt
             ? cause
             : runtimeAllocateCancellationException(message: completionJob.defaultCancellationMessage)
+        setTerminalValuesLocked(result: result, thrownException: resolvedCause)
         lazyStartBody = nil
         // Running and ATOMIC bodies must finish (including finally) before join resumes.
         isCompleted = !isBodyStarted && !atomicStart
@@ -1206,6 +1424,11 @@ final class RuntimeAsyncTask: @unchecked Sendable {
         if isCompleted {
             let value = propagateFailure ? result : 0
             let thrown = propagateFailure ? thrownException : 0
+            let threadID = ObjectIdentifier(Thread.current)
+            runtimeStorage.withGCLock { state in
+                runtimeRecordShadowHandoffLocked(value, threadID: threadID, state: &state)
+                runtimeRecordShadowHandoffLocked(thrown, threadID: threadID, state: &state)
+            }
             lock.unlock()
             if thrown != 0, let callerState {
                 // Already completed exceptionally: resume the caller's continuation
@@ -1254,7 +1477,7 @@ final class RuntimeAsyncTask: @unchecked Sendable {
         if let callerLoop {
             callerLoop.run(until: { completed.isSet })
         } else {
-            gate.wait()
+            runtimeWaitDrainingEventLoop(gate)
         }
         return snapshot.load()
     }

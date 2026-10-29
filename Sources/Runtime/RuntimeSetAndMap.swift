@@ -1030,11 +1030,13 @@ public func kk_mutable_map_entry_setValue(
     else {
         return runtimeNullSentinelInt
     }
-    let previous = kk_mutable_map_put(pairBox.mutableMapRaw, pairBox.mutableMapKey, value, outThrown)
-    if outThrown?.pointee != 0 {
+    var thrown = 0
+    let previous = kk_mutable_map_put(pairBox.mutableMapRaw, pairBox.mutableMapKey, value, &thrown)
+    if thrown != 0 {
+        outThrown?.pointee = thrown
         return runtimeNullSentinelInt
     }
-    pairBox.secondValue = runtimeValueFromCollectionABI(value)
+    pairBox.setSecondValue(runtimeValueFromCollectionABI(value), returning: previous)
     return previous
 }
 

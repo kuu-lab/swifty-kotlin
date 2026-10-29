@@ -59,6 +59,25 @@ struct ABIMismatchRuntimeExportParityTests {
     }
 
     @Test
+    func testCdeclExportsAreDetectedWithEitherAttributeOrder() throws {
+        let source = """
+        @_cdecl("kk_test_after")
+        @discardableResult
+        public func testAfter(_ value: Int) -> Int { value }
+
+        @discardableResult
+        @_cdecl("kk_test_before")
+        public func testBefore(_ value: Int) -> Int { value }
+        """
+        let exports = try runtimeExportedABIs(in: source, sourcePath: "fixture.swift")
+        #expect(Set(exports.map(\.name)) == ["kk_test_after", "kk_test_before"])
+        for export in exports {
+            #expect(export.returnType == RuntimeABICType.intptr.rawValue)
+            #expect(export.parameterTypes == [RuntimeABICType.intptr.rawValue])
+        }
+    }
+
+    @Test
     func testSchedulerClockUsesWordABI() throws {
         for name in [RuntimeABISpec.testScopeCurrentTimeSpec, RuntimeABISpec.testSchedulerCurrentTimeSpec] {
             let spec = try name.requireRegistration()
@@ -285,7 +304,7 @@ struct ABIMismatchRuntimeExportParityTests {
 
     private func runtimeExportedABIs(in source: String, sourcePath: String) throws -> [RuntimeExportedABI] {
         let concretePatterns = [
-            #"@_cdecl\("([^"]+)"\)\s*(?:public\s+)?func\s+[A-Za-z0-9_]+\s*\((.*?)\)\s*(?:->\s*([^{\n]+))?"#,
+            #"@_cdecl\("([^"]+)"\)\s*(?:@discardableResult\s*)?(?:public\s+)?func\s+[A-Za-z0-9_]+\s*\((.*?)\)\s*(?:->\s*([^{\n]+))?"#,
             #"@_silgen_name\("([^"]+)"\)\s*public\s+func\s+[A-Za-z0-9_]+\s*\((.*?)\)\s*(?:->\s*([^{\n]+))?"#,
         ]
         let genericPattern = #"@_silgen_name\("([^"]+)"\)\s*public\s+func\s+[A-Za-z0-9_]+<[^>]+>"#
