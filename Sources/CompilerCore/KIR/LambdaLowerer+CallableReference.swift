@@ -1527,9 +1527,13 @@ extension LambdaLowerer {
         // Suspend references and primitive toString wrappers also need a box
         // without captures. The former supply a continuation-only entry ABI;
         // the latter return a flat String and need a function-value adapter.
+        // Capture-free references need the box too: a bare fnPtr has no
+        // self-contained invoke ABI, so passing it through `Any` and back to
+        // `FunctionN.invoke` (e.g. `call(f: Any)` / `f as Function1`) reaches
+        // kk_function_invoke's flat-entry path and calls the synthetic lambda
+        // with the wrong signature (KUU-3674).
         let callableValue: KIRExprID
         if case let .functionType(functionType) = sema.types.kind(of: callableType),
-           !captureArguments.isEmpty || functionType.isSuspend || needsPrimitiveToStringAdapter,
            let materialized = materializeEscapingCallableValue(
                exprID: exprID,
                lambdaSymbol: callableSymbol,
