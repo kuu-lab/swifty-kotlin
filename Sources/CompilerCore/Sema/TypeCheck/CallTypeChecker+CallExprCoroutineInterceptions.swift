@@ -86,6 +86,18 @@ extension CallTypeChecker {
            let argumentExprID = args.first?.expr,
            isValidBuilderLambdaArgument(argumentExprID, ast: ast)
         {
+            // Leave arity-compatible nearer callables to ordinary resolution.
+            // Type-incompatible candidates require separate handling (KUU-3720).
+            if ctx.cachedScopeLookup(calleeName).contains(where: { candidate in
+                guard let symbol = ctx.cachedSymbol(candidate),
+                      symbol.kind == .function,
+                      symbol.fqName != knownNames.kotlinxCoroutinesProduceFQName,
+                      let signature = sema.symbols.functionSignature(for: candidate)
+                else { return false }
+                return isCallableArityCompatible(signature: signature, argCount: args.count)
+            }) {
+                return nil
+            }
             // See the coroutineLauncherLambdaExprIDs doc comment: produce{}'s
             // captures are forwarded via CoroutineLoweringPass+LauncherSupport's
             // launcher-continuation rewrite (BUG-049), not the generic
