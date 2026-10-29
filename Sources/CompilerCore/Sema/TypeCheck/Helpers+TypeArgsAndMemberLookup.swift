@@ -1029,7 +1029,6 @@ extension TypeCheckHelpers {
         }
         return nil
     }
-
     /// A paired expect class keeps its semantic supertype edge, but members
     /// declared only by the actual class still participate in platform-side
     /// member lookup. Visit that implementation before the expect class's own
