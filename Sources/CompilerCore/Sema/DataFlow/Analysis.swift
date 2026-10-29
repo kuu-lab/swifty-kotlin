@@ -561,7 +561,7 @@ final class DataFlowAnalyzer {
         return ConditionBranch(trueState: equalTrueState, falseState: equalFalseState)
     }
 
-    private func dataFlowValue(
+    func dataFlowValue(
         _ id: ExprID,
         ast: ASTModule,
         sema: SemaModule,
@@ -1182,6 +1182,18 @@ final class DataFlowAnalyzer {
         valueFacts: DataFlowValueFacts? = nil
     ) -> Bool {
         if branches.hasElse {
+            return true
+        }
+        // A finite reachable-value set is exhaustive on its own when every
+        // value the subject can still take is covered, whatever its static
+        // type is — a local narrowed to a singleton type (e.g. `s = S.O`
+        // refining `s: S` to the object type) keeps its declared domain's
+        // exhaustiveness only through this check.
+        if let possibleValues = valueFacts?.possibleValues,
+           possibleValues.allSatisfy({
+               isWhenBranchCovered($0, branches: branches, sema: sema)
+           })
+        {
             return true
         }
         let kind = sema.types.kind(of: subjectType)

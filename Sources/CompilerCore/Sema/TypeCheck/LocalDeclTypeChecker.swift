@@ -212,6 +212,22 @@ final class LocalDeclTypeChecker {
         }
         sema.symbols.setPropertyType(localType, for: localSymbol)
         locals[name] = (localType, localSymbol, isMutable, initializer != nil)
+        // kotlinc narrows a `when` subject through the initializer only for
+        // enum-typed locals declared without a type annotation (`val e = E.A`
+        // is exhaustive over `{E.A}` but `val e: E = E.A`, `val b = true` and
+        // nullable declarations still need the full case set). Later plain
+        // assignments narrow enum/sealed/null subjects regardless — see
+        // inferLocalAssignExpr.
+        if let initializer, !isDelegated, typeAnnotation == nil,
+           case let .classType(classType) = sema.types.kind(of: localType),
+           classType.nullability != .nullable,
+           sema.symbols.symbol(classType.classSymbol)?.kind == .enumClass,
+           let constant = ctx.dataFlow.dataFlowValue(
+               initializer, ast: ast, sema: sema, interner: interner
+           )
+        {
+            locals.variableFacts[localSymbol] = DataFlowValueFacts(possibleValues: [constant])
+        }
         if isMutable, initializer != nil, !isDelegated,
            ctx.dataFlow.localStability.isNeverReassigned(id)
         {
@@ -420,6 +436,23 @@ final class LocalDeclTypeChecker {
                     ? ctx.sema.types.makeNonNullable(declaredType) : declaredType
                 locals[name] = (assignedType, local.symbol, local.isMutable, true)
                 locals.invalidateMembers(root: local.symbol)
+                // A standalone assignment pins the local to its written
+                // singleton regardless of annotations or declared
+                // nullability (`e = E.A`, `e = null`, `s = S.O` all narrow
+                // `when` exhaustiveness under kotlinc). Boolean literal
+                // writes do not narrow Boolean `when` subjects.
+                if let constant = ctx.dataFlow.dataFlowValue(
+                    value, ast: ast, sema: ctx.sema, interner: interner
+                ) {
+                    switch constant {
+                    case .symbol, .null:
+                        locals.variableFacts[local.symbol] = DataFlowValueFacts(
+                            possibleValues: [constant]
+                        )
+                    case .boolean:
+                        break
+                    }
+                }
                 if ctx.sema.bindings.isFlowExpr(value) {
                     ctx.sema.bindings.markFlowSymbol(local.symbol)
                     if let flowElementType = ctx.sema.bindings.flowElementType(forExpr: value) {
