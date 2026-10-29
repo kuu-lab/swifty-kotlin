@@ -123,4 +123,30 @@ struct KUU3521InterfaceDiamondSemaTests {
             #expect(conflicts.first?.message == "object 'Outer.Inner' must override 'g' because it inherits multiple interface methods for it.")
         }
     }
+
+    @Test
+    func localClassAndAnonymousObjectRequireDiamondOverride() throws {
+        let source = """
+        interface I1 { fun g(): Int }
+        interface I2 { fun g(): Int = 2 }
+        fun f() {
+            class LC : I1, I2
+            val o = object : I1, I2 { }
+            class LOK : I1, I2 { override fun g() = 1 }
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            let conflicts = ctx.diagnostics.diagnostics.filter {
+                $0.code == "KSWIFTK-SEMA-0171"
+            }
+            #expect(conflicts.map(\.message).sorted() == [
+                "class '<anonymous>' must override 'g' because it inherits multiple interface methods for it.",
+                "class 'LC' must override 'g' because it inherits multiple interface methods for it.",
+            ])
+        }
+    }
 }
