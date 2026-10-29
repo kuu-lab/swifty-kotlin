@@ -224,11 +224,11 @@ struct CodegenPhaseTimingTests {
         let timer = PhaseTimer()
         timer.beginPhase("Link")
         let timedPath = try LLVMEntryPointObjectEmitter(target: TargetTriple.hostDefault(), phaseTimer: timer, session: session)
-            .emit(entrySymbol: "probe_entry", outputPath: "unused")
+            .emit(entrySymbol: "probe_entry")
         timer.endPhase()
         defer { try? FileManager.default.removeItem(atPath: URL(fileURLWithPath: timedPath).deletingLastPathComponent().path) }
         let untimedPath = try LLVMEntryPointObjectEmitter(target: TargetTriple.hostDefault())
-            .emit(entrySymbol: "probe_entry", outputPath: "unused")
+            .emit(entrySymbol: "probe_entry")
         defer { try? FileManager.default.removeItem(atPath: URL(fileURLWithPath: untimedPath).deletingLastPathComponent().path) }
         let names = try #require(timer.phaseRecords.first).subRecords.map(\.name)
         #expect(names.contains("entry/backend init"))
