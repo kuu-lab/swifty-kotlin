@@ -693,9 +693,9 @@ public final class KIRModule {
         case let .constValue(result, value):
             return "const r\(result.rawValue)=\(valueDescription(value, interner: interner))"
         case let .binary(op, lhs, rhs, result):
-            return "binary \(op) r\(lhs.rawValue), r\(rhs.rawValue) -> r\(result.rawValue)"
+            return "binary \(op.dumpName) r\(lhs.rawValue), r\(rhs.rawValue) -> r\(result.rawValue)"
         case let .unary(op, operand, result):
-            return "unary \(op) r\(operand.rawValue) -> r\(result.rawValue)"
+            return "unary \(op.dumpName) r\(operand.rawValue) -> r\(result.rawValue)"
         case let .nullAssert(operand, result):
             return "nullAssert r\(operand.rawValue) -> r\(result.rawValue)"
         case let .call(symbol, callee, arguments, result, canThrow, thrownResult, isSuperCall, qualifiedSuperType):
@@ -748,14 +748,14 @@ public final class KIRModule {
             return "return r\(value.rawValue)"
         case let .nonLocalReturn(value, target):
             if let value {
-                return "nonLocalReturn r\(value.rawValue)" + (target.map { " target=\($0)" } ?? "")
+                return "nonLocalReturn r\(value.rawValue)" + (target.map { " target=\($0.dumpDescription)" } ?? "")
             } else {
-                return "nonLocalReturnUnit" + (target.map { " target=\($0)" } ?? "")
+                return "nonLocalReturnUnit" + (target.map { " target=\($0.dumpDescription)" } ?? "")
             }
         case .beginFinallyGuard:
             return "beginFinallyGuard"
         case let .beginNonLocalReturnScope(value, target, function):
-            return "beginNonLocalReturnScope r\(value.rawValue), L\(target)" + (function.map { " function=\($0)" } ?? "")
+            return "beginNonLocalReturnScope r\(value.rawValue), L\(target)" + (function.map { " function=\($0.dumpDescription)" } ?? "")
         case .endNonLocalReturnScope:
             return "endNonLocalReturnScope"
         case let .resumeNonLocalReturn(value):
@@ -769,14 +769,89 @@ public final class KIRModule {
         }
     }
 
+    /// Spells out what reflection-based `String(describing:)` printed for
+    /// these payloads, so the dump keeps its format without a Mirror walk per
+    /// constant. Floating-point payloads were printed through their debug
+    /// representation, which `String(reflecting:)` reproduces.
     private func valueDescription(_ value: KIRExprKind, interner: StringInterner) -> String {
         switch value {
+        case let .intLiteral(literal):
+            return "intLiteral(\(literal))"
+        case let .longLiteral(literal):
+            return "longLiteral(\(literal))"
+        case let .uintLiteral(literal):
+            return "uintLiteral(\(literal))"
+        case let .ulongLiteral(literal):
+            return "ulongLiteral(\(literal))"
+        case let .floatLiteral(literal):
+            return "floatLiteral(\(String(reflecting: literal)))"
+        case let .doubleLiteral(literal):
+            return "doubleLiteral(\(String(reflecting: literal)))"
+        case let .charLiteral(literal):
+            return "charLiteral(\(literal))"
+        case let .boolLiteral(literal):
+            return "boolLiteral(\(literal))"
         case let .stringLiteral(interned):
             return "stringLiteral(\"\(interner.resolve(interned))\")"
+        case let .symbolRef(symbol):
+            return "symbolRef(\(symbol.dumpDescription))"
         case let .externSymbolAddress(interned):
             return "externSymbolAddress(\"\(interner.resolve(interned))\")"
-        default:
-            return "\(value)"
+        case let .temporary(index):
+            return "temporary(\(index))"
+        case .null:
+            return "null"
+        case .unit:
+            return "unit"
+        }
+    }
+}
+
+/// Reflection-free spellings of the payload types the dump used to print
+/// through `String(describing:)`; `KIRDumpFormatTests` pins them.
+private extension SymbolID {
+    var dumpDescription: String {
+        "CompilerCore.SymbolID(rawValue: \(rawValue))"
+    }
+}
+
+private extension KIRReturnTarget {
+    var dumpDescription: String {
+        switch self {
+        case let .function(symbol):
+            "function(\(symbol.dumpDescription))"
+        case let .importedFunction(name):
+            "importedFunction(CompilerCore.InternedString(rawValue: \(name.rawValue)))"
+        }
+    }
+}
+
+private extension KIRBinaryOp {
+    var dumpName: String {
+        switch self {
+        case .add: "add"
+        case .subtract: "subtract"
+        case .multiply: "multiply"
+        case .divide: "divide"
+        case .modulo: "modulo"
+        case .equal: "equal"
+        case .notEqual: "notEqual"
+        case .lessThan: "lessThan"
+        case .lessOrEqual: "lessOrEqual"
+        case .greaterThan: "greaterThan"
+        case .greaterOrEqual: "greaterOrEqual"
+        case .logicalAnd: "logicalAnd"
+        case .logicalOr: "logicalOr"
+        }
+    }
+}
+
+private extension KIRUnaryOp {
+    var dumpName: String {
+        switch self {
+        case .not: "not"
+        case .unaryPlus: "unaryPlus"
+        case .unaryMinus: "unaryMinus"
         }
     }
 }
