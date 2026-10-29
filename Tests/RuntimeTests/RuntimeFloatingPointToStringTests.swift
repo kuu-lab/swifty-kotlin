@@ -132,5 +132,22 @@ struct RuntimeFloatingPointToStringTests {
         #expect(runtimeFormatFloatingPoint(Float.leastNonzeroMagnitude) == "1.4E-45")
         #expect(runtimeFormatFloatingPoint(-Float.leastNonzeroMagnitude) == "-1.4E-45")
     }
+
+    /// JDK-19+ selection rule: when a length-1 decimal round-trips, Java
+    /// still emits the closest decimal among all length-1-or-2 candidates,
+    /// not the globally shortest one Ryu picks (e.g. `3e-45` -> `2.8E-45`).
+    @Test
+    func testDenormalTwoDigitSelection() {
+        #expect(runtimeFormatFloatingPoint(Double(bitPattern: 2)) == "9.9E-324")
+        #expect(runtimeFormatFloatingPoint(Double(bitPattern: 3)) == "1.5E-323")
+        #expect(runtimeFormatFloatingPoint(Double(bitPattern: 4)) == "2.0E-323")
+        #expect(runtimeFormatFloatingPoint(Double(bitPattern: 6)) == "3.0E-323")
+        #expect(runtimeFormatFloatingPoint(-Double(bitPattern: 2)) == "-9.9E-324")
+        #expect(runtimeFormatFloatingPoint(Float(bitPattern: 2)) == "2.8E-45")
+        #expect(runtimeFormatFloatingPoint(Float(bitPattern: 3)) == "4.2E-45")
+        #expect(runtimeFormatFloatingPoint(Float(bitPattern: 4)) == "5.6E-45")
+        #expect(runtimeFormatFloatingPoint(Float(bitPattern: 6)) == "8.4E-45")
+        #expect(runtimeFormatFloatingPoint(-Float(bitPattern: 2)) == "-2.8E-45")
+    }
 }
 #endif
