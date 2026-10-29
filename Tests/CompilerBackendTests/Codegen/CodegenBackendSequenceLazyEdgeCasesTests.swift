@@ -780,6 +780,32 @@ struct CodegenBackendSequenceLazyEdgeCasesTests {
         )
     }
     @Test
+    func testConstrainOnceThrowsOnSecondIteration() throws {
+        let source = """
+        fun main() {
+            val seq = sequenceOf(1, 2, 3).constrainOnce()
+            println(seq.asSequence().toList())
+            try {
+                seq.asSequence().toList()
+                println("unexpected")
+            } catch (e: IllegalStateException) {
+                println("constrain-once-error")
+            }
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "ConstrainOnce",
+            expected:
+                """
+                [1, 2, 3]
+                constrain-once-error
+                """ + "\n"
+        )
+    }
+
+    @Test
     func testSequenceAnyShortCircuits() throws {
         let source = """
         var counter = 0
