@@ -285,7 +285,12 @@ extension LambdaLowerer {
 
         let samMethodReceiverType = samFunctionType.receiver
         let samMethodParamTypes = samFunctionType.params
-        let samMethodInputTypes = (samMethodReceiverType.map { [$0] } ?? []) + samMethodParamTypes
+        // KUU-3175: context parameters are the leading dispatch arguments of
+        // the SAM method — the thunk must declare them and the wrapper must
+        // forward them, mirroring `[receiver][context][value]` KIR ordering.
+        let samMethodInputTypes = samFunctionType.contextReceivers
+            + (samMethodReceiverType.map { [$0] } ?? [])
+            + samMethodParamTypes
         let returnType = samFunctionType.returnType
 
         let thunkName = interner.intern("kk_sam_ref_thunk_\(exprID.rawValue)")
@@ -377,6 +382,7 @@ extension LambdaLowerer {
             lambdaReturnType: returnType,
             captureBindings: captureBindings,
             samMethodReceiverType: samMethodReceiverType,
+            samMethodContextParameterTypes: samFunctionType.contextReceivers,
             samMethodParamTypes: samMethodParamTypes,
             sema: sema,
             arena: arena,
@@ -864,7 +870,12 @@ extension LambdaLowerer {
         // bundled KProperty and Function interfaces. A raw property symbol is
         // sufficient for a direct getter call, but it has no itable entries for
         // KProperty.get/invoke/set and cannot carry the bound receiver safely.
+        // KUU-3175: a property reference in SAM-conversion position
+        // (`SamInterface(C::prop)`) must skip this path — the KProperty
+        // wrapper does not implement the target interface's itable, so the
+        // SAM-wrapper branch below must build the adapter object instead.
         if sema.bindings.callableRefKind(for: exprID) == .propertyRef,
+           !sema.bindings.isSamConversion(exprID),
            let propertyValue = lowerPropertyReferenceWrapperValue(
                exprID,
                targetSymbol: targetSymbol,

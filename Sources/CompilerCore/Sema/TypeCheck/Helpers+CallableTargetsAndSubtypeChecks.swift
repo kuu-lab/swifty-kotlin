@@ -697,7 +697,13 @@ extension TypeCheckHelpers {
                 isAnonymousExtension = false
             }
             let receiverOffset = !bindReceiver && (unboundReceiverType != nil || signature.receiverType != nil) && !isAnonymousExtension ? 1 : 0
-            let expectedArity = (expected.receiver == nil ? 0 : 1) + expected.params.count
+            // KUU-3175: context receivers of the expected function type are
+            // leading parameters for a callable-reference target
+            // (`context(C) (String) -> R` accepts `C::combine` whose view is
+            // `(C, String) -> R`), so they count toward the arity like the
+            // receiver does.
+            let expectedArity = expected.contextReceivers.count
+                + (expected.receiver == nil ? 0 : 1) + expected.params.count
             let expectedValueArity = isAnonymousExtension ? expected.params.count : (expectedArity - receiverOffset)
             guard expectedValueArity >= 0 else { return [] }
             let parameterCount = signature.parameterTypes.count
@@ -759,10 +765,13 @@ extension TypeCheckHelpers {
                 }
                 var requiresErasedPrimitiveInputAdapter = false
                 if case let .functionType(expectedFunction) = types.kind(of: expectedFunctionType) {
-                    let expectedInputs = (expectedFunction.receiver.map { [$0] } ?? []) + expectedFunction.params
+                    let expectedInputs = expectedFunction.contextReceivers
+                        + (expectedFunction.receiver.map { [$0] } ?? [])
+                        + expectedFunction.params
                     for sourceParameterIndex in 0 ..< sourceParameterCount {
                         let shapeIndex = receiverOffset + sourceParameterIndex
-                        let expectedIndex = receiverOffset + sourceParameterIndex
+                        let expectedIndex = expectedFunction.contextReceivers.count
+                            + receiverOffset + sourceParameterIndex
                         guard params.indices.contains(shapeIndex),
                               expectedInputs.indices.contains(expectedIndex)
                         else {
@@ -832,8 +841,10 @@ extension TypeCheckHelpers {
                   (varargIndex + 1 ..< parameterCount).allSatisfy({ hasDefaults[$0] })
             else { return shapes }
 
-            let expectedInputs = (expected.receiver.map { [$0] } ?? []) + expected.params
-            let expectedVarargIndex = receiverOffset + varargIndex
+            let expectedInputs = expected.contextReceivers
+                + (expected.receiver.map { [$0] } ?? []) + expected.params
+            let expectedVarargIndex = expected.contextReceivers.count
+                + receiverOffset + varargIndex
             let arrayShapedVarargContext: Bool = if let interner,
                                                     expectedInputs.indices.contains(expectedVarargIndex),
                                                     case let .classType(arrayType) = types.kind(of: types.makeNonNullable(
