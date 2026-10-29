@@ -4,6 +4,8 @@ extension LambdaLowerer {
         case mutableProperty0
         case property1
         case mutableProperty1
+        case property2
+        case mutableProperty2
 
         var arity: Int {
             switch self {
@@ -11,14 +13,16 @@ extension LambdaLowerer {
                 0
             case .property1, .mutableProperty1:
                 1
+            case .property2, .mutableProperty2:
+                2
             }
         }
 
         var isMutable: Bool {
             switch self {
-            case .mutableProperty0, .mutableProperty1:
+            case .mutableProperty0, .mutableProperty1, .mutableProperty2:
                 true
-            case .property0, .property1:
+            case .property0, .property1, .property2:
                 false
             }
         }
@@ -117,11 +121,25 @@ extension LambdaLowerer {
             captureFields.append(fieldSymbol)
         }
 
+        // The `get`/`set`/`invoke` mirror the erased KPropertyN arity: every
+        // leading interface type argument is a receiver parameter (dispatch
+        // owner first for member extensions), followed by the value for `set`.
+        let interfaceReceiverTypes: [TypeID] = referenceType.args.dropLast().compactMap { arg in
+            switch arg {
+            case let .invariant(type), let .out(type), let .in(type): type
+            case .star: nil
+            }
+        }
+        let methodReceiverTypes: [TypeID] = shape.arity == 0
+            ? []
+            : (interfaceReceiverTypes.isEmpty
+                ? [accessor.ownerType ?? sema.types.anyType]
+                : interfaceReceiverTypes)
         let getterMethodSymbol = definePropertyReferenceMethod(
             name: "get",
             wrapperSymbol: wrapperSymbol,
             wrapperFQName: wrapperFQName,
-            parameterTypes: shape.arity == 0 ? [] : [accessor.ownerType ?? sema.types.anyType],
+            parameterTypes: methodReceiverTypes,
             returnType: accessor.propertyType,
             sema: sema,
             interner: interner
@@ -131,7 +149,7 @@ extension LambdaLowerer {
                 name: "set",
                 wrapperSymbol: wrapperSymbol,
                 wrapperFQName: wrapperFQName,
-                parameterTypes: (shape.arity == 0 ? [] : [accessor.ownerType ?? sema.types.anyType]) + [accessor.propertyType],
+                parameterTypes: methodReceiverTypes + [accessor.propertyType],
                 returnType: sema.types.unitType,
                 sema: sema,
                 interner: interner
@@ -146,7 +164,7 @@ extension LambdaLowerer {
             name: "getDelegate",
             wrapperSymbol: wrapperSymbol,
             wrapperFQName: wrapperFQName,
-            parameterTypes: shape.arity == 0 ? [] : [accessor.ownerType ?? sema.types.anyType],
+            parameterTypes: methodReceiverTypes,
             returnType: sema.types.nullableAnyType,
             canThrow: true,
             sema: sema,
@@ -314,6 +332,8 @@ extension LambdaLowerer {
         case "KMutableProperty0": return .mutableProperty0
         case "KProperty1": return .property1
         case "KMutableProperty1": return .mutableProperty1
+        case "KProperty2": return .property2
+        case "KMutableProperty2": return .mutableProperty2
         default: return nil
         }
     }
@@ -929,7 +949,7 @@ extension LambdaLowerer {
             _ = index
         }
         var callArgs = captures
-        if shape.arity == 1, let parameter = params.dropFirst().first {
+        for parameter in params.dropFirst() {
             let parameterExpr = arena.appendExpr(.symbolRef(parameter.symbol), type: parameter.type)
             body.append(.constValue(result: parameterExpr, value: .symbolRef(parameter.symbol)))
             callArgs.append(parameterExpr)
@@ -1128,15 +1148,10 @@ extension LambdaLowerer {
             captures.append(capture)
         }
         var callArgs = captures
-        if shape.arity == 1, let parameter = params.dropFirst().first {
+        for parameter in params.dropFirst() {
             let parameterExpr = arena.appendExpr(.symbolRef(parameter.symbol), type: parameter.type)
             body.append(.constValue(result: parameterExpr, value: .symbolRef(parameter.symbol)))
             callArgs.append(parameterExpr)
-        }
-        if let valueParameter = params.dropFirst().last {
-            let valueExpr = arena.appendExpr(.symbolRef(valueParameter.symbol), type: valueParameter.type)
-            body.append(.constValue(result: valueExpr, value: .symbolRef(valueParameter.symbol)))
-            callArgs.append(valueExpr)
         }
         let result = arena.appendTemporary(type: sema.types.unitType)
         body.append(.call(symbol: accessor.setterSymbol, callee: interner.intern("set"), arguments: callArgs, result: result, canThrow: false))
@@ -1443,5 +1458,315 @@ extension LambdaLowerer {
             isInline: false
         ))))
         return bridgeSymbol
+    }
+
+    /// KUU-3194: a delegated property hands a `KProperty` object to
+    /// getValue/setValue/provideDelegate. The runtime `RuntimeKPropertyStub`
+    /// only registered `KCallable` metadata, so `p.get()`/`p.set()` through
+    /// the erased `KPropertyN`/`KMutablePropertyN` interfaces crashed
+    /// (`useKPropertyLater`). Build the same accessor-backed wrapper object
+    /// `::prop` references use: JVM maps each delegate-site property onto a
+    /// `PropertyReferenceN` whose `get`/`set` call the real accessor.
+    func lowerDelegatedPropertyStubWrapper(
+        propertySymbol: SymbolID,
+        propertyName: InternedString,
+        ast: ASTModule?,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        instructions: inout [KIRInstruction]
+    ) -> KIRExprID? {
+        guard let propertyType = sema.symbols.propertyType(for: propertySymbol) else { return nil }
+        let ownerSymbol = sema.symbols.parentSymbol(for: propertySymbol)
+        let ownerIsNominal = ownerSymbol.flatMap { sema.symbols.symbol($0)?.kind }
+            .map { [.class, .interface, .object, .enumClass, .annotationClass].contains($0) } == true
+        let extensionReceiverType = sema.symbols.extensionPropertyReceiverType(for: propertySymbol)
+        // JVM receiver order: a member extension binds (dispatch, extension).
+        var receiverTypes: [TypeID] = []
+        if ownerIsNominal, let ownerSymbol {
+            receiverTypes.append(sema.types.make(.classType(ClassType(
+                classSymbol: ownerSymbol, args: [], nullability: .nonNull
+            ))))
+        }
+        if let extensionReceiverType {
+            receiverTypes.append(extensionReceiverType)
+        }
+        guard receiverTypes.count <= 2 else { return nil }
+        let isMutable = sema.symbols.symbol(propertySymbol)?.flags.contains(.mutable) == true
+        let shape: PropertyReferenceShape = switch (receiverTypes.count, isMutable) {
+        case (0, false): .property0
+        case (0, true): .mutableProperty0
+        case (1, false): .property1
+        case (1, true): .mutableProperty1
+        case (2, false): .property2
+        case (2, true): .mutableProperty2
+        default: .property0
+        }
+        let interfaceBase = isMutable ? "KMutableProperty" : "KProperty"
+        guard let interfaceSymbol = sema.symbols.lookup(fqName: [
+            interner.intern("kotlin"),
+            interner.intern("reflect"),
+            interner.intern("\(interfaceBase)\(receiverTypes.count)")
+        ]) else { return nil }
+        let interfaceSymbols = propertyReferenceInterfaceClosure(root: interfaceSymbol, sema: sema)
+        guard !interfaceSymbols.isEmpty else { return nil }
+
+        let referenceArgs = (receiverTypes + [propertyType]).map(TypeArg.invariant)
+        let boundType = sema.types.make(.classType(ClassType(
+            classSymbol: interfaceSymbol, args: referenceArgs, nullability: .nonNull
+        )))
+        let getterSymbol = sema.symbols.extensionPropertyGetterAccessor(for: propertySymbol)
+            ?? SyntheticSymbolScheme.propertyAccessorSymbol(for: propertySymbol, kind: .getter)
+        let accessorSetterSymbol = shape.isMutable
+            ? (sema.symbols.extensionPropertySetterAccessor(for: propertySymbol)
+               ?? SyntheticSymbolScheme.propertyAccessorSymbol(for: propertySymbol, kind: .setter))
+            : nil
+        let accessor = PropertyReferenceAccessor(
+            propertySymbol: propertySymbol,
+            getterSymbol: getterSymbol,
+            setterSymbol: accessorSetterSymbol,
+            propertyType: propertyType,
+            // Only a genuine class/object member can be overridden and needs
+            // virtual dispatch inside `get`; extension receivers resolve
+            // statically, so keep them off the dispatch-probe path.
+            ownerType: extensionReceiverType == nil ? receiverTypes.first : nil
+        )
+
+        let wrapperName = interner.intern("kk_kproperty_delegate_stub_\(propertySymbol.rawValue)")
+        let wrapperFQName = [wrapperName]
+        let getName = interner.intern("get")
+        let setName = interner.intern("set")
+        let getDelegateName = interner.intern("getDelegate")
+        let getterMethodSymbol: SymbolID
+        let setterMethodSymbol: SymbolID?
+        let getDelegateMethodSymbol: SymbolID
+        let wrapperSymbol: SymbolID
+        if let existing = sema.symbols.lookup(fqName: wrapperFQName) {
+            wrapperSymbol = existing
+            guard let getter = sema.symbols.lookup(fqName: wrapperFQName + [getName]),
+                  let getDelegate = sema.symbols.lookup(fqName: wrapperFQName + [getDelegateName])
+            else { return nil }
+            getterMethodSymbol = getter
+            getDelegateMethodSymbol = getDelegate
+            setterMethodSymbol = shape.isMutable
+                ? sema.symbols.lookup(fqName: wrapperFQName + [setName])
+                : nil
+        } else {
+            wrapperSymbol = sema.symbols.define(
+                kind: .class, name: wrapperName, fqName: wrapperFQName,
+                declSite: nil, visibility: .private, flags: [.synthetic]
+            )
+            sema.symbols.setDirectSupertypes([interfaceSymbol], for: wrapperSymbol)
+            sema.types.setNominalDirectSupertypes([interfaceSymbol], for: wrapperSymbol)
+            sema.symbols.setSupertypeTypeArgs(referenceArgs, for: wrapperSymbol, supertype: interfaceSymbol)
+            sema.types.setNominalSupertypeTypeArgs(referenceArgs, for: wrapperSymbol, supertype: interfaceSymbol)
+            let itableSlots = Dictionary(
+                uniqueKeysWithValues: interfaceSymbols.enumerated().map { index, symbol in
+                    (symbol, index)
+                }
+            )
+            sema.symbols.setNominalLayout(
+                NominalLayout(
+                    objectHeaderWords: 2,
+                    instanceFieldCount: 0,
+                    instanceSizeWords: 2,
+                    fieldOffsets: [:],
+                    vtableSlots: [:],
+                    itableSlots: itableSlots,
+                    vtableSize: 0,
+                    itableSize: interfaceSymbols.count,
+                    superClass: nil
+                ),
+                for: wrapperSymbol
+            )
+            driver.ctx.appendGeneratedCallableDecl(
+                arena.appendDecl(.nominalType(KIRNominalType(symbol: wrapperSymbol)))
+            )
+            getterMethodSymbol = definePropertyReferenceMethod(
+                name: "get",
+                wrapperSymbol: wrapperSymbol,
+                wrapperFQName: wrapperFQName,
+                parameterTypes: receiverTypes,
+                returnType: propertyType,
+                canThrow: true,
+                sema: sema,
+                interner: interner
+            )
+            setterMethodSymbol = shape.isMutable
+                ? definePropertyReferenceMethod(
+                    name: "set",
+                    wrapperSymbol: wrapperSymbol,
+                    wrapperFQName: wrapperFQName,
+                    parameterTypes: receiverTypes + [propertyType],
+                    returnType: sema.types.unitType,
+                    canThrow: true,
+                    sema: sema,
+                    interner: interner
+                )
+                : nil
+            getDelegateMethodSymbol = definePropertyReferenceMethod(
+                name: "getDelegate",
+                wrapperSymbol: wrapperSymbol,
+                wrapperFQName: wrapperFQName,
+                parameterTypes: receiverTypes,
+                returnType: sema.types.nullableAnyType,
+                canThrow: true,
+                sema: sema,
+                interner: interner
+            )
+            let wrapperType = sema.types.make(.classType(ClassType(
+                classSymbol: wrapperSymbol, args: [], nullability: .nonNull
+            )))
+            emitPropertyReferenceGetter(
+                methodSymbol: getterMethodSymbol,
+                wrapperType: wrapperType,
+                shape: shape,
+                accessor: accessor,
+                captureFields: [],
+                fieldOffsets: [:],
+                sema: sema,
+                arena: arena,
+                interner: interner
+            )
+            if let setterMethodSymbol, let accessorSetterSymbol {
+                emitDelegatedStubSetter(
+                    methodSymbol: setterMethodSymbol,
+                    wrapperType: wrapperType,
+                    setterSymbol: accessorSetterSymbol,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner
+                )
+            }
+            emitPropertyReferenceGetDelegate(
+                methodSymbol: getDelegateMethodSymbol,
+                wrapperType: wrapperType,
+                shape: shape,
+                accessor: accessor,
+                captureFields: [],
+                fieldOffsets: [:],
+                sema: sema,
+                arena: arena,
+                interner: interner
+            )
+        }
+
+        let intType = sema.types.intType
+        let slotCountExpr = arena.appendExpr(.intLiteral(2), type: intType)
+        instructions.append(.constValue(result: slotCountExpr, value: .intLiteral(2)))
+        let classID = RuntimeTypeCheckToken.stableNominalTypeID(
+            symbol: wrapperSymbol, sema: sema, interner: interner
+        )
+        let classIDExpr = arena.appendExpr(.intLiteral(classID), type: intType)
+        instructions.append(.constValue(result: classIDExpr, value: .intLiteral(classID)))
+        let wrapperValue = arena.appendTemporary(type: boundType)
+        instructions.append(.call(
+            callee: interner.intern("kk_object_new"),
+            arguments: [slotCountExpr, classIDExpr],
+            result: wrapperValue,
+            canThrow: false
+        ))
+        registerPropertyReferenceInterfaces(
+            wrapperValue: wrapperValue,
+            wrapperSymbol: wrapperSymbol,
+            interfaceSymbols: interfaceSymbols,
+            getterMethodSymbol: getterMethodSymbol,
+            setterMethodSymbol: setterMethodSymbol,
+            getDelegateMethodSymbol: getDelegateMethodSymbol,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            instructions: &instructions
+        )
+
+        let nameExpr = arena.appendExpr(.stringLiteral(propertyName), type: sema.types.stringType)
+        instructions.append(.constValue(result: nameExpr, value: .stringLiteral(propertyName)))
+        let returnTypeName = interner.intern(
+            sema.types.displayName(of: propertyType, symbols: sema.symbols, interner: interner)
+        )
+        let returnTypeExpr = arena.appendExpr(.stringLiteral(returnTypeName), type: sema.types.stringType)
+        instructions.append(.constValue(result: returnTypeExpr, value: .stringLiteral(returnTypeName)))
+        let arityExpr = arena.appendExpr(.intLiteral(Int64(receiverTypes.count)), type: intType)
+        instructions.append(.constValue(result: arityExpr, value: .intLiteral(Int64(receiverTypes.count))))
+        let taggedValue = arena.appendTemporary(type: boundType)
+        instructions.append(.call(
+            callee: interner.intern("kk_callable_ref_tag_kproperty"),
+            arguments: [wrapperValue, nameExpr, returnTypeExpr, arityExpr],
+            result: taggedValue,
+            canThrow: false
+        ))
+        emitCallableReferenceIdentity(
+            callableExpr: taggedValue,
+            targetSymbol: getterSymbol,
+            captures: [],
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            instructions: &instructions
+        )
+        driver.ctx.registerCallableValue(
+            taggedValue,
+            symbol: getterMethodSymbol,
+            callee: getName,
+            captureArguments: [wrapperValue],
+            hasClosureParam: false
+        )
+        registerCallableReflection(
+            value: taggedValue,
+            callableSymbol: getterMethodSymbol,
+            callableName: getName,
+            targetSymbol: accessor.propertySymbol,
+            parameterTypes: receiverTypes,
+            returnType: propertyType,
+            captures: [wrapperValue],
+            receiverCount: receiverTypes.count,
+            setterSymbol: setterMethodSymbol,
+            ast: ast,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            instructions: &instructions
+        )
+        return taggedValue
+    }
+
+    /// `set` on a delegated stub forwards every receiver parameter plus the
+    /// trailing value to the real setter accessor. The accessor body calls
+    /// `Delegate.setValue`, which can throw, so the call keeps its thrown
+    /// channel rather than `emitPropertyReferenceSetter`'s non-throwing form.
+    private func emitDelegatedStubSetter(
+        methodSymbol: SymbolID,
+        wrapperType: TypeID,
+        setterSymbol: SymbolID,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner
+    ) {
+        let receiverSymbol = driver.callSupportLowerer.syntheticReceiverParameterSymbol(functionSymbol: methodSymbol)
+        let parameterSymbols = sema.symbols.functionSignature(for: methodSymbol)?.valueParameterSymbols ?? []
+        let params = [KIRParameter(symbol: receiverSymbol, type: wrapperType)] + parameterSymbols.compactMap { symbol in
+            sema.symbols.propertyType(for: symbol).map { KIRParameter(symbol: symbol, type: $0) }
+        }
+        let receiverExpr = arena.appendExpr(.symbolRef(receiverSymbol), type: wrapperType)
+        var body: [KIRInstruction] = [.beginBlock, .constValue(result: receiverExpr, value: .symbolRef(receiverSymbol))]
+        var callArgs: [KIRExprID] = []
+        for parameter in params.dropFirst() {
+            let parameterExpr = arena.appendExpr(.symbolRef(parameter.symbol), type: parameter.type)
+            body.append(.constValue(result: parameterExpr, value: .symbolRef(parameter.symbol)))
+            callArgs.append(parameterExpr)
+        }
+        let result = arena.appendTemporary(type: sema.types.unitType)
+        body.append(.call(symbol: setterSymbol, callee: interner.intern("set"), arguments: callArgs, result: result, canThrow: true))
+        body.append(.returnUnit)
+        body.append(.endBlock)
+        driver.ctx.appendGeneratedCallableDecl(arena.appendDecl(.function(KIRFunction(
+            symbol: methodSymbol,
+            name: interner.intern("set"),
+            params: params,
+            returnType: sema.types.unitType,
+            body: body,
+            isSuspend: false,
+            isInline: false
+        ))))
     }
 }
