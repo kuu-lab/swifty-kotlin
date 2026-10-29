@@ -7,7 +7,6 @@ extension CallTypeChecker {
         range: SourceRange,
         ctx: TypeInferenceContext,
         locals: LocalBindings,
-        expectedType: TypeID?,
         explicitTypeArgs: [TypeID],
         calleeName: InternedString?,
         calleePath: [InternedString]?,

@@ -1,7 +1,7 @@
 extension KotlinParser {
     /// Used to absorb newline-separated accessor lines into the property
     /// declaration CST node.
-    func isPropertyAccessorStart(_ token: Token, allowsBodyless: Bool = true) -> Bool {
+    func isPropertyAccessorStart(allowsBodyless: Bool = true) -> Bool {
         var offset = 0
         var hasVisibilityModifier = false
         // Skip annotations without consuming them: an annotation on the next

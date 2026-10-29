@@ -133,7 +133,7 @@ public extension TypeSystem {
 
     /// Resolve the effective upper bound for a type parameter, returning `Any?` when
     /// no explicit bounds exist and an intersection type when multiple bounds exist.
-    private func effectiveUpperBound(for symbol: SymbolID, symbols: SymbolTable) -> TypeID {
+    private func effectiveUpperBound(for symbol: SymbolID) -> TypeID {
         let bounds = declaredUpperBounds(for: symbol)
         if bounds.isEmpty { return nullableAnyType }
         if bounds.count == 1 { return bounds[0] }
@@ -199,11 +199,11 @@ public extension TypeSystem {
                     writeForbidden = true
                 case let .in(type):
                     lower = type
-                    upper = effectiveUpperBound(for: parameter, symbols: symbols)
+                    upper = effectiveUpperBound(for: parameter)
                     writeForbidden = false
                 case .star:
                     lower = nothingType
-                    upper = effectiveUpperBound(for: parameter, symbols: symbols)
+                    upper = effectiveUpperBound(for: parameter)
                     writeForbidden = true
                 }
                 let captured = makeProjectedReceiverCapture(
@@ -285,9 +285,9 @@ public extension TypeSystem {
         case let .out(type):
             return (type, true)
         case .in:
-            return (effectiveUpperBound(for: tpSymbol, symbols: symbols), false)
+            return (effectiveUpperBound(for: tpSymbol), false)
         case .star:
-            return (effectiveUpperBound(for: tpSymbol, symbols: symbols), true)
+            return (effectiveUpperBound(for: tpSymbol), true)
         }
     }
 

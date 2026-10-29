@@ -451,7 +451,6 @@ extension CallTypeChecker {
             range: range,
             ctx: ctx,
             locals: locals,
-            expectedType: expectedType,
             explicitTypeArgs: explicitTypeArgs,
             calleeName: calleeName,
             calleePath: calleePath,
@@ -819,7 +818,6 @@ extension CallTypeChecker {
             expectedType: expectedType,
             explicitTypeArgs: explicitTypeArgs,
             calleeName: calleeName,
-            candidates: candidates,
             memberExtensionReceiverMarks: &memberExtensionReceiverMarks
         ) {
             return inferred
