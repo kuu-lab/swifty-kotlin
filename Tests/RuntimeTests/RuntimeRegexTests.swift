@@ -47,6 +47,34 @@ struct RuntimeRegexTests {
     }
 
     @Test
+    func matchResultsRetainTheirNominalType() throws {
+        let regex = withFlatString("a") { data, length, byteCount, hash in
+            kk_regex_create_flat(data, length, byteCount, hash, nil)
+        }
+        let first = regexFind(regex, input: "aa")
+        let next = __kk_match_result_next(first)
+        let entire = withFlatString("a") { data, length, byteCount, hash in
+            kk_regex_matchEntire_flat(regex, data, length, byteCount, hash)
+        }
+        let all = withFlatString("aa") { data, length, byteCount, hash in
+            kk_regex_findAll_flat(regex, data, length, byteCount, hash)
+        }
+        let elements = runtimeListElements(all)
+        try #require(elements.count == 2)
+        let expectedType = nominalTypeToken(for: "kotlin.text.MatchResult")
+        let otherType = nominalTypeToken(for: "kotlin.text.Regex")
+        for match in [first, next, entire] + elements {
+            try #require(match != runtimeNullSentinelInt)
+            #expect(kk_op_is(match, expectedType) == 1)
+            #expect(kk_op_is(match, otherType) == 0)
+            var thrown = 0
+            #expect(kk_op_cast(match, expectedType, &thrown) == match)
+            #expect(thrown == 0)
+            #expect(matchValue(match) == "a")
+        }
+    }
+
+    @Test
     func matchResultValueAndGroupValues() {
         let regexRaw = withFlatString("(ab)(cd)") { data, length, byteCount, hash in
             kk_regex_create_flat(data, length, byteCount, hash, nil)
