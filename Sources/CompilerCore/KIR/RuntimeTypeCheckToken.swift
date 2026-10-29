@@ -533,7 +533,12 @@ func kirErasedGenericCallClaimCheck(
        (bound == sema.types.unitType || sema.bindings.unitReturnCoercionExprs.contains(exprID)) {
         return nil
     }
-    return (bound, checkType)
+    // A platform result can still contain null. Check its erased classifier
+    // without rejecting null; a non-null use inserts its own assertion later.
+    let nullableCheckType = sema.types.nullability(of: bound) == .platformType
+        ? sema.types.makeNullable(checkType)
+        : checkType
+    return (bound, nullableCheckType)
 }
 
 /// True when a generic call or property getter's substituted result can be
