@@ -419,6 +419,116 @@ struct DeclarationPositionValidationTests {
         assertHasDiagnostic("KSWIFTK-SEMA-0429", in: ctx)
     }
 
+    @Test func localObjectUsesStandaloneObjectName() throws {
+        let ctx = try semaContext(for: """
+            fun f() { inner object I1 }
+            """)
+        // kotlinc calls named objects 'standalone object' even when local.
+        let notApplicable = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0400" }
+        #expect(notApplicable.map(\.message) == [
+            "modifier 'inner' is not applicable to 'standalone object'."
+        ])
+    }
+
+    @Test func localObjectVisibilityIsPositional() throws {
+        let ctx = try semaContext(for: """
+            fun f() { private object P1; internal object I1; protected object R1 }
+            """)
+        // kotlinc: visibility on local objects is "not applicable inside
+        // 'function'", not a kind conflict.
+        let inside = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0401" }
+        #expect(inside.count == 3)
+        #expect(inside.allSatisfy { $0.message.hasSuffix("inside 'function'.") })
+        assertNoDiagnostic("KSWIFTK-SEMA-0400", in: ctx)
+    }
+
+    @Test func publicLocalObjectReportsNoModifierDiagnostic() throws {
+        let ctx = try semaContext(for: """
+            fun f() { public object P1 }
+            """)
+        assertNoDiagnostic("KSWIFTK-SEMA-0400", in: ctx)
+        assertNoDiagnostic("KSWIFTK-SEMA-0401", in: ctx)
+    }
+
+    @Test func localEnumReportsKindConflictsAsLocalClass() throws {
+        let ctx = try semaContext(for: """
+            fun f() { inner enum class E { A } }
+            """)
+        // kotlinc: 'inner' and 'enum' to 'local class' — no positional
+        // inside-function diagnostic for kind-invalid `inner`.
+        let notApplicable = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0400" }
+        #expect(notApplicable.count == 2)
+        #expect(notApplicable.allSatisfy { $0.message.hasSuffix("to 'local class'.") })
+        assertNoDiagnostic("KSWIFTK-SEMA-0401", in: ctx)
+    }
+
+    @Test func localEnumSuppressesModalityAndData() throws {
+        let ctx = try semaContext(for: """
+            fun f() { open enum class O { A }; abstract enum class B { C }; data enum class D { E } }
+            """)
+        // kotlinc reports only 'enum to local class' for each; modality and
+        // `data` modifiers are subsumed by the misplaced-enum error.
+        let notApplicable = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0400" }
+        #expect(notApplicable.count == 3)
+        #expect(notApplicable.allSatisfy { $0.message == "modifier 'enum' is not applicable to 'local class'." })
+    }
+
+    @Test func localAnnotationClassKeepsKindName() throws {
+        let ctx = try semaContext(for: """
+            fun f() { final annotation class F1; private annotation class P1 }
+            """)
+        // kotlinc: kind-forbidden modifiers report 'annotation class' (not
+        // 'local class'), visibility is positional, 0429 still fires.
+        let notApplicable = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0400" }
+        #expect(notApplicable.map(\.message) == [
+            "modifier 'final' is not applicable to 'annotation class'."
+        ])
+        let inside = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0401" }
+        #expect(inside.map(\.message) == [
+            "modifier 'private' is not applicable inside 'function'."
+        ])
+        let local = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0429" }
+        #expect(local.count == 2)
+    }
+
+    @Test func annotationEnumClassIsTreatedAsEnum() throws {
+        let ctx = try semaContext(for: """
+            fun f() { annotation enum class N { A } }
+            """)
+        // `annotation enum class` is an enum with an invalid modifier —
+        // kotlinc reports 'annotation'/'enum' to 'local class' only.
+        let notApplicable = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0400" }
+        #expect(notApplicable.count == 2)
+        assertNoDiagnostic("KSWIFTK-SEMA-0429", in: ctx)
+    }
+
+    @Test func externalOnNominalReportsClass() throws {
+        let ctx = try semaContextWithoutStdlib(for: """
+            external class C1
+            external interface I1
+            external enum class E1 { A }
+            external object O1
+            """)
+        // kotlinc calls every nominal 'class' for the external check.
+        let notApplicable = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0400" }
+        #expect(notApplicable.count == 4)
+        #expect(notApplicable.allSatisfy { $0.message == "modifier 'external' is not applicable to 'class'." })
+    }
+
+    @Test func innerOnInterfaceAndEnumReportsKindOnly() throws {
+        let ctx = try semaContext(for: """
+            inner interface I2
+            inner enum class E2 { A }
+            """)
+        // kind-invalid `inner` owns the diagnostic — no inside-file duplicate.
+        let notApplicable = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0400" }
+        #expect(notApplicable.map(\.message) == [
+            "modifier 'inner' is not applicable to 'interface'.",
+            "modifier 'inner' is not applicable to 'enum class'.",
+        ])
+        assertNoDiagnostic("KSWIFTK-SEMA-0401", in: ctx)
+    }
+
     @Test func orphanActualIsRejected() throws {
         let ctx = try semaContext(for: """
             actual fun f(): Int = 1
