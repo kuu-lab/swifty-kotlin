@@ -132,7 +132,10 @@ public class LinkedList<E> private constructor(
 
     // Any members are not covered by the `MutableList` delegation and must be
     // forwarded explicitly, matching the JVM AbstractList contract.
-    override fun toString(): String = storage.toString()
+    override fun toString(): String =
+        storage.joinToString(", ", "[", "]") { element ->
+            if (element === this) "(this Collection)" else element.toString()
+        }
 
     override fun equals(other: Any?): Boolean {
         if (other === this) return true
