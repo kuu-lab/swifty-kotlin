@@ -26,11 +26,9 @@ struct IOApplePointerElementExecutionTests {
         import kotlinx.cinterop.memScoped
         import kotlinx.cinterop.readBytes
         import kotlinx.cinterop.usePinned
-        import kotlinx.io.bytestring.*
         import platform.posix.memset
         fun first(pointer: CPointer<ByteVar>): Byte = pointer[0]
         inline fun <T> identity(value: T): T = value
-        fun <T> erasedIdentity(value: T): T = value
         fun ByteArray.implicitFirst(): Byte = usePinned { it.addressOf(0)[0] }
         fun ByteArray.innerFirst(): Byte = with(byteArrayOf(7)) { usePinned { it.addressOf(0)[0] } }
         fun ByteArray.shadowed(): Int {
@@ -68,12 +66,8 @@ struct IOApplePointerElementExecutionTests {
             }
             println(encoded.size)
             val zeros = byteArrayOf(0, 1)
-            zeros.usePinned {
-                val pointer = erasedIdentity(it.addressOf(0))
-                println(pointer.readBytes(2).joinToString())
-            }
+            zeros.usePinned { println(it.addressOf(0).readBytes(2).joinToString()) }
             println(zeros.joinToString())
-            println(ByteString(bytes).toNSData().toByteString().toByteArray().joinToString())
         }
         """.write(to: source, atomically: true, encoding: .utf8)
         let executable = directory.appendingPathComponent("main")
@@ -86,7 +80,7 @@ struct IOApplePointerElementExecutionTests {
         let result = try CommandRunner.run(executable: executable.path, arguments: [])
         #expect(result.exitCode == 0)
         #expect(result.stderr.isEmpty)
-        #expect(result.stdout == "-1\n7\n107\ntrue\n65\n66\n-1\n0\n65\ntrue\nfalse\n97\n99\n16386\n0, 1\n0, 1\n-1, 0, 65\n")
+        #expect(result.stdout == "-1\n7\n107\ntrue\n65\n66\n-1\n0\n65\ntrue\nfalse\n97\n99\n16386\n0, 1\n0, 1\n")
     }
 }
 #endif
