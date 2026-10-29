@@ -142,15 +142,4 @@ public class MissingFieldException private constructor(
 
 }
 
-/**
- * Thrown when [KSerializer] received unknown property index from [CompositeDecoder.decodeElementIndex].
- *
- * This exception means that data schema has changed in backwards-incompatible way.
- */
-@PublishedApi
-internal class UnknownFieldException
-// This constructor is used by coroutines exception recovery
-internal constructor(message: String?) : SerializationException(message) {
-    // This constructor is used by the generated serializers
-    constructor(index: Int) : this("An unknown field for index $index")
-}
+
