@@ -253,7 +253,58 @@ extension CallTypeChecker {
         }
         let isSyntacticRangeCollectionMember = (calleeName == knownNames.plus || calleeName == knownNames.minus)
             && ControlFlowTypeChecker.isRangeExpression(receiverID, ast: ast)
-        if let result = tryInferRegularMemberCallPrimitiveSpecials(
+        // Numeric mod is an extension, so an applicable user extension in a
+        // nearer scope must be resolved before the primitive fallback.
+        let hasUserNumericMod = {
+            guard interner.resolve(calleeName) == "mod", args.count == 1,
+                  case .primitive = sema.types.kind(of: sema.types.makeNonNullable(lookupReceiverType))
+            else { return false }
+            let candidates = collectExtensionCallCandidates(
+                named: calleeName,
+                memberLookupType: lookupReceiverType,
+                isSuperCall: false,
+                supertypeSymbols: [],
+                ctx: ctx,
+                locals: locals,
+                sema: sema,
+                interner: interner,
+                callShapeMatches: {
+                    self.extensionCandidateMatchesCallShape(
+                        $0, request: request, argumentTypes: argTypes, receiverType: lookupReceiverType
+                    )
+                },
+                requiresInfix: ast.arena.isInfixCall(id)
+            )
+            return candidates.contains { candidate in
+                guard let symbol = sema.symbols.symbol(candidate),
+                      ctx.visibilityChecker.isAccessible(
+                          symbol, fromFile: ctx.currentFileID, enclosingClass: ctx.enclosingClassSymbol
+                      ),
+                      extensionCandidateMatchesCallShape(
+                          candidate, request: request, argumentTypes: argTypes, receiverType: lookupReceiverType
+                      )
+                else { return false }
+                if let file = symbol.declSite?.start.file, let origin = driver.sourceManager?.origin(of: file) {
+                    return origin == .user
+                }
+                return symbol.fqName.first != interner.intern("kotlin")
+            }
+        }()
+        if hasUserNumericMod,
+           let result = tryBindShadowedExtensionCallFallback(
+               request,
+               receiverType: receiverType,
+               lookupReceiverType: lookupReceiverType,
+               memberLookupType: lookupReceiverType,
+               argTypes: argTypes,
+               isClassNameReceiver: false,
+               isSuperCall: false,
+               locals: &locals
+           )
+        {
+            return result
+        }
+        if !hasUserNumericMod, let result = tryInferRegularMemberCallPrimitiveSpecials(
             request,
             lookupReceiverType: lookupReceiverType,
             argTypes: argTypes) {
