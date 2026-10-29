@@ -97,6 +97,21 @@ extension LocalDeclTypeChecker {
             elementType = resolvedElementType
             operatorResolved = true
         case .noCandidate:
+            // A member `get` sharing only the convention name (no `operator`
+            // modifier) cannot serve `x[i] op= v`; reject instead of falling
+            // back to the built-in array path. This must be diagnosed before
+            // the unresolved-member error below: a non-array receiver that
+            // declares `get` without `operator` reports SEMA-0432, not
+            // SEMA-0024.
+            if allGetMembers.contains(where: { driver.helpers.isNonOperatorConventionFunction($0, sema: sema) }) {
+                ctx.sema.diagnostics.error(
+                    "KSWIFTK-SEMA-0432",
+                    "'operator' modifier is required on 'get' in '\(driver.helpers.conventionReceiverDisplayName(receiverType, sema: sema, interner: interner))'.",
+                    range: range
+                )
+                sema.bindings.bindExprType(id, type: sema.types.errorType)
+                return sema.types.errorType
+            }
             // The raw read-modify-write below lowers to kk_array_get /
             // kk_array_set, so it is only valid on a genuine array receiver.
             // A non-array receiver with no `get` candidate at all must reject
@@ -120,21 +135,6 @@ extension LocalDeclTypeChecker {
         if ctx.ast.arena.isNullAssertedCompoundAssignRead(id) {
             // `a[i]!! += v`: the `!!` applies to the element read by `get()`.
             elementType = sema.types.definitelyNonNullForm(of: elementType)
-        }
-
-        // A member `get` sharing only the convention name (no `operator`
-        // modifier) cannot serve `x[i] op= v`; reject instead of falling back
-        // to the built-in array path.
-        if !operatorResolved,
-           allGetMembers.contains(where: { driver.helpers.isNonOperatorConventionFunction($0, sema: sema) })
-        {
-            ctx.sema.diagnostics.error(
-                "KSWIFTK-SEMA-0432",
-                "'operator' modifier is required on 'get' in '\(driver.helpers.conventionReceiverDisplayName(receiverType, sema: sema, interner: interner))'.",
-                range: range
-            )
-            sema.bindings.bindExprType(id, type: sema.types.errorType)
-            return sema.types.errorType
         }
 
         let isBuiltinNumericIncrement = isIncrementDecrement
