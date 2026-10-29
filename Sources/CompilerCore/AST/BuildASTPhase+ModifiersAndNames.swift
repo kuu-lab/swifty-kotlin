@@ -18,7 +18,11 @@ extension BuildASTPhase {
         return Self.keywordModifierMap[keyword]
     }
 
-    func declarationModifiers(from nodeID: NodeID, in arena: SyntaxArena) -> Modifiers {
+    func declarationModifiers(
+        from nodeID: NodeID,
+        in arena: SyntaxArena,
+        diagnoseRepeats: Bool = true
+    ) -> Modifiers {
         let tokens = collectTokens(from: nodeID, in: arena)
         var modifiers: Modifiers = []
         var depth = BracketDepth()
@@ -49,7 +53,16 @@ extension BuildASTPhase {
                     (index > 0 && tokens[index - 1].kind == .symbol(.dot))
                     || (index + 1 < tokens.count && tokens[index + 1].kind == .symbol(.dot))
                 if !isQualifiedNameSegment {
-                    modifiers.insert(modifier)
+                    // kotlinc reports every repeated modifier occurrence.
+                    if diagnoseRepeats, !modifiers.insert(modifier).inserted,
+                       case let .keyword(keyword) = token.kind
+                    {
+                        diagnostics?.error(
+                            "KSWIFTK-SEMA-0448",
+                            "repeated '\(keyword.rawValue)'.",
+                            range: token.range
+                        )
+                    }
                 }
             }
             index += 1

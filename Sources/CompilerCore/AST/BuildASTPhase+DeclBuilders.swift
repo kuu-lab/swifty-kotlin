@@ -606,7 +606,11 @@ extension BuildASTPhase {
     ) -> [ValueParamDecl] {
         let tokens = collectTokens(from: nodeID, in: arena)
         let nodeKind = arena.node(nodeID).kind
-        let allowsAnnotationArrays = declarationModifiers(from: nodeID, in: arena).contains(.annotationClass)
+        // `diagnoseRepeats: false`: the declaration maker already reported
+        // repeated modifiers for this node.
+        let allowsAnnotationArrays = declarationModifiers(
+            from: nodeID, in: arena, diagnoseRepeats: false
+        ).contains(.annotationClass)
         // Only look for the opening `(` that occurs before any `{` (class body).
         // This prevents picking up `(` from member function declarations like
         // `class F { operator fun invoke(x: Int) }` as constructor parameters.
@@ -894,7 +898,15 @@ extension BuildASTPhase {
         var candidateModifiers: Modifiers = []
         for token in modifierPrefixTokens {
             if let candidate = modifier(from: token) {
-                candidateModifiers.insert(candidate)
+                if !candidateModifiers.insert(candidate).inserted,
+                   case let .keyword(keyword) = token.kind
+                {
+                    diagnostics?.error(
+                        "KSWIFTK-SEMA-0448",
+                        "repeated '\(keyword.rawValue)'.",
+                        range: token.range
+                    )
+                }
             }
         }
         let isVararg = candidateModifiers.contains(.vararg)

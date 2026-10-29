@@ -459,6 +459,55 @@ struct DeclarationPositionValidationTests {
         #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
     }
 
+    @Test func repeatedModifiersAreDiagnosedPerOccurrence() throws {
+        let ctx = try semaContextWithoutStdlib(for: """
+            private private private class A
+            data data class B(val x: Int)
+            """)
+        let repeated = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0448" }
+        #expect(repeated.map(\.message) == [
+            "repeated 'private'.",
+            "repeated 'private'.",
+            "repeated 'data'.",
+        ])
+    }
+
+    @Test func repeatedMemberAndCompanionModifiersAreDiagnosed() throws {
+        let ctx = try semaContextWithoutStdlib(for: """
+            class C {
+                private private fun m() {}
+                companion companion object B
+            }
+            """)
+        let repeated = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0448" }
+        #expect(repeated.map(\.message) == [
+            "repeated 'private'.",
+            "repeated 'companion'.",
+        ])
+    }
+
+    @Test func repeatedParameterModifierIsDiagnosed() throws {
+        let ctx = try semaContextWithoutStdlib(for: """
+            fun g(private private x: Int) {}
+            """)
+        let repeated = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0448" }
+        #expect(repeated.map(\.message) == ["repeated 'private'."])
+    }
+
+    @Test func varargOnDeclarationIsModifierNotIdentifier() throws {
+        let ctx = try semaContextWithoutStdlib(for: """
+            class C {
+                vararg vararg fun v(vararg xs: Int) {}
+            }
+            """)
+        let notApplicable = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0400" }
+        #expect(notApplicable.map(\.message) == [
+            "modifier 'vararg' is not applicable to 'member function'."
+        ])
+        let repeated = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0448" }
+        #expect(repeated.map(\.message) == ["repeated 'vararg'."])
+    }
+
     @Test(arguments: ["; ", "\n", ";\n", ";\n;"])
     func topLevelFunInterfaceBeforeSeparatedFunctionsIsAccepted(separator: String) throws {
         let source = """
