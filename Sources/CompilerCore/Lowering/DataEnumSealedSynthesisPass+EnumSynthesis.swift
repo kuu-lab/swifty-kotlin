@@ -661,7 +661,6 @@ extension DataEnumSealedSynthesisPass {
                         ordinal: receiverRef,
                         classSymbol: owner.id,
                         result: boxedReceiver,
-                        resultType: interfaceType,
                         types: sema.types,
                         symbols: sema.symbols,
                         interner: interner,
