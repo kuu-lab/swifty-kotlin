@@ -63,7 +63,15 @@ extension KotlinParser {
         case .keyword(.typealias):
             return parseTypeAliasDeclaration(leadingChildren: modifierChildren, leadingRange: modifierRange.value)
         case .keyword(.enum):
-            return parseEnumDeclaration(leadingChildren: modifierChildren, leadingRange: modifierRange.value)
+            if stream.peek(1).kind == .keyword(.class) || isIdentifierLike(stream.peek(1).kind) {
+                return parseEnumDeclaration(leadingChildren: modifierChildren, leadingRange: modifierRange.value)
+            }
+            // `enum` before a different declaration kind (e.g.
+            // `enum interface`) is a recoverable modifier, not an
+            // enum-class head — keep it attached so downstream validation
+            // can report the modifier as kind-invalid.
+            _ = consumeToken(into: &modifierChildren, range: &modifierRange)
+            continue companionDispatch
         case .keyword(.package):
             return parsePackageHeader(leadingChildren: modifierChildren, leadingRange: modifierRange.value)
         case .keyword(.import):

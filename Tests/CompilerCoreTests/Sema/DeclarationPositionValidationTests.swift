@@ -388,6 +388,77 @@ struct DeclarationPositionValidationTests {
         assertHasDiagnostic("KSWIFTK-SEMA-0429", in: ctx)
     }
 
+    @Test func localInterfaceReportsModifierDiagnostics() throws {
+        let ctx = try semaContextWithoutStdlib(for: """
+            fun f() { inner interface J; private interface K; data interface M }
+            """)
+        let notApplicable = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0400" }
+        #expect(notApplicable.map(\.message) == [
+            "modifier 'inner' is not applicable to 'interface'.",
+            "modifier 'data' is not applicable to 'interface'.",
+        ])
+        let inside = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0401" }
+        #expect(inside.map(\.message) == [
+            "modifier 'private' is not applicable inside 'function'."
+        ])
+        #expect(ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0429" }.count == 3)
+    }
+
+    @Test func localInterfaceSkipsLegalModifiers() throws {
+        let ctx = try semaContextWithoutStdlib(for: """
+            fun f() { open interface O; abstract interface A; sealed interface S }
+            """)
+        assertNoDiagnostic("KSWIFTK-SEMA-0400", in: ctx)
+        assertNoDiagnostic("KSWIFTK-SEMA-0401", in: ctx)
+        #expect(ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0429" }.count == 3)
+    }
+
+    @Test func localCompanionInterfaceIsDiagnosed() throws {
+        let ctx = try semaContextWithoutStdlib(for: """
+            fun f() { companion interface N }
+            """)
+        let notApplicable = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0400" }
+        #expect(notApplicable.map(\.message) == [
+            "modifier 'companion' is not applicable to 'interface'."
+        ])
+        assertHasDiagnostic("KSWIFTK-SEMA-0429", in: ctx)
+        assertNoDiagnostic("KSWIFTK-SEMA-0022", in: ctx)
+    }
+
+    @Test func localEnumInterfaceIsDiagnosed() throws {
+        let ctx = try semaContextWithoutStdlib(for: """
+            fun f() { enum interface E }
+            """)
+        let notApplicable = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0400" }
+        #expect(notApplicable.map(\.message) == [
+            "modifier 'enum' is not applicable to 'interface'."
+        ])
+        assertHasDiagnostic("KSWIFTK-SEMA-0429", in: ctx)
+    }
+
+    @Test func enumModifierOnNonClassDeclarationsParses() throws {
+        // `enum interface` is a modifier on an interface, not an enum head —
+        // it must not produce the "Expected enum name." parse error.
+        let ctx = try semaContextWithoutStdlib(for: """
+            enum interface E
+            """)
+        assertNoDiagnostic("KSWIFTK-PARSE-0002", in: ctx)
+        let notApplicable = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0400" }
+        #expect(notApplicable.map(\.message) == [
+            "modifier 'enum' is not applicable to 'interface'."
+        ])
+    }
+
+    @Test func openAbstractSealedInterfacesAreAccepted() throws {
+        let ctx = try semaContextWithoutStdlib(for: """
+            open interface O
+            abstract interface A
+            sealed interface S
+            """)
+        assertNoDiagnostic("KSWIFTK-SEMA-0400", in: ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+    }
+
     @Test(arguments: ["; ", "\n", ";\n", ";\n;"])
     func topLevelFunInterfaceBeforeSeparatedFunctionsIsAccepted(separator: String) throws {
         let source = """
