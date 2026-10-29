@@ -485,6 +485,15 @@ private final class TypeCheckWork: @unchecked Sendable {
             diagnostics: driver.diagnostics, interner: driver.interner,
             compilationModuleName: driver.compilationContext?.options.moduleName ?? "TestModule"
         )
+        // Anonymous object declarations bind lazily during type checking, so
+        // the OFO walk never reached their members; validate their overrides
+        // now that member symbols and types are published.
+        DataFlowSemaPhase().validateObjectLiteralOverrides(
+            ast: driver.ast, symbols: driver.sema.symbols,
+            bindings: driver.sema.bindings, types: driver.sema.types,
+            diagnostics: driver.diagnostics, interner: driver.interner,
+            compilationModuleName: driver.compilationContext?.options.moduleName ?? "TestModule"
+        )
     }
 }
 
