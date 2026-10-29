@@ -1,8 +1,8 @@
-// Scratch proposal. Not compiled or executed against the candidate.
 @testable import CompilerCore
 import Foundation
 import RuntimeABI
 import Testing
+import TestStdlibCache
 @testable import CompilerTestSupport
 
 @Suite
@@ -43,6 +43,7 @@ struct RunBlockingContextSourceTests {
 
     @Test(arguments: [false, true])
     func genericResultsStoredCapturesAndReorderedNamesUseCanonicalOwner(useArtifact: Bool) throws {
+        if useArtifact { TestStdlibCache.shared.prepare() }
         // Original fixture is byte-identical to the actual Kotlin 2.3.10 JVM control.
         let ctx = makeContextFromSource(try fixture("CompilerControls.kt"), allowDefaultStdlibLibrary: useArtifact)
         try runSema(ctx)
@@ -59,7 +60,13 @@ struct RunBlockingContextSourceTests {
 
     @Test(arguments: [false, true])
     func bridgePreservesOpaqueSuspendValuesAndExactPhysicalThrowSignature(useArtifact: Bool) throws {
-        let ctx = makeContextFromSource(try fixture("CompilerControls.kt"), allowDefaultStdlibLibrary: useArtifact)
+        if useArtifact { TestStdlibCache.shared.prepare() }
+        // `.kirDump` elides bundled stdlib bodies, which is where the
+        // canonical `runBlocking` calls `__kk_run_blocking_context`. Drive a
+        // real emit mode so both lanes materialize the bridge.
+        let ctx = makeContextFromSource(try fixture("CompilerControls.kt"),
+                                      emit: .executable,
+                                      allowDefaultStdlibLibrary: useArtifact)
         try runToKIR(ctx)
         try #require(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
         try LoweringPhase().run(ctx)
@@ -72,10 +79,56 @@ struct RunBlockingContextSourceTests {
         }
         let bridges = calls.filter { $0.0 == "__kk_run_blocking_context" }
         try #require(!bridges.isEmpty)
-        for call in bridges {
-            // KIR models outThrown separately; LLVM physical signature adds slot 4.
-            #expect(call.1.count == 3)
-            #expect(module.arena.expr(call.1[2]) == .intLiteral(0))
+        // The env slot must denote literal 0. Source lowering passes the
+        // literal expression itself; artifact bodies decode it as a
+        // temporary bound by an earlier constValue/copy — resolve bindings
+        // inside the owning function.
+        func envPlaceholderIsZero(_ exprID: KIRExprID, in body: [KIRInstruction]) -> Bool {
+            var pending = [exprID]
+            var seen = Set<KIRExprID>()
+            while let current = pending.popLast(), seen.insert(current).inserted {
+                if module.arena.expr(current) == .intLiteral(0) { return true }
+                for instruction in body {
+                    switch instruction {
+                    case let .constValue(result, value)
+                        where result == current && value == .intLiteral(0):
+                        return true
+                    case let .copy(source, destination) where destination == current:
+                        pending.append(source)
+                    default:
+                        continue
+                    }
+                }
+            }
+            return false
+        }
+        func bindingsDescription(for exprID: KIRExprID, in body: [KIRInstruction]) -> String {
+            body.enumerated().compactMap { index, instruction in
+                switch instruction {
+                case let .constValue(result, value) where result == exprID:
+                    return "[\(index)] constValue r\(result.rawValue) = \(value)"
+                case let .copy(source, destination)
+                    where destination == exprID || source == exprID:
+                    return "[\(index)] copy r\(source.rawValue) -> r\(destination.rawValue)"
+                default:
+                    return nil
+                }
+            }.joined(separator: "; ")
+        }
+        for function in functions {
+            for instruction in function.body {
+                guard case let .call(_, callee, arguments, _, _, _, _, _) = instruction,
+                      ctx.interner.resolve(callee) == "__kk_run_blocking_context"
+                else { continue }
+                // KIR models outThrown separately; LLVM physical signature adds slot 4.
+                #expect(arguments.count == 3)
+                if arguments.count == 3 {
+                    #expect(
+                        envPlaceholderIsZero(arguments[2], in: function.body),
+                        "runBlocking bridge env argument must denote literal 0; expr=\(module.arena.expr(arguments[2])); bindings={\(bindingsDescription(for: arguments[2], in: function.body))}"
+                    )
+                }
+            }
         }
         #expect(calls.contains { $0.0 == "kk_suspend_function_create" },
                 "Stored/captured suspend values must retain their resumable entry")
