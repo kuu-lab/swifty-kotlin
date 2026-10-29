@@ -136,5 +136,109 @@ struct CallableReferenceContextualInputTests {
         #expect(errors.first?.code == "KSWIFTK-TYPE-0001")
         #expect(errors.first?.message == "Callable references to properties with context parameters are not supported.")
     }
+
+    // MARK: - KUU-3753: callable references vs context-parameter expected types
+
+    /// An expected `context(A) () -> T` is `(A) -> T`: an unbound
+    /// member/extension/property reference whose receiver is `A` must
+    /// type-check, and the value must invoke as `f(receiver)` — kotlinc
+    /// accepts every one of these.
+    @Test func unboundReferencesMatchContextParameterExpectedType() throws {
+        let ctx = makeContextFromSource("""
+        class A { fun instance() = true; val p = true }
+        fun A.ext() = true
+        val A.extp: Boolean get() = true
+        fun take(f: context(A) () -> Boolean) { }
+        fun callContext(f: context(A) () -> Boolean, receiver: A) = f(receiver)
+        fun main() {
+            val a = A()
+            take(A::instance)
+            take(A::ext)
+            take(A::p)
+            take(A::extp)
+            callContext(A::instance, a)
+            callContext(A::ext, a)
+            callContext(A::p, a)
+            callContext(A::extp, a)
+        }
+        """)
+        try runSema(ctx)
+
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(
+            errors.isEmpty,
+            "Unbound references must satisfy a context-parameter expected type like kotlinc: \(errors)"
+        )
+    }
+
+    /// A bound reference types as `() -> T`, so kotlinc rejects it for
+    /// `context(A) () -> T` — the bound receiver is not re-bound as the
+    /// context argument.
+    @Test(arguments: [
+        "take(a::instance)",
+        "take(a::ext)",
+        "take(a::p)",
+        "take(a::extp)",
+    ])
+    func boundReferencesAreRejectedForContextParameterExpectedType(use: String) throws {
+        let ctx = makeContextFromSource("""
+        class A { fun instance() = true; val p = true }
+        fun A.ext() = true
+        val A.extp: Boolean get() = true
+        fun take(f: context(A) () -> Boolean) { }
+        fun main() {
+            val a = A()
+            \(use)
+        }
+        """)
+        try runSema(ctx)
+
+        #expect(
+            ctx.diagnostics.hasError,
+            "`\(use)` must be rejected for a context-parameter expected type like kotlinc"
+        )
+    }
+
+    /// kotlinc does not widen the reference receiver into a supertype context
+    /// parameter: `A::instance` is `(A) -> Boolean`, which is inapplicable
+    /// where `context(Any) () -> Boolean` is expected.
+    @Test func unrelatedContextParameterTypeIsRejected() throws {
+        let ctx = makeContextFromSource("""
+        class A { fun instance() = true }
+        fun takeAny(f: context(Any) () -> Boolean) { }
+        fun main() {
+            takeAny(A::instance)
+        }
+        """)
+        try runSema(ctx)
+
+        #expect(
+            ctx.diagnostics.hasError,
+            "`A::instance` must not satisfy `context(Any) () -> Boolean` like kotlinc"
+        )
+    }
+
+    /// `::topCtx` on a context function binds the context argument at the
+    /// reference site, producing `() -> Boolean`; kotlinc reports it
+    /// inapplicable to both `context(A) () -> Boolean` and `(A) -> Boolean`.
+    @Test func contextFunctionReferenceIsRejectedForBothFunctionSpellings() throws {
+        let ctx = makeContextFromSource("""
+        class A { fun instance() = true }
+        context(a: A) fun topCtx() = true
+        fun take(f: context(A) () -> Boolean) { }
+        fun takePlain(f: (A) -> Boolean) { }
+        fun main() {
+            val a = A()
+            with(a) {
+                take(::topCtx)
+                takePlain(::topCtx)
+            }
+        }
+        """)
+        try runSema(ctx)
+
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.count == 2, "Both `::topCtx` uses must be rejected like kotlinc: \(errors)")
+    }
 }
 #endif
