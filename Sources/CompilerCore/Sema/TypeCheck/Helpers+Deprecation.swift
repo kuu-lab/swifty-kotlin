@@ -216,6 +216,11 @@ extension TypeCheckHelpers {
         return // Only emit one deprecation diagnostic per symbol reference.
     }
 
+    /// Emits the deprecation diagnostic for the built-in `toChar()` on the
+    /// given receiver and returns the metadata-carrying declaration it was
+    /// checked against, so callers that bind no callee through ordinary
+    /// overload resolution can still bind the call (KUU-3763).
+    @discardableResult
     func checkBuiltinDeprecation(
         calleeName: InternedString,
         receiverType: TypeID,
@@ -223,20 +228,24 @@ extension TypeCheckHelpers {
         interner: StringInterner,
         range: SourceRange?,
         diagnostics: DiagnosticEngine
-    ) {
+    ) -> SymbolID? {
         let callee = interner.resolve(calleeName)
         guard callee == "toChar" else {
-            return
+            return nil
         }
 
         let receiver = sema.types.makeNonNullable(receiverType)
-        // No unsigned type has a real `toChar()` member.
+        // No unsigned type has a real `toChar()` member. Int's decl is not
+        // deprecated upstream, so the lookup no-ops on it; Byte/Short carry
+        // the same error-level deprecation metadata as Long (KUU-3763).
         let deprecatedReceiverTypes: Set<TypeID> = [
             sema.types.intType,
             sema.types.longType,
+            sema.types.byteType,
+            sema.types.shortType,
         ]
         guard deprecatedReceiverTypes.contains(receiver) else {
-            return
+            return nil
         }
 
         let toCharFQName: [InternedString] = [interner.intern("kotlin"), calleeName]
@@ -246,7 +255,7 @@ extension TypeCheckHelpers {
             }
             return signature.receiverType == receiver
         }) else {
-            return
+            return nil
         }
 
         checkDeprecation(
@@ -256,6 +265,7 @@ extension TypeCheckHelpers {
             range: range,
             diagnostics: diagnostics
         )
+        return symbolID
     }
 
     private func parseDeprecatedArguments(
