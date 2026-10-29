@@ -573,9 +573,6 @@ final class RuntimeContinuationState: @unchecked Sendable {
         delivery?.delegateDidExit()
     }
 
-    /// Legacy blocking wait.  Used only when no continuation has been installed
-    /// (e.g. direct test calls).
-
     func beginCancellationShield() {
         stateLock.lock()
         cancellationShieldDepth += 1

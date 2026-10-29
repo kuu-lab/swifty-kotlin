@@ -22,7 +22,6 @@ extension DataFlowSemaPhase {
         )
     }
 
-
     func registerSyntheticCoroutineTopLevelFunction(
         named name: String,
         packageFQName: [InternedString],
@@ -179,7 +178,6 @@ extension DataFlowSemaPhase {
         symbols.setExternalLinkName(externalLinkName, for: propertySymbol)
         symbols.setPropertyType(returnType, for: propertySymbol)
     }
-
 
     func coroutineMemberRows(of ownerSymbol: SymbolID, type ownerType: TypeID, symbols: SymbolTable, interner: StringInterner) -> SyntheticCoroutineMemberRows {
         SyntheticCoroutineMemberRows(phase: self, ownerSymbol: ownerSymbol, ownerType: ownerType, symbols: symbols, interner: interner)

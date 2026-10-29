@@ -75,7 +75,7 @@ final class WasmFunctionEmission {
                     activeStack.append(interval.label)
                 }
             }
-            try emitInstruction(function.body[index], at: index)
+            try emitInstruction(function.body[index])
         }
         // The function's implicit frame end; any still-open intervals are a
         // compiler bug, but close them so the binary still validates.
@@ -377,7 +377,7 @@ final class WasmFunctionEmission {
 
     // MARK: - Instructions
 
-    private func emitInstruction(_ instruction: KIRInstruction, at index: Int) throws {
+    private func emitInstruction(_ instruction: KIRInstruction) throws {
         switch instruction {
         case .nop, .beginBlock, .endBlock,
              .beginFinallyGuard, .endFinallyGuard,

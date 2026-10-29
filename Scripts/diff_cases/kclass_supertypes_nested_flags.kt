@@ -24,6 +24,7 @@ fun main() {
     println(Int::class.supertypes)
     println(SubI::class.supertypes)
     println(Outer::class.nestedClasses.map { it.simpleName })
+    println(Outer::class.nestedClasses.map { it.simpleName })
     println(WithComp::class.nestedClasses.map { it.simpleName })
     println(C::class.visibility)
     println(Mut::class.members.any { it.name == "m" })

@@ -192,17 +192,14 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
         receiverType: TypeID,
         sema: SemaModule,
         interner: StringInterner,
-        ctx: TypeInferenceContext,
-        locals: inout LocalBindings
+        ctx: TypeInferenceContext
     ) -> TypeID {
         checker.resolvedCollectionElementType(
             receiverID: receiverID,
             receiverType: receiverType,
             sema: sema,
             interner: interner,
-            ctx: ctx,
-            locals: &locals
-        )
+            ctx: ctx)
     }
 
     func typeContainsNothingType(_ type: TypeID, sema: SemaModule, depth: Int = 0) -> Bool {

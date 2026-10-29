@@ -34,8 +34,7 @@ extension ExprLowerer {
         // every other range, which resolves to the shared `__kk_range_contains`
         // bridge (safe: UInt always fits the Int64 fields it operates on).
         let floatingPointPlan = floatingPointRangeContainsPlan(
-            for: rhsExpr, value: lhsExpr, sema: sema, ast: ast, interner: interner
-        )
+            for: rhsExpr, value: lhsExpr, sema: sema, ast: ast)
 
         if !negated {
             let result = arena.appendTemporary(type: boundType ?? boolType)
@@ -248,9 +247,7 @@ extension ExprLowerer {
         for rangeExpr: ExprID,
         value valueExpr: ExprID,
         sema: SemaModule,
-        ast: ASTModule,
-        interner: StringInterner
-    ) -> FloatingPointRangeContainsPlan? {
+        ast: ASTModule) -> FloatingPointRangeContainsPlan? {
         let elementType = sema.bindings.floatingPointRangeElementType(forExpr: rangeExpr)
             ?? sema.bindings.identifierSymbol(for: rangeExpr).flatMap {
                 sema.bindings.floatingPointRangeElementType(forSymbol: $0)

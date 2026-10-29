@@ -94,8 +94,6 @@ final class CoroutineLoweringPass: LoweringPass {
         let kxMiniAsyncCallee = ctx.interner.intern("async")
         let kxMiniProduceCallee = ctx.interner.intern("produce")
         let kxMiniWithContextCallee = ctx.interner.intern("withContext")
-        let kxMiniWithTimeoutCallee = ctx.interner.intern("withTimeout")
-        let kxMiniWithTimeoutOrNullCallee = ctx.interner.intern("withTimeoutOrNull")
         let suspendCoroutineUninterceptedOrReturnCallee = ctx.interner.intern("suspendCoroutineUninterceptedOrReturn")
         let kxMiniDelayCallee = ctx.interner.intern("delay")
         let kxMiniYieldCallee = ctx.interner.intern("yield")
@@ -364,9 +362,7 @@ final class CoroutineLoweringPass: LoweringPass {
             flowCollectLatestCallee: flowCollectLatestCallee,
             withContextCallee: kxMiniWithContextCallee,
             runtimeWithContextCallee: ctx.interner.intern("kk_with_context"),
-            withTimeoutCallee: kxMiniWithTimeoutCallee,
             runtimeWithTimeoutCallee: runtimeWithTimeoutCallee,
-            withTimeoutOrNullCallee: kxMiniWithTimeoutOrNullCallee,
             runtimeWithTimeoutOrNullCallee: runtimeWithTimeoutOrNullCallee,
             yieldCallee: kxMiniYieldCallee,
             runtimeYieldCallee: runtimeYieldCallee,

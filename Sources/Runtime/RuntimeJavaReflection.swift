@@ -74,7 +74,6 @@ final class RuntimeJavaMethodRegistry: @unchecked Sendable {
 }
 
 struct RuntimeJavaFieldMetadata {
-    let name: String
     let annotations: [RuntimeAnnotationRecord]
 }
 
@@ -106,7 +105,7 @@ final class RuntimeJavaFieldRegistry: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         guard let annotations = fieldsByTypeToken[typeToken]?[name] else { return nil }
-        return RuntimeJavaFieldMetadata(name: name, annotations: annotations)
+        return RuntimeJavaFieldMetadata(annotations: annotations)
     }
 
     func reset() {
@@ -322,7 +321,6 @@ public func __kk_java_field_get_annotations_typed(
     return runtimeAnnotationArray(field.metadata.annotations, outThrown: outThrown)
 }
 
-
 private func runtimeJavaClassAnnotations(typeToken: Int) -> [RuntimeAnnotationRecord] {
     guard let metadata = runtimeKClassMetadataRegistry.lookup(typeToken: typeToken) else { return [] }
 
@@ -346,6 +344,7 @@ private func runtimeJavaClassAnnotations(typeToken: Int) -> [RuntimeAnnotationRe
 
     return annotations
 }
+
 
 private func runtimeJavaSuperclassMetadata(of metadata: RuntimeKClassMetadataEntry) -> RuntimeKClassMetadataEntry? {
     for displayName in metadata.supertypeDisplayNames {

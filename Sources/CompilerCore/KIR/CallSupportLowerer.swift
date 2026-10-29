@@ -21,7 +21,6 @@ struct DefaultArgumentMask: Equatable, Sendable {
         words = Array(repeating: 0, count: wordCount)
     }
 
-
     var hasSetBits: Bool {
         words.contains { $0 != 0 }
     }

@@ -4,8 +4,6 @@ extension DataFlowSemaPhase {
         symbols: SymbolTable,
         types: TypeSystem,
         interner: StringInterner,
-        kotlinPkg: [InternedString],
-        kotlinPropertiesPkg: [InternedString],
         bundledIndex: BundledDeclarationIndex
     ) {
         let anyType = types.anyType

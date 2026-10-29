@@ -10,7 +10,6 @@ extension BuildASTPhase {
             angle == 0 && paren == 0 && bracket == 0 && brace == 0
         }
 
-
         /// Deliberately excludes `angle`, matching `hasUnclosedStatementDelimiter`
         /// (`BuildASTPhase+BodyParsing.swift`): an unmatched `<`/`>` from a
         /// comparison operator (`x < 0`) is indistinguishable at this token-depth

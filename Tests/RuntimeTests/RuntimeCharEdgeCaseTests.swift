@@ -46,23 +46,6 @@ struct RuntimeCharEdgeCaseTests {
         kk_box_bool(__kk_char_unicode_category(value) != 0 ? 1 : 0)
     }
 
-    private func withFlatString<T>(
-        _ value: String,
-        _ body: (UnsafePointer<UInt8>?, Int, Int, Int) -> T
-    ) -> T {
-        var length = 0
-        var byteCount = 0
-        var hash = 0
-        let data = runtimeRegisterFlatString(
-            value,
-            outLength: &length,
-            outByteCount: &byteCount,
-            outHash: &hash
-        )
-        let constData = data.map { UnsafePointer($0) }
-        return body(constData, length, byteCount, hash)
-    }
-
     // MARK: - Char.MIN_VALUE / MAX_VALUE boundaries
     // Kotlin Char.MIN_VALUE = '\u0000', Char.MAX_VALUE = '\uFFFF'
 

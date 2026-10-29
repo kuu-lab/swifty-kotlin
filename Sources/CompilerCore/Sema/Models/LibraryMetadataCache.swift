@@ -169,7 +169,6 @@ final class LibraryMetadataCache {
         metadataCache.count
     }
 
-
     var signatureCacheCount: Int {
         signatureCache.count
     }

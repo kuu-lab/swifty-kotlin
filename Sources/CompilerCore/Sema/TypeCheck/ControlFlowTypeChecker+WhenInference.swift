@@ -705,7 +705,9 @@ extension ControlFlowTypeChecker {
             )
             locals.memberFlow = joinMemberFlow(
                 from: completingLocals + (isExhaustive ? [] : [locals]),
-                base: locals.memberFlow)
+                base: locals.memberFlow,
+                sema: sema
+            )
             let flowFactBranches = completingLocals + (isExhaustive ? [] : [locals])
             locals.joinVariableFacts(from: flowFactBranches)
             let contextualizedTypes = contextualizeLongBranchLiterals(
