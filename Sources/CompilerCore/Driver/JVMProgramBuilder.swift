@@ -743,7 +743,7 @@ final class JVMFunctionBuilder {
         case let .callableRef(receiver, member, _): return try reflectionReference(id, receiver: receiver, member: member)
         case let .asCast(source, _, safe, _):
             return try checkedCast(source, safe: safe, id: id)
-        case let .isCheck(source, target, negated, _):
+        case let .isCheck(source, _, negated, _):
             return try instanceCheck(source, negated: negated, id: id)
         case let .indexedAccess(receiver, indices, _): return try indexedGet(receiver, indices, id)
         case let .indexedAssign(receiver, indices, source, _): try indexedSet(receiver, indices, source, id); return nil
