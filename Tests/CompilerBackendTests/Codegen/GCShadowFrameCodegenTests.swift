@@ -5,6 +5,72 @@ import Testing
 
 @Suite
 struct GCShadowFrameCodegenTests {
+    @Test(arguments: [false, true], [0, 2])
+    func referenceParametersAreInitializedBeforeFrameRegistration(withoutTypeInformation: Bool, optimization: Int) throws {
+        let interner = StringInterner()
+        let types = TypeSystem()
+        let arena = KIRArena()
+        let first = SymbolID(rawValue: 1001)
+        let second = SymbolID(rawValue: 1002)
+        let function = KIRFunction(
+            symbol: SymbolID(rawValue: 1003), name: interner.intern("gcParameters"),
+            params: [KIRParameter(symbol: first, type: types.anyType),
+                     KIRParameter(symbol: second, type: types.makeNullable(types.intType))],
+            returnType: types.unitType, body: [.returnUnit], isSuspend: false, isInline: false
+        )
+        let declaration = arena.appendDecl(.function(function))
+        let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [declaration])], arena: arena)
+        let backend = try LLVMBackend(
+            target: TargetTriple.hostDefault(), optLevel: optimization == 0 ? .O0 : .O2, debugInfo: false,
+            diagnostics: DiagnosticEngine()
+        )
+        let irPath = FileManager.default.temporaryDirectory
+            .appendingPathComponent("gc-parameter-publication-\(UUID().uuidString).ll").path
+        defer { try? FileManager.default.removeItem(atPath: irPath) }
+        try backend.emitLLVMIR(module: module, outputIRPath: irPath, interner: interner,
+                               typeSystem: withoutTypeInformation ? nil : types)
+        let ir = try String(contentsOfFile: irPath, encoding: .utf8)
+        let push = try #require(ir.range(of: "call i64 @kk_gc_push_root_frame("))
+        let beforePush = ir[..<push.lowerBound]
+        #expect(beforePush.contains("store i64 %0, ptr %gc_param_root_0")
+            || beforePush.contains("store i64 %0, ptr %gc_root_slots"))
+        #expect(beforePush.contains("store i64 %1, ptr %gc_param_root_1"))
+        let overflowCheck = try #require(ir.range(of: "call i64 @kk_stack_overflow_check("))
+        #expect(overflowCheck.lowerBound < push.lowerBound)
+        #expect(!beforePush.contains("call i64 @kk_gc_frame_leave("))
+        #expect(!beforePush.contains("call i64 @kk_gc_shadow_pop("))
+    }
+
+    @Test(arguments: [0, 2])
+    func rawStringCallbackParameterIsRootedBeforeConversion(optimization: Int) throws {
+        let interner = StringInterner()
+        let types = TypeSystem()
+        let arena = KIRArena()
+        let parameter = SymbolID(rawValue: 1011)
+        let function = KIRFunction(
+            symbol: SymbolID(rawValue: 1012), name: interner.intern("fixture__AnonymousFunction_1012"),
+            params: [KIRParameter(symbol: parameter, type: types.stringType)],
+            returnType: types.unitType, body: [.returnUnit], isSuspend: false, isInline: false
+        )
+        let declaration = arena.appendDecl(.function(function))
+        let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [declaration])], arena: arena)
+        let backend = try LLVMBackend(
+            target: TargetTriple.hostDefault(), optLevel: optimization == 0 ? .O0 : .O2, debugInfo: false,
+            diagnostics: DiagnosticEngine()
+        )
+        let irPath = FileManager.default.temporaryDirectory
+            .appendingPathComponent("gc-raw-string-\(UUID().uuidString).ll").path
+        defer { try? FileManager.default.removeItem(atPath: irPath) }
+        try backend.emitLLVMIR(module: module, outputIRPath: irPath, interner: interner, typeSystem: types)
+        let ir = try String(contentsOfFile: irPath, encoding: .utf8)
+        let push = try #require(ir.range(of: "call i64 @kk_gc_push_root_frame("))
+        let conversion = try #require(ir.range(of: "call ptr @kk_string_to_flat("))
+        let beforePush = ir[..<push.lowerBound]
+        #expect(beforePush.contains("store i64 %0, ptr %gc_param_root_0")
+            || beforePush.contains("store i64 %0, ptr %gc_root_slots"))
+        #expect(push.lowerBound < conversion.lowerBound)
+    }
+
     @Test(arguments: [0, 2])
     func weakReadPublishesItsResultAtomically(optimization: Int) throws {
         let interner = StringInterner()

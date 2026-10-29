@@ -277,6 +277,10 @@ extension NativeEmitter.FunctionEmissionContext {
             }
         )
 
+        storeOutThrownIfNonNull(zeroValue, suffix: "entry")
+        emitStackOverflowGuard()
+        try prepareGCRootFrame(allocaBuilder: allocaBuilder)
+
         if usesRuntimeCallbackRawABI {
             for (index, parameter) in function.params.enumerated() where stringAggregateBridge.isStringAggregateType(parameter.type) {
                 guard let rawValue = parameterValues[parameter.symbol] else {
@@ -299,10 +303,6 @@ extension NativeEmitter.FunctionEmissionContext {
             argumentCount: 1,
             appendThrownChannel: false
         )
-        storeOutThrownIfNonNull(zeroValue, suffix: "entry")
-
-        emitStackOverflowGuard()
-        prepareGCRootFrame(allocaBuilder: allocaBuilder)
         emitGCShadowPush()
 
         for (instructionIndex, instruction) in function.body.enumerated() {

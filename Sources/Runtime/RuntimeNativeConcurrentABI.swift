@@ -349,15 +349,17 @@ public func __kk_native_concurrent_execute_impl(
     typealias JobFunction = @convention(c) (Int) -> Int
     let job = unsafeBitCast(jobPointer, to: JobFunction.self)
     let futureHandle = kk_future_new()
-    let argumentPin = RuntimeForeignCallbackPin(root: jobArgumentRaw)
+    let queuedRoots = RuntimeQueuedGCRoots([jobArgumentRaw, futureHandle])
     let submitted = worker.execute {
-        withExtendedLifetime(argumentPin) {
-            kk_gc_shadow_push()
-            defer { runtimePopNativeGCShadowFrame(0, 0) }
-            _ = kk_future_complete(futureHandle, job(jobArgumentRaw))
-        }
+        defer { queuedRoots.finish() }
+        kk_gc_shadow_push()
+        defer { runtimePopNativeGCShadowFrame(0, 0) }
+        _ = kk_future_complete(futureHandle, job(jobArgumentRaw))
     }
-    if !submitted { _ = runtimeReleaseObject(futureHandle) }
+    if !submitted {
+        queuedRoots.finish()
+        _ = runtimeReleaseObject(futureHandle)
+    }
     return submitted ? futureHandle : 0
 }
 
@@ -615,19 +617,19 @@ public func kk_worker_execute_after(
     // no-exception path) stores through that garbage address and crashes.
     let fn = unsafeBitCast(UnsafeRawPointer(bitPattern: resolved.fnPtr)!, to: KKClosureThunkEntryPoint.self)
     let captured = resolved.closureRaw
-    let capturePin = RuntimeForeignCallbackPin(root: captured)
+    let queuedRoots = RuntimeQueuedGCRoots([captured])
     let deadline: DispatchTime = afterMicroseconds > 0
         ? DispatchTime.now() + .microseconds(afterMicroseconds)
         : .now()
     let submitted = worker.executeAfter(deadline: deadline) {
+        defer { queuedRoots.finish() }
         // Fire-and-forget: executeAfter's Kotlin signature returns Unit with
         // no Future, so there is nothing to report a thrown exception to.
-        withExtendedLifetime(capturePin) {
-            kk_gc_shadow_push()
-            defer { runtimePopNativeGCShadowFrame(0, 0) }
-            var thrown = 0
-            _ = fn(captured, &thrown)
-        }
+        kk_gc_shadow_push()
+        defer { runtimePopNativeGCShadowFrame(0, 0) }
+        var thrown = 0
+        _ = fn(captured, &thrown)
     }
+    if !submitted { queuedRoots.finish() }
     return submitted ? 1 : 0
 }

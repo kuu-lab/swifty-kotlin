@@ -854,6 +854,7 @@ struct RuntimeGCTests {
             let started = blockerStarted.wait(timeout: .now() + .seconds(5)) == .success
             #expect(started)
             var future = 0
+            var futureProtected = true
             if started {
                 switch mode {
                 case 0:
@@ -883,18 +884,70 @@ struct RuntimeGCTests {
                 kk_gc_collect()
                 if mode != 0 { #expect(kk_weak_ref_get(valueWeak) == value) }
                 if mode != 2 { #expect(kk_weak_ref_get(captureWeak) == capture) }
+                if future != 0 {
+                    futureProtected = kk_object_release(future) == 0
+                    #expect(futureProtected)
+                }
+                // Queued native callbacks have not published a frame yet.
+                let canReset = runtimeWithQuiescentGCFrames {}
+                #expect(!canReset)
+                if !canReset { #expect(!kk_runtime_reset_gc()) }
             }
             unblock.signal()
             worker.requestTermination(processScheduled: true)
+            #expect(waitUntil { runtimeWithQuiescentGCFrames {} })
             kk_unregister_coroutine_root(UnsafeMutableRawPointer(bitPattern: value))
             kk_unregister_coroutine_root(UnsafeMutableRawPointer(bitPattern: capture))
             kk_gc_collect()
             #expect(kk_weak_ref_get(valueWeak) == runtimeNullSentinelInt)
             #expect(kk_weak_ref_get(captureWeak) == runtimeNullSentinelInt)
-            if future != 0 { _ = kk_object_release(future) }
+            if future != 0, futureProtected { #expect(kk_object_release(future) == 1) }
             _ = kk_worker_request_termination(handle, 0)
             _ = kk_object_release(handle)
         }
+    }
+
+    @Test func queuedNativeRootsReleasePinsBeforeTheResetLease() {
+        withDummyTypeInfo { typeInfo in
+            let value = Int(bitPattern: kk_alloc(16, typeInfo))
+            let key = UInt(bitPattern: value)
+            let roots = RuntimeQueuedGCRoots([value, value])
+            #expect(runtimeStorage.withGCLock { $0.pinnedObjectCounts[key] } == 2)
+            #expect(!kk_runtime_reset_gc())
+            DispatchQueue.concurrentPerform(iterations: 8) { _ in roots.finish() }
+            #expect(runtimeStorage.withGCLock { $0.pinnedObjectCounts[key] } == nil)
+
+            var nextPin: RuntimeForeignCallbackPin? = RuntimeForeignCallbackPin(root: value)
+            roots.finish()
+            #expect(runtimeStorage.withGCLock { $0.pinnedObjectCounts[key] } == 1)
+            nextPin?.finish()
+            let newestPin = RuntimeForeignCallbackPin(root: value)
+            nextPin = nil
+            #expect(runtimeStorage.withGCLock { $0.pinnedObjectCounts[key] } == 1)
+            newestPin.finish()
+            #expect(runtimeStorage.withGCLock { $0.pinnedObjectCounts[key] } == nil)
+            #expect(kk_runtime_reset_gc())
+        }
+    }
+
+    @Test func rejectedWorkerSubmissionsReleaseQueuedRoots() {
+        let handle = kk_worker_new(0)
+        let termination = kk_worker_request_termination(handle, 0)
+        let producer = unsafeBitCast(
+            gcTestWorkerProducer as @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int,
+            to: Int.self
+        )
+        let job = unsafeBitCast(
+            gcTestWorkerJob as @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int,
+            to: Int.self
+        )
+        let rawJob = unsafeBitCast(gcTestWorkerRawJob as @convention(c) (Int) -> Int, to: Int.self)
+        #expect(kk_worker_execute(handle, 0, producer, 0, job, 0) == 0)
+        #expect(__kk_native_concurrent_execute_impl(handle, 0, 0, rawJob) == 0)
+        #expect(kk_worker_execute_after(handle, 0, producer, 0) == 0)
+        #expect(runtimeWithQuiescentGCFrames {})
+        _ = kk_object_release(termination)
+        _ = kk_object_release(handle)
     }
 
     @Test func bufferedChannelKeepsValueThroughReceiveHandoff() {
@@ -2862,11 +2915,27 @@ struct RuntimeGCTests {
             }
             #expect(attempted.wait(timeout: .now() + 5) == .success)
             #expect(created.wait(timeout: .now() + .milliseconds(30)) == .timedOut)
-            for reset in runtimeIsolationResetFunctions(for: .gcAndMetadata) { reset() }
+            for reset in runtimeIsolationResetFunctions(for: .gcAndMetadata) { #expect(reset()) }
         }
         #expect(performed)
         #expect(created.wait(timeout: .now() + 5) == .success)
         #expect(finished.wait(timeout: .now() + 5) == .success)
+    }
+
+    @Test func nestedResetFailureStopsTheIsolationTransaction() {
+        var completedLaterReset = false
+        let performed = runtimeWithQuiescentGCFramesResult {
+            kk_gc_shadow_push()
+            defer { kk_gc_shadow_pop(0, 0) }
+            let resets: [() -> Bool] = [
+                kk_runtime_reset_gc,
+                { completedLaterReset = true; return true },
+            ]
+            for reset in resets where !reset() { return false }
+            return true
+        }
+        #expect(!performed)
+        #expect(!completedLaterReset)
     }
 
     @Test func processWaitDoesNotBlockCollectionOfAnEnrolledMutator() {

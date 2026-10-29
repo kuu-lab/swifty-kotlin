@@ -1432,23 +1432,24 @@ public func kk_worker_execute(
     // resolved raw (fnPtr, closureRaw) pair, so it carries no dependency on
     // the wrapper box surviving until the job actually executes.
     let resolvedJob = resolveFunctionValuePair(fnPtr: jobFnPtr, closureRaw: jobClosureRaw)
-    let capturePin = RuntimeForeignCallbackPin(root: resolvedJob.closureRaw)
-    let argumentPin = RuntimeForeignCallbackPin(root: producedRaw)
+    let queuedRoots = RuntimeQueuedGCRoots([resolvedJob.closureRaw, producedRaw, futureHandle])
     let submitted = worker.execute {
-        withExtendedLifetime((capturePin, argumentPin)) {
-            kk_gc_shadow_push()
-            defer { runtimePopNativeGCShadowFrame(0, 0) }
-            var jobThrown = 0
-            let resultRaw = runtimeInvokeCollectionLambda1(
-                fnPtr: resolvedJob.fnPtr,
-                closureRaw: resolvedJob.closureRaw,
-                value: producedRaw,
-                outThrown: &jobThrown
-            )
-            _ = kk_future_complete(futureHandle, jobThrown == 0 ? resultRaw : 0)
-        }
+        defer { queuedRoots.finish() }
+        kk_gc_shadow_push()
+        defer { runtimePopNativeGCShadowFrame(0, 0) }
+        var jobThrown = 0
+        let resultRaw = runtimeInvokeCollectionLambda1(
+            fnPtr: resolvedJob.fnPtr,
+            closureRaw: resolvedJob.closureRaw,
+            value: producedRaw,
+            outThrown: &jobThrown
+        )
+        _ = kk_future_complete(futureHandle, jobThrown == 0 ? resultRaw : 0)
     }
-    if !submitted { _ = runtimeReleaseObject(futureHandle) }
+    if !submitted {
+        queuedRoots.finish()
+        _ = runtimeReleaseObject(futureHandle)
+    }
     returnedFuture = submitted ? futureHandle : 0
     return returnedFuture
 }

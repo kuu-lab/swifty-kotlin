@@ -41,17 +41,24 @@ private func runtimeWithResetFrameGate<T>(_ body: () -> T) -> T {
     return body()
 }
 
-/// Keep frame creation and a multi-part test reset mutually exclusive. A
-/// failed attempt does not change any runtime state.
+/// Keep frame creation and a multi-part test reset mutually exclusive. The
+/// body is not called when frames or queued work prevent a reset.
 @discardableResult
 func runtimeWithQuiescentGCFrames(_ body: () -> Void) -> Bool {
+    runtimeWithQuiescentGCFramesResult {
+        body()
+        return true
+    }
+}
+
+@discardableResult
+func runtimeWithQuiescentGCFramesResult(_ body: () -> Bool) -> Bool {
     runtimeWithResetFrameGate {
         let isQuiescent = runtimeStorage.withGCLock { state in
             state.shadowFrames.isEmpty && state.activeFrames.isEmpty && state.pendingResetWork == 0
         }
         guard isQuiescent else { return false }
-        body()
-        return true
+        return body()
     }
 }
 
@@ -1308,13 +1315,14 @@ public func kk_runtime_force_reset() {
 
 @discardableResult
 func runtimeTryForceReset() -> Bool {
-    runtimeWithQuiescentGCFrames {
-        guard runtimeTryResetGC() else { return }
+    runtimeWithQuiescentGCFramesResult {
+        guard runtimeTryResetGC() else { return false }
         kk_runtime_reset_metadata()
         kk_runtime_reset_flow()
         kk_runtime_reset_thread_local()
         kk_runtime_reset_delegate()
         runtimeResetDebugState()
+        return true
     }
 }
 

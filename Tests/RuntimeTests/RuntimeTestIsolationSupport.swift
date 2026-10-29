@@ -148,30 +148,30 @@ func runtimeIsolationSemaphores(for lockSet: RuntimeLockSet) -> [DispatchSemapho
     }
 }
 
-func runtimeIsolationResetFunctions(for lockSet: RuntimeLockSet) -> [() -> Void] {
+func runtimeIsolationResetFunctions(for lockSet: RuntimeLockSet) -> [() -> Bool] {
     switch lockSet {
     case .none:
         return []
     case .gcOnly:
-        return [{ _ = kk_runtime_reset_gc() }]
+        return [kk_runtime_reset_gc]
     case .metadataOnly:
-        return [kk_runtime_reset_metadata]
+        return [{ kk_runtime_reset_metadata(); return true }]
     case .flowOnly:
-        return [kk_runtime_reset_flow]
+        return [{ kk_runtime_reset_flow(); return true }]
     case .threadLocalOnly:
-        return [kk_runtime_reset_thread_local]
+        return [{ kk_runtime_reset_thread_local(); return true }]
     case .delegateOnly:
-        return [kk_runtime_reset_delegate]
+        return [{ kk_runtime_reset_delegate(); return true }]
     case .gcAndMetadata:
-        return [{ _ = kk_runtime_reset_gc() }, kk_runtime_reset_metadata]
+        return [kk_runtime_reset_gc, { kk_runtime_reset_metadata(); return true }]
     case .gcAndFlow:
-        return [{ _ = kk_runtime_reset_gc() }, kk_runtime_reset_flow]
+        return [kk_runtime_reset_gc, { kk_runtime_reset_flow(); return true }]
     case .gcAndThreadLocal:
-        return [{ _ = kk_runtime_reset_gc() }, kk_runtime_reset_thread_local]
+        return [kk_runtime_reset_gc, { kk_runtime_reset_thread_local(); return true }]
     case .gcAndDelegate:
-        return [{ _ = kk_runtime_reset_gc() }, kk_runtime_reset_delegate]
+        return [kk_runtime_reset_gc, { kk_runtime_reset_delegate(); return true }]
     case .all:
-        return [{ kk_runtime_force_reset() }]
+        return [runtimeTryForceReset]
     }
 }
 
@@ -244,9 +244,10 @@ private func resetRuntimeState(
             }
             let deadline = Date().addingTimeInterval(30)
             repeat {
-                if runtimeWithQuiescentGCFrames({
-                    for reset in resets { reset() }
+                if runtimeWithQuiescentGCFramesResult({
+                    for reset in resets where !reset() { return false }
                     additional()
+                    return true
                 }) {
                     continuation.resume(returning: true)
                     return
