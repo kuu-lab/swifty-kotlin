@@ -504,7 +504,10 @@ final class JVMClasspathIndex {
             // Result's non-null logical value may carry a successful null.
             if name == "kotlin/Result" { return ctx.options.stdlibOnly ? .reference(name, nullable: type.nullability != .nonNull) : .reference("java/lang/Object", nullable: true) }
             if let mapped = builtinName(name) { return .reference(mapped, nullable: type.nullability != .nonNull) }
-            guard ctx.jvmImports?.classes[name] != nil || symbol.declSite.map({ ctx.sourceManager.origin(of: $0.start.file) == .user && (symbol.kind == .class || symbol.kind == .interface || symbol.kind == .object || symbol.kind == .enumClass || symbol.kind == .annotationClass) }) == true else {
+            // `.user` and `.residualStdlib` files both carry real JVM class
+            // contracts (declarations injected for consumer compiles describe
+            // stdlib-jar ABI types), so either origin may produce a reference.
+            guard ctx.jvmImports?.classes[name] != nil || symbol.declSite.map({ [.user, .residualStdlib].contains(ctx.sourceManager.origin(of: $0.start.file)) && (symbol.kind == .class || symbol.kind == .interface || symbol.kind == .object || symbol.kind == .enumClass || symbol.kind == .annotationClass) }) == true else {
                 let owner = symbol.fqName.map(ctx.interner.resolve).joined(separator: ".")
                 throw JVMFrontendError(message: "Unsupported JVM reference type: \(name) used by \(owner)")
             }
