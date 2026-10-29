@@ -188,7 +188,7 @@ private func extendedStdlibRegistryEntries() -> [SyntheticStubRegistryEntry] {
             phase.registerSyntheticNativeInteropStubs(symbols: symbols, types: types, interner: interner)
         },
         SyntheticStubRegistryEntry(bucket: .residualCompilerSurface, name: "CoroutineCancellation") { phase, symbols, types, interner in
-            phase.registerSyntheticCoroutineCancellationStubs(symbols: symbols, types: types, interner: interner)
+            phase.registerSyntheticCoroutineCancellationStubs()
         },
         SyntheticStubRegistryEntry(bucket: .residualCompilerSurface, name: "CoroutineIntrinsics") { phase, symbols, types, interner in
             phase.registerSyntheticCoroutineIntrinsicsStubs(symbols: symbols, types: types, interner: interner)

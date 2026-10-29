@@ -592,7 +592,7 @@ final class ValueClassUnboxingPass: LoweringPass, ParallelLoweringPass {
                             var payloadBoxInstructions: [KIRInstruction] = []
                             emitValueClassBoxCall(
                                 value: arguments[1], classSymbol: sourceClassSymbol,
-                                result: callResult, resultType: arena.exprType(callResult),
+                                result: callResult,
                                 types: types, symbols: symbols, interner: interner,
                                 arena: arena, into: &payloadBoxInstructions
                             )
