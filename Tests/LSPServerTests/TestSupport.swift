@@ -40,12 +40,6 @@ final class ManualLSPScheduledTask: LSPScheduledTask, @unchecked Sendable {
         lock.unlock()
     }
 
-    var isCancelled: Bool {
-        lock.lock()
-        defer { lock.unlock() }
-        return cancelled
-    }
-
     func run() {
         lock.lock()
         let operation = cancelled ? nil : self.operation
