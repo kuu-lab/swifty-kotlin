@@ -409,6 +409,12 @@ extension CallLowerer {
         else {
             return
         }
+        if calleeText == "concatToString", arguments.isEmpty,
+           isConcreteArrayLikeType(sema.types.makeNonNullable(receiverType), sema: sema, interner: interner)
+        {
+            arguments.insert(loweredReceiverID, at: 0)
+            return
+        }
         if Self.unresolvedCollectionMemberNames.contains(calleeText) {
             arguments.insert(loweredReceiverID, at: 0)
             return
