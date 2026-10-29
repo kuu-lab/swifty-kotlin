@@ -297,6 +297,8 @@ private func runtimeFlowInvokeEmitter(_ flow: RuntimeFlowHandle, outThrown: inou
     }
 }
 
+private let runtimeFlowTypeID = runtimeStableNominalTypeID(fqName: "kotlinx.coroutines.flow.Flow")
+
 private func runtimeRegisterFlowHandle(_ flow: RuntimeFlowHandle) -> Int {
     let ptr = UnsafeMutableRawPointer(Unmanaged.passUnretained(flow).toOpaque())
     let key = UInt(bitPattern: ptr)
@@ -306,7 +308,9 @@ private func runtimeRegisterFlowHandle(_ flow: RuntimeFlowHandle) -> Int {
         gcState.objectPointers.insert(key)
         gcState.borrowedObjectPointers.insert(key)
     }
-    return Int(bitPattern: ptr)
+    let raw = Int(bitPattern: ptr)
+    runtimeRegisterObjectType(rawValue: raw, classID: runtimeFlowTypeID)
+    return raw
 }
 
 private func runtimeFlowHandle(from rawValue: Int) -> RuntimeFlowHandle? {
@@ -2152,19 +2156,26 @@ public func __kk_flow_release(_ flowHandle: Int) -> Int {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_flow_release received invalid flow handle")
     }
     let key = UInt(bitPattern: ptr)
-    runtimeStorage.withFlowAndGCLocks { flowState, gcState in
+    let retired = runtimeStorage.withFlowAndGCLocks { flowState, gcState -> AnyObject? in
         guard let count = flowState.flowRetainCounts[key] else {
-            return
+            return nil
         }
         let nextCount = count - 1
         if nextCount <= 0 {
             gcState.objectPointers.remove(key)
             gcState.borrowedObjectPointers.remove(key)
             flowState.flowRetainCounts.removeValue(forKey: key)
-            flowState.flowHandles.removeValue(forKey: key)
+            return flowState.flowHandles.removeValue(forKey: key)
         } else {
             flowState.flowRetainCounts[key] = nextCount
+            return nil
         }
+    }
+    if let retired {
+        // Keep the object alive until its metadata is removed, so its address
+        // cannot be reused for another object during cleanup.
+        removeRuntimeObjectMetadata(forObjectKey: key)
+        withExtendedLifetime(retired) {}
     }
     return 0
 }
