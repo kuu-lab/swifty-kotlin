@@ -1117,24 +1117,7 @@ extension DeclTypeChecker {
         }
 
         switch op {
-        case .add, .subtract:
-            if lhs == types.doubleType || rhs == types.doubleType {
-                return types.doubleType
-            }
-            if lhs == types.floatType || rhs == types.floatType {
-                return types.floatType
-            }
-            if lhs == types.longType || rhs == types.longType {
-                return types.longType
-            }
-            if lhs == types.ulongType || rhs == types.ulongType {
-                return types.ulongType
-            }
-            if unsignedTypes.contains(lhs) || unsignedTypes.contains(rhs) {
-                return types.uintType
-            }
-            return types.intType
-        case .multiply, .divide, .modulo:
+        case .add, .subtract, .multiply, .divide, .modulo:
             if lhs == types.doubleType || rhs == types.doubleType {
                 return types.doubleType
             }
