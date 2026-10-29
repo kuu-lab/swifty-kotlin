@@ -8,7 +8,10 @@ struct GenericConstructorLambdaInputInferenceTests {
     // Keep the Sema gate focused; source/artifact compilation is covered by the CLI case.
     private func checkSources(_ sources: [String]) throws -> CompilationContext {
         var result: CompilationContext?
-        try withTemporaryFiles(contents: sources + ["package kotlin\nobject Unit\nabstract class Number\ninterface CharSequence"]) { paths in
+        // kotlin.CharSequence is intentionally omitted: the compiler registers
+        // a synthetic shell for it during bootstrap, and redeclaring it in user
+        // source must keep surfacing KSWIFTK-SEMA-0001.
+        try withTemporaryFiles(contents: sources + ["package kotlin\nobject Unit\nabstract class Number"]) { paths in
             let ctx = makeCompilationContext(inputs: paths, includeStdlib: false)
             try runSema(ctx)
             result = ctx
