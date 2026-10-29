@@ -1633,6 +1633,11 @@ extension CallLowerer {
               ),
               let receiverSymbol = sema.symbols.symbol(receiverClassType.classSymbol),
               receiverSymbol.kind == .class,
+              // A value-class receiver is its unboxed payload, never a
+              // `kk_object_new` object, so its inherited Any-member slots
+              // must not be dispatched through a vtable the payload does
+              // not carry (KSWIFTK-RUNTIME-0001 / KUU-3726).
+              !receiverSymbol.flags.contains(.valueType),
               receiverClassType.classSymbol != owner,
               !isRuntimeBoxedCollectionNominal(
                   receiverClassType.classSymbol, sema: sema, interner: interner

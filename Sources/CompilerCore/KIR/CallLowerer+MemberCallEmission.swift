@@ -661,6 +661,39 @@ extension CallLowerer {
             ))
             return
         }
+        if finalArguments.first == receiver.loweredID,
+           finalArguments.count == 1,
+           sourceArgExprs.isEmpty,
+           let chosenCallee,
+           sema.symbols.externalLinkName(for: chosenCallee) == "kk_any_member_hashCode",
+           let receiverType = receiver.type(in: sema),
+           usesPrimitiveAnyFallbackRepresentation(for: receiverType, sema: sema)
+        {
+            // Primitive and unboxed primitive-backed value-class receivers
+            // are raw scalars, so neither the object member bridge nor
+            // vtable dispatch may see the payload (KSWIFTK-RUNTIME-0001).
+            // Use the tagged Any hash bridge — its tag decodes the raw
+            // representation (e.g. Double bits for a Double-backed VC).
+            let intType = sema.types.make(.primitive(.int, .nonNull))
+            let hashReceiverID = boxSentinelProneHashCodeReceiver(
+                receiver.loweredID,
+                sourceType: receiverType,
+                sema: sema,
+                interner: interner,
+                arena: arena,
+                into: &instructions
+            )
+            let receiverTag = computeAnyFallbackTag(for: receiverType, sema: sema)
+            let receiverTagID = arena.appendExpr(.intLiteral(receiverTag), type: intType)
+            instructions.append(.constValue(result: receiverTagID, value: .intLiteral(receiverTag)))
+            instructions.append(.call(
+                callee: interner.intern("kk_any_hashCode"),
+                arguments: [hashReceiverID, receiverTagID],
+                result: result,
+                canThrow: false
+            ))
+            return
+        }
         // Enum values are raw ordinals while they remain statically enum-typed.
         // Enum.equals(Any?) is an Any-boundary call, so box the receiver with
         // its nominal class ID before reaching the shared Any bridge. Without
