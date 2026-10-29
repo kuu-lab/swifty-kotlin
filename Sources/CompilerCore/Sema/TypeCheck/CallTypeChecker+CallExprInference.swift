@@ -825,6 +825,20 @@ extension CallTypeChecker {
 
         if let firstInvisible = callInvisible.first, let calleeName {
             driver.helpers.emitVisibilityError(for: firstInvisible, name: interner.resolve(calleeName), range: range, diagnostics: ctx.sema.diagnostics)
+        } else if let calleeName,
+                  let privateMember = driver.helpers.inaccessiblePrivateImplicitReceiverMember(
+                      named: calleeName, ctx: ctx
+                  )
+        {
+            // Inherited `private` members never enter the candidate set (they
+            // are not inherited), but the member still exists — report it as
+            // inaccessible rather than unresolved, matching kotlinc (KUU-3766).
+            driver.helpers.emitVisibilityError(
+                for: privateMember,
+                name: interner.resolve(calleeName),
+                range: range,
+                diagnostics: ctx.sema.diagnostics
+            )
         } else {
             let nameStr = calleeName.map { interner.resolve($0) } ?? "<unknown>"
             ctx.sema.diagnostics.error(

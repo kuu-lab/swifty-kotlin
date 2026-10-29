@@ -945,6 +945,91 @@ extension TypeCheckHelpers {
         return nil
     }
 
+    /// Member-scope lookup keeps `private` members out of the inherited
+    /// candidate set because they are not inherited, but a member access
+    /// must still report them as inaccessible rather than unresolved
+    /// (KUU-3751). Find a same-named `private` member anywhere in the
+    /// receiver's nominal hierarchy for the unresolved-member fallback.
+    func privateMemberSymbolInHierarchy(
+        named calleeName: InternedString,
+        receiverType: TypeID,
+        sema: SemaModule
+    ) -> SemanticSymbol? {
+        var ownerQueue = allNominalSymbols(of: receiverType, types: sema.types, symbols: sema.symbols)
+        var visited: Set<SymbolID> = []
+        while !ownerQueue.isEmpty {
+            let owner = ownerQueue.removeFirst()
+            guard visited.insert(owner).inserted,
+                  let ownerSymbol = sema.symbols.symbol(owner)
+            else {
+                continue
+            }
+            let memberFQName = ownerSymbol.fqName + [calleeName]
+            for candidate in sema.symbols.lookupAll(fqName: memberFQName) {
+                guard let member = sema.symbols.symbol(candidate),
+                      sema.symbols.parentSymbol(for: candidate) == owner,
+                      member.visibility == .private,
+                      member.kind == .function || member.kind == .property || member.kind == .field
+                else {
+                    continue
+                }
+                return member
+            }
+            ownerQueue.append(contentsOf: sema.symbols.directSupertypes(for: owner))
+        }
+        return nil
+    }
+
+    /// Inherited `private` members are not members of an implicit receiver
+    /// (they are not inherited), so an unqualified reference reports them as
+    /// unresolved where kotlinc reports an inaccessible member (KUU-3766).
+    /// Probe the implicit receiver tower — which includes companion objects —
+    /// for a same-named `private` member so the unresolved-function and
+    /// unresolved-reference fallbacks can emit the matching visibility
+    /// diagnostic instead.
+    func inaccessiblePrivateImplicitReceiverMember(
+        named name: InternedString,
+        ctx: TypeInferenceContext
+    ) -> SemanticSymbol? {
+        var probeTypes = ctx.implicitReceiverMemberLookupEntries().map(\.type)
+        // A class's companion object contributes its inherited members to the
+        // unqualified scope, but is not itself a receiver-tower entry. Probe
+        // the companion of every receiver root and of each nominal enclosing
+        // the use site: a companion's member scope also reaches lexically
+        // nested classes.
+        var companionOwners = ctx.implicitReceiverMemberLookupEntries().flatMap { entry in
+            allNominalSymbols(of: entry.type, types: ctx.sema.types, symbols: ctx.sema.symbols)
+        }
+        var ancestor = ctx.enclosingClassSymbol
+        var seenAncestors: Set<SymbolID> = []
+        while let current = ancestor, seenAncestors.insert(current).inserted {
+            companionOwners.append(current)
+            ancestor = ctx.sema.symbols.parentSymbol(for: current)
+        }
+        for owner in companionOwners {
+            guard let companion = ctx.sema.symbols.companionObjectSymbol(for: owner) else {
+                continue
+            }
+            probeTypes.append(ctx.sema.types.make(.classType(ClassType(
+                classSymbol: companion, args: [], nullability: .nonNull
+            ))))
+        }
+        for type in probeTypes {
+            guard let member = privateMemberSymbolInHierarchy(
+                named: name, receiverType: type, sema: ctx.sema
+            ), !ctx.visibilityChecker.isAccessible(
+                member,
+                fromFile: ctx.currentFileID,
+                enclosingClass: ctx.enclosingClassSymbol
+            )
+            else {
+                continue
+            }
+            return member
+        }
+        return nil
+    }
+
     /// A paired expect class keeps its semantic supertype edge, but members
     /// declared only by the actual class still participate in platform-side
     /// member lookup. Visit that implementation before the expect class's own

@@ -2373,11 +2373,26 @@ extension ExprTypeChecker {
         }
 
         if candidates.isEmpty {
-            ctx.sema.diagnostics.error(
-                "KSWIFTK-SEMA-0022",
-                "Unresolved reference '::\(interner.resolve(member))'.",
-                range: range
-            )
+            // Inherited `private` members never enter the candidate set (they
+            // are not inherited), but the member still exists — report it as
+            // inaccessible rather than unresolved, matching kotlinc
+            // (KUU-3766).
+            if let privateMember = driver.helpers.inaccessiblePrivateImplicitReceiverMember(
+                named: member, ctx: ctx
+            ) {
+                driver.helpers.emitVisibilityError(
+                    for: privateMember,
+                    name: interner.resolve(member),
+                    range: range,
+                    diagnostics: ctx.sema.diagnostics
+                )
+            } else {
+                ctx.sema.diagnostics.error(
+                    "KSWIFTK-SEMA-0022",
+                    "Unresolved reference '::\(interner.resolve(member))'.",
+                    range: range
+                )
+            }
         } else {
             ctx.sema.diagnostics.error(
                 "KSWIFTK-TYPE-0001",
