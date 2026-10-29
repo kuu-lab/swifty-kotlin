@@ -678,7 +678,23 @@ extension KIRLoweringDriver {
                     into: &body.instructions
                 )
             } else {
-                storedDelegateValue = delegateValue
+                // `kk_array_set` stores the raw word: a delegate expression
+                // whose static type has an unboxed runtime representation — a
+                // value class — would land its bare payload in the
+                // interface-typed field and read back as a bogus (often null)
+                // handle. Box it for the object slot the same way
+                // Any/reference boundaries do (KUU-3672).
+                storedDelegateValue = boxValueForAnySlot(
+                    delegateValue,
+                    sourceType: arena.exprType(delegateValue) ?? sema.types.anyType,
+                    types: sema.types,
+                    symbols: sema.symbols,
+                    interner: shared.interner,
+                    arena: arena,
+                    resultType: sema.symbols.propertyType(for: fieldSymbol) ?? sema.types.anyType,
+                    sema: sema,
+                    into: &body.instructions
+                )
             }
 
             guard let fieldOffset = shared.sema.symbols.nominalLayout(for: ownerSymbol)?.fieldOffsets[fieldSymbol] else {

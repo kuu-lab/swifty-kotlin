@@ -81,6 +81,17 @@ struct CodegenBackendMutableListDispatchTests {
     }
 
     @Test(arguments: [true, false])
+    func arrayListGetDispatchesThroughIntermediateBase(artifact: Bool) throws {
+        let source = try diffCaseSource("arraylist_get_override.kt")
+        try assertKotlinOutput(
+            source,
+            moduleName: "ArrayListGetOverrideDispatch",
+            expected: "OK\n",
+            allowDefaultStdlibLibrary: artifact
+        )
+    }
+
+    @Test(arguments: [true, false])
     func mutationsDispatchThroughMutableList(artifact: Bool) throws {
         var root = URL(fileURLWithPath: #filePath)
         for _ in 0 ..< 4 { root.deleteLastPathComponent() }

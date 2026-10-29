@@ -48,6 +48,11 @@ extension CallTypeChecker {
                    sema: sema
                ),
                !(receiverQualifierIsTypeAlias(receiverID: receiverID, ctx: ctx)
+                   && sema.symbols.symbol(staticMember.symbol)?.kind == .object),
+               // An explicit `()` on a nested `object` is a function invocation,
+               // not a value read — fall through so `invoke` can dispatch
+               // (KUU-3662).
+               !(ctx.ast.arena.isExplicitCall(id)
                    && sema.symbols.symbol(staticMember.symbol)?.kind == .object)
             {
                 if let memberSymbol = sema.symbols.symbol(staticMember.symbol),
@@ -270,6 +275,11 @@ extension CallTypeChecker {
                    sema: sema
                ),
                !(receiverQualifierIsTypeAlias(receiverID: receiverID, ctx: ctx)
+                   && sema.symbols.symbol(staticMember.symbol)?.kind == .object),
+               // An explicit `()` on a nested `object` is a function invocation,
+               // not a value read — fall through so `invoke` can dispatch
+               // (KUU-3662).
+               !(ctx.ast.arena.isExplicitCall(id)
                    && sema.symbols.symbol(staticMember.symbol)?.kind == .object)
             {
                 if let memberSymbol = sema.symbols.symbol(staticMember.symbol),

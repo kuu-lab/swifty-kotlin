@@ -544,6 +544,17 @@ extension CallTypeChecker {
             locals: locals
         )
 
+        if shouldFallThroughFromInapplicableLocalFunctionsToImplicitCallableProperty(
+            candidates: candidates,
+            args: args,
+            calleeName: calleeName,
+            locals: locals,
+            ctx: ctx
+        ) {
+            candidates = []
+            callImplicitReceiverType = nil
+        }
+
         var argumentContextCandidates = candidates
         var argumentContextReceiverType = callImplicitReceiverType
         var preInferredCallableCalleeType: TypeID?
@@ -583,9 +594,15 @@ extension CallTypeChecker {
                 sema.diagnostics.rollback(to: calleeCheckpoint)
                 branchCalleeContextType = branchContextType
             } else {
+                let argumentLabels = args.map(\.label)
                 let invokeCandidates = contextApplicableCallCandidates(
-                    implicitInvokeOperatorCandidates(for: calleeType, ctx: ctx),
-                    ctx: ctx
+                    implicitInvokeOperatorCandidates(
+                        for: calleeType,
+                        ctx: ctx,
+                        argumentLabels: argumentLabels
+                    ),
+                    ctx: ctx,
+                    argumentLabels: argumentLabels
                 )
                 if !invokeCandidates.isEmpty {
                     argumentContextCandidates = invokeCandidates

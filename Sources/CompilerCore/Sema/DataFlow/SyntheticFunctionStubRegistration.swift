@@ -255,5 +255,3 @@ func syntheticFunctionParameters(
         (name: parameter.name, type: parameter.type, hasDefault: false, isVararg: false)
     }
 }
-
-
