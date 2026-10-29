@@ -13,7 +13,6 @@ package struct ZipArchive {
         package let name: String
         /// 0 = stored, 8 = deflate.
         package let compressionMethod: UInt16
-        package let compressedSize: Int
         package let uncompressedSize: Int
         package let crc32: UInt32
         package var isDirectory: Bool { name.hasSuffix("/") }
@@ -93,7 +92,6 @@ package struct ZipArchive {
             entries.append(Entry(
                 name: name,
                 compressionMethod: method,
-                compressedSize: compressedSize,
                 uncompressedSize: Int(uncompressedSizeRaw),
                 crc32: crc,
                 dataRange: dataOffset ..< dataOffset + compressedSize
