@@ -138,8 +138,8 @@ struct RuntimeTaskKey: Hashable, Sendable {
 //
 //        RuntimeSequenceCoroutine: awaitProducerYieldAsync(callerState:) and
 //        nextElementAsync(callerState:) provide the same non-blocking consumer
-//        path.  End-of-sequence is signalled via kk_sequence_completed_sentinel()
-//        (backed by runtimeStorage.sequenceCompletedBox).  Not yet wired to
+//        path.  End-of-sequence is signalled via runtimeStorage.sequenceCompletedBox.
+//        Not yet wired to
 //        runtimeTraverseSequenceWithState; that function must become
 //        suspension-aware to activate this path.
 //

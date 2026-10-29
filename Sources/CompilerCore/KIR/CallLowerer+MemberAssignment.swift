@@ -70,6 +70,36 @@ extension CallLowerer {
             instructions.append(.constValue(result: unit, value: .unit))
             return unit
         }
+        if let propertySymbol = sema.bindings.identifierSymbol(for: exprID)
+                ?? sema.bindings.callBindings[exprID]?.chosenCallee,
+           sema.symbols.symbol(propertySymbol)?.flags.contains(.mutable) == true,
+           let receiverType = sema.bindings.exprTypes[receiverExpr],
+           let (_, receiverClassSymbol) = resolveClassTypeSymbol(
+               sema.types.makeNonNullable(receiverType), sema: sema
+           ),
+           receiverClassSymbol.kind == .enumClass
+        {
+            let setter = sema.symbols.extensionPropertySetterAccessor(for: propertySymbol)
+                ?? SyntheticSymbolScheme.propertySetterAccessorSymbol(for: propertySymbol)
+            if let dispatch = kirEnumEntryDispatchHelper(
+                for: setter,
+                in: receiverClassSymbol.id,
+                sema: sema,
+                interner: interner
+            ), let dispatchInfo = sema.symbols.symbol(dispatch) {
+                let result = arena.appendTemporary(type: sema.types.unitType)
+                instructions.append(.call(
+                    symbol: dispatch,
+                    callee: dispatchInfo.name,
+                    arguments: [receiverID, valueID],
+                    result: result,
+                    canThrow: true
+                ))
+                let unit = arena.appendExpr(.unit, type: sema.types.unitType)
+                instructions.append(.constValue(result: unit, value: .unit))
+                return unit
+            }
+        }
         // Custom setters and delegated properties must run before direct
         // storage paths so their bodies (or the delegate's `setValue`) observe
         // explicit-receiver assignments as Kotlin does.

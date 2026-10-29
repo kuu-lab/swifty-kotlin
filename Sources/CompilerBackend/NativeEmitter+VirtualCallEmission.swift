@@ -1,4 +1,3 @@
-import RuntimeABI
 import CompilerCore
 
 /// Declaring nominal (class/object/enum/annotation/interface) of a vtable

@@ -130,7 +130,28 @@ extension CallLowerer {
             return comparableCharResult
         }
 
-        let result = arena.appendTemporary(type: boundType ?? sema.types.anyType)
+        // KUU-3670: a member property declared `T` on a generic owner crosses
+        // the read boundary as a raw erased handle. Keeping the safe-call
+        // merge slot at the erased type preserves the handle until the
+        // claim-site checkcast instead of reinterpreting it as the
+        // substituted representation first.
+        let safeCallDeclaresErasedProperty: Bool = {
+            let memberSymbol = sema.bindings.identifierSymbol(for: exprID)
+                ?? sema.bindings.callBindings[exprID]?.chosenCallee
+            guard let memberSymbol,
+                  let declaredType = sema.symbols.propertyType(for: memberSymbol)
+                    ?? sema.symbols.propertySymbol(forAccessor: memberSymbol)
+                        .flatMap({ sema.symbols.propertyType(for: $0) })
+            else {
+                return false
+            }
+            return kirIsNonReifiedErasedABIType(declaredType, sema: sema)
+        }()
+        let result = arena.appendTemporary(
+            type: safeCallDeclaresErasedProperty
+                ? sema.types.nullableAnyType
+                : boundType ?? sema.types.anyType
+        )
         let safeReceiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
         let nonNullSafeReceiverType = sema.types.makeNonNullable(safeReceiverType)
         let isCoroutineReceiver = if case .primitive = sema.types.kind(of: nonNullSafeReceiverType) {
@@ -1458,13 +1479,21 @@ extension CallLowerer {
                     interner: interner
                 )
             } ?? false
+            let usesClassReceiverListGetRuntimeBridge = chosen.map {
+                isClassReceiverListGetRuntimeBridge(
+                    $0,
+                    receiverTypeID: receiverTypeForDispatch,
+                    sema: sema
+                )
+            } ?? false
             if !isSuperCall,
                !isRuntimeRangeReceiver,
                let chosen,
                (!hasExternalLink
                    || isClockRuntimeVirtualBridge(chosen, sema: sema)
                    || usesIteratorRuntimeVirtualBridge
-                   || usesBoxedCollectionVirtualBridge),
+                   || usesBoxedCollectionVirtualBridge
+                   || usesClassReceiverListGetRuntimeBridge),
                let dispatchKind = resolveVirtualDispatch(
                    callee: chosen,
                    receiverTypeID: dispatchReceiver.flatMap { arena.exprType($0) } ?? receiverTypeForDispatch,
@@ -1478,7 +1507,7 @@ extension CallLowerer {
                 {
                     vcArguments.removeFirst()
                 }
-                let virtualCalleeName = usesIteratorRuntimeVirtualBridge
+                let virtualCalleeName = usesIteratorRuntimeVirtualBridge || usesClassReceiverListGetRuntimeBridge
                     ? (sema.symbols.symbol(chosen)?.name ?? resolvedCalleeName)
                     : resolvedCalleeName
                 let virtualInstruction: KIRInstruction = .virtualCall(
@@ -1640,6 +1669,26 @@ extension CallLowerer {
         default:
             return false
         }
+    }
+
+    /// A class-typed `ArrayList.get` call must dispatch through the Kotlin
+    /// vtable so a subclass override wins over the runtime list-storage bridge.
+    /// Interface-typed collection boxes keep calling the bridge directly.
+    func isClassReceiverListGetRuntimeBridge(
+        _ callee: SymbolID,
+        receiverTypeID: TypeID?,
+        sema: SemaModule
+    ) -> Bool {
+        guard sema.symbols.externalLinkName(for: callee) == "__kk_list_get",
+              let parent = sema.symbols.parentSymbol(for: callee),
+              sema.symbols.symbol(parent)?.kind == .class,
+              let receiverTypeID,
+              let (_, receiverSymbol) = resolveClassTypeSymbol(receiverTypeID, sema: sema),
+              receiverSymbol.kind == .class
+        else {
+            return false
+        }
+        return true
     }
 
     /// Thin wrapper over the free `resolveVirtualDispatchKind` (below, outside

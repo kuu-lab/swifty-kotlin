@@ -1,5 +1,4 @@
 import Foundation
-import RuntimeABI
 
 // The hand-built comparator objects below implement `Comparator<T>` at a fixed
 // itable slot (0, 0) but are constructed directly in Swift rather than

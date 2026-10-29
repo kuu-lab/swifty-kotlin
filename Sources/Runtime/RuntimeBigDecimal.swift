@@ -178,10 +178,6 @@ private func runtimeGCD(_ lhs: String, _ rhs: String) -> String {
     return left
 }
 
-private func runtimePowerOfTen(_ exponent: Int) -> String {
-    "1" + String(repeating: "0", count: exponent)
-}
-
 private func runtimeFormatBigDecimal(_ parts: RuntimeBigDecimalParts) throws -> String {
     let digits = runtimeNormalizeMagnitude(parts.digits)
     let precision = digits.count
