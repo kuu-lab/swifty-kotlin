@@ -15,7 +15,6 @@
 extension DataFlowSemaPhase {
     func registerSyntheticClockStubs(
         symbols: SymbolTable,
-        types: TypeSystem,
         interner: StringInterner
     ) {
         let kotlinTimePkg = ensurePackage(

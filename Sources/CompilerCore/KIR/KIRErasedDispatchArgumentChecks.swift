@@ -31,6 +31,9 @@ func kirErasedDispatchArgumentCastTarget(
     switch sema.types.kind(of: target) {
     case .classType, .stringStruct, .functionType, .kClassType:
         break
+    case .nothing:
+        // Nothing's null token rejects every non-null erased argument.
+        break
     default:
         // Primitive representation changes are handled by the unboxing bridge.
         return nil

@@ -1,8 +1,6 @@
 import Foundation
 import Testing
-@testable import CompilerBackend
 @testable import CompilerCore
-@testable import CompilerTestSupport
 
 @Suite(.serialized)
 struct JavaLangSystemGetPropertyTests {

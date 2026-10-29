@@ -443,15 +443,26 @@ extension CallTypeChecker {
         calleeName: InternedString,
         classifierSymbol: SymbolID,
         args: [CallArgument],
+        argTypes: [TypeID] = [],
         ctx: TypeInferenceContext,
         locals: inout LocalBindings,
         expectedType: TypeID?,
         explicitTypeArgs: [TypeID]
     ) -> TypeID? {
+        // A function-typed value converts like a lambda (`Owner.Nested(f)`,
+        // KUU-3662) — `isSamConvertibleArgument` only sees literal forms.
+        let argIsFunctionValue = args.count == 1
+            && !isSamConvertibleArgument(args[0].expr, ast: ctx.ast)
+            && (argTypes.first.map { argType in
+                if case .functionType = ctx.sema.types.kind(of: ctx.sema.types.makeNonNullable(argType)) {
+                    return true
+                }
+                return false
+            } ?? false)
         guard args.count == 1,
               args[0].label == nil,
               !args[0].isSpread,
-              isSamConvertibleArgument(args[0].expr, ast: ctx.ast),
+              isSamConvertibleArgument(args[0].expr, ast: ctx.ast) || argIsFunctionValue,
               let classifier = ctx.cachedSymbol(classifierSymbol),
               classifier.kind == .interface,
               classifier.flags.contains(.funInterface),

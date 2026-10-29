@@ -414,7 +414,7 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                 let sourceTypeArguments = [collectionElementType, destinationMapKeyType, destinationMapValueType, nonNullableDestinationType]
                 if bindBundledListSourceFunction(
                     typeArguments: sourceTypeArguments
-                , locals: &locals) || bindBundledIterableSourceFunction(typeArguments: sourceTypeArguments, locals: &locals) {
+                ) || bindBundledIterableSourceFunction(typeArguments: sourceTypeArguments) {
                     if let lambdaExpr = ast.arena.expr(args[1].expr), lambdaExpr.isLambdaOrCallableRef {
                         sema.bindings.unmarkCollectionHOFLambdaExpr(args[1].expr)
                     }
@@ -428,7 +428,7 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
             {
                 let didBindListSource = bindBundledListSourceFunction(
                     typeArguments: [collectionElementType, nonNullableDestinationType]
-                , locals: &locals)
+                )
                 // KUU-1389: Set/Collection-family receivers inherit these
                 // declarations from Iterable<T> upstream. Gating on
                 // isIterableReceiver admitted only nominal Iterable types,
@@ -442,7 +442,7 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                     && !isMapReceiver
                     && bindBundledIterableSourceFunction(
                         typeArguments: [collectionElementType, nonNullableDestinationType]
-                    , locals: &locals)
+                    )
                 if didBindListSource || didBindIterableSource,
                    let lambdaExpr = ast.arena.expr(args[1].expr),
                    lambdaExpr.isLambdaOrCallableRef
@@ -481,14 +481,14 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                         resultElementType: resultElementType,
                         returnsSequence: receiverClassifier.isSequenceLikeType(rawLambdaReturnType),
                         destinationType: nonNullableDestinationType
-                    , locals: &locals)
+                    )
                 let didBindListSource: Bool
                 if boundIterableDestination {
                     didBindListSource = false
                 } else {
                     didBindListSource = bindBundledListSourceFunction(
                         typeArguments: [collectionElementType, resultElementType, nonNullableDestinationType]
-                    , locals: &locals)
+                    )
                 }
                 let didBindIterableSource: Bool
                 if !boundIterableDestination,
@@ -498,7 +498,7 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                 {
                     didBindIterableSource = bindBundledIterableSourceFunction(
                         typeArguments: [collectionElementType, resultElementType, nonNullableDestinationType]
-                    , locals: &locals)
+                    )
                 } else {
                     didBindIterableSource = false
                 }
@@ -524,7 +524,7 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                     }
                     typeArguments = [collectionElementType, resultElementType, nonNullableDestinationType]
                 }
-                _ = bindBundledSequenceDestinationSourceFunction(typeArguments: typeArguments, locals: &locals)
+                _ = bindBundledSequenceDestinationSourceFunction(typeArguments: typeArguments)
             }
             if isMapReceiver,
                ["filterTo", "filterNotTo", "mapTo", "mapNotNullTo", "mapKeysTo", "mapValuesTo"].contains(calleeStr)

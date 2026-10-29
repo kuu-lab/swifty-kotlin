@@ -17,7 +17,7 @@ extension CallTypeChecker {
         // Must intercept BEFORE eager arg inference so the lambda argument
         // is inferred with the correct implicit receiver type.
         if let calleeName {
-            if let builderKind = builderDSLKind(for: calleeName, interner: interner),
+            if let builderKind = builderDSLKind(),
                shouldUseBuilderDSLSpecialHandling(calleeName: calleeName, ctx: ctx, locals: locals)
             {
                 let lambdaArgumentIndex: Int? = switch builderKind {

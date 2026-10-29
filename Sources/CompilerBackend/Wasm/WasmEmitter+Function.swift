@@ -75,7 +75,7 @@ final class WasmFunctionEmission {
                     activeStack.append(interval.label)
                 }
             }
-            try emitInstruction(function.body[index], at: index)
+            try emitInstruction(function.body[index])
         }
         // The function's implicit frame end; any still-open intervals are a
         // compiler bug, but close them so the binary still validates.
@@ -377,7 +377,7 @@ final class WasmFunctionEmission {
 
     // MARK: - Instructions
 
-    private func emitInstruction(_ instruction: KIRInstruction, at index: Int) throws {
+    private func emitInstruction(_ instruction: KIRInstruction) throws {
         switch instruction {
         case .nop, .beginBlock, .endBlock,
              .beginFinallyGuard, .endFinallyGuard,
@@ -729,19 +729,5 @@ final class WasmFunctionEmission {
         code.end()
         code.localGet(scratchLocal)
         code.op(WasmOpcode.i32WrapI64)
-    }
-
-    /// Loads a 64-bit slot at `object + byteOffset`, handling negative header
-    /// offsets via i32 address arithmetic.
-    func emitLoad(from id: KIRExprID, byteOffset: Int64) {
-        resolveValue(id)
-        code.op(WasmOpcode.i32WrapI64)
-        if byteOffset < 0 {
-            code.i32Const(Int32(byteOffset))
-            code.op(WasmOpcode.i32Add)
-            code.i64Load(offset: 0)
-        } else {
-            code.i64Load(offset: UInt64(byteOffset))
-        }
     }
 }

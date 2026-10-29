@@ -1,8 +1,20 @@
 import Foundation
 
 struct ConstantCollector {
+    /// kotlinc evaluates floating-point comparisons with two different rules.
+    /// Its constant evaluator (`const val`, annotation arguments) uses
+    /// `equals`/`compareTo`: `NaN == NaN`, `-0.0 != 0.0`, `-0.0 < 0.0`, and
+    /// NaN orders above every other value. Every other expression — plain
+    /// `val` initializers and the String concatenations the lowering folds —
+    /// follows IEEE 754, so `-0.0 == 0.0` and `0.0 < NaN` is false.
+    enum FloatingPointComparisonSemantics {
+        case constantEvaluation
+        case ieee754
+    }
+
     var resolvedConstant: ((ExprID) -> KIRExprKind?)? = nil
     var canFoldMemberCall: ((ExprID) -> Bool)? = nil
+    var floatingPointComparisonSemantics: FloatingPointComparisonSemantics = .constantEvaluation
 
     func collectPropertyConstantInitializers(
         ast: ASTModule,
@@ -338,10 +350,18 @@ struct ConstantCollector {
     }
 
     private func floatingPointComparison<T: BinaryFloatingPoint>(_ op: BinaryOp, _ lhs: T, _ rhs: T) -> KIRExprKind? {
+        guard floatingPointComparisonSemantics == .constantEvaluation else {
+            return comparison(op, lhs, rhs)
+        }
+        let order = compareFloatingPoint(lhs, rhs)
         switch op {
-        case .equal: .boolLiteral(kotlinConstantFloatingPointEquals(lhs, rhs))
-        case .notEqual: .boolLiteral(!kotlinConstantFloatingPointEquals(lhs, rhs))
-        default: comparison(op, lhs, rhs)
+        case .equal: return .boolLiteral(kotlinConstantFloatingPointEquals(lhs, rhs))
+        case .notEqual: return .boolLiteral(!kotlinConstantFloatingPointEquals(lhs, rhs))
+        case .lessThan: return .boolLiteral(order < 0)
+        case .lessOrEqual: return .boolLiteral(order <= 0)
+        case .greaterThan: return .boolLiteral(order > 0)
+        case .greaterOrEqual: return .boolLiteral(order >= 0)
+        default: return nil
         }
     }
 
@@ -489,21 +509,31 @@ struct ConstantCollector {
             }
             return nil
         case "toByte", "toShort", "toInt":
+            if name == "toInt", let value = floatingValue(of: receiverConst) {
+                return .intLiteral(saturatedInteger(value, minimum: Int64(Int32.min), maximum: Int64(Int32.max)))
+            }
             guard let value = integerValue(of: receiverConst) else { return nil }
             return .intLiteral(truncatedInteger(value, name: name))
         case "toLong":
+            if let value = floatingValue(of: receiverConst) {
+                return .longLiteral(saturatedInteger(value, minimum: Int64.min, maximum: Int64.max))
+            }
             guard let value = integerValue(of: receiverConst) else { return nil }
             return .longLiteral(value)
         case "toFloat":
             switch receiverConst {
             case let .intLiteral(value): return .floatLiteral(Double(Float(value)))
             case let .longLiteral(value): return .floatLiteral(Double(Float(value)))
+            case let .floatLiteral(value): return .floatLiteral(Double(Float(value)))
+            case let .doubleLiteral(value): return .floatLiteral(Double(Float(value)))
             default: return nil
             }
         case "toDouble":
             switch receiverConst {
             case let .intLiteral(value): return .doubleLiteral(Double(value))
             case let .longLiteral(value): return .doubleLiteral(Double(value))
+            case let .floatLiteral(value): return .doubleLiteral(Double(Float(value)))
+            case let .doubleLiteral(value): return .doubleLiteral(value)
             default: return nil
             }
         case "toChar":
@@ -701,7 +731,7 @@ struct ConstantCollector {
             return integerFloorDiv(left, right, width: 32).map { .intLiteral($0) }
         case let (.longLiteral(left), .longLiteral(right)):
             return integerFloorDiv(left, right).map { .longLiteral($0) }
-        case let (.longLiteral(left), .intLiteral(right)):
+        case let (.longLiteral(left), .intLiteral(right)), let (.intLiteral(left), .longLiteral(right)):
             return integerFloorDiv(left, right).map { .longLiteral($0) }
         default:
             return nil
@@ -712,12 +742,13 @@ struct ConstantCollector {
         switch (lhs, rhs) {
         case let (.intLiteral(left), .intLiteral(right)):
             return integerFloorMod(left, right, width: 32).map { .intLiteral($0) }
-        case let (.longLiteral(left), .longLiteral(right)):
+        case let (.longLiteral(left), .longLiteral(right)), let (.intLiteral(left), .longLiteral(right)):
             return integerFloorMod(left, right).map { .longLiteral($0) }
+        // `Long.mod(Int)` returns Int: the result is bounded by the Int divisor.
         case let (.longLiteral(left), .intLiteral(right)):
-            return integerFloorMod(left, right).map { .longLiteral($0) }
+            return integerFloorMod(left, right).map { .intLiteral($0) }
         case let (.floatLiteral(left), .floatLiteral(right)):
-            return floatingFloorMod(left, right).map { .floatLiteral(Double($0)) }
+            return floatingFloorMod(Float(left), Float(right)).map { .floatLiteral(Double($0)) }
         case let (.doubleLiteral(left), .doubleLiteral(right)):
             return floatingFloorMod(left, right).map { .doubleLiteral($0) }
         default:
@@ -744,9 +775,13 @@ struct ConstantCollector {
         return width == 32 ? Int64(Int32(truncatingIfNeeded: adjusted)) : adjusted
     }
 
+    /// An infinite divisor still takes the sign-correction branch: Kotlin's
+    /// `(-1.0).mod(Double.POSITIVE_INFINITY)` is `Infinity`, not `-1.0`.
     private func floatingFloorMod<T: BinaryFloatingPoint>(_ lhs: T, _ rhs: T) -> T? {
+        // Kotlin: `if (r != 0.0 && r.sign != other.sign) r + other else r`.
+        // An infinite divisor still takes the adjustment: (-1.0).mod(+Inf) is +Inf.
         let remainder = lhs.truncatingRemainder(dividingBy: rhs)
-        guard remainder != 0, remainder.isFinite, rhs.isFinite, (remainder < 0) != (rhs < 0) else {
+        guard remainder != 0, !remainder.isNaN, (remainder < 0) != (rhs < 0) else {
             return remainder
         }
         return remainder + rhs
@@ -784,6 +819,23 @@ struct ConstantCollector {
         case let .charLiteral(v): Int64(v)
         default: nil
         }
+    }
+
+    private func floatingValue(of constant: KIRExprKind) -> Double? {
+        switch constant {
+        case let .floatLiteral(v): Double(Float(v))
+        case let .doubleLiteral(v): v
+        default: nil
+        }
+    }
+
+    /// `Double.toInt()`/`toLong()`: truncate toward zero, NaN becomes 0, and
+    /// out-of-range values saturate (matches `__kk_double_to_int`).
+    private func saturatedInteger(_ value: Double, minimum: Int64, maximum: Int64) -> Int64 {
+        if value.isNaN { return 0 }
+        if value >= Double(maximum) { return maximum }
+        if value <= Double(minimum) { return minimum }
+        return Int64(value)
     }
 
     private func truncatedInteger(_ value: Int64, name: String) -> Int64 {
@@ -830,7 +882,11 @@ struct ConstantCollector {
             // nested `+` bound to a user-declared operator returning String
             // (e.g. `Int.plus(String)`) is not concat text — folding it would
             // drop the resolved call, so the subtree is not a constant.
-            guard Self.isBuiltinStringPlusCallee(exprID, sema: sema, interner: interner),
+            // A numeric `+` that literalConstantExpr could not fold (e.g.
+            // `1u + 2u`) has no call binding either; it is arithmetic, not
+            // concat, and must not be rendered as "12".
+            guard sema.bindings.exprType(for: exprID) == sema.types.stringType,
+                  Self.isBuiltinStringPlusCallee(exprID, sema: sema, interner: interner),
                   let lhsText = constantStringConcatOperandText(lhs, ast: ast, sema: sema, interner: interner),
                   let rhsText = constantStringConcatOperandText(rhs, ast: ast, sema: sema, interner: interner)
             else {
@@ -957,11 +1013,13 @@ struct ConstantCollector {
         if value == .infinity { return "Infinity" }
         if value == -.infinity { return "-Infinity" }
         if value == 0.0 && value.sign == .minus { return "-0.0" }
-        // Swift's Ryu emits 5e-324 for the minimum subnormal; Java emits
-        // 4.9E-324. Both round-trip to the same bits; match Java's text.
-        if value == Double.leastNonzeroMagnitude { return "4.9E-324" }
-        if value == -Double.leastNonzeroMagnitude { return "-4.9E-324" }
         let magnitude = abs(value)
+        let subnormalUnits = magnitude / Double.leastNonzeroMagnitude
+        if magnitude != 0, subnormalUnits <= 20 {
+            return javaSmallSubnormalConcatText(
+                units: subnormalUnits * 4.9406564584124654, unitExponent: -324, isNegative: value < 0
+            )
+        }
         return finishFloatingPointConcatText(
             rendered: String(describing: value),
             useScientific: magnitude != 0 && (magnitude >= 1e7 || magnitude < 1e-3)
@@ -973,13 +1031,27 @@ struct ConstantCollector {
         if value == .infinity { return "Infinity" }
         if value == -.infinity { return "-Infinity" }
         if value == 0.0 && value.sign == .minus { return "-0.0" }
-        if value == Float.leastNonzeroMagnitude { return "1.4E-45" }
-        if value == -Float.leastNonzeroMagnitude { return "-1.4E-45" }
         let magnitude = abs(value)
+        let subnormalUnits = magnitude / Float.leastNonzeroMagnitude
+        if magnitude != 0, subnormalUnits <= 71 {
+            return javaSmallSubnormalConcatText(
+                units: Double(subnormalUnits) * 1.4012984643248171, unitExponent: -45, isNegative: value < 0
+            )
+        }
         return finishFloatingPointConcatText(
             rendered: String(describing: value),
             useScientific: magnitude != 0 && (magnitude >= 1e7 || magnitude < 1e-3)
         )
+    }
+
+    /// Mirrors `runtimeJavaSmallSubnormalText`: JDK 19+ prints subnormals
+    /// below 1e-322 (Float: 1e-43) with the closest two-digit decimal.
+    private func javaSmallSubnormalConcatText(units: Double, unitExponent: Int, isNegative: Bool) -> String {
+        let tenths = (units * 10).rounded()
+        let (digits, exponent) = tenths < 100
+            ? (Int(tenths), unitExponent)
+            : (Int(units.rounded()), unitExponent + 1)
+        return "\(isNegative ? "-" : "")\(digits / 10).\(digits % 10)E\(exponent)"
     }
 
     private func finishFloatingPointConcatText(rendered: String, useScientific: Bool) -> String {

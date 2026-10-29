@@ -1041,8 +1041,7 @@ extension CallTypeChecker {
 
         if args.isEmpty,
            let (constantType, constantValue) = numericCompanionConstant(
-               typeName: receiverStr, memberName: memberStr, sema: sema
-           )
+               typeName: receiverStr, memberName: memberStr)
         {
             sema.bindings.bindConstExprValue(id, value: constantValue)
             sema.bindings.bindExprType(id, type: constantType)

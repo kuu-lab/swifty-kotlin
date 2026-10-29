@@ -49,6 +49,11 @@ extension CallTypeChecker {
                    sema: sema
                ),
                !(receiverQualifierIsTypeAlias(receiverID: receiverID, ctx: ctx)
+                   && sema.symbols.symbol(staticMember.symbol)?.kind == .object),
+               // An explicit `()` on a nested `object` is a function invocation,
+               // not a value read — fall through so `invoke` can dispatch
+               // (KUU-3662).
+               !(ctx.ast.arena.isExplicitCall(id)
                    && sema.symbols.symbol(staticMember.symbol)?.kind == .object)
             {
                 if let memberSymbol = sema.symbols.symbol(staticMember.symbol),
@@ -271,6 +276,11 @@ extension CallTypeChecker {
                    sema: sema
                ),
                !(receiverQualifierIsTypeAlias(receiverID: receiverID, ctx: ctx)
+                   && sema.symbols.symbol(staticMember.symbol)?.kind == .object),
+               // An explicit `()` on a nested `object` is a function invocation,
+               // not a value read — fall through so `invoke` can dispatch
+               // (KUU-3662).
+               !(ctx.ast.arena.isExplicitCall(id)
                    && sema.symbols.symbol(staticMember.symbol)?.kind == .object)
             {
                 if let memberSymbol = sema.symbols.symbol(staticMember.symbol),
@@ -408,6 +418,18 @@ extension CallTypeChecker {
             substitution: resolved.substitutedTypeArguments,
             ctx: ctx
         )
+        let selectedDispatchReceiverSymbol = sema.symbols.memberExtensionOwnerSymbol(for: chosen).flatMap { owner in
+            ctx.implicitReceiverMemberLookupEntries().first { entry in
+                driver.helpers.allNominalSymbols(
+                    of: entry.type,
+                    types: sema.types,
+                    symbols: sema.symbols,
+                    interner: interner
+                ).contains { receiverSymbol in
+                    receiverSymbol == owner || sema.types.isNominalSubtypeSymbol(receiverSymbol, of: owner)
+                }
+            }?.symbol
+        }
         let projectionReceiverType: TypeID = if interner.resolve(calleeName) == "receive",
                                                 let channelBoundReceiverType = ReceiverClassifier(
                                                     sema: sema,
@@ -474,6 +496,7 @@ extension CallTypeChecker {
                         .map(\.value),
                     parameterMapping: resolved.parameterMapping,
                     defaultArgumentOwner: resolved.defaultArgumentOwner,
+                    dispatchReceiverSymbol: selectedDispatchReceiverSymbol,
                     contextParameterReceiverSymbols: projectedContextReceiverSymbols
                 )
             )
@@ -500,6 +523,7 @@ extension CallTypeChecker {
             chosen: chosen,
             resolved: resolved,
             sema: sema,
+            dispatchReceiverSymbol: selectedDispatchReceiverSymbol,
             contextParameterReceiverSymbols: selectedContextReceiverSymbols
         )
         // STDLIB-592 definite assignment: `x.let { ... }` / `x.apply { ... }` /

@@ -53,6 +53,22 @@ struct CLIParserTests {
         #expect(explicit.outputPath == "custom")
     }
 
+    @Test
+    func parsesJvmTargetForClassfiles() throws {
+        #expect(try CLIParser.parse(args: ["--emit", "class", "-jvm-target", "21", "hello.kt"]).jvmTarget == .java21)
+        #expect(try CLIParser.parse(args: ["--emit", "jar", "-jvm-target=16", "hello.kt"]).jvmTarget == .java16)
+        #expect(try CLIParser.parse(args: ["--emit", "class", "hello.kt"]).jvmTarget == .java8)
+        #expect(throws: CLIParseError.unsupportedJVMTarget("8")) {
+            try CLIParser.parse(args: ["--emit", "class", "-jvm-target", "8", "hello.kt"])
+        }
+        #expect(throws: CLIParseError.missingValue("-jvm-target")) {
+            try CLIParser.parse(args: ["--emit", "class", "-jvm-target"])
+        }
+        #expect(throws: CLIParseError.incompatibleJVMTargetOptions("-jvm-target requires --emit class or jar")) {
+            try CLIParser.parse(args: ["-jvm-target", "21", "hello.kt"])
+        }
+    }
+
     @Test(arguments: ["--classpath", "-classpath", "-cp"])
     func parsesJVMClasspath(flag: String) throws {
         let options = try CLIParser.parse(args: ["--emit", "jar", flag, "a.jar::classes", flag, "b.jar", "hello.kt"])

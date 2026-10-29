@@ -128,7 +128,6 @@ extension CallLowerer {
                     value: forwardedParamExpr,
                     classSymbol: valueClassSymbol,
                     result: unboxedExpr,
-                    resultType: lambdaParamType,
                     types: sema.types,
                     symbols: sema.symbols,
                     interner: interner,

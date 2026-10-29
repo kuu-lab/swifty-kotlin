@@ -544,14 +544,14 @@ extension CallTypeChecker {
                     } else {
                         false
                     }
-                    // listOf's ordinary resolver also needs primitive context
-                    // before an unsuffixed integer literal defaults to Int/UInt.
-                    // Other values retain their actual type for constraint checking.
-                    let isListOfIntegerLiteral = isListOfFactory
-                        && (isContextualizableIntegerLiteral(args[index].expr, ast: ast)
-                        || isContextualizableUnsignedIntegerLiteral(args[index].expr, ast: ast))
+                    // Contextualize a bare numeric literal when the expected
+                    // return type seeds its generic parameter. Otherwise the
+                    // nested call resolves the literal as Int/UInt before the
+                    // enclosing Pair, List, or other covariant result can steer it.
+                    let isContextualizableLiteral = isContextualizableIntegerLiteral(args[index].expr, ast: ast)
+                        || isContextualizableUnsignedIntegerLiteral(args[index].expr, ast: ast)
                     guard isLambda || isInferableNestedCallExpr(args[index].expr, ast: ast)
-                        || isListOfIntegerLiteral,
+                        || isContextualizableLiteral,
                           let parameterIndex = parameterMapping[index],
                           let parameterType = contextualCallArgumentType(
                               args[index], parameterIndex: parameterIndex, in: signature, ctx: ctx
