@@ -210,16 +210,9 @@ extension CallLowerer {
         let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
         let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
         if isConcreteListLikeType(nonNullReceiverType, sema: sema, interner: interner) {
-            let isSourceBackedListCall: Bool = {
-                guard let sourceCallee = chosenBase64Callee,
-                      let symbol = sema.symbols.symbol(sourceCallee),
-                      symbol.kind == .function,
-                      sema.symbols.isSourceBackedSymbol(sourceCallee)
-                else {
-                    return false
-                }
-                return true
-            }()
+            let isSourceBackedListCall = chosenBase64Callee.map {
+                sema.symbols.symbol($0)?.kind == .function && sema.symbols.isSourceBackedSymbol($0)
+            } ?? false
             if !isSourceBackedListCall {
             let calleeStr = calleeNameStr
             let primitiveSelectorKind = collectionSelectorPrimitiveCompareKind(of: args.first?.expr, sema: sema)
