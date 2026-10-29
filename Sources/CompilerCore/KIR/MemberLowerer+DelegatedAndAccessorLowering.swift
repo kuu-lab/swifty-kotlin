@@ -140,6 +140,7 @@ extension MemberLowerer {
 
             let delegateHandleExprID = loadDelegateHandle(
                 delegateStorageSymbol: delegateStorageSymbol,
+                propertySymbol: propertySymbol,
                 ownerSymbol: ownerSymbol,
                 receiverExprID: dispatchReceiverBinding?.exprID ?? driver.ctx.activeImplicitReceiverExprID(),
                 sema: sema,
@@ -199,6 +200,7 @@ extension MemberLowerer {
             body.append(.constValue(result: valueExprID, value: .symbolRef(valueParamSymbol)))
             let delegateHandleExprID = loadDelegateHandle(
                 delegateStorageSymbol: delegateStorageSymbol,
+                propertySymbol: propertySymbol,
                 ownerSymbol: ownerSymbol,
                 receiverExprID: dispatchReceiverBinding?.exprID ?? driver.ctx.activeImplicitReceiverExprID(),
                 sema: sema,
@@ -354,9 +356,12 @@ extension MemberLowerer {
     /// Class/interface instance delegates live inside the heap-allocated object,
     /// while enum delegates use a per-entry global slot because enum values are
     /// ordinal-backed. Top-level and `object`-member delegates intentionally
-    /// keep a single shared instance backed by a real global.
+    /// keep a single shared instance backed by a real global — but *local*
+    /// objects (object literals and named local `object` decls) are per-instance
+    /// values whose delegate storage lives in the layout fields like a class.
     private func loadDelegateHandle(
         delegateStorageSymbol: SymbolID,
+        propertySymbol: SymbolID,
         ownerSymbol: SymbolID?,
         receiverExprID: KIRExprID?,
         sema: SemaModule,
@@ -382,9 +387,16 @@ extension MemberLowerer {
             body.append(.call(callee: helperName, arguments: [receiverExprID], result: result, canThrow: false))
             return result
         }
+        let ownerStoresInInstanceField = switch sema.symbols.symbol(ownerSymbol ?? SymbolID(rawValue: 0))?.kind {
+        case .class, .interface:
+            true
+        case .object:
+            sema.bindings.isObjectLiteralPropertySymbol(propertySymbol)
+        default:
+            false
+        }
         if let ownerSymbol,
-           let ownerInfo = sema.symbols.symbol(ownerSymbol),
-           ownerInfo.kind == .class || ownerInfo.kind == .interface,
+           ownerStoresInInstanceField,
            let fieldOffset = sema.symbols.nominalLayout(for: ownerSymbol)?.fieldOffsets[delegateStorageSymbol],
            let receiverValue = receiverExprID ?? driver.ctx.activeImplicitReceiverExprID()
         {

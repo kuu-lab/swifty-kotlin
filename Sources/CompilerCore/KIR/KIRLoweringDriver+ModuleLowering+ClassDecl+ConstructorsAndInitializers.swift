@@ -946,7 +946,8 @@ extension KIRLoweringDriver {
         if let receiverID = ctx.activeImplicitReceiverExprID(),
            let ownerSymbol = sema.symbols.parentSymbol(for: propSymbol),
            let ownerInfo = sema.symbols.symbol(ownerSymbol),
-           ownerInfo.kind == .class || ownerInfo.kind == .interface,
+           ownerInfo.kind == .class || ownerInfo.kind == .interface
+               || (ownerInfo.kind == .object && sema.bindings.isObjectLiteralPropertySymbol(propSymbol)),
            let fieldOffset = sema.symbols.nominalLayout(for: ownerSymbol)?.fieldOffsets[targetSymbol]
         {
             let offsetExpr = arena.appendExpr(.intLiteral(Int64(fieldOffset)), type: sema.types.intType)
