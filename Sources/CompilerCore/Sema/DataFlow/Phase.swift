@@ -71,7 +71,8 @@ final class DataFlowSemaPhase: CompilerPhase {
                     symbols: symbols,
                     types: types,
                     diagnostics: ctx.diagnostics,
-                    interner: ctx.interner
+                    interner: ctx.interner,
+                    isWasmTarget: ctx.options.target.isWasm
                 )
             }
             return loadImports(ctx: ctx, symbols: symbols, types: types)

@@ -231,6 +231,24 @@ final class WasmModuleContext {
                 emittedHelperIndex(for: thunk.helper, argumentCount: thunk.arity)
             )
         }
+        // `kk_fn_<name>_s<id>__<ns>` link names whose bodies were materialized
+        // from the artifact's inline-kir resolve to the decl's bare name —
+        // demangle synthetic (`__*`) init-family names for symbol-less calls.
+        if name.hasPrefix("kk_fn___") {
+            var inner = String(name.dropFirst(6))
+            if let range = inner.range(of: "__", options: .backwards) {
+                inner = String(inner[..<range.lowerBound])
+            }
+            if let range = inner.range(of: "_s", options: .backwards),
+               range.upperBound < inner.endIndex,
+               inner[range.upperBound...].allSatisfy({ $0.isNumber })
+            {
+                inner = String(inner[..<range.lowerBound])
+            }
+            if let index = functionIndexByNameArity["\(inner)/\(argumentCount)"] {
+                return .direct(index)
+            }
+        }
         return .stub(name)
     }
 

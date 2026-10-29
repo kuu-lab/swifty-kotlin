@@ -1268,7 +1268,8 @@ extension DataFlowSemaPhase {
                     types: types,
                     diagnostics: diagnostics,
                     interner: interner,
-                    resolver: resolver
+                    resolver: resolver,
+                    materializeInitBodiesForWasm: options.target.isWasm
                 )
             }
         } else {
@@ -2567,7 +2568,8 @@ final class CachedSemaImportSnapshot {
         symbols: SymbolTable,
         types: TypeSystem,
         diagnostics: DiagnosticEngine,
-        interner: StringInterner
+        interner: StringInterner,
+        isWasmTarget: Bool = false
     ) -> (ImportedInlineFunctionStore, DataFlowSemaPhase.LibraryImportDeferredWork) {
         let importedInlineFunctions = ImportedInlineFunctionStore()
         for (symbol, descriptor) in importedInlineDescriptors {
@@ -2611,7 +2613,8 @@ final class CachedSemaImportSnapshot {
                 types: types,
                 diagnostics: diagnostics,
                 interner: interner,
-                resolver: resolver
+                resolver: resolver,
+                materializeInitBodiesForWasm: isWasmTarget
             )
         }
 
