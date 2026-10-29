@@ -1,4 +1,3 @@
-import RuntimeABI
 
 // KSP-697: List and AbstractList nominal declarations are source-backed in the
 // bundled stdlib. KSP-700 moved the indexed/empty/list-iterator contracts to

@@ -1,4 +1,3 @@
-import RuntimeABI
 
 struct MapLookupNames {
     let mapOfName: InternedString
@@ -20,7 +19,6 @@ struct MapLookupNames {
     let kkMapSizeName: InternedString
     let kkMapGetName: InternedString
     let kkMapIsEmptyName: InternedString
-    let kkMapToStringName: InternedString
     let kkMapIteratorName: InternedString
     let kkMapIteratorHasNextName: InternedString
     let kkMapIteratorNextName: InternedString
@@ -48,7 +46,6 @@ struct MapLookupNames {
         kkMapSizeName = interner.intern("__kk_map_size")
         kkMapGetName = interner.intern("__kk_map_get")
         kkMapIsEmptyName = interner.intern("__kk_map_is_empty")
-        kkMapToStringName = interner.intern("__kk_map_to_string")
         kkMapIteratorName = interner.intern("__kk_map_iterator")
         kkMapIteratorHasNextName = interner.intern("__kk_map_iterator_hasNext")
         kkMapIteratorNextName = interner.intern("__kk_map_iterator_next")

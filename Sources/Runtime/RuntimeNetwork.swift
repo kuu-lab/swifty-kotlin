@@ -101,18 +101,6 @@ private final class RuntimeHTTPClientBox {
         )
     }
 
-    func setConnectTimeoutMillis(_ value: Int) {
-        lock.lock()
-        connectTimeoutMillis = max(0, value)
-        lock.unlock()
-    }
-
-    func setReadTimeoutMillis(_ value: Int) {
-        lock.lock()
-        readTimeoutMillis = max(0, value)
-        lock.unlock()
-    }
-
     func setFollowRedirects(_ value: Bool) {
         lock.lock()
         followRedirects = value
@@ -575,12 +563,6 @@ public func kk_http_request_builder_build(_ builderRaw: Int, _ outThrown: Unsafe
     return registerRuntimeObject(RuntimeHttpRequestBox(url: url, method: builder.method, headers: builder.headers, body: builder.body))
 }
 
-@_cdecl("kk_http_body_publishers_noBody")
-public func kk_http_body_publishers_noBody(_ bodyPublishersRaw: Int) -> Int {
-    _ = bodyPublishersRaw
-    return registerRuntimeObject(RuntimeHttpBodyPublisherBox(data: nil))
-}
-
 public func kk_http_body_publishers_ofString(_ bodyPublishersRaw: Int, _ bodyRaw: Int) -> Int {
     _ = bodyPublishersRaw
     let text = networkString(from: bodyRaw, caller: #function)
@@ -714,24 +696,6 @@ public func kk_http_headers_firstValue(_ headersRaw: Int, _ nameRaw: Int) -> Int
     return runtimeMakeUTF8StringRaw(value)
 }
 
-@_cdecl("kk_http_client_setConnectTimeoutMillis")
-public func kk_http_client_setConnectTimeoutMillis(_ clientRaw: Int, _ timeoutMillis: Int) -> Int {
-    guard let client = runtimeHTTPClientBox(from: clientRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_http_client_setConnectTimeoutMillis received invalid client handle")
-    }
-    client.setConnectTimeoutMillis(timeoutMillis)
-    return 0
-}
-
-@_cdecl("kk_http_client_setReadTimeoutMillis")
-public func kk_http_client_setReadTimeoutMillis(_ clientRaw: Int, _ timeoutMillis: Int) -> Int {
-    guard let client = runtimeHTTPClientBox(from: clientRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_http_client_setReadTimeoutMillis received invalid client handle")
-    }
-    client.setReadTimeoutMillis(timeoutMillis)
-    return 0
-}
-
 public func kk_http_client_setFollowRedirects(_ clientRaw: Int, _ enabled: Int) -> Int {
     guard let client = runtimeHTTPClientBox(from: clientRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_http_client_setFollowRedirects received invalid client handle")
@@ -766,4 +730,3 @@ public func kk_http_client_setMaxResponseBodyBytes(_ clientRaw: Int, _ limit: In
     client.setMaxResponseBodyBytes(limit)
     return 0
 }
-

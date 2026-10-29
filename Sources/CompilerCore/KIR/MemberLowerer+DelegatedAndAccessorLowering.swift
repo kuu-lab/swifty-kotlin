@@ -350,20 +350,6 @@ extension MemberLowerer {
         return .call(symbol: symbol, callee: callee, arguments: captures + arguments, result: result, canThrow: false)
     }
 
-    func prependingMemberExtensionDispatchReceiver(
-        to arguments: [KIRExprID],
-        for symbol: SymbolID?,
-        sema: SemaModule
-    ) -> [KIRExprID] {
-        guard let symbol,
-              sema.symbols.memberExtensionOwnerSymbol(for: symbol) != nil,
-              let dispatchReceiver = driver.ctx.activeImplicitReceiverExprID()
-        else {
-            return arguments
-        }
-        return [dispatchReceiver] + arguments
-    }
-
     /// Class/interface instance delegates live inside the heap-allocated object,
     /// while enum delegates use a per-entry global slot because enum values are
     /// ordinal-backed. Top-level and `object`-member delegates intentionally

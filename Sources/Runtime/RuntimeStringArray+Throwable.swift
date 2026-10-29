@@ -1,5 +1,4 @@
 import Foundation
-import RuntimeABI
 
 func runtimeThrowableBox(from raw: Int) -> RuntimeThrowableBox? {
     resolveRuntimeHandle(raw, as: RuntimeThrowableBox.self)

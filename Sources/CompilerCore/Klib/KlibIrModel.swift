@@ -165,18 +165,14 @@ package struct KlibIrFlags {
 
     package init(raw: UInt64) { self.raw = raw }
 
-    package var hasAnnotations: Bool { bit(0) }
     package var visibility: KlibVisibility { KlibVisibility(rawValue: field(1, width: 3)) ?? .public }
     package var modality: KlibModality { KlibModality(rawValue: field(4, width: 2)) ?? .final }
 
     package var classKind: KlibClassKind { KlibClassKind(rawValue: field(6, width: 3)) ?? .class }
-    package var isInner: Bool { bit(9) }
     package var isData: Bool { bit(10) }
-    package var isExternalClass: Bool { bit(11) }
     package var isExpectClass: Bool { bit(12) }
     package var isValueClass: Bool { bit(13) }
     package var isFunInterface: Bool { bit(14) }
-    package var hasEnumEntries: Bool { bit(15) }
 
     package var memberKind: KlibMemberKind { KlibMemberKind(rawValue: field(6, width: 2)) ?? .declaration }
     package var isOperator: Bool { bit(8) }
@@ -190,19 +186,9 @@ package struct KlibIrFlags {
     /// `IrFlags.IS_PRIMARY` for constructors (aliases the function's
     /// non-stable-names bit).
     package var isPrimaryConstructor: Bool { bit(15) }
-    package var isStaticFunction: Bool { bit(18) }
     package var isVar: Bool { bit(8) }
-    package var hasGetter: Bool { bit(9) }
-    package var hasSetter: Bool { bit(10) }
     package var isConst: Bool { bit(11) }
-    package var isLateinit: Bool { bit(12) }
-    package var hasConstant: Bool { bit(13) }
-    package var isExternalProperty: Bool { bit(14) }
-    package var isDelegated: Bool { bit(15) }
     package var isExpectProperty: Bool { bit(16) }
-    package var isStaticProperty: Bool { bit(19) }
-    package var isNotDefaultAccessor: Bool { bit(6) }
-    package var isExternalAccessor: Bool { bit(7) }
     package var isInlineAccessor: Bool { bit(8) }
 
     package var typeParameterVariance: KlibVariance { KlibVariance(rawValue: field(1, width: 2)) ?? .invariant }
@@ -211,19 +197,11 @@ package struct KlibIrFlags {
     package var isActual: Bool { bit(4) }
 
     package var isFinalField: Bool { bit(4) }
-    package var isExternalField: Bool { bit(5) }
     package var isStaticField: Bool { bit(6) }
     package var isFakeOverrideField: Bool { bit(7) }
 
-    package var declaresDefaultValue: Bool { bit(1) }
-    package var isCrossinline: Bool { bit(2) }
-    package var isNoinline: Bool { bit(3) }
-    package var isHiddenParameter: Bool { bit(4) }
-    package var isAssignable: Bool { bit(5) }
 
     package var isLocalVar: Bool { bit(1) }
-    package var isLocalConst: Bool { bit(2) }
-    package var isLocalLateinit: Bool { bit(3) }
 
     private func bit(_ index: Int) -> Bool {
         (raw >> index) & 1 == 1

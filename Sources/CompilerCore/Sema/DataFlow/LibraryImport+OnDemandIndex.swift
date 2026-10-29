@@ -94,9 +94,6 @@ extension DataFlowSemaPhase {
         /// BUG-KSP-1217 phantom-parameter recovery keyed on single-callable
         /// FQ names.
         private var pendingTypeParametersByGrandparent: [Substring: [Int]] = [:]
-        /// Static callable count per FQ name, including entries still
-        /// pending — overload multiplicity must not depend on drain order.
-        private var callableCountByFQName: [Substring: Int] = [:]
         /// Every FQ name present in the index, used by the constructor-parent
         /// package rule: `pkg.Type.<init>` must not turn `pkg.Type` into a
         /// package when `pkg.Type` itself is a declaration.
@@ -151,9 +148,6 @@ extension DataFlowSemaPhase {
                 let fqName = Substring(record.fqName)
                 pendingByFQName[fqName, default: []].append(index)
                 entryFQNames.insert(fqName)
-                if record.kind == .function || record.kind == .constructor {
-                    callableCountByFQName[fqName, default: 0] += 1
-                }
                 let parent = record.fqName.lastIndex(of: ".").map { Substring(record.fqName[..<$0]) } ?? ""
                 pendingChildren[parent, default: []].append(index)
                 if !Self.machineryKinds.contains(record.kind) {
@@ -300,18 +294,6 @@ extension DataFlowSemaPhase {
 
         // MARK: - Import-phase resolvers
 
-        /// Claims every entry at `fqName` by its raw index string — the
-        /// resolver path has no interned segments to render.
-        @discardableResult
-        func claimEntries(fqNameString: String) -> Bool {
-            buildMapsIfNeeded()
-            guard let indexes = pendingByFQName.removeValue(forKey: Substring(fqNameString)) else { return false }
-            for index in indexes {
-                claim(index: index)
-            }
-            return true
-        }
-
         /// Resolves a producer external link name, registering its entry if
         /// still pending. Getter links resolve through the property's
         /// synthesized accessor, which exists only once the property's own
@@ -350,14 +332,6 @@ extension DataFlowSemaPhase {
                 else { return count }
                 return count + 1
             }
-        }
-
-        /// Total function/constructor entries at `fqName` across this index —
-        /// the phantom type-parameter single-owner rule needs the static
-        /// count, not however many happen to be registered already.
-        func callableEntryCount(fqName: [InternedString]) -> Int {
-            buildMapsIfNeeded()
-            return callableCountByFQName[Substring(render(fqName))] ?? 0
         }
 
         /// Claims this index's type-parameter records owned under `fqName`,
