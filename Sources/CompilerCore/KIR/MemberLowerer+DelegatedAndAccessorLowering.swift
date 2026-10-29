@@ -28,7 +28,6 @@ extension MemberLowerer {
         propertySymbol: SymbolID,
         propertyType: TypeID,
         delegateStorageSymbol: SymbolID,
-        delegateKind: StdlibDelegateKind,
         accessorKind: PropertyAccessorKind,
         shared: KIRLoweringSharedContext,
         allDecls: inout [KIRDeclID]
