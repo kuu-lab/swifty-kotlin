@@ -16,9 +16,6 @@ public class KotlinVersion(
 ) : Comparable<KotlinVersion> {
     public constructor(major: Int, minor: Int) : this(major, minor, 0)
 
-    internal val versionNumber: Int
-        get() = versionOf(major, minor, patch)
-
     override fun toString(): String = "$major.$minor.$patch"
 
     override fun equals(other: Any?): Boolean {

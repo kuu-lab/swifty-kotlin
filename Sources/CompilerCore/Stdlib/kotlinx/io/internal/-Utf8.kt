@@ -9,7 +9,6 @@ package kotlinx.io.internal
 import kotlinx.io.checkBounds
 
 internal const val REPLACEMENT_BYTE: Byte = 63
-internal const val REPLACEMENT_CHARACTER: Char = '\ufffd'
 internal const val REPLACEMENT_CODE_POINT: Int = 0xfffd
 internal const val HIGH_SURROGATE_HEADER: Int = 0xd7c0
 internal const val LOG_SURROGATE_HEADER: Int = 0xdc00
