@@ -14,7 +14,6 @@ final class KIRLoweringContext {
     struct ObjectLazyInit {
         let ensureInitSymbol: SymbolID
         let ensureInitName: InternedString
-        let flagSymbol: SymbolID
     }
 
     struct SuperConstructorArgumentReceiverOverride {
@@ -728,13 +727,11 @@ final class KIRLoweringContext {
     func registerObjectLazyInit(
         for objectSymbol: SymbolID,
         ensureInitSymbol: SymbolID,
-        ensureInitName: InternedString,
-        flagSymbol: SymbolID
+        ensureInitName: InternedString
     ) {
         objectLazyInitBySymbol[objectSymbol] = ObjectLazyInit(
             ensureInitSymbol: ensureInitSymbol,
-            ensureInitName: ensureInitName,
-            flagSymbol: flagSymbol
+            ensureInitName: ensureInitName
         )
     }
 
