@@ -836,6 +836,14 @@ extension CallTypeChecker {
                 varianceResult.covariantSubstitution,
                 uniquingKeysWith: { _, projected in projected }
             )
+            if !validateReifiedTypeArguments(
+                for: chosen,
+                substitutedTypeArguments: mergedSubstitution,
+                range: range,
+                sema: sema
+            ) {
+                return sema.types.errorType
+            }
             sema.bindings.bindCall(
                 id,
                 binding: CallBinding(

@@ -105,7 +105,7 @@ extension CallTypeChecker {
     ) -> TypeID {
         let chosen = nullableConsoleCallee(id, chosen: initialCallee, sema: sema)
         if let range = driver.ast.arena.exprRange(id),
-           !validateReifiedIntersectionTypeArguments(for: chosen, resolved: resolved, range: range, sema: sema) {
+           !validateReifiedTypeArguments(for: chosen, substitutedTypeArguments: resolved.substitutedTypeArguments, range: range, sema: sema) {
             sema.bindings.bindExprType(id, type: sema.types.errorType)
             return sema.types.errorType
         }
