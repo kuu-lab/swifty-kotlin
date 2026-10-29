@@ -731,3 +731,4 @@ final class WasmFunctionEmission {
         code.op(WasmOpcode.i32WrapI64)
     }
 }
+
