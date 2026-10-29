@@ -1,4 +1,3 @@
-import RuntimeABI
 
 struct ArrayLookupNames {
     let arrayOfName: InternedString

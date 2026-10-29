@@ -374,7 +374,6 @@ extension CallTypeChecker {
         range: SourceRange,
         ctx: TypeInferenceContext,
         locals: inout LocalBindings,
-        expectedType: TypeID?,
         calleeName: InternedString?
     ) -> TypeID? {
         let ast = ctx.ast
@@ -448,7 +447,6 @@ extension CallTypeChecker {
         range: SourceRange,
         ctx: TypeInferenceContext,
         locals: inout LocalBindings,
-        expectedType: TypeID?,
         calleeName: InternedString?
     ) -> TypeID? {
         let ast = ctx.ast

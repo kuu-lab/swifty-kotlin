@@ -156,7 +156,6 @@ extension InlineLoweringPass {
         lambdaFunction: KIRFunction,
         arguments: [KIRExprID],
         module: KIRModule,
-        allFunctionsBySymbol: [SymbolID: KIRFunction],
         ctx: KIRContext,
         labels: inout InlineLabelAllocator,
         expansionBudget: InlineExpansionBudget? = nil,

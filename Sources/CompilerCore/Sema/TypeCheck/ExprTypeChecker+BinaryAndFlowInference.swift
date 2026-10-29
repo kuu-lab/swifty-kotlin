@@ -400,9 +400,28 @@ extension ExprTypeChecker {
             sema.bindings.bindExprType(id, type: coroutineContextType)
             return coroutineContextType
         }
-        let lhsIsPrimitive = if case .primitive = sema.types.kind(of: lhs) { true } else { false }
         let operatorNames = operatorFunctionNames(for: op, interner: interner)
         let operatorName = operatorNames[0]
+        let nothingRangePeerType: TypeID? = {
+            guard [.rangeTo, .rangeUntil, .downTo].contains(op) else { return nil }
+            if lhs == sema.types.nothingType,
+               rhs != sema.types.nothingType,
+               sema.types.isBuiltinArithmeticOperand(rhs) {
+                return rhs
+            }
+            if rhs == sema.types.nothingType,
+               lhs != sema.types.nothingType,
+               sema.types.isBuiltinArithmeticOperand(lhs) {
+                return lhs
+            }
+            return nil
+        }()
+        // A Nothing-typed endpoint fits every primitive range overload. Use
+        // its peer's primitive type for overload selection while preserving
+        // the source expression's actual Nothing type for flow and lowering.
+        let operatorReceiverType = nothingRangePeerType ?? lhs
+        let operatorArgumentType = nothingRangePeerType ?? rhs
+        let lhsIsPrimitive = if case .primitive = sema.types.kind(of: operatorReceiverType) { true } else { false }
         let shouldUseInheritedEqualityDispatch: Bool = switch op {
         case .equal, .notEqual:
             sema.types.isDefinitelyNonNull(lhs) && sema.types.isDefinitelyNonNull(rhs)
@@ -414,7 +433,7 @@ extension ExprTypeChecker {
             range: range,
             calleeName: operatorName,
             args: [CallArg(
-                type: rhs,
+                type: operatorArgumentType,
                 signedIntegerLiteral: rhsIntegerLiteral.signed,
                 unsignedIntegerLiteral: rhsIntegerLiteral.unsigned
             )]
@@ -422,7 +441,7 @@ extension ExprTypeChecker {
         var collectedOperatorCandidates: [SymbolID] = if shouldUseInheritedEqualityDispatch {
             collectOperatorCandidates(
                 names: operatorNames,
-                receiverType: lhs,
+                receiverType: operatorReceiverType,
                 call: operatorCall,
                 locals: locals,
                 ctx: ctx
@@ -471,8 +490,8 @@ extension ExprTypeChecker {
         }
         var operatorCandidates = driver.callChecker.preferMostSpecificMemberReceiverCandidates(
             collectedOperatorCandidates,
-            receiverType: lhs,
-            argumentTypes: [rhs],
+            receiverType: operatorReceiverType,
+            argumentTypes: [operatorArgumentType],
             sema: sema,
             interner: interner
         )
@@ -504,20 +523,20 @@ extension ExprTypeChecker {
         // The fallback below can rediscover the generic stdlib rangeTo after
         // it was excluded above. Same-type floating-point operands use the
         // built-in range even when there is no concrete member candidate.
-        let isBuiltinFloatingRangePair = (lhs == sema.types.doubleType && rhs == sema.types.doubleType)
-            || (lhs == sema.types.floatType && rhs == sema.types.floatType)
+        let isBuiltinFloatingRangePair = (operatorReceiverType == sema.types.doubleType && operatorArgumentType == sema.types.doubleType)
+            || (operatorReceiverType == sema.types.floatType && operatorArgumentType == sema.types.floatType)
         if op == .rangeTo, !isBuiltinFloatingRangePair,
            ctx.resolver.probeCall(
                candidates: operatorCandidates,
                call: operatorCall,
                expectedType: nil,
-               implicitReceiverType: lhs,
+               implicitReceiverType: operatorReceiverType,
                ctx: sema
            ).viableCandidates.isEmpty
         {
             let localExtensionCandidates = collectLocalOperatorExtensionCandidates(
                 names: operatorNames,
-                receiverType: lhs,
+                receiverType: operatorReceiverType,
                 call: operatorCall,
                 locals: locals,
                 ctx: ctx
@@ -527,14 +546,14 @@ extension ExprTypeChecker {
             } else {
                 let extensionCandidates = collectScopedOperatorExtensionCandidates(
                     names: operatorNames,
-                    receiverType: lhs,
+                    receiverType: operatorReceiverType,
                     ctx: ctx
                 )
                 if !ctx.resolver.probeCall(
                     candidates: extensionCandidates,
                     call: operatorCall,
                     expectedType: nil,
-                    implicitReceiverType: lhs,
+                    implicitReceiverType: operatorReceiverType,
                     ctx: sema
                 ).viableCandidates.isEmpty {
                     operatorCandidates = extensionCandidates
@@ -576,7 +595,7 @@ extension ExprTypeChecker {
             if shouldSearchForScopedExtension {
                 let localExtensionCandidates = collectLocalOperatorExtensionCandidates(
                     names: operatorNames,
-                    receiverType: lhs,
+                    receiverType: operatorReceiverType,
                     call: operatorCall,
                     locals: locals,
                     ctx: ctx
@@ -586,10 +605,11 @@ extension ExprTypeChecker {
                 } else {
                     let extensionCandidates = collectScopedOperatorExtensionCandidates(
                         names: operatorNames,
-                        receiverType: lhs,
+                        receiverType: operatorReceiverType,
                         argumentType: isComparisonOperator || (isPrimitiveArithmeticOperator && isNullablePrimitiveReceiver)
-                            ? rhs
-                            : lhs == charType && op == .add && sema.types.isString(rhs) ? rhs : nil,
+                            ? operatorArgumentType
+                            : operatorReceiverType == charType && op == .add && sema.types.isString(operatorArgumentType)
+                                ? operatorArgumentType : nil,
                         ctx: ctx
                     )
                     if !extensionCandidates.isEmpty {
@@ -710,7 +730,7 @@ extension ExprTypeChecker {
                     candidates: operatorCandidates,
                     call: operatorCall,
                     expectedType: nil,
-                    implicitReceiverType: lhs,
+                    implicitReceiverType: operatorReceiverType,
                     ctx: ctx.sema
                 )
                 if inputSelection.diagnostic == nil,
@@ -733,7 +753,7 @@ extension ExprTypeChecker {
                 candidates: operatorCandidates,
                 call: operatorCall,
                 expectedType: operatorExpectedType,
-                implicitReceiverType: lhs,
+                implicitReceiverType: operatorReceiverType,
                 ctx: ctx.sema
             )
             if isSeqLhs, resolved.chosenCallee == nil {

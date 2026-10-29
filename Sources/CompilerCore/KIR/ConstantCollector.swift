@@ -731,7 +731,7 @@ struct ConstantCollector {
             return integerFloorDiv(left, right, width: 32).map { .intLiteral($0) }
         case let (.longLiteral(left), .longLiteral(right)):
             return integerFloorDiv(left, right).map { .longLiteral($0) }
-        case let (.longLiteral(left), .intLiteral(right)):
+        case let (.longLiteral(left), .intLiteral(right)), let (.intLiteral(left), .longLiteral(right)):
             return integerFloorDiv(left, right).map { .longLiteral($0) }
         default:
             return nil
@@ -742,10 +742,11 @@ struct ConstantCollector {
         switch (lhs, rhs) {
         case let (.intLiteral(left), .intLiteral(right)):
             return integerFloorMod(left, right, width: 32).map { .intLiteral($0) }
-        case let (.longLiteral(left), .longLiteral(right)):
+        case let (.longLiteral(left), .longLiteral(right)), let (.intLiteral(left), .longLiteral(right)):
             return integerFloorMod(left, right).map { .longLiteral($0) }
+        // `Long.mod(Int)` returns Int: the result is bounded by the Int divisor.
         case let (.longLiteral(left), .intLiteral(right)):
-            return integerFloorMod(left, right).map { .longLiteral($0) }
+            return integerFloorMod(left, right).map { .intLiteral($0) }
         case let (.floatLiteral(left), .floatLiteral(right)):
             return floatingFloorMod(Float(left), Float(right)).map { .floatLiteral(Double($0)) }
         case let (.doubleLiteral(left), .doubleLiteral(right)):
@@ -1012,11 +1013,13 @@ struct ConstantCollector {
         if value == .infinity { return "Infinity" }
         if value == -.infinity { return "-Infinity" }
         if value == 0.0 && value.sign == .minus { return "-0.0" }
-        // Swift's Ryu emits 5e-324 for the minimum subnormal; Java emits
-        // 4.9E-324. Both round-trip to the same bits; match Java's text.
-        if value == Double.leastNonzeroMagnitude { return "4.9E-324" }
-        if value == -Double.leastNonzeroMagnitude { return "-4.9E-324" }
         let magnitude = abs(value)
+        let subnormalUnits = magnitude / Double.leastNonzeroMagnitude
+        if magnitude != 0, subnormalUnits <= 20 {
+            return javaSmallSubnormalConcatText(
+                units: subnormalUnits * 4.9406564584124654, unitExponent: -324, isNegative: value < 0
+            )
+        }
         return finishFloatingPointConcatText(
             rendered: String(describing: value),
             useScientific: magnitude != 0 && (magnitude >= 1e7 || magnitude < 1e-3)
@@ -1028,13 +1031,27 @@ struct ConstantCollector {
         if value == .infinity { return "Infinity" }
         if value == -.infinity { return "-Infinity" }
         if value == 0.0 && value.sign == .minus { return "-0.0" }
-        if value == Float.leastNonzeroMagnitude { return "1.4E-45" }
-        if value == -Float.leastNonzeroMagnitude { return "-1.4E-45" }
         let magnitude = abs(value)
+        let subnormalUnits = magnitude / Float.leastNonzeroMagnitude
+        if magnitude != 0, subnormalUnits <= 71 {
+            return javaSmallSubnormalConcatText(
+                units: Double(subnormalUnits) * 1.4012984643248171, unitExponent: -45, isNegative: value < 0
+            )
+        }
         return finishFloatingPointConcatText(
             rendered: String(describing: value),
             useScientific: magnitude != 0 && (magnitude >= 1e7 || magnitude < 1e-3)
         )
+    }
+
+    /// Mirrors `runtimeJavaSmallSubnormalText`: JDK 19+ prints subnormals
+    /// below 1e-322 (Float: 1e-43) with the closest two-digit decimal.
+    private func javaSmallSubnormalConcatText(units: Double, unitExponent: Int, isNegative: Bool) -> String {
+        let tenths = (units * 10).rounded()
+        let (digits, exponent) = tenths < 100
+            ? (Int(tenths), unitExponent)
+            : (Int(units.rounded()), unitExponent + 1)
+        return "\(isNegative ? "-" : "")\(digits / 10).\(digits % 10)E\(exponent)"
     }
 
     private func finishFloatingPointConcatText(rendered: String, useScientific: Bool) -> String {

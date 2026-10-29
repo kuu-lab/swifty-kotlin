@@ -115,7 +115,7 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
             }
             _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: lambdaExpectedType)
             resultType = collectionElementType
-            if bindBundledListSourceFunction(typeArguments: [collectionElementType], locals: &locals) {
+            if bindBundledListSourceFunction(typeArguments: [collectionElementType]) {
                 if let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef {
                     sema.bindings.unmarkCollectionHOFLambdaExpr(args[0].expr)
                 }
@@ -142,7 +142,7 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
             }
             _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: lambdaExpectedType)
             resultType = collectionElementType
-            if bindBundledListSourceFunction(typeArguments: [collectionElementType], locals: &locals) {
+            if bindBundledListSourceFunction(typeArguments: [collectionElementType]) {
                 if let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef {
                     sema.bindings.unmarkCollectionHOFLambdaExpr(args[0].expr)
                 }
@@ -169,7 +169,7 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
             }
             _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: lambdaExpectedType)
             resultType = sema.types.makeNullable(collectionElementType)
-            if bindBundledListSourceFunction(typeArguments: [collectionElementType], locals: &locals) {
+            if bindBundledListSourceFunction(typeArguments: [collectionElementType]) {
                 if let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef {
                     sema.bindings.unmarkCollectionHOFLambdaExpr(args[0].expr)
                 }
@@ -196,7 +196,7 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
             }
             _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: lambdaExpectedType)
             resultType = sema.types.makeNullable(collectionElementType)
-            if bindBundledListSourceFunction(typeArguments: [collectionElementType], locals: &locals) {
+            if bindBundledListSourceFunction(typeArguments: [collectionElementType]) {
                 if let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef {
                     sema.bindings.unmarkCollectionHOFLambdaExpr(args[0].expr)
                 }
@@ -420,8 +420,8 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                 ? [accumulatorType, collectionElementType]
                 : [collectionElementType]
             let didBindSource = isIterableRunningReduce
-                ? bindBundledIterableSourceFunction(typeArguments: sourceTypeArguments, locals: &locals)
-                : bindBundledListSourceFunction(typeArguments: sourceTypeArguments, locals: &locals)
+                ? bindBundledIterableSourceFunction(typeArguments: sourceTypeArguments)
+                : bindBundledListSourceFunction(typeArguments: sourceTypeArguments)
             if didBindSource {
                 if let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef {
                     sema.bindings.unmarkCollectionHOFLambdaExpr(args[0].expr)
@@ -482,8 +482,8 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                 ? [accumulatorType, collectionElementType]
                 : [collectionElementType]
             let didBindSource = isIterableRunningReduce
-                ? bindBundledIterableSourceFunction(typeArguments: sourceTypeArguments, locals: &locals)
-                : bindBundledListSourceFunction(typeArguments: sourceTypeArguments, locals: &locals)
+                ? bindBundledIterableSourceFunction(typeArguments: sourceTypeArguments)
+                : bindBundledListSourceFunction(typeArguments: sourceTypeArguments)
             if didBindSource {
                 if let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef {
                     sema.bindings.unmarkCollectionHOFLambdaExpr(args[0].expr)
@@ -543,8 +543,8 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
             let groupByTypeArgs: [TypeID] = args.count >= 2
                 ? [collectionElementType, keyType, valueElementType]
                 : [collectionElementType, keyType]
-            let didBindSource = bindBundledListSourceFunction(typeArguments: groupByTypeArgs, locals: &locals)
-                || bindBundledIterableSourceFunction(typeArguments: groupByTypeArgs, locals: &locals)
+            let didBindSource = bindBundledListSourceFunction(typeArguments: groupByTypeArgs)
+                || bindBundledIterableSourceFunction(typeArguments: groupByTypeArgs)
             if didBindSource {
                 if let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef {
                     sema.bindings.unmarkCollectionHOFLambdaExpr(args[0].expr)
@@ -668,8 +668,8 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
             let toTypeArgs: [TypeID] = args.count == 3
                 ? [collectionElementType, firstLambdaReturn, valueType, nonNullableDestType]
                 : [collectionElementType, firstLambdaReturn, nonNullableDestType]
-            let didBindSource = bindBundledListSourceFunction(typeArguments: toTypeArgs, locals: &locals)
-                || bindBundledIterableSourceFunction(typeArguments: toTypeArgs, locals: &locals)
+            let didBindSource = bindBundledListSourceFunction(typeArguments: toTypeArgs)
+                || bindBundledIterableSourceFunction(typeArguments: toTypeArgs)
             if didBindSource {
                 if let lambdaExpr = ast.arena.expr(args[1].expr), lambdaExpr.isLambdaOrCallableRef {
                     sema.bindings.unmarkCollectionHOFLambdaExpr(args[1].expr)
@@ -739,7 +739,7 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                     return failedType
                 }
             }
-            if bindBundledListSourceFunction(typeArguments: [collectionElementType, selectorType], locals: &locals) {
+            if bindBundledListSourceFunction(typeArguments: [collectionElementType, selectorType]) {
                 if let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef {
                     sema.bindings.unmarkCollectionHOFLambdaExpr(args[0].expr)
                 }
@@ -782,8 +782,8 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                     return failedType
                 }
             }
-            if !bindBundledListSourceFunction(typeArguments: [collectionElementType], locals: &locals) {
-                _ = bindBundledIterableSourceFunction(typeArguments: [collectionElementType], locals: &locals)
+            if !bindBundledListSourceFunction(typeArguments: [collectionElementType]) {
+                _ = bindBundledIterableSourceFunction(typeArguments: [collectionElementType])
             }
             if isInPlaceMutation {
                 resultType = sema.types.unitType
@@ -838,7 +838,7 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                     _ = bindBundledListSourceFunction(
                         typeArguments: [collectionElementType],
                         matchingParameterType: functionExpectedType
-                    , locals: &locals)
+                    )
                 } else if case .nameRef = argExpr {
                     _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: nil)
                     let argType = sema.bindings.exprType(for: args[0].expr) ?? sema.types.anyType
@@ -847,20 +847,20 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                         _ = bindBundledListSourceFunction(
                             typeArguments: [collectionElementType],
                             matchingParameterType: functionExpectedType
-                        , locals: &locals)
+                        )
                     } else {
                         _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: comparatorExpectedType)
                         _ = bindBundledListSourceFunction(
                             typeArguments: [collectionElementType],
                             matchingParameterType: comparatorExpectedType ?? sema.types.nothingType
-                        , locals: &locals)
+                        )
                     }
                 } else {
                     _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: comparatorExpectedType)
                     _ = bindBundledListSourceFunction(
                         typeArguments: [collectionElementType],
                         matchingParameterType: comparatorExpectedType ?? sema.types.nothingType
-                    , locals: &locals)
+                    )
                 }
             } else if calleeStr == "sortedWith", !isSequenceReceiver {
                 // KUU-542: Set/Collection receivers bind the bundled
@@ -875,7 +875,7 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                 } else {
                     _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: nil)
                 }
-                if isComparatorTypedArgument(args[0].expr, locals: &locals) {
+                if isComparatorTypedArgument(args[0].expr) {
                     sourceBackedIterableAggregateTypeArguments = [collectionElementType]
                 }
             } else {
@@ -918,7 +918,7 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                    || calleeStr == "maxWithOrNull" || calleeStr == "minWithOrNull"
             {
                 _ = bindBundledMapSourceFunction(locals: &locals)
-            } else if !isSequenceReceiver, bindBundledListSourceFunction(typeArguments: [collectionElementType], locals: &locals) {
+            } else if !isSequenceReceiver, bindBundledListSourceFunction(typeArguments: [collectionElementType]) {
                 if let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef {
                     sema.bindings.unmarkCollectionHOFLambdaExpr(args[0].expr)
                 }
@@ -927,7 +927,7 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
             // Comparator parameter, so a function-typed comparator (an
             // invalid Kotlin call shape) must stay unbound rather than
             // misdispatching through the source declaration.
-            if isComparatorTypedArgument(args[0].expr, locals: &locals) {
+            if isComparatorTypedArgument(args[0].expr) {
                 sourceBackedIterableAggregateTypeArguments = [collectionElementType]
             }
             resultType = (calleeStr == "maxWithOrNull" || calleeStr == "minWithOrNull")
@@ -987,7 +987,7 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                         sema.bindings.unmarkCollectionHOFLambdaExpr(args[0].expr)
                     }
                 }
-            } else if bindBundledListSourceFunction(typeArguments: [collectionElementType, selectorResultType], locals: &locals) {
+            } else if bindBundledListSourceFunction(typeArguments: [collectionElementType, selectorResultType]) {
                 if let lambdaExpr = ast.arena.expr(args[1].expr), lambdaExpr.isLambdaOrCallableRef {
                     sema.bindings.unmarkCollectionHOFLambdaExpr(args[1].expr)
                 }
@@ -995,7 +995,7 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                     sema.bindings.unmarkCollectionHOFLambdaExpr(args[0].expr)
                 }
             }
-            if isComparatorTypedArgument(args[0].expr, locals: &locals) {
+            if isComparatorTypedArgument(args[0].expr) {
                 sourceBackedIterableAggregateTypeArguments = [collectionElementType, selectorResultType]
             }
             resultType = (calleeStr == "maxOfWithOrNull" || calleeStr == "minOfWithOrNull")
@@ -1031,7 +1031,7 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
             } else {
                 resultType = sema.types.anyType
             }
-            if bindBundledListSourceFunction(typeArguments: [collectionElementType], locals: &locals) {
+            if bindBundledListSourceFunction(typeArguments: [collectionElementType]) {
                 if let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef {
                     sema.bindings.unmarkCollectionHOFLambdaExpr(args[0].expr)
                 }

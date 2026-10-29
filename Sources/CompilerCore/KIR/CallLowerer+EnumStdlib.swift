@@ -85,8 +85,7 @@ extension CallLowerer {
 
         return emitEnumEntryCollection(
             classType: classType, nominalSymbol: nominalSymbol,
-            boundType: sema.bindings.exprTypes[exprID] ?? sema.types.anyType,
-            kind: kind, runtimeCalleeName: runtimeCalleeName,
+            boundType: sema.bindings.exprTypes[exprID] ?? sema.types.anyType, runtimeCalleeName: runtimeCalleeName,
             sema: sema, arena: arena, interner: interner, instructions: &instructions
         )
     }
@@ -234,7 +233,6 @@ func emitEnumEntryCollection(
     classType: ClassType,
     nominalSymbol: SemanticSymbol,
     boundType: TypeID,
-    kind: StdlibSpecialCallKind,
     runtimeCalleeName: String,
     sema: SemaModule,
     arena: KIRArena,

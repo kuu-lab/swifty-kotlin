@@ -304,15 +304,3 @@ public func __kk_iterator_builder_next_coro(_ iterRaw: Int) -> Int {
     fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_iterator_builder_next_coro received invalid iterator handle")
 }
 
-/// Sentinel value used by kk_sequence_builder (lazy coroutine) to signal
-/// end-of-sequence via `callerState.resume(with:)` (CORO-004 Phase 2).
-/// The caller compares the resume value against this sentinel to distinguish
-/// a real element from the done signal.
-@_cdecl("kk_sequence_completed_sentinel")
-public func kk_sequence_completed_sentinel() -> Int {
-    Int(bitPattern:
-        UnsafeMutableRawPointer(
-            Unmanaged.passUnretained(runtimeStorage.sequenceCompletedBox).toOpaque()
-        )
-    )
-}

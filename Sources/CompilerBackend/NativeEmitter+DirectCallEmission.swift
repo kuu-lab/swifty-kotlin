@@ -355,7 +355,6 @@ extension NativeEmitter.FunctionEmissionContext {
         var argumentTypes = arguments.map(module.arena.exprType)
         let externalCalleeName = NativeEmitter.runtimePrimitiveAlias(
             for: calleeName,
-            argumentCount: argumentValues.count,
             resolvedSymbol: symbol
         ) ?? calleeName
 

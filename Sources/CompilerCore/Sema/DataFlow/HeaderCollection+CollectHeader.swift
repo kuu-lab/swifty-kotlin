@@ -279,19 +279,30 @@ extension DataFlowSemaPhase {
 
             if isValueClassDeclaration(classDecl) {
                 let valParams = classDecl.primaryConstructorParams
+                let isFullValueClass = isFullValueClassDeclaration(
+                    classDecl,
+                    imports: file.imports,
+                    enabled: ctx.options.fullValueClassesEnabled,
+                    interner: interner
+                )
                 if valParams.count > 1 {
-                    // Multi-field value class (Kotlin 2.x MFVC): lowered as a regular class.
-                    symbols.removeFlags(.valueType, for: symbol)
-                } else if valParams.isEmpty {
-                    if !isFullValueClassDeclaration(
-                        classDecl,
-                        imports: file.imports,
-                        enabled: ctx.options.fullValueClassesEnabled,
-                        interner: interner
-                    ) {
+                    if isFullValueClass {
+                        // Multi-field value class (Kotlin 2.x MFVC): lowered
+                        // as a regular class. `@JvmInline` classes take the
+                        // strict path: kotlinc rejects them outright.
+                        symbols.removeFlags(.valueType, for: symbol)
+                    } else {
                         diagnostics.error(
                             "KSWIFTK-SEMA-0070",
-                            "Value class must have at least one primary constructor parameter.",
+                            "Value class must have exactly one primary constructor parameter.",
+                            range: classDecl.range
+                        )
+                    }
+                } else if valParams.isEmpty {
+                    if !isFullValueClass {
+                        diagnostics.error(
+                            "KSWIFTK-SEMA-0070",
+                            "Value class must have exactly one primary constructor parameter.",
                             range: classDecl.range
                         )
                     }

@@ -671,7 +671,6 @@ extension ExprTypeChecker {
         typeCheckLocalNominalMemberProperties(
             classDecl.memberProperties,
             propertySymbolsByDecl: propertySymbolsByDecl,
-            memberScope: classScope,
             memberCtx: classCtx,
             initializerLocals: primaryCtorLocals,
             accessorBaseLocals: outerLocalsSnapshot,

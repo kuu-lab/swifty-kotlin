@@ -50,6 +50,7 @@ extension DataFlowSemaPhase {
                     registerEnumEntryDispatchFunctions(
                         entries: classDecl.enumEntries,
                         memberFunctions: classDecl.memberFunctions,
+                        memberProperties: classDecl.memberProperties,
                         ownerFQName: symbolInfo.fqName,
                         ownerSymbol: symbol,
                         enumType: enumType,
@@ -150,6 +151,7 @@ extension DataFlowSemaPhase {
     func registerEnumEntryDispatchFunctions(
         entries: [EnumEntryDecl],
         memberFunctions: [DeclID],
+        memberProperties: [DeclID],
         ownerFQName: [InternedString],
         ownerSymbol: SymbolID,
         enumType: TypeID,
@@ -329,6 +331,151 @@ extension DataFlowSemaPhase {
             )
             symbols.setEnumEntryDispatchTargets(targets, for: helperSymbol)
             symbols.setEnumEntryDispatchBaseSymbol(baseSymbol, for: helperSymbol)
+        }
+
+        registerEnumEntryDispatchProperties(
+            entries: entries,
+            memberProperties: memberProperties,
+            ownerFQName: ownerFQName,
+            ownerSymbol: ownerSymbol,
+            enumType: enumType,
+            ast: ast,
+            bindings: bindings,
+            symbols: symbols,
+            types: types,
+            interner: interner
+        )
+    }
+
+    /// Registers enum-entry property accessors as ordinal dispatch targets.
+    /// Stored enum-entry properties are lowered through enum property helpers;
+    /// custom accessors retain their own accessor symbols as the target.
+    private func registerEnumEntryDispatchProperties(
+        entries: [EnumEntryDecl],
+        memberProperties: [DeclID],
+        ownerFQName: [InternedString],
+        ownerSymbol: SymbolID,
+        enumType: TypeID,
+        ast: ASTModule,
+        bindings: BindingTable,
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner
+    ) {
+        var baseProperties: [SymbolID] = memberProperties.compactMap { declID in
+            guard let decl = ast.arena.decl(declID),
+                  case .propertyDecl = decl,
+                  let property = bindings.declSymbols[declID],
+                  symbols.symbol(property)?.kind == .property,
+                  symbols.parentSymbol(for: property) == ownerSymbol
+            else {
+                return nil
+            }
+            return property
+        }
+        var pendingSupertypes = symbols.directSupertypes(for: ownerSymbol)
+        var visitedSupertypes: Set<SymbolID> = []
+        while let supertype = pendingSupertypes.popLast() {
+            guard visitedSupertypes.insert(supertype).inserted else { continue }
+            if let supertypeInfo = symbols.symbol(supertype) {
+                baseProperties.append(contentsOf: symbols.children(ofFQName: supertypeInfo.fqName).filter { candidate in
+                    symbols.symbol(candidate)?.kind == .property
+                        && symbols.parentSymbol(for: candidate) == supertype
+                })
+            }
+            pendingSupertypes.append(contentsOf: symbols.directSupertypes(for: supertype))
+        }
+        var seenBaseProperties: Set<SymbolID> = []
+        baseProperties = baseProperties.filter { seenBaseProperties.insert($0).inserted }
+
+        var targetsByAccessor: [SymbolID: [EnumEntryDispatchTarget]] = [:]
+        for entry in entries {
+            let entryFQName = ownerFQName + [entry.name]
+            guard let entrySymbol = symbols.lookupAll(fqName: entryFQName).first(where: { symbolID in
+                symbols.symbol(symbolID)?.kind == .field
+                    && symbols.parentSymbol(for: symbolID) == ownerSymbol
+            }) else {
+                continue
+            }
+            for declID in entry.memberProperties {
+                guard let decl = ast.arena.decl(declID),
+                      case let .propertyDecl(property) = decl,
+                      property.modifiers.contains(.override),
+                      let bodyProperty = bindings.declSymbols[declID]
+                else {
+                    continue
+                }
+                for baseProperty in baseProperties where symbols.symbol(baseProperty)?.name == property.name {
+                    let getter = SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: baseProperty)
+                    let bodyGetter = SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: bodyProperty)
+                    targetsByAccessor[getter, default: []].append(
+                        EnumEntryDispatchTarget(entrySymbol: entrySymbol, functionSymbol: bodyGetter)
+                    )
+                    if property.isVar,
+                       symbols.symbol(baseProperty)?.flags.contains(.mutable) == true
+                    {
+                        let setter = SyntheticSymbolScheme.propertySetterAccessorSymbol(for: baseProperty)
+                        let bodySetter = SyntheticSymbolScheme.propertySetterAccessorSymbol(for: bodyProperty)
+                        targetsByAccessor[setter, default: []].append(
+                            EnumEntryDispatchTarget(entrySymbol: entrySymbol, functionSymbol: bodySetter)
+                        )
+                    }
+                }
+            }
+        }
+
+        for (baseAccessor, targets) in targetsByAccessor {
+            guard let accessor = SyntheticSymbolScheme.decodedPropertyAccessor(baseAccessor),
+                  let baseProperty = symbols.symbol(accessor.property),
+                  baseProperty.kind == .property,
+                  let declaredType = symbols.propertyType(for: accessor.property)
+            else {
+                continue
+            }
+            let propertyType: TypeID = {
+                guard let propertyOwner = symbols.parentSymbol(for: accessor.property) else {
+                    return declaredType
+                }
+                let ownerArgs = symbols.supertypeTypeArgs(for: ownerSymbol, supertype: propertyOwner)
+                guard !ownerArgs.isEmpty else { return declaredType }
+                return types.substituteNominalTypeParameters(
+                    in: declaredType,
+                    owner: propertyOwner,
+                    ownerArgs: ownerArgs
+                )
+            }()
+            let isSetter = accessor.kind == .setter
+            let parameterSymbols = isSetter
+                ? [SyntheticSymbolScheme.setterValueParameterSymbol(for: accessor.property)]
+                : []
+            let helperName = NameMangler.enumEntryDispatchHelperName(for: baseAccessor, interner: interner)
+            let helperFQName = ownerFQName + [helperName]
+            let helperSymbol = symbols.lookupAll(fqName: helperFQName).first(where: { symbolID in
+                symbols.symbol(symbolID)?.kind == .function
+                    && symbols.parentSymbol(for: symbolID) == ownerSymbol
+            }) ?? symbols.define(
+                kind: .function,
+                name: helperName,
+                fqName: helperFQName,
+                declSite: baseProperty.declSite,
+                visibility: .private,
+                flags: [.synthetic, .static]
+            )
+            symbols.setParentSymbol(ownerSymbol, for: helperSymbol)
+            symbols.setFunctionSignature(
+                FunctionSignature(
+                    receiverType: enumType,
+                    parameterTypes: isSetter ? [propertyType] : [],
+                    returnType: isSetter ? types.unitType : propertyType,
+                    canThrow: true,
+                    valueParameterSymbols: parameterSymbols,
+                    valueParameterHasDefaultValues: isSetter ? [false] : [],
+                    valueParameterIsVararg: isSetter ? [false] : []
+                ),
+                for: helperSymbol
+            )
+            symbols.setEnumEntryDispatchTargets(targets, for: helperSymbol)
+            symbols.setEnumEntryDispatchBaseSymbol(baseAccessor, for: helperSymbol)
         }
     }
 

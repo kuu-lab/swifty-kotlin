@@ -1,4 +1,3 @@
-import RuntimeABI
 
 struct SetLookupNames {
     let setOfName: InternedString
@@ -20,7 +19,6 @@ struct SetLookupNames {
     let kkSetSizeName: InternedString
     let kkSetContainsName: InternedString
     let kkSetIsEmptyName: InternedString
-    let kkSetToStringName: InternedString
     let kkIterableToMutableSetName: InternedString
     let kkHashSetOfName: InternedString
     let kkLinkedHashSetOfName: InternedString
@@ -50,7 +48,6 @@ struct SetLookupNames {
         kkSetSizeName = interner.intern("__kk_set_size")
         kkSetContainsName = interner.intern("__kk_set_contains")
         kkSetIsEmptyName = interner.intern("__kk_set_is_empty")
-        kkSetToStringName = interner.intern("__kk_set_to_string")
         kkIterableToMutableSetName = interner.intern("__kk_iterable_toMutableSet")
         kkHashSetOfName = interner.intern("__kk_hash_set_of")
         kkLinkedHashSetOfName = interner.intern("__kk_linked_hash_set_of")

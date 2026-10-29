@@ -359,17 +359,28 @@ public final class CodegenPhase: CompilerPhase {
         let mangler = NameMangler()
         let functionLinkNamesBySymbol = functionLinkInfo.functionLinkNamesBySymbol
         for decl in module.arena.declarations {
-            guard case let .function(function) = decl, function.isInline else {
+            guard case let .function(function) = decl else {
+                continue
+            }
+            let functionName = ctx.interner.resolve(function.name)
+            let isInitBody = ctx.options.target.isWasm
+                && Self.isLibraryInitBodyName(functionName)
+            guard function.isInline || isInitBody else {
                 continue
             }
             let mangled: String
-            if let symbol = sema.symbols.symbol(function.symbol) {
+            if isInitBody, let linkName = functionLinkNamesBySymbol[function.symbol] {
+                // Init-family bodies ship under their `kk_fn_` link name so a
+                // backend without object linking (wasm) can materialize them
+                // from the artifact the same way imported calls resolve.
+                mangled = linkName
+            } else if let symbol = sema.symbols.symbol(function.symbol) {
                 mangled = mangler.mangle(
                     moduleName: ctx.options.moduleName, symbol: symbol,
                     symbols: sema.symbols, types: sema.types,
                     nameResolver: { ctx.interner.resolve($0) }
                 )
-            } else if ctx.interner.resolve(function.name).hasSuffix("$default"),
+            } else if functionName.hasSuffix("$default"),
                       let linkName = functionLinkNamesBySymbol[function.symbol] {
                 // Inline default stubs also require call-site expansion. Their
                 // existing metadata link name identifies the serialized body.
@@ -412,6 +423,20 @@ public final class CodegenPhase: CompilerPhase {
             """
             try content.write(to: URL(fileURLWithPath: filePath), atomically: true, encoding: .utf8)
         }
+    }
+
+    /// Names of compiler-synthesized module-init functions whose bodies only
+    /// exist in the artifact's object file on native targets. Shipping their
+    /// serialized KIR alongside the inline bodies lets backends without an
+    /// object linker (wasm) materialize them on demand.
+    private static let libraryInitBodyNamePrefixes = [
+        "__object_init_", "__companion_init_", "__enum_static_init_",
+        "__kk_library_top_level_init_", "__kk_synthetic_companion_init_",
+        "__klib_object_init_", "__klib_object_lazy_init_",
+    ]
+
+    private static func isLibraryInitBodyName(_ name: String) -> Bool {
+        libraryInitBodyNamePrefixes.contains { name.hasPrefix($0) }
     }
 
     private func inlineReferencedExpressions(_ instruction: KIRInstruction) -> [KIRExprID] {

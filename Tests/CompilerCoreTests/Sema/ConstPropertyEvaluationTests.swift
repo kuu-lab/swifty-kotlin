@@ -314,6 +314,64 @@ struct ConstPropertyEvaluationTests {
     }
 
     @Test
+    func foldsSmallSubnormalConcatenationWithJavaDigits() throws {
+        let ctx = makeContextFromSource("""
+        package subnormalTextConstants
+        const val DOUBLE_TWO = "" + 2 * Double.MIN_VALUE
+        const val DOUBLE_TEN = "" + 10 * Double.MIN_VALUE
+        const val FLOAT_THREE = "" + 3 * Float.MIN_VALUE
+        const val FLOAT_MIN = "" + Float.MIN_VALUE
+        const val FLOAT_SEVENTY_ONE = "" + 71 * Float.MIN_VALUE
+        """)
+        try runSema(ctx)
+
+        #expect(ctx.diagnostics.diagnostics.filter { $0.severity == .error }.isEmpty)
+        let sema = try #require(ctx.sema)
+        let expected = [
+            "DOUBLE_TWO": "9.9E-324", "DOUBLE_TEN": "4.9E-323",
+            "FLOAT_THREE": "4.2E-45", "FLOAT_MIN": "1.4E-45", "FLOAT_SEVENTY_ONE": "9.9E-44",
+        ]
+        for (name, text) in expected {
+            let symbol = try #require(sema.symbols.lookup(
+                fqName: ["subnormalTextConstants", name].map { ctx.interner.intern($0) }
+            ))
+            #expect(
+                sema.symbols.constValueExprKind(for: symbol) == .stringLiteral(ctx.interner.intern(text)),
+                "Incorrect constant for \(name)"
+            )
+        }
+    }
+
+    @Test
+    func foldsMixedIntLongFloorDivAndModWithKotlinResultTypes() throws {
+        let ctx = makeContextFromSource("""
+        package mixedFloorConstants
+        const val INT_MOD_LONG = 7.mod(-3L)
+        const val INT_FLOOR_DIV_LONG = 7.floorDiv(-3L)
+        const val LONG_MOD_INT = (-5L).mod(3)
+        const val LONG_MOD_INT_WRAPS = (5L.mod(3) + Int.MAX_VALUE).toLong()
+        const val LONG_FLOOR_DIV_INT = Long.MAX_VALUE.floorDiv(-1)
+        """)
+        try runSema(ctx)
+
+        #expect(ctx.diagnostics.diagnostics.filter { $0.severity == .error }.isEmpty)
+        let sema = try #require(ctx.sema)
+        let expected: [String: KIRExprKind] = [
+            "INT_MOD_LONG": .longLiteral(-2),
+            "INT_FLOOR_DIV_LONG": .longLiteral(-3),
+            "LONG_MOD_INT": .intLiteral(1),
+            "LONG_MOD_INT_WRAPS": .longLiteral(-2_147_483_647),
+            "LONG_FLOOR_DIV_INT": .longLiteral(-9_223_372_036_854_775_807),
+        ]
+        for (name, value) in expected {
+            let symbol = try #require(sema.symbols.lookup(
+                fqName: ["mixedFloorConstants", name].map { ctx.interner.intern($0) }
+            ))
+            #expect(sema.symbols.constValueExprKind(for: symbol) == value, "Incorrect constant for \(name)")
+        }
+    }
+
+    @Test
     func foldsFloatingFloorModWithInfiniteDivisor() throws {
         let ctx = makeContextFromSource("""
         package infiniteModConstants

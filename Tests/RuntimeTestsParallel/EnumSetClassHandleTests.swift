@@ -1,5 +1,4 @@
 @testable import Runtime
-import RuntimeABI
 import Testing
 
 @Suite

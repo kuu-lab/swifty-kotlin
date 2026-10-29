@@ -1,5 +1,4 @@
 import Foundation
-import RuntimeABI
 
 // Source-backed KType properties are dispatched through the interface itable.
 // Runtime-created KType boxes therefore register the same alphabetically sorted
@@ -143,7 +142,6 @@ public func __kk_ktypeparameter_create(
 
     let bounds = registerRuntimeObject(RuntimeListBox(elements: []))
     let candidate = registerRuntimeObject(RuntimeKTypeParameterBox(
-        identity: identity,
         nameRaw: nameRaw,
         varianceOrdinal: varianceOrdinal,
         isReified: isReified != 0,

@@ -111,7 +111,7 @@ final class LinkPhase: CompilerPhase {
             }
             let entryWrapperObjectPath = try withSubPhaseTiming("entryWrapper", timer: ctx.phaseTimer) {
                 try LLVMEntryPointObjectEmitter(target: ctx.options.target, takesArguments: takesArguments, phaseTimer: ctx.phaseTimer, session: session ?? LLVMBackendSession())
-                    .emit(entrySymbol: entrySymbol, outputPath: ctx.options.outputPath)
+                    .emit(entrySymbol: entrySymbol)
             }
             let entryWrapperDirectoryPath = URL(fileURLWithPath: entryWrapperObjectPath)
                 .deletingLastPathComponent()

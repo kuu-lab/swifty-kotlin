@@ -7,10 +7,6 @@ final class RuntimeRangeBox {
 
     // Range handles share one representation, so preserve Char identity for
     // erased Iterable/Iterator calls that must return a boxed element.
-    var yieldsChars: Bool {
-        kind == .charRange || kind == .charProgression
-    }
-
     init(first: Int, last: Int, step: Int, kind: RuntimeRangeKind = .intRange) {
         self.first = first
         self.last = last
@@ -28,10 +24,6 @@ final class RuntimeRangeIteratorBox {
 
     // Range handles share one representation, so preserve Char identity for
     // erased Iterable/Iterator calls that must return a boxed element.
-    var yieldsChars: Bool {
-        kind == .charRange || kind == .charProgression
-    }
-
     init(current: Int, last: Int, step: Int, kind: RuntimeRangeKind = .intRange) {
         self.current = current
         self.last = last
