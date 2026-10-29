@@ -27,8 +27,8 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
             let didBindSource: Bool
             if calleeStr == "drop" {
                 _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: sema.types.intType)
-                didBindSource = bindBundledListSourceFunction(typeArguments: [collectionElementType], locals: &locals)
-                    || bindBundledIterableSourceFunction(typeArguments: [collectionElementType], locals: &locals)
+                didBindSource = bindBundledListSourceFunction(typeArguments: [collectionElementType])
+                    || bindBundledIterableSourceFunction(typeArguments: [collectionElementType])
             } else {
                 let predicateType = sema.types.make(.functionType(FunctionType(
                     params: [collectionElementType],
@@ -38,8 +38,8 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                     sema.bindings.markCollectionHOFLambdaExpr(args[0].expr)
                 }
                 _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: predicateType)
-                didBindSource = bindBundledListSourceFunction(typeArguments: [collectionElementType], locals: &locals)
-                    || bindBundledIterableSourceFunction(typeArguments: [collectionElementType], locals: &locals)
+                didBindSource = bindBundledListSourceFunction(typeArguments: [collectionElementType])
+                    || bindBundledIterableSourceFunction(typeArguments: [collectionElementType])
                 if didBindSource,
                    let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef
                 {
@@ -91,8 +91,8 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                     expectedType: defaultValueType
                 )
             }
-            let didBindSource = bindBundledListSourceFunction(typeArguments: [collectionElementType], locals: &locals)
-                || bindBundledIterableSourceFunction(typeArguments: [collectionElementType], locals: &locals)
+            let didBindSource = bindBundledListSourceFunction(typeArguments: [collectionElementType])
+                || bindBundledIterableSourceFunction(typeArguments: [collectionElementType])
             guard didBindSource else {
                 didReturnNil = true
                 return nil
@@ -144,7 +144,7 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                 bound = bindBundledListSourceFunction(
                     typeArguments: mutableSourceArguments,
                     requireMutableListReceiver: true
-                , locals: &locals)
+                )
                 resultType = receiverType
             case "remove" where args.count == 1 && args[0].label == interner.intern("index"):
                 _ = driver.inferExpr(
@@ -156,21 +156,21 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                 bound = bindBundledListSourceFunction(
                     typeArguments: mutableSourceArguments,
                     requireMutableListReceiver: true
-                , locals: &locals)
+                )
                 resultType = elementType
             case "removeFirst" where args.isEmpty,
                  "removeLast" where args.isEmpty:
                 bound = bindBundledListSourceFunction(
                     typeArguments: mutableSourceArguments,
                     requireMutableListReceiver: true
-                , locals: &locals)
+                )
                 resultType = elementType
             case "removeFirstOrNull" where args.isEmpty,
                  "removeLastOrNull" where args.isEmpty:
                 bound = bindBundledListSourceFunction(
                     typeArguments: mutableSourceArguments,
                     requireMutableListReceiver: true
-                , locals: &locals)
+                )
                 resultType = sema.types.makeNullable(elementType)
             case "removeAll" where args.count == 1,
                  "retainAll" where args.count == 1:
@@ -191,7 +191,7 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                     typeArguments: mutableSourceArguments,
                     matchingParameterType: predicateType,
                     requireMutableListReceiver: true
-                , locals: &locals)
+                )
                 if bound, let argExpr = ast.arena.expr(args[0].expr), argExpr.isLambdaOrCallableRef {
                     sema.bindings.unmarkCollectionHOFLambdaExpr(args[0].expr)
                 }
@@ -200,7 +200,7 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                 bound = bindBundledListSourceFunction(
                     typeArguments: mutableSourceArguments,
                     requireMutableListReceiver: true
-                , locals: &locals)
+                )
                 resultType = sema.types.unitType
             case "shuffle" where args.isEmpty || args.count == 1:
                 if let randomArg = args.first {
@@ -209,7 +209,7 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                 bound = bindBundledListSourceFunction(
                     typeArguments: mutableSourceArguments,
                     requireMutableListReceiver: true
-                , locals: &locals)
+                )
                 resultType = sema.types.unitType
             default:
                 didReturnNil = true
@@ -356,9 +356,7 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                 sema.types.anyType
             }
             let didBindSource = bindBundledIterableSourceFunction(
-                typeArguments: sourceTypeArguments,
-                locals: &locals
-            )
+                typeArguments: sourceTypeArguments)
             if didBindSource,
                args.count >= 2,
                let lambdaExpr = ast.arena.expr(args[1].expr),
@@ -411,11 +409,11 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                     bindBundledSequenceDestinationSourceFunction(
                         typeArguments: [filterType],
                         parameterMapping: [:]
-                    , locals: &locals)
+                    )
                 } else if receiverClassifier.isConcreteListLikeType(receiverType) || isListFactoryReceiver {
-                    bindBundledListSourceFunction(typeArguments: [filterType], parameterMapping: [:], locals: &locals)
+                    bindBundledListSourceFunction(typeArguments: [filterType], parameterMapping: [:])
                 } else {
-                    bindBundledIterableSourceFunction(typeArguments: [filterType], locals: &locals)
+                    bindBundledIterableSourceFunction(typeArguments: [filterType])
                 }
                 let ownerFQName = isSequenceReceiver
                     ? [interner.intern("kotlin"), interner.intern("sequences")]
@@ -535,16 +533,16 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                 _ = bindBundledSequenceDestinationSourceFunction(
                     typeArguments: [destinationElementType, nonNullableDestinationType],
                     parameterMapping: [0: 0]
-                , locals: &locals)
+                )
             } else if receiverClassifier.isConcreteListLikeType(receiverType) || isListFactoryReceiver {
                 bindBundledListSourceFunction(
                     typeArguments: [destinationElementType, nonNullableDestinationType],
                     parameterMapping: [0: 0]
-                , locals: &locals)
+                )
             } else {
                 _ = bindBundledIterableSourceFunction(
                     typeArguments: [destinationElementType, nonNullableDestinationType]
-                , locals: &locals)
+                )
             }
             sema.bindings.markCollectionExpr(id)
             let finalType = safeCall ? sema.types.makeNullable(destinationType) : destinationType
@@ -610,9 +608,9 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                     sema.bindings.bindCallableTarget(id, target: .symbol(chosenCallee))
                 }
             } else if receiverClassifier.isConcreteListLikeType(receiverType) || isListFactoryReceiver {
-                _ = bindBundledListSourceFunction(typeArguments: [resultElementType], locals: &locals)
+                _ = bindBundledListSourceFunction(typeArguments: [resultElementType])
             } else {
-                _ = bindBundledIterableSourceFunction(typeArguments: [resultElementType], locals: &locals)
+                _ = bindBundledIterableSourceFunction(typeArguments: [resultElementType])
             }
             sema.bindings.markCollectionExpr(id)
             let finalType = safeCall ? sema.types.makeNullable(resultType) : resultType
@@ -647,16 +645,16 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                 bindBundledListSourceFunction(
                     typeArguments: [destinationElementType, nonNullableDestinationType],
                     parameterMapping: [0: 0]
-                , locals: &locals)
+                )
             } else if !isSequenceReceiver {
                 _ = bindBundledIterableSourceFunction(
                     typeArguments: [destinationElementType, nonNullableDestinationType]
-                , locals: &locals)
+                )
             } else {
                 _ = bindBundledSequenceDestinationSourceFunction(
                     typeArguments: [destinationElementType, nonNullableDestinationType],
                     parameterMapping: [0: 0]
-                , locals: &locals)
+                )
             }
             sema.bindings.markCollectionExpr(id)
             let finalType = safeCall ? sema.types.makeNullable(destinationType) : destinationType
@@ -687,7 +685,7 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
             )))
             sema.bindings.markCollectionHOFLambdaExpr(args[0].expr)
             _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: lambdaExpectedType)
-            _ = bindBundledListBinarySearchSource(elementType: collectionElementType, locals: &locals)
+            _ = bindBundledListBinarySearchSource()
             let finalType = safeCall ? sema.types.makeNullable(sema.types.intType) : sema.types.intType
             sema.bindings.bindExprType(id, type: finalType)
             return finalType
@@ -736,7 +734,7 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                 sema.bindings.markCollectionHOFLambdaExpr(args[0].expr)
             }
             _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: lambdaExpectedType)
-            guard bindBundledGenericOnEachSourceFunction(typeArguments: typeArguments, locals: &locals) else {
+            guard bindBundledGenericOnEachSourceFunction(typeArguments: typeArguments) else {
                 didReturnNil = true
                 return nil
             }
