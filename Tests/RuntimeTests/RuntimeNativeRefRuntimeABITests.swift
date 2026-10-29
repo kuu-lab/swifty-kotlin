@@ -172,6 +172,16 @@ struct RuntimeNativeRefMemoryTests {
 
 @Suite(.runtimeIsolation(.gcOnly))
 struct RuntimeNativeRefWeakReferenceTests {
+    @Test func weakReferenceRetainsNominalType() {
+        let objectRaw = registerRuntimeObject(RuntimeStringBox("weak"))
+        let weakRaw = kk_weak_ref_create(objectRaw)
+        #expect(kk_op_is(weakRaw, nominalTypeToken(for: "kotlin.native.ref.WeakReference")) == 1)
+        #expect(kk_op_is(weakRaw, nominalTypeToken(for: "kotlin.native.ref.Cleaner")) == 0)
+        #expect(kk_weak_ref_get(weakRaw) == objectRaw)
+        #expect(kk_weak_ref_clear(weakRaw) == 0)
+        #expect(kk_weak_ref_get(weakRaw) == runtimeNullSentinelInt)
+    }
+
     @Test func weakReferenceCreateReturnsNonZeroHandle() {
         let objectRaw = registerRuntimeObject(RuntimeStringBox("weak"))
         let weakRaw = kk_weak_ref_create(objectRaw)

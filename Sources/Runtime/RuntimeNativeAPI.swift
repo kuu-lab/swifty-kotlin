@@ -920,7 +920,10 @@ private func runtimeWeakReferenceBox(from weakRefRaw: Int) -> RuntimeWeakReferen
 
 @_cdecl("kk_weak_ref_create")
 public func kk_weak_ref_create(_ objectRaw: Int) -> Int {
-    registerRuntimeObject(RuntimeWeakReferenceBox(objectRaw: objectRaw))
+    registerRuntimeObject(
+        RuntimeWeakReferenceBox(objectRaw: objectRaw),
+        typeID: runtimeStableNominalTypeID(fqName: "kotlin.native.ref.WeakReference")
+    )
 }
 
 @_cdecl("kk_weak_ref_get")
