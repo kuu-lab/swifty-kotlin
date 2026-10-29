@@ -1017,6 +1017,39 @@ import TestStdlibCache
         }
     }
 
+    @Test func testValOverVarMutabilityMessageRendersSignatures() throws {
+        // kotlinc renders both full property signatures in this diagnostic,
+        // including inferred types that header-time checks saw as
+        // placeholders.
+        let sources: [String] = [
+            "package s0\nopen class A { open var x: Int = 0 }\nclass B : A() { override val x: Int = 1 }",
+            // inferred child type is resolved before the deferred check renders it
+            "package s1\nopen class A { open var x: Int = 0 }\nclass B : A() { override val x = 1 }",
+            // inferred parent type likewise
+            "package s2\nopen class A { open var x = 0 }\nclass B : A() { override val x: Int = 1 }",
+            // generic signatures render source names, not Class#ids
+            "package s3\nopen class A { open var xs: List<Int> = listOf() }\nclass B : A() { override val xs: List<Int> = listOf() }",
+            // an inferred first parent is the reported pair, not a later explicit one
+            "package s4\nopen class A { open var x = 0 }\ninterface I { var x: Int }\nclass B : A(), I { override val x: Int = 1 }",
+        ]
+        let expectations: [String] = [
+            "'var' property 'var x: Int' defined in 'A' cannot be overridden by 'val' property 'val x: Int'.",
+            "'var' property 'var x: Int' defined in 'A' cannot be overridden by 'val' property 'val x: Int'.",
+            "'var' property 'var x: Int' defined in 'A' cannot be overridden by 'val' property 'val x: Int'.",
+            "'var' property 'var xs: List<Int>' defined in 'A' cannot be overridden by 'val' property 'val xs: List<Int>'.",
+            "'var' property 'var x: Int' defined in 'A' cannot be overridden by 'val' property 'val x: Int'.",
+        ]
+        try withTemporaryFiles(contents: sources) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
+            try runSema(ctx)
+            for (index, expected) in expectations.enumerated() {
+                let diags = diagnosticsForPath(paths[index], withCode: "KSWIFTK-SEMA-OVERRIDE-MUTABILITY", in: ctx)
+                #expect(diags.count == 1, "sample \(index) diagnostics: \(diags.map(\.message))")
+                #expect(diags.first?.message == expected, "sample \(index) message: \(diags.first?.message ?? "<none>")")
+            }
+        }
+    }
+
     @Test func companionObjectInsideInnerClassIsRejected() throws {
         let sources = [
             "package s0\nclass O { inner class I { companion object { fun f() = 1 } } }",

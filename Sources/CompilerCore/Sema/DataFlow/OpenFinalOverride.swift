@@ -332,6 +332,7 @@ extension DataFlowSemaPhase {
                 for memberDeclID in entry.memberProperties {
                     validateInferredPropertyTypeOverride(of: memberDeclID, ctx: ctx)
                     validateExplicitPropertyTypeOverrideAgainstInferredParent(of: memberDeclID, ctx: ctx)
+                    validateDeferredValVarMutabilityOverride(of: memberDeclID, ctx: ctx)
                 }
                 for nestedDeclID in entry.nestedClasses {
                     validateInferredPropertyTypeOverrides(in: nestedDeclID, ctx: ctx, visited: &visited)
@@ -351,6 +352,7 @@ extension DataFlowSemaPhase {
         for memberDeclID in memberProperties {
             validateInferredPropertyTypeOverride(of: memberDeclID, ctx: ctx)
             validateExplicitPropertyTypeOverrideAgainstInferredParent(of: memberDeclID, ctx: ctx)
+            validateDeferredValVarMutabilityOverride(of: memberDeclID, ctx: ctx)
         }
         for nestedDeclID in nestedDeclarations {
             validateInferredPropertyTypeOverrides(in: nestedDeclID, ctx: ctx, visited: &visited)
@@ -399,6 +401,33 @@ extension DataFlowSemaPhase {
             ownerSymbol: ownerSymbol,
             parentFilter: .inferredOnly,
             ctx: ctx
+        )
+    }
+
+    /// Header-time `validateValVarMutabilityOverride` skips pairs where the
+    /// child's or parent's property type was inferred, because kotlinc renders
+    /// the full property signatures in this diagnostic. Re-check those pairs
+    /// now that inference has published both types.
+    private func validateDeferredValVarMutabilityOverride(
+        of declID: DeclID,
+        ctx: OpenFinalOverrideContext
+    ) {
+        guard case let .propertyDecl(prop)? = ctx.ast.arena.decl(declID),
+              prop.modifiers.contains(.override),
+              let memberSymbol = ctx.bindings.declSymbols[declID],
+              let memberSym = ctx.symbols.symbol(memberSymbol),
+              memberSym.kind == .property,
+              !memberSym.flags.contains(.mutable),
+              let ownerSymbol = ctx.symbols.parentSymbol(for: memberSymbol)
+        else { return }
+
+        validateValVarMutabilityOverride(
+            memberName: prop.name,
+            memberRange: prop.range,
+            ownerSymbol: ownerSymbol,
+            memberSymbol: memberSymbol,
+            ctx: ctx,
+            inferredOnly: true
         )
     }
 
@@ -1693,31 +1722,47 @@ extension DataFlowSemaPhase {
         memberRange: SourceRange,
         ownerSymbol: SymbolID,
         memberSymbol: SymbolID,
-        ctx: OpenFinalOverrideContext
+        ctx: OpenFinalOverrideContext,
+        inferredOnly: Bool = false
     ) {
         guard let memberSym = ctx.symbols.symbol(memberSymbol),
               memberSym.kind == .property,
               !memberSym.flags.contains(.mutable)
         else { return }
 
-        for parent in findAllInheritedMembers(
+        let mutableParents = findAllInheritedMembers(
             named: memberName,
             for: ownerSymbol,
             symbols: ctx.symbols
-        ) {
-            guard let parentSym = ctx.symbols.symbol(parent.memberID),
-                  parentSym.kind == .property,
-                  parentSym.flags.contains(.mutable)
-            else { continue }
-            let name = ctx.interner.resolve(memberName)
-            let ownerName = ctx.interner.resolve(parent.ownerName)
-            ctx.diagnostics.error(
-                "KSWIFTK-SEMA-OVERRIDE-MUTABILITY",
-                "'var' property '\(name)' defined in '\(ownerName)' cannot be overridden by 'val' property.",
-                range: memberRange
-            )
-            return
+        ).filter { parent in
+            guard let parentSym = ctx.symbols.symbol(parent.memberID) else { return false }
+            return parentSym.kind == .property && parentSym.flags.contains(.mutable)
         }
+        // kotlinc reports only the first mutable parent's failure.
+        guard let parent = mutableParents.first else { return }
+        // A pair whose declaration type is inferred is re-checked by the
+        // deferred pass once inference publishes the signatures that
+        // kotlinc renders in this diagnostic.
+        let deferredPair = declHasInferredType(memberSymbol, ctx: ctx)
+            || declHasInferredType(parent.memberID, ctx: ctx)
+        guard deferredPair == inferredOnly else { return }
+        let name = ctx.interner.resolve(memberName)
+        let ownerName = ctx.interner.resolve(parent.ownerName)
+        let parentType = ctx.symbols.propertyType(for: parent.memberID)
+        let childType = ctx.symbols.propertyType(for: memberSymbol)
+        let message: String
+        if let parentType, let childType {
+            let parentSig = ctx.types.displayName(of: parentType, symbols: ctx.symbols, interner: ctx.interner)
+            let childSig = ctx.types.displayName(of: childType, symbols: ctx.symbols, interner: ctx.interner)
+            message = "'var' property 'var \(name): \(parentSig)' defined in '\(ownerName)' cannot be overridden by 'val' property 'val \(name): \(childSig)'."
+        } else {
+            message = "'var' property '\(name)' defined in '\(ownerName)' cannot be overridden by 'val' property."
+        }
+        ctx.diagnostics.error(
+            "KSWIFTK-SEMA-OVERRIDE-MUTABILITY",
+            message,
+            range: memberRange
+        )
     }
 
     /// Kotlin property override type rules:
