@@ -326,6 +326,14 @@ enum InlineErasedLambdaABI {
                 ctx: ctx,
                 body: body
             ) {
+                if argumentType == nil {
+                    // Imported inline KIR may omit the unboxed value's type.
+                    // Preserve the callback's declared type without changing
+                    // the original value used by other control-flow paths.
+                    let typedArgument = module.arena.appendTemporary(type: parameterType)
+                    body.append(.copy(from: arguments[index], to: typedArgument))
+                    normalized[index] = typedArgument
+                }
                 continue
             }
             let unboxed = module.arena.appendTemporary(type: parameterType)
