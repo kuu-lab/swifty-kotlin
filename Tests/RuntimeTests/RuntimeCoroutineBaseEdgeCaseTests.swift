@@ -428,13 +428,13 @@ struct RuntimeCoroutineBaseEdgeCaseTests {
 
         // Invoke with a dummy exception — falls back to stderr output, must not crash.
         let exc = runtimeAllocateThrowable(message: "handler test")
-        kk_exception_handler_invoke(handlerHandle, 0, exc)
+        _ = kk_exception_handler_invoke(handlerHandle, 0, exc)
     }
 
     /// kk_exception_handler_invoke with zero handler must not crash.
     @Test func testExceptionHandlerInvokeZeroHandlerDoesNotCrash() {
         let exc = runtimeAllocateThrowable(message: "noop test")
-        kk_exception_handler_invoke(0, 0, exc)
+        _ = kk_exception_handler_invoke(0, 0, exc)
     }
 
     // MARK: - ContinuationInterceptor
