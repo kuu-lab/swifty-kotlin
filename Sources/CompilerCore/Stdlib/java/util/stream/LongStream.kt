@@ -8,33 +8,41 @@ import java.util.function.LongPredicate
 import java.util.function.LongUnaryOperator
 
 public class LongStream private constructor(private val values: Sequence<Long>) {
+    private var consumed: Boolean = false
+
+    private fun consumeValues(): Sequence<Long> {
+        if (consumed) throw IllegalStateException("stream has already been operated upon or closed")
+        consumed = true
+        return values
+    }
+
     public fun filter(predicate: LongPredicate): LongStream =
-        LongStream(values.filter { predicate.test(it) })
+        LongStream(consumeValues().filter { predicate.test(it) })
 
     public fun map(mapper: LongUnaryOperator): LongStream =
-        LongStream(values.map { mapper.applyAsLong(it) })
+        LongStream(consumeValues().map { mapper.applyAsLong(it) })
 
     public fun limit(maxSize: Long): LongStream {
         if (maxSize < 0) throw IllegalArgumentException("Max size must be non-negative")
-        return LongStream(values.streamLimit(maxSize))
+        return LongStream(consumeValues().streamLimit(maxSize))
     }
 
     public fun skip(count: Long): LongStream {
         if (count < 0) throw IllegalArgumentException("Skip count must be non-negative")
-        return LongStream(values.streamSkip(count))
+        return LongStream(consumeValues().streamSkip(count))
     }
 
     public fun forEach(action: LongConsumer) {
-        for (value in values) action.accept(value)
+        for (value in consumeValues()) action.accept(value)
     }
 
-    public fun count(): Long = values.streamCount()
-    public fun sum(): Long { var result = 0L; for (value in values) result += value; return result }
+    public fun count(): Long = consumeValues().streamCount()
+    public fun sum(): Long { var result = 0L; for (value in consumeValues()) result += value; return result }
 
     public fun average(): OptionalDouble {
         var result = 0.0
         var count = 0L
-        for (value in values) {
+        for (value in consumeValues()) {
             result += value.toDouble()
             count++
         }
@@ -43,7 +51,7 @@ public class LongStream private constructor(private val values: Sequence<Long>) 
     }
 
     public fun min(): OptionalLong {
-        val iterator = values.iterator()
+        val iterator = consumeValues().iterator()
         if (!iterator.hasNext()) return OptionalLong.empty()
         var result = iterator.next()
         while (iterator.hasNext()) {
@@ -54,7 +62,7 @@ public class LongStream private constructor(private val values: Sequence<Long>) 
     }
 
     public fun max(): OptionalLong {
-        val iterator = values.iterator()
+        val iterator = consumeValues().iterator()
         if (!iterator.hasNext()) return OptionalLong.empty()
         var result = iterator.next()
         while (iterator.hasNext()) {
@@ -65,32 +73,32 @@ public class LongStream private constructor(private val values: Sequence<Long>) 
     }
 
     public fun findFirst(): OptionalLong {
-        val iterator = values.iterator()
+        val iterator = consumeValues().iterator()
         return if (iterator.hasNext()) OptionalLong.of(iterator.next()) else OptionalLong.empty()
     }
 
     public fun findAny(): OptionalLong = findFirst()
-    public fun toArray(): LongArray = values.toList().toLongArray()
-    public fun boxed(): Stream<Long> = Stream.fromSequence(values)
+    public fun toArray(): LongArray = consumeValues().toList().toLongArray()
+    public fun boxed(): Stream<Long> = Stream.fromSequence(consumeValues())
 
     public fun reduce(identity: Long, operator: LongBinaryOperator): Long {
         var result = identity
-        for (value in values) result = operator.applyAsLong(result, value)
+        for (value in consumeValues()) result = operator.applyAsLong(result, value)
         return result
     }
 
     public fun anyMatch(predicate: LongPredicate): Boolean {
-        for (value in values) if (predicate.test(value)) return true
+        for (value in consumeValues()) if (predicate.test(value)) return true
         return false
     }
 
     public fun allMatch(predicate: LongPredicate): Boolean {
-        for (value in values) if (!predicate.test(value)) return false
+        for (value in consumeValues()) if (!predicate.test(value)) return false
         return true
     }
 
     public fun noneMatch(predicate: LongPredicate): Boolean {
-        for (value in values) if (predicate.test(value)) return false
+        for (value in consumeValues()) if (predicate.test(value)) return false
         return true
     }
 
