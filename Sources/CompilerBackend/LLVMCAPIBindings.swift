@@ -72,8 +72,6 @@ final class LLVMCAPIBindings {
     typealias LLVMBuildSubFn = @convention(c) (LLVMBuilderRef?, LLVMValueRef?, LLVMValueRef?, UnsafePointer<CChar>?) -> LLVMValueRef?
     typealias LLVMBuildMulFn = @convention(c) (LLVMBuilderRef?, LLVMValueRef?, LLVMValueRef?, UnsafePointer<CChar>?) -> LLVMValueRef?
     typealias LLVMBuildSDivFn = @convention(c) (LLVMBuilderRef?, LLVMValueRef?, LLVMValueRef?, UnsafePointer<CChar>?) -> LLVMValueRef?
-    typealias LLVMBuildUDivFn = @convention(c) (LLVMBuilderRef?, LLVMValueRef?, LLVMValueRef?, UnsafePointer<CChar>?) -> LLVMValueRef?
-    typealias LLVMBuildURemFn = @convention(c) (LLVMBuilderRef?, LLVMValueRef?, LLVMValueRef?, UnsafePointer<CChar>?) -> LLVMValueRef?
     typealias LLVMBuildAndFn = @convention(c) (LLVMBuilderRef?, LLVMValueRef?, LLVMValueRef?, UnsafePointer<CChar>?) -> LLVMValueRef?
     typealias LLVMBuildOrFn = @convention(c) (LLVMBuilderRef?, LLVMValueRef?, LLVMValueRef?, UnsafePointer<CChar>?) -> LLVMValueRef?
     typealias LLVMBuildXorFn = @convention(c) (LLVMBuilderRef?, LLVMValueRef?, LLVMValueRef?, UnsafePointer<CChar>?) -> LLVMValueRef?
@@ -302,8 +300,6 @@ final class LLVMCAPIBindings {
     let buildSubFn: LLVMBuildSubFn
     let buildMulFn: LLVMBuildMulFn
     let buildSDivFn: LLVMBuildSDivFn
-    let buildUDivFn: LLVMBuildUDivFn
-    let buildURemFn: LLVMBuildURemFn
     let buildAndFn: LLVMBuildAndFn?
     let buildOrFn: LLVMBuildOrFn?
     let buildXorFn: LLVMBuildXorFn?
@@ -421,8 +417,6 @@ final class LLVMCAPIBindings {
         buildSubFn: @escaping LLVMBuildSubFn,
         buildMulFn: @escaping LLVMBuildMulFn,
         buildSDivFn: @escaping LLVMBuildSDivFn,
-        buildUDivFn: @escaping LLVMBuildUDivFn,
-        buildURemFn: @escaping LLVMBuildURemFn,
         buildAndFn: LLVMBuildAndFn?,
         buildOrFn: LLVMBuildOrFn?,
         buildXorFn: LLVMBuildXorFn?,
@@ -540,8 +534,6 @@ final class LLVMCAPIBindings {
         self.buildSubFn = buildSubFn
         self.buildMulFn = buildMulFn
         self.buildSDivFn = buildSDivFn
-        self.buildUDivFn = buildUDivFn
-        self.buildURemFn = buildURemFn
         self.buildAndFn = buildAndFn
         self.buildOrFn = buildOrFn
         self.buildXorFn = buildXorFn

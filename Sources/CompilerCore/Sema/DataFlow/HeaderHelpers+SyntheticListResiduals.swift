@@ -14,9 +14,7 @@ extension DataFlowSemaPhase {
         interner: StringInterner,
         kotlinCollectionsPkg: [InternedString],
         collectionInterfaceSymbol: SymbolID,
-        bundledIndex: BundledDeclarationIndex = .empty,
-        skipStats: SyntheticStubSkipStatsCollector? = nil
-    ) -> SymbolID {
+        bundledIndex: BundledDeclarationIndex = .empty) -> SymbolID {
         let listName = interner.intern("List")
         let listFQName = kotlinCollectionsPkg + [listName]
         // lookupNominal: `kotlin.collections.List` also names the bundled

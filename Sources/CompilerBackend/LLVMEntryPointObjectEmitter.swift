@@ -86,7 +86,7 @@ struct LLVMEntryPointObjectEmitter {
         self.takesArguments = takesArguments
     }
 
-    func emit(entrySymbol: String, outputPath: String) throws -> String {
+    func emit(entrySymbol: String) throws -> String {
         // Emit into a per-invocation directory created with mkdtemp (mode 0700, unpredictable
         // name). This avoids the previous shared, predictable path under the world-writable temp
         // directory: an attacker cannot pre-plant a symlink at the destination nor replace the

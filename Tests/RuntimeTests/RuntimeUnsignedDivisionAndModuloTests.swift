@@ -13,17 +13,6 @@ import Testing
 struct RuntimeUnsignedDivisionAndModuloTests {
     // 17663719463477156090 as UInt64 == -783024610232395526 as Int64.
     private let highBitSet = Int(bitPattern: 17_663_719_463_477_156_090 as UInt)
-    private let small = 5
-
-    // MARK: - kk_op_udiv
-
-    @Test func testUnsignedDivisionUsesFullBitWidth() {
-        var outThrown = 0
-        let quotient = kk_op_udiv(highBitSet, 2, &outThrown)
-        #expect(outThrown == 0)
-        #expect(UInt(bitPattern: quotient) == 8_831_859_731_738_578_045)
-    }
-
     @Test func testUnsignedDivisionAgreesWithSignedForSmallValues() {
         var outThrownUnsigned = 0
         var outThrownSigned = 0

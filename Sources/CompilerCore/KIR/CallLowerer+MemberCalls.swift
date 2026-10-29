@@ -461,11 +461,9 @@ extension CallLowerer {
                     exprID,
                     classRefTargetType: classRefTargetType,
                     memberName: callee,
-                    ast: ast,
                     sema: sema,
                     arena: arena,
                     interner: interner,
-                    propertyConstantInitializers: propertyConstantInitializers,
                     instructions: &instructions.instructions
                 )
             }

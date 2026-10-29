@@ -65,7 +65,6 @@ final class LambdaLowerer {
                 value: exprID,
                 classSymbol: valueClassSymbol,
                 result: normalizedExpr,
-                resultType: type,
                 types: sema.types,
                 symbols: sema.symbols,
                 interner: interner,

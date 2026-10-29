@@ -31,14 +31,14 @@ extension ControlFlowLowerer {
                 return true
             }
             guard let (_, symbol) = resolveClassTypeSymbol(nonNullType, sema: sema),
-                  isRangeLikeClass(symbol, sema: sema, interner: interner)
+                  isRangeLikeClass(symbol, interner: interner)
             else {
                 return false
             }
             return KnownCompilerNames(interner: interner).isSignedRangeLikeClassName(symbol.name)
         }
         guard let (_, symbol) = resolveClassTypeSymbol(nonNullType, sema: sema),
-              isRangeLikeClass(symbol, sema: sema, interner: interner)
+              isRangeLikeClass(symbol, interner: interner)
         else {
             return false
         }
@@ -95,7 +95,7 @@ extension ControlFlowLowerer {
     /// operators. These synthetic classes are allowed to resolve a custom iterator
     /// so that `for-in` over a range is lowered through `.iterator()` instead of
     /// the legacy `__kk_range_iterator` runtime path.
-    func isRangeLikeClass(_ classSymbol: SemanticSymbol, sema: SemaModule, interner: StringInterner) -> Bool {
+    func isRangeLikeClass(_ classSymbol: SemanticSymbol, interner: StringInterner) -> Bool {
         KnownCompilerNames(interner: interner).isRangeLikeSymbol(classSymbol)
     }
 
@@ -232,7 +232,7 @@ extension ControlFlowLowerer {
         guard isCharSequenceLike || {
             guard let classSymbol else { return false }
             return !classSymbol.flags.contains(.synthetic)
-                || isRangeLikeClass(classSymbol, sema: sema, interner: interner)
+                || isRangeLikeClass(classSymbol, interner: interner)
                 || KnownCompilerNames(interner: interner).isChannelSymbol(classSymbol)
                 || KnownCompilerNames(interner: interner).isSequenceSymbol(classSymbol)
                 || sema.symbols.isSourceBackedSymbol(classSymbol.id)

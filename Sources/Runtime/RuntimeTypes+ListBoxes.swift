@@ -420,15 +420,6 @@ final class RuntimeArrayDequeBox {
         }
     }
 
-    var elements: [Int] {
-        get {
-            values.map(\.legacyRawValue)
-        }
-        set {
-            values = newValue.map { RuntimeValue(raw: $0) }
-        }
-    }
-
     init(capacity: Int) {
         buffer = Array(
             repeating: RuntimeValue(raw: 0),

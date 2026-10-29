@@ -282,7 +282,6 @@ extension NativeEmitter.FunctionEmissionContext {
         }()
         let externalCalleeName = NativeEmitter.runtimePrimitiveAlias(
             for: calleeName,
-            argumentCount: argumentValues.count,
             resolvedSymbol: symbol
         ) ?? calleeName
 
