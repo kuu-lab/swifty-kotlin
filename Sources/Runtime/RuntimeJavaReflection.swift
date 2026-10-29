@@ -321,8 +321,6 @@ public func __kk_java_field_get_annotations_typed(
     return runtimeAnnotationArray(field.metadata.annotations, outThrown: outThrown)
 }
 
-private let runtimeJavaInheritedAnnotationName = "java.lang.annotation.Inherited"
-
 private func runtimeJavaClassAnnotations(typeToken: Int) -> [RuntimeAnnotationRecord] {
     guard let metadata = runtimeKClassMetadataRegistry.lookup(typeToken: typeToken) else { return [] }
 
@@ -346,6 +344,7 @@ private func runtimeJavaClassAnnotations(typeToken: Int) -> [RuntimeAnnotationRe
 
     return annotations
 }
+
 
 private func runtimeJavaSuperclassMetadata(of metadata: RuntimeKClassMetadataEntry) -> RuntimeKClassMetadataEntry? {
     for displayName in metadata.supertypeDisplayNames {

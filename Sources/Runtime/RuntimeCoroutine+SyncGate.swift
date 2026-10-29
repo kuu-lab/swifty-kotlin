@@ -573,23 +573,6 @@ final class RuntimeContinuationState: @unchecked Sendable {
         delivery?.delegateDidExit()
     }
 
-    /// Legacy blocking wait.  Used only when no continuation has been installed
-    /// (e.g. direct test calls).
-    func waitForResumeSignal() {
-        stateLock.lock()
-        if resumeSignalPending {
-            resumeSignalPending = false
-            stateLock.unlock()
-            return
-        }
-        if fallbackSemaphore == nil {
-            fallbackSemaphore = DispatchSemaphore(value: 0)
-        }
-        let sem = fallbackSemaphore!
-        stateLock.unlock()
-        runtimeWaitDrainingEventLoop(sem)
-    }
-
     func beginCancellationShield() {
         stateLock.lock()
         cancellationShieldDepth += 1
