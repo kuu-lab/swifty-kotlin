@@ -81,6 +81,16 @@ func runtimeElementKeyHash(_ value: Int, into hasher: inout Hasher, depth: Int =
         hasher.combine(value)
         return
     }
+    // `runtimeValuesEqual` consults callable-reference identity before any
+    // box-type checks, so two distinct-but-equal references (e.g. `::x`
+    // evaluated twice) must hash identically. Without this branch they fell
+    // through to the identity hash below and corrupted hashed collections
+    // (KUU-3691: nondeterministic "Duplicate keys" fatal in Set/Dictionary).
+    if let callableHash = runtimeCallableReferenceHashCode(value) {
+        hasher.combine(17)
+        hasher.combine(callableHash)
+        return
+    }
     if let range = tryCast(pointer, to: RuntimeRangeBox.self) {
         hasher.combine(10)
         hasher.combine(range.kind.rawValue)
