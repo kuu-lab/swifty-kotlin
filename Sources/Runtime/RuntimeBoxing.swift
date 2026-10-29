@@ -52,9 +52,17 @@ private func runtimeBoxPrimitive<T: AnyObject>(
         return value
     }
     return runtimeStorage.withGCLock { state in
+        // A provably-non-null source (`preservesNullSentinel == false`) is
+        // always a scalar or an already-tagged primitive-box handle — never a
+        // raw object handle. Restrict its pass-through to tagged handles so a
+        // scalar whose bit pattern coincides with a live object's address is
+        // still boxed as its own value (KUU-3725 — `value.toString()` inside
+        // Duration's durationFraction printed the colliding RuntimeKTypeBox
+        // as "kotlin.Any?" on Linux because nanos == 0x1DCD6500).
         if let objectPointer = UnsafeMutableRawPointer(bitPattern: value),
            state.objectPointers.contains(UInt(bitPattern: objectPointer)),
-           registeredPassThrough(objectPointer)
+           registeredPassThrough(objectPointer),
+           preservesNullSentinel || runtimePrimitiveBoxBasePointer(from: value) != nil
         {
             return value
         }
@@ -107,7 +115,14 @@ private func runtimeStaticBox<T: AnyObject>(
         // handles). Preserve those handles exactly as the legacy boxing entry
         // points do; wrapping them in a primitive box would make the downstream
         // object-specific runtime entry point reject the value.
-        if let objectPointer = UnsafeMutableRawPointer(bitPattern: value),
+        //
+        // This probe is only safe for nullable/ambiguous sources: a
+        // provably-non-null source (`preservesNullSentinel == false`) is always
+        // a scalar, so a matching bit pattern is a scalar collision rather
+        // than a real object handle (KUU-3725) — fall through to the tagged
+        // primitive-box handle check below and box it as its own value.
+        if preservesNullSentinel,
+           let objectPointer = UnsafeMutableRawPointer(bitPattern: value),
            state.objectPointers.contains(UInt(bitPattern: objectPointer))
         {
             return value
