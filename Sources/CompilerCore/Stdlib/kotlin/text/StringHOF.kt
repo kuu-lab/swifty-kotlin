@@ -97,12 +97,14 @@ public fun CharSequence.replaceRange(
     replacement: CharSequence
 ): CharSequence {
     val length = this.length
-    if (startIndex < 0 || startIndex > length ||
-        endIndex < 0 || endIndex > length || startIndex > endIndex
-    ) {
-        throw IndexOutOfBoundsException(
-            "start=$startIndex, end=$endIndex, length=$length"
-        )
+    if (endIndex < startIndex) {
+        throw IndexOutOfBoundsException("End index ($endIndex) is less than start index ($startIndex).")
+    }
+    if (startIndex < 0 || startIndex > length) {
+        throw IndexOutOfBoundsException("Range [0, $startIndex) out of bounds for length $length")
+    }
+    if (endIndex > length) {
+        throw IndexOutOfBoundsException("Range [$endIndex, $length) out of bounds for length $length")
     }
 
     val result = StringBuilder()
