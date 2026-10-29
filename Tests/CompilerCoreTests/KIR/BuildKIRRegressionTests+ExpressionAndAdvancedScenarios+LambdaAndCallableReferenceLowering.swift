@@ -945,6 +945,48 @@ extension BuildKIRRegressionTests {
         }, "Expected B::foo to be boxed via kk_function_create_1 for the erased invoke path")
     }
 
+    @Test func testBuildKIRBoxesAnonymousExtensionFunctionReceiver() throws {
+        // KUU-3727: an anonymous extension-function value passed as the
+        // extension receiver of an inherited generic member must be a boxed
+        // `kk_function_create_N` value. A bare `kk_lambda_*` fnPtr reaches the
+        // member's `this(1)` through `kk_function_invoke`'s raw flat-entry
+        // path, which drops the hidden `sret` slot the Kotlin callee ABI
+        // needs for aggregate returns on x86-64 SysV — the saved third
+        // argument (a tagged Int) was then written through as `outThrown`
+        // and the consumer died with SIGSEGV.
+        let runtime = try RuntimeNames()
+        let source = """
+        open class Base {
+            open val <T> (Int.() -> T).bar: T
+                get() = this(1)
+            open fun <T> (Int.() -> T).foo(): T { return this(1) }
+        }
+        class A : Base() {
+            fun test(): String {
+                val a = fun Int.(): String { return "O" }.bar
+                val b = fun Int.(): String { return "K" }.foo()
+                return a + b
+            }
+        }
+        fun box(): String = A().test()
+        fun main() {
+            println(box())
+        }
+        """
+        let ctx = makeContextFromSource(source)
+        try runToKIR(ctx)
+        #expect(!ctx.diagnostics.hasError)
+
+        let module = try #require(ctx.kir)
+        let body = try findKIRFunctionBody(named: "test", in: module, interner: ctx.interner)
+        let boxedReceivers = body.filter { instruction in
+            guard case let .call(_, callee, _, _, _, _, _, _) = instruction else { return false }
+            return callee == ctx.interner.intern(runtime[.functionCreate1])
+        }
+        #expect(boxedReceivers.count == 2,
+                "Expected both anonymous Int.() -> String receivers boxed via kk_function_create_1, got \(boxedReceivers.count)")
+    }
+
     // MARK: - P5-39: vararg call lowering / ABI regression tests
 }
 #endif
