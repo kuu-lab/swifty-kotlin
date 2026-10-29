@@ -780,9 +780,9 @@ final class LambdaLowerer {
         }
     }
 
-    private func isFloatingPointValueType(_ type: TypeID, sema: SemaModule) -> Bool {
+    private func isNonNullPrimitiveValueType(_ type: TypeID, sema: SemaModule) -> Bool {
         switch sema.types.kind(of: type) {
-        case .primitive(.double, .nonNull), .primitive(.float, .nonNull): true
+        case .primitive(_, .nonNull): true
         default: false
         }
     }
@@ -984,19 +984,16 @@ final class LambdaLowerer {
             hasClosureParam: false
         )
 
-        // The body of a lambda taking a `Double`/`Float` reads that parameter as raw
-        // bits, while a consumer that only sees a type-parameter function type
-        // (`(T) -> R`) passes a boxed handle. A direct argument is wrapped where the
-        // lambda is known, but a value that leaves through a factory return, a
-        // property, a field or `id(f)` reaches that consumer unwrapped, so build the
-        // box-tolerant function value where the lambda is created, as for a
-        // capturing lambda.
+        // A stored primitive-parameter lambda can reach an erased function
+        // invocation after leaving through a factory, property, field or cast.
+        // Materialize its adapter here so wrong argument types are checked and
+        // valid boxed primitive inputs are normalized before the lambda body.
         if !hasNonLocalReturn,
            !allowsNonLocalReturn,
            !isSamConversion,
            !sema.bindings.isCoroutineLauncherLambdaExpr(exprID),
            !sema.bindings.rawSuspendEntryLambdaExprIDs.contains(exprID),
-           lambdaParameterTypes.contains(where: { isFloatingPointValueType($0, sema: sema) }),
+           lambdaParameterTypes.contains(where: { isNonNullPrimitiveValueType($0, sema: sema) }),
            let functionType
         {
             let functionValueType = sema.bindings.functionValueExpectedType(for: exprID)
