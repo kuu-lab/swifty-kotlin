@@ -17,10 +17,8 @@ struct IOBufferContractTests {
         struct Parameter: Decodable {
             let name: String
             let type: String
-            let `default`: Bool
         }
         let fqName: String
-        let visibility: String
         let receiver: String
         let signature: String
         let parameters: [Parameter]

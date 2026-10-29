@@ -74,8 +74,7 @@ final class StableRenderContext {
 
         let originClassifier = GoldenSymbolOriginClassifier(
             sema: sema,
-            sourceManager: sourceManager,
-            interner: interner
+            sourceManager: sourceManager
         )
         var publicFQMap = fqMap
         for symbol in sema.symbols.allSymbols() {

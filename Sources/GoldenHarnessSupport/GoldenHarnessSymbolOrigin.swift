@@ -49,15 +49,12 @@ enum GoldenSymbolOrigin: String, Sendable {
 final class GoldenSymbolOriginClassifier {
     private let sema: SemaModule
     private let sourceManager: SourceManager
-    private let interner: StringInterner
-
     private var memo: [Int32: GoldenSymbolOrigin] = [:]
     private var sourceBackedFunctionsByName: [InternedString: [SemanticSymbol]]?
 
-    init(sema: SemaModule, sourceManager: SourceManager, interner: StringInterner) {
+    init(sema: SemaModule, sourceManager: SourceManager) {
         self.sema = sema
         self.sourceManager = sourceManager
-        self.interner = interner
     }
 
     func origin(of symbolID: SymbolID) -> GoldenSymbolOrigin {

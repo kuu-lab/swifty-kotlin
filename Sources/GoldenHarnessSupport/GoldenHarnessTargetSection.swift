@@ -33,8 +33,7 @@ enum GoldenHarnessTargetSection {
     ) throws -> [String] {
         let classifier = GoldenSymbolOriginClassifier(
             sema: sema,
-            sourceManager: sourceManager,
-            interner: interner
+            sourceManager: sourceManager
         )
 
         // Index every symbol by its meaning-derived stable key and by the
