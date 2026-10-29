@@ -98,8 +98,6 @@ extension DataFlowSemaPhase {
         switch step {
         case .topLevelNominalAnchors:
             registerNativeConcurrentTopLevelNominalAnchors(
-                packageFQName: packageFQName,
-                pkgSymbol: pkgSymbol,
                 symbols: symbols,
                 types: types,
                 interner: interner
@@ -132,7 +130,6 @@ extension DataFlowSemaPhase {
             registerNativeConcurrentWorker(
                 packageFQName: packageFQName,
                 pkgSymbol: pkgSymbol,
-                transferModeType: transferModeType,
                 symbols: symbols,
                 types: types,
                 interner: interner
@@ -159,8 +156,6 @@ extension DataFlowSemaPhase {
     /// Registers only the package-level class identities that still lack
     /// bundled Kotlin declarations.
     private func registerNativeConcurrentTopLevelNominalAnchors(
-        packageFQName: [InternedString],
-        pkgSymbol: SymbolID?,
         symbols: SymbolTable,
         types: TypeSystem,
         interner: StringInterner
@@ -693,7 +688,6 @@ extension DataFlowSemaPhase {
     func registerNativeConcurrentWorker(
         packageFQName: [InternedString],
         pkgSymbol: SymbolID?,
-        transferModeType: TypeID,
         symbols: SymbolTable,
         types: TypeSystem,
         interner: StringInterner

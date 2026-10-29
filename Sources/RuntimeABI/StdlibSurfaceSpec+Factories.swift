@@ -24,42 +24,6 @@ extension StdlibSurfaceSpec {
         )
     }
 
-    static func set(
-        _ memberName: String,
-        _ arity: Int,
-        _ runtimeLinkName: String,
-        returnStrategy: StdlibSurfaceReturnStrategy,
-        lambdaExpectation: StdlibSurfaceLambdaExpectation
-    ) -> StdlibSurfaceSpec {
-        StdlibSurfaceSpec(
-            package: .kotlinCollections,
-            ownerKind: .set,
-            memberName: memberName,
-            arity: StdlibSurfaceArity(arity...arity),
-            runtimeLinkName: runtimeLinkName,
-            returnStrategy: returnStrategy,
-            lambdaExpectation: lambdaExpectation
-        )
-    }
-
-    static func map(
-        _ memberName: String,
-        _ arity: Int,
-        _ runtimeLinkName: String,
-        returnStrategy: StdlibSurfaceReturnStrategy,
-        lambdaExpectation: StdlibSurfaceLambdaExpectation
-    ) -> StdlibSurfaceSpec {
-        StdlibSurfaceSpec(
-            package: .kotlinCollections,
-            ownerKind: .map,
-            memberName: memberName,
-            arity: StdlibSurfaceArity(arity...arity),
-            runtimeLinkName: runtimeLinkName,
-            returnStrategy: returnStrategy,
-            lambdaExpectation: lambdaExpectation
-        )
-    }
-
     static func sequence(
         _ memberName: String,
         _ arity: Int,

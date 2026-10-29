@@ -24,9 +24,7 @@ package enum CompilerFileSystem {
     }
 
     package static func isRegularFile(
-        at url: URL,
-        fileManager: FileManager = .default
-    ) -> Bool {
+        at url: URL) -> Bool {
         // `attributesOfItem` pays several xattr syscalls per file — the
         // stdlib artifact validator walks ~2k objects + inline-KIR blobs
         // per compile, so use a single stat(2) instead (symlink-following,

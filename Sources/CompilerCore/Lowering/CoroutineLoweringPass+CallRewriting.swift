@@ -25,9 +25,7 @@ extension CoroutineLoweringPass {
         let flowCollectLatestCallee: InternedString
         let withContextCallee: InternedString
         let runtimeWithContextCallee: InternedString
-        let withTimeoutCallee: InternedString
         let runtimeWithTimeoutCallee: InternedString
-        let withTimeoutOrNullCallee: InternedString
         let runtimeWithTimeoutOrNullCallee: InternedString
         let yieldCallee: InternedString
         let runtimeYieldCallee: InternedString

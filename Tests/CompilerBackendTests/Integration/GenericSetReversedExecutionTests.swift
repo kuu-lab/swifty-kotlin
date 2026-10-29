@@ -1,9 +1,7 @@
 @testable import CompilerCore
-@testable import CompilerBackend
 @testable import CompilerTestSupport
 import Foundation
 import Testing
-import TestStdlibCache
 
 @Suite(.serialized)
 struct GenericSetReversedExecutionTests {

@@ -5,6 +5,20 @@ import Testing
 @Suite
 struct PrimitiveBoundMemberOperatorTests {
     @Test
+    func booleanComparableSupportsMemberCompareToAndRelationalOperators() throws {
+        let ctx = makeContextFromSource("""
+        fun compare(x: Boolean, y: Boolean): Int = x.compareTo(y)
+        fun less(x: Boolean, y: Boolean): Boolean = x < y
+        fun lessOrEqual(x: Boolean, y: Boolean): Boolean = x <= y
+        fun greater(x: Boolean, y: Boolean): Boolean = x > y
+        fun greaterOrEqual(x: Boolean, y: Boolean): Boolean = x >= y
+        """)
+        try runSema(ctx)
+
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+    }
+
+    @Test
     func numericBoundsSupportCompoundAndComparisonWithoutChangingUserOperators() throws {
         let ctx = makeContextFromSource("""
         fun <T : Int> shift(v: T): Char { var c = 'a'; c += v; return c }

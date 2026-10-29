@@ -1,7 +1,6 @@
 import Dispatch
 import Foundation
 @testable import Runtime
-import RuntimeABI
 import Testing
 
 /// Regression coverage for stale coroutine handle resolution: continuation /

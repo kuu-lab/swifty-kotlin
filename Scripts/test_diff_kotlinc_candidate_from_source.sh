@@ -37,9 +37,20 @@ esac
 chmod +x "$out"
 EOF
 chmod +x "$TEMP_DIR/kswiftc"
+cat >"$TEMP_DIR/timeout-mock" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+limit="$1"
+shift
+printf '%s\n' "$limit" >>"${TIMEOUT_LOG:?}"
+exec "$@"
+EOF
+chmod +x "$TEMP_DIR/timeout-mock"
 printf '// DIFF_CANDIDATE_ONLY_FROM_SOURCE: sidecar oracle\nfun main() {}\n' >"$TEMP_DIR/cases/source_sidecar.kt"
 printf 'sidecar output\n' >"$TEMP_DIR/cases/source_sidecar.expected"
 printf '// DIFF_CANDIDATE_ONLY_FROM_SOURCE\n// EXPECT-STDOUT: first\n// EXPECT-STDOUT:\n// EXPECT-STDOUT: last\nfun main() {}\n' >"$TEMP_DIR/cases/source_inline.kt"
+printf '// DIFF_CANDIDATE_ONLY_FROM_SOURCE\n// DIFF_CANDIDATE_ONLY_FROM_SOURCE_COMPILE_TIMEOUT: 600\nfun main() {}\n' >"$TEMP_DIR/cases/source_timeout.kt"
+printf 'sidecar output\n' >"$TEMP_DIR/cases/source_timeout.expected"
 printf '// CANDIDATE-ONLY: artifact oracle\nfun main() {}\n' >"$TEMP_DIR/cases/canonical.kt"
 printf 'canonical output\n' >"$TEMP_DIR/cases/canonical.expected.stdout"
 printf '// SKIP-DIFF (DEBT-DIFF-001): unrelated skipped case\nfun main() {}\n' >"$TEMP_DIR/cases/skipped.kt"
@@ -57,8 +68,8 @@ for mode in serial parallel; do
   args=(--no-parallel)
   [[ "$mode" != parallel ]] || args=(--parallel --jobs 2)
   bash "$SCRIPT_DIR/diff_kotlinc.sh" "${args[@]}" --report "$TEMP_DIR/$mode.tsv" "$TEMP_DIR/cases" >"$TEMP_DIR/$mode.log" 2>&1 || fail "$mode source cases must run without JVM tooling"
-  grep -qF 'Summary: total=2 failed=0 passed=2 skipped=2' "$TEMP_DIR/$mode.log" || fail "$mode classification summary"
-  for name in source_sidecar source_inline; do
+  grep -qF 'Summary: total=3 failed=0 passed=3 skipped=2' "$TEMP_DIR/$mode.log" || fail "$mode classification summary"
+  for name in source_sidecar source_inline source_timeout; do
     grep -qF "PASS $TEMP_DIR/cases/$name.kt" "$TEMP_DIR/$mode.log" || fail "$mode did not execute $name"
   done
   grep -qF "SKIP $TEMP_DIR/cases/canonical.kt (candidate-only; run Scripts/run_candidate_only.sh)" "$TEMP_DIR/$mode.log" || fail "$mode must preserve the canonical lane"
@@ -71,8 +82,35 @@ grep -qF "PASS $TEMP_DIR/cases/canonical.kt" "$TEMP_DIR/canonical.log" || fail '
 DIFF_STDLIB_LIBRARY= bash "$SCRIPT_DIR/diff_kotlinc.sh" --candidate-only "$TEMP_DIR/cases/source_sidecar.kt" >"$TEMP_DIR/explicit.log" 2>&1 || fail 'explicit source mode must remain supported'
 grep -qF "PASS $TEMP_DIR/cases/source_sidecar.kt" "$TEMP_DIR/explicit.log" || fail 'explicit source mode did not run'
 
+if ! TIMEOUT_LOG="$TEMP_DIR/timeout-default.log" TIMEOUT="$TEMP_DIR/timeout-mock" DIFF_COMPILE_TIMEOUT=180 DIFF_STDLIB_LIBRARY= \
+  bash "$SCRIPT_DIR/diff_kotlinc.sh" --candidate-only "$TEMP_DIR/cases/source_timeout.kt" >"$TEMP_DIR/timeout-default.log.out" 2>&1; then
+  cat "$TEMP_DIR/timeout-default.log.out" >&2
+  fail 'case compile timeout marker must allow the measured longer source compile'
+fi
+[[ "$(cat "$TEMP_DIR/timeout-default.log")" == $'600\n10' ]] || {
+  cat "$TEMP_DIR/timeout-default.log" >&2
+  fail 'case compile timeout marker must raise only the compile timeout'
+}
+
+printf 'mismatched expected output\n' >"$TEMP_DIR/cases/source_timeout.expected"
+if TIMEOUT_LOG="$TEMP_DIR/timeout-artifact.log" TIMEOUT="$TEMP_DIR/timeout-mock" DIFF_COMPILE_TIMEOUT=180 DIFF_STDLIB_LIBRARY= \
+  bash "$SCRIPT_DIR/diff_kotlinc.sh" --candidate-only --report "$TEMP_DIR/source-timeout.tsv" \
+    "$TEMP_DIR/cases/source_timeout.kt" >"$TEMP_DIR/timeout-artifact.log.out" 2>&1; then
+  fail 'source candidate timeout case must retain mismatch diagnostics'
+fi
+printf 'sidecar output\n' >"$TEMP_DIR/cases/source_timeout.expected"
+artifact="$(awk -F '\t' '$2 == "FAIL" { print $3 }' "$TEMP_DIR/source-timeout.tsv")"
+[[ -n "$artifact" && -f "$artifact/summary.txt" ]] || fail 'timeout marker failure must expose its artifact'
+grep -qF 'compile_timeout_seconds: 600' "$artifact/summary.txt" || fail 'failure summary must record the effective compile timeout'
+grep -qF -- '--compile-timeout 600' "$artifact/repro.sh" || fail 'reproduction must use the effective compile timeout'
+[[ "$(cat "$TEMP_DIR/timeout-artifact.log")" == $'600\n10\n600' ]] || fail 'artifact KIR compile must use the effective compile timeout'
+
+TIMEOUT_LOG="$TEMP_DIR/timeout-global.log" TIMEOUT="$TEMP_DIR/timeout-mock" DIFF_COMPILE_TIMEOUT=700 DIFF_STDLIB_LIBRARY= \
+  bash "$SCRIPT_DIR/diff_kotlinc.sh" --candidate-only "$TEMP_DIR/cases/source_timeout.kt" >"$TEMP_DIR/timeout-global.log.out" 2>&1 || fail 'global compile timeout must remain usable with a case marker'
+[[ "$(cat "$TEMP_DIR/timeout-global.log")" == $'700\n10' ]] || fail 'global compile timeout must be able to raise the marker floor'
+
 PATH="$TEMP_DIR:$PATH" KSWIFTC=kswiftc bash "$SCRIPT_DIR/diff_kotlinc.sh" --no-parallel "$TEMP_DIR/cases" >"$TEMP_DIR/path-directory.log" 2>&1 || fail 'PATH-resolved compiler must work for source directories'
-grep -qF 'Summary: total=2 failed=0 passed=2 skipped=2' "$TEMP_DIR/path-directory.log" || fail 'PATH-resolved source directory summary'
+grep -qF 'Summary: total=3 failed=0 passed=3 skipped=2' "$TEMP_DIR/path-directory.log" || fail 'PATH-resolved source directory summary'
 PATH="$TEMP_DIR:$PATH" bash "$SCRIPT_DIR/diff_kotlinc.sh" --kswiftc kswiftc "$TEMP_DIR/cases/source_inline.kt" >"$TEMP_DIR/path-single.log" 2>&1 || fail 'PATH-resolved compiler option must work for a single source case'
 grep -qF "PASS $TEMP_DIR/cases/source_inline.kt" "$TEMP_DIR/path-single.log" || fail 'PATH-resolved single source case did not execute'
 

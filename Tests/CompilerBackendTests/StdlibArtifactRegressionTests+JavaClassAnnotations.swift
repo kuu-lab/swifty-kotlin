@@ -1,9 +1,6 @@
-@testable import CompilerBackend
 @testable import CompilerCore
-@testable import CompilerTestSupport
 import Foundation
 import Testing
-import TestStdlibCache
 
 extension StdlibArtifactRegressionTests {
     /// KUU-2345: java.lang.Class.annotations exposes typed runtime annotations with JVM inheritance rules.

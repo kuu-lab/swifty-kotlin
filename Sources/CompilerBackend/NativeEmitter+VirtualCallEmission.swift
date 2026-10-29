@@ -1,4 +1,3 @@
-import RuntimeABI
 import CompilerCore
 
 /// Declaring nominal (class/object/enum/annotation/interface) of a vtable
@@ -283,7 +282,6 @@ extension NativeEmitter.FunctionEmissionContext {
         }()
         let externalCalleeName = NativeEmitter.runtimePrimitiveAlias(
             for: calleeName,
-            argumentCount: argumentValues.count,
             resolvedSymbol: symbol
         ) ?? calleeName
 

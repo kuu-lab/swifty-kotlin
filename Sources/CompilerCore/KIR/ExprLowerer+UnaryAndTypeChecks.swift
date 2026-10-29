@@ -164,6 +164,8 @@ extension ExprLowerer {
         kirCheckableCastErasure(of: type, sema: sema)
     }
 
+
+
     /// KUU-3535: a non-reified generic return crosses the call boundary in
     /// erased form — the callee's own `as T` cannot verify it, so
     /// Kotlin/JVM emits the checkcast where the result is claimed at the
@@ -182,13 +184,11 @@ extension ExprLowerer {
         arena: KIRArena,
         instructions: inout [KIRInstruction]
     ) -> KIRExprID {
-        guard kirShouldCheckErasedGenericCallResult(
+        guard let (bound, checkType) = kirErasedGenericCallClaimCheck(
                   exprID: exprID,
                   boundType: boundType,
                   sema: sema
-              ),
-              let bound = boundType ?? sema.bindings.exprType(for: exprID),
-              let checkType = checkableCastErasure(of: bound, sema: sema)
+              )
         else {
             return resultID
         }
@@ -362,17 +362,7 @@ extension ExprLowerer {
     /// Such a definitely-non-null type retains T's erased runtime bound; the
     /// `Any` conjunct only adds a null contract and has no runtime classifier.
     private func definitelyNotNullTypeParameter(of type: TypeID, sema: SemaModule) -> TypeID? {
-        guard case let .intersection(parts) = sema.types.kind(of: type),
-              parts.count == 2,
-              parts.contains(where: { sema.types.kind(of: $0) == .any(.nonNull) }),
-              let typeParameter = parts.first(where: {
-                  if case .typeParam = sema.types.kind(of: $0) { return true }
-                  return false
-              })
-        else {
-            return nil
-        }
-        return typeParameter
+        kirDefinitelyNotNullTypeParameter(of: type, sema: sema)
     }
 
     private func lowerUncheckedTypeParameterCast(

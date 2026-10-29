@@ -28,7 +28,6 @@ extension MemberLowerer {
         propertySymbol: SymbolID,
         propertyType: TypeID,
         delegateStorageSymbol: SymbolID,
-        delegateKind: StdlibDelegateKind,
         accessorKind: PropertyAccessorKind,
         shared: KIRLoweringSharedContext,
         allDecls: inout [KIRDeclID]
@@ -348,20 +347,6 @@ extension MemberLowerer {
         let captures = symbol.flatMap { driver.ctx.localValue(for: $0) }
             .flatMap { driver.ctx.callableValueInfo(for: $0) }?.captureArguments ?? []
         return .call(symbol: symbol, callee: callee, arguments: captures + arguments, result: result, canThrow: false)
-    }
-
-    func prependingMemberExtensionDispatchReceiver(
-        to arguments: [KIRExprID],
-        for symbol: SymbolID?,
-        sema: SemaModule
-    ) -> [KIRExprID] {
-        guard let symbol,
-              sema.symbols.memberExtensionOwnerSymbol(for: symbol) != nil,
-              let dispatchReceiver = driver.ctx.activeImplicitReceiverExprID()
-        else {
-            return arguments
-        }
-        return [dispatchReceiver] + arguments
     }
 
     /// Class/interface instance delegates live inside the heap-allocated object,

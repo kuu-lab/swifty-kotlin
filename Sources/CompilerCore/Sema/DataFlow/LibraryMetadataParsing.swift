@@ -319,8 +319,6 @@ extension DataFlowSemaPhase {
         cache: LibraryMetadataCache? = nil,
         allowPlaceholders: Bool = false,
         phantomTypeParameterSymbols: [SymbolID] = [],
-        phantomTypeParameterSymbolCount: Int = 0,
-        phantomTypeParameterSymbolsProvider: (() -> [SymbolID])? = nil,
         isStdlibArtifact: Bool = false
     ) -> FunctionSignature {
         guard (0 ... ImportedLibraryLimits.maxCallableArity).contains(record.arity) else {
@@ -494,11 +492,9 @@ extension DataFlowSemaPhase {
         // artifacts that predate `callTParams`; newer artifacts restore the
         // exact declaration order above instead.
         if !restoredDeclarationOrder, classTypeParameterCount == 0 {
-            let phantomCount = max(phantomTypeParameterSymbols.count, phantomTypeParameterSymbolCount)
-            let deficit = phantomCount - typeParameterSymbols.count
+            let deficit = phantomTypeParameterSymbols.count - typeParameterSymbols.count
             if deficit > 0 {
-                let fallbackSymbols = phantomTypeParameterSymbolsProvider?() ?? phantomTypeParameterSymbols
-                typeParameterSymbols += fallbackSymbols.prefix(deficit)
+                typeParameterSymbols += phantomTypeParameterSymbols.prefix(deficit)
             }
         }
         for index in record.inputOnlyTypeParameterIndices where typeParameterSymbols.indices.contains(index) {

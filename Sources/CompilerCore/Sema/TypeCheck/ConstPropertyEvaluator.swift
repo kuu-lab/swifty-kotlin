@@ -137,6 +137,24 @@ final class ConstPropertyEvaluator {
                 && nonNullReceiverType == sema.types.charType
                 && (!isSourceBackedMemberExtensionCall(expr) || isBuiltinCharCodeProperty(expr))
         }
+        // `Double.toInt()` & co. are source-backed `kotlin.*` extensions, but
+        // kotlinc still evaluates them in `const val` initializers.
+        if ["toInt", "toLong", "toFloat", "toDouble"].contains(name), isFloatingPrimitiveType(nonNullReceiverType) {
+            guard args.isEmpty else { return false }
+            guard isSourceBackedMemberExtensionCall(expr) else { return true }
+            let resultType = switch name {
+            case "toInt": sema.types.intType
+            case "toLong": sema.types.longType
+            case "toFloat": sema.types.floatType
+            default: sema.types.doubleType
+            }
+            return isBuiltinKotlinNumericConversion(
+                expr,
+                name: name,
+                receiverType: nonNullReceiverType,
+                resultType: resultType
+            )
+        }
         if name == "toFloat" || name == "toDouble" {
             guard args.isEmpty, isIntegerPrimitiveType(nonNullReceiverType) else { return false }
             guard isSourceBackedMemberExtensionCall(expr) else { return true }
@@ -278,6 +296,13 @@ final class ConstPropertyEvaluator {
             return true
         default:
             return false
+        }
+    }
+
+    private func isFloatingPrimitiveType(_ type: TypeID) -> Bool {
+        switch sema.types.kind(of: sema.types.makeNonNullable(type)) {
+        case .primitive(.float, _), .primitive(.double, _): true
+        default: false
         }
     }
 

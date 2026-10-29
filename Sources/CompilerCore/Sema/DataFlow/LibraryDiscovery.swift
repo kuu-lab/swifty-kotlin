@@ -448,7 +448,7 @@ extension DataFlowSemaPhase {
                 range: nil
             )
             isValid = false
-        } else if !CompilerFileSystem.isRegularFile(at: metadataURL, fileManager: fm) {
+        } else if !CompilerFileSystem.isRegularFile(at: metadataURL) {
             diagnostics.error(
                 "KSWIFTK-LIB-0014",
                 "Metadata file is missing or is not a regular file at '\(metadataPath)' referenced by \(libName)/manifest.json",
@@ -487,7 +487,7 @@ extension DataFlowSemaPhase {
                         range: nil
                     )
                     isValid = false
-                } else if !CompilerFileSystem.isRegularFile(at: resolvedObjURL, fileManager: fm) {
+                } else if !CompilerFileSystem.isRegularFile(at: resolvedObjURL) {
                     reportManifestPathIssue(
                         "Object file is missing or is not a regular file at '\(relativePath)' referenced by \(libName)/manifest.json"
                     )
@@ -528,7 +528,7 @@ extension DataFlowSemaPhase {
                     range: nil
                 )
                 isValid = false
-            } else if !CompilerFileSystem.isRegularFile(at: memberIndexURL, fileManager: fm) {
+            } else if !CompilerFileSystem.isRegularFile(at: memberIndexURL) {
                 reportManifestPathIssue(
                     "Bundled member index is missing or is not a regular file at '\(memberIndexPath)' referenced by \(libName)/manifest.json"
                 )

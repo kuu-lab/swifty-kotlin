@@ -446,15 +446,28 @@ extension ExprLowerer {
             )
 
         case let .indexedAccess(receiverExpr, indices, _):
-            return driver.callLowerer.lowerIndexedAccessExpr(
-                exprID,
-                receiverExpr: receiverExpr,
-                indices: indices,
-                ast: ast,
+            // `list[i]` dispatches the same erased `get` members as the
+            // `.memberCall` spelling, so its result needs the same JVM
+            // checkcast on a non-reified generic return (KUU-3668): a
+            // heap-polluted `MutableList<E>` element must throw
+            // ClassCastException at the typed read, not corrupt the value.
+            return checkedErasedGenericCallResult(
+                driver.callLowerer.lowerIndexedAccessExpr(
+                    exprID,
+                    receiverExpr: receiverExpr,
+                    indices: indices,
+                    ast: ast,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    propertyConstantInitializers: propertyConstantInitializers,
+                    instructions: &instructions
+                ),
+                exprID: exprID,
+                boundType: boundType,
                 sema: sema,
-                arena: arena,
                 interner: interner,
-                propertyConstantInitializers: propertyConstantInitializers,
+                arena: arena,
                 instructions: &instructions
             )
 

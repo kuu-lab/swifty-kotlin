@@ -18,7 +18,7 @@ struct TypeCheckScopeBuilder {
         let defaultImportScope = PackageMembersScope(parent: nil, symbols: sema.symbols)
         for packagePath in defaultImportPackages {
             for importedSymbol in topLevelSymbolsByPackage[packagePath] ?? [] {
-                if shouldSkipDefaultImport(importedSymbol, sema: sema, interner: interner)
+                if shouldSkipDefaultImport(importedSymbol, sema: sema)
                     || shouldSkipPrimitiveWrapperDefaultImport(importedSymbol, sema: sema, interner: interner)
                 {
                     continue
@@ -26,7 +26,7 @@ struct TypeCheckScopeBuilder {
                 defaultImportScope.insert(importedSymbol)
             }
             defaultImportScope.addPackage(packagePath) { [self, sema] symbolID in
-                !shouldSkipDefaultImport(symbolID, sema: sema, interner: interner)
+                !shouldSkipDefaultImport(symbolID, sema: sema)
                     && !shouldSkipPrimitiveWrapperDefaultImport(symbolID, sema: sema, interner: interner)
             }
         }
@@ -532,14 +532,14 @@ struct TypeCheckScopeBuilder {
                 }
                 if !packageSymbols.isEmpty || indexHasMembers {
                     for packageSymbol in packageSymbols {
-                        if shouldSkipDefaultImport(packageSymbol, sema: sema, interner: interner) {
+                        if shouldSkipDefaultImport(packageSymbol, sema: sema) {
                             continue
                         }
                         if !isAccessibleWildcardSymbol(packageSymbol) { continue }
                         wildcardImportScope.insert(packageSymbol)
                     }
                     wildcardImportScope.addPackage(importDecl.path) { [self, sema] symbolID in
-                        !shouldSkipDefaultImport(symbolID, sema: sema, interner: interner)
+                        !shouldSkipDefaultImport(symbolID, sema: sema)
                             && isAccessibleWildcardSymbol(symbolID)
                     }
                 }
@@ -641,14 +641,14 @@ struct TypeCheckScopeBuilder {
             // a synthetic package record shares its FQ name (KUU-1205).
             if sema.symbols.importPathContributesMembers(importDecl.path, isWildcard: importDecl.isWildcard) {
                 for importedSymbol in topLevelSymbolsByPackage[importDecl.path] ?? [] {
-                    if shouldSkipDefaultImport(importedSymbol, sema: sema, interner: interner) {
+                    if shouldSkipDefaultImport(importedSymbol, sema: sema) {
                         continue
                     }
                     if !isAccessibleWildcardSymbol(importedSymbol) { continue }
                     wildcardImportScope.insert(importedSymbol)
                 }
                 wildcardImportScope.addPackage(importDecl.path) { [self, sema] symbolID in
-                    !shouldSkipDefaultImport(symbolID, sema: sema, interner: interner)
+                    !shouldSkipDefaultImport(symbolID, sema: sema)
                         && isAccessibleWildcardSymbol(symbolID)
                 }
             }
@@ -656,9 +656,7 @@ struct TypeCheckScopeBuilder {
     }
 
     func collectLibraryTopLevelSymbolsByPackage(
-        sema: SemaModule,
-        interner: StringInterner
-    ) -> [[InternedString]: [SymbolID]] {
+        sema: SemaModule) -> [[InternedString]: [SymbolID]] {
         var knownPackages: Set<[InternedString]> = []
         for packageID in sema.symbols.symbols(ofKind: .package) {
             guard let packageSymbol = sema.symbols.symbol(packageID) else { continue }
@@ -726,9 +724,7 @@ struct TypeCheckScopeBuilder {
     /// interface members normally.
     private func shouldSkipDefaultImport(
         _ symbolID: SymbolID,
-        sema: SemaModule,
-        interner: StringInterner
-    ) -> Bool {
+        sema: SemaModule) -> Bool {
         if isSyntheticOperatorExtensionToExclude(symbolID, sema: sema) {
             return true
         }
