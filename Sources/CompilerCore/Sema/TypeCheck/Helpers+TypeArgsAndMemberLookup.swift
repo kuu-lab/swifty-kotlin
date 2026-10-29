@@ -1029,6 +1029,60 @@ extension TypeCheckHelpers {
         }
         return nil
     }
+
+    /// The companion object type through which a class-name receiver's
+    /// `Owner.member` shorthand resolves its member scope — including the
+    /// platform-module `$CompanionBlocks` object and expect/actual pairing.
+    func companionScopeType(
+        for ownerNominalSymbol: SymbolID,
+        ctx: TypeInferenceContext
+    ) -> TypeID? {
+        let sema = ctx.sema
+        let companion = sema.symbols.companionBlockObjectSymbol(
+            for: ownerNominalSymbol,
+            interner: ctx.interner
+        ) ?? sema.symbols.companionObjectSymbol(for: ownerNominalSymbol)
+            ?? sema.symbols.actualSymbol(for: ownerNominalSymbol).flatMap {
+                sema.symbols.companionBlockObjectSymbol(for: $0, interner: ctx.interner)
+                    ?? sema.symbols.companionObjectSymbol(for: $0)
+            }
+        guard let companion else { return nil }
+        return sema.symbols.propertyType(for: companion)
+            ?? sema.types.make(.classType(ClassType(
+                classSymbol: companion, args: [], nullability: .nonNull
+            )))
+    }
+
+    /// Inherited `private` members are filtered out of qualified member
+    /// lookup (they are not inherited), so `receiver.member` and the
+    /// `Owner.member` companion shorthand report them as unresolved where
+    /// kotlinc reports an inaccessible member (KUU-3762). Probe each
+    /// receiver surface for a same-named `private` member so the
+    /// unresolved-member fallbacks can emit the matching visibility
+    /// diagnostic instead.
+    func inaccessiblePrivateQualifiedMember(
+        named calleeName: InternedString,
+        probeReceiverTypes: [TypeID],
+        ctx: TypeInferenceContext
+    ) -> SemanticSymbol? {
+        for probeType in probeReceiverTypes {
+            guard let member = privateMemberSymbolInHierarchy(
+                named: calleeName,
+                receiverType: probeType,
+                sema: ctx.sema
+            ), !ctx.visibilityChecker.isAccessible(
+                member,
+                fromFile: ctx.currentFileID,
+                enclosingClass: ctx.enclosingClassSymbol
+            )
+            else {
+                continue
+            }
+            return member
+        }
+        return nil
+    }
+
     /// A paired expect class keeps its semantic supertype edge, but members
     /// declared only by the actual class still participate in platform-side
     /// member lookup. Visit that implementation before the expect class's own
