@@ -26,11 +26,7 @@ public func kk_exception_handler_new() -> Int {
         }
         FileHandle.standardError.write(Data("CoroutineExceptionHandler: \(message)\n".utf8))
     }
-    let ptr = UnsafeMutableRawPointer(Unmanaged.passRetained(box).toOpaque())
-    runtimeStorage.withGCLock { state in
-        state.objectPointers.insert(UInt(bitPattern: ptr))
-    }
-    return Int(bitPattern: ptr)
+    return runtimeRegisterExceptionHandler(box)
 }
 
 /// kotlinx `handleCoroutineException` for a failed fire-and-forget `launch`
