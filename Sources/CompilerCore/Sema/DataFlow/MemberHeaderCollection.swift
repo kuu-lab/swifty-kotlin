@@ -1344,19 +1344,30 @@ extension DataFlowSemaPhase {
             if isValueClassDeclaration(nestedClass) {
                 symbols.insertFlags(.valueType, for: nestedSymbol)
                 let valParams = nestedClass.primaryConstructorParams
+                let isFullValueClass = isFullValueClassDeclaration(
+                    nestedClass,
+                    imports: sourceImports,
+                    enabled: ctx.options.fullValueClassesEnabled,
+                    interner: interner
+                )
                 if valParams.count > 1 {
-                    // Multi-field value class (Kotlin 2.x MFVC): lowered as a regular class.
-                    symbols.removeFlags(.valueType, for: nestedSymbol)
-                } else if valParams.isEmpty {
-                    if !isFullValueClassDeclaration(
-                        nestedClass,
-                        imports: sourceImports,
-                        enabled: ctx.options.fullValueClassesEnabled,
-                        interner: interner
-                    ) {
+                    if isFullValueClass {
+                        // Multi-field value class (Kotlin 2.x MFVC): lowered
+                        // as a regular class. `@JvmInline` classes take the
+                        // strict path: kotlinc rejects them outright.
+                        symbols.removeFlags(.valueType, for: nestedSymbol)
+                    } else {
                         diagnostics.error(
                             "KSWIFTK-SEMA-0070",
-                            "Value class must have at least one primary constructor parameter.",
+                            "Value class must have exactly one primary constructor parameter.",
+                            range: nestedClass.range
+                        )
+                    }
+                } else if valParams.isEmpty {
+                    if !isFullValueClass {
+                        diagnostics.error(
+                            "KSWIFTK-SEMA-0070",
+                            "Value class must have exactly one primary constructor parameter.",
                             range: nestedClass.range
                         )
                     }
