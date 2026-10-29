@@ -739,6 +739,14 @@ final class ABILoweringPass: LoweringPass {
                         {
                             return 0
                         }
+                        // A member exposed through an external runtime bridge
+                        // can omit its Kotlin owner from the bridge ABI.
+                        if let symbol = effectiveCallSymbol,
+                           symbols?.externalLinkNameIfKnown(for: symbol) != nil,
+                           arguments.count == signature.parameterTypes.count + signature.contextParameterTypes.count
+                        {
+                            return 0
+                        }
                         return 1
                     }()
                     callCaptureOffset = localFunctionCaptureOffset(
