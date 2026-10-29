@@ -123,7 +123,7 @@ public func __kk_foundation_data_bytes(_ handle: Int, _ outThrown: UnsafeMutable
     outThrown?.pointee = 0
     #if canImport(Darwin)
     guard let data = runtimeForeignResource(handle, as: NSData.self) else { return foundationFailure("Invalid NSData", outThrown) }
-    return registerRuntimeObject(RuntimeCPointerBox(address: UInt(bitPattern: data.bytes),
+    return registerRuntimeCPointer(RuntimeCPointerBox(address: UInt(bitPattern: data.bytes),
         pointeeTypeID: runtimeStableNominalTypeID(fqName: "kotlinx.cinterop.ByteVar")))
     #else
     return foundationFailure("Apple Foundation requires Darwin", outThrown)
@@ -487,7 +487,7 @@ public func __kk_foundation_pinned_bytes_address(_ pinned: Int, _ index: Int, _ 
         outThrown?.pointee = runtimeAllocateArrayIndexOutOfBoundsException(message: "Invalid ByteArray address index/type")
         return runtimeNullSentinelInt
     }
-    return registerRuntimeObject(RuntimeCPointerBox(address: UInt(bitPattern: address),
+    return registerRuntimeCPointer(RuntimeCPointerBox(address: UInt(bitPattern: address),
         pointeeTypeID: runtimeStableNominalTypeID(fqName: "kotlinx.cinterop.ByteVar")))
 }
 
@@ -513,7 +513,7 @@ public func __kk_foundation_malloc(_ length: Int, _ outThrown: UnsafeMutablePoin
     outThrown?.pointee = 0
 guard length >= 0 else { return foundationFailure("malloc size exceeds native capacity", outThrown) }
 guard let pointer = malloc(length) else { return runtimeNullSentinelInt }
-return registerRuntimeObject(RuntimeCPointerBox(address: UInt(bitPattern: pointer), pointeeTypeID: runtimeStableNominalTypeID(fqName: "kotlinx.cinterop.ByteVar")))
+return registerRuntimeCPointer(RuntimeCPointerBox(address: UInt(bitPattern: pointer), pointeeTypeID: runtimeStableNominalTypeID(fqName: "kotlinx.cinterop.ByteVar")))
 }
 
 @_cdecl("__kk_foundation_free")
@@ -533,7 +533,7 @@ return Int(errno)
 public func __kk_foundation_strerror(_ code: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
 guard let address = strerror(Int32(truncatingIfNeeded: code)) else { return runtimeNullSentinelInt }
-return registerRuntimeObject(RuntimeCPointerBox(address: UInt(bitPattern: address), pointeeTypeID: runtimeStableNominalTypeID(fqName: "kotlinx.cinterop.ByteVar")))
+return registerRuntimeCPointer(RuntimeCPointerBox(address: UInt(bitPattern: address), pointeeTypeID: runtimeStableNominalTypeID(fqName: "kotlinx.cinterop.ByteVar")))
 }
 
 @_cdecl("__kk_foundation_byte_pointer_add")
@@ -544,7 +544,7 @@ guard let box = resolveCPointerBox(from: pointer),
       kind == .int8 || kind == .uint8 else { return foundationFailure("Expected a byte CPointer", outThrown) }
 let (address, overflow) = Int(bitPattern: box.address).addingReportingOverflow(offset)
 guard !overflow else { return foundationFailure("CPointer byte offset overflow", outThrown) }
-return registerRuntimeObject(RuntimeCPointerBox(address: UInt(bitPattern: address), pointeeTypeID: box.pointeeTypeID))
+return registerRuntimeCPointer(RuntimeCPointerBox(address: UInt(bitPattern: address), pointeeTypeID: box.pointeeTypeID))
 }
 
 @_cdecl("__kk_foundation_lock_create")
@@ -594,7 +594,7 @@ public func __kk_foundation_runloop_cf_pointer(_ handle: Int, _ outThrown: Unsaf
     #if canImport(Darwin)
 guard let loop = runtimeForeignResource(handle, as: RunLoop.self) else { return foundationFailure("Invalid SDK CFRunLoop receiver", outThrown) }
 let address = UInt(bitPattern: Unmanaged.passUnretained(loop.getCFRunLoop()).toOpaque())
-return registerRuntimeObject(RuntimeCPointerBox(address: address, pointeeTypeID: runtimeStableNominalTypeID(fqName: "platform.CoreFoundation.__CFRunLoop")))
+return registerRuntimeCPointer(RuntimeCPointerBox(address: address, pointeeTypeID: runtimeStableNominalTypeID(fqName: "platform.CoreFoundation.__CFRunLoop")))
     #else
     return foundationFailure("Apple Foundation requires Darwin", outThrown)
     #endif

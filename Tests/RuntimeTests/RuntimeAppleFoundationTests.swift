@@ -35,6 +35,37 @@ private final class FoundationGetBufferPointerProbe: InputStream {
 
 @Suite(.serialized)
 struct RuntimeAppleFoundationTests {
+    @Test func foundationPointersRetainTheirCPointerType() throws {
+        let array = kk_array_new(3)
+        defer { _ = runtimeReleaseObject(array) }
+        _ = kk_array_tag_type(array, Int(runtimeStableNominalTypeID(fqName: "kotlin.ByteArray")))
+        let pinned = kk_pin_object(array)
+        defer { _ = kk_unpin_object(pinned) }
+        var thrown = 0
+        let destination = __kk_foundation_pinned_bytes_address(pinned, 0, &thrown)
+        try #require(thrown == 0)
+        defer { _ = runtimeReleaseObject(destination) }
+        let data = __kk_foundation_data_create(destination, 3, 0, 0, &thrown)
+        try #require(thrown == 0)
+        defer { runtimeForeignResourceDiscardUnattached(data) }
+        let source = __kk_foundation_data_bytes(data, &thrown)
+        try #require(thrown == 0)
+        defer { _ = runtimeReleaseObject(source) }
+        let copied = __kk_foundation_memcpy(destination, source, 3, &thrown)
+        try #require(thrown == 0)
+        let advanced = __kk_foundation_byte_pointer_add(destination, 1, &thrown)
+        try #require(thrown == 0)
+        defer { _ = runtimeReleaseObject(advanced) }
+        let pointerType = nominalTypeToken(for: "kotlinx.cinterop.CPointer")
+        let otherType = nominalTypeToken(for: "kotlinx.cinterop.MemScope")
+        for pointer in [destination, source, copied, advanced] {
+            #expect(kk_op_is(pointer, pointerType) == 1)
+            #expect(kk_op_is(pointer, otherType) == 0)
+            #expect(kk_op_cast(pointer, pointerType, &thrown) == pointer)
+            #expect(thrown == 0)
+        }
+    }
+
     @Test func realNSDataCopiesAndItsLeaseFollowsBoxRelease() throws {
         let bytes = UnsafeMutablePointer<UInt8>.allocate(capacity: 3)
         defer { bytes.deallocate() }
