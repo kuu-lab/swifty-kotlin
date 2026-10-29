@@ -178,7 +178,92 @@ struct DeclarationPositionValidationTests {
         let ctx = try semaContext(for: """
             inner class D(val x: Int)
             """)
-        assertHasDiagnostic("KSWIFTK-SEMA-0400", in: ctx)
+        assertHasDiagnostic("KSWIFTK-SEMA-0401", in: ctx)
+    }
+
+    @Test func abstractFinalClassReportsBothDirections() throws {
+        let ctx = try semaContext(for: """
+            abstract final class A
+            """)
+        let conflicts = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0402" }
+        #expect(conflicts.count == 2)
+        #expect(conflicts.contains { $0.message == "modifier 'abstract' is incompatible with 'final'." })
+        #expect(conflicts.contains { $0.message == "modifier 'final' is incompatible with 'abstract'." })
+    }
+
+    @Test func sealedFinalClassReportsBothDirections() throws {
+        let ctx = try semaContext(for: """
+            sealed final class S
+            """)
+        let conflicts = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0402" }
+        #expect(conflicts.count == 2)
+        #expect(conflicts.contains { $0.message == "modifier 'sealed' is incompatible with 'final'." })
+        #expect(conflicts.contains { $0.message == "modifier 'final' is incompatible with 'sealed'." })
+    }
+
+    @Test func privateProtectedClassReportsBothDirections() throws {
+        let ctx = try semaContext(for: """
+            private protected class C
+            """)
+        let conflicts = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0402" }
+        #expect(conflicts.count == 2)
+        // A conflicted `protected` suppresses the top-level applicability error.
+        assertNoDiagnostic("KSWIFTK-SEMA-0400", in: ctx)
+    }
+
+    @Test func privateInternalProtectedClassReportsEachModifierOnce() throws {
+        let ctx = try semaContext(for: """
+            private internal protected class D
+            """)
+        let conflicts = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0402" }
+        #expect(conflicts.count == 3)
+        #expect(conflicts.contains { $0.message == "modifier 'protected' is incompatible with 'private'." })
+    }
+
+    @Test func abstractFinalTopLevelFunctionReportsApplicabilityAndConflict() throws {
+        let ctx = try semaContext(for: """
+            abstract final fun f() {}
+            """)
+        // kotlinc reports 'abstract' not applicable and 'final' incompatible
+        // with 'abstract'; the conflict wins over 'final's applicability error.
+        let notApplicable = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0400" }
+        #expect(notApplicable.count == 1)
+        #expect(notApplicable.contains { $0.message.contains("'abstract'") })
+        let conflicts = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0402" }
+        #expect(conflicts.count == 1)
+        #expect(conflicts.contains { $0.message == "modifier 'final' is incompatible with 'abstract'." })
+    }
+
+    @Test func finalOpenTopLevelFunctionReportsApplicabilityAndConflict() throws {
+        let ctx = try semaContext(for: """
+            final open fun g() {}
+            """)
+        let notApplicable = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0400" }
+        #expect(notApplicable.count == 1)
+        #expect(notApplicable.contains { $0.message.contains("'final'") })
+        let conflicts = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0402" }
+        #expect(conflicts.count == 1)
+        #expect(conflicts.contains { $0.message == "modifier 'open' is incompatible with 'final'." })
+    }
+
+    @Test func dataInnerClassReportsBothDirections() throws {
+        let ctx = try semaContext(for: """
+            data inner class D(val x: Int)
+            """)
+        let conflicts = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0402" }
+        #expect(conflicts.count == 2)
+        // A conflicted `inner` suppresses the inside-file diagnostic.
+        assertNoDiagnostic("KSWIFTK-SEMA-0401", in: ctx)
+    }
+
+    @Test func abstractFinalMemberFunctionReportsBothDirections() throws {
+        let ctx = try semaContext(for: """
+            abstract class AC {
+                abstract final fun af(): Int
+            }
+            """)
+        let conflicts = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0402" }
+        #expect(conflicts.count == 2)
     }
 
     @Test func privateLocalVariableIsRejected() throws {

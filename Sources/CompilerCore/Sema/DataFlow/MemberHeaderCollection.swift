@@ -216,14 +216,6 @@ extension DataFlowSemaPhase {
                 )
             }
 
-            // STDLIB-CLASS-010: Check for conflicting modifiers
-            if funDecl.modifiers.contains(.abstract) && funDecl.modifiers.contains(.final) {
-                diagnostics.error(
-                    "KSWIFTK-SEMA-ABSTRACT",
-                    "Function '\(interner.resolve(funDecl.name))' cannot be both 'abstract' and 'final'.",
-                    range: funDecl.range
-                )
-            }
             let memberSymbol: SymbolID
             if let existingSyntheticFunction = reusableSyntheticMemberFunctionSymbol(
                 fqName: memberFQName,
@@ -534,15 +526,6 @@ extension DataFlowSemaPhase {
                 diagnostics.error(
                     "KSWIFTK-SEMA-ABSTRACT",
                     "Abstract property '\(interner.resolve(propertyDecl.name))' cannot be private.",
-                    range: propertyDecl.range
-                )
-            }
-
-            // STDLIB-CLASS-010: Check for conflicting modifiers
-            if propertyDecl.modifiers.contains(.abstract) && propertyDecl.modifiers.contains(.final) {
-                diagnostics.error(
-                    "KSWIFTK-SEMA-ABSTRACT",
-                    "Property '\(interner.resolve(propertyDecl.name))' cannot be both 'abstract' and 'final'.",
                     range: propertyDecl.range
                 )
             }
