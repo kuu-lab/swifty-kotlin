@@ -538,7 +538,7 @@ final class RuntimeIndexingIterableBox {
 }
 
 /// Each call to `next()` yields an `IndexedValue<E>` pair (index, element)
-/// represented as `RuntimePairBox`.
+/// represented as the source data class's `RuntimeObjectBox` (index@2, value@3).
 final class RuntimeIndexingIteratorBox {
     let values: [RuntimeValue]
     var index: Int

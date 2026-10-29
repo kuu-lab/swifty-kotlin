@@ -608,6 +608,7 @@ extension CallLowerer {
         }
 
         let useSequenceRuntimeForCollectionFallback = isSequenceLikeType(nonNullReceiverType, sema: sema, interner: interner)
+            || isSequenceBoundTypeParameterType(nonNullReceiverType, sema: sema, interner: interner)
         let useIterableRuntimeForCollectionFallback = (sema.bindings.isCollectionExpr(receiverExpr)
             || isIterableOrCollectionInterfaceType(nonNullReceiverType, sema: sema, interner: interner))
             && !isConcreteCollectionLikeType(nonNullReceiverType, sema: sema, interner: interner)
