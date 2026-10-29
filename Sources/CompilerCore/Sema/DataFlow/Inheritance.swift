@@ -1553,6 +1553,11 @@ extension DataFlowSemaPhase {
             switch decl {
             case let .classDecl(classDecl):
                 queue.append(contentsOf: classDecl.nestedClasses + classDecl.nestedObjects)
+                // Classes declared inside an enum entry's anonymous class body
+                // (e.g. `FOO { inner class Inner : I by FOO }`) are ordinary
+                // nominals parented by the entry field — they need the same
+                // delegation registration and abstract-override checks as any
+                // other nested class (KUU-3672).
                 queue.append(contentsOf: classDecl.enumEntries.flatMap(\.nestedClasses))
                 if let companion = classDecl.companionObject { queue.append(companion) }
             case let .interfaceDecl(interfaceDecl):

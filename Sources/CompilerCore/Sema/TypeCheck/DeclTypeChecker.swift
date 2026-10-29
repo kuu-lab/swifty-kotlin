@@ -464,24 +464,14 @@ final class DeclTypeChecker {
             if nullability == .nullable {
                 emitLateinitMustBeNonNullDiagnostic(for: property, diagnostics: diagnostics)
             }
-        case let .primitive(primitive, nullability):
+        case let .primitive(_, nullability):
             if nullability == .nullable {
                 diagnostics.error(
                     "KSWIFTK-SEMA-LATEINIT",
                     "'lateinit' property type must be non-null.",
                     range: property.range
                 )
-            } else if primitive == .boolean
-                || primitive == .char
-                || primitive == .int
-                || primitive == .long
-                || primitive == .float
-                || primitive == .double
-                || primitive == .uint
-                || primitive == .ulong
-                || primitive == .ubyte
-                || primitive == .ushort
-            {
+            } else {
                 diagnostics.error(
                     "KSWIFTK-SEMA-LATEINIT",
                     "'lateinit' is not allowed on primitive property types.",

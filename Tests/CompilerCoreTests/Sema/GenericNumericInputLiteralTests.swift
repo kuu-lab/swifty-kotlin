@@ -68,6 +68,27 @@ struct GenericNumericInputLiteralTests {
         )
     }
 
+    @Test
+    func mutableMapOfContextualizesIntegerLiteralInsidePairArgument() throws {
+        let ctx = try context("""
+        fun main() {
+            val mb = mutableMapOf<String, Byte>("k" to 127)
+            println(mb["k"])
+        }
+        """, library: false, cache: false)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let sourcePath = try #require(ctx.options.inputs.first)
+        let literal = try #require(firstExprID(in: ast, path: sourcePath, ctx: ctx) { _, expr in
+            if case let .intLiteral(value, _) = expr { return value == 127 }
+            return false
+        })
+        #expect(sema.bindings.exprType(for: literal) == sema.types.byteType)
+    }
+
     @Test(arguments: [false, true], [false, true])
     func concreteInputsContextualizeSignedAndUnsignedLiterals(library: Bool, cache: Bool) throws {
         let ctx = try context(sourceFixture("Scripts/diff_cases/generic_numeric_input_literals.kt"), library: library, cache: cache)

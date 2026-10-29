@@ -20,7 +20,6 @@ extension DataFlowSemaPhase {
     /// `--no-stdlib` fallback is covered by `registerSyntheticCoercionStubs`.
     func registerSyntheticPrimitiveCompanionAnchors(
         symbols: SymbolTable,
-        types: TypeSystem,
         interner: StringInterner
     ) {
         let kotlinPkg = ensurePackage(path: ["kotlin"], symbols: symbols, interner: interner)

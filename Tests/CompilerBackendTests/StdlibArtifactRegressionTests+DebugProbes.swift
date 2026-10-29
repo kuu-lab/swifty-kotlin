@@ -3,7 +3,6 @@
 @testable import CompilerTestSupport
 import Foundation
 import Testing
-import TestStdlibCache
 
 extension StdlibArtifactRegressionTests {
     /// KUU-2744: DebugProbes must observe launched coroutines through the shared stdlib artifact.

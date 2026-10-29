@@ -86,9 +86,7 @@ extension DataFlowSemaPhase {
             symbols: symbols, types: types, interner: interner,
             kotlinCollectionsPkg: kotlinCollectionsPkg,
             collectionInterfaceSymbol: collectionInterfaceSymbol,
-            bundledIndex: bundledIndex,
-            skipStats: skipStats
-        )
+            bundledIndex: bundledIndex)
 
         _ = registerSyntheticAbstractListStub(
             symbols: symbols, types: types, interner: interner,
@@ -101,7 +99,6 @@ extension DataFlowSemaPhase {
             symbols: symbols, types: types, interner: interner,
             kotlinCollectionsPkg: kotlinCollectionsPkg,
             listInterfaceSymbol: listInterfaceSymbol,
-            collectionInterfaceSymbol: collectionInterfaceSymbol,
             mutableCollectionInterfaceSymbol: mutableCollectionInterfaceSymbol,
             mutableIterableInterfaceSymbol: mutableIterableInterfaceSymbol
         )

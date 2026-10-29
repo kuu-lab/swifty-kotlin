@@ -744,7 +744,7 @@ final class JVMFunctionBuilder {
         case let .asCast(source, _, safe, _):
             return try checkedCast(source, safe: safe, id: id)
         case let .isCheck(source, target, negated, _):
-            return try instanceCheck(source, target: target, negated: negated, id: id)
+            return try instanceCheck(source, negated: negated, id: id)
         case let .indexedAccess(receiver, indices, _): return try indexedGet(receiver, indices, id)
         case let .indexedAssign(receiver, indices, source, _): try indexedSet(receiver, indices, source, id); return nil
         case let .indexedCompoundAssign(op, receiver, indices, source, _): return try indexedCompound(op, receiver, indices, source, id)

@@ -9,9 +9,7 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                 receiverType: receiverType,
                 sema: sema,
                 interner: interner,
-                ctx: ctx,
-                locals: &locals
-            )
+                ctx: ctx)
             collectionMapTypes = {
                 guard let classType = resolveClassType(receiverType, sema: sema),
                       classType.args.count >= 2
@@ -66,7 +64,7 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
             }
 
             let didBindListFilterSource = CallTypeChecker.sourceBackedListFilterNames.contains(calleeStr) && args.count == 1
-                ? bindBundledListSourceFunction(typeArguments: [collectionElementType], locals: &locals)
+                ? bindBundledListSourceFunction(typeArguments: [collectionElementType])
                 : false
             if didBindListFilterSource {
                 // The lambda argument was speculatively marked (above) as a
@@ -87,7 +85,7 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                 && !didBindListFilterSource
                 && (isIterableReceiver || (calleeStr == "filterIndexed" && isCollectionReceiver))
                 && (!isSetReceiver || calleeStr == "filterIndexed")
-                && bindBundledIterableSourceFunction(typeArguments: [collectionElementType], locals: &locals)
+                && bindBundledIterableSourceFunction(typeArguments: [collectionElementType])
             if didBindIterableFilterSource,
                let lambdaExpr = ast.arena.expr(args[0].expr),
                lambdaExpr.isLambdaOrCallableRef
@@ -117,7 +115,7 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
 
             if ["fold", "foldRight", "foldIndexed", "foldRightIndexed", "scan", "runningFold", "runningFoldIndexed", "scanIndexed"].contains(calleeStr), args.count == 2 {
                 let initialType = foldAccumulatorType ?? sema.bindings.exprTypes[args[0].expr] ?? sema.types.anyType
-                if bindBundledListSourceFunction(typeArguments: [collectionElementType, initialType], locals: &locals) {
+                if bindBundledListSourceFunction(typeArguments: [collectionElementType, initialType]) {
                     if let lambdaExpr = ast.arena.expr(args[1].expr), lambdaExpr.isLambdaOrCallableRef {
                         sema.bindings.unmarkCollectionHOFLambdaExpr(args[1].expr)
                     }
@@ -129,7 +127,7 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                         sema.bindings.unmarkCollectionHOFLambdaExpr(args[1].expr)
                     }
                 } else if !isSequenceReceiver, isCollectionReceiver,
-                          bindBundledIterableSourceFunction(typeArguments: [collectionElementType, initialType], locals: &locals) {
+                          bindBundledIterableSourceFunction(typeArguments: [collectionElementType, initialType]) {
                     if let lambdaExpr = ast.arena.expr(args[1].expr), lambdaExpr.isLambdaOrCallableRef {
                         sema.bindings.unmarkCollectionHOFLambdaExpr(args[1].expr)
                     }
@@ -157,21 +155,19 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                 if calleeStr == "reduce", isListReceiver,
                    bindBundledIterableSourceFunction(
                        typeArguments: [collectionElementType, collectionElementType],
-                       enforceTypeParameterCount: true,
-                       locals: &locals
-                   )
+                       enforceTypeParameterCount: true)
                 {
                     if let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef {
                         sema.bindings.unmarkCollectionHOFLambdaExpr(args[0].expr)
                     }
-                } else if bindBundledListSourceFunction(typeArguments: [collectionElementType], locals: &locals) {
+                } else if bindBundledListSourceFunction(typeArguments: [collectionElementType]) {
                     if let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef {
                         sema.bindings.unmarkCollectionHOFLambdaExpr(args[0].expr)
                     }
                 } else if !isSequenceReceiver, (isCollectionReceiver || isIterableReceiver),
                           bindBundledIterableSourceFunction(
                               typeArguments: [collectionElementType, collectionElementType]
-                          , locals: &locals) {
+                          ) {
                     if let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef {
                         sema.bindings.unmarkCollectionHOFLambdaExpr(args[0].expr)
                     }
@@ -195,13 +191,13 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                     // concrete List; its return type preserves the List contract.
                     didBindSource = bindBundledListSourceFunction(
                         typeArguments: iterableSourceTypeArguments
-                    , locals: &locals) || bindBundledIterableSourceFunction(
+                    ) || bindBundledIterableSourceFunction(
                         typeArguments: iterableSourceTypeArguments
-                    , locals: &locals)
+                    )
                 } else {
                     didBindSource = bindBundledIterableSourceFunction(
                         typeArguments: iterableSourceTypeArguments
-                    , locals: &locals)
+                    )
                 }
                 if didBindSource {
                     for argument in args
@@ -241,7 +237,7 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                    matchingReceiverElementType: collectionElementType,
                    allowNominalIterableReceiver: true,
                    allowCollectionReceiver: true
-               , locals: &locals)
+               )
             {
                 for argument in args
                 where ast.arena.expr(argument.expr)?.isLambdaOrCallableRef == true {
@@ -259,7 +255,7 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                !isSequenceReceiver,
                isCollectionReceiver,
                CallTypeChecker.iterableSourceHOFNames.contains(calleeStr),
-               bindBundledIterableSourceFunction(typeArguments: [collectionElementType], locals: &locals)
+               bindBundledIterableSourceFunction(typeArguments: [collectionElementType])
             {
                 for argument in args
                 where ast.arena.expr(argument.expr)?.isLambdaOrCallableRef == true {

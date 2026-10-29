@@ -5,11 +5,7 @@ extension DataFlowSemaPhase {
     // arity, and external link name) and making `job.cancel()` ambiguous.
     // Removed; kept as a no-op since the SyntheticStubRegistryEntry bucket
     // table references this function by name.
-    func registerSyntheticCoroutineCancellationStubs(
-        symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner
-    ) {}
+    func registerSyntheticCoroutineCancellationStubs() {}
 
     func registerSyntheticCoroutineIntrinsicsStubs(
         symbols: SymbolTable,

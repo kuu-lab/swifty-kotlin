@@ -9,7 +9,7 @@ extension JVMProgramBuilder {
         guard let plan = classes[symbol], plan.isAnnotation else { throw JVMFrontendError(message: "JVM repeatable requires an annotation class.") }
         if let explicit {
             var containerSymbol: SymbolID?
-            if let expression = annotationConstruction(explicit, owner: symbol) {
+            if let expression = annotationConstruction(explicit) {
                 let args: [CallArgument]
                 switch ast.arena.expr(expression) { case let .call(_, _, a, _), let .memberCall(_, _, _, a, _): args = a; default: args = [] }
                 if let arg = args.first, let type = sema.bindings.classRefTargetType(for: arg.expr), case let .classType(t) = sema.types.kind(of: type) { containerSymbol = t.classSymbol }

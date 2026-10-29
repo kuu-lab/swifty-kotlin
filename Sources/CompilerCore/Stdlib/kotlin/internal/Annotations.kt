@@ -9,6 +9,10 @@ internal annotation class KsNoInline
 @Retention(AnnotationRetention.BINARY)
 internal annotation class OnlyInputTypes
 
+@Target(AnnotationTarget.FUNCTION, AnnotationTarget.PROPERTY, AnnotationTarget.CONSTRUCTOR)
+@Retention(AnnotationRetention.BINARY)
+internal annotation class LowPriorityInOverloadResolution
+
 /**
  * Specifies that this function should not be called directly without inlining.
  */

@@ -1,4 +1,3 @@
-import RuntimeABI
 import CompilerCore
 
 extension NativeEmitter {
@@ -47,7 +46,6 @@ extension NativeEmitter {
 
     static func runtimePrimitiveAlias(
         for calleeName: String,
-        argumentCount: Int,
         resolvedSymbol: SymbolID?
     ) -> String? {
         if ["and", "or", "xor"].contains(calleeName),
