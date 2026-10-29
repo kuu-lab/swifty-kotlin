@@ -24,7 +24,7 @@
       "severityLabel": "error",
       "code": "KSWIFTK-SEMA-OVERRIDE-TYPE",
       "source": "kswiftk",
-      "message": "Type of 'prop' doesn't match the type of the overridden property 'Class#0' defined in 'Base' (found 'String').",
+      "message": "type of 'val prop: String' is not a subtype of overridden property 'val prop: Number' defined in 'Base'.",
       "codeActions": []
     },
     {
@@ -63,7 +63,7 @@
       "severityLabel": "error",
       "code": "KSWIFTK-SEMA-OVERRIDE-TYPE",
       "source": "kswiftk",
-      "message": "Type of 'count' doesn't match the type of the overridden property 'Class#0' defined in 'TypeBase' (found 'String').",
+      "message": "type of 'val count: String' is not a subtype of overridden property 'val count: Number' defined in 'TypeBase'.",
       "codeActions": []
     }
   ]
