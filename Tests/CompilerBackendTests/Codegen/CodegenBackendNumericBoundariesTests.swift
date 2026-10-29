@@ -160,6 +160,7 @@ struct CodegenBackendNumericBoundariesTests {
     @Test
     func testNumericBoundaryFloatDoubleBundledConversions() throws {
         let source = """
+        @Suppress("DEPRECATION", "DEPRECATION_ERROR")
         fun main() {
             println(Double.NaN.toInt())
             println(Double.POSITIVE_INFINITY.toLong())
@@ -348,6 +349,27 @@ struct CodegenBackendNumericBoundariesTests {
             0
             65535
             """ + "\n"
+        )
+    }
+
+    /// KUU-3763: Byte/Short.toChar() carry the same error-level deprecation as
+    /// Long.toChar() (warning since 1.5, error since 2.3). With the diagnostics
+    /// suppressed the calls must still lower — they now bind the bundled
+    /// deprecated decl instead of a same-named inline candidate that used to
+    /// die in the inliner (KSWIFTK-INL-0001).
+    @Test
+    func testNumericBoundaryByteShortSuppressedToChar() throws {
+        let source = """
+        @Suppress("DEPRECATION", "DEPRECATION_ERROR")
+        fun main() {
+            println(65.toByte().toChar())
+            println(66.toShort().toChar())
+        }
+        """
+        try assertKotlinOutput(
+            source,
+            moduleName: "NumericBoundaryByteShortSuppressedToChar",
+            expected: "A\nB\n"
         )
     }
 

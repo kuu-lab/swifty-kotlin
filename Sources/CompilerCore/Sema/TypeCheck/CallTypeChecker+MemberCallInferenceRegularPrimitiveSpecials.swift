@@ -407,7 +407,7 @@ extension CallTypeChecker {
             }
             if matches {
                 let finalType = safeCall ? sema.types.makeNullable(targetType) : targetType
-                driver.helpers.checkBuiltinDeprecation(
+                let deprecatedCallee = driver.helpers.checkBuiltinDeprecation(
                     calleeName: calleeName,
                     receiverType: receiverForCheck,
                     sema: sema,
@@ -415,6 +415,19 @@ extension CallTypeChecker {
                     range: range,
                     diagnostics: ctx.sema.diagnostics
                 )
+                // KUU-3763: Byte/Short.toChar() has no entry in the KIR
+                // conversion tables, so an unbound call fell back to a
+                // same-named inline candidate and died in the inliner
+                // (KSWIFTK-INL-0001). Binding the bundled deprecated decl
+                // emits a real call, which a @Suppress('DEPRECATION_ERROR')
+                // site can still execute.
+                if let deprecatedCallee {
+                    sema.bindings.bindCall(id, binding: CallBinding(
+                        chosenCallee: deprecatedCallee,
+                        substitutedTypeArguments: [],
+                        parameterMapping: [:]
+                    ))
+                }
                 sema.bindings.bindExprType(id, type: finalType)
                 return finalType
             }
