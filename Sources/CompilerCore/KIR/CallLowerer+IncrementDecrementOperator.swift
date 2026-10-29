@@ -6,7 +6,7 @@ extension CallLowerer {
     /// `<name>$default` stub -- the same convention an explicit `a.inc()`
     /// call already uses. Leading slots follow the direct-call ABI:
     /// local-function captures, then the member-extension dispatch receiver,
-    /// then the `++` target itself (see
+    /// then the `++` target itself and its context arguments (see
     /// `CallSupportLowerer.generateDefaultStubFunction`). The stub performs
     /// its own virtual dispatch on the receiver, so it is always invoked
     /// with a direct `.call`.
@@ -81,6 +81,19 @@ extension CallLowerer {
         }
         var finalArguments = normalized.arguments
         finalArguments.insert(receiverArgument, at: 0)
+        if let signature = sema.symbols.functionSignature(for: callee),
+           !signature.contextParameterTypes.isEmpty
+        {
+            let contextArguments = contextArgumentValues(
+                for: signature,
+                callExprID: callExprID,
+                callBinding: callBinding,
+                sema: sema,
+                arena: arena
+            )
+            // The operator receiver precedes context values in the source-call ABI.
+            finalArguments.insert(contentsOf: contextArguments, at: min(1, finalArguments.count))
+        }
         appendReifiedTypeTokens(
             chosenCallee: callee,
             callBinding: callBinding,

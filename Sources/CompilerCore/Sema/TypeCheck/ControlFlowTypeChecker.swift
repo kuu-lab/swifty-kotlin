@@ -1170,6 +1170,24 @@ final class ControlFlowTypeChecker {
                 thenCompletes ? thenLocals : nil,
                 elseCompletes ? elseLocals : nil,
             ].compactMap { $0 }
+            // Kotlin joins per-branch narrowing into the state after the `if`:
+            // a local narrowed on every reaching branch keeps the join of those
+            // narrowed types (e.g. `x === y` narrowing on one side and `x as T`
+            // on the other leaves `x` at the tighter type afterwards).
+            for (name, local) in locals {
+                guard local.isInitialized else { continue }
+                let branchTypes = reachingBranchLocals.compactMap { branch -> TypeID? in
+                    guard let narrowed = branch[name], narrowed.symbol == local.symbol else {
+                        return nil
+                    }
+                    return narrowed.type
+                }
+                guard branchTypes.count == reachingBranchLocals.count else { continue }
+                let joinedType = sema.types.lub(branchTypes)
+                if joinedType != local.type, joinedType != sema.types.errorType {
+                    locals[name] = (joinedType, local.symbol, local.isMutable, local.isInitialized)
+                }
+            }
             locals.memberFlow = joinMemberFlow(from: reachingBranchLocals, base: locals.memberFlow, sema: sema)
             locals.joinVariableFacts(from: reachingBranchLocals)
         } else {

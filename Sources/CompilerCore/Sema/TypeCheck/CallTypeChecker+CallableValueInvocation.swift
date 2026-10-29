@@ -389,6 +389,7 @@ extension CallTypeChecker {
             + ctx.implicitReceiverStack.map(\.type)
             + ctx.outerReceiverTypes.map(\.type)
             + (ctx.implicitReceiverType.map { [$0] } ?? [])
+            + ctx.implicitReceiverMemberLookupEntries().map(\.type)
         func hasImplicitContextValues() -> Bool {
             contextTypes.allSatisfy { requiredType in
                 if sema.types.typeContainsAnyTypeParam(requiredType) {

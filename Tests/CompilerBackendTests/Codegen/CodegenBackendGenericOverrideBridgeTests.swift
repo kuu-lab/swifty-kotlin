@@ -6,6 +6,18 @@ import Testing
 
 @Suite
 struct CodegenBackendGenericOverrideBridgeTests {
+    private func source(_ filename: String) throws -> String {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        return try String(
+            contentsOf: root.appendingPathComponent("Scripts/diff_cases/\(filename).kt"),
+            encoding: .utf8
+        )
+    }
+
     @Test
     func testGenericOverrideBridgeBoxesUnitForAnyReturn() throws {
         let source = """
@@ -34,6 +46,33 @@ struct CodegenBackendGenericOverrideBridgeTests {
         }
         """
         try assertKotlinOutput(source, moduleName: "GenericOverridePropertyBridge", expected: "81\n81\n")
+    }
+
+    @Test
+    func testGenericPropertyGetterBridgeRejectsWrongTypeArgument() throws {
+        try assertKotlinOutput(
+            source("kuu_3670_generic_property_bridge_test20"),
+            moduleName: "KUU3670GenericPropertyGetterBridge",
+            expected: "OK\n"
+        )
+    }
+
+    @Test
+    func testGenericNullablePropertySetterAndGetterBridgeRejectWrongType() throws {
+        try assertKotlinOutput(
+            source("kuu_3670_generic_property_bridge_test21"),
+            moduleName: "KUU3670GenericNullablePropertyBridge",
+            expected: "OK\n"
+        )
+    }
+
+    @Test
+    func testGenericOverrideBridgeWithNothingParameter() throws {
+        try assertKotlinOutput(
+            source("kuu_3670_generic_property_bridge_test24"),
+            moduleName: "KUU3670GenericNothingOverrideBridge",
+            expected: "OK\n"
+        )
     }
 
     @Test
@@ -142,6 +181,97 @@ struct CodegenBackendGenericOverrideBridgeTests {
         }
         """
         try assertKotlinOutput(source, moduleName: "GenericCovariantAbstractBridge", expected: "OK\n")
+    }
+
+    // KUU-3670: kotlin/testData/codegen/box/bridges/test20.kt — a `val s: T`
+    // declared in a generic base travels through the erased slot, so the read
+    // at the substituted claim site (`A<Data>`) must checkcast the result.
+    @Test
+    func testGenericBaseValReadCheckcastsErasedResult() throws {
+        let source = """
+        open class A<T> {
+            val s: T = "zzz" as T
+        }
+        interface C {
+            val s: String
+        }
+        class B : C, A<String>()
+        class Data(val x: Int)
+        fun box(): String {
+            val b = B()
+            try {
+                val s = (b as A<Data>).s
+                return "FAIL: ${'$'}{s.x}"
+            } catch (e: ClassCastException) {
+                return "OK"
+            }
+        }
+        fun main() {
+            println(box())
+        }
+        """
+        try assertKotlinOutput(source, moduleName: "GenericBaseValReadCheckcast", expected: "OK\n")
+    }
+
+    // KUU-3670: kotlin/testData/codegen/box/bridges/test21.kt — a raw write
+    // through the wrongly-parameterized reference stores a Data into the
+    // `var x: T?` slot; the typed `String?` read must then checkcast.
+    @Test
+    func testGenericBaseVarReadCheckcastsErasedResult() throws {
+        let source = """
+        open class Base<T> {
+            open var x: T? = null
+        }
+        open class Derived : Base<String>()
+        class Data(val x: Int)
+        fun garble(d: Derived) {
+            (d as Base<Data>).x = Data(42)
+        }
+        fun box(): String {
+            val d = Derived()
+            garble(d)
+            try {
+                val x = d.x
+                return "FAIL: ${'$'}{x?.length}"
+            } catch (e: ClassCastException) {
+                return "OK"
+            }
+        }
+        fun main() {
+            println(box())
+        }
+        """
+        try assertKotlinOutput(source, moduleName: "GenericBaseVarReadCheckcast", expected: "OK\n")
+    }
+
+    // KUU-3670: kotlin/testData/codegen/box/bridges/test24.kt — an override
+    // narrowing an erased interface parameter to Nothing needs an itable
+    // bridge that checkcasts the argument (always failing for non-null).
+    @Test
+    func testNothingParameterItableBridgeCheckcastsArgument() throws {
+        let source = """
+        interface I<T> {
+            fun foo(p: T)
+        }
+        class C : I<Nothing> {
+            override fun foo(p: Nothing) {
+                println(p.toString())
+            }
+        }
+        fun box(): String {
+            val c = C()
+            try {
+                val x = (c as I<String>).foo("zzz")
+                return "FAIL: ${'$'}x"
+            } catch (e: ClassCastException) {
+                return "OK"
+            }
+        }
+        fun main() {
+            println(box())
+        }
+        """
+        try assertKotlinOutput(source, moduleName: "NothingParamItableBridgeCheckcast", expected: "OK\n")
     }
 }
 #endif

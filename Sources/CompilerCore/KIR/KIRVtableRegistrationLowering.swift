@@ -486,8 +486,7 @@ func anyToStringBridgeSymbolForImplementation(
         // payload its unboxed ABI expects (KUU-3115).
         let unboxedReceiver = arena.appendTemporary(type: receiverType)
         emitValueClassUnboxCall(
-            value: receiverExpr, classSymbol: vcSymbol, result: unboxedReceiver,
-            resultType: receiverType, types: sema.types, symbols: sema.symbols,
+            value: receiverExpr, classSymbol: vcSymbol, result: unboxedReceiver, types: sema.types, symbols: sema.symbols,
             interner: interner, arena: arena, into: &body
         )
         if case let .classType(receiverClass) = rawReceiverKind,
@@ -1143,12 +1142,14 @@ func itableBridgeSymbolForMethod(
         }
     }
     func hasBoxableValueRepresentation(_ type: TypeID) -> Bool {
+        let kind = sema.types.kind(of: type)
         let resolvedKind = resolveValueClassKind(
-            sema.types.kind(of: type),
+            kind,
             types: sema.types,
             symbols: sema.symbols
         )
         return BoxingCalleeTable(interner: interner).boxCallee(for: resolvedKind, requireNonNull: true) != nil
+            || referenceBackedValueClassSymbol(of: kind, types: sema.types, symbols: sema.symbols) != nil
     }
     let needsErasedValueReturnBoxing = isErasedValueSlot(interfaceSig.returnType)
         && hasBoxableValueRepresentation(implementationReturnType)

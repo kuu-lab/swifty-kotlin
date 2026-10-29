@@ -1175,16 +1175,16 @@ extension KotlinParser {
             }
             if case .symbol(.lBrace) = token.kind,
                atTopLevel,
-               allowsClassDelegation,
-               sawSupertypeColon,
+               (allowsClassDelegation && sawSupertypeColon
+                   || allowsPropertyDelegation && sawAssignment),
                delegateBraceTracker.braceContinuesDelegateExpression()
             {
-                // A brace that belongs to a class-delegation `by` expression
-                // (`by { ... }`, `by when (x) { ... }`, `by if (c) { } else
-                // { }`, `by object : C { }`, ...) is part of the header, not
-                // the declaration body. Keep its tokens in the header so AST
-                // construction can parse the whole expression; a following
-                // top-level brace can still start the class body.
+                // A brace that belongs to a `by` expression in a class header
+                // or object-literal property initializer (`by when (x) { ... }`,
+                // `by if (c) { } else { }`, ...) is part of the expression, not
+                // the declaration/object body. Keep its tokens with the
+                // declaration so AST construction can parse the full expression;
+                // a later top-level brace can still start the class or object body.
                 let braceToken = consumeToken(into: &children, range: &range)
                 delegateBraceTracker.note(braceToken.kind, atTopLevel: true)
                 depth.track(token.kind)

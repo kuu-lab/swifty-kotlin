@@ -6,6 +6,40 @@ import Testing
 @Suite
 struct IndexedNumericArrayIncrementTests {
     @Test
+    func genericIndexedGetSetAcceptsNumericIncrementAndDecrement() throws {
+        let ctx = makeContextFromSource("""
+        class A<T>(var value: T) {
+            operator fun get(i: Int) = value
+            operator fun set(i: Int, newValue: T) { value = newValue }
+        }
+        fun updateIndexedNumbers() {
+            val aByte = A<Byte>(1)
+            val aShort = A<Short>(1)
+            val aInt = A<Int>(1)
+            val aLong = A<Long>(1)
+            val aFloat = A<Float>(1.0f)
+            val aDouble = A<Double>(1.0)
+
+            aByte[0]++
+            aByte[0]--
+            aShort[0]++
+            aShort[0]--
+            aInt[0]++
+            aInt[0]--
+            aLong[0]++
+            aLong[0]--
+            aFloat[0]++
+            aFloat[0]--
+            aDouble[0]++
+            aDouble[0]--
+        }
+        """)
+        try runSema(ctx)
+
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+    }
+
+    @Test
     func indexedLongAndDoubleCompoundAssignmentsAcceptIntLiterals() throws {
         let ctx = makeContextFromSource("""
         fun main() {

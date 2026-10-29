@@ -188,6 +188,13 @@ continues to own `// CANDIDATE-ONLY` cases with `.expected.stdout` or
 `.expected.stderr` sidecars. Run `bash Scripts/test_diff_kotlinc_candidate_from_source.sh`
 to verify discovery, source compilation, and exclusion from that lane.
 
+A source-only case whose bundled-source compile has a measured exceptional
+cost may set `// DIFF_CANDIDATE_ONLY_FROM_SOURCE_COMPILE_TIMEOUT: <seconds>`.
+This is a per-case minimum: the effective compile timeout is the greater of
+the marker and the configured `DIFF_COMPILE_TIMEOUT` or `--compile-timeout`.
+Use it only with evidence that the case needs more time; runtime timeout is
+unchanged. Failure artifacts record the effective compile timeout.
+
 ## Runtime ABI link validation
 
 Validate compiler runtime link names against `RuntimeABISpec`:

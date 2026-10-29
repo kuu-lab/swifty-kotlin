@@ -1,4 +1,3 @@
-import RuntimeABI
 
 // Fallback declarations for collection and sequence nominal types.
 // These compiler-side shells remain available for --no-stdlib and precompiled

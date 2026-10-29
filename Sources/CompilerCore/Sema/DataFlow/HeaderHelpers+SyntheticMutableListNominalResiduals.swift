@@ -9,7 +9,6 @@ extension DataFlowSemaPhase {
         interner: StringInterner,
         kotlinCollectionsPkg: [InternedString],
         listInterfaceSymbol: SymbolID,
-        collectionInterfaceSymbol: SymbolID,
         mutableCollectionInterfaceSymbol: SymbolID,
         mutableIterableInterfaceSymbol: SymbolID
     ) {

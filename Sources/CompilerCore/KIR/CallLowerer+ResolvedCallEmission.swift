@@ -837,6 +837,7 @@ extension CallLowerer {
                 if let dispatchReceiver = memberExtensionDispatchReceiver(
                     for: chosen,
                     callExprID: exprID,
+                    dispatchReceiverSymbol: callBinding?.dispatchReceiverSymbol,
                     sema: sema,
                     arena: arena,
                     interner: interner,

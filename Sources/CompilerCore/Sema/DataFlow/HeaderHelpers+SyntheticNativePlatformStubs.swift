@@ -1,4 +1,3 @@
-import RuntimeABI
 
 /// Synthetic fallback registrations for the Kotlin/Native platform surface.
 ///

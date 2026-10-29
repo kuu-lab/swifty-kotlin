@@ -8,7 +8,7 @@
 /// emits the generic `kk_any_to_string` path. This pass restores the previous
 /// behavior by rewriting call sites at the KIR level, before `println` bodies
 /// are inlined.
-final class ConsolePrintLoweringPass: LoweringPass, ParallelLoweringPass {
+final class ConsolePrintLoweringPass: LoweringPass {
     static let name = "ConsolePrintLowering"
     static let requiredStage: KIRStage = .propertyLowered
     static let producedStage: KIRStage = .propertyLowered
@@ -60,8 +60,6 @@ final class ConsolePrintLoweringPass: LoweringPass, ParallelLoweringPass {
                     ),
                        self.rewritePrintCall(
                            isPrintln: printKind == .println,
-                           symbol: symbol,
-                           callee: callee,
                            arguments: arguments,
                            result: result,
                            arena: module.arena,
@@ -135,8 +133,6 @@ final class ConsolePrintLoweringPass: LoweringPass, ParallelLoweringPass {
 
     private func rewritePrintCall(
         isPrintln: Bool,
-        symbol: SymbolID?,
-        callee: InternedString,
         arguments: [KIRExprID],
         result: KIRExprID?,
         arena: KIRArena,

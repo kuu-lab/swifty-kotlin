@@ -89,12 +89,12 @@ extension CallTypeChecker {
             {
                 let charType = sema.types.make(.primitive(.char, .nonNull))
                 let intType = sema.types.intType
-                if stringHOFCalleeStr != "splitToSequence" && stringHOFCalleeStr != "zipWithNext" {
+                if stringHOFCalleeStr != "zipWithNext" {
                     if let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef {
                         sema.bindings.markCollectionHOFLambdaExpr(args[0].expr)
                     }
                     let lambdaExpectedType: TypeID = switch stringHOFCalleeStr {
-                    case "map":
+                    case "map", "mapNotNull":
                         sema.types.make(.functionType(FunctionType(
                             params: [charType],
                             returnType: sema.types.nullableAnyType,
@@ -104,20 +104,6 @@ extension CallTypeChecker {
                     case "mapIndexed":
                         sema.types.make(.functionType(FunctionType(
                             params: [intType, charType],
-                            returnType: sema.types.nullableAnyType,
-                            isSuspend: false,
-                            nullability: .nonNull
-                        )))
-                    case "mapNotNull":
-                        sema.types.make(.functionType(FunctionType(
-                            params: [charType],
-                            returnType: sema.types.nullableAnyType,
-                            isSuspend: false,
-                            nullability: .nonNull
-                        )))
-                    case "zipWithNext":
-                        sema.types.make(.functionType(FunctionType(
-                            params: [charType, charType],
                             returnType: sema.types.nullableAnyType,
                             isSuspend: false,
                             nullability: .nonNull

@@ -255,11 +255,8 @@ extension CallTypeChecker {
             && ControlFlowTypeChecker.isRangeExpression(receiverID, ast: ast)
         if let result = tryInferRegularMemberCallPrimitiveSpecials(
             request,
-            receiverType: receiverType,
             lookupReceiverType: lookupReceiverType,
-            argTypes: argTypes,
-            locals: &locals
-        ) {
+            argTypes: argTypes) {
             return result
         }
 
@@ -568,8 +565,8 @@ extension CallTypeChecker {
         // Any infix extension, even an inapplicable one, prevents this fallback.
         if ast.arena.isInfixCall(id), allCandidates.isEmpty,
            let result = tryInferRegularMemberCallPrimitiveSpecials(
-               request, receiverType: receiverType, lookupReceiverType: lookupReceiverType,
-               argTypes: argTypes, locals: &locals, enforceInfixEligibility: false
+               request, lookupReceiverType: lookupReceiverType,
+               argTypes: argTypes, enforceInfixEligibility: false
            )
         {
             return result

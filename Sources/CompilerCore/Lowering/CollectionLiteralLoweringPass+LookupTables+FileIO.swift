@@ -1,4 +1,3 @@
-import RuntimeABI
 
 /// CLEANUP-STUB-107 removed `java.io.File`'s own Sema facade (constructor,
 /// member functions). CLEANUP-STUB-115 removed `kotlin.io.path.Path` entirely.

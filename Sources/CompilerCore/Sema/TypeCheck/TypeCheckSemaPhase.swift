@@ -391,7 +391,8 @@ private final class TypeCheckWork: @unchecked Sendable {
         DataFlowSemaPhase().validateDeferredAnnotationTargets(
             ast: driver.ast, symbols: driver.sema.symbols, types: driver.sema.types,
             bindings: driver.sema.bindings, diagnostics: driver.diagnostics, interner: driver.interner,
-            sourceManager: driver.sourceManager
+            sourceManager: driver.sourceManager,
+            jvmTarget: driver.compilationContext.flatMap { $0.options.emit.isJVM ? $0.options.jvmTarget : nil }
         )
         // Inferred member types are only registered once bodies have been
         // type-checked; the declaration-site variance check for them has to

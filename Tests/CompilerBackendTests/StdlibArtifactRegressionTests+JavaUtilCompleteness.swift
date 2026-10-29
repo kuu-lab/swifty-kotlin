@@ -3,7 +3,6 @@
 @testable import CompilerTestSupport
 import Foundation
 import Testing
-import TestStdlibCache
 
 extension StdlibArtifactRegressionTests {
     /// KUU-3366: Java utility facades missing from the bundled stdlib resolve and execute.

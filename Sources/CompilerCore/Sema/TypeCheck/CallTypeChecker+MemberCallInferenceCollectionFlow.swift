@@ -502,7 +502,7 @@ extension CallTypeChecker {
         if let inferredType = flow.inferIterableElementFamilySpecial(locals: &locals) { return inferredType }
         if flow.didReturnNil { return nil }
 
-        if let mapIteratorType = flow.bindBundledMapIteratorSourceFunction(locals: &locals) {
+        if let mapIteratorType = flow.bindBundledMapIteratorSourceFunction() {
             sema.bindings.bindExprType(id, type: mapIteratorType)
             return mapIteratorType
         }

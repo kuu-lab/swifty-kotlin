@@ -255,6 +255,11 @@ struct CaptureAnalyzer {
                 captured.formUnion(callBinding?.contextParameterReceiverSymbols.compactMap { $0 }.filter {
                     outerSymbols.contains($0)
                 } ?? [])
+                if let receiverSymbol = callBinding?.dispatchReceiverSymbol,
+                   outerSymbols.contains(receiverSymbol)
+                {
+                    captured.insert(receiverSymbol)
+                }
                 if let calleeSymbol,
                    sema.symbols.symbol(calleeSymbol)?.flags.contains(.localFunction) == true
                 {
@@ -318,6 +323,11 @@ struct CaptureAnalyzer {
                         outerSymbols.contains($0)
                     } ?? []
                 )
+                if let receiverSymbol = callBinding?.dispatchReceiverSymbol,
+                   outerSymbols.contains(receiverSymbol)
+                {
+                    captured.insert(receiverSymbol)
+                }
                 visit(receiver)
                 for arg in args {
                     visit(arg.expr)

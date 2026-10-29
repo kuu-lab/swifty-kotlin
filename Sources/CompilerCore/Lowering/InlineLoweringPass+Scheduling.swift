@@ -176,9 +176,7 @@ extension InlineLoweringPass {
                 ctx: ctx,
                 unitType: unitType,
                 pending: pending,
-                budget: budget,
-                preserveNonLocalReturns: preserveNonLocalReturns
-            )
+                budget: budget)
             body = expansion.body
             locations = expansion.locations
             pending = expansion.pending

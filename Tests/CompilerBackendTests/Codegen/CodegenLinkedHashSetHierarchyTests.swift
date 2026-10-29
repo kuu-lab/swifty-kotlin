@@ -1,6 +1,4 @@
 @testable import CompilerCore
-@testable import CompilerBackend
-@testable import CompilerTestSupport
 import Testing
 import TestStdlibCache
 

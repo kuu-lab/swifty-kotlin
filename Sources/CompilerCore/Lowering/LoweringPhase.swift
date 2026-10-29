@@ -21,8 +21,6 @@ extension LoweringPass {
 /// is safe for concurrent per-function execution.  The closure must not
 /// mutate cross-function state — only `arena.appendExpr` (which is locked
 /// when parallel mode is active) and per-function-local variables.
-protocol ParallelLoweringPass: LoweringPass {}
-
 public final class LoweringPhase: CompilerPhase {
     public static let name = "Lowerings"
 
@@ -85,9 +83,6 @@ public final class LoweringPhase: CompilerPhase {
         module.scanFeatures()
         // Parallel lowering is disabled: appendExpr assigns IDs under lock
         // in non-deterministic order, breaking KIR determinism tests.
-        // ParallelLoweringPass conformance and KIRArena infrastructure are
-        // kept for future enablement once per-function expression arenas
-        // provide deterministic ID assignment.
         for pass in passes {
             let passType = type(of: pass)
             try withSubPhaseTiming(passType.name, timer: ctx.phaseTimer) {
