@@ -153,6 +153,49 @@ extension BuildKIRRegressionTests {
 
 
     @Test
+    func localObjectMemberExtensionPropertyReadUsesRegisteredAccessor() throws {
+        // KUU-3692: an explicit `OO.e` read on a local object's member
+        // extension property must call the registered getter accessor with
+        // (dispatch receiver, extension receiver), not a placeholder call
+        // that lowers to an external bare `get` symbol.
+        let ctx = makeContextFromSource("""
+        object O
+        fun main() {
+            object OO {
+                var O.e: String
+                    get() = "ge"
+                    set(v) {}
+            }
+            OO.e = "c"
+            println(OO.e)
+        }
+        """)
+        try runToKIR(ctx)
+        let module = try #require(ctx.kir)
+        let sema = try #require(ctx.sema)
+        let functions = findAllKIRFunctions(in: module)
+        let getter = try #require(functions.first {
+            $0.name == KnownCompilerNames(interner: ctx.interner).get
+                && sema.symbols.memberExtensionOwnerSymbol(for: $0.symbol) != nil
+        })
+        #expect(getter.params.count == 2)
+        let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+        let call = try #require(body.first {
+            if case let .call(symbol, callee, _, _, _, _, _, _) = $0 {
+                return callee == KnownCompilerNames(interner: ctx.interner).get
+                    || symbol == getter.symbol
+            }
+            return false
+        })
+        guard case let .call(symbol, _, arguments, _, _, _, _, _) = call else {
+            Issue.record("expected a .call getter invocation")
+            return
+        }
+        #expect(symbol == getter.symbol)
+        #expect(arguments.count == 2)
+    }
+
+    @Test
     func memberExtensionPropertyVirtualGetterUsesDispatchReceiver() throws {
         let ctx = makeContextFromSource("""
         open class Base {

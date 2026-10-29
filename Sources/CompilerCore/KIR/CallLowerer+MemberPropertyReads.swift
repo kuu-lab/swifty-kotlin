@@ -532,6 +532,26 @@ extension CallLowerer {
 
         let resultType = sema.bindings.exprTypes[exprID] ?? sema.symbols.propertyType(for: propertySymbol) ?? sema.types.anyType
         if objectLiteralPropertyUsesAccessor(propertySymbol, ast: ast, sema: sema) {
+            // Member-extension properties (`var O.e` inside a local object)
+            // lower to a real accessor function taking (dispatch, extension
+            // receiver), registered under extensionPropertyGetterAccessor.
+            // The placeholder call below only reaches the synthesized
+            // non-extension accessor, so route extension reads through the
+            // registered accessor like the member-assign setter path does.
+            if let getterSymbol = sema.symbols.extensionPropertyGetterAccessor(for: propertySymbol) {
+                let result = arena.appendTemporary(type: resultType)
+                appendPropertyGetterCall(
+                    getterSymbol: getterSymbol,
+                    receiver: loweredReceiverID,
+                    callExprID: exprID,
+                    result: result,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    instructions: &instructions
+                )
+                return result
+            }
             let result = arena.appendTemporary(type: resultType)
             instructions.append(.call(
                 symbol: propertySymbol,
