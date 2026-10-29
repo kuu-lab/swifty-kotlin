@@ -209,7 +209,7 @@ final class RuntimeSetBox {
     }
 
     var count: Int {
-        if let viewParent {
+        if viewParent != nil {
             return values.count
         }
         if let backingMapRaw,
@@ -220,7 +220,7 @@ final class RuntimeSetBox {
     }
 
     var isEmpty: Bool {
-        if let viewParent {
+        if viewParent != nil {
             return values.isEmpty
         }
         if let backingMapRaw,
@@ -243,7 +243,7 @@ final class RuntimeSetBox {
 
     /// Returns an element in the set's current iteration order.
     func rawValue(at index: Int) -> Int? {
-        if let viewParent {
+        if viewParent != nil {
             guard values.indices.contains(index) else { return nil }
             return values[index].legacyRawValue
         }
