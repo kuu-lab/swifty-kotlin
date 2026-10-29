@@ -188,6 +188,7 @@ extension JVMBackendTests {
         "dataClassesComponentsCopyEqualityAndFormatting",
         "enumsEntriesValuesAndConstantBodies",
         "sealedClassesNestedDataAndExhaustiveWhen",
+        "indexedValueSequencePlusAndSlice",
         "m9NamedAndDefaultArgumentsPreserveEvaluationOrder",
         "m9InheritedInterfaceAndInlineDefaults",
         "m9InnerInstancesAndNestedOuterChains",

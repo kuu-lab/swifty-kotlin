@@ -75,6 +75,17 @@ public fun String.dropLast(n: Int): String {
     checkCount(n)
     return __jvmSubstring(this, 0, if (n < this.length) this.length - n else 0)
 }
+public fun String.slice(indices: IntRange): String {
+    if (indices.isEmpty()) return ""
+    return __jvmSubstring(this, indices.start, indices.endInclusive + 1)
+}
+public fun CharSequence.slice(indices: Iterable<Int>): CharSequence {
+    val result = StringBuilder()
+    for (index in indices) {
+        result.append(this[index])
+    }
+    return result.toString()
+}
 public fun String.padStart(length: Int, padChar: Char = ' '): String {
     if (length < 0) throw IllegalArgumentException("Desired length $length is less than zero.")
     if (length <= this.length) return this
