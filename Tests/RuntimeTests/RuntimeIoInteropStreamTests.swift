@@ -136,7 +136,7 @@ struct RuntimeIoInteropStreamTests {
         let object = try #require(UnsafeMutableRawPointer(bitPattern: stream))
         let memory = try #require(tryCast(object, to: RuntimeInputStreamBox.self))
         #expect(memory.markSupported())
-        memory.mark(readLimit: 0)
+        memory.mark()
         #expect(memory.readByte() == 2 && memory.reset())
         source[1] = 8
         #expect(memory.readByte() == 8)
