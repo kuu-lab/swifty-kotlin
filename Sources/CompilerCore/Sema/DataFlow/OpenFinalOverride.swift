@@ -2219,9 +2219,7 @@ extension DataFlowSemaPhase {
                 guard child.fqName == sym.fqName + [child.name] else { continue }
                 guard !child.flags.contains(.extensionMemberAlias) else { continue }
                 guard isInheritedMember(child, from: sym) else { continue }
-                let isMatch = child.kind == .function
-                    || child.kind == .property
-                guard isMatch, child.name == memberName else {
+                guard child.kind == .function || child.kind == .property, child.name == memberName else {
                     continue
                 }
                 // Function overloads must be matched by their parameter types;
@@ -2234,13 +2232,11 @@ extension DataFlowSemaPhase {
                         continue
                     }
                 }
-                if isMatch {
-                    return OFOInheritedMember(
-                        memberID: childID,
-                        ownerName: sym.name,
-                        ownerIsInterface: sym.kind == .interface
-                    )
-                }
+                return OFOInheritedMember(
+                    memberID: childID,
+                    ownerName: sym.name,
+                    ownerIsInterface: sym.kind == .interface
+                )
             }
 
             queue.append(
