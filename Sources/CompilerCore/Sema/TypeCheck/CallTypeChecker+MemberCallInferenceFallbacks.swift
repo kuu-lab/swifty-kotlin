@@ -719,9 +719,7 @@ extension CallTypeChecker {
         receiverType: TypeID,
         sema: SemaModule,
         interner: StringInterner,
-        ctx: TypeInferenceContext,
-        locals: inout LocalBindings
-    ) -> TypeID {
+        ctx: TypeInferenceContext) -> TypeID {
         let directElementType = getCollectionElementType(receiverType, sema: sema, interner: interner)
         if directElementType != sema.types.anyType {
             return directElementType
@@ -766,9 +764,7 @@ extension CallTypeChecker {
     // migrated to source-backed Companion extensions.
     func numericCompanionConstant(
         typeName: String,
-        memberName: String,
-        sema: SemaModule
-    ) -> (TypeID, KIRExprKind)? {
+        memberName: String) -> (TypeID, KIRExprKind)? {
         switch (typeName, memberName) {
         default: return nil
         }

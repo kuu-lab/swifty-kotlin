@@ -41,10 +41,8 @@ extension CallTypeChecker {
 
     func tryInferRegularMemberCallPrimitiveSpecials(
         _ request: MemberCallInferenceRequest,
-        receiverType: TypeID,
         lookupReceiverType: TypeID,
         argTypes: [TypeID],
-        locals: inout LocalBindings,
         enforceInfixEligibility: Bool = true
     ) -> TypeID? {
         let id = request.id
