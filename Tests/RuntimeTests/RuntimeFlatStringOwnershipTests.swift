@@ -109,7 +109,7 @@ struct RuntimeFlatStringOwnershipTests {
     @Test func releaseOnLiteralBufferIsANoOp() {
         // A foreign pointer (not produced by the flat registry) must never be
         // released: literals are static memory the runtime does not own.
-        var literalBytes = Array("literal".utf8)
+        let literalBytes = Array("literal".utf8)
         let released = literalBytes.withUnsafeBufferPointer { buffer in
             kk_flat_string_release(buffer.baseAddress)
         }
