@@ -139,5 +139,95 @@ extension CompanionObjectTests {
         try runSema(ctx)
         #expect(ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0024" }.count == 2)
     }
+
+    /// KUU-3766: unqualified access to a `private` member declared on a
+    /// companion object's supertype must report the inaccessible member
+    /// (matching kotlinc's "cannot access ... it is private"), not an
+    /// unresolved reference or function.
+    @Test func testUnqualifiedInheritedPrivateCompanionMemberReportsInaccessible() throws {
+        let source = """
+        open class Base {
+            private fun hidden(): Int = 1
+            private var secret: Int = 2
+        }
+        class WithComp {
+            companion object : Base()
+            fun callHidden(): Int = hidden()
+            fun readSecret(): Int = secret
+            fun refHidden(): () -> Int = ::hidden
+            fun writeSecret() { secret = 5 }
+            class Inner {
+                fun nestedCall(): Int = hidden()
+            }
+        }
+        """
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+        #expect(
+            ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0040" }.count == 5,
+            "\(ctx.diagnostics.diagnostics)"
+        )
+        #expect(!ctx.diagnostics.diagnostics.contains {
+            ["KSWIFTK-SEMA-0013", "KSWIFTK-SEMA-0022", "KSWIFTK-SEMA-0023"].contains($0.code)
+        })
+    }
+
+    /// The same implicit-receiver hierarchy probe covers `private` members on
+    /// the class's own supertype, not only the companion's (KUU-3766).
+    @Test func testUnqualifiedPrivateSupertypeMemberReportsInaccessible() throws {
+        let source = """
+        open class Base {
+            private fun hidden(): Int = 1
+            private val secret: Int = 2
+        }
+        class Sub : Base() {
+            fun callHidden(): Int = hidden()
+            fun readSecret(): Int = secret
+        }
+        """
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+        #expect(
+            ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0040" }.count == 2,
+            "\(ctx.diagnostics.diagnostics)"
+        )
+        #expect(!ctx.diagnostics.diagnostics.contains {
+            ["KSWIFTK-SEMA-0022", "KSWIFTK-SEMA-0023"].contains($0.code)
+        })
+    }
+
+    /// A name absent from every implicit receiver hierarchy still reports the
+    /// unresolved-function diagnostic (KUU-3766).
+    @Test func testUnqualifiedTrulyMissingMemberStillReportsUnresolved() throws {
+        let source = """
+        open class Base {
+            private fun hidden(): Int = 1
+        }
+        class WithComp {
+            companion object : Base()
+            fun probe(): Int = missing()
+        }
+        """
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+        #expect(ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0023" }.count == 1)
+        #expect(!ctx.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-SEMA-0040" })
+    }
+
+    /// A `private` member declared on the companion itself (not a supertype)
+    /// remains accessible from the enclosing class (KUU-3766).
+    @Test func testCompanionOwnPrivateMemberStaysAccessible() throws {
+        let source = """
+        class WithComp {
+            companion object {
+                private fun hidden(): Int = 1
+            }
+            fun probe(): Int = hidden()
+        }
+        """
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+    }
 }
 #endif
