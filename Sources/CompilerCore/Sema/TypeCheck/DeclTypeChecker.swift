@@ -112,6 +112,9 @@ final class DeclTypeChecker {
 
         case let .expr(exprID, _):
             let type = driver.inferExpr(exprID, ctx: ctx, locals: &locals, expectedType: expectedType)
+            driver.recordGenericCallConsumer(
+                exprID, type: expectedType == ctx.sema.types.unitType ? nil : expectedType
+            )
             if !ctx.isPropertyGetterReturn, expectedType == ctx.sema.types.unitType,
                ctx.sema.types.makeNonNullable(type) == ctx.sema.types.unitType
             {

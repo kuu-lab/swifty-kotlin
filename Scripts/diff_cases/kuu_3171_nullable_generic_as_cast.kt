@@ -1,11 +1,14 @@
-// KUU-3171: an unchecked `as T` must be checked when a generic result is
-// claimed at a concrete nullable primitive or reference type.
+// KUU-3171 / KUU-3743: check an erased result at its consuming type.
 private fun <T> Any?.uncheckedCast(): T = this as T
 private fun <T> foo(): T = Any() as T
 
+private class Marker {
+    override fun toString(): String = "marker"
+}
+
 fun main() {
     try {
-        println(Any().uncheckedCast<Int?>())
+        println(Marker().uncheckedCast<Int?>())
     } catch (e: ClassCastException) {
         println("OK")
     }
