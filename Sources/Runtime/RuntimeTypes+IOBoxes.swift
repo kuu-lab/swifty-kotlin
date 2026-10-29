@@ -249,7 +249,6 @@ class RuntimeInputStreamBox: RuntimeChildReferenceProviding, RuntimeReaderInputS
     var readError: String? { nil }
     private let data: Data
     private let arrayRaw: Int?
-    private let begin: Int
     private let end: Int
     private var offset: Int
     private var markPosition: Int
@@ -259,7 +258,6 @@ class RuntimeInputStreamBox: RuntimeChildReferenceProviding, RuntimeReaderInputS
     init(data: Data, closeIsNoOp: Bool = false) {
         self.data = data
         self.arrayRaw = nil
-        self.begin = 0
         self.end = data.count
         self.closeIsNoOp = closeIsNoOp
         self.offset = 0
@@ -272,7 +270,6 @@ class RuntimeInputStreamBox: RuntimeChildReferenceProviding, RuntimeReaderInputS
     init(arrayRaw: Int, offset: Int, length: Int) {
         self.data = Data()
         self.arrayRaw = arrayRaw
-        self.begin = offset
         self.end = offset + length
         self.closeIsNoOp = true
         self.offset = offset
@@ -303,15 +300,6 @@ class RuntimeInputStreamBox: RuntimeChildReferenceProviding, RuntimeReaderInputS
         return bounded
     }
 
-    func read(into list: RuntimeListBox) -> Int {
-        guard !closed else { return -1 }
-        if offset >= end { return -1 }
-        let writableCount = min(list.count, available())
-        for index in 0..<writableCount { list[index] = Int(Int8(bitPattern: byte(at: offset + index))) }
-        offset += writableCount
-        return writableCount
-    }
-
     func readAllBytes() -> [Int] {
         guard !closed else { return [] }
         let values = (offset..<end).map { Int(Int8(bitPattern: byte(at: $0))) }
@@ -319,7 +307,7 @@ class RuntimeInputStreamBox: RuntimeChildReferenceProviding, RuntimeReaderInputS
         return values
     }
 
-    func mark(readLimit: Int) {
+    func mark() {
         if closeIsNoOp { markPosition = offset }
     }
     func markSupported() -> Bool { closeIsNoOp }
@@ -331,7 +319,6 @@ class RuntimeInputStreamBox: RuntimeChildReferenceProviding, RuntimeReaderInputS
     func close() {
         if !closeIsNoOp { closed = true }
     }
-    func drainRemaining() -> Data { Data(readAllBytes().map { UInt8(truncatingIfNeeded: $0) }) }
 }
 
 final class RuntimeSequenceInputStreamBox: RuntimeChildReferenceProviding, RuntimeReaderInputStream {
@@ -462,7 +449,6 @@ final class RuntimeFileHandleOutputStreamSink: RuntimeOutputStreamSink {
         try fileHandle.close()
     }
 
-    var underlyingFileHandle: FileHandle { fileHandle }
 }
 
 /// A Kotlin throwable rethrown through the Swift `Error` channel by a
@@ -595,19 +581,6 @@ final class RuntimeOutputStreamBox: RuntimeChildReferenceProviding {
 
     var byteArraySink: RuntimeByteArrayOutputStreamSink? { sink as? RuntimeByteArrayOutputStreamSink }
 
-    var underlyingFileHandle: FileHandle? {
-        (sink as? RuntimeFileHandleOutputStreamSink)?.underlyingFileHandle
-    }
-
-    /// Returns `nil` when the sink is not file-handle backed (e.g. an encoding
-    /// stream).  STDLIB-IO-FN-009.
-    func makeBufferedWriter(encoding: String.Encoding) -> RuntimeBufferedWriterBox? {
-        guard let fileHandle = underlyingFileHandle else {
-            return nil
-        }
-        let writer = RuntimeBufferedWriterBox(fileHandle: fileHandle, encoding: encoding)
-        return writer
-    }
 }
 
 protocol RuntimeJavaWriter: AnyObject {
