@@ -1,5 +1,4 @@
 import Foundation
-import RuntimeABI
 
 @_cdecl("kk_object_new")
 public func kk_object_new(_ length: Int, _ classId: Int) -> Int {

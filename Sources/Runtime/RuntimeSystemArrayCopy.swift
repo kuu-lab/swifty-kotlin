@@ -1,4 +1,3 @@
-import RuntimeABI
 
 // The backend declares every runtime extern as returning i64, so a Unit external
 // must return a word (0) like the other Unit externals instead of C `void`.

@@ -1,4 +1,3 @@
-import RuntimeABI
 import CompilerCore
 
 extension NativeEmitter.FunctionEmissionContext {

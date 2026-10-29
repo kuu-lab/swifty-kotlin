@@ -32,7 +32,6 @@ enum WasmExternalKind: UInt8 {
 
 enum WasmOpcode {
     static let unreachable: UInt8 = 0x00
-    static let nop: UInt8 = 0x01
     static let block: UInt8 = 0x02
     static let loop: UInt8 = 0x03
     static let `if`: UInt8 = 0x04
@@ -49,12 +48,9 @@ enum WasmOpcode {
     static let localTee: UInt8 = 0x22
     static let globalGet: UInt8 = 0x23
     static let globalSet: UInt8 = 0x24
-    static let i32Load: UInt8 = 0x28
     static let i64Load: UInt8 = 0x29
     static let i32Store: UInt8 = 0x36
     static let i64Store: UInt8 = 0x37
-    static let memorySize: UInt8 = 0x3F
-    static let memoryGrow: UInt8 = 0x40
     static let i32Const: UInt8 = 0x41
     static let i64Const: UInt8 = 0x42
     static let i32Eqz: UInt8 = 0x45
@@ -99,16 +95,11 @@ enum WasmOpcode {
     static let f32Le: UInt8 = 0x5F
     static let f32Ge: UInt8 = 0x60
     static let f32Trunc: UInt8 = 0x8F
-    static let f32Ceil: UInt8 = 0x8D
     static let f32Floor: UInt8 = 0x8E
-    static let f32Nearest: UInt8 = 0x90
-    static let f32Sqrt: UInt8 = 0x91
     static let f32Add: UInt8 = 0x92
     static let f32Sub: UInt8 = 0x93
     static let f32Mul: UInt8 = 0x94
     static let f32Div: UInt8 = 0x95
-    static let f32Min: UInt8 = 0x96
-    static let f32Max: UInt8 = 0x97
     static let f32Copysign: UInt8 = 0x98
     // f64 comparisons / arithmetic.
     static let f64Eq: UInt8 = 0x61
@@ -118,16 +109,11 @@ enum WasmOpcode {
     static let f64Le: UInt8 = 0x65
     static let f64Ge: UInt8 = 0x66
     static let f64Trunc: UInt8 = 0x9D
-    static let f64Ceil: UInt8 = 0x9B
     static let f64Floor: UInt8 = 0x9C
-    static let f64Nearest: UInt8 = 0x9E
-    static let f64Sqrt: UInt8 = 0x9F
     static let f64Add: UInt8 = 0xA0
     static let f64Sub: UInt8 = 0xA1
     static let f64Mul: UInt8 = 0xA2
     static let f64Div: UInt8 = 0xA3
-    static let f64Min: UInt8 = 0xA4
-    static let f64Max: UInt8 = 0xA5
     static let f64Copysign: UInt8 = 0xA6
     // Numeric conversions.
     static let f32ConvertI32S: UInt8 = 0xB2
@@ -146,13 +132,9 @@ enum WasmOpcode {
     /// `WasmCode.truncSat(_:)`.
     static let truncSatPrefix: UInt8 = 0xFC
     static let i32TruncSatF32S: UInt64 = 0x00
-    static let i32TruncSatF32U: UInt64 = 0x01
     static let i32TruncSatF64S: UInt64 = 0x02
-    static let i32TruncSatF64U: UInt64 = 0x03
     static let i64TruncSatF32S: UInt64 = 0x04
-    static let i64TruncSatF32U: UInt64 = 0x05
     static let i64TruncSatF64S: UInt64 = 0x06
-    static let i64TruncSatF64U: UInt64 = 0x07
     static let blockVoid: UInt8 = 0x40
 }
 

@@ -1,8 +1,8 @@
 extension TypeSystem {
-    /// Finds a function-type view of a value through its intersection or
-    /// declared type-parameter bounds when that view can satisfy `target`.
-    /// SAM conversion uses this for values whose static type is an intersection
-    /// type parameter rather than a function type itself.
+    /// Finds a function-type view through intersections, type-parameter bounds,
+    /// or a nominal FunctionN supertype when that view can satisfy `target`.
+    /// SAM conversion uses this when the value's static type is not itself a
+    /// function type.
     func functionTypeWitness(from source: TypeID, compatibleWith target: TypeID) -> TypeID? {
         var visitedParameters: Set<SymbolID> = []
 
@@ -29,6 +29,29 @@ extension TypeSystem {
                     }
                 }
                 return nil
+
+            case let .classType(classType):
+                guard case let .functionType(targetFunction) = kind(of: target) else {
+                    return nil
+                }
+                let arity = targetFunction.contextReceivers.count
+                    + (targetFunction.receiver == nil ? 0 : 1)
+                    + targetFunction.params.count
+                let sourceFunction = nominalFunctionType(for: candidate)
+                    ?? inheritedFunctionInterfaceClassType(
+                        of: classType,
+                        arity: arity,
+                        isSuspend: targetFunction.isSuspend
+                    ).flatMap { inherited in
+                        nominalFunctionType(for: make(.classType(inherited)))
+                    }
+                guard let sourceFunction else { return nil }
+                let sourceFunctionType = make(.functionType(sourceFunction))
+                let converted = functionArgumentConversionType(
+                    from: sourceFunctionType,
+                    to: target
+                ) ?? sourceFunctionType
+                return isSubtype(converted, target) ? sourceFunctionType : nil
 
             default:
                 return nil

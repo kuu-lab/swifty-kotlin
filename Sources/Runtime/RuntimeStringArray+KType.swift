@@ -1,5 +1,4 @@
 import Foundation
-import RuntimeABI
 
 // Source-backed KType properties are dispatched through the interface itable.
 // Runtime-created KType boxes therefore register the same alphabetically sorted

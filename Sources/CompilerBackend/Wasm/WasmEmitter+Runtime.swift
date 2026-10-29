@@ -318,17 +318,6 @@ enum WasmRuntimeHelpers {
         }
     }
 
-    /// MVP representation is uniform raw i64 — boxing is the identity for
-    /// everything the boxHelperName/unboxHelperName tables don't cover.
-    private static func emitTaggedBox(code: inout WasmCode, scratch: Int) {
-        _ = scratch
-    }
-
-    /// Identity for the same reason as `emitTaggedBox`.
-    private static func emitTaggedUnbox(code: inout WasmCode, scratch: Int) {
-        _ = scratch
-    }
-
     private static let arithmeticOpcodes: [String: UInt8] = [
         "kk_op_add": WasmOpcode.i64Add,
         "kk_op_sub": WasmOpcode.i64Sub,
