@@ -645,20 +645,21 @@ public final class KIRModule {
     }
 
     public func dump(interner: StringInterner, symbols: SymbolTable?) -> String {
+        let names = KIRDumpNames(interner)
         var lines: [String] = []
         for (index, decl) in arena.declarations.enumerated() {
             switch decl {
             case let .function(function):
-                let name = interner.resolve(function.name)
+                let name = names.resolve(function.name)
                 lines.append("decl[\(index)] function #\(function.symbol.rawValue) \(name) params=\(function.params.count) suspend=\(function.isSuspend) inline=\(function.isInline)")
                 for instruction in function.body {
-                    lines.append("  \(instructionDescription(instruction, interner: interner, arena: arena, symbols: symbols))")
+                    lines.append("  \(instructionDescription(instruction, names: names, arena: arena, symbols: symbols))")
                 }
             case .global:
                 lines.append("decl[\(index)] global")
             case let .nominalType(nominal):
                 if let symbol = symbols?.symbol(nominal.symbol) {
-                    let name = interner.resolve(symbol.name)
+                    let name = names.resolve(symbol.name)
                     lines.append("decl[\(index)] type \(name)")
                 } else {
                     lines.append("decl[\(index)] type")
@@ -673,7 +674,7 @@ public final class KIRModule {
 
     private func instructionDescription(
         _ instruction: KIRInstruction,
-        interner: StringInterner,
+        names: KIRDumpNames,
         arena _: KIRArena,
         symbols: SymbolTable?
     ) -> String {
@@ -691,7 +692,7 @@ public final class KIRModule {
         case let .jumpIfEqual(lhs, rhs, target):
             return "jumpIfEqual r\(lhs.rawValue), r\(rhs.rawValue) -> L\(target)"
         case let .constValue(result, value):
-            return "const r\(result.rawValue)=\(valueDescription(value, interner: interner))"
+            return "const r\(result.rawValue)=\(valueDescription(value, names: names))"
         case let .binary(op, lhs, rhs, result):
             return "binary \(op.dumpName) r\(lhs.rawValue), r\(rhs.rawValue) -> r\(result.rawValue)"
         case let .unary(op, operand, result):
@@ -699,10 +700,10 @@ public final class KIRModule {
         case let .nullAssert(operand, result):
             return "nullAssert r\(operand.rawValue) -> r\(result.rawValue)"
         case let .call(symbol, callee, arguments, result, canThrow, thrownResult, isSuperCall, qualifiedSuperType):
-            let calleeName = interner.resolve(callee)
+            let calleeName = names.resolve(callee)
             let args = arguments.map { "r\($0.rawValue)" }.joined(separator: ", ")
             let symbolLabel: String = if let symbol, let sym = symbols?.symbol(symbol) {
-                interner.resolve(sym.name)
+                names.resolve(sym.name)
             } else {
                 "_"
             }
@@ -712,10 +713,10 @@ public final class KIRModule {
             let qualifiedSuperTag = qualifiedSuperType.map { " qualifiedSuper=\($0.rawValue)" } ?? ""
             return "call \(calleeName) symbol=\(symbolLabel) args=[\(args)] ret=\(ret) thrown=\(canThrow) thrownResult=\(thrownRet)\(superTag)\(qualifiedSuperTag)"
         case let .virtualCall(symbol, callee, receiver, arguments, result, canThrow, thrownResult, dispatch):
-            let calleeName = interner.resolve(callee)
+            let calleeName = names.resolve(callee)
             let args = arguments.map { "r\($0.rawValue)" }.joined(separator: ", ")
             let symbolLabel: String = if let symbol, let sym = symbols?.symbol(symbol) {
-                interner.resolve(sym.name)
+                names.resolve(sym.name)
             } else {
                 "_"
             }
@@ -773,7 +774,7 @@ public final class KIRModule {
     /// these payloads, so the dump keeps its format without a Mirror walk per
     /// constant. Floating-point payloads were printed through their debug
     /// representation, which `String(reflecting:)` reproduces.
-    private func valueDescription(_ value: KIRExprKind, interner: StringInterner) -> String {
+    private func valueDescription(_ value: KIRExprKind, names: KIRDumpNames) -> String {
         switch value {
         case let .intLiteral(literal):
             return "intLiteral(\(literal))"
@@ -792,11 +793,11 @@ public final class KIRModule {
         case let .boolLiteral(literal):
             return "boolLiteral(\(literal))"
         case let .stringLiteral(interned):
-            return "stringLiteral(\"\(interner.resolve(interned))\")"
+            return "stringLiteral(\"\(names.resolve(interned))\")"
         case let .symbolRef(symbol):
             return "symbolRef(\(symbol.dumpDescription))"
         case let .externSymbolAddress(interned):
-            return "externSymbolAddress(\"\(interner.resolve(interned))\")"
+            return "externSymbolAddress(\"\(names.resolve(interned))\")"
         case let .temporary(index):
             return "temporary(\(index))"
         case .null:
@@ -804,6 +805,26 @@ public final class KIRModule {
         case .unit:
             return "unit"
         }
+    }
+}
+
+/// Lock-free name lookups for one dump. `StringInterner.resolve` takes the
+/// interner lock on every call, and a dump resolves each callee and symbol
+/// name it prints; the snapshot is copy-on-write, so taking it is O(1).
+struct KIRDumpNames {
+    private let values: [String]
+
+    init(_ interner: StringInterner) {
+        values = interner.snapshotValues()
+    }
+
+    /// Mirrors `StringInterner.resolve`, including "" for unknown ids.
+    func resolve(_ id: InternedString) -> String {
+        let index = Int(id.rawValue)
+        guard index >= 0, index < values.count else {
+            return ""
+        }
+        return values[index]
     }
 }
 
