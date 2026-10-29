@@ -228,6 +228,58 @@ extension ValueClassUnboxingTests {
         )
     }
 
+    /// kotlinc rejects `@JvmInline value class` with more than one primary
+    /// constructor parameter ("value class must have exactly one primary
+    /// constructor parameter"). Previously the declaration was silently
+    /// lowered to a regular class (the MFVC path), accepting code kotlinc
+    /// rejects.
+    @Test
+    func testJvmInlineValueClassWithTwoParamsEmitsDiagnostic() throws {
+        let source = """
+        @JvmInline value class V(val x: Int, val y: Int)
+        """
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(
+            errors.contains(where: { $0.message.contains("exactly one primary constructor parameter") }),
+            "@JvmInline value class with two params should emit a single-property diagnostic"
+        )
+    }
+
+    @Test
+    func testNestedJvmInlineValueClassWithTwoParamsEmitsDiagnostic() throws {
+        let source = """
+        class Outer {
+            @JvmInline value class V(val x: Int, val y: Int)
+        }
+        """
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(
+            errors.contains(where: { $0.message.contains("exactly one primary constructor parameter") }),
+            "nested @JvmInline value class with two params should emit a single-property diagnostic"
+        )
+    }
+
+    @Test
+    func testJvmInlineValueClassWithOneParamIsAccepted() throws {
+        let source = """
+        @JvmInline value class V(val x: Int)
+        """
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(
+            !errors.contains(where: { $0.message.contains("primary constructor parameter") }),
+            "single-param @JvmInline value class must not hit the arity diagnostic, got: \(errors)"
+        )
+    }
+
     // MARK: - Upcast / boxing transition: stored as supertype
 
     @Test

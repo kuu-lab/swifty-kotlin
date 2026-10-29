@@ -612,6 +612,7 @@ extension CallLowerer {
             ?? sema.types.anyType
         return lowerStoredMemberPropertyReadValue(
             propertySymbol: propertySymbol,
+            callExprID: exprID,
             receiverExpr: receiverExpr,
             loweredReceiverID: loweredReceiverID,
             resultType: readResultType,
@@ -645,6 +646,21 @@ extension CallLowerer {
         propertyConstantInitializers: [SymbolID: KIRExprKind],
         instructions: inout [KIRInstruction]
     ) -> KIRExprID? {
+        // KUU-3670: a property whose declared type erases to a non-reified
+        // type parameter crosses the read boundary in its raw erased
+        // representation (a heap handle), not the claim site's substituted
+        // representation. Materializing `val s: T` directly into a `String`
+        // result would reinterpret a foreign object before the boundary
+        // checkcast emitted by `checkedErasedGenericCallResult` can reject
+        // it, so the read produces the erased slot type and the claim-side
+        // cast performs the conversion.
+        let resultType: TypeID = if let declaredType = sema.symbols.propertyType(for: propertySymbol),
+                                    kirIsNonReifiedErasedABIType(declaredType, sema: sema)
+        {
+            sema.types.nullableAnyType
+        } else {
+            resultType
+        }
         let isSuperQualifiedReceiver: Bool
         if let isSuperQualifiedReceiverOverride {
             isSuperQualifiedReceiver = isSuperQualifiedReceiverOverride
@@ -653,20 +669,40 @@ extension CallLowerer {
         } else {
             isSuperQualifiedReceiver = false
         }
+        let isCheckedPropertyReadExpression: Bool = if let callExprID,
+                                                        !ast.arena.isExplicitCall(callExprID),
+                                                        case let .memberCall(_, _, _, args, _) = ast.arena.expr(callExprID)
+        {
+            args.isEmpty
+        } else {
+            false
+        }
+        let propertyCallResultType: TypeID = if isCheckedPropertyReadExpression,
+                                                let callExprID,
+                                                kirShouldCheckErasedGenericCallResult(
+                                                    exprID: callExprID,
+                                                    boundType: resultType,
+                                                    sema: sema
+                                                )
+        {
+            sema.types.nullableAnyType
+        } else {
+            resultType
+        }
         if !isSuperQualifiedReceiver, let result = tryLowerCoroutineElementKeyRead(
             propertySymbol: propertySymbol, loweredReceiverID: loweredReceiverID,
-            resultType: resultType, arena: arena, sema: sema, interner: interner,
+            resultType: propertyCallResultType, arena: arena, sema: sema, interner: interner,
             instructions: &instructions
         ) { return result }
         if let result = tryLowerCoroutineScopeContextRead(
             propertySymbol: propertySymbol, loweredReceiverID: loweredReceiverID,
-            resultType: resultType, arena: arena, sema: sema, interner: interner,
+            resultType: propertyCallResultType, arena: arena, sema: sema, interner: interner,
             instructions: &instructions
         ) { return result }
         if sema.symbols.extensionPropertyReceiverType(for: propertySymbol) != nil,
            let getter = sema.symbols.extensionPropertyGetterAccessor(for: propertySymbol)
         {
-            let result = arena.appendTemporary(type: resultType)
+            let result = arena.appendTemporary(type: propertyCallResultType)
             if !isSuperQualifiedReceiver,
                !kirIsRuntimeBridgedCallee(getter, sema: sema),
                let owner = sema.symbols.parentSymbol(for: propertySymbol),
@@ -728,7 +764,7 @@ extension CallLowerer {
                 propertySymbol: propertySymbol,
                 receiverExpr: receiverExpr,
                 loweredReceiverID: loweredReceiverID,
-                resultType: resultType,
+                resultType: propertyCallResultType,
                 ast: ast,
                 sema: sema,
                 arena: arena,
@@ -748,7 +784,7 @@ extension CallLowerer {
                for: propertySymbol, sema: sema, interner: interner
            )
         {
-            let result = arena.appendTemporary(type: resultType)
+            let result = arena.appendTemporary(type: propertyCallResultType)
             instructions.append(.call(callee: getterPlaceholder, arguments: [loweredReceiverID], result: result, canThrow: false))
             return result
         }
@@ -820,6 +856,35 @@ extension CallLowerer {
             return nil
         }
 
+        // An enum-typed receiver is still a raw ordinal here. If an entry
+        // body overrides this property, route through its ordinal dispatcher
+        // before attempting the interface itable on that scalar value.
+        if !isSuperQualifiedReceiver,
+           let (_, receiverClassSymbol) = resolveClassTypeSymbol(
+               sema.types.makeNonNullable(receiverType), sema: sema
+           ),
+           receiverClassSymbol.kind == .enumClass
+        {
+            let getter = sema.symbols.extensionPropertyGetterAccessor(for: propertySymbol)
+                ?? SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: propertySymbol)
+            if let dispatch = kirEnumEntryDispatchHelper(
+                for: getter,
+                in: receiverClassSymbol.id,
+                sema: sema,
+                interner: interner
+            ), let dispatchInfo = sema.symbols.symbol(dispatch) {
+                let result = arena.appendTemporary(type: resultType)
+                instructions.append(.call(
+                    symbol: dispatch,
+                    callee: dispatchInfo.name,
+                    arguments: [loweredReceiverID],
+                    result: result,
+                    canThrow: true
+                ))
+                return result
+            }
+        }
+
         // KSP-928: an abstract/open class property is a getter dispatch point,
         // not an instance field or a direct abstract getter stub. In
         // particular, AbstractMap's skeletal methods must observe a concrete
@@ -862,7 +927,7 @@ extension CallLowerer {
         {
             let slot = arena.appendExpr(.intLiteral(Int64(getterSlot)), type: sema.types.intType)
             instructions.append(.constValue(result: slot, value: .intLiteral(Int64(getterSlot))))
-            let result = arena.appendTemporary(type: resultType)
+            let result = arena.appendTemporary(type: propertyCallResultType)
             instructions.append(.call(
                 callee: interner.intern("__kk_dispatcher_immediate"),
                 arguments: [loweredReceiverID, slot], result: result,
@@ -885,7 +950,7 @@ extension CallLowerer {
         {
             let getterSymbol = sema.symbols.extensionPropertyGetterAccessor(for: propertySymbol)
                 ?? SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: propertySymbol)
-            let result = arena.appendTemporary(type: resultType)
+            let result = arena.appendTemporary(type: propertyCallResultType)
             appendVirtualPropertyGetterCall(
                 getterSymbol: getterSymbol,
                 getterSlot: getterSlot,
@@ -916,7 +981,7 @@ extension CallLowerer {
                 sema: sema,
                 interner: interner
             ) {
-                let result = arena.appendTemporary(type: resultType)
+                let result = arena.appendTemporary(type: propertyCallResultType)
                 let virtualAccessorArguments = propertyAccessorArguments(
                     for: accessorSymbol, arguments: [loweredReceiverID], callExprID: nil,
                     bindingOverride: callBindingOverride,
@@ -941,7 +1006,7 @@ extension CallLowerer {
             // itable path below.
             let getterUsesRuntimeBridge = kirIsRuntimeBridgedCallee(getterSymbol, sema: sema)
             if isSuperQualifiedReceiver || ownerInfo.kind != .interface || getterUsesRuntimeBridge {
-                let result = arena.appendTemporary(type: resultType)
+                let result = arena.appendTemporary(type: propertyCallResultType)
                 appendPropertyGetterCall(
                     getterSymbol: getterSymbol,
                     receiver: loweredReceiverID,
@@ -961,7 +1026,7 @@ extension CallLowerer {
             return tryLowerInterfaceItablePropertyGetterRead(
                 propertySymbol: propertySymbol,
                 loweredReceiverID: loweredReceiverID,
-                resultType: resultType,
+                resultType: propertyCallResultType,
                 sema: sema,
                 arena: arena,
                 interner: interner,
@@ -979,13 +1044,13 @@ extension CallLowerer {
                 // resolves the class-level stub. Preserve the property symbol
                 // so EnumEntriesLoweringPass routes it to `entries$get`
                 // (KUU-3544).
-                let result = arena.appendExpr(.symbolRef(propertySymbol), type: resultType)
+                let result = arena.appendExpr(.symbolRef(propertySymbol), type: propertyCallResultType)
                 instructions.append(.constValue(result: result, value: .symbolRef(propertySymbol)))
                 return result
             }
             let propertyName = propertyInfo.name
             let helperName = interner.intern("$enumConstructorProperty$\(ownerSymbol.rawValue)$\(interner.resolve(propertyName))")
-            let result = arena.appendTemporary(type: resultType)
+            let result = arena.appendTemporary(type: propertyCallResultType)
             instructions.append(.call(callee: helperName, arguments: [loweredReceiverID], result: result, canThrow: false))
             return result
         }
@@ -1003,7 +1068,7 @@ extension CallLowerer {
             sema: sema,
             interner: interner
         ) {
-            let result = arena.appendTemporary(type: resultType)
+            let result = arena.appendTemporary(type: propertyCallResultType)
             let virtualAccessorArguments = propertyAccessorArguments(
                 for: accessorSymbol, arguments: [loweredReceiverID], callExprID: nil,
                 bindingOverride: callBindingOverride,
@@ -1030,7 +1095,7 @@ extension CallLowerer {
         let offsetExpr = arena.appendExpr(.intLiteral(Int64(fieldOffset)), type: sema.types.intType)
         instructions.append(.constValue(result: offsetExpr, value: .intLiteral(Int64(fieldOffset))))
 
-        let result = arena.appendTemporary(type: resultType)
+        let result = arena.appendTemporary(type: propertyCallResultType)
         instructions.append(.call(
             callee: interner.intern("kk_array_get_inbounds"),
             arguments: [loweredReceiverID, offsetExpr],

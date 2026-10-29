@@ -155,9 +155,7 @@ final class InlineLoweringPass: LoweringPass {
         ctx: KIRContext,
         unitType: TypeID?,
         pending: [Int: InlinePendingCall],
-        budget: InlineExpansionBudget,
-        preserveNonLocalReturns: Bool = false
-    ) -> (body: [KIRInstruction], locations: [SourceRange?], didExpand: Bool, pending: [Int: InlinePendingCall]) {
+        budget: InlineExpansionBudget) -> (body: [KIRInstruction], locations: [SourceRange?], didExpand: Bool, pending: [Int: InlinePendingCall]) {
         // Every label this round introduces into the caller comes from here,
         // starting above the labels the caller body already uses.
         var labels = InlineLabelAllocator(callerBody: callerBody)
@@ -268,7 +266,6 @@ final class InlineLoweringPass: LoweringPass {
                     lambdaFunction: lambdaFunction,
                     arguments: fullArgs,
                     module: module,
-                    allFunctionsBySymbol: index.allFunctionsBySymbol,
                     ctx: ctx,
                     labels: &labels,
                     expansionBudget: budget,

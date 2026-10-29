@@ -1,4 +1,3 @@
-import RuntimeABI
 
 struct RangeLookupNames {
     // Range iterator names (emitted by ForLoweringPass)
@@ -45,7 +44,6 @@ struct RangeLookupNames {
     let kkRangeDropName: InternedString
     let kkRangeAverageName: InternedString
     let kkRangeSortedName: InternedString
-    let kkOpContainsName: InternedString
     let kkBoxCharName: InternedString
     let kkCharRangeToListName: InternedString
     let kkCharRangeForEachName: InternedString
@@ -98,7 +96,6 @@ struct RangeLookupNames {
         kkRangeDropName = interner.intern("__kk_range_drop")
         kkRangeAverageName = interner.intern("__kk_range_average")
         kkRangeSortedName = interner.intern("__kk_range_sorted")
-        kkOpContainsName = interner.intern("kk_op_contains")
         kkBoxCharName = ABILoweringPass.primitiveBoxingCallee(for: .char, interner: interner)
         kkCharRangeToListName = interner.intern("__kk_char_range_toList")
         kkCharRangeForEachName = interner.intern("__kk_char_range_forEach")

@@ -3,7 +3,6 @@
 @testable import CompilerTestSupport
 import Foundation
 import Testing
-import TestStdlibCache
 
 extension StdlibArtifactRegressionTests {
     @Test(arguments: [false, true], [0, 2])

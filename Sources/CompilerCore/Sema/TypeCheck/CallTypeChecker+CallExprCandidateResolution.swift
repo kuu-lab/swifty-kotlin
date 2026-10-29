@@ -11,6 +11,7 @@ extension CallTypeChecker {
             + ctx.implicitReceiverStack.map(\.type)
             + ctx.outerReceiverTypes.map(\.type)
             + (ctx.implicitReceiverType.map { [$0] } ?? [])
+            + ctx.implicitReceiverMemberLookupEntries().map(\.type)
         return candidates.filter { candidate in
             guard let signature = sema.symbols.functionSignature(for: candidate) else {
                 return true
@@ -49,6 +50,7 @@ extension CallTypeChecker {
             + ctx.implicitReceiverStack.map(\.type)
             + ctx.outerReceiverTypes.map(\.type)
             + (ctx.implicitReceiverType.map { [$0] } ?? [])
+            + ctx.implicitReceiverMemberLookupEntries().map(\.type)
         return candidates.compactMap { candidate -> TypeID? in
             guard let signature = sema.symbols.functionSignature(for: candidate),
                   let explicitlyProvided = ctx.resolver.explicitContextParameterArgumentMapping(
@@ -811,6 +813,9 @@ extension CallTypeChecker {
         }
         candidates.append(contentsOf: ctx.implicitReceiverStack.reversed())
         candidates.append(contentsOf: ctx.outerReceiverTypes.reversed().compactMap { receiver in
+            receiver.symbol.map { (type: receiver.type, symbol: $0) }
+        })
+        candidates.append(contentsOf: ctx.implicitReceiverMemberLookupEntries().compactMap { receiver in
             receiver.symbol.map { (type: receiver.type, symbol: $0) }
         })
 

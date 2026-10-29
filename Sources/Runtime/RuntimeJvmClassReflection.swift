@@ -1,6 +1,4 @@
-import RuntimeABI
 
-private let runtimeJavaClassTypeID = runtimeStableNominalTypeID(fqName: "java.lang.Class")
 
 @_cdecl("__kk_class_get_name")
 public func __kk_class_get_name(_ classRaw: Int) -> Int {

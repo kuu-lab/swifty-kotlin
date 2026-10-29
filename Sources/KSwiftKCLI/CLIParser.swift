@@ -12,6 +12,8 @@ enum CLIParseError: Error, Equatable {
     case unknownOption(String)
     case noInputFiles
     case incompatibleStdlibOptions(String)
+    case incompatibleJVMTargetOptions(String)
+    case unsupportedJVMTarget(String)
     case stdlibOnlyRequiresLibraryEmit
     case unsupportedStdlibProfile(String)
     case runRequiresExecutableEmit
@@ -31,6 +33,7 @@ enum CLIParser {
       -l <name>              Link library
       --target <triple>      Target triple (arch-vendor-os[-version])
       --classpath <paths>    JVM JAR/class directories, separated by ':' (also -cp)
+      -jvm-target <version>  JVM bytecode target (1.8, 9–26; default 1.8)
       -Xfrontend <flag>      Frontend feature flag (e.g. time-phases, incremental-stats,
                              common-module)
       --incremental         Enable incremental compilation (default: on for native
@@ -95,6 +98,8 @@ enum CLIParser {
         var explicitIncludeStdlib: Bool? = nil
         var target = TargetTriple.hostDefault()
         var jvmClasspath: [String] = []
+        var jvmTarget = JVMTarget.java8
+        var explicitJVMTarget = false
         var runImmediately = false
 
         if args.isEmpty {
@@ -119,6 +124,21 @@ enum CLIParser {
                 let paths = try requireValue(option: arg, args: args, index: &index)
                 guard !paths.isEmpty, !paths.hasPrefix("-") else { throw CLIParseError.missingValue(arg) }
                 jvmClasspath += paths.split(separator: ":", omittingEmptySubsequences: false).map { $0.isEmpty ? "." : String($0) }
+            case "-jvm-target":
+                let value = try requireValue(option: arg, args: args, index: &index)
+                guard !value.hasPrefix("-") else { throw CLIParseError.missingValue(arg) }
+                guard let parsed = JVMTarget(rawValue: value) else {
+                    throw CLIParseError.unsupportedJVMTarget(value)
+                }
+                jvmTarget = parsed
+                explicitJVMTarget = true
+            case _ where arg.hasPrefix("-jvm-target="):
+                let value = String(arg.dropFirst("-jvm-target=".count))
+                guard let parsed = JVMTarget(rawValue: value) else {
+                    throw CLIParseError.unsupportedJVMTarget(value)
+                }
+                jvmTarget = parsed
+                explicitJVMTarget = true
             case "--emit":
                 let value = try requireValue(option: arg, args: args, index: &index)
                 guard let mode = parseEmitMode(value) else {
@@ -283,6 +303,9 @@ enum CLIParser {
         if !emitMode.isJVM, !jvmClasspath.isEmpty {
             throw CLIParseError.incompatibleStdlibOptions("--classpath requires --emit class or jar")
         }
+        if explicitJVMTarget, !emitMode.isJVM {
+            throw CLIParseError.incompatibleJVMTargetOptions("-jvm-target requires --emit class or jar")
+        }
 
         return CompilerOptions(
             moduleName: moduleName,
@@ -307,6 +330,7 @@ enum CLIParser {
             allowDefaultStdlibLibrary: allowDefaultStdlibLibrary,
             entryPointFQName: entryPointFQName,
             jvmClasspath: jvmClasspath,
+            jvmTarget: jvmTarget,
             stdlibProfile: stdlibProfile
         )
     }

@@ -21,24 +21,9 @@ struct JVMAssembler {
         fixups.append((offset, label))
     }
     mutating func branch(_ opcode: UInt8, to label: Int) throws {
-        let inverse: UInt8
-        switch opcode {
-        case 0x99: inverse = 0x9A
-        case 0x9A: inverse = 0x99
-        case 0x9B: inverse = 0x9C
-        case 0x9C: inverse = 0x9B
-        case 0x9D: inverse = 0x9E
-        case 0x9E: inverse = 0x9D
-        case 0x9F: inverse = 0xA0
-        case 0xA0: inverse = 0x9F
-        case 0xA1: inverse = 0xA2
-        case 0xA2: inverse = 0xA1
-        case 0xA3: inverse = 0xA4
-        case 0xA4: inverse = 0xA3
-        case 0xA5: inverse = 0xA6
-        case 0xA6: inverse = 0xA5
-        default: throw JVMEmissionError.limit("Unsupported JVM conditional opcode.")
-        }
+        // if<cond> opcodes 0x99...0xA6 come in complementary pairs (ifeq/ifne, iflt/ifge, ...).
+        guard (0x99...0xA6).contains(opcode) else { throw JVMEmissionError.limit("Unsupported JVM conditional opcode.") }
+        let inverse: UInt8 = opcode & 1 == 1 ? opcode + 1 : opcode - 1
         code.u1(inverse); code.u2(8); jump(label)
         let skip = freshLabel(); mark(skip)
     }

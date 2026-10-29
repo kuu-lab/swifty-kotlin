@@ -720,7 +720,8 @@ final class DataFlowSemaPhase: CompilerPhase {
                 bindings: bindings,
                 diagnostics: ctx.diagnostics,
                 interner: ctx.interner,
-                sourceManager: ctx.sourceManager
+                sourceManager: ctx.sourceManager,
+                jvmTarget: ctx.options.emit.isJVM ? ctx.options.jvmTarget : nil
             )
         }
         withSubPhaseTiming("validateJsExportDeclarations", timer: ctx.phaseTimer) {

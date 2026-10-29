@@ -3,7 +3,6 @@
 @testable import CompilerTestSupport
 import Foundation
 import Testing
-import TestStdlibCache
 
 extension StdlibArtifactRegressionTests {
     /// KUU-3066: Java locale and calendar APIs must work through a fresh bundled stdlib artifact.

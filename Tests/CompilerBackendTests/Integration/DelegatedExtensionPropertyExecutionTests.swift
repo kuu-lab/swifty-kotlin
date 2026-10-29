@@ -1,4 +1,3 @@
-@testable import CompilerTestSupport
 import Testing
 
 @Suite(.serialized)
