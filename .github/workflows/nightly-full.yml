@@ -73,7 +73,6 @@ jobs:
         run: bash Scripts/run_candidate_only.sh Scripts/diff_cases/array_max_by.kt
       - name: Verify candidate-only diff cases
         env:
-          KSWIFTK_STDLIB_LIBRARY: ${{ github.workspace }}/.artifacts/candidate_only/KSwiftKStdlib.kklib
           DIFF_KSWIFTC_FLAGS: "--no-incremental"
         run: bash Scripts/run_candidate_only.sh Scripts/diff_cases
       - name: Package debug test bundle
@@ -662,7 +661,6 @@ jobs:
       - name: Run candidate-only Kotlin cases
         if: matrix.shard_index == 0 && matrix.optimization == 'O0'
         env:
-          KSWIFTK_STDLIB_LIBRARY: ${{ runner.temp }}/diff_kotlinc_artifacts/KSwiftKStdlib.kklib
           DIFF_KSWIFTC_FLAGS: "--no-incremental"
         run: |
           bash Scripts/run_candidate_only.sh \

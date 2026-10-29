@@ -461,7 +461,6 @@ extension ExprTypeChecker {
         typeCheckLocalNominalMemberProperties(
             objectDecl.memberProperties,
             propertySymbolsByDecl: propertySymbolsByDecl,
-            memberScope: objectScope,
             memberCtx: objectCtx,
             initializerLocals: locals,
             accessorBaseLocals: outerLocalsSnapshot,
@@ -826,7 +825,6 @@ extension ExprTypeChecker {
     func typeCheckLocalNominalMemberProperties(
         _ memberProperties: [DeclID],
         propertySymbolsByDecl: [DeclID: SymbolID],
-        memberScope: ClassMemberScope,
         memberCtx: TypeInferenceContext,
         initializerLocals: LocalBindings,
         accessorBaseLocals: LocalBindings,
@@ -1347,9 +1345,7 @@ extension ExprTypeChecker {
                 flags: objectLiteralFunctionFlags(
                     from: functionDecl,
                     objectSymbol: objectSymbol,
-                    sema: sema,
-                    interner: interner
-                )
+                    sema: sema)
             )
             sema.bindings.bindDecl(functionDeclID, symbol: memberSymbol)
             sema.symbols.setParentSymbol(objectSymbol, for: memberSymbol)
@@ -1498,9 +1494,7 @@ extension ExprTypeChecker {
     private func objectLiteralFunctionFlags(
         from functionDecl: FunDecl,
         objectSymbol: SymbolID,
-        sema: SemaModule,
-        interner: StringInterner
-    ) -> SymbolFlags {
+        sema: SemaModule) -> SymbolFlags {
         var flags: SymbolFlags = [.synthetic]
         if functionDecl.receiverType != nil { flags.insert(.memberExtension) }
         if functionDecl.isSuspend { flags.insert(.suspendFunction) }

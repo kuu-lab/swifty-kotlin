@@ -82,9 +82,7 @@ extension CollectionLiteralConstructionLoweringPass {
             canThrow: canThrow,
             thrownResult: thrownResult,
             module: module,
-            ctx: ctx,
             lookup: lookup,
-            state: &state,
             loweredBody: &loweredBody
         ) {
             return
@@ -123,8 +121,6 @@ extension CollectionLiteralConstructionLoweringPass {
             result: result,
             canThrow: canThrow,
             thrownResult: thrownResult,
-            module: module,
-            ctx: ctx,
             lookup: lookup,
             state: &state,
             loweredBody: &loweredBody
@@ -170,7 +166,6 @@ extension CollectionLiteralConstructionLoweringPass {
             result: result,
             canThrow: canThrow,
             thrownResult: thrownResult,
-            function: function,
             module: module,
             lookup: lookup,
             state: &state,

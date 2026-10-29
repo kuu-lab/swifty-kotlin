@@ -5,6 +5,7 @@ private struct AnnotationTargetResolutionContext {
     let propertyValidator: DeclarationPositionValidator
     let bindings: BindingTable
     let sourceManager: SourceManager?
+    var jvmTarget: JVMTarget? = nil
     var hasInferredBodies = false
     var enclosingFQName: [InternedString] = []
     var lexicalEnclosingFQNames: [[InternedString]] = []
@@ -112,7 +113,7 @@ extension DataFlowSemaPhase {
     func validateDeferredAnnotationTargets(
         ast: ASTModule, symbols: SymbolTable, types: TypeSystem, bindings: BindingTable,
         diagnostics: DiagnosticEngine, interner: StringInterner,
-        sourceManager: SourceManager? = nil
+        sourceManager: SourceManager? = nil, jvmTarget: JVMTarget? = nil
     ) {
         let pending = bindings.takePendingAnnotationTargets()
         guard !pending.isEmpty else { return }
@@ -124,6 +125,7 @@ extension DataFlowSemaPhase {
                 propertyValidator: DeclarationPositionValidator(astArena: ast.arena, interner: interner, diagnostics: nil),
                 bindings: bindings,
                 sourceManager: sourceManager,
+                jvmTarget: jvmTarget,
                 hasInferredBodies: true,
                 lexicalEnclosingFQNames: pending[declID] ?? []
             )
@@ -143,13 +145,14 @@ extension DataFlowSemaPhase {
         bindings: BindingTable,
         diagnostics: DiagnosticEngine,
         interner: StringInterner,
-        sourceManager: SourceManager? = nil
+        sourceManager: SourceManager? = nil, jvmTarget: JVMTarget? = nil
     ) {
         let resolutionContext = AnnotationTargetResolutionContext(
             types: types,
             propertyValidator: DeclarationPositionValidator(astArena: ast.arena, interner: interner, diagnostics: nil),
             bindings: bindings,
-            sourceManager: sourceManager
+            sourceManager: sourceManager,
+            jvmTarget: jvmTarget
         )
         let filesByID = Dictionary(uniqueKeysWithValues: ast.sortedFiles.map { ($0.fileID.rawValue, $0) })
 
@@ -693,6 +696,10 @@ extension DataFlowSemaPhase {
         }
         func reject(_ message: String, at range: SourceRange) {
             diagnostics.error("KSWIFTK-SEMA-JVM-RECORD", message, range: range)
+        }
+        if let target = resolutionContext.jvmTarget, !target.supportsJvmRecords {
+            reject("@JvmRecord requires JVM target 16 or later.", at: record.range)
+            return
         }
         if ownerSymbol?.flags.contains(.synthetic) == true {
             reject("@JvmRecord cannot be used on a local class.", at: record.range)

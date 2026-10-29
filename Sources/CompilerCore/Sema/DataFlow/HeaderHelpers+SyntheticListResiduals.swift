@@ -1,4 +1,3 @@
-import RuntimeABI
 
 // KSP-697: List and AbstractList nominal declarations are source-backed in the
 // bundled stdlib. KSP-700 moved the indexed/empty/list-iterator contracts to
@@ -15,9 +14,7 @@ extension DataFlowSemaPhase {
         interner: StringInterner,
         kotlinCollectionsPkg: [InternedString],
         collectionInterfaceSymbol: SymbolID,
-        bundledIndex: BundledDeclarationIndex = .empty,
-        skipStats: SyntheticStubSkipStatsCollector? = nil
-    ) -> SymbolID {
+        bundledIndex: BundledDeclarationIndex = .empty) -> SymbolID {
         let listName = interner.intern("List")
         let listFQName = kotlinCollectionsPkg + [listName]
         // lookupNominal: `kotlin.collections.List` also names the bundled

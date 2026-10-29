@@ -1,9 +1,7 @@
 @testable import CompilerCore
 @testable import CompilerBackend
-@testable import CompilerTestSupport
 import Foundation
 import Testing
-import TestStdlibCache
 
 extension StdlibArtifactRegressionTests {
     /// KUU-1917: Iterable pair zip is infix in both source and serialized stdlib paths,

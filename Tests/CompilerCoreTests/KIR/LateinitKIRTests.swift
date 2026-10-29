@@ -119,6 +119,25 @@ struct LateinitKIRTests {
                 "unbound C::name.isInitialized should be rejected: \(ctx.diagnostics.diagnostics.map { $0.message })")
     }
 
+    /// kotlinc rejects `lateinit` on every primitive type; Byte and Short used
+    /// to slip through because the check enumerated the primitives by hand.
+    @Test func testLateinitRejectsByteAndShortProperties() throws {
+        let source = """
+        class C {
+            lateinit var b: Byte
+            lateinit var s: Short
+        }
+        """
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+
+        let primitiveErrors = ctx.diagnostics.diagnostics.filter { diagnostic in
+            diagnostic.code == "KSWIFTK-SEMA-LATEINIT"
+                && diagnostic.message.contains("primitive property types")
+        }
+        #expect(primitiveErrors.count == 2, "\(ctx.diagnostics.diagnostics.map { $0.message })")
+    }
+
     @Test func testKProperty0IsInitializedRejectsValueReceiver() throws {
         let source = """
         import kotlin.reflect.KProperty0

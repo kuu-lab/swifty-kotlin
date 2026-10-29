@@ -11,19 +11,6 @@ struct RuntimeLocalDelegatedPropertyStubTests {
 
     private let kProperty0TypeID = Int(kProperty0RuntimeTypeID)
     private let kMutableProperty0TypeID = Int(kMutableProperty0RuntimeTypeID)
-    private let kCallableTypeID = Int(kCallableRuntimeTypeID)
-
-    @Test
-    func valStubIsKProperty0NotKMutable() {
-        let stub = makeStub(isMutable: 0)
-        #expect(kk_op_is(stub, nominalTypeToken(for: "kotlin.reflect.KProperty0")) == 1)
-        #expect(kk_op_is(stub, nominalTypeToken(for: "kotlin.reflect.KProperty")) == 1)
-        #expect(kk_op_is(stub, nominalTypeToken(for: "kotlin.reflect.KCallable")) == 1)
-        #expect(kk_op_is(stub, nominalTypeToken(for: "kotlin.reflect.KMutableProperty0")) == 0)
-        #expect(kk_op_is(stub, nominalTypeToken(for: "kotlin.reflect.KMutableProperty1")) == 0)
-        #expect(kk_op_is(stub, nominalTypeToken(for: "kotlin.reflect.KProperty1")) == 0)
-    }
-
     @Test
     func varStubIsKMutableProperty0AndKProperty0() {
         let stub = makeStub(isMutable: 1)

@@ -333,14 +333,12 @@ extension KIRLoweringDriver {
         memberLowerer.lowerDelegateAccessor(
             propertySymbol: symbol, propertyType: propType,
             delegateStorageSymbol: delegateStorageSymbol,
-            delegateKind: delegateKind,
             accessorKind: .getter, shared: shared, allDecls: &declIDs
         )
         if propertyDecl.isVar {
             memberLowerer.lowerDelegateAccessor(
                 propertySymbol: symbol, propertyType: propType,
                 delegateStorageSymbol: delegateStorageSymbol,
-                delegateKind: delegateKind,
                 accessorKind: .setter, shared: shared, allDecls: &declIDs
             )
         }

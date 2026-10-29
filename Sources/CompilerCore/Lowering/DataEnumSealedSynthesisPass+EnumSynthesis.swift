@@ -341,7 +341,6 @@ extension DataEnumSealedSynthesisPass {
                     ordinal: indexExpr,
                     classSymbol: enumClassSymbol,
                     result: boxedEntry,
-                    resultType: sema.types.anyType,
                     types: sema.types,
                     symbols: sema.symbols,
                     interner: interner,
@@ -551,7 +550,28 @@ extension DataEnumSealedSynthesisPass {
                 body.append(.jump(fallthroughLabel))
                 body.append(.label(matchLabel))
 
-                guard let targetSymbol = sema.symbols.symbol(target.functionSymbol) else {
+                let targetCall: (symbol: SymbolID?, callee: InternedString)? = {
+                    if let accessor = SyntheticSymbolScheme.decodedPropertyAccessor(target.functionSymbol) {
+                        let accessorName = interner.intern(accessor.kind == .getter ? "get" : "set")
+                        if module.arena.function(for: target.functionSymbol) != nil {
+                            return (target.functionSymbol, accessorName)
+                        }
+                        guard let property = sema.symbols.symbol(accessor.property) else { return nil }
+                        let helperName = interner.intern(
+                            (accessor.kind == .getter
+                                ? EnumPropertyHelperNames.getterPrefix
+                                : EnumPropertyHelperNames.setterPrefix)
+                                + interner.resolve(property.name)
+                        )
+                        let helperSymbol = sema.symbols.lookupAll(fqName: owner.fqName + [helperName])
+                            .first { sema.symbols.symbol($0)?.kind == .function }
+                        guard helperSymbol != nil else { return nil }
+                        return (helperSymbol, helperName)
+                    }
+                    guard let targetSymbol = sema.symbols.symbol(target.functionSymbol) else { return nil }
+                    return (target.functionSymbol, targetSymbol.name)
+                }()
+                guard let targetCall else {
                     body.append(.label(fallthroughLabel))
                     continue
                 }
@@ -559,8 +579,8 @@ extension DataEnumSealedSynthesisPass {
                     ? nil
                     : module.arena.appendTemporary(type: signature.returnType)
                 body.append(.call(
-                    symbol: target.functionSymbol,
-                    callee: targetSymbol.name,
+                    symbol: targetCall.symbol,
+                    callee: targetCall.callee,
                     arguments: [receiverRef] + argumentRefs,
                     result: resultExpr,
                     canThrow: false
@@ -592,7 +612,79 @@ extension DataEnumSealedSynthesisPass {
             let fallthroughResult: KIRExprID? = signature.returnType == sema.types.unitType
                 ? nil
                 : module.arena.appendTemporary(type: signature.returnType)
-            if let baseSymbolID, let baseSymbolInfo, !baseSymbolInfo.flags.contains(.abstractType) {
+            var baseCallEmitted = false
+            if let baseSymbolID,
+               let accessor = SyntheticSymbolScheme.decodedPropertyAccessor(baseSymbolID),
+               let property = sema.symbols.symbol(accessor.property),
+               !property.flags.contains(.abstractType),
+               let propertyOwner = sema.symbols.parentSymbol(for: accessor.property),
+               let propertyOwnerInfo = sema.symbols.symbol(propertyOwner)
+            {
+                let accessorName = interner.intern(accessor.kind == .getter ? "get" : "set")
+                if propertyOwner == owner.id {
+                    if module.arena.function(for: baseSymbolID) != nil {
+                        body.append(.call(
+                            symbol: baseSymbolID,
+                            callee: accessorName,
+                            arguments: [receiverRef] + argumentRefs,
+                            result: fallthroughResult,
+                            canThrow: true
+                        ))
+                        baseCallEmitted = true
+                    } else {
+                        let helperPrefix = accessor.kind == .getter
+                            ? EnumPropertyHelperNames.getterPrefix
+                            : EnumPropertyHelperNames.setterPrefix
+                        let helperName = interner.intern(helperPrefix + interner.resolve(property.name))
+                        if sema.symbols.lookupAll(fqName: owner.fqName + [helperName]).contains(where: {
+                            sema.symbols.symbol($0)?.kind == .function
+                        }) {
+                            body.append(.call(
+                                callee: helperName,
+                                arguments: [receiverRef] + argumentRefs,
+                                result: fallthroughResult,
+                                canThrow: true
+                            ))
+                            baseCallEmitted = true
+                        }
+                    }
+                } else if propertyOwnerInfo.kind == .interface,
+                          module.arena.function(for: baseSymbolID) != nil
+                {
+                    let interfaceType = sema.types.make(.classType(ClassType(
+                        classSymbol: propertyOwner,
+                        args: [],
+                        nullability: .nonNull
+                    )))
+                    let boxedReceiver = module.arena.appendTemporary(type: interfaceType)
+                    emitEnumOrdinalBoxCall(
+                        ordinal: receiverRef,
+                        classSymbol: owner.id,
+                        result: boxedReceiver,
+                        resultType: interfaceType,
+                        types: sema.types,
+                        symbols: sema.symbols,
+                        interner: interner,
+                        arena: module.arena,
+                        sema: sema,
+                        cache: KIRNominalDispatchCache(),
+                        into: &body
+                    )
+                    body.append(.call(
+                        symbol: baseSymbolID,
+                        callee: accessorName,
+                        arguments: [boxedReceiver] + argumentRefs,
+                        result: fallthroughResult,
+                        canThrow: true
+                    ))
+                    baseCallEmitted = true
+                }
+            }
+            if !baseCallEmitted,
+               let baseSymbolID,
+               let baseSymbolInfo,
+               !baseSymbolInfo.flags.contains(.abstractType)
+            {
                 if sema.symbols.externalLinkNameIfKnown(for: baseSymbolID) == "kk_any_member_to_string" {
                     // Enum's default toString renders the bare entry name via
                     // $enumOrdinalToName. Route there directly by bare name
@@ -618,6 +710,12 @@ extension DataEnumSealedSynthesisPass {
                         canThrow: false
                     ))
                 }
+                if let fallthroughResult {
+                    body.append(.returnValue(fallthroughResult))
+                } else {
+                    body.append(.returnUnit)
+                }
+            } else if baseCallEmitted {
                 if let fallthroughResult {
                     body.append(.returnValue(fallthroughResult))
                 } else {

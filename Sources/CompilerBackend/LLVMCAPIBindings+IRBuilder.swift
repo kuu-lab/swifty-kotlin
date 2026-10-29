@@ -216,13 +216,6 @@ extension LLVMCAPIBindings {
         name.withCString { buildSDivFn(builder, lhs, rhs, $0) }
     }
 
-    func buildUDiv(_ builder: LLVMBuilderRef?, lhs: LLVMValueRef?, rhs: LLVMValueRef?, name: String) -> LLVMValueRef? {
-        name.withCString { buildUDivFn(builder, lhs, rhs, $0) }
-    }
-
-    func buildURem(_ builder: LLVMBuilderRef?, lhs: LLVMValueRef?, rhs: LLVMValueRef?, name: String) -> LLVMValueRef? {
-        name.withCString { buildURemFn(builder, lhs, rhs, $0) }
-    }
 
     /// LLVM ICmp predicate: 34=UGT, 35=UGE, 36=ULT, 37=ULE
     func buildICmpUnsignedLessThan(_ builder: LLVMBuilderRef?, lhs: LLVMValueRef?, rhs: LLVMValueRef?, name: String) -> LLVMValueRef? {

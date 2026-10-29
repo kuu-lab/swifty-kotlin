@@ -191,7 +191,6 @@ extension CoroutineLoweringPass {
                         value: wrapperResult,
                         classSymbol: classSymbol,
                         result: callResult,
-                        resultType: rewrite.module.arena.exprType(callResult),
                         types: sema.types,
                         symbols: sema.symbols,
                         interner: rewrite.ctx.interner,

@@ -40,7 +40,6 @@ public extension RuntimeABISpec {
         abi.th("__kk_iterator_builder_next", "iterRaw"),
         abi.th("__kk_iterator_builder_hasNext_coro", "iterRaw continuationRaw"),
         abi.th("__kk_iterator_builder_next_coro", "iterRaw"),
-        abi.nt("kk_sequence_completed_sentinel"),
         abi.nt("__kk_sequence_of", "arrayRaw"),
         abi.nt("kk_sequence_of_single", "element"),
         abi.nt("__kk_sequence_generate", "seed fnPtr closureRaw"),

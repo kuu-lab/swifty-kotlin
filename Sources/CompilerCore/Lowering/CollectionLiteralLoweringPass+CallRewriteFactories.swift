@@ -103,7 +103,6 @@ extension CollectionLiteralConstructionLoweringPass {
             callee: callee,
             arguments: arguments,
             result: result,
-            canThrow: canThrow,
             thrownResult: thrownResult,
             module: module,
             ctx: ctx,

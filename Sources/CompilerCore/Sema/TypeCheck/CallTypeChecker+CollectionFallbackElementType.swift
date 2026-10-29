@@ -1,4 +1,3 @@
-import RuntimeABI
 
 extension CallTypeChecker {
     private func collectionFallbackClassTypes(

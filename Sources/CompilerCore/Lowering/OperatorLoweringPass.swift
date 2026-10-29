@@ -1,5 +1,5 @@
 
-final class OperatorLoweringPass: LoweringPass, ParallelLoweringPass {
+final class OperatorLoweringPass: LoweringPass {
     static let name = "OperatorLowering"
     static let requiredStage: KIRStage = .desugared
     static let producedStage: KIRStage = .desugared

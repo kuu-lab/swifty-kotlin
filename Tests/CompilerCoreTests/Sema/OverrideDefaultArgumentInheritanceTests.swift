@@ -201,6 +201,62 @@ struct OverrideDefaultArgumentInheritanceTests {
         #expect(sema.symbols.overrideDefaultsBaseSymbol(for: implFoo) == aFoo)
     }
 
+    /// An overriding function must not redeclare default parameter values —
+    /// kotlinc reports "an overriding function is not allowed to specify
+    /// default values for its parameters" whether or not the overridden
+    /// declaration has defaults of its own.
+    @Test
+    func overrideRedeclaringDefaultOverDefaultedBaseIsRejected() throws {
+        let ctx = makeContextFromSource("""
+        open class A { open fun f(x: Int = 1): Int = x }
+        class B : A() { override fun f(x: Int = 2): Int = x }
+        """)
+        try runSema(ctx)
+        assertHasDiagnostic("KSWIFTK-SEMA-OVERRIDE-DEFAULT-ARGS", in: ctx)
+    }
+
+    @Test
+    func overrideIntroducingDefaultOverPlainBaseIsRejected() throws {
+        let ctx = makeContextFromSource("""
+        open class A { open fun g(x: Int): Int = x }
+        class B : A() { override fun g(x: Int = 2): Int = x }
+        """)
+        try runSema(ctx)
+        assertHasDiagnostic("KSWIFTK-SEMA-OVERRIDE-DEFAULT-ARGS", in: ctx)
+    }
+
+    @Test
+    func interfaceImplementationRedeclaringDefaultIsRejected() throws {
+        let ctx = makeContextFromSource("""
+        interface Greeter { fun greet(name: String = "World"): String }
+        class GreeterImpl : Greeter {
+            override fun greet(name: String = "Me") = "Hello, $name!"
+        }
+        """)
+        try runSema(ctx)
+        assertHasDiagnostic("KSWIFTK-SEMA-OVERRIDE-DEFAULT-ARGS", in: ctx)
+    }
+
+    @Test
+    func overrideWithOnlySomeParamsDefaultedIsRejected() throws {
+        let ctx = makeContextFromSource("""
+        open class A { open fun f(a: Int, b: Int = 0): Int = a + b }
+        class B : A() { override fun f(a: Int, b: Int = 9): Int = a - b }
+        """)
+        try runSema(ctx)
+        assertHasDiagnostic("KSWIFTK-SEMA-OVERRIDE-DEFAULT-ARGS", in: ctx)
+    }
+
+    @Test
+    func nonOverrideFunctionWithDefaultsStillAccepted() throws {
+        let ctx = makeContextFromSource("""
+        open class A { open fun f(x: Int = 1): Int = x }
+        class B : A() { fun g(x: Int = 3): Int = x }
+        """)
+        try runSema(ctx)
+        assertNoDiagnostic("KSWIFTK-SEMA-OVERRIDE-DEFAULT-ARGS", in: ctx)
+    }
+
     @Test
     func inheritedDefaultFallsToLaterBranchWhenEarlierHasNone() throws {
         let source = """

@@ -537,6 +537,7 @@ extension CallLowerer {
             self.memberExtensionDispatchReceiver(
                 for: $0,
                 callExprID: callExprID,
+                dispatchReceiverSymbol: callBinding?.dispatchReceiverSymbol,
                 sema: sema,
                 arena: arena,
                 interner: interner,
@@ -679,7 +680,6 @@ extension CallLowerer {
                 ordinal: receiver.loweredID,
                 classSymbol: receiverClassType.classSymbol,
                 result: boxedReceiver,
-                resultType: sema.types.anyType,
                 types: sema.types,
                 symbols: sema.symbols,
                 interner: interner,
@@ -1284,6 +1284,13 @@ extension CallLowerer {
         let isRuntimeBridgedCallee = chosenCallee.map {
             kirIsRuntimeBridgedCallee($0, sema: sema)
         } ?? false
+        let usesClassReceiverListGetRuntimeBridge = chosenCallee.map {
+            isClassReceiverListGetRuntimeBridge(
+                $0,
+                receiverTypeID: receiver.type(in: sema),
+                sema: sema
+            )
+        } ?? false
         if (loweredCallee == calleeName && !isRuntimeBridgedCallee)
             || usesRuntimeSetContains
             || listIteratorInheritedDispatch
@@ -1304,7 +1311,8 @@ extension CallLowerer {
                     sema: sema,
                     interner: interner
                 )
-            }) == true,
+            }) == true
+            || usesClassReceiverListGetRuntimeBridge,
            let inst = tryEmitVirtualDispatch(
                chosenCallee: chosenCallee, calleeName: loweredCallee,
                receiverExpr: memberExtensionDispatchReceiver == nil && receiver.typeOverride == nil ? receiver.expr : nil,

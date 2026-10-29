@@ -4,8 +4,6 @@ extension CollectionLiteralConstructionLoweringPass {
         callee: InternedString,
         arguments: [KIRExprID],
         result: KIRExprID?,
-        canThrow: Bool,
-        thrownResult: KIRExprID?,
         instruction: KIRInstruction,
         module: KIRModule,
         ctx: KIRContext,
