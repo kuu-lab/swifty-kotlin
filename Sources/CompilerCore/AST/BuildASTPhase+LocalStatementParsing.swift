@@ -19,7 +19,7 @@ extension BuildASTPhase {
         var leadingModifiers: [(name: String, range: SourceRange)] = []
         while startIndex < statementTokens.count,
               case let .keyword(kw) = statementTokens[startIndex].kind,
-              KotlinParser.isDeclarationModifierKeyword(kw)
+              Self.isLocalStatementModifierKeyword(kw)
         {
             leadingModifiers.append((kw.rawValue, statementTokens[startIndex].range))
             startIndex += 1
@@ -114,7 +114,7 @@ extension BuildASTPhase {
         var leadingModifiers: [(name: String, range: SourceRange)] = []
         while startIndex < statementTokens.count,
               case let .keyword(keyword) = statementTokens[startIndex].kind,
-              KotlinParser.isDeclarationModifierKeyword(keyword)
+              Self.isLocalStatementModifierKeyword(keyword)
         {
             leadingModifiers.append((keyword.rawValue, statementTokens[startIndex].range))
             startIndex += 1
@@ -373,7 +373,16 @@ extension BuildASTPhase {
         isMutable: Bool,
         diagnostics: DiagnosticEngine?
     ) {
+        var seen: Set<String> = []
         for modifier in modifiers {
+            if !seen.insert(modifier.name).inserted {
+                diagnostics?.error(
+                    "KSWIFTK-SEMA-0448",
+                    "repeated '\(modifier.name)'.",
+                    range: modifier.range
+                )
+                continue
+            }
             if modifier.name == "lateinit" {
                 if !isMutable {
                     diagnostics?.error(

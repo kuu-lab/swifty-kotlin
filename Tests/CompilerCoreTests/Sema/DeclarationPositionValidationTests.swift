@@ -538,6 +538,42 @@ struct DeclarationPositionValidationTests {
         ])
     }
 
+    @Test func localEnumAndCompanionModifiersAreDiagnosed() throws {
+        let ctx = try semaContextWithoutStdlib(for: """
+            fun f() {
+                enum fun g() {}
+                enum val x = 1
+                companion fun h() {}
+                companion val y = 2
+            }
+            """)
+        let notApplicable = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0400" }
+        #expect(notApplicable.map(\.message) == [
+            "modifier 'enum' is not applicable to 'local function'.",
+            "modifier 'enum' is not applicable to 'local variable'.",
+            "modifier 'companion' is not applicable to 'local function'.",
+            "modifier 'companion' is not applicable to 'local variable'.",
+        ])
+        assertNoDiagnostic("KSWIFTK-SEMA-0013", in: ctx)
+        assertNoDiagnostic("KSWIFTK-SEMA-0022", in: ctx)
+    }
+
+    @Test func localRepeatedModifiersAreDiagnosed() throws {
+        let ctx = try semaContextWithoutStdlib(for: """
+            fun f() {
+                private private val a = 1
+                data data var b = 2
+                private private fun g() {}
+            }
+            """)
+        let repeated = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0448" }
+        #expect(repeated.map(\.message) == [
+            "repeated 'private'.",
+            "repeated 'data'.",
+            "repeated 'private'.",
+        ])
+    }
+
     @Test func untypedFieldGetterStaysFieldless() throws {
         let ctx = try semaContextWithoutStdlib(for: """
             enum val untyped get() = field
