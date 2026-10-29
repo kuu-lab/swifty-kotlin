@@ -327,7 +327,6 @@ extension KIRLoweringDriver {
             for: companionSymbol,
             ensureInitSymbol: ensureInitSymbol,
             ensureInitName: ensureInitName,
-            flagSymbol: flagSymbol
         )
 
         var declIDs: [KIRDeclID] = [flagGlobalDeclID, ensureInitDeclID]
