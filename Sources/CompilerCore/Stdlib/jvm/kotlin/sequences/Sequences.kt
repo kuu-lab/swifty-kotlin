@@ -76,6 +76,31 @@ public fun <T> Sequence<T>.constrainOnce(): Sequence<T> {
         }
     }
 }
+
+public operator fun <T> Sequence<T>.plus(element: T): Sequence<T> = this.plus(sequenceOf(element))
+public operator fun <T> Sequence<T>.plus(elements: Array<out T>): Sequence<T> = this.plus(elements.asSequence())
+public operator fun <T> Sequence<T>.plus(elements: Iterable<T>): Sequence<T> = this.plus(elements.asSequence())
+public operator fun <T> Sequence<T>.plus(elements: Sequence<T>): Sequence<T> {
+    val first = this
+    return object: Sequence<T> {
+        override fun iterator(): Iterator<T> = object: Iterator<T> {
+            var iterator = first.iterator()
+            var consumedFirst = false
+            override fun hasNext(): Boolean {
+                if (!consumedFirst && !iterator.hasNext()) {
+                    iterator = elements.iterator()
+                    consumedFirst = true
+                }
+                return iterator.hasNext()
+            }
+            override fun next(): T {
+                if (!hasNext()) throw NoSuchElementException()
+                return iterator.next()
+            }
+        }
+    }
+}
+
 public fun <T> Sequence<T>.toMutableList(): MutableList<T> {
     val result = mutableListOf<T>()
     for (element in this) result.add(element)
