@@ -510,6 +510,7 @@ final class RuntimeKotlinOutputStreamSink: RuntimeOutputStreamSink {
             arrayBox[index] = Int(Int8(bitPattern: byte))
         }
         let arrayRaw = registerRuntimeObject(arrayBox)
+        runtimeRegisterArrayType(rawValue: arrayRaw, typeID: runtimeStableNominalTypeID(fqName: "kotlin.ByteArray"))
         var thrown = 0
         _ = runtimeInvokeCollectionLambda1(
             fnPtr: writeFnPtr,
