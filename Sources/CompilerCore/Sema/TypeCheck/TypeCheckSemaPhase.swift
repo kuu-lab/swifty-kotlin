@@ -118,6 +118,15 @@ final class TypeCheckSemaPhase: CompilerPhase {
                 inlineControlFlowArguments: inlineLambdaArguments.union(inlineAnonymousFunctionArguments)
             )
             validateReturnLambdaPaths(ast: ast, sema: sema, diagnostics: ctx.diagnostics, inlineLambdaArguments: inlineLambdaArguments)
+            validateInlineParameterUsages(
+                ast: ast,
+                sema: sema,
+                diagnostics: ctx.diagnostics,
+                interner: ctx.interner,
+                sourceManager: ctx.sourceManager,
+                inlineLambdaArguments: inlineLambdaArguments,
+                inlineAnonymousFunctionArguments: inlineAnonymousFunctionArguments
+            )
             driver.validateSuspensionContexts(
                 inlineLambdaArguments: inlineLambdaArguments,
                 suspendLambdaArguments: suspendLambdaArguments
@@ -365,6 +374,62 @@ final class TypeCheckSemaPhase: CompilerPhase {
             diagnostics.error(code, message, range: ast.arena.exprRange(exprID))
         }
     }
+
+    /// Mirrors kotlinc's `USAGE_IS_NOT_INLINEABLE` /
+    /// `NON_LOCAL_RETURN_NOT_ALLOWED` checks: a functional value parameter of
+    /// an `inline` function that is not `noinline` may only be invoked
+    /// directly or forwarded to another `inline` callee's inlinable parameter.
+    /// Any other use is illegal, and a legal use inside a lambda that will be
+    /// materialized (rather than inlined into the caller) is only permitted
+    /// for `crossinline` parameters.
+    private func validateInlineParameterUsages(
+        ast: ASTModule,
+        sema: SemaModule,
+        diagnostics: DiagnosticEngine,
+        interner: StringInterner,
+        sourceManager: SourceManager,
+        inlineLambdaArguments: Set<ExprID>,
+        inlineAnonymousFunctionArguments: Set<ExprID>
+    ) {
+        // Source-declared callees distinguish `noinline` from `crossinline`
+        // target parameters; `valueParameterAllowsNonLocalReturn` merges both
+        // into `false`.
+        var functionDeclBySymbol: [SymbolID: FunDecl] = [:]
+        var inlineFunctions: [(decl: FunDecl, signature: FunctionSignature)] = []
+        for declID in ast.activeDeclarationIDs {
+            guard case let .funDecl(funDecl) = ast.arena.decl(declID),
+                  let symbol = sema.bindings.declSymbols[declID]
+            else {
+                continue
+            }
+            functionDeclBySymbol[symbol] = funDecl
+            // The bundled stdlib intentionally forwards inline parameters
+            // into non-inline runtime bridges; it is exempt from the
+            // user-facing kotlinc parity check.
+            guard sourceManager.origin(of: funDecl.range.start.file)?.isBundledStdlib != true,
+                  funDecl.isInline || funDecl.modifiers.contains(.inline),
+                  let signature = sema.symbols.functionSignature(for: symbol)
+            else {
+                continue
+            }
+            inlineFunctions.append((funDecl, signature))
+        }
+        guard !inlineFunctions.isEmpty else { return }
+
+        let walker = InlineParameterUsageWalker(
+            ast: ast,
+            sema: sema,
+            diagnostics: diagnostics,
+            interner: interner,
+            invokeName: interner.intern("invoke"),
+            inlineLambdaArguments: inlineLambdaArguments,
+            inlineAnonymousFunctionArguments: inlineAnonymousFunctionArguments,
+            functionDeclBySymbol: functionDeclBySymbol
+        )
+        for (funDecl, signature) in inlineFunctions {
+            walker.check(funDecl: funDecl, signature: signature)
+        }
+    }
 }
 
 /// Holds the non-`Sendable` type-checking inputs and exposes a `@Sendable`
@@ -436,5 +501,547 @@ private final class ComparableCharEscapeWork: @unchecked Sendable {
             ast: ast, symbols: sema.symbols, types: sema.types,
             bindings: sema.bindings, interner: interner
         ).analyze()
+    }
+}
+
+/// Walks the body of one `inline` function and validates every reference to
+/// its restricted (non-`noinline`, functional) value parameters. Legal uses
+/// are direct invocation and forwarding to another `inline` callee's
+/// inlinable parameter; everything else mirrors kotlinc's
+/// `USAGE_IS_NOT_INLINEABLE`. Usages that would otherwise be legal but sit
+/// inside a lambda/anonymous-function/nested-declaration boundary that is
+/// materialized rather than inlined mirror `NON_LOCAL_RETURN_NOT_ALLOWED`
+/// unless the parameter is `crossinline`.
+private final class InlineParameterUsageWalker {
+    private enum UsageRole {
+        /// `p(...)` — direct invocation of the parameter.
+        case invocationCallee
+        /// `p.invoke(...)` / `p?.invoke(...)` — invocation through a member call.
+        case invokeReceiver
+        /// Bare argument of a call, to classify against the resolved callee.
+        case callArgument(call: ExprID, argumentIndex: Int)
+        /// Every other position (value read, receiver of a non-`invoke`
+        /// member call, operand, initializer, return value, ...).
+        case other
+    }
+
+    private let ast: ASTModule
+    private let sema: SemaModule
+    private let diagnostics: DiagnosticEngine
+    private let interner: StringInterner
+    private let invokeName: InternedString
+    private let inlineLambdaArguments: Set<ExprID>
+    private let inlineAnonymousFunctionArguments: Set<ExprID>
+    private let functionDeclBySymbol: [SymbolID: FunDecl]
+
+    /// Restricted parameters of the function currently being checked:
+    /// symbol -> whether it is `crossinline`.
+    private var parameterIsCrossinline: [SymbolID: Bool] = [:]
+    /// Diagnostic rendering of each restricted parameter, e.g.
+    /// `'crossinline block: () -> Unit'`.
+    private var parameterDisplay: [SymbolID: String] = [:]
+
+    init(
+        ast: ASTModule,
+        sema: SemaModule,
+        diagnostics: DiagnosticEngine,
+        interner: StringInterner,
+        invokeName: InternedString,
+        inlineLambdaArguments: Set<ExprID>,
+        inlineAnonymousFunctionArguments: Set<ExprID>,
+        functionDeclBySymbol: [SymbolID: FunDecl]
+    ) {
+        self.ast = ast
+        self.sema = sema
+        self.diagnostics = diagnostics
+        self.interner = interner
+        self.invokeName = invokeName
+        self.inlineLambdaArguments = inlineLambdaArguments
+        self.inlineAnonymousFunctionArguments = inlineAnonymousFunctionArguments
+        self.functionDeclBySymbol = functionDeclBySymbol
+    }
+
+    func check(funDecl: FunDecl, signature: FunctionSignature) {
+        parameterIsCrossinline = [:]
+        parameterDisplay = [:]
+        for index in funDecl.valueParams.indices {
+            guard signature.parameterTypes.indices.contains(index),
+                  signature.valueParameterSymbols.indices.contains(index)
+            else {
+                continue
+            }
+            let valueParam = funDecl.valueParams[index]
+            guard !valueParam.isNoinline,
+                  case let .functionType(functionType) = sema.types.kind(of: signature.parameterTypes[index]),
+                  functionType.nullability != .nullable
+            else {
+                continue
+            }
+            let paramSymbol = signature.valueParameterSymbols[index]
+            parameterIsCrossinline[paramSymbol] = valueParam.isCrossinline
+            let modifierPrefix = valueParam.isCrossinline ? "crossinline " : ""
+            let typeName = sema.types.displayName(
+                of: signature.parameterTypes[index], symbols: sema.symbols, interner: interner
+            )
+            parameterDisplay[paramSymbol] = "'\(modifierPrefix)\(interner.resolve(valueParam.name)): \(typeName)'"
+        }
+        guard !parameterIsCrossinline.isEmpty else { return }
+        for valueParam in funDecl.valueParams {
+            if let defaultValue = valueParam.defaultValue {
+                visitExpr(defaultValue, role: .other, materialized: false)
+            }
+        }
+        walkFunctionBody(funDecl.body, materialized: false)
+    }
+
+    // MARK: - Classification
+
+    private func visitExpr(_ exprID: ExprID, role: UsageRole, materialized: Bool) {
+        if let parameterSymbol = inlineParameterReference(exprID) {
+            classify(parameterSymbol: parameterSymbol, usage: exprID, role: role, materialized: materialized)
+        }
+        walkExpr(exprID, materialized: materialized)
+    }
+
+    private func inlineParameterReference(_ exprID: ExprID) -> SymbolID? {
+        guard let symbol = sema.bindings.identifierSymbols[exprID],
+              parameterIsCrossinline[symbol] != nil
+        else {
+            return nil
+        }
+        return symbol
+    }
+
+    private func classify(parameterSymbol: SymbolID, usage: ExprID, role: UsageRole, materialized: Bool) {
+        switch role {
+        case .other:
+            reportIllegalUsage(usage, parameterSymbol: parameterSymbol)
+        case .invocationCallee, .invokeReceiver:
+            checkMaterializedContext(usage, parameterSymbol: parameterSymbol, materialized: materialized)
+        case let .callArgument(call, argumentIndex):
+            classifyCallArgument(
+                usage, parameterSymbol: parameterSymbol, call: call, argumentIndex: argumentIndex,
+                materialized: materialized
+            )
+        }
+    }
+
+    /// A use that is legal inside the inline body is still rejected once it
+    /// sits inside a materialized boundary, unless the parameter is
+    /// `crossinline` (which materializes as a real function object).
+    private func checkMaterializedContext(_ usage: ExprID, parameterSymbol: SymbolID, materialized: Bool) {
+        guard materialized, parameterIsCrossinline[parameterSymbol] == false else { return }
+        reportNonLocalReturn(usage, parameterSymbol: parameterSymbol)
+    }
+
+    private func classifyCallArgument(
+        _ usage: ExprID,
+        parameterSymbol: SymbolID,
+        call: ExprID,
+        argumentIndex: Int,
+        materialized: Bool
+    ) {
+        guard let binding = sema.bindings.callBindings[call],
+              sema.symbols.symbol(binding.chosenCallee)?.flags.contains(.inlineFunction) == true,
+              let signature = sema.symbols.functionSignature(for: binding.chosenCallee)
+        else {
+            reportIllegalUsage(usage, parameterSymbol: parameterSymbol)
+            return
+        }
+        let parameterIndex = binding.parameterMapping[argumentIndex] ?? argumentIndex
+        guard signature.parameterTypes.indices.contains(parameterIndex),
+              signature.valueParameterAllowsNonLocalReturn.indices.contains(parameterIndex),
+              case .functionType = sema.types.kind(of: sema.types.makeNonNullable(signature.parameterTypes[parameterIndex]))
+        else {
+            // Generic or otherwise non-functional target parameters cannot
+            // hold the inlinable reference.
+            reportIllegalUsage(usage, parameterSymbol: parameterSymbol)
+            return
+        }
+        if signature.valueParameterAllowsNonLocalReturn[parameterIndex] {
+            // Forwarding into another inlinable parameter is legal.
+            checkMaterializedContext(usage, parameterSymbol: parameterSymbol, materialized: materialized)
+            return
+        }
+        // The target parameter is `noinline` or `crossinline`; the signature
+        // merges both into `false`, so prefer the source declaration and fall
+        // back to the `crossinline` rule for imported callees, which dominate
+        // bundled-stdlib declarations carrying this flag.
+        if let targetDecl = functionDeclBySymbol[binding.chosenCallee],
+           targetDecl.valueParams.indices.contains(parameterIndex) {
+            let targetParam = targetDecl.valueParams[parameterIndex]
+            if targetParam.isNoinline {
+                reportIllegalUsage(usage, parameterSymbol: parameterSymbol)
+            } else if targetParam.isCrossinline {
+                if parameterIsCrossinline[parameterSymbol] != true {
+                    reportNonLocalReturn(usage, parameterSymbol: parameterSymbol)
+                }
+            } else {
+                reportIllegalUsage(usage, parameterSymbol: parameterSymbol)
+            }
+        } else if parameterIsCrossinline[parameterSymbol] != true {
+            reportNonLocalReturn(usage, parameterSymbol: parameterSymbol)
+        }
+    }
+
+    // MARK: - Diagnostics
+
+    private func reportIllegalUsage(_ usage: ExprID, parameterSymbol: SymbolID) {
+        let display = parameterDisplay[parameterSymbol] ?? "'parameter'"
+        diagnostics.error(
+            "KSWIFTK-SEMA-0449",
+            "illegal usage of inline parameter \(display). Add 'noinline' modifier to the parameter declaration.",
+            range: ast.arena.exprRange(usage)
+        )
+    }
+
+    private func reportNonLocalReturn(_ usage: ExprID, parameterSymbol: SymbolID) {
+        let display = parameterDisplay[parameterSymbol] ?? "'parameter'"
+        diagnostics.error(
+            "KSWIFTK-SEMA-0450",
+            "cannot inline \(display) here: it might contain non-local returns. Add 'crossinline' modifier to parameter declaration \(display).",
+            range: ast.arena.exprRange(usage)
+        )
+    }
+
+    // MARK: - Traversal
+
+    private func walkFunctionBody(_ body: FunctionBody, materialized: Bool) {
+        switch body {
+        case let .block(statements, _):
+            for statement in statements {
+                visitExpr(statement, role: .other, materialized: materialized)
+            }
+        case let .expr(exprID, _):
+            visitExpr(exprID, role: .other, materialized: materialized)
+        case .unit:
+            break
+        }
+    }
+
+    private func walkExpr(_ exprID: ExprID, materialized: Bool) {
+        guard let expr = ast.arena.expr(exprID) else { return }
+        switch expr {
+        case let .call(callee, _, args, _):
+            visitExpr(callee, role: .invocationCallee, materialized: materialized)
+            // `contract { callsInPlace(block, ...) }` references restricted
+            // parameters as contract metadata, not as values.
+            if !isContractDescriptionCall(callee: callee, args: args) {
+                for (index, argument) in args.enumerated() {
+                    visitExpr(
+                        argument.expr, role: .callArgument(call: exprID, argumentIndex: index),
+                        materialized: materialized
+                    )
+                }
+            }
+        case let .memberCall(receiver, calleeName, _, args, _):
+            visitMemberCall(receiver: receiver, calleeName: calleeName, args: args, call: exprID, materialized: materialized)
+        case let .safeMemberCall(receiver, calleeName, _, args, _):
+            visitMemberCall(receiver: receiver, calleeName: calleeName, args: args, call: exprID, materialized: materialized)
+        case let .lambdaLiteral(_, body, _, _):
+            visitExpr(
+                body, role: .other,
+                materialized: materialized || !inlineLambdaArguments.contains(exprID)
+            )
+        case let .blockExpr(statements, trailingExpr, _):
+            var childMaterialized = materialized
+            if ast.arena.isAnonymousFunction(exprID) {
+                let anonymousFunction = statements.first(where: ast.arena.isAnonymousFunction)
+                let isInlined = anonymousFunction.map { inlineAnonymousFunctionArguments.contains($0) } ?? false
+                childMaterialized = materialized || !isInlined
+            }
+            for statement in statements {
+                visitExpr(statement, role: .other, materialized: childMaterialized)
+            }
+            if let trailingExpr {
+                visitExpr(trailingExpr, role: .other, materialized: childMaterialized)
+            }
+        case let .objectLiteral(_, declID, _):
+            if let declID {
+                walkDecl(declID, materialized: true)
+            }
+        case let .localFunDecl(_, _, valueParams, _, body, _, _, _, _):
+            let childMaterialized = ast.arena.isAnonymousFunction(exprID) ? materialized : true
+            for valueParam in valueParams {
+                if let defaultValue = valueParam.defaultValue {
+                    visitExpr(defaultValue, role: .other, materialized: childMaterialized)
+                }
+            }
+            walkFunctionBody(body, materialized: childMaterialized)
+        case let .localNominalDecl(declID, _):
+            walkDecl(declID, materialized: true)
+        case let .forExpr(_, iterable, body, _, _):
+            visitExpr(iterable, role: .other, materialized: materialized)
+            visitExpr(body, role: .other, materialized: materialized)
+        case let .forDestructuringExpr(_, iterable, body, _, _):
+            visitExpr(iterable, role: .other, materialized: materialized)
+            visitExpr(body, role: .other, materialized: materialized)
+        case let .whileExpr(condition, body, _, _):
+            visitExpr(condition, role: .other, materialized: materialized)
+            visitExpr(body, role: .other, materialized: materialized)
+        case let .doWhileExpr(body, condition, _, _):
+            visitExpr(body, role: .other, materialized: materialized)
+            visitExpr(condition, role: .other, materialized: materialized)
+        case let .ifExpr(condition, thenExpr, elseExpr, _):
+            visitExpr(condition, role: .other, materialized: materialized)
+            visitExpr(thenExpr, role: .other, materialized: materialized)
+            if let elseExpr {
+                visitExpr(elseExpr, role: .other, materialized: materialized)
+            }
+        case let .whenExpr(subject, branches, elseExpr, _):
+            if let subject {
+                visitExpr(subject, role: .other, materialized: materialized)
+            }
+            for branch in branches {
+                for condition in branch.conditions {
+                    visitExpr(condition, role: .other, materialized: materialized)
+                }
+                if let guardExpr = branch.guard_ {
+                    visitExpr(guardExpr, role: .other, materialized: materialized)
+                }
+                visitExpr(branch.body, role: .other, materialized: materialized)
+            }
+            if let elseExpr {
+                visitExpr(elseExpr, role: .other, materialized: materialized)
+            }
+        case let .tryExpr(body, catchClauses, finallyExpr, _):
+            visitExpr(body, role: .other, materialized: materialized)
+            for clause in catchClauses {
+                visitExpr(clause.body, role: .other, materialized: materialized)
+            }
+            if let finallyExpr {
+                visitExpr(finallyExpr, role: .other, materialized: materialized)
+            }
+        case let .unaryExpr(_, operand, _):
+            visitExpr(operand, role: .other, materialized: materialized)
+        case let .isCheck(operand, _, _, _):
+            visitExpr(operand, role: .other, materialized: materialized)
+        case let .asCast(operand, _, _, _):
+            visitExpr(operand, role: .other, materialized: materialized)
+        case let .nullAssert(operand, _):
+            visitExpr(operand, role: .other, materialized: materialized)
+        case let .returnExpr(value, _, _):
+            if let value {
+                visitExpr(value, role: .other, materialized: materialized)
+            }
+        case let .throwExpr(value, _):
+            visitExpr(value, role: .other, materialized: materialized)
+        case let .localDecl(_, _, _, initializer, _, _, _):
+            if let initializer {
+                visitExpr(initializer, role: .other, materialized: materialized)
+            }
+        case let .localAssign(_, value, _):
+            visitExpr(value, role: .other, materialized: materialized)
+        case let .memberAssign(receiver, _, value, _):
+            visitExpr(receiver, role: .other, materialized: materialized)
+            visitExpr(value, role: .other, materialized: materialized)
+        case let .safeMemberAssign(receiver, _, value, _):
+            visitExpr(receiver, role: .other, materialized: materialized)
+            visitExpr(value, role: .other, materialized: materialized)
+        case let .indexedAssign(receiver, indices, value, _):
+            visitExpr(receiver, role: .other, materialized: materialized)
+            for index in indices {
+                visitExpr(index, role: .other, materialized: materialized)
+            }
+            visitExpr(value, role: .other, materialized: materialized)
+        case let .indexedAccess(receiver, indices, _):
+            visitExpr(receiver, role: .other, materialized: materialized)
+            for index in indices {
+                visitExpr(index, role: .other, materialized: materialized)
+            }
+        case let .compoundAssign(_, _, value, _):
+            visitExpr(value, role: .other, materialized: materialized)
+        case let .memberCompoundAssign(_, receiver, _, value, _):
+            visitExpr(receiver, role: .other, materialized: materialized)
+            visitExpr(value, role: .other, materialized: materialized)
+        case let .indexedCompoundAssign(_, receiver, indices, value, _):
+            visitExpr(receiver, role: .other, materialized: materialized)
+            for index in indices {
+                visitExpr(index, role: .other, materialized: materialized)
+            }
+            visitExpr(value, role: .other, materialized: materialized)
+        case let .binary(_, lhs, rhs, _):
+            visitExpr(lhs, role: .other, materialized: materialized)
+            visitExpr(rhs, role: .other, materialized: materialized)
+        case let .inExpr(lhs, rhs, _), let .notInExpr(lhs, rhs, _):
+            visitExpr(lhs, role: .other, materialized: materialized)
+            visitExpr(rhs, role: .other, materialized: materialized)
+        case let .destructuringDecl(_, _, initializer, _):
+            visitExpr(initializer, role: .other, materialized: materialized)
+        case let .stringTemplate(parts, _):
+            for part in parts {
+                if case let .expression(partExpr) = part {
+                    visitExpr(partExpr, role: .other, materialized: materialized)
+                }
+            }
+        case let .callableRef(receiver, _, _):
+            if let receiver {
+                visitExpr(receiver, role: .other, materialized: materialized)
+            }
+        default:
+            break
+        }
+    }
+
+    private func visitMemberCall(
+        receiver: ExprID,
+        calleeName: InternedString,
+        args: [CallArgument],
+        call: ExprID,
+        materialized: Bool
+    ) {
+        visitExpr(
+            receiver, role: calleeName == invokeName ? .invokeReceiver : .other,
+            materialized: materialized
+        )
+        for (index, argument) in args.enumerated() {
+            visitExpr(
+                argument.expr, role: .callArgument(call: call, argumentIndex: index),
+                materialized: materialized
+            )
+        }
+    }
+
+    /// Bodies of member declarations nested inside the inline function are
+    /// materialized boundaries: they compile to real functions/objects, so a
+    /// restricted parameter escaping into them cannot be inlined.
+    private func walkDecl(_ declID: DeclID, materialized: Bool) {
+        guard let decl = ast.arena.decl(declID) else { return }
+        switch decl {
+        case let .funDecl(funDecl):
+            for valueParam in funDecl.valueParams {
+                if let defaultValue = valueParam.defaultValue {
+                    visitExpr(defaultValue, role: .other, materialized: materialized)
+                }
+            }
+            walkFunctionBody(funDecl.body, materialized: materialized)
+        case let .propertyDecl(property):
+            if let initializer = property.initializer {
+                visitExpr(initializer, role: .other, materialized: materialized)
+            }
+            if let delegateExpression = property.delegateExpression {
+                visitExpr(delegateExpression, role: .other, materialized: materialized)
+            }
+            if let delegateBody = property.delegateBody {
+                walkFunctionBody(delegateBody, materialized: materialized)
+            }
+            if let getter = property.getter {
+                walkFunctionBody(getter.body, materialized: materialized)
+            }
+            if let setter = property.setter {
+                walkFunctionBody(setter.body, materialized: materialized)
+            }
+            if let field = property.explicitBackingField, let initializer = field.initializer {
+                visitExpr(initializer, role: .other, materialized: materialized)
+            }
+        case let .classDecl(classDecl):
+            for superTypeEntry in classDecl.superTypeEntries {
+                walkSuperTypeEntry(superTypeEntry, materialized: materialized)
+            }
+            for param in classDecl.primaryConstructorParams {
+                if let defaultValue = param.defaultValue {
+                    visitExpr(defaultValue, role: .other, materialized: materialized)
+                }
+            }
+            for initBlock in classDecl.initBlocks {
+                walkFunctionBody(initBlock, materialized: materialized)
+            }
+            for constructor in classDecl.secondaryConstructors {
+                for valueParam in constructor.valueParams {
+                    if let defaultValue = valueParam.defaultValue {
+                        visitExpr(defaultValue, role: .other, materialized: materialized)
+                    }
+                }
+                if let delegationCall = constructor.delegationCall {
+                    for argument in delegationCall.args {
+                        visitExpr(argument.expr, role: .other, materialized: materialized)
+                    }
+                }
+                walkFunctionBody(constructor.body, materialized: materialized)
+            }
+            for memberDecl in classDecl.memberFunctions
+                + classDecl.memberProperties
+                + classDecl.nestedClasses
+                + classDecl.nestedObjects {
+                walkDecl(memberDecl, materialized: true)
+            }
+            for enumEntry in classDecl.enumEntries {
+                walkEnumEntry(enumEntry, materialized: true)
+            }
+            if let companionObject = classDecl.companionObject {
+                walkDecl(companionObject, materialized: true)
+            }
+            if let companionBlockObject = classDecl.companionBlockObject {
+                walkDecl(companionBlockObject, materialized: true)
+            }
+        case let .interfaceDecl(interfaceDecl):
+            for memberDecl in interfaceDecl.memberFunctions
+                + interfaceDecl.memberProperties
+                + interfaceDecl.nestedClasses
+                + interfaceDecl.nestedObjects {
+                walkDecl(memberDecl, materialized: true)
+            }
+            if let companionObject = interfaceDecl.companionObject {
+                walkDecl(companionObject, materialized: true)
+            }
+            if let companionBlockObject = interfaceDecl.companionBlockObject {
+                walkDecl(companionBlockObject, materialized: true)
+            }
+        case let .objectDecl(objectDecl):
+            for superTypeEntry in objectDecl.superTypeEntries {
+                walkSuperTypeEntry(superTypeEntry, materialized: materialized)
+            }
+            for argument in objectDecl.superTypeConstructorArgs {
+                visitExpr(argument.expr, role: .other, materialized: materialized)
+            }
+            for initBlock in objectDecl.initBlocks {
+                walkFunctionBody(initBlock, materialized: materialized)
+            }
+            for memberDecl in objectDecl.memberFunctions
+                + objectDecl.memberProperties
+                + objectDecl.nestedClasses
+                + objectDecl.nestedObjects {
+                walkDecl(memberDecl, materialized: true)
+            }
+        case let .enumEntryDecl(enumEntry):
+            walkEnumEntry(enumEntry, materialized: materialized)
+        case .typeAliasDecl:
+            break
+        }
+    }
+
+    private func walkEnumEntry(_ enumEntry: EnumEntryDecl, materialized: Bool) {
+        for argument in enumEntry.constructorArgs {
+            visitExpr(argument.expr, role: .other, materialized: materialized)
+        }
+        for initBlock in enumEntry.initBlocks {
+            walkFunctionBody(initBlock, materialized: materialized)
+        }
+        for memberDecl in enumEntry.memberFunctions
+            + enumEntry.memberProperties
+            + enumEntry.nestedClasses {
+            walkDecl(memberDecl, materialized: true)
+        }
+    }
+
+    private func walkSuperTypeEntry(_ entry: SuperTypeEntry, materialized: Bool) {
+        if let delegateExpression = entry.delegateExpression {
+            visitExpr(delegateExpression, role: .other, materialized: materialized)
+        }
+        for argument in entry.constructorArgs {
+            visitExpr(argument.expr, role: .other, materialized: materialized)
+        }
+    }
+
+    /// `contract { ... }` is a metadata block whose calls reference the
+    /// function's own parameters (`callsInPlace(block, ...)`); kotlinc treats
+    /// those references as legal regardless of inlinability.
+    private func isContractDescriptionCall(callee: ExprID, args: [CallArgument]) -> Bool {
+        guard args.count == 1,
+              case let .nameRef(calleeName, _) = ast.arena.expr(callee)
+        else {
+            return false
+        }
+        return interner.resolve(calleeName) == "contract"
     }
 }
