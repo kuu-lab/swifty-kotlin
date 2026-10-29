@@ -280,7 +280,12 @@ import Testing
         #expect(sema.bindings.implicitReceiverMemberNames[call] == nil)
     }
 
-    @Test func callableLocalStillShadowsTopLevelFunction() throws {
+    /// KUU-3758: kotlinc 2.4.20 resolves `pick(true)` to the top-level
+    /// `pick(Boolean)` here — overload resolution picks the first scope tier
+    /// containing an *applicable* candidate, so the inapplicable local
+    /// `pick(Long)` does not hide the outer overload (same tower rule the
+    /// implicit-member fallbacks above encode).
+    @Test func inapplicableLocalFunctionDoesNotHideTopLevelFunction() throws {
         let ctx = makeIsolatedContext("""
         interface S { fun pick(value: Long): Int }
         fun pick(value: Boolean): String = "outer"
@@ -290,7 +295,13 @@ import Testing
         }
         """)
         try runSema(ctx)
-        #expect(ctx.diagnostics.hasError)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let call = try #require(nameRefCallExprID(named: "pick", in: ast, interner: ctx.interner))
+        let chosen = try #require(sema.bindings.callBinding(for: call)?.chosenCallee)
+        #expect(sema.symbols.symbol(chosen)?.fqName.map { ctx.interner.resolve($0) } == ["pick"])
+        #expect(sema.bindings.implicitReceiverMemberNames[call] == nil)
     }
 
     @Test func inapplicableTopLevelFunctionStillRejectsCall() throws {
