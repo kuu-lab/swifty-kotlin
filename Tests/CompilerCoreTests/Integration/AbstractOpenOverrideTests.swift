@@ -276,5 +276,112 @@ import Testing
         #expect(!ctx.diagnostics.hasError)
     }
 
+    // MARK: - Enum entry overrides of final kotlin.Enum members (KUU-3748)
+
+    @Test func testEnumEntryCannotOverrideFinalNameProperty() throws {
+        let source = """
+        enum class H {
+            FIRST { override val name get() = "first!" },
+            SECOND
+        }
+        fun main() {
+            println(H.FIRST.name)
+        }
+        """
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+
+        assertHasDiagnostic("KSWIFTK-SEMA-FINAL", in: ctx)
+    }
+
+    @Test func testEnumEntryCannotOverrideFinalOrdinalProperty() throws {
+        let source = """
+        enum class H {
+            FIRST { override val ordinal get() = 99 },
+            SECOND
+        }
+        fun main() {
+            println(H.FIRST.ordinal)
+        }
+        """
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+
+        assertHasDiagnostic("KSWIFTK-SEMA-FINAL", in: ctx)
+    }
+
+    @Test func testEnumEntryCannotOverrideFinalNameThroughInterface() throws {
+        // kotlinc reports 'name' in 'H' is final even though the same-named
+        // interface property would otherwise be a valid override target.
+        let source = """
+        interface Named { val name: String }
+        enum class H : Named {
+            FIRST { override val name get() = "first!" },
+            SECOND
+        }
+        fun main() {
+            val h: Named = H.FIRST
+            println(h.name)
+        }
+        """
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+
+        assertHasDiagnostic("KSWIFTK-SEMA-FINAL", in: ctx)
+    }
+
+    @Test func testEnumEntryCannotOverrideFinalInheritedFunction() throws {
+        let source = """
+        enum class H {
+            FIRST { override fun hashCode() = 1 },
+            SECOND
+        }
+        fun main() {
+            println(H.FIRST.hashCode())
+        }
+        """
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+
+        assertHasDiagnostic("KSWIFTK-SEMA-FINAL", in: ctx)
+    }
+
+    @Test func testEnumEntryCanOverrideAbstractAndOpenMembers() throws {
+        let source = """
+        enum class H {
+            FIRST { override val label get() = "f"; override fun describe() = "first"; override fun toString() = "FIRST!" },
+            SECOND { override val label get() = "s"; override fun describe() = "second" };
+            abstract val label: String
+            abstract fun describe(): String
+        }
+        fun main() {
+            println(H.FIRST.label)
+        }
+        """
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+
+        assertNoDiagnostic("KSWIFTK-SEMA-FINAL", in: ctx)
+        #expect(!ctx.diagnostics.hasError)
+    }
+
+    @Test func testEnumEntryCanOverrideInterfaceProperty() throws {
+        let source = """
+        interface Labelled { val label: String }
+        enum class H : Labelled {
+            FIRST { override val label get() = "first" },
+            SECOND { override val label get() = "second" }
+        }
+        fun main() {
+            println(H.FIRST.label)
+        }
+        """
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+
+        assertNoDiagnostic("KSWIFTK-SEMA-FINAL", in: ctx)
+        #expect(!ctx.diagnostics.hasError)
+    }
+
 }
 #endif
