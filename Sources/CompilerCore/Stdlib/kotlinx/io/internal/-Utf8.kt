@@ -9,16 +9,12 @@ package kotlinx.io.internal
 import kotlinx.io.checkBounds
 
 internal const val REPLACEMENT_BYTE: Byte = 63
-internal const val REPLACEMENT_CHARACTER: Char = '\ufffd'
 internal const val REPLACEMENT_CODE_POINT: Int = 0xfffd
 internal const val HIGH_SURROGATE_HEADER: Int = 0xd7c0
 internal const val LOG_SURROGATE_HEADER: Int = 0xdc00
 internal const val MASK_2BYTES: Int = 0x0f80
 internal const val MASK_3BYTES: Int = -0x01e080
 internal const val MASK_4BYTES: Int = 0x381f80
-
-internal fun isIsoControl(codePoint: Int): Boolean =
-    (codePoint >= 0 && codePoint <= 0x1f) || (codePoint >= 0x7f && codePoint <= 0x9f)
 
 internal fun isUtf8Continuation(byte: Byte): Boolean = byte.toInt() and 0xc0 == 0x80
 
