@@ -303,14 +303,15 @@ extension DataFlowSemaPhase {
         )
     }
 
-    /// Anonymous object declarations (`object : A() { ... }`) are bound
-    /// lazily during type checking, so the main OFO walk over
-    /// `topLevelDecls` never sees them and their members received no
-    /// override validation at all: `override` on a nonexistent member,
-    /// `val`-over-`var`, type-mismatched and hidden (missing `override`)
-    /// members were all accepted. Run the same member checks once their
-    /// symbols and types have been published.
-    func validateObjectLiteralOverrides(
+    /// Declarations bound lazily inside bodies — anonymous object literals
+    /// (`object : A() { ... }`) and local nominal declarations (`class`,
+    /// `interface`, named `object` in function/property bodies) — are never
+    /// reached by the main OFO walk over `topLevelDecls`, so their members
+    /// received no override validation at all: `override` on a nonexistent
+    /// member, `val`-over-`var`, type-mismatched and hidden (missing
+    /// `override`) members were all accepted. Run the same member checks
+    /// once their symbols and types have been published.
+    func validateBodyNestedDeclOverrides(
         ast: ASTModule,
         symbols: SymbolTable,
         bindings: BindingTable,
@@ -328,19 +329,28 @@ extension DataFlowSemaPhase {
             interner: interner,
             compilationModuleFQN: interner.intern(compilationModuleName)
         )
+        var visited = Set<DeclID>()
         for expr in ast.arena.exprs {
-            guard case let .objectLiteral(_, declID, _) = expr,
-                  let declID
-            else { continue }
-            validateObjectLiteralDeclOverrides(in: declID, ctx: ctx)
+            switch expr {
+            case let .objectLiteral(_, declID, _):
+                if let declID {
+                    validateBodyNestedDeclOverrides(in: declID, ctx: ctx, visited: &visited)
+                }
+            case let .localNominalDecl(declID, _):
+                validateBodyNestedDeclOverrides(in: declID, ctx: ctx, visited: &visited)
+            default:
+                continue
+            }
         }
     }
 
-    private func validateObjectLiteralDeclOverrides(
+    private func validateBodyNestedDeclOverrides(
         in declID: DeclID,
-        ctx: OpenFinalOverrideContext
+        ctx: OpenFinalOverrideContext,
+        visited: inout Set<DeclID>
     ) {
-        guard let ownerSymbol = ctx.bindings.declSymbols[declID],
+        guard visited.insert(declID).inserted,
+              let ownerSymbol = ctx.bindings.declSymbols[declID],
               let decl = ctx.ast.arena.decl(declID),
               let info = extractDeclInfo(decl)
         else { return }
@@ -348,7 +358,7 @@ extension DataFlowSemaPhase {
         validateMemberOverrides(info.memberFunctions, symbol: ownerSymbol, ctx: ctx)
         validateMemberOverrides(info.memberProperties, symbol: ownerSymbol, ctx: ctx)
         for nestedDeclID in info.nestedClasses {
-            validateObjectLiteralDeclOverrides(in: nestedDeclID, ctx: ctx)
+            validateBodyNestedDeclOverrides(in: nestedDeclID, ctx: ctx, visited: &visited)
         }
     }
 
