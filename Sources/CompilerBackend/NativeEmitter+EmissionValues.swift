@@ -5,19 +5,13 @@ extension NativeEmitter.FunctionEmissionContext {
 
     func assignmentTargets(for instruction: KIRInstruction) -> [KIRExprID] {
         switch instruction {
-        case let .constValue(result, _):
+        case let .constValue(result, _),
+             let .binary(_, _, _, result),
+             let .unary(_, _, result),
+             let .nullAssert(_, result):
             return [result]
-        case let .binary(_, _, _, result):
-            return [result]
-        case let .unary(_, _, result):
-            return [result]
-        case let .nullAssert(_, result):
-            return [result]
-        case let .call(_, _, _, result, _, thrownResult, _, _):
-            let directTargets = result.map { [$0] } ?? []
-            let thrownTargets = thrownResult.map { [$0] } ?? []
-            return directTargets + thrownTargets
-        case let .virtualCall(_, _, _, _, result, _, thrownResult, _):
+        case let .call(_, _, _, result, _, thrownResult, _, _),
+             let .virtualCall(_, _, _, _, result, _, thrownResult, _):
             let directTargets = result.map { [$0] } ?? []
             let thrownTargets = thrownResult.map { [$0] } ?? []
             return directTargets + thrownTargets
