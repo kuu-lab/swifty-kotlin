@@ -164,8 +164,8 @@ struct DataFlowAnalyzerTests {
         let rhs = DataFlowState(variables: [sym: VariableFlowState(possibleTypes: [stringType], nullability: .nonNull, isStable: true)])
         let result = analyzer.merge(lhs, rhs)
         #expect(result.variables[sym]?.possibleTypes.count == 2)
-        #expect(try #require(result.variables[sym]?.possibleTypes.contains(intType)))
-        #expect(try #require(result.variables[sym]?.possibleTypes.contains(stringType)))
+        #expect(result.variables[sym]?.possibleTypes.contains(intType) == true)
+        #expect(result.variables[sym]?.possibleTypes.contains(stringType) == true)
     }
 
     @Test
@@ -191,7 +191,7 @@ struct DataFlowAnalyzerTests {
         let lhs = DataFlowState(variables: [sym: VariableFlowState(possibleTypes: [intType], nullability: .nonNull, isStable: true)])
         let rhs = DataFlowState(variables: [sym: VariableFlowState(possibleTypes: [intType], nullability: .nonNull, isStable: false)])
         let result = analyzer.merge(lhs, rhs)
-        #expect(!(try #require(result.variables[sym]?.isStable)))
+        #expect(result.variables[sym]?.isStable == false)
     }
 
     // MARK: - isWhenExhaustive
