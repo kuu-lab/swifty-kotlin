@@ -115,9 +115,21 @@ extension CallTypeChecker {
             // diagnostics inside their ranges. The property invoke re-infers
             // them, so stale argument errors must not leak past a successful
             // bind (KUU-3145).
+            var removedArgumentDiagnostics: [(ExprID, Diagnostic)] = []
             for argument in args {
                 guard let argumentRange = ast.arena.exprRange(argument.expr) else { continue }
-                sema.diagnostics.removeErrorDiagnostics(containedIn: argumentRange)
+                for removed in sema.diagnostics.removeErrorDiagnostics(containedIn: argumentRange) {
+                    removedArgumentDiagnostics.append((argument.expr, removed))
+                }
+            }
+            defer {
+                // An argument still bound to the error type was not recovered
+                // by the retry, so its removed diagnostics remain genuine
+                // failures that nothing re-emitted (KUU-3750).
+                for (argumentExpr, diagnostic) in removedArgumentDiagnostics
+                where sema.bindings.exprType(for: argumentExpr) == sema.types.errorType {
+                    sema.diagnostics.emit(diagnostic)
+                }
             }
             if let propSymbol = sema.symbols.symbol(propResult.symbol),
                !ctx.visibilityChecker.isAccessible(propSymbol, fromFile: ctx.currentFileID, enclosingClass: ctx.enclosingClassSymbol)

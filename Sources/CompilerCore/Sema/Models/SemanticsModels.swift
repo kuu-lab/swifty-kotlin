@@ -267,6 +267,35 @@ public struct FunctionSignature: Hashable, Sendable, Codable {
         )
     }
 
+    /// Returns a copy of the signature with its dispatch/extension receiver
+    /// slot replaced. Conflict checks use this to normalize receivers that
+    /// are not part of the callable identity a same-named declaration must
+    /// match — e.g. a constructor's implicit class receiver (KUU-3750).
+    func replacingReceiverType(_ receiverType: TypeID?) -> FunctionSignature {
+        FunctionSignature(
+            receiverType: receiverType,
+            contextReceiverTypes: contextReceiverTypes,
+            contextParameterSymbols: contextParameterSymbols,
+            contextParameterTypes: contextParameterTypes,
+            parameterTypes: parameterTypes,
+            returnType: returnType,
+            isSuspend: isSuspend,
+            canThrow: canThrow,
+            valueParameterSymbols: valueParameterSymbols,
+            valueParameterUnsafeVarianceTypeParameterSymbols: valueParameterUnsafeVarianceTypeParameterSymbols,
+            valueParameterHasDefaultValues: valueParameterHasDefaultValues,
+            valueParameterIsVararg: valueParameterIsVararg,
+            valueParameterAllowsNonLocalReturn: valueParameterAllowsNonLocalReturn,
+            hasExplicitInlineParameterMetadata: hasExplicitInlineParameterMetadata,
+            hasStableParameterNames: hasStableParameterNames,
+            typeParameterSymbols: typeParameterSymbols,
+            reifiedTypeParameterIndices: reifiedTypeParameterIndices,
+            typeParameterUpperBounds: typeParameterUpperBounds,
+            typeParameterUpperBoundsList: typeParameterUpperBoundsList,
+            classTypeParameterCount: classTypeParameterCount
+        )
+    }
+
     private enum CodingKeys: String, CodingKey {
         case receiverType
         case contextReceiverTypes

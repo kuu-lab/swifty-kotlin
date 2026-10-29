@@ -266,9 +266,13 @@ public final class DiagnosticEngine: @unchecked Sendable {
     /// that expression's range are stale and must not surface. Keeps
     /// `_emittedDiagnostics` and the per-file counts consistent, unlike a
     /// bare `rollback(to:)` which only truncates the array tail.
-    public func removeErrorDiagnostics(containedIn range: SourceRange) {
+    /// Returns the removed diagnostics so a retry that leaves an argument in
+    /// the error state can restore its genuine failures (KUU-3750).
+    @discardableResult
+    public func removeErrorDiagnostics(containedIn range: SourceRange) -> [Diagnostic] {
         lock.lock()
         defer { lock.unlock() }
+        var removed: [Diagnostic] = []
         _diagnostics.removeAll { diagnostic in
             guard diagnostic.severity == .error,
                   let primaryRange = diagnostic.primaryRange,
@@ -283,8 +287,10 @@ public final class DiagnosticEngine: @unchecked Sendable {
                 _diagnosticCountByFile[bucket, default: 0] -= 1
             }
             _emittedDiagnostics.remove(diagnostic)
+            removed.append(diagnostic)
             return true
         }
+        return removed
     }
 
     /// Sort the diagnostics array in-place by source location for deterministic
