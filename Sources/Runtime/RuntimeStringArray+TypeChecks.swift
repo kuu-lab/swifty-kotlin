@@ -559,6 +559,15 @@ public func kk_op_is(_ value: Int, _ typeToken: Int) -> Int {
                 targetTypeID: payload
             ) ? 1 : 0
         }
+        // KUU-3701: the DeepRecursive trampoline's scope/function boxes are
+        // likewise raw runtime objects — recover the kotlin.DeepRecursive*
+        // nominal they stand in for.
+        if let deepRecursiveTypeID = runtimeDeepRecursiveNominalTypeID(rawValue: value) {
+            return runtimeIsAssignable(
+                sourceTypeID: deepRecursiveTypeID,
+                targetTypeID: payload
+            ) ? 1 : 0
+        }
         let throwable = runtimeStorage.withGCLock { state in
             state.objectPointers.contains(UInt(bitPattern: ptr))
                 ? tryCast(ptr, to: RuntimeThrowableBox.self)
