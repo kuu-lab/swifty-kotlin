@@ -15,8 +15,6 @@ struct LocalBindings: ExpressibleByDictionaryLiteral, Sequence {
     }
 
     var values: Dictionary<InternedString, Value>.Values { bindings.values }
-    var isEmpty: Bool { bindings.isEmpty }
-
     func makeIterator() -> Dictionary<InternedString, Value>.Iterator {
         bindings.makeIterator()
     }
