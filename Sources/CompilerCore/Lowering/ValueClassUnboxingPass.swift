@@ -1,5 +1,5 @@
 /// This pass must run **before** PropertyLoweringPass and ABILoweringPass.
-final class ValueClassUnboxingPass: LoweringPass, ParallelLoweringPass {
+final class ValueClassUnboxingPass: LoweringPass {
     static let name = "ValueClassUnboxing"
     static let requiredStage: KIRStage = .desugared
     static let producedStage: KIRStage = .valueClassUnboxed

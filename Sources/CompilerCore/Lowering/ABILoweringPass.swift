@@ -1,5 +1,5 @@
 
-final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
+final class ABILoweringPass: LoweringPass {
     static let name = "ABILowering"
     static let requiredStage: KIRStage = .integerNarrowed
     static let producedStage: KIRStage = .abiLowered
