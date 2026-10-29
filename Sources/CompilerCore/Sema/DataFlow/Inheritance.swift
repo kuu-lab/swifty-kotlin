@@ -411,7 +411,7 @@ extension DataFlowSemaPhase {
         enclosing.reserveCapacity(enclosingClassScopes.count)
         for fqName in enclosingClassScopes {
             guard let enclosingID = symbols.lookup(fqName: fqName),
-                  let info = symbols.symbol(enclosingID)
+                  symbols.symbol(enclosingID) != nil
             else {
                 return
             }
