@@ -38,6 +38,17 @@ import Testing
         )
     }
 
+    @Test(arguments: [false, true], [0, 2])
+    func propertyInitializersKeepObjectInterfaceDelegation(fromArtifact: Bool, optimization: Int) throws {
+        try compileAndRunKotlin(
+            diffCaseSource("object_interface_delegation_property_initializers.kt"),
+            expectedOutput: "delegate\ndelegate\ndelegate\ndelegate\nproperty delegate\nordinary\n",
+            moduleName: "ObjectInterfaceDelegationPropertyInitializers",
+            allowDefaultStdlibLibrary: fromArtifact,
+            optLevel: try #require(OptimizationLevel(rawValue: optimization))
+        )
+    }
+
     @Test func delegationPreservesOverridesPropertiesAndEnclosingCaptures() throws {
         try compileAndRunKotlin(
             diffCaseSource("anonymous_object_interface_delegation_members.kt"),

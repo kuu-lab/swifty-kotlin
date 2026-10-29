@@ -915,6 +915,11 @@ extension BuildASTPhase {
         var byIndex: Int?
         var depth = BracketDepth()
         for (index, token) in tokens.enumerated() {
+            // Once the initializer starts, any `by` belongs to that expression,
+            // not to the property declaration.
+            if token.kind == .symbol(.assign), depth.isAtTopLevel {
+                return nil
+            }
             if case .softKeyword(.by) = token.kind, depth.isAtTopLevel {
                 byIndex = index
                 break
