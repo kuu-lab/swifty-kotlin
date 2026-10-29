@@ -286,7 +286,7 @@ struct DeclarationPositionValidator {
             invalidModifiers: Self.memberSiteInvalidModifiers(site)
         )
         let conflictCovered = visibilityCovered.union(pairPlan.covered)
-        let target = propertyTargetName(site: site)
+        let target = propertyTargetName(decl: decl, site: site)
 
         for (modifier, name) in Self.propertyImpossibleModifiers where modifiers.contains(modifier) {
             if modifier == .inline, isInlinePropertyWithCustomAccessors(decl, site: site) {
@@ -304,12 +304,9 @@ struct DeclarationPositionValidator {
 
         switch site {
         case .file:
-            let topLevelTarget = decl.getter == nil
-                ? "top level property with backing field"
-                : "top level property"
             for (modifier, name) in Self.topLevelPropertyForbidden
             where modifiers.contains(modifier) && !conflictCovered.contains(modifier) {
-                emitNotApplicable(name, to: topLevelTarget, range: decl.range)
+                emitNotApplicable(name, to: target, range: decl.range)
             }
         case .function:
             break
@@ -323,7 +320,7 @@ struct DeclarationPositionValidator {
                 emitInside("protected", inside: nominal.name, range: decl.range)
             }
             if modifiers.contains(.expect), !nominal.ownerModifiers.contains(.expect) {
-                emitNotApplicable("expect", to: "member property", range: decl.range)
+                emitNotApplicable("expect", to: target, range: decl.range)
             }
             if nominal.kind == .interface {
                 if modifiers.contains(.lateinit) {
@@ -1295,15 +1292,44 @@ struct DeclarationPositionValidator {
         }
     }
 
-    private func propertyTargetName(site: OwnerSite) -> String {
-        switch site {
-        case .file:
-            return "top level property"
-        case .function:
+    /// kotlinc qualifies modifier targets by backing-field shape: a
+    /// delegated property is 'with delegate'; a property that cannot have
+    /// a backing field is 'without backing field or delegate'; otherwise
+    /// 'with backing field'. Local variables keep the plain name.
+    private func propertyTargetName(decl: PropertyDecl, site: OwnerSite) -> String {
+        if case .function = site {
             return "local variable"
-        case .nominal:
-            return "member property"
         }
+        let base = if case .file = site { "top level property" } else { "member property" }
+        if decl.delegateExpression != nil {
+            return "\(base) with delegate"
+        }
+        return propertyIsFieldless(decl, site: site)
+            ? "\(base) without backing field or delegate"
+            : "\(base) with backing field"
+    }
+
+    /// A `var` always reports a backing field in these diagnostics; a `val`
+    /// is fieldless only when a custom getter body exists and does not
+    /// resolve a `field` reference. `abstract`/`expect` properties and
+    /// interface members never have one. A `field` reference only creates
+    /// the field when the property is typed — `val x get() = field`
+    /// leaves `field` unresolved and stays fieldless.
+    private func propertyIsFieldless(_ decl: PropertyDecl, site: OwnerSite) -> Bool {
+        if decl.modifiers.contains(.abstract) || decl.modifiers.contains(.expect) {
+            return true
+        }
+        if case .nominal(let nominal) = site, nominal.kind == .interface {
+            return true
+        }
+        if decl.isVar {
+            return false
+        }
+        if decl.initializer != nil || decl.explicitBackingField != nil {
+            return false
+        }
+        let getterResolvesField = decl.type != nil && accessorUsesBackingField(decl.getter)
+        return accessorHasBody(decl.getter) && !getterResolvesField
     }
 
     /// Function names that legally carry the `operator` modifier.

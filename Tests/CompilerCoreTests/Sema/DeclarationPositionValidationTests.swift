@@ -508,6 +508,48 @@ struct DeclarationPositionValidationTests {
         #expect(repeated.map(\.message) == ["repeated 'vararg'."])
     }
 
+    @Test func propertyModifierTargetsReportBackingFieldShape() throws {
+        let ctx = try semaContextWithoutStdlib(for: """
+            data val hasInit = 1
+            data val fieldlessGetter: Int get() = 1
+            data val fieldGetter: Int get() = field
+            data var mutableFieldless: Int get() = 1 set(v) {}
+            """)
+        let notApplicable = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0400" }
+        #expect(notApplicable.map(\.message) == [
+            "modifier 'data' is not applicable to 'top level property with backing field'.",
+            "modifier 'data' is not applicable to 'top level property without backing field or delegate'.",
+            "modifier 'data' is not applicable to 'top level property with backing field'.",
+            "modifier 'data' is not applicable to 'top level property with backing field'.",
+        ])
+    }
+
+    @Test func propertyModifierTargetHonoursDelegateAndAbstract() throws {
+        let ctx = try semaContextWithoutStdlib(for: """
+            abstract class C {
+                data val delegated by d
+                data val abstractMember: Int
+            }
+            """)
+        let notApplicable = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0400" }
+        #expect(notApplicable.map(\.message) == [
+            "modifier 'data' is not applicable to 'member property with delegate'.",
+            "modifier 'data' is not applicable to 'member property with backing field'.",
+        ])
+    }
+
+    @Test func untypedFieldGetterStaysFieldless() throws {
+        let ctx = try semaContextWithoutStdlib(for: """
+            enum val untyped get() = field
+            interface I { data val member: Int }
+            """)
+        let notApplicable = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0400" }
+        #expect(notApplicable.map(\.message) == [
+            "modifier 'enum' is not applicable to 'top level property without backing field or delegate'.",
+            "modifier 'data' is not applicable to 'member property without backing field or delegate'.",
+        ])
+    }
+
     @Test(arguments: ["; ", "\n", ";\n", ";\n;"])
     func topLevelFunInterfaceBeforeSeparatedFunctionsIsAccepted(separator: String) throws {
         let source = """
