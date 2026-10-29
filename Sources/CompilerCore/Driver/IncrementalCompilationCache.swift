@@ -566,7 +566,10 @@ public final class IncrementalCompilationCache {
         }
     }
 
-    private static func outputArtifactPath(for options: CompilerOptions) -> String {
+    /// Shared with the driver's writers: when the two spelled `--emit kir`
+    /// paths differently, `-o out.kir` wrote `out.kir.kir` while the cache
+    /// looked for `out.kir`, so the artifact was never cached or restored.
+    static func outputArtifactPath(for options: CompilerOptions) -> String {
         switch options.emit {
         case .kirDump:
             outputPath(base: options.outputPath, defaultExtension: "kir")
