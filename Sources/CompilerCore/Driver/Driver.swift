@@ -370,15 +370,53 @@ public final class CompilerDriver {
             return
         }
         let path = IncrementalCompilationCache.outputArtifactPath(for: ctx.options)
-        let dump = PhaseTimer.measureSubPhase("render", timer: ctx.phaseTimer) {
-            kir.dump(interner: ctx.interner, symbols: ctx.sema?.symbols)
-        }
         do {
-            try PhaseTimer.measureSubPhase("write", timer: ctx.phaseTimer) {
-                try dump.write(to: URL(fileURLWithPath: path), atomically: true, encoding: .utf8)
+            // Rendering and writing interleave, so "render" spans both and
+            // "write" accumulates just the chunk writes inside it.
+            try withSubPhaseTiming("render", timer: ctx.phaseTimer) {
+                try Self.writeReplacingAtomically(path: path) { handle in
+                    try kir.dump(
+                        interner: ctx.interner,
+                        symbols: ctx.sema?.symbols,
+                        chunkBytes: Self.kirDumpChunkBytes
+                    ) { chunk in
+                        try withSubPhaseTiming("write", timer: ctx.phaseTimer, accumulating: true) {
+                            try handle.write(contentsOf: Data(chunk.utf8))
+                        }
+                    }
+                }
             }
         } catch {
             ctx.diagnostics.error("KSWIFTK-PIPELINE-0003", "Could not write KIR dump: \(error)", range: nil)
+        }
+    }
+
+    /// Large enough that write syscalls stay rare, small enough that the dump
+    /// never holds more than one chunk beyond what it is rendering.
+    static let kirDumpChunkBytes = 1 << 20
+
+    /// Same guarantee as `write(atomically: true)` without staging through
+    /// the system replacement directory: write a sibling temp file, then
+    /// rename it over the destination.
+    static func writeReplacingAtomically(path: String, _ body: (FileHandle) throws -> Void) throws {
+        let tempPath = path + ".tmp.\(UUID().uuidString)"
+        guard FileManager.default.createFile(atPath: tempPath, contents: nil),
+              let handle = FileHandle(forWritingAtPath: tempPath)
+        else {
+            throw CocoaError(.fileWriteUnknown, userInfo: [NSFilePathErrorKey: tempPath])
+        }
+        do {
+            try body(handle)
+            try handle.close()
+        } catch {
+            try? handle.close()
+            try? FileManager.default.removeItem(atPath: tempPath)
+            throw error
+        }
+        guard rename(tempPath, path) == 0 else {
+            let code = errno
+            try? FileManager.default.removeItem(atPath: tempPath)
+            throw POSIXError(POSIXErrorCode(rawValue: code) ?? .EIO)
         }
     }
 

@@ -100,4 +100,23 @@ struct CompilerSubPhaseTimingTests {
             #expect(FileManager.default.fileExists(atPath: output + ".kir"))
         }
     }
+
+    @Test
+    func testKIRDumpReplacesExistingFileWithoutLeavingTempFiles() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let path = directory.appendingPathComponent("out.kir").path
+        try "stale".write(toFile: path, atomically: false, encoding: .utf8)
+        try CompilerDriver.writeReplacingAtomically(path: path) { handle in
+            try handle.write(contentsOf: Data("fresh".utf8))
+        }
+        #expect(try String(contentsOfFile: path, encoding: .utf8) == "fresh")
+        struct Failure: Error {}
+        #expect(throws: Failure.self) {
+            try CompilerDriver.writeReplacingAtomically(path: path) { _ in throw Failure() }
+        }
+        #expect(try String(contentsOfFile: path, encoding: .utf8) == "fresh")
+        #expect(try FileManager.default.contentsOfDirectory(atPath: directory.path) == ["out.kir"])
+    }
 }
