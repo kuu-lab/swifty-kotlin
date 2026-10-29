@@ -360,15 +360,23 @@ public final class CompilerDriver {
         return Int(process.terminationStatus)
     }
 
-    private func emitKIRDump(ctx: CompilationContext) {
+    /// Runs outside `executePhases`, so it opens its own top-level phase to
+    /// keep dump cost visible in `time-phases` next to the phases it follows.
+    func emitKIRDump(ctx: CompilationContext) {
+        ctx.phaseTimer?.beginPhase("KIRDump")
+        defer { ctx.phaseTimer?.endPhase() }
         guard let kir = ctx.kir else {
             ctx.diagnostics.error("KSWIFTK-PIPELINE-0003", "KIR not available for dump.", range: nil)
             return
         }
         let path = IncrementalCompilationCache.outputArtifactPath(for: ctx.options)
-        let dump = kir.dump(interner: ctx.interner, symbols: ctx.sema?.symbols)
+        let dump = PhaseTimer.measureSubPhase("render", timer: ctx.phaseTimer) {
+            kir.dump(interner: ctx.interner, symbols: ctx.sema?.symbols)
+        }
         do {
-            try dump.write(to: URL(fileURLWithPath: path), atomically: true, encoding: .utf8)
+            try PhaseTimer.measureSubPhase("write", timer: ctx.phaseTimer) {
+                try dump.write(to: URL(fileURLWithPath: path), atomically: true, encoding: .utf8)
+            }
         } catch {
             ctx.diagnostics.error("KSWIFTK-PIPELINE-0003", "Could not write KIR dump: \(error)", range: nil)
         }
