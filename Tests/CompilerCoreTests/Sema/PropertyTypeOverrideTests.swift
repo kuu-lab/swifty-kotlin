@@ -159,5 +159,50 @@ struct PropertyTypeOverrideTests {
         """)
         assertHasDiagnostic("KSWIFTK-SEMA-OVERRIDE-TYPE", in: diagnostics)
     }
+
+    @Test
+    func rejectsInferredVarOverrideInsideObjectLiteral() throws {
+        let diagnostics = try diagnosticsFor("""
+        open class A { open var x: Any = "" }
+        val o = object : A() { override var x = "s" }
+        """)
+        assertHasDiagnostic("KSWIFTK-SEMA-OVERRIDE-TYPE", in: diagnostics)
+    }
+
+    @Test
+    func rejectsInferredVarOverrideInsideLocalClass() throws {
+        let diagnostics = try diagnosticsFor("""
+        open class A { open var x: Any = "" }
+        fun f() { class L : A() { override var x = "s" } }
+        """)
+        assertHasDiagnostic("KSWIFTK-SEMA-OVERRIDE-TYPE", in: diagnostics)
+    }
+
+    @Test
+    func rejectsInferredValOverrideInsideNestedObjectLiteral() throws {
+        let diagnostics = try diagnosticsFor("""
+        open class A { open val x: String = "" }
+        val o = object { val inner = object : A() { override val x = "s" as Any } }
+        """)
+        assertHasDiagnostic("KSWIFTK-SEMA-OVERRIDE-TYPE", in: diagnostics)
+    }
+
+    @Test
+    func acceptsInferredValOverrideInsideObjectLiteral() throws {
+        let diagnostics = try diagnosticsFor("""
+        open class A { open val x: Any = "" }
+        val o = object : A() { override val x = "s" }
+        """)
+        assertNoDiagnostic("KSWIFTK-SEMA-OVERRIDE-TYPE", in: diagnostics)
+    }
+
+    @Test
+    func acceptsInferredVarOverrideInsideLocalClass() throws {
+        let diagnostics = try diagnosticsFor("""
+        open class A { open var x: String = "" }
+        fun f() { class L : A() { override var x = "t" } }
+        """)
+        assertNoDiagnostic("KSWIFTK-SEMA-OVERRIDE-TYPE", in: diagnostics)
+    }
 }
 #endif
