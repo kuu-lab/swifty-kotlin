@@ -11,16 +11,56 @@ extension CallLowerer {
         signature: FunctionSignature? = nil,
         callBinding: CallBinding? = nil,
         preferredReceiverSymbol: SymbolID? = nil,
+        receiverTypeHint: TypeID? = nil,
+        ownerSymbolHint: SymbolID? = nil,
         sema: SemaModule,
         arena: KIRArena
     ) -> KIRExprID? {
         var resolvedType = requestedType
-        if let signature, let callBinding {
+        if let signature {
             let typeVariables = sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
             var substitution: [TypeVarID: TypeID] = [:]
-            for (symbol, argument) in zip(signature.typeParameterSymbols, callBinding.substitutedTypeArguments) {
-                if let variable = typeVariables[symbol] {
-                    substitution[variable] = argument
+            if let callBinding {
+                for (symbol, argument) in zip(signature.typeParameterSymbols, callBinding.substitutedTypeArguments) {
+                    if let variable = typeVariables[symbol] {
+                        substitution[variable] = argument
+                    }
+                }
+            }
+            // Member-property reads bind the property identifier rather than a
+            // call binding, so no `substitutedTypeArguments` reach lowering.
+            // Recover the owner-class type arguments from the actual receiver
+            // value (e.g. `A<String>` supplies `X -> String` for `A<X>.p`).
+            if signature.classTypeParameterCount > 0,
+               let receiverTypeHint,
+               let ownerSymbol = ownerSymbolHint
+                   ?? signature.receiverType.flatMap({ receiverType in
+                       guard case let .classType(receiverClass) = sema.types.kind(
+                           of: sema.types.makeNonNullable(receiverType)
+                       ) else { return nil }
+                       return receiverClass.classSymbol
+                   }),
+               case let .classType(hintClass) = sema.types.kind(
+                   of: sema.types.makeNonNullable(receiverTypeHint)
+               ),
+               let ownerArgs = sema.types.liftedNominalSupertypeArgs(
+                   from: hintClass, to: ownerSymbol
+               )
+            {
+                for (index, paramSymbol) in signature.typeParameterSymbols
+                    .prefix(signature.classTypeParameterCount)
+                    .enumerated()
+                {
+                    guard index < ownerArgs.count,
+                          let variable = typeVariables[paramSymbol],
+                          substitution[variable] == nil
+                    else { continue }
+                    switch ownerArgs[index] {
+                    case let .invariant(type), let .in(type), let .out(type):
+                        substitution[variable] = type
+                    case .star:
+                        break
+                    }
                 }
             }
             resolvedType = sema.types.substituteTypeParameters(
@@ -57,6 +97,8 @@ extension CallLowerer {
         callExprID: ExprID?,
         callBinding: CallBinding?,
         sourceArgumentIDs: [KIRExprID] = [],
+        receiverTypeHint: TypeID? = nil,
+        ownerSymbolHint: SymbolID? = nil,
         sema: SemaModule,
         arena: KIRArena
     ) -> [KIRExprID] {
@@ -81,6 +123,8 @@ extension CallLowerer {
                 signature: signature,
                 callBinding: callBinding,
                 preferredReceiverSymbol: receiverSymbol,
+                receiverTypeHint: receiverTypeHint,
+                ownerSymbolHint: ownerSymbolHint,
                 sema: sema,
                 arena: arena
             )
@@ -234,12 +278,23 @@ extension CallLowerer {
         if let signature = sema.symbols.functionSignature(for: accessor),
            !signature.contextParameterTypes.isEmpty
         {
-            let contextArguments = contextArgumentValues(
-                for: signature, callExprID: callExprID, callBinding: binding,
-                sema: sema, arena: arena
-            )
             let receiverCount = (signature.receiverType == nil ? 0 : 1)
                 + (memberExtensionOwnerSymbol(for: accessor, sema: sema) == nil ? 0 : 1)
+            // The dispatch receiver instance supplies the owner class's type
+            // arguments for a member accessor; the trailing receiver argument
+            // matches `signature.receiverType`.
+            let receiverTypeHint = receiverCount > 0 && result.count >= receiverCount
+                ? arena.exprType(result[receiverCount - 1])
+                : nil
+            let ownerReceiverTypeHint = memberExtensionOwnerSymbol(for: accessor, sema: sema) == nil
+                ? receiverTypeHint
+                : result.first.flatMap { arena.exprType($0) }
+            let contextArguments = contextArgumentValues(
+                for: signature, callExprID: callExprID, callBinding: binding,
+                receiverTypeHint: ownerReceiverTypeHint,
+                ownerSymbolHint: memberExtensionOwnerSymbol(for: accessor, sema: sema),
+                sema: sema, arena: arena
+            )
             result.insert(contentsOf: contextArguments, at: min(receiverCount, result.count))
         }
         appendReifiedTypeTokens(chosenCallee: accessor, callBinding: binding, sema: sema,

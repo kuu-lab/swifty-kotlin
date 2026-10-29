@@ -2866,10 +2866,18 @@ extension ExprTypeChecker {
         if let samFunctionType = driver.helpers.samCallableReferenceFunctionType(for: expectedType, sema: sema) {
             // Same check against the SAM signature for a fun-interface
             // expected type (`useSam(C::v)`): adopt the interface type only
-            // when the reference's function view matches the SAM.
+            // when the reference's function view matches the SAM. A SAM
+            // signature with context receivers additionally accepts the
+            // flattened positional view (`context(C) () -> V` matches
+            // `KProperty1<C, V>`'s `(C) -> V` function view — KUU-3170).
+            let samFunctionTypeID = sema.types.make(.functionType(samFunctionType))
             if !sema.types.typeContainsAnyTypeParam(expectedType),
                isConcreteKPropertyReferenceShape(inferredType, sema: sema, interner: interner),
-               !sema.types.isSubtype(inferredType, sema.types.make(.functionType(samFunctionType)))
+               !sema.types.isSubtype(inferredType, samFunctionTypeID),
+               !sema.types.isSubtype(
+                   inferredType,
+                   driver.helpers.contextFlattenedFunctionType(samFunctionTypeID, sema: sema)
+               )
             {
                 return inferredType
             }

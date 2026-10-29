@@ -288,6 +288,21 @@ extension LambdaLowerer {
                     seen: &seen
                 )
             }
+            // Implicit context arguments resolved during overload resolution
+            // are used by the call even though nothing in the expression
+            // names them — enclosing receivers recorded on the binding must
+            // be captured for the callee's context slots to stay filled
+            // inside this lambda (KUU-3170).
+            for receiverSymbol in binding.contextParameterReceiverSymbols.compactMap({ $0 })
+                where seen.insert(receiverSymbol).inserted
+            {
+                referenced.append(receiverSymbol)
+            }
+            if let dispatchReceiver = binding.dispatchReceiverSymbol,
+               seen.insert(dispatchReceiver).inserted
+            {
+                referenced.append(dispatchReceiver)
+            }
         }
         var memberSymbols = [
             sema.bindings.callBinding(for: exprID)?.chosenCallee ?? sema.bindings.identifierSymbols[exprID],
