@@ -384,7 +384,8 @@ func kirCheckableCastErasure(of type: TypeID, sema: SemaModule) -> TypeID? {
         else {
             return nil
         }
-        current = bound
+        // A nullable type parameter remains nullable when erased to its bound.
+        current = parameter.nullability == .nullable ? sema.types.makeNullable(bound) : bound
     }
     switch RuntimeTypeCheckToken.classify(type: current, sema: sema).category {
     case .unknown, .any:
