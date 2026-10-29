@@ -2321,6 +2321,21 @@ final class ExprTypeChecker {
         _ = driver.inferExpr(id, ctx: ctx, locals: &locals, expectedType: nil)
         sema.bindings.bindConstExprValue(id, value: primitive == .long ? .longLiteral(value) : .intLiteral(value))
         sema.bindings.bindExprType(id, type: widenedType)
+        // That nil-context pass leaves a unary operand at its natural type.
+        // Mirror the `.unaryExpr` operand rule the skipped path below runs:
+        // a bare `+literal` operand carries the contextual type (KIR reuses
+        // that binding to box the result). `-literal` and non-literal
+        // operands keep Int semantics the fold depends on.
+        if case let .unaryExpr(op, operandID, _) = ctx.ast.arena.expr(id) {
+            let operandIsIntLiteral: Bool = if case .intLiteral = ctx.ast.arena.expr(operandID) {
+                true
+            } else {
+                false
+            }
+            if op == .unaryPlus, operandIsIntLiteral {
+                _ = driver.inferExpr(operandID, ctx: ctx, locals: &locals, expectedType: widenedType)
+            }
+        }
         return widenedType
     }
 
