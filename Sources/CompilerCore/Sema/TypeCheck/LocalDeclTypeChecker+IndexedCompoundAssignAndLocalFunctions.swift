@@ -970,6 +970,12 @@ extension LocalDeclTypeChecker {
                 inferenceContext: functionTypeContext,
                 usageRange: range
             )
+        } else if isAnonymousFunction, let expectedFunctionType {
+            // An anonymous function's unannotated return type comes from the
+            // expected function type, just like its unannotated parameters:
+            // `return fun(value) { return value + 1 }` against `(Int) -> Int`
+            // checks `value + 1` against `Int`, not `Unit`.
+            expectedFunctionType.returnType
         } else {
             switch body {
             case .expr:
@@ -1218,14 +1224,30 @@ extension LocalDeclTypeChecker {
             }
         }
 
-        if returnTypeRef == nil, case .expr = body, inferredBodyType != sema.types.errorType {
+        // An anonymous block body that does not end in a `return`/`throw`
+        // produces `Unit` rather than the expected return type:
+        // `fun(x) { sideEffect() }` stays `(T) -> Unit` even where
+        // `(T) -> R` is expected. Bodies ending in a return keep the
+        // expected return type their return values were checked against.
+        let signatureReturnType: TypeID? = if returnTypeRef != nil {
+            nil
+        } else if isAnonymousFunction, case .block = body,
+                  inferredBodyType != sema.types.nothingType
+        {
+            sema.types.unitType
+        } else if case .expr = body, inferredBodyType != sema.types.errorType {
+            inferredBodyType
+        } else {
+            nil
+        }
+        if let signatureReturnType {
             let inferredSignature = FunctionSignature(
                 receiverType: receiverType,
                 contextReceiverTypes: contextReceiverTypes,
                 contextParameterSymbols: contextParameterDeclarations.map(\.symbol),
                 contextParameterTypes: contextParameterDeclarations.map(\.type),
                 parameterTypes: parameterTypes,
-                returnType: inferredBodyType,
+                returnType: signatureReturnType,
                 isSuspend: isSuspend,
                 valueParameterSymbols: paramSymbols,
                 valueParameterHasDefaultValues: valueParams.map(\.hasDefaultValue),

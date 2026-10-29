@@ -21,13 +21,10 @@ struct AnonymousFunctionBodyParsingTests {
         "val y = fun String.(): String = this",
         "@file:OptIn(kotlin.ExperimentalContextParameters::class)\nval y = context(p: String) fun String.() = p",
     ])
-    func rejectsContextReceiverExpressionBodies(_ source: String) throws {
+    func acceptsContextReceiverExpressionBodies(_ source: String) throws {
         let (_, context) = try buildASTModule(from: source, includeStdlib: false)
 
-        #expect(context.diagnostics.diagnostics.contains {
-            $0.code == "KSWIFTK-PARSE-0001"
-                && $0.message == "Expected '{' for anonymous function body."
-        }, "\(context.diagnostics.diagnostics)")
+        #expect(!context.diagnostics.hasError, "\(context.diagnostics.diagnostics)")
     }
 
     @Test(arguments: [

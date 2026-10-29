@@ -285,10 +285,15 @@ extension LambdaLowerer {
 
         let samMethodReceiverType = samFunctionType.receiver
         let samMethodParamTypes = samFunctionType.params
-        // KUU-3175: context parameters are the leading dispatch arguments of
-        // the SAM method — the thunk must declare them and the wrapper must
-        // forward them, mirroring `[receiver][context][value]` KIR ordering.
-        let samMethodInputTypes = samFunctionType.contextReceivers
+        // The SAM method's invocation ABI passes context receivers first
+        // (`contextReceivers + receiver + params`, matching the argument
+        // list `lowerSamWrapperValue` builds for the thunk call below),
+        // while the callee's own signature lays them out after its
+        // receivers (`receiver + contextParams + valueParams`). Keep both
+        // orders: invocation order for the thunk's parameter list, callee
+        // order for the forwarded call arguments.
+        let samMethodContextTypes = samFunctionType.contextReceivers
+        let samMethodInputTypes = samMethodContextTypes
             + (samMethodReceiverType.map { [$0] } ?? [])
             + samMethodParamTypes
         let returnType = samFunctionType.returnType
@@ -317,12 +322,50 @@ extension LambdaLowerer {
         }
 
         var body: [KIRInstruction] = [.beginBlock]
-        var callArguments: [KIRExprID] = []
-        for param in captureParams + valueParams {
+        var captureRefExprs: [KIRExprID] = []
+        for param in captureParams {
             let paramExpr = arena.appendExpr(.symbolRef(param.symbol), type: param.type)
             body.append(.constValue(result: paramExpr, value: .symbolRef(param.symbol)))
-            callArguments.append(paramExpr)
+            captureRefExprs.append(paramExpr)
         }
+        var valueRefExprs: [KIRExprID] = []
+        for param in valueParams {
+            let paramExpr = arena.appendExpr(.symbolRef(param.symbol), type: param.type)
+            body.append(.constValue(result: paramExpr, value: .symbolRef(param.symbol)))
+            valueRefExprs.append(paramExpr)
+        }
+        // Reorder the invocation-order value refs into callee order
+        // (receivers first, then context receivers, then value params).
+        // Positions map across the target's own invocation-order layout —
+        // `contextReceivers + unbound receivers + value params` — rather
+        // than the SAM's, because a `context(C) () -> R` SAM may be
+        // implemented by a reference whose `C` is a receiver (`C::prop`,
+        // `C::describe`) instead of a context parameter (KUU-3170). Bound
+        // captures supply the leading callee receivers (the bound receiver
+        // is the first capture for `expr::method`).
+        let targetContextCount = sema.symbols.functionSignature(for: targetSymbol)
+            .map { $0.contextParameterTypes.count } ?? 0
+        let targetReceiverCount = sema.symbols.functionSignature(for: targetSymbol).map { signature in
+            (signature.receiverType == nil ? 0 : 1)
+                + (sema.symbols.memberExtensionOwnerSymbol(for: targetSymbol) == nil ? 0 : 1)
+        } ?? (samMethodReceiverType == nil ? 0 : 1)
+        let valueReceiverCount = max(0, targetReceiverCount - captureRefExprs.count)
+        var receiverArguments: [KIRExprID] = []
+        var contextArguments: [KIRExprID] = []
+        var valueArguments: [KIRExprID] = []
+        for (index, valueRef) in valueRefExprs.enumerated() {
+            if index < targetContextCount {
+                contextArguments.append(valueRef)
+            } else if index < targetContextCount + valueReceiverCount {
+                receiverArguments.append(valueRef)
+            } else {
+                valueArguments.append(valueRef)
+            }
+        }
+        var callArguments: [KIRExprID] = captureRefExprs
+        callArguments.append(contentsOf: receiverArguments)
+        callArguments.append(contentsOf: contextArguments)
+        callArguments.append(contentsOf: valueArguments)
         let callResult = arena.appendTemporary(type: returnType)
         let callee = targetName ?? callableTargetName(for: targetSymbol, sema: sema, interner: interner)
         if !isReifiedThunk, sema.bindings.implicitReceiverMemberNames[exprID] != nil,
@@ -382,7 +425,7 @@ extension LambdaLowerer {
             lambdaReturnType: returnType,
             captureBindings: captureBindings,
             samMethodReceiverType: samMethodReceiverType,
-            samMethodContextParameterTypes: samFunctionType.contextReceivers,
+            samMethodContextParameterTypes: samMethodContextTypes,
             samMethodParamTypes: samMethodParamTypes,
             sema: sema,
             arena: arena,
@@ -1321,14 +1364,24 @@ extension LambdaLowerer {
                 guard case let .functionType(ft) = sema.types.kind(of: typeID) else { return nil }
                 return ft
             }
-            let valueParamTypes = (functionType?.receiver.map { [$0] } ?? []) + (functionType?.params ?? [])
+            // The invocation ABI of a context function type passes context
+            // receivers first (`contextReceivers + receiver + params`, matching
+            // `materializeEscapingCallableValue`), while the callee's own
+            // signature lays them out after its receivers
+            // (`receiver + contextParams + valueParams`). Keep both orders:
+            // invocation order for the wrapper's parameter list, callee order
+            // for the forwarded call arguments.
+            let invocationParamTypes = (functionType?.contextReceivers ?? [])
+                + (functionType?.receiver.map { [$0] } ?? [])
+                + (functionType?.params ?? [])
+            let contextReceiverCount = functionType?.contextReceivers.count ?? 0
             let returnType = functionType?.returnType ?? sema.types.anyType
 
             let closureParam = KIRParameter(
                 symbol: syntheticLambdaClosureParamSymbol(lambdaExprID: exprID),
                 type: sema.types.intType
             )
-            let valueParams: [KIRParameter] = valueParamTypes.enumerated().map { index, type in
+            let valueParams: [KIRParameter] = invocationParamTypes.enumerated().map { index, type in
                 KIRParameter(
                     symbol: syntheticLambdaParamSymbol(lambdaExprID: exprID, paramIndex: index),
                     type: type
@@ -1343,7 +1396,7 @@ extension LambdaLowerer {
             let wrapperParams = (needsHOFWrapper ? [closureParam] : captureParams) + valueParams
 
             var body: [KIRInstruction] = [.beginBlock]
-            var callArgExprs: [KIRExprID] = []
+            var captureRefExprs: [KIRExprID] = []
             for index in captureArguments.indices {
                 let parameter = needsHOFWrapper ? closureParam : captureParams[index]
                 let captureRef = arena.appendExpr(
@@ -1351,8 +1404,9 @@ extension LambdaLowerer {
                     type: parameter.type
                 )
                 body.append(.constValue(result: captureRef, value: .symbolRef(parameter.symbol)))
-                callArgExprs.append(captureRef)
+                captureRefExprs.append(captureRef)
             }
+            var valueRefExprs: [KIRExprID] = []
             for valueParam in valueParams {
                 let paramExpr = arena.appendExpr(.symbolRef(valueParam.symbol), type: valueParam.type)
                 body.append(.constValue(result: paramExpr, value: .symbolRef(valueParam.symbol)))
@@ -1365,8 +1419,18 @@ extension LambdaLowerer {
                     instructions: &body,
                     isRawCallbackParameter: true
                 ) : paramExpr
-                callArgExprs.append(normalizedParamExpr)
+                valueRefExprs.append(normalizedParamExpr)
             }
+            // Reorder the invocation-order value refs
+            // (context receivers first) into callee order
+            // (receiver first, then context receivers, then value params).
+            let hasExplicitReceiver = functionType?.receiver != nil
+            var callArgExprs: [KIRExprID] = captureRefExprs
+            if hasExplicitReceiver {
+                callArgExprs.append(contentsOf: valueRefExprs.dropFirst(contextReceiverCount).prefix(1))
+            }
+            callArgExprs.append(contentsOf: valueRefExprs.prefix(contextReceiverCount))
+            callArgExprs.append(contentsOf: valueRefExprs.dropFirst(contextReceiverCount + (hasExplicitReceiver ? 1 : 0)))
             let callResult = arena.appendTemporary(type: returnType
             )
             body.append(.call(

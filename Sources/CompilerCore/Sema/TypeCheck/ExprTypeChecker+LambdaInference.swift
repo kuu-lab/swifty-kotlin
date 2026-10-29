@@ -395,6 +395,7 @@ extension ExprTypeChecker {
             bodyCtx = bodyCtx.with(
                 contextReceiverTypes: ctx.contextReceiverTypes + expectedFunctionType.contextReceivers
             )
+            bodyCtx.lambdaContextReceiverTypes[id] = expectedFunctionType.contextReceivers
         }
         let expectedReturnHasUnresolvedOutputTypeParameter: Bool = {
             guard let expectedFunctionType else {
