@@ -414,6 +414,12 @@ private final class TypeCheckWork: @unchecked Sendable {
             diagnostics: driver.diagnostics, interner: driver.interner,
             compilationModuleName: driver.compilationContext?.options.moduleName ?? "TestModule"
         )
+        DataFlowSemaPhase().validateInferredPropertyTypeOverrides(
+            ast: driver.ast, symbols: driver.sema.symbols,
+            bindings: driver.sema.bindings, types: driver.sema.types,
+            diagnostics: driver.diagnostics, interner: driver.interner,
+            compilationModuleName: driver.compilationContext?.options.moduleName ?? "TestModule"
+        )
     }
 }
 
