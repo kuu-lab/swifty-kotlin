@@ -62,6 +62,10 @@ extension CoroutineLoweringPass {
         let loweredBySymbol: [SymbolID: LoweredSuspendFunction]
         let originalByLoweredName: [InternedString: (original: SymbolID, lowered: LoweredSuspendFunction)]
         let continuationTypeByLoweredSymbol: [SymbolID: TypeID]
+        /// KUU-3719: lowered suspend callees whose every suspending call is in
+        /// tail position — on JVM they own no ContinuationImpl, so their
+        /// direct-call children share the caller's interception.
+        let interceptionTransparentSymbols: Set<SymbolID>
         let suspendFunctionArityBySymbol: [SymbolID: Int]
         let loweredByUniqueNameArity: [SuspendCallLookupKey: LoweredSuspendFunction]
         let loweredByUniqueName: [InternedString: LoweredSuspendFunction]

@@ -37,6 +37,70 @@ extension LoweringPassRegressionTests {
         }
     }
 
+    // MARK: - Interception-transparent tail suspend calls (KUU-3719)
+
+    /// A suspend function whose suspending calls are all in tail position owns
+    /// no `ContinuationImpl` on JVM, so a direct suspend call to it must bind
+    /// the child continuation to the caller's interception instead of running
+    /// `interceptContinuation` a second time.
+    @Test
+    func testTailSuspendCalleeEmitsSharedInterceptionBinding() throws {
+        let source = """
+        suspend fun inner(): Int = 7
+        suspend fun tailLeaf(): Int = inner()
+        suspend fun caller(): Int = tailLeaf()
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(
+                inputs: [path], moduleName: "TransparentTailSuspend", emit: .kirDump,
+                includeStdlib: false
+            )
+            try runToLowering(ctx)
+
+            let module = try #require(ctx.kir)
+            let callees = findAllKIRFunctions(in: module).flatMap {
+                extractCallees(from: $0.body, interner: ctx.interner)
+            }
+            #expect(!ctx.diagnostics.hasError, "Unexpected diagnostics: \(ctx.diagnostics.diagnostics)")
+            #expect(callees.contains(RuntimeCall.coroutineCallDirectSuspend.name))
+            #expect(callees.contains(RuntimeCall.coroutineChildShareInterception.name),
+                    "A tail-leaf suspend callee must share the caller's interception")
+        }
+    }
+
+    /// A callee that resumes its own frame after suspending (post-suspend
+    /// computation, extra suspension points) keeps its own continuation on
+    /// JVM and must still intercept independently — no shared binding.
+    @Test
+    func testNonTailSuspendCalleeKeepsIndependentInterception() throws {
+        let source = """
+        suspend fun inner(): Int = 7
+        suspend fun nonLeaf(): Int {
+            val x = inner()
+            return x + 1
+        }
+        suspend fun caller(): Int = nonLeaf()
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(
+                inputs: [path], moduleName: "NonTailSuspend", emit: .kirDump,
+                includeStdlib: false
+            )
+            try runToLowering(ctx)
+
+            let module = try #require(ctx.kir)
+            let callees = findAllKIRFunctions(in: module).flatMap {
+                extractCallees(from: $0.body, interner: ctx.interner)
+            }
+            #expect(!ctx.diagnostics.hasError, "Unexpected diagnostics: \(ctx.diagnostics.diagnostics)")
+            #expect(callees.contains(RuntimeCall.coroutineCallDirectSuspend.name))
+            #expect(!callees.contains(RuntimeCall.coroutineChildShareInterception.name),
+                    "A non-tail suspend callee must intercept on its own continuation")
+        }
+    }
+
     @Test
     func testCoroutineDurationArgumentsUseMillisecondStorageBridge() throws {
         let source = """

@@ -733,7 +733,7 @@ func runtimeContinuationInterceptor(context: Int, key: Int, outThrown: UnsafeMut
     return kk_context_get_dispatcher(context)
 }
 
-private final class RuntimeGeneratedContinuation: KKContinuation, @unchecked Sendable {
+final class RuntimeGeneratedContinuation: KKContinuation, @unchecked Sendable {
     let state: RuntimeContinuationState
     let raw: Int
 

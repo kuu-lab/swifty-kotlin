@@ -150,6 +150,19 @@ final class RuntimeContinuationState: @unchecked Sendable {
     private var interceptedContinuationRaw: Int?
     private var continuationInterceptorRaw: Int = 0
     private var interceptionReleased = false
+    /// KUU-3719: when this state was created for an interception-transparent
+    /// call (a callee whose suspending calls are all in tail position — it
+    /// owns no `ContinuationImpl` of its own on JVM), the nearest caller
+    /// state whose interception this frame shares. `suspendCoroutine`'s
+    /// `continuation.intercepted()` then reuses the ancestor's interception
+    /// product instead of invoking the user's `ContinuationInterceptor` a
+    /// second time for the same logical coroutine.
+    private weak var interceptionAnchorState: RuntimeContinuationState?
+    /// The interception product was derived from an ancestor's interception
+    /// rather than produced by `interceptContinuation` on this state, so
+    /// `releaseInterception` must not forward it to the interceptor's
+    /// `releaseInterceptedContinuation`.
+    private var interceptionDerived = false
     private let stateLock = NSLock()
     /// STDLIB-CORO-BUG-01: one-shot resume guard.
     /// Set to `true` atomically (under `stateLock`) by the first successful resume
@@ -363,6 +376,25 @@ final class RuntimeContinuationState: @unchecked Sendable {
         return sourceContextRaw
     }
 
+    /// KUU-3719: mark this state as sharing the interception recorded on
+    /// `anchor` (the caller continuation of an interception-transparent
+    /// adapter call).
+    func bindInterceptionAnchor(_ anchor: RuntimeContinuationState) {
+        interceptionLock.lock()
+        interceptionAnchorState = anchor
+        interceptionLock.unlock()
+    }
+
+    /// The interception product cached on this state plus the interceptor
+    /// that produced it. `intercepted` is 0 when this state was never
+    /// intercepted; `released` reports a released interception, which behaves
+    /// like a pass-through (the state resolves to itself).
+    private func cachedInterception() -> (intercepted: Int, interceptor: Int, released: Bool) {
+        interceptionLock.lock()
+        defer { interceptionLock.unlock() }
+        return (interceptedContinuationRaw ?? 0, continuationInterceptorRaw, interceptionReleased)
+    }
+
     func intercepted(continuationRaw: Int, interceptorKey: Int, outThrown: UnsafeMutablePointer<Int>?) -> Int {
         interceptionLock.lock()
         defer { interceptionLock.unlock() }
@@ -370,6 +402,67 @@ final class RuntimeContinuationState: @unchecked Sendable {
             return interceptedContinuationRaw
         }
         if interceptionReleased {
+            return continuationRaw
+        }
+        // KUU-3719: this frame belongs to an interception-transparent call —
+        // the callee owns no ContinuationImpl of its own on JVM, so its
+        // suspendCoroutine's `intercepted()` resolves on the nearest ancestor
+        // frame that does own a machine. Resolve the anchor's interception
+        // recursively (an unintercepted anchor runs `interceptContinuation`
+        // now — the same single interception JVM performs on the owning
+        // machine), then derive this frame's product from it: a pass-through
+        // or custom product resolves this frame to itself, and a dispatcher
+        // interceptor yields an equivalent native dispatch wrapper on this
+        // frame so `resume` still hops through the dispatcher.
+        if let anchor = interceptionAnchorState {
+            let (anchorIntercepted, anchorInterceptor, anchorReleased) = anchor.cachedInterception()
+            if anchorReleased {
+                interceptionDerived = true
+                interceptedContinuationRaw = continuationRaw
+                return continuationRaw
+            }
+            let anchorRaw = Int(bitPattern: Unmanaged.passUnretained(anchor).toOpaque())
+            var product = anchorIntercepted
+            var interceptor = anchorInterceptor
+            if product == 0 {
+                var thrown = 0
+                product = anchor.intercepted(
+                    continuationRaw: anchorRaw,
+                    interceptorKey: interceptorKey,
+                    outThrown: &thrown
+                )
+                if thrown != 0 {
+                    outThrown?.pointee = thrown
+                    return continuationRaw
+                }
+                interceptor = anchor.cachedInterception().interceptor
+            }
+            interceptionDerived = true
+            // Propagate the interceptor identity so deeper transparent frames
+            // can still recognise a dispatcher product and wrap themselves.
+            continuationInterceptorRaw = interceptor
+            if product == anchorRaw {
+                interceptedContinuationRaw = continuationRaw
+                return continuationRaw
+            }
+            if let dispatcher = runtimeInterceptorDispatcher(interceptor) {
+                let contextPointer = UnsafeMutableRawPointer(
+                    bitPattern: __kk_coroutine_continuation_context(continuationRaw)
+                )
+                let wrapped = KKInterceptedContinuation(
+                    context: contextPointer,
+                    continuation: RuntimeGeneratedContinuation(state: self, raw: continuationRaw),
+                    dispatcher: dispatcher
+                )
+                let wrappedRaw = runtimeRegisterObject(wrapped)
+                interceptedContinuationRaw = wrappedRaw
+                return wrappedRaw
+            }
+            // A custom interceptor product cannot be retargeted at this
+            // frame; the anchor's single `interceptContinuation` still keeps
+            // the interception count JVM reports while this frame resolves
+            // to itself so `resume` drives this machine directly.
+            interceptedContinuationRaw = continuationRaw
             return continuationRaw
         }
         var thrown = 0
@@ -404,7 +497,17 @@ final class RuntimeContinuationState: @unchecked Sendable {
         interceptionReleased = true
         let intercepted = interceptedContinuationRaw ?? continuationRaw
         let interceptor = continuationInterceptorRaw
+        let derived = interceptionDerived
         interceptionLock.unlock()
+        if derived {
+            // The product was never handed to the interceptor, so it must not
+            // go through `releaseInterceptedContinuation`; only drop the
+            // runtime registration for a native dispatch wrapper.
+            if intercepted != continuationRaw {
+                runtimeReleaseObject(intercepted)
+            }
+            return
+        }
         if intercepted != continuationRaw, interceptor != 0 {
             runtimeReleaseInterceptedContinuation(interceptor: interceptor, continuation: intercepted)
         }
