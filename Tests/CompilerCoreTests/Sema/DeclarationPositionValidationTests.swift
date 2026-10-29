@@ -124,6 +124,40 @@ struct DeclarationPositionValidationTests {
         assertNoDiagnostic("KSWIFTK-SEMA-0435", in: ctx)
     }
 
+    @Test func duplicateCompanionMemberReferencesStillResolve() throws {
+        let ctx = try semaContextWithoutStdlib(for: """
+            class C { companion object A; companion object B { val w = 1 } }
+            val y = C.B.w
+            """)
+        assertHasDiagnostic("KSWIFTK-SEMA-0435", in: ctx)
+        // kotlinc keeps the duplicate companion in scope — references to it
+        // must not add unresolved-member noise on top of the SEMA-0435 error.
+        assertNoDiagnostic("KSWIFTK-SEMA-0024", in: ctx)
+    }
+
+    @Test func secondCompanionInsideObjectReportsBothDiagnostics() throws {
+        let ctx = try semaContextWithoutStdlib(for: """
+            object O { companion object A; companion object B }
+            """)
+        // kotlinc reports 'companion' not applicable for both, plus the
+        // only-one-companion error for the second.
+        assertHasDiagnostic("KSWIFTK-SEMA-0401", in: ctx)
+        assertHasDiagnostic("KSWIFTK-SEMA-0435", in: ctx)
+        let notApplicableCount = ctx.diagnostics.diagnostics.filter {
+            $0.code == "KSWIFTK-SEMA-0401" && $0.message.contains("'companion'")
+        }.count
+        #expect(notApplicableCount == 2)
+    }
+
+    @Test func companionInsideObjectMemberStillResolves() throws {
+        let ctx = try semaContextWithoutStdlib(for: """
+            object O { companion object C { val v = 1 } }
+            val x = O.C.v
+            """)
+        assertHasDiagnostic("KSWIFTK-SEMA-0401", in: ctx)
+        assertNoDiagnostic("KSWIFTK-SEMA-0024", in: ctx)
+    }
+
     @Test(arguments: [
         "class C<T, T> { }",
         "class C<T, T, T> { }",

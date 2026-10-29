@@ -158,6 +158,66 @@ struct DriverTests {
         )
     }
 
+    // MARK: - BuildAST error continuation
+
+    private func duplicateCompanionWithSemaErrorOptions(path: String) -> CompilerOptions {
+        CompilerOptions(
+            moduleName: "Test",
+            inputs: [path],
+            outputPath: "/dev/null",
+            emit: .kirDump,
+            target: defaultTargetTriple(),
+            includeStdlib: false
+        )
+    }
+
+    private let duplicateCompanionWithSemaErrorSource = """
+        class C { companion object A; companion object B }
+        fun bad() = unresolvedFunc()
+        """
+
+    @Test
+    func testRunFrontendStillRunsSemaAfterBuildASTDiagnostic() {
+        let path = NSTemporaryDirectory() + "frontend_buildast_error_\(UUID().uuidString).kt"
+        let result = CompilerDriver().runFrontend(
+            options: duplicateCompanionWithSemaErrorOptions(path: path),
+            inMemorySources: [path: Data(duplicateCompanionWithSemaErrorSource.utf8)]
+        )
+
+        // A BuildAST-phase diagnostic (duplicate companion object) must not
+        // suppress semantic diagnostics — kotlinc reports both together.
+        #expect(
+            result.diagnostics.contains { $0.code == "KSWIFTK-SEMA-0435" },
+            "Expected duplicate companion diagnostic: \(result.diagnostics.map(\.code))"
+        )
+        #expect(
+            result.diagnostics.contains { $0.code == "KSWIFTK-SEMA-0023" },
+            "Expected unresolved function diagnostic: \(result.diagnostics.map(\.code))"
+        )
+        #expect(result.context.sema != nil, "Sema should run after BuildAST diagnostics")
+    }
+
+    @Test
+    func testDriverRunStillRunsSemaAfterBuildASTDiagnostic() throws {
+        let path = NSTemporaryDirectory() + "driver_buildast_error_\(UUID().uuidString).kt"
+        try Data(duplicateCompanionWithSemaErrorSource.utf8).write(to: URL(fileURLWithPath: path))
+        defer { try? FileManager.default.removeItem(atPath: path) }
+
+        let result = CompilerDriver().runForTesting(
+            options: duplicateCompanionWithSemaErrorOptions(path: path)
+        )
+
+        #expect(result.exitCode == 1)
+        #expect(
+            result.diagnostics.contains { $0.code == "KSWIFTK-SEMA-0435" },
+            "Expected duplicate companion diagnostic: \(result.diagnostics.map(\.code))"
+        )
+        #expect(
+            result.diagnostics.contains { $0.code == "KSWIFTK-SEMA-0023" },
+            "Expected unresolved function diagnostic: \(result.diagnostics.map(\.code))"
+        )
+    }
+
     // MARK: - run
 
     @Test

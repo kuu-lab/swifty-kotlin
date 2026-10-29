@@ -266,6 +266,12 @@ public final class CompilerDriver {
 
                 try phase.run(ctx)
                 if ctx.diagnostics.hasError {
+                    // BuildAST diagnostics are validation errors on an
+                    // otherwise complete AST (e.g. a duplicate companion
+                    // object). Keep going into Sema so semantic diagnostics
+                    // are still reported alongside them, like kotlinc — the
+                    // test pipeline already runs Sema unconditionally.
+                    if phase is BuildASTPhase { continue }
                     break
                 }
             }

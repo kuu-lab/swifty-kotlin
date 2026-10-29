@@ -233,7 +233,7 @@ extension BuildASTPhase {
         )
     }
 
-    func makeObjectDecl(from nodeID: NodeID, in arena: SyntaxArena, interner: StringInterner, astArena: ASTArena, companionSiteName: String = "standalone object") -> ObjectDecl {
+    func makeObjectDecl(from nodeID: NodeID, in arena: SyntaxArena, interner: StringInterner, astArena: ASTArena) -> ObjectDecl {
         let node = arena.node(nodeID)
         let modifiers = declarationModifiers(from: nodeID, in: arena)
         let annotations = declarationAnnotations(from: nodeID, in: arena, interner: interner)
@@ -251,16 +251,6 @@ extension BuildASTPhase {
                 range: constructor.range
             )
         }
-        if let companionDeclID = members.companionObject,
-           let companionDecl = astArena.decl(companionDeclID),
-           case .objectDecl(let companionObject) = companionDecl
-        {
-            diagnostics?.error(
-                "KSWIFTK-SEMA-0401",
-                "modifier 'companion' is not applicable inside '\(companionSiteName)'.",
-                range: companionObject.range
-            )
-        }
         return ObjectDecl(
             range: node.range,
             name: declarationName(from: nodeID, in: arena, interner: interner),
@@ -275,7 +265,12 @@ extension BuildASTPhase {
             memberFunctions: members.functions,
             memberProperties: members.properties,
             nestedClasses: members.nestedClasses,
+            // Objects cannot host a companion object, but keep the decl in the
+            // tree like kotlinc so member references resolve and the member
+            // validator can report it at the 'standalone object'/'local
+            // object'/'companion object' site.
             nestedObjects: members.nestedObjects
+                + (members.companionObject.map { [$0] } ?? [])
         )
     }
 
