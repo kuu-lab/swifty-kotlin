@@ -582,6 +582,39 @@ extension LocalDeclTypeChecker {
             return false
         }
 
+        // A projected receiver forbids writing through an `in` parameter
+        // (e.g. `xs[0] += v` on `MutableList<out Int>` desugars to `set`),
+        // matching the member-call path's variance violation check.
+        if !driver.callChecker.allowsProjectedReceiverUnsafeVariance(
+            chosenSet, sema: sema, interner: interner
+        ),
+           let signature = sema.symbols.functionSignature(for: chosenSet),
+           let varianceResult = sema.types.buildVarianceProjectionSubstitutions(
+               receiverType: receiverType,
+               signature: signature,
+               symbols: sema.symbols
+           ),
+           let violatingParamIndex = sema.types.checkVarianceViolationInParameters(
+               signature: signature,
+               writeForbiddenSymbols: varianceResult.writeForbiddenSymbols,
+               nullableWriteSymbols: varianceResult.nullableWriteSymbols,
+               argumentTypes: callArgs.map(\.type),
+               parameterMapping: resolved.parameterMapping
+           )
+        {
+            let paramType = sema.types.displayName(
+                of: signature.parameterTypes[violatingParamIndex],
+                symbols: sema.symbols,
+                interner: interner
+            )
+            ctx.sema.diagnostics.error(
+                "KSWIFTK-SEMA-VAR-OUT",
+                "A type projection on the receiver prevents calling 'set' because the type parameter appears in an 'in' position (parameter type '\(paramType)').",
+                range: range
+            )
+            return false
+        }
+
         sema.bindings.bindIndexedCompoundAssignOperator(
             id,
             binding: IndexedCompoundAssignOperatorBinding(
@@ -677,9 +710,20 @@ extension LocalDeclTypeChecker {
             return .failed
         }
 
+        // A projected receiver (e.g. `MutableList<in Int>`) reads the
+        // projection's captured upper bound as the element type, not the
+        // solver's raw type argument — mirror the member-call projection merge.
+        var mergedSubstitution = resolved.substitutedTypeArguments
+        if let varianceResult = sema.types.buildVarianceProjectionSubstitutions(
+            receiverType: receiverType,
+            signature: signature,
+            symbols: sema.symbols
+        ) {
+            mergedSubstitution.merge(varianceResult.covariantSubstitution) { _, projected in projected }
+        }
         sema.bindings.bindCall(id, binding: CallBinding(
             chosenCallee: chosen,
-            substitutedTypeArguments: resolved.substitutedTypeArguments
+            substitutedTypeArguments: mergedSubstitution
                 .sorted(by: { $0.key.rawValue < $1.key.rawValue }).map { _, value in value },
             parameterMapping: resolved.parameterMapping,
             dispatchReceiverSymbol: indexedOperatorDispatchReceiverSymbol(
@@ -690,7 +734,7 @@ extension LocalDeclTypeChecker {
         let typeVarBySymbol = sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
         let elementType = sema.types.substituteTypeParameters(
             in: signature.returnType,
-            substitution: resolved.substitutedTypeArguments,
+            substitution: mergedSubstitution,
             typeVarBySymbol: typeVarBySymbol
         )
         return .resolved(elementType)
