@@ -1,10 +1,44 @@
 @testable import CompilerCore
 import Foundation
 import Testing
+import TestStdlibCache
 @testable import CompilerTestSupport
 
 @Suite
 struct UsePinnedNonLocalReturnTests {
+    @Test(arguments: [false, true])
+    func bundledUsePinnedRetainsItsInlineBoundary(fromArtifact: Bool) throws {
+        if fromArtifact {
+            TestStdlibCache.shared.prepare()
+            _ = try #require(CompilerOptions.defaultStdlibLibraryPath)
+        }
+        let statements: [(String, Bool)] = [
+            ("bytes.usePinned { return bytes[0] }", false),
+            ("plain { bytes.usePinned { return bytes[0] } }", true),
+            ("bytes.usePinned { plain { return bytes[0] } }", true),
+            ("Box().usePinned { return bytes[0] }", true),
+        ]
+        for (statement, shouldFail) in statements {
+            let ctx = makeContextFromSource("""
+            @file:OptIn(kotlinx.cinterop.ExperimentalForeignApi::class)
+            import kotlinx.cinterop.usePinned
+            fun plain(block: () -> Unit) { block() }
+            class Box { fun usePinned(block: () -> Unit) { block() } }
+            fun first(bytes: ByteArray): Byte {
+                \(statement)
+                return 0.toByte()
+            }
+            """, emit: .executable, allowDefaultStdlibLibrary: fromArtifact)
+            try runSema(ctx)
+            if shouldFail {
+                assertHasDiagnostic("KSWIFTK-SEMA-0042", in: ctx)
+            } else {
+                #expect(!ctx.diagnostics.hasError,
+                        Comment(rawValue: ctx.diagnostics.diagnostics.map(\.message).joined(separator: "\n")))
+            }
+        }
+    }
+
     @Test(arguments: [false, true])
     func capturedReturnIsExpandedThroughUnpin(nested: Bool) throws {
         let statement = nested
