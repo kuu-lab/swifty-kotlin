@@ -142,7 +142,6 @@ public func __kk_ktypeparameter_create(
 
     let bounds = registerRuntimeObject(RuntimeListBox(elements: []))
     let candidate = registerRuntimeObject(RuntimeKTypeParameterBox(
-        identity: identity,
         nameRaw: nameRaw,
         varianceOrdinal: varianceOrdinal,
         isReified: isReified != 0,
