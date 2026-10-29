@@ -1,7 +1,10 @@
 package kotlin.reflect.jvm.internal
 import kotlin.jvm.internal.*
 import kotlin.reflect.*
+import kotlin.reflect.full.IllegalPropertyDelegateAccessException
+import java.lang.IllegalAccessException
 open class RuntimeProperty(owner: Any, name: String, signature: String, receiver: Any?, bound: Boolean): RuntimeCallable(owner, name, signature, receiver, bound), KProperty<Any?> {
+    override open val getter: KProperty.Getter<Any?> get() = RuntimePropertyGetter(this)
     private val propertyNode: Proto get() = metadata.property(name)
     override val isLateinit: Boolean get() = (propertyNode.number(11) and 4096) != 0
     override val isConst: Boolean get() = (propertyNode.number(11) and 2048) != 0
@@ -25,6 +28,7 @@ open class RuntimeProperty(owner: Any, name: String, signature: String, receiver
         return if ((__jvmClassModifiers(outer) and 512) == 0) outer else null
     }
     override fun callArray(args: Array<out Any?>, unwrapException: Boolean): Any? {
+        if (signatureString == "<local>") throw UnsupportedOperationException("Not supported for local property reference.")
         if (!isConst) return super.callArray(args, unwrapException)
         val outer = classCompanionFieldOwner()
         // Logical instance parameters remain present for static object fields.
@@ -51,8 +55,28 @@ open class RuntimeProperty(owner: Any, name: String, signature: String, receiver
             else invokeMethod(method, null, arrayOf(adaptArgument(receiver, types[0]), adaptArgument(value, types[1])))
         } else invokeMethod(method, receiver, arrayOf(adaptArgument(value, types[0])))
     }
-    fun writeZero(value: Any?) { write(boundReceiver, value) }
+    override fun callBy(args: Map<KParameter, Any?>): Any? {
+        if (signatureString == "<local>") throw UnsupportedOperationException("Not supported for local property reference.")
+        return super.callBy(args)
+    }
+    fun writeZero(value: Any?) {
+        if (signatureString == "<local>") throw UnsupportedOperationException("Not supported for local property reference.")
+        write(boundReceiver, value)
+    }
     fun writeOne(receiver: Any?, value: Any?) { write(receiver, value) }
+    fun delegateZero(): Any? {
+        if (signatureString == "<local>") return null
+        val fieldName = name + "\$delegate"
+        for (field in __jvmDeclaredFields(ownerClass)) {
+            if (__jvmFieldName(field) == fieldName) {
+                if ((__jvmFieldModifiers(field) and 1) == 0) {
+                    throw IllegalPropertyDelegateAccessException(IllegalAccessException())
+                }
+                return __jvmFieldGet(field, if ((__jvmFieldModifiers(field) and 8) != 0) null else boundReceiver)
+            }
+        }
+        return null
+    }
 }
 
 internal fun propertyReference(owner: Any, name: String, signature: String, mutable: Boolean): KProperty1<Any?, Any?> = if (mutable) MutablePropertyReference1Impl(owner as java.lang.Class<*>, name, signature, 0) else PropertyReference1Impl(owner as java.lang.Class<*>, name, signature, 0)
