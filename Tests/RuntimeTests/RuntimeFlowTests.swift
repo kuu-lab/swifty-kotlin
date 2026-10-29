@@ -645,6 +645,21 @@ struct RuntimeFlowTests {
         #expect(snapshot.emitCalls <= 4, "Emitter should stop around take(n) rather than iterating the whole 10,000-element source.")
     }
 
+    @Test func testFlowTypeSurvivesRetainAndIsRemovedOnFinalRelease() {
+        let flow = kk_flow_create(0, 0)
+        let derived = kk_flow_emit(flow, 1, RuntimeFlowTag.take.rawValue)
+        let flowToken = nominalTypeToken(for: "kotlinx.coroutines.flow.Flow")
+        #expect(kk_op_is(flow, flowToken) == 1)
+        #expect(kk_op_is(derived, flowToken) == 1)
+        _ = __kk_flow_retain(flow)
+        _ = __kk_flow_release(flow)
+        #expect(kk_op_is(flow, flowToken) == 1)
+        _ = __kk_flow_release(flow)
+        #expect(runtimeObjectTypeID(rawValue: flow) == nil)
+        _ = __kk_flow_release(derived)
+        #expect(runtimeObjectTypeID(rawValue: derived) == nil)
+    }
+
     @Test func testFlowRetainReleaseKeepsHandleAliveUntilLastRelease() {
         let emitterPtr = unsafeBitCast(runtime_test_flow_emitter_values_1_2_3_4 as RuntimeFlowEmitterEntry, to: Int.self)
         let collectorPtr = unsafeBitCast(runtime_test_flow_collect_store as RuntimeFlowCollectorEntry, to: Int.self)
