@@ -269,6 +269,13 @@ private let cinteropCPrimitiveVarTypeID = runtimeStableNominalTypeID(fqName: "ko
 private let cinteropCPointedTypeID = runtimeStableNominalTypeID(fqName: "kotlinx.cinterop.CPointed")
 private let cinteropNativePointedTypeID = runtimeStableNominalTypeID(fqName: "kotlinx.cinterop.NativePointed")
 private let cinteropByteVarTypeID = runtimeStableNominalTypeID(fqName: "kotlinx.cinterop.ByteVar")
+private let cinteropByteVarOfTypeID = runtimeStableNominalTypeID(fqName: "kotlinx.cinterop.ByteVarOf")
+
+private func cinteropVariableClassID(for pointeeTypeID: Int64) -> Int64 {
+    // ByteVar is an alias; runtime casts use its concrete ByteVarOf class.
+    if pointeeTypeID == cinteropByteVarTypeID { return cinteropByteVarOfTypeID }
+    return pointeeTypeID != 0 ? pointeeTypeID : cinteropCVariableTypeID
+}
 
 /// Installs the MemScope/Arena/nativeHeap subtype edges once per metadata
 /// generation. Mirrors `registerReflectionRuntimeTypeMetadata`'s flag
@@ -729,7 +736,7 @@ public func kk_cpointer_pointed(_ handle: Int) -> Int {
         RuntimeCInteropVarBox(
             address: box.address, pointeeTypeID: box.pointeeTypeID, owner: nil
         ),
-        typeID: box.pointeeTypeID != 0 ? box.pointeeTypeID : cinteropCVariableTypeID
+        typeID: cinteropVariableClassID(for: box.pointeeTypeID)
     )
 }
 
@@ -745,7 +752,7 @@ public func kk_cpointer_get(_ handle: Int, _ index: Int) -> Int {
             pointeeTypeID: box.pointeeTypeID,
             owner: nil
         ),
-        typeID: box.pointeeTypeID != 0 ? box.pointeeTypeID : cinteropCVariableTypeID
+        typeID: cinteropVariableClassID(for: box.pointeeTypeID)
     )
 }
 
