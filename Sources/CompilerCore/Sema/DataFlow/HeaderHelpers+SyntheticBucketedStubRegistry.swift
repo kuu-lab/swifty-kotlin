@@ -45,8 +45,6 @@ private func delegateStubRegistryEntries() -> [SyntheticDelegateStubRegistryEntr
                 symbols: symbols,
                 types: types,
                 interner: interner,
-                kotlinPkg: context.kotlinPkg,
-                kotlinPropertiesPkg: context.kotlinPropertiesPkg,
                 bundledIndex: context.bundledIndex
             )
         },
@@ -84,7 +82,7 @@ private func delegateStubRegistryEntries() -> [SyntheticDelegateStubRegistryEntr
         // symbols for bundled Companion extensions, which is (c) language-core.
         // Kept at the former "Math" slot to preserve registration order.
         SyntheticDelegateStubRegistryEntry(bucket: .residualCompilerSurface, name: "PrimitiveCompanionAnchors") { phase, symbols, types, interner, _ in
-            phase.registerSyntheticPrimitiveCompanionAnchors(symbols: symbols, types: types, interner: interner)
+            phase.registerSyntheticPrimitiveCompanionAnchors(symbols: symbols, interner: interner)
         },
         SyntheticDelegateStubRegistryEntry(bucket: .residualCompilerSurface, name: "Coroutine") { phase, symbols, types, interner, context in
             phase.registerSyntheticCoroutineStubs(
@@ -104,7 +102,7 @@ private func delegateStubRegistryEntries() -> [SyntheticDelegateStubRegistryEntr
             phase.registerSyntheticInstantStubs(symbols: symbols, types: types, interner: interner)
         },
         SyntheticDelegateStubRegistryEntry(bucket: .residualCompilerSurface, name: "ClockRuntimeDispatch") { phase, symbols, types, interner, _ in
-            phase.registerSyntheticClockStubs(symbols: symbols, types: types, interner: interner)
+            phase.registerSyntheticClockStubs(symbols: symbols, interner: interner)
         },
         SyntheticDelegateStubRegistryEntry(bucket: .residualCompilerSurface, name: "ExperimentalTimeAnchors") { phase, symbols, types, interner, context in
             phase.registerSyntheticExperimentalTimeStubs(symbols: symbols, types: types, interner: interner, bundledIndex: context.bundledIndex)
