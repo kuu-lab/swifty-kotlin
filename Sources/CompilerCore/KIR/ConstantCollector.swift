@@ -1018,6 +1018,10 @@ struct ConstantCollector {
         if value == Double.leastNonzeroMagnitude { return "4.9E-324" }
         if value == -Double.leastNonzeroMagnitude { return "-4.9E-324" }
         let magnitude = abs(value)
+        if let selected = javaTwoDigitConcatDecimal(magnitude, ryuRendered: String(describing: value),
+            expansionPrecision: 800, reparsesToMagnitude: { Double($0) == magnitude }) {
+            return (value < 0 ? "-" : "") + selected
+        }
         return finishFloatingPointConcatText(
             rendered: String(describing: value),
             useScientific: magnitude != 0 && (magnitude >= 1e7 || magnitude < 1e-3)
@@ -1032,10 +1036,105 @@ struct ConstantCollector {
         if value == Float.leastNonzeroMagnitude { return "1.4E-45" }
         if value == -Float.leastNonzeroMagnitude { return "-1.4E-45" }
         let magnitude = abs(value)
+        if let selected = javaTwoDigitConcatDecimal(Double(magnitude), ryuRendered: String(describing: value),
+            expansionPrecision: 160, reparsesToMagnitude: { Float($0) == magnitude }) {
+            return (value < 0 ? "-" : "") + selected
+        }
         return finishFloatingPointConcatText(
             rendered: String(describing: value),
             useScientific: magnitude != 0 && (magnitude >= 1e7 || magnitude < 1e-3)
         )
+    }
+
+    /// JDK-19+ `FloatingDecimal` selection, mirrored from the runtime's
+    /// `runtimeJavaTwoDigitDecimal`: when the shortest round-tripping decimal
+    /// has length 1, Java emits the decimal closest to the exact value among
+    /// all length-1-or-2 decimals that round-trip. Ryu's 1-digit answer
+    /// (`1e-323`, `3e-45`) loses to a nearer 2-digit decimal (`9.9E-324`,
+    /// `2.8E-45`). Returns nil when the Ryu form already has 2+ digits.
+    private func javaTwoDigitConcatDecimal(
+        _ magnitude: Double,
+        ryuRendered: String,
+        expansionPrecision: Int,
+        reparsesToMagnitude: (String) -> Bool
+    ) -> String? {
+        var mantissa = ryuRendered
+        if let eIdx = mantissa.firstIndex(of: "e") ?? mantissa.firstIndex(of: "E") {
+            mantissa = String(mantissa[..<eIdx])
+        }
+        var digitsOnly = mantissa.filter(\.isNumber)
+        while digitsOnly.first == "0" { digitsOnly.removeFirst() }
+        while digitsOnly.last == "0" { digitsOnly.removeLast() }
+        guard digitsOnly.count == 1 else { return nil }
+
+        let expansion = String(format: "%.\(expansionPrecision)e", magnitude)
+        guard let eIdx = expansion.firstIndex(of: "e"),
+              let e10 = Int(expansion[expansion.index(after: eIdx)...])
+        else { return nil }
+        let digits = expansion[..<eIdx].filter(\.isNumber).compactMap(\.wholeNumberValue)
+        guard digits.count >= 3 else { return nil }
+
+        func canonical(_ sig: Int, _ i: Int) -> (sig: Int, i: Int) {
+            var s = sig, j = i
+            while s % 10 == 0 { s /= 10; j += 1 }
+            return (s, j)
+        }
+        func inRoundTripSet(_ sig: Int, _ i: Int) -> Bool {
+            reparsesToMagnitude("\(sig)e\(i)")
+        }
+        func closerOfPair(
+            _ floorC: (sig: Int, i: Int), _ ceilC: (sig: Int, i: Int),
+            roundDigit: Int, tailNonZero: Bool
+        ) -> (sig: Int, i: Int) {
+            if roundDigit > 5 || (roundDigit == 5 && tailNonZero) { return ceilC }
+            if roundDigit < 5 { return floorC }
+            return floorC.sig % 2 == 0 ? floorC : ceilC
+        }
+
+        // Length-1 numerals sit on the length-2 grid, so a round-tripping
+        // length-2 decimal is always at least as close to the exact value as
+        // any length-1 candidate and wins outright.
+        let i2 = e10 - 1
+        var inside2: [(sig: Int, i: Int)] = []
+        for raw in [digits[0] * 10 + digits[1], digits[0] * 10 + digits[1] + 1] {
+            let c = canonical(raw, i2)
+            if inRoundTripSet(c.sig, c.i), !inside2.contains(where: { $0 == c }) {
+                inside2.append(c)
+            }
+        }
+        let winner: (sig: Int, i: Int)
+        if let first = inside2.first {
+            winner = inside2.count == 2
+                ? closerOfPair(first, inside2[1], roundDigit: digits[2],
+                               tailNonZero: digits.dropFirst(3).contains { $0 != 0 })
+                : first
+        } else {
+            var inside1: [(sig: Int, i: Int)] = []
+            for raw in [digits[0], digits[0] + 1] {
+                let c = canonical(raw, e10)
+                if inRoundTripSet(c.sig, c.i), !inside1.contains(where: { $0 == c }) {
+                    inside1.append(c)
+                }
+            }
+            guard let first = inside1.first else { return nil }
+            winner = inside1.count == 2
+                ? closerOfPair(first, inside1[1], roundDigit: digits[1],
+                               tailNonZero: digits.dropFirst(2).contains { $0 != 0 })
+                : first
+        }
+
+        let sig = String(winner.sig)
+        let n = sig.count, i = winner.i
+        let e = n + i - 1
+        if e >= -3 && e < 0 {
+            return "0." + String(repeating: "0", count: -(n + i)) + sig
+        }
+        if e >= 0 && e < 7 {
+            if i >= 0 { return sig + String(repeating: "0", count: i) + ".0" }
+            return "\(sig.prefix(n + i)).\(sig.dropFirst(n + i))"
+        }
+        if n == 1 { return "\(sig).0E\(e)" }
+        return "\(sig.prefix(1)).\(sig.dropFirst())E\(e)"
     }
 
     private func finishFloatingPointConcatText(rendered: String, useScientific: Bool) -> String {
