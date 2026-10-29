@@ -18,6 +18,22 @@ private func starProjectionUpperBound(for type: TypeID, typeSystem: TypeSystem) 
     return typeSystem.glb(upperBounds)
 }
 
+/// The upper bound a star projection at `argumentIndex` carries from the
+/// projected nominal's own declaration (`Box<*> == Box<out Bound>`).
+/// Imported signatures can carry type-parameter symbols whose declared bounds
+/// never reach the symbol table, so the bound must come from the nominal —
+/// not from the candidate signature's type parameter.
+private func declaredStarProjectionUpperBound(
+    classSymbol: SymbolID,
+    argumentIndex: Int,
+    typeSystem: TypeSystem
+) -> TypeID? {
+    let parameters = typeSystem.allTypeParameterSymbols(for: classSymbol)
+    guard parameters.indices.contains(argumentIndex) else { return nil }
+    let bounds = typeSystem.declaredUpperBounds(for: parameters[argumentIndex])
+    return bounds.isEmpty ? nil : typeSystem.glb(bounds)
+}
+
 private func comparableArgument(of subtype: TypeID, typeSystem: TypeSystem) -> TypeID? {
     let nonNullSubtype = typeSystem.makeNonNullable(subtype)
     switch typeSystem.kind(of: nonNullSubtype) {
@@ -867,6 +883,15 @@ extension OverloadResolver {
                 }
                 var result: [VariableConstraint] = []
                 for (index, (subArg, superArg)) in zip(subArguments, superArguments).enumerated() {
+                    let subStarUpperBound: TypeID? = if case .star = subArg {
+                        declaredStarProjectionUpperBound(
+                            classSymbol: subClass.classSymbol,
+                            argumentIndex: index,
+                            typeSystem: typeSystem
+                        )
+                    } else {
+                        nil
+                    }
                     let decomposed = decomposeTypeArgConstraintImpl(
                         subArg: subArg,
                         superArg: superArg,
@@ -875,7 +900,8 @@ extension OverloadResolver {
                         blameRange: blameRange,
                         depth: depth + 1,
                         declarationVariance: declarationVariances.indices.contains(index)
-                            ? declarationVariances[index] : .invariant
+                            ? declarationVariances[index] : .invariant,
+                        subStarUpperBound: subStarUpperBound
                     )
                     result.append(contentsOf: decomposed)
                 }
@@ -1012,6 +1038,15 @@ extension OverloadResolver {
                 let declarationVariances = typeSystem.allTypeParameterVariances(for: superClass.classSymbol)
                 var result: [VariableConstraint] = []
                 for (index, (subArg, superArg)) in zip(subtypeArguments, supertypeArguments).enumerated() {
+                    let subStarUpperBound: TypeID? = if case .star = subArg {
+                        declaredStarProjectionUpperBound(
+                            classSymbol: subClass.classSymbol,
+                            argumentIndex: index,
+                            typeSystem: typeSystem
+                        )
+                    } else {
+                        nil
+                    }
                     let decomposed = decomposeTypeArgConstraintImpl(
                         subArg: subArg,
                         superArg: superArg,
@@ -1020,7 +1055,8 @@ extension OverloadResolver {
                         blameRange: blameRange,
                         depth: depth + 1,
                         declarationVariance: declarationVariances.indices.contains(index)
-                            ? declarationVariances[index] : .invariant
+                            ? declarationVariances[index] : .invariant,
+                        subStarUpperBound: subStarUpperBound
                     )
                     result.append(contentsOf: decomposed)
                 }
@@ -1142,7 +1178,8 @@ extension OverloadResolver {
         typeSystem: TypeSystem,
         blameRange: SourceRange?,
         depth: Int,
-        declarationVariance: TypeVariance = .invariant
+        declarationVariance: TypeVariance = .invariant,
+        subStarUpperBound: TypeID? = nil
     ) -> [VariableConstraint] {
         // Kotlin declaration-site variance applies even when source syntax uses
         // invariant type arguments (`Sequence<T>` is still covariant because
@@ -1195,7 +1232,8 @@ extension OverloadResolver {
             // A star projection is equivalent to `out TUpperBound`, where the
             // upper bound comes from the declaration of the projected type.
             // Use Any? only for an unbounded type parameter.
-            let starUpperBound = starProjectionUpperBound(for: superInner, typeSystem: typeSystem)
+            let starUpperBound = subStarUpperBound
+                ?? starProjectionUpperBound(for: superInner, typeSystem: typeSystem)
             return decomposeSubtypeConstraintImpl(
                 subtype: starUpperBound, supertype: superInner,
                 typeVarBySymbol: typeVarBySymbol, typeSystem: typeSystem,
