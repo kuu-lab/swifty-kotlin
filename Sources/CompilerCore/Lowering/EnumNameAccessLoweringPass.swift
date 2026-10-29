@@ -6,7 +6,7 @@
 /// rewrites the source member access to the per-enum residual helpers. The
 /// synthetic registration in HeaderHelpers+SyntheticEnumStubs.swift remains a
 /// fallback for source-less enum surfaces.
-final class EnumNameAccessLoweringPass: LoweringPass, ParallelLoweringPass {
+final class EnumNameAccessLoweringPass: LoweringPass {
     static let name = "EnumNameAccessLowering"
     static let requiredStage: KIRStage = .propertyLowered
     static let producedStage: KIRStage = .propertyLowered

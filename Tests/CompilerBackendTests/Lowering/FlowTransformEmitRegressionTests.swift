@@ -3,7 +3,6 @@
 @testable import CompilerTestSupport
 import Foundation
 import Testing
-import TestStdlibCache
 
 @Suite
 struct FlowTransformEmitRegressionTests {

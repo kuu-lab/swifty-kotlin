@@ -1,8 +1,6 @@
 import Foundation
-@testable import CompilerBackend
 @testable import CompilerCore
 @testable import CompilerTestSupport
-import TestStdlibCache
 import Testing
 
 @Suite(.serialized)

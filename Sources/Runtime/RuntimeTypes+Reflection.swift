@@ -404,7 +404,9 @@ final class RuntimeKNestedClassRegistry: @unchecked Sendable {
         guard nestedToken != 0 else { return }
         lock.lock()
         defer { lock.unlock() }
-        entries[typeToken, default: []].append((nestedToken, nestedNameRaw))
+        if !entries[typeToken, default: []].contains(where: { $0.token == nestedToken }) {
+            entries[typeToken, default: []].append((nestedToken, nestedNameRaw))
+        }
     }
 
     func nestedClasses(for typeToken: Int) -> [(token: Int, nameRaw: Int)] {
@@ -459,14 +461,12 @@ final class RuntimeKTypeBox {
 }
 
 final class RuntimeKTypeParameterBox {
-    let identity: Int
     let nameRaw: Int
     let varianceOrdinal: Int
     let isReified: Bool
     var upperBoundsRaw: Int
 
-    init(identity: Int, nameRaw: Int, varianceOrdinal: Int, isReified: Bool, upperBoundsRaw: Int) {
-        self.identity = identity
+    init(nameRaw: Int, varianceOrdinal: Int, isReified: Bool, upperBoundsRaw: Int) {
         self.nameRaw = nameRaw
         self.varianceOrdinal = varianceOrdinal
         self.isReified = isReified

@@ -9,60 +9,10 @@ final class RuntimeUuidBox {
         self.leastSignificantBits = leastSignificantBits
     }
 
-    /// Format as standard UUID string: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
-    var uuidString: String {
-        let msb = UInt64(bitPattern: mostSignificantBits)
-        let lsb = UInt64(bitPattern: leastSignificantBits)
 
-        let p1 = String(format: "%08x", UInt32(msb >> 32))
-        let p2 = String(format: "%04x", UInt16((msb >> 16) & 0xFFFF))
-        let p3 = String(format: "%04x", UInt16(msb & 0xFFFF))
-        let p4 = String(format: "%04x", UInt16(lsb >> 48))
-        let p5 = String(format: "%012llx", lsb & 0x0000_FFFF_FFFF_FFFF)
 
-        return "\(p1)-\(p2)-\(p3)-\(p4)-\(p5)"
-    }
 
-    /// Format as hex string without dashes: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-    var hexString: String {
-        let msb = UInt64(bitPattern: mostSignificantBits)
-        let lsb = UInt64(bitPattern: leastSignificantBits)
-        return String(format: "%016llx%016llx", msb, lsb)
-    }
 
-    /// Convert to 16-byte array (big-endian)
-    var byteArray: [UInt8] {
-        let msb = UInt64(bitPattern: mostSignificantBits)
-        let lsb = UInt64(bitPattern: leastSignificantBits)
-        var bytes = [UInt8](repeating: 0, count: 16)
-        for i in 0..<8 {
-            bytes[i] = UInt8((msb >> (56 - i * 8)) & 0xFF)
-        }
-        for i in 0..<8 {
-            bytes[8 + i] = UInt8((lsb >> (56 - i * 8)) & 0xFF)
-        }
-        return bytes
-    }
-
-    var version: Int {
-        let msb = UInt64(bitPattern: mostSignificantBits)
-        return Int((msb >> 12) & 0xF)
-    }
-
-    var variant: Int {
-        let lsb = UInt64(bitPattern: leastSignificantBits)
-        let topThreeBits = (lsb >> 61) & 0x7
-        switch topThreeBits {
-        case 0b000, 0b001, 0b010, 0b011:
-            return 0 // NCS backward compatibility
-        case 0b100, 0b101:
-            return 2 // RFC 4122 / IETF
-        case 0b110:
-            return 6 // Microsoft compatibility bucket
-        default:
-            return 7 // future reserved bucket
-        }
-    }
 }
 
 private final class RuntimeUuidLexicalOrderComparatorBox {}

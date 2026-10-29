@@ -256,6 +256,11 @@ extension CallLowerer {
             sema: sema,
             interner: interner
         )
+        let usesClassReceiverListGetRuntimeBridge = isClassReceiverListGetRuntimeBridge(
+            chosenCallee,
+            receiverTypeID: receiverTypeForDispatch,
+            sema: sema
+        )
         let usesRuntimeSetContainsVirtualBridge = interner.resolve(calleeName) == "__kk_set_contains"
             && receiverTypeForDispatch.map {
                 isSetLikeType($0, sema: sema, interner: interner)
@@ -274,6 +279,7 @@ extension CallLowerer {
             || !kirIsRuntimeBridgedCallee(chosenCallee, sema: sema)
             || isClockRuntimeVirtualBridge(chosenCallee, sema: sema)
             || usesIteratorRuntimeVirtualBridge
+            || usesClassReceiverListGetRuntimeBridge
             || usesRuntimeSetContainsVirtualBridge
             || usesBoxedCollectionVirtualBridge
         else { return nil }
@@ -287,7 +293,7 @@ extension CallLowerer {
         {
             vcArguments.removeFirst()
         }
-        let virtualCalleeName = usesIteratorRuntimeVirtualBridge
+        let virtualCalleeName = usesIteratorRuntimeVirtualBridge || usesClassReceiverListGetRuntimeBridge
             ? (sema.symbols.symbol(chosenCallee)?.name ?? calleeName)
             : calleeName
         return .virtualCall(

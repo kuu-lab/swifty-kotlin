@@ -3,7 +3,6 @@
 @testable import CompilerTestSupport
 import Foundation
 import Testing
-import TestStdlibCache
 
 extension StdlibArtifactRegressionTests {
     /// KUU-2020: imported format extensions must survive the synthetic-stub filter.

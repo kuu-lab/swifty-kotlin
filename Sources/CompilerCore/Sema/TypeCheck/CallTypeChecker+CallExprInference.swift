@@ -229,7 +229,6 @@ extension CallTypeChecker {
             args: args,
             ctx: ctx,
             locals: &locals,
-            expectedType: expectedType,
             calleeName: calleeName
         ) {
             return inferred
@@ -238,10 +237,8 @@ extension CallTypeChecker {
         if let inferred = inferEmitInFlowScopeCall(
             id,
             args: args,
-            range: range,
             ctx: ctx,
             locals: &locals,
-            expectedType: expectedType,
             calleeName: calleeName
         ) {
             return inferred
@@ -266,7 +263,6 @@ extension CallTypeChecker {
             range: range,
             ctx: ctx,
             locals: &locals,
-            expectedType: expectedType,
             calleeName: calleeName
         ) {
             return inferred
@@ -278,7 +274,6 @@ extension CallTypeChecker {
             range: range,
             ctx: ctx,
             locals: &locals,
-            expectedType: expectedType,
             calleeName: calleeName
         ) {
             return inferred
@@ -315,7 +310,6 @@ extension CallTypeChecker {
             range: range,
             ctx: ctx,
             locals: &locals,
-            expectedType: expectedType,
             calleeName: calleeName
         ) {
             return inferred
@@ -489,7 +483,6 @@ extension CallTypeChecker {
             args: args,
             ctx: ctx,
             locals: &locals,
-            expectedType: expectedType,
             explicitTypeArgs: explicitTypeArgs,
             calleeName: calleeName,
             candidates: candidates

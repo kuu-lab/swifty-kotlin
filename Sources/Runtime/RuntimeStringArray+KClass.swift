@@ -1,5 +1,4 @@
 import Foundation
-import RuntimeABI
 
 @_cdecl("__kk_type_token_simple_name")
 public func __kk_type_token_simple_name(_ typeToken: Int, _ nameHint: Int) -> Int {

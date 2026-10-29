@@ -1507,10 +1507,6 @@ class RuntimeDispatcher: @unchecked Sendable {
 final class RuntimeLimitedDispatcher: RuntimeDispatcher, @unchecked Sendable {
     let base: RuntimeDispatcher
     let parallelismLimit: Int
-    /// The name prefix for this view's default display name. When another
-    /// limited view is created on top, reuse this prefix so `toString()` shows
-    /// the outermost limit instead of accumulating the view chain.
-    let displayNamePrefix: String
     private let gateLock = NSLock()
     private var inFlight = 0
     private var pending: [@Sendable () -> Void] = []
@@ -1518,11 +1514,7 @@ final class RuntimeLimitedDispatcher: RuntimeDispatcher, @unchecked Sendable {
     init(base: RuntimeDispatcher, parallelism: Int, name: String?) {
         self.base = base
         self.parallelismLimit = parallelism
-        let displayNamePrefix = name
-            ?? (base as? RuntimeLimitedDispatcher)?.displayNamePrefix
-            ?? base.displayName
-            ?? "dispatcher"
-        self.displayNamePrefix = displayNamePrefix
+        let displayNamePrefix = base.displayName ?? "dispatcher"
         super.init(
             queue: base.queue,
             tag: 0,

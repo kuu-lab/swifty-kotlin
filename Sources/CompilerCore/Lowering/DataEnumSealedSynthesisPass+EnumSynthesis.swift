@@ -341,7 +341,6 @@ extension DataEnumSealedSynthesisPass {
                     ordinal: indexExpr,
                     classSymbol: enumClassSymbol,
                     result: boxedEntry,
-                    resultType: sema.types.anyType,
                     types: sema.types,
                     symbols: sema.symbols,
                     interner: interner,

@@ -264,10 +264,6 @@ private func list(_ memberName: String, _ arity: Int) -> SpecKey {
     SpecKey(ownerKind: .list, memberName: memberName, arityMinimum: arity, arityMaximum: arity)
 }
 
-private func map(_ memberName: String, _ arity: Int) -> SpecKey {
-    SpecKey(ownerKind: .map, memberName: memberName, arityMinimum: arity, arityMaximum: arity)
-}
-
 private func sequence(_ memberName: String, _ arity: Int) -> SpecKey {
     SpecKey(ownerKind: .sequence, memberName: memberName, arityMinimum: arity, arityMaximum: arity)
 }

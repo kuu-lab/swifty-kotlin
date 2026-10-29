@@ -646,6 +646,21 @@ extension CallLowerer {
         propertyConstantInitializers: [SymbolID: KIRExprKind],
         instructions: inout [KIRInstruction]
     ) -> KIRExprID? {
+        // KUU-3670: a property whose declared type erases to a non-reified
+        // type parameter crosses the read boundary in its raw erased
+        // representation (a heap handle), not the claim site's substituted
+        // representation. Materializing `val s: T` directly into a `String`
+        // result would reinterpret a foreign object before the boundary
+        // checkcast emitted by `checkedErasedGenericCallResult` can reject
+        // it, so the read produces the erased slot type and the claim-side
+        // cast performs the conversion.
+        let resultType: TypeID = if let declaredType = sema.symbols.propertyType(for: propertySymbol),
+                                    kirIsNonReifiedErasedABIType(declaredType, sema: sema)
+        {
+            sema.types.nullableAnyType
+        } else {
+            resultType
+        }
         let isSuperQualifiedReceiver: Bool
         if let isSuperQualifiedReceiverOverride {
             isSuperQualifiedReceiver = isSuperQualifiedReceiverOverride

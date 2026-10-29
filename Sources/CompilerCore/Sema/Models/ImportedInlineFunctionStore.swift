@@ -132,7 +132,6 @@ public final class ImportedInlineFunctionStore {
         pendingBodySymbols.remove(symbol)
     }
 
-
     /// Captures the resolution context once, after all imported bindings have
     /// been applied. Called by `loadImportedLibrarySymbols` so deferred
     /// parses resolve callees against the final link-name and FQ-name maps.
