@@ -18,5 +18,16 @@ struct ValueClassGenericBoxingTests {
             allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
         )
     }
+
+    @Test
+    func genericOverrideBoxesReferenceBackedValueClassReturn() throws {
+        TestStdlibCache.shared.prepare()
+        try compileAndRunKotlin(
+            try diffCaseSource("kuu_3681_generic_override_value_class_return.kt", file: #filePath),
+            expectedOutput: "true\nO\n",
+            moduleName: "KUU3681GenericOverrideValueClassReturn",
+            allowDefaultStdlibLibrary: true
+        )
+    }
 }
 #endif

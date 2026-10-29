@@ -7,14 +7,6 @@ import Testing
 @Suite
 struct RuntimeStringSplitJoinTests {
 
-    private func runtimeMakeStringRaw(_ value: String) -> Int {
-        value.withCString { cstr in
-            cstr.withMemoryRebound(to: UInt8.self, capacity: max(1, value.utf8.count)) { ptr in
-                Int(bitPattern: kk_string_from_utf8(ptr, Int32(value.utf8.count)))
-            }
-        }
-    }
-
     private func runtimeStringFromRaw(_ raw: Int) -> String {
         extractString(from: UnsafeMutableRawPointer(bitPattern: raw)) ?? ""
     }

@@ -322,6 +322,10 @@ extension JVMProgramBuilder {
         let delegate: JVMForeignMethod
         if plan.isEnum {
             delegate = JVMForeignMethod(owner: "java/lang/Enum", name: "<init>", descriptor: "(Ljava/lang/String;I)V", parameters: [.string, .int], result: .reference("java/lang/Enum", nullable: false), isStatic: false, isInterface: false, isAbstract: false)
+        } else if plan.isJvmRecord, let target, let method = methods[target] ?? context.jvmImports?.methods[target] ?? builtinMethod(target), method.owner == plan.name {
+            delegate = method
+        } else if plan.isJvmRecord {
+            delegate = JVMForeignMethod(owner: "java/lang/Record", name: "<init>", descriptor: "()V", parameters: [], result: .reference("java/lang/Record", nullable: false), isStatic: false, isInterface: false, isAbstract: false)
         } else if let target, let method = methods[target] ?? context.jvmImports?.methods[target] ?? builtinMethod(target) { delegate = method }
         else {
             guard arguments.isEmpty, plan.superclass == "java/lang/Object" else { throw JVMFrontendError(message: "Missing JVM superclass constructor binding.", range: declaration.range) }

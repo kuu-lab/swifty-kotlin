@@ -1,5 +1,4 @@
 import Foundation
-import RuntimeABI
 
 /// Stable nominal type ID of `kotlin.String`, with String's interface
 /// supertype edges registered on first use (BUG-153). Strings never reach

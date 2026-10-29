@@ -2160,15 +2160,28 @@ final class KlibBodyLowerer {
         }
         if member == "inc" || member == "dec" {
             guard let operand = loweredArguments.first else { return nil }
-            let oneExpr = arena.appendExpr(.intLiteral(1), type: resultType)
-            body.append(.constValue(result: oneExpr, value: .intLiteral(1)))
+            // Float/Double slots hold IEEE bit patterns, so `1` must be a
+            // floating literal added with the floating runtime op.
+            let one: KIRExprKind = switch floatPrefix {
+            case "d": .doubleLiteral(1)
+            case "f": .floatLiteral(1)
+            default: .intLiteral(1)
+            }
+            let oneExpr = arena.appendExpr(one, type: resultType)
+            body.append(.constValue(result: oneExpr, value: one))
+            let opName = (member == "inc" ? "add" : "sub")
             let result = arena.appendTemporary(type: resultType)
             body.append(.call(
-                callee: interner.intern(member == "inc" ? "kk_op_add" : "kk_op_sub"),
+                callee: interner.intern("kk_op_\(floatPrefix ?? "")\(opName)"),
                 arguments: [operand, oneExpr], result: result,
                 canThrow: false
             ))
-            return result
+            // `Byte.inc()` & co. keep the operand type; IntegerNarrowingPass
+            // leaves Byte/Short/UByte/UShort results alone, so wrap here.
+            return SmallIntegerWrap.append(
+                result, type: resultType, sema: sema, arena: arena, interner: interner,
+                instructions: &body.instructions
+            ) ?? result
         }
         if member == "toString" {
             guard let value = loweredArguments.first else { return nil }

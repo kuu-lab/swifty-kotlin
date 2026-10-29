@@ -3,7 +3,6 @@
 @testable import CompilerTestSupport
 import Foundation
 import Testing
-import TestStdlibCache
 
 /// STDLIB-ARTIFACT-001: shared stdlib artifact (.kklib) is correctly consumed
 /// by a user module. This is a regression test for the `uuid_basic` shared-path

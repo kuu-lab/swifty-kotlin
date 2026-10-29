@@ -407,6 +407,21 @@ extension NameMangler {
         for functionSymbol: SemanticSymbol,
         interner: StringInterner
     ) -> InternedString {
-        interner.intern("$enumEntryDispatch$\(functionSymbol.id.rawValue)")
+        enumEntryDispatchHelperName(for: functionSymbol.id, interner: interner)
+    }
+
+    package static func enumEntryDispatchHelperName(
+        for baseSymbol: SymbolID,
+        interner: StringInterner
+    ) -> InternedString {
+        if let accessor = SyntheticSymbolScheme.decodedPropertyAccessor(baseSymbol) {
+            let propertyID = accessor.property.rawValue
+            let propertyComponent = propertyID >= 0
+                ? String(propertyID)
+                : "n\(Int64(propertyID).magnitude)"
+            let accessorComponent = accessor.kind == .getter ? "get" : "set"
+            return interner.intern("$enumEntryDispatch$property$\(accessorComponent)$\(propertyComponent)")
+        }
+        return interner.intern("$enumEntryDispatch$\(baseSymbol.rawValue)")
     }
 }

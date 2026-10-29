@@ -1,6 +1,6 @@
 
 /// Runs after DataEnumSealedSynthesisPass which creates the `entries$get` helper.
-final class EnumEntriesLoweringPass: LoweringPass, ParallelLoweringPass {
+final class EnumEntriesLoweringPass: LoweringPass {
     static let name = "EnumEntriesLowering"
     static let requiredStage: KIRStage = .propertyLowered
     static let producedStage: KIRStage = .propertyLowered

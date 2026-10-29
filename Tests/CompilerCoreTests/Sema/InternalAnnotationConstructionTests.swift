@@ -123,4 +123,50 @@ struct InternalAnnotationConstructionTests {
             #expect(!errors.contains { $0.message.contains("Unresolved reference 'kotlin'") })
         }
     }
+
+    @Test(arguments: ["source", "fresh .kklib"])
+    func lowPriorityAnnotationTargetsAndInternalVisibilityAcrossStdlibSurfaces(surface: String) throws {
+        let source = """
+        @Suppress("INVISIBLE_MEMBER", "INVISIBLE_REFERENCE")
+        @kotlin.internal.LowPriorityInOverloadResolution
+        fun allowedFunction() {}
+
+        @Suppress("INVISIBLE_MEMBER", "INVISIBLE_REFERENCE")
+        @kotlin.internal.LowPriorityInOverloadResolution
+        val allowedProperty = 1
+
+        class AllowedPrimary @Suppress("INVISIBLE_MEMBER", "INVISIBLE_REFERENCE")
+            @kotlin.internal.LowPriorityInOverloadResolution constructor()
+
+        class RejectedPrimary @kotlin.internal.LowPriorityInOverloadResolution constructor()
+
+        @Suppress("INVISIBLE_MEMBER", "INVISIBLE_REFERENCE")
+        @kotlin.internal.LowPriorityInOverloadResolution
+        class RejectedClassTarget
+        """
+
+        let libraryPath: String?
+        if surface == "fresh .kklib" {
+            TestStdlibCache.shared.prepare()
+            libraryPath = try #require(CompilerOptions.defaultStdlibLibraryPath)
+        } else {
+            libraryPath = nil
+        }
+
+        try withTemporaryFile(contents: source) { path in
+            let context = makeCompilationContext(
+                inputs: [path],
+                includeStdlib: libraryPath == nil,
+                stdlibLibraryPath: libraryPath,
+                allowDefaultStdlibLibrary: false
+            )
+            try runSema(context)
+
+            let errors = context.diagnostics.diagnostics.filter { $0.severity == .error }
+            #expect(errors.count == 2, "Unexpected diagnostics for \(surface): \(errors)")
+            #expect(errors.filter { $0.code == "KSWIFTK-SEMA-0044" }.count == 1, "Unexpected visibility errors for \(surface): \(errors)")
+            #expect(errors.filter { $0.code == "KSWIFTK-SEMA-ANNOTATION-TARGET" }.count == 1, "Unexpected target errors for \(surface): \(errors)")
+            #expect(!errors.contains { $0.message.contains("Unresolved reference 'kotlin'") })
+        }
+    }
 }

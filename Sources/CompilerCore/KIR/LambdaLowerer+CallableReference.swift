@@ -2,7 +2,6 @@ extension LambdaLowerer {
     private func lowerCallableReferenceAdapter(
         _ exprID: ExprID,
         targetSymbol: SymbolID,
-        targetName: InternedString?,
         binding: CallBinding,
         isUnbound: Bool,
         captureArguments: [KIRExprID],
@@ -14,9 +13,7 @@ extension LambdaLowerer {
         sema: SemaModule,
         arena: KIRArena,
         interner: StringInterner,
-        propertyConstantInitializers: [SymbolID: KIRExprKind],
-        instructions: inout [KIRInstruction]
-    ) -> (symbol: SymbolID, name: InternedString) {
+        propertyConstantInitializers: [SymbolID: KIRExprKind]) -> (symbol: SymbolID, name: InternedString) {
         let callableSymbol = driver.ctx.syntheticLambdaSymbol(for: exprID)
         let callableName = syntheticLambdaName(for: exprID, interner: interner)
         let contextInputCount = functionType.contextReceivers.count
@@ -975,7 +972,6 @@ extension LambdaLowerer {
                 let adapter = lowerCallableReferenceAdapter(
                     exprID,
                     targetSymbol: callTargetSymbol,
-                    targetName: callTargetName,
                     binding: callableReferenceBinding,
                     isUnbound: isUnbound,
                     captureArguments: captureArguments,
@@ -987,9 +983,7 @@ extension LambdaLowerer {
                     sema: sema,
                     arena: arena,
                     interner: interner,
-                    propertyConstantInitializers: propertyConstantInitializers,
-                    instructions: &instructions
-                )
+                    propertyConstantInitializers: propertyConstantInitializers)
                 samTarget = (adapter.symbol, adapter.name, false)
             } else {
                 samTarget = (callTargetSymbol, callTargetName, reifiedThunk != nil)
@@ -1018,6 +1012,21 @@ extension LambdaLowerer {
         // pointer directly to the runtime HOF implementation.
         let isCollectionHOFReference = sema.bindings.isCollectionHOFLambdaExpr(exprID)
         let needsHOFWrapper = isCollectionHOFReference && reifiedThunk == nil
+        // A non-capturing callable reference otherwise points directly at the
+        // Kotlin function entry point. FunctionN.invoke uses the flat callback
+        // ABI, where String results are returned as erased handles, so wrap
+        // String-returning references before they can escape as function values.
+        let needsFunctionValueStringReturnWrapper: Bool = {
+            guard sema.bindings.callableRefKind(for: exprID) == .functionRef,
+                  captureArguments.isEmpty,
+                  let boundType,
+                  case let .functionType(functionType) = sema.types.kind(of: boundType),
+                  case .stringStruct = sema.types.kind(of: functionType.returnType)
+            else {
+                return false
+            }
+            return true
+        }()
         // Keep the referenced function's Kotlin ABI and adapt it through a
         // callable thunk that can use the runtime's flat String callback ABI.
         let needsTopLevelStringReturnWrapper: Bool = {
@@ -1091,7 +1100,6 @@ extension LambdaLowerer {
             let adapter = lowerCallableReferenceAdapter(
                 exprID,
                 targetSymbol: callTargetSymbol,
-                targetName: callTargetName,
                 binding: callableReferenceBinding,
                 isUnbound: isUnbound,
                 captureArguments: captureArguments,
@@ -1103,9 +1111,7 @@ extension LambdaLowerer {
                 sema: sema,
                 arena: arena,
                 interner: interner,
-                propertyConstantInitializers: propertyConstantInitializers,
-                instructions: &instructions
-            )
+                propertyConstantInitializers: propertyConstantInitializers)
             callableSymbol = adapter.symbol
             callableName = adapter.name
         } else if let callTargetSymbol, isConstructorTarget {
@@ -1289,6 +1295,7 @@ extension LambdaLowerer {
             driver.ctx.appendGeneratedCallableDecl(wrapperDecl)
         } else if let callTargetSymbol,
                   needsHOFWrapper || needsInlineWrapper || needsTopLevelStringReturnWrapper
+                    || needsFunctionValueStringReturnWrapper
         {
             // HOF callbacks use a closure parameter. Ordinary inline references
             // keep the Kotlin signature and pass each bound capture directly.
@@ -1511,9 +1518,13 @@ extension LambdaLowerer {
         // Suspend references and primitive toString wrappers also need a box
         // without captures. The former supply a continuation-only entry ABI;
         // the latter return a flat String and need a function-value adapter.
+        // Capture-free references need the box too: a bare fnPtr has no
+        // self-contained invoke ABI, so passing it through `Any` and back to
+        // `FunctionN.invoke` (e.g. `call(f: Any)` / `f as Function1`) reaches
+        // kk_function_invoke's flat-entry path and calls the synthetic lambda
+        // with the wrong signature (KUU-3674).
         let callableValue: KIRExprID
         if case let .functionType(functionType) = sema.types.kind(of: callableType),
-           !captureArguments.isEmpty || functionType.isSuspend || needsPrimitiveToStringAdapter,
            let materialized = materializeEscapingCallableValue(
                exprID: exprID,
                lambdaSymbol: callableSymbol,

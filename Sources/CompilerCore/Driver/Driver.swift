@@ -369,7 +369,7 @@ public final class CompilerDriver {
             ctx.diagnostics.error("KSWIFTK-PIPELINE-0003", "KIR not available for dump.", range: nil)
             return
         }
-        let path = ctx.options.outputPath + ".kir"
+        let path = IncrementalCompilationCache.outputArtifactPath(for: ctx.options)
         do {
             // Rendering and writing interleave, so "render" spans both and
             // "write" accumulates just the chunk writes inside it.

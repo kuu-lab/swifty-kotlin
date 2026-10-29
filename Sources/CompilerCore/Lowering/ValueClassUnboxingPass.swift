@@ -1,5 +1,5 @@
 /// This pass must run **before** PropertyLoweringPass and ABILoweringPass.
-final class ValueClassUnboxingPass: LoweringPass, ParallelLoweringPass {
+final class ValueClassUnboxingPass: LoweringPass {
     static let name = "ValueClassUnboxing"
     static let requiredStage: KIRStage = .desugared
     static let producedStage: KIRStage = .valueClassUnboxed
@@ -592,7 +592,7 @@ final class ValueClassUnboxingPass: LoweringPass, ParallelLoweringPass {
                             var payloadBoxInstructions: [KIRInstruction] = []
                             emitValueClassBoxCall(
                                 value: arguments[1], classSymbol: sourceClassSymbol,
-                                result: callResult, resultType: arena.exprType(callResult),
+                                result: callResult,
                                 types: types, symbols: symbols, interner: interner,
                                 arena: arena, into: &payloadBoxInstructions
                             )
@@ -726,6 +726,26 @@ final class ValueClassUnboxingPass: LoweringPass, ParallelLoweringPass {
                                == arena.exprType(callResult)
                         {
                             module.markRawValueClassPayload(callResult)
+                        } else if let receiverType = arena.exprType(arguments[0]),
+                                  let classSymbol = referenceBackedValueClassSymbol(
+                                      of: types.kind(of: receiverType), types: types, symbols: symbols
+                                  ),
+                                  case let .classType(classType) = types.kind(of: receiverType),
+                                  let declaredUnderlyingType = symbols.effectiveValueClassUnderlyingType(
+                                      for: classSymbol
+                                  )
+                        {
+                            // A reference-backed value class's non-null representation is
+                            // already its payload. Keep an underlying-property read raw;
+                            // otherwise ABI lowering reboxes the payload as the class.
+                            let underlyingType = types.substituteNominalTypeParameters(
+                                in: declaredUnderlyingType,
+                                owner: classSymbol,
+                                ownerArgs: classType.args
+                            )
+                            if underlyingType == arena.exprType(callResult) {
+                                module.markRawValueClassPayload(callResult)
+                            }
                         }
                         result.append(.copy(from: arguments[0], to: callResult))
                     }

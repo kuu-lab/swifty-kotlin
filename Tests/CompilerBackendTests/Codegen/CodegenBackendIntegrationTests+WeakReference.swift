@@ -7,32 +7,6 @@ import Testing
 
 @Suite
 struct CodegenBackendWeakReferenceTests {
-    private func runExecutablePipeline(
-        inputPath: String,
-        moduleName: String,
-        outputPath: String,
-        allowDefaultStdlibLibrary: Bool = true
-    ) throws -> CompilationContext {
-        let options = CompilerOptions(
-            moduleName: moduleName,
-            inputs: [inputPath],
-            outputPath: outputPath,
-            emit: .executable,
-            target: defaultTargetTriple(),
-            allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
-        )
-        let ctx = CompilationContext(
-            options: options,
-            sourceManager: SourceManager(),
-            diagnostics: DiagnosticEngine(),
-            interner: StringInterner()
-        )
-        try runToKIR(ctx)
-        try LoweringPhase().run(ctx)
-        try CodegenPhase().run(ctx)
-        return ctx
-    }
-
     // KSP-1255: WeakReference(referred: T)'s constructor bridges straight to
     // the kk_weak_ref_create runtime factory (see CallLowerer's
     // isRuntimeFactoryConstructor). get() after clear() must observe the

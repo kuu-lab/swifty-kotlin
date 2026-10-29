@@ -919,6 +919,32 @@ extension BuildKIRRegressionTests {
         #expect(valueSymbol == adapter.params[1].symbol)
     }
 
+    @Test func testBuildKIRBoxesCaptureFreeCallableReferenceForErasedInvoke() throws {
+        // KUU-3674: an unbound, capture-free callable reference used to stay a
+        // bare fnPtr. Once erased into `Any` and cast back to `FunctionN`, the
+        // runtime could only flat-call it with the wrong invoke ABI, so
+        // `(f as Function1).invoke()` returned null and crashed downstream.
+        let runtime = try RuntimeNames()
+        let source = """
+        class B { companion object { fun foo() = "fail" } }
+        fun B.foo() = "OK"
+        fun call(f: Any): String = (f as Function1<B, String>).invoke(B())
+        fun main() {
+            println(call(B::foo))
+        }
+        """
+        let ctx = makeContextFromSource(source)
+        try runToKIR(ctx)
+        #expect(!ctx.diagnostics.hasError)
+
+        let module = try #require(ctx.kir)
+        let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+        #expect(body.contains { instruction in
+            guard case let .call(_, callee, _, _, _, _, _, _) = instruction else { return false }
+            return callee == ctx.interner.intern(runtime[.functionCreate1])
+        }, "Expected B::foo to be boxed via kk_function_create_1 for the erased invoke path")
+    }
+
     // MARK: - P5-39: vararg call lowering / ABI regression tests
 }
 #endif

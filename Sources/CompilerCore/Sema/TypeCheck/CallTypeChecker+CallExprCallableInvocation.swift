@@ -36,6 +36,14 @@ extension CallTypeChecker {
                 ).filter { sema.symbols.symbol($0)?.flags.contains(.operatorFunction) == true }
             }
             if !invokeCandidates.isEmpty {
+                // Context-bearing `invoke` overloads need the shared callable
+                // resolver to filter candidates against the active context
+                // receivers before overload ranking.
+                if invokeCandidates.contains(where: { candidate in
+                    sema.symbols.functionSignature(for: candidate)?.contextParameterTypes.isEmpty == false
+                }) {
+                    return nil
+                }
                 let returnType = inferMemberCallExpr(
                     id, receiverID: calleeID, calleeName: invokeName,
                     args: args, range: range, ctx: ctx, locals: &locals,
@@ -71,10 +79,20 @@ extension CallTypeChecker {
         // evaluates the callee first, though: its declared/pre-argument flow
         // state decides which `invoke` overload applies.
         var calleeLocals = calleeScopeLocals ?? locals
+        let localFunctionFallsThroughToProperty: Bool = {
+            guard let calleeName,
+                  let local = calleeLocals[calleeName],
+                  ctx.cachedSymbol(local.symbol)?.flags.contains(.localFunction) == true
+            else {
+                return false
+            }
+            return implicitReceiverFunctionProperty(named: calleeName, ctx: ctx) != nil
+        }()
         var callableTarget: CallableTarget?
         var callableCalleeType: TypeID?
         if let calleeName,
-           let local = calleeLocals[calleeName]
+           let local = calleeLocals[calleeName],
+           !localFunctionFallsThroughToProperty
         {
             if !local.isInitialized,
                ctx.cachedSymbol(local.symbol)?.flags.contains(.lateinitProperty) != true
@@ -93,7 +111,20 @@ extension CallTypeChecker {
                 callableCalleeType = local.type
             }
         } else if let calleeName {
-            if !ctx.cachedScopeLookup(calleeName).isEmpty {
+            if localFunctionFallsThroughToProperty {
+                calleeLocals[calleeName] = nil
+            }
+            let scopeCandidates = ctx.cachedScopeLookup(calleeName)
+            let implicitProperty = implicitReceiverFunctionProperty(named: calleeName, ctx: ctx)
+            let scopeContainsOnlyLocalFunctionsOrImplicitProperty = !scopeCandidates.isEmpty
+                && scopeCandidates.allSatisfy { candidate in
+                    if candidate == implicitProperty?.symbol {
+                        return true
+                    }
+                    guard let symbol = ctx.cachedSymbol(candidate) else { return false }
+                    return symbol.kind == .function && symbol.flags.contains(.localFunction)
+                }
+            if !scopeCandidates.isEmpty, !scopeContainsOnlyLocalFunctionsOrImplicitProperty {
                 callableCalleeType = driver.inferExpr(
                     calleeID,
                     ctx: ctx,
@@ -101,7 +132,7 @@ extension CallTypeChecker {
                     expectedType: nil
                 )
                 callableTarget = driver.helpers.callableTargetForCalleeExpr(calleeID, sema: sema)
-            } else if let property = implicitReceiverFunctionProperty(named: calleeName, ctx: ctx) {
+            } else if let property = implicitProperty {
                 guard let propertySymbol = sema.symbols.symbol(property.symbol) else {
                     return nil
                 }
@@ -198,10 +229,23 @@ extension CallTypeChecker {
         }
 
         if let callableCalleeType {
-            let allInvokeCandidates = implicitInvokeOperatorCandidates(for: callableCalleeType, ctx: ctx)
-            let invokeCandidates = contextApplicableCallCandidates(allInvokeCandidates, ctx: ctx)
+            let argumentLabels = args.map(\.label)
+            let allInvokeCandidates = implicitInvokeOperatorCandidates(
+                for: callableCalleeType,
+                ctx: ctx,
+                argumentLabels: argumentLabels
+            )
+            let invokeCandidates = contextApplicableCallCandidates(
+                allInvokeCandidates,
+                ctx: ctx,
+                argumentLabels: argumentLabels
+            )
             if invokeCandidates.isEmpty,
-               let missingType = firstContextParameterType(in: allInvokeCandidates, ctx: ctx)
+               let missingType = firstContextParameterType(
+                   in: allInvokeCandidates,
+                   ctx: ctx,
+                   argumentLabels: argumentLabels
+               )
             {
                 sema.diagnostics.error(
                     "KSWIFTK-SEMA-CTX-002",
@@ -267,7 +311,8 @@ extension CallTypeChecker {
     /// call-chain lambda and to bind the completed callable-value call.
     func implicitInvokeOperatorCandidates(
         for calleeType: TypeID,
-        ctx: TypeInferenceContext
+        ctx: TypeInferenceContext,
+        argumentLabels: [InternedString?] = []
     ) -> [SymbolID] {
         let sema = ctx.sema
         let interner = ctx.interner
@@ -280,6 +325,17 @@ extension CallTypeChecker {
         ).filter { candidateID in
             sema.symbols.symbol(candidateID)?.flags.contains(.operatorFunction) == true
         }
+        var contextInapplicableCandidates: [SymbolID] = []
+        if !invokeCandidates.isEmpty,
+           contextApplicableCallCandidates(
+               invokeCandidates,
+               ctx: ctx,
+               argumentLabels: argumentLabels
+           ).isEmpty
+        {
+            contextInapplicableCandidates = invokeCandidates
+            invokeCandidates = []
+        }
         // A clause value may rely on an enclosing builder's member extension.
         // It outranks top-level `invoke` extensions in scope.
         if invokeCandidates.isEmpty {
@@ -289,6 +345,18 @@ extension CallTypeChecker {
                 ctx: ctx
             ).filter { candidateID in
                 sema.symbols.symbol(candidateID)?.flags.contains(.operatorFunction) == true
+            }
+            if !invokeCandidates.isEmpty,
+               contextApplicableCallCandidates(
+                   invokeCandidates,
+                   ctx: ctx,
+                   argumentLabels: argumentLabels
+               ).isEmpty
+            {
+                if contextInapplicableCandidates.isEmpty {
+                    contextInapplicableCandidates = invokeCandidates
+                }
+                invokeCandidates = []
             }
         }
         // Nominal lookup does not see a user-declared extension such as
@@ -310,7 +378,7 @@ extension CallTypeChecker {
                 )
             }
         }
-        return invokeCandidates
+        return invokeCandidates.isEmpty ? contextInapplicableCandidates : invokeCandidates
     }
 
     /// The caller only uses the result after ordinary call candidates and
@@ -328,12 +396,62 @@ extension CallTypeChecker {
             ) else {
                 continue
             }
-            guard case let .functionType(function) = sema.types.kind(of: property.type),
-                  function.nullability == .nonNull else {
+            let isFunctionType: Bool = {
+                guard case let .functionType(function) = sema.types.kind(of: property.type) else {
+                    return false
+                }
+                return function.nullability == .nonNull
+            }()
+            let isNonNullableCallableObject = sema.types.nullability(of: property.type) == .nonNull
+                && !implicitInvokeOperatorCandidates(
+                    for: sema.types.makeNonNullable(property.type),
+                    ctx: ctx
+                ).isEmpty
+            guard isFunctionType || isNonNullableCallableObject else {
                 return nil
             }
             return property
         }
         return nil
+    }
+
+    func shouldFallThroughFromInapplicableLocalFunctionsToImplicitCallableProperty(
+        candidates: [SymbolID],
+        args: [CallArgument],
+        calleeName: InternedString?,
+        locals: LocalBindings,
+        ctx: TypeInferenceContext
+    ) -> Bool {
+        guard !candidates.isEmpty,
+              let calleeName,
+              locals[calleeName].map({ ctx.cachedSymbol($0.symbol)?.kind == .function }) ?? true,
+              implicitReceiverFunctionProperty(named: calleeName, ctx: ctx) != nil,
+              candidates.allSatisfy({ candidate in
+                  guard let symbol = ctx.cachedSymbol(candidate) else { return false }
+                  return symbol.kind == .function && symbol.flags.contains(.localFunction)
+              })
+        else {
+            return false
+        }
+
+        let argumentLabels = args.map(\.label)
+        return candidates.allSatisfy { candidate in
+            guard let signature = ctx.sema.symbols.functionSignature(for: candidate) else {
+                return false
+            }
+            let receiverIsApplicable = signature.receiverType.map { declaredReceiver in
+                ctx.implicitReceiverMemberLookupEntries().contains { receiver in
+                    extensionSyntheticFallbackReceiverMatches(
+                        callSiteReceiver: receiver.type,
+                        declaredReceiver: declaredReceiver,
+                        sema: ctx.sema
+                    )
+                }
+            } ?? true
+            let contextIsApplicable = contextApplicableCallCandidates(
+                [candidate], ctx: ctx, argumentLabels: argumentLabels
+            ).contains(candidate)
+            return !receiverIsApplicable || !contextIsApplicable
+        }
     }
 }

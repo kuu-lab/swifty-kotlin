@@ -1,5 +1,5 @@
 
-final class FlowLoweringPass: LoweringPass, ParallelLoweringPass {
+final class FlowLoweringPass: LoweringPass {
     static let name = "FlowLowering"
     static let requiredStage: KIRStage = .desugared
     static let producedStage: KIRStage = .desugared
