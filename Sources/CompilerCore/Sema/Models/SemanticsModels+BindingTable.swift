@@ -23,6 +23,13 @@ public final class BindingTable {
     }
 
     public private(set) var exprTypes: [ExprID: TypeID] = [:]
+    /// The ABI type that consumes a generic call result. This can be wider
+    /// than the substituted expression type, as for `println(f<Int?>())`.
+    public private(set) var genericCallConsumerTypes: [ExprID: TypeID] = [:]
+
+    public func bindGenericCallConsumerType(_ expr: ExprID, type: TypeID?) {
+        genericCallConsumerTypes[expr] = type
+    }
     /// Flow-refined receiver types for local compound assignments. Their
     /// result is usually `Unit`, so the LHS type cannot be recovered from
     /// `exprTypes` during KIR lowering.
@@ -308,6 +315,7 @@ public final class BindingTable {
         if !primaryConstructorPropertyAnnotations.isEmpty { return false }
         if !pendingAnnotationTargets.isEmpty { return false }
         if !callableReferenceBindings.isEmpty { return false }
+        if !genericCallConsumerTypes.isEmpty { return false }
         if !platformNullAssertionTypes.isEmpty { return false }
         if !unitReturnCoercionExprs.isEmpty { return false }
         if !whenExhaustiveness.isEmpty { return false }
@@ -432,6 +440,7 @@ public final class BindingTable {
         worker.annotationFactoryExpressions = annotationFactoryExpressions
         worker.primaryConstructorPropertyAnnotations = primaryConstructorPropertyAnnotations
         worker.exprTypes = exprTypes
+        worker.genericCallConsumerTypes = genericCallConsumerTypes
         worker.compoundAssignReceiverTypes = compoundAssignReceiverTypes
         worker.platformNullAssertionTypes = platformNullAssertionTypes
         worker.whenExhaustiveness = whenExhaustiveness
