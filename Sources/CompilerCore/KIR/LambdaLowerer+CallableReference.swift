@@ -1594,13 +1594,22 @@ extension LambdaLowerer {
                 instructions: &instructions
             )
             if case let .functionType(functionType) = sema.types.kind(of: callableType) {
+                let receiverCount = isUnbound && targetSymbol.flatMap {
+                    sema.symbols.functionSignature(for: $0)
+                }?.receiverType != nil ? 1 : 0
+                let inputs = (functionType.receiver.map { [$0] } ?? []) + functionType.params
+                // An unbound receiver can be represented as either `receiver`
+                // or the first ordinary parameter of the function type.
+                let parameters = Array(inputs.prefix(receiverCount)) + functionType.contextReceivers
+                    + Array(inputs.dropFirst(receiverCount))
                 registerCallableReflection(
                     value: taggedExpr, callableSymbol: callableSymbol, callableName: callableName,
                     targetSymbol: targetSymbol,
-                    parameterTypes: (functionType.receiver.map { [$0] } ?? []) + functionType.params,
+                    parameterTypes: parameters,
                     returnType: functionType.returnType,
                     captures: captureArguments,
-                    receiverCount: isUnbound && targetSymbol.flatMap { sema.symbols.functionSignature(for: $0) }?.receiverType != nil ? 1 : 0,
+                    receiverCount: receiverCount,
+                    contextParameterCount: functionType.contextReceivers.count,
                     // KCallable.call's reflection bridge has no continuation
                     // parameter. Suspend references keep their suspend
                     // function-value invoke path instead of generating a

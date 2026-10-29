@@ -10,6 +10,7 @@ extension LambdaLowerer {
         returnType: TypeID,
         captures: [KIRExprID],
         receiverCount: Int,
+        contextParameterCount: Int = 0,
         packedConstructorVarargs: Bool = false,
         setterSymbol: SymbolID? = nil,
         includeInvocation: Bool = true,
@@ -52,9 +53,15 @@ extension LambdaLowerer {
         func parameters(_ types: [TypeID], isSetter: Bool = false) -> KIRExprID {
             var elements: [KIRExprID] = []
             for (index, type) in types.enumerated() {
-                let valueIndex = index - receiverCount
-                let parameterSymbol = valueIndex >= 0 && valueIndex < (signature?.valueParameterSymbols.count ?? 0)
-                    ? signature?.valueParameterSymbols[valueIndex] : nil
+                let contextIndex = index - receiverCount
+                let isContext = contextIndex >= 0 && contextIndex < contextParameterCount
+                let valueIndex = index - receiverCount - contextParameterCount
+                let boundContextCount = max((signature?.contextParameterSymbols.count ?? 0) - contextParameterCount, 0)
+                let contextSymbolIndex = boundContextCount + contextIndex
+                let parameterSymbol = isContext && signature?.contextParameterSymbols.indices.contains(contextSymbolIndex) == true
+                    ? signature?.contextParameterSymbols[contextSymbolIndex]
+                    : valueIndex >= 0 && valueIndex < (signature?.valueParameterSymbols.count ?? 0)
+                        ? signature?.valueParameterSymbols[valueIndex] : nil
                 let name = isSetter && index == types.count - 1 ? "value"
                     : parameterSymbol.flatMap { sema.symbols.symbol($0) }.map { interner.resolve($0.name) }
                 let optional = valueIndex >= 0 && valueIndex < (signature?.valueParameterHasDefaultValues.count ?? 0)
@@ -65,7 +72,7 @@ extension LambdaLowerer {
                 let parameterFlags = (optional ? 1 : 0) | (vararg ? 2 : 0)
                 let parameterKind = index < receiverCount
                     ? callableReceiverParameterKind(targetSymbol: targetSymbol, signature: signature, sema: sema)
-                    : 2 // VALUE
+                    : isContext ? 3 : 2 // CONTEXT or VALUE
                 let declarationType = vararg && signature?.parameterTypes.indices.contains(valueIndex) == true
                     ? signature?.parameterTypes[valueIndex] : nil
                 let reflectedType = vararg && packedPublicParameters && type != declarationType ? type : callableReflectionParameterType(
@@ -122,6 +129,7 @@ extension LambdaLowerer {
                 callableName: packedConstructorWrapper?.name ?? callableName, targetSymbol: targetSymbol,
                 parameterTypes: parameterTypes, captureTypes: captureTypes, returnType: returnType,
                 receiverCount: receiverCount,
+                contextParameterCount: contextParameterCount,
                 packedConstructorVarargs: packedConstructorVarargs || packedConstructorWrapper != nil,
                 sema: sema, arena: arena, interner: interner
             )
@@ -315,7 +323,7 @@ extension LambdaLowerer {
     private func callableReflectionInvoker(
         callableSymbol: SymbolID, callableName: InternedString, targetSymbol: SymbolID?,
         parameterTypes: [TypeID], captureTypes: [TypeID], returnType: TypeID,
-        receiverCount: Int = 0, packedConstructorVarargs: Bool = false,
+        receiverCount: Int = 0, contextParameterCount: Int = 0, packedConstructorVarargs: Bool = false,
         sema: SemaModule, arena: KIRArena, interner: StringInterner
     ) -> KIRExprID {
         let name = interner.intern("kk_reflect_invoke_\(callableSymbol.rawValue)_\(arena.declarations.count)")
@@ -354,7 +362,7 @@ extension LambdaLowerer {
                 let raw = arena.appendTemporary(type: sema.types.anyType)
                 body.append(.call(callee: interner.intern("__kk_list_get"), arguments: [list, offset],
                                   result: raw, canThrow: true))
-                let valueIndex = index - receiverCount
+                let valueIndex = index - receiverCount - contextParameterCount
                 let isVararg = valueParameters && packsValueVarargs
                     && signature?.valueParameterIsVararg.indices.contains(valueIndex) == true
                     && signature?.valueParameterIsVararg[valueIndex] == true
