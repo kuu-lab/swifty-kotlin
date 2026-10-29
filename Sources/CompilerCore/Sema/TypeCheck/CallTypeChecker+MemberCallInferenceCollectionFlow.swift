@@ -561,9 +561,11 @@ extension CallTypeChecker {
                 name: calleeName
             )
         } ?? false
+        // Buffer has defaulted and named parameters, so normal overload
+        // resolution must select the declaration and map its arguments.
         if isFlowReceiver,
            hasBundledFlowDeclaration,
-           !["transform", "takeWhile", "dropWhile", "catch", "retry", "retryWhen"].contains(interner.resolve(calleeName)),
+           !["buffer", "transform", "takeWhile", "dropWhile", "catch", "retry", "retryWhen"].contains(interner.resolve(calleeName)),
            let bundledFlowType = tryBuiltinFlowMemberCall(
                id,
                calleeName: calleeName,
