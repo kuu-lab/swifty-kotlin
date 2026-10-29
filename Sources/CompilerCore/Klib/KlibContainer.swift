@@ -10,13 +10,10 @@ package struct KlibContainer {
         case directory(root: URL)
     }
 
-    /// Kept for diagnostics.
-    package let path: String
     package let component: String
     private let storage: Storage
 
     package init(path: String) throws {
-        self.path = path
         let url = URL(fileURLWithPath: path)
         var isDirectory: ObjCBool = false
         guard FileManager.default.fileExists(atPath: path, isDirectory: &isDirectory) else {
