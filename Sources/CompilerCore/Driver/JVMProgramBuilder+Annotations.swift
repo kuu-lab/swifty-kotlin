@@ -118,7 +118,7 @@ extension JVMProgramBuilder {
         }
         return JVMAnnotation(descriptor: "L" + plan.name + ";", values: checked)
     }
-    func annotationConstruction(_ record: MetadataAnnotationRecord, owner: SymbolID) -> ExprID? {
+    func annotationConstruction(_ record: MetadataAnnotationRecord) -> ExprID? {
         if let usage = record.usageID, let parsed = rawAnnotationConstructions[usage] { return parsed }
         if let factory = record.factorySymbol { return sema.bindings.annotationFactoryExpressions[factory] }
         guard let usage = record.usageID, let offset = Int(usage.split(separator: ":").last ?? "") else { return nil }
@@ -141,7 +141,7 @@ extension JVMProgramBuilder {
             guard let owner = sema.symbols.lookup(fqName: name.split(separator: ".").map { context.interner.intern(String($0)) }), annotationPlan(owner) != nil else { throw JVMFrontendError(message: "Unsupported JVM annotation: " + name) }
             let retention = annotationRetention(owner)
             if retention == "SOURCE" { continue }
-            var annotation = try annotationValue(owner, construction: annotationConstruction(record, owner: symbol))
+            var annotation = try annotationValue(owner, construction: annotationConstruction(record))
             annotation.visible = retention != "BINARY"; result.append(annotation)
         }
         return try groupedRepeatableAnnotations(result)

@@ -342,7 +342,7 @@ public enum StdlibArtifactCache {
         }
 
         guard let manifestURL = CompilerFileSystem.containedURL(relativePath: "manifest.json", under: rootURL),
-              CompilerFileSystem.isRegularFile(at: manifestURL, fileManager: fileManager)
+              CompilerFileSystem.isRegularFile(at: manifestURL)
         else {
             return .invalid("manifest.json is missing, not a regular file, or escapes the artifact")
         }
@@ -388,7 +388,7 @@ public enum StdlibArtifactCache {
 
         guard let metadata = manifest["metadata"] as? String,
               let metadataURL = CompilerFileSystem.containedURL(relativePath: metadata, under: rootURL),
-              CompilerFileSystem.isRegularFile(at: metadataURL, fileManager: fileManager)
+              CompilerFileSystem.isRegularFile(at: metadataURL)
         else {
             return .invalid("metadata file is missing or escapes the artifact")
         }
@@ -403,7 +403,7 @@ public enum StdlibArtifactCache {
                 relativePath: bundledMemberIndex,
                 under: rootURL
             ),
-                CompilerFileSystem.isRegularFile(at: resolved, fileManager: fileManager)
+                CompilerFileSystem.isRegularFile(at: resolved)
             else {
                 return .invalid("bundled member index is missing or escapes the artifact")
             }
@@ -426,7 +426,7 @@ public enum StdlibArtifactCache {
         }
         for objectPath in objects {
             guard let objectURL = CompilerFileSystem.containedURL(relativePath: objectPath, under: rootURL),
-                  CompilerFileSystem.isRegularFile(at: objectURL, fileManager: fileManager)
+                  CompilerFileSystem.isRegularFile(at: objectURL)
             else {
                 return .invalid("an object path is missing or escapes the artifact")
             }
@@ -436,7 +436,7 @@ public enum StdlibArtifactCache {
             guard let prelinkedURL = CompilerFileSystem.containedURL(
                 relativePath: prelinkedObject,
                 under: rootURL
-            ), CompilerFileSystem.isRegularFile(at: prelinkedURL, fileManager: fileManager),
+            ), CompilerFileSystem.isRegularFile(at: prelinkedURL),
                manifest["prelinkedObjectIncludesRuntime"] as? Bool == true,
                manifest["prelinkedCompilerVersion"] as? String == compilerVersion,
                manifest["prelinkedFormatVersion"] as? Int == 1,
@@ -454,7 +454,7 @@ public enum StdlibArtifactCache {
         if let bitcode = manifest["bitcode"] as? [String] {
             for bitcodePath in bitcode {
                 guard let bitcodeURL = CompilerFileSystem.containedURL(relativePath: bitcodePath, under: rootURL),
-                      CompilerFileSystem.isRegularFile(at: bitcodeURL, fileManager: fileManager)
+                      CompilerFileSystem.isRegularFile(at: bitcodeURL)
                 else {
                     return .invalid("a bitcode path is missing or escapes the artifact")
                 }
@@ -485,7 +485,7 @@ public enum StdlibArtifactCache {
         for mangledName in inlineNames {
             let blobRelativePath = inlineKIRDir + "/" + MetadataEncoder.inlineKIRFileName(for: mangledName)
             guard let blobURL = CompilerFileSystem.containedURL(relativePath: blobRelativePath, under: rootURL),
-                  CompilerFileSystem.isRegularFile(at: blobURL, fileManager: fileManager)
+                  CompilerFileSystem.isRegularFile(at: blobURL)
             else {
                 return .invalid(
                     "inline KIR blob for '\(mangledName)' is missing or is not a regular file"
