@@ -266,6 +266,28 @@ private func registerRuntimeCoroutineName(_ name: String) -> Int {
     return raw
 }
 
+private let runtimeExceptionHandlerTypeID = runtimeStableNominalTypeID(
+    fqName: "kotlinx.coroutines.CoroutineExceptionHandler"
+)
+
+/// KUU-3752: handler boxes used to register with no nominal tag, so the
+/// erased `E` cast on `ctx[CoroutineExceptionHandler]` — and `is`/`as`
+/// checks on a `CoroutineExceptionHandler { }` SAM — fell through to
+/// ClassCastException. Tag them like CoroutineName boxes (KUU-3700).
+func runtimeRegisterExceptionHandler(_ box: RuntimeExceptionHandlerBox) -> Int {
+    let raw = runtimeRegisterObject(box)
+    runtimeRegisterObjectType(rawValue: raw, classID: runtimeExceptionHandlerTypeID)
+    runtimeRegisterTypeEdge(
+        childTypeID: runtimeExceptionHandlerTypeID,
+        parentTypeID: runtimeCoroutineElementTypeID
+    )
+    runtimeRegisterTypeEdge(
+        childTypeID: runtimeCoroutineElementTypeID,
+        parentTypeID: runtimeCoroutineContextTypeID
+    )
+    return raw
+}
+
 private final class RuntimeCoroutineNameKey: @unchecked Sendable {}
 private let runtimeCoroutineNameKeyRaw = runtimeRegisterObject(RuntimeCoroutineNameKey())
 
@@ -521,7 +543,7 @@ public func kk_exception_handler_create(_ handlerFnPtr: Int) -> Int {
             FileHandle.standardError.write(Data("CoroutineExceptionHandler: \(message)\n".utf8))
         }
     }
-    return runtimeRegisterObject(box)
+    return runtimeRegisterExceptionHandler(box)
 }
 
 @_cdecl("kk_exception_handler_invoke")
@@ -581,13 +603,22 @@ public func __kk_context_plus_dispatch(
 
 /// The current runtime recognizes the closed set of coroutine element handles
 /// already modeled in RuntimeCoroutineContext.
+///
+/// Kotlin-facing callers (`CoroutineContext.get`, `Element.get`, the
+/// `CoroutineName`/`Job` member bridges, and itable thunks inheriting them)
+/// declare an `E?` result, so an absent key must report the null sentinel —
+/// never raw 0, which crosses the erased boundary as `kotlin.Unit`
+/// (KUU-3752). The two-element `kk_context_get` ABI is therefore
+/// sentinel-based; internal callers that modeled "absent" as 0 already pass
+/// `runtimeNullSentinelInt` through their `== 0 ? sentinel : result`
+/// normalization unchanged.
 @_cdecl("kk_context_get")
 public func kk_context_get(_ contextRaw: Int, _ keyRaw: Int) -> Int {
     let ctx = resolveToCoroutineContext(contextRaw)
     if let match = runtimeCoroutineContextElementHandle(for: keyRaw, in: ctx) {
         return match
     }
-    return 0
+    return runtimeNullSentinelInt
 }
 
 @_cdecl("__kk_context_get_dispatch")

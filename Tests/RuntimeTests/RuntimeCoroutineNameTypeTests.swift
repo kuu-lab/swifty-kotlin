@@ -24,6 +24,6 @@ struct RuntimeCoroutineNameTypeTests {
         }
         let combined = kk_context_plus(kk_dispatcher_default(), direct)
         #expect(kk_context_get(combined, key) == direct)
-        #expect(kk_context_get(0, key) == 0)
+        #expect(kk_context_get(0, key) == runtimeNullSentinelInt)
     }
 }
