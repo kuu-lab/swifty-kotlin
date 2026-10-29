@@ -360,7 +360,7 @@ public func __kk_kclass_register_metadata_v2(
         isInterface: (flags & (1 << 3)) != 0,
         isObject: (flags & (1 << 4)) != 0,
         isEnumClass: (flags & (1 << 5)) != 0,
-        isAnnotationClass: (flags & (1 << 6)) != 0,
+
         isAbstract: (flags & (1 << 7)) != 0,
         fieldCount: fieldCount,
         memberCount: memberCount,

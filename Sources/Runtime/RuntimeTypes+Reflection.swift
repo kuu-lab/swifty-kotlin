@@ -16,7 +16,6 @@ struct RuntimeKClassMetadataEntry {
     let isInterface: Bool
     let isObject: Bool
     let isEnumClass: Bool
-    let isAnnotationClass: Bool
     let isAbstract: Bool
     let fieldCount: Int
     let memberCount: Int
