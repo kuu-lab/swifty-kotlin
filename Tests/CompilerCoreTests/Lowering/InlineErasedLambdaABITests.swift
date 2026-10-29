@@ -4,6 +4,45 @@ import Testing
 @testable import CompilerTestSupport
 
 struct InlineErasedLambdaABITests {
+    @Test(arguments: [false, true])
+    func preservesParameterTypeOfAlreadyUnboxedImportedArgument(nullable: Bool) {
+        let interner = StringInterner()
+        let arena = KIRArena()
+        let types = TypeSystem()
+        let symbols = SymbolTable()
+        let diagnostics = DiagnosticEngine()
+        let sema = makeSemaModule(symbols: symbols, types: types, diagnostics: diagnostics).ctx
+        let ctx = makeKIRContext(
+            moduleName: "UnboxedInlineArgument", interner: interner, sema: sema, diagnostics: diagnostics
+        )
+        let module = KIRModule(files: [], arena: arena)
+        let input = arena.appendTemporary(type: types.nullableAnyType)
+        let untyped = arena.appendTemporary(type: nil)
+        let parameterType = nullable ? types.makeNullable(types.charType) : types.charType
+        let lambda = KIRFunction(
+            symbol: SymbolID(rawValue: 100), name: interner.intern("callback"),
+            params: [KIRParameter(symbol: SymbolID(rawValue: 101), type: parameterType)],
+            returnType: types.unitType, body: [], isSuspend: false, isInline: true
+        )
+        var body = KIRLoweringEmitContext()
+        body.append(.call(
+            callee: interner.intern("kk_unbox_char_static"), arguments: [input],
+            result: untyped, canThrow: false
+        ))
+        let normalized = InlineErasedLambdaABI.unboxErasedLambdaArguments(
+            arguments: [untyped], lambdaFunction: lambda, module: module, ctx: ctx,
+            erasedCallConvention: true, into: &body
+        )
+        #expect(normalized.count == 1)
+        #expect(normalized[0] != untyped)
+        #expect(arena.exprType(untyped) == nil)
+        #expect(arena.exprType(normalized[0]) == parameterType)
+        #expect(body.contains {
+            if case let .copy(from, to) = $0 { return from == untyped && to == normalized[0] }
+            return false
+        })
+    }
+
     @Test
     func nullableStringArgumentsUseNullAwareErasedSlotBridge() {
         let interner = StringInterner()
