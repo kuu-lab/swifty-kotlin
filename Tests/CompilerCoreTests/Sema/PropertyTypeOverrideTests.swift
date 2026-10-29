@@ -87,5 +87,77 @@ struct PropertyTypeOverrideTests {
         """)
         assertNoDiagnostic("KSWIFTK-SEMA-OVERRIDE-TYPE", in: diagnostics)
     }
+
+    /// Overrides whose type comes from an initializer carry a placeholder type
+    /// while the open/final/override pass runs, so the same checks have to be
+    /// re-applied once body inference publishes the real property type.
+    /// kotlinc rejects `override var x = "s"` over `open var x: Any` with
+    /// "type of 'var x: String' doesn't match the type of the overridden
+    /// 'var' property 'var x: Any'".
+
+    @Test
+    func rejectsInferredVarNarrowingOverride() throws {
+        let diagnostics = try diagnosticsFor("""
+        open class A { open var x: Any = "" }
+        class B : A() { override var x = "s" }
+        """)
+        assertHasDiagnostic("KSWIFTK-SEMA-OVERRIDE-TYPE", in: diagnostics)
+    }
+
+    @Test
+    func rejectsInferredVarWideningOverride() throws {
+        let diagnostics = try diagnosticsFor("""
+        open class A { open var x: String = "" }
+        class B : A() { override var x = "s" as Any }
+        """)
+        assertHasDiagnostic("KSWIFTK-SEMA-OVERRIDE-TYPE", in: diagnostics)
+    }
+
+    @Test
+    func rejectsInferredValWideningOverride() throws {
+        let diagnostics = try diagnosticsFor("""
+        open class A { open val x: String = "" }
+        class B : A() { override val x = "s" as Any }
+        """)
+        assertHasDiagnostic("KSWIFTK-SEMA-OVERRIDE-TYPE", in: diagnostics)
+    }
+
+    @Test
+    func acceptsInferredValNarrowingOverride() throws {
+        let diagnostics = try diagnosticsFor("""
+        open class A { open val x: Any = "" }
+        class B : A() { override val x = "s" }
+        """)
+        assertNoDiagnostic("KSWIFTK-SEMA-OVERRIDE-TYPE", in: diagnostics)
+    }
+
+    @Test
+    func acceptsInferredVarOverrideSameType() throws {
+        let diagnostics = try diagnosticsFor("""
+        open class A { open var x: String = "" }
+        class B : A() { override var x = "s" }
+        """)
+        assertNoDiagnostic("KSWIFTK-SEMA-OVERRIDE-TYPE", in: diagnostics)
+    }
+
+    @Test
+    func acceptsInferredVarOverValNarrowing() throws {
+        let diagnostics = try diagnosticsFor("""
+        open class A { open val x: Any = "" }
+        class B : A() { override var x = "s" }
+        """)
+        assertNoDiagnostic("KSWIFTK-SEMA-OVERRIDE-TYPE", in: diagnostics)
+    }
+
+    @Test
+    func rejectsInferredOverrideWhenParentDeclaredFirstAndChildAfter() throws {
+        // The parent's explicit type must be found regardless of the order in
+        // which property bodies were type-checked.
+        let diagnostics = try diagnosticsFor("""
+        class B : A() { override var x = "s" }
+        open class A { open var x: Any = "" }
+        """)
+        assertHasDiagnostic("KSWIFTK-SEMA-OVERRIDE-TYPE", in: diagnostics)
+    }
 }
 #endif

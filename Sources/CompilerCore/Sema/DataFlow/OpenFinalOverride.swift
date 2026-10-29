@@ -186,6 +186,105 @@ extension DataFlowSemaPhase {
         )
     }
 
+    /// `override` properties whose type is inferred from an initializer,
+    /// delegate, or custom getter (`override var x = ...`) still carry the
+    /// `anyType` placeholder during the header pass, so the OFO property-type
+    /// check skips them. Re-validate the inferred type against the overridden
+    /// property once type checking has published the final property types.
+    func validateInferredPropertyTypeOverrides(
+        ast: ASTModule,
+        symbols: SymbolTable,
+        bindings: BindingTable,
+        types: TypeSystem,
+        diagnostics: DiagnosticEngine,
+        interner: StringInterner,
+        compilationModuleName: String
+    ) {
+        let ctx = OpenFinalOverrideContext(
+            ast: ast,
+            symbols: symbols,
+            bindings: bindings,
+            types: types,
+            diagnostics: diagnostics,
+            interner: interner,
+            compilationModuleFQN: interner.intern(compilationModuleName)
+        )
+
+        for file in ast.sortedFiles {
+            for declID in file.topLevelDecls {
+                validateInferredPropertyTypeOverrides(in: declID, ctx: ctx)
+            }
+        }
+    }
+
+    private func validateInferredPropertyTypeOverrides(
+        in declID: DeclID,
+        ctx: OpenFinalOverrideContext
+    ) {
+        guard let declaration = ctx.ast.arena.decl(declID) else { return }
+
+        let memberProperties: [DeclID]
+        let nestedDeclarations: [DeclID]
+        switch declaration {
+        case let .classDecl(classDecl):
+            memberProperties = classDecl.memberProperties
+            nestedDeclarations = classDecl.nestedClasses + classDecl.nestedObjects
+                + (classDecl.companionObject.map { [$0] } ?? [])
+            for entry in classDecl.enumEntries {
+                for memberDeclID in entry.memberProperties {
+                    validateInferredPropertyTypeOverride(of: memberDeclID, ctx: ctx)
+                }
+                for nestedDeclID in entry.nestedClasses {
+                    validateInferredPropertyTypeOverrides(in: nestedDeclID, ctx: ctx)
+                }
+            }
+        case let .interfaceDecl(interfaceDecl):
+            memberProperties = interfaceDecl.memberProperties
+            nestedDeclarations = interfaceDecl.nestedClasses + interfaceDecl.nestedObjects
+                + (interfaceDecl.companionObject.map { [$0] } ?? [])
+        case let .objectDecl(objectDecl):
+            memberProperties = objectDecl.memberProperties
+            nestedDeclarations = objectDecl.nestedClasses + objectDecl.nestedObjects
+        default:
+            return
+        }
+
+        for memberDeclID in memberProperties {
+            validateInferredPropertyTypeOverride(of: memberDeclID, ctx: ctx)
+        }
+        for nestedDeclID in nestedDeclarations {
+            validateInferredPropertyTypeOverrides(in: nestedDeclID, ctx: ctx)
+        }
+    }
+
+    private func validateInferredPropertyTypeOverride(
+        of declID: DeclID,
+        ctx: OpenFinalOverrideContext
+    ) {
+        guard case let .propertyDecl(prop)? = ctx.ast.arena.decl(declID),
+              prop.type == nil,
+              prop.modifiers.contains(.override),
+              prop.initializer != nil || prop.delegateExpression != nil
+                || prop.getter != nil,
+              let memberSymbol = ctx.bindings.declSymbols[declID],
+              let memberSym = ctx.symbols.symbol(memberSymbol),
+              memberSym.kind == .property,
+              let ownerSymbol = ctx.symbols.parentSymbol(for: memberSymbol),
+              let childType = ctx.symbols.propertyType(for: memberSymbol),
+              childType != ctx.types.errorType,
+              !typeContainsAnyTypeParam(childType, types: ctx.types)
+        else { return }
+
+        checkPropertyTypeAgainstInherited(
+            memberName: prop.name,
+            memberRange: prop.range,
+            childType: childType,
+            childIsVar: memberSym.flags.contains(.mutable),
+            ownerSymbol: ownerSymbol,
+            ctx: ctx
+        )
+    }
+
     private func validateOFODecl(
         _ declID: DeclID,
         ctx: OpenFinalOverrideContext
@@ -1303,8 +1402,9 @@ extension DataFlowSemaPhase {
     /// When the override has no explicit type annotation the symbol stores the
     /// `anyType` placeholder (see `extractMemberMeta` for the function case),
     /// which would false-positive against any concrete parent type. Such
-    /// inferred-type overrides are skipped here: checking the *inferred* type
-    /// needs initializer expression types that this phase does not bind.
+    /// inferred-type overrides are skipped here and re-validated by
+    /// `validateInferredPropertyTypeOverrides` once type checking has
+    /// published the inferred property type.
     private func validatePropertyTypeOverride(
         memberDecl: Decl,
         ownerSymbol: SymbolID,
@@ -1319,9 +1419,24 @@ extension DataFlowSemaPhase {
               !typeContainsAnyTypeParam(childType, types: ctx.types)
         else { return }
 
-        let memberName = prop.name
-        let memberRange = prop.range
-        let childIsVar = memberSym.flags.contains(.mutable)
+        checkPropertyTypeAgainstInherited(
+            memberName: prop.name,
+            memberRange: prop.range,
+            childType: childType,
+            childIsVar: memberSym.flags.contains(.mutable),
+            ownerSymbol: ownerSymbol,
+            ctx: ctx
+        )
+    }
+
+    private func checkPropertyTypeAgainstInherited(
+        memberName: InternedString,
+        memberRange: SourceRange,
+        childType: TypeID,
+        childIsVar: Bool,
+        ownerSymbol: SymbolID,
+        ctx: OpenFinalOverrideContext
+    ) {
         for parent in findAllInheritedMembers(
             named: memberName,
             for: ownerSymbol,
