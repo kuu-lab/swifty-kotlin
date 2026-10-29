@@ -458,9 +458,19 @@ struct DeclarationPositionValidator {
             accessorHasBody(decl.getter) && !usesBackingField
         }
         if !initialized {
-            let message = site == .file
-                ? "property must be initialized."
-                : "property must be initialized or be abstract."
+            // A property with custom accessor bodies is concrete — kotlinc
+            // drops the "or be abstract" hint in that shape.
+            let hasAccessorBody = accessorHasBody(decl.getter) || accessorHasBody(decl.setter)
+            let message = switch site {
+            case .file:
+                "property must be initialized."
+            case .nominal(let nominal) where nominal.kind == .interface:
+                "property in interface cannot have a backing field."
+            default:
+                hasAccessorBody
+                    ? "property must be initialized."
+                    : "property must be initialized or be abstract."
+            }
             diagnostics?.error("KSWIFTK-SEMA-0424", message, range: decl.range)
         }
     }
