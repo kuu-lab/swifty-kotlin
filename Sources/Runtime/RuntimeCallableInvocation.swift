@@ -335,7 +335,16 @@ public func __kk_kproperty0_get(
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
     outThrown?.pointee = 0
-    if runtimeReflectionObject(from: raw, as: RuntimeKPropertyStub.self) != nil {
+    // KUU-3693: a local delegated property stub carries its own KProperty0
+    // itable whose `get` throws the JVM's UnsupportedOperationException for
+    // local delegated references, so it dispatches through the standard
+    // dynamic lookup like every other receiver. Non-local stubs instead park
+    // `call` at the (interfaceSlot, 0) key `get` resolves to — dispatching
+    // them would invoke `call` with the wrong arity — so they keep bailing
+    // until accessor-backed wrappers replace the stub path.
+    if let stub = runtimeReflectionObject(from: raw, as: RuntimeKPropertyStub.self),
+       !stub.isLocalDelegated
+    {
         outThrown?.pointee = runtimeAllocateUnsupportedOperationException(
             message: "Local delegated property reflection is not supported."
         )
