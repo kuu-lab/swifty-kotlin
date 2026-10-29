@@ -391,8 +391,17 @@ extension ControlFlowTypeChecker {
                 // The guard is checked within the narrowed context so smart casts from
                 // `is` checks are available.
                 if let guardExpr = branch.guard_ {
+                    if branch.conditions.count > 1 {
+                        ctx.sema.diagnostics.error(
+                            "KSWIFTK-SEMA-0447",
+                            "A comma-separated list of conditions in a when branch cannot have a guard.",
+                            range: ast.arena.exprRange(guardExpr)
+                        )
+                    }
                     let guardType = driver.inferExpr(guardExpr, ctx: branchCtx, locals: &branchLocals)
-                    if guardType != boolType, guardType != sema.types.errorType {
+                    // `Nothing` guards (`return`/`throw`/`break`/`continue`) never
+                    // fall through, so any `Nothing` subtype of Boolean is legal.
+                    if !sema.types.isSubtype(guardType, boolType), guardType != sema.types.errorType {
                         ctx.sema.diagnostics.error(
                             "KSWIFTK-SEMA-0074",
                             "When branch guard condition must be a Boolean expression.",
@@ -617,14 +626,15 @@ extension ControlFlowTypeChecker {
                 }
 
                 if let guardExpr = branch.guard_ {
-                    let guardType = driver.inferExpr(guardExpr, ctx: branchCtx, locals: &branchLocals)
-                    if guardType != boolType, guardType != sema.types.errorType {
-                        ctx.sema.diagnostics.error(
-                            "KSWIFTK-SEMA-0074",
-                            "When branch guard condition must be a Boolean expression.",
-                            range: ast.arena.exprRange(guardExpr)
-                        )
-                    }
+                    // Kotlin reports WHEN_GUARD_WITHOUT_SUBJECT here: branch
+                    // conditions of a subject-less `when` are already full
+                    // Boolean expressions, so a guard is never allowed.
+                    ctx.sema.diagnostics.error(
+                        "KSWIFTK-SEMA-0448",
+                        "When branch guards are only allowed in 'when' with a subject.",
+                        range: ast.arena.exprRange(guardExpr)
+                    )
+                    _ = driver.inferExpr(guardExpr, ctx: branchCtx, locals: &branchLocals)
                 }
 
                 var branchBodyType = driver.inferExpr(branch.body, ctx: branchCtx, locals: &branchLocals, expectedType: expectedType, isStatementContext: isStatementContext)

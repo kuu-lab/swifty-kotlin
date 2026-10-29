@@ -198,7 +198,6 @@ extension BuildASTPhase.ExpressionParser {
             if token.kind == .keyword(.else) {
                 _ = consume()
                 isElseBranch = true
-                hasSeenElseBranch = true
             } else {
                 if matches(.symbol(.arrow)) {
                     diagnostics?.error("KSWIFTK-PARSE-0011", "Expected when branch condition.", range: token.range)
@@ -224,7 +223,19 @@ extension BuildASTPhase.ExpressionParser {
             }
 
             var guardExpr: ExprID?
-            if !isElseBranch, !conditions.isEmpty, matches(.keyword(.if)) {
+            if isElseBranch {
+                // Kotlin 2.1 when guards: `else if <expr> ->` is a fallible
+                // catch-all branch — not the final `else` — so further
+                // branches (including a plain `else`) may still follow.
+                if matches(.keyword(.if)) {
+                    _ = consume()
+                    guardExpr = parseExpression(minPrecedence: 0)
+                    diagnoseAssignmentOperatorAfterExpression()
+                    isElseBranch = false
+                } else {
+                    hasSeenElseBranch = true
+                }
+            } else if !conditions.isEmpty, matches(.keyword(.if)) {
                 _ = consume()
                 guardExpr = parseExpression(minPrecedence: 0)
                 diagnoseAssignmentOperatorAfterExpression()
@@ -241,7 +252,7 @@ extension BuildASTPhase.ExpressionParser {
                 let branch = WhenBranch(conditions: conditions, guard: guardExpr, body: body, range: branchRange)
                 if isElseBranch {
                     elseExpr = body
-                } else if !conditions.isEmpty {
+                } else if !conditions.isEmpty || guardExpr != nil {
                     branches.append(branch)
                 }
                 end = branchRange.end
@@ -459,7 +470,23 @@ extension BuildASTPhase.ExpressionParser {
         }
 
         if tokens[startIndex].kind == .keyword(.else) {
-            return startIndex + 1 < tokens.endIndex && tokens[startIndex + 1].kind == .symbol(.arrow)
+            guard startIndex + 1 < tokens.endIndex else {
+                return false
+            }
+            switch tokens[startIndex + 1].kind {
+            case .symbol(.arrow):
+                return true
+            case .keyword(.if):
+                // Kotlin 2.1: `else if <guard> ->` is a fallible catch-all
+                // entry rather than the final else — and `else\nif` splits
+                // the same way. It is only a header when a `->` actually
+                // terminates the guard; otherwise the `else` may belong to
+                // an if expression inside the previous body
+                // (`1 -> if (a) b\nelse if (c) d else e`).
+                return guardedElseReachesArrow(from: startIndex + 2)
+            default:
+                return false
+            }
         }
 
         var scan = startIndex
@@ -467,13 +494,18 @@ extension BuildASTPhase.ExpressionParser {
         var bracketDepth = 0
         var braceDepth = 0
         var sawToken = false
+        var sawIfKeyword = false
 
         while scan < tokens.endIndex {
             let token = tokens[scan]
 
             if parenDepth == 0, bracketDepth == 0, braceDepth == 0 {
+                // A guard `if` — and the expression it introduces — may span
+                // newlines (`cond\nif g ->`, `cond if\ng ->`), so only other
+                // newline-leading tokens disqualify the candidate header.
                 if scan > startIndex,
-                   hasLeadingNewline(token)
+                   hasLeadingNewline(token),
+                   !sawIfKeyword, token.kind != .keyword(.if)
                 {
                     return false
                 }
@@ -483,6 +515,9 @@ extension BuildASTPhase.ExpressionParser {
                 }
                 if token.kind == .symbol(.semicolon) || token.kind == .symbol(.rBrace) {
                     return false
+                }
+                if token.kind == .keyword(.if) {
+                    sawIfKeyword = true
                 }
             }
 
@@ -507,6 +542,51 @@ extension BuildASTPhase.ExpressionParser {
             scan += 1
         }
 
+        return false
+    }
+
+    /// Whether the tokens after `else if` reach a `->` that terminates a
+    /// Kotlin 2.1 guarded else entry. The guard may span newlines; a depth-0
+    /// `else` ends the scan because it belongs to an if expression inside
+    /// the previous branch body (or to the enclosing construct entirely).
+    private func guardedElseReachesArrow(from startIndex: Int) -> Bool {
+        var scan = startIndex
+        var parenDepth = 0
+        var bracketDepth = 0
+        var braceDepth = 0
+        while scan < tokens.endIndex {
+            let token = tokens[scan]
+            if parenDepth == 0, bracketDepth == 0, braceDepth == 0 {
+                switch token.kind {
+                case .symbol(.arrow):
+                    return true
+                case .keyword(.else), .symbol(.semicolon), .symbol(.rBrace):
+                    return false
+                default:
+                    break
+                }
+            }
+            switch token.kind {
+            case .symbol(.lParen):
+                parenDepth += 1
+            case .symbol(.rParen):
+                if parenDepth == 0 { return false }
+                parenDepth -= 1
+            case .symbol(.lBracket):
+                bracketDepth += 1
+            case .symbol(.rBracket):
+                if bracketDepth == 0 { return false }
+                bracketDepth -= 1
+            case .symbol(.lBrace):
+                braceDepth += 1
+            case .symbol(.rBrace):
+                if braceDepth == 0 { return false }
+                braceDepth -= 1
+            default:
+                break
+            }
+            scan += 1
+        }
         return false
     }
 
