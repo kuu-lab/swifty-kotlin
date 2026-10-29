@@ -355,6 +355,55 @@ public func __kk_kproperty0_get(
     return method(raw, outThrown)
 }
 
+/// `KPropertyN.getDelegate` (KUU-3694): delegated-property stubs answer the
+/// delegate handle the compiler stored beside the current getValue/setValue
+/// call (`__kk_kproperty_stub_set_delegate`); `::prop` wrappers and any other
+/// receiver dispatch through the registered itable method, whose impl reads
+/// the delegate storage directly. Stubs never given a delegate answer `null`
+/// — the JVM's answer for non-delegated and local delegated properties.
+@_cdecl("__kk_kproperty_get_delegate")
+public func __kk_kproperty_get_delegate(
+    _ raw: Int,
+    _ interfaceTypeID: Int,
+    _ methodSlot: Int,
+    _ arg0: Int,
+    _ arg1: Int,
+    _ arity: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    if let stub = runtimeReflectionObject(from: raw, as: RuntimeKPropertyStub.self) {
+        return stub.delegateRaw != 0 ? stub.delegateRaw : runtimeNullSentinelInt
+    }
+    let methodRaw = kk_itable_lookup_dynamic(raw, interfaceTypeID, methodSlot)
+    guard methodRaw != 0 else {
+        outThrown?.pointee = runtimeAllocateUnsupportedOperationException(
+            message: "Property reference has no getDelegate implementation."
+        )
+        return runtimeNullSentinelInt
+    }
+    switch arity {
+    case 0:
+        let method = unsafeBitCast(
+            methodRaw,
+            to: (@convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int).self
+        )
+        return method(raw, outThrown)
+    case 1:
+        let method = unsafeBitCast(
+            methodRaw,
+            to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self
+        )
+        return method(raw, arg0, outThrown)
+    default:
+        let method = unsafeBitCast(
+            methodRaw,
+            to: (@convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int).self
+        )
+        return method(raw, arg0, arg1, outThrown)
+    }
+}
+
 private let callableVarargArrayTypeIDs: Set<Int64> = Set([
     "Array", "BooleanArray", "ByteArray", "CharArray", "DoubleArray",
     "FloatArray", "IntArray", "LongArray", "ShortArray", "UByteArray",
