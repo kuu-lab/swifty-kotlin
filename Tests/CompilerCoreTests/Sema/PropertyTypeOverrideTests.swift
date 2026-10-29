@@ -253,7 +253,6 @@ struct PropertyTypeOverrideTests {
     /// compared through the child's concrete supertype arguments:
     /// `D : Base<String>` sees `Base<T>.x` as `String`, so kotlinc rejects
     /// `override var x: Int` while accepting `override var x: String`.
-
     @Test
     func rejectsVarOverrideAgainstGenericParent() throws {
         let diagnostics = try diagnosticsFor("""
@@ -307,6 +306,50 @@ struct PropertyTypeOverrideTests {
         class D : I<String> { override var x: Int = 1 }
         """)
         assertHasDiagnostic("KSWIFTK-SEMA-OVERRIDE-TYPE", in: diagnostics)
+    }
+
+    @Test
+    func emitsMutabilityAndTypeErrorsForValOverVarMismatch() throws {
+        // kotlinc reports the mutability failure AND the type mismatch for a
+        // `val` overriding a `var` with an incompatible type.
+        let diagnostics = try diagnosticsFor("""
+        open class A { open var x: Int = 0 }
+        class B : A() { override val x: String = "" }
+        """)
+        assertHasDiagnostic("KSWIFTK-SEMA-OVERRIDE-MUTABILITY", in: diagnostics)
+        assertHasDiagnostic("KSWIFTK-SEMA-OVERRIDE-TYPE", in: diagnostics)
+    }
+
+    @Test
+    func emitsOnlyMutabilityErrorForValOverVarSameType() throws {
+        let diagnostics = try diagnosticsFor("""
+        open class A { open var x: Int = 0 }
+        class B : A() { override val x: Int = 0 }
+        """)
+        assertHasDiagnostic("KSWIFTK-SEMA-OVERRIDE-MUTABILITY", in: diagnostics)
+        assertNoDiagnostic("KSWIFTK-SEMA-OVERRIDE-TYPE", in: diagnostics)
+    }
+
+    @Test
+    func rendersKotlincSubtypeMessageForValOverride() throws {
+        let diagnostics = try diagnosticsFor("""
+        open class A { open val x: Int = 0 }
+        class B : A() { override val x: String = "" }
+        """)
+        let diag = diagnostics.first { $0.code == "KSWIFTK-SEMA-OVERRIDE-TYPE" }
+        #expect(diag?.message == "type of 'val x: String' is not a subtype of overridden property 'val x: Int' defined in 'A'.")
+    }
+
+    @Test
+    func rendersKotlincMismatchMessageForVarOverride() throws {
+        // kotlinc hardcodes the 'var' label even when the overridden property
+        // is a `val`.
+        let diagnostics = try diagnosticsFor("""
+        open class A { open val y: Int = 0 }
+        class B : A() { override var y: String = "" }
+        """)
+        let diag = diagnostics.first { $0.code == "KSWIFTK-SEMA-OVERRIDE-TYPE" }
+        #expect(diag?.message == "type of 'var y: String' doesn't match the type of the overridden 'var' property 'val y: Int' defined in 'A'.")
     }
 }
 #endif
