@@ -174,28 +174,15 @@ final class RuntimeHttpResponseBox {
     let statusCode: Int
     let headers: [(String, [String])]
     let body: String
-    let url: String
-    let errorMessage: String?
-    let timedOut: Bool
 
     init(
         statusCode: Int,
         headers: [(String, [String])],
-        body: String,
-        url: String = "",
-        errorMessage: String? = nil,
-        timedOut: Bool = false
+        body: String
     ) {
         self.statusCode = statusCode
         self.headers = headers
         self.body = body
-        self.url = url
-        self.errorMessage = errorMessage
-        self.timedOut = timedOut
-    }
-
-    var isSuccessful: Bool {
-        errorMessage == nil && (200 ... 299).contains(statusCode)
     }
 }
 
@@ -742,49 +729,4 @@ public func kk_http_client_setMaxResponseBodyBytes(_ clientRaw: Int, _ limit: In
     }
     client.setMaxResponseBodyBytes(limit)
     return 0
-}
-
-@_cdecl("kk_http_response_url")
-public func kk_http_response_url(_ responseRaw: Int) -> Int {
-    guard let response = runtimeHttpResponseBox(from: responseRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_http_response_url received invalid response handle")
-    }
-    return runtimeMakeUTF8StringRaw(response.url)
-}
-
-@_cdecl("kk_http_response_errorMessage")
-public func kk_http_response_errorMessage(_ responseRaw: Int) -> Int {
-    guard let response = runtimeHttpResponseBox(from: responseRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_http_response_errorMessage received invalid response handle")
-    }
-    guard let errorMessage = response.errorMessage else { return runtimeNullSentinelInt }
-    return runtimeMakeUTF8StringRaw(errorMessage)
-}
-
-@_cdecl("kk_http_response_timedOut")
-public func kk_http_response_timedOut(_ responseRaw: Int) -> Int {
-    guard let response = runtimeHttpResponseBox(from: responseRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_http_response_timedOut received invalid response handle")
-    }
-    return response.timedOut ? 1 : 0
-}
-
-@_cdecl("kk_http_response_isSuccessful")
-public func kk_http_response_isSuccessful(_ responseRaw: Int) -> Int {
-    guard let response = runtimeHttpResponseBox(from: responseRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_http_response_isSuccessful received invalid response handle")
-    }
-    return response.isSuccessful ? 1 : 0
-}
-
-@_cdecl("kk_http_response_header")
-public func kk_http_response_header(_ responseRaw: Int, _ nameRaw: Int) -> Int {
-    guard let response = runtimeHttpResponseBox(from: responseRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_http_response_header received invalid response handle")
-    }
-    let name = networkString(from: nameRaw, caller: #function)
-    guard let value = networkHeaderFirstValue(response.headers, name: name) else {
-        return runtimeNullSentinelInt
-    }
-    return runtimeMakeUTF8StringRaw(value)
 }
