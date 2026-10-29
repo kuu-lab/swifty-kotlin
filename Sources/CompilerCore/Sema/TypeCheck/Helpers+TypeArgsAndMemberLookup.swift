@@ -917,6 +917,14 @@ extension TypeCheckHelpers {
                       // being searched.
                       sema.symbols.parentSymbol(for: candidate) == owner,
                       sym.kind == .property || sym.kind == .field,
+                      // A member extension shares the owner's member FQName
+                      // but is not part of the receiver's member scope:
+                      // `r.name` supplies only one receiver, while the
+                      // extension needs both the dispatch instance and a
+                      // matching extension receiver. Member extensions
+                      // resolve through the implicit-receiver machinery
+                      // instead (KUU-3746).
+                      sema.symbols.memberExtensionOwnerSymbol(for: candidate) == nil,
                       sym.visibility != .private || nominalRootSet.contains(owner),
                       let propType = sema.symbols.propertyType(for: candidate)
                 else {
@@ -987,6 +995,11 @@ extension TypeCheckHelpers {
                 guard let property = sema.symbols.symbol(candidate),
                       sema.symbols.parentSymbol(for: candidate) == owner,
                       property.kind == .property || property.kind == .field,
+                      // Same member-scope rule as `lookupMemberProperty`:
+                      // a member extension is not a writable member of the
+                      // receiver — its setter resolves through the implicit
+                      // receiver member-extension machinery (KUU-3746).
+                      sema.symbols.memberExtensionOwnerSymbol(for: candidate) == nil,
                       property.visibility != .private || nominalRootSet.contains(owner),
                       let declaredType = sema.symbols.propertyType(for: candidate)
                 else {
