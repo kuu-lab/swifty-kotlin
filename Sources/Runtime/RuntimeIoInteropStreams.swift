@@ -116,7 +116,9 @@ final class RuntimeKotlinRangeOutputStreamSink: RuntimeOutputStreamSink, Runtime
     func write(_ data: Data) throws {
         let array = RuntimeArrayBox(length: data.count)
         for (index, byte) in data.enumerated() { array[index] = Int(Int8(bitPattern: byte)) }
-        try writeRange(registerRuntimeObject(array), offset: 0, count: data.count)
+        let raw = registerRuntimeObject(array)
+        runtimeRegisterArrayType(rawValue: raw, typeID: runtimeStableNominalTypeID(fqName: "kotlin.ByteArray"))
+        try writeRange(raw, offset: 0, count: data.count)
     }
 
     func flush() throws {
