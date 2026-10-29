@@ -199,21 +199,7 @@ extension CoroutineLoweringPass {
             switch instruction {
             case .label:
                 leaders.insert(index)
-            case let .jump(target):
-                if let targetIndex = labelToInstructionIndex[target] {
-                    leaders.insert(targetIndex)
-                }
-                if index + 1 < instructions.count {
-                    leaders.insert(index + 1)
-                }
-            case let .jumpIfEqual(_, _, target):
-                if let targetIndex = labelToInstructionIndex[target] {
-                    leaders.insert(targetIndex)
-                }
-                if index + 1 < instructions.count {
-                    leaders.insert(index + 1)
-                }
-            case let .jumpIfNotNull(_, target):
+            case let .jump(target), let .jumpIfEqual(_, _, target), let .jumpIfNotNull(_, target):
                 if let targetIndex = labelToInstructionIndex[target] {
                     leaders.insert(targetIndex)
                 }
