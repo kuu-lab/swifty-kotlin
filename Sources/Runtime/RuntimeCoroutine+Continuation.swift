@@ -146,6 +146,25 @@ public func kk_coroutine_call_direct_suspend(
     return suspendedToken
 }
 
+/// KUU-3719: marks `childContinuation` as interception-transparent — emitted
+/// before `kk_coroutine_call_direct_suspend` when the callee's suspending
+/// calls are all in tail position. Such a callee owns no `ContinuationImpl`
+/// of its own on JVM, so its suspend points bind the caller's continuation:
+/// `suspendCoroutine`'s `intercepted()` on the child then reuses the caller's
+/// interception instead of invoking the interceptor a second time.
+@_cdecl("kk_coroutine_child_share_interception")
+public func kk_coroutine_child_share_interception(
+    _ childContinuation: Int,
+    _ callerContinuationRaw: Int
+) {
+    guard let callerState = runtimeContinuationState(from: callerContinuationRaw),
+          let childState = runtimeContinuationState(from: childContinuation)
+    else {
+        return
+    }
+    childState.bindInterceptionAnchor(callerState)
+}
+
 /// Source suspend wrappers relay to an active caller instead of nesting a
 /// blocking event-loop drain. Ordinary callers retain the blocking bridge.
 @_cdecl("kk_coroutine_call_suspend_wrapper")

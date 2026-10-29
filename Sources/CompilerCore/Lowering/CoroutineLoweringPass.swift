@@ -193,6 +193,7 @@ final class CoroutineLoweringPass: LoweringPass {
 
         var nextSyntheticSymbol = nextAvailableSyntheticSymbol(module: module, sema: ctx.sema)
         var loweredBySymbol: [SymbolID: (name: InternedString, symbol: SymbolID)] = [:]
+        var interceptionTransparentSymbols: Set<SymbolID> = []
         var continuationTypeByLoweredSymbol: [SymbolID: TypeID] = [:]
         var suspendFunctionArityBySymbol: [SymbolID: Int] = [:]
         var loweredByNameBuckets: [InternedString: [(name: InternedString, symbol: SymbolID)]] = [:]
@@ -223,6 +224,19 @@ final class CoroutineLoweringPass: LoweringPass {
                 suspendFunctionNames: suspendFunctionNames,
                 runtimeSuspendCallNames: runtimeSuspendCallNames
             )
+            // KUU-3719: a callee whose suspending calls are all in tail
+            // position owns no ContinuationImpl on JVM — its suspend points
+            // bind the caller's continuation. Mark its lowered symbol so
+            // direct-call sites can share the caller's interception.
+            if isInterceptionTransparentBody(
+                originalBody: suspendFunction.body,
+                interner: ctx.interner,
+                suspendFunctionSymbols: suspendFunctionSymbols,
+                suspendFunctionNames: suspendFunctionNames,
+                runtimeSuspendCallNames: runtimeSuspendCallNames
+            ) {
+                interceptionTransparentSymbols.insert(loweredSymbol)
+            }
             let continuationNominal = synthesizeContinuationNominalIfPossible(
                 original: suspendFunction,
                 loweredName: loweredName,
@@ -394,6 +408,7 @@ final class CoroutineLoweringPass: LoweringPass {
             loweredBySymbol: loweredBySymbol,
             originalByLoweredName: originalByLoweredName,
             continuationTypeByLoweredSymbol: continuationTypeByLoweredSymbol,
+            interceptionTransparentSymbols: interceptionTransparentSymbols,
             suspendFunctionArityBySymbol: suspendFunctionArityBySymbol,
             loweredByUniqueNameArity: loweredByUniqueNameArity,
             loweredByUniqueName: loweredByUniqueName,

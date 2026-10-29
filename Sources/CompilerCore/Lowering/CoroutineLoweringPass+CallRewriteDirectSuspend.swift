@@ -268,6 +268,22 @@ extension CoroutineLoweringPass {
             .symbolRef(callerContinuationSymbol),
             type: rewrite.anyType
         )
+        if rewrite.interceptionTransparentSymbols.contains(loweredTarget.symbol) {
+            // KUU-3719: the callee owns no ContinuationImpl of its own on JVM
+            // (all of its suspending calls are in tail position), so its
+            // suspend points bind the caller's continuation. Mark the child
+            // continuation interception-transparent so `suspendCoroutine`'s
+            // `intercepted()` inside it resolves on the caller's interception
+            // instead of invoking the interceptor a second time.
+            instructions.append(
+                .call(
+                    callee: rewrite.ctx.interner.intern("kk_coroutine_child_share_interception"),
+                    arguments: [childContinuationTemp, callerContinuationExpr],
+                    result: nil,
+                    canThrow: false
+                )
+            )
+        }
         instructions.append(
             .call(
                 callee: rewrite.directSuspendCallCallee,
