@@ -55,7 +55,7 @@ extension StdlibArtifactRegressionTests {
         true
         fqn
         true
-        List is empty.
+        null
         bounds
 
         """

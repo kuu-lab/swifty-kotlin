@@ -8,10 +8,11 @@ func runtimeSetThrown(_ outThrown: UnsafeMutablePointer<Int>?, _ value: Int) {
 }
 
 /// Used by iterator `next()` after the iteration is exhausted so callers do not
-/// observe a silent `0`.
+/// observe a silent `0`. JVM iterator exhaustion throws a messageless
+/// `NoSuchElementException`, so the default is a nil message.
 func runtimeThrowIteratorExhausted(
     _ outThrown: UnsafeMutablePointer<Int>?,
-    message: String = "Iterator contains no more elements."
+    message: String? = nil
 ) -> Int {
     runtimeSetThrown(outThrown, runtimeAllocateNoSuchElementException(message: message))
     return 0

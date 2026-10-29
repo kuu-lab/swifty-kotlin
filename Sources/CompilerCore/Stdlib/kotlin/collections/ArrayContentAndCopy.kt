@@ -362,7 +362,7 @@ public inline fun <T> Array<T>.copyOf(newSize: Int, init: (Int) -> T): Array<T> 
 
 @Suppress("UNCHECKED_CAST")
 public fun <T> Array<T>.copyOfRange(fromIndex: Int, toIndex: Int): Array<T> {
-    checkCopyOfRangeArguments(this.size, fromIndex, toIndex)
+    checkCopyOfRangeArguments(this.size, fromIndex, toIndex, "object array")
     val count = toIndex - fromIndex
     @Suppress("UNCHECKED_CAST")
     val result = arrayWithCopiedComponent(this, count) as Array<T>
@@ -401,12 +401,20 @@ internal fun requireCopyOfSize(newSize: Int) {
     if (newSize < 0) throw NegativeArraySizeException("$newSize")
 }
 
-private fun checkCopyOfRangeArguments(size: Int, fromIndex: Int, toIndex: Int) {
-    if (fromIndex < 0 || toIndex > size) {
-        throw IndexOutOfBoundsException("fromIndex: $fromIndex, toIndex: $toIndex, size: $size")
+// Matches JVM `Arrays.copyOfRange` validation order and messages: the
+// oversized `toIndex` reports first, `fromIndex > toIndex` is the JDK
+// IllegalArgumentException, and a negative `fromIndex` surfaces through
+// `System.arraycopy` as an `ArrayIndexOutOfBoundsException` naming the
+// primitive storage type.
+private fun checkCopyOfRangeArguments(size: Int, fromIndex: Int, toIndex: Int, arrayElementName: String) {
+    if (toIndex > size) {
+        throw IndexOutOfBoundsException("toIndex ($toIndex) is greater than size ($size).")
     }
     if (fromIndex > toIndex) {
-        throw IllegalArgumentException("fromIndex: $fromIndex > toIndex: $toIndex")
+        throw IllegalArgumentException("$fromIndex > $toIndex")
+    }
+    if (fromIndex < 0) {
+        throw ArrayIndexOutOfBoundsException("arraycopy: source index $fromIndex out of bounds for $arrayElementName[$size]")
     }
 }
 
@@ -476,7 +484,7 @@ public inline fun IntArray.copyOf(newSize: Int, init: (Int) -> Int): IntArray {
     return copy
 }
 public fun IntArray.copyOfRange(fromIndex: Int, toIndex: Int): IntArray {
-    checkCopyOfRangeArguments(this.size, fromIndex, toIndex)
+    checkCopyOfRangeArguments(this.size, fromIndex, toIndex, "int")
     val result = IntArray(toIndex - fromIndex)
     var index = 0
     while (index < result.size) {
@@ -527,7 +535,7 @@ public inline fun LongArray.copyOf(newSize: Int, init: (Int) -> Long): LongArray
     return copy
 }
 public fun LongArray.copyOfRange(fromIndex: Int, toIndex: Int): LongArray {
-    checkCopyOfRangeArguments(this.size, fromIndex, toIndex)
+    checkCopyOfRangeArguments(this.size, fromIndex, toIndex, "long")
     val result = LongArray(toIndex - fromIndex)
     var index = 0
     while (index < result.size) {
@@ -578,7 +586,7 @@ public inline fun ShortArray.copyOf(newSize: Int, init: (Int) -> Short): ShortAr
     return copy
 }
 public fun ShortArray.copyOfRange(fromIndex: Int, toIndex: Int): ShortArray {
-    checkCopyOfRangeArguments(this.size, fromIndex, toIndex)
+    checkCopyOfRangeArguments(this.size, fromIndex, toIndex, "short")
     val result = ShortArray(toIndex - fromIndex)
     var index = 0
     while (index < result.size) {
@@ -629,7 +637,7 @@ public inline fun ByteArray.copyOf(newSize: Int, init: (Int) -> Byte): ByteArray
     return copy
 }
 public fun ByteArray.copyOfRange(fromIndex: Int, toIndex: Int): ByteArray {
-    checkCopyOfRangeArguments(this.size, fromIndex, toIndex)
+    checkCopyOfRangeArguments(this.size, fromIndex, toIndex, "byte")
     val result = ByteArray(toIndex - fromIndex)
     var index = 0
     while (index < result.size) {
@@ -680,7 +688,7 @@ public inline fun CharArray.copyOf(newSize: Int, init: (Int) -> Char): CharArray
     return copy
 }
 public fun CharArray.copyOfRange(fromIndex: Int, toIndex: Int): CharArray {
-    checkCopyOfRangeArguments(this.size, fromIndex, toIndex)
+    checkCopyOfRangeArguments(this.size, fromIndex, toIndex, "char")
     val result = CharArray(toIndex - fromIndex)
     var index = 0
     while (index < result.size) {
@@ -731,7 +739,7 @@ public inline fun BooleanArray.copyOf(newSize: Int, init: (Int) -> Boolean): Boo
     return copy
 }
 public fun BooleanArray.copyOfRange(fromIndex: Int, toIndex: Int): BooleanArray {
-    checkCopyOfRangeArguments(this.size, fromIndex, toIndex)
+    checkCopyOfRangeArguments(this.size, fromIndex, toIndex, "boolean")
     val result = BooleanArray(toIndex - fromIndex)
     var index = 0
     while (index < result.size) {
@@ -782,7 +790,7 @@ public inline fun FloatArray.copyOf(newSize: Int, init: (Int) -> Float): FloatAr
     return copy
 }
 public fun FloatArray.copyOfRange(fromIndex: Int, toIndex: Int): FloatArray {
-    checkCopyOfRangeArguments(this.size, fromIndex, toIndex)
+    checkCopyOfRangeArguments(this.size, fromIndex, toIndex, "float")
     val result = FloatArray(toIndex - fromIndex)
     var index = 0
     while (index < result.size) {
@@ -833,7 +841,7 @@ public inline fun DoubleArray.copyOf(newSize: Int, init: (Int) -> Double): Doubl
     return copy
 }
 public fun DoubleArray.copyOfRange(fromIndex: Int, toIndex: Int): DoubleArray {
-    checkCopyOfRangeArguments(this.size, fromIndex, toIndex)
+    checkCopyOfRangeArguments(this.size, fromIndex, toIndex, "double")
     val result = DoubleArray(toIndex - fromIndex)
     var index = 0
     while (index < result.size) {
@@ -884,7 +892,7 @@ public inline fun UByteArray.copyOf(newSize: Int, init: (Int) -> UByte): UByteAr
     return copy
 }
 public fun UByteArray.copyOfRange(fromIndex: Int, toIndex: Int): UByteArray {
-    checkCopyOfRangeArguments(this.size, fromIndex, toIndex)
+    checkCopyOfRangeArguments(this.size, fromIndex, toIndex, "byte")
     val result = UByteArray(toIndex - fromIndex)
     var index = 0
     while (index < result.size) {
@@ -935,7 +943,7 @@ public inline fun UShortArray.copyOf(newSize: Int, init: (Int) -> UShort): UShor
     return copy
 }
 public fun UShortArray.copyOfRange(fromIndex: Int, toIndex: Int): UShortArray {
-    checkCopyOfRangeArguments(this.size, fromIndex, toIndex)
+    checkCopyOfRangeArguments(this.size, fromIndex, toIndex, "short")
     val result = UShortArray(toIndex - fromIndex)
     var index = 0
     while (index < result.size) {
@@ -986,7 +994,7 @@ public inline fun UIntArray.copyOf(newSize: Int, init: (Int) -> UInt): UIntArray
     return copy
 }
 public fun UIntArray.copyOfRange(fromIndex: Int, toIndex: Int): UIntArray {
-    checkCopyOfRangeArguments(this.size, fromIndex, toIndex)
+    checkCopyOfRangeArguments(this.size, fromIndex, toIndex, "int")
     val result = UIntArray(toIndex - fromIndex)
     var index = 0
     while (index < result.size) {
@@ -1037,7 +1045,7 @@ public inline fun ULongArray.copyOf(newSize: Int, init: (Int) -> ULong): ULongAr
     return copy
 }
 public fun ULongArray.copyOfRange(fromIndex: Int, toIndex: Int): ULongArray {
-    checkCopyOfRangeArguments(this.size, fromIndex, toIndex)
+    checkCopyOfRangeArguments(this.size, fromIndex, toIndex, "long")
     val result = ULongArray(toIndex - fromIndex)
     var index = 0
     while (index < result.size) {

@@ -19,7 +19,7 @@ public fun <T> MutableList<T>.addLast(element: T) {
 @SinceKotlin("1.4")
 @IgnorableReturnValue
 public fun <T> MutableList<T>.removeFirst(): T {
-    if (isEmpty()) throw NoSuchElementException("List is empty.")
+    if (isEmpty()) throw NoSuchElementException()
     return removeAt(0)
 }
 
@@ -33,7 +33,7 @@ public fun <T> MutableList<T>.removeFirstOrNull(): T? {
 @SinceKotlin("1.4")
 @IgnorableReturnValue
 public fun <T> MutableList<T>.removeLast(): T {
-    if (isEmpty()) throw NoSuchElementException("List is empty.")
+    if (isEmpty()) throw NoSuchElementException()
     return removeAt(size - 1)
 }
 
