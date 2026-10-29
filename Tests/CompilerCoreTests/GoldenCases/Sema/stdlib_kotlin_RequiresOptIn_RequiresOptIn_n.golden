@@ -7,4 +7,4 @@ expr e@4:15 string(experimental) type=String
 expr e@5:13 memberCall recv=e@5:13#1 callee=RequiresOptIn args=[] type=kotlin.RequiresOptIn ref=kotlin.RequiresOptIn[kind=anno]
 expr e@5:13#2 memberCall recv=e@5:13 callee=Level args=[] type=kotlin.RequiresOptIn.Level ref=kotlin.RequiresOptIn.Level[kind=enum]
 expr e@5:13#3 memberCall recv=e@5:13#2 callee=WARNING args=[] type=kotlin.RequiresOptIn.Level ref=kotlin.RequiresOptIn.Level.WARNING[kind=field;type=kotlin.RequiresOptIn.Level]
-expr e@3:2 memberCall recv=e@3:2#1 callee=RequiresOptIn args=[message:e@4:15,level:e@5:13#3] type=kotlin.RequiresOptIn call=kotlin.RequiresOptIn.<init>[kind=ctor;recv=kotlin.RequiresOptIn;params=String,kotlin.RequiresOptIn.Level;ret=kotlin.RequiresOptIn;defaults=[1,1];names=[message,level]]
+expr e@3:2 call callee=e@3:2#1 args=[message:e@4:15,level:e@5:13#3] type=kotlin.RequiresOptIn call=kotlin.RequiresOptIn.<init>[kind=ctor;recv=kotlin.RequiresOptIn;params=String,kotlin.RequiresOptIn.Level;ret=kotlin.RequiresOptIn;defaults=[1,1];names=[message,level]]

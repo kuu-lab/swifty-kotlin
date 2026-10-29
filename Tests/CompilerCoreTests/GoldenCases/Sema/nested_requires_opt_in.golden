@@ -12,5 +12,4 @@ file fnested_requires_opt_in package=golden.sema
 expr e@5:31 string() type=String
 expr e@6:28 name(Level) type=golden.sema.Outer.MyMarker.Level ref=golden.sema.Outer.MyMarker.Level[kind=enum;origin=fixture]
 expr e@6:28#1 memberCall recv=e@6:28 callee=ERROR args=[] type=golden.sema.Outer.MyMarker.Level ref=golden.sema.Outer.MyMarker.Level.ERROR[kind=field;type=golden.sema.Outer.MyMarker.Level;origin=fixture]
-expr e@15:2 memberCall recv=e@15:2#1 callee=Outer args=[] type=golden.sema.Outer ref=golden.sema.Outer[kind=class;origin=fixture]
-expr e@15:2#2 memberCall recv=e@15:2 callee=MyMarker args=[] type=golden.sema.Outer.MyMarker call=golden.sema.Outer.MyMarker.<init>[kind=ctor;recv=golden.sema.Outer.MyMarker;params=String,golden.sema.Outer.MyMarker.Level;ret=golden.sema.Outer.MyMarker;defaults=[1,1];names=[message,level];origin=fixture]
+expr e@15:2 call callee=e@15:2#1 args=[] type=golden.sema.Outer.MyMarker call=golden.sema.Outer.MyMarker.<init>[kind=ctor;recv=golden.sema.Outer.MyMarker;params=String,golden.sema.Outer.MyMarker.Level;ret=golden.sema.Outer.MyMarker;defaults=[1,1];names=[message,level];origin=fixture]

@@ -16,8 +16,9 @@ expr e@9:22 int(41) type=Int
 expr e@9:9 compoundAssign(plusAssign) name=baseField value=e@9:22 type=Unit ref=golden.sema.Base.baseField[kind=prop;type=Int;mutable;origin=fixture]
 expr e@10:16 name(baseField) type=Int ref=golden.sema.Base.baseField[kind=prop;type=Int;mutable;origin=fixture]
 expr e@10:9 return value=e@10:16 type=Nothing
+expr e@14:9 name(baseField) type=Int ref=golden.sema.Base.baseField[kind=prop;type=Int;mutable;origin=fixture]
 expr e@14:18 int(1) type=Int
-expr e@14:9 compoundAssign(plusAssign) name=baseField value=e@14:18 type=Unit ref=golden.sema.Base.baseField[kind=prop;type=Int;mutable;origin=fixture]
+expr e@14:9#1 compoundAssign(plusAssign) name=baseField value=e@14:18 type=Unit ref=golden.sema.Base.baseField[kind=prop;type=Int;mutable;origin=fixture]
 expr e@15:16 name(baseField) type=Int ref=golden.sema.Base.baseField[kind=prop;type=Int;mutable;origin=fixture]
 expr e@15:9 return value=e@15:16 type=Nothing
 expr e@20:34 int(1) type=Int

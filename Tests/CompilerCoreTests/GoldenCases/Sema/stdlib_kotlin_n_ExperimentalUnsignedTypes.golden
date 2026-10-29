@@ -8,7 +8,7 @@ file fstdlib_kotlin_n_ExperimentalUnsignedTypes package=golden.sema
   decl golden.sema.caller[kind=fun;params=;ret=Int;origin=fixture] fun caller sym=golden.sema.caller[kind=fun;params=;ret=Int;origin=fixture]
 expr e@7:35 int(42) type=Int
 expr e@10:21 call callee=e@10:21#1 args=[] type=Int call=golden.sema.experimentalUnsigned[kind=fun;params=;ret=Int;origin=fixture]
-expr e@3:2 memberCall recv=e@3:2#1 callee=ExperimentalUnsignedTypes args=[] type=kotlin.ExperimentalUnsignedTypes call=kotlin.ExperimentalUnsignedTypes.<init>[kind=ctor;recv=kotlin.ExperimentalUnsignedTypes;params=;ret=kotlin.ExperimentalUnsignedTypes]
+expr e@3:2 call callee=e@3:2#1 args=[] type=kotlin.ExperimentalUnsignedTypes call=kotlin.ExperimentalUnsignedTypes.<init>[kind=ctor;recv=kotlin.ExperimentalUnsignedTypes;params=;ret=kotlin.ExperimentalUnsignedTypes]
 expr e@6:2 call callee=e@6:2#1 args=[] type=golden.sema.MyUnsignedMarker call=golden.sema.MyUnsignedMarker.<init>[kind=ctor;recv=golden.sema.MyUnsignedMarker;params=;ret=golden.sema.MyUnsignedMarker;origin=fixture]
 expr e@9:8 memberCall recv=e@9:8#1 callee=ExperimentalUnsignedTypes args=[] type=kotlin.ExperimentalUnsignedTypes ref=kotlin.ExperimentalUnsignedTypes[kind=anno]
 expr e@9:8#2 callableRef recv=e@9:8 member=class type=KClass<kotlin.ExperimentalUnsignedTypes>

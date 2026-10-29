@@ -128,4 +128,4 @@ expr e@39:5 call callee=e@39:5#1 args=[_:e@39:13] type=Unit call=kotlin.io.print
 expr e@3:11 string(DEPRECATION_ERROR) type=String
 expr e@3:2 call callee=e@3:2#1 args=[_:e@3:11] type=kotlin.Suppress call=kotlin.Suppress.<init>[kind=ctor;recv=kotlin.Suppress;params=*String;ret=kotlin.Suppress;vararg=[1];names=[names]]
 section stdlib-targets
-target fq=kotlin.collections.MutableList[kind=iface;gen=1] origin=importedLibrary kind=interface vis=public flags=synthetic tparams=[T0] supertypes=[kotlin.collections.List<out kotlin.collections.MutableList.E>,kotlin.collections.MutableCollection<kotlin.collections.MutableList.E>,kotlin.collections.MutableIterable<kotlin.collections.MutableList.E>]
+target fq=kotlin.collections.MutableList[kind=iface;gen=1] origin=importedLibrary kind=interface vis=public flags=synthetic tparams=[T0] supertypes=[kotlin.collections.List<T0>,kotlin.collections.MutableIterable<T0>,kotlin.collections.MutableCollection<T0>]

@@ -22,8 +22,9 @@ expr e@10:21 name(values) type=kotlin.collections.List<String?> ref=golden.sema.
 expr e@10:28 name(index) type=Int ref=golden.sema.NullableIterator.index[kind=prop;type=Int;mutable;origin=fixture]
 expr e@10:21#1 indexedAccess receiver=e@10:21 indices=[e@10:28] type=String? call=kotlin.collections.List.get[kind=fun;recv=kotlin.collections.List<T0>;params=Int;ret=T0;gen=1;classGen=1;names=[index]] targs=[String?]
 expr e@10:9 localDecl value mutable=0 type=_ init=e@10:21#1 type=Unit ref=__local_0.value[kind=local;type=String?;origin=fixture]
+expr e@11:9 name(index) type=Int ref=golden.sema.NullableIterator.index[kind=prop;type=Int;mutable;origin=fixture]
 expr e@11:14 int(1) type=Int
-expr e@11:9 compoundAssign(plusAssign) name=index value=e@11:14 type=Unit ref=golden.sema.NullableIterator.index[kind=prop;type=Int;mutable;origin=fixture]
+expr e@11:9#1 compoundAssign(plusAssign) name=index value=e@11:14 type=Unit ref=golden.sema.NullableIterator.index[kind=prop;type=Int;mutable;origin=fixture]
 expr e@12:16 name(value) type=String? ref=__local_0.value[kind=local;type=String?;origin=fixture]
 expr e@12:9 return value=e@12:16 type=Nothing
 expr e@17:9 name(iterator) type=kotlin.collections.Iterator<String?> ref=golden.sema.consume.$0.iterator[kind=vparam;origin=fixture]

@@ -7,7 +7,7 @@ expr e@4:5 name(map) type=kotlin.collections.HashMap<String, Int?> ref=golden.se
 expr e@4:5#1 memberCall recv=e@4:5 callee=clear args=[] type=Unit call=kotlin.collections.HashMap.clear[kind=fun;recv=kotlin.collections.HashMap<T0,T1>;params=;ret=Unit;gen=2;classGen=2] targs=[String,Int?]
 expr e@5:5 name(map) type=kotlin.collections.HashMap<String, Int?> ref=golden.sema.hashMapReceiverMembers.$0.map[kind=vparam;origin=fixture]
 expr e@5:21 string(key) type=String
-expr e@5:5#1 memberCall recv=e@5:5 callee=containsKey args=[_:e@5:21] type=Boolean call=kotlin.collections.HashMap.containsKey[kind=fun;recv=kotlin.collections.HashMap<T0,T1>;params=T0;ret=Boolean;gen=2;classGen=2;names=[key]]
+expr e@5:5#1 memberCall recv=e@5:5 callee=containsKey args=[_:e@5:21] type=Boolean call=kotlin.collections.HashMap.containsKey[kind=fun;recv=kotlin.collections.HashMap<T0,T1>;params=T0;ret=Boolean;gen=2;classGen=2;names=[key]] targs=[String,Int?]
 expr e@6:5 name(map) type=kotlin.collections.HashMap<String, Int?> ref=golden.sema.hashMapReceiverMembers.$0.map[kind=vparam;origin=fixture]
 expr e@6:23 name(null) type=Nothing?
 expr e@6:5#1 memberCall recv=e@6:5 callee=containsValue args=[_:e@6:23] type=Boolean call=kotlin.collections.HashMap.containsValue[kind=fun;recv=kotlin.collections.HashMap<T0,T1>;params=T1;ret=Boolean;gen=2;classGen=2;names=[value]]

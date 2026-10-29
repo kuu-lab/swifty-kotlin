@@ -28,8 +28,9 @@ expr e@7:33#2 memberCall recv=e@7:33 callee=count args=[] type=Int call=kotlin.t
 expr e@9:25 string() type=String
 expr e@9:25#1 memberCall recv=e@9:25 callee=count args=[] type=Int call=kotlin.text.count[kind=fun;recv=kotlin.CharSequence;params=;ret=Int]
 expr e@12:28 int(0) type=Int
+expr e@16:13 name(lengthReads) type=Int ref=golden.sema.CountingCharSequence.lengthReads[kind=prop;type=Int;mutable;origin=fixture]
 expr e@16:24 int(1) type=Int
-expr e@16:13 compoundAssign(plusAssign) name=lengthReads value=e@16:24 type=Unit ref=golden.sema.CountingCharSequence.lengthReads[kind=prop;type=Int;mutable;origin=fixture]
+expr e@16:13#1 compoundAssign(plusAssign) name=lengthReads value=e@16:24 type=Unit ref=golden.sema.CountingCharSequence.lengthReads[kind=prop;type=Int;mutable;origin=fixture]
 expr e@17:20 name(value) type=String ref=golden.sema.CountingCharSequence.value[kind=prop;type=String;origin=fixture]
 expr e@17:20#1 memberCall recv=e@17:20 callee=length args=[] type=Int call=kotlin.length.$get[kind=fun;recv=String;params=;ret=Int]
 expr e@17:13 return value=e@17:20#1 type=Nothing

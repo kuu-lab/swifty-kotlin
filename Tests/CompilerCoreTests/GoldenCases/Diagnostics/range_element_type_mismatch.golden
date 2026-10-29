@@ -4,19 +4,6 @@
     {
       "file": "range_element_type_mismatch.kt",
       "range": {
-        "start": { "line": 2, "character": 43 },
-        "end": { "line": 2, "character": 48 }
-      },
-      "severity": 1,
-      "severityLabel": "error",
-      "code": "KSWIFTK-SEMA-0002",
-      "source": "kswiftk",
-      "message": "No viable overload found for call.",
-      "codeActions": []
-    },
-    {
-      "file": "range_element_type_mismatch.kt",
-      "range": {
         "start": { "line": 4, "character": 43 },
         "end": { "line": 4, "character": 48 }
       },
@@ -58,45 +45,6 @@
       "range": {
         "start": { "line": 10, "character": 42 },
         "end": { "line": 10, "character": 49 }
-      },
-      "severity": 1,
-      "severityLabel": "error",
-      "code": "KSWIFTK-SEMA-0002",
-      "source": "kswiftk",
-      "message": "No viable overload found for call.",
-      "codeActions": []
-    },
-    {
-      "file": "range_element_type_mismatch.kt",
-      "range": {
-        "start": { "line": 13, "character": 11 },
-        "end": { "line": 13, "character": 16 }
-      },
-      "severity": 1,
-      "severityLabel": "error",
-      "code": "KSWIFTK-SEMA-0002",
-      "source": "kswiftk",
-      "message": "No viable overload found for call.",
-      "codeActions": []
-    },
-    {
-      "file": "range_element_type_mismatch.kt",
-      "range": {
-        "start": { "line": 17, "character": 12 },
-        "end": { "line": 17, "character": 17 }
-      },
-      "severity": 1,
-      "severityLabel": "error",
-      "code": "KSWIFTK-SEMA-0002",
-      "source": "kswiftk",
-      "message": "No viable overload found for call.",
-      "codeActions": []
-    },
-    {
-      "file": "range_element_type_mismatch.kt",
-      "range": {
-        "start": { "line": 20, "character": 23 },
-        "end": { "line": 20, "character": 28 }
       },
       "severity": 1,
       "severityLabel": "error",

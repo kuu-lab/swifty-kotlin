@@ -6,8 +6,8 @@ file fstdlib_kotlin_OptIn_n_n package=golden.sema
   decl golden.sema.SecondMarker[kind=anno;origin=fixture] class SecondMarker sym=golden.sema.SecondMarker[kind=anno;origin=fixture]
   decl golden.sema.useOptIn[kind=fun;params=;ret=Int;origin=fixture] fun useOptIn sym=golden.sema.useOptIn[kind=fun;params=;ret=Int;origin=fixture]
 expr e@10:23 int(1) type=Int
-expr e@3:2 memberCall recv=e@3:2#1 callee=RequiresOptIn args=[] type=kotlin.RequiresOptIn call=kotlin.RequiresOptIn.<init>[kind=ctor;recv=kotlin.RequiresOptIn;params=String,kotlin.RequiresOptIn.Level;ret=kotlin.RequiresOptIn;defaults=[1,1];names=[message,level]]
-expr e@6:2 memberCall recv=e@6:2#1 callee=RequiresOptIn args=[] type=kotlin.RequiresOptIn call=kotlin.RequiresOptIn.<init>[kind=ctor;recv=kotlin.RequiresOptIn;params=String,kotlin.RequiresOptIn.Level;ret=kotlin.RequiresOptIn;defaults=[1,1];names=[message,level]]
+expr e@3:2 call callee=e@3:2#1 args=[] type=kotlin.RequiresOptIn call=kotlin.RequiresOptIn.<init>[kind=ctor;recv=kotlin.RequiresOptIn;params=String,kotlin.RequiresOptIn.Level;ret=kotlin.RequiresOptIn;defaults=[1,1];names=[message,level]]
+expr e@6:2 call callee=e@6:2#1 args=[] type=kotlin.RequiresOptIn call=kotlin.RequiresOptIn.<init>[kind=ctor;recv=kotlin.RequiresOptIn;params=String,kotlin.RequiresOptIn.Level;ret=kotlin.RequiresOptIn;defaults=[1,1];names=[message,level]]
 expr e@9:8 name(FirstMarker) type=Any ref=golden.sema.FirstMarker[kind=anno;origin=fixture]
 expr e@9:8#1 callableRef recv=e@9:8 member=class type=KClass<golden.sema.FirstMarker>
 expr e@9:28 name(SecondMarker) type=Any ref=golden.sema.SecondMarker[kind=anno;origin=fixture]

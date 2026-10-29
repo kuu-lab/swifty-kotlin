@@ -12,7 +12,7 @@ file fstdlib_kotlin_text_CharSequence_flat package=_
 expr e@5:29 name(source) type=kotlin.CharSequence ref=charSequenceFlatFamily.$0.source[kind=vparam;origin=fixture]
 expr e@5:53 name(it) type=Char ref=s-0
 expr e@5:46 call callee=e@5:46#1 args=[_:e@5:53] type=kotlin.collections.List<Char> call=kotlin.collections.listOf[kind=fun;params=T0;ret=kotlin.collections.List<T0>;gen=1;names=[element]] targs=[Char]
-expr e@5:44 lambda params=[] body=e@5:46 label=flatMap type=(Char) -> kotlin.collections.List<Char>
+expr e@5:44 lambda params=[] body=e@5:46 label=flatMap type=(Char) -> kotlin.collections.Iterable<Char>
 expr e@5:29#1 memberCall recv=e@5:29 callee=flatMap args=[_:e@5:44] type=kotlin.collections.List<Char> call=kotlin.text.flatMap[kind=fun;recv=kotlin.CharSequence;params=fn{p=Char;ret=kotlin.collections.Iterable<T0>};ret=kotlin.collections.List<T0>;gen=1;names=[transform]] targs=[Char]
 expr e@5:5 localDecl chars mutable=0 type=List<Char> init=e@5:29#1 type=Unit ref=__local_0.chars[kind=local;type=kotlin.collections.List<Char>;origin=fixture]
 expr e@6:35 name(source) type=kotlin.CharSequence ref=charSequenceFlatFamily.$0.source[kind=vparam;origin=fixture]
@@ -20,13 +20,13 @@ expr e@6:78 name(index) type=Int ref=s-1
 expr e@6:87 int(0) type=Int
 expr e@6:78#1 binary(equal) lhs=e@6:78 rhs=e@6:87 type=Boolean
 expr e@6:71 call callee=e@6:71#1 args=[_:e@6:78#1] type=kotlin.collections.List<Boolean> call=kotlin.collections.listOf[kind=fun;params=T0;ret=kotlin.collections.List<T0>;gen=1;names=[element]] targs=[Boolean]
-expr e@6:57 lambda params=[index,_] body=e@6:71 label=flatMapIndexed type=(Int, Char) -> kotlin.collections.List<Boolean>
+expr e@6:57 lambda params=[index,_] body=e@6:71 label=flatMapIndexed type=(Int, Char) -> kotlin.collections.Iterable<Boolean>
 expr e@6:35#1 memberCall recv=e@6:35 callee=flatMapIndexed args=[_:e@6:57] type=kotlin.collections.List<Boolean> call=kotlin.text.flatMapIndexed[kind=fun;recv=kotlin.CharSequence;params=fn{p=Int,Char;ret=kotlin.collections.Iterable<T0>};ret=kotlin.collections.List<T0>;gen=1;names=[transform]] targs=[Boolean]
 expr e@6:5 localDecl booleans mutable=0 type=List<Boolean> init=e@6:35#1 type=Unit ref=__local_1.booleans[kind=local;type=kotlin.collections.List<Boolean>;origin=fixture]
 expr e@7:32 name(source) type=kotlin.CharSequence ref=charSequenceFlatFamily.$0.source[kind=vparam;origin=fixture]
 expr e@7:62 name(null) type=Nothing?
 expr e@7:49 call callee=e@7:49#1 args=[_:e@7:62] type=kotlin.collections.List<Int?> call=kotlin.collections.listOf[kind=fun;params=T0;ret=kotlin.collections.List<T0>;gen=1;names=[element]] targs=[Int?]
-expr e@7:47 lambda params=[] body=e@7:49 label=flatMap type=(Char) -> kotlin.collections.List<Int?>
+expr e@7:47 lambda params=[] body=e@7:49 label=flatMap type=(Char) -> kotlin.collections.Iterable<Int?>
 expr e@7:32#1 memberCall recv=e@7:32 callee=flatMap args=[_:e@7:47] type=kotlin.collections.List<Int?> call=kotlin.text.flatMap[kind=fun;recv=kotlin.CharSequence;params=fn{p=Char;ret=kotlin.collections.Iterable<T0>};ret=kotlin.collections.List<T0>;gen=1;names=[transform]] targs=[Int?]
 expr e@7:5 localDecl nullable mutable=0 type=List<Int?> init=e@7:32#1 type=Unit ref=__local_2.nullable[kind=local;type=kotlin.collections.List<Int?>;origin=fixture]
 expr e@8:37 name(source) type=kotlin.CharSequence ref=charSequenceFlatFamily.$0.source[kind=vparam;origin=fixture]
@@ -47,6 +47,6 @@ expr e@9:40#1 memberCall recv=e@9:40 callee=flatMapIndexedTo args=[_:e@9:64,_:e@
 expr e@9:5 localDecl indexedTo mutable=0 type=MutableList<Any?> init=e@9:40#1 type=Unit ref=__local_4.indexedTo[kind=local;type=kotlin.collections.MutableList<Any?>;origin=fixture]
 expr e@12:29 string() type=String
 expr e@12:42 call callee=e@12:42#1 args=[] type=kotlin.collections.List<out Any?> call=kotlin.collections.emptyList[kind=fun;params=;ret=kotlin.collections.List<T0>;gen=1] targs=[Any?]
-expr e@12:40 lambda params=[] body=e@12:42 label=flatMap type=(Char) -> kotlin.collections.List<out Any?>
+expr e@12:40 lambda params=[] body=e@12:42 label=flatMap type=(Char) -> kotlin.collections.Iterable<Any?>
 expr e@12:29#1 memberCall recv=e@12:29 callee=flatMap args=[_:e@12:40] type=kotlin.collections.List<Any?> call=kotlin.text.flatMap[kind=fun;recv=kotlin.CharSequence;params=fn{p=Char;ret=kotlin.collections.Iterable<T0>};ret=kotlin.collections.List<T0>;gen=1;names=[transform]] targs=[Any?]
 expr e@12:5 localDecl empty mutable=0 type=List<Any?> init=e@12:29#1 type=Unit ref=__local_5.empty[kind=local;type=kotlin.collections.List<Any?>;origin=fixture]
