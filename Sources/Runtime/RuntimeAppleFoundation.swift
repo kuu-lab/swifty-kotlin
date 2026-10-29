@@ -142,7 +142,7 @@ final class RuntimeFoundationInputStream: InputStream, StreamDelegate {
     override var hasBytesAvailable: Bool { maybeUnbox(dispatch.invoke(6)) != 0 }
     override func read(_ buffer: UnsafeMutablePointer<UInt8>, maxLength len: Int) -> Int {
         guard len >= 0 else { return -1 }
-        let pointer = registerRuntimeObject(RuntimeCPointerBox(
+        let pointer = registerRuntimeCPointer(RuntimeCPointerBox(
             address: UInt(bitPattern: buffer), pointeeTypeID: runtimeStableNominalTypeID(fqName: "kotlinx.cinterop.UByteVar")))
         defer { _ = runtimeReleaseObject(pointer) }
         let result = dispatch.invoke(4, pointer, kk_box_long(len))
@@ -183,7 +183,7 @@ final class RuntimeFoundationOutputStream: OutputStream, StreamDelegate {
     override var hasSpaceAvailable: Bool { maybeUnbox(dispatch.invoke(7)) != 0 }
     override func write(_ buffer: UnsafePointer<UInt8>, maxLength len: Int) -> Int {
         guard len >= 0 else { return -1 }
-        let pointer = registerRuntimeObject(RuntimeCPointerBox(
+        let pointer = registerRuntimeCPointer(RuntimeCPointerBox(
             address: UInt(bitPattern: buffer), pointeeTypeID: runtimeStableNominalTypeID(fqName: "kotlinx.cinterop.UByteVar")))
         defer { _ = runtimeReleaseObject(pointer) }
         let result = dispatch.invoke(5, pointer, kk_box_long(len))
