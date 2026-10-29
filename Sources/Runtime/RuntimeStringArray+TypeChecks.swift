@@ -255,18 +255,47 @@ public func kk_op_is(_ value: Int, _ typeToken: Int) -> Int {
         // KUU-1084: function-type tokens carry source arity and the suspend
         // marker. Suspend functions also expose their lowered FunctionN+1 shape.
         let (arity, isSuspend) = RuntimeTypeTokenEncoding.functionPayloadParts(payload)
-        let taggedFunctionType = runtimeStorage.withDelegateLock { state -> (Int, Bool)? in
+        let (samInterfaceTypeID, taggedFunctionType) = runtimeStorage.withDelegateLock { state -> (Int64?, (Int, Bool)?) in
+            if let adapter = state.callableAdapterIdentityByValue[value],
+               adapter.samInterfaceTypeID != 0
+            {
+                return (adapter.samInterfaceTypeID, nil)
+            }
             if let payload = state.functionTypePayloadByValue[value] {
                 let (arity, isSuspend) = RuntimeTypeTokenEncoding.functionPayloadParts(Int64(payload))
-                return (arity, isSuspend)
+                return (nil, (arity, isSuspend))
             }
             if let metadata = state.callableRefMetadataByValue[value], metadata.kind == .function {
-                return (metadata.arity, metadata.isSuspend)
+                return (nil, (metadata.arity, metadata.isSuspend))
             }
             if let adapter = state.callableAdapterIdentityByValue[value] {
-                return (adapter.arity, adapter.isSuspend)
+                return (nil, (adapter.arity, adapter.isSuspend))
             }
-            return nil
+            return (nil, nil)
+        }
+        if let samInterfaceTypeID {
+            // A SAM adapter is a function only when its interface inherits a
+            // function type, not merely because its delegate has that arity.
+            let targetFQName = isSuspend
+                ? "kotlin.coroutines.SuspendFunction\(arity)"
+                : "kotlin.Function.Function\(arity)"
+            if runtimeIsAssignable(
+                sourceTypeID: samInterfaceTypeID,
+                targetTypeID: runtimeStableNominalTypeID(fqName: targetFQName)
+            ) {
+                return 1
+            }
+            // A suspend function supertype also implements FunctionN+1 on JVM.
+            if !isSuspend, arity > 0 {
+                let suspendFQName = "kotlin.coroutines.SuspendFunction\(arity - 1)"
+                if runtimeIsAssignable(
+                    sourceTypeID: samInterfaceTypeID,
+                    targetTypeID: runtimeStableNominalTypeID(fqName: suspendFQName)
+                ) {
+                    return 1
+                }
+            }
+            return 0
         }
         if let (actualArity, actualIsSuspend) = taggedFunctionType {
             return runtimeFunctionTypeMatches(
