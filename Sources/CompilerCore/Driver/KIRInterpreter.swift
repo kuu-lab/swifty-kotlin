@@ -53,10 +53,6 @@ private enum IValue: Equatable {
     case int(Int64)
     case string(String)
     case unit
-    /// Kotlin `null` is its own value, not a bit pattern inside `.int`: the
-    /// native null sentinel (Int64.min) is a legitimate Long/ULong/Double
-    /// payload, so a sentinel would stringify and compare real values as
-    /// "null" (KUU-3687).
     case null
 }
 
@@ -477,6 +473,7 @@ private final class KIRInterpreterEngine {
             if args[0] == .null { return .string("null") }
             if args[0] == .unit { return .string("kotlin.Unit") }
             if case let .string(s) = args[0], tag == 3 { return .string(s) }
+            if args[0] == .null { return .string("null") }
             guard case let .int(v) = args[0] else { throw InterpreterBail(reason: "kk_any_to_string: operand") }
             // Floating-point/ULong tags are decoded before the null check
             // natively and need their own formatting; only Int/Boolean/Long
