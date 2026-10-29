@@ -87,6 +87,7 @@ extension CallLowerer {
             body.append(.constValue(result: paramExpr, value: .symbolRef(param.symbol)))
             let lambdaParamType = allValueTypes[index]
             var forwardedParamExpr = paramExpr
+            var emittedBoundaryCheckcast = false
             if let checkType = kirCheckableCastErasure(of: lambdaParamType, sema: sema),
                kirErasedBoundaryCheckable(checkType, sema: sema)
             {
@@ -113,6 +114,7 @@ extension CallLowerer {
                     canThrow: true
                 ))
                 forwardedParamExpr = checked
+                emittedBoundaryCheckcast = true
             }
             if let valueClassSymbol = nullableUnderlyingValueClassSymbol(
                 of: sema.types.kind(of: lambdaParamType),
@@ -151,7 +153,19 @@ extension CallLowerer {
                     for: lambdaParamKind, requireNonNull: true
                 )
             }()
-            guard param.type != normalizedLambdaParamType,
+            // A boundary checkcast returns its operand — which argument
+            // normalization may have boxed to make the runtime check
+            // meaningful — so a non-null primitive lambda parameter still
+            // needs the unbox even when the adapter declares the same type.
+            // Otherwise the tagged box leaks into the callee's raw
+            // arithmetic (KUU-3689).
+            let checkcastNeedsUnbox: Bool = {
+                guard emittedBoundaryCheckcast,
+                      case .primitive(_, .nonNull) = lambdaParamKind
+                else { return false }
+                return true
+            }()
+            guard param.type != normalizedLambdaParamType || checkcastNeedsUnbox,
                   let unboxCallee
             else {
                 callArguments.append(forwardedParamExpr)
