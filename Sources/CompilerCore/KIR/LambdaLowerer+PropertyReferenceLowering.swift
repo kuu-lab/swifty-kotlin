@@ -137,11 +137,6 @@ extension LambdaLowerer {
                 interner: interner
             )
             : nil
-        // `KProperty0/1.getDelegate` needs full kotlin-reflect support, which
-        // this runtime does not provide. JVM compiled without kotlin-reflect.jar
-        // throws KotlinReflectionNotSupportedError from getDelegate (the
-        // JetBrains getDelegateWithoutReflection testData); give the wrapper a
-        // throwing implementation so the same catch behavior holds here.
         // `canThrow` must be marked on the signature: when an itable bridge is
         // synthesized (e.g. KProperty1 whose erased `T` receiver differs from
         // the concrete owner type), the bridge consults `implSig.canThrow` to
@@ -208,6 +203,10 @@ extension LambdaLowerer {
         emitPropertyReferenceGetDelegate(
             methodSymbol: getDelegateMethodSymbol,
             wrapperType: wrapperType,
+            shape: shape,
+            accessor: accessor,
+            captureFields: captureFields,
+            fieldOffsets: fieldOffsets,
             sema: sema,
             arena: arena,
             interner: interner
@@ -1154,13 +1153,20 @@ extension LambdaLowerer {
         ))))
     }
 
-    /// `getDelegate()` on a property-reference wrapper has no delegate storage
-    /// to return: full kotlin-reflect is absent, so the call throws
-    /// `KotlinReflectionNotSupportedError` — the same behavior the JVM shows
-    /// for `PropertyReference.getDelegate()` without kotlin-reflect.jar.
+    /// `getDelegate()` mirrors the JVM contract: `null` for a property with
+    /// no `by` delegate, and the stored delegate object for a delegated one.
+    /// The delegate lives in the same storage the lowered accessors use — a
+    /// global slot for top-level/object/extension properties, an instance
+    /// field for class members, or the per-entry enum slot — so the wrapper
+    /// reads it directly instead of throwing the old
+    /// KotlinReflectionNotSupportedError stub (KUU-3694).
     private func emitPropertyReferenceGetDelegate(
         methodSymbol: SymbolID,
         wrapperType: TypeID,
+        shape: PropertyReferenceShape,
+        accessor: PropertyReferenceAccessor,
+        captureFields: [SymbolID],
+        fieldOffsets: [SymbolID: Int],
         sema: SemaModule,
         arena: KIRArena,
         interner: StringInterner
@@ -1170,15 +1176,86 @@ extension LambdaLowerer {
         let params = [KIRParameter(symbol: receiverSymbol, type: wrapperType)] + parameterSymbols.compactMap { symbol in
             sema.symbols.propertyType(for: symbol).map { KIRParameter(symbol: symbol, type: $0) }
         }
-        var body: [KIRInstruction] = [.beginBlock]
-        let thrown = arena.appendTemporary(type: sema.types.nullableAnyType)
-        body.append(.call(
-            callee: interner.intern("__kk_kotlin_reflection_not_supported_error_new"),
-            arguments: [],
-            result: thrown,
-            canThrow: false
-        ))
-        body.append(.rethrow(value: thrown))
+        let receiverExpr = arena.appendExpr(.symbolRef(receiverSymbol), type: wrapperType)
+        var body: [KIRInstruction] = [.beginBlock, .constValue(result: receiverExpr, value: .symbolRef(receiverSymbol))]
+
+        // The instance whose delegate field to read for a member property:
+        // the receiver parameter for an unbound `C::m`, or the bound receiver
+        // captured into the first wrapper field for a bound `c::m`.
+        var memberReceiverExpr: KIRExprID?
+        if shape.arity > 0, let parameter = params.dropFirst().first {
+            let parameterExpr = arena.appendExpr(.symbolRef(parameter.symbol), type: parameter.type)
+            body.append(.constValue(result: parameterExpr, value: .symbolRef(parameter.symbol)))
+            memberReceiverExpr = parameterExpr
+        } else if shape.arity == 0,
+                  let boundField = captureFields.first,
+                  let boundOffset = fieldOffsets[boundField]
+        {
+            let offsetExpr = arena.appendExpr(.intLiteral(Int64(boundOffset)), type: sema.types.intType)
+            body.append(.constValue(result: offsetExpr, value: .intLiteral(Int64(boundOffset))))
+            let boundReceiver = arena.appendTemporary(type: accessor.ownerType ?? sema.types.anyType)
+            body.append(.call(
+                callee: interner.intern("kk_array_get_inbounds"),
+                arguments: [receiverExpr, offsetExpr],
+                result: boundReceiver,
+                canThrow: false
+            ))
+            memberReceiverExpr = boundReceiver
+        }
+
+        if let delegateStorage = ensurePropertyReferenceDelegateStorage(
+            accessor: accessor,
+            sema: sema,
+            interner: interner
+        ) {
+            let ownerSymbol = sema.symbols.parentSymbol(for: accessor.propertySymbol)
+            let ownerKind = ownerSymbol.flatMap { sema.symbols.symbol($0)?.kind }
+            let memberFieldOffset = (ownerKind == .class || ownerKind == .interface)
+                ? ownerSymbol.flatMap {
+                    sema.symbols.nominalLayout(for: $0)?.fieldOffsets[delegateStorage]
+                }
+                : nil
+            if let memberFieldOffset, let memberReceiverExpr {
+                let offsetExpr = arena.appendExpr(.intLiteral(Int64(memberFieldOffset)), type: sema.types.intType)
+                body.append(.constValue(result: offsetExpr, value: .intLiteral(Int64(memberFieldOffset))))
+                let result = arena.appendTemporary(type: sema.types.anyType)
+                body.append(.call(
+                    callee: interner.intern("kk_array_get_inbounds"),
+                    arguments: [memberReceiverExpr, offsetExpr],
+                    result: result,
+                    canThrow: false
+                ))
+                body.append(.returnValue(result))
+            } else if ownerKind == .enumClass,
+                      let ownerSymbol,
+                      let memberReceiverExpr,
+                      let storageName = sema.symbols.symbol(delegateStorage)?.name
+            {
+                // Enum values are ordinal-backed: delegate handles live in
+                // per-entry slots behind `$enumConstructorProperty$` — the
+                // same placeholder the accessor's loadDelegateHandle emits
+                // (rewritten by EnumNameAccessLoweringPass).
+                let helperName = EnumPropertyHelperNames.placeholder(
+                    prefix: EnumPropertyHelperNames.getterPrefix,
+                    ownerSymbol: ownerSymbol,
+                    propertyName: storageName,
+                    interner: interner
+                )
+                let result = arena.appendTemporary(type: sema.types.anyType)
+                body.append(.call(callee: helperName, arguments: [memberReceiverExpr], result: result, canThrow: false))
+                body.append(.returnValue(result))
+            } else {
+                // Top-level, object-member and extension delegates sit in one
+                // global slot — `loadGlobal` mirrors loadDelegateHandle.
+                let result = arena.appendTemporary(type: sema.types.anyType)
+                body.append(.loadGlobal(result: result, symbol: delegateStorage))
+                body.append(.returnValue(result))
+            }
+        } else {
+            let nullExpr = arena.appendExpr(.null, type: sema.types.nullableAnyType)
+            body.append(.constValue(result: nullExpr, value: .null))
+            body.append(.returnValue(nullExpr))
+        }
         body.append(.endBlock)
         driver.ctx.appendGeneratedCallableDecl(arena.appendDecl(.function(KIRFunction(
             symbol: methodSymbol,
@@ -1189,6 +1266,48 @@ extension LambdaLowerer {
             isSuspend: false,
             isInline: false
         ))))
+    }
+
+    /// Delegate storage is registered when the `by` property itself lowers,
+    /// but a `::prop` reference can be emitted before that point (e.g. `main`
+    /// sits above the property). Recreate the storage symbol on demand using
+    /// the same `$delegate_<name>` scheme `resolveDelegateStorageSymbol` /
+    /// `objectLiteralDelegateStorageSymbol` apply, so `getDelegate` reads the
+    /// slot the property's init will fill. Member storage already exists from
+    /// header collection, so this is a no-op there.
+    private func ensurePropertyReferenceDelegateStorage(
+        accessor: PropertyReferenceAccessor,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> SymbolID? {
+        if let existing = sema.symbols.delegateStorageSymbol(for: accessor.propertySymbol) {
+            return existing
+        }
+        // Order-independent delegated probe: the type checker binds the
+        // resolved getValue symbol on every `by` property before KIR
+        // lowering, regardless of which declaration lowers first.
+        guard sema.symbols.delegateGetValueSymbol(for: accessor.propertySymbol) != nil else {
+            return nil
+        }
+        let extensionSuffix = sema.symbols.hasExtensionPropertyReceiver(accessor.propertySymbol)
+            ? "_extension_\(accessor.propertySymbol.rawValue)"
+            : ""
+        let propertyName = sema.symbols.symbol(accessor.propertySymbol)?.name ?? interner.intern("")
+        let storageName = interner.intern(
+            "$delegate_\(interner.resolve(propertyName))\(extensionSuffix)"
+        )
+        let storageFQName = (sema.symbols.symbol(accessor.propertySymbol)?.fqName.dropLast() ?? [])
+            + [storageName]
+        let storageSymbol = sema.symbols.define(
+            kind: .field,
+            name: storageName,
+            fqName: Array(storageFQName),
+            declSite: nil,
+            visibility: .private,
+            flags: []
+        )
+        sema.symbols.setDelegateStorageSymbol(storageSymbol, for: accessor.propertySymbol)
+        return storageSymbol
     }
 
     private func registerPropertyReferenceInterfaces(

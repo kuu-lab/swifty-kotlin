@@ -152,6 +152,7 @@ extension MemberLowerer {
             )
             let getterExtraArgs = buildCustomDelegateGetterArgs(
                 propertySymbol: propertySymbol,
+                delegateValue: delegateHandleExprID,
                 sema: sema,
                 arena: arena,
                 interner: interner,
@@ -210,6 +211,7 @@ extension MemberLowerer {
             let setterExtraArgs = buildCustomDelegateSetterArgs(
                 propertySymbol: propertySymbol,
                 valueExprID: valueExprID,
+                delegateValue: delegateHandleExprID,
                 sema: sema,
                 arena: arena,
                 interner: interner,
@@ -404,6 +406,7 @@ extension MemberLowerer {
 
     private func buildCustomDelegateGetterArgs(
         propertySymbol: SymbolID,
+        delegateValue: KIRExprID? = nil,
         sema: SemaModule,
         arena: KIRArena,
         interner: StringInterner,
@@ -421,6 +424,7 @@ extension MemberLowerer {
             sema: sema,
             arena: arena,
             interner: interner,
+            delegateValue: delegateValue,
             body: &body
         )
         return [thisRefExprID, kPropertyExprID]
@@ -429,6 +433,7 @@ extension MemberLowerer {
     private func buildCustomDelegateSetterArgs(
         propertySymbol: SymbolID,
         valueExprID: KIRExprID,
+        delegateValue: KIRExprID? = nil,
         sema: SemaModule,
         arena: KIRArena,
         interner: StringInterner,
@@ -436,6 +441,7 @@ extension MemberLowerer {
     ) -> [KIRExprID] {
         buildCustomDelegateGetterArgs(
             propertySymbol: propertySymbol,
+            delegateValue: delegateValue,
             sema: sema,
             arena: arena,
             interner: interner,
@@ -481,6 +487,7 @@ extension MemberLowerer {
         arena: KIRArena,
         interner: StringInterner,
         isLocal: Bool = false,
+        delegateValue: KIRExprID? = nil,
         body: inout KIRLoweringEmitContext
     ) -> KIRExprID {
         driver.emitKPropertyStubCreate(
@@ -489,6 +496,7 @@ extension MemberLowerer {
             arena: arena,
             interner: interner,
             isLocal: isLocal,
+            delegateValue: delegateValue,
             emit: &body
         )
     }
