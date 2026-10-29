@@ -70,6 +70,50 @@ struct KIRInterpreterTests {
         #expect(outcome == .completed(stdout: "counter=3\n"))
     }
 
+    /// KUU-3687: `IValue.null` must be distinct from every `.int` payload.
+    /// A real `Long.MIN_VALUE` shares the native null-sentinel bit pattern, so
+    /// a sentinel-based model printed it as "null"; a dedicated `.null` case
+    /// keeps value and null separate across printing, concat, calls and
+    /// nullable equality.
+    @Test
+    func longMinValueStaysDistinctFromNull() throws {
+        let outcome = try interpret("""
+        fun f(x: Long): Long = x
+        fun main() {
+            val m = -9223372036854775807L - 1L
+            println(m)
+            println(f(m))
+            println("v=" + f(m))
+            println("w=$m")
+            val nl: Long? = m
+            println(nl)
+            println("n=$nl")
+            val z: Long? = null
+            println(z)
+            println("z=$z")
+            if (nl == null) println("nl null") else println("nl not null")
+            if (z == null) println("z null") else println("z not null")
+            println(nl == m)
+            println(nl != null)
+        }
+        """)
+        #expect(outcome == .completed(stdout: """
+        -9223372036854775808
+        -9223372036854775808
+        v=-9223372036854775808
+        w=-9223372036854775808
+        -9223372036854775808
+        n=-9223372036854775808
+        null
+        z=null
+        nl not null
+        z null
+        true
+        true
+
+        """))
+    }
+
     @Test
     func collectionsFallBackToNativeExecution() throws {
         let outcome = try interpret("""
