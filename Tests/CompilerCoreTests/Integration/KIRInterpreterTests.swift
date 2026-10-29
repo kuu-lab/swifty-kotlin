@@ -115,6 +115,23 @@ struct KIRInterpreterTests {
     }
 
     @Test
+    func longMinValueIsNotConfusedWithNull() throws {
+        let outcome = try interpret("""
+        fun f(x: Long): Long = x
+        fun main() {
+            val m = -9223372036854775807L - 1L
+            println(m)
+            println(f(m))
+            println("v=" + f(m))
+            println("w=$m")
+        }
+        """)
+        #expect(outcome == .completed(
+            stdout: "-9223372036854775808\n-9223372036854775808\nv=-9223372036854775808\nw=-9223372036854775808\n"
+        ))
+    }
+
+    @Test
     func collectionsFallBackToNativeExecution() throws {
         let outcome = try interpret("""
         fun main() {
