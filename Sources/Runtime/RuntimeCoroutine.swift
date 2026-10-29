@@ -132,10 +132,9 @@ struct RuntimeTaskKey: Hashable, Sendable {
 //
 //        RuntimeIteratorBuilderBox: probeHasNextAsync(callerState:) installs a
 //        resume continuation in consumerGate so no GCD thread is held while the
-//        producer runs.  New C entry points __kk_iterator_builder_hasNext_coro /
-//        __kk_iterator_builder_next_coro expose this for coroutine-aware callers.
-//        Existing __kk_iterator_builder_hasNext / __kk_iterator_builder_next are
-//        unchanged — callers do not yet check for COROUTINE_SUSPENDED.
+//        producer runs.  Existing __kk_iterator_builder_hasNext /
+//        __kk_iterator_builder_next are unchanged — callers do not yet check
+//        for COROUTINE_SUSPENDED.
 //
 //        RuntimeSequenceCoroutine: awaitProducerYieldAsync(callerState:) and
 //        nextElementAsync(callerState:) provide the same non-blocking consumer
