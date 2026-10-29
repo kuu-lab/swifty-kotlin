@@ -11,7 +11,7 @@
 /// logical `iushr`) followed by `kk_uint_narrow`, and `ULong` reuses the
 /// 64-bit `Long` variants (again with `shr` mapped to `lushr`), because Kotlin
 /// defines unsigned `shr` as a logical shift.
-final class IntegerNarrowingPass: LoweringPass, ParallelLoweringPass {
+final class IntegerNarrowingPass: LoweringPass {
     static let name = "IntegerNarrowing"
     static let requiredStage: KIRStage = .propertyLowered
     static let producedStage: KIRStage = .integerNarrowed

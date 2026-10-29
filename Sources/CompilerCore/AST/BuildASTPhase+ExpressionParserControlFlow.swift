@@ -876,6 +876,7 @@ extension BuildASTPhase.ExpressionParser {
             return nil
         }
         let bodyStartIndex = index
+        let bodyStartsWithBrace = matches(.symbol(.lBrace))
 
         // In `do while (condition);`, the condition keyword immediately
         // follows `do`; parsing it as a nested while expression would lose
@@ -899,7 +900,10 @@ extension BuildASTPhase.ExpressionParser {
             }
         }
 
-        if body != nil, bodyStartIndex < index {
+        // A braced body already has the correct block/lambda structure from
+        // parseControlFlowBodyExpression. Reparsing it recursively duplicates
+        // every nested do-while body and makes deeply nested input exponential.
+        if !bodyStartsWithBrace, body != nil, bodyStartIndex < index {
             let consumedBodyTokens = tokens[bodyStartIndex ..< index]
             if let normalizedBody = parseDoWhileBodyExpression(from: consumedBodyTokens) {
                 body = normalizedBody

@@ -32,14 +32,6 @@ extension JVMClasspathIndex {
         return ctx.jvmRuntimeClassAliases[sourceName] ?? sourceName
     }
 
-    static func anonymousObjectName(
-        _ symbol: SymbolID,
-        sema: SemaModule,
-        ctx: CompilationContext
-    ) -> JVMAnonymousObjectNameInfo? {
-        anonymousObjectName(symbol, sema: sema, ctx: ctx, resolvingAnonymous: [symbol])
-    }
-
     private static func anonymousObjectName(
         _ symbol: SymbolID,
         sema: SemaModule,
@@ -86,7 +78,7 @@ extension JVMClasspathIndex {
             return owner
         }
 
-        let functions = snapshot.declarations.enumerated().compactMap { index, declaration -> (range: SourceRange, name: String, owner: SymbolID?, parent: SymbolID?, symbol: SymbolID)? in
+        let functions = snapshot.declarations.enumerated().compactMap { index, declaration -> (range: SourceRange, name: String, owner: SymbolID?, parent: SymbolID?, symbol: SymbolID, topLevel: Bool)? in
             guard case let .funDecl(function) = declaration,
                   contains(function.range, objectRange)
             else {
@@ -95,12 +87,14 @@ extension JVMClasspathIndex {
             let declID = DeclID(rawValue: Int32(index))
             guard let functionSymbol = sema.bindings.declSymbols[declID] else { return nil }
             let parent = sema.symbols.parentSymbol(for: functionSymbol)
+            let topLevel = file.topLevelDecls.contains(declID)
             return (
                 function.range,
                 ctx.interner.resolve(function.name),
-                nominalOwner(parent),
+                topLevel ? nil : nominalOwner(parent),
                 parent,
-                functionSymbol
+                functionSymbol,
+                topLevel
             )
         }.sorted { span($0.range) < span($1.range) }
         let function = functions.first
@@ -114,10 +108,16 @@ extension JVMClasspathIndex {
                 let declID = DeclID(rawValue: Int32(index))
                 guard let symbol = sema.bindings.declSymbols[declID] else { return nil }
                 let parent = sema.symbols.parentSymbol(for: symbol)
-                guard nominalOwner(parent) == selected.owner else { return nil }
-                if selected.owner == nil,
-                   (parent != selected.parent || candidate.range.start.file != selected.range.start.file) {
-                    return nil
+                if selected.topLevel {
+                    guard file.topLevelDecls.contains(declID),
+                          candidate.range.start.file == selected.range.start.file else { return nil }
+                } else {
+                    guard !file.topLevelDecls.contains(declID),
+                          nominalOwner(parent) == selected.owner else { return nil }
+                    if selected.owner == nil,
+                       (parent != selected.parent || candidate.range.start.file != selected.range.start.file) {
+                        return nil
+                    }
                 }
                 return (candidate.range, symbol)
             }.sorted { $0.range.start.offset < $1.range.start.offset }
@@ -185,8 +185,7 @@ extension JVMClasspathIndex {
         }
         suffix.append(String(max(ordinal, 1)))
         return JVMAnonymousObjectNameInfo(
-            binaryName: enclosingClassName + "$" + suffix.joined(separator: "$"),
-            enclosingClassName: enclosingClassName
+            binaryName: enclosingClassName + "$" + suffix.joined(separator: "$")
         )
     }
 
@@ -199,7 +198,6 @@ extension JVMClasspathIndex {
 
 struct JVMAnonymousObjectNameInfo {
     let binaryName: String
-    let enclosingClassName: String
 }
 
 extension JVMProgramBuilder {
@@ -225,6 +223,7 @@ extension JVMProgramBuilder {
                     declaration: c,
                     isValue: isJvmInlineValue
                 )
+                plan.isJvmRecord = sema.symbols.annotations(for: symbol).contains { $0.annotationFQName == "kotlin.jvm.JvmRecord" }
                 classes[symbol] = plan
                 try collectNominals(c.nestedClasses + c.nestedObjects, outer: symbol)
                 if let companion = c.companionObject { try collectNominals([companion], outer: symbol, companion: true) }
@@ -412,6 +411,15 @@ extension JVMProgramBuilder {
         }
         result.isObject = plan.isObject; result.isCompanion = plan.companionOwner != nil
         result.isData = plan.modifiers.contains(.data); result.isEnum = plan.isEnum
+        result.recordComponents = plan.isJvmRecord
+            ? try dataProperties(plan).map { property in
+                JVMRecordComponent(
+                    name: property.name,
+                    type: property.type,
+                    genericSignature: property.genericSignature == property.type.descriptor ? nil : property.genericSignature
+                )
+            }
+            : []
         result.isSealed = plan.modifiers.contains(.sealed)
         result.isInner = plan.isInner
         if let field = try outerField(plan) { result.extraFields.append(field) }

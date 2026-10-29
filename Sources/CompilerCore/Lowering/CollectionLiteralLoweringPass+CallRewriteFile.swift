@@ -15,9 +15,7 @@ extension CollectionLiteralConstructionLoweringPass {
         canThrow: Bool,
         thrownResult: KIRExprID?,
         module: KIRModule,
-        ctx: KIRContext,
         lookup: CollectionLiteralLookupTables,
-        state: inout CollectionRewriteState,
         loweredBody: inout KIRLoweringEmitContext
     ) -> Bool {
         // STDLIB-IO-FN-040: covers `__kk_buffered_reader_useLines`, the synthetic

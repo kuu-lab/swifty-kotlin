@@ -56,11 +56,9 @@ extension CallLowerer {
         _ exprID: ExprID,
         classRefTargetType: TypeID,
         memberName: String,
-        ast: ASTModule,
         sema: SemaModule,
         arena: KIRArena,
         interner: StringInterner,
-        propertyConstantInitializers: [SymbolID: KIRExprKind],
         instructions: inout [KIRInstruction]
     ) -> KIRExprID {
         let intType = sema.types.make(.primitive(.int, .nonNull))

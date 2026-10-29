@@ -8,15 +8,11 @@ indirect enum SyntheticStubTypeRef: Hashable, Sendable {
     case fallback(primary: SyntheticStubTypeRef, fallback: SyntheticStubTypeRef)
 
     static let unit: SyntheticStubTypeRef = .builtin(.unit)
-    static let any: SyntheticStubTypeRef = .builtin(.any)
     static let boolean: SyntheticStubTypeRef = .builtin(.boolean)
     static let char: SyntheticStubTypeRef = .builtin(.char)
     static let int: SyntheticStubTypeRef = .builtin(.int)
-    static let long: SyntheticStubTypeRef = .builtin(.long)
     static let double: SyntheticStubTypeRef = .builtin(.double)
     static let string: SyntheticStubTypeRef = .builtin(.string)
-    static let ulong: SyntheticStubTypeRef = .builtin(.ulong)
-    static let ubyte: SyntheticStubTypeRef = .builtin(.ubyte)
 
     static func namedClass(
         _ fqName: [String],

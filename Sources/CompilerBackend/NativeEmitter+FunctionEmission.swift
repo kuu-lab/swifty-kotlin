@@ -1,5 +1,4 @@
 // swiftlint:disable file_length
-import RuntimeABI
 import CompilerCore
 
 extension NativeEmitter {

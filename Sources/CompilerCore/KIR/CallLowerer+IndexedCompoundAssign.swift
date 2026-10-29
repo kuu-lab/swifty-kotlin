@@ -109,19 +109,32 @@ extension CallLowerer {
 
         let rawGetResult = arena.appendTemporary(type: sema.types.anyType)
         instructions.append(.call(callee: interner.intern("kk_array_get"), arguments: [receiverID, indexID], result: rawGetResult, canThrow: false))
+        // `a[i] += v` reads through the same erased `get` convention as
+        // `a[i]`, so a heap-polluted element must throw ClassCastException
+        // here (KUU-3668), matching the indexed-access wrap. The element
+        // type — not exprID's always-Unit bound type — names the check.
+        let checkedRawGetResult = driver.exprLowerer.checkedErasedGenericCallResult(
+            rawGetResult,
+            exprID: exprID,
+            boundType: receiverElementType,
+            sema: sema,
+            interner: interner,
+            arena: arena,
+            instructions: &instructions
+        )
         let getResult: KIRExprID
         if let elementType = compoundPrimitiveElementType,
            let unboxCallee = boxingTable.unboxCallee(for: elementType, types: sema.types, requireNonNull: true)
         {
             getResult = emitNonThrowingCall(
                 callee: unboxCallee,
-                arg: rawGetResult,
+                arg: checkedRawGetResult,
                 resultType: elementType,
                 arena: arena,
                 into: &instructions
             )
         } else {
-            getResult = rawGetResult
+            getResult = checkedRawGetResult
         }
         // Kotlin evaluates `a[i] += v` as receiver, index, get, value, op, set.
         let valueID: KIRExprID
@@ -354,6 +367,19 @@ extension CallLowerer {
             instructions: &instructions,
             arguments: [receiverID] + normalizedGetArguments.arguments
         )
+        // `b[i] += v` reads through the erased `get` convention like `b[i]`;
+        // a heap-polluted element must throw ClassCastException at this typed
+        // read (KUU-3668). The check keys on the element type, not exprID's
+        // always-Unit bound type.
+        let checkedGetResult = driver.exprLowerer.checkedErasedGenericCallResult(
+            getResult,
+            exprID: exprID,
+            boundType: elementType,
+            sema: sema,
+            interner: interner,
+            arena: arena,
+            instructions: &instructions
+        )
 
         // Kotlin evaluates `b[i] += v` as receiver, indices, get, value, op, set.
         let valueID = driver.lowerExpr(
@@ -370,7 +396,7 @@ extension CallLowerer {
         if let elementOperator {
             guard let operatorResult = emitIndexedElementOperatorCall(
                 elementOperator,
-                element: getResult,
+                element: checkedGetResult,
                 valueID: valueID,
                 callExprID: exprID,
                 ast: ast,
@@ -388,7 +414,7 @@ extension CallLowerer {
             newElement = operatorResult
         } else {
             newElement = emitBuiltinIndexedCompoundOp(
-                op: op, elementType: elementType, current: getResult, valueID: valueID,
+                op: op, elementType: elementType, current: checkedGetResult, valueID: valueID,
                 valueType: sema.bindings.exprTypes[valueExpr] ?? sema.types.anyType,
                 sema: sema, arena: arena, interner: interner, instructions: &instructions
             )

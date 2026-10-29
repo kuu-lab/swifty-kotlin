@@ -11,8 +11,6 @@ struct KIRVerificationFailure: Equatable {
     }
 
     let kind: Kind
-    let functionName: String
-    let instructionIndex: Int?
     let message: String
 }
 
@@ -88,8 +86,6 @@ struct KIRVerifier {
             emitted += 1
             failures.append(KIRVerificationFailure(
                 kind: kind,
-                functionName: functionName,
-                instructionIndex: index,
                 message: "\(functionName): \(message)"
             ))
         }

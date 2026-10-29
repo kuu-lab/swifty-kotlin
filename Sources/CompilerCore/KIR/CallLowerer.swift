@@ -1,4 +1,3 @@
-import RuntimeABI
 
 final class CallLowerer {
     /// Bitmask of object slot indices holding a data class's primary-constructor properties.

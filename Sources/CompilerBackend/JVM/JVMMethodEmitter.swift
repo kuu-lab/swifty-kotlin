@@ -38,29 +38,21 @@ final class JVMMethodEmitter {
         if slot > 255 { assembler.code.u1(0xC4); assembler.code.u1(opcode); assembler.code.u2(UInt16(slot)) }
         else { assembler.code.u1(opcode); assembler.code.u1(UInt8(slot)) }
     }
-    func load(_ value: JVMValue) {
-        let opcode: UInt8
-        switch value.type.stackType {
-        case .int, .boolean, .byte, .short, .char, .uint, .ulong, .ubyte, .ushort: opcode = 0x15
-        case .long: opcode = 0x16
-        case .float: opcode = 0x17
-        case .double: opcode = 0x18
-        case .string, .reference, .unsignedArray: opcode = 0x19
-        case .unit: return
+    /// Offset within the i/l/f/d/a opcode families (iload..aload, istore..astore, ireturn..areturn).
+    func familyOffset(_ type: JVMValueType) -> UInt8 {
+        switch type.stackType {
+        case .long: 1
+        case .float: 2
+        case .double: 3
+        case .string, .reference, .unsignedArray: 4
+        default: 0
         }
-        local(opcode, value.slot)
+    }
+    func load(_ value: JVMValue) {
+        if value.type.stackType != .unit { local(0x15 + familyOffset(value.type), value.slot) }
     }
     func store(_ value: JVMValue) {
-        let opcode: UInt8
-        switch value.type.stackType {
-        case .int, .boolean, .byte, .short, .char, .uint, .ulong, .ubyte, .ushort: opcode = 0x36
-        case .long: opcode = 0x37
-        case .float: opcode = 0x38
-        case .double: opcode = 0x39
-        case .string, .reference, .unsignedArray: opcode = 0x3A
-        case .unit: return
-        }
-        local(opcode, value.slot)
+        if value.type.stackType != .unit { local(0x36 + familyOffset(value.type), value.slot) }
     }
     func invoke(_ owner: String, _ name: String, _ descriptor: String, staticBody: Bool = true) throws {
         assembler.code.u1(staticBody ? 0xB8 : 0xB6)
@@ -418,15 +410,7 @@ final class JVMMethodEmitter {
             }
             if let value {
                 load(value)
-                let opcode: UInt8
-                switch value.type.stackType {
-                case .long: opcode = 0xAD
-                case .float: opcode = 0xAE
-                case .double: opcode = 0xAF
-                case .string, .reference, .unsignedArray: opcode = 0xB0
-                default: opcode = 0xAC
-                }
-                assembler.code.u1(opcode)
+                assembler.code.u1(0xAC + familyOffset(value.type))
             } else { assembler.code.u1(0xB1) }
         }
     }
@@ -478,17 +462,10 @@ final class JVMMethodEmitter {
             let less = op == .lessThan || op == .lessOrEqual
             assembler.code.u1(left.type.stackType == .long ? 0x94 : (left.type == .float ? (less ? 0x96 : 0x95) : (less ? 0x98 : 0x97)))
         }
-        let opcode: UInt8
-        switch op {
-        case .equal: opcode = integer ? 0x9F : 0x99
-        case .notEqual: opcode = integer ? 0xA0 : 0x9A
-        case .lessThan: opcode = integer ? 0xA1 : 0x9B
-        case .greaterOrEqual: opcode = integer ? 0xA2 : 0x9C
-        case .greaterThan: opcode = integer ? 0xA3 : 0x9D
-        case .lessOrEqual: opcode = integer ? 0xA4 : 0x9E
-        default: throw JVMEmissionError.limit("Unsupported JVM comparison.")
-        }
-        try comparison(opcode, result)
+        // ifeq/ifne/iflt/ifge/ifgt/ifle (0x99...) and their if_icmp forms (0x9F...) share one order.
+        let order: [BinaryOp] = [.equal, .notEqual, .lessThan, .greaterOrEqual, .greaterThan, .lessOrEqual]
+        guard let index = order.firstIndex(of: op) else { throw JVMEmissionError.limit("Unsupported JVM comparison.") }
+        try comparison((integer ? 0x9F : 0x99) + UInt8(index), result)
     }
     func comparison(_ opcode: UInt8, _ result: JVMValue) throws {
         let yes = assembler.freshLabel(), end = assembler.freshLabel()
