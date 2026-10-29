@@ -228,6 +228,20 @@ extension CallTypeChecker {
                     return finalType
                 }
             case "floorDiv":
+                if hasUserFloorDivExtension(
+                    request, lookupReceiverType: lookupReceiverType, argTypes: argTypes, locals: locals
+                ) {
+                    return tryBindShadowedExtensionCallFallback(
+                        request,
+                        receiverType: receiverType,
+                        lookupReceiverType: lookupReceiverType,
+                        memberLookupType: lookupReceiverType,
+                        argTypes: argTypes,
+                        isClassNameReceiver: false,
+                        isSuperCall: false,
+                        locals: &locals
+                    )
+                }
                 let resultType: TypeID? = if isSignedInteger(receiverForCheck), isSignedInteger(rhsType) {
                     receiverForCheck == longType || rhsType == longType ? longType : intType
                 } else if isUnsignedInteger(receiverForCheck), isUnsignedInteger(rhsType) {
