@@ -79,7 +79,8 @@ extension BuildASTPhase {
                 }
 
                 let members = declarationMemberDecls(
-                    from: entryNodeID, in: arena, interner: interner, astArena: astArena
+                    from: entryNodeID, in: arena, interner: interner, astArena: astArena,
+                    enumEntrySite: true
                 )
                 // Object declarations inside enum entries are prohibited on
                 // JVM ("named object 'X' cannot be local" / "'companion' is
@@ -619,7 +620,8 @@ extension BuildASTPhase {
         from nodeID: NodeID,
         in arena: SyntaxArena,
         interner: StringInterner,
-        astArena: ASTArena
+        astArena: ASTArena,
+        enumEntrySite: Bool = false
     ) -> (functions: [DeclID], properties: [DeclID], nestedClasses: [DeclID], nestedObjects: [DeclID], companionObject: DeclID?, companionBlockObject: DeclID?) {
         guard let bodyBlockID = arena.children(of: nodeID).compactMap({ child -> NodeID? in
             guard case let .node(childID) = child,
@@ -743,7 +745,8 @@ extension BuildASTPhase {
                 prefixedContextReceivers: prefixedContextReceivers,
                 functions: &functions, properties: &properties,
                 nestedClasses: &nestedClasses, nestedObjects: &nestedObjects,
-                companionObject: &companionObject
+                companionObject: &companionObject,
+                enumEntrySite: enumEntrySite
             )
         }
 
@@ -814,7 +817,8 @@ extension BuildASTPhase {
         properties: inout [DeclID],
         nestedClasses: inout [DeclID],
         nestedObjects: inout [DeclID],
-        companionObject: inout DeclID?
+        companionObject: inout DeclID?,
+        enumEntrySite: Bool = false
     ) {
         let childNode = arena.node(childID)
         switch childNode.kind {
@@ -833,14 +837,68 @@ extension BuildASTPhase {
             properties.append(astArena.appendDecl(.propertyDecl(propDecl)))
         case .classDecl:
             let classDecl = makeClassDecl(from: childID, in: arena, interner: interner, astArena: astArena)
-            nestedClasses.append(astArena.appendDecl(.classDecl(classDecl)))
+            // kotlinc rejects named nominal declarations inside enum entry
+            // bodies: classes/interfaces outright, enum classes via the
+            // modifier check, annotation classes as both local and prohibited.
+            if enumEntrySite {
+                if classDecl.modifiers.contains(.enumModifier) {
+                    diagnostics?.error(
+                        "KSWIFTK-SEMA-0400",
+                        "modifier 'enum' is not applicable to 'local class'.",
+                        range: classDecl.range
+                    )
+                } else if classDecl.modifiers.contains(.annotationClass) {
+                    diagnostics?.error(
+                        "KSWIFTK-SEMA-0429",
+                        "annotation class cannot be local.",
+                        range: classDecl.range
+                    )
+                    diagnostics?.error(
+                        "KSWIFTK-SEMA-0451",
+                        "'Annotation class' is prohibited here.",
+                        range: classDecl.range
+                    )
+                } else {
+                    diagnostics?.error(
+                        "KSWIFTK-SEMA-0451",
+                        "'Class' is prohibited here.",
+                        range: classDecl.range
+                    )
+                }
+            } else {
+                nestedClasses.append(astArena.appendDecl(.classDecl(classDecl)))
+            }
         case .interfaceDecl:
             let interfaceDecl = makeInterfaceDecl(from: childID, in: arena, interner: interner, astArena: astArena)
-            nestedClasses.append(astArena.appendDecl(.interfaceDecl(interfaceDecl)))
+            if enumEntrySite {
+                diagnostics?.error(
+                    "KSWIFTK-SEMA-0451",
+                    "'Interface' is prohibited here.",
+                    range: interfaceDecl.range
+                )
+            } else {
+                nestedClasses.append(astArena.appendDecl(.interfaceDecl(interfaceDecl)))
+            }
         case .objectDecl:
             let objectDecl = makeObjectDecl(from: childID, in: arena, interner: interner, astArena: astArena)
             let declID = astArena.appendDecl(.objectDecl(objectDecl))
-            if objectDecl.modifiers.contains(.companion) {
+            if enumEntrySite {
+                // Enum entry bodies admit no named objects at all; companions
+                // report the modifier error instead and are not counted.
+                if objectDecl.modifiers.contains(.companion) {
+                    diagnostics?.error(
+                        "KSWIFTK-SEMA-0401",
+                        "modifier 'companion' is not applicable inside 'enum entry'.",
+                        range: objectDecl.range
+                    )
+                } else {
+                    diagnostics?.error(
+                        "KSWIFTK-SEMA-0429",
+                        "named object '\(interner.resolve(objectDecl.name))' cannot be local. Try to use an anonymous object instead.",
+                        range: objectDecl.range
+                    )
+                }
+            } else if objectDecl.modifiers.contains(.companion) {
                 if companionObject == nil {
                     companionObject = declID
                 } else {

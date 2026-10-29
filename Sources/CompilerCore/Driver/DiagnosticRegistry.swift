@@ -1219,6 +1219,12 @@ enum DiagnosticRegistry {
             defaultSeverity: .error,
             summary: "An inline parameter cannot be inlined in a context where non-local returns are not allowed."
         ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0451",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "Declaration kind is prohibited here."
+        ),
     ]
 
 

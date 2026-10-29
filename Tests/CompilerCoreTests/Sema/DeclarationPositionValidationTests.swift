@@ -158,6 +158,59 @@ struct DeclarationPositionValidationTests {
         assertNoDiagnostic("KSWIFTK-SEMA-0024", in: ctx)
     }
 
+    @Test func companionInsideEnumEntryIsRejected() throws {
+        let ctx = try semaContextWithoutStdlib(for: """
+            enum class E { X { companion object C { val v = 1 } }, Y }
+            """)
+        assertHasDiagnostic("KSWIFTK-SEMA-0401", in: ctx)
+        // kotlinc reports only the modifier error — no companion-count error
+        // for enum entries.
+        assertNoDiagnostic("KSWIFTK-SEMA-0435", in: ctx)
+    }
+
+    @Test func namedNominalsInsideEnumEntryAreRejected() throws {
+        let ctx = try semaContextWithoutStdlib(for: """
+            enum class E {
+                X {
+                    class C
+                    interface I
+                    object N
+                },
+                Y
+            }
+            """)
+        // kotlinc: 'Class'/'Interface' is prohibited here, named object 'N'
+        // cannot be local — per declaration.
+        let prohibited = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0451" }
+        #expect(prohibited.count == 2)
+        let cannotBeLocal = ctx.diagnostics.diagnostics.filter {
+            $0.code == "KSWIFTK-SEMA-0429" && $0.message.contains("named object 'N'")
+        }
+        #expect(cannotBeLocal.count == 1)
+    }
+
+    @Test func enumAndAnnotationClassesInsideEnumEntryAreRejected() throws {
+        let ctx = try semaContextWithoutStdlib(for: """
+            enum class E {
+                X {
+                    enum class E2 { A }
+                    annotation class A2
+                },
+                Y
+            }
+            """)
+        assertHasDiagnostic("KSWIFTK-SEMA-0400", in: ctx)
+        assertHasDiagnostic("KSWIFTK-SEMA-0451", in: ctx)
+    }
+
+    @Test func enumEntryBodyFunctionsAndPropertiesAreAccepted() throws {
+        let ctx = try semaContextWithoutStdlib(for: """
+            enum class E { X { val p = 1; fun f() = p }, Y }
+            """)
+        assertNoDiagnostic("KSWIFTK-SEMA-0451", in: ctx)
+        assertNoDiagnostic("KSWIFTK-SEMA-0429", in: ctx)
+    }
+
     @Test(arguments: [
         "class C<T, T> { }",
         "class C<T, T, T> { }",
