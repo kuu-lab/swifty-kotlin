@@ -616,6 +616,7 @@ public class StringBuilder : Appendable, CharSequence, Comparable<StringBuilder>
         }
     }
 
+
     private fun checkElementIndex(index: Int) {
         val currentLength = currentLength()
         if (index < 0 || index >= currentLength) {

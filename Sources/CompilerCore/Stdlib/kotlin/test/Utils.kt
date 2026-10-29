@@ -12,9 +12,6 @@ internal fun messagePrefix(message: String?): String = if (message == null) "" e
 
 internal fun lookupAsserter(): Asserter = DefaultAsserter
 
-@PublishedApi
-internal fun overrideAsserter(value: Asserter?): Asserter? = _asserter.also { _asserter = value }
-
 internal fun formatResultMessage(value: Any?): String = when (value) {
     is Unit -> "but was completed successfully."
     else -> "but was completed successfully with the result: <$value>."

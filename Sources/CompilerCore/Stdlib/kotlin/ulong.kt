@@ -32,11 +32,3 @@ internal fun ulongToDouble(value: Long): Double {
     }
     return value.toDouble()
 }
-
-@PublishedApi
-internal fun ulongToFloat(value: Long): Float {
-    if (value < 0L) {
-        return 9223372036854775808.0f + (value and Long.MAX_VALUE).toFloat()
-    }
-    return value.toFloat()
-}

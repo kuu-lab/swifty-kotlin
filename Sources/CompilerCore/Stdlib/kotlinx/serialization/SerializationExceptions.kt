@@ -140,13 +140,6 @@ public class MissingFieldException private constructor(
         serialName = null
     )
 
-    // It's better to have internal function calling private ctor rather than just internal ctor (because the latter is visible from Java)
-    internal fun withNewMessageInternal(newMessage: String): MissingFieldException = MissingFieldException(
-        message = newMessage,
-        cause = this,
-        missingFields = missingFields,
-        serialName = serialName
-    )
 }
 
 /**
