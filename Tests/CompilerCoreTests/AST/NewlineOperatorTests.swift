@@ -300,6 +300,29 @@ struct NewlineOperatorTests {
         #expect(BuildASTPhase.isContinuationBoundary(previousTail: previous, nextHead: block))
     }
 
+    @Test(arguments: [
+        "val o = object : I",
+        "var o: I = object : I",
+        "val o = object : Outer.I",
+        "val o = object : Base(), I",
+    ])
+    func localObjectHeaderAwaitsItsBody(source: String) {
+        let previous = lex(source).tokens.dropLast()
+        #expect(BuildASTPhase.canAcceptTrailingLambda(on: previous), "\(source)")
+    }
+
+    @Test(arguments: [
+        "val value = Unit",
+        "val value: I",
+        "val type = I::class.java",
+        "val o = object : I {}",
+        "val result = object : I {}.value",
+    ])
+    func completedLocalPropertyDoesNotAwaitAnObjectBody(source: String) {
+        let previous = lex(source).tokens.dropLast()
+        #expect(!BuildASTPhase.canAcceptTrailingLambda(on: previous), "\(source)")
+    }
+
     @Test
     func blockAfterUnitValueParsesAsOwnStatement() throws {
         // KUU-3144 end to end: `val tmp = Unit` + `{ }` is a declaration plus
