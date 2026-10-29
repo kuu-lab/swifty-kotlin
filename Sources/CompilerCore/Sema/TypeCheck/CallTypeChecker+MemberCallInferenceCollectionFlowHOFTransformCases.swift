@@ -521,7 +521,7 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                             sema.bindings.unmarkCollectionHOFLambdaExpr(args[0].expr)
                         }
                     }
-                case "takeWhile", "dropWhile", "dropLastWhile":
+                case "takeWhile", "dropWhile", "dropLastWhile", "onEach":
                     if isSequenceReceiver {
                         resultType = makeSyntheticSequenceType(
                             symbols: sema.symbols,
@@ -547,22 +547,6 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                        let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef
                     {
                         sema.bindings.unmarkCollectionHOFLambdaExpr(args[0].expr)
-                    }
-                case "onEach":
-                    if isSequenceReceiver {
-                        resultType = makeSyntheticSequenceType(
-                            symbols: sema.symbols,
-                            types: sema.types,
-                            interner: interner,
-                            elementType: collectionElementType
-                        )
-                    } else {
-                        resultType = receiverType
-                    }
-                    if bindBundledListSourceFunction(typeArguments: [collectionElementType]) {
-                        if let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef {
-                            sema.bindings.unmarkCollectionHOFLambdaExpr(args[0].expr)
-                        }
                     }
                 case "flatMap":
                     let lambdaBodyType = inferredLambdaReturnType(
