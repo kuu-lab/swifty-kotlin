@@ -44,7 +44,7 @@ final class RuntimeCoroutineContext: @unchecked Sendable {
         self.dispatcherHandleRaw = dispatcherHandleRaw
         self.name = name
         self.nameHandleRaw = nameHandleRaw != 0 ? nameHandleRaw
-            : name.map { runtimeRegisterObject(RuntimeCoroutineNameBox(name: $0)) } ?? 0
+            : name.map { registerRuntimeCoroutineName($0) } ?? 0
         self.exceptionHandler = exceptionHandler
         self.jobHandleRaw = jobHandleRaw
         self.extras = extras
@@ -254,6 +254,18 @@ final class RuntimeCoroutineNameBox: @unchecked Sendable {
     }
 }
 
+private let runtimeCoroutineNameTypeID = runtimeStableNominalTypeID(fqName: "kotlinx.coroutines.CoroutineName")
+private let runtimeCoroutineElementTypeID = runtimeStableNominalTypeID(fqName: "kotlin.coroutines.CoroutineContext.Element")
+private let runtimeCoroutineContextTypeID = runtimeStableNominalTypeID(fqName: "kotlin.coroutines.CoroutineContext")
+
+private func registerRuntimeCoroutineName(_ name: String) -> Int {
+    let raw = runtimeRegisterObject(RuntimeCoroutineNameBox(name: name))
+    runtimeRegisterObjectType(rawValue: raw, classID: runtimeCoroutineNameTypeID)
+    runtimeRegisterTypeEdge(childTypeID: runtimeCoroutineNameTypeID, parentTypeID: runtimeCoroutineElementTypeID)
+    runtimeRegisterTypeEdge(childTypeID: runtimeCoroutineElementTypeID, parentTypeID: runtimeCoroutineContextTypeID)
+    return raw
+}
+
 private final class RuntimeCoroutineNameKey: @unchecked Sendable {}
 private let runtimeCoroutineNameKeyRaw = runtimeRegisterObject(RuntimeCoroutineNameKey())
 
@@ -456,8 +468,7 @@ public func kk_coroutine_name_create(_ nameRaw: Int) -> Int {
     } else {
         nameStr = "coroutine"
     }
-    let box = RuntimeCoroutineNameBox(name: nameStr)
-    return runtimeRegisterObject(box)
+    return registerRuntimeCoroutineName(nameStr)
 }
 
 /// Returns a RuntimeStringBox pointer.
