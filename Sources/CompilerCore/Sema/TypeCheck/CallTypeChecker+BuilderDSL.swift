@@ -1322,6 +1322,41 @@ extension CallTypeChecker {
         )))
     }
 
+    /// Leave open and callable parameter types to ordinary overload resolution.
+    /// Only reject a nearer candidate when its argument shape cannot accept a
+    /// lambda without inspecting the lambda body or its expected return type.
+    private func produceCandidateMayAcceptLambda(
+        _ candidate: SymbolID,
+        call: ExprID,
+        args: [CallArgument],
+        ctx: TypeInferenceContext
+    ) -> Bool {
+        let sema = ctx.sema
+        guard let signature = sema.symbols.functionSignature(for: candidate) else { return true }
+        guard isCallableArityCompatible(signature: signature, argCount: args.count) else { return false }
+        guard let range = ctx.ast.arena.exprRange(call),
+              let mapping = parameterMappingForCallArguments(args, in: signature, callRange: range, ctx: ctx)
+        else { return true }
+
+        for (index, argument) in args.enumerated() {
+            guard case .lambdaLiteral = ctx.ast.arena.expr(argument.expr) else { continue }
+            guard !argument.isSpread, let parameterIndex = mapping[index],
+                  let parameterType = contextualCallArgumentType(
+                      argument, parameterIndex: parameterIndex, in: signature, ctx: ctx
+                  )
+            else { return true }
+            let nonNullType = sema.types.makeNonNullable(parameterType)
+            if nonNullType == sema.types.errorType
+                || sema.types.typeContainsAnyTypeParam(parameterType)
+                || callableArgumentFunctionType(nonNullType, ctx: ctx) != nil
+                || callableArgumentAcceptsUnknownArity(nonNullType, isReference: false, ctx: ctx) {
+                continue
+            }
+            return false
+        }
+        return true
+    }
+
     /// KSP-1573: bind `produce { }` / `produce(capacity) { }` to the bundled
     /// source-backed `CoroutineScope.produce` extension. The element type
     /// keeps the same `send`-scan inference the synthetic launcher path used,
@@ -1367,10 +1402,9 @@ extension CallTypeChecker {
         }
         let directProduce = nearestCandidates.first(where: isMatchingBundledProduce)
         let nearerCandidatesAreInapplicable = !nearestCandidates.isEmpty && nearestCandidates.allSatisfy { candidate in
-            guard let signature = sema.symbols.functionSignature(for: candidate) else { return false }
-            return !isCallableArityCompatible(signature: signature, argCount: args.count)
+            !produceCandidateMayAcceptLambda(candidate, call: id, args: args, ctx: ctx)
         }
-        // A same-name declaration with too many required arguments does not
+        // A same-name declaration with incompatible argument shape does not
         // hide an imported builder. Resolve its lambda receiver before the
         // synthetic fallback performs inference without the source signature.
         let produceSymbol = directProduce ?? (nearerCandidatesAreInapplicable
