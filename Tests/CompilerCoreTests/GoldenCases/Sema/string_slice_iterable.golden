@@ -11,7 +11,7 @@ expr e@5:57 int(1) type=Int
 expr e@5:60 int(2) type=Int
 expr e@5:63 int(3) type=Int
 expr e@5:50 call callee=e@5:50#1 args=[_:e@5:57,_:e@5:60,_:e@5:63] type=kotlin.collections.List<Int> call=kotlin.collections.listOf[kind=fun;params=*T0;ret=kotlin.collections.List<T0>;gen=1;vararg=[1];names=[elements]] targs=[Int]
-expr e@5:72 call callee=e@5:72#1 args=[] type=kotlin.collections.List<Int> call=kotlin.collections.listOf[kind=fun;params=;ret=kotlin.collections.List<T0>;gen=1] targs=[Int]
+expr e@5:72 call callee=e@5:72#1 args=[] type=kotlin.collections.List<out Int> call=kotlin.collections.listOf[kind=fun;params=;ret=kotlin.collections.List<T0>;gen=1] targs=[Int]
 expr e@5:50#2 memberCall recv=e@5:50 callee=slice args=[_:e@5:72] type=kotlin.collections.List<Int> call=kotlin.collections.slice[kind=fun;recv=kotlin.collections.List<T0>;params=kotlin.collections.Iterable<Int>;ret=kotlin.collections.List<T0>;gen=1;names=[indices]]
 expr e@7:46 int(10) type=Int
 expr e@7:50 int(20) type=Int
@@ -29,4 +29,4 @@ expr e@9:63 int(1) type=Int
 expr e@9:66 int(2) type=Int
 expr e@9:63#1 binary(rangeTo) lhs=e@9:63 rhs=e@9:66 type=kotlin.ranges.IntRange call=kotlin.ranges.rangeTo[kind=fun;recv=Int;params=Int;ret=kotlin.ranges.IntRange;names=[to]]
 expr e@9:38#2 memberCall recv=e@9:38 callee=slice args=[_:e@9:63#1] type=kotlin.collections.List<Int> call=kotlin.collections.slice[kind=fun;recv=kotlin.collections.List<T0>;params=kotlin.ranges.IntRange;ret=kotlin.collections.List<T0>;gen=1;names=[indices]]
-expr e@11:45 call callee=e@11:45#1 args=[] type=kotlin.collections.List<Int> call=kotlin.collections.listOf[kind=fun;params=;ret=kotlin.collections.List<T0>;gen=1] targs=[Int]
+expr e@11:45 call callee=e@11:45#1 args=[] type=kotlin.collections.List<out Int> call=kotlin.collections.listOf[kind=fun;params=;ret=kotlin.collections.List<T0>;gen=1] targs=[Int]

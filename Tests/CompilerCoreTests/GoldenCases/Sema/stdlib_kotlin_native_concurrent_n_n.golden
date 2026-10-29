@@ -135,3 +135,4 @@ expr e@44:41 bool(true) type=Boolean
 expr e@44:49 int(42) type=Int
 expr e@44:47 lambda params=[] body=e@44:49 label=withWorker type=kotlin.native.concurrent.Worker.() -> Int
 expr e@44:24 call callee=e@44:24#1 args=[_:e@44:35,_:e@44:41,_:e@44:47] type=Int call=kotlin.native.concurrent.withWorker[kind=fun;params=String?,Boolean,fn{r=kotlin.native.concurrent.Worker;p=;ret=T0};ret=T0;gen=1;defaults=[1,1,0];names=[name,errorReporting,block]] targs=[Int]
+diagnostic severity=error code=KSWIFTK-SEMA-ANNOTATION-NOT-REPEATABLE at=3:7 msg=This annotation is not repeatable.

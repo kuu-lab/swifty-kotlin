@@ -1,4 +1,4 @@
 symbol fq=golden.sema.useExperimentalAtomicApi[kind=fun;params=;ret=Unit;origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
 file fstdlib_kotlin_concurrent_atomics_ExperimentalAtomicApi_n_n package=golden.sema annotations=[@file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)]
   decl golden.sema.useExperimentalAtomicApi[kind=fun;params=;ret=Unit;origin=fixture] fun useExperimentalAtomicApi sym=golden.sema.useExperimentalAtomicApi[kind=fun;params=;ret=Unit;origin=fixture]
-expr e@5:2 memberCall recv=e@5:2#1 callee=ExperimentalAtomicApi args=[] type=kotlin.concurrent.atomics.ExperimentalAtomicApi call=kotlin.concurrent.atomics.ExperimentalAtomicApi.<init>[kind=ctor;recv=kotlin.concurrent.atomics.ExperimentalAtomicApi;params=;ret=kotlin.concurrent.atomics.ExperimentalAtomicApi]
+expr e@5:2 call callee=e@5:2#1 args=[] type=kotlin.concurrent.atomics.ExperimentalAtomicApi call=kotlin.concurrent.atomics.ExperimentalAtomicApi.<init>[kind=ctor;recv=kotlin.concurrent.atomics.ExperimentalAtomicApi;params=;ret=kotlin.concurrent.atomics.ExperimentalAtomicApi]

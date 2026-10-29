@@ -1,31 +1,6 @@
 {
   "version": 1,
   "diagnostics": [
-    {
-      "file": "error_unresolved_member_call_argument_cascade.kt",
-      "range": {
-        "start": { "line": 1, "character": 12 },
-        "end": { "line": 1, "character": 37 }
-      },
-      "severity": 1,
-      "severityLabel": "error",
-      "code": "KSWIFTK-SEMA-0024",
-      "source": "kswiftk",
-      "message": "Unresolved member function 'isNotEmpty'.",
-      "codeActions": []
-    },
-    {
-      "file": "error_unresolved_member_call_argument_cascade.kt",
-      "range": {
-        "start": { "line": 2, "character": 12 },
-        "end": { "line": 2, "character": 34 }
-      },
-      "severity": 1,
-      "severityLabel": "error",
-      "code": "KSWIFTK-SEMA-0024",
-      "source": "kswiftk",
-      "message": "Unresolved member function 'stackTrace'.",
-      "codeActions": []
-    }
+    
   ]
 }

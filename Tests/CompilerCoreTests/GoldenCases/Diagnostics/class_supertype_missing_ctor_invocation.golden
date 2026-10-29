@@ -91,6 +91,19 @@
       "source": "kswiftk",
       "message": "this type has a constructor, so it must be initialized here.",
       "codeActions": []
+    },
+    {
+      "file": "class_supertype_missing_ctor_invocation.kt",
+      "range": {
+        "start": { "line": 40, "character": 0 },
+        "end": { "line": 40, "character": 29 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-0438",
+      "source": "kswiftk",
+      "message": "an interface cannot extend a class.",
+      "codeActions": []
     }
   ]
 }

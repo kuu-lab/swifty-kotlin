@@ -13,7 +13,7 @@ expr e@6:30 string(Hello) type=String
 expr e@6:30#1 memberCall recv=e@6:30 callee=uppercase args=[] type=String call=kotlin.text.uppercase[kind=fun;recv=String;params=;ret=String]
 expr e@8:28 string(abc) type=String
 expr e@8:41 string(abc) type=String
-expr e@8:28#1 memberCall recv=e@8:28 callee=equals args=[_:e@8:41] type=Boolean call=kotlin.text.equals[kind=fun;recv=String;params=String?;ret=Boolean;names=[other]]
+expr e@8:28#1 memberCall recv=e@8:28 callee=equals args=[_:e@8:41] type=Boolean call=kotlin.Any.equals[kind=fun;recv=kotlin.Any;params=Any?;ret=Boolean;names=[p0]]
 expr e@10:38 string(abc) type=String
 expr e@10:51 string(ABC) type=String
 expr e@10:71 bool(true) type=Boolean
