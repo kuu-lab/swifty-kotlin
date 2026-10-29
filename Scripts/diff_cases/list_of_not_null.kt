@@ -3,4 +3,6 @@ fun main() {
     println(listOfNotNull<Int>(null, null))
     println(listOfNotNull("a", null, "b"))
     println(listOfNotNull<String>())
+    println(listOfNotNull(9))
+    println(listOfNotNull<Int>(null))
 }
