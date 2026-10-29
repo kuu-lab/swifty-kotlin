@@ -36,16 +36,26 @@ extension LambdaLowerer {
         interner: StringInterner,
         instructions: inout [KIRInstruction]
     ) -> KIRExprID {
+        let returnedValue: KIRExprID
+        if returnType == sema.types.unitType {
+            // The body still runs for its side effects, but a Unit callback
+            // returns Unit even when its last expression produced a value.
+            let unit = arena.appendExpr(.unit, type: sema.types.unitType)
+            instructions.append(.constValue(result: unit, value: .unit))
+            returnedValue = unit
+        } else {
+            returnedValue = value
+        }
         guard returnsErasedGeneric else {
-            return value
+            return returnedValue
         }
         // Prefer the lowered expression's concrete type over the contextual
         // function return type. Generic inference may record that return type
         // as `Any`, while a value-class expression such as `{ it }` still needs
         // its nominal class tag when it crosses the erased boundary.
-        let sourceType = arena.exprType(value) ?? returnType
+        let sourceType = arena.exprType(returnedValue) ?? returnType
         return boxValueForAnySlot(
-            value,
+            returnedValue,
             sourceType: sourceType,
             types: sema.types,
             symbols: sema.symbols,
