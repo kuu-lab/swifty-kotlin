@@ -49,5 +49,29 @@ struct ReifiedKClassCaptureTests {
         }
         #expect(arguments.first == capturedToken)
     }
+
+    @Test
+    func standaloneClassLiteralUsesTokenRestoredFromLambdaCapture() throws {
+        let ctx = makeContextFromSource("""
+        private class OK2
+        private inline fun invoke(block: () -> String): String = block()
+        private inline fun <reified T : Any> name(): String =
+            invoke { T::class.simpleName!! }
+        fun main() { println(name<OK2>()) }
+        """)
+        try runToKIR(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+        let module = try #require(ctx.kir)
+        let lambda = try #require(findAllKIRFunctions(in: module).first { function in
+            let calls = kirCalls(in: function.body)
+            return calls.contains { ctx.interner.resolve($0.callee) == "__kk_pair_first" }
+                && calls.contains { $0.callee == KIRRuntimeFunction.kClassCreate.name(in: ctx.interner) }
+        })
+        let calls = kirCalls(in: lambda.body)
+        let restore = try #require(calls.first { ctx.interner.resolve($0.callee) == "__kk_pair_first" })
+        let create = try #require(calls.first { $0.callee == KIRRuntimeFunction.kClassCreate.name(in: ctx.interner) })
+        let capturedToken = try #require(restore.result)
+        #expect(create.arguments.first == capturedToken)
+    }
 }
 #endif

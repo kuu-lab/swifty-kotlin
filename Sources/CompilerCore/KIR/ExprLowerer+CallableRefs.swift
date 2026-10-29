@@ -37,8 +37,12 @@ extension ExprLowerer {
             if boundReceiver == nil,
                case let .typeParam(typeParam) = sema.types.kind(of: classRefTargetType) {
                 let tokenSymbol = SyntheticSymbolScheme.reifiedTypeTokenSymbol(for: typeParam.symbol)
-                tokenExpr = arena.appendExpr(.symbolRef(tokenSymbol), type: intType)
-                instructions.append(.constValue(result: tokenExpr, value: .symbolRef(tokenSymbol)))
+                if let capturedToken = driver.ctx.localValue(for: tokenSymbol) {
+                    tokenExpr = capturedToken
+                } else {
+                    tokenExpr = arena.appendExpr(.symbolRef(tokenSymbol), type: intType)
+                    instructions.append(.constValue(result: tokenExpr, value: .symbolRef(tokenSymbol)))
+                }
             } else {
                 let encoded = RuntimeTypeCheckToken.encode(type: classRefTargetType, sema: sema, interner: interner)
                 tokenExpr = arena.appendExpr(.intLiteral(encoded), type: intType)
