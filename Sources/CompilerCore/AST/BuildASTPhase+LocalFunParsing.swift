@@ -204,6 +204,9 @@ extension BuildASTPhase {
         let receiverType = declarationReceiverType(from: funTokens, interner: interner, astArena: astArena)
 
         var valueParams: [ValueParamDecl] = []
+        let parameterSite: ValueParameterSite = .function(
+            inline: leadingModifiers.contains { $0.name == "inline" }
+        )
         var depth = BracketDepth()
         var paramTokens: [Token] = []
         var index = lParenIndex + 1
@@ -215,7 +218,7 @@ extension BuildASTPhase {
             depth.track(token.kind)
             if token.kind == .symbol(.comma), depth.isAtTopLevel {
                 appendValueParameter(from: paramTokens, into: &valueParams, interner: interner, astArena: astArena,
-                                     allowsImplicitParameterTypes: isAnonymousFunction)
+                                     allowsImplicitParameterTypes: isAnonymousFunction, site: parameterSite)
                 paramTokens.removeAll(keepingCapacity: true)
             } else {
                 paramTokens.append(token)
@@ -224,17 +227,11 @@ extension BuildASTPhase {
         }
         if !paramTokens.isEmpty {
             appendValueParameter(from: paramTokens, into: &valueParams, interner: interner, astArena: astArena,
-                                 allowsImplicitParameterTypes: isAnonymousFunction)
+                                 allowsImplicitParameterTypes: isAnonymousFunction, site: parameterSite)
         }
         DeclarationPositionValidator.validateMultipleVarargParameters(
             valueParams,
             fallbackRange: head.range,
-            diagnostics: diagnostics
-        )
-
-        DeclarationPositionValidator.validateFunctionValueParameters(
-            valueParams,
-            range: head.range,
             diagnostics: diagnostics
         )
 

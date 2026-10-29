@@ -54,7 +54,8 @@ extension BuildASTPhase {
                     || (index + 1 < tokens.count && tokens[index + 1].kind == .symbol(.dot))
                 if !isQualifiedNameSegment {
                     // kotlinc reports every repeated modifier occurrence.
-                    if diagnoseRepeats, !modifiers.insert(modifier).inserted,
+                    let inserted = modifiers.insert(modifier).inserted
+                    if diagnoseRepeats, !inserted,
                        case let .keyword(keyword) = token.kind
                     {
                         diagnostics?.error(

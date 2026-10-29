@@ -1231,6 +1231,18 @@ enum DiagnosticRegistry {
             defaultSeverity: .error,
             summary: "Modifier is repeated."
         ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0449",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "Modifier is only allowed for function parameters of an inline function."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0450",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "Primary constructor properties cannot be abstract."
+        ),
     ]
 
 

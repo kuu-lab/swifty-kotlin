@@ -1039,6 +1039,81 @@ struct DeclarationPositionValidationTests {
         assertNoDiagnostic("KSWIFTK-SEMA-0400", in: ctx)
     }
 
+    @Test(arguments: [
+        "private", "data", "enum", "companion", "abstract", "expect",
+        "operator", "infix", "suspend", "external", "const", "lateinit",
+    ])
+    func modifierOnFunctionValueParameterIsRejected(_ modifier: String) throws {
+        let ctx = try semaContextWithoutStdlib(for: "fun f(\(modifier) x: Int) = x")
+
+        let diagnostics = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0400" }
+        #expect(diagnostics.map(\.message) == [
+            "modifier '\(modifier)' is not applicable to 'value parameter'."
+        ])
+    }
+
+    @Test(arguments: [
+        "data", "sealed", "enum", "companion", "inner", "expect",
+        "operator", "infix", "suspend", "inline", "annotation", "value", "tailrec",
+    ])
+    func parameterLevelModifierOnConstructorPropertyIsRejected(_ modifier: String) throws {
+        let ctx = try semaContextWithoutStdlib(for: "class C(\(modifier) val x: Int)")
+
+        let diagnostics = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0400" }
+        #expect(diagnostics.map(\.message) == [
+            "modifier '\(modifier)' is not applicable to 'value parameter'."
+        ])
+    }
+
+    @Test(arguments: [
+        "open", "final", "override", "actual", "external",
+        "private", "internal", "protected", "lateinit", "const", "vararg",
+    ])
+    func propertyLevelModifierOnConstructorPropertyIsAccepted(_ modifier: String) throws {
+        let ctx = try semaContextWithoutStdlib(for: "class C(\(modifier) val x: Int)")
+
+        assertNoDiagnostic("KSWIFTK-SEMA-0400", in: ctx)
+    }
+
+    @Test func abstractConstructorPropertyIsRejected() throws {
+        let ctx = try semaContextWithoutStdlib(for: "class C(abstract val x: Int)")
+
+        let diagnostics = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0450" }
+        #expect(diagnostics.map(\.message) == [
+            "property in primary constructor cannot be declared as abstract."
+        ])
+    }
+
+    @Test func noinlineAndCrossinlineRequireInlineFunction() throws {
+        let plain = try semaContextWithoutStdlib(for: """
+            fun f(noinline x: () -> Unit) {}
+            fun g(crossinline y: () -> Unit) {}
+            class C(noinline val z: () -> Unit)
+            """)
+        let diagnostics = plain.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0449" }
+        #expect(diagnostics.count == 3)
+
+        let inline = try semaContextWithoutStdlib(for: """
+            inline fun f(noinline x: () -> Unit) {}
+            inline fun g(crossinline y: () -> Unit) {}
+            """)
+        assertNoDiagnostic("KSWIFTK-SEMA-0449", in: inline)
+    }
+
+    @Test func valVarOnSecondaryConstructorParameterIsRejected() throws {
+        let ctx = try semaContextWithoutStdlib(for: """
+            class C {
+                constructor(val x: Int)
+                constructor(var y: Int, z: Int)
+            }
+            """)
+        let diagnostics = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0444" }
+        #expect(diagnostics.map(\.message) == [
+            "'val' on secondary constructor parameter is prohibited.",
+            "'var' on secondary constructor parameter is prohibited.",
+        ])
+    }
+
     // MARK: - Modifier incompatibilities
 
     @Test func conflictingTopLevelFunctionVisibilityModifiersAreRejected() throws {
