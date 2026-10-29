@@ -15,6 +15,21 @@ struct OpenFinalOverrideContext {
     let diagnostics: DiagnosticEngine
     let interner: StringInterner
     let compilationModuleFQN: InternedString
+    /// Reverse of `bindings.declSymbols`, used to tell whether an inherited
+    /// member's type came from inference (its declaration carries no
+    /// annotation) or was spelled explicitly.
+    let declBySymbol: [SymbolID: DeclID]
+}
+
+/// Selects which inherited members participate in an override type check.
+/// Checks that ran during the header pass must skip parents whose type was
+/// still an inference placeholder (`.explicitOnly`); the deferred pass then
+/// re-checks exactly those pairs (`.inferredOnly`) once the inferred parent
+/// types are published.
+private enum OFOParentTypeFilter {
+    case all
+    case explicitOnly
+    case inferredOnly
 }
 
 extension DataFlowSemaPhase {
@@ -34,7 +49,11 @@ extension DataFlowSemaPhase {
             types: types,
             diagnostics: diagnostics,
             interner: interner,
-            compilationModuleFQN: interner.intern(compilationModuleName)
+            compilationModuleFQN: interner.intern(compilationModuleName),
+            declBySymbol: Dictionary(
+                bindings.declSymbols.map { ($0.value, $0.key) },
+                uniquingKeysWith: { first, _ in first }
+            )
         )
         for file in ast.sortedFiles {
             for declID in file.topLevelDecls {
@@ -62,7 +81,11 @@ extension DataFlowSemaPhase {
             types: types,
             diagnostics: diagnostics,
             interner: interner,
-            compilationModuleFQN: interner.intern(compilationModuleName)
+            compilationModuleFQN: interner.intern(compilationModuleName),
+            declBySymbol: Dictionary(
+                bindings.declSymbols.map { ($0.value, $0.key) },
+                uniquingKeysWith: { first, _ in first }
+            )
         )
 
         for file in ast.sortedFiles {
@@ -101,6 +124,7 @@ extension DataFlowSemaPhase {
             for entry in classDecl.enumEntries {
                 for memberDeclID in entry.memberFunctions {
                     validateInferredOverrideReturnType(of: memberDeclID, ctx: ctx)
+                    validateExplicitOverrideReturnTypeAgainstInferredParent(of: memberDeclID, ctx: ctx)
                 }
                 for nestedDeclID in entry.nestedClasses {
                     validateInferredOverrideReturnTypes(in: nestedDeclID, ctx: ctx)
@@ -119,6 +143,7 @@ extension DataFlowSemaPhase {
 
         for memberDeclID in memberFunctions {
             validateInferredOverrideReturnType(of: memberDeclID, ctx: ctx)
+            validateExplicitOverrideReturnTypeAgainstInferredParent(of: memberDeclID, ctx: ctx)
         }
         for nestedDeclID in nestedDeclarations {
             validateInferredOverrideReturnTypes(in: nestedDeclID, ctx: ctx)
@@ -129,18 +154,50 @@ extension DataFlowSemaPhase {
         of declID: DeclID,
         ctx: OpenFinalOverrideContext
     ) {
+        validateDeferredOverrideReturnType(
+            of: declID,
+            requireInferredReturn: true,
+            parentFilter: .all,
+            ctx: ctx
+        )
+    }
+
+    /// `override fun f(): T` members checked at header time compared against
+    /// the parent's placeholder when the parent return type was inferred.
+    /// Re-check those pairs now that inference has published the real type.
+    private func validateExplicitOverrideReturnTypeAgainstInferredParent(
+        of declID: DeclID,
+        ctx: OpenFinalOverrideContext
+    ) {
+        validateDeferredOverrideReturnType(
+            of: declID,
+            requireInferredReturn: false,
+            parentFilter: .inferredOnly,
+            ctx: ctx
+        )
+    }
+
+    private func validateDeferredOverrideReturnType(
+        of declID: DeclID,
+        requireInferredReturn: Bool,
+        parentFilter: OFOParentTypeFilter,
+        ctx: OpenFinalOverrideContext
+    ) {
         guard case let .funDecl(function)? = ctx.ast.arena.decl(declID),
-              function.returnType == nil,
-              case let .expr(bodyExprID, _) = function.body,
+              (function.returnType == nil) == requireInferredReturn,
               function.modifiers.contains(.override),
-              let bodyType = ctx.bindings.exprType(for: bodyExprID),
-              bodyType != ctx.types.errorType,
               let memberSymbol = ctx.bindings.declSymbols[declID],
               let member = ctx.symbols.symbol(memberSymbol),
               let ownerSymbol = ctx.symbols.parentSymbol(for: memberSymbol),
               let signature = ctx.symbols.functionSignature(for: memberSymbol)
         else {
             return
+        }
+        if requireInferredReturn {
+            guard case let .expr(bodyExprID, _) = function.body,
+                  let bodyType = ctx.bindings.exprType(for: bodyExprID),
+                  bodyType != ctx.types.errorType
+            else { return }
         }
 
         let parent: OFOInheritedMember?
@@ -182,6 +239,7 @@ extension DataFlowSemaPhase {
             memberName: function.name,
             memberRange: function.range,
             ownerSymbol: ownerSymbol,
+            parentFilter: parentFilter,
             ctx: ctx
         )
     }
@@ -207,7 +265,11 @@ extension DataFlowSemaPhase {
             types: types,
             diagnostics: diagnostics,
             interner: interner,
-            compilationModuleFQN: interner.intern(compilationModuleName)
+            compilationModuleFQN: interner.intern(compilationModuleName),
+            declBySymbol: Dictionary(
+                bindings.declSymbols.map { ($0.value, $0.key) },
+                uniquingKeysWith: { first, _ in first }
+            )
         )
 
         var visited = Set<DeclID>()
@@ -251,6 +313,7 @@ extension DataFlowSemaPhase {
             for entry in classDecl.enumEntries {
                 for memberDeclID in entry.memberProperties {
                     validateInferredPropertyTypeOverride(of: memberDeclID, ctx: ctx)
+                    validateExplicitPropertyTypeOverrideAgainstInferredParent(of: memberDeclID, ctx: ctx)
                 }
                 for nestedDeclID in entry.nestedClasses {
                     validateInferredPropertyTypeOverrides(in: nestedDeclID, ctx: ctx, visited: &visited)
@@ -269,10 +332,56 @@ extension DataFlowSemaPhase {
 
         for memberDeclID in memberProperties {
             validateInferredPropertyTypeOverride(of: memberDeclID, ctx: ctx)
+            validateExplicitPropertyTypeOverrideAgainstInferredParent(of: memberDeclID, ctx: ctx)
         }
         for nestedDeclID in nestedDeclarations {
             validateInferredPropertyTypeOverrides(in: nestedDeclID, ctx: ctx, visited: &visited)
         }
+    }
+
+    /// `override var x: T` members checked at header time compared against
+    /// the parent's placeholder when the parent property type was inferred.
+    /// Re-check those pairs now that inference has published the real type —
+    /// both for the missed rejection and for the resolved parent name in the
+    /// diagnostic.
+    private func validateExplicitPropertyTypeOverrideAgainstInferredParent(
+        of declID: DeclID,
+        ctx: OpenFinalOverrideContext
+    ) {
+        guard case let .propertyDecl(prop)? = ctx.ast.arena.decl(declID),
+              prop.type != nil,
+              prop.modifiers.contains(.override),
+              let memberSymbol = ctx.bindings.declSymbols[declID],
+              let memberSym = ctx.symbols.symbol(memberSymbol),
+              memberSym.kind == .property,
+              let ownerSymbol = ctx.symbols.parentSymbol(for: memberSymbol),
+              let childType = ctx.symbols.propertyType(for: memberSymbol),
+              childType != ctx.types.errorType,
+              !typeContainsAnyTypeParam(childType, types: ctx.types)
+        else { return }
+
+        // The header pass already reported when an explicit parent fails —
+        // only report failures that are new against inferred parents.
+        if firstPropertyTypeMismatch(
+            memberName: prop.name,
+            childType: childType,
+            childIsVar: memberSym.flags.contains(.mutable),
+            ownerSymbol: ownerSymbol,
+            parentFilter: .explicitOnly,
+            ctx: ctx
+        ) != nil {
+            return
+        }
+
+        checkPropertyTypeAgainstInherited(
+            memberName: prop.name,
+            memberRange: prop.range,
+            childType: childType,
+            childIsVar: memberSym.flags.contains(.mutable),
+            ownerSymbol: ownerSymbol,
+            parentFilter: .inferredOnly,
+            ctx: ctx
+        )
     }
 
     private func validateInferredPropertyTypeOverride(
@@ -299,6 +408,7 @@ extension DataFlowSemaPhase {
             childType: childType,
             childIsVar: memberSym.flags.contains(.mutable),
             ownerSymbol: ownerSymbol,
+            parentFilter: .all,
             ctx: ctx
         )
     }
@@ -1235,6 +1345,7 @@ extension DataFlowSemaPhase {
                     memberName: memberName,
                     memberRange: memberRange,
                     ownerSymbol: ownerSymbol,
+                    parentFilter: .explicitOnly,
                     ctx: ctx
                 )
             }
@@ -1422,7 +1533,9 @@ extension DataFlowSemaPhase {
     /// which would false-positive against any concrete parent type. Such
     /// inferred-type overrides are skipped here and re-validated by
     /// `validateInferredPropertyTypeOverrides` once type checking has
-    /// published the inferred property type.
+    /// published the inferred property type. The same deferral applies when
+    /// the *parent* type is inferred (`parentFilter: .explicitOnly` below) —
+    /// the header check would compare against the parent's placeholder.
     private func validatePropertyTypeOverride(
         memberDecl: Decl,
         ownerSymbol: SymbolID,
@@ -1443,24 +1556,61 @@ extension DataFlowSemaPhase {
             childType: childType,
             childIsVar: memberSym.flags.contains(.mutable),
             ownerSymbol: ownerSymbol,
+            parentFilter: .explicitOnly,
             ctx: ctx
         )
     }
 
-    private func checkPropertyTypeAgainstInherited(
+    /// Whether the member's declared type comes from inference — its
+    /// declaration has no type annotation, so header-time checks saw only a
+    /// placeholder. Members without a declaration in this compilation
+    /// (imported, synthetic) always have a concrete type.
+    private func declHasInferredType(_ memberID: SymbolID, ctx: OpenFinalOverrideContext) -> Bool {
+        guard let declID = ctx.declBySymbol[memberID],
+              let decl = ctx.ast.arena.decl(declID)
+        else { return false }
+        switch decl {
+        case let .propertyDecl(prop):
+            return prop.type == nil
+        case let .funDecl(function):
+            return function.returnType == nil
+        default:
+            return false
+        }
+    }
+
+    private func parentIncluded(
+        _ memberID: SymbolID,
+        by filter: OFOParentTypeFilter,
+        ctx: OpenFinalOverrideContext
+    ) -> Bool {
+        switch filter {
+        case .all:
+            return true
+        case .explicitOnly:
+            return !declHasInferredType(memberID, ctx: ctx)
+        case .inferredOnly:
+            return declHasInferredType(memberID, ctx: ctx)
+        }
+    }
+
+    /// First inherited property whose type the override fails against, or
+    /// `nil` when the override is valid against every selected parent.
+    private func firstPropertyTypeMismatch(
         memberName: InternedString,
-        memberRange: SourceRange,
         childType: TypeID,
         childIsVar: Bool,
         ownerSymbol: SymbolID,
+        parentFilter: OFOParentTypeFilter,
         ctx: OpenFinalOverrideContext
-    ) {
+    ) -> OFOInheritedMember? {
         for parent in findAllInheritedMembers(
             named: memberName,
             for: ownerSymbol,
             symbols: ctx.symbols
         ) {
-            guard let parentSym = ctx.symbols.symbol(parent.memberID),
+            guard parentIncluded(parent.memberID, by: parentFilter, ctx: ctx),
+                  let parentSym = ctx.symbols.symbol(parent.memberID),
                   parentSym.kind == .property,
                   let parentType = ctx.symbols.propertyType(for: parent.memberID),
                   !typeContainsAnyTypeParam(parentType, types: ctx.types)
@@ -1475,17 +1625,40 @@ extension DataFlowSemaPhase {
                 || ctx.types.isSubtype(parentType, childType)
             if getterCovariant && invariant { continue }
 
-            let name = ctx.interner.resolve(memberName)
-            let ownerName = ctx.interner.resolve(parent.ownerName)
-            let parentTypeStr = ctx.types.renderType(parentType)
-            let childTypeStr = ctx.types.renderType(childType)
-            ctx.diagnostics.error(
-                "KSWIFTK-SEMA-OVERRIDE-TYPE",
-                "Type of '\(name)' doesn't match the type of the overridden property '\(parentTypeStr)' defined in '\(ownerName)' (found '\(childTypeStr)').",
-                range: memberRange
-            )
+            return parent
+        }
+        return nil
+    }
+
+    private func checkPropertyTypeAgainstInherited(
+        memberName: InternedString,
+        memberRange: SourceRange,
+        childType: TypeID,
+        childIsVar: Bool,
+        ownerSymbol: SymbolID,
+        parentFilter: OFOParentTypeFilter,
+        ctx: OpenFinalOverrideContext
+    ) {
+        guard let parent = firstPropertyTypeMismatch(
+            memberName: memberName,
+            childType: childType,
+            childIsVar: childIsVar,
+            ownerSymbol: ownerSymbol,
+            parentFilter: parentFilter,
+            ctx: ctx
+        ), let parentType = ctx.symbols.propertyType(for: parent.memberID) else {
             return
         }
+
+        let name = ctx.interner.resolve(memberName)
+        let ownerName = ctx.interner.resolve(parent.ownerName)
+        let parentTypeStr = ctx.types.renderType(parentType)
+        let childTypeStr = ctx.types.renderType(childType)
+        ctx.diagnostics.error(
+            "KSWIFTK-SEMA-OVERRIDE-TYPE",
+            "Type of '\(name)' doesn't match the type of the overridden property '\(parentTypeStr)' defined in '\(ownerName)' (found '\(childTypeStr)').",
+            range: memberRange
+        )
     }
 
     private func validateReturnTypeCovariance(
@@ -1494,9 +1667,12 @@ extension DataFlowSemaPhase {
         memberName: InternedString,
         memberRange: SourceRange,
         ownerSymbol: SymbolID,
+        parentFilter: OFOParentTypeFilter,
         ctx: OpenFinalOverrideContext
     ) {
-        guard let parentSignature = ctx.symbols.functionSignature(for: parentSymbol.id) else {
+        guard parentIncluded(parentSymbol.id, by: parentFilter, ctx: ctx),
+              let parentSignature = ctx.symbols.functionSignature(for: parentSymbol.id)
+        else {
             return
         }
         let parentReturnType = parentSignature.returnType

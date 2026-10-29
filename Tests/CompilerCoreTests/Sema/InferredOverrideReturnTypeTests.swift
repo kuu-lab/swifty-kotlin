@@ -43,5 +43,33 @@ struct InferredOverrideReturnTypeTests {
         #expect(diagnostics.isEmpty, "Got: \(ctx.diagnostics.diagnostics)")
         #expect(!ctx.diagnostics.hasError, "Got: \(ctx.diagnostics.diagnostics)")
     }
+
+    @Test
+    func rejectsExplicitReturnOverInferredParentReturn() throws {
+        // The header check compares `String` against the parent's `anyType`
+        // placeholder and passes silently; the deferred pass must re-check
+        // once the inferred `Int` is published.
+        let ctx = makeContextFromSource("""
+        open class A { open fun f() = 5 }
+        class B : A() { override fun f(): String = "s" }
+        """)
+        try runSema(ctx)
+
+        let diagnostics = ctx.diagnostics.diagnostics.filter {
+            $0.severity == .error && $0.code == "KSWIFTK-SEMA-OVERRIDE-RETURN"
+        }
+        #expect(diagnostics.count == 1, "Got: \(ctx.diagnostics.diagnostics)")
+    }
+
+    @Test
+    func acceptsMatchingExplicitReturnOverInferredParentReturn() throws {
+        let ctx = makeContextFromSource("""
+        open class A { open fun f() = "x" }
+        class B : A() { override fun f(): String = "y" }
+        """)
+        try runSema(ctx)
+
+        #expect(!ctx.diagnostics.hasError, "Got: \(ctx.diagnostics.diagnostics)")
+    }
 }
 #endif

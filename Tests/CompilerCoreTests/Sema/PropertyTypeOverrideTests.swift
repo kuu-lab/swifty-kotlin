@@ -204,5 +204,49 @@ struct PropertyTypeOverrideTests {
         """)
         assertNoDiagnostic("KSWIFTK-SEMA-OVERRIDE-TYPE", in: diagnostics)
     }
+
+    @Test
+    func rejectsExplicitVarWideningOverInferredParent() throws {
+        // Header-time comparison saw the parent's `Any?` placeholder and
+        // passed; the deferred pass must re-check against the inferred `Int`.
+        let diagnostics = try diagnosticsFor("""
+        open class A { open var x = 5 }
+        class B : A() { override var x: Any? = null }
+        """)
+        assertHasDiagnostic("KSWIFTK-SEMA-OVERRIDE-TYPE", in: diagnostics)
+    }
+
+    @Test
+    func rejectsExplicitValMismatchOverInferredParent() throws {
+        let diagnostics = try diagnosticsFor("""
+        open class A { open val s = "x" }
+        class B : A() { override val s: Int = 0 }
+        """)
+        assertHasDiagnostic("KSWIFTK-SEMA-OVERRIDE-TYPE", in: diagnostics)
+    }
+
+    @Test
+    func emitsSingleDiagnosticWhenExplicitAndInferredParentsBothFail() throws {
+        // `v` fails against both `I2.v` (explicit `String`) and `A2.v`
+        // (inferred `String`); kotlinc reports the mismatch once.
+        let diagnostics = try diagnosticsFor("""
+        interface I2 { val v: String }
+        open class A2 { open val v = "s" }
+        class C2 : A2(), I2 { override val v: Int = 0 }
+        """)
+        let mismatches = diagnostics.filter {
+            $0.severity == .error && $0.code == "KSWIFTK-SEMA-OVERRIDE-TYPE"
+        }
+        #expect(mismatches.count == 1, "Got: \(diagnostics)")
+    }
+
+    @Test
+    func acceptsMatchingExplicitVarOverInferredParent() throws {
+        let diagnostics = try diagnosticsFor("""
+        open class A { open var z = 5 }
+        class B : A() { override var z: Int = 0 }
+        """)
+        assertNoDiagnostic("KSWIFTK-SEMA-OVERRIDE-TYPE", in: diagnostics)
+    }
 }
 #endif
