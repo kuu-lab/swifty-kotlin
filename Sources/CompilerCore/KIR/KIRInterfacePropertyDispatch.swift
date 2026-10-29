@@ -16,6 +16,25 @@ struct KIRInterfacePropertyGetterSlot {
     let slot: Int
 }
 
+func kirEnumEntryDispatchHelper(
+    for accessorSymbol: SymbolID,
+    in enumSymbol: SymbolID,
+    sema: SemaModule,
+    interner: StringInterner
+) -> SymbolID? {
+    guard sema.symbols.symbol(enumSymbol)?.kind == .enumClass,
+          let enumInfo = sema.symbols.symbol(enumSymbol)
+    else {
+        return nil
+    }
+    let helperName = NameMangler.enumEntryDispatchHelperName(for: accessorSymbol, interner: interner)
+    return sema.symbols.lookupAll(fqName: enumInfo.fqName + [helperName]).first { candidate in
+        sema.symbols.symbol(candidate)?.kind == .function
+            && sema.symbols.parentSymbol(for: candidate) == enumSymbol
+            && sema.symbols.enumEntryDispatchBaseSymbol(for: candidate) == accessorSymbol
+    }
+}
+
 /// A stored property declared on an open superclass may implement an
 /// interface property only in a descendant. Materialize its ordinary
 /// accessor so the descendant's itable bridge has a real function to call.
@@ -515,14 +534,20 @@ func appendObjectItablePropertyGetterRegistrations<C: RangeReplaceableCollection
         instructions.append(.constValue(result: ifaceSlotExpr, value: .intLiteral(ifaceSlot)))
 
         for getterSlot in getterSlots {
-            let implGetter: SymbolID? = if let propertySymbol = getterSlot.propertySymbol {
-                kirFindOverridePropertyGetter(
-                    for: propertySymbol,
+            let implGetter: SymbolID?
+            if let propertySymbol = getterSlot.propertySymbol {
+                let interfaceGetter = sema.symbols.extensionPropertyGetterAccessor(for: propertySymbol)
+                    ?? SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: propertySymbol)
+                implGetter = kirEnumEntryDispatchHelper(
+                    for: interfaceGetter,
                     in: nominalSymbol,
-                    sema: sema
+                    sema: sema,
+                    interner: interner
+                ) ?? kirFindOverridePropertyGetter(
+                    for: propertySymbol, in: nominalSymbol, sema: sema
                 )
             } else {
-                kirFindOverridePropertyGetter(
+                implGetter = kirFindOverridePropertyGetter(
                     named: getterSlot.propertyName,
                     in: nominalSymbol,
                     sema: sema
@@ -556,6 +581,7 @@ func appendObjectItablePropertyGetterRegistrations<C: RangeReplaceableCollection
                     ?? sema.symbols.functionSignature(for: implGetter)?.returnType
                 if let implementationReturn {
                     let implementationReceiver = implementationFn?.params.first?.type
+                        ?? sema.symbols.functionSignature(for: implGetter)?.receiverType
                         ?? sema.types.make(.classType(ClassType(
                             classSymbol: nominalSymbol, args: [], nullability: .nonNull
                         )))
@@ -688,10 +714,15 @@ func appendObjectItablePropertySetterRegistrations<C: RangeReplaceableCollection
         instructions.append(.constValue(result: ifaceSlotExpr, value: .intLiteral(ifaceSlot)))
 
         for setterSlot in setterSlots {
-            guard let implSetter = kirFindOverridePropertySetter(
-                for: setterSlot.propertySymbol,
+            let interfaceSetter = sema.symbols.extensionPropertySetterAccessor(for: setterSlot.propertySymbol)
+                ?? SyntheticSymbolScheme.propertySetterAccessorSymbol(for: setterSlot.propertySymbol)
+            guard let implSetter = kirEnumEntryDispatchHelper(
+                for: interfaceSetter,
                 in: nominalSymbol,
-                sema: sema
+                sema: sema,
+                interner: interner
+            ) ?? kirFindOverridePropertySetter(
+                for: setterSlot.propertySymbol, in: nominalSymbol, sema: sema
             ) else {
                 continue
             }
@@ -711,6 +742,7 @@ func appendObjectItablePropertySetterRegistrations<C: RangeReplaceableCollection
                     sema.symbols.parentSymbol(for: $0)
                 }
                 let implementationReceiver = implementationFn?.params.first?.type
+                    ?? sema.symbols.functionSignature(for: implSetter)?.receiverType
                     ?? implementationOwner.flatMap { owner in
                         sema.symbols.symbol(owner).map {
                             sema.types.make(.classType(ClassType(
@@ -719,6 +751,7 @@ func appendObjectItablePropertySetterRegistrations<C: RangeReplaceableCollection
                         }
                     }
                 let implementationParameter = implementationFn?.params.last?.type
+                    ?? sema.symbols.functionSignature(for: implSetter)?.parameterTypes.last
                     ?? implementationProperty.flatMap { sema.symbols.propertyType(for: $0) }
                 if let implementationReceiver, let implementationParameter {
                     let implementationSignature = sema.symbols.functionSignature(for: implSetter)

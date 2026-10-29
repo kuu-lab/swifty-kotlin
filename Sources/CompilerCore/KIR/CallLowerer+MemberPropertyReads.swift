@@ -646,6 +646,21 @@ extension CallLowerer {
         propertyConstantInitializers: [SymbolID: KIRExprKind],
         instructions: inout [KIRInstruction]
     ) -> KIRExprID? {
+        // KUU-3670: a property whose declared type erases to a non-reified
+        // type parameter crosses the read boundary in its raw erased
+        // representation (a heap handle), not the claim site's substituted
+        // representation. Materializing `val s: T` directly into a `String`
+        // result would reinterpret a foreign object before the boundary
+        // checkcast emitted by `checkedErasedGenericCallResult` can reject
+        // it, so the read produces the erased slot type and the claim-side
+        // cast performs the conversion.
+        let resultType: TypeID = if let declaredType = sema.symbols.propertyType(for: propertySymbol),
+                                    kirIsNonReifiedErasedABIType(declaredType, sema: sema)
+        {
+            sema.types.nullableAnyType
+        } else {
+            resultType
+        }
         let isSuperQualifiedReceiver: Bool
         if let isSuperQualifiedReceiverOverride {
             isSuperQualifiedReceiver = isSuperQualifiedReceiverOverride
@@ -839,6 +854,35 @@ extension CallLowerer {
            !externalLinkName.isEmpty
         {
             return nil
+        }
+
+        // An enum-typed receiver is still a raw ordinal here. If an entry
+        // body overrides this property, route through its ordinal dispatcher
+        // before attempting the interface itable on that scalar value.
+        if !isSuperQualifiedReceiver,
+           let (_, receiverClassSymbol) = resolveClassTypeSymbol(
+               sema.types.makeNonNullable(receiverType), sema: sema
+           ),
+           receiverClassSymbol.kind == .enumClass
+        {
+            let getter = sema.symbols.extensionPropertyGetterAccessor(for: propertySymbol)
+                ?? SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: propertySymbol)
+            if let dispatch = kirEnumEntryDispatchHelper(
+                for: getter,
+                in: receiverClassSymbol.id,
+                sema: sema,
+                interner: interner
+            ), let dispatchInfo = sema.symbols.symbol(dispatch) {
+                let result = arena.appendTemporary(type: resultType)
+                instructions.append(.call(
+                    symbol: dispatch,
+                    callee: dispatchInfo.name,
+                    arguments: [loweredReceiverID],
+                    result: result,
+                    canThrow: true
+                ))
+                return result
+            }
         }
 
         // KSP-928: an abstract/open class property is a getter dispatch point,

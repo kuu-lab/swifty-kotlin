@@ -169,7 +169,6 @@ package struct KlibIrFlags {
     package var modality: KlibModality { KlibModality(rawValue: field(4, width: 2)) ?? .final }
 
     package var classKind: KlibClassKind { KlibClassKind(rawValue: field(6, width: 3)) ?? .class }
-    package var isInner: Bool { bit(9) }
     package var isData: Bool { bit(10) }
     package var isExpectClass: Bool { bit(12) }
     package var isValueClass: Bool { bit(13) }
@@ -189,7 +188,6 @@ package struct KlibIrFlags {
     package var isPrimaryConstructor: Bool { bit(15) }
     package var isVar: Bool { bit(8) }
     package var isConst: Bool { bit(11) }
-    package var isLateinit: Bool { bit(12) }
     package var isExpectProperty: Bool { bit(16) }
     package var isInlineAccessor: Bool { bit(8) }
 
@@ -201,9 +199,6 @@ package struct KlibIrFlags {
     package var isFinalField: Bool { bit(4) }
     package var isStaticField: Bool { bit(6) }
     package var isFakeOverrideField: Bool { bit(7) }
-
-    package var isCrossinline: Bool { bit(2) }
-    package var isNoinline: Bool { bit(3) }
 
     package var isLocalVar: Bool { bit(1) }
 

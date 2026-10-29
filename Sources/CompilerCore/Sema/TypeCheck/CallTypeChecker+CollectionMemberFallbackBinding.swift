@@ -1,5 +1,4 @@
 // swiftlint:disable file_length
-import RuntimeABI
 
 extension CallTypeChecker {
     func tryCollectionMemberFallback(

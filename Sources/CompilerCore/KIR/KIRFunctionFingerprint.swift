@@ -280,10 +280,6 @@ final class KIRCanonicalizer {
             return "r\(number)"
         }
 
-        private mutating func exprList(_ ids: [KIRExprID]) -> String {
-            ids.map { expr($0) }.joined(separator: ",")
-        }
-
         private mutating func optionalExpr(_ id: KIRExprID?) -> String {
             id.map { expr($0) } ?? "_"
         }
