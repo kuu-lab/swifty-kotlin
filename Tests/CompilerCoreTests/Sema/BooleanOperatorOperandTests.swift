@@ -52,7 +52,9 @@ struct BooleanOperatorOperandTests {
 
     @Test
     func booleanRangeOperatorsAreRejected() throws {
-        for expr in ["true..true", "true..1", "true downTo false"] {
+        // `true..true` is legal: kotlinc accepts it via the generic
+        // `T.rangeTo(that: T)` because Boolean is Comparable<Boolean>.
+        for expr in ["true..1", "true downTo false"] {
             let source = """
             fun probe() = \(expr)
             """
@@ -61,6 +63,19 @@ struct BooleanOperatorOperandTests {
             assertHasDiagnostic("KSWIFTK-SEMA-0002", in: ctx)
             #expect(ctx.diagnostics.hasError, "\(expr) should be rejected")
         }
+    }
+
+    @Test
+    func booleanSameTypeRangeIsAccepted() throws {
+        // kotlinc accepts `true..true`: Boolean is Comparable<Boolean>, so the
+        // generic `T.rangeTo(that: T): ClosedRange<T>` applies.
+        let source = """
+        fun probe() = true..true
+        """
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+        assertNoDiagnostic("KSWIFTK-SEMA-0002", in: ctx)
+        #expect(!ctx.diagnostics.hasError, "Got: \(ctx.diagnostics.diagnostics)")
     }
 
     @Test
