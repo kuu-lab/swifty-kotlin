@@ -481,6 +481,14 @@ extension CallTypeChecker {
                     uniquingKeysWith: { _, projected in projected }
                 )
             }
+            if !validateReifiedTypeArguments(
+                for: chosen,
+                substitutedTypeArguments: mergedSubstitution,
+                range: range,
+                sema: sema
+            ) {
+                return driver.helpers.bindAndReturnErrorType(id, sema: sema)
+            }
             let projectedContextReceiverSymbols = contextParameterReceiverSymbols(
                 for: chosen,
                 substitution: mergedSubstitution,
