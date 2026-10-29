@@ -802,6 +802,31 @@ extension BuildASTPhase {
             withoutDefault[afterAnnotations...]
         }
 
+        // Hard keywords (`this`, `super`, `object`, `when`, `fun`, ...) can never
+        // sit in a value parameter's modifier/name zone. The rightmost-name
+        // lookup below treats any label-like token as the name, so a hard
+        // keyword placed next to a modifier keyword (`vararg this: Int`) would
+        // otherwise be silently absorbed — `vararg` resolved as the name and
+        // `this` dropped without a diagnostic. `val`/`var` stay legal here:
+        // they mark primary-constructor properties.
+        if let invalidNameZoneToken = nameSearchTokens.first(where: { token in
+            switch token.kind {
+            case .keyword(.val), .keyword(.var):
+                return false
+            case .keyword, .softKeyword:
+                return !token.kind.isLabelName
+            default:
+                return false
+            }
+        }) {
+            diagnostics?.error(
+                "KSWIFTK-PARSE-0002",
+                "Expected parameter name.",
+                range: invalidNameZoneToken.range
+            )
+            return
+        }
+
         // A modifier keyword (`inner`, `sealed`, `vararg`, `override`, ...) is only
         // acting as a modifier when something else follows it in the name slot; when
         // it's the rightmost candidate before the colon, it IS the parameter name
