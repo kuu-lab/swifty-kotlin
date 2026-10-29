@@ -1,6 +1,17 @@
 // swiftlint:disable file_length function_body_length cyclomatic_complexity
 
 extension CallTypeChecker {
+    private func bundledProduceIsVisible(_ name: InternedString, ctx: TypeInferenceContext) -> Bool {
+        guard let file = ctx.currentASTFile else { return false }
+        let fqName = KnownCompilerNames(interner: ctx.interner).kotlinxCoroutinesProduceFQName
+        let package = Array(fqName.dropLast())
+        if file.packageFQName == package { return true }
+        return file.imports.contains { declaration in
+            if declaration.isWildcard { return declaration.path == package }
+            return declaration.path == fqName && (declaration.alias ?? fqName.last) == name
+        }
+    }
+
     func continuationNominalSymbol(
         for fqName: [InternedString],
         in sema: SemaModule
@@ -26,6 +37,7 @@ extension CallTypeChecker {
         let knownNames = KnownCompilerNames(interner: interner)
         if let calleeName,
            calleeName == knownNames.produce,
+           bundledProduceIsVisible(calleeName, ctx: ctx),
            !args.isEmpty,
            args.count <= 2,
            locals[calleeName] == nil,
@@ -70,6 +82,7 @@ extension CallTypeChecker {
         // The same holds for `actor`, which is generic-only here.
         if let calleeName,
            calleeName == knownNames.produce,
+           bundledProduceIsVisible(calleeName, ctx: ctx),
            args.count == 1,
            locals[calleeName] == nil,
            let argumentExprID = args.first?.expr,
