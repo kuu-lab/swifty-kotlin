@@ -84,12 +84,11 @@ extension ABILoweringPass {
                       of: types.kind(of: targetType), types: types, symbols: symbols
                   ),
                   let argType = intrinsicArgType(argument, arena: module.arena, types: types),
-                  valueClassUnboxSourceIsBoxed(types.kind(of: argType), symbols: symbols)
+                  valueClassUnboxSourceIsBoxed(types.kind(of: argType))
             else { return nil }
             let unboxed = module.arena.appendTemporary(type: targetType)
             emitValueClassUnboxCall(
-                value: argument, classSymbol: vcSymbol, result: unboxed,
-                resultType: targetType, types: types, symbols: symbols,
+                value: argument, classSymbol: vcSymbol, result: unboxed, types: types, symbols: symbols,
                 interner: interner, arena: module.arena, into: &newBody
             )
             return unboxed
@@ -125,8 +124,7 @@ extension ABILoweringPass {
             if referenceBackedValueClassSymbol(of: types.kind(of: targetType), types: types, symbols: symbols) != nil {
                 let unboxed = module.arena.appendTemporary(type: targetType)
                 emitValueClassUnboxCall(
-                    value: argument, classSymbol: targetClass.classSymbol, result: unboxed,
-                    resultType: targetType, types: types, symbols: symbols,
+                    value: argument, classSymbol: targetClass.classSymbol, result: unboxed, types: types, symbols: symbols,
                     interner: interner, arena: module.arena, into: &newBody
                 )
                 return unboxed
@@ -526,7 +524,7 @@ extension ABILoweringPass {
         let rawResultKind = types.kind(of: resultType)
         if let vcSymbol = nullableUnderlyingValueClassSymbol(
             of: rawResultKind, types: types, symbols: symbols
-        ), valueClassUnboxSourceIsBoxed(rawReturnKind, symbols: symbols) {
+        ), valueClassUnboxSourceIsBoxed(rawReturnKind) {
             return (vcSymbol, false, returnType)
         }
         if let vcSymbol = referenceBackedValueClassSymbol(of: rawResultKind, types: types, symbols: symbols) {
@@ -561,7 +559,6 @@ extension ABILoweringPass {
         if conversion.boxing {
             emitValueClassBoxCall(
                 value: from, classSymbol: conversion.classSymbol, result: to,
-                resultType: module.arena.exprType(to),
                 types: types, symbols: symbols, interner: interner,
                 arena: module.arena, into: &newBody
             )
@@ -569,7 +566,6 @@ extension ABILoweringPass {
         }
         emitValueClassUnboxCall(
             value: from, classSymbol: conversion.classSymbol, result: to,
-            resultType: module.arena.exprType(to),
             types: types, symbols: symbols, interner: interner,
             arena: module.arena, into: &newBody
         )

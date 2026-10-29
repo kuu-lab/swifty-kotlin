@@ -7,7 +7,6 @@ extension CollectionLiteralConstructionLoweringPass {
         result: KIRExprID?,
         canThrow: Bool,
         thrownResult: KIRExprID?,
-        function: KIRFunction,
         module: KIRModule,
         lookup: CollectionLiteralLookupTables,
         state: inout CollectionRewriteState,

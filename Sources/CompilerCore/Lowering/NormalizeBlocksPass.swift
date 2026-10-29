@@ -1,5 +1,5 @@
 
-final class NormalizeBlocksPass: LoweringPass, ParallelLoweringPass {
+final class NormalizeBlocksPass: LoweringPass {
     static let name = "NormalizeBlocks"
     static let requiredStage: KIRStage = .tailrecLowered
     static let producedStage: KIRStage = .desugared

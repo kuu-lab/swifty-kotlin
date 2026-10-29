@@ -369,7 +369,7 @@ public final class CompilerDriver {
             ctx.diagnostics.error("KSWIFTK-PIPELINE-0003", "KIR not available for dump.", range: nil)
             return
         }
-        let path = ctx.options.outputPath + ".kir"
+        let path = IncrementalCompilationCache.outputArtifactPath(for: ctx.options)
         let dump = PhaseTimer.measureSubPhase("render", timer: ctx.phaseTimer) {
             kir.dump(interner: ctx.interner, symbols: ctx.sema?.symbols)
         }

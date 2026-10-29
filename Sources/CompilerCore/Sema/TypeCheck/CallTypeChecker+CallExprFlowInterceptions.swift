@@ -74,7 +74,6 @@ extension CallTypeChecker {
         args: [CallArgument],
         ctx: TypeInferenceContext,
         locals: inout LocalBindings,
-        expectedType: TypeID?,
         calleeName: InternedString?
     ) -> TypeID? {
         let ast = ctx.ast
@@ -129,10 +128,8 @@ extension CallTypeChecker {
     func inferEmitInFlowScopeCall(
         _ id: ExprID,
         args: [CallArgument],
-        range: SourceRange,
         ctx: TypeInferenceContext,
         locals: inout LocalBindings,
-        expectedType: TypeID?,
         calleeName: InternedString?
     ) -> TypeID? {
         let ast = ctx.ast

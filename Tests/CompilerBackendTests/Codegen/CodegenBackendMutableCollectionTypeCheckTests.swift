@@ -22,6 +22,20 @@ struct CodegenBackendMutableCollectionTypeCheckTests {
     }
 
     @Test
+    func indexedGetOnPollutedListThrowsClassCastException() throws {
+        var root = URL(fileURLWithPath: #filePath)
+        for _ in 0 ..< 4 { root.deleteLastPathComponent() }
+        let source = try String(contentsOf: root.appendingPathComponent(
+            "Scripts/diff_cases/kuu3668_list_indexed_get_type_pollution.kt"
+        ), encoding: .utf8)
+        try assertKotlinOutput(
+            source,
+            moduleName: "ListIndexedGetTypePollution",
+            expected: "OK\nOK\n1\n3\nCCE\nUOE\ntrue\n1\n"
+        )
+    }
+
+    @Test
     func mutableCollectionChecksAndCastsMatchKotlin() throws {
         let source = """
         class ReadOnlyListWrapper : List<String> by ArrayList<String>()

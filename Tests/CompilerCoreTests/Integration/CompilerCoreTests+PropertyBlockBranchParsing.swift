@@ -95,5 +95,37 @@ extension CompilerCoreTests {
         #expect(catchClauses.count == 1)
         #expect(finallyExpr != nil)
     }
+
+    @Test func testTopLevelObjectLiteralPropertyInitializerKeepsByWhenAndObjectBody() throws {
+        let source = """
+        interface C { fun f(): String }
+        object Impl : C { override fun f() = "OK" }
+        val o = object : C by when (true) { else -> Impl } { fun own() = "own" }
+        fun main() { println(o.f()) }
+        """
+        let ctx = makeContextFromSource(source)
+        try runFrontend(ctx)
+
+        let parse0025 = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-PARSE-0025" }
+        #expect(parse0025.isEmpty, "Expected the object literal and its delegate expression to stay in the property initializer.")
+
+        let ast = try #require(ctx.ast)
+        let property = try #require(topLevelProperty(named: "o", in: ast, interner: ctx.interner))
+        let initializerID = try #require(property.initializer)
+        guard case let .objectLiteral(_, objectDeclID?, _)? = ast.arena.expr(initializerID),
+              case let .objectDecl(objectDecl)? = ast.arena.decl(objectDeclID)
+        else {
+            Issue.record("Expected the property initializer to contain a complete object literal.")
+            return
+        }
+
+        let delegatedSupertype = try #require(objectDecl.superTypeEntries.first)
+        let delegateExpressionID = try #require(delegatedSupertype.delegateExpression)
+        guard case .whenExpr? = ast.arena.expr(delegateExpressionID) else {
+            Issue.record("Expected the object literal's supertype delegate to remain a when expression.")
+            return
+        }
+        #expect(objectDecl.memberFunctions.count == 1)
+    }
 }
 #endif

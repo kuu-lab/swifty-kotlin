@@ -15,6 +15,7 @@ persist_source_candidate_artifacts() {
   local tmp_dir="$3"
   local compile_exit="$4"
   local run_exit="$5"
+  local case_compile_timeout="${6:-$COMPILE_TIMEOUT}"
 
   mkdir -p "$ARTIFACT_ROOT"
   local case_name destination
@@ -29,7 +30,7 @@ persist_source_candidate_artifacts() {
 
   # Retain this lane's KIR, crash diagnostics, and runnable reproduction.
   if [[ $compile_exit -eq 0 ]]; then
-    KSWIFTK_STDLIB_CACHE_DIR="$destination/stdlib-cache" "$TIMEOUT_CMD" "$COMPILE_TIMEOUT" "$KSWIFTC" --stdlib-from-source "${KSWIFTC_ARGS[@]}" --emit kir "$kt_file" -o "$destination/candidate.kir" \
+    KSWIFTK_STDLIB_CACHE_DIR="$destination/stdlib-cache" "$TIMEOUT_CMD" "$case_compile_timeout" "$KSWIFTC" --stdlib-from-source "${KSWIFTC_ARGS[@]}" --emit kir "$kt_file" -o "$destination/candidate.kir" \
       >"$destination/candidate_kir.stdout" 2>"$destination/candidate_kir.stderr" || true
     if [[ $run_exit -ge 128 ]]; then
       save_runtime_backtrace "$destination/candidate.out" "$destination/backtrace.txt"
@@ -39,7 +40,7 @@ persist_source_candidate_artifacts() {
     printf '%s\n' '#!/usr/bin/env bash' 'set -euo pipefail'
     printf 'cd %q\n' "$ROOT_DIR"
     printf 'KSWIFTC=%q DIFF_KSWIFTC_FLAGS=%q DIFF_ARTIFACT_ROOT=%q bash Scripts/diff_kotlinc.sh --no-parallel --keep-temp --force-run-skipped --compile-timeout %q --run-timeout %q %q\n' \
-      "$KSWIFTC" "$DIFF_KSWIFTC_FLAGS" "$ARTIFACT_ROOT" "$COMPILE_TIMEOUT" "$RUN_TIMEOUT" "$kt_file"
+      "$KSWIFTC" "$DIFF_KSWIFTC_FLAGS" "$ARTIFACT_ROOT" "$case_compile_timeout" "$RUN_TIMEOUT" "$kt_file"
   } >"$destination/repro.sh"
   chmod +x "$destination/repro.sh"
 
@@ -47,7 +48,7 @@ persist_source_candidate_artifacts() {
 case: $kt_file
 result: FAIL (candidate-only)
 artifact_dir: $destination
-compile_timeout_seconds: $COMPILE_TIMEOUT
+compile_timeout_seconds: $case_compile_timeout
 run_timeout_seconds: $RUN_TIMEOUT
 expected_output: $expected_file
 candidate_compile_exit: $compile_exit
@@ -65,6 +66,26 @@ run_candidate_only_from_source_case() {
   local artifact_file="${2:-}"
   local expected_file="${kt_file%.kt}.expected"
   local tmp_dir candidate_bin compile_exit=0 run_exit=not-run ok=1
+  local case_compile_timeout="$COMPILE_TIMEOUT"
+
+  # A source-only case may declare a compile-timeout floor when its bundled
+  # source compilation has a measured, case-specific cost. Global settings can
+  # still raise that floor for slower environments.
+  local timeout_marker_count timeout_marker
+  timeout_marker_count="$(grep -cE '^[[:space:]]*//[[:space:]]*DIFF_CANDIDATE_ONLY_FROM_SOURCE_COMPILE_TIMEOUT:' "$kt_file" || true)"
+  if [[ "$timeout_marker_count" -gt 1 ]]; then
+    echo "  source candidate-only case has multiple compile timeout markers" >&2
+    return 1
+  elif [[ "$timeout_marker_count" -eq 1 ]]; then
+    timeout_marker="$(sed -nE 's/^[[:space:]]*\/\/[[:space:]]*DIFF_CANDIDATE_ONLY_FROM_SOURCE_COMPILE_TIMEOUT:[[:space:]]*([^[:space:]]+)[[:space:]]*$/\1/p' "$kt_file")"
+    if ! [[ "$timeout_marker" =~ ^[1-9][0-9]*$ ]]; then
+      echo "  source candidate-only compile timeout must be a positive integer: $timeout_marker" >&2
+      return 1
+    fi
+    if (( timeout_marker > case_compile_timeout )); then
+      case_compile_timeout="$timeout_marker"
+    fi
+  fi
 
   tmp_dir="$(mktemp -d -t kswiftk-candidate-only-XXXXXX)"
   LAST_ARTIFACT_DIR="$tmp_dir"
@@ -93,7 +114,7 @@ run_candidate_only_from_source_case() {
     candidate_assert_env=(env KK_ASSERTIONS_ENABLED=1)
   fi
 
-  KSWIFTK_STDLIB_CACHE_DIR="$tmp_dir/stdlib-cache" "$TIMEOUT_CMD" "$COMPILE_TIMEOUT" "$KSWIFTC" --stdlib-from-source "${KSWIFTC_ARGS[@]}" "$kt_file" -o "$candidate_bin" \
+  KSWIFTK_STDLIB_CACHE_DIR="$tmp_dir/stdlib-cache" "$TIMEOUT_CMD" "$case_compile_timeout" "$KSWIFTC" --stdlib-from-source "${KSWIFTC_ARGS[@]}" "$kt_file" -o "$candidate_bin" \
     >"$tmp_dir/candidate_compile.stdout" 2>"$tmp_dir/candidate_compile.stderr" || compile_exit=$?
 
   if [[ $compile_exit -eq 0 ]]; then
@@ -138,7 +159,7 @@ run_candidate_only_from_source_case() {
     fi
   else
     echo "FAIL $kt_file (candidate-only)"
-    persist_source_candidate_artifacts "$kt_file" "$expected_file" "$tmp_dir" "$compile_exit" "$run_exit"
+    persist_source_candidate_artifacts "$kt_file" "$expected_file" "$tmp_dir" "$compile_exit" "$run_exit" "$case_compile_timeout"
     echo "  artifacts: $LAST_ARTIFACT_DIR"
   fi
 

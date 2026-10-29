@@ -112,7 +112,7 @@ struct LazySymbolScanTests {
             #expect(symbols.externalLinkNameIfKnown(for: member) == "scan_member")
             #expect(symbols.functionSignatureIfKnown(for: member) == nil)
             #expect(symbols.mayHaveImportedInitializers(for: owner) == oldInitializerIndex)
-            _ = TypeCheckScopeBuilder().collectLibraryTopLevelSymbolsByPackage(sema: sema, interner: ctx.interner)
+            _ = TypeCheckScopeBuilder().collectLibraryTopLevelSymbolsByPackage(sema: sema)
             #expect(work.importedBindings.allSatisfy { !$0.isMaterialized })
 
             try BuildKIRPhase().run(ctx)

@@ -487,15 +487,6 @@ final class AtomicIntArrayBox {
         return Int(kkrt_atomic_i32_exchange(cell, atomicInt32Value(newValue)))
     }
 
-    func compareAndSet(at index: Int, expect: Int, update: Int) -> Bool {
-        guard let cell = cell(at: index) else { return false }
-        var exchanged = false
-        kkrt_atomic_i32_compare_exchange(
-            cell, atomicInt32Value(expect), atomicInt32Value(update), &exchanged
-        )
-        return exchanged
-    }
-
     func compareAndExchange(at index: Int, expect: Int, update: Int) -> Int {
         guard let cell = cell(at: index) else { return 0 }
         var exchanged = false
@@ -620,13 +611,6 @@ final class AtomicLongArrayBox {
     func exchange(at index: Int, newValue: Int) -> Int {
         guard let cell = cell(at: index) else { return 0 }
         return kkrt_atomic_word_exchange(cell, newValue)
-    }
-
-    func compareAndSet(at index: Int, expect: Int, update: Int) -> Bool {
-        guard let cell = cell(at: index) else { return false }
-        var exchanged = false
-        kkrt_atomic_word_compare_exchange(cell, expect, update, &exchanged)
-        return exchanged
     }
 
     func compareAndExchange(at index: Int, expect: Int, update: Int) -> Int {

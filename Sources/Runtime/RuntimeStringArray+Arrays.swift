@@ -1,5 +1,4 @@
 import Foundation
-import RuntimeABI
 
 @_cdecl("kk_array_tag_type")
 public func kk_array_tag_type(_ arrayRaw: Int, _ typeID: Int) -> Int {

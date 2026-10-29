@@ -41,9 +41,7 @@ extension CallTypeChecker {
                 args: args,
                 ctx: ctx,
                 locals: &locals,
-                expectedType: expectedType,
-                ast: ast
-            ) {
+                expectedType: expectedType) {
                 return boundProduceResult
             }
         }

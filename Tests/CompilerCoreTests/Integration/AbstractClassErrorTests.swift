@@ -188,6 +188,32 @@ import Testing
         #expect(errors.allSatisfy { $0.message.contains("does not implement abstract member") })
     }
 
+    @Test func testEnumEntriesAcceptInferredTypePropertyOverrides() throws {
+        // Inferred-type `override val`s carry only the `Any?` placeholder when
+        // the enum-entry completeness check runs; they must still count as
+        // implementations just like explicitly typed overrides.
+        let ctx = makeContextFromSource("""
+        interface P { val label: String }
+        enum class EntryOverride : P {
+            A { override val label = "ok" }
+        }
+        enum class ClassOverride : P {
+            A, B;
+            override val label = "ok"
+        }
+        enum class OwnAbstract {
+            A { override val label = "ok" };
+            abstract val label: String
+        }
+        """)
+        try runSema(ctx)
+
+        let errors = ctx.diagnostics.diagnostics.filter {
+            $0.code == "KSWIFTK-SEMA-ABSTRACT" && $0.severity == .error
+        }
+        #expect(errors.isEmpty, "Expected no abstract-member diagnostics: \(errors)")
+    }
+
     private static let abstractErrorSources: [String] = [
         """
         package sample0
