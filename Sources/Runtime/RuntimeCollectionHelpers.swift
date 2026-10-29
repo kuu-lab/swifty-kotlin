@@ -31,7 +31,7 @@ let listRuntimeTypeID: Int64 = {
     return id
 }()
 
-private let mutableListRuntimeTypeID: Int64 = {
+let mutableListRuntimeTypeID: Int64 = {
     let id = runtimeStableNominalTypeID(fqName: "kotlin.collections.MutableList")
     runtimeRegisterTypeEdge(childTypeID: id, parentTypeID: listRuntimeTypeID)
     runtimeRegisterTypeEdge(childTypeID: id, parentTypeID: mutableCollectionRuntimeTypeID)
