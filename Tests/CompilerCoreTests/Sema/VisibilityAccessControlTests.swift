@@ -496,4 +496,74 @@ struct VisibilityAccessControlTests {
         }
     }
 
+    @Test
+    func testInheritedPrivateMemberDoesNotShadowSuperInterfaceMember() throws {
+        let source = """
+        package test
+
+        open class C {
+            private val c: String = "FAIL_C"
+            private fun foo(): String = "FAIL_C_FOO"
+        }
+
+        interface A {
+            val c: String get() = "OK"
+            fun foo(): String = "OK_FOO"
+        }
+
+        interface B {
+            private val c: String get() = "FAIL_B"
+            private fun foo(): String = "FAIL_B_FOO"
+        }
+
+        class D : C(), A, B {
+            val b = c
+        }
+
+        fun test(d: D): String {
+            return d.c + d.foo() + d.b
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            #expect(!ctx.diagnostics.hasError)
+        }
+    }
+
+    @Test
+    func testCompoundAssignmentWithPrivateSetterWhenPlusAssignAvailable() throws {
+        let source = """
+        class X {
+            var value = ""
+            operator fun plusAssign(data: String) {
+                value += data
+            }
+        }
+
+        abstract class A {
+            lateinit var x: X
+                private set
+            var y: X = X()
+                private set
+            fun init() {
+                x = X()
+            }
+        }
+
+        class B : A()
+
+        fun test(a: B) {
+            a.init()
+            a.x += "O"
+            a.y += "K"
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            #expect(!ctx.diagnostics.hasError)
+        }
+    }
+
 }

@@ -237,4 +237,58 @@ struct KIRInterfacePropertyDispatchTests {
             ).isEmpty)
         }
     }
+
+    @Test
+    func privateInterfacePropertyDoesNotAcquireGetterSlot() throws {
+        let source = """
+        interface PrivatePropProbe {
+            val publicProp: String
+            private val privateProp: String get() = "FAIL"
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], includeStdlib: false)
+            try runSema(ctx)
+            #expect(!ctx.diagnostics.hasError)
+            let sema = try #require(ctx.sema)
+            let interfaceSymbol = try #require(
+                sema.symbols.lookup(fqName: [ctx.interner.intern("PrivatePropProbe")])
+            )
+            let slots = kirInterfacePropertyGetterSlots(interfaceSymbol: interfaceSymbol, sema: sema, interner: ctx.interner)
+            #expect(slots.map { ctx.interner.resolve($0.propertyName) } == ["publicProp"])
+        }
+    }
+
+    @Test
+    func privateSuperclassPropertyDoesNotOverrideInterfaceProperty() throws {
+        let source = """
+        interface Iface {
+            val c: String get() = "OK"
+        }
+        open class Base {
+            private val c: String = "FAIL"
+        }
+        class Sub : Base(), Iface
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], includeStdlib: false)
+            try runSema(ctx)
+            #expect(!ctx.diagnostics.hasError)
+            let sema = try #require(ctx.sema)
+            let ifaceProp = try #require(
+                sema.symbols.lookup(fqName: [ctx.interner.intern("Iface"), ctx.interner.intern("c")])
+            )
+            let subSymbol = try #require(
+                sema.symbols.lookup(fqName: [ctx.interner.intern("Sub")])
+            )
+            let overrideGetter = kirFindOverridePropertyGetter(
+                for: ifaceProp,
+                in: subSymbol,
+                sema: sema
+            )
+            let ifaceGetter = sema.symbols.extensionPropertyGetterAccessor(for: ifaceProp)
+                ?? SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: ifaceProp)
+            #expect(overrideGetter == ifaceGetter)
+        }
+    }
 }
