@@ -1003,6 +1003,21 @@ extension LocalDeclTypeChecker {
             )
             functionFlags.insert(.inlineFunction)
         }
+        // kotlinc reports 'without a body must be abstract' on any bodiless
+        // named function declared lexically inside a class, including local
+        // functions (which additionally get 'must have a body' from BuildAST).
+        // Local funs in top-level functions only get 'must have a body';
+        // anonymous function expressions only get 'must have a body' too.
+        if body == .unit, !isAnonymousFunction,
+           !interner.resolve(name).hasPrefix("__AnonymousFunction_"),
+           ctx.enclosingClassSymbol != nil,
+           !ast.arena.isLocalBodilessExemptFunction(id) {
+            sema.diagnostics.error(
+                "KSWIFTK-SEMA-0009",
+                "function '\(interner.resolve(name))' without a body must be abstract.",
+                range: range
+            )
+        }
         if isSuspend {
             functionFlags.insert(.suspendFunction)
         }

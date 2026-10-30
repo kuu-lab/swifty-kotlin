@@ -320,7 +320,13 @@ extension BuildASTPhase {
 
         let isSyntheticAnonymous = isAnonymousFunction
             || interner.resolve(name).hasPrefix("__AnonymousFunction_")
-        if body == .unit, !hasExternal, !isSyntheticAnonymous,
+        // `external` and `abstract` make a bodiless declaration legal as
+        // written, so kotlinc emits neither 'must have a body' nor 'must be
+        // abstract' for them. `expect` stays non-exempt: kotlinc still
+        // reports 'without a body must be abstract' on local expect funs.
+        let bodilessExempt = hasExternal
+            || leadingModifiers.contains(where: { $0.name == "abstract" })
+        if body == .unit, !bodilessExempt, !isSyntheticAnonymous,
            !leadingModifiers.contains(where: { $0.name == "expect" }) {
             diagnostics?.error(
                 "KSWIFTK-SEMA-0426",
@@ -351,6 +357,9 @@ extension BuildASTPhase {
         ))
         if !contextReceivers.isEmpty {
             astArena.setLocalFunContextReceivers(contextReceivers, for: declaration)
+        }
+        if bodilessExempt {
+            astArena.markLocalBodilessExemptFunction(declaration)
         }
         if leadingModifiers.contains(where: { $0.name == "tailrec" }) {
             astArena.markLocalTailrecFunction(declaration)

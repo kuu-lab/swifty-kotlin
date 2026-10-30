@@ -1729,6 +1729,75 @@ struct DeclarationPositionValidationTests {
         assertNoDiagnostic("KSWIFTK-SEMA-0424", in: ctx)
     }
 
+    @Test func bodilessMemberFunctionReportsMustBeAbstract() throws {
+        // kotlinc phrases a bodiless member as 'without a body must be
+        // abstract'; a top-level function 'must have a body'.
+        let ctx = try semaContext(for: """
+            class C { fun f() }
+            object O { fun g() }
+            class Outer { companion object { fun h() } }
+            sealed class S { fun s() }
+            fun tf()
+            """)
+        let diags = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0009" }
+        #expect(diags.count == 5, "diagnostics: \(diags.map(\.message))")
+        #expect(diags.prefix(4).allSatisfy {
+            $0.message.hasSuffix("without a body must be abstract.")
+        }, "diagnostics: \(diags.map(\.message))")
+        #expect(diags.last?.message == "function 'tf' must have a body.")
+    }
+
+    @Test func bodilessLocalFunctionInsideMemberAlsoReportsMustBeAbstract() throws {
+        // kotlinc emits both 'without a body must be abstract' and 'must have
+        // a body' for a local function lexically inside a class member.
+        let ctx = try semaContext(for: """
+            class C {
+                fun outer() { fun inner() }
+            }
+            """)
+        assertHasDiagnostic("KSWIFTK-SEMA-0009", in: ctx)
+        assertHasDiagnostic("KSWIFTK-SEMA-0426", in: ctx)
+        let diags = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0009" }
+        #expect(diags.count == 1, "diagnostics: \(diags.map(\.message))")
+        #expect(diags.first?.message == "function 'inner' without a body must be abstract.")
+    }
+
+    @Test func bodilessLocalFunctionInTopLevelReportsOnlyBody() throws {
+        let ctx = try semaContext(for: """
+            fun outer() { fun inner() }
+            """)
+        assertNoDiagnostic("KSWIFTK-SEMA-0009", in: ctx)
+        assertHasDiagnostic("KSWIFTK-SEMA-0426", in: ctx)
+    }
+
+    @Test func externalAndAbstractLocalFunctionsAreBodilessExempt() throws {
+        // kotlinc emits no bodiless diagnostic for local `external`/`abstract`
+        // functions (modifier-applicability diagnostics are a separate family).
+        let ctx = try semaContext(for: """
+            class C {
+                fun outer() {
+                    external fun x()
+                    abstract fun a()
+                }
+            }
+            """)
+        assertNoDiagnostic("KSWIFTK-SEMA-0009", in: ctx)
+        assertNoDiagnostic("KSWIFTK-SEMA-0426", in: ctx)
+    }
+
+    @Test func expectLocalFunctionStillReportsMustBeAbstract() throws {
+        // `expect` exempts 'must have a body' but not 'must be abstract'.
+        let ctx = try semaContext(for: """
+            class C {
+                fun outer() { expect fun e() }
+            }
+            """)
+        assertNoDiagnostic("KSWIFTK-SEMA-0426", in: ctx)
+        let diags = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0009" }
+        #expect(diags.count == 1, "diagnostics: \(diags.map(\.message))")
+        #expect(diags.first?.message == "function 'e' without a body must be abstract.")
+    }
+
     @Test func initBlockInitializedPropertyIsAccepted() throws {
         let ctx = try semaContext(for: """
             class C { val x: Int
