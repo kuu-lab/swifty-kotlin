@@ -161,11 +161,6 @@ public final class PhaseTimer {
         records
     }
 
-    /// Name of the innermost open subphase scope, if any (diagnostics only).
-    public var currentSubPhaseName: String? {
-        subPhaseStack.last?.name
-    }
-
     public var totalNanos: UInt64 {
         records.reduce(0) { $0 + $1.durationNanos }
     }

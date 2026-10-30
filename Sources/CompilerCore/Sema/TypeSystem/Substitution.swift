@@ -260,7 +260,7 @@ public extension TypeSystem {
             guard index < typeParamSymbols.count else { break }
             let tpSymbol = typeParamSymbols[index]
             guard let typeVar = typeVarBySymbol[tpSymbol] else { continue }
-            let resolved = resolveVarianceArg(arg, tpSymbol: tpSymbol, symbols: symbols)
+            let resolved = resolveVarianceArg(arg, tpSymbol: tpSymbol)
             covariantSub[typeVar] = resolved.type
             if resolved.writeForbidden { writeForbidden.insert(tpSymbol) }
         }
@@ -273,7 +273,7 @@ public extension TypeSystem {
     }
 
     private func resolveVarianceArg(
-        _ arg: TypeArg, tpSymbol: SymbolID, symbols: SymbolTable
+        _ arg: TypeArg, tpSymbol: SymbolID
     ) -> (type: TypeID, writeForbidden: Bool) {
         switch arg {
         case let .invariant(type):

@@ -96,7 +96,6 @@ extension CallTypeChecker {
                 for argument in args {
                     _ = driver.inferExpr(argument.expr, ctx: ctx, locals: &locals)
                 }
-                sema.bindings.markBuilderDSLExpr(id, kind: activeBuilderKind)
                 sema.bindings.bindExprType(id, type: sema.types.unitType)
                 return sema.types.unitType
             }

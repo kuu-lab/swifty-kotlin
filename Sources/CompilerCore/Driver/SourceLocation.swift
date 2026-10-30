@@ -1,8 +1,6 @@
 public struct TokenID: Hashable, Sendable, Codable {
     public let rawValue: Int32
 
-    public static let invalid = TokenID(rawValue: -1)
-
     public init(rawValue: Int32 = -1) {
         self.rawValue = rawValue
     }
@@ -10,8 +8,6 @@ public struct TokenID: Hashable, Sendable, Codable {
 
 public struct NodeID: Hashable, Sendable, Codable {
     public let rawValue: Int32
-
-    public static let invalid = NodeID(rawValue: -1)
 
     public init(rawValue: Int32 = -1) {
         self.rawValue = rawValue

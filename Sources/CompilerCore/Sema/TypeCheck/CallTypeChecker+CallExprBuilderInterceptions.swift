@@ -74,7 +74,6 @@ extension CallTypeChecker {
                 builderCtx.isBuilderLambdaScope = true
                 builderCtx.builderKind = builderKind
                 _ = driver.inferExpr(argumentExprID, ctx: builderCtx, locals: &locals)
-                sema.bindings.markBuilderDSLExpr(id, kind: builderKind)
                 sema.bindings.markCollectionExpr(id)
                 sema.bindings.bindExprType(id, type: returnType)
                 return returnType
