@@ -190,7 +190,7 @@ private struct RuntimeFlowExecutionResult {
     func rootedFailure() -> Int? {
         guard let failure else { return nil }
         return withExtendedLifetime(gcRootStorage) {
-            let threadID = ObjectIdentifier(Thread.current)
+            let threadID = runtimeGCCurrentThreadID()
             runtimeStorage.withGCLock { state in
                 runtimeRecordShadowHandoffLocked(failure, threadID: threadID, state: &state)
             }

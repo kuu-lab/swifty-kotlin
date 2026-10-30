@@ -279,9 +279,9 @@ struct RuntimeSequenceTests {
     }
 
     @Test func takeLimitsSequenceElements() {
-        #expect(sequenceElements(kk_sequence_take(makeSequence([1, 2, 3, 4]), 2)) == [1, 2])
-        #expect(sequenceElements(kk_sequence_take(makeSequence([1, 2]), 5)) == [1, 2])
-        #expect(sequenceElements(kk_sequence_take(makeSequence([1, 2]), 0)) == [])
+        #expect(sequenceElements(kk_sequence_take(makeSequence([1, 2, 3, 4]), 2, nil)) == [1, 2])
+        #expect(sequenceElements(kk_sequence_take(makeSequence([1, 2]), 5, nil)) == [1, 2])
+        #expect(sequenceElements(kk_sequence_take(makeSequence([1, 2]), 0, nil)) == [])
     }
 
     @Test func takeLastReturnsTrailingElementsAsList() {
@@ -1134,7 +1134,7 @@ struct RuntimeSequenceTests {
     }
 
     @Test func dropSkipsRequestedPrefix() {
-        let result = kk_sequence_drop(makeSequence([1, 2, 3, 4, 5]), 2)
+        let result = kk_sequence_drop(makeSequence([1, 2, 3, 4, 5]), 2, nil)
 
         #expect(runtimeTestListElements(kk_sequence_to_list(result, nil)) == [3, 4, 5])
     }
@@ -1344,7 +1344,7 @@ struct RuntimeSequenceTests {
     @Test func sequenceRequireNoNullsIsLazyUntilNullIsReached() {
         let seq = makeSequence([1, runtimeNullSentinelInt, 3])
         let checked = kk_sequence_requireNoNulls(seq)
-        let firstOnly = kk_sequence_take(checked, 1)
+        let firstOnly = kk_sequence_take(checked, 1, nil)
         var thrown = 0
         let list = kk_sequence_to_list(firstOnly, &thrown)
 

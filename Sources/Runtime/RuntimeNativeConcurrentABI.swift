@@ -244,7 +244,7 @@ final class RuntimeFutureBox: @unchecked Sendable {
 
     func result() -> Int {
         blockUntilReady()
-        let threadID = ObjectIdentifier(Thread.current)
+        let threadID = runtimeGCCurrentThreadID()
         lock.lock()
         defer { lock.unlock() }
         let value = _ready ? _resultRaw : 0
@@ -259,7 +259,7 @@ final class RuntimeFutureBox: @unchecked Sendable {
 
     func consume() -> Int {
         blockUntilReady()
-        let threadID = ObjectIdentifier(Thread.current)
+        let threadID = runtimeGCCurrentThreadID()
         lock.lock()
         defer { lock.unlock() }
         guard _ready, !_consumed else { return 0 }

@@ -24,6 +24,10 @@ public extension RuntimeABISpec {
     static let sequenceFunctions: [RuntimeABIFunctionSpec] = [
         abi.nt(stdlibSequenceHOFName("map", arity: 1, fallback: "kk_sequence_map"), "seqRaw fnPtr closureRaw"),
         abi.nt(stdlibSequenceHOFName("filter", arity: 1, fallback: "kk_sequence_filter"), "seqRaw fnPtr closureRaw"),
+        abi.th("kk_sequence_take", "seqRaw count outThrown"),
+        abi.th("kk_sequence_drop", "seqRaw count outThrown"),
+        abi.nt("kk_sequence_takeWhile", "seqRaw fnPtr closureRaw"),
+        abi.nt("kk_sequence_dropWhile", "seqRaw fnPtr closureRaw"),
         abi.th("kk_sequence_takeLast", "seqRaw count outThrown"),
         abi.th(stdlibSequenceHOFName("takeLastWhile", arity: 1, fallback: "kk_sequence_takeLastWhile"), "seqRaw fnPtr closureRaw outThrown"),
         abi.th("kk_sequence_to_list", "seqRaw outThrown"),

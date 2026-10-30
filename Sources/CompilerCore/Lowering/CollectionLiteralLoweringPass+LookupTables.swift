@@ -16,8 +16,8 @@ struct CollectionLiteralLookupTables {
     // RuntimeSequenceBox handle. The public `sequenceOf` / `emptySequence` /
     // `generateSequence` declarations are intentionally not listed: their
     // source bodies include overloads that construct source objects, and a
-    // name-only match would erase that distinction. Their private bridge
-    // results remain unknown until a later, explicit runtime fact is available.
+    // name-only match would erase that distinction. Their results are
+    // classified per resolved overload in +PreScan.swift instead (KUU-3850).
     let sequenceRuntimeBridgeReturningNames: Set<InternedString>
     /// Interned name/package tables for `trackedStaticTypeKind` — built once
     /// here rather than per classified expression (LOWERING-001).
@@ -39,7 +39,25 @@ struct CollectionLiteralLookupTables {
             interner.intern("lineSequence"),
             interner.intern("splitToSequence"),
             arrayLookup.kkListAsSequenceName,
-            arrayLookup.kkArrayAsSequenceName
+            arrayLookup.kkArrayAsSequenceName,
+            // Private `__kk_sequence_*` bridges and `kk_sequence_*` factories
+            // always produce a RuntimeSequenceBox — matching them by callee
+            // name is sound because they are not overload-sensitive like the
+            // public declarations above.
+            sequenceLookup.kkSequenceBuilderBuildName,
+            interner.intern("__kk_sequence_builder_build_coro"),
+            interner.intern("__kk_empty_sequence"),
+            interner.intern("__kk_sequence_of"),
+            sequenceLookup.kkSequenceOfSingleName,
+            interner.intern("__kk_sequence_generate"),
+            interner.intern("__kk_sequence_generate_noarg"),
+            sequenceLookup.kkSequenceConstrainOnceName,
+            // KUU-3850: the lazy window/step bridges also return a box when
+            // they arrive pre-emitted (e.g. via a stub externalLinkName).
+            sequenceLookup.kkSequenceTakeName,
+            sequenceLookup.kkSequenceDropName,
+            sequenceLookup.kkSequenceTakeWhileName,
+            sequenceLookup.kkSequenceDropWhileName,
         ]
         staticTypeClassification = StaticTypeClassificationNames(interner: interner)
         collectionHOFRuntimeNames = Dictionary(uniqueKeysWithValues: StdlibSurfaceSpec.collectionHOFMembers.flatMap { spec in
@@ -198,6 +216,15 @@ struct CollectionLiteralLookupTables {
     var takeName: InternedString { sequenceLookup.takeName }
     var yieldName: InternedString { sequenceLookup.yieldName }
     var yieldAllName: InternedString { sequenceLookup.yieldAllName }
+    var kkSequenceTakeName: InternedString { sequenceLookup.kkSequenceTakeName }
+    var kkSequenceDropName: InternedString { sequenceLookup.kkSequenceDropName }
+    var kkSequenceTakeWhileName: InternedString { sequenceLookup.kkSequenceTakeWhileName }
+    var kkSequenceDropWhileName: InternedString { sequenceLookup.kkSequenceDropWhileName }
+    var kkSequenceFirstName: InternedString { sequenceLookup.kkSequenceFirstName }
+    var kkSequenceFirstOrNullName: InternedString { sequenceLookup.kkSequenceFirstOrNullName }
+    var kkSequenceLastName: InternedString { sequenceLookup.kkSequenceLastName }
+    var kkSequenceLastOrNullName: InternedString { sequenceLookup.kkSequenceLastOrNullName }
+    var kkSequenceCountName: InternedString { sequenceLookup.kkSequenceCountName }
 
     var emptyArrayName: InternedString { arrayLookup.emptyArrayName }
     var kkEmptyArrayName: InternedString { arrayLookup.kkEmptyArrayName }

@@ -894,7 +894,7 @@ final class RuntimeWeakReferenceBox: @unchecked Sendable {
             live = true
             runtimeStoreWeakResultInShadow(rootSlot, value: current)
         case .heap, .runtimeObject:
-            let threadID = ObjectIdentifier(Thread.current)
+            let threadID = runtimeGCCurrentThreadID()
             live = withExtendedLifetime(runtimeObject) {
                 runtimeStorage.withGCLock { state in
                     let key = UInt(bitPattern: current)
@@ -910,9 +910,9 @@ final class RuntimeWeakReferenceBox: @unchecked Sendable {
                         isLive = true
                     }
                     guard isLive else { return false }
-                    if let count = state.shadowFrames[threadID]?.count, count > 0 {
+                    if let topFrame = state.shadowFrames[threadID]?.frames.last {
                         if let rootSlot, rootSlot >= 0 {
-                            state.shadowFrames[threadID]?[count - 1].slots[rootSlot] = current
+                            topFrame.slots[rootSlot] = current
                         } else {
                             // Unframed native calls need their own root contract.
                             // A legacy call in a frame is conservative until pop.
@@ -947,11 +947,9 @@ final class RuntimeWeakReferenceBox: @unchecked Sendable {
 
 private func runtimeStoreWeakResultInShadow(_ slot: Int?, value: Int) {
     guard let slot, slot >= 0 else { return }
-    let threadID = ObjectIdentifier(Thread.current)
+    let threadID = runtimeGCCurrentThreadID()
     runtimeStorage.withGCLock { state in
-        if let count = state.shadowFrames[threadID]?.count, count > 0 {
-            state.shadowFrames[threadID]?[count - 1].slots[slot] = value
-        }
+        state.shadowFrames[threadID]?.frames.last?.slots[slot] = value
     }
 }
 

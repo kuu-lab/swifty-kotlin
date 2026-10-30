@@ -1781,7 +1781,7 @@ func runtimeSelectPollResultBox(status: Int, value: Int = 0, cause: Int = 0) -> 
         RuntimeChannelResultBox(status: status, value: value, cause: cause),
         typeID: runtimeStableNominalTypeID(fqName: "kotlinx.coroutines.channels.ChannelResult")
     )
-    let threadID = ObjectIdentifier(Thread.current)
+    let threadID = runtimeGCCurrentThreadID()
     runtimeStorage.withGCLock { state in
         runtimeRecordShadowHandoffLocked(result, threadID: threadID, state: &state)
     }

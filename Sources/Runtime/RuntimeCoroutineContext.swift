@@ -399,9 +399,15 @@ func runtimeMergedContextExtras(
     return merged
 }
 
+// Hoisted: `kk_itable_lookup_dynamic` consults this interceptor on every
+/// dynamic dispatch, so the FNV hash must not be recomputed per call.
+private let runtimeCoroutineContextElementInterfaceTypeID = runtimeStableNominalTypeID(
+    fqName: "kotlin.coroutines.CoroutineContext.Element"
+)
+
 func runtimeCoroutineContextElementMethod(_ receiver: Int, _ interfaceTypeID: Int, _ methodSlot: Int) -> Int? {
     // Element declares get/fold/minusKey; its key getter follows those slots.
-    guard interfaceTypeID == Int(runtimeStableNominalTypeID(fqName: "kotlin.coroutines.CoroutineContext.Element")) else {
+    guard interfaceTypeID == Int(runtimeCoroutineContextElementInterfaceTypeID) else {
         return nil
     }
     let ptr = isRegisteredRuntimeObjectPointer(receiver) ? UnsafeMutableRawPointer(bitPattern: receiver) : nil
@@ -929,8 +935,12 @@ public func kk_dispatcher_default_method(_ receiver: Int, _ virtualMethod: Int, 
     runtimeIsNativeDispatcher(receiver) ? defaultMethod : virtualMethod
 }
 
+private let runtimeContinuationInterceptorInterfaceTypeID = runtimeStableNominalTypeID(
+    fqName: "kotlin.coroutines.ContinuationInterceptor"
+)
+
 func runtimeDispatcherInterceptorMethod(_ receiver: Int, _ interfaceTypeID: Int, _ methodSlot: Int) -> Int? {
-    guard interfaceTypeID == Int(runtimeStableNominalTypeID(fqName: "kotlin.coroutines.ContinuationInterceptor")),
+    guard interfaceTypeID == Int(runtimeContinuationInterceptorInterfaceTypeID),
           runtimeIsNativeDispatcher(receiver)
     else {
         return nil

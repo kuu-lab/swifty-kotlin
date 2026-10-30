@@ -463,6 +463,14 @@ final class RuntimeSequenceCoroutine: @unchecked Sendable {
 
         if usesCPSProducer {
             let continuation = kk_coroutine_continuation_new(functionID)
+            // A lazy builder producer has no dispatcher, scheduler, or event
+            // loop of its own: each consumer request resumes it on the global
+            // queue, paying a cross-thread handoff plus a semaphore wait for
+            // every element. Driving the resume inline on the consumer thread
+            // matches the restricted-builder contract (the first CPS step
+            // already runs synchronously in requestProducerStep) and leaves
+            // consumerGate pre-signalled before wait() runs.
+            runtimeContinuationState(from: continuation)?.resumesInline = true
             _ = kk_coroutine_launcher_arg_set(continuation, 0, Int64(closureRaw))
             _ = kk_coroutine_launcher_arg_set(continuation, 1, Int64(coroutine.builderHandle))
             stateLock.lock()
@@ -775,6 +783,10 @@ final class RuntimeIteratorBuilderBox: @unchecked Sendable {
 
         if usesCPSProducer {
             let continuation = kk_coroutine_continuation_new(functionID)
+            // Resume each producer step inline on the consumer thread: this
+            // continuation owns no dispatcher/scheduler/event loop, so the
+            // global-queue hop only added a per-element thread handoff.
+            runtimeContinuationState(from: continuation)?.resumesInline = true
             // Suspend-entry launcher ABI is (closureRaw, receiver): the launcher
             // thunk binds slot 0 to the builder lambda's closure environment and
             // slot 1 to the SequenceScope receiver, matching

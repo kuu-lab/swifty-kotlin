@@ -130,6 +130,30 @@ extension CollectionLiteralLoweringSupport {
         if let result, lookup.sequenceRuntimeBridgeReturningNames.contains(callee) {
             state.sequenceExprIDs.insert(result.rawValue)
         }
+        // KUU-3850: The public `kotlin.sequences` factories cannot join the
+        // name set above because `generateSequence` is overload-sensitive —
+        // its `(seedFunction, nextFunction)` overload constructs a source
+        // `object : Sequence` while every other overload returns the
+        // RuntimeSequenceBox produced by private `__kk_sequence_*` bridges.
+        // Classify them from the resolved declaration instead.
+        if let result, let sema, let symbol,
+           let decl = sema.symbols.symbol(symbol),
+           let classification = classifySequenceFactoryDecl(
+               decl,
+               symbol: symbol,
+               sema: sema,
+               interner: interner
+           )
+        {
+            switch classification {
+            case .sequence:
+                state.sequenceExprIDs.insert(result.rawValue)
+            case .sequenceSourceObject:
+                state.sequenceSourceObjectExprIDs.insert(result.rawValue)
+            default:
+                break
+            }
+        }
         propagateCollectionOperation(
             callee: callee, arguments: arguments, result: result, lookup: lookup,
             state: &state
@@ -215,6 +239,51 @@ extension CollectionLiteralLoweringSupport {
         {
             state.arrayExprIDs.insert(result.rawValue)
         }
+    }
+
+    /// Symbol-level classification for the public `kotlin.sequences`
+    /// factories, which are overload-sensitive and therefore cannot live in
+    /// `sequenceRuntimeBridgeReturningNames` (KUU-3850):
+    ///  - `generateSequence`: only `(seedFunction: () -> T?, nextFunction)`
+    ///    constructs a source `object : Sequence`; it is the two-parameter
+    ///    overload whose first parameter is function-typed. Every other
+    ///    overload delegates to a private `__kk_sequence_*` bridge and returns
+    ///    a RuntimeSequenceBox.
+    ///  - `sequenceOf` / `emptySequence`: all overloads return a box.
+    ///  - `Sequence { iterator() }`: constructs `object : Sequence`.
+    private func classifySequenceFactoryDecl(
+        _ decl: SemanticSymbol,
+        symbol: SymbolID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> CollectionLiteralLoweringSupport.Classification? {
+        guard decl.kind == .function,
+              decl.fqName.count == 3,
+              decl.fqName[0] == interner.intern("kotlin"),
+              decl.fqName[1] == interner.intern("sequences")
+        else {
+            return nil
+        }
+        let simpleName = decl.fqName[2]
+        if simpleName == interner.intern("generateSequence") {
+            if let signature = sema.symbols.functionSignature(for: symbol),
+               signature.parameterTypes.count == 2,
+               let firstParameter = signature.parameterTypes.first,
+               case .functionType = sema.types.kind(of: firstParameter)
+            {
+                return .sequenceSourceObject
+            }
+            return .sequence
+        }
+        if simpleName == interner.intern("sequenceOf")
+            || simpleName == interner.intern("emptySequence")
+        {
+            return .sequence
+        }
+        if simpleName == interner.intern("Sequence") {
+            return .sequenceSourceObject
+        }
+        return nil
     }
 
     private func propagateCollectionOperation(
