@@ -1729,4 +1729,58 @@ struct RuntimeChannelTests {
         #expect(runtimeChannelHandle(optionalDropOldest).capacity == 1)
         _ = kk_channel_close(optionalDropOldest)
     }
+
+    /// KUU-3847: channel-family handles carry no `kk_object_new` nominal tag,
+    /// so `kk_op_is`/`kk_op_cast` recover the kotlinx nominal (`Channel`,
+    /// implementing `SendChannel` + `ReceiveChannel`, and `ChannelIterator`)
+    /// instead of failing `is`/`as` checks — the ClassCastException that
+    /// previously escaped `consume`/`consumeEach` as an unhandled top-level
+    /// exception.
+    @Test func channelFamilyHandlesAnswerNominalTypeChecks() {
+        func nominalToken(_ fqName: String) -> Int {
+            Int((runtimeStableNominalTypeID(fqName: fqName) << RuntimeTypeTokenEncoding.payloadShift)
+                | RuntimeTypeTokenEncoding.nominalBase)
+        }
+        let channel = kk_channel_create(1)
+        defer { _ = kk_channel_close(channel) }
+        let channelToken = nominalToken("kotlinx.coroutines.channels.Channel")
+        #expect(kk_op_is(channel, channelToken) == 1)
+        #expect(kk_op_is(channel, nominalToken("kotlinx.coroutines.channels.SendChannel")) == 1)
+        #expect(kk_op_is(channel, nominalToken("kotlinx.coroutines.channels.ReceiveChannel")) == 1)
+        var thrown = 0
+        #expect(kk_op_cast(channel, channelToken, &thrown) == channel)
+        #expect(thrown == 0)
+        // Unrelated nominals still reject the handle.
+        #expect(kk_op_is(channel, nominalToken("kotlinx.coroutines.Job")) == 0)
+        let iterator = kk_channel_iterator(channel)
+        #expect(kk_op_is(iterator, nominalToken("kotlinx.coroutines.channels.ChannelIterator")) == 1)
+    }
+
+    /// KUU-3847: `hasNext` ends iteration only on a cause-less close; a
+    /// `close(cause)` channel drains its buffer and then surfaces the retained
+    /// cause — upstream `ChannelIteratorImpl.hasNext` throws `closeCause` on
+    /// `CHANNEL_END`, and only a cause-less close returns false.
+    @Test func channelIteratorHasNextPropagatesCloseCause() {
+        // Cause-less close -> hasNext reports false, nothing thrown.
+        let plain = kk_channel_create(0)
+        let plainIterator = kk_channel_iterator(plain)
+        _ = kk_channel_close(plain)
+        var thrown = 0
+        #expect(kk_channel_iterator_hasNext(plainIterator, &thrown) == 0)
+        #expect(thrown == 0)
+
+        // close(cause) -> buffered elements drain first, then the cause throws.
+        let channel = kk_channel_create(1)
+        #expect(kk_channel_try_send(channel, 7) == kChannelResultSuccess)
+        let cause = runtimeAllocateIllegalStateException(message: "boom")
+        _ = kk_channel_close_cause(channel, cause)
+        let iterator = kk_channel_iterator(channel)
+        thrown = 0
+        #expect(kk_channel_iterator_hasNext(iterator, &thrown) == 1)
+        #expect(thrown == 0)
+        #expect(kk_channel_iterator_next(iterator) == 7)
+        thrown = 0
+        #expect(kk_channel_iterator_hasNext(iterator, &thrown) == 0)
+        #expect(thrown == cause)
+    }
 }

@@ -504,6 +504,7 @@ struct MetadataState {
     var primitiveTypeEdgesRegistered = false
     var rangeTypeEdgesRegistered = false
     var jobFamilyTypeEdgesRegistered = false
+    var channelFamilyTypeEdgesRegistered = false
     var coroutineDispatcherTypeEdgesRegistered = false
     var sortedCollectionTypeEdgesRegistered = false
     var mapEntryTypeEdgesRegistered = false
@@ -1497,6 +1498,7 @@ func kk_runtime_reset_metadata() {
             state.primitiveTypeEdgesRegistered = false
             state.rangeTypeEdgesRegistered = false
             state.jobFamilyTypeEdgesRegistered = false
+            state.channelFamilyTypeEdgesRegistered = false
             state.coroutineDispatcherTypeEdgesRegistered = false
             state.sortedCollectionTypeEdgesRegistered = false
             state.mapEntryTypeEdgesRegistered = false

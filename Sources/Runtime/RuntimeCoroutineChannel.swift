@@ -1420,6 +1420,43 @@ private func runtimeIsRegisteredChannelHandle(_ raw: Int) -> Bool {
     runtimeChannelHandleObject(from: raw) != nil
 }
 
+/// KUU-3847: channel-family handles (`RuntimeChannelHandle`,
+/// `RuntimeChannelIterator`) are raw runtime objects with no `kk_object_new`
+/// nominal tag, so `kk_op_is`/`kk_op_cast` map them to the kotlinx class they
+/// answer `is`/`as`/`as?` checks as — a channel handle claims
+/// `kotlinx.coroutines.channels.Channel` (upstream declares
+/// `interface Channel<E> : SendChannel<E>, ReceiveChannel<E>`), an iterator
+/// handle claims `kotlinx.coroutines.channels.ChannelIterator`.
+/// Mirrors `runtimeJobFamilyNominalTypeID` (KUU-1386).
+func runtimeChannelFamilyNominalTypeID(rawValue: Int) -> Int64? {
+    if runtimeChannelHandleObject(from: rawValue) != nil {
+        return runtimeStableNominalTypeID(fqName: "kotlinx.coroutines.channels.Channel")
+    }
+    if resolveRuntimeHandle(rawValue, as: RuntimeChannelIterator.self) != nil {
+        return runtimeStableNominalTypeID(fqName: "kotlinx.coroutines.channels.ChannelIterator")
+    }
+    return nil
+}
+
+/// Registers the `Channel -> SendChannel` / `Channel -> ReceiveChannel`
+/// supertype edges once (mirrors `registerJobFamilyTypeEdgesOnce`, KUU-1386)
+/// so `is`/`as` checks against the channel interfaces match kotlinx's
+/// `interface Channel<E> : SendChannel<E>, ReceiveChannel<E>` declaration.
+func registerChannelFamilyTypeEdgesOnce() {
+    runtimeStorage.withMetadataLock { state in
+        if state.channelFamilyTypeEdgesRegistered { return }
+        func nominalID(_ fqName: String) -> Int64 { runtimeStableNominalTypeID(fqName: fqName) }
+        let channel = nominalID("kotlinx.coroutines.channels.Channel")
+        for parent in [
+            nominalID("kotlinx.coroutines.channels.SendChannel"),
+            nominalID("kotlinx.coroutines.channels.ReceiveChannel"),
+        ] {
+            state.typeParents[channel, default: []].insert(parent)
+        }
+        state.channelFamilyTypeEdgesRegistered = true
+    }
+}
+
 /// KUU-1439: the CoroutineScope a channel handle stands in for. Only channels
 /// bound to a `produce`/`channelFlow`/`callbackFlow` producer answer — a plain
 /// `Channel()` keeps resolving to nil so the scope bridges keep rejecting it.
@@ -1998,6 +2035,11 @@ public func kk_channel_iterator(_ handle: Int) -> Int {
 /// terminal status is surfaced through `outThrown` as a `CancellationException`
 /// so `for`-loop `hasNext()` propagates it like the JVM instead of silently
 /// ending iteration.
+///
+/// KUU-3847: a channel closed *with a cause* (`close(cause)`) likewise
+/// surfaces the retained close cause once the buffer is drained — upstream
+/// `ChannelIteratorImpl.hasNext` throws `closeCause` on `CHANNEL_END`, and
+/// only a cause-less close ends iteration normally.
 @_cdecl("kk_channel_iterator_hasNext")
 public func kk_channel_iterator_hasNext(
     _ iterHandle: Int,
@@ -2009,8 +2051,16 @@ public func kk_channel_iterator_hasNext(
     }
     let iter = Unmanaged<RuntimeChannelIterator>.fromOpaque(ptr).takeUnretainedValue()
     let status = iter.advance()
-    if status == .cancelled {
+    switch status {
+    case .cancelled:
         outThrown?.pointee = iter.channel.cancellationThrowable()
+    case .closed:
+        let cause = iter.channel.closeCauseSnapshot()
+        if cause != 0, cause != runtimeNullSentinelInt {
+            outThrown?.pointee = cause
+        }
+    default:
+        break
     }
     return status == .success ? 1 : 0
 }
