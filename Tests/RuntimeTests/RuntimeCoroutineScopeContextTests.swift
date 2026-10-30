@@ -8,7 +8,7 @@ private final class ScopeFailurePublicationGate: @unchecked Sendable {
     let release = DispatchSemaphore(value: 0)
 }
 
-private func scopeFailureCloseGate(_ closure: Int, _ cause: Int, _ thrown: UnsafeMutablePointer<Int>?) -> Int {
+private func scopeFailureCloseGate(_ closure: Int, _: Int, _ thrown: UnsafeMutablePointer<Int>?) -> Int {
     let gate = Unmanaged<ScopeFailurePublicationGate>.fromOpaque(UnsafeRawPointer(bitPattern: closure)!).takeUnretainedValue()
     gate.entered.signal()
     _ = gate.release.wait(timeout: .now() + .seconds(5))

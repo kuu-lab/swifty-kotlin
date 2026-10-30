@@ -133,7 +133,7 @@ private final class ProducerCompletionCloseGate: @unchecked Sendable {
 private let producerCompletionCloseGate = ProducerCompletionCloseGate()
 
 @_cdecl("runtime_test_producer_completion_close_gate")
-private func runtime_test_producer_completion_close_gate(_ closure: Int, _ cause: Int, _ thrown: UnsafeMutablePointer<Int>?) -> Int {
+private func runtime_test_producer_completion_close_gate(_: Int, _: Int, _ thrown: UnsafeMutablePointer<Int>?) -> Int {
     thrown?.pointee = 0
     producerCompletionCloseGate.entered.signal()
     _ = producerCompletionCloseGate.release.wait(timeout: .now() + .seconds(5))
