@@ -568,6 +568,16 @@ public func kk_op_is(_ value: Int, _ typeToken: Int) -> Int {
                 targetTypeID: payload
             ) ? 1 : 0
         }
+        // KUU-3847: channel handles and their iterators are likewise raw
+        // runtime objects — recover the kotlinx.coroutines.channels nominal
+        // (`Channel`/`ChannelIterator`) they answer `is`/`as`/`as?` as.
+        if let channelFamilyTypeID = runtimeChannelFamilyNominalTypeID(rawValue: value) {
+            registerChannelFamilyTypeEdgesOnce()
+            return runtimeIsAssignable(
+                sourceTypeID: channelFamilyTypeID,
+                targetTypeID: payload
+            ) ? 1 : 0
+        }
         let throwable = runtimeStorage.withGCLock { state in
             state.objectPointers.contains(UInt(bitPattern: ptr))
                 ? tryCast(ptr, to: RuntimeThrowableBox.self)
