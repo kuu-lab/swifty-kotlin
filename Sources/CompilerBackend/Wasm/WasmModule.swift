@@ -243,6 +243,7 @@ final class WasmModule {
     private var functionEntries: [(typeIndex: Int, name: String)] = []
     private var bodyByLocalFunctionIndex: [Int: [UInt8]] = [:]
     private var globals: [(mutable: Bool, initValue: Int64, name: String)] = []
+    private var globalIndexByName: [String: Int] = [:]
     private var exports: [(name: String, kind: WasmExternalKind, index: Int)] = []
     private var tableFunctions: [Int] = []
     private var tableSlotByFunction: [Int: Int] = [:]
@@ -278,8 +279,10 @@ final class WasmModule {
     }
 
     func addGlobal(initialValue: Int64 = 0, name: String) -> Int {
+        if let existing = globalIndexByName[name] { return existing }
         let index = globals.count
         globals.append((true, initialValue, name))
+        globalIndexByName[name] = index
         return index
     }
 
