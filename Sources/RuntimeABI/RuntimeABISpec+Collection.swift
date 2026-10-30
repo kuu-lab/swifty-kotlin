@@ -11,6 +11,7 @@ public extension RuntimeABISpec {
         abi.nt("__kk_values_equal", "lhs rhs"),
         abi.th("__kk_list_check_modification", "listRaw outThrown"),
         abi.nt("__kk_list_of", "arrayRaw count"),
+        abi.nt("__kk_singleton_list_of", "element"),
         abi.th("__kk_emptyList"),
         abi.nt("__kk_array_list_is_read_only", "listRaw"),
         abi.nt("__kk_list_size", "listRaw"),
