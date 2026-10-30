@@ -951,6 +951,17 @@ extension LambdaLowerer {
             body.append(.constValue(result: parameterExpr, value: .symbolRef(parameter.symbol)))
             callArgs.append(parameterExpr)
         }
+        if let boundOwner = emitPropertyReferenceSingletonOwnerReceiver(
+            accessorSymbol: accessor.getterSymbol,
+            accessor: accessor,
+            captures: captures,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            instructions: &body
+        ) {
+            callArgs.insert(boundOwner, at: 0)
+        }
         // An interface / open / abstract member property must be read through
         // its itable / vtable, exactly like an ordinary `receiver.prop` read:
         // calling the declaring accessor statically would run the abstract
@@ -1149,6 +1160,17 @@ extension LambdaLowerer {
             body.append(.constValue(result: parameterExpr, value: .symbolRef(parameter.symbol)))
             callArgs.append(parameterExpr)
         }
+        if let boundOwner = emitPropertyReferenceSingletonOwnerReceiver(
+            accessorSymbol: accessor.setterSymbol,
+            accessor: accessor,
+            captures: captures,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            instructions: &body
+        ) {
+            callArgs.insert(boundOwner, at: 0)
+        }
         let result = arena.appendTemporary(type: sema.types.unitType)
         body.append(.call(symbol: accessor.setterSymbol, callee: interner.intern("set"), arguments: callArgs, result: result, canThrow: false))
         body.append(.returnUnit)
@@ -1162,6 +1184,51 @@ extension LambdaLowerer {
             isSuspend: false,
             isInline: false
         ))))
+    }
+
+    /// KUU-3803: KSP-505 keeps a bound `O::member` on a singleton `object`
+    /// from capturing a receiver, because the synthesized accessors for
+    /// *stored* object properties are receiver-less globals. A delegated
+    /// (`var x by D`) or custom-accessor member instead compiles to a real
+    /// accessor whose signature still takes the owner instance as its
+    /// leading `t` parameter — `lowerDelegateAccessor`/`lowerAccessorBody`
+    /// forward it to `getValue`/`setValue` and the accessor body's `this`.
+    /// Calling that accessor one argument short corrupted the call frame
+    /// and segfaulted (`O::member.set(v)`). When the resolved accessor
+    /// signature declares a receiver that neither a captured field nor an
+    /// interface parameter supplies, load the singleton from its global
+    /// slot so the call arity matches the accessor's real signature.
+    /// Object literals are excluded: their delegates live in instance
+    /// fields, not the singleton global this reads.
+    private func emitPropertyReferenceSingletonOwnerReceiver(
+        accessorSymbol: SymbolID?,
+        accessor: PropertyReferenceAccessor,
+        captures: [KIRExprID],
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        instructions: inout [KIRInstruction]
+    ) -> KIRExprID? {
+        guard captures.isEmpty,
+              accessor.ownerType == nil,
+              let accessorSymbol,
+              sema.symbols.functionSignature(for: accessorSymbol)?.receiverType != nil,
+              let ownerSymbol = sema.symbols.parentSymbol(for: accessor.propertySymbol),
+              sema.symbols.symbol(ownerSymbol)?.kind == .object,
+              !sema.bindings.isObjectLiteralPropertySymbol(accessor.propertySymbol)
+        else { return nil }
+        // Reading the singleton's member state triggers its lazy
+        // clinit-equivalent, mirroring the ordinary `O.member` access path.
+        driver.emitObjectLazyInitGuardIfNeeded(
+            objectSymbol: ownerSymbol, arena: arena, sema: sema,
+            interner: interner, instructions: &instructions
+        )
+        let ownerType = sema.types.make(.classType(ClassType(
+            classSymbol: ownerSymbol, args: [], nullability: .nonNull
+        )))
+        let receiverExpr = arena.appendExpr(.symbolRef(ownerSymbol), type: ownerType)
+        instructions.append(.constValue(result: receiverExpr, value: .symbolRef(ownerSymbol)))
+        return receiverExpr
     }
 
     /// `getDelegate()` mirrors the JVM contract: `null` for a property with
