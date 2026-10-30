@@ -179,6 +179,13 @@ final class WasmModuleContext {
         /// boxes and KConstructor boxes (`kk_object_new(11..13)` keeps that
         /// slot free).
         static let regHeadOffset: Int64 = 80
+        /// `StringBuilder` accumulator box: `{str@16}` — contents materialize
+        /// through `__kk_string_concat_flat` on append.
+        static let stringBuilderTypeID: Int64 = -9_029
+        /// Data-class marker bit OR'd into a type record's s3 slot by
+        /// `kk_runtime_register_data_class`; the low bits carry the
+        /// `kk_runtime_register_data_class_fields` slot mask.
+        static let dataClassMarkerBit: Int64 = 1 << 62
         /// Set boxes share the list layout `{array@16, count@24, flags@32}`
         /// so `kk_list_iterator` iterates them unchanged. Concrete nominal
         /// tags come from `stableNominalTypeID` so `is` checks work.

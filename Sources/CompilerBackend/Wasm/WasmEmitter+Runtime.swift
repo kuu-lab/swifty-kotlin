@@ -583,6 +583,15 @@ enum WasmRuntimeHelpers {
         "kk_object_register_equals_override",
         "kk_object_register_hashcode_override",
         "kk_value_class_register_any_to_string",
+        "kk_runtime_register_data_class",
+        "kk_runtime_register_data_class_fields",
+        "kk_array_set_typed",
+        "kk_bitwise_and",
+        "kk_any_hashCode",
+        "__kk_string_builder_new",
+        "__kk_string_builder_new_from_string_flat",
+        "__kk_string_builder_append_obj",
+        "__kk_string_builder_toString",
         // Generic iterator entry points dispatch on the iterator type ID.
         "kk_iterator_hasNext",
         "kk_iterator_next",
@@ -1435,6 +1444,40 @@ enum WasmRuntimeHelpers {
         case "kk_value_class_register_any_to_string":
             extraLocals = 1
             emitObjectOverrideRegisterBody(&code, ctx: ctx, slotOffset: 32)
+        // `kk_runtime_register_data_class(classID)` marks the type record
+        // (s3 |= marker); `..._fields(classID, mask)` merges the slot mask.
+        case "kk_runtime_register_data_class":
+            extraLocals = 2
+            emitDataClassRegisterBody(&code, ctx: ctx, argumentCount: argumentCount, withMask: false)
+        case "kk_runtime_register_data_class_fields":
+            extraLocals = 2
+            emitDataClassRegisterBody(&code, ctx: ctx, argumentCount: argumentCount, withMask: true)
+        case "kk_bitwise_and":
+            extraLocals = 0
+            code.localGet(0)
+            code.localGet(1)
+            code.op(WasmOpcode.i64And)
+        case "kk_any_hashCode":
+            extraLocals = 0
+            code.localGet(0)
+            code.call(ctx.emittedHelperIndex(
+                for: "__kk_wasm_elem_hash", argumentCount: 1
+            ))
+        case "kk_array_set_typed":
+            extraLocals = 0
+            emitArraySetBody(&code, ctx: ctx)
+        case "__kk_string_builder_new":
+            extraLocals = 1
+            emitStringBuilderNewBody(&code, ctx: ctx, withInitial: false)
+        case "__kk_string_builder_new_from_string_flat":
+            extraLocals = 1
+            emitStringBuilderNewBody(&code, ctx: ctx, withInitial: true)
+        case "__kk_string_builder_append_obj":
+            extraLocals = 1
+            emitStringBuilderAppendObjBody(&code, ctx: ctx)
+        case "__kk_string_builder_toString":
+            extraLocals = 0
+            emitLoadAt(&code, baseLocal: 0, byteOffset: 16)
         case "__kk_map_iterator", "__kk_mutable_map_iterator":
             extraLocals = 1
             emitMapIteratorBody(&code, ctx: ctx, name: name, argumentCount: argumentCount)
@@ -8539,6 +8582,81 @@ enum WasmRuntimeHelpers {
         code.end()
         code.end()
         code.i64Const(0)
+    }
+
+    /// `kk_runtime_register_data_class[_fields]` — parks the data-class
+    /// marker and field mask in `record(classID).s3`.
+    private static func emitDataClassRegisterBody(
+        _ code: inout WasmCode,
+        ctx: WasmModuleContext,
+        argumentCount: Int,
+        withMask: Bool
+    ) {
+        let recL = argumentCount, tmpL = argumentCount + 1
+        code.localGet(0)
+        code.call(ctx.emittedHelperIndex(for: "$__kk_wasm_token_record", argumentCount: 1))
+        code.localSet(recL)
+        if withMask {
+            // s3 = mask | (s3 & markerBit)
+            emitLoadAt(&code, baseLocal: recL, byteOffset: 48)
+            code.i64Const(L.dataClassMarkerBit)
+            code.op(WasmOpcode.i64And)
+            code.localGet(1)
+            code.op(WasmOpcode.i64Or)
+            code.localSet(tmpL)
+            emitStoreAt(&code, baseLocal: recL, byteOffset: 48, valueLocal: tmpL)
+        } else {
+            emitLoadAt(&code, baseLocal: recL, byteOffset: 48)
+            code.i64Const(L.dataClassMarkerBit)
+            code.op(WasmOpcode.i64Or)
+            code.localSet(tmpL)
+            emitStoreAt(&code, baseLocal: recL, byteOffset: 48, valueLocal: tmpL)
+        }
+        code.i64Const(0)
+    }
+
+    /// `StringBuilder` accumulator — `object_new(3, stringBuilderTypeID)`
+    /// with `{str@16}`; `new_from_string_flat` seeds the accumulator with
+    /// arg0.
+    private static func emitStringBuilderNewBody(
+        _ code: inout WasmCode,
+        ctx: WasmModuleContext,
+        withInitial: Bool
+    ) {
+        let sbL = withInitial ? 1 : 0
+        code.i64Const(3)
+        code.i64Const(L.stringBuilderTypeID)
+        code.call(ctx.emittedHelperIndex(for: "kk_object_new", argumentCount: 2))
+        code.localSet(sbL)
+        if withInitial {
+            emitStoreAt(&code, baseLocal: sbL, byteOffset: 16, valueLocal: 0)
+        }
+        code.localGet(sbL)
+    }
+
+    /// `__kk_string_builder_append_obj(sb, value)` — renders `value` via
+    /// `kk_any_to_string` and folds it into the accumulator with
+    /// `__kk_string_concat_flat`.
+    private static func emitStringBuilderAppendObjBody(
+        _ code: inout WasmCode,
+        ctx: WasmModuleContext
+    ) {
+        let sL = 2
+        code.localGet(1)
+        code.call(ctx.emittedHelperIndex(for: "kk_any_to_string", argumentCount: 1))
+        code.localSet(sL)
+        emitLoadAt(&code, baseLocal: 0, byteOffset: 16)
+        code.op(WasmOpcode.i64Eqz)
+        code.openIf()
+        emitStoreAt(&code, baseLocal: 0, byteOffset: 16, valueLocal: sL)
+        code.elseBranch()
+        emitLoadAt(&code, baseLocal: 0, byteOffset: 16)
+        code.localGet(sL)
+        code.call(ctx.emittedHelperIndex(for: "__kk_string_concat_flat", argumentCount: 2))
+        code.localSet(sL)
+        emitStoreAt(&code, baseLocal: 0, byteOffset: 16, valueLocal: sL)
+        code.end()
+        code.localGet(0)
     }
 
     /// Consults a registry slot for a callable table-index override and
