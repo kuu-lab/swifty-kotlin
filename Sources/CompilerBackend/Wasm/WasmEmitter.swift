@@ -181,6 +181,9 @@ final class WasmModuleContext {
         /// `StringBuilder` accumulator box: `{str@16}` — contents materialize
         /// through `__kk_string_concat_flat` on append.
         static let stringBuilderTypeID: Int64 = -9_029
+        /// `lazy {}` delegate box: `{state@16, value@24, fnSlot@32}` —
+        /// state 0 = uninitialized, 1 = initialized.
+        static let lazyBoxTypeID: Int64 = -9_030
         /// Data-class marker bit OR'd into a type record's s3 slot by
         /// `kk_runtime_register_data_class`; the low bits carry the
         /// `kk_runtime_register_data_class_fields` slot mask.
@@ -241,9 +244,18 @@ final class WasmModuleContext {
         // `kk_fn_*` is the kklib link-name form: its symbol points at the
         // klib-materialized body this module already emits, so `.direct`
         // resolution applies (unlike `kk_op_*`/`__kk_*` helper names).
-        let isRuntimeName = (name.hasPrefix("kk_") || name.hasPrefix("__kk_") || name.hasPrefix("$"))
+        // `$` alone is too broad: module-synthesized functions like
+        // `$enumOrdinalToName$<fqName>` carry a real symbol and must resolve
+        // directly — only the internal `$__kk_*`/`$__` helpers are runtime.
+        // The same applies to `__kk_`-prefixed *module* functions synthesized
+        // by lowering (`__kk_synthetic_companion_init_`) or materialized from
+        // a wasm kklib (`__kk_library_top_level_init_`): they are real decls
+        // in this arena, unlike the `__kk_` runtime helper family.
+        let isRuntimeName = (name.hasPrefix("kk_") || name.hasPrefix("__kk_") || name.hasPrefix("$__"))
             && !name.hasPrefix("kk_lambda_")
             && !name.hasPrefix("kk_fn_")
+            && !name.hasPrefix("__kk_synthetic_companion_init_")
+            && !name.hasPrefix("__kk_library_top_level_init_")
         if !isRuntimeName,
            let symbol,
            let index = functionIndexBySymbol[symbol]
@@ -358,6 +370,19 @@ final class WasmModuleContext {
             return isChar(1)
                 ? "__kk_wasm_string_ends_with_char"
                 : "__kk_wasm_string_ends_with"
+        case "getValue":
+            // `Lazy.getValue` (lazy delegation) — receiver must be a Lazy
+            // class; ReadOnlyProperty/Map.getValue stay unrouted.
+            guard let recv = argumentTypes.first, let t = recv,
+                  let types, case let .classType(ct) = types.kind(of: t),
+                  let recvSym = symbols?.symbol(ct.classSymbol)
+            else { return nil }
+            let recvFQ = recvSym.fqName.map({ interner.resolve($0) })
+            guard recvFQ.count == 2, recvFQ[0] == "kotlin",
+                  ["Lazy", "LazyImpl", "SynchronizedLazyImpl", "UnsafeLazyImpl"]
+                      .contains(recvFQ[1])
+            else { return nil }
+            return "kk_lazy_get_value"
         case "replace$default":
             return isChar(1)
                 ? "__kk_wasm_string_replace_char"
@@ -459,6 +484,23 @@ final class WasmModuleContext {
                 case "first", "component1": return "__kk_pair_first"
                 case "second", "component2": return "__kk_pair_second"
                 case "toString": return "__kk_wasm_pair_to_string"
+                default: break
+                }
+            }
+            // `by lazy {}` lowers to `LazyImpl.<init>` + `Lazy.getValue` —
+            // regular member bodies that the linker-free wasm kklib cannot
+            // ship, so a boxed `{state, value, fnSlot}` helper covers them.
+            if components.count >= 2 {
+                switch components[1] {
+                case "LazyImpl", "SynchronizedLazyImpl", "UnsafeLazyImpl":
+                    if member == "<init>" || member == components[1] {
+                        return "kk_lazy_new"
+                    }
+                    if member == "getValue" { return "kk_lazy_get_value" }
+                case "Lazy":
+                    if member == "getValue" { return "kk_lazy_get_value" }
+                case "lazy":
+                    if components.count == 2 { return "kk_lazy_new" }
                 default: break
                 }
             }

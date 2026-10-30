@@ -289,16 +289,30 @@ extension DataFlowSemaPhase {
         }
         while let body = bodiesToScan.popLast() {
             for instruction in body {
-                guard case let .call(callSymbol, calleeName, _, _, _, _, _, _) = instruction else {
-                    continue
+                // `.virtualCall` also reaches kklib member bodies (`getValue`
+                // on Lazy, enum `values` adapters) — without scanning it the
+                // target's body never materializes and the site stubs.
+                // `.constValue(.symbolRef)` is the third carrier: vtable/
+                // itable registrations inside materialized init bodies hold
+                // raw member symbols whose bodies must ship as well, or the
+                // registered slot dispatches into a stub.
+                let callSite: (symbol: SymbolID?, name: InternedString?)?
+                switch instruction {
+                case let .call(s, n, _, _, _, _, _, _): callSite = (s, n)
+                case let .virtualCall(s, n, _, _, _, _, _, _): callSite = (s, n)
+                case let .constValue(_, .symbolRef(s)): callSite = (s, nil)
+                default: callSite = nil
                 }
+                guard let (callSymbol, calleeName) = callSite else { continue }
                 var targets: [SymbolID] = callSymbol.map { [$0] }
-                    ?? drainThenRead(calleeName)
+                    ?? calleeName.map { drainThenRead($0) }
+                    ?? []
                 // Init shells aren't index bindings, so their link names
                 // never enter pendingInlineSymbolsByName — resolve them
                 // through the registered descriptor map, synthesizing a
                 // shell when the link name has a shipped body but no symbol.
                 if targets.isEmpty, materializeInitBodiesForWasm,
+                   let calleeName,
                    let initSymbol = initSymbolsByLinkName[interner.resolve(calleeName)]
                         ?? linkNameDrivenShellSymbol(interner.resolve(calleeName))
                 {
@@ -308,12 +322,22 @@ extension DataFlowSemaPhase {
                     var function = resolveOne(target)
                     // A resolved callee whose record is not inline still has
                     // a shipped body when init reaches it transitively —
-                    // retry once after registering its descriptor.
-                    if function == nil, materializeInitBodiesForWasm,
-                       let linkName = symbols.externalLinkNameIfKnown(for: target),
-                       linkNameDrivenShellSymbol(linkName) != nil
-                    {
-                        function = resolveOne(target)
+                    // retry once after registering its descriptor. The callee
+                    // *name* may itself be the `kk_fn_` link name even when
+                    // the symbol carries no external link name; the resolved
+                    // shell (existing or synthesized) then owns the body, so
+                    // scan *it*, not the dead-end target.
+                    if function == nil, materializeInitBodiesForWasm {
+                        if let linkName = symbols.externalLinkNameIfKnown(for: target),
+                           linkNameDrivenShellSymbol(linkName) != nil
+                        {
+                            function = resolveOne(target)
+                        } else if let calleeName,
+                                  let shell = linkNameDrivenShellSymbol(interner.resolve(calleeName)),
+                                  scannedSymbols.insert(shell).inserted
+                        {
+                            function = resolveOne(shell)
+                        }
                     }
                     if let function {
                         bodiesToScan.append(function.body)

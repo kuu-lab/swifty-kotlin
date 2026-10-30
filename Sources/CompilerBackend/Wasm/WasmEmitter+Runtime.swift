@@ -569,6 +569,10 @@ enum WasmRuntimeHelpers {
         "__kk_kcallable_register_annotation_factory",
         "kk_enum_box_ordinal",
         "kk_enum_register_values",
+        "kk_enum_make_values_array",
+        "kk_enum_make_entries_list_cached",
+        "kk_enum_valueOf_throw",
+        "__kk_kproperty_stub_create_local",
         "kk_object_register_any_to_string",
         "kk_object_register_equals_override",
         "kk_object_register_hashcode_override",
@@ -582,6 +586,8 @@ enum WasmRuntimeHelpers {
         "__kk_string_builder_new_from_string_flat",
         "__kk_string_builder_append_obj",
         "__kk_string_builder_toString",
+        "kk_lazy_new",
+        "kk_lazy_get_value",
         // Generic iterator entry points dispatch on the iterator type ID.
         "kk_iterator_hasNext",
         "kk_iterator_next",
@@ -1404,6 +1410,32 @@ enum WasmRuntimeHelpers {
         case "kk_enum_register_values":
             extraLocals = 1
             emitEnumRegisterValuesBody(&code, ctx: ctx)
+        // `values()` → fresh array box of `min(count, len)` copied entries.
+        case "kk_enum_make_values_array":
+            extraLocals = 3
+            emitEnumMakeValuesArrayBody(&code, ctx: ctx)
+        // `entries` → cached readOnly list box per classID (record.s4).
+        case "kk_enum_make_entries_list_cached":
+            extraLocals = 4
+            emitEnumMakeEntriesListCachedBody(&code, ctx: ctx, argumentCount: argumentCount)
+        case "kk_enum_valueOf_throw":
+            extraLocals = 0
+            emitLiteralString(&code, ctx: ctx, "No enum constant ")
+            code.localGet(0)
+            code.call(ctx.emittedHelperIndex(for: "__kk_string_concat_flat", argumentCount: 2))
+            code.call(ctx.emittedHelperIndex(
+                for: "__kk_illegal_argument_exception_new_message", argumentCount: 1
+            ))
+            code.globalSet(ctx.thrownGlobal)
+            code.i64Const(0)
+        // Local delegated-property stub `{name, returnType, isLocal, isMutable}`.
+        case "__kk_kproperty_stub_create_local":
+            extraLocals = 1
+            emitSmallBoxBody(
+                &code, ctx: ctx, typeID: L.kpropertyStubTypeID, slots: 5,
+                fields: [16: 0, 24: 1, 40: 3], boxLocal: argumentCount
+            )
+            emitStoreAtConst(&code, baseLocal: argumentCount, byteOffset: 32, value: 1)
         // `kk_object_register_*_override(obj, fnSlot)` → record(obj).s0/s1/s2.
         case "kk_object_register_any_to_string":
             extraLocals = 1
@@ -1453,6 +1485,31 @@ enum WasmRuntimeHelpers {
         case "__kk_string_builder_toString":
             extraLocals = 0
             emitLoadAt(&code, baseLocal: 0, byteOffset: 16)
+        // `lazy {}` box `{state@16, value@24, fnSlot@32}`; `getValue` runs
+        // the initializer table slot once via call_indirect then caches.
+        case "kk_lazy_new":
+            extraLocals = 1
+            // `LazyImpl(initializer, mode, lock, initialValue, initialComputed)`
+            // passes the seeded state/value; the `lazy(...)` factory arity
+            // (1–3) only carries the initializer slot.
+            emitSmallBoxBody(
+                &code, ctx: ctx, typeID: L.lazyBoxTypeID, slots: 4,
+                fields: argumentCount >= 5 ? [32: 0, 24: 3, 16: 4] : [32: 0],
+                boxLocal: argumentCount
+            )
+        case "kk_lazy_get_value":
+            extraLocals = 1
+            emitLoadAt(&code, baseLocal: 0, byteOffset: 16)
+            code.op(WasmOpcode.i64Eqz)
+            code.openIf()
+            emitLoadAt(&code, baseLocal: 0, byteOffset: 32)
+            code.op(WasmOpcode.i32WrapI64)
+            code.callIndirect(ctx.module.funcTypeIndex(.i64Signature(0)))
+            code.localSet(argumentCount)
+            emitStoreAt(&code, baseLocal: 0, byteOffset: 24, valueLocal: argumentCount)
+            emitStoreAtConst(&code, baseLocal: 0, byteOffset: 16, value: 1)
+            code.end()
+            emitLoadAt(&code, baseLocal: 0, byteOffset: 24)
         case "__kk_map_iterator", "__kk_mutable_map_iterator":
             extraLocals = 1
             emitMapIteratorBody(&code, ctx: ctx, name: name, argumentCount: argumentCount)
@@ -8497,6 +8554,133 @@ enum WasmRuntimeHelpers {
         code.localSet(recL)
         emitStoreAt(&code, baseLocal: recL, byteOffset: 40, valueLocal: 1)
         code.i64Const(0)
+    }
+
+    /// `kk_enum_make_values_array(valuesRaw, count, classID)` — builds a
+    /// fresh raw array of `min(max(count,0), len(values))` entry handles.
+    /// Locals: safeCount=3, arr=4, i=5.
+    private static func emitEnumMakeValuesArrayBody(
+        _ code: inout WasmCode,
+        ctx: WasmModuleContext
+    ) {
+        let safeL = 3, arrL = 4, iL = 5
+        // safeCount = (values==0 ? 0 : values.len); if 0<=count<safeCount → count.
+        code.localGet(0)
+        code.op(WasmOpcode.i64Eqz)
+        code.openIf(result: .i64)
+        code.i64Const(0)
+        code.elseBranch()
+        emitLoadAt(&code, baseLocal: 0, byteOffset: L.metaOffset)
+        code.end()
+        code.localSet(safeL)
+        code.localGet(1)
+        code.localGet(safeL)
+        code.op(WasmOpcode.i64LtS)
+        code.localGet(1)
+        code.i64Const(0)
+        code.op(WasmOpcode.i64GeS)
+        code.op(WasmOpcode.i32And)
+        code.openIf()
+        code.localGet(1)
+        code.localSet(safeL)
+        code.end()
+        // arr = alloc(safeCount*8) with array header.
+        code.localGet(safeL)
+        code.i64Const(8)
+        code.op(WasmOpcode.i64Mul)
+        code.call(ctx.emittedHelperIndex(for: "$__kk_wasm_alloc", argumentCount: 1))
+        code.localSet(arrL)
+        emitStoreAtConst(&code, baseLocal: arrL, byteOffset: L.typeIDOffset, value: L.arrayTypeID)
+        emitStoreAt(&code, baseLocal: arrL, byteOffset: L.metaOffset, valueLocal: safeL)
+        // i = 0; while i < safeCount: arr[i] = values[i]; i++
+        code.i64Const(0)
+        code.localSet(iL)
+        code.localGet(0)
+        code.op(WasmOpcode.i64Eqz)
+        code.openIf()
+        code.i64Const(0)
+        code.localSet(safeL)
+        code.end()
+        code.openBlock()
+        code.openLoop()
+        code.localGet(iL)
+        code.localGet(safeL)
+        code.op(WasmOpcode.i64GeS)
+        code.brIf(1)
+        code.localGet(arrL)
+        code.op(WasmOpcode.i32WrapI64)
+        code.localGet(iL)
+        code.op(WasmOpcode.i32WrapI64)
+        code.i32Const(8)
+        code.op(WasmOpcode.i32Mul)
+        code.op(WasmOpcode.i32Add)
+        code.localGet(0)
+        code.op(WasmOpcode.i32WrapI64)
+        code.localGet(iL)
+        code.op(WasmOpcode.i32WrapI64)
+        code.i32Const(8)
+        code.op(WasmOpcode.i32Mul)
+        code.op(WasmOpcode.i32Add)
+        code.i64Load(offset: 0)
+        code.i64Store(offset: 0)
+        code.localGet(iL)
+        code.i64Const(1)
+        code.op(WasmOpcode.i64Add)
+        code.localSet(iL)
+        code.br(0)
+        code.end()
+        code.end()
+        code.localGet(arrL)
+    }
+
+    /// `kk_enum_make_entries_list_cached(valuesRaw, count, classID)` —
+    /// caches a readOnly list box per classID in `record.s4` (@56).
+    /// Locals: rec=3, cached/list=4, safeCount=5, arr=6.
+    private static func emitEnumMakeEntriesListCachedBody(
+        _ code: inout WasmCode,
+        ctx: WasmModuleContext,
+        argumentCount: Int
+    ) {
+        let recL = argumentCount, boxL = argumentCount + 1
+        let safeL = argumentCount + 2, arrL = argumentCount + 3
+        code.localGet(2)
+        code.call(ctx.emittedHelperIndex(for: "$__kk_wasm_token_record", argumentCount: 1))
+        code.localSet(recL)
+        emitLoadAt(&code, baseLocal: recL, byteOffset: 56)
+        code.localTee(boxL)
+        code.op(WasmOpcode.i64Eqz)
+        code.openIf()
+        // safeCount = (values==0 ? 0 : min(values.len, max(count,0)))
+        code.localGet(0)
+        code.op(WasmOpcode.i64Eqz)
+        code.openIf(result: .i64)
+        code.i64Const(0)
+        code.elseBranch()
+        emitLoadAt(&code, baseLocal: 0, byteOffset: L.metaOffset)
+        code.end()
+        code.localSet(safeL)
+        code.localGet(1)
+        code.localGet(safeL)
+        code.op(WasmOpcode.i64LtS)
+        code.localGet(1)
+        code.i64Const(0)
+        code.op(WasmOpcode.i64GeS)
+        code.op(WasmOpcode.i32And)
+        code.openIf()
+        code.localGet(1)
+        code.localSet(safeL)
+        code.end()
+        // list box over the source array (substituted when 0 inside the
+        // shared list-box emit); count = safeCount.
+        code.localGet(0)
+        code.localSet(arrL)
+        emitListBoxBody(
+            &code, ctx: ctx, typeID: L.listTypeID, readOnly: true,
+            arrayLocal: arrL, countLocal: safeL, objectLocal: boxL
+        )
+        emitStoreAt(&code, baseLocal: recL, byteOffset: 56, valueLocal: boxL)
+        code.end()
+        code.localGet(boxL)
     }
 
     /// `register_*_override(key, fnSlot)` / value-class variant: stores
