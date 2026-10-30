@@ -255,7 +255,11 @@ public func __kk_kclass_simple_name(_ kclassRaw: Int) -> Int {
         return runtimeMakeStringRaw(String(simpleName))
     }
     if let metadata = box.metadata {
-        return runtimeMakeStringRaw(metadata.simpleName)
+        // KUU-3828: anonymous object literals have no simple name on the JVM
+        // even though the compiler registers a synthetic internal name.
+        return metadata.isAnonymous
+            ? runtimeNullSentinelInt
+            : runtimeMakeStringRaw(metadata.simpleName)
     }
     return __kk_type_token_simple_name(box.typeToken, box.nameHint)
 }
@@ -313,7 +317,8 @@ public func __kk_kclass_register_metadata(
 /// Flags bit layout: bit 0=dataClass, bit 1=sealedClass, bit 2=valueClass,
 ///   bit 3=interface, bit 4=object, bit 5=enumClass, bit 6=annotationClass,
 ///   bit 7=abstract, bit 8=final, bit 9=open,
-///   bit 10=inner, bit 11=companion, bit 12=funInterface, bit 13=local.
+///   bit 10=inner, bit 11=companion, bit 12=funInterface, bit 13=local,
+///   bit 14=anonymous (object literal).
 @_cdecl("__kk_kclass_register_metadata_v2")
 public func __kk_kclass_register_metadata_v2(
     _ typeToken: Int,
@@ -372,7 +377,8 @@ public func __kk_kclass_register_metadata_v2(
         isInner: (flags & (1 << 10)) != 0,
         isCompanion: (flags & (1 << 11)) != 0,
         isFunInterface: (flags & (1 << 12)) != 0,
-        isLocal: (flags & (1 << 13)) != 0
+        isLocal: (flags & (1 << 13)) != 0,
+        isAnonymous: (flags & (1 << 14)) != 0
     )
     runtimeKClassMetadataRegistry.register(typeToken: typeToken, entry: entry)
     return 0

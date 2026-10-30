@@ -974,6 +974,7 @@ final class ObjectLiteralLowerer {
         //        bit 3=interface, bit 4=object, bit 5=enumClass,
         //        bit 6=annotationClass, bit 7=abstract,
         //        bit 10=inner, bit 11=companion, bit 12=funInterface. (STDLIB-REFLECT-067)
+        //        bit 13=local, bit 14=anonymous (object literal). (KUU-3828)
         var flags: Int64 = 0
         if symbol.flags.contains(.dataType) { flags |= 1 << 0 }
         if symbol.flags.contains(.sealedType) { flags |= 1 << 1 }
@@ -1006,6 +1007,12 @@ final class ObjectLiteralLowerer {
         if isLocalOrAnonymous
             || ownerKind.map({ [.function, .property, .local].contains($0) }) == true {
             flags |= 1 << 13
+        }
+        // KUU-3828: anonymous object literals have no name on the JVM;
+        // reflection reports null simpleName despite the synthetic fqName.
+        if symbol.flags.contains(.synthetic),
+           interner.resolve(symbol.name).hasPrefix("__ObjectLiteral_") {
+            flags |= 1 << 14
         }
         let flagsExpr = arena.appendExpr(.intLiteral(flags), type: intType)
         instructions.append(.constValue(result: flagsExpr, value: .intLiteral(flags)))
