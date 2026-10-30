@@ -54,6 +54,10 @@ struct LocalOperatorFunctionParsingTests {
         ("operator fun Int.component1(a: Int): Int = a", "KSWIFTK-SEMA-0439"),
         ("operator fun Int.plus(vararg a: Int): Int = a.size", "KSWIFTK-SEMA-0439"),
         ("operator fun Int.plus(a: Int = 0): Int = a", "KSWIFTK-SEMA-0439"),
+        // KUU-3837: `of` is a legal operator name (collection literals), but
+        // a local function is never a companion member.
+        ("operator fun of(vararg s: String): Int = s.size", "KSWIFTK-SEMA-0439"),
+        ("operator fun Int.of(vararg s: String): Int = s.size", "KSWIFTK-SEMA-0439"),
     ])
     func invalidLocalModifiersRemainRejected(declaration: String, diagnostic: String) throws {
         let path = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".kt").path

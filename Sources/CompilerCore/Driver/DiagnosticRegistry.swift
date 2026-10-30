@@ -1267,6 +1267,12 @@ enum DiagnosticRegistry {
             defaultSeverity: .error,
             summary: "'expect' property cannot be delegated."
         ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0455",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "One of the overloads of operator 'of' must have a single 'vararg' parameter."
+        ),
     ]
 
 
