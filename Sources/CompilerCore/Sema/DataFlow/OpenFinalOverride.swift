@@ -351,6 +351,17 @@ extension DataFlowSemaPhase {
             ctx: ctx
         )
 
+        if case let .classDecl(classDecl) = decl,
+           ctx.symbols.symbol(symbol)?.kind == .enumClass {
+            for entry in classDecl.enumEntries {
+                validateEnumEntryMemberFinalityOverrides(
+                    entry: entry,
+                    ownerSymbol: symbol,
+                    ctx: ctx
+                )
+            }
+        }
+
         if case let .interfaceDecl(interfaceDecl) = decl {
             validateInterfaceProtectedMembers(interfaceDecl, ctx: ctx)
         }
@@ -460,6 +471,120 @@ extension DataFlowSemaPhase {
             )
         default:
             return false
+        }
+    }
+
+    /// Enum entry bodies subclass the enum class, but their member symbols
+    /// are collected under the enum class itself, so the inherited-member
+    /// scan behind `validateOverrideTarget` never sees the enum's own
+    /// synthetic `name`/`ordinal` members (or any other non-overridable
+    /// member declared on the enum class). Without this check an entry can
+    /// silently `override` the final `kotlin.Enum.name`/`ordinal`; the
+    /// bogus member is then ignored or traps at runtime (KUU-3748).
+    private func validateEnumEntryMemberFinalityOverrides(
+        entry: EnumEntryDecl,
+        ownerSymbol: SymbolID,
+        ctx: OpenFinalOverrideContext
+    ) {
+        guard let ownerSym = ctx.symbols.symbol(ownerSymbol) else { return }
+        for memberDeclID in entry.memberFunctions + entry.memberProperties {
+            guard let memberDecl = ctx.ast.arena.decl(memberDeclID),
+                  let memberMeta = extractMemberMeta(
+                      memberDecl,
+                      declID: memberDeclID,
+                      ctx: ctx
+                  ),
+                  memberMeta.hasOverride
+            else { continue }
+            validateEnumEntryOverrideFinality(
+                memberName: memberMeta.name,
+                memberRange: memberMeta.range,
+                memberDeclID: memberDeclID,
+                parameterTypes: memberMeta.parameterTypes,
+                ownerSymbol: ownerSymbol,
+                ownerSym: ownerSym,
+                ctx: ctx
+            )
+        }
+    }
+
+    /// An `override` in an enum entry body is invalid when it targets any
+    /// non-overridable member reachable from the entry's anonymous class:
+    /// the enum class's own members (the entry subclasses the enum class)
+    /// plus the members it inherits. A single final match rejects the
+    /// override even when another same-named overridable member exists,
+    /// matching kotlinc ('X' in 'Y' is final and cannot be overridden).
+    private func validateEnumEntryOverrideFinality(
+        memberName: InternedString,
+        memberRange: SourceRange,
+        memberDeclID: DeclID,
+        parameterTypes: [TypeID]?,
+        ownerSymbol: SymbolID,
+        ownerSym: SemanticSymbol,
+        ctx: OpenFinalOverrideContext
+    ) {
+        let memberSymbol = ctx.bindings.declSymbols[memberDeclID]
+        let memberSym = memberSymbol.flatMap { ctx.symbols.symbol($0) }
+        let memberIsFunction = memberSym?.kind == .function
+        let memberIsExtension = memberSym?.flags.contains(.memberExtension) == true
+
+        // A same-named overload with a different signature is a separate
+        // member, not an override target.
+        func signatureMatches(_ candidateID: SymbolID) -> Bool {
+            guard memberIsFunction, let parameterTypes else { return true }
+            return ctx.symbols.symbol(candidateID)?.kind == .function
+                && ctx.symbols.functionSignature(for: candidateID)?.parameterTypes == parameterTypes
+        }
+        func flagsMatch(_ candidate: SemanticSymbol) -> Bool {
+            candidate.flags.contains(.memberExtension) == memberIsExtension
+        }
+
+        var finalTarget: (SymbolID, InternedString)?
+        for childID in ctx.symbols.children(ofFQName: ownerSym.fqName) {
+            guard childID != memberSymbol,
+                  let child = ctx.symbols.symbol(childID),
+                  child.fqName == ownerSym.fqName + [child.name],
+                  child.name == memberName,
+                  child.kind == .function || child.kind == .property,
+                  child.visibility != .private,
+                  !child.flags.contains(.extensionMemberAlias),
+                  flagsMatch(child),
+                  signatureMatches(childID)
+            else { continue }
+            let parent = OFOInheritedMember(
+                memberID: childID,
+                ownerName: ownerSym.name,
+                ownerIsInterface: false
+            )
+            if !isMemberOverridable(child, parent: parent) {
+                finalTarget = (childID, ownerSym.name)
+                break
+            }
+        }
+        if finalTarget == nil {
+            for parent in findAllInheritedMembers(
+                named: memberName,
+                for: ownerSymbol,
+                symbols: ctx.symbols
+            ) {
+                guard let parentSym = ctx.symbols.symbol(parent.memberID),
+                      flagsMatch(parentSym),
+                      signatureMatches(parent.memberID)
+                else { continue }
+                if !isMemberOverridable(parentSym, parent: parent) {
+                    finalTarget = (parent.memberID, parent.ownerName)
+                    break
+                }
+            }
+        }
+        if let (_, finalOwnerName) = finalTarget {
+            let name = ctx.interner.resolve(memberName)
+            let ownerName = ctx.interner.resolve(finalOwnerName)
+            ctx.diagnostics.error(
+                "KSWIFTK-SEMA-FINAL",
+                "'\(name)' in '\(ownerName)' is final and cannot be overridden.",
+                range: memberRange
+            )
         }
     }
 
