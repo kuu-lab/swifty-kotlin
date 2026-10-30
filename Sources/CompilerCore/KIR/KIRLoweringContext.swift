@@ -87,6 +87,11 @@ final class KIRLoweringContext {
 
     var lazyThreadSafetyMode: LazyDelegateThreadSafetyMode = .synchronized
 
+    /// `-Xassertions=` mode for this compilation (KUU-3817). Call lowering
+    /// erases `kotlin.assert` calls outright under `always-disable`, matching
+    /// kotlinc: neither the condition nor the lazy message evaluates.
+    var assertionsMode: AssertionsMode = .jvm
+
     private var functionDefaultArgumentsBySymbol: [SymbolID: [ExprID?]] = [:]
     /// Functions declared `tailrec` whose body is currently being (or has been) lowered.
     /// Self-calls to these expand omitted defaults at the call site so the

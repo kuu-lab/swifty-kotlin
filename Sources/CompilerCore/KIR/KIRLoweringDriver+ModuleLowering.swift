@@ -20,6 +20,7 @@ extension KIRLoweringDriver {
                 : "\(packageName).\(facadeName)"
         }
         ctx.lazyThreadSafetyMode = compilationCtx.options.lazyThreadSafetyMode
+        ctx.assertionsMode = compilationCtx.options.assertionsMode
         ctx.initializeSyntheticLambdaSymbolAllocator(
             sema: sema,
             stdlibOnly: compilationCtx.options.stdlibOnly

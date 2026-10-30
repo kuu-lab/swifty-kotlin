@@ -9,6 +9,7 @@ enum CLIParseError: Error, Equatable {
     case invalidTargetTriple(String)
     case unsupportedDiagnosticsFormat(String)
     case unsupportedNameBasedDestructuringMode(String)
+    case unsupportedAssertionsMode(String)
     case unknownOption(String)
     case noInputFiles
     case incompatibleStdlibOptions(String)
@@ -51,6 +52,13 @@ enum CLIParser {
       -Xname-based-destructuring=complete
                              Enable name-based short-form destructuring in for loops
       -Xir <flag>            IR/lowering feature flag (e.g. trace-lowering)
+      -Xassertions=<mode>    kotlin.assert enablement baked into the executable:
+                             always-enable|always-disable|jvm|legacy
+                             (jvm/legacy default: KK_ASSERTIONS_ENABLED env decides)
+      -ea, -enable-assertions
+                             Shorthand for -Xassertions=always-enable
+      -da, -disable-assertions
+                             Shorthand for -Xassertions=always-disable
       -Xruntime <flag>       Runtime feature flag
       -Xdiagnostics <format> Diagnostic output format (text|json)
       --stdlib               Include stdlib search paths (default)
@@ -190,6 +198,16 @@ enum CLIParser {
                     throw CLIParseError.unsupportedNameBasedDestructuringMode(mode)
                 }
                 frontendFlags.append("name-based-destructuring=complete")
+            case _ where arg.hasPrefix("-Xassertions="):
+                let mode = String(arg.dropFirst("-Xassertions=".count))
+                guard AssertionsMode(rawValue: mode) != nil else {
+                    throw CLIParseError.unsupportedAssertionsMode(mode)
+                }
+                runtimeFlags.append("assertions=\(mode)")
+            case "-ea", "-enable-assertions":
+                runtimeFlags.append("assertions=always-enable")
+            case "-da", "-disable-assertions":
+                runtimeFlags.append("assertions=always-disable")
             case "-Xir":
                 try irFlags.append(requireValue(option: arg, args: args, index: &index))
             case "-Xruntime":

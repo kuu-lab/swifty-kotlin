@@ -39,6 +39,7 @@ private struct LLVMEntryPointFunctionTypes {
     let mainType: LLVMCAPIBindings.LLVMTypeRef
     let argumentsType: LLVMCAPIBindings.LLVMTypeRef
     let waitThreadsType: LLVMCAPIBindings.LLVMTypeRef
+    let assertionsSetType: LLVMCAPIBindings.LLVMTypeRef
 }
 
 private struct LLVMEntryPointFunctions {
@@ -47,6 +48,7 @@ private struct LLVMEntryPointFunctions {
     let mainFunction: LLVMCAPIBindings.LLVMValueRef
     let argumentsFunction: LLVMCAPIBindings.LLVMValueRef
     let waitThreadsFunction: LLVMCAPIBindings.LLVMValueRef
+    let assertionsSetFunction: LLVMCAPIBindings.LLVMValueRef?
 }
 
 private struct LLVMEntryPointBlocks {
@@ -69,11 +71,13 @@ struct LLVMEntryPointObjectEmitter {
     private let target: TargetTriple
     private let phaseTimer: PhaseTimer?
     private let takesArguments: Bool
+    private let assertionsMode: AssertionsMode
     private let panicMessageText = "KSwiftK panic [KSWIFTK-LINK-0003]: Unhandled top-level exception\n"
 
     init(
         target: TargetTriple,
         takesArguments: Bool = false,
+        assertionsMode: AssertionsMode = .jvm,
         phaseTimer: PhaseTimer? = nil,
         session: LLVMBackendSession = LLVMBackendSession()
     ) throws {
@@ -86,6 +90,7 @@ struct LLVMEntryPointObjectEmitter {
         self.bindings = bindings
         self.target = target
         self.takesArguments = takesArguments
+        self.assertionsMode = assertionsMode
     }
 
     func emit(entrySymbol: String) throws -> String {
@@ -249,9 +254,17 @@ struct LLVMEntryPointObjectEmitter {
         ) else {
             throw LLVMEntryPointObjectEmitterError.invalidIR("failed to create thread wait function type")
         }
+        guard let assertionsSetType = bindings.functionType(
+            returnType: primitiveTypes.int64Type,
+            parameters: [primitiveTypes.int64Type],
+            isVarArg: false
+        ) else {
+            throw LLVMEntryPointObjectEmitterError.invalidIR("failed to create assertions setter function type")
+        }
         return LLVMEntryPointFunctionTypes(
             entryType: entryType, writeType: writeType, mainType: mainType,
-            argumentsType: argumentsType, waitThreadsType: waitThreadsType
+            argumentsType: argumentsType, waitThreadsType: waitThreadsType,
+            assertionsSetType: assertionsSetType
         )
     }
 
@@ -283,12 +296,29 @@ struct LLVMEntryPointObjectEmitter {
         ) else {
             throw LLVMEntryPointObjectEmitterError.invalidIR("failed to declare thread wait function")
         }
+        // -Xassertions=always-enable/always-disable bakes the process-wide
+        // kotlin.assert state into the binary: the entry wrapper overrides the
+        // environment-derived startup state before Kotlin `main` runs.
+        let assertionsSetFunction: LLVMCAPIBindings.LLVMValueRef?
+        if assertionsMode.forcedState != nil {
+            guard let setter = bindings.addFunction(
+                module: module,
+                name: "kk_assertions_set_enabled",
+                functionType: functionTypes.assertionsSetType
+            ) else {
+                throw LLVMEntryPointObjectEmitterError.invalidIR("failed to declare assertions setter function")
+            }
+            assertionsSetFunction = setter
+        } else {
+            assertionsSetFunction = nil
+        }
         return LLVMEntryPointFunctions(
             entryFunction: entryFunction,
             writeFunction: writeFunction,
             mainFunction: mainFunction,
             argumentsFunction: argumentsFunction,
-            waitThreadsFunction: waitThreadsFunction
+            waitThreadsFunction: waitThreadsFunction,
+            assertionsSetFunction: assertionsSetFunction
         )
     }
 
@@ -303,6 +333,12 @@ struct LLVMEntryPointObjectEmitter {
         bindings.positionBuilder(builder, at: blocks.entryBlock)
 
         let constants = try makeMainConstants(builder: builder, primitiveTypes: primitiveTypes)
+        try emitAssertionsOverride(
+            builder: builder,
+            primitiveTypes: primitiveTypes,
+            functionTypes: functionTypes,
+            functions: functions
+        )
         try emitEntryDispatch(
             builder: builder,
             blocks: blocks,
@@ -365,6 +401,36 @@ struct LLVMEntryPointObjectEmitter {
             stderrFD: stderrFD,
             panicMessageLength: panicMessageLength
         )
+    }
+
+    /// `-Xassertions=always-enable` / `always-disable` fix the process-wide
+    /// `kotlin.assert` state before Kotlin `main` runs, matching kotlinc's
+    /// compile-time assertions modes. `jvm`/`legacy` leave the
+    /// environment-derived startup state untouched (KUU-2751).
+    private func emitAssertionsOverride(
+        builder: LLVMCAPIBindings.LLVMBuilderRef,
+        primitiveTypes: LLVMEntryPointPrimitiveTypes,
+        functionTypes: LLVMEntryPointFunctionTypes,
+        functions: LLVMEntryPointFunctions
+    ) throws {
+        guard let forcedState = assertionsMode.forcedState,
+              let setter = functions.assertionsSetFunction
+        else { return }
+        guard let enabled = bindings.constInt(
+            primitiveTypes.int64Type,
+            value: forcedState ? 1 : 0
+        ) else {
+            throw LLVMEntryPointObjectEmitterError.invalidIR("failed to create assertions override constant")
+        }
+        guard bindings.buildCall(
+            builder,
+            functionType: functionTypes.assertionsSetType,
+            callee: setter,
+            arguments: [enabled],
+            name: "assertions.override"
+        ) != nil else {
+            throw LLVMEntryPointObjectEmitterError.invalidIR("failed to emit assertions override call")
+        }
     }
 
     private func emitEntryDispatch(
