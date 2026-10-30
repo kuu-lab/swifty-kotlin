@@ -58,7 +58,10 @@ extension ExprTypeChecker {
                 sema: sema,
                 interner: interner,
                 scope: ctx.scope,
-                diagnostics: ctx.sema.diagnostics
+                diagnostics: ctx.sema.diagnostics,
+                usageRange: index < objectDecl.superTypeEntries.count
+                    ? objectDecl.superTypeEntries[index].range ?? objectDecl.range
+                    : objectDecl.range
             )
             if case let .classType(classType) = sema.types.kind(of: resolved),
                !directSuperSymbols.contains(classType.classSymbol)

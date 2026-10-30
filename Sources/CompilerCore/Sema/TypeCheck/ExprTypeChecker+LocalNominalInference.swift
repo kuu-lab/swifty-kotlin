@@ -276,7 +276,8 @@ extension ExprTypeChecker {
                 sema: sema,
                 interner: interner,
                 scope: classScope,
-                diagnostics: ctx.sema.diagnostics
+                diagnostics: ctx.sema.diagnostics,
+                usageRange: entry.range ?? classDecl.range
             )
             directSuperTypes.append(resolved)
             if case let .classType(classType) = sema.types.kind(of: resolved) {
