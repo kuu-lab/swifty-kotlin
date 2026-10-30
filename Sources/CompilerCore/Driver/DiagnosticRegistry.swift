@@ -349,6 +349,12 @@ enum DiagnosticRegistry {
             summary: "Malformed catch parameter declaration."
         ),
         DiagnosticDescriptor(
+            code: "KSWIFTK-PARSE-0029",
+            pass: "PARSE",
+            defaultSeverity: .error,
+            summary: "Expecting 'val' keyword in destructuring declaration."
+        ),
+        DiagnosticDescriptor(
             code: "KSWIFTK-PARSE-TYPE-DEPTH",
             pass: "PARSE",
             defaultSeverity: .error,

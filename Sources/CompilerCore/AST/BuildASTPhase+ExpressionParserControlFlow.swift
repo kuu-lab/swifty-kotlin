@@ -661,6 +661,8 @@ extension BuildASTPhase.ExpressionParser {
 
             var destructuringNames: [InternedString?] = []
             var destructuringProperties: [InternedString?] = []
+            var destructuringMutableFlags: [Bool] = []
+            var declaringEntryCount = 0
             var foundClosingDelimiter = false
             while let token = current() {
                 if token.kind == closingKind {
@@ -672,10 +674,30 @@ extension BuildASTPhase.ExpressionParser {
                     _ = consume()
                     continue
                 }
-                if let name = tokenText(token) {
+                // Kotlin 2.4 full-form name-based destructuring prefixes each
+                // entry with `val` (`for ((val value) in it)`). `val` is not a
+                // label name, so `tokenText` below would silently skip it and
+                // flatten the entry to a bare positional name. Record the
+                // marker so Sema can tell the full form (name-based) from the
+                // bare short form (positional). `var` stays unmarked: kotlinc
+                // rejects it in for-headers outright, and swallowing it keeps
+                // the historical positional behavior of `for ((var i, ...)`
+                // instead of regressing it into a name-lookup error.
+                var entryDeclared = false
+                if token.kind == .keyword(.val) {
+                    entryDeclared = true
+                    _ = consume()
+                    guard let head = current(),
+                          head.kind != closingKind,
+                          head.kind != .symbol(.comma)
+                    else {
+                        continue
+                    }
+                }
+                if let nameToken = current(), let name = tokenText(nameToken) {
                     // Only a bare `_` skips the entry; a backticked `` `_` `` is
                     // a real variable named `_` that the loop body can use.
-                    if case .identifier = token.kind, interner.resolve(name) == "_" {
+                    if case .identifier = nameToken.kind, interner.resolve(name) == "_" {
                         destructuringNames.append(nil)
                     } else {
                         destructuringNames.append(name)
@@ -696,6 +718,10 @@ extension BuildASTPhase.ExpressionParser {
                         _ = consume()
                     }
                     destructuringProperties.append(property)
+                    destructuringMutableFlags.append(false)
+                    if entryDeclared {
+                        declaringEntryCount += 1
+                    }
                     if matches(.symbol(.colon)) {
                         _ = consume()
                         while let t = current(),
@@ -740,11 +766,20 @@ extension BuildASTPhase.ExpressionParser {
                     syntax: syntax,
                     range: range
                 ))
+                if declaringEntryCount > 0, declaringEntryCount != destructuringNames.count {
+                    // kotlinc: once one entry declares `val`, every entry must
+                    // ("Expecting val keyword").
+                    diagnostics?.error(
+                        "KSWIFTK-PARSE-0029",
+                        "Expecting 'val' keyword in destructuring declaration.",
+                        range: forToken.range
+                    )
+                }
                 astArena.setDestructuringDeclLayout(
                     DestructuringDeclLayout(
                         syntax: syntax,
                         properties: destructuringProperties,
-                        mutableFlags: []
+                        mutableFlags: declaringEntryCount > 0 ? destructuringMutableFlags : []
                     ),
                     for: exprID
                 )
