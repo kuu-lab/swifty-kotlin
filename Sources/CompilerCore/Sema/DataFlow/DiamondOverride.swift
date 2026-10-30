@@ -15,6 +15,7 @@ extension DataFlowSemaPhase {
         let directInterfaceID: SymbolID
         let ownerInterfaceID: SymbolID
         let inheritanceDepth: Int
+        let isConcrete: Bool
     }
 
     private struct DiamondConflict {
@@ -29,6 +30,10 @@ extension DataFlowSemaPhase {
         diagnostics: DiagnosticEngine,
         interner: StringInterner
     ) {
+        let declBySymbol = Dictionary(
+            bindings.declSymbols.map { ($0.value, $0.key) },
+            uniquingKeysWith: { first, _ in first }
+        )
         for file in ast.sortedFiles {
             for declID in file.topLevelDecls {
                 validateDiamondOverridesForDecl(
@@ -36,6 +41,7 @@ extension DataFlowSemaPhase {
                     ast: ast,
                     symbols: symbols,
                     bindings: bindings,
+                    declBySymbol: declBySymbol,
                     diagnostics: diagnostics,
                     interner: interner
                 )
@@ -48,6 +54,7 @@ extension DataFlowSemaPhase {
         ast: ASTModule,
         symbols: SymbolTable,
         bindings: BindingTable,
+        declBySymbol: [SymbolID: DeclID],
         diagnostics: DiagnosticEngine,
         interner: StringInterner
     ) {
@@ -60,16 +67,27 @@ extension DataFlowSemaPhase {
 
         recurseDiamondValidation(
             decl: decl, ast: ast, symbols: symbols,
-            bindings: bindings, diagnostics: diagnostics, interner: interner
+            bindings: bindings, declBySymbol: declBySymbol,
+            diagnostics: diagnostics, interner: interner
         )
 
-        guard symbolInfo.kind == .class || symbolInfo.kind == .object,
-              !symbolInfo.flags.contains(.abstractType)
+        // Kotlinc requires an override from every nominal kind that inherits a
+        // conflicting pair: concrete and abstract classes, objects and even
+        // interfaces. Abstract decls still escape the check when every provider
+        // is abstract — such a collision produces no conflict below and stays
+        // on the abstract-member path for concrete classes.
+        guard symbolInfo.kind == .class || symbolInfo.kind == .object
+                || symbolInfo.kind == .interface
         else {
             return
         }
 
-        let conflicts = collectDiamondConflicts(for: symbol, symbols: symbols)
+        let conflicts = collectDiamondConflicts(
+            for: symbol,
+            symbols: symbols,
+            declBySymbol: declBySymbol,
+            ast: ast
+        )
         guard !conflicts.isEmpty else { return }
 
         let overriddenKeys = collectDiamondOverrideKeys(
@@ -97,20 +115,27 @@ extension DataFlowSemaPhase {
         ast: ASTModule,
         symbols: SymbolTable,
         bindings: BindingTable,
+        declBySymbol: [SymbolID: DeclID],
         diagnostics: DiagnosticEngine,
         interner: StringInterner
     ) {
-        let nestedIDs: [DeclID]
+        var nestedIDs: [DeclID] = []
         switch decl {
-        case let .classDecl(classDecl): nestedIDs = classDecl.nestedClasses
-        case let .interfaceDecl(ifaceDecl): nestedIDs = ifaceDecl.nestedClasses
-        case let .objectDecl(objectDecl): nestedIDs = objectDecl.nestedClasses
+        case let .classDecl(classDecl):
+            nestedIDs = classDecl.nestedClasses + classDecl.nestedObjects
+            nestedIDs += [classDecl.companionObject, classDecl.companionBlockObject].compactMap { $0 }
+        case let .interfaceDecl(ifaceDecl):
+            nestedIDs = ifaceDecl.nestedClasses + ifaceDecl.nestedObjects
+            nestedIDs += [ifaceDecl.companionObject, ifaceDecl.companionBlockObject].compactMap { $0 }
+        case let .objectDecl(objectDecl):
+            nestedIDs = objectDecl.nestedClasses + objectDecl.nestedObjects
         default: return
         }
         for nestedDeclID in nestedIDs {
             validateDiamondOverridesForDecl(
                 declID: nestedDeclID, ast: ast, symbols: symbols,
-                bindings: bindings, diagnostics: diagnostics, interner: interner
+                bindings: bindings, declBySymbol: declBySymbol,
+                diagnostics: diagnostics, interner: interner
             )
         }
     }
@@ -121,7 +146,9 @@ extension DataFlowSemaPhase {
     /// 3. Methods inherited from a common ancestor don't conflict if not overridden
     private func collectDiamondConflicts(
         for symbol: SymbolID,
-        symbols: SymbolTable
+        symbols: SymbolTable,
+        declBySymbol: [SymbolID: DeclID],
+        ast: ASTModule
     ) -> [DiamondConflict] {
         let directSupertypes = symbols.directSupertypes(for: symbol)
         let interfaceSupertypes = directSupertypes
@@ -148,8 +175,7 @@ extension DataFlowSemaPhase {
 
                 for childID in symbols.children(ofFQName: ifaceSym.fqName) {
                     guard let childSym = symbols.symbol(childID),
-                          childSym.kind == .function,
-                          !childSym.flags.contains(.abstractType)
+                          childSym.kind == .function
                     else { continue }
 
                     let key = makeDiamondDispatchKey(for: childID, symbols: symbols)
@@ -157,7 +183,13 @@ extension DataFlowSemaPhase {
                         implementationID: childID,
                         directInterfaceID: directInterfaceID,
                         ownerInterfaceID: currentInterfaceID,
-                        inheritanceDepth: depth
+                        inheritanceDepth: depth,
+                        isConcrete: diamondProviderIsConcrete(
+                            childID,
+                            symbols: symbols,
+                            declBySymbol: declBySymbol,
+                            ast: ast
+                        )
                     ))
                 }
 
@@ -218,7 +250,11 @@ extension DataFlowSemaPhase {
                 let conflictingInterfaces = implGroups.values.reduce(into: Set<SymbolID>()) { acc, interfaces in
                     acc.formUnion(interfaces)
                 }
-                if conflictingInterfaces.count >= 2 {
+                // An abstract-only collision is reported by the
+                // abstract-member check instead; the diamond rule fires once
+                // at least one side supplies a concrete implementation.
+                if conflictingInterfaces.count >= 2,
+                   mostSpecific.contains(where: \.isConcrete) {
                     conflicts.append(DiamondConflict(
                         key: key,
                         providerIDs: conflictingInterfaces.sorted(by: { $0.rawValue < $1.rawValue })
@@ -238,6 +274,30 @@ extension DataFlowSemaPhase {
         }
     }
 
+    /// The diamond rule arbitrates between competing Kotlin implementations.
+    /// A provider is concrete only when it carries a real Kotlin body — a
+    /// bodiless declaration (abstract member, `external` function or a
+    /// `@KsSymbolName` runtime bridge) stays on the contract side even though
+    /// header collection keeps such bridges non-abstract for dispatch.
+    private func diamondProviderIsConcrete(
+        _ implementationID: SymbolID,
+        symbols: SymbolTable,
+        declBySymbol: [SymbolID: DeclID],
+        ast: ASTModule
+    ) -> Bool {
+        guard let info = symbols.symbol(implementationID),
+              !info.flags.contains(.abstractType)
+        else {
+            return false
+        }
+        if let declID = declBySymbol[implementationID],
+           let decl = ast.arena.decl(declID),
+           case let .funDecl(funDecl) = decl {
+            return funDecl.body != .unit
+        }
+        return symbols.externalLinkName(for: implementationID) == nil
+    }
+
     private func emitDiamondDiagnostics(
         conflicts: [DiamondConflict],
         overriddenKeys: Set<DiamondDispatchKey>,
@@ -248,19 +308,43 @@ extension DataFlowSemaPhase {
         interner: StringInterner
     ) {
         let declRange = extractDeclRange(decl)
-        let className = symbolInfo.fqName.map { interner.resolve($0) }.joined(separator: ".")
+        let className = diamondDisplayName(for: symbolInfo.id, symbols: symbols, interner: interner)
+        let kindKeyword: String
+        switch symbolInfo.kind {
+        case .interface: kindKeyword = "interface"
+        case .object: kindKeyword = "object"
+        default: kindKeyword = "class"
+        }
         for conflict in conflicts {
             guard !overriddenKeys.contains(conflict.key) else {
                 continue
             }
             let memberName = interner.resolve(conflict.key.name)
-            let ifaceNames = conflict.providerIDs.compactMap { symbols.symbol($0) }
-                .map { $0.fqName.map { interner.resolve($0) }.joined(separator: ".") }
-                .joined(separator: ", ")
-            let msg = "Class '\(className)' must override '\(memberName)' "
-                + "because it is inherited from multiple interfaces: \(ifaceNames)."
+            let msg = "\(kindKeyword) '\(className)' must override '\(memberName)' "
+                + "because it inherits multiple interface methods for it."
             diagnostics.error("KSWIFTK-SEMA-0171", msg, range: declRange)
         }
+    }
+
+    /// Renders the nominal name the way kotlinc prints it: the package prefix
+    /// is dropped while enclosing-declaration segments stay (`Outer.Inner`).
+    private func diamondDisplayName(
+        for symbol: SymbolID,
+        symbols: SymbolTable,
+        interner: StringInterner
+    ) -> String {
+        var segments: [String] = []
+        var current: SymbolID? = symbol
+        while let symbolID = current, let info = symbols.symbol(symbolID) {
+            switch info.kind {
+            case .class, .interface, .object, .enumClass, .annotationClass:
+                segments.append(interner.resolve(info.name))
+                current = symbols.parentSymbol(for: symbolID)
+            default:
+                current = nil
+            }
+        }
+        return segments.reversed().joined(separator: ".")
     }
 
     private func inheritedInterfaceIDs(
@@ -299,6 +383,8 @@ extension DataFlowSemaPhase {
             memberFunctions = classDecl.memberFunctions
         case let .objectDecl(objectDecl):
             memberFunctions = objectDecl.memberFunctions
+        case let .interfaceDecl(interfaceDecl):
+            memberFunctions = interfaceDecl.memberFunctions
         default:
             return overriddenKeys
         }
@@ -406,6 +492,7 @@ extension DataFlowSemaPhase {
         switch decl {
         case let .classDecl(classDecl): classDecl.range
         case let .objectDecl(objectDecl): objectDecl.range
+        case let .interfaceDecl(interfaceDecl): interfaceDecl.range
         default: nil
         }
     }

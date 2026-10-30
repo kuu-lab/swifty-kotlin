@@ -11,7 +11,7 @@
       "severityLabel": "error",
       "code": "KSWIFTK-SEMA-0171",
       "source": "kswiftk",
-      "message": "Class 'ConflictingImpl' must override 'greet' because it is inherited from multiple interfaces: InterfaceA, InterfaceB.",
+      "message": "class 'ConflictingImpl' must override 'greet' because it inherits multiple interface methods for it.",
       "codeActions": [{ "title": "Add explicit override to resolve diamond conflict", "kind": "quickfix" }]
     },
     {
@@ -24,7 +24,7 @@
       "severityLabel": "error",
       "code": "KSWIFTK-SEMA-0171",
       "source": "kswiftk",
-      "message": "Class 'ConflictingImpl' must override 'shared' because it is inherited from multiple interfaces: InterfaceA, InterfaceB.",
+      "message": "class 'ConflictingImpl' must override 'shared' because it inherits multiple interface methods for it.",
       "codeActions": [{ "title": "Add explicit override to resolve diamond conflict", "kind": "quickfix" }]
     },
     {
@@ -37,7 +37,7 @@
       "severityLabel": "error",
       "code": "KSWIFTK-SEMA-0171",
       "source": "kswiftk",
-      "message": "Class 'Diamond' must override 'method' because it is inherited from multiple interfaces: Left, Right.",
+      "message": "class 'Diamond' must override 'method' because it inherits multiple interface methods for it.",
       "codeActions": [{ "title": "Add explicit override to resolve diamond conflict", "kind": "quickfix" }]
     }
   ]
