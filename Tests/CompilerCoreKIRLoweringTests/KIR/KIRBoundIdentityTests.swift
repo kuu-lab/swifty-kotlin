@@ -167,5 +167,60 @@ import Testing
         #expect(kirFindOverrideMethod(for: method, in: impl, sema: sema, interner: ctx.interner) == override)
     }
 
+    /// KUU-3793: a member spelled with a rigid type parameter (`foo(t: T)`)
+    /// overrides only the supertype signature that specializes to that same
+    /// variable. It must not fill the itable slot of an unrelated concrete
+    /// signature (`B.foo(Int)`) — the JVM keeps them apart because the erased
+    /// `foo(Object)` never overrides `foo(int)`, and reified T=Int
+    /// substitution does not change the declared signature.
+    @Test func rigidTypeParameterDoesNotStealConcreteInterfaceSlot() throws {
+        let ctx = makeBoundIdentityContext("""
+        interface A<T> { fun foo(t: T): Int }
+        interface B { fun foo(t: Int): Int = 2 }
+        class C<T> : A<T>, B {
+            override fun foo(t: T): Int = 1
+        }
+        """)
+        try runToKIR(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+        let sema = try #require(ctx.sema)
+        let bFoo = try #require(sema.symbols.lookup(fqName: ["B", "foo"].map(ctx.interner.intern)))
+        let c = try #require(sema.symbols.lookup(fqName: [ctx.interner.intern("C")]))
+        let cFoo = try #require(sema.symbols.lookup(fqName: ["C", "foo"].map(ctx.interner.intern)))
+        // `foo(t: T)` is the implementation for `A<T>.foo` but not `B.foo(Int)`:
+        // the slot falls back to B's own default.
+        #expect(kirFindOverrideMethod(for: bFoo, in: c, sema: sema, interner: ctx.interner) == bFoo)
+        let aFoo = try #require(sema.symbols.lookup(fqName: ["A", "foo"].map(ctx.interner.intern)))
+        #expect(kirFindOverrideMethod(for: aFoo, in: c, sema: sema, interner: ctx.interner) == cFoo)
+    }
+
+    /// KUU-3793: same rule for an object literal inside a reified inline
+    /// function — the captured type parameter is still a rigid variable, so
+    /// `foo(t: T)` must not claim `B.foo(Int)`'s itable slot when T=Int.
+    @Test func objectLiteralCapturedTypeParameterDoesNotStealInterfaceSlot() throws {
+        let ctx = makeBoundIdentityContext("""
+        interface A<T> { fun foo(t: T): Int }
+        interface B { fun foo(t: Int): Int = 2 }
+        inline fun <reified T> makeB(): B = object : A<T>, B {
+            override fun foo(t: T): Int = 1
+        }
+        """)
+        try runToKIR(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+        let sema = try #require(ctx.sema)
+        let objectSymbol = try #require(sema.symbols.allSymbols().first {
+            $0.kind == .class && ctx.interner.resolve($0.name).hasPrefix("__ObjectLiteral_")
+        }?.id)
+        let objectFoo = try #require(sema.symbols.allSymbols().first {
+            $0.kind == .function
+                && $0.name == ctx.interner.intern("foo")
+                && sema.symbols.parentSymbol(for: $0.id) == objectSymbol
+        }?.id)
+        let aFoo = try #require(sema.symbols.lookup(fqName: ["A", "foo"].map(ctx.interner.intern)))
+        let bFoo = try #require(sema.symbols.lookup(fqName: ["B", "foo"].map(ctx.interner.intern)))
+        #expect(kirFindOverrideMethod(for: aFoo, in: objectSymbol, sema: sema, interner: ctx.interner) == objectFoo)
+        #expect(kirFindOverrideMethod(for: bFoo, in: objectSymbol, sema: sema, interner: ctx.interner) == bFoo)
+    }
+
 }
 #endif
