@@ -339,9 +339,8 @@ extension CallTypeChecker {
         // value: typing it as `Any` makes a primitive accumulator arrive at the
         // operator lowering as a reference, so `DoubleArray.fold(0.0) { a, b -> a + b }`
         // reinterprets the accumulator's raw word as an Int.
-        var accumulatorType: TypeID?
         if (memberName == "fold" || memberName == "foldIndexed"), args.indices.contains(0) {
-            accumulatorType = driver.inferExpr(
+            _ = driver.inferExpr(
                 args[0].expr,
                 ctx: ctx,
                 locals: &locals,

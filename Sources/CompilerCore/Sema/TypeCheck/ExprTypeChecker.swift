@@ -362,6 +362,9 @@ final class ExprTypeChecker {
             }
             if let value {
                 let resolved = driver.inferExpr(value, ctx: ctx, locals: &locals, expectedType: returnExpectedType)
+                driver.recordGenericCallConsumer(
+                    value, type: returnExpectedType == sema.types.unitType ? nil : returnExpectedType
+                )
                 if isConstructorReturnWithValue, resolved != sema.types.unitType {
                     sema.diagnostics.error(
                         "KSWIFTK-SEMA-0042",

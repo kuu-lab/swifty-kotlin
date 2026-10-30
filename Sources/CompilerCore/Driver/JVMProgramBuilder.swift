@@ -72,7 +72,13 @@ final class JVMProgramBuilder {
         // Primitive range expressions carry their scalar element type in exprTypes,
         // but the JVM materializes a nominal range object. A source-backed rangeTo
         // may return another declared type, so preserve its resolved result type.
-        if sema.bindings.isRangeExpr(id), !hasSourceRangeOperator(id) {
+        if sema.bindings.isRangeExpr(id), mapped.referenceName == nil {
+            if hasSourceRangeOperator(id),
+               let callee = sema.bindings.callBinding(for: id)?.chosenCallee,
+               let signature = sema.symbols.functionSignature(for: callee),
+               let result = try? self.type(signature.returnType), result.referenceName != nil {
+                return result
+            }
             if sema.bindings.isCharRangeExpr(id) {
                 return .reference("kotlin/ranges/CharRange", nullable: false)
             }
@@ -84,6 +90,26 @@ final class JVMProgramBuilder {
             }
         }
         return mapped
+    }
+
+    /// A function whose body is a range expression carries the scalar range
+    /// marker as its Sema return type; its JVM signature must name the nominal
+    /// range class the body actually materializes.
+    func nominalRangeResultType(for symbol: SymbolID, mapped: JVMValueType) -> JVMValueType? {
+        guard mapped.referenceName == nil, sema.bindings.isRangeSymbol(symbol) else { return nil }
+        if sema.bindings.isCharRangeSymbol(symbol) {
+            return .reference("kotlin/ranges/CharRange", nullable: false)
+        }
+        if sema.bindings.isFloatingPointRangeSymbol(symbol) {
+            return .reference("kotlin/ranges/ClosedFloatingPointRange", nullable: false)
+        }
+        if mapped == .long {
+            return .reference("kotlin/ranges/LongRange", nullable: false)
+        }
+        if mapped == .int {
+            return .reference("kotlin/ranges/IntRange", nullable: false)
+        }
+        return nil
     }
     static func isIdentifier(_ value: String) -> Bool {
         let bytes = Array(value.utf8)
@@ -743,7 +769,7 @@ final class JVMFunctionBuilder {
         case let .callableRef(receiver, member, _): return try reflectionReference(id, receiver: receiver, member: member)
         case let .asCast(source, _, safe, _):
             return try checkedCast(source, safe: safe, id: id)
-        case let .isCheck(source, target, negated, _):
+        case let .isCheck(source, _, negated, _):
             return try instanceCheck(source, negated: negated, id: id)
         case let .indexedAccess(receiver, indices, _): return try indexedGet(receiver, indices, id)
         case let .indexedAssign(receiver, indices, source, _): try indexedSet(receiver, indices, source, id); return nil

@@ -177,7 +177,9 @@ struct LocalNamedNominalTypingTests {
             }
             """,
             // KUU-555: named local object in a function body must resolve as a
-            // singleton (`Local.v`), not as an expression.
+            // singleton (`Local.v`), not as an expression. kotlinc rejects the
+            // declaration itself (KSWIFTK-SEMA-0429, "named object cannot be
+            // local"), but the binding must still work for error recovery.
             """
             package localnom1
 
@@ -188,7 +190,8 @@ struct LocalNamedNominalTypingTests {
                 println(Local.v)
             }
             """,
-            // KUU-555: named local object inside a class member function body.
+            // KUU-555: named local object inside a class member function body —
+            // likewise SEMA-0429, while `Local.v` still resolves.
             """
             package localnom2
 
@@ -303,7 +306,11 @@ struct LocalNamedNominalTypingTests {
                 #expect(sema.bindings.identifierSymbol(for: memberExprID) == propertySymbol,
                         "`Local.v` should resolve to the object property. Diagnostics: \(renderDiagnostics(ctx))")
 
-                #expect(!diagnostics.contains { $0.severity == .error },
+                // kotlinc rejects named local objects — the declaration is
+                // still bound for error recovery.
+                #expect(diagnostics.contains { $0.code == "KSWIFTK-SEMA-0429" },
+                        "Expected a local-object rejection: \(renderDiagnostics(ctx))")
+                #expect(!diagnostics.contains { $0.severity == .error && $0.code != "KSWIFTK-SEMA-0429" },
                         "Unexpected diagnostics: \(renderDiagnostics(ctx))")
             }
 
@@ -326,7 +333,9 @@ struct LocalNamedNominalTypingTests {
                 let objectSymbol = try #require(sema.bindings.declSymbol(for: objectDeclID))
                 #expect(sema.symbols.symbol(objectSymbol)?.kind == .object)
 
-                #expect(!diagnostics.contains { $0.severity == .error },
+                #expect(diagnostics.contains { $0.code == "KSWIFTK-SEMA-0429" },
+                        "Expected a local-object rejection: \(renderDiagnostics(ctx))")
+                #expect(!diagnostics.contains { $0.severity == .error && $0.code != "KSWIFTK-SEMA-0429" },
                         "Unexpected diagnostics: \(renderDiagnostics(ctx))")
             }
 
@@ -350,8 +359,9 @@ struct LocalNamedNominalTypingTests {
                 #expect(sema.symbols.symbol(classSymbol)?.kind == .class)
 
                 // `LocalC(9)` must reach the synthetic `<init>` via the
-                // KSP-CAP-006 class-ctor merge rather than SEMA-0023.
-                #expect(!diagnostics.contains { $0.severity == .error },
+                // KSP-CAP-006 class-ctor merge rather than SEMA-0023. The
+                // file's `probe()` carries the expected SEMA-0429 rejection.
+                #expect(!diagnostics.contains { $0.severity == .error && $0.code != "KSWIFTK-SEMA-0429" },
                         "Unexpected diagnostics: \(renderDiagnostics(ctx))")
             }
         }

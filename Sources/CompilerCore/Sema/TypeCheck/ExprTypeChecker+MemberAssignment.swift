@@ -72,6 +72,9 @@ extension ExprTypeChecker {
                 symbol: writeSymbol, receiverType: nonNullReceiver, fallback: member.type, sema: sema
             )
             let valueType = driver.inferExpr(value, ctx: ctx, locals: &locals, expectedType: writeType)
+            driver.recordGenericCallConsumer(
+                value, type: sema.symbols.propertyType(for: writeSymbol) ?? writeType
+            )
             sema.bindings.bindIdentifier(id, symbol: writeSymbol)
             driver.helpers.checkDeprecation(
                 for: writeSymbol,

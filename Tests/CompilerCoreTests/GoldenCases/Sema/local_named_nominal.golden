@@ -22,3 +22,4 @@ expr e@10:5 localNominalDecl decl=4 type=__localdecl_9.Local ref=__localdecl_9.L
 expr e@13:12 name(Local) type=__localdecl_9.Local ref=__localdecl_9.Local[kind=obj;origin=fixture]
 expr e@13:12#1 memberCall recv=e@13:12 callee=v args=[] type=Int ref=__localdecl_9.Local.v[kind=prop;type=Int;origin=fixture]
 expr e@13:5 return value=e@13:12#1 type=Nothing
+diagnostic severity=error code=KSWIFTK-SEMA-0429 at=10:5 msg=named object 'Local' cannot be local. Try to use an anonymous object instead.

@@ -538,6 +538,9 @@ extension ExprTypeChecker {
             isStatementContext: lambdaUsesUnitCoercion || lambdaTailIsElselessIf || lambdaTailIsWhenWithoutElse
                 || lambdaTailIsTry
         )
+        driver.recordGenericCallConsumer(
+            body, type: expectedLambdaReturnType == sema.types.unitType ? nil : expectedLambdaReturnType
+        )
         // A bare `ClassName` as the lambda's result denotes the companion
         // object; keep the companion value type in the inferred return type
         // (KUU-3232).

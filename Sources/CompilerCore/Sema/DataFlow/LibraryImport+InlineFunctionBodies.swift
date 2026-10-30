@@ -103,8 +103,7 @@ extension DataFlowSemaPhase {
             )
             return nil
         }
-        let inlineAttributes = try? FileManager.default.attributesOfItem(atPath: inlinePath)
-        guard inlineAttributes?[.type] as? FileAttributeType == .typeRegular else {
+        guard CompilerFileSystem.isRegularFile(at: inlinePathURL) else {
             diagnostics.error(
                 "KSWIFTK-LIB-0019",
                 "Inline KIR path for '\(record.mangledName)' is missing or is not a regular file",

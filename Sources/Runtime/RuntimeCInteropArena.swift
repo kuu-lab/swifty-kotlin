@@ -731,7 +731,6 @@ public func kk_cvar_cpointer_store(_ varHandle: Int, _ value: Int) -> Int {
 @_cdecl("kk_cpointer_pointed")
 public func kk_cpointer_pointed(_ handle: Int) -> Int {
     guard let box = resolveCPointerBox(from: handle) else { return 0 }
-    let kind = runtimeCInteropVarKind(forNominalTypeID: box.pointeeTypeID) ?? .aggregate
     return registerRuntimeObject(
         RuntimeCInteropVarBox(
             address: box.address, pointeeTypeID: box.pointeeTypeID, owner: nil

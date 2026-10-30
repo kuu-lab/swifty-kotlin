@@ -192,6 +192,9 @@ extension ExprLowerer {
         else {
             return resultID
         }
+        guard let checkType else {
+            return resultID
+        }
         // Generic call results keep the erased representation, including
         // boxed primitives, until after the type check.
         let erasedOperand = arena.appendTemporary(type: sema.types.nullableAnyType)

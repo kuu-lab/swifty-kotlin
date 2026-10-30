@@ -421,14 +421,12 @@ final class RuntimeMapBox {
 final class RuntimeMapIteratorBox {
     let mapRaw: Int
     let keys: [Int]
-    let values: [Int]
     var index: Int
     var expectedModCount: Int
 
-    init(mapRaw: Int, keys: [Int], values: [Int]) {
+    init(mapRaw: Int, keys: [Int]) {
         self.mapRaw = mapRaw
         self.keys = keys
-        self.values = values
         index = 0
         expectedModCount = runtimeMapBox(from: mapRaw)?.modCount ?? 0
     }

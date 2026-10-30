@@ -82,7 +82,7 @@ struct RuntimeIsCheckCollectionBoxTests {
         let map = registerRuntimeObject(RuntimeMapBox(keys: [1], values: [2]))
         let boxes: [AnyObject] = [
             RuntimeListIteratorBox(elements: [7]),
-            RuntimeMapIteratorBox(mapRaw: map, keys: [1], values: [2]),
+            RuntimeMapIteratorBox(mapRaw: map, keys: [1]),
             RuntimeMutableMapIteratorBox(mapRaw: map, keys: [1]),
             RuntimeSequenceIteratorBox(seq: RuntimeSequenceBox(steps: [.source(elements: [7])])),
             RuntimeIndexingIteratorBox(values: [runtimeValueFromCollectionABI(7)]),

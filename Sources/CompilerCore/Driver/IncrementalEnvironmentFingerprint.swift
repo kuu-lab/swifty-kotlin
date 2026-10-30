@@ -117,15 +117,34 @@ enum IncrementalEnvironmentFingerprint {
     /// and permissions — the same identity the linker-plan cache uses.
     static func signature(of path: String) -> String? {
         let resolved = URL(fileURLWithPath: path).resolvingSymlinksInPath().path
-        guard let attributes = try? FileManager.default.attributesOfItem(atPath: resolved) else {
+        // `attributesOfItem` pays several xattr syscalls per file; kklib
+        // object signatures run on every incremental check, so a single
+        // stat(2) gives the same fields (symlink-following, same as
+        // attributesOfItem).
+        var info = stat()
+        guard resolved.withCString({ stat($0, &info) == 0 }) else {
             return nil
         }
+        #if canImport(Darwin)
+        let modificationDate = Date(
+            timeIntervalSince1970: TimeInterval(info.st_mtimespec.tv_sec)
+                + TimeInterval(info.st_mtimespec.tv_nsec) / 1_000_000_000
+        )
+        #else
+        let modificationDate = Date(
+            timeIntervalSince1970: TimeInterval(info.st_mtim.tv_sec)
+                + TimeInterval(info.st_mtim.tv_nsec) / 1_000_000_000
+        )
+        #endif
+        let size: Any? = NSNumber(value: info.st_size)
+        let fileNumber: Any? = NSNumber(value: info.st_ino)
+        let permissions: Any? = NSNumber(value: Int32(info.st_mode) & 0o7777)
         return [
             resolved,
-            String(describing: attributes[.size]),
-            String(describing: (attributes[.modificationDate] as? Date)?.timeIntervalSince1970),
-            String(describing: attributes[.systemFileNumber]),
-            String(describing: attributes[.posixPermissions]),
+            String(describing: size),
+            String(describing: modificationDate.timeIntervalSince1970 as Double?),
+            String(describing: fileNumber),
+            String(describing: permissions),
         ].joined(separator: "\u{0}")
     }
 
