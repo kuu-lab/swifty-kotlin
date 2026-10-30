@@ -341,6 +341,17 @@ extension BuildASTPhase {
             )
         }
 
+        // kotlinc reports 'external declaration cannot have a body' on any
+        // external function that carries one, underlining the modifier.
+        if hasExternal, body != .unit {
+            diagnostics?.error(
+                "KSWIFTK-SEMA-EXTERNAL",
+                "external declaration cannot have a body.",
+                range: leadingModifiers.first(where: { $0.name == "external" })?.range
+                    ?? head.range
+            )
+        }
+
         let end: SourceLocation = switch body {
         case let .block(_, range):
             range.end
