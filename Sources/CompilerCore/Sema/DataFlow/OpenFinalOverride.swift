@@ -2347,9 +2347,17 @@ extension DataFlowSemaPhase {
                     && childSignature.isSuspend == parentSignature.isSuspend
                     && ctx.types.isSubtype(childSignature.returnType, parentSignature.returnType)
             }
-        } else if ctx.symbols.symbol(memberSymbol)?.kind == .property {
+        } else if let childSymbol = ctx.symbols.symbol(memberSymbol), childSymbol.kind == .property {
+            // Extension properties can only override extension properties;
+            // a same-named non-extension interface member is unrelated.
             matchingParents = overridableParents.filter { parent in
-                ctx.symbols.symbol(parent.memberID)?.kind == .property
+                guard let parentSymbol = ctx.symbols.symbol(parent.memberID),
+                      parentSymbol.kind == .property
+                else {
+                    return false
+                }
+                return childSymbol.flags.contains(.memberExtension)
+                    == parentSymbol.flags.contains(.memberExtension)
             }
         } else {
             matchingParents = []
