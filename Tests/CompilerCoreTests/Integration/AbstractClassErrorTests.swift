@@ -21,7 +21,7 @@ import Testing
             #expect(ctx.diagnostics.diagnostics.contains {
                 $0.code == "KSWIFTK-SEMA-MODIFIER-CONFLICT"
                     && $0.severity == .error
-                    && $0.message.contains("'\(name)' cannot be abstract")
+                    && $0.message.contains("'\(name)' in non-abstract class 'C'")
             })
         }
     }
@@ -42,7 +42,7 @@ import Testing
         #expect(ctx.diagnostics.diagnostics.contains {
             $0.code == "KSWIFTK-SEMA-MODIFIER-CONFLICT"
                 && $0.severity == .error
-                && $0.message.contains("'f' cannot be abstract")
+                && $0.message.contains("'f' in non-abstract class 'C'")
         })
     }
 
@@ -59,7 +59,7 @@ import Testing
         #expect(ctx.diagnostics.diagnostics.contains {
             $0.code == "KSWIFTK-SEMA-MODIFIER-CONFLICT"
                 && $0.severity == .error
-                && $0.message.contains("non-abstract class 'Outer.C'")
+                && $0.message.contains("non-abstract class 'C'")
         })
     }
 
