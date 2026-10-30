@@ -87,6 +87,7 @@ struct RuntimeStringBuilderTests {
         _ = __kk_string_builder_insert_char_sequence(builder, 1, builder, &thrown)
         #expect(thrown == 0)
         #expect(__kk_string_builder_capacity(builder) == 6)
+        #expect(runtimeTestStringValue(__kk_string_builder_toString(builder)) == "aabb")
         _ = __kk_string_builder_set_length(builder, 20, &thrown)
         #expect(thrown == 0)
         #expect(__kk_string_builder_capacity(builder) == 20)
