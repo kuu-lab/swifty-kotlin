@@ -384,6 +384,31 @@ struct CodegenBackendObjectLiteralLocalCaptureExecutionTests {
         )
     }
 
+    // KUU-3592: a concrete receiver in an ordinary interface method must still
+    // invoke an extension-function parameter captured by the object literal.
+    @Test
+    func testCodegenObjectLiteralInvokesCapturedExtensionFunctionParameter() throws {
+        let source = """
+        class Bar
+        interface Foo { fun go(x: Bar): String }
+
+        fun build(bar: Bar.() -> Unit): Foo = object : Foo {
+            override fun go(x: Bar): String { x.bar(); return "OK" }
+        }
+
+        fun main() {
+            println(build({}).go(Bar()))
+            println(build({ println("invoked") }).go(Bar()))
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "ObjectLiteralCapturedExtensionFunctionParameter",
+            expected: "OK\ninvoked\nOK\n"
+        )
+    }
+
     @Test
     func testCodegenLocalNominalMemberFunctionInvokesCapturedExtensionLambda() throws {
         let source = """
