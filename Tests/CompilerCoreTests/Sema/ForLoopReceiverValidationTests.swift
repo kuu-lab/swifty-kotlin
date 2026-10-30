@@ -329,6 +329,62 @@ struct ForLoopReceiverValidationTests {
     }
 
     @Test
+    func nameBasedFullFormDestructuringBindsMemberNamesWithoutFeatureFlag() throws {
+        // KUU-3835: the full form `(val a, var b) = x` is unambiguously
+        // name-based — its entries declare val/var, so it needs no
+        // `-Xname-based-destructuring` flag and no componentN operators.
+        let source = """
+        sealed interface Subject
+        class IntEntry(val value: Int) : Subject
+        class Tuple(val first: String, val second: Int)
+
+        fun smartCasted(subject: Subject): Boolean {
+            if (subject is IntEntry) {
+                (val value: Int) = subject
+                if (value != 1) return false
+            }
+            return true
+        }
+
+        fun multiDecl(x: Tuple): Boolean {
+            (val first, var second) = x
+            second = 2
+            if (first != "OK" || second != 2) return false
+
+            (val s = second) = x
+            return s == 2
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(
+                inputs: [path],
+                frontendFlags: [],
+                includeStdlib: false
+            )
+            try runSema(ctx)
+            let sourceDiagnostics = diagnosticsForPath(path, in: ctx)
+            #expect(!sourceDiagnostics.hasError, "\(sourceDiagnostics)")
+            #expect(!sourceDiagnostics.contains { $0.code == "KSWIFTK-SEMA-0086" })
+
+            let ast = try #require(ctx.ast)
+            let sourceFile = try #require(ctx.sourceManager.fileID(forPath: path))
+            let declarationIndices = ast.arena.exprs.indices.filter { index in
+                let id = ExprID(rawValue: Int32(index))
+                guard case .destructuringDecl = ast.arena.exprs[index] else { return false }
+                return ast.arena.exprRange(id)?.start.file == sourceFile
+            }
+            #expect(declarationIndices.count == 3)
+            for declarationIndex in declarationIndices {
+                let declarationID = ExprID(rawValue: Int32(declarationIndex))
+                let layout = ctx.ast?.arena.destructuringDeclLayout(for: declarationID)
+                for index in 0 ..< (layout?.properties.count ?? 0) {
+                    #expect(ctx.sema?.bindings.destructuringProperty(for: declarationID, index: index) != nil)
+                }
+            }
+        }
+    }
+
+    @Test
     func nameBasedForLoopDestructuringResolvesExplicitPropertyAliases() throws {
         let source = """
         class Tuple(val first: Int, val second: Int)

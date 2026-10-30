@@ -17,7 +17,13 @@ extension ControlFlowTypeChecker {
         let layout = ctx.ast.arena.destructuringDeclLayout(for: id)
         let usesNameBasedDestructuring = layout.map { layout in
             layout.syntax == .parentheses
-                && (sema.nameBasedDestructuringMode == .complete || layout.properties.contains { $0 != nil })
+                && (sema.nameBasedDestructuringMode == .complete
+                    || layout.properties.contains { $0 != nil }
+                    // The full form `(val a, var b) = x` is inherently name-based:
+                    // its entries declare val/var, so it has no positional reading
+                    // and needs no feature flag — the same treatment `a = prop`
+                    // entries already get.
+                    || !layout.mutableFlags.isEmpty)
         } ?? false
 
         for (index, name) in names.enumerated() {
