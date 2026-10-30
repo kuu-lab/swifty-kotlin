@@ -790,23 +790,6 @@ extension ExprTypeChecker {
                 return driver.helpers.bindAndReturnErrorType(id, sema: sema)
             }
             sema.bindings.bindIdentifier(id, symbol: propSymbol.id)
-            if isMutable, let setterVisibility = sema.symbols.propertySetterVisibility(for: propSymbol.id) {
-                let setter = SemanticSymbol(
-                    id: propSymbol.id, kind: propSymbol.kind, name: propSymbol.name, fqName: propSymbol.fqName,
-                    declSite: propSymbol.declSite, visibility: setterVisibility, flags: propSymbol.flags
-                )
-                if !ctx.visibilityChecker.isAccessible(
-                    setter, fromFile: ctx.currentFileID, enclosingClass: ctx.enclosingClassSymbol
-                ) {
-                    driver.helpers.emitVisibilityError(
-                        for: setter,
-                        name: interner.resolve(name),
-                        range: range,
-                        diagnostics: sema.diagnostics
-                    )
-                    return driver.helpers.bindAndReturnErrorType(id, sema: sema)
-                }
-            }
             driver.helpers.checkOptIn(
                 for: propSymbol.id, ctx: ctx, range: range, diagnostics: ctx.sema.diagnostics
             )
@@ -831,6 +814,9 @@ extension ExprTypeChecker {
                 locals: locals,
                 ctx: ctx
             ) {
+                if isMutable, !checkPropertySetterAccessibility(propertyID: propSymbol.id, name: name, range: range, ctx: ctx) {
+                    return driver.helpers.bindAndReturnErrorType(id, sema: sema)
+                }
                 return resolvedType.expressionType
             }
             if let resolvedType = bindCompoundAssignmentOperatorCall(
@@ -844,6 +830,7 @@ extension ExprTypeChecker {
                 requireUnitReturn: true
             ) {
                 if isMutable,
+                   isPropertySetterAccessible(propertyID: propSymbol.id, ctx: ctx),
                    let binaryFallback = bindCompoundAssignmentOperatorCall(
                        exprID: id,
                        op: op,
@@ -867,6 +854,9 @@ extension ExprTypeChecker {
                     return sema.types.errorType
                 }
                 return resolvedType
+            }
+            if isMutable, !checkPropertySetterAccessibility(propertyID: propSymbol.id, name: name, range: range, ctx: ctx) {
+                return driver.helpers.bindAndReturnErrorType(id, sema: sema)
             }
             if let resolvedType = bindCompoundAssignmentOperatorCall(
                 exprID: id,
@@ -1090,6 +1080,9 @@ extension ExprTypeChecker {
             locals: locals,
             ctx: ctx
         ) {
+            if isMutable, !checkPropertySetterAccessibility(propertyID: writeSymbol, name: calleeName, range: range, ctx: ctx) {
+                return driver.helpers.bindAndReturnErrorType(id, sema: sema)
+            }
             return resolvedType.expressionType
         }
 
@@ -1104,6 +1097,7 @@ extension ExprTypeChecker {
             requireUnitReturn: true
         ) {
             if isMutable,
+               isPropertySetterAccessible(propertyID: writeSymbol, ctx: ctx),
                let binaryFallback = bindCompoundAssignmentOperatorCall(
                    exprID: id,
                    op: op,
@@ -1132,24 +1126,8 @@ extension ExprTypeChecker {
         // A successful `plusAssign` mutates the value returned by the getter
         // without invoking the property setter. Setter visibility only gates
         // the binary-operator fallback that writes a replacement value.
-        if isMutable, let setterVisibility = sema.symbols.propertySetterVisibility(for: writeSymbol),
-           let propSymbol
-        {
-            let setter = SemanticSymbol(
-                id: propSymbol.id, kind: propSymbol.kind, name: propSymbol.name, fqName: propSymbol.fqName,
-                declSite: propSymbol.declSite, visibility: setterVisibility, flags: propSymbol.flags
-            )
-            if !ctx.visibilityChecker.isAccessible(
-                setter, fromFile: ctx.currentFileID, enclosingClass: ctx.enclosingClassSymbol
-            ) {
-                driver.helpers.emitVisibilityError(
-                    for: setter,
-                    name: interner.resolve(calleeName),
-                    range: range,
-                    diagnostics: sema.diagnostics
-                )
-                return driver.helpers.bindAndReturnErrorType(id, sema: sema)
-            }
+        if isMutable, !checkPropertySetterAccessibility(propertyID: writeSymbol, name: calleeName, range: range, ctx: ctx) {
+            return driver.helpers.bindAndReturnErrorType(id, sema: sema)
         }
 
         if let resolvedType = bindCompoundAssignmentOperatorCall(
@@ -1203,5 +1181,55 @@ extension ExprTypeChecker {
         }
         sema.bindings.bindExprType(id, type: sema.types.unitType)
         return sema.types.unitType
+    }
+
+    private func isPropertySetterAccessible(
+        propertyID: SymbolID,
+        ctx: TypeInferenceContext
+    ) -> Bool {
+        let sema = ctx.sema
+        guard let setterVisibility = sema.symbols.propertySetterVisibility(for: propertyID),
+              let propSymbol = sema.symbols.symbol(propertyID)
+        else {
+            return true
+        }
+        let setter = SemanticSymbol(
+            id: propSymbol.id, kind: propSymbol.kind, name: propSymbol.name, fqName: propSymbol.fqName,
+            declSite: propSymbol.declSite, visibility: setterVisibility, flags: propSymbol.flags
+        )
+        return ctx.visibilityChecker.isAccessible(
+            setter, fromFile: ctx.currentFileID, enclosingClass: ctx.enclosingClassSymbol
+        )
+    }
+
+    @discardableResult
+    private func checkPropertySetterAccessibility(
+        propertyID: SymbolID,
+        name: InternedString,
+        range: SourceRange,
+        ctx: TypeInferenceContext
+    ) -> Bool {
+        let sema = ctx.sema
+        guard let setterVisibility = sema.symbols.propertySetterVisibility(for: propertyID),
+              let propSymbol = sema.symbols.symbol(propertyID)
+        else {
+            return true
+        }
+        let setter = SemanticSymbol(
+            id: propSymbol.id, kind: propSymbol.kind, name: propSymbol.name, fqName: propSymbol.fqName,
+            declSite: propSymbol.declSite, visibility: setterVisibility, flags: propSymbol.flags
+        )
+        if !ctx.visibilityChecker.isAccessible(
+            setter, fromFile: ctx.currentFileID, enclosingClass: ctx.enclosingClassSymbol
+        ) {
+            driver.helpers.emitVisibilityError(
+                for: setter,
+                name: ctx.interner.resolve(name),
+                range: range,
+                diagnostics: sema.diagnostics
+            )
+            return false
+        }
+        return true
     }
 }

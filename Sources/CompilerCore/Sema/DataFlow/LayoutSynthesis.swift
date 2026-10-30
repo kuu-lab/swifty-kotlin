@@ -682,7 +682,7 @@ extension DataFlowSemaPhase {
         while let ancestorID = current, visited.insert(ancestorID).inserted {
             guard let ancestorSym = symbols.symbol(ancestorID) else { return nil }
             let match = ownMembers(of: ancestorSym, symbols: symbols).first { child in
-                child.kind == .property && child.name == name
+                child.kind == .property && child.name == name && child.visibility != .private
             }
             if let match {
                 return match.id

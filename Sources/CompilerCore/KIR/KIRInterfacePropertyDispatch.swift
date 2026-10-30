@@ -122,6 +122,7 @@ func kirInterfacePropertyGetterSlots(
     var properties = sema.symbols.children(ofFQName: interfaceInfo.fqName)
         .compactMap { id -> (symbol: SymbolID?, name: InternedString)? in
             guard let property = sema.symbols.symbol(id), property.kind == .property else { return nil }
+            guard property.visibility != .private else { return nil }
             let isSyntheticCollectionSize = isCollectionOrMap && property.name == sizeName
             let isFloatingPointEndpoint = isClosedFloatingPointRange
                 && [interner.intern("start"), interner.intern("endInclusive")].contains(property.name)
