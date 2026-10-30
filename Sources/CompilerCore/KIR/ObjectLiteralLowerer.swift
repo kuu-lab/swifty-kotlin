@@ -1118,9 +1118,6 @@ final class ObjectLiteralLowerer {
                     sema: sema,
                     interner: interner
                 )
-                let delegateKind = StdlibDelegateKind.detect(
-                    delegateExpr: delegateExpr, ast: ast, interner: interner
-                )
                 driver.memberLowerer.lowerDelegateAccessor(
                     propertySymbol: propertySymbol,
                     propertyType: propertyType,
