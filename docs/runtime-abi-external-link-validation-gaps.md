@@ -5,7 +5,7 @@ RF-KIR-005 で enforcing 化する前提として、現行テストの検証範�
 
 ## 現行テストの範囲
 
-`Tests/CompilerCoreTests/Sema/RuntimeABIExternalLinkValidationTests.swift` は次の 2 系統を確認している。
+`Tests/CompilerCoreSemaTests/Sema/RuntimeABIExternalLinkValidationTests.swift` は次の 2 系統を確認している。
 
 1. `fun noop() {}` を Sema まで通し、登録済み symbol の `externalLinkName` を `RuntimeABISpec.allFunctions` に照合する。
 2. `Sources/CompilerCore/{KIR,Lowering,Sema}` を走査し、限られた正規表現で拾った `kk_*` literal を `RuntimeABISpec.allFunctions` に照合する。

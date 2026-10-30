@@ -30,7 +30,7 @@ INLINE-001 の修正は、`expandInlineCall` / `expandLambdaBody` が `.call` �
 最小ソースは実行結果だけでは欠落を検出できないため、展開前後のKIRにもassertionを置いている。
 Backend fixtureはstdout・終了状態の回帰を受け持ち、KIR検証の代わりにはしない。
 
-Coreの追加テストは `Tests/CompilerCoreTests/Lowering/`、上記Backend integrationファイルは
+Coreの追加テストは `Tests/CompilerCoreKIRLoweringTests/Lowering/`、上記Backend integrationファイルは
 `Tests/CompilerBackendTests/Codegen/`、importテストは各targetの `Sema/` にある。
 実行fixtureは `Tests/CompilerBackendTests/Fixtures/` 以下で自動検出される。
 
