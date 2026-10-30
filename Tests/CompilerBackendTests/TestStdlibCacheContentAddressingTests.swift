@@ -217,6 +217,20 @@ struct TestStdlibCacheContentAddressingTests {
     }
 
     @Test
+    func missingFingerprintErrorCarriesTheIdentityFailureDetail() {
+        do {
+            _ = try TestStdlibCache.contentKey(
+                manifestHash: "unchanged-kotlin",
+                compilerFingerprint: nil,
+                failureDetail: "no usable libLLVM could be loaded"
+            )
+            Issue.record("expected contentKey to reject a missing fingerprint")
+        } catch {
+            #expect(String(describing: error).contains("no usable libLLVM could be loaded"))
+        }
+    }
+
+    @Test
     func secondResolveForTheSameKeyReusesWithoutRebuilding() throws {
         try withTempBuildDirectory { buildDir in
             var buildCount = 0
