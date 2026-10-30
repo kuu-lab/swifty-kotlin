@@ -1102,7 +1102,7 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
     }
 
 
-    func bindBundledSequenceAggregateSource(typeArguments: [TypeID], locals: inout LocalBindings) {
+    func bindBundledSequenceAggregateSource(typeArguments: [TypeID], locals _: inout LocalBindings) {
         guard isSequenceReceiver else {
             return
         }
@@ -1152,7 +1152,7 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
     /// The Sequence counterpart of `bindBundledIterableSumSource`,
     /// which cannot be reused here because it only scans the
     /// kotlin.collections Iterable-family declarations.
-    func bindBundledSequenceSumSource(locals: inout LocalBindings) -> TypeID? {
+    func bindBundledSequenceSumSource(locals _: inout LocalBindings) -> TypeID? {
         guard isSequenceReceiver, args.isEmpty else {
             return nil
         }
@@ -1273,7 +1273,7 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
         otherElementType: TypeID? = nil,
         overrideTypeArguments: [TypeID]? = nil,
         allowIterableReceiver: Bool = false,
-        locals: inout LocalBindings
+        locals _: inout LocalBindings
     ) -> Bool {
         guard isSequenceReceiver || (allowIterableReceiver && isCollectionReceiver) else {
             return false

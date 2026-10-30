@@ -90,7 +90,6 @@ extension CollectionLiteralConstructionLoweringPass {
         callee: InternedString,
         arguments: [KIRExprID],
         result: KIRExprID?,
-        canThrow: Bool,
         thrownResult: KIRExprID?,
         module: KIRModule,
         ctx: KIRContext,

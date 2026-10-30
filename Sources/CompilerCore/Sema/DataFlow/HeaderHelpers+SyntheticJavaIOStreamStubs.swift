@@ -78,13 +78,12 @@ extension DataFlowSemaPhase {
         returnType: TypeID,
         externalLinkName: String,
         annotations: [MetadataAnnotationRecord] = [],
-        stdlibSpecialCallKind: StdlibSpecialCallKind? = nil,
         symbols: SymbolTable,
         interner: StringInterner
     ) {
         // KUU-2673: when imported candidates at this FQName are still shells,
         // re-run once the first materializes so the dedup reads real
-        // signatures and `setStdlibSpecialCallKind` lands on the result.
+        // signatures.
         let functionFQName = packageFQName + [interner.intern(name)]
         if symbols.deferWorkUntilImportedMemberMaterializes(at: functionFQName, work: { [self] in
             registerSyntheticTopLevelFunction(
@@ -94,14 +93,13 @@ extension DataFlowSemaPhase {
                 returnType: returnType,
                 externalLinkName: externalLinkName,
                 annotations: annotations,
-                stdlibSpecialCallKind: stdlibSpecialCallKind,
                 symbols: symbols,
                 interner: interner
             )
         }) {
             return
         }
-        let functionSymbol = registerSyntheticFunctionStub(
+        _ = registerSyntheticFunctionStub(
             named: name,
             ownerFQName: packageFQName,
             parentSymbol: symbols.lookup(fqName: packageFQName),
@@ -113,9 +111,6 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-        if let stdlibSpecialCallKind, functionSymbol != .invalid {
-            symbols.setStdlibSpecialCallKind(stdlibSpecialCallKind, for: functionSymbol)
-        }
     }
 
     func registerSyntheticJavaIOStreamStubs(

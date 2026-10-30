@@ -162,8 +162,8 @@ struct FunctionBodySemaSnapshotTests {
     /// deciding whether snapshots must carry it fails this test, so a future
     /// cache hit can never silently lose a binding that BuildKIR reads.
     private static let pendingBindings: Set<String> = [
-        "annotationFactoryExpressions", "anyToStringCallableRefs", "boundClassRefExprs", "builderDSLExprIDs",
-        "builderDSLKinds", "cachedContractCallsInPlaceInitializedSymbolsUnion", "callableRefKinds",
+        "annotationFactoryExpressions", "anyToStringCallableRefs", "boundClassRefExprs",
+        "cachedContractCallsInPlaceInitializedSymbolsUnion", "callableRefKinds",
         "callableReferenceBindings", "callableTargets", "callableValueCalls", "captureSymbolsByExpr",
         "capturedLocalTypesBySymbol", "castTargetTypes", "catchClauseBindings", "charRangeExprIDs",
         "charRangeSymbolIDs", "classRefTargetTypes", "collectionExprIDs", "collectionHOFLambdaExprIDs",

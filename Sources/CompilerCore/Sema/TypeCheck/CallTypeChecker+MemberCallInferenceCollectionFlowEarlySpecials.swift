@@ -224,7 +224,7 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
         return nil
     }
 
-    func inferAsFlowMemberSpecial(locals: inout LocalBindings) -> TypeID? {
+    func inferAsFlowMemberSpecial(locals _: inout LocalBindings) -> TypeID? {
         if interner.resolve(calleeName) == "asFlow",
            args.isEmpty,
            !isMapReceiver,
@@ -372,7 +372,7 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
         return nil
     }
 
-    func inferFilterIsInstanceSpecial(locals: inout LocalBindings) -> TypeID? {
+    func inferFilterIsInstanceSpecial(locals _: inout LocalBindings) -> TypeID? {
 
         if interner.resolve(calleeName) == "filterIsInstance",
            args.isEmpty,
@@ -552,7 +552,7 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
         return nil
     }
 
-    func inferFilterNotNullSpecial(locals: inout LocalBindings) -> TypeID? {
+    func inferFilterNotNullSpecial(locals _: inout LocalBindings) -> TypeID? {
 
         if interner.resolve(calleeName) == "filterNotNull",
            args.isEmpty,

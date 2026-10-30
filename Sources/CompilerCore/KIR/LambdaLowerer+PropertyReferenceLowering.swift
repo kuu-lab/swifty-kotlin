@@ -197,7 +197,6 @@ extension LambdaLowerer {
         emitPropertyReferenceGetter(
             methodSymbol: getterMethodSymbol,
             wrapperType: wrapperType,
-            shape: shape,
             accessor: accessor,
             captureFields: captureFields,
             fieldOffsets: fieldOffsets,
@@ -209,7 +208,6 @@ extension LambdaLowerer {
             emitPropertyReferenceSetter(
                 methodSymbol: setterMethodSymbol,
                 wrapperType: wrapperType,
-                shape: shape,
                 accessor: accessor,
                 captureFields: captureFields,
                 fieldOffsets: fieldOffsets,
@@ -922,7 +920,6 @@ extension LambdaLowerer {
     private func emitPropertyReferenceGetter(
         methodSymbol: SymbolID,
         wrapperType: TypeID,
-        shape: PropertyReferenceShape,
         accessor: PropertyReferenceAccessor,
         captureFields: [SymbolID],
         fieldOffsets: [SymbolID: Int],
@@ -1122,7 +1119,6 @@ extension LambdaLowerer {
     private func emitPropertyReferenceSetter(
         methodSymbol: SymbolID,
         wrapperType: TypeID,
-        shape: PropertyReferenceShape,
         accessor: PropertyReferenceAccessor,
         captureFields: [SymbolID],
         fieldOffsets: [SymbolID: Int],
@@ -1620,7 +1616,6 @@ extension LambdaLowerer {
             emitPropertyReferenceGetter(
                 methodSymbol: getterMethodSymbol,
                 wrapperType: wrapperType,
-                shape: shape,
                 accessor: accessor,
                 captureFields: [],
                 fieldOffsets: [:],

@@ -602,10 +602,6 @@ public final class KIRModule {
         featuresScanned = true
     }
 
-    public func registerNonThrowingClosureCallee(_ name: InternedString) {
-        nonThrowingClosureCallees.insert(name)
-    }
-
     public var functionCount: Int {
         arena.declarations.reduce(0) { partial, decl in
             if case .function = decl {

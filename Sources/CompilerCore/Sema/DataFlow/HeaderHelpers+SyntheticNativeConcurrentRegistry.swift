@@ -37,7 +37,7 @@ extension DataFlowSemaPhase {
 
         // TransferMode is source-backed. Keep only the early nominal anchor
         // because Worker.execute is registered before bundled headers are collected.
-        let transferModeSymbol = ensureNativeConcurrentEnum(
+        _ = ensureNativeConcurrentEnum(
             named: "TransferMode",
             entries: [],
             in: nativeConcurrentPkg,
@@ -45,11 +45,6 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-        let transferModeType = types.make(.classType(ClassType(
-            classSymbol: transferModeSymbol,
-            args: [],
-            nullability: .nonNull
-        )))
         // FutureState is source-backed. Keep only its early nominal anchor here
         // because Worker/Future registration runs before bundled headers are collected.
         _ = ensureNativeConcurrentEnum(
@@ -65,7 +60,6 @@ extension DataFlowSemaPhase {
                 step,
                 packageFQName: nativeConcurrentPkg,
                 pkgSymbol: nativeConcurrentPkgSymbol,
-                transferModeType: transferModeType,
                 symbols: symbols,
                 types: types,
                 interner: interner
@@ -90,7 +84,6 @@ extension DataFlowSemaPhase {
         _ step: NativeConcurrentRegistrationStep,
         packageFQName: [InternedString],
         pkgSymbol: SymbolID?,
-        transferModeType: TypeID,
         symbols: SymbolTable,
         types: TypeSystem,
         interner: StringInterner

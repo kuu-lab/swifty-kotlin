@@ -151,7 +151,6 @@ struct SymbolTableSemaSnapshot: Codable {
     let nominalLayoutHints: [SymbolID: NominalLayoutHint]
     let externalLinkNames: [SymbolID: String]
     let functionABIReturnTypes: [SymbolID: TypeID]
-    let stdlibSpecialCallKindsBySymbol: [SymbolID: StdlibSpecialCallKind]
     let typeAliasUnderlyingTypes: [SymbolID: TypeID]
     let typeAliasTypeParameters: [SymbolID: [SymbolID]]
     let parentSymbols: [SymbolID: SymbolID]
@@ -262,7 +261,6 @@ public final class SymbolTable {
     /// Backend ABI return type for functions whose compiled calling convention
     /// differs from their source-level return type (e.g. raw `Int` string handles).
     private var functionABIReturnTypes: [SymbolID: TypeID] = [:]
-    private var stdlibSpecialCallKindsBySymbol: [SymbolID: StdlibSpecialCallKind] = [:]
     private var typeAliasUnderlyingTypes: [SymbolID: TypeID] = [:]
     private var typeAliasTypeParameters: [SymbolID: [SymbolID]] = [:]
     private var childrenByParent: [SymbolID: Set<SymbolID>] = [:]
@@ -414,7 +412,6 @@ public final class SymbolTable {
         worker.nominalLayoutHints = nominalLayoutHints
         worker.externalLinkNames = externalLinkNames
         worker.functionABIReturnTypes = functionABIReturnTypes
-        worker.stdlibSpecialCallKindsBySymbol = stdlibSpecialCallKindsBySymbol
         worker.typeAliasUnderlyingTypes = typeAliasUnderlyingTypes
         worker.typeAliasTypeParameters = typeAliasTypeParameters
         worker.childrenByParent = childrenByParent
@@ -1615,14 +1612,6 @@ public final class SymbolTable {
         return functionABIReturnTypes[symbol]
     }
 
-    public func setStdlibSpecialCallKind(_ kind: StdlibSpecialCallKind, for symbol: SymbolID) {
-        stdlibSpecialCallKindsBySymbol[symbol] = kind
-    }
-
-    public func stdlibSpecialCallKind(forSymbol symbol: SymbolID) -> StdlibSpecialCallKind? {
-        stdlibSpecialCallKindsBySymbol[symbol]
-    }
-
     public func setTypeAliasUnderlyingType(_ type: TypeID, for symbol: SymbolID) {
         lock.lock()
         defer { lock.unlock() }
@@ -2169,7 +2158,6 @@ extension SymbolTable {
             nominalLayoutHints: nominalLayoutHints,
             externalLinkNames: externalLinkNames,
             functionABIReturnTypes: functionABIReturnTypes,
-            stdlibSpecialCallKindsBySymbol: stdlibSpecialCallKindsBySymbol,
             typeAliasUnderlyingTypes: typeAliasUnderlyingTypes,
             typeAliasTypeParameters: typeAliasTypeParameters,
             parentSymbols: parentSymbols,

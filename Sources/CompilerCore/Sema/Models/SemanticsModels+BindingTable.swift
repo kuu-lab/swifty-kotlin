@@ -179,8 +179,6 @@ public final class BindingTable {
     /// callable references keep their function type, so the interface must be
     /// recorded separately for KIR lowering.
     public private(set) var samInterfaceTypes: [ExprID: TypeID] = [:]
-    public private(set) var builderDSLExprIDs: Set<ExprID> = []
-    public private(set) var builderDSLKinds: [ExprID: BuilderDSLKind] = [:]
     public private(set) var scopeFunctionExprIDs: Set<ExprID> = []
     public private(set) var scopeFunctionKinds: [ExprID: ScopeFunctionKind] = [:]
     public private(set) var collectionHOFLambdaExprIDs: Set<ExprID> = []
@@ -377,8 +375,6 @@ public final class BindingTable {
         if !samConversionExprs.isEmpty { return false }
         if !samUnderlyingFunctionTypes.isEmpty { return false }
         if !samInterfaceTypes.isEmpty { return false }
-        if !builderDSLExprIDs.isEmpty { return false }
-        if !builderDSLKinds.isEmpty { return false }
         if !scopeFunctionExprIDs.isEmpty { return false }
         if !scopeFunctionKinds.isEmpty { return false }
         if !collectionHOFLambdaExprIDs.isEmpty { return false }
@@ -505,8 +501,6 @@ public final class BindingTable {
         worker.samConversionExprs = samConversionExprs
         worker.samUnderlyingFunctionTypes = samUnderlyingFunctionTypes
         worker.samInterfaceTypes = samInterfaceTypes
-        worker.builderDSLExprIDs = builderDSLExprIDs
-        worker.builderDSLKinds = builderDSLKinds
         worker.scopeFunctionExprIDs = scopeFunctionExprIDs
         worker.scopeFunctionKinds = scopeFunctionKinds
         worker.collectionHOFLambdaExprIDs = collectionHOFLambdaExprIDs
@@ -1107,15 +1101,6 @@ public final class BindingTable {
 
     public func samUnderlyingFunctionType(for expr: ExprID) -> TypeID? {
         samUnderlyingFunctionTypes[expr]
-    }
-
-    public func markBuilderDSLExpr(_ expr: ExprID, kind: BuilderDSLKind) {
-        builderDSLExprIDs.insert(expr)
-        builderDSLKinds[expr] = kind
-    }
-
-    public func builderDSLKind(for expr: ExprID) -> BuilderDSLKind? {
-        builderDSLKinds[expr]
     }
 
     public func markScopeFunctionExpr(_ expr: ExprID, kind: ScopeFunctionKind) {

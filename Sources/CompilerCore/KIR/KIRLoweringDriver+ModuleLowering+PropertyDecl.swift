@@ -279,7 +279,7 @@ extension KIRLoweringDriver {
             ast: shared.ast, interner: shared.interner
         )
         emitDelegateAccessorsIfCustom(
-            delegateKind: delegateKind, propertyDecl: propertyDecl,
+            propertyDecl: propertyDecl,
             symbol: symbol, propType: propType,
             delegateStorageSymbol: delegateStorageSymbol,
             shared: shared, declIDs: &declIDs
@@ -322,7 +322,6 @@ extension KIRLoweringDriver {
     }
 
     private func emitDelegateAccessorsIfCustom(
-        delegateKind: StdlibDelegateKind,
         propertyDecl: PropertyDecl,
         symbol: SymbolID,
         propType: TypeID,

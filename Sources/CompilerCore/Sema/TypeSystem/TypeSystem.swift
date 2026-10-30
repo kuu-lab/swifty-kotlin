@@ -600,12 +600,6 @@ public final class TypeSystem {
         return nominalTypeParameterSymbolsMap[nominal] ?? []
     }
 
-    /// Owning nominal and declaration-site index of a type-parameter symbol,
-    /// when it was registered through `setNominalTypeParameterSymbols`.
-    public func nominalTypeParameterOwner(for symbol: SymbolID) -> (owner: SymbolID, index: Int)? {
-        nominalTypeParameterOwnerMap[symbol]
-    }
-
     /// Declared upper bounds for a type parameter. Imported declarations keep
     /// producer-local bounds on the owning nominal rather than the per-symbol
     /// map (synthetic metadata ids are not unique across artifacts), so a

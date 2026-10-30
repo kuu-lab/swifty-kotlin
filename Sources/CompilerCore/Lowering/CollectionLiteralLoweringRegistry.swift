@@ -125,7 +125,6 @@ struct CollectionLiteralLoweringRegistry {
                         result: result,
                         canThrow: canThrow,
                         thrownResult: thrownResult,
-                        function: function,
                         module: module,
                         ctx: ctx,
                         lookup: lookup,
