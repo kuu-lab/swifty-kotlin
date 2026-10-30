@@ -25,9 +25,33 @@ extension DataFlowSemaPhase {
         }
         let constructors = symbols.lookupAll(fqName: classFQName + [interner.intern("<init>")]).compactMap { id -> FunctionSignature? in
             guard let symbol = symbols.symbol(id), symbol.kind == .constructor,
-                  !symbol.flags.contains(.synthetic), isUserSource(id)
+                  !symbol.flags.contains(.synthetic), isUserSource(id),
+                  let signature = symbols.functionSignature(for: id)
             else { return nil }
-            return symbols.functionSignature(for: id)
+            // A constructor's receiver is the class it constructs; a
+            // conflicting top-level function is receiverless, so the receiver
+            // must be stripped before signature comparison.
+            return FunctionSignature(
+                contextReceiverTypes: signature.contextReceiverTypes,
+                contextParameterSymbols: signature.contextParameterSymbols,
+                contextParameterTypes: signature.contextParameterTypes,
+                parameterTypes: signature.parameterTypes,
+                returnType: signature.returnType,
+                isSuspend: signature.isSuspend,
+                canThrow: signature.canThrow,
+                valueParameterSymbols: signature.valueParameterSymbols,
+                valueParameterUnsafeVarianceTypeParameterSymbols: signature.valueParameterUnsafeVarianceTypeParameterSymbols,
+                valueParameterHasDefaultValues: signature.valueParameterHasDefaultValues,
+                valueParameterIsVararg: signature.valueParameterIsVararg,
+                valueParameterAllowsNonLocalReturn: signature.valueParameterAllowsNonLocalReturn,
+                hasExplicitInlineParameterMetadata: signature.hasExplicitInlineParameterMetadata,
+                hasStableParameterNames: signature.hasStableParameterNames,
+                typeParameterSymbols: signature.typeParameterSymbols,
+                reifiedTypeParameterIndices: signature.reifiedTypeParameterIndices,
+                typeParameterUpperBounds: signature.typeParameterUpperBounds,
+                typeParameterUpperBoundsList: signature.typeParameterUpperBoundsList,
+                classTypeParameterCount: signature.classTypeParameterCount
+            )
         }
         guard !constructors.isEmpty else { return }
         // A constructor's implicit class receiver is not part of the callable

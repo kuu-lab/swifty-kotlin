@@ -574,7 +574,9 @@ struct DataFlowAndSemaRegressionTests {
 
                 // Keep the constructor/factory merge regression local because
                 // CLEANUP-STUB-117 intentionally removes the synthetic Path API.
-                    assertNoDiagnostic("KSWIFTK-SEMA-0001", in: sample15Diagnostics)
+                // The identical constructor/factory signature is itself a
+                // conflicting-overloads clash in kotlinc.
+                    assertHasDiagnostic("KSWIFTK-SEMA-0001", in: sample15Diagnostics)
                     assertNoDiagnostic("KSWIFTK-SEMA-0002", in: sample15Diagnostics)
                     assertNoDiagnostic("KSWIFTK-SEMA-0023", in: sample15Diagnostics)
 
@@ -879,6 +881,28 @@ struct DataFlowAndSemaRegressionTests {
 
             }
 
+        }
+    }
+
+    // A top-level function whose signature exactly matches a class
+    // constructor is a conflicting declaration in kotlinc. The constructor's
+    // receiver (the class type) must be stripped before signature comparison,
+    // otherwise the conflict check can never fire.
+    @Test(arguments: [
+        """
+        class X
+        fun X() = 1
+        """,
+        """
+        class X(val a: Int)
+        fun X(a: Int): X = X(a)
+        """,
+    ])
+    func testClassConstructorSignatureMatchStillConflicts(source: String) throws {
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], includeStdlib: false)
+            try runSema(ctx)
+            #expect(ctx.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-SEMA-0001" })
         }
     }
 
