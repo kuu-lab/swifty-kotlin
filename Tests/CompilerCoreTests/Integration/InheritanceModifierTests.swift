@@ -396,8 +396,9 @@ import TestStdlibCache
                 let sampleDiags = diagnosticsForPath(sample5Path, in: ctx)
 
 
-                        // Class-level abstract/final conflict is currently reported by abstract-class validation.
-                        assertHasDiagnostic("KSWIFTK-SEMA-ABSTRACT", in: sampleDiags)
+                        // Class-level abstract/final conflict is now reported as
+                        // kotlinc-style bidirectional incompatible-modifier errors.
+                        assertHasDiagnostic("KSWIFTK-SEMA-0402", in: sampleDiags)
 
             }
             // testInterfaceMemberCannotBeFinal

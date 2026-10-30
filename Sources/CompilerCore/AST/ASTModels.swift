@@ -35,7 +35,7 @@ public enum Visibility: Int, Sendable, Codable {
     case protected
 }
 
-public struct Modifiers: OptionSet, Sendable, Codable {
+public struct Modifiers: OptionSet, Sendable, Codable, Hashable {
     public let rawValue: Int32
 
     public init(rawValue: Int32) {

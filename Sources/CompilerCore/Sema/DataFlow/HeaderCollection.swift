@@ -123,21 +123,6 @@ extension DataFlowSemaPhase {
                 classFlags.insert(.valueType)
             }
 
-            if classDecl.modifiers.contains(.abstract) && classDecl.modifiers.contains(.final) {
-                diagnostics?.error(
-                    "KSWIFTK-SEMA-ABSTRACT",
-                    "Class cannot be both 'abstract' and 'final'.",
-                    range: classDecl.range
-                )
-            }
-            if classDecl.modifiers.contains(.sealed) && classDecl.modifiers.contains(.final) {
-                diagnostics?.error(
-                    "KSWIFTK-SEMA-ABSTRACT",
-                    "Class cannot be both 'sealed' and 'final'.",
-                    range: classDecl.range
-                )
-            }
-
             if classDecl.modifiers.contains(.abstract) {
                 classFlags.insert(.openType)
             }

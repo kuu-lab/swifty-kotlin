@@ -1267,15 +1267,6 @@ extension DataFlowSemaPhase {
 
         let memberName = ctx.interner.resolve(memberMeta.name)
 
-        // Rule 1: abstract and final are mutually exclusive
-        if memberMeta.hasAbstract && memberMeta.hasFinal {
-            ctx.diagnostics.error(
-                "KSWIFTK-SEMA-MODIFIER-CONFLICT",
-                "'\(memberName)' cannot be both 'abstract' and 'final'. These modifiers are mutually exclusive.",
-                range: memberMeta.range
-            )
-        }
-
         // Rule 2: open and final are mutually exclusive
         if memberMeta.hasOverride && memberMeta.hasFinal {
             // This is actually valid (final override), so no error here
@@ -1464,14 +1455,6 @@ extension DataFlowSemaPhase {
             }
         }
 
-        if memberMeta.hasAbstract && memberMeta.hasFinal {
-            let memberName = ctx.interner.resolve(memberMeta.name)
-            ctx.diagnostics.error(
-                "KSWIFTK-SEMA-MODIFIER-CONFLICT",
-                "'\(memberName)' cannot be both 'abstract' and 'final'. These modifiers are mutually exclusive.",
-                range: memberMeta.range
-            )
-        }
     }
 
     private func validateOverrideTarget(

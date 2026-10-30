@@ -152,7 +152,13 @@ struct DeclarationPositionValidator {
         )
 
         let modifiers = decl.modifiers
-        validateVisibilityModifierConflicts(modifiers, range: decl.range)
+        let pairPlan = incompatiblePairEmissions(
+            modifiers,
+            pairs: Self.memberConflictPairs,
+            invalidModifiers: Self.memberSiteInvalidModifiers(site)
+        )
+        let conflictCovered = validateVisibilityModifierConflicts(modifiers, range: decl.range)
+            .union(pairPlan.covered)
         let target = functionTargetName(site: site)
 
         validateDuplicateTypeParamNames(decl.typeParams, range: decl.range)
@@ -178,17 +184,18 @@ struct DeclarationPositionValidator {
 
         switch site {
         case .file:
-            for (modifier, name) in Self.topLevelFunForbidden where modifiers.contains(modifier) {
+            for (modifier, name) in Self.topLevelFunForbidden
+            where modifiers.contains(modifier) && !conflictCovered.contains(modifier) {
                 emitNotApplicable(name, to: "top level function", range: decl.range)
             }
         case .function:
             break
         case .nominal(let nominal):
             validateInterfaceMemberModifiers(
-                modifiers, site: nominal, range: decl.range
+                modifiers, site: nominal, excluding: conflictCovered, range: decl.range
             )
             if nominal.kind == .object {
-                if modifiers.contains(.protected) {
+                if modifiers.contains(.protected), !conflictCovered.contains(.protected) {
                     emitInside("protected", inside: nominal.name, range: decl.range)
                 }
             }
@@ -245,11 +252,7 @@ struct DeclarationPositionValidator {
             }
         }
 
-        emitIncompatiblePairs(
-            modifiers,
-            pairs: [(.final, "final", .open, "open"), (.private, "private", .open, "open")],
-            range: decl.range
-        )
+        emitPairConflicts(pairPlan.emissions, range: decl.range)
 
         // Other bodyless-function cases are already covered by
         // KSWIFTK-SEMA-0009; only the interface-private combination is a gap.
@@ -270,13 +273,19 @@ struct DeclarationPositionValidator {
     }
 
     private func validateProperty(_ decl: PropertyDecl, site: OwnerSite) {
-        validateVisibilityModifierConflicts(decl.modifiers, range: decl.range)
+        let visibilityCovered = validateVisibilityModifierConflicts(decl.modifiers, range: decl.range)
         // Primary-constructor `val`/`var` parameters are materialized as
         // member properties; their restrictions are checked on the class.
         if decl.isSynthesizedPrimaryConstructorProperty {
             return
         }
         let modifiers = decl.modifiers
+        let pairPlan = incompatiblePairEmissions(
+            modifiers,
+            pairs: Self.memberConflictPairs,
+            invalidModifiers: Self.memberSiteInvalidModifiers(site)
+        )
+        let conflictCovered = visibilityCovered.union(pairPlan.covered)
         let target = propertyTargetName(site: site)
 
         for (modifier, name) in Self.propertyImpossibleModifiers where modifiers.contains(modifier) {
@@ -295,16 +304,22 @@ struct DeclarationPositionValidator {
 
         switch site {
         case .file:
-            for (modifier, name) in Self.topLevelPropertyForbidden where modifiers.contains(modifier) {
-                emitNotApplicable(name, to: "top level property", range: decl.range)
+            let topLevelTarget = decl.getter == nil
+                ? "top level property with backing field"
+                : "top level property"
+            for (modifier, name) in Self.topLevelPropertyForbidden
+            where modifiers.contains(modifier) && !conflictCovered.contains(modifier) {
+                emitNotApplicable(name, to: topLevelTarget, range: decl.range)
             }
         case .function:
             break
         case .nominal(let nominal):
             validateInterfaceMemberModifiers(
-                modifiers, site: nominal, range: decl.range
+                modifiers, site: nominal, excluding: conflictCovered, range: decl.range
             )
-            if nominal.kind == .object, modifiers.contains(.protected) {
+            if nominal.kind == .object, modifiers.contains(.protected),
+               !conflictCovered.contains(.protected)
+            {
                 emitInside("protected", inside: nominal.name, range: decl.range)
             }
             if modifiers.contains(.expect), !nominal.ownerModifiers.contains(.expect) {
@@ -351,11 +366,7 @@ struct DeclarationPositionValidator {
             }
         }
 
-        emitIncompatiblePairs(
-            modifiers,
-            pairs: [(.final, "final", .open, "open"), (.private, "private", .open, "open")],
-            range: decl.range
-        )
+        emitPairConflicts(pairPlan.emissions, range: decl.range)
 
         validatePropertyInitialization(decl, site: site)
     }
@@ -621,7 +632,7 @@ struct DeclarationPositionValidator {
         validateDuplicateTypeParamNames(decl.typeParams, range: decl.range)
 
         let modifiers = decl.modifiers
-        validateVisibilityModifierConflicts(modifiers, range: decl.range)
+        let visibilityCovered = validateVisibilityModifierConflicts(modifiers, range: decl.range)
         validateVisibilityModifierConflicts(decl.primaryConstructorModifiers, range: decl.range)
         for constructor in decl.secondaryConstructors {
             validateVisibilityModifierConflicts(constructor.modifiers, range: constructor.range)
@@ -645,6 +656,27 @@ struct DeclarationPositionValidator {
             kindName = "class"
         }
 
+        var classInvalid: Modifiers = site == .file ? [.inner, .protected] : []
+        if site == .function {
+            classInvalid.formUnion(Self.modifierSet(Self.localClassForbiddenModifiers))
+            classInvalid.formUnion([.inner, .final])
+        }
+        if isEnum {
+            classInvalid.formUnion(Self.modifierSet(Self.enumForbiddenModifiers))
+        }
+        if isAnnotation {
+            classInvalid.formUnion(Self.modifierSet(Self.annotationForbiddenModifiers))
+        }
+        if isValue {
+            classInvalid.formUnion([.open, .abstract, .sealed])
+        }
+        let pairPlan = incompatiblePairEmissions(
+            modifiers,
+            pairs: Self.classConflictPairs,
+            invalidModifiers: classInvalid
+        )
+        let conflictCovered = visibilityCovered.union(pairPlan.covered)
+
         for (modifier, name) in Self.classImpossibleModifiers where modifiers.contains(modifier) {
             emitNotApplicable(name, to: kindName, range: decl.range)
         }
@@ -667,10 +699,11 @@ struct DeclarationPositionValidator {
             }
         }
         if site == .function {
-            for (modifier, name) in Self.localClassForbiddenModifiers where modifiers.contains(modifier) {
+            for (modifier, name) in Self.localClassForbiddenModifiers
+            where modifiers.contains(modifier) && !conflictCovered.contains(modifier) {
                 emitNotApplicable(name, to: "local class", range: decl.range)
             }
-            if modifiers.contains(.final) {
+            if modifiers.contains(.final), !conflictCovered.contains(.final) {
                 emitInside("final", inside: "function", range: decl.range)
             }
             if isAnnotation {
@@ -682,12 +715,14 @@ struct DeclarationPositionValidator {
             }
         }
         if isEnum {
-            for (modifier, name) in Self.enumForbiddenModifiers where modifiers.contains(modifier) {
+            for (modifier, name) in Self.enumForbiddenModifiers
+            where modifiers.contains(modifier) && !conflictCovered.contains(modifier) {
                 emitNotApplicable(name, to: "enum class", range: decl.range)
             }
         }
         if isAnnotation {
-            for (modifier, name) in Self.annotationForbiddenModifiers where modifiers.contains(modifier) {
+            for (modifier, name) in Self.annotationForbiddenModifiers
+            where modifiers.contains(modifier) && !conflictCovered.contains(modifier) {
                 emitNotApplicable(name, to: "annotation class", range: decl.range)
             }
         }
@@ -711,7 +746,7 @@ struct DeclarationPositionValidator {
             }
         }
 
-        if site == .file, modifiers.contains(.protected) {
+        if site == .file, modifiers.contains(.protected), !conflictCovered.contains(.protected) {
             emitNotApplicable("protected", to: "top level class", range: decl.range)
         }
 
@@ -724,26 +759,14 @@ struct DeclarationPositionValidator {
             }
         }
 
-        validateInnerPosition(modifiers, site: site, target: kindName, range: decl.range)
+        if !conflictCovered.contains(.inner) {
+            validateInnerPosition(modifiers, site: site, target: kindName, range: decl.range)
+        }
         if case .nominal(let nominal) = site {
             validateMemberSiteModifiers(modifiers, site: nominal, target: "member class", range: decl.range)
         }
 
-        emitIncompatiblePairs(
-            modifiers,
-            pairs: [
-                (.final, "final", .open, "open"),
-                (.data, "data", .inner, "inner"),
-                (.data, "data", .open, "open"),
-                (.data, "data", .abstract, "abstract"),
-                (.data, "data", .sealed, "sealed"),
-                (.data, "data", .value, "value"),
-                (.inline, "inline", .data, "data"),
-                (.sealed, "sealed", .open, "open"),
-                (.sealed, "sealed", .inner, "inner"),
-            ],
-            range: decl.range
-        )
+        emitPairConflicts(pairPlan.emissions, range: decl.range)
 
         if modifiers.contains(.data), decl.primaryConstructorParams.isEmpty {
             diagnostics?.error(
@@ -1057,7 +1080,7 @@ struct DeclarationPositionValidator {
         }
         switch site {
         case .file:
-            emitNotApplicable("inner", to: "top level \(target)", range: range)
+            emitInside("inner", inside: "file", range: range)
         case .function:
             emitInside("inner", inside: "function", range: range)
         case .nominal(let nominal):
@@ -1075,6 +1098,7 @@ struct DeclarationPositionValidator {
     private func validateInterfaceMemberModifiers(
         _ modifiers: Modifiers,
         site: NominalSite,
+        excluding conflictCovered: Modifiers = [],
         range: SourceRange
     ) {
         guard site.kind == .interface else {
@@ -1082,10 +1106,10 @@ struct DeclarationPositionValidator {
         }
         // `protected` inside interfaces is diagnosed by the
         // open/final/override pass (KUU-1406) and intentionally not repeated.
-        if modifiers.contains(.internal) {
+        if modifiers.contains(.internal), !conflictCovered.contains(.internal) {
             emitInside("internal", inside: "interface", range: range)
         }
-        if modifiers.contains(.final) {
+        if modifiers.contains(.final), !conflictCovered.contains(.final) {
             emitInside("final", inside: "interface", range: range)
         }
         if modifiers.contains(.external) {
@@ -1112,23 +1136,69 @@ struct DeclarationPositionValidator {
         }
     }
 
+    /// kotlinc reports an incompatible-modifier pair once per modifier: each
+    /// modifier names its first conflicting partner. A modifier that is invalid
+    /// at this site only reports a conflict when an earlier pair entry claims
+    /// it; otherwise the site's not-applicable diagnostic owns it. Returns the
+    /// modifiers that emitted a conflict so callers can suppress redundant
+    /// applicability diagnostics for them.
+    @discardableResult
     private func emitIncompatiblePairs(
         _ modifiers: Modifiers,
         pairs: [(Modifiers, String, Modifiers, String)],
+        invalidModifiers: Modifiers = [],
         range: SourceRange
-    ) {
-        for (first, firstName, second, secondName) in pairs {
-            if modifiers.contains(first), modifiers.contains(second) {
-                diagnostics?.error(
-                    "KSWIFTK-SEMA-0402",
-                    "modifier '\(firstName)' is incompatible with '\(secondName)'.",
-                    range: range
-                )
+    ) -> Modifiers {
+        let plan = incompatiblePairEmissions(
+            modifiers, pairs: pairs, invalidModifiers: invalidModifiers
+        )
+        emitPairConflicts(plan.emissions, range: range)
+        return plan.covered
+    }
+
+    private func incompatiblePairEmissions(
+        _ modifiers: Modifiers,
+        pairs: [(Modifiers, String, Modifiers, String)],
+        invalidModifiers: Modifiers
+    ) -> (emissions: [(String, String)], covered: Modifiers) {
+        var partner: [Modifiers: String] = [:]
+        var hasEarlierPartner: Modifiers = []
+        for (first, firstName, second, secondName) in pairs
+        where modifiers.contains(first) && modifiers.contains(second) {
+            if partner[first] == nil { partner[first] = secondName }
+            if partner[second] == nil { partner[second] = firstName }
+            hasEarlierPartner.insert(second)
+        }
+        var emissions: [(String, String)] = []
+        var covered: Modifiers = []
+        var emitted: Modifiers = []
+        for (first, firstName, second, secondName) in pairs
+        where modifiers.contains(first) && modifiers.contains(second) {
+            for (modifier, name) in [(first, firstName), (second, secondName)]
+            where !emitted.contains(modifier) {
+                if invalidModifiers.contains(modifier), !hasEarlierPartner.contains(modifier) {
+                    continue
+                }
+                emissions.append((name, partner[modifier]!))
+                emitted.insert(modifier)
+                covered.insert(modifier)
             }
+        }
+        return (emissions, covered)
+    }
+
+    private func emitPairConflicts(_ emissions: [(String, String)], range: SourceRange) {
+        for (name, partner) in emissions {
+            diagnostics?.error(
+                "KSWIFTK-SEMA-0402",
+                "modifier '\(name)' is incompatible with '\(partner)'.",
+                range: range
+            )
         }
     }
 
-    private func validateVisibilityModifierConflicts(_ modifiers: Modifiers, range: SourceRange) {
+    @discardableResult
+    private func validateVisibilityModifierConflicts(_ modifiers: Modifiers, range: SourceRange) -> Modifiers {
         emitIncompatiblePairs(
             modifiers,
             pairs: [
@@ -1347,6 +1417,43 @@ struct DeclarationPositionValidator {
                 return valueParams.count == 1 ? nil : "must override 'equals()' in Any"
             }
         }
+    }
+
+    private static let memberConflictPairs: [(Modifiers, String, Modifiers, String)] = [
+        (.abstract, "abstract", .final, "final"),
+        (.final, "final", .open, "open"),
+        (.private, "private", .open, "open"),
+    ]
+
+    private static let classConflictPairs: [(Modifiers, String, Modifiers, String)] = [
+        (.abstract, "abstract", .final, "final"),
+        (.sealed, "sealed", .final, "final"),
+        (.final, "final", .open, "open"),
+        (.data, "data", .inner, "inner"),
+        (.data, "data", .open, "open"),
+        (.data, "data", .abstract, "abstract"),
+        (.data, "data", .sealed, "sealed"),
+        (.data, "data", .value, "value"),
+        (.inline, "inline", .data, "data"),
+        (.sealed, "sealed", .open, "open"),
+        (.sealed, "sealed", .inner, "inner"),
+    ]
+
+    /// Modifiers whose site diagnostic owns the error unless an earlier pair
+    /// partner claims them — used as `invalidModifiers` for member pairs.
+    private static func memberSiteInvalidModifiers(_ site: OwnerSite) -> Modifiers {
+        switch site {
+        case .file:
+            [.abstract, .open, .final, .override, .protected]
+        case .nominal(let nominal) where nominal.kind == .interface:
+            [.final]
+        default:
+            []
+        }
+    }
+
+    private static func modifierSet(_ list: [(Modifiers, String)]) -> Modifiers {
+        list.reduce(Modifiers()) { $0.union($1.0) }
     }
 
     private static let funImpossibleModifiers: [(Modifiers, String)] = [
