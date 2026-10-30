@@ -1211,6 +1211,53 @@ struct TypeCheckHelpers {
         }
     }
 
+    /// Lifts a resolved `functionType` delegation specifier
+    /// (`: suspend () -> T`, `: () -> T`) to its nominal SuspendFunctionN /
+    /// FunctionN interface — the same mapping
+    /// `Inheritance.resolveNominalSymbolAndTypeArgs` applies to named
+    /// declarations. Supertype collectors that go through `resolveTypeRef`
+    /// (anonymous object literals, local classes) must apply the same lift or
+    /// the literal's `invoke` override and function-type subtyping silently
+    /// drop the edge (KUU-3838). Context-receiver function types have no
+    /// nominal equivalent and are returned unchanged, matching the named
+    /// declaration path.
+    func nominalFunctionInterfaceSupertype(
+        for resolved: TypeID,
+        owner: SymbolID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> TypeID {
+        guard case let .functionType(fnType) = sema.types.kind(of: sema.types.makeNonNullable(resolved)),
+              fnType.contextReceivers.isEmpty
+        else {
+            return resolved
+        }
+        let paramTypes = (fnType.receiver.map { [$0] } ?? []) + fnType.params
+        let functionSymbol: SymbolID?
+        if fnType.isSuspend {
+            functionSymbol = sema.types.suspendFunctionNInterfaceSymbols[paramTypes.count]
+        } else {
+            functionSymbol = DataFlowSemaPhase().ensureSyntheticFunctionInterface(
+                arity: paramTypes.count,
+                symbols: sema.symbols,
+                types: sema.types,
+                interner: interner
+            )
+        }
+        guard let functionSymbol else {
+            return resolved
+        }
+        if fnType.receiver != nil {
+            sema.symbols.markExtensionFunctionTypeSupertype(owner)
+        }
+        let functionArgs: [TypeArg] = paramTypes.map { .in($0) } + [.out(fnType.returnType)]
+        return sema.types.make(.classType(ClassType(
+            classSymbol: functionSymbol,
+            args: functionArgs,
+            nullability: .nonNull
+        )))
+    }
+
     func resolveTypeArgRefsForTypeCheck(
         _ argRefs: [TypeArgRef],
         ast: ASTModule,
