@@ -201,7 +201,13 @@ extension DataFlowSemaPhase {
                 }
             }
             if candidates.isEmpty,
-               let functionN = types.functionNInterfaceSymbol(named: path, interner: interner),
+               let arity = types.functionNInterfaceArity(named: path, interner: interner),
+               let functionN = ensureSyntheticFunctionInterface(
+                   arity: arity,
+                   symbols: symbols,
+                   types: types,
+                   interner: interner
+               ),
                let symbol = symbols.symbol(functionN)
             {
                 // FunctionN has a compiler-internal FQN under kotlin.Function,

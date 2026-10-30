@@ -144,11 +144,9 @@ public final class TypeSystem {
     /// `FunctionN` nominal and vice versa (KUU-1084).
     public internal(set) var functionNInterfaceSymbols: [Int: SymbolID] = [:]
 
-    /// Resolves the source-visible `FunctionN` spellings to their compiler-known
-    /// nominal interface symbols. Internally these interfaces live under the
-    /// synthetic `kotlin.Function` package, while Kotlin exposes them from
-    /// `kotlin` and default-imports the simple names.
-    func functionNInterfaceSymbol(named path: [InternedString], interner: StringInterner) -> SymbolID? {
+    /// Returns the arity represented by a source-visible `FunctionN` spelling.
+    /// Kotlin's numbered function interfaces are defined through arity 255.
+    func functionNInterfaceArity(named path: [InternedString], interner: StringInterner) -> Int? {
         guard let name = path.last else { return nil }
         let kotlinName = interner.intern("kotlin")
         guard path == [name] || path == [kotlinName, name] else { return nil }
@@ -157,7 +155,17 @@ public final class TypeSystem {
         let prefix = "Function"
         guard nameString.hasPrefix(prefix) else { return nil }
         let arityText = String(nameString.dropFirst(prefix.count))
-        guard let arity = Int(arityText), String(arity) == arityText else { return nil }
+        guard let arity = Int(arityText), String(arity) == arityText, (0...255).contains(arity) else {
+            return nil
+        }
+        return arity
+    }
+
+    /// Resolves a source-visible `FunctionN` spelling to its compiler-known
+    /// nominal interface symbol. Higher arities are materialized on demand by
+    /// semantic type resolution.
+    func functionNInterfaceSymbol(named path: [InternedString], interner: StringInterner) -> SymbolID? {
+        guard let arity = functionNInterfaceArity(named: path, interner: interner) else { return nil }
         return functionNInterfaceSymbols[arity]
     }
 

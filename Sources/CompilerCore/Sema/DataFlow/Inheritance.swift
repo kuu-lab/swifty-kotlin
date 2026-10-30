@@ -674,13 +674,12 @@ extension DataFlowSemaPhase {
             if isSuspend {
                 functionSymbol = types.suspendFunctionNInterfaceSymbols[paramTypes.count]
             } else {
-                let functionFQName = [
-                    interner.intern("kotlin"), interner.intern("Function"),
-                    interner.intern("Function\(paramTypes.count)"),
-                ]
-                functionSymbol = symbols.lookupAll(fqName: functionFQName)
-                    .compactMap({ symbols.symbol($0) })
-                    .first(where: { isNominalTypeSymbol($0.kind) })?.id
+                functionSymbol = ensureSyntheticFunctionInterface(
+                    arity: paramTypes.count,
+                    symbols: symbols,
+                    types: types,
+                    interner: interner
+                )
             }
             guard let functionSymbol
             else {
@@ -799,7 +798,14 @@ extension DataFlowSemaPhase {
         // FunctionN interfaces have compiler-internal FQNs under the synthetic
         // `kotlin.Function` package, but source code names them as `FunctionN`
         // or `kotlin.FunctionN`.
-        if let functionN = types.functionNInterfaceSymbol(named: path, interner: interner) {
+        if let arity = types.functionNInterfaceArity(named: path, interner: interner),
+           let functionN = ensureSyntheticFunctionInterface(
+               arity: arity,
+               symbols: symbols,
+               types: types,
+               interner: interner
+           )
+        {
             return resolvedSupertype(functionN)
         }
         // A lone type parameter as the supertype head (`class C<T> : T()`)
