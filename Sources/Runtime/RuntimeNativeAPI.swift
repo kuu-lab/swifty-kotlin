@@ -1252,7 +1252,7 @@ final class RuntimeWorkerBox: @unchecked Sendable {
         lock.broadcast()
         lock.unlock()
 
-        if processScheduled {
+        if processScheduled && DispatchQueue.getSpecific(key: queueSpecificKey) == nil {
             let group = DispatchGroup()
             group.enter()
             queue.async {
@@ -1372,15 +1372,33 @@ private final class MainWorkerHandleBox: @unchecked Sendable {
     func resolve() -> Int {
         lock.lock()
         defer { lock.unlock() }
+        if handle != 0 {
+            let isValid = runtimeStorage.withGCLock { state in
+                state.objectPointers.contains(UInt(bitPattern: handle))
+            }
+            if !isValid {
+                handle = 0
+            }
+        }
         if handle == 0 {
             handle = registerRuntimeObject(RuntimeWorkerBox(name: nil))
             registerActiveWorker(handle: handle)
         }
         return handle
     }
+
+    func reset() {
+        lock.lock()
+        handle = 0
+        lock.unlock()
+    }
 }
 
 private let mainWorkerHandleBox = MainWorkerHandleBox()
+
+func resetMainWorkerHandle() {
+    mainWorkerHandleBox.reset()
+}
 
 /// Returns the handle of the worker currently executing on the calling thread,
 /// or the shared main-worker handle if the calling thread isn't running a job
@@ -1412,6 +1430,11 @@ public func kk_worker_execute(
     kk_gc_shadow_push()
     var returnedFuture = 0
     defer { runtimePopNativeGCShadowFrame(returnedFuture, 0) }
+    kk_gc_shadow_set(0, workerHandle)
+    kk_gc_shadow_set(1, producerFnPtr)
+    kk_gc_shadow_set(2, producerClosureRaw)
+    kk_gc_shadow_set(3, jobFnPtr)
+    kk_gc_shadow_set(4, jobClosureRaw)
     var producerThrown = 0
     let producedRaw = runtimeInvokeClosureThunkMaybeWrapped(
         fnPtr: producerFnPtr,
@@ -1421,6 +1444,7 @@ public func kk_worker_execute(
     guard producerThrown == 0 else {
         return 0
     }
+    kk_gc_shadow_set(5, producedRaw)
 
     let futureHandle = kk_future_new()
     guard futureHandle != 0 else {
@@ -1441,7 +1465,9 @@ public func kk_worker_execute(
     // resolved raw (fnPtr, closureRaw) pair, so it carries no dependency on
     // the wrapper box surviving until the job actually executes.
     let resolvedJob = resolveFunctionValuePair(fnPtr: jobFnPtr, closureRaw: jobClosureRaw)
-    let queuedRoots = RuntimeQueuedGCRoots([resolvedJob.closureRaw, producedRaw, futureHandle])
+    let queuedRoots = RuntimeQueuedGCRoots([
+        workerHandle, resolvedJob.fnPtr, resolvedJob.closureRaw, producedRaw, futureHandle,
+    ])
     let submitted = worker.execute {
         defer { queuedRoots.finish() }
         kk_gc_shadow_push()
@@ -1453,6 +1479,7 @@ public func kk_worker_execute(
             value: producedRaw,
             outThrown: &jobThrown
         )
+        kk_gc_shadow_set(0, resultRaw)
         _ = kk_future_complete(futureHandle, jobThrown == 0 ? resultRaw : 0)
     }
     if !submitted {

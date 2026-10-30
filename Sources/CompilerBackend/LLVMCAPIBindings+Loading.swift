@@ -200,6 +200,7 @@ extension LLVMCAPIBindings {
                 setDataLayoutFn: setDataLayout,
                 setLinkageFn: setLinkage,
                 setThreadLocalFn: setThreadLocal,
+                voidTypeFn: loadSymbol(handle: handle, name: "LLVMVoidTypeInContext", as: LLVMVoidTypeInContextFn.self),
                 int8TypeInContextFn: int8Type,
                 int64TypeFn: int64Type,
                 structTypeInContextFn: loadSymbol(handle: handle, name: "LLVMStructTypeInContext", as: LLVMStructTypeInContextFn.self),

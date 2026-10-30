@@ -14,17 +14,27 @@ final class RuntimeGCSafepointCoordinator: @unchecked Sendable {
     private var mutators: [ObjectIdentifier: Mutator] = [:]
     private var collector: ObjectIdentifier?
     private var collectionDepth = 0
+    private var collectingThreads = 0
+    private var frameCounts: [ObjectIdentifier: Int] = [:]
+    private var pendingResetWork = 0
+    private var resetOwner: ObjectIdentifier?
+    private var resetDepth = 0
 
     func enter() {
         let id = ObjectIdentifier(Thread.current)
         condition.lock()
         defer { condition.unlock() }
+        waitForResetIfInactive(id)
+        let wasRegistered = mutators[id] != nil
+        if !wasRegistered {
+            mutators[id] = Mutator(depth: 1, parked: true)
+        }
         waitForOtherCollector(id)
-        if mutators[id] != nil {
+        if wasRegistered {
             mutators[id]?.depth += 1
             mutators[id]?.parked = false
         } else {
-            mutators[id] = Mutator(depth: 1, parked: false)
+            mutators[id]?.parked = false
         }
     }
 
@@ -59,6 +69,16 @@ final class RuntimeGCSafepointCoordinator: @unchecked Sendable {
         defer { condition.unlock() }
         guard let mutator = mutators[id], !mutator.parked else {
             preconditionFailure("GC safepoint requires an active mutator")
+        }
+        waitForOtherCollector(id)
+    }
+
+    func pollIfEnrolled() {
+        let id = ObjectIdentifier(Thread.current)
+        condition.lock()
+        defer { condition.unlock() }
+        guard let mutator = mutators[id], !mutator.parked else {
+            return
         }
         waitForOtherCollector(id)
     }
@@ -105,10 +125,12 @@ final class RuntimeGCSafepointCoordinator: @unchecked Sendable {
         let id = ObjectIdentifier(Thread.current)
         condition.lock()
         defer { condition.unlock() }
+        waitForResetIfInactive(id)
         if collector == id {
             collectionDepth += 1
             return
         }
+        collectingThreads += 1
         let wasBlocking = mutators[id].map { $0.suspendedAt.last == $0.depth } ?? false
         // A registered collector waiting for another collector must itself be
         // considered parked, otherwise both collectors can wait forever.
@@ -134,7 +156,90 @@ final class RuntimeGCSafepointCoordinator: @unchecked Sendable {
         collectionDepth -= 1
         if collectionDepth == 0 {
             collector = nil
+            collectingThreads -= 1
             condition.broadcast()
+        }
+    }
+
+    func enterFrame() {
+        let id = ObjectIdentifier(Thread.current)
+        condition.lock()
+        defer { condition.unlock() }
+        waitForResetIfInactive(id)
+        frameCounts[id, default: 0] += 1
+    }
+
+    func leaveFrame() {
+        let id = ObjectIdentifier(Thread.current)
+        condition.lock()
+        defer { condition.unlock() }
+        guard let count = frameCounts[id], count > 0 else { return }
+        if count == 1 {
+            frameCounts.removeValue(forKey: id)
+            condition.broadcast()
+        } else {
+            frameCounts[id] = count - 1
+        }
+    }
+
+    func beginResetWork() {
+        let id = ObjectIdentifier(Thread.current)
+        condition.lock()
+        defer { condition.unlock() }
+        waitForResetIfInactive(id)
+        pendingResetWork += 1
+    }
+
+    func endResetWork() {
+        condition.lock()
+        defer { condition.unlock() }
+        if pendingResetWork > 0 {
+            pendingResetWork -= 1
+            if pendingResetWork == 0 {
+                condition.broadcast()
+            }
+        }
+    }
+
+    func withQuiescentFramesResult(_ body: () -> Bool) -> Bool {
+        let id = ObjectIdentifier(Thread.current)
+        condition.lock()
+        while let owner = resetOwner, owner != id {
+            condition.wait()
+        }
+        let canStart = mutators.isEmpty
+            && collector == nil
+            && collectingThreads == 0
+            && frameCounts.isEmpty
+            && pendingResetWork == 0
+        guard canStart else {
+            condition.unlock()
+            return false
+        }
+        resetOwner = id
+        resetDepth += 1
+        condition.unlock()
+        defer {
+            condition.lock()
+            resetDepth -= 1
+            if resetDepth == 0 {
+                resetOwner = nil
+                condition.broadcast()
+            }
+            condition.unlock()
+        }
+        let isQuiescent = runtimeStorage.withGCLock { state in
+            state.shadowFrames.isEmpty && state.activeFrames.isEmpty && state.pendingResetWork == 0
+        }
+        guard isQuiescent else { return false }
+        return body()
+    }
+
+    // The condition lock is held by every caller of this method.
+    private func waitForResetIfInactive(_ id: ObjectIdentifier) {
+        guard mutators[id] == nil, frameCounts[id] == nil, collector != id else { return }
+        while let owner = resetOwner, owner != id {
+            condition.wait()
         }
     }
 
@@ -172,6 +277,7 @@ public func __kk_gc_mutator_leave() {
 // DEAD-CDECL-TEST-HOOK: GC-FRAME - Runtime tests exercise safepoint polling.
 @_cdecl("__kk_gc_safepoint")
 public func __kk_gc_safepoint() {
+    runtimeClearTransientReturnHandoffs()
     runtimeGCSafepoints.poll()
 }
 

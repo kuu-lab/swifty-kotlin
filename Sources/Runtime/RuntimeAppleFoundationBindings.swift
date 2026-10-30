@@ -277,7 +277,7 @@ public func __kk_foundation_stream_install(_ handle: Int, _ block: Int, _ input:
     let stream: Stream = input != 0 ? RuntimeFoundationInputStream(dispatch) : RuntimeFoundationOutputStream(dispatch)
     let old = runtimeStorage.withGCLock { state -> RuntimeForeignResourceLease? in
         guard let old = state.foreignResources[handle], old.owner != nil else { return nil }
-        let replacement = RuntimeForeignResourceLease(value: stream, dependentRoots: [UInt(bitPattern: callback.capture)])
+        let replacement = RuntimeForeignResourceLease(value: stream, dependentRoots: callback.rootKeys)
         replacement.owner = old.owner
         state.foreignResources[handle] = replacement
         return old
@@ -304,7 +304,7 @@ public func __kk_foundation_stream_delegate(_ handle: Int, _ block: Int, _ outTh
         guard let lease = state.foreignResources[handle] else { return [] }
         let old = lease.attachments
         lease.attachments = proxy.map { [$0] } ?? []
-        lease.attachmentRoots = proxy.map { [UInt(bitPattern: $0.callback.capture)] } ?? []
+        lease.attachmentRoots = proxy.map { $0.callback.rootKeys } ?? []
         return old
     }
     stream.delegate = proxy
@@ -365,8 +365,15 @@ public func __kk_foundation_runloop_run(_ handle: Int, _ outThrown: UnsafeMutabl
     outThrown?.pointee = 0
     #if canImport(Darwin)
     guard let loop = runtimeForeignResource(handle, as: RunLoop.self) else { return foundationFailure("Invalid SDK run loop", outThrown) }
+    RuntimeFoundationRunLoopTickets.shared.beginRun(loop: loop)
     defer { RuntimeFoundationRunLoopTickets.shared.cancel(loop: loop) }
-    loop.run()
+    while !RuntimeFoundationRunLoopTickets.shared.isStopped(loop: loop) {
+        let result = CFRunLoopRunInMode(CFRunLoopMode.defaultMode, 0.01, false)
+        runtimeGCSafepoints.pollIfEnrolled()
+        if result == .finished || result == .stopped {
+            break
+        }
+    }
     return 0
     #else
     return foundationFailure("Apple Foundation requires Darwin", outThrown)
@@ -381,7 +388,7 @@ public func __kk_foundation_runloop_stop(_ handle: Int, _ outThrown: UnsafeMutab
           let address = UnsafeRawPointer(bitPattern: pointer.address),
           pointer.pointeeTypeID == runtimeStableNominalTypeID(fqName: "platform.CoreFoundation.__CFRunLoop") else { return foundationFailure("Invalid native CFRunLoopRef", outThrown) }
     let cf = Unmanaged<CFRunLoop>.fromOpaque(address).takeUnretainedValue()
-    RuntimeFoundationRunLoopTickets.shared.cancel(key: UInt(bitPattern: address))
+    RuntimeFoundationRunLoopTickets.shared.markStopped(key: UInt(bitPattern: address))
     CFRunLoopStop(cf)
     return 0
     #else
@@ -411,20 +418,54 @@ public func __kk_foundation_port_create(_ outThrown: UnsafeMutablePointer<Int>?)
     #endif
 }
 
+#if canImport(Darwin)
+private final class RuntimeFoundationThread: Thread, @unchecked Sendable {
+    private let lock = NSLock()
+    private let callback: RuntimeFoundationCallback
+    private var queuedRoots: RuntimeQueuedGCRoots?
+    private var started = false
+
+    init(callback: RuntimeFoundationCallback) {
+        self.callback = callback
+        super.init()
+    }
+
+    override func start() {
+        lock.lock()
+        guard !started else {
+            lock.unlock()
+            return
+        }
+        started = true
+        queuedRoots = RuntimeQueuedGCRoots(callback.roots)
+        lock.unlock()
+        super.start()
+    }
+
+    override func main() {
+        defer {
+            lock.lock()
+            let roots = queuedRoots
+            queuedRoots = nil
+            lock.unlock()
+            roots?.finish()
+        }
+        var thrown = 0
+        _ = callback.invoke0(thrown: &thrown)
+        if thrown != 0 {
+            kk_native_terminateWithUnhandledException(thrown)
+        }
+    }
+}
+#endif
+
 @_cdecl("__kk_foundation_thread_create")
 public func __kk_foundation_thread_create(_ block: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     #if canImport(Darwin)
     guard let callback = RuntimeFoundationCallback(block), runtimeFunctionValueBox(from: block)?.arity == 0 else { return foundationFailure("SDK thread needs Function0", outThrown) }
-    let pin = RuntimeForeignCallbackPin(root: callback.capture)
-    let thread = Thread {
-        withExtendedLifetime(pin) {
-            var thrown = 0
-            _ = callback.invoke0(thrown: &thrown)
-            if thrown != 0 { kk_native_terminateWithUnhandledException(thrown) }
-        }
-    }
-    return runtimeForeignResourceCreate(thread, roots: [UInt(bitPattern: callback.capture)])
+    let thread = RuntimeFoundationThread(callback: callback)
+    return runtimeForeignResourceCreate(thread, roots: callback.rootKeys)
     #else
     return foundationFailure("Apple Foundation requires Darwin", outThrown)
     #endif
@@ -434,7 +475,11 @@ public func __kk_foundation_thread_create(_ block: Int, _ outThrown: UnsafeMutab
 public func __kk_foundation_thread_current(_ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     #if canImport(Darwin)
-    return runtimeForeignResourceCreate(Thread.current)
+    let current = Thread.current
+    if Thread.isMainThread, current.name?.isEmpty != false {
+        current.name = "main"
+    }
+    return runtimeForeignResourceCreate(current)
     #else
     return foundationFailure("Apple Foundation requires Darwin", outThrown)
     #endif

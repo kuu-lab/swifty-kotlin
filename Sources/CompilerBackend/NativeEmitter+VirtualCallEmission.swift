@@ -879,6 +879,9 @@ extension NativeEmitter.FunctionEmissionContext {
             mergedValue = vCallValue ?? zeroValue
         }
         storeResult(result, mergedValue)
+        if !hasGCRootSlot(for: result) {
+            emitGCShadowRetireReturnHandoff(value: vCallValue)
+        }
 
         if usesThrownChannel {
             handleThrownSlot(thrownSlotPointer, thrownResult: thrownResult, instructionIndex: instructionIndex, namePrefix: "v")

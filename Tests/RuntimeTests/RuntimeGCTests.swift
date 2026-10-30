@@ -2938,6 +2938,83 @@ struct RuntimeGCTests {
         #expect(!completedLaterReset)
     }
 
+    @Test func concurrentMutatorSafepointsCollectionAndResetDoNotDeadlock() {
+        final class StopFlag: @unchecked Sendable {
+            private let lock = NSLock()
+            private var stopped = false
+            func isStopped() -> Bool {
+                lock.lock()
+                defer { lock.unlock() }
+                return stopped
+            }
+            func stop() {
+                lock.lock()
+                stopped = true
+                lock.unlock()
+            }
+        }
+        let stopFlag = StopFlag()
+
+        let mutatorGroup = DispatchGroup()
+        for _ in 0 ..< 2 {
+            mutatorGroup.enter()
+            DispatchQueue.global().async {
+                defer { mutatorGroup.leave() }
+                while !stopFlag.isStopped() {
+                    __kk_gc_mutator_enter()
+                    kk_gc_shadow_push()
+                    let obj = kk_object_new(0, 0x38_36_01)
+                    kk_gc_shadow_set(0, obj)
+                    __kk_gc_safepoint()
+                    kk_gc_shadow_set(0, 0)
+                    kk_gc_shadow_pop(0, 0)
+                    __kk_gc_mutator_leave()
+                }
+            }
+        }
+
+        let collectorGroup = DispatchGroup()
+        collectorGroup.enter()
+        DispatchQueue.global().async {
+            defer { collectorGroup.leave() }
+            for _ in 0 ..< 40 {
+                kk_gc_collect()
+                _ = kk_runtime_reset_gc()
+            }
+        }
+
+        #expect(collectorGroup.wait(timeout: .now() + 10) == .success)
+        stopFlag.stop()
+        #expect(mutatorGroup.wait(timeout: .now() + 10) == .success)
+        #expect(kk_runtime_reset_gc())
+    }
+
+    @Test func transientReturnHandoffsAreClearedAtNextSafepoint() {
+        __kk_gc_mutator_enter()
+        kk_gc_shadow_push()
+        // Simulate a nested call allocating and returning `obj` into the caller's handoff
+        // without the caller storing it into a live slot.
+        kk_gc_shadow_push()
+        let obj = kk_object_new(0, 0x38_36_02)
+        let weak = kk_weak_ref_create(obj)
+        defer { _ = kk_object_release(weak) }
+        kk_gc_shadow_set(0, obj)
+        kk_gc_shadow_pop(obj, 0)
+
+        // Before the next safepoint, the caller's return handoff protects `obj`.
+        kk_gc_collect()
+        #expect(kk_weak_ref_get(weak) == obj)
+
+        // At the next safepoint, transient return handoffs are retired so `obj` can be swept
+        // within the same caller frame.
+        __kk_gc_safepoint()
+        kk_gc_collect()
+        #expect(kk_weak_ref_get(weak) == runtimeNullSentinelInt)
+
+        kk_gc_shadow_pop(0, 0)
+        __kk_gc_mutator_leave()
+    }
+
     @Test func processWaitDoesNotBlockCollectionOfAnEnrolledMutator() {
         let command = registerRuntimeObject(RuntimeStringBox("/bin/sleep\0" + "5"))
         defer { _ = runtimeReleaseObject(command) }

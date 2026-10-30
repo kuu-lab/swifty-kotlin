@@ -80,6 +80,10 @@ extension LLVMCAPIBindings {
         setThreadLocalFn(value, isThreadLocal ? 1 : 0)
     }
 
+    func voidType(context: LLVMContextRef?) -> LLVMTypeRef? {
+        voidTypeFn?(context)
+    }
+
     func int8Type(context: LLVMContextRef?) -> LLVMTypeRef? {
         int8TypeInContextFn(context)
     }

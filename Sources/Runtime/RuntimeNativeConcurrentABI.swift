@@ -62,16 +62,55 @@ private final class ActiveWorkerRegistry: @unchecked Sendable {
 
     func handle(forID id: Int) -> Int? {
         lock.lock()
-        defer { lock.unlock() }
-        return handleByID[id]
+        let candidate = handleByID[id]
+        lock.unlock()
+        guard let candidate else { return nil }
+        let isValid = runtimeStorage.withGCLock { state in
+            state.objectPointers.contains(UInt(bitPattern: candidate))
+        }
+        guard isValid else {
+            unregister(id: id)
+            return nil
+        }
+        return candidate
     }
 
     /// Live worker handles ordered by worker ID for a deterministic list.
     func activeHandles() -> [Int] {
         lock.lock()
-        defer { lock.unlock() }
-        return handleByID.sorted { $0.key < $1.key }.map { $0.value }
+        let entries = handleByID.sorted { $0.key < $1.key }
+        lock.unlock()
+        var live: [Int] = []
+        var staleIDs: [Int] = []
+        runtimeStorage.withGCLock { state in
+            for (id, handle) in entries {
+                if state.objectPointers.contains(UInt(bitPattern: handle)) {
+                    live.append(handle)
+                } else {
+                    staleIDs.append(id)
+                }
+            }
+        }
+        if !staleIDs.isEmpty {
+            lock.lock()
+            for id in staleIDs {
+                handleByID.removeValue(forKey: id)
+            }
+            lock.unlock()
+        }
+        return live
     }
+
+    func reset() {
+        lock.lock()
+        handleByID.removeAll(keepingCapacity: false)
+        lock.unlock()
+    }
+}
+
+func resetActiveWorkerRegistry() {
+    activeWorkerRegistry.reset()
+    resetMainWorkerHandle()
 }
 
 /// Called by every entry point that materializes a `RuntimeWorkerBox`.
@@ -348,19 +387,28 @@ public func __kk_native_concurrent_execute_impl(
 
     typealias JobFunction = @convention(c) (Int) -> Int
     let job = unsafeBitCast(jobPointer, to: JobFunction.self)
+    kk_gc_shadow_push()
+    var returnedFuture = 0
+    defer { runtimePopNativeGCShadowFrame(returnedFuture, 0) }
+    kk_gc_shadow_set(0, workerHandle)
+    kk_gc_shadow_set(1, jobArgumentRaw)
+    kk_gc_shadow_set(2, jobPointerHandle)
     let futureHandle = kk_future_new()
-    let queuedRoots = RuntimeQueuedGCRoots([jobArgumentRaw, futureHandle])
+    let queuedRoots = RuntimeQueuedGCRoots([workerHandle, jobArgumentRaw, jobPointerHandle, futureHandle])
     let submitted = worker.execute {
         defer { queuedRoots.finish() }
         kk_gc_shadow_push()
         defer { runtimePopNativeGCShadowFrame(0, 0) }
-        _ = kk_future_complete(futureHandle, job(jobArgumentRaw))
+        let resultRaw = job(jobArgumentRaw)
+        kk_gc_shadow_set(0, resultRaw)
+        _ = kk_future_complete(futureHandle, resultRaw)
     }
     if !submitted {
         queuedRoots.finish()
         _ = runtimeReleaseObject(futureHandle)
     }
-    return submitted ? futureHandle : 0
+    returnedFuture = submitted ? futureHandle : 0
+    return returnedFuture
 }
 
 /// Returns the handles of futures ready for consumption, and registers
@@ -617,7 +665,7 @@ public func kk_worker_execute_after(
     // no-exception path) stores through that garbage address and crashes.
     let fn = unsafeBitCast(UnsafeRawPointer(bitPattern: resolved.fnPtr)!, to: KKClosureThunkEntryPoint.self)
     let captured = resolved.closureRaw
-    let queuedRoots = RuntimeQueuedGCRoots([captured])
+    let queuedRoots = RuntimeQueuedGCRoots([workerHandle, resolved.fnPtr, captured])
     let deadline: DispatchTime = afterMicroseconds > 0
         ? DispatchTime.now() + .microseconds(afterMicroseconds)
         : .now()
