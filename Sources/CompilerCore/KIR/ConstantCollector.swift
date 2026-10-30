@@ -67,13 +67,19 @@ struct ConstantCollector {
                 }
                 return
             }
-            let constant =
-                literalConstantExpr(property: property, ast: ast, interner: interner) ??
-                inlineGetterConstantExpr(
-                    propertyName: interner.resolve(property.name),
-                    inlineGetters: inlineGetters,
-                    interner: interner
-                )
+            let getterConstant = inlineGetterConstantExpr(
+                propertyName: interner.resolve(property.name),
+                inlineGetters: inlineGetters,
+                interner: interner
+            )
+            // An initializer is not the observed value when an explicit
+            // getter exists. Keep folding literal getter bodies, but do not
+            // substitute the backing initializer for a computed getter.
+            let constant = if property.getter != nil {
+                getterConstant
+            } else {
+                literalConstantExpr(property: property, ast: ast, interner: interner) ?? getterConstant
+            }
             guard let constant else { return }
             mapping[symbol] = constant
             if let propertySymbol = sema.symbols.symbol(symbol) {
