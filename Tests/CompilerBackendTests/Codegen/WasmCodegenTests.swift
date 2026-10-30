@@ -1211,21 +1211,21 @@ struct WasmCodegenTests {
         func listOf(_ elems: [KIRExprID]) -> KIRExprID {
             let arr = call("kk_array_new", [int(Int64(elems.count))])
             for (i, v) in elems.enumerated() {
-                call("kk_array_set", [arr, int(Int64(i)), v])
+                _ = call("kk_array_set", [arr, int(Int64(i)), v])
             }
             return call("__kk_list_of", [arr, int(Int64(elems.count))])
         }
         func setOf(_ elems: [KIRExprID]) -> KIRExprID {
             let arr = call("kk_array_new", [int(Int64(elems.count))])
             for (i, v) in elems.enumerated() {
-                call("kk_array_set", [arr, int(Int64(i)), v])
+                _ = call("kk_array_set", [arr, int(Int64(i)), v])
             }
             return call("__kk_set_of", [arr, int(Int64(elems.count))])
         }
         func boxOf(_ helper: String, _ elems: [KIRExprID]) -> KIRExprID {
             let arr = call("kk_array_new", [int(Int64(elems.count))])
             for (i, v) in elems.enumerated() {
-                call("kk_array_set", [arr, int(Int64(i)), v])
+                _ = call("kk_array_set", [arr, int(Int64(i)), v])
             }
             return call(helper, [arr, int(Int64(elems.count))])
         }
@@ -1269,7 +1269,7 @@ struct WasmCodegenTests {
             let symRef = e()
             body.append(.constValue(result: symRef,
                                     value: .symbolRef(SymbolID(rawValue: 999_999))))
-            call("kk_object_register_vtable_method", [clobbered, int(slot), symRef])
+            _ = call("kk_object_register_vtable_method", [clobbered, int(slot), symRef])
         }
         // kk_any_member_* dispatch on the runtime typeID: a clobbered
         // LinkedHashSet still iterates/hashes structurally, and cross-family

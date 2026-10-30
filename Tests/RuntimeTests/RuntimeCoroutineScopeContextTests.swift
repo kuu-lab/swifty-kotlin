@@ -83,7 +83,7 @@ struct RuntimeCoroutineScopeContextTests {
         defer { RuntimeContinuationState.current = saved }
         let failure = runtimeAllocateThrowable(message: "withContext body")
         let continuation = kk_coroutine_continuation_new(9_597)
-        kk_coroutine_launcher_arg_set(continuation, 0, Int64(failure))
+        _ = kk_coroutine_launcher_arg_set(continuation, 0, Int64(failure))
         let entry = unsafeBitCast(scopeContextWithContextFailure as @convention(c)
             (Int, UnsafeMutablePointer<Int>?) -> Int, to: Int.self)
         var thrown = 0
