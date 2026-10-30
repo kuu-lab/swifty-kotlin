@@ -1486,6 +1486,9 @@ extension CallLowerer {
                     sema: sema
                 )
             } ?? false
+            let usesJavaIOStreamVirtualBridge = chosen.map {
+                isJavaIOStreamVirtualBridge($0, sema: sema, interner: interner)
+            } ?? false
             if !isSuperCall,
                !isRuntimeRangeReceiver,
                let chosen,
@@ -1493,7 +1496,8 @@ extension CallLowerer {
                    || isClockRuntimeVirtualBridge(chosen, sema: sema)
                    || usesIteratorRuntimeVirtualBridge
                    || usesBoxedCollectionVirtualBridge
-                   || usesClassReceiverListGetRuntimeBridge),
+                   || usesClassReceiverListGetRuntimeBridge
+                   || usesJavaIOStreamVirtualBridge),
                let dispatchKind = resolveVirtualDispatch(
                    callee: chosen,
                    receiverTypeID: dispatchReceiver.flatMap { arena.exprType($0) } ?? receiverTypeForDispatch,
@@ -1520,7 +1524,7 @@ extension CallLowerer {
                     // declare the outThrown channel in their ABI; the virtual
                     // call must append it so the looked-up implementation's
                     // exception path stays intact.
-                    canThrow: usesBoxedCollectionVirtualBridge
+                    canThrow: (usesBoxedCollectionVirtualBridge || usesJavaIOStreamVirtualBridge)
                         && needsThrownChannel(calleeName: virtualCalleeName, interner: interner),
                     dispatch: dispatchKind
                 )
@@ -1581,6 +1585,32 @@ extension CallLowerer {
               sema.symbols.symbol(parentID)?.kind == .interface
         else { return false }
         return true
+    }
+
+    /// InputStream/OutputStream bridge declarations are real overridable
+    /// class members. Runtime stream boxes register those base slots, while
+    /// source subclasses install their own vtable implementations.
+    func isJavaIOStreamVirtualBridge(
+        _ callee: SymbolID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> Bool {
+        guard let member = sema.symbols.symbol(callee),
+              member.kind == .function,
+              member.flags.contains(.openType),
+              let linkName = sema.symbols.externalLinkName(for: callee),
+              let owner = sema.symbols.parentSymbol(for: callee).flatMap(sema.symbols.symbol)
+        else {
+            return false
+        }
+        switch owner.fqName.map(interner.resolve) {
+        case ["java", "io", "InputStream"]:
+            return linkName.hasPrefix("__kk_input_stream_")
+        case ["java", "io", "OutputStream"]:
+            return linkName.hasPrefix("__kk_output_stream_")
+        default:
+            return false
+        }
     }
 
     /// Iterator's runtime links also back the source-declared Iterator

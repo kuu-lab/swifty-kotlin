@@ -1406,7 +1406,8 @@ extension CallLowerer {
                     interner: interner
                 )
             }) == true
-            || usesClassReceiverListGetRuntimeBridge,
+            || usesClassReceiverListGetRuntimeBridge
+            || chosenCallee.map({ isJavaIOStreamVirtualBridge($0, sema: sema, interner: interner) }) == true,
            let inst = tryEmitVirtualDispatch(
                chosenCallee: chosenCallee, calleeName: loweredCallee,
                receiverExpr: memberExtensionDispatchReceiver == nil && receiver.typeOverride == nil ? receiver.expr : nil,

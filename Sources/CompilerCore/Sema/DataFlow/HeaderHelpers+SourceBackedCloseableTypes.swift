@@ -1,6 +1,7 @@
 /// The common declarations are collected from bundled Kotlin source or loaded
-/// from a precompiled stdlib artifact. Only the JVM `java.io.Closeable` anchor
-/// remains synthetic for compatibility with existing Java-oriented IO stubs.
+/// from a precompiled stdlib artifact. The JVM `java.io.Closeable` and
+/// `java.lang.AutoCloseable` compatibility anchors remain synthetic for Java IO
+/// types while inheriting the source-backed Kotlin contracts.
 extension DataFlowSemaPhase {
     func initializeSourceBackedCloseableTypes(
         symbols: SymbolTable,
@@ -37,6 +38,9 @@ extension DataFlowSemaPhase {
         }) else {
             return
         }
+        guard let autoCloseableSymbol else {
+            return
+        }
         types.ioCloseableInterfaceSymbol = ioCloseableSymbol
 
         let javaIOCloseableFQName = [
@@ -48,22 +52,44 @@ extension DataFlowSemaPhase {
             return
         }
 
+        let javaLangAutoCloseableFQName = [
+            interner.intern("java"),
+            interner.intern("lang"),
+            interner.intern("AutoCloseable"),
+        ]
+        if let javaLangAutoCloseableSymbol = symbols.lookup(fqName: javaLangAutoCloseableFQName) {
+            var javaLangSupertypes = symbols.directSupertypes(for: javaLangAutoCloseableSymbol)
+            if !javaLangSupertypes.contains(autoCloseableSymbol) {
+                javaLangSupertypes.append(autoCloseableSymbol)
+                javaLangSupertypes.sort(by: { $0.rawValue < $1.rawValue })
+                symbols.setDirectSupertypes(javaLangSupertypes, for: javaLangAutoCloseableSymbol)
+                types.setNominalDirectSupertypes(javaLangSupertypes, for: javaLangAutoCloseableSymbol)
+            }
+        }
+
         var javaSupertypes = symbols.directSupertypes(for: javaIOCloseableSymbol)
         if !javaSupertypes.contains(ioCloseableSymbol) {
             javaSupertypes.append(ioCloseableSymbol)
-            javaSupertypes.sort(by: { $0.rawValue < $1.rawValue })
-            symbols.setDirectSupertypes(javaSupertypes, for: javaIOCloseableSymbol)
-            types.setNominalDirectSupertypes(javaSupertypes, for: javaIOCloseableSymbol)
         }
+        if let javaLangAutoCloseableSymbol = symbols.lookup(fqName: javaLangAutoCloseableFQName),
+           !javaSupertypes.contains(javaLangAutoCloseableSymbol)
+        {
+            javaSupertypes.append(javaLangAutoCloseableSymbol)
+        }
+        javaSupertypes.sort(by: { $0.rawValue < $1.rawValue })
+        symbols.setDirectSupertypes(javaSupertypes, for: javaIOCloseableSymbol)
+        types.setNominalDirectSupertypes(javaSupertypes, for: javaIOCloseableSymbol)
 
         // java.io stream stubs are registered before bundled headers. They
-        // initially use the Java anchor, then switch to the source-backed
-        // common symbol. `PrintWriter` was removed by CLEANUP-STUB-107 (it was
-        // reachable only via the now-deleted `File.printWriter()` factory).
+        // initially use the Java anchor, then add the source-backed common
+        // symbol while retaining the Java nominal edges. `PrintWriter` was
+        // removed by CLEANUP-STUB-107 (it was reachable only via the
+        // now-deleted `File.printWriter()` factory).
         let syntheticJavaIOCloseableTypes = [
             "Reader", "BufferedReader", "Writer", "BufferedWriter",
             "InputStream", "OutputStream",
         ]
+        let javaCloseableSupertypes = [javaIOCloseableSymbol]
         for name in syntheticJavaIOCloseableTypes {
             let fqName = [
                 interner.intern("java"),
@@ -77,12 +103,11 @@ extension DataFlowSemaPhase {
                 continue
             }
             var supertypes = symbols.directSupertypes(for: symbol)
-            guard supertypes.contains(javaIOCloseableSymbol) else {
-                continue
-            }
-            supertypes.removeAll(where: { $0 == javaIOCloseableSymbol })
             if !supertypes.contains(ioCloseableSymbol) {
                 supertypes.append(ioCloseableSymbol)
+            }
+            for javaCloseableSupertype in javaCloseableSupertypes where !supertypes.contains(javaCloseableSupertype) {
+                supertypes.append(javaCloseableSupertype)
             }
             supertypes.sort(by: { $0.rawValue < $1.rawValue })
             symbols.setDirectSupertypes(supertypes, for: symbol)

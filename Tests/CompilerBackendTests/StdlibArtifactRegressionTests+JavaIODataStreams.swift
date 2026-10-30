@@ -112,4 +112,95 @@ extension StdlibArtifactRegressionTests {
             }
         }
     }
+
+    /// KUU-3851: Java stream overrides dispatch through base-typed references,
+    /// and runtime stream boxes conform to both Java closeable nominals.
+    @Test func testJavaIOStreamBaseDispatchAndCloseableConformance() throws {
+        let source = """
+        import java.io.BufferedReader
+        import java.io.ByteArrayOutputStream
+        import java.io.DataInputStream
+        import java.io.DataOutputStream
+        import java.io.InputStream
+        import java.io.InputStreamReader
+        import java.io.OutputStream
+
+        fun useJavaCloseable(value: java.io.Closeable) {
+            value.close()
+            println("java.io.Closeable")
+        }
+
+        fun useJavaAutoCloseable(value: java.lang.AutoCloseable) {
+            value.close()
+            println("java.lang.AutoCloseable")
+        }
+
+        fun main() {
+            val dataInput = DataInputStream("abc".byteInputStream())
+            val input: InputStream = dataInput
+            println(input.read())
+            println(input.read())
+            println(input.read())
+
+            val bytes = ByteArrayOutputStream()
+            val dataOutput = DataOutputStream(bytes)
+            val output: OutputStream = dataOutput
+            output.write(65)
+            output.write(byteArrayOf(66, 67))
+            output.flush()
+            val result = bytes.toByteArray()
+            println(result.size)
+            println(result[0])
+            println(result[1])
+            println(result[2])
+
+            useJavaCloseable("io".byteInputStream())
+            useJavaAutoCloseable("auto".byteInputStream())
+            useJavaCloseable("reader".byteInputStream().bufferedReader())
+            useJavaAutoCloseable(ByteArrayOutputStream().bufferedWriter())
+            useJavaCloseable(InputStreamReader("reader".byteInputStream()))
+            useJavaAutoCloseable(BufferedReader(InputStreamReader("nested".byteInputStream())))
+        }
+        """
+        let expected = """
+        97
+        98
+        99
+        3
+        65
+        66
+        67
+        java.io.Closeable
+        java.lang.AutoCloseable
+        java.io.Closeable
+        java.lang.AutoCloseable
+        java.io.Closeable
+        java.lang.AutoCloseable
+
+        """
+        let artifact = try Self.buildStdlibArtifact()
+        for library in [nil, artifact] as [String?] {
+            for level in [OptimizationLevel.O0, .O2] {
+                try withTemporaryFile(contents: source) { inputPath in
+                    let outputPath = FileManager.default.temporaryDirectory
+                        .appendingPathComponent(UUID().uuidString).path
+                    defer { try? FileManager.default.removeItem(atPath: outputPath) }
+                    let context = try runCodegenPipeline(
+                        inputPath: inputPath,
+                        moduleName: "JavaIOStreamDispatch",
+                        outputPath: outputPath,
+                        optLevel: level,
+                        allowDefaultStdlibLibrary: false,
+                        stdlibLibraryPath: library
+                    )
+                    try assertNoDiagnosticErrors(context)
+                    try LinkPhase().run(context)
+                    let result = try CommandRunner.run(executable: outputPath, arguments: [])
+                    #expect(result.exitCode == 0)
+                    #expect(result.stderr.isEmpty)
+                    #expect(result.stdout == expected)
+                }
+            }
+        }
+    }
 }

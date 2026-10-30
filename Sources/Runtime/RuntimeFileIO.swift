@@ -358,7 +358,11 @@ public func __kk_classloader_getResourceAsStream(_ loaderRaw: Int, _ nameRaw: In
     guard let data = readResourceData(from: opened.descriptor) else {
         return runtimeNullSentinelInt
     }
-    return registerRuntimeObject(RuntimeInputStreamBox(data: data))
+    return runtimeRegisterIoStream(
+        RuntimeInputStreamBox(data: data),
+        fqName: "java.io.InputStream",
+        input: true
+    )
 }
 
 @_cdecl("__kk_resource_exists")
@@ -425,7 +429,9 @@ public func __kk_input_stream_reader_new(_ streamRaw: Int) -> Int {
     guard let stream else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_input_stream_reader_new received invalid InputStream handle")
     }
-    return registerRuntimeObject(RuntimeBufferedReaderBox(inputStream: stream))
+    let readerRaw = registerRuntimeObject(RuntimeBufferedReaderBox(inputStream: stream))
+    runtimeRegisterBufferedReaderCloseDispatch(readerRaw)
+    return readerRaw
 }
 
 @_cdecl("__kk_buffered_reader_new")
@@ -433,7 +439,9 @@ public func __kk_buffered_reader_new(_ readerRaw: Int) -> Int {
     guard let reader = runtimeBufferedReaderBox(from: readerRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_buffered_reader_new received invalid Reader handle")
     }
-    return registerRuntimeObject(RuntimeBufferedReaderBox(reader: reader))
+    let bufferedReaderRaw = registerRuntimeObject(RuntimeBufferedReaderBox(reader: reader))
+    runtimeRegisterBufferedReaderCloseDispatch(bufferedReaderRaw)
+    return bufferedReaderRaw
 }
 
 private func runtimeByteArrayBytes(from raw: Int) -> [UInt8]? {
@@ -1257,7 +1265,11 @@ public func __kk_kotlin_sink_output_stream(
         closeFnPtr: closeFnPtr,
         closeClosureRaw: closeClosureRaw
     )
-    return registerRuntimeObject(RuntimeOutputStreamBox(sink: sink))
+    return runtimeRegisterIoStream(
+        RuntimeOutputStreamBox(sink: sink),
+        fqName: "java.io.OutputStream",
+        input: false
+    )
 }
 
 

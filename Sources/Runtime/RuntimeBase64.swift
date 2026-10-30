@@ -103,5 +103,5 @@ public func kk_output_stream_encodingWith(_ streamRaw: Int, _ alphabetRaw: Int, 
     ) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_output_stream_encodingWith received invalid OutputStream handle")
     }
-    return registerRuntimeObject(encodingStream)
+    return runtimeRegisterIoStream(encodingStream, fqName: "java.io.OutputStream", input: false)
 }
