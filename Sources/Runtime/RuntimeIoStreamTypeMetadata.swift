@@ -7,8 +7,53 @@ private let ioDescriptionEntry: @convention(c) (Int, UnsafeMutablePointer<Int>?)
 private let ioInputCloseEntry: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { raw, thrown in
     __kk_input_stream_close_throwing(raw, thrown)
 }
+
+private let ioInputReadEntry: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { raw, thrown in
+    __kk_input_stream_read(raw, thrown)
+}
+private let ioInputAvailableEntry: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { raw, thrown in
+    __kk_input_stream_available_throwing(raw, thrown)
+}
+private let ioInputSkipEntry: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { raw, count, thrown in
+    __kk_input_stream_skip(raw, count, thrown)
+}
+private let ioInputReadBytesEntry: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { raw, bytes, thrown in
+    __kk_input_stream_read_bytes(raw, bytes, thrown)
+}
+private let ioInputReadRangeEntry: @convention(c) (Int, Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = {
+    raw, bytes, offset, count, thrown in
+    __kk_input_stream_read_range(raw, bytes, offset, count, thrown)
+}
+private let ioInputReadAllBytesEntry: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { raw, thrown in
+    __kk_input_stream_readAllBytes(raw, thrown)
+}
+private let ioInputMarkEntry: @convention(c) (Int, Int) -> Int = { raw, readLimit in
+    __kk_input_stream_mark(raw, readLimit)
+}
+private let ioInputResetEntry: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { raw, thrown in
+    __kk_input_stream_reset(raw, thrown)
+}
+private let ioInputMarkSupportedEntry: @convention(c) (Int) -> Int = { raw in
+    __kk_input_stream_mark_supported(raw)
+}
+
 private let ioOutputCloseEntry: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { raw, thrown in
     __kk_output_stream_close_throwing(raw, thrown)
+}
+private let ioOutputWriteByteEntry: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = {
+    raw, value, thrown in
+    __kk_output_stream_write_byte(raw, value, thrown)
+}
+private let ioOutputWriteBytesEntry: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = {
+    raw, bytes, thrown in
+    __kk_output_stream_write_bytes(raw, bytes, thrown)
+}
+private let ioOutputWriteRangeEntry: @convention(c) (Int, Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = {
+    raw, bytes, offset, count, thrown in
+    __kk_output_stream_write_range(raw, bytes, offset, count, thrown)
+}
+private let ioOutputFlushEntry: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { raw, thrown in
+    __kk_output_stream_flush(raw, thrown)
 }
 private let ioBufferedReaderCloseEntry: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { raw, thrown in
     thrown?.pointee = 0
@@ -24,9 +69,40 @@ private let ioStringWriterToStringEntry: @convention(c) (Int, UnsafeMutablePoint
     return __kk_string_writer_to_string(raw)
 }
 
+/// These slots follow the synthetic java.io stream layouts in
+/// `HeaderHelpers+SyntheticJavaIOStreamStubs.swift`. Keep them aligned with
+/// those declarations: runtime stream boxes have no generated KTypeInfo
+/// vtable, so each allocation installs its bridge implementations directly.
+private enum RuntimeIoStreamVTableSlot {
+    static let inputRead = 1
+    static let inputAvailable = 2
+    static let inputSkip = 3
+    static let inputReadList = 4
+    static let inputReadByteArray = 5
+    static let inputReadRange = 6
+    static let inputReadAllBytes = 7
+    static let inputMark = 8
+    static let inputReset = 9
+    static let inputMarkSupported = 10
+    static let inputClose = 11
+
+    static let outputWriteByte = 1
+    static let outputWriteList = 2
+    static let outputWriteByteArray = 3
+    static let outputWriteRange = 4
+    static let outputFlush = 5
+    static let outputClose = 6
+}
+
 func runtimeRegisterBufferedReaderCloseDispatch(_ objectRaw: Int) {
     let closeEntry = unsafeBitCast(ioBufferedReaderCloseEntry, to: Int.self)
-    for (interfaceName, interfaceSlot) in [("kotlin.AutoCloseable", 0), ("kotlin.io.Closeable", 1)] {
+    let closeableInterfaces = [
+        "kotlin.AutoCloseable",
+        "kotlin.io.Closeable",
+        "java.io.Closeable",
+        "java.lang.AutoCloseable",
+    ]
+    for (interfaceSlot, interfaceName) in closeableInterfaces.enumerated() {
         _ = kk_object_register_itable_iface(
             objectRaw,
             Int(runtimeStableNominalTypeID(fqName: interfaceName)),
@@ -50,7 +126,13 @@ func runtimeRegisterJavaWriter(
         for name in closeNames { state.typeParents[parentID, default: []].insert(runtimeStableNominalTypeID(fqName: name)) }
     }
     let closeEntry = unsafeBitCast(ioWriterCloseEntry, to: Int.self)
-    for (interfaceName, interfaceSlot) in [("kotlin.AutoCloseable", 0), ("kotlin.io.Closeable", 1)] {
+    let closeableInterfaces = [
+        "kotlin.AutoCloseable",
+        "kotlin.io.Closeable",
+        "java.io.Closeable",
+        "java.lang.AutoCloseable",
+    ]
+    for (interfaceSlot, interfaceName) in closeableInterfaces.enumerated() {
         _ = kk_object_register_itable_iface(raw, Int(runtimeStableNominalTypeID(fqName: interfaceName)), interfaceSlot)
         _ = kk_object_register_itable_method(raw, interfaceSlot, 0, closeEntry)
     }
@@ -63,8 +145,9 @@ func runtimeRegisterJavaWriter(
     return raw
 }
 
-/// Register each allocation after metadata resets; this does not invent class
-/// fields or a JVM classfile/vtable representation.
+/// Register each runtime stream allocation's nominal type, interface entries,
+/// and fixed vtable bridge slots. The box still has no generated class fields
+/// or KTypeInfo descriptor.
 func runtimeRegisterIoStream(_ object: AnyObject, fqName: String, input: Bool) -> Int {
     let raw = registerRuntimeObject(object, typeID: runtimeStableNominalTypeID(fqName: fqName))
     let baseName = input ? "java.io.InputStream" : "java.io.OutputStream"
@@ -79,6 +162,33 @@ func runtimeRegisterIoStream(_ object: AnyObject, fqName: String, input: Bool) -
     _ = kk_object_register_itable_method(raw, 0, 0, entry)
     for name in closeNames {
         _ = kk_object_register_itable_iface(raw, Int(runtimeStableNominalTypeID(fqName: name)), 0)
+    }
+    let vtableEntries: [(slot: Int, entry: Int)] = if input {
+        [
+            (RuntimeIoStreamVTableSlot.inputRead, unsafeBitCast(ioInputReadEntry, to: Int.self)),
+            (RuntimeIoStreamVTableSlot.inputAvailable, unsafeBitCast(ioInputAvailableEntry, to: Int.self)),
+            (RuntimeIoStreamVTableSlot.inputSkip, unsafeBitCast(ioInputSkipEntry, to: Int.self)),
+            (RuntimeIoStreamVTableSlot.inputReadList, unsafeBitCast(ioInputReadBytesEntry, to: Int.self)),
+            (RuntimeIoStreamVTableSlot.inputReadByteArray, unsafeBitCast(ioInputReadBytesEntry, to: Int.self)),
+            (RuntimeIoStreamVTableSlot.inputReadRange, unsafeBitCast(ioInputReadRangeEntry, to: Int.self)),
+            (RuntimeIoStreamVTableSlot.inputReadAllBytes, unsafeBitCast(ioInputReadAllBytesEntry, to: Int.self)),
+            (RuntimeIoStreamVTableSlot.inputMark, unsafeBitCast(ioInputMarkEntry, to: Int.self)),
+            (RuntimeIoStreamVTableSlot.inputReset, unsafeBitCast(ioInputResetEntry, to: Int.self)),
+            (RuntimeIoStreamVTableSlot.inputMarkSupported, unsafeBitCast(ioInputMarkSupportedEntry, to: Int.self)),
+            (RuntimeIoStreamVTableSlot.inputClose, unsafeBitCast(ioInputCloseEntry, to: Int.self)),
+        ]
+    } else {
+        [
+            (RuntimeIoStreamVTableSlot.outputWriteByte, unsafeBitCast(ioOutputWriteByteEntry, to: Int.self)),
+            (RuntimeIoStreamVTableSlot.outputWriteList, unsafeBitCast(ioOutputWriteBytesEntry, to: Int.self)),
+            (RuntimeIoStreamVTableSlot.outputWriteByteArray, unsafeBitCast(ioOutputWriteBytesEntry, to: Int.self)),
+            (RuntimeIoStreamVTableSlot.outputWriteRange, unsafeBitCast(ioOutputWriteRangeEntry, to: Int.self)),
+            (RuntimeIoStreamVTableSlot.outputFlush, unsafeBitCast(ioOutputFlushEntry, to: Int.self)),
+            (RuntimeIoStreamVTableSlot.outputClose, unsafeBitCast(ioOutputCloseEntry, to: Int.self)),
+        ]
+    }
+    for registration in vtableEntries {
+        _ = kk_object_register_vtable_method(raw, registration.slot, registration.entry)
     }
     if object is RuntimeKotlinInputStreamBox || (object as? RuntimeOutputStreamBox)?.hasKotlinDescription == true {
         _ = kk_object_register_any_to_string(raw, unsafeBitCast(ioDescriptionEntry, to: Int.self))

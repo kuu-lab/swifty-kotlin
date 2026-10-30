@@ -261,6 +261,11 @@ extension CallLowerer {
             receiverTypeID: receiverTypeForDispatch,
             sema: sema
         )
+        let usesJavaIOStreamVirtualBridge = isJavaIOStreamVirtualBridge(
+            chosenCallee,
+            sema: sema,
+            interner: interner
+        )
         let usesRuntimeSetContainsVirtualBridge = interner.resolve(calleeName) == "__kk_set_contains"
             && receiverTypeForDispatch.map {
                 isSetLikeType($0, sema: sema, interner: interner)
@@ -282,6 +287,7 @@ extension CallLowerer {
             || usesClassReceiverListGetRuntimeBridge
             || usesRuntimeSetContainsVirtualBridge
             || usesBoxedCollectionVirtualBridge
+            || usesJavaIOStreamVirtualBridge
         else { return nil }
         guard !isRuntimeRangeReceiver,
               let dispatchKind = resolveVirtualDispatch(
@@ -309,6 +315,8 @@ extension CallLowerer {
                 // the indirect call must carry the channel to the looked-up
                 // implementation and propagate a thrown exception (KUU-3669).
                 || (usesBoxedCollectionVirtualBridge
+                    && needsThrownChannel(calleeName: calleeName, interner: interner))
+                || (usesJavaIOStreamVirtualBridge
                     && needsThrownChannel(calleeName: calleeName, interner: interner)),
             dispatch: dispatchKind
         )

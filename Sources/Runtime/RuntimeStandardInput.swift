@@ -78,7 +78,11 @@ final class RuntimeStdioInputStreamBox: RuntimeInputStreamBox {
 
 @_cdecl("__kk_system_in")
 public func __kk_system_in() -> Int {
-    registerRuntimeObject(RuntimeStdioInputStreamBox(stream: kkrt_standard_input()))
+    runtimeRegisterIoStream(
+        RuntimeStdioInputStreamBox(stream: kkrt_standard_input()),
+        fqName: "java.io.InputStream",
+        input: true
+    )
 }
 
 func runtimePropagateInputStreamError(

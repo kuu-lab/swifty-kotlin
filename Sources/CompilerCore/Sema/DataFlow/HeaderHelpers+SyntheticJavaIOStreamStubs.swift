@@ -128,6 +128,10 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
+        _ = ensureJavaLangAutoCloseableCompatibilityAnchor(
+            symbols: symbols,
+            interner: interner
+        )
         let javaIOPkgSymbol = symbols.lookup(fqName: javaIOPkg)
 
         let fileSymbol = ensureClassSymbol(
@@ -746,6 +750,33 @@ extension DataFlowSemaPhase {
 
         inputStreamMembers.fn("close", "__kk_input_stream_close_throwing", ret: types.unitType)
 
+        // These bridge-backed declarations represent overridable Java class
+        // members. Keep their vtable slots available so calls through an
+        // InputStream reference reach source-backed subclasses such as
+        // DataInputStream instead of passing the subclass object to a native
+        // RuntimeInputStreamBox bridge.
+        let inputStreamVirtualBridgeNames: Set<String> = [
+            "__kk_input_stream_read",
+            "__kk_input_stream_available_throwing",
+            "__kk_input_stream_skip",
+            "__kk_input_stream_read_bytes",
+            "__kk_input_stream_read_range",
+            "__kk_input_stream_readAllBytes",
+            "__kk_input_stream_mark",
+            "__kk_input_stream_reset",
+            "__kk_input_stream_mark_supported",
+            "__kk_input_stream_close_throwing",
+        ]
+        for member in symbols.children(of: inputStreamSymbol) {
+            guard symbols.symbol(member)?.kind == .function,
+                  let linkName = symbols.externalLinkName(for: member),
+                  inputStreamVirtualBridgeNames.contains(linkName)
+            else {
+                continue
+            }
+            symbols.insertFlags(.openType, for: member)
+        }
+
         // Kotlin defines:
         //   public inline fun InputStream.buffered(bufferSize: Int = DEFAULT_BUFFER_SIZE): BufferedInputStream
         // We model BufferedInputStream as a java.io.InputStream subtype and expose
@@ -832,6 +863,23 @@ extension DataFlowSemaPhase {
 
         outputStreamMembers.fn("flush", "__kk_output_stream_flush", ret: types.unitType)
         outputStreamMembers.fn("close", "__kk_output_stream_close_throwing", ret: types.unitType)
+
+        let outputStreamVirtualBridgeNames: Set<String> = [
+            "__kk_output_stream_write_byte",
+            "__kk_output_stream_write_bytes",
+            "__kk_output_stream_write_range",
+            "__kk_output_stream_flush",
+            "__kk_output_stream_close_throwing",
+        ]
+        for member in symbols.children(of: outputStreamSymbol) {
+            guard symbols.symbol(member)?.kind == .function,
+                  let linkName = symbols.externalLinkName(for: member),
+                  outputStreamVirtualBridgeNames.contains(linkName)
+            else {
+                continue
+            }
+            symbols.insertFlags(.openType, for: member)
+        }
 
         // STDLIB-IO-FN-004: OutputStream.buffered() / buffered(bufferSize) extension members.
         // Returns an OutputStream that wraps the receiver with buffering. The runtime
@@ -1444,6 +1492,35 @@ extension DataFlowSemaPhase {
             flags: [.synthetic]
         )
         if let packageSymbol = symbols.lookup(fqName: javaIOPkg) {
+            symbols.setParentSymbol(packageSymbol, for: symbol)
+        }
+        return symbol
+    }
+
+    func ensureJavaLangAutoCloseableCompatibilityAnchor(
+        symbols: SymbolTable,
+        interner: StringInterner
+    ) -> SymbolID {
+        let javaLangPkg = ensurePackage(
+            path: ["java", "lang"],
+            symbols: symbols,
+            interner: interner
+        )
+        let closeableFQName = javaLangPkg + [interner.intern("AutoCloseable")]
+        if let existing = symbols.lookupAll(fqName: closeableFQName).first(where: {
+            symbols.symbol($0)?.kind == .interface
+        }) {
+            return existing
+        }
+        let symbol = symbols.define(
+            kind: .interface,
+            name: interner.intern("AutoCloseable"),
+            fqName: closeableFQName,
+            declSite: nil,
+            visibility: .public,
+            flags: [.synthetic]
+        )
+        if let packageSymbol = symbols.lookup(fqName: javaLangPkg) {
             symbols.setParentSymbol(packageSymbol, for: symbol)
         }
         return symbol
