@@ -214,5 +214,27 @@ struct ConstantCollectorTests {
         let hasIntLiteral42 = mapping.values.contains { if case .intLiteral(42) = $0 { return true }; return false }
         #expect(!hasIntLiteral42, "Function call result should not be collected as constant")
     }
+
+    @Test func testCustomGetterFoldsItsLiteralBodyInsteadOfItsInitializer() throws {
+        let ctx = makeContextFromSources([
+            """
+            val answer: Int = 42
+                get() = 7
+            """
+        ])
+        try runSema(ctx)
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let declID = try #require(ast.sortedFiles.first?.topLevelDecls.first)
+        let propertySymbol = try #require(sema.bindings.declSymbols[declID])
+        let mapping = collector.collectPropertyConstantInitializers(
+            ast: ast,
+            sema: sema,
+            interner: ctx.interner,
+            sourceByFileID: buildSourceByFileID(ctx: ctx)
+        )
+
+        #expect(mapping[propertySymbol] == .intLiteral(7))
+    }
 }
 #endif
