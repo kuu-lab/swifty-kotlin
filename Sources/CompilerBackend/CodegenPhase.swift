@@ -358,36 +358,8 @@ public final class CodegenPhase: CompilerPhase {
         }
         let mangler = NameMangler()
         let functionLinkNamesBySymbol = functionLinkInfo.functionLinkNamesBySymbol
-        for decl in module.arena.declarations {
-            guard case let .function(function) = decl else {
-                continue
-            }
-            let functionName = ctx.interner.resolve(function.name)
-            let isInitBody = ctx.options.target.isWasm
-                && Self.isLibraryInitBodyName(functionName)
-            guard function.isInline || isInitBody else {
-                continue
-            }
-            let mangled: String
-            if isInitBody, let linkName = functionLinkNamesBySymbol[function.symbol] {
-                // Init-family bodies ship under their `kk_fn_` link name so a
-                // backend without object linking (wasm) can materialize them
-                // from the artifact the same way imported calls resolve.
-                mangled = linkName
-            } else if let symbol = sema.symbols.symbol(function.symbol) {
-                mangled = mangler.mangle(
-                    moduleName: ctx.options.moduleName, symbol: symbol,
-                    symbols: sema.symbols, types: sema.types,
-                    nameResolver: { ctx.interner.resolve($0) }
-                )
-            } else if functionName.hasSuffix("$default"),
-                      let linkName = functionLinkNamesBySymbol[function.symbol] {
-                // Inline default stubs also require call-site expansion. Their
-                // existing metadata link name identifies the serialized body.
-                mangled = linkName
-            } else {
-                continue
-            }
+
+        func writeKirbin(function: KIRFunction, mangled: String) throws {
             let fileName = MetadataEncoder.inlineKIRFileName(for: mangled)
             let filePath = outputDir + "/\(fileName)"
             let parameterSymbols = Set(function.params.map(\.symbol))
@@ -422,6 +394,88 @@ public final class CodegenPhase: CompilerPhase {
             \(bodyLines)
             """
             try content.write(to: URL(fileURLWithPath: filePath), atomically: true, encoding: .utf8)
+        }
+
+        var initBodyFunctions: [KIRFunction] = []
+        var serializedSymbols: Set<SymbolID> = []
+        for decl in module.arena.declarations {
+            guard case let .function(function) = decl else {
+                continue
+            }
+            let functionName = ctx.interner.resolve(function.name)
+            let isInitBody = ctx.options.target.isWasm
+                && Self.isLibraryInitBodyName(functionName)
+            guard function.isInline || isInitBody else {
+                continue
+            }
+            let mangled: String
+            if isInitBody, let linkName = functionLinkNamesBySymbol[function.symbol] {
+                // Init-family bodies ship under their `kk_fn_` link name so a
+                // backend without object linking (wasm) can materialize them
+                // from the artifact the same way imported calls resolve.
+                mangled = linkName
+            } else if let symbol = sema.symbols.symbol(function.symbol) {
+                mangled = mangler.mangle(
+                    moduleName: ctx.options.moduleName, symbol: symbol,
+                    symbols: sema.symbols, types: sema.types,
+                    nameResolver: { ctx.interner.resolve($0) }
+                )
+            } else if functionName.hasSuffix("$default"),
+                      let linkName = functionLinkNamesBySymbol[function.symbol] {
+                // Inline default stubs also require call-site expansion. Their
+                // existing metadata link name identifies the serialized body.
+                mangled = linkName
+            } else {
+                continue
+            }
+            try writeKirbin(function: function, mangled: mangled)
+            serializedSymbols.insert(function.symbol)
+            if isInitBody {
+                initBodyFunctions.append(function)
+            }
+        }
+
+        // On wasm the artifact's .o is never linked, so functions that
+        // init-family bodies call (object constructors, top-level `val`
+        // factories) must ship too or their side effects silently drop at
+        // materialization. Serialize the transitive closure keyed by the
+        // callee's deterministic link name.
+        if ctx.options.target.isWasm {
+            var functionsBySymbol: [SymbolID: KIRFunction] = [:]
+            for decl in module.arena.declarations {
+                guard case let .function(function) = decl else {
+                    continue
+                }
+                functionsBySymbol[function.symbol] = function
+            }
+            var worklist = initBodyFunctions
+            var seen = serializedSymbols
+            while let function = worklist.popLast() {
+                let body = module.inlineBodiesBeforeFinallyLowering[function.symbol]
+                    ?? module.inlineBodiesBeforeCoroutineLowering[function.symbol]
+                    ?? function.body
+                for instruction in body {
+                    guard let target = Self.calledFunctionSymbol(instruction),
+                          let targetFunction = functionsBySymbol[target],
+                          seen.insert(target).inserted,
+                          let linkName = functionLinkNamesBySymbol[target]
+                              ?? sema.symbols.externalLinkName(for: target),
+                          !linkName.isEmpty else {
+                        continue
+                    }
+                    try writeKirbin(function: targetFunction, mangled: linkName)
+                    worklist.append(targetFunction)
+                }
+            }
+        }
+    }
+
+    private static func calledFunctionSymbol(_ instruction: KIRInstruction) -> SymbolID? {
+        switch instruction {
+        case let .call(symbol, _, _, _, _, _, _, _), let .virtualCall(symbol, _, _, _, _, _, _, _):
+            symbol
+        default:
+            nil
         }
     }
 
