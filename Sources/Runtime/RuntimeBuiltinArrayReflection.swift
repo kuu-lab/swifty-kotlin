@@ -74,7 +74,7 @@ private func unsignedArrayValue(_ value: Int, token: Int64) -> Int {
     }
 }
 
-private func invokeArrayMember(_ environment: Int, _ arguments: Int, _ mask: Int, _ thrown: UnsafeMutablePointer<Int>?) -> Int {
+private func invokeArrayMember(_ environment: Int, _ arguments: Int, _: Int, _ thrown: UnsafeMutablePointer<Int>?) -> Int {
     thrown?.pointee = 0
     guard let receiver = runtimeListBox(from: arguments)?.elements.first,
           let array = runtimeArrayBox(from: receiver) else {
@@ -293,7 +293,7 @@ func ensureBuiltinArrayMembers(_ classRaw: Int) {
     runtimeKMemberRegistry.markBuiltinMembersInitialized(for: classRaw)
 }
 
-private func invokeArrayConstructor(_ environment: Int, _ arguments: Int, _ mask: Int, _ thrown: UnsafeMutablePointer<Int>?) -> Int {
+private func invokeArrayConstructor(_ environment: Int, _ arguments: Int, _: Int, _ thrown: UnsafeMutablePointer<Int>?) -> Int {
     thrown?.pointee = 0
     let index = environment / 4
     let mode = environment % 4

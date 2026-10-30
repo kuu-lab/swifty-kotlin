@@ -1746,7 +1746,6 @@ final class RuntimeChannelResultBox {
     let status: Int
     /// The received element on success, 0 otherwise.
     private let valueRoot: RuntimeGCRootedValue
-    var value: Int { valueRoot.value }
     /// Close cause `Throwable` handle carried by closed/cancelled results
     /// (upstream `Closed.closeCause`), 0 when none.
     private let causeRoot: RuntimeGCRootedValue

@@ -2,8 +2,6 @@
 /// compiler/test-facing extern view stable without duplicating hundreds of
 /// handwritten declarations.
 public enum RuntimeABIExterns {
-    public static let specVersion = RuntimeABISpec.specVersion
-
     public struct ExternDecl: Equatable, Sendable {
         public let name: String
         public let parameterTypes: [String]

@@ -64,7 +64,6 @@ public extension RuntimeABISpec {
         abi.nt("__kk_map_entries", "mapRaw"),
         abi.nt("__kk_map_keys", "mapRaw"),
         abi.nt("__kk_map_values", "mapRaw"),
-        abi.nt("__kk_map_to_string", "mapRaw", ret: .opaquePointer),
         mapCountSpec,
         mapAnySpec,
         mapAllSpec,
