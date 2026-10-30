@@ -365,6 +365,9 @@ extension BuildASTPhase {
         if bodilessExempt {
             astArena.markLocalBodilessExemptFunction(declaration)
         }
+        if leadingModifiers.contains(where: { $0.name == "abstract" }) {
+            astArena.markLocalAbstractFunction(declaration)
+        }
         if leadingModifiers.contains(where: { $0.name == "tailrec" }) {
             astArena.markLocalTailrecFunction(declaration)
         }

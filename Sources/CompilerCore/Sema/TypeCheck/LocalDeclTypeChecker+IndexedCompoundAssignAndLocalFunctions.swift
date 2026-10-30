@@ -1018,6 +1018,23 @@ extension LocalDeclTypeChecker {
                 range: range
             )
         }
+        // kotlinc applies the 'abstract member requires abstract owner' rule
+        // to local `abstract fun` too: it fires whenever the lexically
+        // enclosing class is non-abstract (interfaces, enum classes and
+        // abstract classes are exempt — the same exemptions as for members).
+        if ast.arena.isLocalAbstractFunction(id),
+           let enclosingClass = ctx.enclosingClassSymbol,
+           let ownerSym = sema.symbols.symbol(enclosingClass),
+           !ownerSym.flags.contains(.abstractType),
+           ownerSym.kind != .interface,
+           ownerSym.kind != .enumClass,
+           let ownerSimpleName = ownerSym.fqName.last {
+            sema.diagnostics.error(
+                "KSWIFTK-SEMA-MODIFIER-CONFLICT",
+                "abstract function '\(interner.resolve(name))' in non-abstract class '\(interner.resolve(ownerSimpleName))'.",
+                range: range
+            )
+        }
         if isSuspend {
             functionFlags.insert(.suspendFunction)
         }
