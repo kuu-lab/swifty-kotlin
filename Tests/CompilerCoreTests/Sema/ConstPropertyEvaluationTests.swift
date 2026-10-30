@@ -731,6 +731,27 @@ struct ConstPropertyEvaluationTests {
     }
 
     @Test
+    func constValWithGetterReportsGetterDiagnostic() throws {
+        let ctx = makeContextFromSource("""
+        package constants
+        const val A: Int get() = 1
+        const val B: Int
+        """)
+        try runSema(ctx)
+        let errors = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0081" }
+        // kotlinc: getter-bearing const reports "cannot have a getter" at the
+        // accessor; bare const reports "must have an initializer".
+        #expect(errors.count == 2)
+        #expect(errors.contains { $0.message == "const 'val' cannot have a getter." })
+        #expect(errors.contains { $0.message == "'const val' must have an initializer." })
+        // "property must be initialized" also fires for the bare const, like
+        // kotlinc, but not for the getter-bearing one (its accessor
+        // initializes it).
+        let uninit = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0424" }
+        #expect(uninit.count == 1)
+    }
+
+    @Test
     func rejectsNonConstPropertiesUserCallsAndCycles() throws {
         let ctx = makeContextFromSource("""
         package invalidConstants

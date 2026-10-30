@@ -21,7 +21,14 @@ extension DataFlowSemaPhase {
                 range: propertyDecl.range
             )
         }
-        if propertyDecl.initializer == nil {
+        if let getter = propertyDecl.getter {
+            diagnostics.error(
+                "KSWIFTK-SEMA-0081",
+                "const 'val' cannot have a getter.",
+                range: getter.range
+            )
+        }
+        if propertyDecl.initializer == nil && propertyDecl.getter == nil {
             diagnostics.error(
                 "KSWIFTK-SEMA-0081",
                 "'const val' must have an initializer.",

@@ -434,7 +434,7 @@ extension BuildASTPhase {
                    && (explicitAccessorVisibility != nil || isBareDefaultSetter(in: remaining, at: startIdx)))
             {
                 let accessor = PropertyAccessorDecl(
-                    range: nodeRange,
+                    range: isAccessorNode ? nodeRange : token.range,
                     kind: kind,
                     annotations: annotations,
                     visibility: explicitAccessorVisibility
@@ -590,8 +590,11 @@ extension BuildASTPhase {
                 remaining = remaining[afterParen...]
             }
 
+            let accessorEndIndex = remaining.startIndex
+            let lastConsumed = accessorEndIndex > startIdx ? allTokens[accessorEndIndex - 1] : token
+            let accessorRange = SourceRange(start: token.range.start, end: lastConsumed.range.end)
             let accessor = PropertyAccessorDecl(
-                range: nodeRange,
+                range: accessorRange,
                 kind: kind,
                 annotations: annotations,
                 visibility: accessorVisibility(in: tokensBeforeAccessor),
@@ -984,8 +987,12 @@ extension BuildASTPhase {
                 if case let .token(token) = item { return token }
                 return nil
             }
+            var accessorRange = arena.node(nodeID).range
+            if case let .token(startToken) = items[start], let lastToken = accessorTokens.last {
+                accessorRange = SourceRange(start: startToken.range.start, end: lastToken.range.end)
+            }
             let accessor = PropertyAccessorDecl(
-                range: arena.node(nodeID).range,
+                range: accessorRange,
                 kind: kind,
                 annotations: accessorAnnotations(
                     from: prefixTokens, interner: interner
