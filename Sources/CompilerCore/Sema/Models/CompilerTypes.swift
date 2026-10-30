@@ -110,6 +110,29 @@ public enum NameBasedDestructuringMode: String, Equatable {
     case complete
 }
 
+/// How `kotlin.assert` checks are enabled, mirroring kotlinc `-Xassertions`.
+/// `jvm`/`legacy` defer the decision to the process runtime state (the
+/// `KK_ASSERTIONS_ENABLED` / `KOTLIN_ASSERTIONS_ENABLED` environment
+/// variables, default disabled — KUU-2751). `alwaysEnable`/`alwaysDisable`
+/// bake the state into the produced executable so `assert` fires (or not)
+/// regardless of the environment, matching kotlinc's compile-time modes.
+public enum AssertionsMode: String, Equatable, Sendable {
+    case jvm
+    case legacy
+    case alwaysEnable = "always-enable"
+    case alwaysDisable = "always-disable"
+
+    /// The process state the executable entry wrapper forces at startup, or
+    /// `nil` when the runtime environment decides (`jvm`/`legacy`).
+    public var forcedState: Bool? {
+        switch self {
+        case .alwaysEnable: true
+        case .alwaysDisable: false
+        case .jvm, .legacy: nil
+        }
+    }
+}
+
 /// Thread-safety mode for `by lazy { }` delegates (P5-80).
 public enum LazyDelegateThreadSafetyMode: Int, Equatable {
     /// `LazyThreadSafetyMode.SYNCHRONIZED` – uses a lock (default).
@@ -389,6 +412,20 @@ public struct CompilerOptions: Equatable {
     /// Defaults to `false` for public-only metadata.
     public var includeNonPublicReflectionMetadata: Bool {
         runtimeFlags.contains("reflection-metadata=all")
+    }
+
+    /// `kotlin.assert` enablement for the produced executable, set with
+    /// `-Xassertions=<mode>` (kotlinc spelling) or the `-ea` / `-da` aliases;
+    /// normalized into `runtimeFlags` as `assertions=<mode>`. Defaults to
+    /// `jvm` — assertions are decided by the process environment at startup.
+    public var assertionsMode: AssertionsMode {
+        for flag in runtimeFlags.reversed() {
+            guard flag.hasPrefix("assertions="),
+                  let mode = AssertionsMode(rawValue: String(flag.dropFirst("assertions=".count)))
+            else { continue }
+            return mode
+        }
+        return .jvm
     }
 
     /// Kotlin's new inference mode. Accepts either the raw compiler argument

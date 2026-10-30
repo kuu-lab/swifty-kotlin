@@ -496,6 +496,12 @@ this to keep the baseline and optimized lanes separate:
 DIFF_KSWIFTC_FLAGS="-O2" bash Scripts/diff_kotlinc.sh Scripts/diff_cases
 ```
 
+A single case can append candidate-only flags with `// KSWIFTC_FLAGS: <flags>`,
+the counterpart of `// KOTLINC_FLAGS:` on the reference side — e.g.
+`// KSWIFTC_FLAGS: -Xassertions=always-enable` paired with
+`// KOTLINC_FLAGS: -Xassertions=always-enable` bakes the same `kotlin.assert`
+mode into both compiled artifacts (see `assert_always_enable.kt`).
+
 In CI, the diff corpus (at both `-O0` and `-O2`) runs only in the daily full
 verification, `.github/workflows/nightly-full.yml`; pull requests and the merge
 queue do not run it. Trigger that workflow with `workflow_dispatch` on a branch

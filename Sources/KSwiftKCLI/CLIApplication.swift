@@ -21,6 +21,8 @@ func printCLIError(_ error: CLIParseError) {
         print("Unsupported diagnostics format: \(value)")
     case let .unsupportedNameBasedDestructuringMode(value):
         print("Unsupported name-based destructuring mode: \(value)")
+    case let .unsupportedAssertionsMode(value):
+        print("Unsupported assertions mode: \(value) (expected always-enable, always-disable, jvm, or legacy)")
     case let .unknownOption(option):
         print("Unknown option: \(option)")
     case let .incompatibleStdlibOptions(message):

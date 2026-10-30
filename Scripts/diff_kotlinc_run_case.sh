@@ -175,6 +175,14 @@ run_case() {
   local kotlinc_extra_flags
   kotlinc_extra_flags="$(read_case_directive_flags "$kt_file" 'KOTLINC_FLAGS')"
 
+  # // KSWIFTC_FLAGS: <flags> mirrors KOTLINC_FLAGS on the candidate side:
+  # space-separated extra arguments appended after DIFF_KSWIFTC_FLAGS on every
+  # kswiftc compile invocation (e.g. // KSWIFTC_FLAGS: -Xassertions=always-enable
+  # pairs with // KOTLINC_FLAGS: -Xassertions=always-enable so both sides bake
+  # the same kotlin.assert mode into the compiled artifact).
+  local kswiftc_extra_flags
+  kswiftc_extra_flags="$(read_case_directive_flags "$kt_file" 'KSWIFTC_FLAGS')"
+
   local java_extra_flags
   java_extra_flags="$(get_java_extra_flags "$kt_file")"
 
@@ -268,7 +276,7 @@ run_case() {
   case "$DIFF_BACKEND" in
     jvm)
       local cand_jar="$tmp_dir/candidate.jar"
-      "$TIMEOUT_CMD" "$COMPILE_TIMEOUT" "$KSWIFTC" --emit jar --classpath "$JVM_STDLIB_JAR" "${KSWIFTC_ARGS[@]}" "$cand_src" -o "$cand_jar" >"$cand_compile_stdout" 2>"$cand_compile_stderr" || cand_compile_exit=$?
+      "$TIMEOUT_CMD" "$COMPILE_TIMEOUT" "$KSWIFTC" --emit jar --classpath "$JVM_STDLIB_JAR" "${KSWIFTC_ARGS[@]}" $kswiftc_extra_flags "$cand_src" -o "$cand_jar" >"$cand_compile_stdout" 2>"$cand_compile_stderr" || cand_compile_exit=$?
       if [[ $cand_compile_exit -eq 0 ]]; then
         local cand_main_class
         cand_main_class="$(jar_main_class "$cand_jar")"
@@ -286,7 +294,7 @@ run_case() {
       ;;
     wasm)
       local cand_wasm="$tmp_dir/candidate.wasm"
-      "$TIMEOUT_CMD" "$COMPILE_TIMEOUT" "$KSWIFTC" --target "$DIFF_WASM_TARGET" "${KSWIFTC_ARGS[@]}" "$cand_src" -o "$cand_wasm" >"$cand_compile_stdout" 2>"$cand_compile_stderr" || cand_compile_exit=$?
+      "$TIMEOUT_CMD" "$COMPILE_TIMEOUT" "$KSWIFTC" --target "$DIFF_WASM_TARGET" "${KSWIFTC_ARGS[@]}" $kswiftc_extra_flags "$cand_src" -o "$cand_wasm" >"$cand_compile_stdout" 2>"$cand_compile_stderr" || cand_compile_exit=$?
       if [[ $cand_compile_exit -eq 0 ]]; then
         if needs_stdin_eof "$kt_file"; then
           "$TIMEOUT_CMD" "$RUN_TIMEOUT" "${WASM_RUN_CMD[@]}" "$cand_wasm" < /dev/null >"$cand_run_stdout" 2>"$cand_run_stderr" || cand_run_exit=$?
@@ -296,7 +304,7 @@ run_case() {
       fi
       ;;
     *)
-      "$TIMEOUT_CMD" "$COMPILE_TIMEOUT" "$KSWIFTC" --no-stdlib --stdlib-library "$STDLIB_ARTIFACT" "${KSWIFTC_ARGS[@]}" "$cand_src" -o "$cand_bin" >"$cand_compile_stdout" 2>"$cand_compile_stderr" || cand_compile_exit=$?
+      "$TIMEOUT_CMD" "$COMPILE_TIMEOUT" "$KSWIFTC" --no-stdlib --stdlib-library "$STDLIB_ARTIFACT" "${KSWIFTC_ARGS[@]}" $kswiftc_extra_flags "$cand_src" -o "$cand_bin" >"$cand_compile_stdout" 2>"$cand_compile_stderr" || cand_compile_exit=$?
       if [[ $cand_compile_exit -eq 0 ]]; then
         if needs_stdin_eof "$kt_file"; then
           "${candidate_assert_env[@]}" "$TIMEOUT_CMD" "$RUN_TIMEOUT" "$cand_bin" < /dev/null >"$cand_run_stdout" 2>"$cand_run_stderr" || cand_run_exit=$?

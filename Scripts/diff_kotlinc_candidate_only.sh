@@ -114,7 +114,10 @@ run_candidate_only_from_source_case() {
     candidate_assert_env=(env KK_ASSERTIONS_ENABLED=1)
   fi
 
-  KSWIFTK_STDLIB_CACHE_DIR="$tmp_dir/stdlib-cache" "$TIMEOUT_CMD" "$case_compile_timeout" "$KSWIFTC" --stdlib-from-source "${KSWIFTC_ARGS[@]}" "$kt_file" -o "$candidate_bin" \
+  local kswiftc_extra_flags
+  kswiftc_extra_flags="$(read_case_directive_flags "$kt_file" 'KSWIFTC_FLAGS')"
+
+  KSWIFTK_STDLIB_CACHE_DIR="$tmp_dir/stdlib-cache" "$TIMEOUT_CMD" "$case_compile_timeout" "$KSWIFTC" --stdlib-from-source "${KSWIFTC_ARGS[@]}" $kswiftc_extra_flags "$kt_file" -o "$candidate_bin" \
     >"$tmp_dir/candidate_compile.stdout" 2>"$tmp_dir/candidate_compile.stderr" || compile_exit=$?
 
   if [[ $compile_exit -eq 0 ]]; then
@@ -196,7 +199,9 @@ run_candidate_only_case() {
 
   if [[ -f "$expected_output" ]]; then
     expected_output_exists=1
-    "$TIMEOUT_CMD" "$COMPILE_TIMEOUT" "$KSWIFTC" --no-stdlib --stdlib-library "$STDLIB_ARTIFACT" "${KSWIFTC_ARGS[@]}" "$kt_file" -o "$candidate_bin" \
+    local kswiftc_extra_flags
+    kswiftc_extra_flags="$(read_case_directive_flags "$kt_file" 'KSWIFTC_FLAGS')"
+    "$TIMEOUT_CMD" "$COMPILE_TIMEOUT" "$KSWIFTC" --no-stdlib --stdlib-library "$STDLIB_ARTIFACT" "${KSWIFTC_ARGS[@]}" $kswiftc_extra_flags "$kt_file" -o "$candidate_bin" \
       >"$compile_stdout" 2>"$compile_stderr" || compile_exit=$?
 
     if [[ "$compile_exit" -eq 0 ]]; then

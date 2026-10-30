@@ -203,6 +203,37 @@ struct CLIParserTests {
     }
 
     @Test
+    func parsesAssertionsModeFlags() throws {
+        // Default: the runtime environment decides (kotlinc without -ea).
+        #expect(try CLIParser.parse(args: ["main.kt"]).assertionsMode == .jvm)
+        for mode in ["jvm", "legacy", "always-enable", "always-disable"] {
+            let options = try CLIParser.parse(args: ["-Xassertions=\(mode)", "main.kt"])
+            #expect(options.assertionsMode == AssertionsMode(rawValue: mode))
+            #expect(options.runtimeFlags == ["assertions=\(mode)"])
+        }
+        // kotlinc-native spellings map onto the same modes.
+        for flag in ["-ea", "-enable-assertions"] {
+            #expect(try CLIParser.parse(args: [flag, "main.kt"]).assertionsMode == .alwaysEnable)
+        }
+        for flag in ["-da", "-disable-assertions"] {
+            #expect(try CLIParser.parse(args: [flag, "main.kt"]).assertionsMode == .alwaysDisable)
+        }
+        // Last flag wins, matching kotlinc option ordering.
+        #expect(
+            try CLIParser.parse(args: ["-Xassertions=always-enable", "-da", "main.kt"])
+                .assertionsMode == .alwaysDisable
+        )
+        // The normalized runtime flag spelling works too.
+        #expect(
+            try CLIParser.parse(args: ["-Xruntime", "assertions=always-enable", "main.kt"])
+                .assertionsMode == .alwaysEnable
+        )
+        #expect(throws: CLIParseError.unsupportedAssertionsMode("sometimes")) {
+            try CLIParser.parse(args: ["-Xassertions=sometimes", "main.kt"])
+        }
+    }
+
+    @Test
     func parsesAdvancedTypeInferenceFlags() throws {
         let options = try CLIParser.parse(args: [
             "-Xnew-inference",

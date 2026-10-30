@@ -57,7 +57,9 @@ public func __kk_assertions_enabled() -> Int {
     runtimeAreAssertionsEnabled() ? 1 : 0
 }
 
-// DEAD-CDECL-TEST-HOOK: ASSERTION-CONTROL - Runtime tests toggle assertion checks for focused cases.
+// ASSERTION-CONTROL - RuntimeTests toggle assertion checks for focused cases,
+// and generated entry wrappers call this once at startup when the program was
+// compiled with -Xassertions=always-enable / always-disable (KUU-3817).
 @_cdecl("kk_assertions_set_enabled")
 public func kk_assertions_set_enabled(_ enabled: Int) -> Int {
     runtimeSetAssertionsEnabled(enabled != 0)

@@ -110,7 +110,7 @@ final class LinkPhase: CompilerPhase {
                 linkerCacheDirectory = runtimeInputs.linkerCacheDirectory
             }
             let entryWrapperObjectPath = try withSubPhaseTiming("entryWrapper", timer: ctx.phaseTimer) {
-                try LLVMEntryPointObjectEmitter(target: ctx.options.target, takesArguments: takesArguments, phaseTimer: ctx.phaseTimer, session: session ?? LLVMBackendSession())
+                try LLVMEntryPointObjectEmitter(target: ctx.options.target, takesArguments: takesArguments, assertionsMode: ctx.options.assertionsMode, phaseTimer: ctx.phaseTimer, session: session ?? LLVMBackendSession())
                     .emit(entrySymbol: entrySymbol)
             }
             let entryWrapperDirectoryPath = URL(fileURLWithPath: entryWrapperObjectPath)

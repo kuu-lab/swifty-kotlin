@@ -14,6 +14,21 @@ extension CallLowerer {
         return resolved.fqName.map { interner.resolve($0) } == ["kotlin", "contextOf"]
     }
 
+    /// `kotlin.assert` resolved through Sema (either overload). A user-declared
+    /// `assert` in another package keeps normal call lowering.
+    private func isStdlibAssertCall(
+        _ exprID: ExprID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> Bool {
+        guard case let .symbol(symbol)? = sema.bindings.callableTarget(for: exprID),
+              let resolved = sema.symbols.symbol(symbol)
+        else {
+            return false
+        }
+        return resolved.fqName.map { interner.resolve($0) } == ["kotlin", "assert"]
+    }
+
     // swiftlint:disable:next cyclomatic_complexity
     func lowerCallExpr(
         _ exprID: ExprID,
@@ -31,6 +46,18 @@ extension CallLowerer {
         // (including enum references such as InvocationKind.EXACTLY_ONCE)
         // with no runtime meaning and potentially undefined link symbols.
         if sema.bindings.stdlibSpecialCallKind(for: exprID) == .contract {
+            let unit = arena.appendExpr(.unit, type: sema.types.unitType)
+            instructions.append(.constValue(result: unit, value: .unit))
+            return unit
+        }
+
+        // `-Xassertions=always-disable` erases `kotlin.assert` calls outright
+        // (KUU-3817), matching kotlinc: the call vanishes at compile time, so
+        // neither the condition nor the lazy message may evaluate. Return Unit
+        // without touching the argument expressions.
+        if driver.ctx.assertionsMode == .alwaysDisable,
+           isStdlibAssertCall(exprID, sema: sema, interner: interner)
+        {
             let unit = arena.appendExpr(.unit, type: sema.types.unitType)
             instructions.append(.constValue(result: unit, value: .unit))
             return unit

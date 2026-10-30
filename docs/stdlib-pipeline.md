@@ -280,6 +280,15 @@ diff ケースは `// JAVA_FLAGS: -ea` を書くだけでよく、harness が候
 `KK_ASSERTIONS_ENABLED=1` を渡して対応づける。O0/O2 および source/artifact によって
 この契約は変わらない。
 
+コンパイル時指定として `kswiftc -Xassertions=always-enable|always-disable|jvm|legacy`
+（kotlinc と同じ綴り。`-ea` / `-da` も別名として受ける）がある（KUU-3817）。
+`always-enable` / `always-disable` は生成される entry wrapper が Kotlin `main` の前に
+`kk_assertions_set_enabled` を呼んでプロセス状態を上書きするため、環境変数より
+コンパイル時指定が優先される。`jvm` / `legacy`（既定）は従来どおり環境変数に委ねる。
+`// KSWIFTC_FLAGS: -Xassertions=always-enable` と `// KOTLINC_FLAGS:` を組み合わせれば
+kotlinc と同じ `-Xassertions` 設定を差分ケースにも持たせられる
+（`Scripts/diff_cases/assert_always_enable.kt` / `assert_always_disable.kt` 参照）。
+
 Golden ハーネスはケースの `stdlib-profile` を優先する。`source` はソース注入、`artifact` は
 渡された artifact、`no-stdlib` は stdlib なしで実行する。spec 無しケースもテストハーネスが
 共有 artifact を渡す既存経路を利用するが、artifact が渡されない直接実行の source fallback は

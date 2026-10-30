@@ -182,6 +182,7 @@ struct BuildKIRRegressionTests {
             "ReifiedEnumValuesLowering",
             "CoroutineLowering",
             "TailrecAfterInline",
+            "AssertionsModeLowering",
             "IntegerNarrowing",
             "ABILowering",
         ])
