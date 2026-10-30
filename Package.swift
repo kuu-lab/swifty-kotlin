@@ -124,10 +124,27 @@ let package = Package(
             exclude: [
                 "GoldenCases",
                 "Klib/Fixtures",
-                "Fixtures/Atomicfu",
                 "Fixtures/KUU-2210",
                 "Fixtures/KUU-2415",
             ]
+        ),
+        .testTarget(
+            name: "CompilerCoreFrontendTests",
+            dependencies: ["CompilerCore", "CompilerTestSupport", "RuntimeABI"],
+            path: "Tests/CompilerCoreFrontendTests"
+        ),
+        .testTarget(
+            name: "CompilerCoreSemaTests",
+            dependencies: ["CompilerCore", "CompilerTestSupport", "TestStdlibCache", "RuntimeABI"],
+            path: "Tests/CompilerCoreSemaTests",
+            exclude: [
+                "Fixtures",
+            ]
+        ),
+        .testTarget(
+            name: "CompilerCoreKIRLoweringTests",
+            dependencies: ["CompilerCore", "CompilerTestSupport", "TestStdlibCache", "RuntimeABI"],
+            path: "Tests/CompilerCoreKIRLoweringTests"
         ),
         .testTarget(
             name: "CompilerBackendTests",
