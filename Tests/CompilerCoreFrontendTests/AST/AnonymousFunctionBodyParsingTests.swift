@@ -64,5 +64,21 @@ struct AnonymousFunctionBodyParsingTests {
             $0.code == "KSWIFTK-PARSE-0015" || $0.code == "KSWIFTK-PARSE-0001"
         }, "\(context.diagnostics.diagnostics)")
     }
+
+    // kotlinc reports 'type parameters are prohibited here.' at the `<`
+    // directly after `fun` — for bodied and bodiless literals alike.
+    @Test(arguments: [
+        "val f = fun <T>(x: T) = x",
+        "val f = fun <T>(): Int",
+        "fun main() { val f = fun <T> String.(x: T): T = x }",
+    ])
+    func genericAnonymousFunctionReportsProhibitedTypeParameters(_ source: String) throws {
+        let (_, context) = try buildASTModule(from: source, includeStdlib: false)
+
+        #expect(context.diagnostics.diagnostics.contains {
+            $0.code == "KSWIFTK-PARSE-0001"
+                && $0.message == "type parameters are prohibited here."
+        }, "\(context.diagnostics.diagnostics)")
+    }
 }
 #endif
