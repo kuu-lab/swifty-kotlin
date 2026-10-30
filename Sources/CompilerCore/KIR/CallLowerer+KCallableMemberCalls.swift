@@ -1,6 +1,21 @@
 
 extension CallLowerer {
 
+    /// KFunctionN/KSuspendFunctionN share the KFunction runtime dispatch
+    /// identity: on the JVM they are compiler-synthesized descriptors whose
+    /// instances are ordinary KFunction objects (KUU-3841). Match every arity
+    /// spelling here so member reads on reflective receivers reach the
+    /// callable-metadata fast path.
+    private func isKFunctionFamilyInterfaceName(_ resolvedName: String) -> Bool {
+        if resolvedName == "KFunction" {
+            return true
+        }
+        for prefix in ["KFunction", "KSuspendFunction"] where resolvedName.hasPrefix(prefix) {
+            return Int(resolvedName.dropFirst(prefix.count)) != nil
+        }
+        return false
+    }
+
     private func isKCallableReceiverType(
         _ receiverType: TypeID,
         sema: SemaModule,
@@ -15,11 +30,7 @@ extension CallLowerer {
         }
         let resolvedName = interner.resolve(symbol.name)
         return resolvedName == "KCallable"
-            || resolvedName == "KFunction"
-            || resolvedName == "KFunction0"
-            || resolvedName == "KFunction1"
-            || resolvedName == "KFunction2"
-            || resolvedName == "KFunction3"
+            || isKFunctionFamilyInterfaceName(resolvedName)
             || resolvedName == "KProperty"
             || resolvedName == "KProperty0"
             || resolvedName == "KProperty1"
@@ -123,9 +134,8 @@ extension CallLowerer {
         if let (_, symbol) = resolveClassTypeSymbol(nonNullType, sema: sema)
         {
             let resolvedName = interner.resolve(symbol.name)
-            return resolvedName == "KFunction" || resolvedName == "KFunction0"
-                || resolvedName == "KFunction1" || resolvedName == "KFunction2"
-                || resolvedName == "KFunction3" || resolvedName == "KCallable"
+            return isKFunctionFamilyInterfaceName(resolvedName)
+                || resolvedName == "KCallable"
         }
         if case let .functionType(functionType) = sema.types.kind(of: nonNullType) {
             return functionType.isCallableReference

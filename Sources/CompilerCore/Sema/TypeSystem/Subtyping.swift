@@ -353,6 +353,20 @@ extension TypeSystem {
                     // contract and their matching FunctionN invocation shape.
                     return true
                 }
+                // KSuspendFunctionN mirrors that pairing for suspend callable
+                // references (KUU-3841): the declared SuspendFunctionN
+                // supertype carries the matching invocation shape while the
+                // KFunction<R> supertype keeps the reference reflective.
+                if leftFunction.isSuspend,
+                   let inheritedSuspendFunction = inheritedFunctionInterfaceClassType(
+                       of: rightClass,
+                       arity: arity,
+                       isSuspend: true
+                   ), isSubtype(makeNonNullable(make(.classType(rightClass))), reflectiveType),
+                   functionTypeSubtypeOfFunctionN(leftFunction, inheritedSuspendFunction)
+                {
+                    return true
+                }
             }
             // Only callable references implement the reflective KFunction interface.
             guard rightClass.classSymbol == functionInterfaceSymbol
@@ -1448,24 +1462,30 @@ extension TypeSystem {
             return nominalFunctionType(for: classType, arity: arity, isSuspend: isSuspend)
         }
         // KFunctionN declares both KFunction<R> and FunctionN<P..., R> as
-        // direct supertypes. Keep the callable view for those reflective types
-        // without walking unrelated nominal type hierarchies on every lookup.
+        // direct supertypes; KSuspendFunctionN declares KFunction<R> and
+        // SuspendFunctionN<P..., R> instead (KUU-3841). Keep the callable view
+        // for those reflective types without walking unrelated nominal type
+        // hierarchies on every lookup.
+        let directSupertypes = directNominalSupertypes(for: classType.classSymbol)
         guard let kFunctionInterfaceSymbol,
-              directNominalSupertypes(for: classType.classSymbol).contains(kFunctionInterfaceSymbol),
-              let inheritedFunction = directNominalSupertypes(for: classType.classSymbol).first(where: {
-                  functionInterfaceArity(of: $0, isSuspend: false) != nil
-              }),
-              let arity = functionInterfaceArity(of: inheritedFunction, isSuspend: false),
-              let arguments = liftedNominalSupertypeArgs(from: classType, to: inheritedFunction)
+              directSupertypes.contains(kFunctionInterfaceSymbol)
         else {
             return nil
         }
-        let inheritedType = self.classType(
-            for: inheritedFunction,
-            arguments: arguments,
-            nullability: classType.nullability
-        )
-        return nominalFunctionType(for: inheritedType, arity: arity, isSuspend: false)
+        for supertype in directSupertypes {
+            guard let shape = nominalFunctionInterfaceShape(of: supertype),
+                  let arguments = liftedNominalSupertypeArgs(from: classType, to: supertype)
+            else {
+                continue
+            }
+            let inheritedType = self.classType(
+                for: supertype,
+                arguments: arguments,
+                nullability: classType.nullability
+            )
+            return nominalFunctionType(for: inheritedType, arity: shape.arity, isSuspend: shape.isSuspend)
+        }
+        return nil
     }
 
     private func nominalFunctionType(
