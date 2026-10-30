@@ -351,4 +351,65 @@ struct NewlineOperatorTests {
             return
         }
     }
+
+    @Test(arguments: [
+        // KUU-3794: a bare `f()` call inside an infix chain counts its callee
+        // and argument list as one operand. Counting them separately flipped
+        // the operand/operator parity and treated the trailing identifier as
+        // a pending infix name, so the next line's statement was swallowed.
+        "val x = topFun() shr LOG",
+        "val x = topFun() until LOG",
+        "val x = topFun() to LOG",
+        "val x = f() shr LOG",
+        "val x = rootSize() shr local",
+        "val x = a shr f() to b",
+        "topFun() shr LOG",
+        // An infix name followed by a parenthesised operand (`a b (c)`)
+        // keeps the same parity: the trailing operand completes the chain.
+        "val x = a b (c) d e",
+    ])
+    func bareCallOperandDoesNotMakeInfixTailPending(source: String) {
+        let previous = lex(source).tokens.dropLast()
+        let next = lex("return x").tokens.dropLast()
+        #expect(!BuildASTPhase.isContinuationBoundary(previousTail: previous, nextHead: next))
+    }
+
+    @Test(arguments: [
+        "val x = topFun() or",
+        "val x = 1 or ints[0] and",
+        "x = x or",
+    ])
+    func infixNameAtLineEndStillContinuesStatement(source: String) {
+        let previous = lex(source).tokens.dropLast()
+        let next = lex("5").tokens.dropLast()
+        #expect(BuildASTPhase.isContinuationBoundary(previousTail: previous, nextHead: next))
+    }
+
+    @Test
+    func infixCallWithBareCallReceiverKeepsFollowingReturn() throws {
+        // KUU-3794 end to end: `return x` must stay a separate block
+        // statement so the function body is not judged `Unit`.
+        let context = makeContextFromSource("""
+        val LOG = 5
+        fun topFun() = 0
+        fun rootSize() = 16
+        fun main(): Int {
+            val local = 4
+            val x = topFun() shr LOG
+            val y = rootSize() shr local
+            return x + y
+        }
+        """)
+        try runFrontend(context)
+        #expect(!context.diagnostics.hasError, "\(context.diagnostics.diagnostics.map(\.message))")
+        let ast = try #require(context.ast)
+        let function = try #require(topLevelFunction(named: "main", in: ast, interner: context.interner))
+        guard case let .block(statements, _) = function.body,
+              statements.count == 4,
+              case .returnExpr = ast.arena.expr(statements[3])
+        else {
+            Issue.record("The return statement must remain a separate statement")
+            return
+        }
+    }
 }
