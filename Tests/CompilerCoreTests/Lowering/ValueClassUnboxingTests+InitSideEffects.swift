@@ -118,5 +118,73 @@ struct ValueClassUnboxingInitSideEffectTests {
             "default-arg construction must keep the $default call"
         )
     }
+
+    /// KUU-3830: `this(listOf(v))` lowers the collection literal through
+    /// `kk_array_set(array, 0, v)` on a temporary container — not on `this`.
+    /// The pass used to adopt that store's index as the underlying field
+    /// offset, so the post-delegation extraction read box word 0 (the object
+    /// header) instead of the stored payload and the value came back null.
+    @Test
+    func testSecondaryConstructorCollectionDelegationReadsUnderlyingField() throws {
+        let source = """
+        value class IC(val value: List<String>) {
+            constructor(value: String) : this(listOf(value))
+        }
+
+        fun create(): String? = IC("abc").value.singleOrNull()
+        """
+        let ctx = makeContextFromSource(source)
+        try runToLowering(ctx)
+
+        let sema = try #require(ctx.sema)
+        let module = try #require(ctx.kir)
+        let interner = ctx.interner
+        let arrayGet = interner.intern("kk_array_get_inbounds")
+
+        let icSymbol = try #require(sema.symbols.allSymbols().first {
+            $0.kind == .class && $0.name == interner.intern("IC")
+        })
+        let fieldOffsets = sema.symbols.nominalLayout(for: icSymbol.id)?.fieldOffsets ?? [:]
+        let expectedOffset = try #require(
+            fieldOffsets.values.sorted().first,
+            "IC should have its single underlying field laid out"
+        )
+
+        // Only the caller's extraction read is inspected — stdlib functions
+        // legitimately index real arrays at offset 0.
+        var readOffsets: [Int64] = []
+        for function in findAllKIRFunctions(in: module)
+            where interner.resolve(function.name) == "create"
+        {
+            var literalByExpr: [KIRExprID: Int64] = [:]
+            for instruction in function.body {
+                if case let .constValue(result, value) = instruction,
+                   case let .intLiteral(literal) = value
+                {
+                    literalByExpr[result] = literal
+                }
+            }
+            for instruction in function.body {
+                guard case let .call(_, callee, arguments, _, _, _, _, _) = instruction,
+                      callee == arrayGet, arguments.count == 2,
+                      let offset = literalByExpr[arguments[1]]
+                else { continue }
+                readOffsets.append(offset)
+            }
+        }
+
+        #expect(
+            !readOffsets.isEmpty,
+            "secondary-ctor construction must read the payload back out of the box"
+        )
+        #expect(
+            !readOffsets.contains(0),
+            "the extraction must not read the object header as the payload (KUU-3830)"
+        )
+        #expect(
+            readOffsets.contains(Int64(expectedOffset)),
+            "the extraction must read the real underlying field offset \(expectedOffset), got \(readOffsets)"
+        )
+    }
 }
 #endif

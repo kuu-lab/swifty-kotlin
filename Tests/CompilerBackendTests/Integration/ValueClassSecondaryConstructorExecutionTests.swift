@@ -51,8 +51,68 @@ struct ValueClassSecondaryConstructorExecutionTests {
             emit: .executable,
             target: defaultTargetTriple(),
             optLevel: .O0,
-            includeStdlib: false,
-            allowDefaultStdlibLibrary: false
+            stdlibLibraryPath: try testStdlibArtifactPath(),
+            allowDefaultStdlibLibrary: true
+        )
+        try assertCompilationSucceeded(makeTestDriver().runForTesting(options: options))
+
+        let execution = try CommandRunner.run(
+            executable: output.path,
+            arguments: [],
+            timeout: 10
+        )
+        #expect(execution.exitCode == 0, "\(execution.stderr)")
+        #expect(execution.stdout.isEmpty)
+        #expect(execution.stderr.isEmpty)
+    }
+
+    /// KUU-3830: a delegation argument built by a collection literal emits a
+    /// `kk_array_set` on the temporary container — not on `this`. The
+    /// underlying-field extraction must keep the real field offset instead of
+    /// adopting the literal's index and reading the box header.
+    @Test
+    func secondaryConstructorsDelegatingWithCollectionLiteralsReturnTheirUnderlyingValue() throws {
+        let source = """
+        @JvmInline value class IC<T>(val value: List<T>) {
+            constructor(value: T) : this(listOf(value))
+        }
+
+        @JvmInline value class SC(val value: List<String>) {
+            constructor(value: String) : this(listOf(value, value + "!"))
+        }
+
+        @JvmInline value class IA(val value: IntArray) {
+            constructor(value: Int) : this(intArrayOf(value, value + 1))
+        }
+
+        fun main() {
+            val matches = IC("abc").value.singleOrNull() == "abc" &&
+                IC(listOf("x", "y")).value.size == 2 &&
+                SC("s").value == listOf("s", "s!") &&
+                IA(5).value.toList() == listOf(5, 6)
+            // Divide by zero only when a delegated value comes back wrong.
+            val divisor = if (matches) 1 else 0
+            val probe = 1 / divisor
+        }
+        """
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let input = directory.appendingPathComponent("value-class-secondary-ctor-listof.kt")
+        let output = directory.appendingPathComponent("value-class-secondary-ctor-listof")
+        try source.write(to: input, atomically: true, encoding: .utf8)
+
+        let options = CompilerOptions(
+            moduleName: "ValueClassSecondaryConstructorListOf",
+            inputs: [input.path],
+            outputPath: output.path,
+            emit: .executable,
+            target: defaultTargetTriple(),
+            optLevel: .O0,
+            stdlibLibraryPath: try testStdlibArtifactPath(),
+            allowDefaultStdlibLibrary: true
         )
         try assertCompilationSucceeded(makeTestDriver().runForTesting(options: options))
 
