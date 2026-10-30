@@ -368,9 +368,37 @@ func runtimeInvokeSuspendFunction(
         return 0
     }
     if let box = runtimeFunctionValueBox(from: functionRaw), box.suspendEntryPoint != 0 {
-        guard box.arity == arguments.count else {
+        var valueArguments = arguments
+        var explicitCompletion = 0
+        // KUU-3808 / KT-66098: through the erased non-suspend `FunctionN`
+        // view of a suspend function the completion continuation occupies
+        // the signature's last parameter slot, so `invoke(p1, ..., pN, cont)`
+        // arrives carrying `arity + 1` arguments. Peel the continuation off
+        // and run the body to its first real suspension, handing back the
+        // bare result (or COROUTINE_SUSPENDED) instead of driving the body
+        // to completion on an internal event loop. The suspend-ABI callers
+        // (`kk_suspend_function_invoke_*`) always pass a non-zero caller
+        // continuation, so this only matches `kk_function_invoke_*` calls.
+        if continuation == 0, arguments.count == box.arity + 1, let last = arguments.last {
+            guard runtimeIsContinuationArgument(last) else {
+                outThrown?.pointee = runtimeAllocateClassCastException(
+                    message: "Suspend function invoke expects kotlin.coroutines.Continuation as the last argument"
+                )
+                return 0
+            }
+            explicitCompletion = last
+            valueArguments = Array(arguments.dropLast())
+        }
+        guard box.arity == valueArguments.count else {
             outThrown?.pointee = runtimeFunctionInvokeInvalidArity(expected: box.arity, actual: arguments.count)
             return 0
+        }
+        if explicitCompletion != 0 {
+            let child = kk_create_coroutine_unintercepted(box.suspendEntryPoint, explicitCompletion)
+            for (index, argument) in ([box.closureRaw] + valueArguments).enumerated() {
+                _ = kk_coroutine_launcher_arg_set(child, Int64(index), Int64(argument))
+            }
+            return kk_start_coroutine_unintercepted_or_return(box.suspendEntryPoint, child, outThrown)
         }
         let child = kk_coroutine_continuation_new(box.suspendEntryPoint)
         for (index, argument) in ([box.closureRaw] + arguments).enumerated() {
