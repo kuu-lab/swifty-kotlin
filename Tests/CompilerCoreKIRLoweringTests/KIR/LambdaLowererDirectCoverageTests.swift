@@ -137,6 +137,74 @@ struct LambdaLowererDirectCoverageTests {
         }
     }
 
+    /// KUU-3818: an `inline` member reached through virtual dispatch is never
+    /// inlined, so a capturing lambda argument must still be materialized to
+    /// the boxed `kk_function_create_N` ABI. `callDispatchesVirtually` forces
+    /// the raw-symbolRef fast path off for exactly that call shape.
+    @Test
+    func capturingLambdaMaterializesForVirtuallyDispatchedInlineCallee() {
+        let fixture = makeKIRDirectLoweringFixture()
+        let range = makeRange()
+        let capturedSymbol = defineSemanticSymbol(
+            in: fixture, kind: .valueParameter, fqName: ["pkg", "captured"]
+        )
+        let captured = fixture.kirArena.appendExpr(.intLiteral(7), type: fixture.types.intType)
+        fixture.driver.ctx.setLocalValue(captured, for: capturedSymbol)
+        let body = appendTypedExpr(
+            .nameRef(fixture.interner.intern("captured"), range),
+            type: fixture.types.intType, fixture: fixture
+        )
+        fixture.bindings.bindIdentifier(body, symbol: capturedSymbol)
+        let functionType = fixture.types.make(.functionType(FunctionType(
+            params: [], returnType: fixture.types.intType,
+            isSuspend: false, nullability: .nonNull
+        )))
+        let lambda = appendTypedExpr(
+            .lambdaLiteral(params: [], body: body, label: nil, range: range),
+            type: functionType, fixture: fixture
+        )
+        var instructions: [KIRInstruction] = []
+        let callable = fixture.driver.lambdaLowerer.lowerLambdaLiteralExpr(
+            lambda, params: [], bodyExpr: body, allowsNonLocalReturn: true,
+            ast: fixture.ast, sema: fixture.sema, arena: fixture.kirArena,
+            interner: fixture.interner, propertyConstantInitializers: [:],
+            instructions: &instructions
+        )
+        let inlineMember = defineSemanticSymbol(
+            in: fixture, kind: .function, fqName: ["pkg", "Owner", "applyL"],
+            flags: [.inlineFunction]
+        )
+        fixture.symbols.setFunctionSignature(FunctionSignature(
+            parameterTypes: [functionType], returnType: fixture.types.intType,
+            valueParameterAllowsNonLocalReturn: [true]
+        ), for: inlineMember)
+
+        // Sanity: without the flag the raw callable survives for inlining.
+        var inlinedArguments = [callable]
+        var inlinedInstructions = instructions
+        let baseCount = inlinedInstructions.count
+        fixture.driver.callLowerer.materializeSourceBackedFunctionValueArguments(
+            chosenCallee: inlineMember, sourceArgExprs: [lambda],
+            sema: fixture.sema, arena: fixture.kirArena, interner: fixture.interner,
+            instructions: &inlinedInstructions, arguments: &inlinedArguments
+        )
+        #expect(inlinedArguments == [callable])
+        #expect(inlinedInstructions.count == baseCount)
+
+        // With virtual dispatch the argument must be materialized — the callee
+        // is a real function whose `kk_function_invoke` drives the boxed ABI.
+        var virtualArguments = [callable]
+        var virtualInstructions = instructions
+        fixture.driver.callLowerer.materializeSourceBackedFunctionValueArguments(
+            chosenCallee: inlineMember, sourceArgExprs: [lambda],
+            sema: fixture.sema, arena: fixture.kirArena, interner: fixture.interner,
+            instructions: &virtualInstructions, arguments: &virtualArguments,
+            callDispatchesVirtually: true
+        )
+        #expect(virtualArguments != [callable])
+        #expect(!kirFunctionCreationCalls(in: virtualInstructions, interner: fixture.interner).isEmpty)
+    }
+
     @Test func testLambdaLowererTraversesNestedExpressionsAndDetectsImplicitReceiver() {
         let fixture = makeKIRDirectLoweringFixture()
         let range = makeRange()

@@ -1263,6 +1263,23 @@ extension CallLowerer {
         }
 
         if let chosen {
+            // An inline member reached through a `.virtualCall` is never
+            // inlined, so its lambda arguments need the boxed function-value
+            // ABI here — a raw lambda symbolRef crosses the vtable/itable
+            // boundary and crashes in `kk_function_invoke` (KUU-3818). Mirror
+            // the dispatch computation the emit block below performs.
+            let callDispatchesVirtually: Bool = {
+                guard !isSuperCall else { return false }
+                let receiverTypeForDispatch = dispatchReceiver.flatMap { arena.exprType($0) }
+                    ?? sema.bindings.exprTypes[receiverExpr]
+                    ?? arena.exprType(loweredReceiverID)
+                return resolveVirtualDispatch(
+                    callee: chosen,
+                    receiverTypeID: receiverTypeForDispatch,
+                    sema: sema,
+                    interner: interner
+                ) != nil
+            }()
             materializeSourceBackedFunctionValueArguments(
                 chosenCallee: chosen,
                 sourceArgExprs: args.map(\.expr),
@@ -1271,7 +1288,8 @@ extension CallLowerer {
                 interner: interner,
                 instructions: &instructions.instructions,
                 arguments: &finalArguments,
-                valueArgOffsetOverride: dispatchReceiver == nil ? nil : 2
+                valueArgOffsetOverride: dispatchReceiver == nil ? nil : 2,
+                callDispatchesVirtually: callDispatchesVirtually
             )
         }
 

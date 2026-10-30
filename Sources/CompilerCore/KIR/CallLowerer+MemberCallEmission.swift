@@ -828,6 +828,26 @@ extension CallLowerer {
                 instructions: &instructions
             )
         }
+        // An inline member reached through a `.virtualCall` is never inlined
+        // (`InlineLoweringPass` expands only `.call` instructions), so its
+        // lambda arguments need the boxed function-value ABI here — passing a
+        // raw lambda symbolRef across the vtable boundary crashes inside
+        // `kk_function_invoke` for capturing lambdas (KUU-3818). Mirror the
+        // receiver-type inputs `tryEmitVirtualDispatch` uses below so the
+        // check matches the dispatch that is actually emitted.
+        let callDispatchesVirtually: Bool = {
+            guard !isSuperCall, let chosenCallee else { return false }
+            let dispatchReceiverExpr: ExprID? = memberExtensionDispatchReceiver == nil && receiver.typeOverride == nil
+                ? receiver.expr : nil
+            let dispatchReceiverType = dispatchReceiverExpr.flatMap { sema.bindings.exprTypes[$0] }
+                ?? arena.exprType(memberExtensionDispatchReceiver ?? receiver.loweredID)
+            return resolveVirtualDispatch(
+                callee: chosenCallee,
+                receiverTypeID: dispatchReceiverType,
+                sema: sema,
+                interner: interner
+            ) != nil
+        }()
         materializeSourceBackedFunctionValueArguments(
             chosenCallee: chosenCallee,
             sourceArgExprs: sourceArgExprs,
@@ -836,7 +856,8 @@ extension CallLowerer {
             interner: interner,
             instructions: &instructions,
             arguments: &finalArguments,
-            valueArgOffsetOverride: memberExtensionDispatchReceiver != nil ? 2 : nil
+            valueArgOffsetOverride: memberExtensionDispatchReceiver != nil ? 2 : nil,
+            callDispatchesVirtually: callDispatchesVirtually
         )
         if normalized.hasOmittedDefaultArguments,
            let chosenCallee,
