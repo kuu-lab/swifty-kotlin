@@ -5,13 +5,14 @@ public func kk_object_new(_ length: Int, _ classId: Int) -> Int {
     let box = RuntimeObjectBox(length: length, classID: Int64(classId))
     let opaque = UnsafeMutableRawPointer(Unmanaged.passRetained(box).toOpaque())
     let key = UInt(bitPattern: opaque)
+    let threadID = ObjectIdentifier(Thread.current)
     runtimeStorage.withGCLock { state in
         state.objectPointers.insert(key)
         state.managedObjectPointers.insert(key)
         precondition(state.nextManagedObjectGeneration < UInt64.max, "Managed object generation exhausted")
         state.nextManagedObjectGeneration += 1
         state.managedObjectGenerations[key] = state.nextManagedObjectGeneration
-        state.pendingGCRoots.insert(key)
+        runtimeAddPendingGCRootLocked(key, threadID: threadID, state: &state)
         recordRetainedBoxManagedHeapFieldsLocked(box, owner: key, state: &state)
     }
     runtimeStorage.withMetadataLock { state in

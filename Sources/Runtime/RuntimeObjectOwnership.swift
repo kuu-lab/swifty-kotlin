@@ -38,7 +38,7 @@ private func runtimeTakeObjectForRelease(_ rawValue: Int) -> UnsafeMutableRawPoi
         state.objectJobHandles.removeValue(forKey: key)
         state.managedObjectPointers.remove(key)
         state.managedObjectGenerations.removeValue(forKey: key)
-        state.pendingGCRoots.remove(key)
+        runtimeRemovePendingGCRootLocked(key, state: &state)
         return state.objectPointers.remove(key) != nil
     }
     guard removed else {
@@ -64,6 +64,7 @@ func runtimeReleaseObject(_ rawValue: Int) -> Bool {
     defer { withExtendedLifetime(foreignResources) {} }
     removeRuntimeObjectMetadata(forObjectKey: key)
     runtimeForgetFrozenObject(rawValue)
+    unregisterActiveWorker(handle: rawValue)
     // Primitive box handles are tagged (kk_box_* / registerTaggedPrimitiveBox):
     // the registry key is the tagged bits, but ARC release needs the base object.
     let basePointer = runtimePrimitiveBoxBasePointer(from: rawValue) ?? pointer

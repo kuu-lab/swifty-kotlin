@@ -275,6 +275,9 @@ extension NativeEmitter.FunctionEmissionContext {
                 storedScalarValue = scalarValue
             }
             storeResult(result, storedScalarValue)
+            if !hasGCRootSlot(for: result) {
+                emitGCShadowRetireReturnHandoff(value: scalarValue)
+            }
             if spec.canThrow {
                 if usesThrownChannel {
                     handleThrownSlot(thrownSlot, thrownResult: thrownResult, instructionIndex: instructionIndex)
@@ -857,6 +860,9 @@ extension NativeEmitter.FunctionEmissionContext {
             storedCallValue = callValue
         }
         storeResult(result, storedCallValue)
+        if !hasGCRootSlot(for: result) {
+            emitGCShadowRetireReturnHandoff(value: callValue)
+        }
         if calleeName == "kk_coroutine_continuation_new",
            let coroutineRegisterRootFunction
         {

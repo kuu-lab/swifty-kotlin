@@ -167,4 +167,62 @@ extension StdlibArtifactRegressionTests {
             }
         }
     }
+
+    @Test
+    func testSameFrameWeakReferenceAndUnreferencedTimerThroughStdlibArtifact() throws {
+        let artifactPath = try Self.buildStdlibArtifact()
+        let source = """
+        @file:OptIn(kotlin.experimental.ExperimentalNativeApi::class)
+        import kotlin.native.ref.WeakReference
+        import java.util.Timer
+        import java.util.TimerTask
+
+        class Foo(val value: Int)
+
+        fun main() {
+            var current: Foo? = Foo(42)
+            val weak = WeakReference(current!!)
+            System.gc()
+            println("live=" + current!!.value)
+            println("weakLive=" + weak.value?.value)
+            current = null
+            repeat(10) {
+                System.gc()
+                Thread.sleep(20)
+            }
+            println("cleared=" + (weak.value == null))
+
+            var timer: Timer? = Timer()
+            timer!!.schedule(object : TimerTask() {
+                override fun run() { println("task finished") }
+            }, 30L)
+            Thread.sleep(150L)
+            timer = null
+            repeat(10) {
+                System.gc()
+                Thread.sleep(20L)
+            }
+            println("main finished")
+        }
+        """
+        try withTemporaryFile(contents: source) { inputPath in
+            for level in [OptimizationLevel.O0, .O2] {
+                let outputPath = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
+                defer { try? FileManager.default.removeItem(atPath: outputPath) }
+                let context = try runCodegenPipeline(
+                    inputPath: inputPath, moduleName: "GCSameFrameWeakRefAndTimer", outputPath: outputPath,
+                    optLevel: level, allowDefaultStdlibLibrary: false,
+                    stdlibLibraryPath: artifactPath, prepareTestStdlibCache: false
+                )
+                try assertNoDiagnosticErrors(context)
+                try LinkPhase().run(context)
+                let result = try CommandRunner.run(executable: outputPath, arguments: [], timeout: 15)
+                #expect(result.exitCode == 0, "\(result.stderr)")
+                #expect(
+                    result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
+                        == "live=42\nweakLive=42\ncleared=true\ntask finished\nmain finished\n"
+                )
+            }
+        }
+    }
 }

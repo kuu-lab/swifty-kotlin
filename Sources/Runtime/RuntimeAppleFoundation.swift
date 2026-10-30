@@ -16,19 +16,21 @@ func foundationFailure(_ message: String, _ thrown: UnsafeMutablePointer<Int>?) 
 final class RuntimeFoundationCallback: @unchecked Sendable {
     let function: Int
     let capture: Int
+    var roots: [Int] { [function, capture] }
+    var rootKeys: [UInt] { [UInt(bitPattern: function), UInt(bitPattern: capture)] }
     init?(_ function: Int) {
         guard let value = runtimeFunctionValueBox(from: function) else { return nil }
         self.function = function
         capture = value.closureRaw
     }
     func invoke(_ operation: Int, _ a: Int, _ b: Int, thrown: UnsafeMutablePointer<Int>?) -> Int {
-        let pin = RuntimeForeignCallbackPin(root: capture)
-        defer { withExtendedLifetime(pin) {} }
+        let pin = RuntimeQueuedGCRoots(roots)
+        defer { pin.finish() }
         return kk_function_invoke_3(function, operation, a, b, thrown)
     }
     func invoke0(thrown: UnsafeMutablePointer<Int>?) -> Int {
-        let pin = RuntimeForeignCallbackPin(root: capture)
-        defer { withExtendedLifetime(pin) {} }
+        let pin = RuntimeQueuedGCRoots(roots)
+        defer { pin.finish() }
         return kk_function_invoke_0(function, thrown)
     }
 }
@@ -37,12 +39,12 @@ final class RuntimeFoundationCallback: @unchecked Sendable {
 /// Cancellation drops the pin, and the retained native block becomes inert.
 final class RuntimeFoundationRunLoopTicket: @unchecked Sendable {
     private let lock = NSLock()
-    private var pin: RuntimeForeignCallbackPin?
+    private var pin: RuntimeQueuedGCRoots?
     private var cancelled = false
     let callback: RuntimeFoundationCallback
     init(_ callback: RuntimeFoundationCallback) {
         self.callback = callback
-        pin = RuntimeForeignCallbackPin(root: callback.capture)
+        pin = RuntimeQueuedGCRoots(callback.roots)
     }
     func invoke() {
         let held = lock.withLock { cancelled ? nil : pin }
@@ -53,13 +55,13 @@ final class RuntimeFoundationRunLoopTicket: @unchecked Sendable {
         if thrown != 0 { kk_native_terminateWithUnhandledException(thrown) }
     }
     func cancel() {
-        let retired = lock.withLock { () -> RuntimeForeignCallbackPin? in
+        let retired = lock.withLock { () -> RuntimeQueuedGCRoots? in
             cancelled = true
             let held = pin
             pin = nil
             return held
         }
-        withExtendedLifetime(retired) {}
+        retired?.finish()
     }
 }
 
@@ -74,6 +76,13 @@ final class RuntimeFoundationRunLoopTickets: @unchecked Sendable {
     }
     private let lock = NSLock()
     private var entries: [UInt: [ObjectIdentifier: RuntimeFoundationRunLoopTicket]] = [:]
+    private var stoppedLoops: Set<UInt> = []
+    func beginRun(loop: RunLoop) {
+        lock.withLock { _ = stoppedLoops.remove(key(loop)) }
+    }
+    func isStopped(loop: RunLoop) -> Bool {
+        lock.withLock { stoppedLoops.contains(key(loop)) }
+    }
     func add(_ ticket: RuntimeFoundationRunLoopTicket, loop: RunLoop) {
         lock.withLock { entries[key(loop), default: [:]][ObjectIdentifier(ticket)] = ticket }
     }
@@ -81,10 +90,27 @@ final class RuntimeFoundationRunLoopTickets: @unchecked Sendable {
         lock.withLock { _ = entries[key(loop)]?.removeValue(forKey: ObjectIdentifier(ticket)) }
     }
     func cancel(loop: RunLoop) { cancel(key: key(loop)) }
+    func markStopped(key: UInt) {
+        lock.withLock { _ = stoppedLoops.insert(key) }
+        cancel(key: key)
+    }
     func cancel(key: UInt) {
         let retired = lock.withLock { entries.removeValue(forKey: key) ?? [:] }
         for ticket in retired.values { ticket.cancel() }
     }
+    func cancelAll() {
+        let retired = lock.withLock { () -> [RuntimeFoundationRunLoopTicket] in
+            let all = entries.values.flatMap(\.values)
+            entries.removeAll(keepingCapacity: false)
+            stoppedLoops.removeAll(keepingCapacity: false)
+            return all
+        }
+        for ticket in retired { ticket.cancel() }
+    }
+}
+
+func runtimeCancelFoundationRunLoops() {
+    RuntimeFoundationRunLoopTickets.shared.cancelAll()
 }
 
 #if canImport(Darwin)
@@ -212,8 +238,8 @@ final class RuntimeFoundationStreamDelegate: NSObject, StreamDelegate {
     let callback: RuntimeFoundationCallback
     init(_ callback: RuntimeFoundationCallback) { self.callback = callback }
     func stream(_ aStream: Stream, handle eventCode: Stream.Event) {
-        let pin = RuntimeForeignCallbackPin(root: callback.capture)
-        defer { withExtendedLifetime(pin) {} }
+        let pin = RuntimeQueuedGCRoots(callback.roots)
+        defer { pin.finish() }
         var thrown = 0
         _ = kk_function_invoke(callback.function, Int(eventCode.rawValue), &thrown)
         if thrown != 0 {

@@ -139,6 +139,12 @@ extension NativeEmitter.FunctionEmissionContext {
         emitGCRootStore(slot: slot, value: value, name: "gc_expr_store_\(expressionID.rawValue)")
     }
 
+    func hasGCRootSlot(for expressionID: KIRExprID?) -> Bool {
+        guard let expressionID, expressionID.rawValue >= 0 else { return false }
+        return gcRootSlotsByExpression[expressionID.rawValue] != nil
+            || gcShadowSlot(for: expressionID) != nil
+    }
+
     func registerGCRootForGlobal(_ symbol: SymbolID, slot: LLVMCAPIBindings.LLVMValueRef) {
         guard isGCRootGlobal(symbol),
               let slotAddress = bindings.buildPtrToInt(

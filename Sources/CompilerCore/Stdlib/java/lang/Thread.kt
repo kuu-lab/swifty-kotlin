@@ -170,7 +170,19 @@ public class Thread private constructor(
             } finally { countLock.unlock() }
         }
 
-        public fun currentThread(): Thread = (threadCurrentValue(currentKey) as? Thread) ?: current
+        public fun currentThread(): Thread {
+            val existing = threadCurrentValue(currentKey) as? Thread
+            if (existing != null) return existing
+            val platformName = NSThread.currentThread.name
+            if (platformName == "main") {
+                threadSetCurrent(currentKey, current)
+                return current
+            }
+            val initialName = if (platformName != null && platformName.isNotEmpty()) platformName else null
+            val attached = Thread(null, initialName, true)
+            threadSetCurrent(currentKey, attached)
+            return attached
+        }
 
         public fun sleep(millis: kotlin.Long) {
             if (millis < 0L) throw IllegalArgumentException("timeout value is negative")

@@ -228,8 +228,52 @@ struct GCShadowFrameCodegenTests {
         #expect(ir.components(separatedBy: "call i64 @kk_gc_push_root_frame(").count - 1 == 2)
         #expect(ir.components(separatedBy: "call i64 @kk_gc_frame_leave(").count - 1 == 2)
         #expect(ir.components(separatedBy: "call i64 @kk_gc_root_store(").count - 1 >= 4)
+        #expect(ir.components(separatedBy: "call void @__kk_gc_mutator_enter()").count - 1 == 2)
+        #expect(ir.components(separatedBy: "call void @__kk_gc_mutator_leave()").count - 1 == 2)
         #expect(ir.contains("declare i64 @kk_gc_shadow_push()"))
         #expect(ir.contains("declare i64 @kk_gc_shadow_set(i64, i64)"))
         #expect(ir.contains("declare i64 @kk_gc_shadow_pop(i64, i64)"))
+        #expect(ir.contains("declare void @__kk_gc_mutator_enter()"))
+        #expect(ir.contains("declare void @__kk_gc_mutator_leave()"))
+    }
+
+    @Test(arguments: [0, 2])
+    func emitsMutatorSafepointsAndClearsDeadTemporaryRoots(optimization: Int) throws {
+        let interner = StringInterner()
+        let types = TypeSystem()
+        let arena = KIRArena()
+        let allocResult = arena.appendTemporary(type: types.anyType)
+        let localVar = arena.appendTemporary(type: types.makeNullable(types.anyType))
+        let nullExpr = arena.appendTemporary(type: types.makeNullable(types.anyType))
+        let zeroArg = arena.appendTemporary(type: types.intType)
+        let loopLabel: Int32 = 77
+        let function = KIRFunction(
+            symbol: SymbolID(rawValue: 901), name: interner.intern("gcSafepointAndLiveness"),
+            params: [], returnType: types.unitType,
+            body: [
+                .constValue(result: zeroArg, value: .intLiteral(0)),
+                .call(callee: interner.intern("kk_object_new"), arguments: [zeroArg, zeroArg], result: allocResult, canThrow: false),
+                .copy(from: allocResult, to: localVar),
+                .constValue(result: nullExpr, value: .null),
+                .copy(from: nullExpr, to: localVar),
+                .label(loopLabel),
+                .jump(loopLabel),
+            ],
+            isSuspend: false, isInline: false
+        )
+        let declaration = arena.appendDecl(.function(function))
+        let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [declaration])], arena: arena)
+        let backend = try LLVMBackend(
+            target: TargetTriple.hostDefault(), optLevel: optimization == 0 ? .O0 : .O2, debugInfo: false,
+            diagnostics: DiagnosticEngine()
+        )
+        let irPath = FileManager.default.temporaryDirectory
+            .appendingPathComponent("gc-safepoint-liveness-\(UUID().uuidString).ll").path
+        defer { try? FileManager.default.removeItem(atPath: irPath) }
+        try backend.emitLLVMIR(module: module, outputIRPath: irPath, interner: interner, typeSystem: types)
+        let ir = try String(contentsOfFile: irPath, encoding: .utf8)
+        #expect(ir.contains("call void @__kk_gc_mutator_enter()"))
+        #expect(ir.contains("call void @__kk_gc_safepoint()"))
+        #expect(ir.contains("call i64 @kk_gc_shadow_set(i64 0, i64 0)"))
     }
 }

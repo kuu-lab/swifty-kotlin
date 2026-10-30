@@ -316,6 +316,14 @@ public func kk_list_bridge_zip_transform(
     guard let lhs = runtimeCollectionOrArrayElements(from: listRaw) else { invalidContainerPanic(#function, "collection") }
     guard let rhs = runtimeCollectionOrArrayElements(from: otherRaw) else { invalidContainerPanic(#function, "collection") }
     let count = min(lhs.count, rhs.count)
+    kk_gc_shadow_push()
+    var returnedResult = 0
+    var returnedThrown = 0
+    defer { runtimePopNativeGCShadowFrame(returnedResult, returnedThrown) }
+    kk_gc_shadow_set(0, listRaw)
+    kk_gc_shadow_set(1, otherRaw)
+    kk_gc_shadow_set(2, fnPtr)
+    kk_gc_shadow_set(3, closureRaw)
     var results: [Int] = []
     results.reserveCapacity(count)
     for index in 0 ..< count {
@@ -327,10 +335,15 @@ public func kk_list_bridge_zip_transform(
             rhs: rhs[index],
             outThrown: &thrown
         )
-        if thrown != 0 { return handleCollectionLambdaThrow(thrown, outThrown) }
+        if thrown != 0 {
+            returnedThrown = thrown
+            return handleCollectionLambdaThrow(thrown, outThrown)
+        }
+        kk_gc_shadow_set(4 + index, transformed)
         results.append(transformed)
     }
-    return registerRuntimeObject(RuntimeListBox(elements: results))
+    returnedResult = registerRuntimeObject(RuntimeListBox(elements: results))
+    return returnedResult
 }
 
 @_cdecl("__kk_list_chunked")
@@ -368,6 +381,13 @@ public func kk_list_bridge_chunked_transform(_ listRaw: Int, _ size: Int, _ fnPt
         )
         return runtimeExceptionCaughtSentinel
     }
+    kk_gc_shadow_push()
+    var returnedResult = 0
+    var returnedThrown = 0
+    defer { runtimePopNativeGCShadowFrame(returnedResult, returnedThrown) }
+    kk_gc_shadow_set(0, listRaw)
+    kk_gc_shadow_set(1, fnPtr)
+    kk_gc_shadow_set(2, closureRaw)
     let estimatedChunks = elements.count / size + (elements.count % size == 0 ? 0 : 1)
     var result: [Int] = []
     result.reserveCapacity(estimatedChunks)
@@ -376,13 +396,19 @@ public func kk_list_bridge_chunked_transform(_ listRaw: Int, _ size: Int, _ fnPt
         let end = i + min(size, elements.count - i)
         let chunk = Array(elements[i ..< end])
         let chunkList = registerRuntimeObject(RuntimeListBox(elements: chunk))
+        kk_gc_shadow_set(3, chunkList)
         var thrown = 0
         let transformed = runtimeInvokeCollectionLambda1MaybeWrapped(fnPtr: fnPtr, closureRaw: closureRaw, value: chunkList, outThrown: &thrown)
-        if thrown != 0 { return handleCollectionLambdaThrow(thrown, outThrown) }
+        if thrown != 0 {
+            returnedThrown = thrown
+            return handleCollectionLambdaThrow(thrown, outThrown)
+        }
+        kk_gc_shadow_set(4 + result.count, transformed)
         result.append(transformed)
         i = end
     }
-    return registerRuntimeObject(RuntimeListBox(elements: result))
+    returnedResult = registerRuntimeObject(RuntimeListBox(elements: result))
+    return returnedResult
 }
 
 private func validateListWindowedArguments(
@@ -447,6 +473,13 @@ public func kk_list_bridge_windowed_transform(
     guard let elements = runtimeCollectionOrArrayElements(from: listRaw) else {
         invalidContainerPanic(#function, "collection")
     }
+    kk_gc_shadow_push()
+    var returnedResult = 0
+    var returnedThrown = 0
+    defer { runtimePopNativeGCShadowFrame(returnedResult, returnedThrown) }
+    kk_gc_shadow_set(0, listRaw)
+    kk_gc_shadow_set(1, fnPtr)
+    kk_gc_shadow_set(2, closureRaw)
     let partial = partialWindows != 0
     var result: [Int] = []
     var i = 0
@@ -455,6 +488,7 @@ public func kk_list_bridge_windowed_transform(
         if !partial && end - i < size { break }
         let window = Array(elements[i ..< end])
         let windowList = registerRuntimeObject(RuntimeListBox(elements: window))
+        kk_gc_shadow_set(3, windowList)
         var thrown = 0
         let transformed = runtimeInvokeCollectionLambda1MaybeWrapped(
             fnPtr: fnPtr,
@@ -462,13 +496,18 @@ public func kk_list_bridge_windowed_transform(
             value: windowList,
             outThrown: &thrown
         )
-        if thrown != 0 { return handleCollectionLambdaThrow(thrown, outThrown) }
+        if thrown != 0 {
+            returnedThrown = thrown
+            return handleCollectionLambdaThrow(thrown, outThrown)
+        }
+        kk_gc_shadow_set(4 + result.count, transformed)
         result.append(transformed)
         let (nextStart, overflow) = i.addingReportingOverflow(step)
         if overflow { break }
         i = nextStart
     }
-    return registerRuntimeObject(RuntimeListBox(elements: result))
+    returnedResult = registerRuntimeObject(RuntimeListBox(elements: result))
+    return returnedResult
 }
 
 @_cdecl("__kk_list_zipWithNext")
@@ -491,15 +530,27 @@ public func kk_list_bridge_zipWithNextTransform(_ listRaw: Int, _ fnPtr: Int, _ 
     guard elems.count >= 2 else {
         return registerRuntimeObject(RuntimeListBox(elements: []))
     }
+    kk_gc_shadow_push()
+    var returnedResult = 0
+    var returnedThrown = 0
+    defer { runtimePopNativeGCShadowFrame(returnedResult, returnedThrown) }
+    kk_gc_shadow_set(0, listRaw)
+    kk_gc_shadow_set(1, fnPtr)
+    kk_gc_shadow_set(2, closureRaw)
     var results: [Int] = []
     results.reserveCapacity(elems.count - 1)
     for i in 0 ..< elems.count - 1 {
         var thrown = 0
         let result = runtimeInvokeCollectionLambda2(fnPtr: fnPtr, closureRaw: closureRaw, lhs: elems[i], rhs: elems[i + 1], outThrown: &thrown)
-        if thrown != 0 { return handleCollectionLambdaThrow(thrown, outThrown) }
+        if thrown != 0 {
+            returnedThrown = thrown
+            return handleCollectionLambdaThrow(thrown, outThrown)
+        }
+        kk_gc_shadow_set(3 + i, result)
         results.append(result)
     }
-    return registerRuntimeObject(RuntimeListBox(elements: results))
+    returnedResult = registerRuntimeObject(RuntimeListBox(elements: results))
+    return returnedResult
 }
 
 
@@ -583,6 +634,13 @@ public func kk_list_sortedBy(_ listRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ 
     guard let elements = runtimeCollectionElements(from: listRaw) else {
         invalidContainerPanic(#function, "list")
     }
+    kk_gc_shadow_push()
+    var returnedResult = 0
+    var returnedThrown = 0
+    defer { runtimePopNativeGCShadowFrame(returnedResult, returnedThrown) }
+    kk_gc_shadow_set(0, listRaw)
+    kk_gc_shadow_set(1, fnPtr)
+    kk_gc_shadow_set(2, closureRaw)
     guard let sorted = runtimeSortByElements(
         elements,
         fnPtr: fnPtr,
@@ -591,9 +649,11 @@ public func kk_list_sortedBy(_ listRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ 
         primitiveKind: nil,
         outThrown: outThrown
     ) else {
-        return handleCollectionLambdaThrow(outThrown?.pointee ?? 0, outThrown)
+        returnedThrown = outThrown?.pointee ?? 0
+        return handleCollectionLambdaThrow(returnedThrown, outThrown)
     }
-    return registerRuntimeObject(RuntimeListBox(elements: sorted.map(\.element)))
+    returnedResult = registerRuntimeObject(RuntimeListBox(elements: sorted.map(\.element)))
+    return returnedResult
 }
 
 private func runtimeSortByElements(
@@ -618,6 +678,7 @@ private func runtimeSortByElements(
             }
             return nil
         }
+        kk_gc_shadow_set(3 + indexed.count, key)
         indexed.append((offset: indexed.count, element: elem, key: key))
     }
     let sorted = indexed.sorted { lhs, rhs in

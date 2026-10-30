@@ -278,7 +278,10 @@ extension NativeEmitter.FunctionEmissionContext {
 
         storeOutThrownIfNonNull(zeroValue, suffix: "entry")
         emitStackOverflowGuard()
+        try prepareGCSafepoints()
         try prepareGCRootFrame(allocaBuilder: allocaBuilder)
+        emitGCShadowPush()
+        emitGCMutatorEnter()
 
         if usesRuntimeCallbackRawABI {
             for (index, parameter) in function.params.enumerated() where stringAggregateBridge.isStringAggregateType(parameter.type) {
@@ -302,7 +305,8 @@ extension NativeEmitter.FunctionEmissionContext {
             argumentCount: 1,
             appendThrownChannel: false
         )
-        emitGCShadowPush()
+        let liveness = computeFunctionLivenessAnalysis()
+        livenessAnalysis = liveness
 
         for (instructionIndex, instruction) in function.body.enumerated() {
             // Lowering may leave dead expression tails after an unconditional
@@ -363,6 +367,10 @@ extension NativeEmitter.FunctionEmissionContext {
                 }
                 currentBlock = destination
                 bindings.positionBuilder(builder, at: destination)
+                if instructionIndex < liveness.deadOnLabelEntry.count {
+                    clearDeadGCRoots(liveness.deadOnLabelEntry[instructionIndex])
+                }
+                emitGCSafepoint()
 
             case let .jump(target):
                 guard !bindings.hasTerminator(currentBlock),
@@ -398,6 +406,9 @@ extension NativeEmitter.FunctionEmissionContext {
                 )
                 currentBlock = continueBlock
                 bindings.positionBuilder(builder, at: continueBlock)
+                if instructionIndex < liveness.deadOnFallthrough.count {
+                    clearDeadGCRoots(liveness.deadOnFallthrough[instructionIndex])
+                }
 
             case let .constValue(result, value):
                 // Constants can emit runtime calls (for example, String
@@ -644,6 +655,9 @@ extension NativeEmitter.FunctionEmissionContext {
                     _ = bindings.buildCondBr(builder, condition: condition, thenBlock: targetBlock, elseBlock: fallthroughBlock)
                     currentBlock = fallthroughBlock
                     bindings.positionBuilder(builder, at: fallthroughBlock)
+                    if instructionIndex < liveness.deadOnFallthrough.count {
+                        clearDeadGCRoots(liveness.deadOnFallthrough[instructionIndex])
+                    }
                     continue
                 }
                 let nullSentinel = bindings.constInt(
@@ -688,6 +702,9 @@ extension NativeEmitter.FunctionEmissionContext {
                     _ = bindings.buildCondBr(builder, condition: condition, thenBlock: targetBlock, elseBlock: fallthroughBlock)
                     currentBlock = fallthroughBlock
                     bindings.positionBuilder(builder, at: fallthroughBlock)
+                    if instructionIndex < liveness.deadOnFallthrough.count {
+                        clearDeadGCRoots(liveness.deadOnFallthrough[instructionIndex])
+                    }
                 }
 
             case let .copy(from, to):
@@ -816,6 +833,9 @@ extension NativeEmitter.FunctionEmissionContext {
 
                 currentBlock = falseBlock
                 bindings.positionBuilder(builder, at: falseBlock)
+                if instructionIndex < liveness.deadOnFallthrough.count {
+                    clearDeadGCRoots(liveness.deadOnFallthrough[instructionIndex])
+                }
 
             case .returnUnit:
                 guard !bindings.hasTerminator(currentBlock) else {
@@ -883,6 +903,9 @@ extension NativeEmitter.FunctionEmissionContext {
                     emitGCShadowPop()
                     _ = bindings.buildRet(builder, value: zeroReturnValue)
                 }
+            }
+            if instructionIndex < liveness.deadAfterInstruction.count {
+                clearDeadGCRoots(liveness.deadAfterInstruction[instructionIndex])
             }
         }
 
