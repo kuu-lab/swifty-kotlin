@@ -28,7 +28,7 @@ open class RuntimeProperty(owner: Any, name: String, signature: String, receiver
         return if ((__jvmClassModifiers(outer) and 512) == 0) outer else null
     }
     override fun callArray(args: Array<out Any?>, unwrapException: Boolean): Any? {
-        if (signatureString == "<local>") throw UnsupportedOperationException("Not supported for local property reference.")
+        if (signatureString == "<local>") throw UnsupportedOperationException("call/callBy are not supported for this declaration.")
         if (!isConst) return super.callArray(args, unwrapException)
         val outer = classCompanionFieldOwner()
         // Logical instance parameters remain present for static object fields.
@@ -56,11 +56,11 @@ open class RuntimeProperty(owner: Any, name: String, signature: String, receiver
         } else invokeMethod(method, receiver, arrayOf(adaptArgument(value, types[0])))
     }
     override fun callBy(args: Map<KParameter, Any?>): Any? {
-        if (signatureString == "<local>") throw UnsupportedOperationException("Not supported for local property reference.")
+        if (signatureString == "<local>") throw UnsupportedOperationException("call/callBy are not supported for this declaration.")
         return super.callBy(args)
     }
     fun writeZero(value: Any?) {
-        if (signatureString == "<local>") throw UnsupportedOperationException("Not supported for local property reference.")
+        if (signatureString == "<local>") throw UnsupportedOperationException("call/callBy are not supported for this declaration.")
         write(boundReceiver, value)
     }
     fun writeOne(receiver: Any?, value: Any?) { write(receiver, value) }

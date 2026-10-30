@@ -129,6 +129,19 @@ extension JVMFunctionBuilder {
         let member = context.interner.resolve(name)
         if let sourceType = try? program.expressionType(receiverID), sourceType.referenceName == "java/lang/Object" {
             let object = try requireValue(receiverID)
+            // `x.toString()`/`hashCode()` on a nullable Any? resolve to the
+            // null-safe kotlin extensions; a virtual call would NPE. Emit the
+            // JDK equivalents (String.valueOf / Objects.hashCode). `equals` on
+            // a nullable receiver is rejected in Sema, so it never reaches us.
+            if sourceType.isNullable {
+                let objectParam: JVMValueType = .reference("java/lang/Object", nullable: true)
+                if member == "toString", args.isEmpty {
+                    return JVMIntrinsicResult(value: try jdkCall("java/lang/String", "valueOf", [objectParam], .string, arguments: [object]))
+                }
+                if member == "hashCode", args.isEmpty {
+                    return JVMIntrinsicResult(value: try jdkCall("java/util/Objects", "hashCode", [objectParam], .int, arguments: [object]))
+                }
+            }
             if ["hashCode", "toString"].contains(member), args.isEmpty {
                 return JVMIntrinsicResult(value: try jdkCall("java/lang/Object", member, [], member == "hashCode" ? .int : .string, receiver: object))
             }

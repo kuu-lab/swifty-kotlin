@@ -136,6 +136,22 @@ struct InlineParameterUsageValidationTests {
     }
 
     @Test
+    func extensionReceiverParameterInvocationIsAccepted() throws {
+        let ctx = makeContextFromSource("""
+        class Builder {
+            fun run() {}
+        }
+        inline fun use(builder: Builder, block: Builder.() -> Unit) {
+            builder.block()
+        }
+        fun main() { use(Builder()) { run() } }
+        """, allowDefaultStdlibLibrary: false)
+
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+    }
+
+    @Test
     func forwardToInlinableParameterIsAccepted() throws {
         let ctx = makeContextFromSource("""
         inline fun inner(b: () -> Unit) { b() }
