@@ -595,7 +595,14 @@ extension CallTypeChecker {
                let expectedClassType = resolveClassType(expectedType, sema: sema),
                expectedClassType.classSymbol == interfaceSymID
             {
-                inferredInterfaceArgs = expectedClassType.args
+                inferredInterfaceArgs = completeSamInterfaceArguments(
+                    expectedClassType.args,
+                    interfaceSymbol: interfaceSymID,
+                    typeParameters: interfaceTypeParameters,
+                    argExpr: argExpr,
+                    ctx: ctx,
+                    locals: locals
+                )
             } else {
                 let annotationArgs = inferInterfaceArgsFromLambdaAnnotations(
                     interfaceSymID,
@@ -605,14 +612,22 @@ extension CallTypeChecker {
                 )
                 if annotationArgs.count == interfaceTypeParameters.count {
                     inferredInterfaceArgs = annotationArgs
+                } else if let partialArgs = inferInterfaceArgsFromLambdaReturnType(
+                    interfaceSymID,
+                    typeParameters: interfaceTypeParameters,
+                    argExpr: argExpr,
+                    ctx: ctx,
+                    locals: locals
+                ) {
+                    // Type parameters the lambda return cannot constrain (an
+                    // `in T` used only in a parameter position, e.g. KT-78073 /
+                    // KUU-3839) stay as star projections rather than producing a
+                    // malformed zero-argument interface type. Callers with a
+                    // contextual expected type — such as `by` delegates, which
+                    // bind the getValue `thisRef` — fill them precisely instead.
+                    inferredInterfaceArgs = partialArgs.map { $0 ?? .star }
                 } else {
-                    inferredInterfaceArgs = inferInterfaceArgsFromLambdaReturnType(
-                        interfaceSymID,
-                        typeParameters: interfaceTypeParameters,
-                        argExpr: argExpr,
-                        ctx: ctx,
-                        locals: locals
-                    ) ?? annotationArgs
+                    inferredInterfaceArgs = annotationArgs
                 }
             }
 
@@ -750,15 +765,17 @@ extension CallTypeChecker {
             }
         }
         if inferredAliasArguments == nil,
-           let samFunction = driver.helpers.samFunctionType(for: expanded, sema: sema)
+           let samFunction = driver.helpers.samFunctionType(for: expanded, sema: sema),
+           let partialArguments = inferTypeArgumentsFromLambdaReturnType(
+               aliasTypeParameters,
+               functionType: samFunction,
+               argExpr: argExpr,
+               ctx: ctx,
+               locals: locals
+           ),
+           partialArguments.allSatisfy({ $0 != nil })
         {
-            inferredAliasArguments = inferTypeArgumentsFromLambdaReturnType(
-                aliasTypeParameters,
-                functionType: samFunction,
-                argExpr: argExpr,
-                ctx: ctx,
-                locals: locals
-            )
+            inferredAliasArguments = partialArguments.compactMap { $0 }
         }
         guard let inferredAliasArguments,
               inferredAliasArguments.count == aliasTypeParameters.count
@@ -843,6 +860,51 @@ extension CallTypeChecker {
         return inferredArguments
     }
 
+    /// Completes an expected-type-derived interface argument list: concrete
+    /// positions stay as declared, while `.star` positions are inferred from
+    /// the lambda return type and explicit parameter annotations (in that
+    /// order). Positions no source can constrain keep their star projection
+    /// (KUU-3839: `by` delegates pass the getValue `thisRef` in concrete
+    /// positions and stars elsewhere).
+    private func completeSamInterfaceArguments(
+        _ expectedArgs: [TypeArg],
+        interfaceSymbol: SymbolID,
+        typeParameters: [SymbolID],
+        argExpr: ExprID,
+        ctx: TypeInferenceContext,
+        locals: LocalBindings
+    ) -> [TypeArg] {
+        guard expectedArgs.contains(where: { arg in
+            if case .star = arg { return true }
+            return false
+        }) else {
+            return expectedArgs
+        }
+        let returnInferred = inferInterfaceArgsFromLambdaReturnType(
+            interfaceSymbol,
+            typeParameters: typeParameters,
+            argExpr: argExpr,
+            ctx: ctx,
+            locals: locals
+        )
+        let annotationArgs = inferInterfaceArgsFromLambdaAnnotations(
+            interfaceSymbol,
+            typeParameters: typeParameters,
+            argExpr: argExpr,
+            ctx: ctx
+        )
+        var completed = expectedArgs
+        for index in typeParameters.indices where completed.indices.contains(index) {
+            guard case .star = completed[index] else { continue }
+            if let inferred = returnInferred?[index] {
+                completed[index] = inferred
+            } else if annotationArgs.indices.contains(index) {
+                completed[index] = annotationArgs[index]
+            }
+        }
+        return completed
+    }
+
     /// Infers a raw SAM constructor's type arguments from the lambda's explicit
     /// parameter type annotations, which are the only source of that information
     /// when neither explicit type arguments nor an expected type are available
@@ -878,18 +940,23 @@ extension CallTypeChecker {
         return inferredArgs.count == typeParameters.count ? inferredArgs : []
     }
 
+    /// Per-parameter inference from the lambda body's result type. Positions
+    /// the solved substitution leaves unbound come back as `nil` entries so
+    /// callers can merge a contextual source or fall back to star projections
+    /// instead of dropping every inferred argument (KUU-3839: `in T` type
+    /// parameters that never appear in the SAM return type).
     private func inferInterfaceArgsFromLambdaReturnType(
         _ interfaceSymID: SymbolID,
         typeParameters: [SymbolID],
         argExpr: ExprID,
         ctx: TypeInferenceContext,
         locals: LocalBindings
-    ) -> [TypeArg]? {
+    ) -> [TypeArg?]? {
         let sema = ctx.sema
         guard !typeParameters.isEmpty,
               case .lambdaLiteral = ctx.ast.arena.expr(argExpr),
               let signature = driver.helpers.samMethodSignature(for: interfaceSymID, sema: sema),
-              typeParameters.allSatisfy({ sema.types.typeContainsTypeParam(signature.returnType, symbol: $0) })
+              typeParameters.contains(where: { sema.types.typeContainsTypeParam(signature.returnType, symbol: $0) })
         else {
             return nil
         }
@@ -911,7 +978,7 @@ extension CallTypeChecker {
             argExpr: argExpr,
             ctx: ctx,
             locals: locals
-        )?.map(TypeArg.invariant)
+        )?.map { $0.map(TypeArg.invariant) }
     }
 
     private func inferTypeArgumentsFromLambdaReturnType(
@@ -920,7 +987,7 @@ extension CallTypeChecker {
         argExpr: ExprID,
         ctx: TypeInferenceContext,
         locals: LocalBindings
-    ) -> [TypeID]? {
+    ) -> [TypeID?]? {
         let sema = ctx.sema
         guard case let .lambdaLiteral(_, bodyExpr, _, _) = ctx.ast.arena.expr(argExpr) else {
             return nil
@@ -971,16 +1038,17 @@ extension CallTypeChecker {
             return nil
         }
 
-        var inferredArgs: [TypeID] = []
+        var inferredArgs: [TypeID?] = []
         inferredArgs.reserveCapacity(typeParameters.count)
         for typeParameter in typeParameters {
-            guard let variable = typeVarBySymbol[typeParameter],
-                  let type = solution.substitution[variable],
-                  type != sema.types.errorType
-            else {
-                return nil
+            if let variable = typeVarBySymbol[typeParameter],
+               let type = solution.substitution[variable],
+               type != sema.types.errorType
+            {
+                inferredArgs.append(type)
+            } else {
+                inferredArgs.append(nil)
             }
-            inferredArgs.append(type)
         }
         return inferredArgs
     }
