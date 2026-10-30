@@ -57,5 +57,53 @@ struct SuspendFunctionInvokeCallableReferenceTests {
             #expect(dump.contains("kk_suspend_function_invoke_0"))
         }
     }
+
+    // KUU-3841: the bundled stdlib declares the synthesized KFunctionN /
+    // KSuspendFunctionN reflection interfaces, so they import and accept the
+    // matching suspend/non-suspend callable references.
+    @Test func suspendCallableReferenceResolvesKSuspendFunctionInterfaces() throws {
+        try withTemporaryFile(contents: """
+        import kotlin.reflect.KFunction0
+        import kotlin.reflect.KFunction1
+        import kotlin.reflect.KSuspendFunction1
+        import kotlin.reflect.KSuspendFunction22
+
+        suspend fun foo(x: Int): Int = x
+        fun bar(): Int = 0
+
+        fun main() {
+            val g: KSuspendFunction1<Int, Int> = ::foo
+            val h: KFunction0<Int> = ::bar
+            val i: suspend (Int) -> Int = ::foo
+            val erased: Any = i
+            val check = erased is KSuspendFunction1<*, *>
+            // KSuspendFunctionN and KFunctionN stay disjoint statically —
+            // assignments still reject the wrong family — yet `is` checks
+            // between them compile because the families can intersect.
+            val check2 = g is KFunction1<*, *>
+            val check3 = i is KFunction1<*, *>
+        }
+        """) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runToKIR(ctx)
+            #expect(!ctx.diagnostics.hasError, "Unexpected diagnostics: \(ctx.diagnostics.diagnostics)")
+        }
+    }
+
+    @Test func callableReferenceRejectsMismatchedKSuspendFunctionArity() throws {
+        try withTemporaryFile(contents: """
+        import kotlin.reflect.KSuspendFunction2
+
+        suspend fun foo(x: Int): Int = x
+
+        fun main() {
+            val wrongArity: KSuspendFunction2<Int, Int, Int> = ::foo
+        }
+        """) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            #expect(ctx.diagnostics.hasError)
+        }
+    }
 }
 #endif

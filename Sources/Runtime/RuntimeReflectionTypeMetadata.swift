@@ -16,10 +16,25 @@ let kProperty2RuntimeTypeID = runtimeStableNominalTypeID(fqName: "kotlin.reflect
 let kMutableProperty0RuntimeTypeID = runtimeStableNominalTypeID(fqName: "kotlin.reflect.KMutableProperty0")
 let kMutableProperty1RuntimeTypeID = runtimeStableNominalTypeID(fqName: "kotlin.reflect.KMutableProperty1")
 let kMutableProperty2RuntimeTypeID = runtimeStableNominalTypeID(fqName: "kotlin.reflect.KMutableProperty2")
-let kFunction0RuntimeTypeID = runtimeStableNominalTypeID(fqName: "kotlin.reflect.KFunction0")
-let kFunction1RuntimeTypeID = runtimeStableNominalTypeID(fqName: "kotlin.reflect.KFunction1")
-let kFunction2RuntimeTypeID = runtimeStableNominalTypeID(fqName: "kotlin.reflect.KFunction2")
-let kFunction3RuntimeTypeID = runtimeStableNominalTypeID(fqName: "kotlin.reflect.KFunction3")
+/// Stable nominal IDs for the arity-specific `KFunctionN`/`KSuspendFunctionN`
+/// reflection interfaces (KUU-3841). Both families are compiler-synthesized on
+/// the JVM with no distinct runtime class, so `x is KFunctionN` and
+/// `x is KSuspendFunctionN` erase to a plain `instanceof KFunction` regardless
+/// of arity or suspend-ness — verified against kotlinc output.
+let kFunctionArityRuntimeTypeIDs: [Int64] = (0 ... 22).map {
+    runtimeStableNominalTypeID(fqName: "kotlin.reflect.KFunction\($0)")
+}
+let kSuspendFunctionArityRuntimeTypeIDs: [Int64] = (0 ... 22).map {
+    runtimeStableNominalTypeID(fqName: "kotlin.reflect.KSuspendFunction\($0)")
+}
+
+/// Whether `typeID` is the nominal payload of an arity-specific KFunctionN or
+/// KSuspendFunctionN token. Values carrying a KFunction identity satisfy every
+/// such payload (see the JVM erasure note above).
+func runtimeIsKFunctionArityTypeID(_ typeID: Int64) -> Bool {
+    kFunctionArityRuntimeTypeIDs.contains(typeID)
+        || kSuspendFunctionArityRuntimeTypeIDs.contains(typeID)
+}
 let kClassifierRuntimeTypeID = runtimeStableNominalTypeID(fqName: "kotlin.reflect.KClassifier")
 let kAnnotatedElementRuntimeTypeID = runtimeStableNominalTypeID(fqName: "kotlin.reflect.KAnnotatedElement")
 let kDeclarationContainerRuntimeTypeID = runtimeStableNominalTypeID(fqName: "kotlin.reflect.KDeclarationContainer")
@@ -101,23 +116,23 @@ private let runtimeKCallableReturnTypeGetter: @convention(c) (Int, UnsafeMutable
 /// getters. User implementations and these runtime values then share interface
 /// dispatch, while the bridge getters preserve the metadata-backed behavior.
 func runtimeRegisterKCallableItableIfNeeded(rawValue: Int, typeID: Int64) {
-    let callableTypeIDs: Set<Int64> = [
-        kCallableRuntimeTypeID,
-        kFunctionRuntimeTypeID,
-        kConstructorRuntimeTypeID,
-        kPropertyRuntimeTypeID,
-        kMutablePropertyRuntimeTypeID,
-        kProperty0RuntimeTypeID,
-        kProperty1RuntimeTypeID,
-        kProperty2RuntimeTypeID,
-        kMutableProperty0RuntimeTypeID,
-        kMutableProperty1RuntimeTypeID,
-        kMutableProperty2RuntimeTypeID,
-        kFunction0RuntimeTypeID,
-        kFunction1RuntimeTypeID,
-        kFunction2RuntimeTypeID,
-        kFunction3RuntimeTypeID,
-    ]
+    let callableTypeIDs: Set<Int64> = Set(
+        [
+            kCallableRuntimeTypeID,
+            kFunctionRuntimeTypeID,
+            kConstructorRuntimeTypeID,
+            kPropertyRuntimeTypeID,
+            kMutablePropertyRuntimeTypeID,
+            kProperty0RuntimeTypeID,
+            kProperty1RuntimeTypeID,
+            kProperty2RuntimeTypeID,
+            kMutableProperty0RuntimeTypeID,
+            kMutableProperty1RuntimeTypeID,
+            kMutableProperty2RuntimeTypeID,
+        ]
+            + kFunctionArityRuntimeTypeIDs
+            + kSuspendFunctionArityRuntimeTypeIDs
+    )
     guard callableTypeIDs.contains(typeID) else { return }
 
     // Source-backed callable-reference wrappers register their interface
@@ -153,35 +168,49 @@ func runtimeRegisterKCallableItableIfNeeded(rawValue: Int, typeID: Int64) {
     _ = kk_object_register_itable_method(rawValue, interfaceSlot, 1, unsafeBitCast(callBy, to: Int.self))
 }
 
-private let reflectionRuntimeTypeMetadataEdges: [(Int64, Int64)] = [
-    // Source-declared supertypes (Stdlib/kotlin/reflect): KCallable and KClass
-    // extend KAnnotatedElement, KClass extends KDeclarationContainer, and
-    // KFunction extends kotlin.Function.
-    (kCallableRuntimeTypeID, kAnnotatedElementRuntimeTypeID),
-    (kFunctionRuntimeTypeID, kCallableRuntimeTypeID),
-    (kFunctionRuntimeTypeID, kotlinFunctionRuntimeTypeID),
-    (kConstructorRuntimeTypeID, kFunctionRuntimeTypeID),
-    (kPropertyRuntimeTypeID, kCallableRuntimeTypeID),
-    (kMutablePropertyRuntimeTypeID, kPropertyRuntimeTypeID),
-    (kProperty0RuntimeTypeID, kPropertyRuntimeTypeID),
-    (kProperty1RuntimeTypeID, kPropertyRuntimeTypeID),
-    (kProperty2RuntimeTypeID, kPropertyRuntimeTypeID),
-    (kMutableProperty0RuntimeTypeID, kMutablePropertyRuntimeTypeID),
-    (kMutableProperty0RuntimeTypeID, kProperty0RuntimeTypeID),
-    (kMutableProperty1RuntimeTypeID, kMutablePropertyRuntimeTypeID),
-    (kMutableProperty1RuntimeTypeID, kProperty1RuntimeTypeID),
-    (kMutableProperty2RuntimeTypeID, kMutablePropertyRuntimeTypeID),
-    (kMutableProperty2RuntimeTypeID, kProperty2RuntimeTypeID),
-    (kFunction0RuntimeTypeID, kFunctionRuntimeTypeID),
-    (kFunction1RuntimeTypeID, kFunctionRuntimeTypeID),
-    (kFunction2RuntimeTypeID, kFunctionRuntimeTypeID),
-    (kFunction3RuntimeTypeID, kFunctionRuntimeTypeID),
-    (kClassRuntimeTypeID, kClassifierRuntimeTypeID),
-    (kClassRuntimeTypeID, kAnnotatedElementRuntimeTypeID),
-    (kClassRuntimeTypeID, kDeclarationContainerRuntimeTypeID),
-    (kTypeRuntimeTypeID, kClassifierRuntimeTypeID),
-    (kTypeParameterRuntimeTypeID, kClassifierRuntimeTypeID),
-]
+private let reflectionRuntimeTypeMetadataEdges: [(Int64, Int64)] = {
+    var edges: [(Int64, Int64)] = [
+        // Source-declared supertypes (Stdlib/kotlin/reflect): KCallable and KClass
+        // extend KAnnotatedElement, KClass extends KDeclarationContainer, and
+        // KFunction extends kotlin.Function.
+        (kCallableRuntimeTypeID, kAnnotatedElementRuntimeTypeID),
+        (kFunctionRuntimeTypeID, kCallableRuntimeTypeID),
+        (kFunctionRuntimeTypeID, kotlinFunctionRuntimeTypeID),
+        (kConstructorRuntimeTypeID, kFunctionRuntimeTypeID),
+        (kPropertyRuntimeTypeID, kCallableRuntimeTypeID),
+        (kMutablePropertyRuntimeTypeID, kPropertyRuntimeTypeID),
+        (kProperty0RuntimeTypeID, kPropertyRuntimeTypeID),
+        (kProperty1RuntimeTypeID, kPropertyRuntimeTypeID),
+        (kProperty2RuntimeTypeID, kPropertyRuntimeTypeID),
+        (kMutableProperty0RuntimeTypeID, kMutablePropertyRuntimeTypeID),
+        (kMutableProperty0RuntimeTypeID, kProperty0RuntimeTypeID),
+        (kMutableProperty1RuntimeTypeID, kMutablePropertyRuntimeTypeID),
+        (kMutableProperty1RuntimeTypeID, kProperty1RuntimeTypeID),
+        (kMutableProperty2RuntimeTypeID, kMutablePropertyRuntimeTypeID),
+        (kMutableProperty2RuntimeTypeID, kProperty2RuntimeTypeID),
+        (kClassRuntimeTypeID, kClassifierRuntimeTypeID),
+        (kClassRuntimeTypeID, kAnnotatedElementRuntimeTypeID),
+        (kClassRuntimeTypeID, kDeclarationContainerRuntimeTypeID),
+        (kTypeRuntimeTypeID, kClassifierRuntimeTypeID),
+        (kTypeParameterRuntimeTypeID, kClassifierRuntimeTypeID),
+    ]
+    // The bundled declarations mirror the synthesized hierarchies:
+    // KFunctionN : KFunction<R>, FunctionN<P..., R> and
+    // KSuspendFunctionN : KFunction<R>, SuspendFunctionN<P..., R>.
+    for arity in 0 ... 22 {
+        edges.append((kFunctionArityRuntimeTypeIDs[arity], kFunctionRuntimeTypeID))
+        edges.append((
+            kFunctionArityRuntimeTypeIDs[arity],
+            runtimeStableNominalTypeID(fqName: "kotlin.Function.Function\(arity)")
+        ))
+        edges.append((kSuspendFunctionArityRuntimeTypeIDs[arity], kFunctionRuntimeTypeID))
+        edges.append((
+            kSuspendFunctionArityRuntimeTypeIDs[arity],
+            runtimeStableNominalTypeID(fqName: "kotlin.coroutines.SuspendFunction\(arity)")
+        ))
+    }
+    return edges
+}()
 
 /// Registers the reflection hierarchy before a handle is tagged. The edges are
 /// static, so they are inserted once; the flag is cleared with `typeParents`

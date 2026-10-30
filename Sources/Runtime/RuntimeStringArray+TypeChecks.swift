@@ -444,7 +444,9 @@ public func kk_op_is(_ value: Int, _ typeToken: Int) -> Int {
         }
         if isFunctionReference {
             registerReflectionRuntimeTypeMetadata()
-            if runtimeIsAssignable(sourceTypeID: kFunctionRuntimeTypeID, targetTypeID: payload) {
+            if runtimeIsAssignable(sourceTypeID: kFunctionRuntimeTypeID, targetTypeID: payload)
+                || runtimeIsKFunctionArityTypeID(payload)
+            {
                 return 1
             }
         }
@@ -453,13 +455,26 @@ public func kk_op_is(_ value: Int, _ typeToken: Int) -> Int {
         }
         if let sourceTypeID = runtimeObjectTypeID(rawValue: value) {
             registerSortedCollectionTypeEdgesOnce()
-            return runtimeIsAssignable(sourceTypeID: sourceTypeID, targetTypeID: payload)
+            if runtimeIsAssignable(sourceTypeID: sourceTypeID, targetTypeID: payload)
                 || runtimeIsJvmErasedListAssignable(
                     rawValue: value,
                     sourceTypeID: sourceTypeID,
                     targetTypeID: payload
                 )
-                ? 1 : 0
+            {
+                return 1
+            }
+            // Arity-specific KFunctionN/KSuspendFunctionN checks erase to the
+            // KFunction classifier on the JVM, so any object whose nominal
+            // identity reaches KFunction satisfies them (KUU-3841).
+            if runtimeIsKFunctionArityTypeID(payload) {
+                registerReflectionRuntimeTypeMetadata()
+                return runtimeIsAssignable(
+                    sourceTypeID: sourceTypeID,
+                    targetTypeID: kFunctionRuntimeTypeID
+                ) ? 1 : 0
+            }
+            return 0
         }
         guard let ptr = UnsafeMutableRawPointer(bitPattern: value) else {
             return 0
