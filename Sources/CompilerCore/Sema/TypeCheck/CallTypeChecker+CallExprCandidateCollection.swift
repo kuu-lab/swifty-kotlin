@@ -578,10 +578,22 @@ extension CallTypeChecker {
                     else { return nil }
                     return local.symbol
                 }
+                // An inner class on an implicit receiver shadows file-level
+                // classifiers of the same name — the receiver supplies the
+                // enclosing instance for the call (KUU-3858).
+                let receiverInnerClassifier = implicitReceiverInnerClassifier(
+                    named: calleeName, in: ctx
+                )
                 var classSym = localClassSymbol
                     ?? scopedClassSymbols.first(where: { isLexicallyDeclaredClassifier($0, in: ctx) })
                     ?? inheritedClassSymbols.first
+                    ?? receiverInnerClassifier?.classSymbol
                     ?? scopedClassSymbols.first
+                if let receiverInnerClassifier,
+                   classSym == receiverInnerClassifier.classSymbol
+                {
+                    callImplicitReceiverType = receiverInnerClassifier.receiverType
+                }
                 if let selected = classSym,
                    isInheritedNestedInterface(selected, in: ctx)
                 {

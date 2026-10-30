@@ -179,6 +179,54 @@ extension CallTypeChecker {
         return []
     }
 
+    /// An inner class declared on an implicit receiver is callable by its
+    /// simple name: the receiver supplies the enclosing instance, so `I()`
+    /// inside `fun Outer.extSub()` resolves the way `this.I()` does
+    /// (KUU-3858). Non-inner nested classifiers are not members of a
+    /// receiver value and must stay unresolved here — kotlinc rejects
+    /// `Nested()` written the same way.
+    func implicitReceiverInnerClassifier(
+        named name: InternedString,
+        in ctx: TypeInferenceContext
+    ) -> (classSymbol: SymbolID, receiverType: TypeID)? {
+        let sema = ctx.sema
+        for receiverType in ctx.implicitReceiverMemberLookupTypes() {
+            guard let receiverNominal = driver.helpers.nominalSymbol(
+                of: receiverType, types: sema.types
+            ) else {
+                continue
+            }
+            // Inner classes are inherited members: walk the supertype chain
+            // the same way `collectInnerClassConstructorCandidates` does.
+            var ownerQueue: [SymbolID] = [receiverNominal]
+            var visited: Set<SymbolID> = []
+            while !ownerQueue.isEmpty {
+                let owner = ownerQueue.removeFirst()
+                guard visited.insert(owner).inserted,
+                      let ownerSymbol = ctx.cachedSymbol(owner)
+                else {
+                    continue
+                }
+                let nestedFQName = ownerSymbol.fqName + [name]
+                if let match = sema.symbols.lookupAll(fqName: nestedFQName).first(where: { candidate in
+                    guard let symbol = ctx.cachedSymbol(candidate),
+                          symbol.kind == .class,
+                          symbol.flags.contains(.innerClass),
+                          sema.symbols.parentSymbol(for: candidate) == owner
+                    else {
+                        return false
+                    }
+                    return !symbol.flags.contains(.expectDeclaration)
+                        || sema.symbols.actualSymbol(for: candidate) == nil
+                }) {
+                    return (match, receiverType)
+                }
+                ownerQueue.append(contentsOf: sema.symbols.directSupertypes(for: owner))
+            }
+        }
+        return nil
+    }
+
     func isInheritedNestedInterface(_ candidate: SymbolID, in ctx: TypeInferenceContext) -> Bool {
         let symbols = ctx.sema.symbols
         guard ctx.cachedSymbol(candidate)?.kind == .interface,
