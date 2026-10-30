@@ -799,7 +799,8 @@ extension BuildASTPhase {
         switch kind {
         case .statement, .propertyDecl, .loopStmt,
              .ifExpr, .whenExpr, .tryExpr, .callExpr,
-             .funDecl, .classDecl, .objectDecl, .interfaceDecl:
+             .funDecl, .classDecl, .objectDecl, .interfaceDecl,
+             .typeAliasDecl:
             true
         default:
             false

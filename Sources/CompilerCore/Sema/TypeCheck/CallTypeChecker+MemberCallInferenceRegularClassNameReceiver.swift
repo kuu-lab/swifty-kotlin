@@ -342,7 +342,7 @@ extension CallTypeChecker {
                     return false
                 }
                 switch symbol.kind {
-                case .class, .interface, .enumClass, .object, .annotationClass:
+                case .class, .interface, .enumClass, .object, .annotationClass, .typeAlias:
                     return true
                 default:
                     return false
@@ -357,7 +357,7 @@ extension CallTypeChecker {
                         return false
                     }
                     switch symbol.kind {
-                    case .class, .interface, .enumClass, .object, .annotationClass:
+                    case .class, .interface, .enumClass, .object, .annotationClass, .typeAlias:
                         return true
                     default:
                         return false
@@ -367,11 +367,107 @@ extension CallTypeChecker {
                     nestedOwnerSymbols = shortNameNestedOwners
                 }
             }
+            // A nested typealias qualifier (`Owner.Alias`) resolves through
+            // its expanded classifier: `Owner.Alias(...)` calls the
+            // underlying constructor and a bare `Owner.Alias` is a
+            // classifier reference to the expansion (KUU-3840).
+            var nestedAliasContext: TypeAliasConstructorContext?
+            var nestedAliasExpandedOwner: SymbolID?
+            if let aliasSymbol = nestedOwnerSymbols.first(where: {
+                sema.symbols.symbol($0)?.kind == .typeAlias
+            }) {
+                if let aliasSemantic = sema.symbols.symbol(aliasSymbol),
+                   !ctx.visibilityChecker.isAccessible(
+                       aliasSemantic,
+                       fromFile: ctx.currentFileID,
+                       enclosingClass: ctx.enclosingClassSymbol
+                   )
+                {
+                    driver.helpers.emitVisibilityError(
+                        for: aliasSemantic,
+                        name: interner.resolve(calleeName),
+                        range: range,
+                        diagnostics: ctx.sema.diagnostics
+                    )
+                    return driver.helpers.bindAndReturnErrorType(id, sema: sema)
+                }
+                let aliasTypeParameters = sema.symbols.typeAliasTypeParameters(for: aliasSymbol)
+                if !explicitTypeArgs.isEmpty, explicitTypeArgs.count != aliasTypeParameters.count {
+                    sema.diagnostics.error(
+                        "KSWIFTK-SEMA-0062",
+                        "Type argument count mismatch: expected \(aliasTypeParameters.count) but got \(explicitTypeArgs.count).",
+                        range: range
+                    )
+                    return driver.helpers.bindAndReturnErrorType(id, sema: sema)
+                }
+                let aliasTypeArgs: [TypeArg] = if explicitTypeArgs.isEmpty {
+                    aliasTypeParameters.map {
+                        .invariant(sema.types.make(.typeParam(TypeParamType(
+                            symbol: $0, nullability: .nonNull
+                        ))))
+                    }
+                } else {
+                    explicitTypeArgs.enumerated().map { index, type in
+                        let resolved = type == TypeID.invalid
+                            ? sema.types.make(.typeParam(TypeParamType(
+                                symbol: aliasTypeParameters[index], nullability: .nonNull
+                            )))
+                            : type
+                        return .invariant(resolved)
+                    }
+                }
+                if let expanded = driver.helpers.expandTypeAlias(
+                    aliasSymbol,
+                    typeArgs: aliasTypeArgs,
+                    sema: sema,
+                    visited: [],
+                    depth: 0,
+                    diagnostics: sema.diagnostics
+                ), case let .classType(aliasTarget) = sema.types.kind(of: expanded) {
+                    let expandedOwner = sema.symbols.actualSymbol(for: aliasTarget.classSymbol)
+                        ?? aliasTarget.classSymbol
+                    nestedAliasExpandedOwner = expandedOwner
+                    if args.isEmpty, !ast.arena.isExplicitCall(id) {
+                        // Bind the expanded classifier, not the alias:
+                        // lowering treats the qualifier exactly like a
+                        // direct `Owner.Nested` spelling (KUU-3840).
+                        sema.bindings.bindIdentifier(id, symbol: expandedOwner)
+                        sema.bindings.bindExprType(id, type: expanded)
+                        return expanded
+                    }
+                    if sema.symbols.symbol(expandedOwner)?.flags.contains(.innerClass) == true {
+                        // `Owner.Alias()` cannot supply the enclosing
+                        // instance an inner-class constructor needs — the
+                        // same error Kotlin reports for `Owner.Inner()`.
+                        let innerName = sema.symbols.symbol(expandedOwner)
+                            .map { interner.resolve($0.name) } ?? interner.resolve(calleeName)
+                        ctx.sema.diagnostics.error(
+                            "KSWIFTK-SEMA-0437",
+                            "constructor of the inner class '\(innerName)' can only be called with a receiver of the containing class.",
+                            range: range
+                        )
+                        return driver.helpers.bindAndReturnErrorType(id, sema: sema)
+                    }
+                    // `typeAliasConstructorSignature` reads the combined
+                    // argument list from `args`, so keep the enclosing +
+                    // own arguments flattened there (KUU-3840).
+                    let constructorType = sema.types.make(.classType(ClassType(
+                        classSymbol: expandedOwner,
+                        args: sema.types.allTypeArguments(for: aliasTarget),
+                        nullability: .nonNull
+                    )))
+                    nestedAliasContext = TypeAliasConstructorContext(
+                        typeParameterSymbols: aliasTypeParameters,
+                        expandedType: constructorType,
+                        typeAliasSymbol: aliasSymbol
+                    )
+                }
+            }
             if let nestedOwner = nestedOwnerSymbols.first,
                let samType = inferQualifiedNestedClassifierSamConstruction(
                    id,
                    calleeName: calleeName,
-                   classifierSymbol: nestedOwner,
+                   classifierSymbol: nestedAliasExpandedOwner ?? nestedOwner,
                    args: args,
                    argTypes: argTypes,
                    ctx: ctx,
@@ -467,6 +563,20 @@ extension CallTypeChecker {
                     }
                 }
             }
+            if nestedCtorCandidates.isEmpty,
+               let expandedOwner = nestedAliasExpandedOwner,
+               let expandedOwnerSymbol = sema.symbols.symbol(expandedOwner)
+            {
+                // `Owner.Alias(...)` calls the expanded classifier's
+                // constructors, stored under the underlying FQ name rather
+                // than the alias's (KUU-3840).
+                nestedCtorCandidates = sema.symbols.lookupAll(
+                    fqName: expandedOwnerSymbol.fqName + [knownNames.initName]
+                ).filter { candidate in
+                    sema.symbols.symbol(candidate)?.kind == .constructor
+                        && sema.symbols.parentSymbol(for: candidate) == expandedOwner
+                }
+            }
             if !nestedCtorCandidates.isEmpty {
                 let hasFactoryFunctionCandidates: Bool = {
                     let factoryOwner = owner.kind == .object
@@ -518,7 +628,7 @@ extension CallTypeChecker {
                     if let nestedOwner = nestedOwnerSymbols.first,
                        let invokeType = inferQualifiedNestedClassifierCompanionInvoke(
                            request,
-                           classifierSymbol: nestedOwner,
+                           classifierSymbol: nestedAliasExpandedOwner ?? nestedOwner,
                            argTypes: argTypes,
                            locals: &locals
                        )
@@ -608,6 +718,7 @@ extension CallTypeChecker {
                         range: range,
                         calleeName: calleeName,
                         explicitTypeArgs: explicitTypeArgs,
+                        typeAliasConstructor: nestedAliasContext,
                         expectedType: expectedType,
                         implicitReceiverType: nil,
                         lambdaLiteralIndices: preparedArgs.lambdaLiteralIndices,
@@ -651,7 +762,8 @@ extension CallTypeChecker {
                                             isTrailingLambda: argument.isTrailingLambda
                                         )
                                     },
-                                    explicitTypeArgs: explicitTypeArgs
+                                    explicitTypeArgs: explicitTypeArgs,
+                                    typeAliasConstructor: nestedAliasContext
                                 ),
                                 expectedType: nil,
                                 ctx: sema
@@ -666,7 +778,7 @@ extension CallTypeChecker {
                             if let nestedOwner = nestedOwnerSymbols.first,
                                let invokeType = inferQualifiedNestedClassifierCompanionInvoke(
                                    request,
-                                   classifierSymbol: nestedOwner,
+                                   classifierSymbol: nestedAliasExpandedOwner ?? nestedOwner,
                                    argTypes: argTypes,
                                    locals: &locals
                                )
@@ -714,7 +826,7 @@ extension CallTypeChecker {
                let nestedOwner = nestedOwnerSymbols.first,
                let companionInvokeType = inferQualifiedNestedClassifierCompanionInvoke(
                    request,
-                   classifierSymbol: nestedOwner,
+                   classifierSymbol: nestedAliasExpandedOwner ?? nestedOwner,
                    argTypes: argTypes,
                    locals: &locals
                )

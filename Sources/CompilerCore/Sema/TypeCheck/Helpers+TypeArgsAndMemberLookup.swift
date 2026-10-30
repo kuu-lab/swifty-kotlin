@@ -766,7 +766,6 @@ extension TypeCheckHelpers {
         }) where !aliases.contains(candidate) {
             aliases.append(candidate)
         }
-
         for aliasSymbol in ctx.filterByVisibility(aliases).visible {
             let parameters = sema.symbols.typeAliasTypeParameters(for: aliasSymbol)
             let typeArgs: [TypeArg] = parameters.enumerated().map { index, parameter in
@@ -791,10 +790,14 @@ extension TypeCheckHelpers {
             guard sema.symbols.symbol(classSymbol)?.flags.contains(.innerClass) == true else {
                 continue
             }
+            // The alias's expanded type may carry the enclosing inner-class
+            // arguments either in `enclosingTypeArgs` (type-check resolver)
+            // or flattened into `args` (header-collection resolver).
+            // `typeAliasConstructorSignature` reads only `args`, so keep the
+            // combined argument list there (KUU-3840).
             let constructorType = sema.types.make(.classType(ClassType(
                 classSymbol: classSymbol,
-                args: classType.args,
-                enclosingTypeArgs: classType.enclosingTypeArgs,
+                args: sema.types.allTypeArguments(for: classType),
                 nullability: .nonNull
             )))
             guard let outerReceiverType = innerClassOuterReceiverType(

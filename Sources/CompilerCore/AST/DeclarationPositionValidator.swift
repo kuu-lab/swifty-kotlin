@@ -1134,6 +1134,13 @@ struct DeclarationPositionValidator {
         for (modifier, name) in Self.typeAliasForbiddenModifiers where decl.modifiers.contains(modifier) {
             emitNotApplicable(name, to: "typealias", range: decl.range)
         }
+        if site == .function {
+            // Local typealiases reject non-default visibility positionally,
+            // like local objects/interfaces; `public`/`expect` go unreported.
+            for (modifier, name) in Self.localNominalVisibilityModifiers where decl.modifiers.contains(modifier) {
+                emitInside(name, inside: "function", range: decl.range)
+            }
+        }
         if site == .file, decl.modifiers.contains(.protected) {
             emitNotApplicable("protected", to: "top level typealias", range: decl.range)
         }
