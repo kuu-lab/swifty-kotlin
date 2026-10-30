@@ -528,4 +528,57 @@ struct CodegenRuntimeObjectDiscoveryTests {
         )
         #expect(!arguments.contains("--disable-sandbox"))
     }
+
+    // The fingerprint is reused across processes through the scratch-root
+    // sidecar, so it must stay byte-identical for an untouched tree, change on
+    // any content edit, and survive metadata-only rewrites (e.g. checkout
+    // touching mtimes) without serving a stale value.
+    @Test
+    func testRuntimeSourceFingerprintPersistsAcrossCallsAndTracksContent() throws {
+        let fileManager = FileManager.default
+        let packageRoot = try makeFakeRuntimePackageRoot()
+        defer { try? fileManager.removeItem(at: packageRoot) }
+        let scratchRoot = fileManager.temporaryDirectory
+            .appendingPathComponent("runtimefp-\(UUID().uuidString)", isDirectory: true)
+        defer { try? fileManager.removeItem(at: scratchRoot) }
+
+        let runtimeFile = packageRoot
+            .appendingPathComponent("Sources/Runtime/RuntimeArrayBasics.swift")
+        let abiFile = packageRoot
+            .appendingPathComponent("Sources/RuntimeABI/RuntimeABIStubs.swift")
+        try "func runtimeA() {}".write(to: runtimeFile, atomically: true, encoding: .utf8)
+        try "func abiB() {}".write(to: abiFile, atomically: true, encoding: .utf8)
+
+        let first = try CodegenRuntimeSupport.runtimeSourceFingerprint(
+            packageRoot: packageRoot, scratchRoot: scratchRoot
+        )
+        #expect(fileManager.fileExists(
+            atPath: scratchRoot.appendingPathComponent("source-fingerprints.json").path
+        ))
+
+        // An untouched tree resolves to the same fingerprint on a later call.
+        let second = try CodegenRuntimeSupport.runtimeSourceFingerprint(
+            packageRoot: packageRoot, scratchRoot: scratchRoot
+        )
+        #expect(second == first)
+
+        // Editing a Runtime source changes the fingerprint.
+        try "func runtimeA() { print(1) }".write(
+            to: runtimeFile, atomically: true, encoding: .utf8
+        )
+        let edited = try CodegenRuntimeSupport.runtimeSourceFingerprint(
+            packageRoot: packageRoot, scratchRoot: scratchRoot
+        )
+        #expect(edited != first)
+
+        // Metadata-only rewrites (new mtime, same bytes) recompute but yield
+        // the identical content fingerprint — never a stale reuse.
+        try fileManager.setAttributes(
+            [.modificationDate: Date()], ofItemAtPath: runtimeFile.path
+        )
+        let retouched = try CodegenRuntimeSupport.runtimeSourceFingerprint(
+            packageRoot: packageRoot, scratchRoot: scratchRoot
+        )
+        #expect(retouched == edited)
+    }
 }
