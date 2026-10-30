@@ -233,5 +233,70 @@ extension CompanionObjectTests {
         )
     }
 
+    /// KUU-3845: `companion val Host.x`/`companion var Host.x` is stored
+    /// state in the companion scope even though it parses as a top-level
+    /// extension property. Lowering must emit the backing global and real
+    /// implicit accessor bodies for the accessor symbols Sema registers —
+    /// previously only explicit accessors were emitted, leaving `Host.x`
+    /// reads as calls to an undefined property-named symbol at link time.
+    @Test func testCompanionExtensionPropertyEmitsStorageAndImplicitAccessors() throws {
+        let source = """
+        class Host
+        companion val Host.compExtVal: String = "extVal"
+        companion var Host.compExtVar: Int = 1
+        fun main() { println(Host.compExtVal + Host.compExtVar) }
+        """
+        let ctx = makeContextFromSource(source)
+        try runToKIR(ctx)
+
+        #expect(
+            !ctx.diagnostics.hasError,
+            "Expected no KIR errors for companion extension properties, got: \(ctx.diagnostics.diagnostics.map(\.code))"
+        )
+        let module = try #require(ctx.kir)
+        let sema = try #require(ctx.sema)
+        let functions = findAllKIRFunctions(in: module)
+        for name in ["compExtVal", "compExtVar"] {
+            let propertySymbol = try #require(
+                sema.symbols.lookup(fqName: [ctx.interner.intern(name)])
+            )
+            let getterSymbol = try #require(
+                sema.symbols.extensionPropertyGetterAccessor(for: propertySymbol)
+            )
+            let hasGlobal = module.arena.declarations.contains { decl in
+                guard case let .global(global) = decl else { return false }
+                return global.symbol == propertySymbol
+            }
+            #expect(
+                hasGlobal,
+                "Expected a KIRGlobal for \(name)'s companion extension property storage"
+            )
+            let getter = functions.first { $0.symbol == getterSymbol }
+            #expect(
+                getter != nil,
+                "Expected an implicit getter function for \(name)'s accessor symbol"
+            )
+            #expect(
+                getter?.params.count == 1,
+                "\(name)'s getter should take only the companion receiver, got: \(getter?.params.count ?? -1)"
+            )
+        }
+        let varPropertySymbol = try #require(
+            sema.symbols.lookup(fqName: [ctx.interner.intern("compExtVar")])
+        )
+        let setterSymbol = try #require(
+            sema.symbols.extensionPropertySetterAccessor(for: varPropertySymbol)
+        )
+        let setter = functions.first { $0.symbol == setterSymbol }
+        #expect(
+            setter != nil,
+            "Expected an implicit setter function for compExtVar's accessor symbol"
+        )
+        #expect(
+            setter?.params.count == 2,
+            "compExtVar's setter should take the companion receiver and the value, got: \(setter?.params.count ?? -1)"
+        )
+    }
+
 }
 #endif
