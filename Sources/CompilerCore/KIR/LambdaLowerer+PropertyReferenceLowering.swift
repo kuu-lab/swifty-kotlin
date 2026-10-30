@@ -79,6 +79,28 @@ extension LambdaLowerer {
         )
         guard !interfaceSymbols.isEmpty else { return nil }
 
+        // KUU-3813 — JVM kotlin-reflect semantics: `Type::member` reflects the
+        // member in the *erased* receiver class parameterized by its own type
+        // parameters, so inherited generics are substituted through the
+        // supertype instantiation (`A : H<A>` → T=A) while the written LHS
+        // type arguments are ignored (`H<A>::parent` stays `T?`,
+        // `B<Int>::parent` stays `U?`). A bound `expr::member` uses the
+        // bound receiver's static type the same way.
+        let receiverClassSymbol = propertyReferenceReceiverClassSymbol(
+            shape: shape,
+            isUnbound: isUnbound,
+            referenceType: referenceType,
+            captureArguments: captureArguments,
+            sema: sema,
+            arena: arena
+        )
+        let reflectedPropertyType = propertyReferenceReflectedType(
+            propertySymbol: accessor.propertySymbol,
+            propertyType: accessor.propertyType,
+            receiverClassSymbol: receiverClassSymbol,
+            sema: sema
+        )
+
         let wrapperName = interner.intern("kk_kproperty_wrapper_\(exprID.rawValue)")
         let wrapperFQName = [wrapperName]
         let wrapperSymbol = sema.symbols.define(
@@ -278,7 +300,7 @@ extension LambdaLowerer {
         let nameExpr = arena.appendExpr(.stringLiteral(memberName), type: sema.types.stringType)
         instructions.append(.constValue(result: nameExpr, value: .stringLiteral(memberName)))
         let returnTypeName = interner.intern(
-            sema.types.displayName(of: accessor.propertyType, symbols: sema.symbols, interner: interner)
+            sema.types.displayName(of: reflectedPropertyType, symbols: sema.symbols, interner: interner)
         )
         let returnTypeExpr = arena.appendExpr(.stringLiteral(returnTypeName), type: sema.types.stringType)
         instructions.append(.constValue(result: returnTypeExpr, value: .stringLiteral(returnTypeName)))
@@ -310,8 +332,12 @@ extension LambdaLowerer {
         registerCallableReflection(
             value: taggedValue, callableSymbol: getterMethodSymbol, callableName: interner.intern("get"),
             targetSymbol: accessor.propertySymbol,
-            parameterTypes: shape.arity == 0 ? [] : [accessor.ownerType ?? sema.types.anyType],
-            returnType: accessor.propertyType, captures: [wrapperValue], receiverCount: shape.arity,
+            parameterTypes: shape.arity == 0 ? [] : [
+                propertyReferenceReceiverParameterType(
+                    accessor: accessor, receiverClassSymbol: receiverClassSymbol, sema: sema
+                ),
+            ],
+            returnType: reflectedPropertyType, captures: [wrapperValue], receiverCount: shape.arity,
             setterSymbol: setterMethodSymbol, ast: ast, sema: sema, arena: arena, interner: interner,
             instructions: &instructions
         )
@@ -350,6 +376,115 @@ extension LambdaLowerer {
             pending.append(contentsOf: sema.symbols.directSupertypes(for: symbol))
         }
         return result.sorted { $0.rawValue < $1.rawValue }
+    }
+
+    /// Erased class through which the reference is taken: the first
+    /// `KPropertyN` type argument for unbound `Type::member` references, or
+    /// the bound receiver's static type for `expr::member`. Only the nominal
+    /// symbol matters — the written type arguments are dropped, matching the
+    /// JVM's raw `KClass` owner.
+    private func propertyReferenceReceiverClassSymbol(
+        shape: PropertyReferenceShape,
+        isUnbound: Bool,
+        referenceType: ClassType,
+        captureArguments: [KIRExprID],
+        sema: SemaModule,
+        arena: KIRArena
+    ) -> SymbolID? {
+        let receiverType: TypeID? = {
+            if isUnbound {
+                guard shape.arity >= 1, let firstArg = referenceType.args.first else { return nil }
+                switch firstArg {
+                case let .invariant(type), let .out(type), let .in(type):
+                    return type
+                case .star:
+                    return nil
+                }
+            }
+            return captureArguments.first.flatMap { arena.exprType($0) }
+        }()
+        guard let receiverType,
+              case let .classType(receiver) = sema.types.kind(of: sema.types.makeNonNullable(receiverType))
+        else {
+            return nil
+        }
+        return receiver.classSymbol
+    }
+
+    /// The `receiverClass` instantiation of the declaring class's parameters,
+    /// applied to the declared property type — the "member scope" type of the
+    /// property as seen from the receiver class. Falls back to the declared
+    /// type whenever no substitution applies (non-class owner, non-generic
+    /// declaring class, or unreachable supertype).
+    private func propertyReferenceReflectedType(
+        propertySymbol: SymbolID,
+        propertyType: TypeID,
+        receiverClassSymbol: SymbolID?,
+        sema: SemaModule
+    ) -> TypeID {
+        guard let receiverClassSymbol,
+              let declaringSymbol = sema.symbols.parentSymbol(for: propertySymbol),
+              let declaringInfo = sema.symbols.symbol(declaringSymbol),
+              [.class, .interface, .object, .enumClass, .annotationClass].contains(declaringInfo.kind)
+        else {
+            return propertyType
+        }
+        let declaringParameters = sema.types.allTypeParameterSymbols(for: declaringSymbol)
+        guard !declaringParameters.isEmpty else { return propertyType }
+
+        let receiverArgs: [TypeArg] = sema.types.allTypeParameterSymbols(for: receiverClassSymbol).map {
+            .invariant(sema.types.make(.typeParam(TypeParamType(symbol: $0, nullability: .nonNull))))
+        }
+        guard let lifted = sema.types.liftedNominalSupertypeArgs(
+            from: receiverClassSymbol,
+            childArgs: receiverArgs,
+            to: declaringSymbol
+        ) else {
+            return propertyType
+        }
+
+        let typeVarBySymbol = sema.types.makeTypeVarBySymbol(declaringParameters)
+        var substitution: [TypeVarID: TypeID] = [:]
+        for (index, arg) in lifted.enumerated() where declaringParameters.indices.contains(index) {
+            guard let typeVar = typeVarBySymbol[declaringParameters[index]] else { continue }
+            switch arg {
+            case let .invariant(type), let .out(type), let .in(type):
+                substitution[typeVar] = type
+            case .star:
+                continue
+            }
+        }
+        guard !substitution.isEmpty else { return propertyType }
+        return sema.types.substituteTypeParameters(
+            in: propertyType,
+            substitution: substitution,
+            typeVarBySymbol: typeVarBySymbol
+        )
+    }
+
+    /// INSTANCE parameter type of the reflected member: the erased receiver
+    /// class parameterized by its own type parameters (e.g. `A` for
+    /// `A::parent`, `H<T>` for `H<A>::parent`). Extension properties keep
+    /// their declared receiver type.
+    private func propertyReferenceReceiverParameterType(
+        accessor: PropertyReferenceAccessor,
+        receiverClassSymbol: SymbolID?,
+        sema: SemaModule
+    ) -> TypeID {
+        let fallback = accessor.ownerType ?? sema.types.anyType
+        guard let receiverClassSymbol,
+              sema.symbols.extensionPropertyReceiverType(for: accessor.propertySymbol) == nil
+        else {
+            return fallback
+        }
+        let selfArgs: [TypeArg] = sema.types.allTypeParameterSymbols(for: receiverClassSymbol).map {
+            .invariant(sema.types.make(.typeParam(TypeParamType(symbol: $0, nullability: .nonNull))))
+        }
+        return sema.types.make(.classType(sema.types.classType(
+            for: receiverClassSymbol,
+            arguments: selfArgs,
+            nullability: .nonNull
+        )))
     }
 
     func propertySymbol(for targetSymbol: SymbolID, sema: SemaModule) -> SymbolID? {
