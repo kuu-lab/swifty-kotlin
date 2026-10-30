@@ -629,6 +629,16 @@ private final class InlineParameterUsageWalker {
     }
 
     private func classify(parameterSymbol: SymbolID, usage: ExprID, role: UsageRole, materialized: Bool) {
+        // `receiver.p(...)` binds the whole memberCall to p — the parameter
+        // invoked through receiver syntax, i.e. `p.invoke(receiver)`. That
+        // is a direct invocation, legal for inline parameters regardless of
+        // where the call expression sits (statement, call argument, ...).
+        // A bare `receiver.p` reference without parens still materializes
+        // the parameter as a value and stays illegal.
+        if isCallableValueMemberInvocation(usage) {
+            checkMaterializedContext(usage, parameterSymbol: parameterSymbol, materialized: materialized)
+            return
+        }
         switch role {
         case .other:
             reportIllegalUsage(usage, parameterSymbol: parameterSymbol)
@@ -648,6 +658,20 @@ private final class InlineParameterUsageWalker {
     private func checkMaterializedContext(_ usage: ExprID, parameterSymbol: SymbolID, materialized: Bool) {
         guard materialized, parameterIsCrossinline[parameterSymbol] == false else { return }
         reportNonLocalReturn(usage, parameterSymbol: parameterSymbol)
+    }
+
+    /// True when `usage` is a member call with explicit call parens — an
+    /// invocation of the callable bound to it, not a value read.
+    private func isCallableValueMemberInvocation(_ usage: ExprID) -> Bool {
+        guard ast.arena.isExplicitCall(usage),
+              let expr = ast.arena.expr(usage)
+        else { return false }
+        switch expr {
+        case .memberCall, .safeMemberCall:
+            return true
+        default:
+            return false
+        }
     }
 
     private func classifyCallArgument(
