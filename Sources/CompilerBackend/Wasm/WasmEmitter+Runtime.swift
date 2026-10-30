@@ -766,7 +766,7 @@ enum WasmRuntimeHelpers {
         let extraLocals: Int
         switch name {
         case "$__kk_wasm_alloc":
-            extraLocals = 0
+            extraLocals = 3
             emitAllocBody(&code, ctx: ctx)
         case "$__kk_wasm_vtable":
             extraLocals = 1
@@ -871,7 +871,7 @@ enum WasmRuntimeHelpers {
             extraLocals = 2
             emitRegisterItableMethodBody(&code, ctx: ctx)
         case "kk_object_register_itable_iface":
-            extraLocals = 2
+            extraLocals = 4
             emitRegisterItableIfaceBody(&code, ctx: ctx)
         case "kk_type_register_super", "kk_type_register_iface":
             extraLocals = 1
@@ -2815,14 +2815,45 @@ enum WasmRuntimeHelpers {
         code.globalSet(ctx.heapGlobal)
         code.end()
         code.globalGet(ctx.heapGlobal)      // old
-        code.globalGet(ctx.heapGlobal)      // old, old
+        code.localTee(1)
         code.localGet(0)
         code.i64Const(16 + 7)
         code.op(WasmOpcode.i64Add)
         code.i64Const(-8)
         code.op(WasmOpcode.i64And)
-        code.op(WasmOpcode.i64Add)          // old, old + align8(16+size)
-        code.globalSet(ctx.heapGlobal)      // old
+        code.localTee(2)                    // delta = align8(16+size)
+        code.op(WasmOpcode.i64Add)          // new = old + delta
+        code.localSet(3)
+        // The bump allocator owns all memory past dataEnd; grow the linear
+        // memory instead of trapping once the new high-water mark crosses
+        // the current page count.
+        code.localGet(3)
+        code.op(WasmOpcode.memorySize)
+        code.u(0)
+        code.i64ExtendFromComparison()      // pages -> i64
+        code.i64Const(16)
+        code.op(WasmOpcode.i64Shl)
+        code.op(WasmOpcode.i64GtU)
+        code.openIf()
+        code.localGet(3)
+        code.op(WasmOpcode.memorySize)
+        code.u(0)
+        code.i64ExtendFromComparison()
+        code.i64Const(16)
+        code.op(WasmOpcode.i64Shl)          // current bytes
+        code.op(WasmOpcode.i64Sub)
+        code.i64Const(65_535)
+        code.op(WasmOpcode.i64Add)
+        code.i64Const(16)
+        code.op(WasmOpcode.i64ShrU)         // pages needed
+        code.op(WasmOpcode.i32WrapI64)
+        code.op(WasmOpcode.memoryGrow)
+        code.u(0)
+        code.op(WasmOpcode.drop)
+        code.end()
+        code.localGet(3)
+        code.globalSet(ctx.heapGlobal)      // commit new high-water mark
+        code.localGet(1)
         code.i64Const(16)                   // object base sits past the
         code.op(WasmOpcode.i64Add)          // 16-byte header at old
     }
@@ -2996,20 +3027,61 @@ enum WasmRuntimeHelpers {
     }
 
     /// `obj, interfaceTypeID, ifaceSlot -> 0`: appends a (typeID, slot) pair to
-    /// the object's interface map stored in slot 0.
+    /// the object's interface map stored in slot 0. The map layout is
+    /// `[count @0][capacity @8][pairs @16+i*16]`; when full it is reallocated
+    /// at double capacity so interface-rich objects never overflow the block.
     private static func emitRegisterItableIfaceBody(_ code: inout WasmCode, ctx: WasmModuleContext) {
         emitLoadAt(&code, baseLocal: 0, byteOffset: 0)
         code.localTee(3)
         code.op(WasmOpcode.i64Eqz)
         code.openIf()
-        code.i64Const(Int64(8 + 2 * L.ifaceMapCapacity * 8))
+        code.i64Const(Int64(16 + 2 * L.ifaceMapCapacity * 8))
         code.call(ctx.emittedHelperIndex(for: "$__kk_wasm_alloc", argumentCount: 1))
         code.localSet(3)
         emitStoreAt(&code, baseLocal: 0, byteOffset: 0, valueLocal: 3)
+        emitStoreAtConst(&code, baseLocal: 3, byteOffset: 8, value: Int64(L.ifaceMapCapacity))
         code.end()
-        // count = load(map); store pair at map+8+count*16; count++
+        // count = map[0]; capacity = map[8]
         emitLoadAt(&code, baseLocal: 3, byteOffset: 0)
         code.localSet(4)
+        emitLoadAt(&code, baseLocal: 3, byteOffset: 8)
+        code.localSet(5)
+        // count == capacity → reallocate a doubled map and copy live entries.
+        code.localGet(4)
+        code.localGet(5)
+        code.op(WasmOpcode.i64Eq)
+        code.openIf()
+        code.localGet(5)
+        code.i64Const(2)
+        code.op(WasmOpcode.i64Mul)
+        code.localSet(5)
+        code.i64Const(16)
+        code.localGet(5)
+        code.i64Const(16)
+        code.op(WasmOpcode.i64Mul)
+        code.op(WasmOpcode.i64Add)
+        code.call(ctx.emittedHelperIndex(for: "$__kk_wasm_alloc", argumentCount: 1))
+        code.localSet(6)
+        code.localGet(6)
+        code.op(WasmOpcode.i32WrapI64)
+        code.localGet(3)
+        code.op(WasmOpcode.i32WrapI64)
+        code.i64Const(16)
+        code.localGet(4)
+        code.i64Const(16)
+        code.op(WasmOpcode.i64Mul)
+        code.op(WasmOpcode.i64Add)
+        code.op(WasmOpcode.i32WrapI64)
+        code.op(WasmOpcode.truncSatPrefix)
+        code.u(WasmOpcode.memoryCopySubopcode)
+        code.u(0)
+        code.u(0)
+        emitStoreAt(&code, baseLocal: 6, byteOffset: 8, valueLocal: 5)
+        emitStoreAt(&code, baseLocal: 0, byteOffset: 0, valueLocal: 6)
+        code.localGet(6)
+        code.localSet(3)
+        code.end()
+        // store pair at map+16+count*16 / map+24+count*16; count++
         code.localGet(3)
         code.op(WasmOpcode.i32WrapI64)
         code.localGet(4)
@@ -3018,7 +3090,7 @@ enum WasmRuntimeHelpers {
         code.op(WasmOpcode.i32Mul)
         code.op(WasmOpcode.i32Add)
         code.localGet(1)
-        code.i64Store(offset: 8)
+        code.i64Store(offset: 16)
         code.localGet(3)
         code.op(WasmOpcode.i32WrapI64)
         code.localGet(4)
@@ -3027,7 +3099,7 @@ enum WasmRuntimeHelpers {
         code.op(WasmOpcode.i32Mul)
         code.op(WasmOpcode.i32Add)
         code.localGet(2)
-        code.i64Store(offset: 16)
+        code.i64Store(offset: 24)
         code.localGet(3)
         code.op(WasmOpcode.i32WrapI64)
         code.localGet(4)
@@ -3060,19 +3132,7 @@ enum WasmRuntimeHelpers {
         code.i64Const(0)
         code.op(WasmOpcode.return)
         code.end()
-        // load(map+8+i*16) == typeID ?
-        code.localGet(3)
-        code.op(WasmOpcode.i32WrapI64)
-        code.localGet(5)
-        code.op(WasmOpcode.i32WrapI64)
-        code.i32Const(16)
-        code.op(WasmOpcode.i32Mul)
-        code.op(WasmOpcode.i32Add)
-        code.i64Load(offset: 8)
-        code.localGet(1)
-        code.op(WasmOpcode.i64Eq)
-        code.openIf()
-        // ifaceSlot = load(map+16+i*16); it[ifaceSlot*stride + m]
+        // load(map+16+i*16) == typeID ?
         code.localGet(3)
         code.op(WasmOpcode.i32WrapI64)
         code.localGet(5)
@@ -3081,6 +3141,18 @@ enum WasmRuntimeHelpers {
         code.op(WasmOpcode.i32Mul)
         code.op(WasmOpcode.i32Add)
         code.i64Load(offset: 16)
+        code.localGet(1)
+        code.op(WasmOpcode.i64Eq)
+        code.openIf()
+        // ifaceSlot = load(map+24+i*16); it[ifaceSlot*stride + m]
+        code.localGet(3)
+        code.op(WasmOpcode.i32WrapI64)
+        code.localGet(5)
+        code.op(WasmOpcode.i32WrapI64)
+        code.i32Const(16)
+        code.op(WasmOpcode.i32Mul)
+        code.op(WasmOpcode.i32Add)
+        code.i64Load(offset: 24)
         code.localSet(6)
         // vt = obj.vtable; a null vtable or null itable is a miss (return 0).
         emitLoadAt(&code, baseLocal: 0, byteOffset: L.vtableSlotOffset)
