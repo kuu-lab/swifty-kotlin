@@ -178,7 +178,13 @@ extension BuildASTPhase {
         let tokens = arena.node(nodeID).kind == .propertyDecl
             ? propertyHeadTokens(from: nodeID, in: arena)
             : collectTokens(from: nodeID, in: arena)
-        guard let startIndex = findWhereKeywordIndex(in: tokens) else {
+        let startIndex: Int?
+        if arena.node(nodeID).kind == .funDecl {
+            startIndex = findFunctionWhereKeywordIndex(in: tokens)
+        } else {
+            startIndex = findWhereKeywordIndex(in: tokens)
+        }
+        guard let startIndex else {
             return (whereClauses: [], range: nil)
         }
         let clauses = parseWhereClauseEntries(
@@ -198,6 +204,34 @@ extension BuildASTPhase {
             if depth.isAtTopLevel, case .softKeyword(.where) = token.kind {
                 return index
             }
+        }
+        return nil
+    }
+
+    private func findFunctionWhereKeywordIndex(in tokens: [Token]) -> Int? {
+        guard let parameterCloseIndex = firstFunctionParameterCloseParen(in: tokens) else {
+            return nil
+        }
+
+        var depth = BracketDepth()
+        for index in (parameterCloseIndex + 1) ..< tokens.count {
+            let token = tokens[index]
+            if depth.isAtTopLevel {
+                if case .softKeyword(.where) = token.kind,
+                   index + 2 < tokens.count,
+                   TypeRefParserCore.isTypeLikeNameToken(tokens[index + 1].kind),
+                   tokens[index + 2].kind == .symbol(.colon)
+                {
+                    return index
+                }
+                if token.kind == .symbol(.assign)
+                    || token.kind == .symbol(.lBrace)
+                    || token.kind == .symbol(.semicolon)
+                {
+                    return nil
+                }
+            }
+            depth.track(token.kind)
         }
         return nil
     }
