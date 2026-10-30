@@ -37,20 +37,9 @@ struct TypeParameterUpperBoundArgumentTests {
             }
         }
         """
-        // atomicfu is an external dependency; retain its invariant call contract.
-        let atomicfu = """
-        package kotlinx.atomicfu
-        class AtomicRef<T>(var value: T) {
-            fun compareAndSet(expect: T, update: T): Boolean {
-                if (value !== expect) return false
-                value = update
-                return true
-            }
-        }
-        fun <T> atomic(value: T): AtomicRef<T> = AtomicRef(value)
-        """
-        try withTemporaryFiles(contents: [atomicfu, source]) { paths in
-            let ctx = makeCompilationContext(inputs: paths)
+        // The atomicfu API comes from the bundled stdlib.
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
             #expect(!ctx.diagnostics.hasError, "Got: \(ctx.diagnostics.diagnostics)")
             let sema = try #require(ctx.sema)
