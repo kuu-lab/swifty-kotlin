@@ -79,6 +79,69 @@ struct RuntimeBoxingTests {
         #expect(kk_box_int(boxed) == boxed)
     }
 
+    @Test
+    func testBoxLongNonnullScalarAliasingLiveObjectAddressBoxesNormally() {
+        // KUU-3725: a provably-non-null Long scalar whose bit pattern equals
+        // a live object's address must still be boxed as its own value.
+        // The registered-object pass-through must not fire for it — otherwise
+        // `Long.toString()` renders the colliding object (on the failing
+        // Linux nightly a RuntimeKTypeBox at the address printed
+        // "kotlin.Any?" inside Duration's "1.kotlin.Any?0s").
+        let collider = registerRuntimeObject(RuntimeStringBox("kotlin.Any?"))
+        let boxed = kk_box_long_nonnull(collider)
+        #expect(boxed != collider)
+        #expect(kk_unbox_long(boxed) == collider)
+        #expect(runtimeElementToString(boxed) == "\(collider)")
+    }
+
+    @Test
+    func testBoxLongNonnullAlreadyBoxedHandlePassesThrough() {
+        // Idempotent re-boxing of a tagged primitive-box handle must still
+        // pass through unchanged for the non-null entry point.
+        let boxed = kk_box_long_nonnull(4242)
+        #expect(kk_box_long_nonnull(boxed) == boxed)
+        #expect(kk_unbox_long(boxed) == 4242)
+    }
+
+    @Test
+    func testBoxULongNonnullScalarAliasingLiveObjectAddressBoxesNormally() {
+        let collider = registerRuntimeObject(RuntimeStringBox("kotlin.Any?"))
+        let boxed = kk_box_ulong_nonnull(collider)
+        #expect(boxed != collider)
+        #expect(kk_unbox_ulong(boxed) == collider)
+    }
+
+    @Test
+    func testBoxDoubleNonnullScalarAliasingLiveObjectAddressBoxesNormally() {
+        let collider = registerRuntimeObject(RuntimeStringBox("kotlin.Any?"))
+        let boxed = kk_box_double_nonnull(collider)
+        #expect(boxed != collider)
+        #expect(kk_unbox_double(boxed) == collider)
+    }
+
+    @Test
+    func testStaticNonnullScalarAliasingLiveObjectAddressBoxesNormally() {
+        // The `_nonnull_static` variants share the same raw-object
+        // pass-through hazard and must reject it identically.
+        let collider = registerRuntimeObject(RuntimeStringBox("kotlin.Any?"))
+        let boxedLong = kk_box_long_nonnull_static(collider)
+        #expect(boxedLong != collider)
+        #expect(kk_unbox_long_static(boxedLong) == collider)
+        let boxedDouble = kk_box_double_nonnull_static(collider)
+        #expect(boxedDouble != collider)
+        #expect(kk_unbox_double_static(boxedDouble) == collider)
+    }
+
+    @Test
+    func testBoxLongNullableScalarAliasingLiveObjectAddressDocumentsResidual() {
+        // The nullable entry point keeps the raw-object pass-through on
+        // purpose (erased object handles such as RuntimeRangeBox can flow
+        // through a Long-ABI slot), so a scalar colliding with a live object
+        // address is still indistinguishable there.
+        let collider = registerRuntimeObject(RuntimeStringBox("kotlin.Any?"))
+        #expect(kk_box_long(collider) == collider)
+    }
+
     // MARK: - kk_box_float / kk_unbox_float
 
     @Test
