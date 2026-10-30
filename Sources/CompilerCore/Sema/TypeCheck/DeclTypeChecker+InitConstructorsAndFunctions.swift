@@ -505,7 +505,12 @@ extension DeclTypeChecker {
             var constructorCtx = ctx.copying(scope: constructorScope)
             if let ctorSymbol = ctorSymbols.first {
                 if let signature = sema.symbols.functionSignature(for: ctorSymbol.id) {
-                    for typeParameterSymbol in signature.typeParameterSymbols {
+                    // Leading class type parameters stay reachable through the
+                    // enclosing class scope; the constructor's own parameters
+                    // must shadow them by name (KUU-3825).
+                    for typeParameterSymbol in signature.typeParameterSymbols
+                        .dropFirst(signature.classTypeParameterCount)
+                    {
                         constructorScope.insert(typeParameterSymbol)
                     }
                     for (index, paramSymbol) in signature.valueParameterSymbols.enumerated() {
@@ -1015,7 +1020,14 @@ extension DeclTypeChecker {
         }
 
         let functionScope = FunctionScope(parent: ctx.scope, symbols: sema.symbols)
-        for typeParameterSymbol in signature.typeParameterSymbols {
+        // The signature prepends the enclosing class's type parameters for
+        // overload inference; they are already bound by the parent class
+        // scope, so only the function's own parameters are inserted here.
+        // That keeps a function type parameter correctly shadowing a
+        // same-named class type parameter (KUU-3825).
+        for typeParameterSymbol in signature.typeParameterSymbols
+            .dropFirst(signature.classTypeParameterCount)
+        {
             functionScope.insert(typeParameterSymbol)
         }
         var functionCtx = ctx.copying(
@@ -1366,7 +1378,14 @@ extension DeclTypeChecker {
     func precollectContractEffects(function: FunDecl, symbol: SymbolID, ctx: TypeInferenceContext) {
         guard let signature = ctx.sema.symbols.functionSignature(for: symbol) else { return }
         let scope = FunctionScope(parent: ctx.scope, symbols: ctx.sema.symbols)
-        for parameter in signature.typeParameterSymbols { scope.insert(parameter) }
+        // Same shadowing rule as the function-body scope: class type
+        // parameters come from the parent scope, the function's own
+        // parameters must win same-name lookups (KUU-3825).
+        for parameter in signature.typeParameterSymbols
+            .dropFirst(signature.classTypeParameterCount)
+        {
+            scope.insert(parameter)
+        }
         recordContractEffects(
             function: function, symbol: symbol, signature: signature, ast: ctx.ast,
             interner: ctx.interner, sema: ctx.sema, scope: scope

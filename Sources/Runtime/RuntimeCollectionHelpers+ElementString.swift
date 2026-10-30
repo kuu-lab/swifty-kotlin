@@ -151,6 +151,14 @@ func runtimeElementToString(_ elem: Int) -> String {
     if let ktypeBox = tryCast(ptr, to: RuntimeKTypeBox.self) {
         return runtimeKTypeToString(ktypeBox)
     }
+    // kotlin.reflect's KTypeParameterImpl.toString() renders the parameter
+    // name itself rather than the default `fqName@hash` object identity.
+    if let typeParameterBox = tryCast(ptr, to: RuntimeKTypeParameterBox.self),
+       let namePointer = UnsafeMutableRawPointer(bitPattern: typeParameterBox.nameRaw),
+       let name = extractString(from: namePointer)
+    {
+        return name
+    }
     if let rendered = runtimeRenderIndexedValueObject(elem, render: runtimeElementToString) {
         return rendered
     }
