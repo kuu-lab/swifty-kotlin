@@ -540,6 +540,49 @@ enum WasmRuntimeHelpers {
         "__kk_map_freeze",
         "__kk_set_freeze",
         "__kk_wasm_map_index_of",
+        "__kk_mutable_map_putAll",
+        // Reflection metadata registry: `__kk_*_register_*` append
+        // kind-tagged nodes to a token-keyed record so materialized init
+        // bodies can run their metadata setup without a native object
+        // linker. Reflection readers consume the records later.
+        "$__kk_wasm_token_record_get",
+        "$__kk_wasm_token_record",
+        "$__kk_wasm_reglist_add",
+        "__kk_kclass_create",
+        "kk_typeof",
+        "__kk_ktype_create",
+        "__kk_ktypeprojection_create",
+        "__kk_ktypeparameter_create",
+        "__kk_ktypeparameter_set_upper_bounds",
+        "__kk_kparameter_create_typed",
+        "__kk_kparameter_set_array_component",
+        "__kk_kproperty_stub_create",
+        "__kk_kfunction_create",
+        "__kk_kconstructor_create",
+        "__kk_kconstructor_set_jvm_visibility",
+        "__kk_kconstructor_set_parameter_type",
+        "__kk_kclass_register_metadata",
+        "__kk_kclass_register_type_parameter",
+        "__kk_kclass_register_display_name",
+        "__kk_kclass_register_enclosing_metadata",
+        "__kk_kclass_register_single_annotation",
+        "__kk_kclass_register_object",
+        "__kk_kclass_register_nested_class",
+        "__kk_kclass_register_sealed_subclass",
+        "__kk_kclass_register_companion",
+        "__kk_kclass_register_annotation_factory",
+        "__kk_kclass_register_member",
+        "__kk_java_class_register_declared_method",
+        "__kk_java_class_register_declared_field",
+        "__kk_kcallable_register",
+        "__kk_kcallable_register_return_type",
+        "__kk_kcallable_register_annotation_factory",
+        "kk_enum_box_ordinal",
+        "kk_enum_register_values",
+        "kk_object_register_any_to_string",
+        "kk_object_register_equals_override",
+        "kk_object_register_hashcode_override",
+        "kk_value_class_register_any_to_string",
         // Generic iterator entry points dispatch on the iterator type ID.
         "kk_iterator_hasNext",
         "kk_iterator_next",
@@ -845,9 +888,9 @@ enum WasmRuntimeHelpers {
             emitLoadMetaBody(&code)
             code.op(WasmOpcode.i64Eqz)
         case "kk_any_to_string", "kk_any_to_string_nullable":
-            // Body uses fixed locals 2...7; extras must cover index 7 for
+            // Body uses fixed locals 2...9; extras must cover index 9 for
             // whatever arity was requested first.
-            extraLocals = max(0, 8 - argumentCount)
+            extraLocals = max(0, 10 - argumentCount)
             emitAnyToStringBody(&code, ctx: ctx)
         case "kk_structural_eq", "kk_structural_ne":
             extraLocals = 0
@@ -1080,7 +1123,7 @@ enum WasmRuntimeHelpers {
             extraLocals = 3
             emitListIteratorNextBody(&code, ctx: ctx, argumentCount: argumentCount)
         case "__kk_wasm_elem_eq":
-            extraLocals = 9
+            extraLocals = 12
             emitElemEqBody(&code, ctx: ctx)
         case "kk_any_member_hashCode":
             // Any.hashCode on an erased receiver — elem_hash already does the
@@ -1116,7 +1159,7 @@ enum WasmRuntimeHelpers {
             extraLocals = 0
             emitObjToStringBody(&code, ctx: ctx)
         case "__kk_wasm_elem_hash":
-            extraLocals = 5
+            extraLocals = 7
             emitElemHashBody(&code, ctx: ctx, argumentCount: argumentCount)
         case "__kk_wasm_collection_hash":
             extraLocals = 6
@@ -1244,6 +1287,154 @@ enum WasmRuntimeHelpers {
         case "__kk_wasm_map_index_of":
             extraLocals = 5
             emitMapIndexOfBody(&code, ctx: ctx, argumentCount: argumentCount)
+        case "__kk_mutable_map_putAll":
+            extraLocals = 3
+            emitMutableMapPutAllBody(&code, ctx: ctx, argumentCount: argumentCount)
+        // --- Reflection metadata registry ---------------------------------
+        // `$__kk_wasm_token_record_get(token) -> record|0`: linear scan of
+        // the global `{count@0, cap@8, pairs@16}` table.
+        case "$__kk_wasm_token_record_get":
+            extraLocals = 3
+            emitTokenRecordGetBody(&code, ctx: ctx)
+        // `$__kk_wasm_token_record(token) -> record`: get-or-create — grows
+        // the pair table and allocates the record box on a miss.
+        case "$__kk_wasm_token_record":
+            extraLocals = 5
+            emitTokenRecordBody(&code, ctx: ctx)
+        // `reglist_add(owner, kind, argc, a0..a7) -> node`: prepend a
+        // kind-tagged registration node to `owner.regHead` (offset 80).
+        case "$__kk_wasm_reglist_add":
+            extraLocals = 1
+            emitReglistAddBody(&code, ctx: ctx)
+        case "__kk_kclass_create":
+            extraLocals = 2
+            emitKClassCreateBody(&code, ctx: ctx)
+        case "kk_typeof":
+            extraLocals = 2
+            emitKTypeOfBody(&code, ctx: ctx)
+        case "__kk_ktype_create":
+            extraLocals = 1
+            emitKTypeCreateBody(&code, ctx: ctx)
+        case "__kk_ktypeprojection_create":
+            extraLocals = 1
+            emitSmallBoxBody(
+                &code, ctx: ctx, typeID: L.ktypeProjectionTypeID, slots: 4,
+                fields: [16: 0, 24: 1], boxLocal: argumentCount
+            )
+        case "__kk_ktypeparameter_create":
+            extraLocals = 2
+            emitKTypeParameterCreateBody(&code, ctx: ctx)
+        case "__kk_ktypeparameter_set_upper_bounds":
+            extraLocals = 0
+            emitStoreAt(&code, baseLocal: 0, byteOffset: 48, valueLocal: 1)
+            code.i64Const(0)
+        case "__kk_kparameter_create_typed":
+            extraLocals = 1
+            emitSmallBoxBody(
+                &code, ctx: ctx, typeID: L.kparameterTypeID, slots: 10,
+                fields: [16: 0, 24: 1, 32: 2, 40: 3, 48: 4, 56: 5, 64: 6],
+                boxLocal: argumentCount
+            )
+        case "__kk_kparameter_set_array_component":
+            extraLocals = 0
+            emitStoreAt(&code, baseLocal: 0, byteOffset: 72, valueLocal: 1)
+            code.i64Const(0)
+        case "__kk_kproperty_stub_create":
+            extraLocals = 1
+            emitSmallBoxBody(
+                &code, ctx: ctx, typeID: L.kpropertyStubTypeID, slots: 4,
+                fields: [16: 0, 24: 1], boxLocal: argumentCount
+            )
+        case "__kk_kfunction_create":
+            extraLocals = 1
+            emitSmallBoxBody(
+                &code, ctx: ctx, typeID: L.kfunctionTypeID, slots: 8,
+                fields: [16: 0, 24: 1, 32: 2, 40: 3, 48: 4, 56: 5],
+                boxLocal: argumentCount
+            )
+        case "__kk_kconstructor_create":
+            extraLocals = 1
+            emitKConstructorCreateBody(&code, ctx: ctx)
+        case "__kk_kconstructor_set_jvm_visibility":
+            extraLocals = 0
+            emitStoreAt(&code, baseLocal: 0, byteOffset: 56, valueLocal: 1)
+            code.i64Const(0)
+        case "__kk_kconstructor_set_parameter_type":
+            extraLocals = 0
+            emitKConstructorSetParameterTypeBody(&code, ctx: ctx)
+        // Token-keyed registration family — every variant appends a
+        // kind-tagged node to `token_record(arg0).regHead` with the
+        // remaining arguments as payload.
+        case "__kk_kclass_register_metadata":
+            extraLocals = 0
+            emitTokenRegisterBody(&code, ctx: ctx, kind: 1, argumentCount: argumentCount)
+        case "__kk_kclass_register_object":
+            extraLocals = 0
+            emitTokenRegisterBody(&code, ctx: ctx, kind: 2, argumentCount: argumentCount)
+        case "__kk_kclass_register_sealed_subclass":
+            extraLocals = 0
+            emitTokenRegisterBody(&code, ctx: ctx, kind: 3, argumentCount: argumentCount)
+        case "__kk_kclass_register_nested_class":
+            extraLocals = 0
+            emitTokenRegisterBody(&code, ctx: ctx, kind: 4, argumentCount: argumentCount)
+        case "__kk_kclass_register_companion":
+            extraLocals = 0
+            emitTokenRegisterBody(&code, ctx: ctx, kind: 5, argumentCount: argumentCount)
+        case "__kk_kclass_register_display_name":
+            extraLocals = 0
+            emitTokenRegisterBody(&code, ctx: ctx, kind: 6, argumentCount: argumentCount)
+        case "__kk_kclass_register_enclosing_metadata":
+            extraLocals = 0
+            emitTokenRegisterBody(&code, ctx: ctx, kind: 7, argumentCount: argumentCount)
+        case "__kk_kclass_register_single_annotation":
+            extraLocals = 0
+            emitTokenRegisterBody(&code, ctx: ctx, kind: 8, argumentCount: argumentCount)
+        case "__kk_kclass_register_annotation_factory":
+            extraLocals = 0
+            emitTokenRegisterBody(&code, ctx: ctx, kind: 9, argumentCount: argumentCount)
+        case "__kk_kclass_register_type_parameter":
+            extraLocals = 0
+            emitTokenRegisterBody(&code, ctx: ctx, kind: 10, argumentCount: argumentCount)
+        case "__kk_java_class_register_declared_method":
+            extraLocals = 0
+            emitTokenRegisterBody(&code, ctx: ctx, kind: 11, argumentCount: argumentCount)
+        case "__kk_java_class_register_declared_field":
+            extraLocals = 0
+            emitTokenRegisterBody(&code, ctx: ctx, kind: 12, argumentCount: argumentCount)
+        // `register_member` is keyed by the KClass box itself, not a token.
+        case "__kk_kclass_register_member":
+            extraLocals = 0
+            emitOwnerRegisterBody(&code, ctx: ctx, kind: 13)
+        case "__kk_kcallable_register":
+            extraLocals = 0
+            emitTokenRegisterBody(&code, ctx: ctx, kind: 14, argumentCount: argumentCount)
+        case "__kk_kcallable_register_return_type":
+            extraLocals = 0
+            emitTokenRegisterBody(&code, ctx: ctx, kind: 15, argumentCount: argumentCount)
+        case "__kk_kcallable_register_annotation_factory":
+            extraLocals = 0
+            emitTokenRegisterBody(&code, ctx: ctx, kind: 16, argumentCount: argumentCount)
+        case "kk_enum_box_ordinal":
+            extraLocals = 1
+            emitEnumBoxOrdinalBody(&code, ctx: ctx)
+        case "kk_enum_register_values":
+            extraLocals = 1
+            emitEnumRegisterValuesBody(&code, ctx: ctx)
+        // `kk_object_register_*_override(obj, fnSlot)` → record(obj).s0/s1/s2.
+        case "kk_object_register_any_to_string":
+            extraLocals = 1
+            emitObjectOverrideRegisterBody(&code, ctx: ctx, slotOffset: 24)
+        case "kk_object_register_equals_override":
+            extraLocals = 1
+            emitObjectOverrideRegisterBody(&code, ctx: ctx, slotOffset: 32)
+        case "kk_object_register_hashcode_override":
+            extraLocals = 1
+            emitObjectOverrideRegisterBody(&code, ctx: ctx, slotOffset: 40)
+        // `kk_value_class_register_any_to_string(classID, fnSlot)` →
+        // record(classID).s1 — consulted per-typeID by `kk_any_to_string`.
+        case "kk_value_class_register_any_to_string":
+            extraLocals = 1
+            emitObjectOverrideRegisterBody(&code, ctx: ctx, slotOffset: 32)
         case "__kk_map_iterator", "__kk_mutable_map_iterator":
             extraLocals = 1
             emitMapIteratorBody(&code, ctx: ctx, name: name, argumentCount: argumentCount)
@@ -3788,6 +3979,32 @@ enum WasmRuntimeHelpers {
         code.openIf()
         code.localGet(0)
         code.op(WasmOpcode.return)
+        code.end()
+        // Enum entry boxes render by their declared name.
+        emitLoadAt(&code, baseLocal: 0, byteOffset: L.typeIDOffset)
+        code.i64Const(L.enumEntryTypeID)
+        code.op(WasmOpcode.i64Eq)
+        code.openIf()
+        emitLoadAt(&code, baseLocal: 0, byteOffset: 24)
+        code.op(WasmOpcode.return)
+        code.end()
+        // Nominal boxes (typeID > 0): per-instance toString override
+        // (registry[obj].s0), then the value-class toString registered
+        // under the type's own key (registry[typeID].s1).
+        emitLoadAt(&code, baseLocal: 0, byteOffset: L.typeIDOffset)
+        code.i64Const(0)
+        code.op(WasmOpcode.i64GtS)
+        code.openIf()
+        emitOverrideConsult(
+            &code, ctx: ctx, keyLocal: 0, slotOffset: 24,
+            callArgs: [0], recL: 8, fnL: 9
+        )
+        emitLoadAt(&code, baseLocal: 0, byteOffset: L.typeIDOffset)
+        code.localSet(8)
+        emitOverrideConsult(
+            &code, ctx: ctx, keyLocal: 8, slotOffset: 32,
+            callArgs: [0], recL: 9, fnL: 8
+        )
         code.end()
         // Boxed Double/Float payloads (`{typeID@-16, bits@16}`) render via
         // the Dragon4 formatter — covers `println(3.14)` through tag 1.
@@ -7829,6 +8046,540 @@ enum WasmRuntimeHelpers {
     /// (currently only strings). Mirrors `kk_op_eq`'s boxed path.
     /// Locals: argumentCount = isHeap(a), +1 = isHeap(b), +2 = aLen, +3 = i,
     /// +4 = pa (scratch).
+    // MARK: - Reflection metadata registry
+
+    /// `$__kk_wasm_token_record_get(token) -> record|0`: linear scan over
+    /// the registry's pair table `{count@0, cap@8, pairs@16: (token,
+    /// record)*cap}`. The buffer is a raw alloc (no object header fields
+    /// are used beyond the +16 reserve the allocator always makes).
+    private static func emitTokenRecordGetBody(
+        _ code: inout WasmCode,
+        ctx: WasmModuleContext
+    ) {
+        let reg = ctx.module.addGlobal(initialValue: 0, name: "$__kk_meta_registry")
+        let regL = 1, nL = 2, iL = 3
+        code.globalGet(reg)
+        code.localTee(regL)
+        code.op(WasmOpcode.i64Eqz)
+        code.openIf()
+        code.i64Const(0)
+        code.op(WasmOpcode.return)
+        code.end()
+        emitLoadAt(&code, baseLocal: regL, byteOffset: 0)
+        code.localSet(nL)
+        code.i64Const(0)
+        code.localSet(iL)
+        code.openBlock()
+        code.openLoop()
+        code.localGet(iL)
+        code.localGet(nL)
+        code.op(WasmOpcode.i64GeS)
+        code.brIf(1)
+        // pairs[i].token == arg0 → return pairs[i].record
+        code.localGet(regL)
+        code.op(WasmOpcode.i32WrapI64)
+        code.i32Const(16)
+        code.op(WasmOpcode.i32Add)
+        code.localGet(iL)
+        code.op(WasmOpcode.i32WrapI64)
+        code.i32Const(16)
+        code.op(WasmOpcode.i32Mul)
+        code.op(WasmOpcode.i32Add)
+        code.i64Load(offset: 0)
+        code.localGet(0)
+        code.op(WasmOpcode.i64Eq)
+        code.openIf()
+        code.localGet(regL)
+        code.op(WasmOpcode.i32WrapI64)
+        code.i32Const(16)
+        code.op(WasmOpcode.i32Add)
+        code.localGet(iL)
+        code.op(WasmOpcode.i32WrapI64)
+        code.i32Const(16)
+        code.op(WasmOpcode.i32Mul)
+        code.op(WasmOpcode.i32Add)
+        code.i64Load(offset: 8)
+        code.op(WasmOpcode.return)
+        code.end()
+        code.localGet(iL)
+        code.i64Const(1)
+        code.op(WasmOpcode.i64Add)
+        code.localSet(iL)
+        code.br(0)
+        code.end()
+        code.end()
+        code.i64Const(0)
+    }
+
+    /// `$__kk_wasm_token_record(token) -> record`: get-or-create — grows
+    /// the pair table with `memory.copy` on capacity and allocates an
+    /// `object_new(11, metaRecordTypeID)` record `{token@16, s0..s3@24..48,
+    /// regHead@80}` on a miss.
+    private static func emitTokenRecordBody(
+        _ code: inout WasmCode,
+        ctx: WasmModuleContext
+    ) {
+        let reg = ctx.module.addGlobal(initialValue: 0, name: "$__kk_meta_registry")
+        let recL = 1, regL = 2, nL = 3, newL = 4, capL = 5
+        code.localGet(0)
+        code.call(ctx.emittedHelperIndex(
+            for: "$__kk_wasm_token_record_get", argumentCount: 1
+        ))
+        code.localTee(recL)
+        code.op(WasmOpcode.i64Eqz)
+        code.openIf()
+        code.globalGet(reg)
+        code.localTee(regL)
+        code.op(WasmOpcode.i64Eqz)
+        code.openIf()
+        code.i64Const(16 + 8 * 16)
+        code.call(ctx.emittedHelperIndex(for: "$__kk_wasm_alloc", argumentCount: 1))
+        code.localTee(regL)
+        code.globalSet(reg)
+        emitStoreAtConst(&code, baseLocal: regL, byteOffset: 0, value: 0)
+        emitStoreAtConst(&code, baseLocal: regL, byteOffset: 8, value: 8)
+        code.end()
+        emitLoadAt(&code, baseLocal: regL, byteOffset: 0)
+        code.localSet(nL)
+        emitLoadAt(&code, baseLocal: regL, byteOffset: 8)
+        code.localGet(nL)
+        code.op(WasmOpcode.i64Eq)
+        code.openIf()
+        emitLoadAt(&code, baseLocal: regL, byteOffset: 8)
+        code.i64Const(2)
+        code.op(WasmOpcode.i64Mul)
+        code.localSet(capL)
+        code.i64Const(16)
+        code.localGet(capL)
+        code.i64Const(16)
+        code.op(WasmOpcode.i64Mul)
+        code.op(WasmOpcode.i64Add)
+        code.call(ctx.emittedHelperIndex(for: "$__kk_wasm_alloc", argumentCount: 1))
+        code.localSet(newL)
+        code.localGet(newL)
+        code.op(WasmOpcode.i32WrapI64)
+        code.i32Const(16)
+        code.op(WasmOpcode.i32Add)
+        code.localGet(regL)
+        code.op(WasmOpcode.i32WrapI64)
+        code.i32Const(16)
+        code.op(WasmOpcode.i32Add)
+        code.localGet(nL)
+        code.op(WasmOpcode.i32WrapI64)
+        code.i32Const(16)
+        code.op(WasmOpcode.i32Mul)
+        code.op(WasmOpcode.truncSatPrefix)
+        code.u(WasmOpcode.memoryCopySubopcode)
+        code.u(0)
+        code.u(0)
+        emitStoreAt(&code, baseLocal: newL, byteOffset: 8, valueLocal: capL)
+        code.localGet(newL)
+        code.localSet(regL)
+        code.localGet(newL)
+        code.globalSet(reg)
+        code.end()
+        // rec = object_new(11, metaRecord); rec.token = arg0
+        code.i64Const(11)
+        code.i64Const(L.metaRecordTypeID)
+        code.call(ctx.emittedHelperIndex(for: "kk_object_new", argumentCount: 2))
+        code.localSet(recL)
+        emitStoreAt(&code, baseLocal: recL, byteOffset: 16, valueLocal: 0)
+        // pairs[n] = (token, rec); count = n + 1
+        code.localGet(regL)
+        code.op(WasmOpcode.i32WrapI64)
+        code.i32Const(16)
+        code.op(WasmOpcode.i32Add)
+        code.localGet(nL)
+        code.op(WasmOpcode.i32WrapI64)
+        code.i32Const(16)
+        code.op(WasmOpcode.i32Mul)
+        code.op(WasmOpcode.i32Add)
+        code.localGet(0)
+        code.i64Store(offset: 0)
+        code.localGet(regL)
+        code.op(WasmOpcode.i32WrapI64)
+        code.i32Const(16)
+        code.op(WasmOpcode.i32Add)
+        code.localGet(nL)
+        code.op(WasmOpcode.i32WrapI64)
+        code.i32Const(16)
+        code.op(WasmOpcode.i32Mul)
+        code.op(WasmOpcode.i32Add)
+        code.localGet(recL)
+        code.i64Store(offset: 8)
+        code.localGet(nL)
+        code.i64Const(1)
+        code.op(WasmOpcode.i64Add)
+        code.localSet(nL)
+        emitStoreAt(&code, baseLocal: regL, byteOffset: 0, valueLocal: nL)
+        code.end()
+        code.localGet(recL)
+    }
+
+    /// `reglist_add(owner, kind, argc, a0..a7) -> node`: prepend a
+    /// `regEntryTypeID` node `{kind@16, argc@24, a0@32..a7@88, next@96}` to
+    /// the owner's regHead list (offset `L.regHeadOffset`).
+    private static func emitReglistAddBody(
+        _ code: inout WasmCode,
+        ctx: WasmModuleContext
+    ) {
+        let nodeL = 11
+        code.i64Const(12)
+        code.i64Const(L.regEntryTypeID)
+        code.call(ctx.emittedHelperIndex(for: "kk_object_new", argumentCount: 2))
+        code.localSet(nodeL)
+        emitStoreAt(&code, baseLocal: nodeL, byteOffset: 16, valueLocal: 1)
+        emitStoreAt(&code, baseLocal: nodeL, byteOffset: 24, valueLocal: 2)
+        for i in 0..<8 {
+            emitStoreAt(
+                &code, baseLocal: nodeL,
+                byteOffset: Int64(32 + i * 8), valueLocal: 3 + i
+            )
+        }
+        // node.next = owner.regHead; owner.regHead = node
+        code.localGet(nodeL)
+        code.op(WasmOpcode.i32WrapI64)
+        emitLoadAt(&code, baseLocal: 0, byteOffset: L.regHeadOffset)
+        code.i64Store(offset: 96)
+        emitStoreAt(&code, baseLocal: 0, byteOffset: L.regHeadOffset, valueLocal: nodeL)
+        code.localGet(nodeL)
+    }
+
+    /// Shared emitter for `__kk_*_register_*` helpers keyed by arg0's
+    /// token: appends a kind-tagged node carrying args 1..end (up to 8).
+    private static func emitTokenRegisterBody(
+        _ code: inout WasmCode,
+        ctx: WasmModuleContext,
+        kind: Int64,
+        argumentCount: Int
+    ) {
+        code.localGet(0)
+        code.call(ctx.emittedHelperIndex(for: "$__kk_wasm_token_record", argumentCount: 1))
+        code.i64Const(kind)
+        code.i64Const(Int64(min(8, argumentCount - 1)))
+        for i in 1..<min(argumentCount, 9) {
+            code.localGet(i)
+        }
+        for _ in min(argumentCount, 9)..<9 {
+            code.i64Const(0)
+        }
+        code.call(ctx.emittedHelperIndex(for: "$__kk_wasm_reglist_add", argumentCount: 11))
+        code.op(WasmOpcode.drop)
+        code.i64Const(0)
+    }
+
+    /// `register_member(kclassBox, member) -> 0` — arg0 is already a
+    /// KClass box (which keeps its list at `L.regHeadOffset`), so it is the
+    /// reglist owner directly.
+    private static func emitOwnerRegisterBody(
+        _ code: inout WasmCode,
+        ctx: WasmModuleContext,
+        kind: Int64
+    ) {
+        code.localGet(0)
+        code.i64Const(kind)
+        code.i64Const(1)
+        code.localGet(1)
+        for _ in 0..<7 { code.i64Const(0) }
+        code.call(ctx.emittedHelperIndex(for: "$__kk_wasm_reglist_add", argumentCount: 11))
+        code.op(WasmOpcode.drop)
+        code.i64Const(0)
+    }
+
+    /// `__kk_kclass_create(token, name) -> kclass`: cached per-token in
+    /// `record.s0`; creates `{token@16, name@24, regHead@80}` on a miss.
+    private static func emitKClassCreateBody(
+        _ code: inout WasmCode,
+        ctx: WasmModuleContext
+    ) {
+        let recL = 2, kL = 3
+        code.localGet(0)
+        code.call(ctx.emittedHelperIndex(for: "$__kk_wasm_token_record", argumentCount: 1))
+        code.localSet(recL)
+        emitLoadAt(&code, baseLocal: recL, byteOffset: 24)
+        code.op(WasmOpcode.i64Eqz)
+        code.openIf()
+        code.i64Const(11)
+        code.i64Const(L.kclassTypeID)
+        code.call(ctx.emittedHelperIndex(for: "kk_object_new", argumentCount: 2))
+        code.localSet(kL)
+        emitStoreAt(&code, baseLocal: kL, byteOffset: 16, valueLocal: 0)
+        emitStoreAt(&code, baseLocal: kL, byteOffset: 24, valueLocal: 1)
+        emitStoreAt(&code, baseLocal: recL, byteOffset: 24, valueLocal: kL)
+        code.end()
+        emitLoadAt(&code, baseLocal: recL, byteOffset: 24)
+    }
+
+    /// `kk_typeof(token, nameHint, args, nullable) -> KType` — resolves the
+    /// token's KClass then boxes `{classifier@16, args@24, nullable@32}`.
+    private static func emitKTypeOfBody(
+        _ code: inout WasmCode,
+        ctx: WasmModuleContext
+    ) {
+        let kL = 4, ktL = 5
+        code.localGet(0)
+        code.localGet(1)
+        code.call(ctx.emittedHelperIndex(for: "__kk_kclass_create", argumentCount: 2))
+        code.localSet(kL)
+        code.i64Const(4)
+        code.i64Const(L.ktypeTypeID)
+        code.call(ctx.emittedHelperIndex(for: "kk_object_new", argumentCount: 2))
+        code.localSet(ktL)
+        emitStoreAt(&code, baseLocal: ktL, byteOffset: 16, valueLocal: kL)
+        emitStoreAt(&code, baseLocal: ktL, byteOffset: 24, valueLocal: 2)
+        emitStoreAt(&code, baseLocal: ktL, byteOffset: 32, valueLocal: 3)
+        code.localGet(ktL)
+    }
+
+    /// `__kk_ktype_create(classifier, args, nullable) -> KType`.
+    private static func emitKTypeCreateBody(
+        _ code: inout WasmCode,
+        ctx: WasmModuleContext
+    ) {
+        let ktL = 3
+        code.i64Const(4)
+        code.i64Const(L.ktypeTypeID)
+        code.call(ctx.emittedHelperIndex(for: "kk_object_new", argumentCount: 2))
+        code.localSet(ktL)
+        emitStoreAt(&code, baseLocal: ktL, byteOffset: 16, valueLocal: 0)
+        emitStoreAt(&code, baseLocal: ktL, byteOffset: 24, valueLocal: 1)
+        emitStoreAt(&code, baseLocal: ktL, byteOffset: 32, valueLocal: 2)
+        code.localGet(ktL)
+    }
+
+    /// Small `{typeID, fields}` box: `object_new(slots, typeID)` then
+    /// `fields[offset] = arg index` stores; returns the box. `boxLocal`
+    /// must be a free local (pass `argumentCount`).
+    private static func emitSmallBoxBody(
+        _ code: inout WasmCode,
+        ctx: WasmModuleContext,
+        typeID: Int64,
+        slots: Int64,
+        fields: [Int64: Int],
+        boxLocal bxL: Int
+    ) {
+        code.i64Const(slots)
+        code.i64Const(typeID)
+        code.call(ctx.emittedHelperIndex(for: "kk_object_new", argumentCount: 2))
+        code.localSet(bxL)
+        for (offset, arg) in fields.sorted(by: { $0.key < $1.key }) {
+            emitStoreAt(&code, baseLocal: bxL, byteOffset: offset, valueLocal: arg)
+        }
+        code.localGet(bxL)
+    }
+
+    /// `__kk_ktypeparameter_create(identity, name, variance, isReified)`
+    /// cached per-identity in `record.s0`.
+    private static func emitKTypeParameterCreateBody(
+        _ code: inout WasmCode,
+        ctx: WasmModuleContext
+    ) {
+        let recL = 4, tpL = 5
+        code.localGet(0)
+        code.call(ctx.emittedHelperIndex(for: "$__kk_wasm_token_record", argumentCount: 1))
+        code.localSet(recL)
+        emitLoadAt(&code, baseLocal: recL, byteOffset: 24)
+        code.op(WasmOpcode.i64Eqz)
+        code.openIf()
+        code.i64Const(7)
+        code.i64Const(L.ktypeParameterTypeID)
+        code.call(ctx.emittedHelperIndex(for: "kk_object_new", argumentCount: 2))
+        code.localSet(tpL)
+        emitStoreAt(&code, baseLocal: tpL, byteOffset: 16, valueLocal: 0)
+        emitStoreAt(&code, baseLocal: tpL, byteOffset: 24, valueLocal: 1)
+        emitStoreAt(&code, baseLocal: tpL, byteOffset: 32, valueLocal: 2)
+        emitStoreAt(&code, baseLocal: tpL, byteOffset: 40, valueLocal: 3)
+        emitStoreAt(&code, baseLocal: recL, byteOffset: 24, valueLocal: tpL)
+        code.end()
+        emitLoadAt(&code, baseLocal: recL, byteOffset: 24)
+    }
+
+    /// `__kk_kconstructor_create(name, arity, returnType, fnPtr, isPrimary,
+    /// visibility, kclass) -> KConstructor`; when the owner KClass box is
+    /// present the ctor node joins its regHead list.
+    private static func emitKConstructorCreateBody(
+        _ code: inout WasmCode,
+        ctx: WasmModuleContext
+    ) {
+        let cL = 7
+        code.i64Const(11)
+        code.i64Const(L.kconstructorTypeID)
+        code.call(ctx.emittedHelperIndex(for: "kk_object_new", argumentCount: 2))
+        code.localSet(cL)
+        emitStoreAt(&code, baseLocal: cL, byteOffset: 16, valueLocal: 0)
+        emitStoreAt(&code, baseLocal: cL, byteOffset: 24, valueLocal: 1)
+        emitStoreAt(&code, baseLocal: cL, byteOffset: 32, valueLocal: 2)
+        emitStoreAt(&code, baseLocal: cL, byteOffset: 40, valueLocal: 3)
+        emitStoreAt(&code, baseLocal: cL, byteOffset: 48, valueLocal: 4)
+        emitStoreAt(&code, baseLocal: cL, byteOffset: 56, valueLocal: 5)
+        emitStoreAt(&code, baseLocal: cL, byteOffset: 64, valueLocal: 6)
+        code.localGet(6)
+        code.op(WasmOpcode.i64Eqz)
+        code.openIf()
+        code.i64Const(0)
+        code.elseBranch()
+        code.localGet(6)
+        code.i64Const(17)
+        code.i64Const(1)
+        code.localGet(cL)
+        for _ in 0..<7 { code.i64Const(0) }
+        code.call(ctx.emittedHelperIndex(for: "$__kk_wasm_reglist_add", argumentCount: 11))
+        code.end()
+        code.op(WasmOpcode.drop)
+        code.localGet(cL)
+    }
+
+    /// `__kk_kconstructor_set_parameter_type(kctor, index, typeToken)` —
+    /// appends a param-type node to the ctor's paramHead list (offset 80).
+    private static func emitKConstructorSetParameterTypeBody(
+        _ code: inout WasmCode,
+        ctx: WasmModuleContext
+    ) {
+        code.localGet(0)
+        code.i64Const(18)
+        code.i64Const(2)
+        code.localGet(1)
+        code.localGet(2)
+        for _ in 0..<6 { code.i64Const(0) }
+        code.call(ctx.emittedHelperIndex(for: "$__kk_wasm_reglist_add", argumentCount: 11))
+        code.op(WasmOpcode.drop)
+        code.i64Const(0)
+    }
+
+    /// `kk_enum_box_ordinal(ordinal, name, classID)`: null ordinals pass
+    /// through; otherwise allocate `{ordinal@16, name@24, classID@32}`.
+    private static func emitEnumBoxOrdinalBody(
+        _ code: inout WasmCode,
+        ctx: WasmModuleContext
+    ) {
+        let bL = 3
+        code.localGet(0)
+        code.i64Const(L.nullSentinel)
+        code.op(WasmOpcode.i64Eq)
+        code.openIf()
+        code.localGet(0)
+        code.op(WasmOpcode.return)
+        code.end()
+        code.i64Const(5)
+        code.i64Const(L.enumEntryTypeID)
+        code.call(ctx.emittedHelperIndex(for: "kk_object_new", argumentCount: 2))
+        code.localSet(bL)
+        emitStoreAt(&code, baseLocal: bL, byteOffset: 16, valueLocal: 0)
+        emitStoreAt(&code, baseLocal: bL, byteOffset: 24, valueLocal: 1)
+        emitStoreAt(&code, baseLocal: bL, byteOffset: 32, valueLocal: 2)
+        code.localGet(bL)
+    }
+
+    /// `kk_enum_register_values(typeToken, valuesArrayRaw, count)` — the
+    /// array handle is parked in `record.s2` for future `values()` reads.
+    private static func emitEnumRegisterValuesBody(
+        _ code: inout WasmCode,
+        ctx: WasmModuleContext
+    ) {
+        let recL = 3
+        code.localGet(0)
+        code.call(ctx.emittedHelperIndex(for: "$__kk_wasm_token_record", argumentCount: 1))
+        code.localSet(recL)
+        emitStoreAt(&code, baseLocal: recL, byteOffset: 40, valueLocal: 1)
+        code.i64Const(0)
+    }
+
+    /// `register_*_override(key, fnSlot)` / value-class variant: stores
+    /// the fn table-slot into `record(key)` at `slotOffset` (s0=24,
+    /// s1=32, s2=40).
+    private static func emitObjectOverrideRegisterBody(
+        _ code: inout WasmCode,
+        ctx: WasmModuleContext,
+        slotOffset: Int64
+    ) {
+        let recL = 2
+        code.localGet(0)
+        code.call(ctx.emittedHelperIndex(for: "$__kk_wasm_token_record", argumentCount: 1))
+        code.localSet(recL)
+        emitStoreAt(&code, baseLocal: recL, byteOffset: slotOffset, valueLocal: 1)
+        code.i64Const(0)
+    }
+
+    /// `__kk_mutable_map_putAll(map, other)` — iterates `other` with the
+    /// existing map helpers, forwarding every entry through
+    /// `__kk_mutable_map_put` so readOnly rejection propagates.
+    private static func emitMutableMapPutAllBody(
+        _ code: inout WasmCode,
+        ctx: WasmModuleContext,
+        argumentCount: Int
+    ) {
+        let itL = argumentCount, kL = argumentCount + 1, vL = argumentCount + 2
+        code.localGet(1)
+        code.call(ctx.emittedHelperIndex(for: "__kk_map_iterator", argumentCount: 1))
+        code.localSet(itL)
+        code.openBlock()
+        code.openLoop()
+        code.localGet(itL)
+        code.call(ctx.emittedHelperIndex(
+            for: "__kk_map_iterator_hasNext", argumentCount: 1
+        ))
+        code.op(WasmOpcode.i64Eqz)
+        code.brIf(1)
+        code.localGet(itL)
+        code.call(ctx.emittedHelperIndex(
+            for: "__kk_map_iterator_next", argumentCount: 1
+        ))
+        code.localSet(kL)
+        code.localGet(1)
+        code.localGet(kL)
+        code.call(ctx.emittedHelperIndex(for: "__kk_map_get", argumentCount: 2))
+        code.localSet(vL)
+        code.localGet(0)
+        code.localGet(kL)
+        code.localGet(vL)
+        code.call(ctx.emittedHelperIndex(
+            for: "__kk_mutable_map_put", argumentCount: 3
+        ))
+        code.op(WasmOpcode.drop)
+        code.br(0)
+        code.end()
+        code.end()
+        code.i64Const(0)
+    }
+
+    /// Consults a registry slot for a callable table-index override and
+    /// tail-calls it through `call_indirect` when present. `key` is the
+    /// record key (obj handle or typeID); `slotOffset` selects s0/s1/s2.
+    /// `argCount` is the bridge arity (1 for toString/hashCode, 2 for
+    /// equals). Emits nothing when the slot is empty.
+    private static func emitOverrideConsult(
+        _ code: inout WasmCode,
+        ctx: WasmModuleContext,
+        keyLocal: Int,
+        slotOffset: Int64,
+        callArgs: [Int],
+        recL: Int,
+        fnL: Int
+    ) {
+        code.localGet(keyLocal)
+        code.call(ctx.emittedHelperIndex(
+            for: "$__kk_wasm_token_record_get", argumentCount: 1
+        ))
+        code.localSet(recL)
+        code.localGet(recL)
+        code.i64Const(0)
+        code.op(WasmOpcode.i64Ne)
+        code.openIf()
+        emitLoadAt(&code, baseLocal: recL, byteOffset: slotOffset)
+        code.localSet(fnL)
+        code.localGet(fnL)
+        code.i64Const(0)
+        code.op(WasmOpcode.i64Ne)
+        code.openIf()
+        for arg in callArgs { code.localGet(arg) }
+        code.localGet(fnL)
+        code.op(WasmOpcode.i32WrapI64)
+        code.callIndirect(ctx.module.funcTypeIndex(.i64Signature(callArgs.count)))
+        code.op(WasmOpcode.return)
+        code.end()
+        code.end()
+    }
+
     private static func emitElemEqBody(_ code: inout WasmCode, ctx: WasmModuleContext) {
         let aHeap = 2, bHeap = 3, lenL = 4, iL = 5, paL = 6
         let pbL = 10, strFlag = 9
@@ -7861,6 +8612,21 @@ enum WasmRuntimeHelpers {
         code.op(WasmOpcode.i32And)
         code.i64ExtendFromComparison()
         code.localSet(bHeap)
+        // Nominal objects may carry a registered equals override
+        // (`kk_object_register_equals_override` → registry[obj].s1); the
+        // bridge takes (a, b) and returns i64.
+        code.localGet(aHeap)
+        code.openIf()
+        emitLoadAt(&code, baseLocal: 0, byteOffset: L.typeIDOffset)
+        code.i64Const(0)
+        code.op(WasmOpcode.i64GtS)
+        code.openIf()
+        emitOverrideConsult(
+            &code, ctx: ctx, keyLocal: 0, slotOffset: 32,
+            callArgs: [0, 1], recL: 11, fnL: 12
+        )
+        code.end()
+        code.end()
         // Both must be heap objects with stringTypeID to compare structurally.
         // strFlag carries the both-strings verdict — bHeap must keep its
         // heap-marker value for the payload compares that follow.
@@ -8346,6 +9112,17 @@ enum WasmRuntimeHelpers {
         code.openIf(result: .i64)
         emitLoadAt(&code, baseLocal: 0, byteOffset: L.typeIDOffset)
         code.localSet(tidL)
+        // Nominal objects may carry a registered hashCode override
+        // (`kk_object_register_hashcode_override` → registry[obj].s2).
+        code.localGet(tidL)
+        code.i64Const(0)
+        code.op(WasmOpcode.i64GtS)
+        code.openIf()
+        emitOverrideConsult(
+            &code, ctx: ctx, keyLocal: 0, slotOffset: 40,
+            callArgs: [0], recL: argumentCount + 5, fnL: argumentCount + 6
+        )
+        code.end()
         // String: h = 31*h + byte (JVM folds UTF-16 chars; our storage is
         // UTF-8 — equal strings still hash equal, only the value differs).
         code.localGet(tidL)
