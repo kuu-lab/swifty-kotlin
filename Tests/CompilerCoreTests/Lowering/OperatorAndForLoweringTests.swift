@@ -169,14 +169,27 @@ struct OperatorAndForLoweringTests {
             !callees.contains(LoweringTestRuntime.name("int_to_double_bits")),
             "An Any-typed operand must not be reinterpreted as raw Int bits, got callees: \(callees)"
         )
-        guard case let .call(_, callee, arguments, callResult, _, _, _, _) = body.first(
-            where: { if case .call = $0 { true } else { false } }
+        // The raw Double literal is boxed before structural equality: its
+        // untagged bits could otherwise be mistaken for an equal boxed Int —
+        // or, for -0.0, for the runtime null sentinel (KUU-3784).
+        #expect(
+            callees.contains(LoweringTestRuntime.name("box_double_nonnull_static")),
+            "The Double literal must be boxed before structural equality, got callees: \(callees)"
+        )
+        guard case let .call(_, _, arguments, callResult, _, _, _, _) = body.last(
+            where: {
+                if case let .call(_, callee, _, _, _, _, _, _) = $0 {
+                    callee == LoweringTestRuntime.callee("structural_eq", interner: interner)
+                } else {
+                    false
+                }
+            }
         ) else {
-            Issue.record("Expected exactly one call instruction, got: \(body)")
+            Issue.record("Expected a kk_structural_eq call, got: \(body)")
             return
         }
-        #expect(callee == LoweringTestRuntime.callee("structural_eq", interner: interner))
-        #expect(arguments == [lhs, rhs], "Structural equality should receive the original, unconverted operands")
+        #expect(arguments.count == 2)
+        #expect(arguments.first == lhs, "Structural equality should keep the Any operand unconverted")
         #expect(callResult == result)
     }
 

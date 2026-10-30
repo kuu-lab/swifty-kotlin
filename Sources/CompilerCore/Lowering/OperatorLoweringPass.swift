@@ -248,11 +248,11 @@ final class OperatorLoweringPass: LoweringPass {
         var effectiveLhs = lhs
         var effectiveRhs = rhs
         if needsStructuralEquality {
-            effectiveLhs = boxFloatingOperandForReferenceEquality(
+            effectiveLhs = boxSentinelProneOperandForReferenceEquality(
                 lhs, peer: rhs, arena: arena, interner: interner,
                 types: types, symbols: symbols, newBody: &newBody
             )
-            effectiveRhs = boxFloatingOperandForReferenceEquality(
+            effectiveRhs = boxSentinelProneOperandForReferenceEquality(
                 rhs, peer: lhs, arena: arena, interner: interner,
                 types: types, symbols: symbols, newBody: &newBody
             )
@@ -314,10 +314,14 @@ final class OperatorLoweringPass: LoweringPass {
         newBody.append(.call(callee: callee, arguments: [effectiveLhs, effectiveRhs], result: result, canThrow: false))
     }
 
-    /// A raw Double/Float word has no runtime type tag. Box it before comparing
-    /// against a reference value so structural equality cannot mistake the
-    /// floating-point bits for an equal boxed integer value.
-    private func boxFloatingOperandForReferenceEquality(
+    /// A raw Double/Float/Long/ULong word has no runtime type tag, and its
+    /// full value range overlaps the null sentinel's bit pattern (`-0.0`,
+    /// `Long.MIN_VALUE`, `ULong` 2^63 are all bit-identical to it). Box it
+    /// before comparing against a reference value so structural equality
+    /// cannot mistake the raw bits for null (KUU-3784: `(x: Any) == -0.0`
+    /// where `x` holds a boxed -0.0) or for an equal boxed value of another
+    /// type (nominal `equals` keeps `Int`/`Long`/`Double` distinct).
+    private func boxSentinelProneOperandForReferenceEquality(
         _ operand: KIRExprID,
         peer: KIRExprID,
         arena: KIRArena,
@@ -330,7 +334,7 @@ final class OperatorLoweringPass: LoweringPass {
               isReferenceType(peer, arena: arena, types: types, symbols: symbols),
               let typeID = arena.exprType(operand),
               case let .primitive(primitive, .nonNull) = types.kind(of: typeID),
-              primitive == .double || primitive == .float,
+              primitive.rawValueCollidesWithNullSentinel,
               let boxCallee = BoxingCalleeTable(interner: interner).boxCallee(
                   for: types.kind(of: typeID), requireNonNull: true, preferStaticPrimitive: true
               )

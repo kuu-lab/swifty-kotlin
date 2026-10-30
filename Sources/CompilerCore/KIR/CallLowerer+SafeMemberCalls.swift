@@ -596,7 +596,7 @@ extension CallLowerer {
             instructions.append(.copy(from: nullExpr, to: result))
             instructions.append(.jump(endLabel))
             instructions.append(.label(callLabel))
-            let hashReceiverID = boxSentinelProneHashCodeReceiver(
+            let hashReceiverID = boxSentinelProneValueForAnyDispatch(
                 loweredReceiverID,
                 sourceType: anyFallbackReceiverType,
                 sema: sema,
@@ -634,13 +634,25 @@ extension CallLowerer {
             let receiverTag = anyFallbackTag(for: anyFallbackReceiverType, sema: sema)
             let argType = sema.bindings.exprTypes[args[0].expr] ?? sema.types.anyType
             let argTag = anyFallbackTag(for: argType, sema: sema)
+            // A raw Long/ULong/Double operand whose bits collide with the null
+            // sentinel (-0.0, Long.MIN_VALUE, ULong 2^63) reads as null inside
+            // kk_any_equals, so `a?.equals(-0.0)` lost a legitimate value
+            // (KUU-3784). Box it before the bridge.
+            let equalsArgID = boxSentinelProneValueForAnyDispatch(
+                loweredEqualsArg,
+                sourceType: argType,
+                sema: sema,
+                interner: interner,
+                arena: arena,
+                into: &instructions.instructions
+            )
             let receiverTagID = arena.appendExpr(.intLiteral(receiverTag), type: intType)
             instructions.append(.constValue(result: receiverTagID, value: .intLiteral(receiverTag)))
             let argTagID = arena.appendExpr(.intLiteral(argTag), type: intType)
             instructions.append(.constValue(result: argTagID, value: .intLiteral(argTag)))
             instructions.append(.call(
                 callee: interner.intern("kk_any_equals"),
-                arguments: [loweredReceiverID, receiverTagID, loweredEqualsArg, argTagID],
+                arguments: [loweredReceiverID, receiverTagID, equalsArgID, argTagID],
                 result: result,
                 canThrow: false
             ))

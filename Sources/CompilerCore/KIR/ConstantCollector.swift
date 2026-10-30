@@ -75,6 +75,19 @@ struct ConstantCollector {
                     interner: interner
                 )
             guard let constant else { return }
+            // A read may fold to the initializer's raw scalar only when the
+            // property's storage holds that same raw scalar. Reference-typed
+            // vals box their value (an `Any` Double is a heap handle, not the
+            // literal's bits) and nullable primitives with
+            // sentinel-colliding payloads (Double?/Float?/Long?/ULong?) use
+            // box-or-sentinel slots, where a raw `-0.0` or `Long.MIN_VALUE`
+            // would read as null — both made `val x: Any = -0.0` compare
+            // `x == -0.0`/`x == null` wrong (KUU-3784).
+            if isRawScalarLiteral(constant),
+               !storesRawScalar(sema.symbols.propertyType(for: symbol), sema: sema)
+            {
+                return
+            }
             mapping[symbol] = constant
             if let propertySymbol = sema.symbols.symbol(symbol) {
                 let related = sema.symbols.lookupAll(fqName: propertySymbol.fqName)
@@ -108,6 +121,30 @@ struct ConstantCollector {
         default:
             break
         }
+    }
+
+    private func isRawScalarLiteral(_ constant: KIRExprKind) -> Bool {
+        switch constant {
+        case .intLiteral, .longLiteral, .uintLiteral, .ulongLiteral,
+             .floatLiteral, .doubleLiteral, .charLiteral, .boolLiteral:
+            return true
+        default:
+            return false
+        }
+    }
+
+    /// Whether a property of this type stores the scalar value's raw bits —
+    /// a non-null primitive always does, and a nullable primitive does for
+    /// the primitives whose raw range cannot collide with the null sentinel.
+    /// Every other type (Any, class types, type parameters, String, ...)
+    /// stores a heap handle that a raw literal cannot represent.
+    private func storesRawScalar(_ propertyType: TypeID?, sema: SemaModule) -> Bool {
+        guard let propertyType,
+              case let .primitive(primitive, nullability) = sema.types.kind(of: propertyType)
+        else {
+            return false
+        }
+        return nullability == .nonNull || !primitive.rawValueCollidesWithNullSentinel
     }
 
     private func areDistinctFilePrivateProperties(

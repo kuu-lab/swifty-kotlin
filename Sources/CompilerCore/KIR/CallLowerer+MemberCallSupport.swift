@@ -95,13 +95,14 @@ func usesPrimitiveAnyFallbackRepresentation(for type: TypeID, sema: SemaModule) 
     return true
 }
 
-/// Boxes a statically non-null Long, ULong, or Double before generic hash
-/// dispatch. Their raw 64-bit representations can equal the runtime null
-/// sentinel, so passing them directly to `kk_any_hashCode` would turn a
-/// legitimate value into the null hash. `boxValueForAnySlot` selects the
-/// `_nonnull` callee variants for these types while leaving nullable sources
-/// on their existing sentinel-preserving path.
-func boxSentinelProneHashCodeReceiver(
+/// Boxes a statically non-null Long, ULong, or Double before generic Any
+/// dispatch (`kk_any_hashCode`/`kk_any_equals`). Their raw 64-bit
+/// representations can equal the runtime null sentinel, so passing them
+/// directly would turn a legitimate value into the null hash or a null
+/// equality operand (KUU-3784). `boxValueForAnySlot` selects the `_nonnull`
+/// callee variants for these types while leaving nullable sources on their
+/// existing sentinel-preserving path.
+func boxSentinelProneValueForAnyDispatch(
     _ value: KIRExprID,
     sourceType: TypeID,
     sema: SemaModule,

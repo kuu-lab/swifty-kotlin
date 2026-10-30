@@ -695,7 +695,7 @@ extension DataEnumSealedSynthesisPass {
                             fieldValueExpr, type: propType, module: module, sema: sema,
                             interner: interner, body: &body
                         )
-                        hashValue = boxSentinelProneHashCodeReceiver(
+                        hashValue = boxSentinelProneValueForAnyDispatch(
                             canonicalValue, sourceType: propType, sema: sema,
                             interner: interner, arena: module.arena, into: &body
                         )
@@ -703,7 +703,7 @@ extension DataEnumSealedSynthesisPass {
                         // Full-width primitive payloads (notably Double -0.0)
                         // can equal the null sentinel. Preserve their non-null
                         // value before entering generic runtime hash dispatch.
-                        hashValue = boxSentinelProneHashCodeReceiver(
+                        hashValue = boxSentinelProneValueForAnyDispatch(
                             fieldValueExpr, sourceType: propType, sema: sema,
                             interner: interner, arena: module.arena, into: &body
                         )
