@@ -897,6 +897,56 @@ struct SemaDelegateTypeCheckTests {
         }
     }
 
+    @Test func testMutableDelegateFactoryInfersNullableFunctionTypeFromProperty() throws {
+        let source = """
+        import kotlin.reflect.KProperty
+
+        var foo: (() -> String)? by property(null)
+
+        private fun <T> property(initialValue: T): RwProperty<T> = RwProperty(initialValue)
+
+        class RwProperty<V>(var v: V) {
+            operator fun getValue(thisRef: Any?, property: KProperty<*>): V = v
+            operator fun setValue(thisRef: Any?, property: KProperty<*>, value: V) { this.v = value }
+        }
+        """
+
+        try withTemporaryFiles(contents: [source]) { paths in
+            let ctx = makeCompilationContext(inputs: paths, emit: .kirDump)
+            try runToKIR(ctx)
+
+            let diagnostics = diagnosticsForPath(paths[0], in: ctx)
+            let errorMessages = diagnostics.map { "\($0.code): \($0.message)" }
+                .joined(separator: " | ")
+            #expect(
+                !diagnostics.contains { $0.severity == .error },
+                "The property type should infer the delegate factory type argument, got: \(errorMessages)"
+            )
+
+            let sema = try #require(ctx.sema)
+            let foo = try #require(
+                topLevelSymbol(
+                    named: "foo", kind: .property, package: "",
+                    sema: sema, interner: ctx.interner
+                )
+            )
+            let propertyType = try #require(sema.symbols.propertyType(for: foo))
+            let delegateType = try #require(
+                sema.symbols.propertyType(for: SymbolID(rawValue: -(foo.rawValue + 50000)))
+            )
+            let delegateClass = try #require(
+                sema.symbols.lookup(fqName: ["RwProperty"].map(ctx.interner.intern))
+            )
+            guard case let .classType(classType) = sema.types.kind(of: delegateType) else {
+                Issue.record("Expected the delegate factory result to be a class type")
+                return
+            }
+            #expect(classType.classSymbol == delegateClass)
+            #expect(classType.args == [.invariant(propertyType)])
+            #expect(sema.symbols.delegateSetValueSymbol(for: foo) != nil)
+        }
+    }
+
     @Test(arguments: [false, true])
     func testInheritedProtectedMemberExtensionDelegates(useArtifact: Bool) throws {
         if useArtifact { TestStdlibCache.shared.prepare() }
