@@ -147,6 +147,70 @@ struct InfixCallEligibilityTests {
         }
     }
 
+    /// KUU-3795: the statement after a call-receiver infix line
+    /// (`f() op operand`) used to be merged into the infix's statement
+    /// group and dropped from the function body entirely. The local was
+    /// never registered, so later references cascaded into
+    /// `SEMA-0022` unresolved-reference or `SEMA-0309` reports that
+    /// resolved to a same-named member function. The failing initializer
+    /// must leave the following local in scope and only report the
+    /// primary error.
+    @Test
+    func localAfterCallReceiverInfixStaysInScopeThroughInitializerErrors() throws {
+        let source = """
+        class B {
+            private fun rootSize() = 0
+            fun g(): Int {
+                val leafCount = rootSize() shr LOG
+                val iter = leafBufferIterator(leafCount)
+                return iter
+            }
+            private fun leafBufferIterator(index: Int): Int = index
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], includeStdlib: false)
+            try runSema(ctx)
+            let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+            #expect(errors.contains { $0.message.contains("'LOG'") },
+                    "Expected the primary unresolved-LOG diagnostic, got: \(errors)")
+            #expect(!errors.contains { $0.message.contains("'iter'") },
+                    "iter must stay in scope after the failing initializer, got: \(errors)")
+            #expect(!errors.contains { $0.code == "KSWIFTK-SEMA-0309" },
+                    "Following locals must not collapse onto member functions, got: \(errors)")
+        }
+    }
+
+    /// Same KUU-3795 boundary with the following local shadowing a member
+    /// function name: `val leafBufferIterator` was swallowed, so
+    /// `return leafBufferIterator` fell back to the member function and
+    /// produced `SEMA-0309` instead of returning the local's value.
+    @Test
+    func shadowingLocalAfterCallReceiverInfixDoesNotResolveToMemberFunction() throws {
+        let source = """
+        class B {
+            private fun rootSize() = 0
+            fun g(): Int {
+                val leafCount = rootSize() shr LOG
+                val leafBufferIterator = leafBufferIterator(1)
+                return leafBufferIterator
+            }
+            private fun leafBufferIterator(index: Int): Int = index
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], includeStdlib: false)
+            try runSema(ctx)
+            let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+            #expect(errors.contains { $0.message.contains("'LOG'") },
+                    "Expected the primary unresolved-LOG diagnostic, got: \(errors)")
+            #expect(!errors.contains { $0.code == "KSWIFTK-SEMA-0309" },
+                    "leafBufferIterator must resolve to the local, not the member function, got: \(errors)")
+            #expect(!errors.contains { $0.code == "KSWIFTK-SEMA-0022" && $0.message.contains("'leafBufferIterator'") },
+                    "leafBufferIterator must be a visible local, got: \(errors)")
+        }
+    }
+
     @Test
     func privateInfixExtensionRemainsInaccessibleAcrossFiles() throws {
         try withTemporaryFile(contents: """
