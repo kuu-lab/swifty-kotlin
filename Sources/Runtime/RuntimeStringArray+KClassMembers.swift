@@ -20,7 +20,7 @@ private let builtinStringLengthDelegate: @convention(c) (Int, Int, UnsafeMutable
 }
 
 private func runtimeBuiltinStringMember(
-    _ member: Int, _ arguments: Int, _ mask: Int, _ outThrown: UnsafeMutablePointer<Int>?
+    _ member: Int, _ arguments: Int, _: Int, _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
     outThrown?.pointee = 0
     guard let values = runtimeListBox(from: arguments)?.elements, let receiver = values.first else {
@@ -107,7 +107,7 @@ private func ensureBuiltinStringMembers(_ kclassRaw: Int) {
 }
 
 private func runtimeEmptyStringConstructor(
-    _ environment: Int, _ arguments: Int, _ mask: Int, _ outThrown: UnsafeMutablePointer<Int>?
+    _: Int, _: Int, _: Int, _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
     outThrown?.pointee = 0
     return runtimeMakeStringRaw("")

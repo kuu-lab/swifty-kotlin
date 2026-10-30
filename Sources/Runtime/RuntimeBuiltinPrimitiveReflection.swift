@@ -15,7 +15,7 @@ private let builtinUIntDataDelegate: @convention(c) (Int, Int, UnsafeMutablePoin
 }
 
 private func invokeBuiltinPrimitiveConstructor(
-    _ token: Int, _ arguments: Int, _ mask: Int, _ outThrown: UnsafeMutablePointer<Int>?
+    _ token: Int, _ arguments: Int, _: Int, _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
     outThrown?.pointee = 0
     if token == Int(RuntimeTypeTokenEncoding.anyBase) {

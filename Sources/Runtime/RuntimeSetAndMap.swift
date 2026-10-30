@@ -1035,21 +1035,3 @@ public func kk_mutable_map_entry_setValue(
     pairBox.setSecondValue(runtimeValueFromCollectionABI(value), returning: previous)
     return previous
 }
-
-@_cdecl("__kk_map_to_string")
-public func kk_map_to_string(_ mapRaw: Int) -> UnsafeMutableRawPointer {
-    guard let map = runtimeMapBox(from: mapRaw) else {
-        let str = "{}"
-        let utf8 = Array(str.utf8)
-        return utf8.withUnsafeBufferPointer { buf in
-            kk_string_from_utf8(buf.baseAddress!, Int32(buf.count))
-        }
-    }
-    let parts = zip(map.keyValues, map.entryValues).map { key, value -> String in
-        let keyStr = runtimeElementToString(key)
-        let valStr = runtimeElementToString(value)
-        return "\(keyStr)=\(valStr)"
-    }
-    let str = "{" + parts.joined(separator: ", ") + "}"
-    return runtimeMakeStringPointer(str)
-}

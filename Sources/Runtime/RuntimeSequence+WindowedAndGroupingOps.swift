@@ -37,7 +37,7 @@ public func kk_sequence_chunked_transform(
     _ size: Int,
     _ fnPtr: Int,
     _ closureRaw: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
+    _ : UnsafeMutablePointer<Int>?
 ) -> Int {
     guard let seq = runtimeSequenceBox(from: seqRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid sequence in kk_sequence_chunked_transform")

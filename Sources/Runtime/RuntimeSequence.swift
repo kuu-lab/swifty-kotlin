@@ -469,7 +469,6 @@ final class SequenceTraversalState {
     var dropCounts: [Int: Int] = [:]
     var distinctSeen: [Int: Set<RuntimeElementKey>] = [:]
     var distinctBySeen: [Int: Set<RuntimeElementKey>] = [:]
-    var zipIndices: [Int: Int] = [:]
     var chunkedBuffers: [Int: [Int]] = [:]
 }
 
@@ -642,21 +641,6 @@ private func runtimeSequenceTransformElement(
         }
         runtimeSequenceTransformElement(
             element,
-            steps: steps,
-            stepIndex: stepIndex + 1,
-            state: state,
-            outThrown: outThrown,
-            yield: yield
-        )
-    case let .zipStep(otherElements):
-        let index = state.zipIndices[stepIndex, default: 0]
-        if index >= otherElements.count {
-            state.stop = true
-            return
-        }
-        state.zipIndices[stepIndex] = index + 1
-        runtimeSequenceTransformElement(
-            kk_pair_new(element, otherElements[index]),
             steps: steps,
             stepIndex: stepIndex + 1,
             state: state,
@@ -1211,7 +1195,7 @@ func runtimeTraverseSequenceWithState(
             }
             return
         case .mapStep, .filterStep, .filterNotStep, .takeStep, .dropStep, .distinctStep,
-             .distinctByStep, .zipStep, .takeWhileStep, .dropWhileStep, .onEachStep,
+             .distinctByStep, .takeWhileStep, .dropWhileStep, .onEachStep,
              .onEachIndexedStep, .mapNotNullStep, .filterNotNullStep,
              .filterIndexedStep, .requireNoNullsStep, .mapIndexedStep, .mapIndexedNotNullStep, .withIndexStep, .flatMapStep,
              .flatMapIndexedStep, .chunkedTransformStep, .shuffledStep:
@@ -1658,14 +1642,6 @@ func evaluateSequence(
                 }
             }
             elements = distinct
-        case let .zipStep(otherElements):
-            let minCount = min(elements.count, otherElements.count)
-            var zipped: [Int] = []
-            zipped.reserveCapacity(minCount)
-            for i in 0 ..< minCount {
-                zipped.append(kk_pair_new(elements[i], otherElements[i]))
-            }
-            elements = zipped
         case let .takeWhileStep(fnPtr, closureRaw):
             elements = applyTakeWhileStep(elements, fnPtr: fnPtr, closureRaw: closureRaw, outThrown: outThrown)
         case let .dropWhileStep(fnPtr, closureRaw):
