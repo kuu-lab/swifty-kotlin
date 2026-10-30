@@ -10,3 +10,13 @@ internal inline fun checkIndexOverflow(index: Int): Int {
     return index
 }
 
+@PublishedApi
+@SinceKotlin("1.3")
+@IgnorableReturnValue
+internal inline fun checkCountOverflow(count: Int): Int {
+    if (count < 0) {
+        throw ArithmeticException("Count overflow has happened.")
+    }
+    return count
+}
+
