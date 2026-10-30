@@ -177,16 +177,6 @@ extension BuildASTPhase.ExpressionParser {
         let expressionBody: ExprID?
         let headerEndIndex = index
         if matches(.symbol(.assign)) {
-            // Context and extension receiver expression bodies still require
-            // their existing rejection until their closure lowering is fixed.
-            if (functionStartIndex != expressionStartIndex || lParenIndex != functionStartIndex + 1),
-               let token = current() {
-                diagnostics?.error(
-                    "KSWIFTK-PARSE-0001",
-                    "Expected '{' for anonymous function body.",
-                    range: token.range
-                )
-            }
             _ = consume()
             guard let body = parseExpression(minPrecedence: 0) else {
                 index = expressionStartIndex

@@ -14,12 +14,19 @@ func runtimeIndexedValueNew(index: Int, value: Int) -> Int {
     runtimeIndexedValueNew(index: index, value: RuntimeValue(raw: value))
 }
 
+/// `IndexedValue` is a source-backed Kotlin data class, so the runtime must
+/// hand out the same `RuntimeObjectBox` layout the compiled constructor
+/// produces (index@2, value@3) — a `RuntimePairBox` fails `kk_array_get_`
+/// field reads and compiled `component1`/`component2` member calls.
 func runtimeIndexedValueNew(index: Int, value: RuntimeValue) -> Int {
-    let raw = runtimePairNew(
-        firstValue: RuntimeValue(raw: index),
-        secondValue: value
-    )
-    runtimeRegisterObjectType(rawValue: raw, classID: indexedValueRuntimeTypeID)
+    let raw = kk_object_new(4, Int(indexedValueRuntimeTypeID))
+    guard let box = runtimeArrayBox(from: raw) else {
+        return raw
+    }
+    // Mirror the compiled data-class constructor's `kk_array_set_typed`
+    // stores: `index`/`value` both carry the generic Any-fallback tag (1).
+    box.setValue(index, at: 2, anyFallbackTag: 1)
+    box.setValue(value.legacyRawValue, at: 3, anyFallbackTag: 1)
     return raw
 }
 

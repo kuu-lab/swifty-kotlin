@@ -80,7 +80,8 @@ extension JVMProgramBuilder {
             let component = try varargComponentType(signature.parameterTypes[i])
             parameters[i + offset] = .reference("[" + component.descriptor, nullable: false)
         }
-        let result = try type(signature.returnType)
+        let mappedResult = try type(signature.returnType)
+        let result = nominalRangeResultType(for: symbol, mapped: mappedResult) ?? mappedResult
         let unsigned = parameters.contains { $0.unsignedName != nil }
         var internalName = unsigned ? name + "$unsigned$" + JVMNameHash.suffix(parameters.map { ($0.unsignedName ?? "_") + ($0.isNullable ? "?" : "") }.joined()) : name
         if let annotation = sema.symbols.annotations(for: symbol).first(where: { $0.annotationFQName == "kotlin.jvm.JvmName" }), let raw = annotation.arguments.first {
@@ -188,7 +189,8 @@ extension JVMProgramBuilder {
                   p.getter?.annotations.isEmpty ?? true, p.setter?.annotations.isEmpty ?? true else { throw JVMFrontendError(message: "Unsupported JVM property declaration.") }
             guard !plan.isInterface || (!p.modifiers.contains(.private) && p.getter?.visibility != .private && p.setter?.visibility != .private) else { throw JVMFrontendError(message: "JVM M5 does not support private interface accessors.", range: p.range) }
             let name = context.interner.resolve(p.name)
-            let type = plan.isAnnotation ? try annotationElementType(self.type(propertyType)) : try self.type(propertyType)
+            let mappedPropertyType = plan.isAnnotation ? try annotationElementType(self.type(propertyType)) : try self.type(propertyType)
+            let type = nominalRangeResultType(for: symbol, mapped: mappedPropertyType) ?? mappedPropertyType
             let extensionReceiverSemantic = sema.symbols.extensionPropertyReceiverType(for: symbol)
             let extensionReceiver = try extensionReceiverSemantic.map(self.type)
             let getterParameters = extensionReceiver.map { [$0] } ?? []

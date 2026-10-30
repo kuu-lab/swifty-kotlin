@@ -640,7 +640,30 @@ extension KotlinParser {
     static func endsWithPendingInfixOperator<C: BidirectionalCollection>(_ tokens: C) -> Bool
         where C.Element == Token
     {
-        guard let last = tokens.last, case .identifier = last.kind else {
+        guard let last = tokens.last else {
+            return false
+        }
+        // A trailing symbolic operator or member-access separator can never
+        // complete a statement — `a ||`, `x +`, `foo.`, `a is` all require a
+        // following operand, so a newline after them continues the expression
+        // rather than starting a new one.
+        // Bare `<`/`>` are excluded: they also close type-argument lists
+        // (`is List<Int>`), which legitimately end a condition or statement.
+        switch last.kind {
+        case .symbol(.plus), .symbol(.minus), .symbol(.star), .symbol(.slash),
+             .symbol(.percent), .symbol(.equalEqual), .symbol(.bangEqual),
+             .symbol(.tripleEqual), .symbol(.notTripleEqual),
+             .symbol(.lessOrEqual), .symbol(.greaterOrEqual),
+             .symbol(.ampAmp), .symbol(.barBar), .symbol(.questionColon),
+             .symbol(.dotDot), .symbol(.dotDotLt), .symbol(.dot),
+             .symbol(.questionDot), .symbol(.doubleColon):
+            return true
+        case .keyword(.is), .keyword(.in):
+            return true
+        default:
+            break
+        }
+        guard case .identifier = last.kind else {
             return false
         }
         // If the trailing identifier is preceded by `.`, `?.`, or `::`, it is a

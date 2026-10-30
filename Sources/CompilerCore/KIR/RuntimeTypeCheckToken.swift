@@ -487,7 +487,7 @@ func kirErasedGenericCallClaimCheck(
     exprID: ExprID,
     boundType: TypeID?,
     sema: SemaModule
-) -> (bound: TypeID, checkType: TypeID)? {
+) -> (bound: TypeID, checkType: TypeID?)? {
     let chosenCallee = sema.bindings.callBindings[exprID]?.chosenCallee
     let propertySymbol: SymbolID? = if let chosenCallee {
         sema.symbols.accessorOwnerProperty(for: chosenCallee)
@@ -515,17 +515,20 @@ func kirErasedGenericCallClaimCheck(
     } else {
         nil
     }
-    let bound = propertySymbol != nil
+    let expressionBound = propertySymbol != nil
         ? sema.bindings.exprType(for: exprID) ?? boundType
         : boundType ?? sema.bindings.exprType(for: exprID)
+    let consumer = propertySymbol == nil ? sema.bindings.genericCallConsumerTypes[exprID] : nil
     guard let declaredReturnType,
           kirIsNonReifiedErasedReturnType(declaredReturnType, sema: sema),
-          let bound,
-          let checkType = kirCheckableCastErasure(of: bound, sema: sema),
-          kirErasedBoundaryCheckable(checkType, sema: sema)
+          let target = consumer ?? expressionBound
     else {
         return nil
     }
+    // A platform value must retain its flexible representation until the
+    // later null assertion, even when the destination is a non-null primitive.
+    let isPlatformResult = expressionBound.map { sema.types.nullability(of: $0) == .platformType } ?? false
+    let bound = isPlatformResult ? (expressionBound ?? target) : target
     // Calls coerced to Unit evaluate for side effects and discard their
     // erased result, so no cast of that result is observable in Kotlin.
     // Property reads retain their own platform-Unit behavior.
@@ -533,7 +536,20 @@ func kirErasedGenericCallClaimCheck(
        (bound == sema.types.unitType || sema.bindings.unitReturnCoercionExprs.contains(exprID)) {
         return nil
     }
-    return (bound, checkType)
+    guard let checkType = kirCheckableCastErasure(of: target, sema: sema),
+          kirErasedBoundaryCheckable(checkType, sema: sema)
+    else {
+        // An erased consumer (such as Any?) needs the raw object, without a
+        // cast to the narrower source-level type argument. Preserve that ABI
+        // representation even though no checkcast is emitted.
+        return consumer == nil ? nil : (bound, nil)
+    }
+    // A platform result can still contain null. Check its erased classifier
+    // without rejecting null; a non-null use inserts its own assertion later.
+    let nullableCheckType = isPlatformResult
+        ? sema.types.makeNullable(checkType)
+        : checkType
+    return (bound, nullableCheckType)
 }
 
 /// True when a generic call or property getter's substituted result can be

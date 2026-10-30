@@ -35,6 +35,20 @@ extension BuildASTPhase.ExpressionParser {
                 initBlocks.append(initBlock)
                 continue
             }
+            // `companion` is not a declaration modifier keyword, so a
+            // `companion object` member never reaches the nested-decl path —
+            // it used to fail every member parse and silently drop the whole
+            // object literal's declaration. kotlinc reports it like any other
+            // local context: "modifier 'companion' is not applicable inside
+            // 'local class'".
+            if let companionRange = objectLiteralCompanionModifierRange(in: group) {
+                diagnostics?.error(
+                    "KSWIFTK-SEMA-0401",
+                    "modifier 'companion' is not applicable inside 'local class'.",
+                    range: companionRange
+                )
+                continue
+            }
             if let nestedDecl = parseObjectLiteralNestedDecl(from: group) {
                 switch nestedDecl {
                 case .classDecl, .interfaceDecl:
@@ -145,6 +159,37 @@ extension BuildASTPhase.ExpressionParser {
             }
         }
         return false
+    }
+
+    /// Returns the range of a leading `companion` modifier on an object
+    /// literal member (`companion object`, `private companion object`), or
+    /// `nil` when the member does not start a companion object.
+    private func objectLiteralCompanionModifierRange(
+        in memberTokens: ArraySlice<Token>
+    ) -> SourceRange? {
+        let tokens = Array(memberTokens)
+        var index = 0
+        while index < tokens.count {
+            switch tokens[index].kind {
+            case .symbol(.at):
+                guard let annotation = AnnotationParsingSupport.parseAnnotation(
+                    from: tokens,
+                    start: index,
+                    interner: interner,
+                    allowUseSiteTarget: true
+                ) else {
+                    return nil
+                }
+                index = annotation.nextIndex
+            case .keyword(.companion):
+                return tokens[index].range
+            case let .keyword(keyword) where KotlinParser.isDeclarationModifierKeyword(keyword):
+                index += 1
+            default:
+                return nil
+            }
+        }
+        return nil
     }
 
     /// The group is re-parsed wrapped in a synthetic `object` body so the regular class-body init-block builder

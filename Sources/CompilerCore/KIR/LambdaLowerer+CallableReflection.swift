@@ -14,7 +14,7 @@ extension LambdaLowerer {
         packedConstructorVarargs: Bool = false,
         setterSymbol: SymbolID? = nil,
         includeInvocation: Bool = true,
-        ast: ASTModule,
+        ast: ASTModule?,
         sema: SemaModule,
         arena: KIRArena,
         interner: StringInterner,
@@ -119,9 +119,9 @@ extension LambdaLowerer {
         // reflection receives a separate wrapper whose parameters are packed.
         let packedConstructorWrapper = includeInvocation && !packedConstructorVarargs
             && captures.isEmpty && receiverCount == 0
-            ? makePackedConstructorReflectionWrapper(
-                targetSymbol: targetSymbol, ast: ast, sema: sema, arena: arena, interner: interner
-            ) : nil
+            ? ast.flatMap { makePackedConstructorReflectionWrapper(
+                targetSymbol: targetSymbol, ast: $0, sema: sema, arena: arena, interner: interner
+            ) } : nil
         let invoker: KIRExprID
         if includeInvocation {
             invoker = callableReflectionInvoker(

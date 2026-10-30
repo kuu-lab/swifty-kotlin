@@ -52,7 +52,7 @@ struct FileFingerprintTests {
         let fp = FileFingerprint.compute(for: tempURL.path)
         #expect(fp != nil)
         #expect(fp?.path == tempURL.path)
-        #expect(!(try #require(fp?.contentHash.isEmpty)))
+        #expect(fp?.contentHash.isEmpty == false)
         #expect(try #require(fp?.mtimeNanos) > 0)
     }
 

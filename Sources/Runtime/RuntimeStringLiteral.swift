@@ -1,7 +1,7 @@
 import Foundation
 
 private struct RuntimeWeakLiteralBox {
-    weak var box: RuntimeStringBox?
+    weak let box: RuntimeStringBox?
 }
 
 /// Only compiler literals and explicit intern() calls enter this pool.

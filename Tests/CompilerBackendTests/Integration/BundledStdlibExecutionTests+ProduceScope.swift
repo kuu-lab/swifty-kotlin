@@ -21,4 +21,14 @@ extension BundledStdlibExecutionTests {
             allowDefaultStdlibLibrary: false, expectedStderr: ""
         )
     }
+
+    @Test(arguments: [false, true], [0, 2])
+    func produceBuilderSurvivesSameArityNonCallableArgument(fromArtifact: Bool, optimization: Int) throws {
+        let source = try diffCaseSource("produce_same_arity_wrong_type.kt", file: #filePath)
+        try compileAndRunKotlin(
+            source, expectedOutput: "7\n", moduleName: "ProduceSameArityWrongType",
+            allowDefaultStdlibLibrary: fromArtifact,
+            optLevel: try #require(OptimizationLevel(rawValue: optimization)), expectedStderr: ""
+        )
+    }
 }

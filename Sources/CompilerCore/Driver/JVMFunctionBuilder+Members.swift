@@ -437,7 +437,20 @@ extension JVMProgramBuilder {
             }
             if classes[symbol] == nil {
                 for child in sema.symbols.children(of: symbol) {
-                    if let method = methods[child] ?? collectionInterfaceMethods[child] ?? textLibraryMethods[child]?.method, let signature = sema.symbols.functionSignature(for: child) {
+                    guard let signature = sema.symbols.functionSignature(for: child) else { continue }
+                    var method = methods[child] ?? collectionInterfaceMethods[child]
+                        ?? context.jvmImports?.methods[child] ?? textLibraryMethods[child]?.method
+                    if method == nil, let sourceName = try? className(symbol),
+                       let childSymbol = sema.symbols.symbol(child) {
+                        let owner = JVMClasspathIndex.builtinName(sourceName) ?? sourceName
+                        let name = context.interner.resolve(childSymbol.name)
+                        let candidates = (context.jvmImports?.classes[owner]?.methods ?? []).filter {
+                            !$0.isStatic && !$0.isConstructor && $0.name == name
+                                && $0.parameters.count == signature.parameterTypes.count
+                        }
+                        if candidates.count == 1 { method = candidates[0] }
+                    }
+                    if let method {
                         specializedParameters[method.owner + method.name + method.descriptor] = try specializedParameterTypes(of: signature, receiver: [], mapping: mapping)
                     }
                 }
@@ -498,11 +511,15 @@ extension JVMProgramBuilder {
             }
             return parent.name == name
         }
-        for function in implementations where !function.isConstructor && !function.isPrivate && !function.isAbstract {
+        for function in implementations where !function.isConstructor && !function.isPrivate && (!function.isAbstract || plan.isInterface) {
             let ref = function.reference
             for parent in parents where !parent.isFinal && !parent.isSpecial && matchesSourceName(parent, function) &&
                 (specializedParameters[parent.owner + parent.name + parent.descriptor] ?? parent.parameters).map(\.descriptor) == ref.parameters.map(\.descriptor) && parent.descriptor != ref.descriptor {
-                guard (parent.result == .unit) == (ref.result == .unit), parent.parameters.count == ref.parameters.count else { throw JVMFrontendError(message: "Unsupported JVM override bridge.") }
+                // An interface may inherit a covariant abstract member. Its
+                // erased default bridge must dispatch to that member at runtime.
+                if function.isAbstract && (ref.result.referenceName == nil || parent.result.referenceName == nil) { continue }
+                let returnsBoxedUnit = ref.result == .unit && parent.result.referenceName == "java/lang/Object"
+                guard ((parent.result == .unit) == (ref.result == .unit) || returnsBoxedUnit), parent.parameters.count == ref.parameters.count else { throw JVMFrontendError(message: "Unsupported JVM override bridge.") }
                 let boxedResult = JVMClasspathIndex.boxed(ref.result)
                 if boxedResult != ref.result, parent.result.referenceName == "java/lang/Object",
                    JVMClasspathIndex.collectionNames.values.contains(parent.owner) {
@@ -560,6 +577,12 @@ extension JVMProgramBuilder {
                 call.isSuspend = parent.isSuspend
                 instructions.append(.foreignCall(call, receiver: locals[0], arguments: arguments, result: result))
                 if let result, let returned { instructions.append(.copy(result, returned)) }
+                if returnsBoxedUnit, let returned {
+                    let unitType = JVMValueType.reference("kotlin/Unit", nullable: false)
+                    let unit = JVMValue(slot: slot, type: unitType); slot += 1; locals.append(unit)
+                    instructions.append(.getStatic(JVMField(owner: "kotlin/Unit", name: "INSTANCE", type: unitType, access: 0x19), unit))
+                    instructions.append(.copy(unit, returned))
+                }
                 instructions.append(.returnValue(returned))
                 if hasTypeBarrier, let rejected {
                     let fallback = JVMValue(slot: slot, type: parent.result); locals.append(fallback)

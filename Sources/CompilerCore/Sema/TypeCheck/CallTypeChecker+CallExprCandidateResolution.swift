@@ -807,6 +807,65 @@ extension CallTypeChecker {
         return nil
     }
 
+    /// A `context(...) val p` member read lowers through its getter accessor
+    /// call, whose ABI needs the context receivers overload resolution
+    /// selected here — the property read itself binds only the identifier.
+    /// Record the getter binding so `propertyAccessorArguments` passes those
+    /// receivers instead of probing only the innermost implicit receiver.
+    func bindMemberContextPropertyGetterCall(
+        _ id: ExprID,
+        propertySymbol: SymbolID,
+        memberLookupType: TypeID,
+        ctx: TypeInferenceContext
+    ) {
+        let sema = ctx.sema
+        let getterSymbol = sema.symbols.extensionPropertyGetterAccessor(for: propertySymbol)
+            ?? SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: propertySymbol)
+        guard let getterSignature = sema.symbols.functionSignature(for: getterSymbol),
+              !getterSignature.contextParameterTypes.isEmpty
+        else { return }
+        var substitution: [TypeVarID: TypeID] = [:]
+        let typeVarBySymbol = sema.types.makeTypeVarBySymbol(getterSignature.typeParameterSymbols)
+        if getterSignature.classTypeParameterCount > 0,
+           let propertyOwner = sema.symbols.parentSymbol(for: propertySymbol),
+           case let .classType(receiverClass) = sema.types.kind(
+               of: sema.types.makeNonNullable(memberLookupType)
+           ),
+           let ownerArgs = sema.types.liftedNominalSupertypeArgs(
+               from: receiverClass, to: propertyOwner
+           )
+        {
+            for (index, paramSymbol) in getterSignature.typeParameterSymbols
+                .prefix(getterSignature.classTypeParameterCount).enumerated()
+            {
+                guard index < ownerArgs.count,
+                      let variable = typeVarBySymbol[paramSymbol]
+                else { continue }
+                switch ownerArgs[index] {
+                case let .invariant(type), let .in(type), let .out(type):
+                    substitution[variable] = type
+                case .star:
+                    break
+                }
+            }
+        }
+        sema.bindings.bindExtensionPropertyGetterCall(
+            id,
+            binding: CallBinding(
+                chosenCallee: getterSymbol,
+                substitutedTypeArguments: substitution
+                    .sorted(by: { $0.key.rawValue < $1.key.rawValue })
+                    .map(\.value),
+                parameterMapping: [:],
+                contextParameterReceiverSymbols: contextParameterReceiverSymbols(
+                    for: getterSymbol,
+                    substitution: substitution,
+                    ctx: ctx
+                )
+            )
+        )
+    }
+
     func contextParameterReceiverSymbols(
         for callee: SymbolID,
         substitution: [TypeVarID: TypeID],
@@ -818,23 +877,41 @@ extension CallTypeChecker {
             return []
         }
 
-        var candidates: [(type: TypeID, symbol: SymbolID)] = []
-        if let enclosingFunction = ctx.enclosingFunctionSymbol ?? ctx.currentDeclSymbol,
-           let enclosingSignature = ctx.sema.symbols.functionSignature(for: enclosingFunction)
-        {
-            candidates.append(contentsOf: zip(
-                enclosingSignature.contextParameterTypes,
-                enclosingSignature.contextParameterSymbols
-            ).map { (type: $0.0, symbol: $0.1) })
-        }
-        candidates.append(contentsOf: ctx.implicitReceiverStack.reversed())
-        candidates.append(contentsOf: ctx.outerReceiverTypes.reversed().compactMap { receiver in
+        // Kotlin resolves the *nearest* receiver for an implicit context
+        // argument: receivers a lambda introduces inside the enclosing
+        // function body — its implicit `this` (`with("local") { ... }`) and
+        // the context receivers a `context(...) { ... }` block supplies —
+        // shadow the enclosing function's context parameters, which in turn
+        // shadow receivers from scopes enclosing the declaration.
+        // `enclosingLambdaExprIDs` resets when a named/local function body
+        // begins, so per-lambda probing stays inside the caller's own body.
+        let deeperReceiverSymbols = Set(ctx.enclosingLambdaExprIDs.map {
+            SyntheticSymbolScheme.lambdaReceiverSymbol(for: $0)
+        })
+        var farCandidates: [(type: TypeID, symbol: SymbolID)] = ctx.implicitReceiverStack
+            .reversed()
+            .filter { !deeperReceiverSymbols.contains($0.symbol) }
+        let enclosingContextParameters: [(type: TypeID, symbol: SymbolID)] =
+            if let enclosingFunction = ctx.enclosingFunctionSymbol ?? ctx.currentDeclSymbol,
+               let enclosingSignature = ctx.sema.symbols.functionSignature(for: enclosingFunction)
+            {
+                zip(
+                    enclosingSignature.contextParameterTypes,
+                    enclosingSignature.contextParameterSymbols
+                ).map { (type: $0.0, symbol: $0.1) }
+            } else {
+                []
+            }
+        farCandidates.append(contentsOf: ctx.outerReceiverTypes.reversed().compactMap { receiver in
             receiver.symbol.map { (type: receiver.type, symbol: $0) }
         })
-        candidates.append(contentsOf: ctx.implicitReceiverMemberLookupEntries().compactMap { receiver in
+        farCandidates.append(contentsOf: ctx.implicitReceiverMemberLookupEntries().compactMap { receiver in
             receiver.symbol.map { (type: receiver.type, symbol: $0) }
         })
 
+        let contextReceiverTypes = ctx.contextReceiverTypes.map {
+            ctx.sema.types.makeNonNullable($0)
+        }
         let typeVariables = ctx.sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
         return signature.contextParameterTypes.map { requestedType in
             let resolvedType = ctx.sema.types.substituteTypeParameters(
@@ -843,12 +920,50 @@ extension CallTypeChecker {
                 typeVarBySymbol: typeVariables
             )
             let targetType = ctx.sema.types.makeNonNullable(resolvedType)
-            return candidates.first { candidate in
+            func matches(_ candidate: (type: TypeID, symbol: SymbolID)) -> Bool {
                 ctx.sema.types.isSubtype(
                     ctx.sema.types.makeNonNullable(candidate.type),
                     targetType
                 )
-            }?.symbol
+            }
+            // Innermost enclosing lambda first: its implicit receiver, then
+            // the context receivers that lambda itself supplies (the
+            // `context(A("c")) { }` in `with(A("d")) { context(A("c")) { } }`
+            // is nearer than the outer `with` receiver). Context receivers
+            // carry no scope symbol — nil defers to `contextArgumentValue`,
+            // which resolves the innermost value on the context-receiver
+            // stack.
+            for lambdaExprID in ctx.enclosingLambdaExprIDs.reversed() {
+                let receiverSymbol = SyntheticSymbolScheme.lambdaReceiverSymbol(for: lambdaExprID)
+                if let receiver = ctx.implicitReceiverStack.last(where: {
+                    $0.symbol == receiverSymbol
+                }), matches(receiver) {
+                    return receiver.symbol
+                }
+                if ctx.lambdaContextReceiverTypes[lambdaExprID]?.contains(where: { receiverType in
+                    ctx.sema.types.isSubtype(
+                        ctx.sema.types.makeNonNullable(receiverType),
+                        targetType
+                    )
+                }) == true {
+                    return nil
+                }
+            }
+            if let enclosing = enclosingContextParameters.first(where: matches) {
+                return enclosing.symbol
+            }
+            // An anonymous `context(...) { ... }` lambda's context receiver has
+            // no scope symbol, but its value sits on the lowering
+            // context-receiver stack — nearer than any outer implicit receiver
+            // such as `this`. Yielding nil lets `contextArgumentValue` resolve
+            // the innermost receiver of this type from that stack instead of
+            // binding a farther outer receiver here.
+            if contextReceiverTypes.contains(where: { contextType in
+                ctx.sema.types.isSubtype(contextType, targetType)
+            }) {
+                return nil
+            }
+            return farCandidates.first(where: matches)?.symbol
         }
     }
 }

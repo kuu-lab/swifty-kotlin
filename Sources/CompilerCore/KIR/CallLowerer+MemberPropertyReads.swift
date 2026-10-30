@@ -975,7 +975,7 @@ extension CallLowerer {
                 getterSymbol: getterSymbol,
                 getterSlot: getterSlot,
                 receiver: loweredReceiverID,
-                callExprID: nil,
+                callExprID: callExprID,
                 bindingOverride: callBindingOverride,
                 result: result,
                 sema: sema,
@@ -1003,7 +1003,7 @@ extension CallLowerer {
             ) {
                 let result = arena.appendTemporary(type: propertyCallResultType)
                 let virtualAccessorArguments = propertyAccessorArguments(
-                    for: accessorSymbol, arguments: [loweredReceiverID], callExprID: nil,
+                    for: accessorSymbol, arguments: [loweredReceiverID], callExprID: callExprID,
                     bindingOverride: callBindingOverride,
                     sema: sema, arena: arena, interner: interner, instructions: &instructions
                 )
@@ -1030,7 +1030,7 @@ extension CallLowerer {
                 appendPropertyGetterCall(
                     getterSymbol: getterSymbol,
                     receiver: loweredReceiverID,
-                    callExprID: nil,
+                    callExprID: callExprID,
                     bindingOverride: callBindingOverride,
                     result: result,
                     sema: sema,
@@ -1090,7 +1090,7 @@ extension CallLowerer {
         ) {
             let result = arena.appendTemporary(type: propertyCallResultType)
             let virtualAccessorArguments = propertyAccessorArguments(
-                for: accessorSymbol, arguments: [loweredReceiverID], callExprID: nil,
+                for: accessorSymbol, arguments: [loweredReceiverID], callExprID: callExprID,
                 bindingOverride: callBindingOverride,
                 sema: sema, arena: arena, interner: interner, instructions: &instructions
             )

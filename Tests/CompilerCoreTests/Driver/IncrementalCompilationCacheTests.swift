@@ -219,7 +219,7 @@ struct IncrementalCompilationCacheTests {
         cache2.computeCurrentFingerprints(for: [sourceFile])
         let result = cache2.recompilationSet(allPaths: [sourceFile])
         #expect(result != nil)
-        #expect(try #require(result?.isEmpty))
+        #expect(result?.isEmpty == true)
     }
 
     // MARK: - loadPreviousState with unsupported manifest version

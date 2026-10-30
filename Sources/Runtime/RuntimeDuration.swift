@@ -4,7 +4,6 @@ import Foundation
 /// Mirrors the Kotlin value-class payload: signed count plus a low-bit ms tag.
 final class RuntimeDurationBox {
     let rawValue: Int64
-    var nanoseconds: Int64 { runtimeDurationWholeValue(rawValue, unitScale: 1) }
     init(rawValue: Int64) { self.rawValue = rawValue }
     convenience init(nanoseconds: Int64) {
         self.init(rawValue: runtimeDurationOfNanos(nanoseconds))

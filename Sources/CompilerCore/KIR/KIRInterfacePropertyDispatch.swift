@@ -557,7 +557,7 @@ func appendObjectItablePropertyGetterRegistrations<C: RangeReplaceableCollection
                 continue
             }
 
-            synthesizeEnumBaseOrdinalGetterIfNeeded(
+            synthesizeEnumBasePropertyGetterIfNeeded(
                 implGetter,
                 sema: sema,
                 arena: arena,
@@ -619,10 +619,12 @@ func appendObjectItablePropertyGetterRegistrations<C: RangeReplaceableCollection
     }
 }
 
-/// Enum classes have a compiler-provided `ordinal` property, not a source
-/// accessor with a KIR body. Materialize its getter before its symbol is used
-/// in the interface table.
-private func synthesizeEnumBaseOrdinalGetterIfNeeded(
+/// Enum classes have compiler-provided `name`/`ordinal` properties without a
+/// source accessor with a KIR body. Materialize the getter before its symbol
+/// is used in the interface table: `ordinal` unboxes the entry value, while
+/// `name` routes through the enum's `$enumOrdinalToName$` helper — the same
+/// helper `EnumNameAccessLoweringPass` rewrites direct `name` reads to.
+private func synthesizeEnumBasePropertyGetterIfNeeded(
     _ getterSymbol: SymbolID,
     sema: SemaModule,
     arena: KIRArena,
@@ -633,13 +635,29 @@ private func synthesizeEnumBaseOrdinalGetterIfNeeded(
           decoded.kind == .getter,
           let property = sema.symbols.symbol(decoded.property),
           property.kind == .property,
-          property.name == interner.intern("ordinal"),
           let ownerSymbol = sema.symbols.parentSymbol(for: decoded.property),
-          sema.symbols.symbol(ownerSymbol)?.kind == .enumClass,
+          let ownerSym = sema.symbols.symbol(ownerSymbol),
+          ownerSym.kind == .enumClass,
           property.flags.contains(.synthetic),
-          let propertyType = sema.symbols.propertyType(for: decoded.property),
-          propertyType == sema.types.intType
+          let propertyType = sema.symbols.propertyType(for: decoded.property)
     else {
+        return
+    }
+
+    let isOrdinal = property.name == interner.intern("ordinal")
+        && propertyType == sema.types.intType
+    // Source-backed enums synthesize `$enumOrdinalToName$` in
+    // DataEnumSealedSynthesisPass; call it by bare name so this getter is
+    // valid even when the helper's Sema symbol does not exist yet —
+    // codegen resolves unnamed calls by name + arity once the helper is
+    // synthesized (same contract as `emitEnumOrdinalBoxCall`). Imported
+    // .kklib enums carry the helper in their artifact and resolve by
+    // symbol. Header-only synthetic enums have neither, so their accessor
+    // stays body-less as before.
+    let isName = property.name == interner.intern("name")
+        && propertyType == sema.types.stringType
+        && enumBoxingHasOrdinalNameHelper(ownerSym, symbols: sema.symbols, interner: interner)
+    guard isOrdinal || isName else {
         return
     }
 
@@ -648,8 +666,30 @@ private func synthesizeEnumBaseOrdinalGetterIfNeeded(
     )))
     let receiverSymbol = SyntheticSymbolScheme.receiverParameterSymbol(for: decoded.property)
     let receiver = arena.appendExpr(.symbolRef(receiverSymbol), type: ownerType)
-    let ordinal = arena.appendTemporary(type: propertyType)
-    let ordinalCallee = interner.intern("kk_unbox_int")
+    let result = arena.appendTemporary(type: propertyType)
+    let nameHelperCallee = NameMangler.enumOrdinalToNameHelperName(for: ownerSym, interner: interner)
+    let nameHelperSymbol = isName
+        ? sema.symbols.lookupAll(fqName: ownerSym.fqName + [nameHelperCallee]).first { id in
+            sema.symbols.symbol(id).map { $0.kind == .function } ?? false
+        }
+        : nil
+    let valueCall: KIRInstruction = if isOrdinal {
+        .call(
+            callee: interner.intern("kk_unbox_int"),
+            arguments: [receiver],
+            result: result,
+            canThrow: false
+        )
+    } else {
+        .call(
+            symbol: nameHelperSymbol,
+            callee: nameHelperCallee,
+            arguments: [receiver],
+            result: result,
+            canThrow: false
+        )
+    }
+
     let function = KIRFunction(
         symbol: getterSymbol,
         name: interner.intern("get"),
@@ -658,8 +698,8 @@ private func synthesizeEnumBaseOrdinalGetterIfNeeded(
         body: [
             .beginBlock,
             .constValue(result: receiver, value: .symbolRef(receiverSymbol)),
-            .call(callee: ordinalCallee, arguments: [receiver], result: ordinal, canThrow: false),
-            .returnValue(ordinal),
+            valueCall,
+            .returnValue(result),
             .endBlock,
         ],
         isSuspend: false,

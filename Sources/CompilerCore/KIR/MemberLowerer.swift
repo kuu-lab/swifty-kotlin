@@ -317,11 +317,6 @@ final class MemberLowerer {
             // synthesized accessors, matching the storage/backing-field
             // suppression above.
             if !isInterfaceContext, propertyDecl.delegateExpression != nil {
-                let delegateKind = StdlibDelegateKind.detect(
-                    delegateExpr: propertyDecl.delegateExpression,
-                    ast: ast,
-                    interner: interner
-                )
                 let delegateStorageSymbol: SymbolID
                 if let existingStorage = sema.symbols.delegateStorageSymbol(for: symbol) {
                     delegateStorageSymbol = existingStorage

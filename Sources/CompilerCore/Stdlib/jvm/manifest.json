@@ -51,6 +51,18 @@
       "runtimeFacade": "kotlin/math/MathKt"
     },
     {
+      "path": "kotlin/comparisons/Comparisons.kt",
+      "virtualPath": "<kswiftk-jvm>/comparisons.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/comparisons/ComparisonsKt"
+    },
+    {
+      "path": "kotlin/comparisons/ComparisonFactories.kt",
+      "virtualPath": "<kswiftk-jvm>/comparison-factories.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/comparisons/ComparisonsKt__ComparisonsKt"
+    },
+    {
       "path": "declarations/JavaCollections.kt",
       "virtualPath": "<kswiftk-jvm>/javaCollections.kt",
       "excludeFromStdlibBuild": false,
@@ -90,6 +102,11 @@
       "path": "declarations/ReflectionExtensions.kt",
       "virtualPath": "<kswiftk-jvm>/reflectionExtensions.kt",
       "excludeFromStdlibBuild": false
+    },
+    {
+      "path": "declarations/ReflectionPropertyException.kt",
+      "virtualPath": "<kswiftk-jvm>/reflectionPropertyException.kt",
+      "excludeFromStdlibBuild": true
     },
     {
       "path": "declarations/JavaReflection.kt",
@@ -140,6 +157,11 @@
     {
       "path": "declarations/Regex.kt",
       "virtualPath": "<kswiftk-jvm>/m19-regex.kt",
+      "excludeFromStdlibBuild": true
+    },
+    {
+      "path": "declarations/IntProgression.kt",
+      "virtualPath": "<kswiftk-jvm>/int-progression.kt",
       "excludeFromStdlibBuild": true
     },
     {

@@ -934,6 +934,26 @@ struct DeclarationPositionValidator {
             }
         }
 
+        // A named object can only be a top-level or member declaration — in
+        // any local position (function body, member of a local/anonymous
+        // nominal, enum entry) kotlinc reports "named object 'X' cannot be
+        // local". `companion object` takes its own not-applicable check below.
+        let isLocalSite = switch site {
+        case .file:
+            false
+        case .function:
+            true
+        case .nominal(let nominal):
+            nominal.isLocal || nominal.kind == .enumEntry
+        }
+        if isLocalSite, !modifiers.contains(.companion) {
+            diagnostics?.error(
+                "KSWIFTK-SEMA-0429",
+                "named object '\(interner.resolve(decl.name))' cannot be local. Try to use an anonymous object instead.",
+                range: decl.range
+            )
+        }
+
         if modifiers.contains(.companion) {
             let allowed: Bool = switch site {
             case .nominal(let nominal):

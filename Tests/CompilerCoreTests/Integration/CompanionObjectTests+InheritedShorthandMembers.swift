@@ -123,6 +123,62 @@ extension CompanionObjectTests {
         #expect(ctx.diagnostics.diagnostics.filter { $0.code == code }.count == 2)
     }
 
+    @Test func testInheritedCompanionPropertyResolvesUnqualifiedInClassMembers() throws {
+        let source = """
+        open class Parent<T>(val inherited: String)
+        class Child {
+            companion object : Parent<Child>("OK")
+            fun read(): String = inherited
+            fun readQualified(): String = Companion.inherited + ":" + Child.inherited
+        }
+        """
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+    }
+
+    @Test func testInheritedCompanionPropertyIsVisibleToNestedClass() throws {
+        let source = """
+        open class Parent<T>(val inherited: String)
+        class Outer {
+            companion object : Parent<Outer>("OK")
+            class Nested {
+                fun read(): String = inherited
+            }
+        }
+        """
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+    }
+
+    @Test func testInstanceMemberBeatsInheritedCompanionProperty() throws {
+        let source = """
+        open class Parent<T>(val inherited: String)
+        class Shadow {
+            companion object : Parent<Shadow>("PARENT")
+            val inherited: String = "CLASS"
+            fun read(): String = inherited
+        }
+        """
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+    }
+
+    @Test func testPrivateInheritedCompanionMemberStaysInvisibleUnqualified() throws {
+        let source = """
+        open class Parent<T>(private val secret: String)
+        class Child {
+            companion object : Parent<Child>("OK")
+            fun read(): String = secret
+        }
+        """
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+        #expect(ctx.diagnostics.diagnostics.contains { $0.severity == .error })
+    }
+
     @Test func testCompanionShorthandDoesNotExposeOwnerInstanceMembers() throws {
         let source = """
         class WithComp {

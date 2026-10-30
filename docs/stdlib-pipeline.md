@@ -994,8 +994,9 @@ Swift に残ってよいのは (1) 言語コアの組込宣言（Any/Nothing/プ
 
    KUU-2017 adds one private bridge, `__kk_system_in` (reason: syscall).
    The source-backed `java.lang.System.in` property stores a native standard-input
-   stream object without reading stdin during initialization; the default-import
-   `kotlin.system.System` compatibility object delegates to that same stream. Byte reads share
+   stream object without reading stdin during initialization; the
+   `kotlin.system.System` compatibility object (reachable via
+   `import kotlin.system.System`) delegates to that same stream. Byte reads share
    stdio's cursor with console input. `__kk_*` increases by one;
    `RuntimeABISpec.systemFunctions` registers the ABI and its canonical hash
    updates `specVersion`.
@@ -1003,7 +1004,8 @@ Swift に残ってよいのは (1) 言語コアの組込宣言（Any/Nothing/プ
    KUU-2223 adds one private `__kk_system_arraycopy` bridge and two
    `__kk_array_store_exception_new*` constructor bridges (reason: memory
    representation). The source-backed `java.lang.System.arraycopy` and the
-   default-import `kotlin.system.System` facade keep the public API in Kotlin;
+   `kotlin.system.System` facade (reachable via `import kotlin.system.System`)
+   keep the public API in Kotlin;
    the bridge operates on opaque `RuntimeArrayBox` storage to preserve overlap,
    primitive-array kind checks, and per-element reference-array stores. The
    source-backed `java.lang.ArrayStoreException` constructors create the

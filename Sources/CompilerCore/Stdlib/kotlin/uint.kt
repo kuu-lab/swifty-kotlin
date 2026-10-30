@@ -13,13 +13,7 @@ internal fun uintCompare(v1: Int, v2: Int): Int =
     (v1 xor Int.MIN_VALUE).compareTo(v2 xor Int.MIN_VALUE)
 
 @PublishedApi
-internal inline fun uintToULong(value: Int): ULong = ULong(uintToLong(value))
-
-@PublishedApi
 internal inline fun uintToLong(value: Int): Long = value.toLong() and 0xFFFF_FFFFL
-
-@PublishedApi
-internal inline fun uintToFloat(value: Int): Float = uintToDouble(value).toFloat()
 
 @PublishedApi
 internal fun uintToDouble(value: Int): Double =

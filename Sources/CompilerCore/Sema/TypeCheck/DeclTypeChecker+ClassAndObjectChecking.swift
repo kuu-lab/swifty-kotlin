@@ -849,7 +849,7 @@ extension DeclTypeChecker {
             var memberScopeParent = parent
             for owners in inheritedOwnersByDepth.reversed() {
                 let inheritedScope = BaseScope(parent: memberScopeParent, symbols: sema.symbols)
-                insertMembers(of: owners, into: inheritedScope, inherited: true, functionsOnly: true)
+                insertMembers(of: owners, into: inheritedScope, inherited: true, functionsOnly: false)
                 memberScopeParent = inheritedScope
             }
 

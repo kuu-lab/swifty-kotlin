@@ -427,7 +427,9 @@ extension ExprLowerer {
                       let receiverExprID = driver.objectLiteralLowerer.implicitReceiverExprID(
                           forProperty: symbol,
                           sema: sema,
-                          arena: arena
+                          arena: arena,
+                          interner: interner,
+                          instructions: &instructions
                       ),
                       driver.callLowerer.memberPropertyUsesSetterAccessor(symbol, ast: ast, sema: sema),
                       let read = lowerImplicitPropertyCompoundRead(
@@ -633,7 +635,9 @@ extension ExprLowerer {
                       let receiverID = driver.objectLiteralLowerer.implicitReceiverExprID(
                           forProperty: symbol,
                           sema: sema,
-                          arena: arena
+                          arena: arena,
+                          interner: interner,
+                          instructions: &instructions
                       ),
                       let fieldOffset = sema.symbols.nominalLayout(for: ownerSymbol)?.fieldOffsets[
                           sema.symbols.backingFieldSymbol(for: symbol) ?? symbol

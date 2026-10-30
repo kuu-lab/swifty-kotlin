@@ -1188,7 +1188,7 @@ final class ControlFlowTypeChecker {
                     locals[name] = (joinedType, local.symbol, local.isMutable, local.isInitialized)
                 }
             }
-            locals.memberFlow = joinMemberFlow(from: reachingBranchLocals, base: locals.memberFlow, sema: sema)
+            locals.memberFlow = joinMemberFlow(from: reachingBranchLocals, base: locals.memberFlow)
             locals.joinVariableFacts(from: reachingBranchLocals)
         } else {
             // An `if` without `else` is a statement in Kotlin; using it where a
@@ -1258,9 +1258,7 @@ final class ControlFlowTypeChecker {
 
     func joinMemberFlow(
         from branches: [LocalBindings],
-        base: [DataFlowReference: VariableFlowState],
-        sema: SemaModule
-    ) -> [DataFlowReference: VariableFlowState] {
+        base: [DataFlowReference: VariableFlowState]) -> [DataFlowReference: VariableFlowState] {
         guard !branches.isEmpty else { return base }
         if branches.count == 1 {
             return branches[0].memberFlow

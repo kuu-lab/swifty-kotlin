@@ -370,6 +370,7 @@ final class LocalDeclTypeChecker {
                 locals[name] = (local.type, local.symbol, local.isMutable, true)
             }
             let valueType = driver.inferExpr(value, ctx: ctx, locals: &locals, expectedType: declaredType)
+            driver.recordGenericCallConsumer(value, type: declaredType)
             ctx.sema.bindings.bindIdentifier(id, symbol: local.symbol)
             if !local.isMutable, local.isInitialized {
                 ctx.sema.diagnostics.error(
@@ -473,6 +474,9 @@ final class LocalDeclTypeChecker {
                 symbol: writeSymbol, receiverType: receiverType, fallback: member.type, sema: ctx.sema
             )
             let valueType = driver.inferExpr(value, ctx: ctx, locals: &locals, expectedType: writeType)
+            driver.recordGenericCallConsumer(
+                value, type: ctx.sema.symbols.propertyType(for: writeSymbol) ?? writeType
+            )
             ctx.sema.bindings.bindIdentifier(id, symbol: writeSymbol)
             driver.helpers.checkDeprecation(
                 for: writeSymbol, sema: ctx.sema, interner: interner,
@@ -571,6 +575,7 @@ final class LocalDeclTypeChecker {
         if let propSymbol = candidates.first(where: { $0.kind == .property }) {
             let propType = ctx.sema.symbols.propertyType(for: propSymbol.id) ?? ctx.sema.types.anyType
             let valueType = driver.inferExpr(value, ctx: ctx, locals: &locals, expectedType: propType)
+            driver.recordGenericCallConsumer(value, type: propType)
             ctx.sema.bindings.bindIdentifier(id, symbol: propSymbol.id)
             driver.helpers.checkDeprecation(
                 for: propSymbol.id, sema: ctx.sema, interner: interner,

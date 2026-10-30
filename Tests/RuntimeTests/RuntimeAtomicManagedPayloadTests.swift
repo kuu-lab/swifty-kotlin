@@ -60,7 +60,7 @@ struct RuntimeAtomicManagedPayloadTests {
         withAtomicPayloadTypeInfo { info in
             let payload = kk_alloc(32, info)
             let cell = kk_atomic_ref_create(Int(bitPattern: payload))
-            weak var box: AtomicRefBox? = resolveRuntimeHandle(cell, as: AtomicRefBox.self)
+            weak let box: AtomicRefBox? = resolveRuntimeHandle(cell, as: AtomicRefBox.self)
             #expect(runtimeStorage.withGCLock { $0.retainedAtomicReferenceHandles.contains(UInt(bitPattern: cell)) })
             kk_gc_collect()
             #expect(kk_runtime_heap_object_count() == 1)
@@ -80,7 +80,7 @@ struct RuntimeAtomicManagedPayloadTests {
     @Test func retainedReferenceArrayProtectsEachCellAndDropsRemovedOwners() {
         withAtomicPayloadTypeInfo { info in
             let array = kk_atomic_ref_array_new(3)
-            weak var box: AtomicRefArrayBox? = resolveRuntimeHandle(array, as: AtomicRefArrayBox.self)
+            weak let box: AtomicRefArrayBox? = resolveRuntimeHandle(array, as: AtomicRefArrayBox.self)
             for index in 0 ..< 3 {
                 _ = kk_atomic_ref_array_storeAt(array, index, Int(bitPattern: kk_alloc(32, info)))
             }
@@ -186,11 +186,11 @@ struct RuntimeAtomicManagedPayloadTests {
     @Test func ownedSynchronizationKernelReleaseDropsARCButGCAloneDoesNot() {
         var thrown = 0
         let lock = __kk_atomicfu_lock_new(0)
-        weak var lockBox: RuntimeAtomicfuRecursiveLock? = resolveRuntimeHandle(lock, as: RuntimeAtomicfuRecursiveLock.self)
+        weak let lockBox: RuntimeAtomicfuRecursiveLock? = resolveRuntimeHandle(lock, as: RuntimeAtomicfuRecursiveLock.self)
         #expect(__kk_atomicfu_lock_lock(lock, &thrown) == 0 && thrown == 0)
         #expect(__kk_atomicfu_lock_unlock(lock, &thrown) == 0 && thrown == 0)
         let parker = __kk_atomicfu_parker_new()
-        weak var parkerBox: RuntimeAtomicfuParker? = resolveRuntimeHandle(parker, as: RuntimeAtomicfuParker.self)
+        weak let parkerBox: RuntimeAtomicfuParker? = resolveRuntimeHandle(parker, as: RuntimeAtomicfuParker.self)
         #expect(__kk_atomicfu_parker_unpark(parker, &thrown) == 0 && thrown == 0)
         #expect(__kk_atomicfu_parker_wait(parker, 0, &thrown) == 0 && thrown == 0)
         kk_gc_collect()

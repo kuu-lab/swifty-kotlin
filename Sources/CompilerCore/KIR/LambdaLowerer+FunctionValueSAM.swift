@@ -77,10 +77,10 @@ extension LambdaLowerer {
             symbol: syntheticLambdaCaptureParamSymbol(lambdaExprID: exprID, captureIndex: 0),
             type: sourceType
         )
-        // The thunk's value parameters mirror the SAM member's full input
-        // shape — context receivers, then the extension receiver, then value
-        // parameters — so `lowerSamWrapperValue` can forward every argument
-        // it synthesizes and `kk_function_invoke_N` sees its declared arity.
+        // The thunk is invoked from the SAM wrapper in invocation order —
+        // context receivers first, then the extension receiver, then value
+        // params — which is also the order `invoke` expects on the captured
+        // context function value.
         let samInputTypes = samFunction.contextReceivers
             + (samFunction.receiver.map { [$0] } ?? [])
             + samFunction.params
