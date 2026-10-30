@@ -9,35 +9,78 @@ import Glibc
 
 /// Inputs that must match between a test process and its isolated stdlib builder.
 public enum TestStdlibCompilerIdentity {
-    public static func current() -> String? {
-        if let inserted = ProcessInfo.processInfo.environment["DYLD_INSERT_LIBRARIES"], !inserted.isEmpty {
-            return nil
+    /// Why ``current()`` could not produce an identity. ``currentWithDiagnostics()``
+    /// surfaces the failing stage so CI logs name it instead of only reporting a
+    /// missing fingerprint.
+    public enum IdentityUnavailable: Error, CustomStringConvertible, Equatable {
+        case injectedLibraries
+        case llvmUnavailable
+        case llvmIdentityUnavailable(String)
+        case stdlibSourcesEmpty
+
+        public var description: String {
+            switch self {
+            case .injectedLibraries:
+                return "DYLD_INSERT_LIBRARIES is set"
+            case .llvmUnavailable:
+                return "no usable libLLVM could be loaded"
+            case .llvmIdentityUnavailable(let detail):
+                return "could not fingerprint the loaded LLVM/runtime images: \(detail)"
+            case .stdlibSourcesEmpty:
+                return "bundled stdlib sources are unavailable"
+            }
         }
-        guard let llvm = LLVMCAPIBindings.loadUsable() else { return nil }
+    }
+
+    public static func current() -> String? {
+        try? currentWithDiagnostics().get()
+    }
+
+    public static func currentWithDiagnostics() -> Result<String, IdentityUnavailable> {
+        if let inserted = ProcessInfo.processInfo.environment["DYLD_INSERT_LIBRARIES"], !inserted.isEmpty {
+            return .failure(.injectedLibraries)
+        }
+        guard let llvm = LLVMCAPIBindings.loadUsable() else { return .failure(.llvmUnavailable) }
         #if canImport(Darwin)
         var info = Dl_info()
         guard dladdr(unsafeBitCast(llvm.contextCreateFn, to: UnsafeRawPointer.self), &info) != 0,
-              let filename = info.dli_fname else { return nil }
+              let filename = info.dli_fname else {
+            return .failure(.llvmIdentityUnavailable("dladdr could not locate the loaded libLLVM"))
+        }
         let llvmPath = String(cString: filename)
-        guard let llvmHash = stableFileHash(llvmPath) else { return nil }
+        guard let llvmHash = stableFileHash(llvmPath) else {
+            return .failure(.llvmIdentityUnavailable("could not hash \(llvmPath) (missing or changed while reading)"))
+        }
         let llvmIdentity = "\(llvmPath)|\(llvmHash)"
         #elseif canImport(Glibc)
         // If the selected image cannot be queried portably, fingerprint every
         // candidate in search order and every loaded executable mapping.
-        let linuxIdentity: String? = withExtendedLifetime(llvm) {
+        let linuxIdentity: Result<String, IdentityUnavailable> = withExtendedLifetime(llvm) {
             var files: [String: LinuxDigest] = [:]
-            guard let candidates = candidateLibrariesFingerprint(files: &files),
-                  let loaded = linuxLoadedLibrariesFingerprint(files: &files),
-                  files.allSatisfy({ linuxFileSignature($0.key) == $0.value.signature }) else { return nil }
-            return "\(candidates)|\(loaded)"
+            guard let candidates = candidateLibrariesFingerprint(files: &files) else {
+                return .failure(.llvmIdentityUnavailable("a candidate library path failed to hash"))
+            }
+            switch linuxLoadedLibrariesFingerprint(files: &files) {
+            case .failure(let reason):
+                return .failure(reason)
+            case .success(let loaded):
+                guard files.allSatisfy({ linuxFileSignature($0.key) == $0.value.signature }) else {
+                    return .failure(.llvmIdentityUnavailable("a fingerprinted file changed on disk"))
+                }
+                return .success("\(candidates)|\(loaded)")
+            }
         }
-        guard let llvmIdentity = linuxIdentity else { return nil }
+        let llvmIdentity: String
+        switch linuxIdentity {
+        case .failure(let reason): return .failure(reason)
+        case .success(let value): llvmIdentity = value
+        }
         #else
-        return nil
+        return .failure(.llvmIdentityUnavailable("unsupported platform"))
         #endif
 
         let sources = BundledStdlib.bundledStdlibSources()
-        guard !sources.isEmpty else { return nil }
+        guard !sources.isEmpty else { return .failure(.stdlibSourcesEmpty) }
         var input = Data()
         func append(_ value: String) {
             let bytes = Data(value.utf8)
@@ -54,7 +97,7 @@ public enum TestStdlibCompilerIdentity {
             append(FileFingerprint.compute(for: source.path, contents: source.contents).contentHash)
         }
         append(environmentFingerprint(ProcessInfo.processInfo.environment))
-        return FileFingerprint.compute(for: "test-stdlib-worker-context", contents: input).contentHash
+        return .success(FileFingerprint.compute(for: "test-stdlib-worker-context", contents: input).contentHash)
     }
 
     #if canImport(Glibc)
@@ -115,36 +158,59 @@ public enum TestStdlibCompilerIdentity {
         return FileFingerprint.compute(for: "test-stdlib-llvm-candidates", contents: input).contentHash
     }
 
-    private static func linuxLoadedLibrariesFingerprint(files: inout [String: LinuxDigest]) -> String? {
-        guard let maps = try? String(contentsOfFile: "/proc/self/maps", encoding: .utf8),
-              let paths = linuxExecutableMappings(maps) else { return nil }
+    private static func linuxLoadedLibrariesFingerprint(
+        files: inout [String: LinuxDigest]
+    ) -> Result<String, IdentityUnavailable> {
+        guard let maps = try? String(contentsOfFile: "/proc/self/maps", encoding: .utf8) else {
+            return .failure(.llvmIdentityUnavailable("could not read /proc/self/maps"))
+        }
+        let paths: [String]
+        switch linuxExecutableMappingsDetailed(maps) {
+        case .failure(let reason): return .failure(reason)
+        case .success(let value): paths = value
+        }
         var input = Data()
         for path in paths {
             let resolved = URL(fileURLWithPath: path).resolvingSymlinksInPath().path
-            guard let digest = linuxDigest(resolved, files: &files) else { return nil }
+            guard let digest = linuxDigest(resolved, files: &files) else {
+                return .failure(.llvmIdentityUnavailable("could not hash \(resolved) (missing or changed while reading)"))
+            }
             for value in [path, resolved, digest] {
                 let bytes = Data(value.utf8)
                 input.append(Data("\(bytes.count):".utf8))
                 input.append(bytes)
             }
         }
-        return FileFingerprint.compute(for: "test-stdlib-linux-images", contents: input).contentHash
+        return .success(FileFingerprint.compute(for: "test-stdlib-linux-images", contents: input).contentHash)
     }
     #endif
 
     static func linuxExecutableMappings(_ maps: String) -> [String]? {
+        try? linuxExecutableMappingsDetailed(maps).get()
+    }
+
+    private static func linuxExecutableMappingsDetailed(_ maps: String) -> Result<[String], IdentityUnavailable> {
         var paths: Set<String> = []
         for line in maps.split(separator: "\n") {
             let fields = line.split(maxSplits: 5, whereSeparator: { $0 == " " || $0 == "\t" })
-            guard fields.count >= 5 else { return nil }
+            guard fields.count >= 5 else {
+                return .failure(.llvmIdentityUnavailable("malformed /proc/self/maps line: \(line.prefix(100))"))
+            }
             guard fields[1].contains("x") else { continue }
-            guard fields.count == 6 else { return nil }
+            guard fields.count == 6 else {
+                return .failure(.llvmIdentityUnavailable("anonymous executable mapping: \(line.prefix(100))"))
+            }
             let path = String(fields[5])
             if path == "[vdso]" || path == "[vsyscall]" { continue }
-            guard path.hasPrefix("/"), !path.hasSuffix(" (deleted)") else { return nil }
+            guard path.hasPrefix("/") else {
+                return .failure(.llvmIdentityUnavailable("non-file executable mapping: \(path)"))
+            }
+            guard !path.hasSuffix(" (deleted)") else {
+                return .failure(.llvmIdentityUnavailable("executable mapped from deleted file: \(path)"))
+            }
             paths.insert(path)
         }
-        return paths.sorted()
+        return .success(paths.sorted())
     }
 
     static func environmentFingerprint(_ environment: [String: String]) -> String {

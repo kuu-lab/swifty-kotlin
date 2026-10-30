@@ -9,14 +9,17 @@ import Glibc
 #endif
 
 private enum TestStdlibCacheError: Error, CustomStringConvertible {
-    case compilerFingerprintUnavailable
+    case compilerFingerprintUnavailable(String?)
     case artifactMissing(String)
     case lockFileCreateFailed(String, Int32)
     case lockFailed(String, Int32)
 
     var description: String {
         switch self {
-        case .compilerFingerprintUnavailable:
+        case .compilerFingerprintUnavailable(let detail):
+            if let detail {
+                return "Could not identify the loaded compiler binary (\(detail)); refusing to reuse a shared stdlib artifact"
+            }
             return "Could not identify the loaded compiler binary; refusing to reuse a shared stdlib artifact"
         case .artifactMissing(let path):
             return "Shared stdlib artifact was not produced at \(path)"
@@ -85,10 +88,20 @@ public final class TestStdlibCache: @unchecked Sendable {
             .appendingPathComponent(".build", isDirectory: true)
         let worker = TestStdlibWorkerProvenance.resolve()
         let imageFingerprint: String?
+        var identityFailure: String?
         if worker == nil {
-            imageFingerprint = TestStdlibWorkerProvenance.fullImageFingerprint(
-                imageURL: Self.currentCompilerImageURL(), context: TestStdlibCompilerIdentity.current()
-            )
+            switch TestStdlibCompilerIdentity.currentWithDiagnostics() {
+            case .success(let context):
+                imageFingerprint = TestStdlibWorkerProvenance.fullImageFingerprint(
+                    imageURL: Self.currentCompilerImageURL(), context: context
+                )
+                if imageFingerprint == nil {
+                    identityFailure = "could not hash the loaded compiler image (missing or changed while reading)"
+                }
+            case .failure(let reason):
+                imageFingerprint = nil
+                identityFailure = reason.description
+            }
         } else {
             imageFingerprint = nil
         }
@@ -100,7 +113,11 @@ public final class TestStdlibCache: @unchecked Sendable {
                 contents: Data("\(manifestHash)|\(worker.fingerprint)".utf8)
             ).contentHash
         } else {
-            key = try Self.contentKey(manifestHash: manifestHash, compilerFingerprint: imageFingerprint)
+            key = try Self.contentKey(
+                manifestHash: manifestHash,
+                compilerFingerprint: imageFingerprint,
+                failureDetail: identityFailure
+            )
         }
         return try Self.resolveOrBuildArtifact(
             buildDirectory: buildURL,
@@ -221,8 +238,12 @@ public final class TestStdlibCache: @unchecked Sendable {
     /// Missing compiler identity must not map to a reusable "unknown" key.
     /// `prepare()` reports this error and leaves source-based compilation available.
     static func contentKey(manifestHash: String, compilerFingerprint: String?) throws -> String {
+        try contentKey(manifestHash: manifestHash, compilerFingerprint: compilerFingerprint, failureDetail: nil)
+    }
+
+    static func contentKey(manifestHash: String, compilerFingerprint: String?, failureDetail: String?) throws -> String {
         guard let compilerFingerprint, !compilerFingerprint.isEmpty else {
-            throw TestStdlibCacheError.compilerFingerprintUnavailable
+            throw TestStdlibCacheError.compilerFingerprintUnavailable(failureDetail)
         }
         return StableFNV1a64.hex("\(manifestHash)|\(compilerFingerprint)")
     }
