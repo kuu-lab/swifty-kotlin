@@ -495,6 +495,13 @@ private final class TypeCheckWork: @unchecked Sendable {
             diagnostics: driver.diagnostics, interner: driver.interner,
             compilationModuleName: driver.compilationContext?.options.moduleName ?? "TestModule"
         )
+        // Body-bound local classes and anonymous objects are only reachable
+        // through expression nodes now that their member symbols exist.
+        DataFlowSemaPhase().validateDeferredDiamondOverrides(
+            ast: driver.ast, symbols: driver.sema.symbols,
+            bindings: driver.sema.bindings,
+            diagnostics: driver.diagnostics, interner: driver.interner
+        )
     }
 }
 

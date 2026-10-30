@@ -34,6 +34,7 @@ extension DataFlowSemaPhase {
             bindings.declSymbols.map { ($0.value, $0.key) },
             uniquingKeysWith: { first, _ in first }
         )
+        var visited = Set<DeclID>()
         for file in ast.sortedFiles {
             for declID in file.topLevelDecls {
                 validateDiamondOverridesForDecl(
@@ -42,6 +43,45 @@ extension DataFlowSemaPhase {
                     symbols: symbols,
                     bindings: bindings,
                     declBySymbol: declBySymbol,
+                    visited: &visited,
+                    diagnostics: diagnostics,
+                    interner: interner
+                )
+            }
+        }
+    }
+
+    /// Local classes and anonymous objects live behind expression nodes whose
+    /// member symbols are only bound during body type checking, so the
+    /// header-time pass above cannot see them. TypeCheckSemaPhase calls this
+    /// once bodies have been checked.
+    func validateDeferredDiamondOverrides(
+        ast: ASTModule,
+        symbols: SymbolTable,
+        bindings: BindingTable,
+        diagnostics: DiagnosticEngine,
+        interner: StringInterner
+    ) {
+        let declBySymbol = Dictionary(
+            bindings.declSymbols.map { ($0.value, $0.key) },
+            uniquingKeysWith: { first, _ in first }
+        )
+        var visited = Set<DeclID>()
+        for expr in ast.arena.exprs {
+            let nestedDeclID: DeclID?
+            switch expr {
+            case let .objectLiteral(_, declID, _): nestedDeclID = declID
+            case let .localNominalDecl(declID, _): nestedDeclID = declID
+            default: nestedDeclID = nil
+            }
+            if let nestedDeclID {
+                validateDiamondOverridesForDecl(
+                    declID: nestedDeclID,
+                    ast: ast,
+                    symbols: symbols,
+                    bindings: bindings,
+                    declBySymbol: declBySymbol,
+                    visited: &visited,
                     diagnostics: diagnostics,
                     interner: interner
                 )
@@ -55,10 +95,12 @@ extension DataFlowSemaPhase {
         symbols: SymbolTable,
         bindings: BindingTable,
         declBySymbol: [SymbolID: DeclID],
+        visited: inout Set<DeclID>,
         diagnostics: DiagnosticEngine,
         interner: StringInterner
     ) {
-        guard let symbol = bindings.declSymbols[declID],
+        guard visited.insert(declID).inserted,
+              let symbol = bindings.declSymbols[declID],
               let decl = ast.arena.decl(declID),
               let symbolInfo = symbols.symbol(symbol)
         else {
@@ -68,7 +110,7 @@ extension DataFlowSemaPhase {
         recurseDiamondValidation(
             decl: decl, ast: ast, symbols: symbols,
             bindings: bindings, declBySymbol: declBySymbol,
-            diagnostics: diagnostics, interner: interner
+            visited: &visited, diagnostics: diagnostics, interner: interner
         )
 
         // Kotlinc requires an override from every nominal kind that inherits a
@@ -116,6 +158,7 @@ extension DataFlowSemaPhase {
         symbols: SymbolTable,
         bindings: BindingTable,
         declBySymbol: [SymbolID: DeclID],
+        visited: inout Set<DeclID>,
         diagnostics: DiagnosticEngine,
         interner: StringInterner
     ) {
@@ -135,7 +178,7 @@ extension DataFlowSemaPhase {
             validateDiamondOverridesForDecl(
                 declID: nestedDeclID, ast: ast, symbols: symbols,
                 bindings: bindings, declBySymbol: declBySymbol,
-                diagnostics: diagnostics, interner: interner
+                visited: &visited, diagnostics: diagnostics, interner: interner
             )
         }
     }
@@ -333,6 +376,10 @@ extension DataFlowSemaPhase {
         symbols: SymbolTable,
         interner: StringInterner
     ) -> String {
+        // Anonymous object literals print as '<anonymous>' in kotlinc.
+        if symbols.symbol(symbol)?.flags.contains(.objectLiteralType) == true {
+            return "<anonymous>"
+        }
         var segments: [String] = []
         var current: SymbolID? = symbol
         while let symbolID = current, let info = symbols.symbol(symbolID) {
