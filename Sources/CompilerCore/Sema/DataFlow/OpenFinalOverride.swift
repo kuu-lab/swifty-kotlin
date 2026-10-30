@@ -1598,8 +1598,10 @@ extension DataFlowSemaPhase {
     ///     doesn't match the type of the overridden 'var' property".
     /// A `val`-over-`var` pair is left to `validateValVarMutabilityOverride`
     /// (it is rejected for mutability reasons regardless of types).
-    /// Types that mention type parameters are skipped: substitution-sensitive
-    /// checks belong to the generic-covariance path.
+    /// A parent type that mentions the superclass's own type parameters is
+    /// first substituted through the child's concrete supertype arguments;
+    /// types still parametric after substitution are skipped: those checks
+    /// belong to the generic-covariance path.
     ///
     /// When the override has no explicit type annotation the symbol stores the
     /// `anyType` placeholder (see `extractMemberMeta` for the function case),
@@ -1646,8 +1648,33 @@ extension DataFlowSemaPhase {
         ) {
             guard let parentSym = ctx.symbols.symbol(parent.memberID),
                   parentSym.kind == .property,
-                  let parentType = ctx.symbols.propertyType(for: parent.memberID),
-                  !typeContainsAnyTypeParam(parentType, types: ctx.types)
+                  let declaredParentType = ctx.symbols.propertyType(for: parent.memberID)
+            else { continue }
+
+            // A parent property declared over the superclass's own type
+            // parameters (`open var x: T`) must be compared through the
+            // child's concrete supertype arguments: `class D : Base<String>`
+            // sees `x` as `String`, not `T`. Parents still mentioning type
+            // parameters after substitution (e.g. `D<T> : Base<T>`) fall back
+            // to the old skip — the generic-covariance path owns those.
+            let parentType: TypeID
+            if typeContainsAnyTypeParam(declaredParentType, types: ctx.types),
+               let parentOwner = ctx.symbols.parentSymbol(for: parent.memberID),
+               let liftedArgs = liftedSupertypeArgs(
+                   from: ownerSymbol,
+                   to: parentOwner,
+                   types: ctx.types,
+                   symbols: ctx.symbols
+               ) {
+                parentType = ctx.types.substituteNominalTypeParameters(
+                    in: declaredParentType,
+                    owner: parentOwner,
+                    ownerArgs: liftedArgs
+                )
+            } else {
+                parentType = declaredParentType
+            }
+            guard !typeContainsAnyTypeParam(parentType, types: ctx.types)
             else { continue }
 
             let parentIsVar = parentSym.flags.contains(.mutable)

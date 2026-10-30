@@ -204,5 +204,64 @@ struct PropertyTypeOverrideTests {
         """)
         assertNoDiagnostic("KSWIFTK-SEMA-OVERRIDE-TYPE", in: diagnostics)
     }
-}
-#endif
+
+    /// A parent declared over the superclass's type parameters must be
+    /// compared through the child's concrete supertype arguments:
+    /// `D : Base<String>` sees `Base<T>.x` as `String`, so kotlinc rejects
+    /// `override var x: Int` while accepting `override var x: String`.
+
+    @Test
+    func rejectsVarOverrideAgainstGenericParent() throws {
+        let diagnostics = try diagnosticsFor("""
+        abstract class Base<T> { abstract var x: T }
+        class D : Base<String>() { override var x: Int = 1 }
+        """)
+        assertHasDiagnostic("KSWIFTK-SEMA-OVERRIDE-TYPE", in: diagnostics)
+    }
+
+    @Test
+    func acceptsVarOverrideAgainstGenericParent() throws {
+        let diagnostics = try diagnosticsFor("""
+        abstract class Base<T> { abstract var x: T }
+        class D : Base<String>() { override var x: String = "s" }
+        """)
+        assertNoDiagnostic("KSWIFTK-SEMA-OVERRIDE-TYPE", in: diagnostics)
+    }
+
+    @Test
+    func rejectsValWideningAgainstGenericParent() throws {
+        let diagnostics = try diagnosticsFor("""
+        abstract class Base<T> { abstract val x: T }
+        class D : Base<String>() { override val x: Any = "s" }
+        """)
+        assertHasDiagnostic("KSWIFTK-SEMA-OVERRIDE-TYPE", in: diagnostics)
+    }
+
+    @Test
+    func acceptsValNarrowingAgainstGenericParent() throws {
+        let diagnostics = try diagnosticsFor("""
+        abstract class Base<T> { abstract val x: Any }
+        class D : Base<Any>() { override val x: String = "s" }
+        """)
+        assertNoDiagnostic("KSWIFTK-SEMA-OVERRIDE-TYPE", in: diagnostics)
+    }
+
+    @Test
+    func rejectsVarOverrideThroughTransitiveGenericParent() throws {
+        let diagnostics = try diagnosticsFor("""
+        abstract class Base<T> { abstract var x: T }
+        abstract class Mid<S> : Base<S>()
+        class D : Mid<Int>() { override var x: String = "s" }
+        """)
+        assertHasDiagnostic("KSWIFTK-SEMA-OVERRIDE-TYPE", in: diagnostics)
+    }
+
+    @Test
+    func rejectsVarOverrideAgainstGenericInterface() throws {
+        let diagnostics = try diagnosticsFor("""
+        interface I<T> { var x: T }
+        class D : I<String> { override var x: Int = 1 }
+        """)
+        assertHasDiagnostic("KSWIFTK-SEMA-OVERRIDE-TYPE", in: diagnostics)
+    }
+}#endif
