@@ -7,6 +7,24 @@ import Testing
 
 @Suite
 struct CodegenBackendInnerClassOuterReceiverExecutionTests {
+    // KUU-3574: inherited inner constructors capture outer arguments from the
+    // current class's generic superclass instantiation.
+    @Test func innerConstructorUsesOuterTypeArgumentsFromGenericSuperclass() throws {
+        try assertKotlinOutput(
+            """
+            open class C<T> {
+                inner class A<U>(val x: T?, val y: U)
+                class D : C<Nothing>() {
+                    fun f() = A<String>(null, "OK")
+                }
+            }
+            fun main() { println(C.D().f().y) }
+            """,
+            moduleName: "KUU3574InnerConstructorOuterTypeArguments",
+            expected: "OK\n"
+        )
+    }
+
     @Test func genericInnerClassTypeAndConstructionCaptureOuterArguments() throws {
         // KUU-3608: an unqualified generic inner class captures its outer type
         // arguments while keeping its own explicit type arguments.

@@ -57,6 +57,22 @@ struct InheritedNestedClassConstructorTests {
         #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
     }
 
+    // KUU-3574: an inner constructor inherits its outer type from the current
+    // subclass's generic supertype, even when the nullable argument is null.
+    @Test
+    func innerConstructorUsesOuterTypeArgumentFromGenericSuperclass() throws {
+        let ctx = try context("""
+        open class C<T> {
+            inner class A<U>(val x: T?, val y: U)
+            class D : C<Nothing>() {
+                fun f() = A<String>(null, "OK")
+            }
+        }
+        """, library: false)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+    }
+
     @Test(arguments: [false, true])
     func inheritedInterfaceDoesNotHideOuterConstructor(library: Bool) throws {
         let source = """
