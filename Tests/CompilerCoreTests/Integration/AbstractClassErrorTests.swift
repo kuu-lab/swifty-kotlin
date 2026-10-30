@@ -406,5 +406,65 @@ import Testing
             #expect(!contractDiagnostics.contains { $0.severity == .warning })
         }
     }
+
+    @Test func testAbstractMemberContentDiagnosticsMatchKotlincWording() throws {
+        let ctx = makeContextFromSource("""
+        abstract class C {
+            abstract fun f() {}
+            abstract fun g() = 1
+            abstract val v = 1
+            abstract val w by lazy { 1 }
+            abstract val x: Int get() = 1
+            abstract var y: Int get() = 2 set(v) {}
+        }
+        """)
+        try runSema(ctx)
+
+        let messages = ctx.diagnostics.diagnostics
+            .filter { $0.code == "KSWIFTK-SEMA-ABSTRACT" }
+            .map(\.message)
+        #expect(messages.contains("function 'f' with a body cannot be abstract."))
+        #expect(messages.contains("function 'g' with a body cannot be abstract."))
+        #expect(messages.contains("property with initializer cannot be abstract."))
+        #expect(messages.contains("delegated property cannot be abstract."))
+        #expect(messages.filter { $0 == "property with getter implementation cannot be abstract." }.count == 2)
+        #expect(messages.contains("property with setter implementation cannot be abstract."))
+    }
+
+    @Test(arguments: ["class", "open class", "object"])
+    func testAbstractPropertyContentSuppressedInNonAbstractOwner(owner: String) throws {
+        // kotlinc still reports 'function with a body' in non-abstract owners
+        // but lets 'abstract ... in non-abstract class' own property content.
+        let ctx = makeContextFromSource("""
+        \(owner) C {
+            abstract val v = 1
+            abstract fun f() {}
+        }
+        """)
+        try runSema(ctx)
+
+        let abstractDiags = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-ABSTRACT" }
+        #expect(abstractDiags.contains { $0.message == "function 'f' with a body cannot be abstract." })
+        #expect(!abstractDiags.contains { $0.message.contains("property") })
+    }
+
+    @Test func testAbstractInterfacePropertyReportsContentNotInterfaceRules() throws {
+        let ctx = makeContextFromSource("""
+        interface I {
+            abstract val v = 1
+            abstract val w by lazy { 1 }
+        }
+        """)
+        try runSema(ctx)
+
+        #expect(ctx.diagnostics.diagnostics.contains {
+            $0.code == "KSWIFTK-SEMA-ABSTRACT" && $0.message == "property with initializer cannot be abstract."
+        })
+        #expect(ctx.diagnostics.diagnostics.contains {
+            $0.code == "KSWIFTK-SEMA-ABSTRACT" && $0.message == "delegated property cannot be abstract."
+        })
+        assertNoDiagnostic("KSWIFTK-SEMA-0303", in: ctx)
+        assertNoDiagnostic("KSWIFTK-SEMA-0304", in: ctx)
+    }
 }
 #endif
