@@ -264,11 +264,15 @@ extension DataFlowSemaPhase {
                 default: break
                 }
             }
-            for symbol in scannedSymbols where isInitBodySymbol(symbol) {
-                guard !seenFunctions.contains(symbol),
-                      let function = state.importedInlineFunctions.functions[symbol]
+            for symbol in scannedSymbols {
+                guard let function = state.importedInlineFunctions.functions[symbol]
                 else { continue }
-                _ = module.arena.appendDecl(.function(function))
+                if isInitBodySymbol(symbol), !seenFunctions.contains(symbol) {
+                    _ = module.arena.appendDecl(.function(function))
+                }
+                // Globals reach this module two ways: appended init decls
+                // read/write them directly, and inlined callee bodies embed
+                // loadGlobal/storeGlobal into their callers. Cover both.
                 for instruction in function.body {
                     let globalSymbol: SymbolID?
                     switch instruction {
