@@ -129,28 +129,7 @@ struct DeclarationPositionValidator {
         }
     }
 
-    static func validateFunctionValueParameters(
-        _ valueParams: [ValueParamDecl],
-        range: SourceRange,
-        diagnostics: DiagnosticEngine?
-    ) {
-        for parameter in valueParams where parameter.isProperty {
-            let modifier = parameter.isMutableProperty ? "var" : "val"
-            diagnostics?.error(
-                "KSWIFTK-SEMA-0444",
-                "'\(modifier)' on function parameter is prohibited.",
-                range: range
-            )
-        }
-    }
-
     private func validateFunction(_ decl: FunDecl, site: OwnerSite) {
-        Self.validateFunctionValueParameters(
-            decl.valueParams,
-            range: decl.range,
-            diagnostics: diagnostics
-        )
-
         let modifiers = decl.modifiers
         let pairPlan = incompatiblePairEmissions(
             modifiers,
@@ -772,15 +751,6 @@ struct DeclarationPositionValidator {
 
         if site == .file, modifiers.contains(.protected), !conflictCovered.contains(.protected) {
             emitNotApplicable("protected", to: "top level class", range: decl.range)
-        }
-
-        // Visibility modifiers apply to constructor parameters only when they declare a property.
-        for param in decl.primaryConstructorParams where !param.isProperty {
-            let parameterModifiers = param.propertyVisibilityModifiers ?? []
-            for (modifier, name) in Self.constructorParameterVisibilityModifiers
-            where parameterModifiers.contains(modifier) {
-                emitNotApplicable(name, to: "value parameter", range: decl.range)
-            }
         }
 
         // `inner` is kind-invalid on enum and annotation classes, so the
@@ -1615,9 +1585,5 @@ struct DeclarationPositionValidator {
         (.operator, "operator"), (.infix, "infix"), (.external, "external"),
         (.override, "override"), (.funModifier, "fun"), (.vararg, "vararg"),
         (.crossinline, "crossinline"), (.noinline, "noinline"),
-    ]
-
-    private static let constructorParameterVisibilityModifiers: [(Modifiers, String)] = [
-        (.public, "public"), (.private, "private"), (.internal, "internal"), (.protected, "protected"),
     ]
 }

@@ -598,6 +598,12 @@ extension BuildASTPhase {
         return nil
     }
 
+    enum ValueParameterSite {
+        case function(inline: Bool)
+        case primaryConstructor
+        case secondaryConstructor
+    }
+
     func declarationValueParameters(
         from nodeID: NodeID,
         in arena: SyntaxArena,
@@ -608,9 +614,19 @@ extension BuildASTPhase {
         let nodeKind = arena.node(nodeID).kind
         // `diagnoseRepeats: false`: the declaration maker already reported
         // repeated modifiers for this node.
-        let allowsAnnotationArrays = declarationModifiers(
+        let nodeModifiers = declarationModifiers(
             from: nodeID, in: arena, diagnoseRepeats: false
-        ).contains(.annotationClass)
+        )
+        let allowsAnnotationArrays = nodeModifiers.contains(.annotationClass)
+        let parameterSite: ValueParameterSite = switch nodeKind {
+        case .constructorDecl:
+            .secondaryConstructor
+        case .classDecl:
+            .primaryConstructor
+        default:
+            .function(inline: nodeModifiers.contains(.inline))
+        }
+
         // Only look for the opening `(` that occurs before any `{` (class body).
         // This prevents picking up `(` from member function declarations like
         // `class F { operator fun invoke(x: Int) }` as constructor parameters.
@@ -632,7 +648,7 @@ extension BuildASTPhase {
             depth.track(token.kind)
             if token.kind == .symbol(.comma), depth.isAtTopLevel {
                 appendValueParameter(from: paramTokens, into: &arguments, interner: interner, astArena: astArena,
-                                     allowAnnotationArrays: allowsAnnotationArrays)
+                                     allowAnnotationArrays: allowsAnnotationArrays, site: parameterSite)
                 paramTokens.removeAll(keepingCapacity: true)
             } else {
                 paramTokens.append(token)
@@ -641,7 +657,7 @@ extension BuildASTPhase {
         }
         if !paramTokens.isEmpty {
             appendValueParameter(from: paramTokens, into: &arguments, interner: interner, astArena: astArena,
-                                 allowAnnotationArrays: allowsAnnotationArrays)
+                                 allowAnnotationArrays: allowsAnnotationArrays, site: parameterSite)
         }
         DeclarationPositionValidator.validateMultipleVarargParameters(
             arguments,
@@ -762,7 +778,8 @@ extension BuildASTPhase {
         interner: StringInterner,
         astArena: ASTArena,
         allowAnnotationArrays: Bool = false,
-        allowsImplicitParameterTypes: Bool = false
+        allowsImplicitParameterTypes: Bool = false,
+        site: ValueParameterSite = .function(inline: false)
     ) {
         let split = splitDefaultValue(tokens)
         let withoutDefault = split.withoutDefault
@@ -895,19 +912,35 @@ extension BuildASTPhase {
         // modifiers; scanning the full token list would misfire when the parameter
         // is simply named one of these keywords (e.g. `val override: Int`).
         let modifierPrefixTokens = withoutDefault[..<nameIndex]
+        let isPropertyParameter = modifierPrefixTokens.contains { token in
+            token.kind == .keyword(.val) || token.kind == .keyword(.var)
+        }
         var candidateModifiers: Modifiers = []
         for token in modifierPrefixTokens {
-            if let candidate = modifier(from: token) {
-                if !candidateModifiers.insert(candidate).inserted,
-                   case let .keyword(keyword) = token.kind
-                {
-                    diagnostics?.error(
-                        "KSWIFTK-SEMA-0448",
-                        "repeated '\(keyword.rawValue)'.",
-                        range: token.range
-                    )
-                }
+            if token.kind == .keyword(.val) || token.kind == .keyword(.var) {
+                diagnoseValVarParameterKeyword(token, site: site)
+                continue
             }
+            guard let candidate = modifier(from: token),
+                  case let .keyword(keyword) = token.kind
+            else {
+                continue
+            }
+            guard candidateModifiers.insert(candidate).inserted else {
+                diagnostics?.error(
+                    "KSWIFTK-SEMA-0448",
+                    "repeated '\(keyword.rawValue)'.",
+                    range: token.range
+                )
+                continue
+            }
+            diagnoseParameterModifierApplicability(
+                candidate,
+                keyword: keyword,
+                site: site,
+                isPropertyParameter: isPropertyParameter,
+                range: token.range
+            )
         }
         let isVararg = candidateModifiers.contains(.vararg)
         let varargRange = isVararg
@@ -948,6 +981,77 @@ extension BuildASTPhase {
             defaultValue: defaultValueExpr,
             annotations: parsedAnnotations
         ))
+    }
+
+    /// Modifiers a primary-constructor property parameter can never carry;
+    /// kotlinc reports them against the parameter, not the property.
+    private static let constructorPropertyForbiddenParameterModifiers: Modifiers = [
+        .sealed, .enumModifier, .companion, .inner, .suspend, .infix, .operator,
+        .tailrec, .inline, .annotationClass, .value, .data, .expect, .funModifier,
+    ]
+
+    private func diagnoseValVarParameterKeyword(_ token: Token, site: ValueParameterSite) {
+        guard case let .keyword(keyword) = token.kind else {
+            return
+        }
+        let parameterKind: String
+        switch site {
+        case .function:
+            parameterKind = "function parameter"
+        case .secondaryConstructor:
+            parameterKind = "secondary constructor parameter"
+        case .primaryConstructor:
+            return
+        }
+        diagnostics?.error(
+            "KSWIFTK-SEMA-0444",
+            "'\(keyword.rawValue)' on \(parameterKind) is prohibited.",
+            range: token.range
+        )
+    }
+
+    private func diagnoseParameterModifierApplicability(
+        _ modifier: Modifiers.Element,
+        keyword: Keyword,
+        site: ValueParameterSite,
+        isPropertyParameter: Bool,
+        range: SourceRange
+    ) {
+        if modifier == .vararg {
+            return
+        }
+        if modifier == .noinline || modifier == .crossinline {
+            if case .function(let inline) = site, inline {
+                return
+            }
+            diagnostics?.error(
+                "KSWIFTK-SEMA-0449",
+                "modifier is only allowed for function parameters of an inline function.",
+                range: range
+            )
+            return
+        }
+        if case .primaryConstructor = site, isPropertyParameter {
+            if modifier == .abstract {
+                diagnostics?.error(
+                    "KSWIFTK-SEMA-0450",
+                    "property in primary constructor cannot be declared as abstract.",
+                    range: range
+                )
+            } else if Self.constructorPropertyForbiddenParameterModifiers.contains(modifier) {
+                diagnostics?.error(
+                    "KSWIFTK-SEMA-0400",
+                    "modifier '\(keyword.rawValue)' is not applicable to 'value parameter'.",
+                    range: range
+                )
+            }
+            return
+        }
+        diagnostics?.error(
+            "KSWIFTK-SEMA-0400",
+            "modifier '\(keyword.rawValue)' is not applicable to 'value parameter'.",
+            range: range
+        )
     }
 
     private func topLevelQuestionColonIndex(in tokens: [Token], startingAt startIndex: Int) -> Int? {
