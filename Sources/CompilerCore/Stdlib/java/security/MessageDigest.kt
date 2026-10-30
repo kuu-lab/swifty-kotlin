@@ -59,7 +59,14 @@ public class MessageDigest private constructor(public val algorithm: String) {
 
         public fun isEqual(first: ByteArray?, second: ByteArray?): Boolean {
             if (first == null || second == null) return first == null && second == null
-            return first.contentEquals(second)
+            if (first.size != second.size) return false
+            var difference = 0
+            var index = 0
+            while (index < first.size) {
+                difference = difference or (first[index].toInt() xor second[index].toInt())
+                index += 1
+            }
+            return difference == 0
         }
     }
 }
