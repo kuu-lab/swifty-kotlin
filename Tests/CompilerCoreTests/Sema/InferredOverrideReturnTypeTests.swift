@@ -71,5 +71,59 @@ struct InferredOverrideReturnTypeTests {
 
         #expect(!ctx.diagnostics.hasError, "Got: \(ctx.diagnostics.diagnostics)")
     }
+
+    @Test
+    func rejectsInferredReturnInsideObjectLiteral() throws {
+        let ctx = makeContextFromSource("""
+        open class B { open fun g() = 5 }
+        val p = object : B() { override fun g() = "s" }
+        """)
+        try runSema(ctx)
+
+        let diagnostics = ctx.diagnostics.diagnostics.filter {
+            $0.severity == .error && $0.code == "KSWIFTK-SEMA-OVERRIDE-RETURN"
+        }
+        #expect(diagnostics.count == 1, "Got: \(ctx.diagnostics.diagnostics)")
+    }
+
+    @Test
+    func rejectsExplicitReturnOverInferredParentInsideObjectLiteral() throws {
+        let ctx = makeContextFromSource("""
+        open class B { open fun g() = 5 }
+        val q = object : B() { override fun g(): String = "s" }
+        """)
+        try runSema(ctx)
+
+        let diagnostics = ctx.diagnostics.diagnostics.filter {
+            $0.severity == .error && $0.code == "KSWIFTK-SEMA-OVERRIDE-RETURN"
+        }
+        #expect(diagnostics.count == 1, "Got: \(ctx.diagnostics.diagnostics)")
+    }
+
+    @Test
+    func rejectsInferredReturnInsideLocalClass() throws {
+        let ctx = makeContextFromSource("""
+        open class B { open fun g() = 5 }
+        fun f() { class L : B() { override fun g() = 1.5 } }
+        """)
+        try runSema(ctx)
+
+        let diagnostics = ctx.diagnostics.diagnostics.filter {
+            $0.severity == .error && $0.code == "KSWIFTK-SEMA-OVERRIDE-RETURN"
+        }
+        #expect(diagnostics.count == 1, "Got: \(ctx.diagnostics.diagnostics)")
+    }
+
+    @Test
+    func acceptsMatchingInferredReturnInsideObjectLiteral() throws {
+        let ctx = makeContextFromSource("""
+        open class B { open fun g() = 5 }
+        val p = object : B() { override fun g() = 7 }
+        fun f() { class L : B() { override fun g() = 9 } }
+        """)
+        try runSema(ctx)
+
+        #expect(!ctx.diagnostics.hasError, "Got: \(ctx.diagnostics.diagnostics)")
+    }
 }
 #endif

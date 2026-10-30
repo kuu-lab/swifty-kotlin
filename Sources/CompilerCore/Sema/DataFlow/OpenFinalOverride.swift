@@ -88,18 +88,36 @@ extension DataFlowSemaPhase {
             )
         )
 
+        var visited = Set<DeclID>()
         for file in ast.sortedFiles {
             for declID in file.topLevelDecls {
-                validateInferredOverrideReturnTypes(in: declID, ctx: ctx)
+                validateInferredOverrideReturnTypes(in: declID, ctx: ctx, visited: &visited)
+            }
+        }
+        // Object literals and local nominal declarations are not reachable
+        // from topLevelDecls — their decls live behind expression nodes whose
+        // members are bound lazily during body checking.
+        for expr in ast.arena.exprs {
+            switch expr {
+            case let .objectLiteral(_, declID, _):
+                if let declID {
+                    validateInferredOverrideReturnTypes(in: declID, ctx: ctx, visited: &visited)
+                }
+            case let .localNominalDecl(declID, _):
+                validateInferredOverrideReturnTypes(in: declID, ctx: ctx, visited: &visited)
+            default:
+                continue
             }
         }
     }
 
     private func validateInferredOverrideReturnTypes(
         in declID: DeclID,
-        ctx: OpenFinalOverrideContext
+        ctx: OpenFinalOverrideContext,
+        visited: inout Set<DeclID>
     ) {
-        guard let declaration = ctx.ast.arena.decl(declID) else { return }
+        guard visited.insert(declID).inserted,
+              let declaration = ctx.ast.arena.decl(declID) else { return }
 
         let memberFunctions: [DeclID]
         let nestedDeclarations: [DeclID]
@@ -127,7 +145,7 @@ extension DataFlowSemaPhase {
                     validateExplicitOverrideReturnTypeAgainstInferredParent(of: memberDeclID, ctx: ctx)
                 }
                 for nestedDeclID in entry.nestedClasses {
-                    validateInferredOverrideReturnTypes(in: nestedDeclID, ctx: ctx)
+                    validateInferredOverrideReturnTypes(in: nestedDeclID, ctx: ctx, visited: &visited)
                 }
             }
         case let .interfaceDecl(interfaceDecl):
@@ -146,7 +164,7 @@ extension DataFlowSemaPhase {
             validateExplicitOverrideReturnTypeAgainstInferredParent(of: memberDeclID, ctx: ctx)
         }
         for nestedDeclID in nestedDeclarations {
-            validateInferredOverrideReturnTypes(in: nestedDeclID, ctx: ctx)
+            validateInferredOverrideReturnTypes(in: nestedDeclID, ctx: ctx, visited: &visited)
         }
     }
 
