@@ -198,15 +198,6 @@ extension DataFlowSemaPhase {
                 memberFlags.insert(.abstractType)
             }
 
-            // STDLIB-CLASS-010: Abstract functions cannot be private
-            if funDecl.modifiers.contains(.abstract) && funDecl.modifiers.contains(.private) {
-                diagnostics.error(
-                    "KSWIFTK-SEMA-ABSTRACT",
-                    "Abstract function '\(interner.resolve(funDecl.name))' cannot be private.",
-                    range: funDecl.range
-                )
-            }
-
             // STDLIB-CLASS-010: Abstract functions cannot have a body
             if funDecl.modifiers.contains(.abstract) && funDecl.body != .unit {
                 diagnostics.error(
@@ -517,15 +508,6 @@ extension DataFlowSemaPhase {
                 diagnostics.error(
                     "KSWIFTK-SEMA-ABSTRACT",
                     "Abstract property '\(interner.resolve(propertyDecl.name))' cannot have an initializer.",
-                    range: propertyDecl.range
-                )
-            }
-
-            // STDLIB-CLASS-010: Abstract properties cannot be private
-            if propertyDecl.modifiers.contains(.abstract) && propertyDecl.modifiers.contains(.private) {
-                diagnostics.error(
-                    "KSWIFTK-SEMA-ABSTRACT",
-                    "Abstract property '\(interner.resolve(propertyDecl.name))' cannot be private.",
                     range: propertyDecl.range
                 )
             }

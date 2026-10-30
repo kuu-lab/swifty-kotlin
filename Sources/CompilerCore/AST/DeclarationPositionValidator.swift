@@ -178,7 +178,9 @@ struct DeclarationPositionValidator {
                     emitInside("protected", inside: nominal.name, range: decl.range)
                 }
             }
-            if modifiers.contains(.expect), !nominal.ownerModifiers.contains(.expect) {
+            if modifiers.contains(.expect), !nominal.ownerModifiers.contains(.expect),
+               !conflictCovered.contains(.expect)
+            {
                 emitNotApplicable("expect", to: "member function", range: decl.range)
             }
             // `actual` members are covered by the orphan-actual symbol check
@@ -237,7 +239,6 @@ struct DeclarationPositionValidator {
         // KSWIFTK-SEMA-0009; only the interface-private combination is a gap.
         if decl.body == .unit,
            modifiers.contains(.private),
-           !modifiers.contains(.abstract),
            !modifiers.contains(.expect),
            !modifiers.contains(.external),
            case .nominal(let nominal) = site,
@@ -299,7 +300,9 @@ struct DeclarationPositionValidator {
             {
                 emitInside("protected", inside: nominal.name, range: decl.range)
             }
-            if modifiers.contains(.expect), !nominal.ownerModifiers.contains(.expect) {
+            if modifiers.contains(.expect), !nominal.ownerModifiers.contains(.expect),
+               !conflictCovered.contains(.expect)
+            {
                 emitNotApplicable("expect", to: target, range: decl.range)
             }
             if nominal.kind == .interface {
@@ -310,7 +313,9 @@ struct DeclarationPositionValidator {
                         range: decl.range
                     )
                 }
-                if modifiers.contains(.private), isImplicitlyAbstractInterfaceProperty(decl) {
+                if modifiers.contains(.private), !modifiers.contains(.abstract),
+                   isImplicitlyAbstractInterfaceProperty(decl)
+                {
                     diagnostics?.error(
                         "KSWIFTK-SEMA-0428",
                         "abstract property in interface cannot be private.",
@@ -1460,6 +1465,8 @@ struct DeclarationPositionValidator {
         (.abstract, "abstract", .final, "final"),
         (.final, "final", .open, "open"),
         (.private, "private", .open, "open"),
+        (.private, "private", .abstract, "abstract"),
+        (.expect, "expect", .actual, "actual"),
     ]
 
     private static let classConflictPairs: [(Modifiers, String, Modifiers, String)] = [
@@ -1483,7 +1490,9 @@ struct DeclarationPositionValidator {
         case .file:
             [.abstract, .open, .final, .override, .protected]
         case .nominal(let nominal) where nominal.kind == .interface:
-            [.final]
+            nominal.ownerModifiers.contains(.expect) ? [.final] : [.final, .expect]
+        case .nominal(let nominal) where !nominal.ownerModifiers.contains(.expect):
+            [.expect]
         default:
             []
         }
