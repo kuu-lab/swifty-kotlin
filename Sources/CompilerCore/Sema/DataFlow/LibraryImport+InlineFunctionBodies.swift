@@ -152,11 +152,29 @@ extension DataFlowSemaPhase {
         types: TypeSystem,
         diagnostics: DiagnosticEngine,
         interner: StringInterner,
-        resolver: ImportedSymbolResolver
+        resolver: ImportedSymbolResolver,
+        materializeInitBodiesForWasm: Bool = false
     ) {
+        // Wasm has no object linker, so init-family bodies that native
+        // resolves from the artifact's .o must instead materialize from the
+        // serialized KIR shipped in inline-kir/ (see CodegenPhase).
+        var initBodySymbols: Set<SymbolID> = []
+        var initSymbolsByLinkName: [String: SymbolID] = [:]
+        if materializeInitBodiesForWasm {
+            (initBodySymbols, initSymbolsByLinkName) = registerWasmInitBodyDescriptors(
+                state: state, symbols: symbols, interner: interner
+            )
+        }
+        func isInitBodySymbol(_ symbol: SymbolID) -> Bool {
+            initBodySymbols.contains(symbol)
+        }
         func resolveOne(_ symbol: SymbolID) -> KIRFunction? {
             guard let binding = state.pendingInlineBindings.removeValue(forKey: symbol) else {
-                return nil
+                return materializeInitBodiesForWasm
+                    ? state.importedInlineFunctions.function(
+                        for: symbol, arena: module.arena
+                    )
+                    : nil
             }
             state.importedInlineFunctions.clearPendingBody(for: symbol)
             if let name = binding.record.fqName.last,
@@ -213,8 +231,16 @@ extension DataFlowSemaPhase {
                 guard case let .call(callSymbol, calleeName, _, _, _, _, _, _) = instruction else {
                     continue
                 }
-                let targets: [SymbolID] = callSymbol.map { [$0] }
+                var targets: [SymbolID] = callSymbol.map { [$0] }
                     ?? drainThenRead(calleeName)
+                // Init shells aren't index bindings, so their link names
+                // never enter pendingInlineSymbolsByName — resolve them
+                // through the registered descriptor map instead.
+                if targets.isEmpty, materializeInitBodiesForWasm,
+                   let initSymbol = initSymbolsByLinkName[interner.resolve(calleeName)]
+                {
+                    targets = [initSymbol]
+                }
                 for target in targets where scannedSymbols.insert(target).inserted {
                     if let function = resolveOne(target) {
                         bodiesToScan.append(function.body)
@@ -222,6 +248,111 @@ extension DataFlowSemaPhase {
                 }
             }
         }
+
+        // Wasm emits no separate object file for imported init functions, so
+        // the materialized bodies join the module as ordinary decls. Globals
+        // they touch (the singleton handle, `$initialized` flags) need slots
+        // owned by this compilation too.
+        if materializeInitBodiesForWasm {
+            var seenFunctions: Set<SymbolID> = []
+            var seenGlobals: Set<SymbolID> = []
+            for decl in module.arena.declarations {
+                switch decl {
+                case let .function(function): seenFunctions.insert(function.symbol)
+                case let .global(global): seenGlobals.insert(global.symbol)
+                default: break
+                }
+            }
+            for symbol in scannedSymbols {
+                guard let function = state.importedInlineFunctions.functions[symbol]
+                else { continue }
+                if isInitBodySymbol(symbol), !seenFunctions.contains(symbol) {
+                    _ = module.arena.appendDecl(.function(function))
+                }
+                // Globals reach this module two ways: appended init decls
+                // read/write them directly, and inlined callee bodies embed
+                // loadGlobal/storeGlobal into their callers. Cover both.
+                for instruction in function.body {
+                    let globalSymbol: SymbolID?
+                    switch instruction {
+                    case let .loadGlobal(_, symbol): globalSymbol = symbol
+                    case let .storeGlobal(_, symbol): globalSymbol = symbol
+                    default: globalSymbol = nil
+                    }
+                    guard let globalSymbol, seenGlobals.insert(globalSymbol).inserted else { continue }
+                    _ = module.arena.appendDecl(.global(KIRGlobal(
+                        symbol: globalSymbol,
+                        type: symbols.propertyType(for: globalSymbol) ?? types.anyType,
+                        isThreadLocal: false
+                    )))
+                }
+            }
+        }
+    }
+
+    /// Registers lazy descriptors for the imported object/companion/enum
+    /// init shells (`applyImportedInitializerShells`) so a call site bearing
+    /// one of their symbols — or only its `kk_fn_` link name — materializes
+    /// the shipped kirbin on demand. Returns the covered symbols plus the
+    /// link-name index for symbol-less call sites.
+    private func registerWasmInitBodyDescriptors(
+        state: ImportedLibraryLazyLoaderState,
+        symbols: SymbolTable,
+        interner: StringInterner
+    ) -> (symbols: Set<SymbolID>, byLinkName: [String: SymbolID]) {
+        let prefixes = [
+            "__object_init_", "__companion_init_", "__enum_static_init_",
+            "__kk_library_top_level_init_", "__kk_synthetic_companion_init_",
+            "__klib_object_init_", "__klib_object_lazy_init_",
+            "__object_lazy_init_", "__companion_lazy_init_", "__ctor_reflect_init_",
+        ]
+        let store = state.importedInlineFunctions
+        var initSymbols: Set<SymbolID> = []
+        for binding in state.allImportedBindings {
+            for getter in [
+                symbols.objectInitializerSymbolIfKnown,
+                symbols.companionObjectInitializerSymbolIfKnown,
+                symbols.enumStaticInitSymbolIfKnown,
+                symbols.objectLazyInitializerSymbol,
+            ] {
+                guard let initSymbol = getter(binding.symbol) else { continue }
+                initSymbols.insert(initSymbol)
+            }
+        }
+        // Shells reachable only by link name (the library's own
+        // `__kk_library_top_level_init_`, lazy-init trampolines) never appear
+        // in the per-record initializer slots — sweep imported function
+        // symbols by external link name instead.
+        for info in symbols.allSymbols() {
+            guard info.kind == .function,
+                  info.flags.contains(.importedLibrary),
+                  let linkName = symbols.externalLinkNameIfKnown(for: info.id),
+                  prefixes.contains(where: { linkName.contains($0) })
+            else { continue }
+            initSymbols.insert(info.id)
+        }
+        let dirs = Array(Set(state.allImportedBindings.compactMap(\.inlineKIRDir)))
+        var byLinkName: [String: SymbolID] = [:]
+        for symbol in initSymbols {
+            guard let linkName = symbols.externalLinkName(for: symbol),
+                  linkName.hasPrefix("kk_fn_"),
+                  prefixes.contains(where: { linkName.contains($0) })
+            else { continue }
+            byLinkName[linkName] = symbol
+            let fileName = MetadataEncoder.inlineKIRFileName(for: linkName)
+            guard let dir = dirs.first(where: {
+                FileManager.default.fileExists(atPath: $0 + "/" + fileName)
+            }) else { continue }
+            store.register(
+                ImportedInlineFunctionStore.Descriptor(
+                    path: dir + "/" + fileName,
+                    signature: symbols.functionSignature(for: symbol),
+                    name: symbols.symbol(symbol)?.name ?? interner.intern(linkName)
+                ),
+                for: symbol
+            )
+        }
+        return (initSymbols, byLinkName)
     }
 
     /// Snapshot archives bypass the compact-index provider on consumer loads,

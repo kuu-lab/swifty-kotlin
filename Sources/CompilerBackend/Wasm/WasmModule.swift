@@ -51,6 +51,10 @@ enum WasmOpcode {
     static let i64Load: UInt8 = 0x29
     static let i32Store: UInt8 = 0x36
     static let i64Store: UInt8 = 0x37
+    static let memorySize: UInt8 = 0x3F
+    static let memoryGrow: UInt8 = 0x40
+    /// Bulk-memory `memory.copy` subopcode emitted under `truncSatPrefix`.
+    static let memoryCopySubopcode: UInt64 = 10
     static let i32Const: UInt8 = 0x41
     static let i64Const: UInt8 = 0x42
     static let i32Eqz: UInt8 = 0x45

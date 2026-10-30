@@ -1441,4 +1441,48 @@ struct WasmCodegenTests {
                 + "kotlin.ConcurrentModificationException\n"
                 + "3\n")
     }
+
+    @Test
+    func growsItableIfaceMapPastInitialCapacityUnderNodeWASI() throws {
+        guard nodePath() != nil else { return }
+        // obj with 10 registered interfaces exceeds the initial iface-map
+        // capacity (8): the 9th/10th pair previously overflowed the block and
+        // corrupted the adjacent allocation's vtable slot. The map must
+        // reallocate at doubled capacity and keep all lookups resolvable.
+        let arena = KIRArena()
+        let mainSymbol = SymbolID(rawValue: 1)
+        func e(_ kind: KIRExprKind = .unit) -> KIRExprID { arena.appendExpr(kind) }
+        var body: [KIRInstruction] = []
+        func const(_ v: Int64) -> KIRExprID {
+            let id = e()
+            body.append(.constValue(result: id, value: .intLiteral(v)))
+            return id
+        }
+        func call(_ name: String, _ args: [KIRExprID], result: KIRExprID? = nil) {
+            body.append(.call(symbol: nil, callee: interner.intern(name),
+                              arguments: args, result: result,
+                              canThrow: false, thrownResult: nil))
+        }
+        let obj = e(), got = e(), str = e()
+        call("kk_object_new", [const(4), const(4242)], result: obj)
+        for i in 0..<Int64(10) {
+            call("kk_object_register_itable_iface", [obj, const(5000 + i), const(i)])
+            call("kk_object_register_itable_method", [obj, const(i), const(0), const(700 + i)])
+        }
+        // First-registered iface survives the grow (entries were copied).
+        call("__kk_wasm_itable_lookup", [obj, const(5000), const(0)], result: got)
+        call("kk_any_to_string", [got], result: str)
+        call("__kk_println_raw", [str])
+        // Late-registered iface inside the grown region resolves too.
+        call("__kk_wasm_itable_lookup", [obj, const(5009), const(0)], result: got)
+        call("kk_any_to_string", [got], result: str)
+        call("__kk_println_raw", [str])
+        body.append(.returnUnit)
+        let main = makeFunction(symbol: mainSymbol, name: "main", params: [], body: body)
+        let declID = arena.appendDecl(.function(main))
+        let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [declID])], arena: arena)
+        let run = try runUnderNode(try emit(module, entry: mainSymbol))
+        #expect(run?.status == 0)
+        #expect(run?.stdout == "700\n709\n")
+    }
 }

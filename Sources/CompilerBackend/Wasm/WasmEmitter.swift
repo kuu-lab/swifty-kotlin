@@ -111,6 +111,11 @@ final class WasmModuleContext {
         /// expectedParentMod@48}`. Backing is the root parent's array pointer
         /// pre-adjusted by `from*8`, so all element reads work unchanged.
         static let listViewTypeID: Int64 = -9_017
+        /// `kotlinx.coroutines.NonCancellable`'s nominal tag — the same
+        /// FNV-1a `stableNominalTypeID` payload the KIR initializer bodies
+        /// embed, so `is` checks and itable lookups match the singleton the
+        /// `kk_non_cancellable_instance` helper lazily allocates.
+        static let nonCancellableTypeID: Int64 = 8_366_687_476_779_162
         static let listParentOffset: Int64 = 40
         static let listExpectedModOffset: Int64 = 48
         /// flags bit layout (list/set/view boxes): bit0 = readOnly,
@@ -229,6 +234,24 @@ final class WasmModuleContext {
             return .emittedHelper(
                 emittedHelperIndex(for: thunk.helper, argumentCount: thunk.arity)
             )
+        }
+        // `kk_fn_<name>_s<id>__<ns>` link names whose bodies were materialized
+        // from the artifact's inline-kir resolve to the decl's bare name —
+        // demangle synthetic (`__*`) init-family names for symbol-less calls.
+        if name.hasPrefix("kk_fn___") {
+            var inner = String(name.dropFirst(6))
+            if let range = inner.range(of: "__", options: .backwards) {
+                inner = String(inner[..<range.lowerBound])
+            }
+            if let range = inner.range(of: "_s", options: .backwards),
+               range.upperBound < inner.endIndex,
+               inner[range.upperBound...].allSatisfy({ $0.isNumber })
+            {
+                inner = String(inner[..<range.lowerBound])
+            }
+            if let index = functionIndexByNameArity["\(inner)/\(argumentCount)"] {
+                return .direct(index)
+            }
         }
         return .stub(name)
     }
