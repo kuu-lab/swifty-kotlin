@@ -404,6 +404,8 @@ enum MemberRuntimeDispatch {
             return MemberRuntimeCallSpec(runtimeLinkName: "__kk_string_firstOrNull_flat")
         case ("lastOrNull", 0):
             return MemberRuntimeCallSpec(runtimeLinkName: "__kk_string_lastOrNull_flat")
+        case ("singleOrNull", 0):
+            return MemberRuntimeCallSpec(runtimeLinkName: "__kk_string_singleOrNull_flat")
         case ("get", 1):
             return MemberRuntimeCallSpec(runtimeLinkName: "__kk_string_get_flat")
         case ("compareTo", 1):

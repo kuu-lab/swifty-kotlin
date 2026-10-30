@@ -275,6 +275,7 @@ struct MemberRuntimeDispatchTests {
     @Test func testStringRuntimeDispatchUsesFlatStringTable() {
         let cases: [(String, Int, String, Bool, MemberRuntimeArgumentMode, MemberRuntimeThrownResultMode)] = [
             ("lowercase", 0, runtimeABIName(.stringLowercaseFlat), false, .lowered, .none),
+            ("singleOrNull", 0, runtimeABIName(.stringSingleOrNullFlat), false, .lowered, .none),
         ]
 
         for (memberName, arity, expectedLinkName, canThrow, argumentMode, thrownResultMode) in cases {

@@ -78,6 +78,7 @@ enum SemaRuntimeFunction: String {
     case sequenceToHashSet = "sequence_toHashSet"
     case stringContainsRegexFlat = "string_contains_regex_flat"
     case stringLowercaseFlat = "string_lowercase_flat"
+    case stringSingleOrNullFlat = "string_singleOrNull_flat"
     case stringSplitRegexFlat = "string_split_regex_flat"
     case stringToRegexFlat = "string_toRegex_flat"
     case stringToRegexWithOptionFlat = "string_toRegex_with_option_flat"

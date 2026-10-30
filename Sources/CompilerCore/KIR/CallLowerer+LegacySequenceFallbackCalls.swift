@@ -1,5 +1,38 @@
 extension CallLowerer {
 
+    private static let throwingSequenceSingleArgCallees: Set<String> = [
+        "kk_sequence_sortedBy", "kk_sequence_sortedByDescending",
+        "kk_sequence_takeLastWhile", "kk_sequence_takeLast",
+        "kk_sequence_firstNotNullOf", "kk_sequence_firstNotNullOfOrNull",
+        "kk_sequence_elementAt", "kk_sequence_elementAtOrElse",
+        "kk_sequence_last", "__kk_iterable_last",
+        "kk_sequence_min", "kk_sequence_max",
+        "kk_sequence_any", "__kk_iterable_any",
+        "kk_sequence_all", "__kk_iterable_all",
+        "kk_sequence_none",
+        "kk_sequence_indexOfFirst", "kk_sequence_indexOfLast",
+        "kk_sequence_mapNotNull", "kk_sequence_mapIndexedNotNull",
+        "kk_sequence_random", "kk_sequence_randomOrNull",
+        "kk_sequence_mapIndexed", "kk_sequence_filterIndexed",
+        "kk_sequence_onEach", "kk_sequence_onEachIndexed",
+        "kk_sequence_reduceOrNull", "kk_sequence_reduce",
+        "kk_sequence_reduceRight", "kk_sequence_reduceRightIndexed",
+        "kk_sequence_reduceRightOrNull", "kk_sequence_reduceRightIndexedOrNull",
+        "kk_sequence_runningReduceIndexed",
+        "kk_sequence_ifEmpty",
+    ]
+
+    private static let lambdaSplitSequenceSingleArgCallees: Set<String> = [
+        "kk_sequence_firstNotNullOf", "kk_sequence_firstNotNullOfOrNull",
+        "kk_sequence_takeLastWhile",
+        "kk_sequence_reduceOrNull",
+        "kk_sequence_indexOfFirst",
+        "kk_sequence_reduceRightIndexed", "kk_sequence_reduceRightOrNull",
+        "kk_sequence_indexOfLast",
+        "kk_sequence_reduceRight", "kk_sequence_reduce",
+        "kk_sequence_reduceRightIndexedOrNull",
+    ]
+
     func lowerLegacySequenceIterableSingleArgFallback(
         receiverExpr: ExprID,
         calleeName: InternedString,
@@ -27,103 +60,45 @@ extension CallLowerer {
             && !isConcreteCollectionLikeType(nonNullReceiverType, sema: sema, interner: interner)
         if useSequenceRuntimeForCollectionFallback || useIterableRuntimeForCollectionFallback {
             let runtimeCallee: String?
-            let mapName = interner.intern("map")
-            let filterName = interner.intern("filter")
-            let flatMapName = interner.intern("flatMap")
-            let flatMapIndexedName = interner.intern("flatMapIndexed")
-            let takeLastWhileName = interner.intern("takeLastWhile")
-            let sortedByName = interner.intern("sortedBy")
-            let sortedByDescendingName = interner.intern("sortedByDescending")
-            let firstNotNullOfName = interner.intern("firstNotNullOf")
-            let firstNotNullOfOrNullName = interner.intern("firstNotNullOfOrNull")
-            let containsName = interner.intern("contains")
-            let indexOfName = interner.intern("indexOf")
-            let indexOfFirstName = interner.intern("indexOfFirst")
-            let lastIndexOfName = interner.intern("lastIndexOf")
-            let indexOfLastName = interner.intern("indexOfLast")
-            let elementAtName = interner.intern("elementAt")
-            let elementAtOrElseName = interner.intern("elementAtOrElse")
-            let elementAtOrNullName = interner.intern("elementAtOrNull")
-            let filterIndexedName = interner.intern("filterIndexed")
-            let lastName = interner.intern("last")
-            let minName = interner.intern("min")
-            if calleeName == mapName {
-                runtimeCallee = "kk_sequence_map"
-            } else if calleeName == filterName {
-                runtimeCallee = "kk_sequence_filter"
-            } else if calleeName == interner.intern("takeLast") {
-                runtimeCallee = "kk_sequence_takeLast"
-            } else if calleeName == flatMapName {
-                runtimeCallee = "kk_sequence_flatMap"
-            } else if calleeName == flatMapIndexedName {
-                runtimeCallee = "kk_sequence_flatMapIndexed"
-            } else if calleeName == takeLastWhileName {
-                runtimeCallee = "kk_sequence_takeLastWhile"
-            } else if calleeName == sortedByName {
-                runtimeCallee = "kk_sequence_sortedBy"
-            } else if calleeName == sortedByDescendingName {
-                runtimeCallee = "kk_sequence_sortedByDescending"
-            } else if calleeName == firstNotNullOfName {
-                runtimeCallee = "kk_sequence_firstNotNullOf"
-            } else if calleeName == firstNotNullOfOrNullName {
-                runtimeCallee = "kk_sequence_firstNotNullOfOrNull"
-            } else if calleeName == containsName {
-                runtimeCallee = "kk_sequence_contains"
-            } else if calleeName == indexOfName {
-                runtimeCallee = "kk_sequence_indexOf"
-            } else if calleeName == indexOfFirstName {
-                runtimeCallee = "kk_sequence_indexOfFirst"
-            } else if calleeName == lastIndexOfName {
-                runtimeCallee = "kk_sequence_lastIndexOf"
-            } else if calleeName == indexOfLastName {
-                runtimeCallee = "kk_sequence_indexOfLast"
-            } else if calleeName == elementAtName {
-                runtimeCallee = "kk_sequence_elementAt"
-            } else if calleeName == elementAtOrElseName {
-                runtimeCallee = "kk_sequence_elementAtOrElse"
-            } else if calleeName == elementAtOrNullName {
-                runtimeCallee = "kk_sequence_elementAtOrNull"
-            } else if calleeName == interner.intern("elementAtOrElse") {
-                runtimeCallee = "kk_sequence_elementAtOrElse"
-            } else if calleeName == filterIndexedName {
-                runtimeCallee = "kk_sequence_filterIndexed"
-            } else if calleeName == lastName {
+            switch interner.resolve(calleeName) {
+            case "map": runtimeCallee = "kk_sequence_map"
+            case "filter": runtimeCallee = "kk_sequence_filter"
+            case "takeLast": runtimeCallee = "kk_sequence_takeLast"
+            case "flatMap": runtimeCallee = "kk_sequence_flatMap"
+            case "flatMapIndexed": runtimeCallee = "kk_sequence_flatMapIndexed"
+            case "takeLastWhile": runtimeCallee = "kk_sequence_takeLastWhile"
+            case "sortedBy": runtimeCallee = "kk_sequence_sortedBy"
+            case "sortedByDescending": runtimeCallee = "kk_sequence_sortedByDescending"
+            case "firstNotNullOf": runtimeCallee = "kk_sequence_firstNotNullOf"
+            case "firstNotNullOfOrNull": runtimeCallee = "kk_sequence_firstNotNullOfOrNull"
+            case "contains": runtimeCallee = "kk_sequence_contains"
+            case "indexOf": runtimeCallee = "kk_sequence_indexOf"
+            case "indexOfFirst": runtimeCallee = "kk_sequence_indexOfFirst"
+            case "lastIndexOf": runtimeCallee = "kk_sequence_lastIndexOf"
+            case "indexOfLast": runtimeCallee = "kk_sequence_indexOfLast"
+            case "elementAt": runtimeCallee = "kk_sequence_elementAt"
+            case "elementAtOrElse": runtimeCallee = "kk_sequence_elementAtOrElse"
+            case "elementAtOrNull": runtimeCallee = "kk_sequence_elementAtOrNull"
+            case "filterIndexed": runtimeCallee = "kk_sequence_filterIndexed"
+            case "last":
                 runtimeCallee = useIterableRuntimeForCollectionFallback ? "__kk_iterable_last" : "kk_sequence_last"
-            } else if calleeName == minName {
-                runtimeCallee = "kk_sequence_min"
-            } else if calleeName == interner.intern("max") {
-                runtimeCallee = "kk_sequence_max"
-            } else if calleeName == interner.intern("any") {
+            case "min": runtimeCallee = "kk_sequence_min"
+            case "max": runtimeCallee = "kk_sequence_max"
+            case "any":
                 runtimeCallee = useIterableRuntimeForCollectionFallback ? "__kk_iterable_any" : "kk_sequence_any"
-            } else if calleeName == interner.intern("all") {
+            case "all":
                 runtimeCallee = useIterableRuntimeForCollectionFallback ? "__kk_iterable_all" : "kk_sequence_all"
-            } else if calleeName == interner.intern("none") {
-                runtimeCallee = "kk_sequence_none"
-            } else if calleeName == interner.intern("mapNotNull") {
-                runtimeCallee = "kk_sequence_mapNotNull"
-            } else if calleeName == interner.intern("mapIndexedNotNull") {
-                runtimeCallee = "kk_sequence_mapIndexedNotNull"
-            } else if calleeName == interner.intern("firstNotNullOf") {
-                runtimeCallee = "kk_sequence_firstNotNullOf"
-            } else if calleeName == interner.intern("firstNotNullOfOrNull") {
-                runtimeCallee = "kk_sequence_firstNotNullOfOrNull"
-            } else if calleeName == interner.intern("random") {
-                runtimeCallee = "kk_sequence_random"
-            } else if calleeName == interner.intern("randomOrNull") {
-                runtimeCallee = "kk_sequence_randomOrNull"
-            } else if calleeName == interner.intern("requireNoNulls") {
-                runtimeCallee = "kk_sequence_requireNoNulls"
-            } else if calleeName == interner.intern("reversed") {
-                runtimeCallee = "kk_sequence_reversed"
-            } else if calleeName == interner.intern("mapIndexed") {
-                runtimeCallee = "kk_sequence_mapIndexed"
-            } else if calleeName == interner.intern("flatMapIndexed") {
-                runtimeCallee = "kk_sequence_flatMapIndexed"
-            } else if calleeName == interner.intern("onEach") {
-                runtimeCallee = "kk_sequence_onEach"
-            } else if calleeName == interner.intern("onEachIndexed") {
-                runtimeCallee = "kk_sequence_onEachIndexed"
-            } else if calleeName == interner.intern("plus") {
+            case "none": runtimeCallee = "kk_sequence_none"
+            case "mapNotNull": runtimeCallee = "kk_sequence_mapNotNull"
+            case "mapIndexedNotNull": runtimeCallee = "kk_sequence_mapIndexedNotNull"
+            case "random": runtimeCallee = "kk_sequence_random"
+            case "randomOrNull": runtimeCallee = "kk_sequence_randomOrNull"
+            case "requireNoNulls": runtimeCallee = "kk_sequence_requireNoNulls"
+            case "reversed": runtimeCallee = "kk_sequence_reversed"
+            case "mapIndexed": runtimeCallee = "kk_sequence_mapIndexed"
+            case "onEach": runtimeCallee = "kk_sequence_onEach"
+            case "onEachIndexed": runtimeCallee = "kk_sequence_onEachIndexed"
+            case "plus":
                 if let firstArg = args.first {
                     let argType = sema.types.makeNonNullable(
                         sema.bindings.exprTypes[firstArg.expr] ?? sema.types.anyType
@@ -137,161 +112,28 @@ extension CallLowerer {
                 } else {
                     runtimeCallee = "kk_sequence_plus_element"
                 }
-            } else if calleeName == interner.intern("plusElement") {
-                runtimeCallee = "kk_sequence_plus_element"
-            } else if calleeName == interner.intern("minus") || calleeName == interner.intern("minusElement") {
-                runtimeCallee = "kk_sequence_minus"
-            } else if calleeName == interner.intern("reduceOrNull") {
-                runtimeCallee = "kk_sequence_reduceOrNull"
-            } else if calleeName == interner.intern("reduceRight") {
-                runtimeCallee = "kk_sequence_reduceRight"
-            } else if calleeName == interner.intern("reduce") {
-                runtimeCallee = "kk_sequence_reduce"
-            } else if calleeName == interner.intern("runningReduceIndexed") {
-                runtimeCallee = "kk_sequence_runningReduceIndexed"
-            } else if calleeName == interner.intern("reduceRightIndexed") {
-                runtimeCallee = "kk_sequence_reduceRightIndexed"
-            } else if calleeName == interner.intern("reduceRightOrNull") {
-                runtimeCallee = "kk_sequence_reduceRightOrNull"
-            } else if calleeName == interner.intern("reduceRightIndexedOrNull") {
-                runtimeCallee = "kk_sequence_reduceRightIndexedOrNull"
-            } else if calleeName == interner.intern("shuffled") {
+            case "plusElement": runtimeCallee = "kk_sequence_plus_element"
+            case "minus", "minusElement": runtimeCallee = "kk_sequence_minus"
+            case "reduceOrNull": runtimeCallee = "kk_sequence_reduceOrNull"
+            case "reduceRight": runtimeCallee = "kk_sequence_reduceRight"
+            case "reduce": runtimeCallee = "kk_sequence_reduce"
+            case "runningReduceIndexed": runtimeCallee = "kk_sequence_runningReduceIndexed"
+            case "reduceRightIndexed": runtimeCallee = "kk_sequence_reduceRightIndexed"
+            case "reduceRightOrNull": runtimeCallee = "kk_sequence_reduceRightOrNull"
+            case "reduceRightIndexedOrNull": runtimeCallee = "kk_sequence_reduceRightIndexedOrNull"
+            case "shuffled":
                 switch normalizedArgIDs.count {
                 case 0: runtimeCallee = "kk_sequence_shuffled"
                 case 1: runtimeCallee = "kk_sequence_shuffled_random"
                 default: runtimeCallee = nil
                 }
-            } else if calleeName == interner.intern("ifEmpty") {
-                runtimeCallee = "kk_sequence_ifEmpty"
-            } else {
-                runtimeCallee = nil
+            case "ifEmpty": runtimeCallee = "kk_sequence_ifEmpty"
+            default: runtimeCallee = nil
             }
             if let runtimeCallee {
-                let canThrow = runtimeCallee == "kk_sequence_sortedBy"
-                    || runtimeCallee == "kk_sequence_sortedByDescending"
-                    || runtimeCallee == "kk_sequence_takeLastWhile"
-                    || runtimeCallee == "kk_sequence_firstNotNullOf"
-                    || runtimeCallee == "kk_sequence_firstNotNullOfOrNull"
-                    || runtimeCallee == "kk_sequence_takeLast"
-                    || runtimeCallee == "kk_sequence_elementAt"
-                    || runtimeCallee == "kk_sequence_elementAtOrElse"
-                    || runtimeCallee == "kk_sequence_last"
-                    || runtimeCallee == "__kk_iterable_last"
-                    || runtimeCallee == "kk_sequence_min"
-                    || runtimeCallee == "kk_sequence_max"
-                    || runtimeCallee == "kk_sequence_any"
-                    || runtimeCallee == "__kk_iterable_any"
-                    || runtimeCallee == "kk_sequence_all"
-                    || runtimeCallee == "__kk_iterable_all"
-                    || runtimeCallee == "kk_sequence_none"
-                    || runtimeCallee == "kk_sequence_indexOfFirst"
-                    || runtimeCallee == "kk_sequence_indexOfLast"
-                    || runtimeCallee == "kk_sequence_mapNotNull"
-                    || runtimeCallee == "kk_sequence_mapIndexedNotNull"
-                    || runtimeCallee == "kk_sequence_firstNotNullOf"
-                    || runtimeCallee == "kk_sequence_firstNotNullOfOrNull"
-                    || runtimeCallee == "kk_sequence_random"
-                    || runtimeCallee == "kk_sequence_randomOrNull"
-                    || runtimeCallee == "kk_sequence_mapIndexed"
-                    || runtimeCallee == "kk_sequence_filterIndexed"
-                    || runtimeCallee == "kk_sequence_onEach"
-                    || runtimeCallee == "kk_sequence_onEachIndexed"
-                    || runtimeCallee == "kk_sequence_reduceOrNull"
-                    || runtimeCallee == "kk_sequence_reduce"
-                    || runtimeCallee == "kk_sequence_reduceRightIndexed"
-                    || runtimeCallee == "kk_sequence_reduceRight"
-                    || runtimeCallee == "kk_sequence_reduceRightOrNull"
-                    || runtimeCallee == "kk_sequence_reduceRightIndexedOrNull"
-                    || runtimeCallee == "kk_sequence_runningReduceIndexed"
-                    || runtimeCallee == "kk_sequence_ifEmpty"
+                let canThrow = Self.throwingSequenceSingleArgCallees.contains(runtimeCallee)
                 var runtimeArguments = [loweredReceiverID] + normalizedArgIDs
-                if runtimeCallee == "kk_sequence_firstNotNullOf"
-                    || runtimeCallee == "kk_sequence_firstNotNullOfOrNull"
-                    || runtimeCallee == "kk_sequence_takeLastWhile",
-                   normalizedArgIDs.count == 1
-                {
-                    let (fnPtrExpr, envPtrExpr) = splitCallableLambdaArgument(
-                        normalizedArgIDs[0],
-                        sema: sema,
-                        arena: arena,
-                        interner: interner,
-                        instructions: &instructions
-                    )
-                    runtimeArguments = [loweredReceiverID, fnPtrExpr, envPtrExpr]
-                }
-                if runtimeCallee == "kk_sequence_reduceOrNull",
-                   normalizedArgIDs.count == 1
-                {
-                    let (fnPtrExpr, envPtrExpr) = splitCallableLambdaArgument(
-                        normalizedArgIDs[0],
-                        sema: sema,
-                        arena: arena,
-                        interner: interner,
-                        instructions: &instructions
-                    )
-                    runtimeArguments = [loweredReceiverID, fnPtrExpr, envPtrExpr]
-                }
-                if runtimeCallee == "kk_sequence_indexOfFirst"
-                    || runtimeCallee == "kk_sequence_reduceRightIndexed"
-                    || runtimeCallee == "kk_sequence_reduceRightOrNull",
-                   normalizedArgIDs.count == 1
-                {
-                    let (fnPtrExpr, envPtrExpr) = splitCallableLambdaArgument(
-                        normalizedArgIDs[0],
-                        sema: sema,
-                        arena: arena,
-                        interner: interner,
-                        instructions: &instructions
-                    )
-                    runtimeArguments = [loweredReceiverID, fnPtrExpr, envPtrExpr]
-                }
-                if runtimeCallee == "kk_sequence_indexOfLast",
-                   normalizedArgIDs.count == 1
-                {
-                    let (fnPtrExpr, envPtrExpr) = splitCallableLambdaArgument(
-                        normalizedArgIDs[0],
-                        sema: sema,
-                        arena: arena,
-                        interner: interner,
-                        instructions: &instructions
-                    )
-                    runtimeArguments = [loweredReceiverID, fnPtrExpr, envPtrExpr]
-                }
-                if runtimeCallee == "kk_sequence_reduceRight",
-                   normalizedArgIDs.count == 1
-                {
-                    let (fnPtrExpr, envPtrExpr) = splitCallableLambdaArgument(
-                        normalizedArgIDs[0],
-                        sema: sema,
-                        arena: arena,
-                        interner: interner,
-                        instructions: &instructions
-                    )
-                    runtimeArguments = [loweredReceiverID, fnPtrExpr, envPtrExpr]
-                }
-                if runtimeCallee == "kk_sequence_reduceRightOrNull",
-                   normalizedArgIDs.count == 1
-                {
-                    let (fnPtrExpr, envPtrExpr) = splitCallableLambdaArgument(
-                        normalizedArgIDs[0],
-                        sema: sema,
-                        arena: arena,
-                        interner: interner,
-                        instructions: &instructions
-                    )
-                    runtimeArguments = [loweredReceiverID, fnPtrExpr, envPtrExpr]
-                }
-                if runtimeCallee == "kk_sequence_reduce", normalizedArgIDs.count == 1 {
-                    let (fnPtrExpr, envPtrExpr) = splitCallableLambdaArgument(
-                        normalizedArgIDs[0],
-                        sema: sema,
-                        arena: arena,
-                        interner: interner,
-                        instructions: &instructions
-                    )
-                    runtimeArguments = [loweredReceiverID, fnPtrExpr, envPtrExpr]
-                }
-                if runtimeCallee == "kk_sequence_reduceRightIndexedOrNull",
+                if Self.lambdaSplitSequenceSingleArgCallees.contains(runtimeCallee),
                    normalizedArgIDs.count == 1
                 {
                     let (fnPtrExpr, envPtrExpr) = splitCallableLambdaArgument(
