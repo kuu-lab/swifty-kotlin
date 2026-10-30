@@ -58,6 +58,83 @@ struct TypeCheckHelpers {
         return companionType
     }
 
+    /// The nominal symbol denoted by a class-name receiver expression (`A`
+    /// in `A.member`, or a qualified `outer.A` bound to one), or nil for any
+    /// other receiver. Mirrors the member-call path's
+    /// `classNameReceiverNominalSymbol` so `A.x = v` assignments route
+    /// through the companion scope exactly like reads. A qualified
+    /// `this`/`super` is never a class-name qualifier, and a `typealias`
+    /// qualifier resolves to its expanded nominal target.
+    func classNameReceiverNominalSymbol(
+        forReceiverExpr receiver: ExprID,
+        ctx: TypeInferenceContext
+    ) -> SymbolID? {
+        let sema = ctx.sema
+        func nominalSymbol(for symbolID: SymbolID) -> SymbolID? {
+            guard let symbol = sema.symbols.symbol(symbolID) else { return nil }
+            switch symbol.kind {
+            case .class, .interface, .enumClass, .annotationClass:
+                return symbolID
+            case .typeAlias:
+                let aliasParams = sema.symbols.typeAliasTypeParameters(for: symbolID)
+                let expanded = expandTypeAlias(
+                    symbolID,
+                    typeArgs: [],
+                    sema: sema,
+                    visited: [],
+                    depth: 0
+                )
+                guard aliasParams.isEmpty,
+                      let expanded
+                else {
+                    return nil
+                }
+                let targetID: SymbolID
+                switch sema.types.kind(of: expanded) {
+                case let .classType(aliasTarget):
+                    targetID = sema.symbols.actualSymbol(for: aliasTarget.classSymbol)
+                        ?? aliasTarget.classSymbol
+                case .stringStruct:
+                    guard let stringClassSymbol = sema.types.stringClassSymbol else { return nil }
+                    targetID = stringClassSymbol
+                default:
+                    return nil
+                }
+                guard let target = sema.symbols.symbol(targetID) else { return nil }
+                switch target.kind {
+                case .class, .interface, .enumClass, .annotationClass:
+                    return targetID
+                default:
+                    return nil
+                }
+            default:
+                return nil
+            }
+        }
+        // A qualified `this@Label`/`super@Label` is by definition an
+        // instance receiver, never a type/class-name qualifier — regardless
+        // of what symbol kind its `identifierSymbol` carries (see the
+        // member-call path's identical guard for the object-literal
+        // inner-class capture that stashes one).
+        let receiverIsQualifiedThisOrSuper: Bool = switch ctx.ast.arena.expr(receiver) {
+        case .thisRef, .superRef: true
+        default: false
+        }
+        // A resolved value binding wins over a same-named classifier scope
+        // match, exactly like the member-call path.
+        if !receiverIsQualifiedThisOrSuper,
+           let boundSymbol = sema.bindings.identifierSymbol(for: receiver)
+        {
+            return nominalSymbol(for: boundSymbol)
+        }
+        if case let .nameRef(receiverName, _) = ctx.ast.arena.expr(receiver) {
+            return ctx.cachedScopeLookup(receiverName).first { candidate in
+                nominalSymbol(for: candidate) != nil
+            }.flatMap(nominalSymbol)
+        }
+        return nil
+    }
+
     /// A control-flow branch (`try` body, `catch`, `if`/`else` arm, `when`
     /// branch) whose value-producing expression is a bare class name denotes
     /// the companion object, not a `ClassType(X)` instance. Without retyping,

@@ -898,7 +898,11 @@ extension CallTypeChecker {
         }
     }
 
-    private func isCompanionExtension(_ symbolID: SymbolID, ctx: TypeInferenceContext) -> Bool {
+    /// Whether the symbol is declared by a `companion`-marked top-level
+    /// extension (`companion fun A.f` / `companion val A.x`) — the only
+    /// extension declarations reachable through the owner class-name's
+    /// companion scope.
+    func isCompanionExtension(_ symbolID: SymbolID, ctx: TypeInferenceContext) -> Bool {
         guard let symbol = ctx.sema.symbols.symbol(symbolID),
               let sourceFileID = symbol.declSite?.start.file,
               let file = ctx.ast.file(for: sourceFileID)

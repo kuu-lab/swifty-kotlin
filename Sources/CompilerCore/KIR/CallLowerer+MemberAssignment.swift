@@ -70,6 +70,24 @@ extension CallLowerer {
             instructions.append(.constValue(result: unit, value: .unit))
             return unit
         }
+        // KUU-3857: an object-owned member's flat global slot (and its
+        // accessor backing field) is initialized by the object's lazy
+        // clinit-equivalent. A write that is the object's first access
+        // must trigger that init before storing, or the object's field
+        // initializers run at a later read and clobber the stored value
+        // (e.g. `companion { }` block members accessed through the class
+        // name — the class-name receiver itself initializes no object).
+        if let propertySymbol = sema.bindings.identifierSymbol(for: exprID),
+           !sema.bindings.isObjectLiteralPropertySymbol(propertySymbol),
+           let ownerSymbol = sema.symbols.parentSymbol(for: propertySymbol),
+           sema.symbols.symbol(ownerSymbol)?.kind == .object
+        {
+            driver.emitObjectLazyInitGuardIfNeeded(
+                objectSymbol: ownerSymbol, arena: arena, sema: sema,
+                interner: interner,
+                instructions: &instructions
+            )
+        }
         if let propertySymbol = sema.bindings.identifierSymbol(for: exprID)
                 ?? sema.bindings.callBindings[exprID]?.chosenCallee,
            sema.symbols.symbol(propertySymbol)?.flags.contains(.mutable) == true,
@@ -630,6 +648,22 @@ extension CallLowerer {
                 ast: ast,
                 sema: sema,
                 interner: interner
+            )
+        }
+
+        // KUU-3857: object-owned member slots are initialized by the
+        // object's lazy clinit-equivalent (see `lowerMemberAssignExpr`).
+        // Emit the guard before the load half so a compound write that is
+        // the object's first access reads the declared initializer rather
+        // than a zeroed slot and does not have its store clobbered later.
+        if isObjectOwned,
+           let propertySymbol,
+           let ownerSymbol = sema.symbols.parentSymbol(for: propertySymbol)
+        {
+            driver.emitObjectLazyInitGuardIfNeeded(
+                objectSymbol: ownerSymbol, arena: arena, sema: sema,
+                interner: interner,
+                instructions: &instructions
             )
         }
 

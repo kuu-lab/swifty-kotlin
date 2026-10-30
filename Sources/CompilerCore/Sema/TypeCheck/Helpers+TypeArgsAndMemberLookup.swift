@@ -1099,6 +1099,30 @@ extension TypeCheckHelpers {
         return nil
     }
 
+    /// The companion scope receiver types a class-name `Owner.member` can
+    /// reach, in the read path's order: the hidden `$CompanionBlocks` object
+    /// first, then the source `companion object`. A class with both returns
+    /// both so a member fallback can probe each scope the read path visits.
+    func companionScopeProbeTypes(
+        for ownerNominalSymbol: SymbolID,
+        ctx: TypeInferenceContext
+    ) -> [TypeID] {
+        let sema = ctx.sema
+        let actualOwner = sema.symbols.actualSymbol(for: ownerNominalSymbol)
+        let blockObject = sema.symbols.companionBlockObjectSymbol(
+            for: ownerNominalSymbol, interner: ctx.interner
+        ) ?? actualOwner.flatMap {
+            sema.symbols.companionBlockObjectSymbol(for: $0, interner: ctx.interner)
+        }
+        let sourceCompanion = sema.symbols.companionObjectSymbol(for: ownerNominalSymbol)
+            ?? actualOwner.flatMap { sema.symbols.companionObjectSymbol(for: $0) }
+        return [blockObject, sourceCompanion].compactMap { $0 }.map { companion in
+            sema.symbols.propertyType(for: companion) ?? sema.types.make(.classType(ClassType(
+                classSymbol: companion, args: [], nullability: .nonNull
+            )))
+        }
+    }
+
     /// The companion object type through which a class-name receiver's
     /// `Owner.member` shorthand resolves its member scope — including the
     /// platform-module `$CompanionBlocks` object and expect/actual pairing.
