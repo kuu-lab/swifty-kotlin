@@ -302,7 +302,13 @@ extension ExprTypeChecker {
                     )
                 }
                 directSuperSymbols.append(classType.classSymbol)
-                directSuperTypeArgs[classType.classSymbol] = classType.args
+                // Keep the qualifier's arguments as well: `Outer<Int>.I`
+                // stores `Int` in `enclosingTypeArgs`, and the inner
+                // constructor needs it to bind `V` during super-delegation
+                // resolution (KUU-3859). `classType(for:)` splits the flat
+                // list back into enclosing + own arguments.
+                directSuperTypeArgs[classType.classSymbol] = sema.types
+                    .allTypeArguments(for: classType)
                 DataFlowSemaPhase().validateInnerClassSupertypeReceiver(
                     resolvedSymbol: classType.classSymbol,
                     context: .lexical,
