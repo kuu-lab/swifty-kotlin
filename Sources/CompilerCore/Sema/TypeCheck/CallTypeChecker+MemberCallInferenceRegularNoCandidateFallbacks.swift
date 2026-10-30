@@ -1912,44 +1912,30 @@ extension CallTypeChecker {
             return invokeType
         }
 
-        // KUU-3751: inherited `private` members never enter the candidate
-        // set (they are not inherited), but the member still exists — report
-        // it as inaccessible rather than unresolved, matching kotlinc.
-        var privateMemberLookupTypes = [memberLookupType]
-        if isClassNameReceiver,
-           let ownerNominal = classNameReceiverNominalSymbol
-        {
-            // `WithComp.member` resolves against the companion object, whose
-            // inherited members do not appear on the owner class type itself.
-            let companionSymbol: SymbolID? = {
-                if let actualOwner = sema.symbols.actualSymbol(for: ownerNominal),
-                   let companion = sema.symbols.companionBlockObjectSymbol(for: actualOwner, interner: interner)
-                       ?? sema.symbols.companionObjectSymbol(for: actualOwner)
-                {
-                    return companion
-                }
-                return sema.symbols.companionBlockObjectSymbol(for: ownerNominal, interner: interner)
-                    ?? sema.symbols.companionObjectSymbol(for: ownerNominal)
-            }()
-            if let companionSymbol {
-                privateMemberLookupTypes.append(sema.types.make(.classType(ClassType(
-                    classSymbol: companionSymbol, args: [], nullability: .nonNull
-                ))))
-            }
+        // Inherited `private` members never enter the qualified candidate
+        // set (they are not inherited), but the member still exists —
+        // report it as inaccessible rather than unresolved, matching
+        // kotlinc (KUU-3762). A class-name receiver resolves through the
+        // companion's member scope, so the owner class's own `private`
+        // instance members correctly stay unresolved there.
+        let privateMemberProbeTypes: [TypeID] = if isClassNameReceiver {
+            classNameReceiverNominalSymbol.flatMap {
+                driver.helpers.companionScopeType(for: $0, ctx: ctx)
+            }.map { [$0] } ?? []
+        } else {
+            [memberLookupType]
         }
-        for lookupType in privateMemberLookupTypes {
-            guard let privateMember = driver.helpers.privateMemberSymbolInHierarchy(
-                named: calleeName, receiverType: lookupType, sema: sema
-            ),
-               !ctx.visibilityChecker.isAccessible(
-                   privateMember,
-                   fromFile: ctx.currentFileID,
-                   enclosingClass: ctx.enclosingClassSymbol
-               )
-            else {
-                continue
-            }
-            driver.helpers.emitVisibilityError(for: privateMember, name: calleeStr, range: range, diagnostics: ctx.sema.diagnostics)
+        if let privateMember = driver.helpers.inaccessiblePrivateQualifiedMember(
+            named: calleeName,
+            probeReceiverTypes: privateMemberProbeTypes,
+            ctx: ctx
+        ) {
+            driver.helpers.emitVisibilityError(
+                for: privateMember,
+                name: calleeStr,
+                range: range,
+                diagnostics: ctx.sema.diagnostics
+            )
             return driver.helpers.bindAndReturnErrorType(id, sema: sema)
         }
 

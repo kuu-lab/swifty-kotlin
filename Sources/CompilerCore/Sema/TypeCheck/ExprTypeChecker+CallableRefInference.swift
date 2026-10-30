@@ -2373,11 +2373,31 @@ extension ExprTypeChecker {
         }
 
         if candidates.isEmpty {
-            // Inherited `private` members never enter the candidate set (they
-            // are not inherited), but the member still exists — report it as
-            // inaccessible rather than unresolved, matching kotlinc
-            // (KUU-3766).
-            if let privateMember = driver.helpers.inaccessiblePrivateImplicitReceiverMember(
+            // Inherited `private` members never enter the candidate set
+            // (they are not inherited), but a qualified reference still
+            // resolves the name — report it as inaccessible rather than
+            // unresolved, matching kotlinc (KUU-3762). A type-name receiver
+            // (`Type::member`) also reaches the companion's member scope.
+            var privateMemberProbeTypes = effectiveReceiverType.map {
+                [sema.types.makeNonNullable($0)]
+            } ?? []
+            if unboundClassType != nil,
+               let (_, ownerSymbol) = effectiveReceiverType.flatMap({
+                   resolveClassTypeSymbol($0, sema: sema)
+               }),
+               let companionType = driver.helpers.companionScopeType(
+                   for: ownerSymbol.id, ctx: ctx
+               )
+            {
+                privateMemberProbeTypes.append(companionType)
+            }
+            // An unqualified reference also reaches the implicit receiver
+            // tower's private members (KUU-3766).
+            if let privateMember = driver.helpers.inaccessiblePrivateQualifiedMember(
+                named: member,
+                probeReceiverTypes: privateMemberProbeTypes,
+                ctx: ctx
+            ) ?? driver.helpers.inaccessiblePrivateImplicitReceiverMember(
                 named: member, ctx: ctx
             ) {
                 driver.helpers.emitVisibilityError(

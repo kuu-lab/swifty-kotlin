@@ -123,6 +123,61 @@ extension CompanionObjectTests {
         #expect(ctx.diagnostics.diagnostics.filter { $0.code == code }.count == 2)
     }
 
+    /// KUU-3762: qualified access to a `private` member declared on a
+    /// companion object's supertype must report the inaccessible member
+    /// (matching kotlinc's "cannot access ... it is private"), not an
+    /// unresolved member — across call, property read/write, and
+    /// callable-reference shapes, including the explicit
+    /// `WithComp.Companion.member` form.
+    @Test func testQualifiedInheritedPrivateCompanionMemberReportsInaccessible() throws {
+        let source = """
+        open class Base {
+            private fun hidden(): Int = 1
+            private var secret: Int = 2
+        }
+        class WithComp { companion object : Base() }
+        class Sub : Base()
+        fun check() {
+            WithComp.hidden()
+            WithComp.secret
+            WithComp.secret = 5
+            WithComp.Companion.hidden()
+            WithComp.Companion.secret
+            val ref: () -> Int = WithComp::hidden
+            val prop = WithComp::secret
+            Sub().hidden()
+            Sub().secret
+        }
+        """
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+        #expect(
+            ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0040" }.count == 9,
+            "\(ctx.diagnostics.diagnostics)"
+        )
+        #expect(!ctx.diagnostics.diagnostics.contains {
+            ["KSWIFTK-SEMA-0022", "KSWIFTK-SEMA-0024"].contains($0.code)
+        })
+    }
+
+    /// The `Owner.member` shorthand resolves through the companion's member
+    /// scope only: a `private` instance member declared on the owner class
+    /// itself is not a member of that scope and stays unresolved, matching
+    /// kotlinc (KUU-3762).
+    @Test func testQualifiedPrivateOwnerInstanceMemberStillReportsUnresolved() throws {
+        let source = """
+        class OwnPrivate {
+            private fun ownHidden(): Int = 1
+            companion object
+        }
+        fun check() { OwnPrivate.ownHidden() }
+        """
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+        #expect(ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0024" }.count == 1)
+        #expect(!ctx.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-SEMA-0040" })
+    }
+
     @Test func testInheritedCompanionPropertyResolvesUnqualifiedInClassMembers() throws {
         let source = """
         open class Parent<T>(val inherited: String)

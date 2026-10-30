@@ -686,6 +686,22 @@ extension CallTypeChecker {
                     range: range,
                     diagnostics: ctx.sema.diagnostics
                 )
+            } else if let privateMember = driver.helpers.inaccessiblePrivateQualifiedMember(
+                named: calleeName,
+                probeReceiverTypes: [sema.types.makeNonNullable(receiverType)],
+                ctx: ctx
+            ) {
+                // Inherited `private` members never enter the write lookup
+                // (they are not inherited), but a qualified assignment still
+                // resolves the name — report it as inaccessible rather than
+                // unresolved, matching kotlinc (KUU-3762). A class-name
+                // receiver was already retyped to its companion object type.
+                driver.helpers.emitVisibilityError(
+                    for: privateMember,
+                    name: ctx.interner.resolve(calleeName),
+                    range: range,
+                    diagnostics: ctx.sema.diagnostics
+                )
             } else if sema.diagnostics.errorCount == errorsBeforeValue {
                 sema.diagnostics.error(
                     "KSWIFTK-SEMA-0022", "Unresolved reference '\(ctx.interner.resolve(calleeName))'.", range: range
