@@ -245,6 +245,13 @@ public class SelectImplementation<R>(override val context: CoroutineContext) : S
     private suspend fun runSelectedClause(reg: Any): R {
         val clause = clauses.firstOrNull { it.reg === reg }
             ?: error("select was selected by an unregistered clause")
+        // KUU-3848: a counterparty may have committed this clause's outcome
+        // by claiming its parked offer between this select's polls. The
+        // clause's captured poll variable (`result` for onReceive clauses)
+        // still holds the earlier "not ready" box, so re-poll to materialize
+        // the delivered status/value before the block observes it — every
+        // poll bridge answers a committed `clause.delivered` idempotently.
+        clause.ready(clause.reg)
         return clause.block()
     }
 
