@@ -545,6 +545,15 @@ extension CallTypeChecker {
     /// same candidate sources the getter uses and binds it (plus the setter
     /// accessor as the call target) so lowering can route the write through
     /// the registered setter accessor.
+    ///
+    /// `requireCompanionExtension` restricts candidates to `companion`-marked
+    /// top-level extension properties — used when the call-site receiver is
+    /// the owner nominal itself (`A.compExtVar = v` routes through A's
+    /// companion scope, where only companion extensions apply; a plain
+    /// `var A.x` must not bind). `emitUnresolvedDiagnostics` suppresses the
+    /// empty-candidate diagnostics (and the speculative RHS inference they
+    /// trigger) so a caller can probe several receiver types in order and let
+    /// only the final, general attempt report failure.
     func resolveExtensionPropertySetter(
         id: ExprID,
         calleeName: InternedString,
@@ -552,7 +561,9 @@ extension CallTypeChecker {
         receiverType: TypeID,
         value: ExprID,
         locals: inout LocalBindings,
-        ctx: TypeInferenceContext
+        ctx: TypeInferenceContext,
+        requireCompanionExtension: Bool = false,
+        emitUnresolvedDiagnostics: Bool = true
     ) -> SymbolID? {
         let sema = ctx.sema
         var setterCandidates: [SymbolID] = []
@@ -583,6 +594,7 @@ extension CallTypeChecker {
             guard let symbol = sema.symbols.symbol(candidate),
                   symbol.kind == .property,
                   !requireSynthetic || symbol.flags.contains(.synthetic),
+                  !requireCompanionExtension || isCompanionExtension(candidate, ctx: ctx),
                   let receiver = sema.symbols.extensionPropertyReceiverType(for: candidate),
                   extensionSyntheticFallbackReceiverMatches(
                       callSiteReceiver: receiverType,
@@ -677,6 +689,13 @@ extension CallTypeChecker {
             return nil
         }
         guard !setterCandidates.isEmpty else {
+            // A speculative probe (a class-name receiver tries several
+            // companion-scope receiver types in order) must not infer the RHS
+            // or report unresolved yet — the caller's final, general attempt
+            // owns that diagnostic.
+            guard emitUnresolvedDiagnostics else {
+                return nil
+            }
             let errorsBeforeValue = sema.diagnostics.errorCount
             _ = driver.inferExpr(value, ctx: ctx, locals: &locals, expectedType: nil)
             if let invisibleSymbol = invisibleProperties.first {

@@ -975,7 +975,8 @@ extension ExprTypeChecker {
         named calleeName: InternedString,
         receiverType: TypeID,
         range: SourceRange,
-        ctx: TypeInferenceContext
+        ctx: TypeInferenceContext,
+        requireCompanionExtension: Bool = false
     ) -> MemberPropertyLookupResult? {
         let sema = ctx.sema
         guard let propertyType = driver.callChecker.resolveExtensionPropertyGetter(
@@ -985,7 +986,10 @@ extension ExprTypeChecker {
             receiverType: receiverType,
             expectedType: nil,
             ctx: ctx,
-            bindCall: false
+            bindCall: false,
+            invocationCandidateFilter: requireCompanionExtension
+                ? { candidate in self.driver.callChecker.isCompanionExtension(candidate, ctx: ctx) }
+                : nil
         ), let property = sema.bindings.identifierSymbol(for: id) else {
             return nil
         }
@@ -1019,17 +1023,88 @@ extension ExprTypeChecker {
         let originalValueType = driver.inferExpr(valueExpr, ctx: ctx, locals: &locals, expectedType: nil)
 
         let nonNullReceiver = sema.types.makeNonNullable(receiverType)
-        guard let propResult = driver.helpers.lookupMemberPropertyForWrite(
+        // Same companion-scope routing as `inferMemberAssignExpr`: a bare
+        // class name resolves writes through `$CompanionBlocks`/`companion
+        // object` members, extensions on the companion object type, then
+        // `companion`-marked extension properties on the owner nominal.
+        let classNameOwnerNominal = driver.helpers.classNameReceiverNominalSymbol(
+            forReceiverExpr: receiverExpr, ctx: ctx
+        )
+        var propResult = driver.helpers.lookupMemberPropertyForWrite(
             named: calleeName,
             receiverType: nonNullReceiver,
             sema: sema
-        ) ?? resolveExtensionPropertyForCompoundAssignment(
-            id: id,
-            named: calleeName,
-            receiverType: receiverType,
-            range: range,
-            ctx: ctx
-        ) else {
+        )
+        if propResult == nil, let ownerNominal = classNameOwnerNominal {
+            for scopeType in driver.helpers.companionScopeProbeTypes(for: ownerNominal, ctx: ctx)
+            where scopeType != nonNullReceiver {
+                if let companionMember = driver.helpers.lookupMemberPropertyForWrite(
+                    named: calleeName,
+                    receiverType: scopeType,
+                    sema: sema
+                ) {
+                    propResult = companionMember
+                    sema.bindings.bindExprType(receiverExpr, type: scopeType)
+                    break
+                }
+            }
+        }
+        if propResult == nil, let ownerNominal = classNameOwnerNominal {
+            // Extensions on a source `companion object` type apply to the
+            // `A.x` qualifier (`var A.Companion.x`, `var Any.x`), mirroring
+            // the read path. A `companion { }` block is not a value receiver
+            // and gets no unfiltered probe.
+            let sourceCompanionSymbol = sema.symbols.companionObjectSymbol(for: ownerNominal)
+                ?? sema.symbols.actualSymbol(for: ownerNominal).flatMap {
+                    sema.symbols.companionObjectSymbol(for: $0)
+                }
+            let companionObjectType: TypeID? = sourceCompanionSymbol.map {
+                sema.symbols.propertyType(for: $0) ?? sema.types.make(.classType(ClassType(
+                    classSymbol: $0, args: [], nullability: .nonNull
+                )))
+            }
+            if let companionObjectType, companionObjectType != receiverType {
+                propResult = resolveExtensionPropertyForCompoundAssignment(
+                    id: id,
+                    named: calleeName,
+                    receiverType: companionObjectType,
+                    range: range,
+                    ctx: ctx
+                )
+                if propResult != nil {
+                    sema.bindings.bindExprType(receiverExpr, type: companionObjectType)
+                }
+            }
+            // `companion`-marked extensions (`companion var A.x`) resolve
+            // against the owner nominal; the filter keeps a plain `var A.x`
+            // from binding where Kotlin reports unresolved.
+            if propResult == nil {
+                let ownerReceiverType = sema.types.make(.classType(ClassType(
+                    classSymbol: ownerNominal, args: [], nullability: .nonNull
+                )))
+                propResult = resolveExtensionPropertyForCompoundAssignment(
+                    id: id,
+                    named: calleeName,
+                    receiverType: ownerReceiverType,
+                    range: range,
+                    ctx: ctx,
+                    requireCompanionExtension: true
+                )
+                if propResult != nil {
+                    sema.bindings.bindExprType(receiverExpr, type: ownerReceiverType)
+                }
+            }
+        }
+        if propResult == nil {
+            propResult = resolveExtensionPropertyForCompoundAssignment(
+                id: id,
+                named: calleeName,
+                receiverType: receiverType,
+                range: range,
+                ctx: ctx
+            )
+        }
+        guard let propResult else {
             ctx.sema.diagnostics.error(
                 "KSWIFTK-SEMA-0022",
                 "Unresolved reference '\(interner.resolve(calleeName))'.",
