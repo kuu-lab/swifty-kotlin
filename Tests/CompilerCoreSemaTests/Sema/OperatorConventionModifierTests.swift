@@ -288,6 +288,34 @@ struct OperatorConventionModifierTests {
         #expect(arityErrors.count == 2, "\(ctx.diagnostics.diagnostics)")
     }
 
+    /// KUU-3804: `operator` functions are members of an anonymous `object`
+    /// used as a `by` delegate expression, so `memberOrExtension` eligibility
+    /// holds. The property delegate-body fallback must not re-parse the object
+    /// body as a statement block, where the same members read as ineligible
+    /// local functions.
+    @Test
+    func operatorMembersOnAnonymousObjectDelegateExpressionAreAccepted() throws {
+        let source = """
+        import kotlin.reflect.*
+
+        var x: String by object {
+            operator fun getValue(t: Any?, p: KProperty<*>): String = ""
+            operator fun setValue(t: Any?, p: KProperty<*>, v: String) {}
+        }
+        class C {
+            var y: String by object {
+                operator fun getValue(t: Any?, p: KProperty<*>): String = ""
+                operator fun setValue(t: Any?, p: KProperty<*>, v: String) {}
+            }
+        }
+        fun main() {}
+        """
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+        assertNoDiagnostic("KSWIFTK-SEMA-0439", in: ctx)
+        #expect(!ctx.diagnostics.hasError, "Got: \(ctx.diagnostics.diagnostics)")
+    }
+
     @Test
     func dataClassDestructuringStaysLegal() throws {
         let source = """
