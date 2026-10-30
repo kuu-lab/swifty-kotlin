@@ -21,11 +21,14 @@ struct CancellableContinuationLoweringTests {
             let wrapper = try findKIRFunction(named: "expose", in: module, interner: ctx.interner)
             let function = try LoweringTestRuntime.loweredSuspendFunction(for: wrapper, in: module, interner: ctx.interner)
             let calls = extractCallees(from: function.body, interner: ctx.interner)
-            #expect(calls.contains(LoweringTestRuntime.name("function_invoke")))
+            // KUU-3833: the block is invoked through the OrReturn-aware bridge so
+            // an in-block resume marks the continuation state instead of folding
+            // into the suspend call's synchronous return value.
+            #expect(calls.contains(LoweringTestRuntime.name("suspend_coroutine_orreturn")))
             #expect(!calls.contains("<suspendCoroutineUninterceptedOrReturn>"))
             #expect(function.body.contains { instruction in
                 guard case let .call(_, callee, _, _, canThrow, thrownResult, _, _) = instruction,
-                      callee == LoweringTestRuntime.callee("function_invoke", interner: ctx.interner) else {
+                      callee == LoweringTestRuntime.callee("suspend_coroutine_orreturn", interner: ctx.interner) else {
                     return false
                 }
                 return canThrow && thrownResult != nil

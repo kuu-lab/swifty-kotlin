@@ -555,9 +555,17 @@ extension LoweringPassRegressionTests {
             #expect(loweredCallees.contains(RuntimeCall.coroutineStateEnter.name))
             #expect(loweredCallees.contains(RuntimeCall.coroutineStateExit.name))
             let invokeABI = try #require(RuntimeABISpec.byName[RuntimeCall.functionInvoke.name])
+            // KUU-3833: suspendCoroutineUninterceptedOrReturn's block invoke is
+            // routed through the OrReturn-aware bridge, which shares
+            // kk_function_invoke's throwing ABI (blockRaw, continuation, outThrown).
+            let blockInvokeCalleeNames = [
+                RuntimeCall.functionInvoke.name,
+                RuntimeCall.suspendCoroutineOrReturn.name,
+            ]
+            let blockInvokeCallees = Set(blockInvokeCalleeNames.map { ctx.interner.intern($0) })
             let invokeResults = Set(loweredSuspend.body.compactMap { instruction -> KIRExprID? in
                 guard case let .call(_, callee, _, result, canThrow, _, _, _) = instruction,
-                      callee == ctx.interner.intern(RuntimeCall.functionInvoke.name)
+                      blockInvokeCallees.contains(callee)
                 else { return nil }
                 #expect(canThrow == invokeABI.isThrowing)
                 return result
