@@ -626,7 +626,22 @@ extension CallLowerer {
             if parameterIndex == 2,
                sema.bindings.workerExecuteCallees.contains(chosenCallee),
                let callable = driver.ctx.callableValueInfo(for: arguments[finalArgIndex]),
-               callable.captureArguments.contains(where: { capture in
+               ({
+                   // A materialized (fnPtr, closureRaw) function value stores
+                   // the ABI closure slot in `captureArguments`, not the
+                   // callable's semantic environment: a non-capturing job
+                   // lambda boxed for an erased ABI boundary (for example a
+                   // primitive-parameter lambda) still carries one slot for
+                   // its empty closure object. `unboxedSymbol` links the
+                   // materialized value back to the underlying callable,
+                   // whose definition-site capture list is the real
+                   // environment; callable-reference thunks never populate
+                   // that table, and the Sema-level check on the job
+                   // expression already rejects any receiver they capture.
+                   callable.unboxedSymbol
+                       .map { arena.lambdaCaptureArgsBySymbol[$0] ?? [] }
+                       ?? callable.captureArguments
+               })().contains(where: { capture in
                    // A static local function entry is code, not captured state.
                    // Capturing callees also contribute their environment here.
                    guard let dependency = driver.ctx.callableValueInfo(for: capture),

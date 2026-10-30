@@ -92,6 +92,34 @@ struct WorkerExecuteReceiverTests {
     }
 
     @Test(arguments: [false, true])
+    func acceptsNonCapturingPrimitiveJob(allowDefaultStdlibLibrary: Bool) throws {
+        if allowDefaultStdlibLibrary { TestStdlibCache.shared.prepare() }
+        try withTemporaryFile(contents: """
+        @file:OptIn(kotlin.native.concurrent.ObsoleteWorkersApi::class)
+        import kotlin.native.concurrent.TransferMode
+        import kotlin.native.concurrent.Worker
+
+        fun probe(worker: Worker): Int {
+            val future = worker.execute(TransferMode.SAFE, { 21 }) { input -> input * 2 }
+            return future.result
+        }
+        """) { path in
+            let ctx = makeCompilationContext(
+                inputs: [path], emit: .executable,
+                allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
+            )
+            // KUU-3849: a primitive-parameter job lambda is boxed for the
+            // erased function-value ABI before this call lowers, so its KIR
+            // captureArguments hold the (fnPtr, closureRaw) ABI slot rather
+            // than semantic captures. The Worker.execute check must read the
+            // underlying lambda's definition-site captures via unboxedSymbol
+            // instead of reporting SEMA-0430 for that ABI slot.
+            try runToKIR(ctx)
+            #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+        }
+    }
+
+    @Test(arguments: [false, true])
     func receiverMemberWinsOverUserExtension(allowDefaultStdlibLibrary: Bool) throws {
         if allowDefaultStdlibLibrary { TestStdlibCache.shared.prepare() }
         try withTemporaryFile(contents: """
