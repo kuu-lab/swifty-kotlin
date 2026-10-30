@@ -86,7 +86,13 @@ final class ValueClassUnboxingPass: LoweringPass {
                   valueClassCtors.contains(function.symbol)
             else { continue }
             // constValue result -> literal, so `kk_array_set(this, offset, _)`
-            // can reveal where the underlying field lives.
+            // can reveal where the underlying field lives. Only a store whose
+            // target is the constructor's `this` receiver qualifies: delegation
+            // argument evaluation can emit `kk_array_set` on a temporary
+            // container (e.g. `this(listOf(v))` writes `v` into a fresh array
+            // at index 0), which would otherwise be misrecorded as the field
+            // offset and make the secondary-constructor extraction read the
+            // box header instead of the payload (KUU-3830).
             var literalByExpr: [KIRExprID: Int64] = [:]
             for instruction in function.body {
                 if case let .constValue(resultExpr, value) = instruction,
@@ -98,7 +104,10 @@ final class ValueClassUnboxingPass: LoweringPass {
             for instruction in function.body {
                 if case let .call(_, callee, arguments, _, _, _, _, _) = instruction,
                    callee == kk_array_set, arguments.count == 3,
-                   let offset = literalByExpr[arguments[1]]
+                   let offset = literalByExpr[arguments[1]],
+                   let thisParam = function.params.first,
+                   case let .symbolRef(storeTarget) = module.arena.expr(arguments[0]),
+                   storeTarget == thisParam.symbol
                 {
                     ctorUnderlyingFieldOffset[function.symbol] = offset
                 }
