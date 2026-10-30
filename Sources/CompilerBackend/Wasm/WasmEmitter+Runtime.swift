@@ -430,6 +430,7 @@ enum WasmRuntimeHelpers {
         "kk_type_register_iface",
         "kk_op_is",
         "kk_op_cast",
+        "kk_op_safe_cast",
         "kk_array_tag_type",
         "__kk_string_literal_from_utf8",
         "__kk_println_raw",
@@ -934,6 +935,18 @@ enum WasmRuntimeHelpers {
         case "kk_op_cast":
             extraLocals = 0
             emitOpCastBody(&code, ctx: ctx)
+        // `x as? T` → `kk_op_is ? value : nullSentinel`.
+        case "kk_op_safe_cast":
+            extraLocals = 0
+            code.localGet(0)
+            code.localGet(1)
+            code.call(ctx.emittedHelperIndex(for: "kk_op_is", argumentCount: 2))
+            code.op(WasmOpcode.i64Eqz)
+            code.openIf(result: .i64)
+            code.i64Const(L.nullSentinel)
+            code.elseBranch()
+            code.localGet(0)
+            code.end()
         case "kk_array_tag_type":
             extraLocals = 0
             emitArrayTagTypeBody(&code)
