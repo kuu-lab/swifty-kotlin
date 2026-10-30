@@ -32,6 +32,8 @@ jobs:
     name: Build debug Swift test bundle once
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    outputs:
+      bundle: ${{ steps.package.outputs.bundle }}
     env:
       KSWIFTK_CI_FAST_BUILD: "1"
       SWIFT_BUILD_SYSTEM: native
@@ -65,6 +67,7 @@ jobs:
           echo "SWIFT_TEST_BUILD_JOBS=$worker_count" >> "$GITHUB_ENV"
           echo "Detected $worker_count logical CPUs"
       - name: Build compiler and all tests
+        id: build
         run: bash Scripts/build_swift_tests.sh -j "$SWIFT_TEST_BUILD_JOBS" $SWIFT_XSWIFTC_FLAGS
       - name: Warm runtime objects for candidate-only verification
         env:
@@ -76,6 +79,8 @@ jobs:
           DIFF_KSWIFTC_FLAGS: "--no-incremental"
         run: bash Scripts/run_candidate_only.sh Scripts/diff_cases
       - name: Package debug test bundle
+        id: package
+        if: always() && steps.build.outcome == 'success'
         run: |
           archive_name="swift-debug-tests.tar.zst"
           archive_path="$RUNNER_TEMP/$archive_name"
@@ -95,7 +100,9 @@ jobs:
             echo "- Upload parts: \`$part_count\`"
             echo "- Compilation CAS excluded: \`$SWIFT_CAS_PATH\`"
           } >> "$GITHUB_STEP_SUMMARY"
+          echo "bundle=ready" >> "$GITHUB_OUTPUT"
       - name: Upload debug test bundle artifact
+        if: always() && steps.package.outcome == 'success'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: swift-debug-tests-${{ github.run_id }}
@@ -109,6 +116,7 @@ jobs:
   verify-core:
     name: Verification 1/5 (CompilerCore and Smoke, shard ${{ matrix.shard_label }}/6)
     needs: build-debug-tests
+    if: always() && needs.build-debug-tests.outputs.bundle == 'ready'
     runs-on: ubuntu-latest
     timeout-minutes: 120
     strategy:
@@ -231,6 +239,7 @@ jobs:
   verify-self-hosted:
     name: Verification 2-3/5 (Backend, Runtime, CLI, and LSP, shard ${{ matrix.shard_label }}/4)
     needs: build-debug-tests
+    if: always() && needs.build-debug-tests.outputs.bundle == 'ready'
     runs-on: ubuntu-latest
     timeout-minutes: 180
     strategy:
@@ -1063,6 +1072,7 @@ jobs:
   audits:
     name: Dead code and fiction audits
     needs: build-debug-tests
+    if: always() && needs.build-debug-tests.outputs.bundle == 'ready'
     runs-on: ubuntu-latest
     timeout-minutes: 45
     env:
