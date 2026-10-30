@@ -71,7 +71,7 @@ extension JVMProgramBuilder {
                         else if path.contains("text-") { owner = "kotlin/text/StringsKt" }
                         else if path.contains("arrays-") { owner = "kotlin/collections/ArraysKt" }
                         else { owner = "kotlin/collections/CollectionsKt" }
-                        if case .unsignedArray? = receiverType, !path.contains("arrays-utility-") {
+                        if case .unsignedArray? = receiverType, !path.contains("arrays-utility-"), !path.contains("unsigned-array-operations") {
                             receiverType = .reference("java/lang/Iterable", nullable: false)
                             owner = "kotlin/collections/CollectionsKt"
                         }

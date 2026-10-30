@@ -123,6 +123,12 @@ public fun String.capitalize(): String {
     return capitalizedFirst + __jvmSubstring(this, 1, this.length)
 }
 
+@Deprecated("Use replaceFirstChar instead.")
+public fun String.decapitalize(): String {
+    if (this.length == 0) return this
+    return __jvmLowerChar(this[0]).toString() + __jvmSubstring(this, 1, this.length)
+}
+
 @SinceKotlin("1.5")
 @OptIn(ExperimentalTypeInference::class)
 @OverloadResolutionByLambdaReturnType
