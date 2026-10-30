@@ -503,9 +503,16 @@ extension CallTypeChecker {
             {
                 for (index, expectedArgumentType) in expectedTypes.sorted(by: { $0.key < $1.key }) {
                     let diagnosticsCheckpoint = sema.diagnostics.checkpoint()
+                    var probeContext = ctx
+                    if case .callableRef = ast.arena.expr(args[index].expr) {
+                        // Keep the reference-shaped function type when the
+                        // deferred argument is a callable reference, the same
+                        // way `prepareCallArguments` infers it.
+                        probeContext.isCallableReferenceArgument = true
+                    }
                     let argumentType = driver.inferExpr(
                         args[index].expr,
-                        ctx: ctx,
+                        ctx: probeContext,
                         locals: &locals,
                         expectedType: expectedArgumentType
                     )

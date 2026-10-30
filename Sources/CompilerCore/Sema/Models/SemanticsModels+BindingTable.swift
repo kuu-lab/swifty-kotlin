@@ -1271,6 +1271,16 @@ public final class BindingTable {
         unboundCallableRefs.insert(expr)
     }
 
+    /// Callable references can be re-inferred under a different expected
+    /// function type (e.g. per-candidate overload probing), which may switch
+    /// a `Type::member` reference between the unbound shape and a bound
+    /// companion/extension interpretation. A bound commit must clear any
+    /// unbound mark an earlier inference left behind, or KIR lowering keeps
+    /// treating the reference as unbound and drops the captured receiver.
+    public func unmarkUnboundCallableRef(_ expr: ExprID) {
+        unboundCallableRefs.remove(expr)
+    }
+
     public func isUnboundCallableRef(_ expr: ExprID) -> Bool {
         unboundCallableRefs.contains(expr)
     }

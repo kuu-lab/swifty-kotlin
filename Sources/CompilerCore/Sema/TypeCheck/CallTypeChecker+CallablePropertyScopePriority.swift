@@ -165,6 +165,7 @@ extension CallTypeChecker {
         guard case let .callableRef(receiver, member, _) = ctx.ast.arena.expr(expression) else { return true }
         var receiverType: TypeID?
         var bindReceiver = false
+        var classNameReceiverSymbol: SymbolID?
         var candidates: [SymbolID]
         if let receiver {
             receiverType = sema.bindings.exprType(for: receiver)
@@ -176,6 +177,7 @@ extension CallTypeChecker {
                     $0.kind == .class || $0.kind == .interface || $0.kind == .enumClass
                 }), sema.types.nominalTypeParameterSymbols(for: owner.id).isEmpty {
                     receiverType = sema.types.make(.classType(ClassType(classSymbol: owner.id, args: [], nullability: .nonNull)))
+                    classNameReceiverSymbol = owner.id
                 } else { return true }
             } else { bindReceiver = true }
             guard let receiverType else { return true }
@@ -195,7 +197,58 @@ extension CallTypeChecker {
         }
         candidates = ctx.filterByVisibility(candidates).visible
         if candidates.isEmpty { return true }
-        return candidates.contains { candidate in
+        // A class-name receiver also denotes the companion scope as a bound
+        // receiver (`inferCallableRefExpr` retries `A::member` on the
+        // companion type when the unbound interpretation cannot satisfy the
+        // expected function type): companion-block/object members, package
+        // extensions whose receiver accepts that companion type, and
+        // top-level `companion fun A.member` extensions are all valid bound
+        // targets. Collect them so the shape check below accepts e.g.
+        // `C::baz` for a `(String) -> String` parameter even when an
+        // instance `baz(Int)` shadows the companion member in the member
+        // candidate list above.
+        var boundCompanionCandidates: [(symbol: SymbolID, boundReceiverType: TypeID)] = []
+        if let classNameReceiverSymbol, let classReceiverType = receiverType {
+            let nonNullClassReceiver = sema.types.makeNonNullable(classReceiverType)
+            if let companionType = driver.helpers.companionScopeType(
+                for: classNameReceiverSymbol, ctx: ctx
+            ) {
+                for candidate in driver.helpers.collectMemberFunctionCandidates(
+                    named: member, receiverType: companionType, sema: sema, interner: ctx.interner
+                ) where !driver.helpers.declaresExtensionReceiver(
+                    candidate, sema: sema, interner: ctx.interner
+                ) {
+                    boundCompanionCandidates.append((candidate, companionType))
+                }
+                for candidate in ctx.scope.lookup(member, matching: { symbolID in
+                    guard let symbol = ctx.cachedSymbol(symbolID),
+                          symbol.kind == .function,
+                          sema.symbols.memberExtensionOwnerSymbol(for: symbolID) == nil,
+                          driver.helpers.declaresExtensionReceiver(
+                              symbolID, sema: sema, interner: ctx.interner
+                          ),
+                          let declaredReceiver = sema.symbols.functionSignature(
+                              for: symbolID
+                          )?.receiverType
+                    else {
+                        return false
+                    }
+                    return extensionSyntheticFallbackReceiverMatches(
+                        callSiteReceiver: companionType,
+                        declaredReceiver: declaredReceiver,
+                        sema: sema
+                    )
+                }) {
+                    boundCompanionCandidates.append((candidate, companionType))
+                }
+            }
+            for candidate in companionExtensionFunctionCandidates(
+                named: member, ownerReceiverType: nonNullClassReceiver, ctx: ctx
+            ) {
+                boundCompanionCandidates.append((candidate, nonNullClassReceiver))
+            }
+        }
+        let memberCandidateMatches = candidates.contains { candidate in
             guard let signature = sema.symbols.functionSignature(for: candidate) else { return false }
             let receiverIsBound = bindReceiver || (receiver == nil && signature.receiverType.map { receiver in
                 ctx.implicitReceiverType.map { sema.types.isSubtype($0, receiver) } ?? false
@@ -209,6 +262,22 @@ extension CallTypeChecker {
             }
             let inferred = driver.helpers.callableFunctionType(
                 for: signature, bindReceiver: receiverIsBound, boundReceiver: boundReceiver, sema: sema
+            )
+            return sema.types.isSubtype(inferred, parameter)
+        }
+        if memberCandidateMatches { return true }
+        return boundCompanionCandidates.contains { candidate, boundReceiverType in
+            guard let signature = sema.symbols.functionSignature(for: candidate) else { return false }
+            if let expected {
+                return driver.helpers.contextualCallableFunctionType(
+                    for: signature, targetSymbol: candidate, bindReceiver: true,
+                    boundReceiver: (candidate, boundReceiverType),
+                    expectedFunctionType: sema.types.make(.functionType(expected)), sema: sema
+                ) != nil
+            }
+            let inferred = driver.helpers.callableFunctionType(
+                for: signature, bindReceiver: true, boundReceiver: (candidate, boundReceiverType),
+                targetSymbol: candidate, interner: ctx.interner, sema: sema
             )
             return sema.types.isSubtype(inferred, parameter)
         }

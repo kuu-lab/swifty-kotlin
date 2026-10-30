@@ -2006,92 +2006,120 @@ extension ExprTypeChecker {
            !isImplicitlyBoundMember,
            companionCallableReferenceReceiverType == nil,
            propertyReferenceCandidate == nil,
-           let unboundClassType,
-           let companionType = classNameCompanionCallableReferenceReceiverType(
-               for: unboundClassType,
-               ctx: ctx
-           )
+           let unboundClassType
         {
-            let boundMembers = driver.helpers.collectMemberFunctionCandidates(
-                named: member,
-                receiverType: companionType,
-                sema: sema,
-                interner: interner
-            ).filter { candidate in
-                !driver.helpers.declaresExtensionReceiver(
-                    candidate,
-                    sema: sema,
-                    interner: interner
-                )
-            }
-            let boundExtensions: [SymbolID] = {
-                func isApplicableExtension(_ symbolID: SymbolID) -> Bool {
-                    guard let symbol = ctx.cachedSymbol(symbolID),
-                          symbol.kind == .function,
-                          !(symbol.flags.contains(.expectDeclaration)
-                              && sema.symbols.actualSymbol(for: symbolID) != nil),
-                          sema.symbols.memberExtensionOwnerSymbol(for: symbolID) == nil,
-                          driver.helpers.declaresExtensionReceiver(
-                              symbolID, sema: sema, interner: interner
-                          ),
-                          let declaredReceiver = sema.symbols.functionSignature(
-                              for: symbolID
-                          )?.receiverType
-                    else { return false }
-                    return driver.callChecker.extensionSyntheticFallbackReceiverMatches(
-                        callSiteReceiver: companionType,
-                        declaredReceiver: declaredReceiver,
-                        sema: sema
-                    )
-                }
-                let localExtensions = ctx.scope.lookup(member, matching: { symbolID in
-                    ctx.cachedSymbol(symbolID)?.flags.contains(.localFunction) == true
-                        && isApplicableExtension(symbolID)
-                })
-                if !localExtensions.isEmpty {
-                    return localExtensions
-                }
-                if let local = locals[member],
-                   ctx.cachedSymbol(local.symbol)?.flags.contains(.localFunction) == true,
-                   isApplicableExtension(local.symbol)
-                {
-                    return [local.symbol]
-                }
-                return ctx.scope.lookup(member, matching: isApplicableExtension)
-            }()
-            let boundPool = boundMembers + boundExtensions
-            if boundPool.count == 1 {
-                driver.inferFunctionReturnTypesIfNeeded(for: boundPool)
-            }
-            func boundMatch(_ candidate: SymbolID) -> Bool {
-                guard let signature = sema.symbols.functionSignature(for: candidate)
-                else { return false }
-                return driver.helpers.contextualCallableReferenceBinding(
-                    for: signature,
-                    targetSymbol: candidate,
-                    bindReceiver: true,
-                    boundReceiver: (candidate, companionType),
-                    expectedFunctionType: expectedFunctionType,
-                    postponedReturnTypeParameter: postponedReturnParameter,
-                    interner: interner,
-                    availableContextReceiverTypes: availableContextReceiverTypes,
-                    sema: sema
-                ) != nil
-            }
-            // Members outrank same-named extensions for the bound
-            // interpretation, mirroring Kotlin's member-call resolution.
-            let boundChosen = boundMembers.filter(boundMatch)
-                + boundExtensions.filter(boundMatch)
-            let mostSpecificBound = driver.callChecker.preferMostSpecificMemberReceiverCandidates(
-                boundChosen, receiverType: companionType, sema: sema, interner: interner
+            let companionType = classNameCompanionCallableReferenceReceiverType(
+                for: unboundClassType,
+                ctx: ctx
             )
-            if mostSpecificBound.count == 1 {
-                candidates = mostSpecificBound
-                chosen = mostSpecificBound[0]
-                companionCallableReferenceReceiverType = companionType
-                boundReceiverType = companionType
-                unboundCallableReceiverType = nil
-                isBoundReceiver = true
+            // `companion fun A.member` extensions also join the bound
+            // interpretation, with the class name itself bound as the
+            // receiver — the same interpretation the `candidates.isEmpty`
+            // fallback above applies when no instance member shadows the
+            // name. They are the only bound candidates when the class has
+            // no companion scope at all.
+            let boundCompanionExtensions = companionExtensionCallableReferenceCandidates(
+                named: member,
+                receiverType: sema.types.makeNonNullable(unboundClassType),
+                ctx: ctx
+            )
+            if companionType != nil || !boundCompanionExtensions.isEmpty {
+                let boundMembers = companionType.map { companionType in
+                    driver.helpers.collectMemberFunctionCandidates(
+                        named: member,
+                        receiverType: companionType,
+                        sema: sema,
+                        interner: interner
+                    ).filter { candidate in
+                        !driver.helpers.declaresExtensionReceiver(
+                            candidate,
+                            sema: sema,
+                            interner: interner
+                        )
+                    }
+                } ?? []
+                let boundExtensions: [SymbolID] = companionType.map { companionType in
+                    func isApplicableExtension(_ symbolID: SymbolID) -> Bool {
+                        guard let symbol = ctx.cachedSymbol(symbolID),
+                              symbol.kind == .function,
+                              !(symbol.flags.contains(.expectDeclaration)
+                                  && sema.symbols.actualSymbol(for: symbolID) != nil),
+                              sema.symbols.memberExtensionOwnerSymbol(for: symbolID) == nil,
+                              driver.helpers.declaresExtensionReceiver(
+                                  symbolID, sema: sema, interner: interner
+                              ),
+                              let declaredReceiver = sema.symbols.functionSignature(
+                                  for: symbolID
+                              )?.receiverType
+                        else { return false }
+                        return driver.callChecker.extensionSyntheticFallbackReceiverMatches(
+                            callSiteReceiver: companionType,
+                            declaredReceiver: declaredReceiver,
+                            sema: sema
+                        )
+                    }
+                    let localExtensions = ctx.scope.lookup(member, matching: { symbolID in
+                        ctx.cachedSymbol(symbolID)?.flags.contains(.localFunction) == true
+                            && isApplicableExtension(symbolID)
+                    })
+                    if !localExtensions.isEmpty {
+                        return localExtensions
+                    }
+                    if let local = locals[member],
+                       ctx.cachedSymbol(local.symbol)?.flags.contains(.localFunction) == true,
+                       isApplicableExtension(local.symbol)
+                    {
+                        return [local.symbol]
+                    }
+                    return ctx.scope.lookup(member, matching: isApplicableExtension)
+                } ?? []
+                // The class-name value itself is the bound receiver for
+                // `companion fun A.member` extensions, while the companion
+                // object is the bound receiver for the members/extensions in
+                // its scope — keep the two receiver spaces distinct.
+                func boundCandidateReceiverType(for candidate: SymbolID) -> TypeID {
+                    boundCompanionExtensions.contains(candidate)
+                        ? sema.types.makeNonNullable(unboundClassType)
+                        : (companionType ?? sema.types.makeNonNullable(unboundClassType))
+                }
+                let boundPool = boundMembers + boundExtensions + boundCompanionExtensions
+                if boundPool.count == 1 {
+                    driver.inferFunctionReturnTypesIfNeeded(for: boundPool)
+                }
+                func boundMatch(_ candidate: SymbolID) -> Bool {
+                    guard let signature = sema.symbols.functionSignature(for: candidate)
+                    else { return false }
+                    return driver.helpers.contextualCallableReferenceBinding(
+                        for: signature,
+                        targetSymbol: candidate,
+                        bindReceiver: true,
+                        boundReceiver: (candidate, boundCandidateReceiverType(for: candidate)),
+                        expectedFunctionType: expectedFunctionType,
+                        postponedReturnTypeParameter: postponedReturnParameter,
+                        interner: interner,
+                        availableContextReceiverTypes: availableContextReceiverTypes,
+                        sema: sema
+                    ) != nil
+                }
+                // Members outrank same-named extensions for the bound
+                // interpretation, mirroring Kotlin's member-call resolution.
+                let boundChosen = boundMembers.filter(boundMatch)
+                    + boundExtensions.filter(boundMatch)
+                    + boundCompanionExtensions.filter(boundMatch)
+                let mostSpecificBound = driver.callChecker.preferMostSpecificMemberReceiverCandidates(
+                    boundChosen,
+                    receiverType: companionType ?? sema.types.makeNonNullable(unboundClassType),
+                    sema: sema, interner: interner
+                )
+                if mostSpecificBound.count == 1 {
+                    candidates = mostSpecificBound
+                    chosen = mostSpecificBound[0]
+                    let boundType = boundCandidateReceiverType(for: mostSpecificBound[0])
+                    companionCallableReferenceReceiverType = boundType
+                    boundReceiverType = boundType
+                    unboundCallableReceiverType = nil
+                    isBoundReceiver = true
+                }
             }
         }
 
@@ -2358,6 +2386,13 @@ extension ExprTypeChecker {
                (!isConstructorReference || unboundInnerConstructorReceiverType != nil)
             {
                 sema.bindings.markUnboundCallableRef(id)
+            } else {
+                // Re-inference under a different expected type may flip the
+                // reference to a bound interpretation (companion member or
+                // `companion fun C.member` extension). Clear the mark an
+                // earlier unbound-shaped inference left so KIR lowering
+                // captures the receiver (KUU-3820).
+                sema.bindings.unmarkUnboundCallableRef(id)
             }
             let captures = receiver.map { recv in
                 driver.captureAnalyzer.collectCapturedOuterSymbols(
@@ -2717,6 +2752,12 @@ extension ExprTypeChecker {
         sema.bindings.bindCallableRefKind(id, kind: .propertyRef)
         if isUnbound {
             sema.bindings.markUnboundCallableRef(id)
+        } else {
+            // See the function-reference commit above: re-inference can
+            // switch a `Type::property` reference to a bound shape (for
+            // example a `companion val C.prop` extension), so any earlier
+            // unbound mark must not survive the bound commit.
+            sema.bindings.unmarkUnboundCallableRef(id)
         }
         markPropertyReferenceSamConversionIfNeeded(
             id,
