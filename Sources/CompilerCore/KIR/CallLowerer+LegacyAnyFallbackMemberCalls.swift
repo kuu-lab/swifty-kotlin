@@ -95,7 +95,7 @@ extension CallLowerer {
 
         if args.isEmpty, calleeNameStr == "hashCode", allowsAnyFallback {
             let intType = sema.types.make(.primitive(.int, .nonNull))
-            let hashReceiverID = boxSentinelProneHashCodeReceiver(
+            let hashReceiverID = boxSentinelProneValueForAnyDispatch(
                 loweredReceiverID,
                 sourceType: anyFallbackReceiverType,
                 sema: sema,
@@ -120,6 +120,27 @@ extension CallLowerer {
             let receiverTag = anyFallbackTag(for: anyFallbackReceiverType, sema: sema)
             let argType = sema.bindings.exprTypes[args[0].expr] ?? sema.types.anyType
             let argTag = anyFallbackTag(for: argType, sema: sema)
+            // A raw Long/ULong/Double operand whose bits collide with the null
+            // sentinel (-0.0, Long.MIN_VALUE, ULong 2^63) reads as null inside
+            // kk_any_equals, so `x.equals(-0.0)` reported false for a boxed
+            // -0.0 receiver (KUU-3784). Box it before the bridge, the same
+            // normalization hashCode already applies to its receiver.
+            let equalsReceiverID = boxSentinelProneValueForAnyDispatch(
+                loweredReceiverID,
+                sourceType: anyFallbackReceiverType,
+                sema: sema,
+                interner: interner,
+                arena: arena,
+                into: &instructions
+            )
+            let equalsArgID = boxSentinelProneValueForAnyDispatch(
+                loweredArgIDs[0],
+                sourceType: argType,
+                sema: sema,
+                interner: interner,
+                arena: arena,
+                into: &instructions
+            )
             let receiverTagID = arena.appendExpr(.intLiteral(receiverTag), type: intType)
             instructions.append(.constValue(result: receiverTagID, value: .intLiteral(receiverTag)))
             let argTagID = arena.appendExpr(.intLiteral(argTag), type: intType)
@@ -127,7 +148,7 @@ extension CallLowerer {
             let boxedResult = arena.appendTemporary(type: sema.types.makeNullable(sema.types.booleanType))
             instructions.append(.call(
                 callee: interner.intern("kk_any_equals"),
-                arguments: [loweredReceiverID, receiverTagID, loweredArgIDs[0], argTagID],
+                arguments: [equalsReceiverID, receiverTagID, equalsArgID, argTagID],
                 result: boxedResult,
                 canThrow: false
             ))

@@ -201,6 +201,63 @@ struct ConstantCollectorTests {
         #expect(hasBoolTrue, "Expected boolLiteral(true) for !false")
     }
 
+    /// KUU-3784: a read may fold to the initializer's raw scalar only when
+    /// the property's storage holds that same raw scalar. Reference-typed
+    /// vals box their value (an `Any` Double is a heap handle, not the
+    /// literal's bits) and nullable sentinel-colliding primitives
+    /// (`Double?`/`Float?`/`Long?`/`ULong?`) use box-or-sentinel slots. A raw
+    /// `-0.0` or `Long.MIN_VALUE` folded into those reads bit-equals the
+    /// runtime null sentinel, so `x == -0.0` mis-compared as null.
+    @Test func testRawScalarLiteralFoldRequiresRawScalarStorage() throws {
+        let sources = [
+            """
+            package negzero
+            val anyDouble: Any = -0.0
+            val anyInt: Any = 5
+            val nullableDouble: Double? = -0.0
+            val nullableLong: Long? = 5L
+            val nullableFloat: Float? = -0.0f
+            val nullableULong: ULong? = 5uL
+            val nullableInt: Int? = 5
+            val plainDouble: Double = -0.0
+            val plainLong: Long = 5L
+            val anyString: Any = "hi"
+            """,
+        ]
+        try withTemporaryFiles(contents: sources) { paths in
+            let ctx = makeCompilationContext(inputs: paths, includeStdlib: false)
+            try runSema(ctx)
+            #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+            let sema = try #require(ctx.sema)
+            let mapping = collector.collectPropertyConstantInitializers(
+                ast: try #require(ctx.ast),
+                sema: sema,
+                interner: ctx.interner,
+                sourceByFileID: [:]
+            )
+            func propertySymbol(_ name: String) throws -> SymbolID {
+                try #require(sema.symbols.lookupByShortName(ctx.interner.intern(name)).first {
+                    sema.symbols.symbol($0)?.kind == .property
+                })
+            }
+            // Boxed (`Any`) or box-or-sentinel (`Double?`/`Long?`/`Float?`/
+            // `ULong?`) storage must keep the literal as a real read.
+            #expect(mapping[try propertySymbol("anyDouble")] == nil)
+            #expect(mapping[try propertySymbol("anyInt")] == nil)
+            #expect(mapping[try propertySymbol("nullableDouble")] == nil)
+            #expect(mapping[try propertySymbol("nullableLong")] == nil)
+            #expect(mapping[try propertySymbol("nullableFloat")] == nil)
+            #expect(mapping[try propertySymbol("nullableULong")] == nil)
+            // Raw-scalar storage keeps folding the initializer.
+            #expect(mapping[try propertySymbol("nullableInt")] == .intLiteral(5))
+            #expect(mapping[try propertySymbol("plainDouble")] == .doubleLiteral(-0.0))
+            #expect(mapping[try propertySymbol("plainLong")] == .longLiteral(5))
+            // Non-scalar constants still fold into reference storage: the
+            // string literal is a heap object, not a raw word.
+            #expect(mapping[try propertySymbol("anyString")] == .stringLiteral(ctx.interner.intern("hi")))
+        }
+    }
+
     @Test func testNonLiteralInitializerNotCollected() throws {
         let ctx = try sharedNegCtx()
         guard let ast = ctx.ast, let sema = ctx.sema else {

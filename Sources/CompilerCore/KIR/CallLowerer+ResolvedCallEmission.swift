@@ -789,7 +789,7 @@ extension CallLowerer {
                 }
                 let intType = sema.types.make(.primitive(.int, .nonNull))
                 if linkName == "kk_any_member_hashCode", args.isEmpty {
-                    let hashReceiverID = boxSentinelProneHashCodeReceiver(
+                    let hashReceiverID = boxSentinelProneValueForAnyDispatch(
                         extensionReceiver,
                         sourceType: receiverType,
                         sema: sema,
@@ -812,6 +812,26 @@ extension CallLowerer {
                     let receiverTag = anyFallbackTag(for: receiverType, sema: sema)
                     let argType = sema.bindings.exprTypes[args[0].expr] ?? sema.types.anyType
                     let argTag = anyFallbackTag(for: argType, sema: sema)
+                    // A raw Long/ULong/Double operand whose bits collide with
+                    // the null sentinel (-0.0, Long.MIN_VALUE, ULong 2^63)
+                    // reads as null inside kk_any_equals (KUU-3784). Box it
+                    // before the bridge, matching the hashCode path above.
+                    let equalsReceiverID = boxSentinelProneValueForAnyDispatch(
+                        extensionReceiver,
+                        sourceType: receiverType,
+                        sema: sema,
+                        interner: interner,
+                        arena: arena,
+                        into: &instructions
+                    )
+                    let equalsArgID = boxSentinelProneValueForAnyDispatch(
+                        loweredArgIDs[0],
+                        sourceType: argType,
+                        sema: sema,
+                        interner: interner,
+                        arena: arena,
+                        into: &instructions
+                    )
                     let receiverTagID = arena.appendExpr(.intLiteral(receiverTag), type: intType)
                     instructions.append(.constValue(result: receiverTagID, value: .intLiteral(receiverTag)))
                     let argTagID = arena.appendExpr(.intLiteral(argTag), type: intType)
@@ -819,7 +839,7 @@ extension CallLowerer {
                     let boxedResult = arena.appendTemporary(type: sema.types.makeNullable(sema.types.booleanType))
                     instructions.append(.call(
                         callee: interner.intern("kk_any_equals"),
-                        arguments: [extensionReceiver, receiverTagID, loweredArgIDs[0], argTagID],
+                        arguments: [equalsReceiverID, receiverTagID, equalsArgID, argTagID],
                         result: boxedResult,
                         canThrow: false
                     ))

@@ -736,7 +736,7 @@ extension CallLowerer {
             // Use the tagged Any hash bridge — its tag decodes the raw
             // representation (e.g. Double bits for a Double-backed VC).
             let intType = sema.types.make(.primitive(.int, .nonNull))
-            let hashReceiverID = boxSentinelProneHashCodeReceiver(
+            let hashReceiverID = boxSentinelProneValueForAnyDispatch(
                 receiver.loweredID,
                 sourceType: receiverType,
                 sema: sema,
