@@ -141,6 +141,22 @@ extension CallTypeChecker {
         }
     }
 
+    /// A `receiver::member` reference does not commit to its target until the
+    /// expected function type is known: a class-name reference can be an
+    /// unbound `(C) -> R` member, a companion-scope member bound to the
+    /// companion object, or a `companion fun C.member` extension bound to the
+    /// class-name value. Overload sets whose parameter types differ
+    /// (`inline(s: () -> String)` versus `inline(s: (String) -> String)`)
+    /// therefore need the reference re-inferred under each candidate's
+    /// parameter, the same way kotlinc postpones callable references until
+    /// the expected type is known (KUU-3820).
+    func isReinferableCallableReferenceExpr(_ expr: ExprID, ast: ASTModule) -> Bool {
+        guard case .callableRef = ast.arena.expr(expr) else {
+            return false
+        }
+        return true
+    }
+
     /// Restricting the retry to an argument-less stdlib `LinkedHashMap()`
     /// avoids treating arbitrary `Any`-typed expressions as deferred nested
     /// calls.
@@ -207,10 +223,21 @@ extension CallTypeChecker {
         guard !candidates.isEmpty else {
             return nil
         }
+        // Callable references join the deferred set: they pick their target
+        // from each candidate's parameter type, not from the standalone first
+        // pass, whose result is unreliable evidence (a `C::member` reference
+        // may only resolve through the companion interpretation under the
+        // winning overload's function type).
+        let callableReferenceIndices = Set(args.indices.filter { index in
+            !lambdaLiteralIndices.contains(index)
+                && !args[index].isSpread
+                && isReinferableCallableReferenceExpr(args[index].expr, ast: ctx.ast)
+        })
         let nestedArgumentIndices = args.indices.filter { index in
             !lambdaLiteralIndices.contains(index)
                 && !args[index].isSpread
-                && isInferableNestedCallExpr(args[index].expr, ast: ctx.ast)
+                && (isInferableNestedCallExpr(args[index].expr, ast: ctx.ast)
+                    || callableReferenceIndices.contains(index))
         }
         guard !nestedArgumentIndices.isEmpty else {
             return nil
@@ -224,7 +251,8 @@ extension CallTypeChecker {
             let typeVarBySymbol = ctx.sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
 
             var knownArgumentTypes: [Int: TypeID] = [:]
-            for index in args.indices where !lambdaLiteralIndices.contains(index) {
+            for index in args.indices
+            where !lambdaLiteralIndices.contains(index) && !callableReferenceIndices.contains(index) {
                 guard originalArgumentTypes.indices.contains(index),
                       let parameterIndex = parameterIndexForCallArgument(
                           at: index,
@@ -299,6 +327,14 @@ extension CallTypeChecker {
                           typeSystem: ctx.sema.types
                       )
                 else {
+                    // A callable reference whose parameter is still generic
+                    // under this candidate keeps its first-pass binding —
+                    // the resolver checks it like before. Only a nested call
+                    // must bail, since it cannot produce a useful type at all
+                    // without a concrete expected type.
+                    if callableReferenceIndices.contains(index) {
+                        continue
+                    }
                     return nil
                 }
                 candidateExpectedTypes[index] = expectedType
@@ -340,13 +376,23 @@ extension CallTypeChecker {
             var candidateIsInapplicable = false
             for index in nestedArgumentIndices {
                 guard let expectedType = candidateExpectedTypes[index] else {
+                    if callableReferenceIndices.contains(index) {
+                        continue
+                    }
                     return nil
                 }
                 let checkpoint = ctx.sema.diagnostics.checkpoint()
                 var candidateLocals = locals
+                var probeContext = ctx
+                if callableReferenceIndices.contains(index) {
+                    // Match `prepareCallArguments`: a callable reference probed
+                    // under a candidate's parameter keeps its reference-shaped
+                    // function type instead of adapting to the reflective one.
+                    probeContext.isCallableReferenceArgument = true
+                }
                 let argumentType = driver.inferExpr(
                     args[index].expr,
-                    ctx: ctx,
+                    ctx: probeContext,
                     locals: &candidateLocals,
                     expectedType: expectedType
                 )

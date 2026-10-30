@@ -223,6 +223,63 @@ struct CompanionBlocksAndExtensionsTests {
     }
 
     @Test
+    func shadowedCompanionCallableReferencesStayBoundAfterOverloadReinference() throws {
+        // KUU-3820: `Type::member` references are re-inferred per overload
+        // candidate. A first, expected-type-less pass binds the instance
+        // member as an unbound `(C, Int) -> Unit` reference; the winning
+        // overload then re-binds the shadowed companion member as a bound
+        // reference. The stale unbound mark must be cleared, or KIR lowering
+        // drops the captured receiver and the call crashes at runtime.
+        let source = """
+        class C {
+            fun baz(x: Int) {}
+            fun fooExt(x: Int) {}
+            companion {
+                fun baz(s: String) = s
+            }
+        }
+        companion fun C.fooExt(s: String) = s
+        inline fun consume(value: (String) -> String) = value("OK")
+        inline fun consume(value: () -> String) = "none"
+        fun result() = consume(C::baz) + consume(C::fooExt)
+        """
+        try withTemporaryFile(contents: source) { path in
+            let context = makeCompilationContext(inputs: [path], includeStdlib: false)
+            try runSema(context)
+            #expect(!context.diagnostics.hasError, "\(context.diagnostics.diagnostics)")
+            let sema = try #require(context.sema)
+            let ast = try #require(context.ast)
+            let interner = context.interner
+            var boundTargets: [String: SymbolID] = [:]
+            var checked = 0
+            for index in ast.arena.exprs.indices {
+                let id = ExprID(rawValue: Int32(index))
+                guard case let .callableRef(_, member, _) = ast.arena.expr(id) else {
+                    continue
+                }
+                let name = interner.resolve(member)
+                #expect(
+                    !sema.bindings.isUnboundCallableRef(id),
+                    "\(name) must stay bound after overload re-inference"
+                )
+                boundTargets[name] = sema.bindings.identifierSymbol(for: id)
+                checked += 1
+            }
+            #expect(checked == 2)
+            let baz = try #require(boundTargets["baz"])
+            let bazParentName = sema.symbols.parentSymbol(for: baz)
+                .flatMap { sema.symbols.symbol($0)?.name }
+                .map { interner.resolve($0) }
+            #expect(bazParentName == "$CompanionBlocks")
+            let fooExt = try #require(boundTargets["fooExt"])
+            let signature = try #require(sema.symbols.functionSignature(for: fooExt))
+            // The bound companion extension `fooExt(String)` — not the
+            // shadowing instance member `fooExt(Int)` — wins the overload.
+            #expect(signature.parameterTypes == [sema.types.stringType])
+        }
+    }
+
+    @Test
     func innerClassMayDeclareCompanionBlockAndSeeOuterBlockMembers() throws {
         let source = """
         class Outer {
