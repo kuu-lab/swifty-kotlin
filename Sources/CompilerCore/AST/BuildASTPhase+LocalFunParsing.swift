@@ -150,7 +150,9 @@ extension BuildASTPhase {
                 continue
             }
             switch modifier.name {
-            case "suspend", "infix", "operator", "tailrec", "inline":
+            // kotlinc accepts `external` on local functions with no
+            // diagnostic (JVM treats it like any other external decl).
+            case "suspend", "infix", "operator", "tailrec", "inline", "external":
                 continue
             default:
                 diagnostics?.error(

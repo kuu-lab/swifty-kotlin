@@ -1821,6 +1821,18 @@ struct DeclarationPositionValidationTests {
         ], "diagnostics: \(diags.map(\.message))")
     }
 
+    @Test func externalLocalFunctionIsAcceptedLikeKotlinc() throws {
+        // kotlinc accepts `external` on local functions with no diagnostic
+        // at all (unlike other modifiers it never reaches not-applicable).
+        let ctx = try semaContext(for: """
+            fun outer() { external fun a(): Int }
+            class C { fun m() { external fun b(): Int } }
+            """)
+        assertNoDiagnostic("KSWIFTK-SEMA-0400", in: ctx)
+        assertNoDiagnostic("KSWIFTK-SEMA-0426", in: ctx)
+        assertNoDiagnostic("KSWIFTK-SEMA-0009", in: ctx)
+    }
+
     @Test func abstractLocalFunctionInAbstractOwnerIsAccepted() throws {
         // Interfaces, enum classes and abstract classes may host abstract
         // members, so kotlinc exempts local `abstract fun` inside them — and
