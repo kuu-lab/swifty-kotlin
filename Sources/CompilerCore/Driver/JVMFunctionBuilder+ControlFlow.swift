@@ -110,7 +110,8 @@ extension JVMFunctionBuilder {
         if ordering {
             let args = [CallArgument(expr: rhs)]
             if let call = try inlineCall(args, receiver: lhs, id: id, expectedResult: .int)
-                ?? sourceCall(args, receiver: lhs, id: id, expectedResult: .int), let compared = call.value {
+                ?? sourceCall(args, receiver: lhs, id: id, expectedResult: .int)
+                ?? nominalCall(id, receiver: lhs, name: "compareTo", args: args), let compared = call.value {
                 let result = try value(.boolean)
                 instructions.append(.binary(op, compared, try constant(.int(0), .int), result)); return result
             }
@@ -160,6 +161,11 @@ extension JVMFunctionBuilder {
            let method = program.textLibraryMethods[binding.chosenCallee]?.method,
            method.owner == "java/lang/Comparable", method.name == "compareTo" {
             let compared = try jdkCall(method.owner, method.name, method.parameters, .int, receiver: left, arguments: [right], interface: true)!
+            let result = try value(.boolean)
+            instructions.append(.binary(op, compared, try constant(.int(0), .int), result)); return result
+        }
+        if ordering, left.type == .boolean, right.type == .boolean {
+            let compared = try jdkCall("java/lang/Boolean", "compare", [.boolean, .boolean], .int, arguments: [left, right])!
             let result = try value(.boolean)
             instructions.append(.binary(op, compared, try constant(.int(0), .int), result)); return result
         }
