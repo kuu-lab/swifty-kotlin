@@ -1264,13 +1264,13 @@ extension ExprLowerer {
                 }
                 let declaredStorageType = sema.symbols.propertyType(for: symbol)
                 let narrowedPrimitiveType = boundType.flatMap {
-                    smartcastNarrowedPrimitiveType(of: $0, sema: sema)
+                    driver.callLowerer.smartcastNarrowedPrimitiveType(of: $0, sema: sema)
                 }
                 let storageType: TypeID
                 if let declaredStorageType,
                    let narrowedPrimitiveType,
                    case let .primitive(primitive, .nonNull) = sema.types.kind(of: narrowedPrimitiveType),
-                   smartcastStorageNeedsPrimitiveUnbox(
+                   driver.callLowerer.smartcastStorageNeedsPrimitiveUnbox(
                        sema.types.kind(of: declaredStorageType), narrowedPrimitive: primitive
                    )
                 {
@@ -1348,45 +1348,16 @@ extension ExprLowerer {
         instructions: inout [KIRInstruction]
     ) -> KIRExprID? {
         guard let boundType,
-              let primitiveType = smartcastNarrowedPrimitiveType(of: boundType, sema: sema),
-              case let .primitive(primitive, .nonNull) = sema.types.kind(of: primitiveType),
-              let storedType = arena.exprType(value),
-              smartcastStorageNeedsPrimitiveUnbox(
-                  sema.types.kind(of: storedType), narrowedPrimitive: primitive
-              )
+              let primitiveType = driver.callLowerer.smartcastNarrowedPrimitiveType(of: boundType, sema: sema)
         else {
             return nil
         }
-        let narrowed = arena.appendTemporary(type: primitiveType)
-        instructions.append(.copy(from: value, to: narrowed))
-        return narrowed
-    }
-
-    private func smartcastNarrowedPrimitiveType(of type: TypeID, sema: SemaModule) -> TypeID? {
-        switch sema.types.kind(of: type) {
-        case .primitive(_, .nonNull):
-            type
-        case let .intersection(parts):
-            parts.first {
-                if case .primitive(_, .nonNull) = sema.types.kind(of: $0) { return true }
-                return false
-            }
-        default:
-            nil
-        }
-    }
-
-    private func smartcastStorageNeedsPrimitiveUnbox(
-        _ storedKind: TypeKind,
-        narrowedPrimitive: PrimitiveType
-    ) -> Bool {
-        switch storedKind {
-        case let .primitive(storedPrimitive, .nullable):
-            storedPrimitive == narrowedPrimitive
-        case .any, .typeParam, .classType:
-            true
-        default:
-            false
-        }
+        return driver.callLowerer.materializePrimitiveValue(
+            value,
+            toType: primitiveType,
+            sema: sema,
+            arena: arena,
+            instructions: &instructions
+        )
     }
 }

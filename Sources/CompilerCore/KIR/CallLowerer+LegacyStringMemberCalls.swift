@@ -45,33 +45,6 @@ extension CallLowerer {
             let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
             if sema.types.isSubtype(nonNullReceiverType, sema.types.stringType) {
                 let calleeStr = calleeNameStr
-                if calleeStr == "lowercase" {
-                    instructions.append(.call(
-                        callee: interner.intern("kk_string_lowercase_flat"),
-                        arguments: [loweredReceiverID],
-                        result: result,
-                        canThrow: false
-                    ))
-                    return result
-                }
-                if calleeStr == "uppercase" {
-                    instructions.append(.call(
-                        callee: interner.intern("kk_string_uppercase_flat"),
-                        arguments: [loweredReceiverID],
-                        result: result,
-                        canThrow: false
-                    ))
-                    return result
-                }
-                if calleeStr == "toRegex" {
-                    instructions.append(.call(
-                        callee: interner.intern("__kk_string_toRegex_flat"),
-                        arguments: [loweredReceiverID],
-                        result: result,
-                        canThrow: false
-                    ))
-                    return result
-                }
                 if calleeStr == "first" || calleeStr == "last" || calleeStr == "single" {
                     let thrownExpr = arena.appendExpr(.intLiteral(0), type: sema.types.intType)
                     instructions.append(.constValue(result: thrownExpr, value: .intLiteral(0)))
@@ -84,13 +57,6 @@ extension CallLowerer {
                         result: result,
                         canThrow: true
                     ))
-                    return result
-                }
-                if calleeStr == "firstOrNull" || calleeStr == "lastOrNull" || calleeStr == "singleOrNull" {
-                    let kkName = calleeStr == "firstOrNull" ? "__kk_string_firstOrNull_flat"
-                        : calleeStr == "lastOrNull" ? "__kk_string_lastOrNull_flat"
-                        : "__kk_string_singleOrNull_flat"
-                    instructions.append(.call(callee: interner.intern(kkName), arguments: [loweredReceiverID], result: result, canThrow: false))
                     return result
                 }
             }
@@ -186,12 +152,6 @@ extension CallLowerer {
                     return [loweredReceiverID, fnPtrExpr, envPtrExpr]
                 }()
                 let runtimeCall: (callee: String, arguments: [KIRExprID])? = switch calleeStr {
-                case "split":
-                    if isRegexLikeType(sema.bindings.exprTypes[args[0].expr] ?? sema.types.anyType, sema: sema, interner: interner) {
-                        nil
-                    } else {
-                        nil
-                    }
                 case "contains":
                     if isRegexLikeType(sema.bindings.exprTypes[args[0].expr] ?? sema.types.anyType, sema: sema, interner: interner) {
                         ("__kk_string_contains_regex_flat", [loweredReceiverID, loweredArgIDs[0]])
@@ -208,13 +168,11 @@ extension CallLowerer {
                 if let runtimeCall {
                     let stringHOFCanThrow = calleeStr == "ifBlank"
                         || calleeStr == "ifEmpty"
-                    let stringHOFThrownResult: KIRExprID? = nil
                     instructions.append(.call(
                         callee: interner.intern(runtimeCall.callee),
                         arguments: runtimeCall.arguments,
                         result: result,
-                        canThrow: stringHOFCanThrow,
-                        thrownResult: stringHOFThrownResult
+                        canThrow: stringHOFCanThrow
                     ))
                     return result
                 }
