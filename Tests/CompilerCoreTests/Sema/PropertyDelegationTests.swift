@@ -1070,6 +1070,10 @@ struct SemaDelegateTypeCheckTests {
             val map: Map<String, String> = hashMapOf("a" to "all")
             val a by map
         }
+        class MapOfInitializedMapOwner {
+            val map: Map<String, String> = mapOf("a" to "all")
+            val a by map
+        }
         class Owner(val map: Map<String, Int>, val mutableMap: MutableMap<String, Int>) {
             val member by map
             var writable by mutableMap
@@ -1107,6 +1111,22 @@ struct SemaDelegateTypeCheckTests {
             #expect(sema.symbols.parentSymbol(for: initializedMapDelegate) == initializedMapOwner)
             #expect(sema.symbols.propertyType(for: initializedMapDelegate) == sema.types.stringType)
             #expect(sema.symbols.delegateGetValueSymbol(for: initializedMapDelegate) != nil)
+            let mapOfInitializedMapDelegate = try #require(childSymbol(
+                named: "a",
+                kind: .property,
+                package: "kuu1050",
+                className: "MapOfInitializedMapOwner",
+                sema: sema,
+                interner: ctx.interner
+            ))
+            #expect(sema.symbols.propertyType(for: mapOfInitializedMapDelegate) == sema.types.stringType)
+            let mapOfGetValue = try #require(sema.symbols.delegateGetValueSymbol(for: mapOfInitializedMapDelegate))
+            let mapOfGetValueSignature = try #require(sema.symbols.functionSignature(for: mapOfGetValue))
+            let mapOfGetValueReceiver = try #require(mapOfGetValueSignature.receiverType)
+            let mapOfGetValueReceiverSymbol = try #require(
+                TypeCheckHelpers().nominalSymbol(of: mapOfGetValueReceiver, types: sema.types)
+            )
+            #expect(sema.symbols.symbol(mapOfGetValueReceiverSymbol).map { ctx.interner.resolve($0.name) } == "Map")
             struct ExpectedProperty {
                 let name: String
                 let expectedType: TypeID
