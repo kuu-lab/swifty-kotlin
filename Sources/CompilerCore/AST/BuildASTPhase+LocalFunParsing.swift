@@ -320,7 +320,8 @@ extension BuildASTPhase {
 
         let isSyntheticAnonymous = isAnonymousFunction
             || interner.resolve(name).hasPrefix("__AnonymousFunction_")
-        if body == .unit, !hasExternal, !isSyntheticAnonymous {
+        if body == .unit, !hasExternal, !isSyntheticAnonymous,
+           !leadingModifiers.contains(where: { $0.name == "expect" }) {
             diagnostics?.error(
                 "KSWIFTK-SEMA-0426",
                 "function '\(interner.resolve(name))' must have a body.",

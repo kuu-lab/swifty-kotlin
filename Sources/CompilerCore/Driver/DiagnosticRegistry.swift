@@ -1243,6 +1243,30 @@ enum DiagnosticRegistry {
             defaultSeverity: .error,
             summary: "Primary constructor properties cannot be abstract."
         ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0451",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "'expect' declaration cannot be private."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0452",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "'expect' declaration cannot have a body."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0453",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "'expect' property cannot have an initializer."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0454",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "'expect' property cannot be delegated."
+        ),
     ]
 
 
