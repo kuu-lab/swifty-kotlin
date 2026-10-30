@@ -60,5 +60,72 @@ extension CompanionObjectTests {
         let errors = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0041" }
         #expect(errors.count == 2, "\(ctx.diagnostics.diagnostics)")
     }
+
+    /// KUU-3141: a nested class that also subclasses the containing class is
+    /// inside the companion's protected scope, and the containing class's own
+    /// members see it too (kotlinc accepts
+    /// codegen/box/objects/nestedDerivedClassCallsProtectedFromCompanion.kt).
+    @Test func protectedCompanionMemberAccessibleFromNestedDerivedClass() throws {
+        let source = """
+        open class A {
+            companion object {
+                protected fun foo() = "OK"
+            }
+            class B : A() {
+                fun bar() = foo()
+            }
+            fun outer() = foo()
+        }
+        fun main() { println(A.B().bar()) }
+        """
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+    }
+
+    /// KUU-3141: a subclass that is not lexically nested inside the
+    /// containing class cannot call its companion's non-@JvmStatic protected
+    /// members — Kotlin/JVM rejects the same shape as "not yet supported".
+    @Test func protectedCompanionMemberRejectedFromNonNestedSubclass() throws {
+        let source = """
+        open class A {
+            companion object {
+                protected fun foo() = "OK"
+            }
+        }
+        class B : A() {
+            fun bar() = foo()
+            fun qualified() = A.foo()
+        }
+        class E {
+            class F : A() {
+                fun bar() = foo()
+            }
+        }
+        """
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+        let errors = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0041" }
+        #expect(errors.count == 3, "\(ctx.diagnostics.diagnostics)")
+    }
+
+    /// An @JvmStatic protected member is a static of the containing class,
+    /// so regular subclass access applies (Kotlin/JVM accepts it).
+    @Test func jvmStaticProtectedCompanionMemberAccessibleFromSubclass() throws {
+        let source = """
+        open class A {
+            companion object {
+                @JvmStatic
+                protected fun foo() = "OK"
+            }
+        }
+        class B : A() {
+            fun bar() = foo()
+        }
+        """
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+    }
 }
 #endif

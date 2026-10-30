@@ -40,6 +40,11 @@ extension CallTypeChecker {
                sema: sema
            ),
            !(receiverViaTypeAlias
+               && sema.symbols.symbol(staticMember.symbol)?.kind == .object),
+           // An explicit `()` on a nested `object` is a function invocation,
+           // not a value read — fall through so `invoke` can dispatch
+           // (KUU-3662).
+           !(ast.arena.isExplicitCall(id)
                && sema.symbols.symbol(staticMember.symbol)?.kind == .object)
         {
             if let memberSymbol = sema.symbols.symbol(staticMember.symbol),
@@ -368,6 +373,7 @@ extension CallTypeChecker {
                    calleeName: calleeName,
                    classifierSymbol: nestedOwner,
                    args: args,
+                   argTypes: argTypes,
                    ctx: ctx,
                    locals: &locals,
                    expectedType: expectedType,
@@ -388,10 +394,14 @@ extension CallTypeChecker {
             // further static member access). Parenthesis-less nested classes,
             // interfaces and annotation classes are likewise classifiers,
             // including on the left of `::class`; only explicit calls construct instances.
+            // An explicit `()` on a nested `object` is instead a function
+            // invocation — it must fall through so `invoke` can dispatch
+            // (KUU-3662).
             if args.isEmpty, let nestedOwner = nestedOwnerSymbols.first,
                let nestedOwnerKind = sema.symbols.symbol(nestedOwner)?.kind,
-               nestedOwnerKind == .enumClass || nestedOwnerKind == .object
-                   || ((nestedOwnerKind == .class || nestedOwnerKind == .interface || nestedOwnerKind == .annotationClass)
+               nestedOwnerKind == .enumClass
+                   || ((nestedOwnerKind == .class || nestedOwnerKind == .object
+                        || nestedOwnerKind == .interface || nestedOwnerKind == .annotationClass)
                        && !ast.arena.isExplicitCall(id))
             {
                 if let nestedSymbol = sema.symbols.symbol(nestedOwner),
@@ -502,6 +512,18 @@ extension CallTypeChecker {
                     // object or companion factory. Let ordinary lookup resolve it.
                     if hasFactoryFunctionCandidates {
                         return nil
+                    }
+                    // Nor the nested classifier's own companion/object
+                    // `invoke` (KUU-3662).
+                    if let nestedOwner = nestedOwnerSymbols.first,
+                       let invokeType = inferQualifiedNestedClassifierCompanionInvoke(
+                           request,
+                           classifierSymbol: nestedOwner,
+                           argTypes: argTypes,
+                           locals: &locals
+                       )
+                    {
+                        return invokeType
                     }
                     driver.helpers.emitVisibilityError(for: firstInvisible, name: interner.resolve(calleeName), range: range, diagnostics: ctx.sema.diagnostics)
                     return driver.helpers.bindAndReturnErrorType(id, sema: sema)
@@ -615,28 +637,42 @@ extension CallTypeChecker {
                         // ambiguity instead of silently choosing a factory.
                         // A result-type mismatch does not make an otherwise
                         // applicable constructor yield to a companion function.
-                        if hasFactoryFunctionCandidates,
-                           diagnostic.code != "KSWIFTK-SEMA-0003",
-                           expectedType == nil || ctx.resolver.probeCall(
-                               candidates: visibleNested,
-                               call: CallExpr(
-                                   range: range,
-                                   calleeName: calleeName,
-                                   args: zip(args, preparedArgs.argTypes).map { argument, type in
-                                       CallArg(
-                                           label: argument.label,
-                                           isSpread: argument.isSpread,
-                                           type: type,
-                                           isTrailingLambda: argument.isTrailingLambda
-                                       )
-                                   },
-                                   explicitTypeArgs: explicitTypeArgs
-                               ),
-                               expectedType: nil,
-                               ctx: sema
-                           ).viableCandidates.isEmpty
-                        {
-                            return nil
+                        let ctorInapplicable = diagnostic.code != "KSWIFTK-SEMA-0003"
+                            && (expectedType == nil || ctx.resolver.probeCall(
+                                candidates: visibleNested,
+                                call: CallExpr(
+                                    range: range,
+                                    calleeName: calleeName,
+                                    args: zip(args, preparedArgs.argTypes).map { argument, type in
+                                        CallArg(
+                                            label: argument.label,
+                                            isSpread: argument.isSpread,
+                                            type: type,
+                                            isTrailingLambda: argument.isTrailingLambda
+                                        )
+                                    },
+                                    explicitTypeArgs: explicitTypeArgs
+                                ),
+                                expectedType: nil,
+                                ctx: sema
+                            ).viableCandidates.isEmpty)
+                        if ctorInapplicable {
+                            if hasFactoryFunctionCandidates {
+                                return nil
+                            }
+                            // No constructor applies — the nested classifier's
+                            // own companion/object `invoke` is next in Kotlin's
+                            // resolution order (KUU-3662).
+                            if let nestedOwner = nestedOwnerSymbols.first,
+                               let invokeType = inferQualifiedNestedClassifierCompanionInvoke(
+                                   request,
+                                   classifierSymbol: nestedOwner,
+                                   argTypes: argTypes,
+                                   locals: &locals
+                               )
+                            {
+                                return invokeType
+                            }
                         }
                         ctx.sema.diagnostics.emit(diagnostic)
                         return driver.helpers.bindAndReturnErrorType(id, sema: sema)

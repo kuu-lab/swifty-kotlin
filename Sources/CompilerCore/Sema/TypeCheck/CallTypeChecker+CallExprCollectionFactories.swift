@@ -346,13 +346,12 @@ extension CallTypeChecker {
                    }
                    if resolvedName == "listOfNotNull" {
                        // The fixed-arity and vararg overloads share the same
-                       // source shape. Select the fixed overload for one
-                       // argument and the vararg overload for zero or multiple
-                       // arguments so lowering receives the correct packing
-                       // contract.
+                       // source shape. A single ordinary argument selects the
+                       // fixed overload; spreads and all other arities use the
+                       // vararg overload and its packing contract.
                        let isVararg = sema.symbols.functionSignature(for: candidate)?
                            .valueParameterIsVararg.first ?? false
-                       return isVararg == (args.count != 1)
+                       return isVararg == (args.count != 1 || args.contains(where: \.isSpread))
                    }
                    return args.isEmpty || (sema.symbols.functionSignature(for: candidate)?.parameterTypes.isEmpty == false)
                })

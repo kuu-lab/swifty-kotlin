@@ -305,13 +305,14 @@ extension TypeSystem {
             if rightFunction.isCallableReference && !leftFunction.isCallableReference {
                 return false
             }
-            guard leftFunction.contextReceivers.count == rightFunction.contextReceivers.count else {
-                return false
-            }
-            // Kotlin treats a receiver as the leading function parameter,
-            // including for unbound suspend callable references.
-            let leftParams = (leftFunction.receiver.map { [$0] } ?? []) + leftFunction.params
-            let rightParams = (rightFunction.receiver.map { [$0] } ?? []) + rightFunction.params
+            // Kotlin treats context receivers and a receiver as leading
+            // function parameters: `context(C) (A) -> B` is the same
+            // `(C, A) -> B` shape at the type level (KUU-3175 — a callable
+            // reference must adapt across the two spellings).
+            let leftParams = leftFunction.contextReceivers
+                + (leftFunction.receiver.map { [$0] } ?? []) + leftFunction.params
+            let rightParams = rightFunction.contextReceivers
+                + (rightFunction.receiver.map { [$0] } ?? []) + rightFunction.params
             guard leftParams.count == rightParams.count else {
                 return false
             }
@@ -320,12 +321,6 @@ extension TypeSystem {
             }
             guard nullabilitySubtype(leftFunction.nullability, rightFunction.nullability) else {
                 return false
-            }
-            for (leftContextReceiver, rightContextReceiver) in zip(leftFunction.contextReceivers, rightFunction.contextReceivers) {
-                // swiftlint:disable:next for_where
-                if !isSubtype(rightContextReceiver, leftContextReceiver) {
-                    return false
-                }
             }
             for (leftParam, rightParam) in zip(leftParams, rightParams) where !isSubtype(rightParam, leftParam) {
                 return false
@@ -345,7 +340,8 @@ extension TypeSystem {
                 if isSubtype(reflectiveType, supertype) {
                     return true
                 }
-                let arity = (leftFunction.receiver.map { [$0] } ?? []).count + leftFunction.params.count
+                let arity = leftFunction.contextReceivers.count
+                    + (leftFunction.receiver.map { [$0] } ?? []).count + leftFunction.params.count
                 if let inheritedFunction = inheritedFunctionInterfaceClassType(
                     of: rightClass,
                     arity: arity,
@@ -395,7 +391,8 @@ extension TypeSystem {
             // type when the suspend modifier and arity match.
             if let liftedFunctionInterface = inheritedFunctionInterfaceClassType(
                 of: leftClass,
-                arity: (rightFunction.receiver.map { [$0] } ?? []).count + rightFunction.params.count,
+                arity: rightFunction.contextReceivers.count
+                    + (rightFunction.receiver.map { [$0] } ?? []).count + rightFunction.params.count,
                 isSuspend: rightFunction.isSuspend
             ), functionNSubtypeOfFunctionType(liftedFunctionInterface, rightFunction) {
                 return true
@@ -1540,12 +1537,12 @@ extension TypeSystem {
         _ classType: ClassType
     ) -> Bool {
         guard let arity = functionInterfaceArity(of: classType.classSymbol, isSuspend: function.isSuspend),
-              function.contextReceivers.isEmpty,
               nullabilitySubtype(function.nullability, classType.nullability)
         else {
             return false
         }
-        let effectiveParams = (function.receiver.map { [$0] } ?? []) + function.params
+        let effectiveParams = function.contextReceivers
+            + (function.receiver.map { [$0] } ?? []) + function.params
         guard effectiveParams.count == arity,
               classType.args.count == arity + 1
         else {
@@ -1580,12 +1577,12 @@ extension TypeSystem {
         _ function: FunctionType
     ) -> Bool {
         guard let arity = functionInterfaceArity(of: classType.classSymbol, isSuspend: function.isSuspend),
-              function.contextReceivers.isEmpty,
               nullabilitySubtype(classType.nullability, function.nullability)
         else {
             return false
         }
-        let effectiveParams = (function.receiver.map { [$0] } ?? []) + function.params
+        let effectiveParams = function.contextReceivers
+            + (function.receiver.map { [$0] } ?? []) + function.params
         guard effectiveParams.count == arity,
               classType.args.count == arity + 1
         else {

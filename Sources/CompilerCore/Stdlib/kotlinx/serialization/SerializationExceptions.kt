@@ -140,24 +140,6 @@ public class MissingFieldException private constructor(
         serialName = null
     )
 
-    // It's better to have internal function calling private ctor rather than just internal ctor (because the latter is visible from Java)
-    internal fun withNewMessageInternal(newMessage: String): MissingFieldException = MissingFieldException(
-        message = newMessage,
-        cause = this,
-        missingFields = missingFields,
-        serialName = serialName
-    )
 }
 
-/**
- * Thrown when [KSerializer] received unknown property index from [CompositeDecoder.decodeElementIndex].
- *
- * This exception means that data schema has changed in backwards-incompatible way.
- */
-@PublishedApi
-internal class UnknownFieldException
-// This constructor is used by coroutines exception recovery
-internal constructor(message: String?) : SerializationException(message) {
-    // This constructor is used by the generated serializers
-    constructor(index: Int) : this("An unknown field for index $index")
-}
+

@@ -53,9 +53,18 @@ struct RuntimeCollectionBuildersKSP950Tests {
         let list = __kk_builder_list_new(4)
         let secondList = __kk_builder_list_new(4)
         #expect(list != secondList)
+        let listTypeID = try #require(runtimeObjectTypeID(rawValue: list))
+        for name in ["MutableList", "List", "MutableCollection", "Collection", "RandomAccess"] {
+            #expect(runtimeIsAssignable(
+                sourceTypeID: listTypeID,
+                targetTypeID: runtimeStableNominalTypeID(fqName: "kotlin.collections.\(name)")
+            ))
+        }
+        #expect(!runtimeIsAssignable(sourceTypeID: listTypeID, targetTypeID: arrayListRuntimeTypeID))
 
         _ = kk_mutable_list_add(list, 1, nil)
         _ = __kk_builder_list_freeze(list)
+        #expect(runtimeObjectTypeID(rawValue: list) == listTypeID)
         var listThrown = 0
         _ = kk_mutable_list_add(list, 2, &listThrown)
         #expect(listThrown != 0)

@@ -318,17 +318,6 @@ enum WasmRuntimeHelpers {
         }
     }
 
-    /// MVP representation is uniform raw i64 — boxing is the identity for
-    /// everything the boxHelperName/unboxHelperName tables don't cover.
-    private static func emitTaggedBox(code: inout WasmCode, scratch: Int) {
-        _ = scratch
-    }
-
-    /// Identity for the same reason as `emitTaggedBox`.
-    private static func emitTaggedUnbox(code: inout WasmCode, scratch: Int) {
-        _ = scratch
-    }
-
     private static let arithmeticOpcodes: [String: UInt8] = [
         "kk_op_add": WasmOpcode.i64Add,
         "kk_op_sub": WasmOpcode.i64Sub,
@@ -776,7 +765,7 @@ enum WasmRuntimeHelpers {
             emitIsAssignableBody(&code, ctx: ctx)
         case "__kk_wasm_itable_lookup":
             extraLocals = 6
-            emitItableLookupBody(&code, ctx: ctx)
+            emitItableLookupBody(&code)
         case "kk_object_new":
             extraLocals = 1
             emitObjectNewBody(&code, ctx: ctx)
@@ -853,9 +842,7 @@ enum WasmRuntimeHelpers {
             extraLocals = 0
             emitStructuralEqBody(
                 &code, ctx: ctx,
-                negate: name == "kk_structural_ne",
-                argumentCount: argumentCount
-            )
+                negate: name == "kk_structural_ne")
         case "kk_throwable_is_cancellation":
             extraLocals = 0
             emitLoadAt(&code, baseLocal: 0, byteOffset: L.typeIDOffset)
@@ -974,27 +961,27 @@ enum WasmRuntimeHelpers {
             emitPrimArrayToListBody(&code, ctx: ctx, conv: .raw,
                                     mutable: false, view: false,
                                     argumentCount: argumentCount)
-        case "__kk_uIntArray_toList":
+        case "__kk_uIntArray_toList", "__kk_uIntArray_asList":
             extraLocals = 7
             emitPrimArrayToListBody(&code, ctx: ctx, conv: .mask(0xFFFF_FFFF),
                                     mutable: false, view: false,
                                     argumentCount: argumentCount)
-        case "__kk_uByteArray_toList":
+        case "__kk_uByteArray_toList", "__kk_uByteArray_asList":
             extraLocals = 7
             emitPrimArrayToListBody(&code, ctx: ctx, conv: .mask(0xFF),
                                     mutable: false, view: false,
                                     argumentCount: argumentCount)
-        case "__kk_uShortArray_toList":
+        case "__kk_uShortArray_toList", "__kk_uShortArray_asList":
             extraLocals = 7
             emitPrimArrayToListBody(&code, ctx: ctx, conv: .mask(0xFFFF),
                                     mutable: false, view: false,
                                     argumentCount: argumentCount)
-        case "__kk_doubleArray_toList":
+        case "__kk_doubleArray_toList", "__kk_doubleArray_asList":
             extraLocals = 7
             emitPrimArrayToListBody(&code, ctx: ctx, conv: .boxDouble,
                                     mutable: false, view: false,
                                     argumentCount: argumentCount)
-        case "__kk_floatArray_toList":
+        case "__kk_floatArray_toList", "__kk_floatArray_asList":
             extraLocals = 7
             emitPrimArrayToListBody(&code, ctx: ctx, conv: .boxFloat,
                                     mutable: false, view: false,
@@ -1011,31 +998,6 @@ enum WasmRuntimeHelpers {
             extraLocals = 7
             emitPrimArrayToListBody(&code, ctx: ctx, conv: .raw,
                                     mutable: false, view: true,
-                                    argumentCount: argumentCount)
-        case "__kk_uIntArray_asList":
-            extraLocals = 7
-            emitPrimArrayToListBody(&code, ctx: ctx, conv: .mask(0xFFFF_FFFF),
-                                    mutable: false, view: false,
-                                    argumentCount: argumentCount)
-        case "__kk_uByteArray_asList":
-            extraLocals = 7
-            emitPrimArrayToListBody(&code, ctx: ctx, conv: .mask(0xFF),
-                                    mutable: false, view: false,
-                                    argumentCount: argumentCount)
-        case "__kk_uShortArray_asList":
-            extraLocals = 7
-            emitPrimArrayToListBody(&code, ctx: ctx, conv: .mask(0xFFFF),
-                                    mutable: false, view: false,
-                                    argumentCount: argumentCount)
-        case "__kk_doubleArray_asList":
-            extraLocals = 7
-            emitPrimArrayToListBody(&code, ctx: ctx, conv: .boxDouble,
-                                    mutable: false, view: false,
-                                    argumentCount: argumentCount)
-        case "__kk_floatArray_asList":
-            extraLocals = 7
-            emitPrimArrayToListBody(&code, ctx: ctx, conv: .boxFloat,
-                                    mutable: false, view: false,
                                     argumentCount: argumentCount)
         case "__kk_wasm_prim_array_to_mutable_list":
             extraLocals = 7
@@ -1589,7 +1551,7 @@ enum WasmRuntimeHelpers {
             emitFpEqualsBody(&code, ctx: ctx, name: name)
         case "__kk_wasm_expand":
             extraLocals = 7
-            emitExpandBody(&code, ctx: ctx)
+            emitExpandBody(&code)
         case "__kk_wasm_cmp_decimal":
             extraLocals = 6
             emitCmpDecimalBody(&code)
@@ -1734,7 +1696,7 @@ enum WasmRuntimeHelpers {
                                argumentCount: argumentCount)
         case "__kk_wasm_prim_array_sort", "stableSortImpl":
             extraLocals = 5
-            emitPrimArraySortBody(&code, ctx: ctx, argumentCount: argumentCount)
+            emitPrimArraySortBody(&code, argumentCount: argumentCount)
         case "__kk_wasm_min_of", "minOf":
             extraLocals = 1
             emitMinMaxOfBody(&code, ctx: ctx, maximum: false,
@@ -1907,8 +1869,7 @@ enum WasmRuntimeHelpers {
             ctx.module.addDataSegment(offset: L.newlineAddress, bytes: [0x0A])
             extraLocals = 1
             emitPrintAnyBody(&code, ctx: ctx,
-                             newline: name == "__kk_println_any",
-                             argumentCount: argumentCount)
+                             newline: name == "__kk_println_any")
         case "__kk_wasm_noop":
             extraLocals = 0
             code.i64Const(0)
@@ -1927,17 +1888,16 @@ enum WasmRuntimeHelpers {
                                        argumentCount: argumentCount)
         case "__kk_wasm_pair_to_string":
             extraLocals = 1
-            emitPairToStringBody(&code, ctx: ctx, argumentCount: argumentCount)
+            emitPairToStringBody(&code, ctx: ctx)
         case "__kk_wasm_entry_to_string":
             extraLocals = 1
-            emitEntryToStringBody(&code, ctx: ctx, argumentCount: argumentCount)
+            emitEntryToStringBody(&code, ctx: ctx)
         case "__kk_wasm_range_to_string":
             extraLocals = 2
             emitRangeToStringBody(&code, ctx: ctx, argumentCount: argumentCount)
         case "__kk_wasm_indexed_value_to_string":
             extraLocals = 1
-            emitIndexedValueToStringBody(&code, ctx: ctx,
-                                         argumentCount: argumentCount)
+            emitIndexedValueToStringBody(&code, ctx: ctx)
         case "__kk_wasm_char_to_string":
             extraLocals = 2
             emitCharToStringBody(&code, ctx: ctx, argumentCount: argumentCount)
@@ -1963,7 +1923,7 @@ enum WasmRuntimeHelpers {
                                    argumentCount: argumentCount)
         case "__kk_wasm_string_to_boolean", "__kk_string_toBoolean_flat":
             extraLocals = 2
-            emitStringToBooleanBody(&code, ctx: ctx, argumentCount: argumentCount)
+            emitStringToBooleanBody(&code, argumentCount: argumentCount)
         case "__kk_wasm_string_to_double", "__kk_string_toDouble_flat":
             extraLocals = 10
             emitStringParseFpBody(&code, ctx: ctx, wide: true, orNull: false,
@@ -3111,7 +3071,7 @@ enum WasmRuntimeHelpers {
 
     /// `obj, interfaceTypeID, methodSlot -> i64`: resolve a dynamic itable
     /// dispatch: find ifaceSlot in the map, then read the vtable entry.
-    private static func emitItableLookupBody(_ code: inout WasmCode, ctx: WasmModuleContext) {
+    private static func emitItableLookupBody(_ code: inout WasmCode) {
         // locals: 3=map, 4=count, 5=i, 6=ifaceSlot
         emitLoadAt(&code, baseLocal: 0, byteOffset: 0)
         code.localTee(3)
@@ -4306,7 +4266,7 @@ enum WasmRuntimeHelpers {
     /// `value = digits * 10^(exp - len)`. Doubling (`p >= 0`) and
     /// quintupling (`p < 0`, since `2^p = 5^-p * 10^p`) keep every digit
     /// exact. Locals: copy=3, len=4, i=5, count=6, carry=7, mult=8, tmp=9.
-    private static func emitExpandBody(_ code: inout WasmCode, ctx: WasmModuleContext) {
+    private static func emitExpandBody(_ code: inout WasmCode) {
         // len = decimal digit count of m.
         code.localGet(0)
         code.localSet(3)
@@ -10388,7 +10348,6 @@ enum WasmRuntimeHelpers {
     /// else converts the raw i64 scalar.
     private static func emitFpOperandBits(
         _ code: inout WasmCode,
-        ctx: WasmModuleContext,
         argLocal: Int,
         typeLocal: Int
     ) {
@@ -10581,9 +10540,9 @@ enum WasmRuntimeHelpers {
         code.op(WasmOpcode.i64Or)
         code.i64Truthy()
         code.openIf()
-        emitFpOperandBits(&code, ctx: ctx, argLocal: 0, typeLocal: tA)
+        emitFpOperandBits(&code, argLocal: 0, typeLocal: tA)
         code.localSet(bx)
-        emitFpOperandBits(&code, ctx: ctx, argLocal: 1, typeLocal: tB)
+        emitFpOperandBits(&code, argLocal: 1, typeLocal: tB)
         code.localSet(by)
         emitFpTotalOrderBits(&code, xBits: bx, yBits: by)
         code.op(WasmOpcode.return)
@@ -10993,7 +10952,6 @@ enum WasmRuntimeHelpers {
     /// Locals (argc base): n, i, j, e, c, ka, kb, unused.
     private static func emitPrimArraySortBody(
         _ code: inout WasmCode,
-        ctx: WasmModuleContext,
         argumentCount: Int
     ) {
         let n = argumentCount, i = argumentCount + 1
@@ -11936,9 +11894,7 @@ enum WasmRuntimeHelpers {
     private static func emitPrintAnyBody(
         _ code: inout WasmCode,
         ctx: WasmModuleContext,
-        newline: Bool,
-        argumentCount: Int
-    ) {
+        newline: Bool) {
         code.localGet(0)
         code.i64Const(1)
         code.call(ctx.emittedHelperIndex(
@@ -12191,9 +12147,7 @@ enum WasmRuntimeHelpers {
     private static func emitStructuralEqBody(
         _ code: inout WasmCode,
         ctx: WasmModuleContext,
-        negate: Bool,
-        argumentCount: Int
-    ) {
+        negate: Bool) {
         for arg in [0, 1] {
             code.localGet(arg)
             code.i64Const(L.nullSentinel)
@@ -12214,9 +12168,7 @@ enum WasmRuntimeHelpers {
     /// `(pair) -> "(first, second)"`. Locals (argc base): res.
     private static func emitPairToStringBody(
         _ code: inout WasmCode,
-        ctx: WasmModuleContext,
-        argumentCount: Int
-    ) {
+        ctx: WasmModuleContext) {
         emitLiteralString(&code, ctx: ctx, "(")
         code.localGet(0)
         code.call(ctx.emittedHelperIndex(
@@ -12255,9 +12207,7 @@ enum WasmRuntimeHelpers {
     /// Locals (argc base): res.
     private static func emitEntryToStringBody(
         _ code: inout WasmCode,
-        ctx: WasmModuleContext,
-        argumentCount: Int
-    ) {
+        ctx: WasmModuleContext) {
         code.localGet(0)
         code.call(ctx.emittedHelperIndex(
             for: "__kk_pair_first", argumentCount: 1
@@ -12358,9 +12308,7 @@ enum WasmRuntimeHelpers {
     /// `(iv) -> "IndexedValue(index=i, value=v)"`. Locals (argc base): res.
     private static func emitIndexedValueToStringBody(
         _ code: inout WasmCode,
-        ctx: WasmModuleContext,
-        argumentCount: Int
-    ) {
+        ctx: WasmModuleContext) {
         emitLiteralString(&code, ctx: ctx, "IndexedValue(index=")
         code.localGet(0)
         code.call(ctx.emittedHelperIndex(
@@ -12666,7 +12614,6 @@ enum WasmRuntimeHelpers {
     /// Locals (argc base): i, data.
     private static func emitStringToBooleanBody(
         _ code: inout WasmCode,
-        ctx: WasmModuleContext,
         argumentCount: Int
     ) {
         let i = argumentCount, data = argumentCount + 1

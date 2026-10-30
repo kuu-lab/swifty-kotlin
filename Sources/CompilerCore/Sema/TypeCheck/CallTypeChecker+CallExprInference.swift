@@ -229,7 +229,6 @@ extension CallTypeChecker {
             args: args,
             ctx: ctx,
             locals: &locals,
-            expectedType: expectedType,
             calleeName: calleeName
         ) {
             return inferred
@@ -238,10 +237,8 @@ extension CallTypeChecker {
         if let inferred = inferEmitInFlowScopeCall(
             id,
             args: args,
-            range: range,
             ctx: ctx,
             locals: &locals,
-            expectedType: expectedType,
             calleeName: calleeName
         ) {
             return inferred
@@ -266,7 +263,6 @@ extension CallTypeChecker {
             range: range,
             ctx: ctx,
             locals: &locals,
-            expectedType: expectedType,
             calleeName: calleeName
         ) {
             return inferred
@@ -278,7 +274,6 @@ extension CallTypeChecker {
             range: range,
             ctx: ctx,
             locals: &locals,
-            expectedType: expectedType,
             calleeName: calleeName
         ) {
             return inferred
@@ -315,7 +310,6 @@ extension CallTypeChecker {
             range: range,
             ctx: ctx,
             locals: &locals,
-            expectedType: expectedType,
             calleeName: calleeName
         ) {
             return inferred
@@ -457,7 +451,6 @@ extension CallTypeChecker {
             range: range,
             ctx: ctx,
             locals: locals,
-            expectedType: expectedType,
             explicitTypeArgs: explicitTypeArgs,
             calleeName: calleeName,
             calleePath: calleePath,
@@ -489,7 +482,6 @@ extension CallTypeChecker {
             args: args,
             ctx: ctx,
             locals: &locals,
-            expectedType: expectedType,
             explicitTypeArgs: explicitTypeArgs,
             calleeName: calleeName,
             candidates: candidates
@@ -545,6 +537,17 @@ extension CallTypeChecker {
             locals: locals
         )
 
+        if shouldFallThroughFromInapplicableLocalFunctionsToImplicitCallableProperty(
+            candidates: candidates,
+            args: args,
+            calleeName: calleeName,
+            locals: locals,
+            ctx: ctx
+        ) {
+            candidates = []
+            callImplicitReceiverType = nil
+        }
+
         var argumentContextCandidates = candidates
         var argumentContextReceiverType = callImplicitReceiverType
         var preInferredCallableCalleeType: TypeID?
@@ -584,9 +587,15 @@ extension CallTypeChecker {
                 sema.diagnostics.rollback(to: calleeCheckpoint)
                 branchCalleeContextType = branchContextType
             } else {
+                let argumentLabels = args.map(\.label)
                 let invokeCandidates = contextApplicableCallCandidates(
-                    implicitInvokeOperatorCandidates(for: calleeType, ctx: ctx),
-                    ctx: ctx
+                    implicitInvokeOperatorCandidates(
+                        for: calleeType,
+                        ctx: ctx,
+                        argumentLabels: argumentLabels
+                    ),
+                    ctx: ctx,
+                    argumentLabels: argumentLabels
                 )
                 if !invokeCandidates.isEmpty {
                     argumentContextCandidates = invokeCandidates
@@ -809,7 +818,6 @@ extension CallTypeChecker {
             expectedType: expectedType,
             explicitTypeArgs: explicitTypeArgs,
             calleeName: calleeName,
-            candidates: candidates,
             memberExtensionReceiverMarks: &memberExtensionReceiverMarks
         ) {
             return inferred
@@ -817,6 +825,20 @@ extension CallTypeChecker {
 
         if let firstInvisible = callInvisible.first, let calleeName {
             driver.helpers.emitVisibilityError(for: firstInvisible, name: interner.resolve(calleeName), range: range, diagnostics: ctx.sema.diagnostics)
+        } else if let calleeName,
+                  let privateMember = driver.helpers.inaccessiblePrivateImplicitReceiverMember(
+                      named: calleeName, ctx: ctx
+                  )
+        {
+            // Inherited `private` members never enter the candidate set (they
+            // are not inherited), but the member still exists — report it as
+            // inaccessible rather than unresolved, matching kotlinc (KUU-3766).
+            driver.helpers.emitVisibilityError(
+                for: privateMember,
+                name: interner.resolve(calleeName),
+                range: range,
+                diagnostics: ctx.sema.diagnostics
+            )
         } else {
             let nameStr = calleeName.map { interner.resolve($0) } ?? "<unknown>"
             ctx.sema.diagnostics.error(

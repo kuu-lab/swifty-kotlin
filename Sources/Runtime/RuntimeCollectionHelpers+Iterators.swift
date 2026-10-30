@@ -85,7 +85,9 @@ func runtimeMapArrayPair(
 func registerRuntimeObject(_ box: AnyObject) -> Int {
     let opaque = UnsafeMutableRawPointer(Unmanaged.passRetained(box).toOpaque())
     runtimeStorage.withGCLock { state in
-        state.objectPointers.insert(UInt(bitPattern: opaque))
+        let key = UInt(bitPattern: opaque)
+        state.objectPointers.insert(key)
+        recordRetainedBoxManagedHeapFieldsLocked(box, owner: key, state: &state)
     }
     let raw = Int(bitPattern: opaque)
     registerRuntimeCollectionBoxIdentity(raw: raw, box: box)
@@ -112,21 +114,6 @@ func runtimeRegisterViewOrEmpty<Source: AnyObject, View: AnyObject>(
 ) -> Int {
     let box = resolve(rawValue).map(makeView) ?? makeEmpty()
     return registerRuntimeObject(box, typeID: typeID)
-}
-
-/// Registers a primitive-domain box (`RuntimeIntBox` & friends) under its
-/// tagged handle — the same representation `kk_box_*` emits — so the object's
-/// raw address never enters `objectPointers`. A raw scalar that numerically
-/// equals such an address can then no longer satisfy the `kk_box_*`
-/// pass-through probe as an "already-registered object" (KUU-857). The
-/// `typeID` is keyed by the returned tagged handle — every
-/// `runtimeObjectTypeID` call site passes the stored handle verbatim.
-func registerTaggedRuntimeObject(_ box: AnyObject, typeID: Int64) -> Int {
-    let handle = runtimeStorage.withGCLock { state in
-        registerTaggedPrimitiveBox(box, inLockedState: &state)
-    }
-    runtimeRegisterObjectType(rawValue: handle, classID: typeID)
-    return handle
 }
 
 private let runtimeIteratorInterfaceTypeID: Int64 = runtimeStableNominalTypeID(fqName: "kotlin.collections.Iterator")
@@ -215,7 +202,7 @@ private let runtimeListIteratorHasPreviousThunk: @convention(c) (Int, UnsafeMuta
 private let runtimeListIteratorPreviousThunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { raw, outThrown in
     outThrown?.pointee = 0
     guard let iter = runtimeListIteratorBox(from: raw), listIteratorCanGoBack(iter) else {
-        runtimeSetThrown(outThrown, runtimeAllocateNoSuchElementException(message: "List iterator has no previous element."))
+        runtimeSetThrown(outThrown, runtimeAllocateNoSuchElementException(message: nil))
         return 0
     }
     return kk_list_iterator_previous(raw)

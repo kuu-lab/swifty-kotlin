@@ -371,6 +371,19 @@ public fun ByteArray.sortedArrayDescending(): ByteArray {
 public fun ByteArray.binarySearch(element: Byte, fromIndex: Int = 0, toIndex: Int = size): Int =
     java.util.Arrays.binarySearch(this, fromIndex, toIndex, element)
 
+public fun ByteArray.sum(): Int {
+    var total: Int = 0
+    for (element in this) total += element
+    return total
+}
+
+public fun ByteArray.sorted(): List<Byte> {
+    val sorted = sortedArray()
+    val result = mutableListOf<Byte>()
+    for (element in sorted) result.add(element)
+    return result
+}
+
 public fun ShortArray.reversedArray(): ShortArray {
     val result = java.util.Arrays.copyOf(this, size)
     result.reverseInPlace(0, result.size)
@@ -414,6 +427,19 @@ public fun ShortArray.sortedArrayDescending(): ShortArray {
 
 public fun ShortArray.binarySearch(element: Short, fromIndex: Int = 0, toIndex: Int = size): Int =
     java.util.Arrays.binarySearch(this, fromIndex, toIndex, element)
+
+public fun ShortArray.sum(): Int {
+    var total: Int = 0
+    for (element in this) total += element
+    return total
+}
+
+public fun ShortArray.sorted(): List<Short> {
+    val sorted = sortedArray()
+    val result = mutableListOf<Short>()
+    for (element in sorted) result.add(element)
+    return result
+}
 
 public fun IntArray.reversedArray(): IntArray {
     val result = java.util.Arrays.copyOf(this, size)
@@ -459,6 +485,19 @@ public fun IntArray.sortedArrayDescending(): IntArray {
 public fun IntArray.binarySearch(element: Int, fromIndex: Int = 0, toIndex: Int = size): Int =
     java.util.Arrays.binarySearch(this, fromIndex, toIndex, element)
 
+public fun IntArray.sum(): Int {
+    var total: Int = 0
+    for (element in this) total += element
+    return total
+}
+
+public fun IntArray.sorted(): List<Int> {
+    val sorted = sortedArray()
+    val result = mutableListOf<Int>()
+    for (element in sorted) result.add(element)
+    return result
+}
+
 public fun LongArray.reversedArray(): LongArray {
     val result = java.util.Arrays.copyOf(this, size)
     result.reverseInPlace(0, result.size)
@@ -502,6 +541,19 @@ public fun LongArray.sortedArrayDescending(): LongArray {
 
 public fun LongArray.binarySearch(element: Long, fromIndex: Int = 0, toIndex: Int = size): Int =
     java.util.Arrays.binarySearch(this, fromIndex, toIndex, element)
+
+public fun LongArray.sum(): Long {
+    var total: Long = 0L
+    for (element in this) total += element
+    return total
+}
+
+public fun LongArray.sorted(): List<Long> {
+    val sorted = sortedArray()
+    val result = mutableListOf<Long>()
+    for (element in sorted) result.add(element)
+    return result
+}
 
 public fun FloatArray.reversedArray(): FloatArray {
     val result = java.util.Arrays.copyOf(this, size)
@@ -547,6 +599,19 @@ public fun FloatArray.sortedArrayDescending(): FloatArray {
 public fun FloatArray.binarySearch(element: Float, fromIndex: Int = 0, toIndex: Int = size): Int =
     java.util.Arrays.binarySearch(this, fromIndex, toIndex, element)
 
+public fun FloatArray.sum(): Float {
+    var total: Float = 0.0f
+    for (element in this) total += element
+    return total
+}
+
+public fun FloatArray.sorted(): List<Float> {
+    val sorted = sortedArray()
+    val result = mutableListOf<Float>()
+    for (element in sorted) result.add(element)
+    return result
+}
+
 public fun DoubleArray.reversedArray(): DoubleArray {
     val result = java.util.Arrays.copyOf(this, size)
     result.reverseInPlace(0, result.size)
@@ -590,6 +655,19 @@ public fun DoubleArray.sortedArrayDescending(): DoubleArray {
 
 public fun DoubleArray.binarySearch(element: Double, fromIndex: Int = 0, toIndex: Int = size): Int =
     java.util.Arrays.binarySearch(this, fromIndex, toIndex, element)
+
+public fun DoubleArray.sum(): Double {
+    var total: Double = 0.0
+    for (element in this) total += element
+    return total
+}
+
+public fun DoubleArray.sorted(): List<Double> {
+    val sorted = sortedArray()
+    val result = mutableListOf<Double>()
+    for (element in sorted) result.add(element)
+    return result
+}
 
 public fun BooleanArray.reversedArray(): BooleanArray {
     val result = java.util.Arrays.copyOf(this, size)
@@ -652,6 +730,13 @@ public fun CharArray.sortedArrayDescending(): CharArray {
 
 public fun CharArray.binarySearch(element: Char, fromIndex: Int = 0, toIndex: Int = size): Int =
     java.util.Arrays.binarySearch(this, fromIndex, toIndex, element)
+
+public fun CharArray.sorted(): List<Char> {
+    val sorted = sortedArray()
+    val result = mutableListOf<Char>()
+    for (element in sorted) result.add(element)
+    return result
+}
 
 private fun checkArrayUtilityRange(size: Int, fromIndex: Int, toIndex: Int) {
     if (fromIndex > toIndex) {

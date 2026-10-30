@@ -57,18 +57,6 @@ func boxValueForAnySlot<C: RangeReplaceableCollection>(
     let rawKind = types.kind(of: sourceType)
     // A nullable-underlying value class has no primitive box callee; its `Any`
     // representation is the nominal `kk_value_class_box` box (KUU-3115).
-    if let symbols,
-       let vcSymbol = nullableUnderlyingValueClassSymbol(of: rawKind, types: types, symbols: symbols)
-    {
-        let effectiveResultType = resultType ?? types.anyType
-        let boxedResult = arena.appendTemporary(type: effectiveResultType)
-        emitValueClassBoxCall(
-            value: value, classSymbol: vcSymbol, result: boxedResult,
-            resultType: effectiveResultType, types: types, symbols: symbols,
-            interner: interner, arena: arena, into: &instructions
-        )
-        return boxedResult
-    }
     // A reference payload needs the same nominal wrapper: the underlying
     // object may be shared outside the value class, so it cannot be tagged
     // in place. `boxingCallee` emits the `kk_value_class_box` marker for
@@ -76,13 +64,13 @@ func boxValueForAnySlot<C: RangeReplaceableCollection>(
     // `V(obj)` would arrive as the bare `obj` handle and compare equal to it
     // (KUU-3616).
     if let symbols,
-       let vcSymbol = referenceBackedValueClassSymbol(of: rawKind, types: types, symbols: symbols)
+       let vcSymbol = nullableUnderlyingValueClassSymbol(of: rawKind, types: types, symbols: symbols)
+           ?? referenceBackedValueClassSymbol(of: rawKind, types: types, symbols: symbols)
     {
         let effectiveResultType = resultType ?? types.anyType
         let boxedResult = arena.appendTemporary(type: effectiveResultType)
         emitValueClassBoxCall(
-            value: value, classSymbol: vcSymbol, result: boxedResult,
-            resultType: effectiveResultType, types: types, symbols: symbols,
+            value: value, classSymbol: vcSymbol, result: boxedResult, types: types, symbols: symbols,
             interner: interner, arena: arena, into: &instructions
         )
         return boxedResult
@@ -511,7 +499,7 @@ func valueClassBoxTargetIsBoxed(_ kind: TypeKind, symbols: SymbolTable?) -> Bool
 /// value-class box that `kk_value_class_unbox` must unwrap back to the `V`
 /// payload (KUU-3115). Any `.classType` qualifies: the helper's class-ID check
 /// makes it a no-op for payloads that arrive already unboxed.
-func valueClassUnboxSourceIsBoxed(_ kind: TypeKind, symbols: SymbolTable?) -> Bool {
+func valueClassUnboxSourceIsBoxed(_ kind: TypeKind) -> Bool {
     switch kind {
     case .any, .typeParam, .classType:
         return true
@@ -528,7 +516,6 @@ func emitValueClassBoxCall<C: RangeReplaceableCollection>(
     value: KIRExprID,
     classSymbol: SymbolID,
     result: KIRExprID,
-    resultType: TypeID?,
     types: TypeSystem,
     symbols: SymbolTable,
     interner: StringInterner,
@@ -552,7 +539,6 @@ func emitValueClassUnboxCall<C: RangeReplaceableCollection>(
     value: KIRExprID,
     classSymbol: SymbolID,
     result: KIRExprID,
-    resultType: TypeID?,
     types: TypeSystem,
     symbols: SymbolTable,
     interner: StringInterner,
@@ -624,7 +610,6 @@ func emitBoxCallWithValueClassTag<C: RangeReplaceableCollection>(
             ordinal: value,
             classSymbol: classType.classSymbol,
             result: result,
-            resultType: resultType,
             types: types,
             symbols: symbols,
             interner: interner,
@@ -646,8 +631,7 @@ func emitBoxCallWithValueClassTag<C: RangeReplaceableCollection>(
         || nullableUnderlyingValueClassSymbol(of: rawSourceKind, types: types, symbols: symbols) != nil
     {
         emitValueClassBoxCall(
-            value: value, classSymbol: classType.classSymbol, result: result,
-            resultType: resultType, types: types, symbols: symbols,
+            value: value, classSymbol: classType.classSymbol, result: result, types: types, symbols: symbols,
             interner: interner, arena: arena, into: &instructions
         )
         return
@@ -702,7 +686,6 @@ func emitEnumOrdinalBoxCall<C: RangeReplaceableCollection>(
     ordinal: KIRExprID,
     classSymbol: SymbolID,
     result: KIRExprID,
-    resultType: TypeID?,
     types: TypeSystem,
     symbols: SymbolTable,
     interner: StringInterner,
@@ -885,6 +868,15 @@ private func appendEnumBoxItableRegistrations<C: RangeReplaceableCollection>(
             into: &instructions
         )
         appendObjectItablePropertyGetterRegistrations(
+            objectValue: boxedValue,
+            nominalSymbol: classSymbol,
+            sema: sema,
+            cache: cache ?? KIRNominalDispatchCache(),
+            arena: arena,
+            interner: interner,
+            instructions: &instructions
+        )
+        appendObjectItablePropertySetterRegistrations(
             objectValue: boxedValue,
             nominalSymbol: classSymbol,
             sema: sema,

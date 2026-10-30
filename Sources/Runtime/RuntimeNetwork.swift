@@ -101,18 +101,6 @@ private final class RuntimeHTTPClientBox {
         )
     }
 
-    func setConnectTimeoutMillis(_ value: Int) {
-        lock.lock()
-        connectTimeoutMillis = max(0, value)
-        lock.unlock()
-    }
-
-    func setReadTimeoutMillis(_ value: Int) {
-        lock.lock()
-        readTimeoutMillis = max(0, value)
-        lock.unlock()
-    }
-
     func setFollowRedirects(_ value: Bool) {
         lock.lock()
         followRedirects = value
@@ -186,28 +174,15 @@ final class RuntimeHttpResponseBox {
     let statusCode: Int
     let headers: [(String, [String])]
     let body: String
-    let url: String
-    let errorMessage: String?
-    let timedOut: Bool
 
     init(
         statusCode: Int,
         headers: [(String, [String])],
-        body: String,
-        url: String = "",
-        errorMessage: String? = nil,
-        timedOut: Bool = false
+        body: String
     ) {
         self.statusCode = statusCode
         self.headers = headers
         self.body = body
-        self.url = url
-        self.errorMessage = errorMessage
-        self.timedOut = timedOut
-    }
-
-    var isSuccessful: Bool {
-        errorMessage == nil && (200 ... 299).contains(statusCode)
     }
 }
 
@@ -286,7 +261,9 @@ private final class RuntimeHTTPSessionDelegate: NSObject, URLSessionDataDelegate
     }
 
     func waitForResult() -> (response: HTTPURLResponse?, body: String, error: Error?) {
+        let gcBlocking = runtimeGCSafepoints.beginBlockingIfEnrolled()
         semaphore.wait()
+        if gcBlocking { runtimeGCSafepoints.endBlocking() }
         lock.lock()
         defer { lock.unlock() }
         return (response, responseBody, error)
@@ -588,12 +565,6 @@ public func kk_http_request_builder_build(_ builderRaw: Int, _ outThrown: Unsafe
     return registerRuntimeObject(RuntimeHttpRequestBox(url: url, method: builder.method, headers: builder.headers, body: builder.body))
 }
 
-@_cdecl("kk_http_body_publishers_noBody")
-public func kk_http_body_publishers_noBody(_ bodyPublishersRaw: Int) -> Int {
-    _ = bodyPublishersRaw
-    return registerRuntimeObject(RuntimeHttpBodyPublisherBox(data: nil))
-}
-
 public func kk_http_body_publishers_ofString(_ bodyPublishersRaw: Int, _ bodyRaw: Int) -> Int {
     _ = bodyPublishersRaw
     let text = networkString(from: bodyRaw, caller: #function)
@@ -727,24 +698,6 @@ public func kk_http_headers_firstValue(_ headersRaw: Int, _ nameRaw: Int) -> Int
     return runtimeMakeUTF8StringRaw(value)
 }
 
-@_cdecl("kk_http_client_setConnectTimeoutMillis")
-public func kk_http_client_setConnectTimeoutMillis(_ clientRaw: Int, _ timeoutMillis: Int) -> Int {
-    guard let client = runtimeHTTPClientBox(from: clientRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_http_client_setConnectTimeoutMillis received invalid client handle")
-    }
-    client.setConnectTimeoutMillis(timeoutMillis)
-    return 0
-}
-
-@_cdecl("kk_http_client_setReadTimeoutMillis")
-public func kk_http_client_setReadTimeoutMillis(_ clientRaw: Int, _ timeoutMillis: Int) -> Int {
-    guard let client = runtimeHTTPClientBox(from: clientRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_http_client_setReadTimeoutMillis received invalid client handle")
-    }
-    client.setReadTimeoutMillis(timeoutMillis)
-    return 0
-}
-
 public func kk_http_client_setFollowRedirects(_ clientRaw: Int, _ enabled: Int) -> Int {
     guard let client = runtimeHTTPClientBox(from: clientRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_http_client_setFollowRedirects received invalid client handle")
@@ -778,49 +731,4 @@ public func kk_http_client_setMaxResponseBodyBytes(_ clientRaw: Int, _ limit: In
     }
     client.setMaxResponseBodyBytes(limit)
     return 0
-}
-
-@_cdecl("kk_http_response_url")
-public func kk_http_response_url(_ responseRaw: Int) -> Int {
-    guard let response = runtimeHttpResponseBox(from: responseRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_http_response_url received invalid response handle")
-    }
-    return runtimeMakeUTF8StringRaw(response.url)
-}
-
-@_cdecl("kk_http_response_errorMessage")
-public func kk_http_response_errorMessage(_ responseRaw: Int) -> Int {
-    guard let response = runtimeHttpResponseBox(from: responseRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_http_response_errorMessage received invalid response handle")
-    }
-    guard let errorMessage = response.errorMessage else { return runtimeNullSentinelInt }
-    return runtimeMakeUTF8StringRaw(errorMessage)
-}
-
-@_cdecl("kk_http_response_timedOut")
-public func kk_http_response_timedOut(_ responseRaw: Int) -> Int {
-    guard let response = runtimeHttpResponseBox(from: responseRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_http_response_timedOut received invalid response handle")
-    }
-    return response.timedOut ? 1 : 0
-}
-
-@_cdecl("kk_http_response_isSuccessful")
-public func kk_http_response_isSuccessful(_ responseRaw: Int) -> Int {
-    guard let response = runtimeHttpResponseBox(from: responseRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_http_response_isSuccessful received invalid response handle")
-    }
-    return response.isSuccessful ? 1 : 0
-}
-
-@_cdecl("kk_http_response_header")
-public func kk_http_response_header(_ responseRaw: Int, _ nameRaw: Int) -> Int {
-    guard let response = runtimeHttpResponseBox(from: responseRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_http_response_header received invalid response handle")
-    }
-    let name = networkString(from: nameRaw, caller: #function)
-    guard let value = networkHeaderFirstValue(response.headers, name: name) else {
-        return runtimeNullSentinelInt
-    }
-    return runtimeMakeUTF8StringRaw(value)
 }

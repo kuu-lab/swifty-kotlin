@@ -630,7 +630,8 @@ extension RuntimeRangeHOFKind {
         _ outThrown: UnsafeMutablePointer<Int>?
     ) -> Int {
         guard !isEmpty(range) else {
-            outThrown?.pointee = runtimeAllocateNoSuchElementException(message: "Progression is empty.")
+            outThrown?.pointee = runtimeAllocateNoSuchElementException(
+                message: "Progression \(runtimeRangeToString(range)) is empty.")
             return 0
         }
         return wantLast ? range.last : range.first

@@ -28,3 +28,5 @@ expr e@12:5 call callee=e@12:5#1 args=[_:e@12:13#1] type=Unit call=kotlin.io.pri
 expr e@13:13 name(floatValue) type=Float ref=__local_1.floatValue[kind=local;type=Float;origin=fixture]
 expr e@13:13#1 memberCall recv=e@13:13 callee=toChar args=[] type=Char call=kotlin.toChar[kind=fun;recv=Float;params=;ret=Char]
 expr e@13:5 call callee=e@13:5#1 args=[_:e@13:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
+diagnostic severity=error code=KSWIFTK-SEMA-DEPRECATED at=7:13 msg='kotlin.toChar' is deprecated. Direct conversion to Char is deprecated. Use toInt().toChar() or Char constructor instead. Replace with: this.toInt().toChar()
+diagnostic severity=error code=KSWIFTK-SEMA-DEPRECATED at=13:13 msg='kotlin.toChar' is deprecated. Direct conversion to Char is deprecated. Use toInt().toChar() or Char constructor instead. Replace with: this.toInt().toChar()

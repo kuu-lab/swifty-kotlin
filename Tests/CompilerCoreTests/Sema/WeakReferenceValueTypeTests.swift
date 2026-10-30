@@ -19,6 +19,7 @@ struct WeakReferenceValueTypeTests {
         @file:OptIn(kotlin.experimental.ExperimentalNativeApi::class)
 
         import kotlin.native.ref.WeakReference
+        import kotlin.native.ref.clear
         import kotlin.native.ref.value
 
         class Box(val n: Int)
@@ -27,6 +28,7 @@ struct WeakReferenceValueTypeTests {
         fun readString(reference: WeakReference<String>): String? = reference.value
         fun readStarProjected(reference: WeakReference<*>): Any? = reference.value
         fun readGenericGet(reference: WeakReference<String>): String? = reference.get()
+        fun clearStarProjected(reference: WeakReference<*>) { reference.clear() }
         """) { path in
             let context = makeCompilationContext(
                 inputs: [path],

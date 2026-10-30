@@ -11,16 +11,56 @@ extension CallLowerer {
         signature: FunctionSignature? = nil,
         callBinding: CallBinding? = nil,
         preferredReceiverSymbol: SymbolID? = nil,
+        receiverTypeHint: TypeID? = nil,
+        ownerSymbolHint: SymbolID? = nil,
         sema: SemaModule,
         arena: KIRArena
     ) -> KIRExprID? {
         var resolvedType = requestedType
-        if let signature, let callBinding {
+        if let signature {
             let typeVariables = sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
             var substitution: [TypeVarID: TypeID] = [:]
-            for (symbol, argument) in zip(signature.typeParameterSymbols, callBinding.substitutedTypeArguments) {
-                if let variable = typeVariables[symbol] {
-                    substitution[variable] = argument
+            if let callBinding {
+                for (symbol, argument) in zip(signature.typeParameterSymbols, callBinding.substitutedTypeArguments) {
+                    if let variable = typeVariables[symbol] {
+                        substitution[variable] = argument
+                    }
+                }
+            }
+            // Member-property reads bind the property identifier rather than a
+            // call binding, so no `substitutedTypeArguments` reach lowering.
+            // Recover the owner-class type arguments from the actual receiver
+            // value (e.g. `A<String>` supplies `X -> String` for `A<X>.p`).
+            if signature.classTypeParameterCount > 0,
+               let receiverTypeHint,
+               let ownerSymbol = ownerSymbolHint
+                   ?? signature.receiverType.flatMap({ receiverType in
+                       guard case let .classType(receiverClass) = sema.types.kind(
+                           of: sema.types.makeNonNullable(receiverType)
+                       ) else { return nil }
+                       return receiverClass.classSymbol
+                   }),
+               case let .classType(hintClass) = sema.types.kind(
+                   of: sema.types.makeNonNullable(receiverTypeHint)
+               ),
+               let ownerArgs = sema.types.liftedNominalSupertypeArgs(
+                   from: hintClass, to: ownerSymbol
+               )
+            {
+                for (index, paramSymbol) in signature.typeParameterSymbols
+                    .prefix(signature.classTypeParameterCount)
+                    .enumerated()
+                {
+                    guard index < ownerArgs.count,
+                          let variable = typeVariables[paramSymbol],
+                          substitution[variable] == nil
+                    else { continue }
+                    switch ownerArgs[index] {
+                    case let .invariant(type), let .in(type), let .out(type):
+                        substitution[variable] = type
+                    case .star:
+                        break
+                    }
                 }
             }
             resolvedType = sema.types.substituteTypeParameters(
@@ -57,6 +97,8 @@ extension CallLowerer {
         callExprID: ExprID?,
         callBinding: CallBinding?,
         sourceArgumentIDs: [KIRExprID] = [],
+        receiverTypeHint: TypeID? = nil,
+        ownerSymbolHint: SymbolID? = nil,
         sema: SemaModule,
         arena: KIRArena
     ) -> [KIRExprID] {
@@ -81,6 +123,8 @@ extension CallLowerer {
                 signature: signature,
                 callBinding: callBinding,
                 preferredReceiverSymbol: receiverSymbol,
+                receiverTypeHint: receiverTypeHint,
+                ownerSymbolHint: ownerSymbolHint,
                 sema: sema,
                 arena: arena
             )
@@ -234,12 +278,23 @@ extension CallLowerer {
         if let signature = sema.symbols.functionSignature(for: accessor),
            !signature.contextParameterTypes.isEmpty
         {
-            let contextArguments = contextArgumentValues(
-                for: signature, callExprID: callExprID, callBinding: binding,
-                sema: sema, arena: arena
-            )
             let receiverCount = (signature.receiverType == nil ? 0 : 1)
                 + (memberExtensionOwnerSymbol(for: accessor, sema: sema) == nil ? 0 : 1)
+            // The dispatch receiver instance supplies the owner class's type
+            // arguments for a member accessor; the trailing receiver argument
+            // matches `signature.receiverType`.
+            let receiverTypeHint = receiverCount > 0 && result.count >= receiverCount
+                ? arena.exprType(result[receiverCount - 1])
+                : nil
+            let ownerReceiverTypeHint = memberExtensionOwnerSymbol(for: accessor, sema: sema) == nil
+                ? receiverTypeHint
+                : result.first.flatMap { arena.exprType($0) }
+            let contextArguments = contextArgumentValues(
+                for: signature, callExprID: callExprID, callBinding: binding,
+                receiverTypeHint: ownerReceiverTypeHint,
+                ownerSymbolHint: memberExtensionOwnerSymbol(for: accessor, sema: sema),
+                sema: sema, arena: arena
+            )
             result.insert(contentsOf: contextArguments, at: min(receiverCount, result.count))
         }
         appendReifiedTypeTokens(chosenCallee: accessor, callBinding: binding, sema: sema,
@@ -407,6 +462,12 @@ extension CallLowerer {
         guard chosenCallee == nil,
               prependReceiverForUnresolvedCollectionCall
         else {
+            return
+        }
+        if calleeText == "concatToString", arguments.isEmpty,
+           isConcreteArrayLikeType(sema.types.makeNonNullable(receiverType), sema: sema, interner: interner)
+        {
+            arguments.insert(loweredReceiverID, at: 0)
             return
         }
         if Self.unresolvedCollectionMemberNames.contains(calleeText) {
@@ -661,6 +722,39 @@ extension CallLowerer {
             ))
             return
         }
+        if finalArguments.first == receiver.loweredID,
+           finalArguments.count == 1,
+           sourceArgExprs.isEmpty,
+           let chosenCallee,
+           sema.symbols.externalLinkName(for: chosenCallee) == "kk_any_member_hashCode",
+           let receiverType = receiver.type(in: sema),
+           usesPrimitiveAnyFallbackRepresentation(for: receiverType, sema: sema)
+        {
+            // Primitive and unboxed primitive-backed value-class receivers
+            // are raw scalars, so neither the object member bridge nor
+            // vtable dispatch may see the payload (KSWIFTK-RUNTIME-0001).
+            // Use the tagged Any hash bridge — its tag decodes the raw
+            // representation (e.g. Double bits for a Double-backed VC).
+            let intType = sema.types.make(.primitive(.int, .nonNull))
+            let hashReceiverID = boxSentinelProneHashCodeReceiver(
+                receiver.loweredID,
+                sourceType: receiverType,
+                sema: sema,
+                interner: interner,
+                arena: arena,
+                into: &instructions
+            )
+            let receiverTag = computeAnyFallbackTag(for: receiverType, sema: sema)
+            let receiverTagID = arena.appendExpr(.intLiteral(receiverTag), type: intType)
+            instructions.append(.constValue(result: receiverTagID, value: .intLiteral(receiverTag)))
+            instructions.append(.call(
+                callee: interner.intern("kk_any_hashCode"),
+                arguments: [hashReceiverID, receiverTagID],
+                result: result,
+                canThrow: false
+            ))
+            return
+        }
         // Enum values are raw ordinals while they remain statically enum-typed.
         // Enum.equals(Any?) is an Any-boundary call, so box the receiver with
         // its nominal class ID before reaching the shared Any bridge. Without
@@ -680,7 +774,6 @@ extension CallLowerer {
                 ordinal: receiver.loweredID,
                 classSymbol: receiverClassType.classSymbol,
                 result: boxedReceiver,
-                resultType: sema.types.anyType,
                 types: sema.types,
                 symbols: sema.symbols,
                 interner: interner,
@@ -1285,6 +1378,13 @@ extension CallLowerer {
         let isRuntimeBridgedCallee = chosenCallee.map {
             kirIsRuntimeBridgedCallee($0, sema: sema)
         } ?? false
+        let usesClassReceiverListGetRuntimeBridge = chosenCallee.map {
+            isClassReceiverListGetRuntimeBridge(
+                $0,
+                receiverTypeID: receiver.type(in: sema),
+                sema: sema
+            )
+        } ?? false
         if (loweredCallee == calleeName && !isRuntimeBridgedCallee)
             || usesRuntimeSetContains
             || listIteratorInheritedDispatch
@@ -1305,7 +1405,8 @@ extension CallLowerer {
                     sema: sema,
                     interner: interner
                 )
-            }) == true,
+            }) == true
+            || usesClassReceiverListGetRuntimeBridge,
            let inst = tryEmitVirtualDispatch(
                chosenCallee: chosenCallee, calleeName: loweredCallee,
                receiverExpr: memberExtensionDispatchReceiver == nil && receiver.typeOverride == nil ? receiver.expr : nil,
@@ -1385,15 +1486,32 @@ extension CallLowerer {
                 bridgeArguments[bridgeArguments.count - 2] = split.fnPtrExpr
                 bridgeArguments[bridgeArguments.count - 1] = split.envPtrExpr
             }
+            let bridgeThrownResult = bridgeCall.canThrow
+                ? arena.appendTemporary(type: sema.types.nullableAnyType)
+                : nil
             instructions.append(.call(
                 callee: bridgeCall.callee,
                 arguments: bridgeArguments,
                 result: result,
                 canThrow: bridgeCall.canThrow,
-                thrownResult: bridgeCall.canThrow ? arena.appendTemporary(type: sema.types.nullableAnyType) : nil,
+                thrownResult: bridgeThrownResult,
                 isSuperCall: isSuperCall,
                 qualifiedSuperType: qualifiedSuperType
             ))
+            // Without a rethrow the callee's thrown value would stay in the
+            // temp forever: outside an explicit try region nobody reads the
+            // thrownResult slot, so `list.chunked(0)` silently produced the
+            // exception sentinel instead of throwing. Inside a try this is a
+            // no-op — the guarded copy+check already diverted on a throw.
+            if let bridgeThrownResult {
+                let continueLabel = driver.ctx.makeLoopLabel()
+                let rethrowLabel = driver.ctx.makeLoopLabel()
+                instructions.append(.jumpIfNotNull(value: bridgeThrownResult, target: rethrowLabel))
+                instructions.append(.jump(continueLabel))
+                instructions.append(.label(rethrowLabel))
+                instructions.append(.rethrow(value: bridgeThrownResult))
+                instructions.append(.label(continueLabel))
+            }
             return
         }
         let throwingCallees = Self.throwingMemberCalleeNames

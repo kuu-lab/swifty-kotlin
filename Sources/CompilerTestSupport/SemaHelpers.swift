@@ -1,18 +1,5 @@
 @testable import CompilerCore
 
-func makeSema(
-    source: String = "fun noop() {}"
-) throws -> (SemaModule, StringInterner) {
-    var result: (SemaModule, StringInterner)?
-    try withTemporaryFile(contents: source) { path in
-        let ctx = makeCompilationContext(inputs: [path], allowDefaultStdlibLibrary: false)
-        try runSema(ctx)
-        let sema = try requireTestValue(ctx.sema, "Expected sema module after running Sema")
-        result = (sema, ctx.interner)
-    }
-    return try requireTestValue(result, "Expected makeSema result")
-}
-
 /// Compile `sources` together as one module through Sema and hand back the
 /// context. Suites that share one context across many `@Test` functions should
 /// hold the result in a `static let`, whose `swift_once` initialization compiles

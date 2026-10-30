@@ -300,18 +300,6 @@ enum RuntimeTypeCheckToken {
         switch sema.types.kind(of: type) {
         case .nothing:
             return "Void"
-        case .primitive(.long, _):
-            return PrimitiveType.long.kotlinName
-        case .primitive(.char, _):
-            return PrimitiveType.char.kotlinName
-        case .primitive(.float, _):
-            return PrimitiveType.float.kotlinName
-        case .primitive(.double, _):
-            return PrimitiveType.double.kotlinName
-        case .primitive(.byte, _):
-            return PrimitiveType.byte.kotlinName
-        case .primitive(.short, _):
-            return PrimitiveType.short.kotlinName
         case let .classType(classType):
             guard let symbol = sema.symbols.symbol(classType.classSymbol) else {
                 return nil
@@ -327,43 +315,10 @@ enum RuntimeTypeCheckToken {
 
     static func qualifiedName(of type: TypeID, sema: SemaModule, interner: StringInterner) -> String? {
         let descriptor = classify(type: type, sema: sema)
+        if let name = descriptor.category.simpleName {
+            return "kotlin." + name
+        }
         switch descriptor.category {
-        case .any:
-            return "kotlin.Any"
-        case .string:
-            return "kotlin.String"
-        case .int:
-            return "kotlin.Int"
-        case .boolean:
-            return "kotlin.Boolean"
-        case .null:
-            return "kotlin.Nothing"
-        case .uint:
-            return "kotlin.UInt"
-        case .ulong:
-            return "kotlin.ULong"
-        case .ubyte:
-            return "kotlin.UByte"
-        case .ushort:
-            return "kotlin.UShort"
-        case .byte:
-            return "kotlin.Byte"
-        case .short:
-            return "kotlin.Short"
-        case .long:
-            return "kotlin.Long"
-        case .double:
-            return "kotlin.Double"
-        case .float:
-            return "kotlin.Float"
-        case .char:
-            return "kotlin.Char"
-        case .unit:
-            return "kotlin.Unit"
-        // Function types render their FunctionN classifier from the token
-        // payload at runtime; no source-level hint is needed.
-        case .function:
-            return nil
         case let .nominal(symbolID):
             guard let symbol = sema.symbols.symbol(symbolID) else {
                 return nil
@@ -377,6 +332,10 @@ enum RuntimeTypeCheckToken {
             if case .nothing = sema.types.kind(of: type) {
                 return "java.lang.Void"
             }
+            return nil
+        // Function types render their FunctionN classifier from the token
+        // payload at runtime; no source-level hint is needed.
+        default:
             return nil
         }
     }
@@ -425,7 +384,8 @@ func kirCheckableCastErasure(of type: TypeID, sema: SemaModule) -> TypeID? {
         else {
             return nil
         }
-        current = bound
+        // A nullable type parameter remains nullable when erased to its bound.
+        current = parameter.nullability == .nullable ? sema.types.makeNullable(bound) : bound
     }
     switch RuntimeTypeCheckToken.classify(type: current, sema: sema).category {
     case .unknown, .any:
@@ -433,6 +393,38 @@ func kirCheckableCastErasure(of type: TypeID, sema: SemaModule) -> TypeID? {
     default:
         return current
     }
+}
+
+/// The type parameter inside a definitely-non-null `T & Any` intersection,
+/// or nil for every other shape.
+func kirDefinitelyNotNullTypeParameter(of type: TypeID, sema: SemaModule) -> TypeID? {
+    guard case let .intersection(parts) = sema.types.kind(of: type),
+          parts.count == 2,
+          parts.contains(where: { sema.types.kind(of: $0) == .any(.nonNull) }),
+          let typeParameter = parts.first(where: {
+              if case .typeParam = sema.types.kind(of: $0) { return true }
+              return false
+          })
+    else {
+        return nil
+    }
+    return typeParameter
+}
+
+/// Whether a declared member type still travels through the erased ABI: a
+/// non-reified type parameter, or its definitely-non-null `T & Any` shape.
+/// Reified parameters and concrete classifiers keep their real
+/// representation and never need an erased-boundary checkcast.
+func kirIsNonReifiedErasedABIType(_ type: TypeID, sema: SemaModule) -> Bool {
+    if let typeParameterType = kirDefinitelyNotNullTypeParameter(of: type, sema: sema) {
+        return kirIsNonReifiedErasedABIType(typeParameterType, sema: sema)
+    }
+    guard case let .typeParam(parameter) = sema.types.kind(of: type),
+          let symbol = sema.symbols.symbol(parameter.symbol)
+    else {
+        return false
+    }
+    return !symbol.flags.contains(.reifiedTypeParameter)
 }
 
 /// Whether `kk_op_cast` can verify a value arriving through an erased ABI
@@ -484,13 +476,18 @@ func kirIsNonReifiedErasedReturnType(_ type: TypeID, sema: SemaModule) -> Bool {
     return !symbol.flags.contains(.reifiedTypeParameter)
 }
 
-/// True when a generic call or property getter's substituted result can be
-/// checked before the erased ABI result is converted to its native representation.
-func kirShouldCheckErasedGenericCallResult(
+/// The resolved `(bound, checkType)` pair for a generic call or property
+/// getter's substituted result crossing the erased ABI boundary — nil when
+/// no boundary checkcast is required. For a property read the claim type is
+/// the member's own static type (`d.x : String?`), which Kotlin checkcasts
+/// regardless of what the surrounding expression expects — e.g.
+/// `println(d.x)` still checkcasts on JVM — so it takes precedence over the
+/// context-expected type; call results keep the context-expected type.
+func kirErasedGenericCallClaimCheck(
     exprID: ExprID,
     boundType: TypeID?,
     sema: SemaModule
-) -> Bool {
+) -> (bound: TypeID, checkType: TypeID?)? {
     let chosenCallee = sema.bindings.callBindings[exprID]?.chosenCallee
     let propertySymbol: SymbolID? = if let chosenCallee {
         sema.symbols.accessorOwnerProperty(for: chosenCallee)
@@ -518,12 +515,49 @@ func kirShouldCheckErasedGenericCallResult(
     } else {
         nil
     }
+    let expressionBound = propertySymbol != nil
+        ? sema.bindings.exprType(for: exprID) ?? boundType
+        : boundType ?? sema.bindings.exprType(for: exprID)
+    let consumer = propertySymbol == nil ? sema.bindings.genericCallConsumerTypes[exprID] : nil
     guard let declaredReturnType,
           kirIsNonReifiedErasedReturnType(declaredReturnType, sema: sema),
-          let bound = boundType ?? sema.bindings.exprType(for: exprID),
-          let checkType = kirCheckableCastErasure(of: bound, sema: sema)
+          let target = consumer ?? expressionBound
     else {
-        return false
+        return nil
     }
-    return kirErasedBoundaryCheckable(checkType, sema: sema)
+    // A platform value must retain its flexible representation until the
+    // later null assertion, even when the destination is a non-null primitive.
+    let isPlatformResult = expressionBound.map { sema.types.nullability(of: $0) == .platformType } ?? false
+    let bound = isPlatformResult ? (expressionBound ?? target) : target
+    // Calls coerced to Unit evaluate for side effects and discard their
+    // erased result, so no cast of that result is observable in Kotlin.
+    // Property reads retain their own platform-Unit behavior.
+    if propertySymbol == nil,
+       (bound == sema.types.unitType || sema.bindings.unitReturnCoercionExprs.contains(exprID)) {
+        return nil
+    }
+    guard let checkType = kirCheckableCastErasure(of: target, sema: sema),
+          kirErasedBoundaryCheckable(checkType, sema: sema)
+    else {
+        // An erased consumer (such as Any?) needs the raw object, without a
+        // cast to the narrower source-level type argument. Preserve that ABI
+        // representation even though no checkcast is emitted.
+        return consumer == nil ? nil : (bound, nil)
+    }
+    // A platform result can still contain null. Check its erased classifier
+    // without rejecting null; a non-null use inserts its own assertion later.
+    let nullableCheckType = isPlatformResult
+        ? sema.types.makeNullable(checkType)
+        : checkType
+    return (bound, nullableCheckType)
+}
+
+/// True when a generic call or property getter's substituted result can be
+/// checked before the erased ABI result is converted to its native representation.
+func kirShouldCheckErasedGenericCallResult(
+    exprID: ExprID,
+    boundType: TypeID?,
+    sema: SemaModule
+) -> Bool {
+    kirErasedGenericCallClaimCheck(exprID: exprID, boundType: boundType, sema: sema) != nil
 }

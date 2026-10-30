@@ -73,6 +73,7 @@ retain the stdout diff, KIR, crash diagnostics, and a reproduction script.
 - `abstract_class.kt`: abstract class / abstract member の制約と override 強制（abstract fun, multi-level inheritance chain）
 - `tailrec_fun.kt`: `tailrec` 関数の再帰実行 parity
 - `tailrec_wrapped_calls.kt`: inline `run`、括弧、infix / extension 呼び出し、ローカル関数内の末尾再帰を 100 万回実行する parity（KUU-2900）
+- `kuu_3686_tailrec_extension_stack_safety.kt`: 関数型引数を持つジェネリック拡張関数の末尾再帰を 20 万回実行する parity（KUU-3686）
 - `collection_builders.kt`: `buildString` / `buildList` / `buildSet` / `buildMap` DSL builder の正常系 parity
 - `ksp950_build_family.kt`: KSP-950 の capacity、重複排除・キー上書き、負capacity、read-only返却、例外伝播 parity
 - `builder_dsl_invalid_arg.kt`: builder への不正引数（非 lambda）を compile error として扱う parity

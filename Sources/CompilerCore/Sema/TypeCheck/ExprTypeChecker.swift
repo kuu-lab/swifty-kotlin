@@ -362,6 +362,9 @@ final class ExprTypeChecker {
             }
             if let value {
                 let resolved = driver.inferExpr(value, ctx: ctx, locals: &locals, expectedType: returnExpectedType)
+                driver.recordGenericCallConsumer(
+                    value, type: returnExpectedType == sema.types.unitType ? nil : returnExpectedType
+                )
                 if isConstructorReturnWithValue, resolved != sema.types.unitType {
                     sema.diagnostics.error(
                         "KSWIFTK-SEMA-0042",
@@ -2184,6 +2187,11 @@ final class ExprTypeChecker {
         let sema = ctx.sema
         let interner = ctx.interner
         let lhsIsPrimitive = if case .primitive = sema.types.kind(of: operandType) { true } else { false }
+        // kotlinc reports UNSAFE_CALL for any operator call on a nullable
+        // receiver, so failed member-operator resolution on one maps to
+        // SEMA-0026 rather than the generic no-viable-overload diagnostic.
+        let operandIsNullableReceiver = sema.types.nullability(of: operandType) == .nullable
+            && operandType != sema.types.errorType
         let operatorNames = operatorFunctionNames(for: op, interner: interner)
         let operatorCall = CallExpr(
             range: range,
@@ -2209,14 +2217,26 @@ final class ExprTypeChecker {
                 ctx: ctx.sema
             )
             if let diagnostic = resolved.diagnostic {
-                ctx.sema.diagnostics.emit(diagnostic)
+                if operandIsNullableReceiver {
+                    ctx.sema.diagnostics.error(
+                        "KSWIFTK-SEMA-0026",
+                        "Only safe (?.) or non-null asserted (!!.) calls are allowed on a nullable receiver.",
+                        range: range
+                    )
+                } else {
+                    ctx.sema.diagnostics.emit(diagnostic)
+                }
                 sema.bindings.bindExprType(id, type: sema.types.errorType)
                 return sema.types.errorType
             }
             guard let chosen = resolved.chosenCallee else {
                 ctx.sema.diagnostics.error(
-                    "KSWIFTK-SEMA-0002",
-                    "No viable overload found for operator '\(displayOperatorName)'.",
+                    operandIsNullableReceiver
+                        ? "KSWIFTK-SEMA-0026"
+                        : "KSWIFTK-SEMA-0002",
+                    operandIsNullableReceiver
+                        ? "Only safe (?.) or non-null asserted (!!.) calls are allowed on a nullable receiver."
+                        : "No viable overload found for operator '\(displayOperatorName)'.",
                     range: range
                 )
                 sema.bindings.bindExprType(id, type: sema.types.errorType)
@@ -2253,9 +2273,7 @@ final class ExprTypeChecker {
             )
             return driver.helpers.bindAndReturnErrorType(id, sema: sema)
         }
-        if sema.types.nullability(of: operandType) == .nullable,
-           operandType != sema.types.errorType
-        {
+        if operandIsNullableReceiver {
             ctx.sema.diagnostics.error(
                 "KSWIFTK-SEMA-0026",
                 "Only safe (?.) or non-null asserted (!!.) calls are allowed on a nullable receiver.",
@@ -2321,6 +2339,21 @@ final class ExprTypeChecker {
         _ = driver.inferExpr(id, ctx: ctx, locals: &locals, expectedType: nil)
         sema.bindings.bindConstExprValue(id, value: primitive == .long ? .longLiteral(value) : .intLiteral(value))
         sema.bindings.bindExprType(id, type: widenedType)
+        // That nil-context pass leaves a unary operand at its natural type.
+        // Mirror the `.unaryExpr` operand rule the skipped path below runs:
+        // a bare `+literal` operand carries the contextual type (KIR reuses
+        // that binding to box the result). `-literal` and non-literal
+        // operands keep Int semantics the fold depends on.
+        if case let .unaryExpr(op, operandID, _) = ctx.ast.arena.expr(id) {
+            let operandIsIntLiteral: Bool = if case .intLiteral = ctx.ast.arena.expr(operandID) {
+                true
+            } else {
+                false
+            }
+            if op == .unaryPlus, operandIsIntLiteral {
+                _ = driver.inferExpr(operandID, ctx: ctx, locals: &locals, expectedType: widenedType)
+            }
+        }
         return widenedType
     }
 

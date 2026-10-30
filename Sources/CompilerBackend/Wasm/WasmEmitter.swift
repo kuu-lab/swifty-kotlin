@@ -48,7 +48,6 @@ final class WasmModuleContext {
     /// signature is fixed at creation, so each arity needs its own entry.
     var helperIndexByName: [String: Int] = [:]
     var stubIndexByNameArity: [String: Int] = [:]
-    var importIndexByName: [String: Int] = [:]
 
     var globalIndexBySymbol: [SymbolID: Int] = [:]
     var paramIndexBySymbolByFunction: [SymbolID: [Int32: Int]] = [:]

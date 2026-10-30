@@ -31,7 +31,7 @@ let listRuntimeTypeID: Int64 = {
     return id
 }()
 
-private let mutableListRuntimeTypeID: Int64 = {
+let mutableListRuntimeTypeID: Int64 = {
     let id = runtimeStableNominalTypeID(fqName: "kotlin.collections.MutableList")
     runtimeRegisterTypeEdge(childTypeID: id, parentTypeID: listRuntimeTypeID)
     runtimeRegisterTypeEdge(childTypeID: id, parentTypeID: mutableCollectionRuntimeTypeID)
@@ -46,7 +46,9 @@ func runtimeIsJvmErasedListAssignable(
     sourceTypeID: Int64,
     targetTypeID: Int64
 ) -> Bool {
-    guard sourceTypeID == listRuntimeTypeID,
+    guard sourceTypeID == listRuntimeTypeID
+            || sourceTypeID == singletonListRuntimeTypeID
+            || sourceTypeID == arraysBackedListRuntimeTypeID,
           runtimeListBox(from: rawValue)?.isEffectivelyReadOnly == true
     else { return false }
     return runtimeIsAssignable(sourceTypeID: mutableListRuntimeTypeID, targetTypeID: targetTypeID)
@@ -106,6 +108,27 @@ let arrayDequeRuntimeTypeID: Int64 = {
         childTypeID: id,
         parentTypeID: runtimeStableNominalTypeID(fqName: "kotlin.collections.MutableCollection")
     )
+    return id
+}()
+
+/// `listOf(element)` maps to `java.util.Collections$SingletonList` on the JVM:
+/// its `get` throws `IndexOutOfBoundsException("Index: i, Size: n")` and its
+/// `subList`/`listIterator` bounds errors differ from both `ArrayList` and the
+/// generic `AbstractList` paths, so it needs its own nominal tag.
+let singletonListRuntimeTypeID: Int64 = {
+    let id = runtimeStableNominalTypeID(fqName: "java.util.Collections.SingletonList")
+    runtimeRegisterTypeEdge(childTypeID: id, parentTypeID: listRuntimeTypeID)
+    runtimeRegisterTypeEdge(childTypeID: id, parentTypeID: randomAccessRuntimeTypeID)
+    return id
+}()
+
+/// `listOf(e1, e2, ...)` maps to `java.util.Arrays$ArrayList`: `get` and
+/// indexed `slice` fail with `ArrayIndexOutOfBoundsException` instead of the
+/// `IndexOutOfBoundsException` a plain `List` produces.
+let arraysBackedListRuntimeTypeID: Int64 = {
+    let id = runtimeStableNominalTypeID(fqName: "java.util.Arrays.ArrayList")
+    runtimeRegisterTypeEdge(childTypeID: id, parentTypeID: listRuntimeTypeID)
+    runtimeRegisterTypeEdge(childTypeID: id, parentTypeID: randomAccessRuntimeTypeID)
     return id
 }()
 

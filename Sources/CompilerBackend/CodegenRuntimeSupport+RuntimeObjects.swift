@@ -54,6 +54,29 @@ private final class RuntimeObjectCache: @unchecked Sendable {
     }
 }
 
+// The runtime source fingerprint re-reads every Runtime/RuntimeABI source,
+// so a key is resolved once per (configuration, target, packageRoot) and
+// reused by every later caller — the prefetch path warms the key the
+// linker discovery would otherwise recompute per compile.
+private final class RuntimeBuildCacheKeyMemo: @unchecked Sendable {
+    private let lock = NSLock()
+    private var keys: [String: String] = [:]
+
+    func value(for key: String) -> String? {
+        lock.lock()
+        defer { lock.unlock() }
+        return keys[key]
+    }
+
+    func store(_ value: String, for key: String) {
+        lock.lock()
+        defer { lock.unlock() }
+        keys[key] = value
+    }
+}
+
+private let runtimeBuildCacheKeyMemo = RuntimeBuildCacheKeyMemo()
+
 enum CodegenRuntimeSupportError: Error, CustomStringConvertible {
     case runtimeObjectsUnavailable(String)
     case runtimeBuildFailed(String)
@@ -506,6 +529,20 @@ extension CodegenRuntimeSupport {
     static func runtimePackageRootURL(
         environment: [String: String] = ProcessInfo.processInfo.environment
     ) throws -> URL {
+        // Resolution walks ancestors checking Package.swift verification;
+        // KSWIFTK_PACKAGE_ROOT is the only input that changes the outcome.
+        let memoKey = "root\u{0}\(environment["KSWIFTK_PACKAGE_ROOT"] ?? "")"
+        if let cachedPath = runtimeBuildCacheKeyMemo.value(for: memoKey) {
+            return URL(fileURLWithPath: cachedPath, isDirectory: true)
+        }
+        let resolved = try resolveRuntimePackageRootURL(environment: environment)
+        runtimeBuildCacheKeyMemo.store(resolved.path, for: memoKey)
+        return resolved
+    }
+
+    private static func resolveRuntimePackageRootURL(
+        environment: [String: String]
+    ) throws -> URL {
         // KSWIFTK_PACKAGE_ROOT is an explicit development override, so a value
         // that resolves to nothing or fails verification is rejected loudly
         // rather than silently falling through to an implicit root.
@@ -696,29 +733,67 @@ extension CodegenRuntimeSupport {
         configuration: RuntimeBuildConfiguration,
         packageRoot: URL
     ) throws -> String {
-        "runtime-nocov-v4-\(configuration.rawValue)-\(targetTripleString(target))-\(try runtimeSourceFingerprint(packageRoot: packageRoot))"
+        let memoKey = [configuration.rawValue, targetTripleString(target), packageRoot.standardizedFileURL.path]
+            .joined(separator: "\u{0}")
+        if let memoized = runtimeBuildCacheKeyMemo.value(for: memoKey) {
+            return memoized
+        }
+        let key = "runtime-nocov-v4-\(configuration.rawValue)-\(targetTripleString(target))-\(try runtimeSourceFingerprint(packageRoot: packageRoot))"
+        runtimeBuildCacheKeyMemo.store(key, for: memoKey)
+        return key
+    }
+
+    private static func runtimeSourceListing(
+        packageRoot: URL
+    ) -> [(module: String, modulePrefix: String, files: [URL]?)] {
+        let sourcesURL = packageRoot.appendingPathComponent("Sources", isDirectory: true)
+        var listing: [(module: String, modulePrefix: String, files: [URL]?)] = []
+        for module in ["Runtime", "RuntimeABI"] {
+            let moduleURL = sourcesURL.appendingPathComponent(module, isDirectory: true)
+            let modulePrefix = moduleURL.standardizedFileURL.path + "/"
+            guard let enumerator = FileManager.default.enumerator(
+                at: moduleURL,
+                includingPropertiesForKeys: nil,
+                options: [.skipsHiddenFiles]
+            ) else {
+                listing.append((module, modulePrefix, nil))
+                continue
+            }
+            let files = (enumerator.allObjects as? [URL] ?? [])
+                .filter { $0.pathExtension == "swift" }
+                .sorted { $0.path < $1.path }
+            listing.append((module, modulePrefix, files))
+        }
+        return listing
     }
 
     // Hashes file contents under package-relative paths so the key is identical
     // across worktrees holding the same Runtime sources. RuntimeABI is part of
     // the linked object set, so it participates in the key too.
     private static func runtimeSourceFingerprint(packageRoot: URL) throws -> String {
-        let sourcesURL = packageRoot.appendingPathComponent("Sources", isDirectory: true)
+        try runtimeSourceFingerprint(
+            packageRoot: packageRoot,
+            scratchRoot: runtimeSharedScratchRoot()
+        )
+    }
+
+    /// `scratchRoot` is a parameter so tests exercise the persisted-fingerprint
+    /// behavior against synthetic roots instead of the user's real cache.
+    package static func runtimeSourceFingerprint(packageRoot: URL, scratchRoot: URL) throws -> String {
+        // The content hash is reused across processes through the shared
+        // scratch root: a stat-only signature of the same file set guards it,
+        // so an unchanged tree skips reading every Runtime source on every
+        // compile while any real edit still recomputes the fingerprint.
+        let signature = runtimeSourcesSignature(packageRoot: packageRoot)
+        if let persisted = persistedRuntimeFingerprints(scratchRoot: scratchRoot)[signature] {
+            return persisted
+        }
         var payload = ""
-        for module in ["Runtime", "RuntimeABI"] {
-            let moduleURL = sourcesURL.appendingPathComponent(module, isDirectory: true)
-            guard let enumerator = FileManager.default.enumerator(
-                at: moduleURL,
-                includingPropertiesForKeys: nil,
-                options: [.skipsHiddenFiles]
-            ) else {
+        for (module, modulePrefix, files) in runtimeSourceListing(packageRoot: packageRoot) {
+            guard let files else {
                 payload.append("\(module)-sources-missing\u{1}")
                 continue
             }
-            let modulePrefix = moduleURL.standardizedFileURL.path + "/"
-            let files = (enumerator.allObjects as? [URL] ?? [])
-                .filter { $0.pathExtension == "swift" }
-                .sorted { $0.path < $1.path }
             payload.reserveCapacity(payload.count + files.count * 256)
             for fileURL in files {
                 let fullPath = fileURL.standardizedFileURL.path
@@ -735,7 +810,78 @@ extension CodegenRuntimeSupport {
                 payload.append("\u{1}")
             }
         }
-        return stableFNV1a64Hex(payload)
+        let fingerprint = stableFNV1a64Hex(payload)
+        persistRuntimeFingerprint(fingerprint, for: signature, scratchRoot: scratchRoot)
+        return fingerprint
+    }
+
+    /// A stat(2)-only identity of the runtime source file set — relative path,
+    /// size, mtime and inode per file. Any edit, checkout or rewrite changes
+    /// it; identical untouched trees share it.
+    private static func runtimeSourcesSignature(packageRoot: URL) -> String {
+        var hasher = StableFNV1a64.Hasher()
+        for (module, modulePrefix, files) in runtimeSourceListing(packageRoot: packageRoot) {
+            hasher.update(bytes: module.utf8)
+            guard let files else {
+                hasher.update(bytes: "missing".utf8)
+                continue
+            }
+            for fileURL in files {
+                let fullPath = fileURL.standardizedFileURL.path
+                let relativePath = fullPath.hasPrefix(modulePrefix)
+                    ? String(fullPath.dropFirst(modulePrefix.count))
+                    : fileURL.lastPathComponent
+                var info = stat()
+                let record = fullPath.withCString { stat($0, &info) == 0 }
+                    ? "\(relativePath)\u{0}\(info.st_size)\u{0}\(fileMtimeNanos(info))\u{0}\(info.st_ino)"
+                    : "\(relativePath)\u{0}unreadable"
+                hasher.update(bytes: record.utf8)
+            }
+        }
+        return hasher.hexString()
+    }
+
+    private static func fileMtimeNanos(_ info: stat) -> Int64 {
+        #if canImport(Darwin)
+            Int64(info.st_mtimespec.tv_sec) * 1_000_000_000 + Int64(info.st_mtimespec.tv_nsec)
+        #else
+            Int64(info.st_mtim.tv_sec) * 1_000_000_000 + Int64(info.st_mtim.tv_nsec)
+        #endif
+    }
+
+    /// Source signatures seen so far -> computed content fingerprints, kept in
+    /// the shared scratch root so every kswiftc process reuses them. Entries
+    /// are advisory only: a lost or forged one at worst reuses or recomputes
+    /// one content hash, and the map is reset past a bound so it never grows.
+    private static let persistedRuntimeFingerprintName = "source-fingerprints.json"
+    private static let maxPersistedRuntimeFingerprints = 16
+
+    private static func persistedRuntimeFingerprints(scratchRoot: URL) -> [String: String] {
+        let url = scratchRoot.appendingPathComponent(persistedRuntimeFingerprintName)
+        guard let data = try? Data(contentsOf: url),
+              let entries = try? JSONDecoder().decode([String: String].self, from: data)
+        else {
+            return [:]
+        }
+        return entries
+    }
+
+    private static func persistRuntimeFingerprint(
+        _ fingerprint: String,
+        for signature: String,
+        scratchRoot: URL
+    ) {
+        var entries = persistedRuntimeFingerprints(scratchRoot: scratchRoot)
+        entries[signature] = fingerprint
+        if entries.count > maxPersistedRuntimeFingerprints {
+            entries = [signature: fingerprint]
+        }
+        guard let data = try? JSONEncoder().encode(entries) else { return }
+        try? FileManager.default.createDirectory(at: scratchRoot, withIntermediateDirectories: true)
+        try? data.write(
+            to: scratchRoot.appendingPathComponent(persistedRuntimeFingerprintName),
+            options: .atomic
+        )
     }
 
     private static func systemErrorDescription(_ operation: String) -> String {

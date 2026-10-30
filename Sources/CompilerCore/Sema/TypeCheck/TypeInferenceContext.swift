@@ -159,6 +159,13 @@ struct TypeInferenceContext: CustomStringConvertible {
     var outerReceiverTypes: [(label: InternedString, type: TypeID, symbol: SymbolID?)]
     /// Context receiver types available to `contextOf<A>()` in the current lambda body.
     var contextReceiverTypes: [TypeID] = []
+    /// Context receiver types each enclosing lambda literal introduced,
+    /// keyed by the lambda's expression ID. Kotlin resolves an implicit
+    /// context argument per enclosing-lambda level: the receivers a deeper
+    /// `context(...) { ... }` block supplies are nearer than receivers from
+    /// scopes enclosing that lambda, while `contextReceiverTypes` alone
+    /// cannot order them against `implicitReceiverStack` entries.
+    var lambdaContextReceiverTypes: [ExprID: [TypeID]] = [:]
     /// Supertype constructor arguments run before `this` exists, so the
     /// enclosing class must not act as an implicit receiver there (it still
     /// drives visibility checks).

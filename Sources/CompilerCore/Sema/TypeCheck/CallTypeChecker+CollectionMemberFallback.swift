@@ -1392,17 +1392,7 @@ extension CallTypeChecker {
             return (argumentIndex: 1, expectedType: expectedType)
         }
 
-        if memberName == knownNames.reduceRight, argCount == 1 {
-            let expectedType = sema.types.make(.functionType(FunctionType(
-                params: [sema.types.anyType, sema.types.anyType],
-                returnType: sema.types.anyType,
-                isSuspend: false,
-                nullability: .nonNull
-            )))
-            return (argumentIndex: 0, expectedType: expectedType)
-        }
-
-        if memberName == knownNames.reduce || memberName == knownNames.reduceOrNull, argCount == 1 {
+        if memberName == knownNames.reduceRight || memberName == knownNames.reduce || memberName == knownNames.reduceOrNull, argCount == 1 {
             let expectedType = sema.types.make(.functionType(FunctionType(
                 params: [sema.types.anyType, sema.types.anyType],
                 returnType: sema.types.anyType,
@@ -1484,27 +1474,7 @@ extension CallTypeChecker {
             return (argumentIndex: 0, expectedType: expectedType)
         }
 
-        if memberName == knownNames.getOrPut, isMutableMapReceiver, argCount == 2 {
-            let valueType: TypeID = if case let .classType(classType) = sema.types.kind(of: receiverElementType),
-                                       classType.args.count >= 2
-            {
-                switch classType.args[1] {
-                case let .invariant(t), let .out(t), let .in(t): t
-                case .star: sema.types.anyType
-                }
-            } else {
-                sema.types.anyType
-            }
-            let expectedType = sema.types.make(.functionType(FunctionType(
-                params: [],
-                returnType: valueType,
-                isSuspend: false,
-                nullability: .nonNull
-            )))
-            return (argumentIndex: 1, expectedType: expectedType)
-        }
-
-        if memberName == knownNames.getOrElse, isMapReceiver, argCount == 2 {
+        if argCount == 2, (memberName == knownNames.getOrPut && isMutableMapReceiver) || (memberName == knownNames.getOrElse && isMapReceiver) {
             let valueType: TypeID = if case let .classType(classType) = sema.types.kind(of: receiverElementType),
                                        classType.args.count >= 2
             {

@@ -20,38 +20,6 @@ struct SemaSnapshotArchivePayload: Codable {
     let inlineFunctions: [SemaSnapshotInlineFunction]
 }
 
-func remapSnapshotSignature(
-    _ signature: FunctionSignature,
-    symbols symbolMap: [SymbolID: SymbolID],
-    types typeMap: [TypeID: TypeID]
-) -> FunctionSignature {
-    func symbol(_ id: SymbolID) -> SymbolID { symbolMap[id] ?? id }
-    func type(_ id: TypeID) -> TypeID { typeMap[id] ?? id }
-    return FunctionSignature(
-        receiverType: signature.receiverType.map(type),
-        contextReceiverTypes: signature.contextReceiverTypes.map(type),
-        contextParameterSymbols: signature.contextParameterSymbols.map(symbol),
-        contextParameterTypes: signature.contextParameterTypes.map(type),
-        parameterTypes: signature.parameterTypes.map(type),
-        returnType: type(signature.returnType),
-        isSuspend: signature.isSuspend,
-        canThrow: signature.canThrow,
-        valueParameterSymbols: signature.valueParameterSymbols.map(symbol),
-        valueParameterUnsafeVarianceTypeParameterSymbols: signature.valueParameterUnsafeVarianceTypeParameterSymbols
-            .map { Set($0.map(symbol)) },
-        valueParameterHasDefaultValues: signature.valueParameterHasDefaultValues,
-        valueParameterIsVararg: signature.valueParameterIsVararg,
-        valueParameterAllowsNonLocalReturn: signature.valueParameterAllowsNonLocalReturn,
-        hasExplicitInlineParameterMetadata: signature.hasExplicitInlineParameterMetadata,
-        hasStableParameterNames: signature.hasStableParameterNames,
-        typeParameterSymbols: signature.typeParameterSymbols.map(symbol),
-        reifiedTypeParameterIndices: signature.reifiedTypeParameterIndices,
-        typeParameterUpperBounds: signature.typeParameterUpperBounds.map { $0.map(type) },
-        typeParameterUpperBoundsList: signature.typeParameterUpperBoundsList.map { $0.map(type) },
-        classTypeParameterCount: signature.classTypeParameterCount
-    )
-}
-
 /// Legacy support for serializing a fully materialized stdlib Sema state.
 /// The normal artifact builder and importer now use compact-indexed lazy loading.
 public enum StdlibSemaSnapshotArchive {

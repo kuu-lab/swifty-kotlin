@@ -260,9 +260,7 @@ enum MemberRuntimeDispatch {
 
     static func stringReceiverKind(
         receiverType: TypeID,
-        sema: SemaModule,
-        interner: StringInterner
-    ) -> MemberDispatchReceiverKind? {
+        sema: SemaModule) -> MemberDispatchReceiverKind? {
         let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
         if sema.types.isSubtype(nonNullReceiverType, sema.types.stringType) {
             return .string
@@ -298,8 +296,8 @@ enum MemberRuntimeDispatch {
             // already sends UInt through `__kk_range_contains` (confirmed by
             // marker probe).
             return "__kk_range_contains"
-        case "isEmpty":
-            return rangeRuntimeName(kind: kind, member: "isEmpty")
+        case "isEmpty", "count", "mapIndexed", "mapNotNull", "filter", "filterIndexed", "filterNot", "reduce", "reduceIndexed", "fold", "foldIndexed", "find", "findLast", "any", "all", "none", "chunked", "windowed", "reversed":
+            return rangeRuntimeName(kind: kind, member: key.memberName)
         case "endExclusive":
             return "__kk_range_endExclusive"
         case "sum":
@@ -308,8 +306,6 @@ enum MemberRuntimeDispatch {
             // check short-circuits before this is ever consulted for UInt
             // (confirmed by marker probe on both receiver shapes).
             return kind.isULongRangeLike ? nil : "__kk_range_sum"
-        case "count":
-            return rangeRuntimeName(kind: kind, member: "count")
         case "toList":
             return rangeRuntimeName(
                 kind: kind,
@@ -318,34 +314,8 @@ enum MemberRuntimeDispatch {
                 charMember: "toList",
                 charProgressionUsesChar: true
             )
-        case "iterator":
-            return rangeRuntimeName(kind: kind, member: "iterator", longMember: "iterator")
-        case "forEach":
-            return rangeRuntimeName(kind: kind, member: "forEach", longMember: "forEach")
-        case "map":
-            return rangeRuntimeName(kind: kind, member: "map", longMember: "map")
-        case "mapIndexed":
-            return rangeRuntimeName(kind: kind, member: "mapIndexed")
-        case "mapNotNull":
-            return rangeRuntimeName(kind: kind, member: "mapNotNull")
-        case "filter":
-            return rangeRuntimeName(kind: kind, member: "filter")
-        case "filterIndexed":
-            return rangeRuntimeName(kind: kind, member: "filterIndexed")
-        case "filterNot":
-            return rangeRuntimeName(kind: kind, member: "filterNot")
-        case "reduce":
-            return rangeRuntimeName(kind: kind, member: "reduce")
-        case "reduceIndexed":
-            return rangeRuntimeName(kind: kind, member: "reduceIndexed")
-        case "fold":
-            return rangeRuntimeName(kind: kind, member: "fold")
-        case "foldIndexed":
-            return rangeRuntimeName(kind: kind, member: "foldIndexed")
-        case "find":
-            return rangeRuntimeName(kind: kind, member: "find")
-        case "findLast":
-            return rangeRuntimeName(kind: kind, member: "findLast")
+        case "iterator", "forEach", "map", "average":
+            return rangeRuntimeName(kind: kind, member: key.memberName, longMember: key.memberName)
         case "first":
             if key.arity > 0 {
                 return rangeRuntimeName(kind: kind, member: "first_predicate")
@@ -380,26 +350,8 @@ enum MemberRuntimeDispatch {
                 return rangeRuntimeName(kind: kind, member: "lastOrNull", longMember: "lastOrNull")
             }
             return rangeRuntimeName(kind: kind, member: "lastOrNull_predicate")
-        case "any":
-            return rangeRuntimeName(kind: kind, member: "any")
-        case "all":
-            return rangeRuntimeName(kind: kind, member: "all")
-        case "none":
-            return rangeRuntimeName(kind: kind, member: "none")
-        case "chunked":
-            return rangeRuntimeName(kind: kind, member: "chunked")
-        case "windowed":
-            return rangeRuntimeName(kind: kind, member: "windowed")
-        case "take":
-            return rangeRuntimeName(kind: kind, member: "take", longMember: "take", charMember: "take")
-        case "drop":
-            return rangeRuntimeName(kind: kind, member: "drop", longMember: "drop", charMember: "drop")
-        case "average":
-            return rangeRuntimeName(kind: kind, member: "average", longMember: "average")
-        case "sorted":
-            return rangeRuntimeName(kind: kind, member: "sorted", longMember: "sorted", charMember: "sorted")
-        case "reversed":
-            return rangeRuntimeName(kind: kind, member: "reversed")
+        case "take", "drop", "sorted":
+            return rangeRuntimeName(kind: kind, member: key.memberName, longMember: key.memberName, charMember: key.memberName)
         case "step":
             if key.arity == 0 {
                 return rangeRuntimeName(
@@ -603,7 +555,8 @@ enum MemberRuntimeDispatch {
         }
 
         let migratedRangeMembers: Set<String> = ["first", "last", "count", "isEmpty", "reversed"]
-        if migratedRangeMembers.contains(member) && !kind.isULongRangeLike && !kind.isUIntRangeLike {
+        // ULong- and UInt-like kinds always returned above.
+        if migratedRangeMembers.contains(member) {
             return "__kk_range_\(member)"
         }
         if kind.isLongRangeLike, let longMember {

@@ -16,6 +16,25 @@ struct KIRInterfacePropertyGetterSlot {
     let slot: Int
 }
 
+func kirEnumEntryDispatchHelper(
+    for accessorSymbol: SymbolID,
+    in enumSymbol: SymbolID,
+    sema: SemaModule,
+    interner: StringInterner
+) -> SymbolID? {
+    guard sema.symbols.symbol(enumSymbol)?.kind == .enumClass,
+          let enumInfo = sema.symbols.symbol(enumSymbol)
+    else {
+        return nil
+    }
+    let helperName = NameMangler.enumEntryDispatchHelperName(for: accessorSymbol, interner: interner)
+    return sema.symbols.lookupAll(fqName: enumInfo.fqName + [helperName]).first { candidate in
+        sema.symbols.symbol(candidate)?.kind == .function
+            && sema.symbols.parentSymbol(for: candidate) == enumSymbol
+            && sema.symbols.enumEntryDispatchBaseSymbol(for: candidate) == accessorSymbol
+    }
+}
+
 /// A stored property declared on an open superclass may implement an
 /// interface property only in a descendant. Materialize its ordinary
 /// accessor so the descendant's itable bridge has a real function to call.
@@ -515,14 +534,20 @@ func appendObjectItablePropertyGetterRegistrations<C: RangeReplaceableCollection
         instructions.append(.constValue(result: ifaceSlotExpr, value: .intLiteral(ifaceSlot)))
 
         for getterSlot in getterSlots {
-            let implGetter: SymbolID? = if let propertySymbol = getterSlot.propertySymbol {
-                kirFindOverridePropertyGetter(
-                    for: propertySymbol,
+            let implGetter: SymbolID?
+            if let propertySymbol = getterSlot.propertySymbol {
+                let interfaceGetter = sema.symbols.extensionPropertyGetterAccessor(for: propertySymbol)
+                    ?? SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: propertySymbol)
+                implGetter = kirEnumEntryDispatchHelper(
+                    for: interfaceGetter,
                     in: nominalSymbol,
-                    sema: sema
+                    sema: sema,
+                    interner: interner
+                ) ?? kirFindOverridePropertyGetter(
+                    for: propertySymbol, in: nominalSymbol, sema: sema
                 )
             } else {
-                kirFindOverridePropertyGetter(
+                implGetter = kirFindOverridePropertyGetter(
                     named: getterSlot.propertyName,
                     in: nominalSymbol,
                     sema: sema
@@ -532,7 +557,7 @@ func appendObjectItablePropertyGetterRegistrations<C: RangeReplaceableCollection
                 continue
             }
 
-            synthesizeEnumBaseOrdinalGetterIfNeeded(
+            synthesizeEnumBasePropertyGetterIfNeeded(
                 implGetter,
                 sema: sema,
                 arena: arena,
@@ -556,6 +581,7 @@ func appendObjectItablePropertyGetterRegistrations<C: RangeReplaceableCollection
                     ?? sema.symbols.functionSignature(for: implGetter)?.returnType
                 if let implementationReturn {
                     let implementationReceiver = implementationFn?.params.first?.type
+                        ?? sema.symbols.functionSignature(for: implGetter)?.receiverType
                         ?? sema.types.make(.classType(ClassType(
                             classSymbol: nominalSymbol, args: [], nullability: .nonNull
                         )))
@@ -593,10 +619,12 @@ func appendObjectItablePropertyGetterRegistrations<C: RangeReplaceableCollection
     }
 }
 
-/// Enum classes have a compiler-provided `ordinal` property, not a source
-/// accessor with a KIR body. Materialize its getter before its symbol is used
-/// in the interface table.
-private func synthesizeEnumBaseOrdinalGetterIfNeeded(
+/// Enum classes have compiler-provided `name`/`ordinal` properties without a
+/// source accessor with a KIR body. Materialize the getter before its symbol
+/// is used in the interface table: `ordinal` unboxes the entry value, while
+/// `name` routes through the enum's `$enumOrdinalToName$` helper — the same
+/// helper `EnumNameAccessLoweringPass` rewrites direct `name` reads to.
+private func synthesizeEnumBasePropertyGetterIfNeeded(
     _ getterSymbol: SymbolID,
     sema: SemaModule,
     arena: KIRArena,
@@ -607,13 +635,29 @@ private func synthesizeEnumBaseOrdinalGetterIfNeeded(
           decoded.kind == .getter,
           let property = sema.symbols.symbol(decoded.property),
           property.kind == .property,
-          property.name == interner.intern("ordinal"),
           let ownerSymbol = sema.symbols.parentSymbol(for: decoded.property),
-          sema.symbols.symbol(ownerSymbol)?.kind == .enumClass,
+          let ownerSym = sema.symbols.symbol(ownerSymbol),
+          ownerSym.kind == .enumClass,
           property.flags.contains(.synthetic),
-          let propertyType = sema.symbols.propertyType(for: decoded.property),
-          propertyType == sema.types.intType
+          let propertyType = sema.symbols.propertyType(for: decoded.property)
     else {
+        return
+    }
+
+    let isOrdinal = property.name == interner.intern("ordinal")
+        && propertyType == sema.types.intType
+    // Source-backed enums synthesize `$enumOrdinalToName$` in
+    // DataEnumSealedSynthesisPass; call it by bare name so this getter is
+    // valid even when the helper's Sema symbol does not exist yet —
+    // codegen resolves unnamed calls by name + arity once the helper is
+    // synthesized (same contract as `emitEnumOrdinalBoxCall`). Imported
+    // .kklib enums carry the helper in their artifact and resolve by
+    // symbol. Header-only synthetic enums have neither, so their accessor
+    // stays body-less as before.
+    let isName = property.name == interner.intern("name")
+        && propertyType == sema.types.stringType
+        && enumBoxingHasOrdinalNameHelper(ownerSym, symbols: sema.symbols, interner: interner)
+    guard isOrdinal || isName else {
         return
     }
 
@@ -622,8 +666,30 @@ private func synthesizeEnumBaseOrdinalGetterIfNeeded(
     )))
     let receiverSymbol = SyntheticSymbolScheme.receiverParameterSymbol(for: decoded.property)
     let receiver = arena.appendExpr(.symbolRef(receiverSymbol), type: ownerType)
-    let ordinal = arena.appendTemporary(type: propertyType)
-    let ordinalCallee = interner.intern("kk_unbox_int")
+    let result = arena.appendTemporary(type: propertyType)
+    let nameHelperCallee = NameMangler.enumOrdinalToNameHelperName(for: ownerSym, interner: interner)
+    let nameHelperSymbol = isName
+        ? sema.symbols.lookupAll(fqName: ownerSym.fqName + [nameHelperCallee]).first { id in
+            sema.symbols.symbol(id).map { $0.kind == .function } ?? false
+        }
+        : nil
+    let valueCall: KIRInstruction = if isOrdinal {
+        .call(
+            callee: interner.intern("kk_unbox_int"),
+            arguments: [receiver],
+            result: result,
+            canThrow: false
+        )
+    } else {
+        .call(
+            symbol: nameHelperSymbol,
+            callee: nameHelperCallee,
+            arguments: [receiver],
+            result: result,
+            canThrow: false
+        )
+    }
+
     let function = KIRFunction(
         symbol: getterSymbol,
         name: interner.intern("get"),
@@ -632,8 +698,8 @@ private func synthesizeEnumBaseOrdinalGetterIfNeeded(
         body: [
             .beginBlock,
             .constValue(result: receiver, value: .symbolRef(receiverSymbol)),
-            .call(callee: ordinalCallee, arguments: [receiver], result: ordinal, canThrow: false),
-            .returnValue(ordinal),
+            valueCall,
+            .returnValue(result),
             .endBlock,
         ],
         isSuspend: false,
@@ -688,10 +754,15 @@ func appendObjectItablePropertySetterRegistrations<C: RangeReplaceableCollection
         instructions.append(.constValue(result: ifaceSlotExpr, value: .intLiteral(ifaceSlot)))
 
         for setterSlot in setterSlots {
-            guard let implSetter = kirFindOverridePropertySetter(
-                for: setterSlot.propertySymbol,
+            let interfaceSetter = sema.symbols.extensionPropertySetterAccessor(for: setterSlot.propertySymbol)
+                ?? SyntheticSymbolScheme.propertySetterAccessorSymbol(for: setterSlot.propertySymbol)
+            guard let implSetter = kirEnumEntryDispatchHelper(
+                for: interfaceSetter,
                 in: nominalSymbol,
-                sema: sema
+                sema: sema,
+                interner: interner
+            ) ?? kirFindOverridePropertySetter(
+                for: setterSlot.propertySymbol, in: nominalSymbol, sema: sema
             ) else {
                 continue
             }
@@ -711,6 +782,7 @@ func appendObjectItablePropertySetterRegistrations<C: RangeReplaceableCollection
                     sema.symbols.parentSymbol(for: $0)
                 }
                 let implementationReceiver = implementationFn?.params.first?.type
+                    ?? sema.symbols.functionSignature(for: implSetter)?.receiverType
                     ?? implementationOwner.flatMap { owner in
                         sema.symbols.symbol(owner).map {
                             sema.types.make(.classType(ClassType(
@@ -719,6 +791,7 @@ func appendObjectItablePropertySetterRegistrations<C: RangeReplaceableCollection
                         }
                     }
                 let implementationParameter = implementationFn?.params.last?.type
+                    ?? sema.symbols.functionSignature(for: implSetter)?.parameterTypes.last
                     ?? implementationProperty.flatMap { sema.symbols.propertyType(for: $0) }
                 if let implementationReceiver, let implementationParameter {
                     let implementationSignature = sema.symbols.functionSignature(for: implSetter)

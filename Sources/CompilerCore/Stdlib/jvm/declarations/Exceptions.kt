@@ -20,11 +20,11 @@ open class Throwable {
 
 open class Error: Throwable { constructor(): super(); constructor(message: String?): super(message); constructor(message: String?, cause: Throwable?): super(message, cause); constructor(cause: Throwable?): super(cause) }
 open class NegativeArraySizeException: RuntimeException { constructor(): super(); constructor(message: String?): super(message) }
-open class UnsupportedOperationException: RuntimeException { constructor(): super(); constructor(message: String?): super(message) }
+open class UnsupportedOperationException: RuntimeException { constructor(): super(); constructor(message: String?): super(message); constructor(message: String?, cause: Throwable?): super(message, cause); constructor(cause: Throwable?): super(cause) }
 open class Exception: Throwable { constructor(): super(); constructor(message: String?): super(message); constructor(message: String?, cause: Throwable?): super(message, cause); constructor(cause: Throwable?): super(cause) }
 open class RuntimeException: Exception { constructor(): super(); constructor(message: String?): super(message); constructor(message: String?, cause: Throwable?): super(message, cause); constructor(cause: Throwable?): super(cause) }
-open class IllegalArgumentException: RuntimeException { constructor(): super(); constructor(message: String?): super(message) }
-open class IllegalStateException: RuntimeException { constructor(): super(); constructor(message: String?): super(message) }
+open class IllegalArgumentException: RuntimeException { constructor(): super(); constructor(message: String?): super(message); constructor(message: String?, cause: Throwable?): super(message, cause); constructor(cause: Throwable?): super(cause) }
+open class IllegalStateException: RuntimeException { constructor(): super(); constructor(message: String?): super(message); constructor(message: String?, cause: Throwable?): super(message, cause); constructor(cause: Throwable?): super(cause) }
 open class IndexOutOfBoundsException: RuntimeException { constructor(): super(); constructor(message: String?): super(message) }
 open class ArrayIndexOutOfBoundsException: IndexOutOfBoundsException { constructor(): super(); constructor(message: String?): super(message) }
 open class ArithmeticException: RuntimeException { constructor(): super(); constructor(message: String?): super(message) }

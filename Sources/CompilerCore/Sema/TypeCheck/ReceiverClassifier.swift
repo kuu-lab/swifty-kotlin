@@ -266,6 +266,23 @@ struct ReceiverClassifier {
         }
     }
 
+    /// KUU-3202: a type parameter bounded by `kotlin.sequences.Sequence` erases
+    /// to a real sequence object at runtime, so its unresolved member calls
+    /// must reach the `kk_sequence_*` runtime family. `isSequenceLikeType`
+    /// stays an exact-receiver predicate so other fast paths do not gain new
+    /// receivers; this bound-aware variant resolves type-parameter upper
+    /// bounds (and chained type parameters) through `classTypes`.
+    func isSequenceBoundTypeParameterType(_ type: TypeID) -> Bool {
+        guard case .typeParam = sema.types.kind(of: sema.types.makeNonNullable(type)) else {
+            return false
+        }
+        return classTypes(of: type).contains { _, symbol in
+            matchesKnownSymbol(symbol) { knownNames, symbol in
+                knownNames.isSequenceSymbol(symbol)
+            }
+        }
+    }
+
     func isCollectionLikeType(_ type: TypeID) -> Bool {
         classTypes(of: type).contains { _, symbol in
             matchesKnownSymbol(symbol) { knownNames, symbol in

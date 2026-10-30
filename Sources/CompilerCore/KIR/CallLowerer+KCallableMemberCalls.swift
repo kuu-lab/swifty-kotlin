@@ -525,4 +525,100 @@ extension CallLowerer {
         instructions.append(.copy(from: rawResult, to: typedResult))
         return typedResult
     }
+
+    /// `KPropertyN.getDelegate`: delegated-property stubs keep their delegate
+    /// in `RuntimeKPropertyStub.delegateRaw` (set beside each getValue/
+    /// setValue call), so the runtime helper answers it directly; every other
+    /// receiver (`::prop` wrappers) dispatches through the registered itable
+    /// method — the same dual behavior `__kk_kproperty0_get` uses for `get`.
+    func tryLowerKPropertyGetDelegateInvocation(
+        _ exprID: ExprID,
+        receiverExpr: ExprID,
+        calleeName: InternedString,
+        args: [CallArgument],
+        ast: ASTModule,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        propertyConstantInitializers: [SymbolID: KIRExprKind],
+        instructions: inout [KIRInstruction]
+    ) -> KIRExprID? {
+        guard interner.resolve(calleeName) == "getDelegate",
+              args.count <= 2,
+              args.allSatisfy({ !$0.isSpread })
+        else { return nil }
+        let receiverType = sema.types.makeNonNullable(
+            sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
+        )
+        guard let (_, receiverSymbol) = resolveClassTypeSymbol(receiverType, sema: sema),
+              ["KProperty0", "KMutableProperty0", "KProperty1", "KMutableProperty1",
+               "KProperty2", "KMutableProperty2"].contains(interner.resolve(receiverSymbol.name)),
+              let getDelegateSymbol = sema.bindings.callBindings[exprID]?.chosenCallee,
+              let interfaceSymbol = sema.symbols.parentSymbol(for: getDelegateSymbol),
+              let methodSlot = sema.symbols.nominalLayout(for: interfaceSymbol)?.vtableSlots[getDelegateSymbol]
+        else {
+            return nil
+        }
+
+        let receiver = driver.exprLowerer.lowerExpr(
+            receiverExpr,
+            ast: ast,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            propertyConstantInitializers: propertyConstantInitializers,
+            instructions: &instructions
+        )
+        let interfaceTypeID = RuntimeTypeCheckToken.stableNominalTypeID(
+            symbol: interfaceSymbol,
+            sema: sema,
+            interner: interner
+        )
+        let interfaceTypeIDExpr = arena.appendExpr(.intLiteral(interfaceTypeID), type: sema.types.intType)
+        instructions.append(.constValue(result: interfaceTypeIDExpr, value: .intLiteral(interfaceTypeID)))
+        let methodSlotExpr = arena.appendExpr(.intLiteral(Int64(methodSlot)), type: sema.types.intType)
+        instructions.append(.constValue(result: methodSlotExpr, value: .intLiteral(Int64(methodSlot))))
+        // KProperty1/2 take receiver arguments; the erased handles are boxed
+        // to Any so the itable impl sees its declared erased-`T` convention.
+        var forwardedArgs: [KIRExprID] = []
+        for arg in args {
+            let lowered = driver.exprLowerer.lowerExpr(
+                arg.expr,
+                ast: ast,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                propertyConstantInitializers: propertyConstantInitializers,
+                instructions: &instructions
+            )
+            forwardedArgs.append(boxValueForAnySlot(
+                lowered,
+                sourceType: sema.bindings.exprTypes[arg.expr] ?? sema.types.anyType,
+                types: sema.types,
+                symbols: sema.symbols,
+                interner: interner,
+                arena: arena,
+                requireNonNull: false,
+                sema: sema,
+                into: &instructions
+            ))
+        }
+        while forwardedArgs.count < 2 {
+            let placeholder = arena.appendExpr(.intLiteral(0), type: sema.types.intType)
+            instructions.append(.constValue(result: placeholder, value: .intLiteral(0)))
+            forwardedArgs.append(placeholder)
+        }
+        let arityExpr = arena.appendExpr(.intLiteral(Int64(args.count)), type: sema.types.intType)
+        instructions.append(.constValue(result: arityExpr, value: .intLiteral(Int64(args.count))))
+        let rawResult = arena.appendTemporary(type: sema.types.anyType)
+        instructions.append(.call(
+            callee: interner.intern("__kk_kproperty_get_delegate"),
+            arguments: [receiver, interfaceTypeIDExpr, methodSlotExpr, forwardedArgs[0], forwardedArgs[1], arityExpr],
+            result: rawResult,
+            canThrow: true
+        ))
+        let typedResult = arena.appendTemporary(type: sema.bindings.exprTypes[exprID] ?? sema.types.anyType)
+        instructions.append(.copy(from: rawResult, to: typedResult))
+        return typedResult
+    }
 }

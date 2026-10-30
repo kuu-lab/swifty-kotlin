@@ -240,6 +240,18 @@ struct ConstantCollector {
                 ast: ast,
                 interner: interner
             )
+        case let .indexedAccess(receiver, indices, _):
+            // `s[i]` is the String.get operator; Sema gates it to the builtin
+            // kotlin.text.get through canFoldMemberCall just like `.get(i)`.
+            guard let interner, canFoldMemberCall?(exprID) != false, indices.count == 1,
+                  case let .stringLiteral(value) = literalConstantExpr(receiver, ast: ast, interner: interner),
+                  case let .intLiteral(index) = literalConstantExpr(indices[0], ast: ast, interner: interner)
+            else {
+                return nil
+            }
+            let utf16 = Array(interner.resolve(value).utf16)
+            guard index >= 0, index < Int64(utf16.count) else { return nil }
+            return .charLiteral(UInt32(utf16[Int(index)]))
         case let .stringTemplate(parts, _):
             return literalConstantStringTemplate(parts)
         default:
@@ -440,7 +452,7 @@ struct ConstantCollector {
            let argument = literalConstantExpr(args[0].expr, ast: ast, interner: interner)
         {
             if name == "compareTo" {
-                return literalConstantCompareTo(receiverConst, argument)
+                return literalConstantCompareTo(receiverConst, argument, interner: interner)
             }
             if case let .boolLiteral(lhs) = receiverConst, case let .boolLiteral(rhs) = argument {
                 switch name {
@@ -524,6 +536,7 @@ struct ConstantCollector {
             switch receiverConst {
             case let .intLiteral(value): return .floatLiteral(Double(Float(value)))
             case let .longLiteral(value): return .floatLiteral(Double(Float(value)))
+            case let .charLiteral(value): return .floatLiteral(Double(Float(value)))
             case let .floatLiteral(value): return .floatLiteral(Double(Float(value)))
             case let .doubleLiteral(value): return .floatLiteral(Double(Float(value)))
             default: return nil
@@ -532,6 +545,7 @@ struct ConstantCollector {
             switch receiverConst {
             case let .intLiteral(value): return .doubleLiteral(Double(value))
             case let .longLiteral(value): return .doubleLiteral(Double(value))
+            case let .charLiteral(value): return .doubleLiteral(Double(value))
             case let .floatLiteral(value): return .doubleLiteral(Double(Float(value)))
             case let .doubleLiteral(value): return .doubleLiteral(value)
             default: return nil
@@ -544,12 +558,16 @@ struct ConstantCollector {
         }
     }
 
-    private func literalConstantCompareTo(_ lhs: KIRExprKind, _ rhs: KIRExprKind) -> KIRExprKind? {
+    private func literalConstantCompareTo(_ lhs: KIRExprKind, _ rhs: KIRExprKind, interner: StringInterner) -> KIRExprKind? {
         let result: Int64? = switch (lhs, rhs) {
         case let (.boolLiteral(left), .boolLiteral(right)):
             compare(left ? 1 : 0, right ? 1 : 0)
         case let (.charLiteral(left), .charLiteral(right)):
             compare(Int64(left), Int64(right))
+        case let (.stringLiteral(left), .stringLiteral(right)):
+            // Kotlin String.compareTo is JVM String.compareTo: lexicographic
+            // on UTF-16 code units, returning the unit/length difference.
+            compareUTF16Strings(interner.resolve(left), interner.resolve(right))
         case let (.intLiteral(left), .intLiteral(right)), let (.intLiteral(left), .longLiteral(right)),
              let (.longLiteral(left), .intLiteral(right)), let (.longLiteral(left), .longLiteral(right)):
             compare(left, right)
@@ -605,6 +623,19 @@ struct ConstantCollector {
     private func compare<T: Comparable>(_ lhs: T, _ rhs: T) -> Int64 {
         if lhs == rhs { return 0 }
         return lhs < rhs ? -1 : 1
+    }
+
+    /// JVM `String.compareTo` ordering: lexicographic over UTF-16 code units;
+    /// the result is the first differing unit's difference or the length
+    /// difference, not a normalized -1/0/1.
+    private func compareUTF16Strings(_ lhs: String, _ rhs: String) -> Int64 {
+        let lhsUnits = Array(lhs.utf16)
+        let rhsUnits = Array(rhs.utf16)
+        let sharedCount = min(lhsUnits.count, rhsUnits.count)
+        for index in 0 ..< sharedCount where lhsUnits[index] != rhsUnits[index] {
+            return Int64(lhsUnits[index]) - Int64(rhsUnits[index])
+        }
+        return Int64(lhsUnits.count - rhsUnits.count)
     }
 
     private func compareFloatingPoint<T: BinaryFloatingPoint>(_ lhs: T, _ rhs: T) -> Int64 {
@@ -731,7 +762,7 @@ struct ConstantCollector {
             return integerFloorDiv(left, right, width: 32).map { .intLiteral($0) }
         case let (.longLiteral(left), .longLiteral(right)):
             return integerFloorDiv(left, right).map { .longLiteral($0) }
-        case let (.longLiteral(left), .intLiteral(right)):
+        case let (.longLiteral(left), .intLiteral(right)), let (.intLiteral(left), .longLiteral(right)):
             return integerFloorDiv(left, right).map { .longLiteral($0) }
         default:
             return nil
@@ -742,14 +773,21 @@ struct ConstantCollector {
         switch (lhs, rhs) {
         case let (.intLiteral(left), .intLiteral(right)):
             return integerFloorMod(left, right, width: 32).map { .intLiteral($0) }
-        case let (.longLiteral(left), .longLiteral(right)):
+        case let (.longLiteral(left), .longLiteral(right)), let (.intLiteral(left), .longLiteral(right)):
             return integerFloorMod(left, right).map { .longLiteral($0) }
+        // `Long.mod(Int)` returns Int: the result is bounded by the Int divisor.
         case let (.longLiteral(left), .intLiteral(right)):
-            return integerFloorMod(left, right).map { .longLiteral($0) }
+            return integerFloorMod(left, right).map { .intLiteral($0) }
         case let (.floatLiteral(left), .floatLiteral(right)):
             return floatingFloorMod(Float(left), Float(right)).map { .floatLiteral(Double($0)) }
         case let (.doubleLiteral(left), .doubleLiteral(right)):
             return floatingFloorMod(left, right).map { .doubleLiteral($0) }
+        // `Float.mod(Double)` / `Double.mod(Float)` widen to Double like the
+        // stdlib overloads do.
+        case let (.floatLiteral(left), .doubleLiteral(right)):
+            return floatingFloorMod(Double(Float(left)), right).map { .doubleLiteral($0) }
+        case let (.doubleLiteral(left), .floatLiteral(right)):
+            return floatingFloorMod(left, Double(Float(right))).map { .doubleLiteral($0) }
         default:
             return nil
         }
@@ -1012,11 +1050,13 @@ struct ConstantCollector {
         if value == .infinity { return "Infinity" }
         if value == -.infinity { return "-Infinity" }
         if value == 0.0 && value.sign == .minus { return "-0.0" }
-        // Swift's Ryu emits 5e-324 for the minimum subnormal; Java emits
-        // 4.9E-324. Both round-trip to the same bits; match Java's text.
-        if value == Double.leastNonzeroMagnitude { return "4.9E-324" }
-        if value == -Double.leastNonzeroMagnitude { return "-4.9E-324" }
         let magnitude = abs(value)
+        let subnormalUnits = magnitude / Double.leastNonzeroMagnitude
+        if magnitude != 0, subnormalUnits <= 20 {
+            return javaSmallSubnormalConcatText(
+                units: subnormalUnits * 4.9406564584124654, unitExponent: -324, isNegative: value < 0
+            )
+        }
         return finishFloatingPointConcatText(
             rendered: String(describing: value),
             useScientific: magnitude != 0 && (magnitude >= 1e7 || magnitude < 1e-3)
@@ -1028,13 +1068,27 @@ struct ConstantCollector {
         if value == .infinity { return "Infinity" }
         if value == -.infinity { return "-Infinity" }
         if value == 0.0 && value.sign == .minus { return "-0.0" }
-        if value == Float.leastNonzeroMagnitude { return "1.4E-45" }
-        if value == -Float.leastNonzeroMagnitude { return "-1.4E-45" }
         let magnitude = abs(value)
+        let subnormalUnits = magnitude / Float.leastNonzeroMagnitude
+        if magnitude != 0, subnormalUnits <= 71 {
+            return javaSmallSubnormalConcatText(
+                units: Double(subnormalUnits) * 1.4012984643248171, unitExponent: -45, isNegative: value < 0
+            )
+        }
         return finishFloatingPointConcatText(
             rendered: String(describing: value),
             useScientific: magnitude != 0 && (magnitude >= 1e7 || magnitude < 1e-3)
         )
+    }
+
+    /// Mirrors `runtimeJavaSmallSubnormalText`: JDK 19+ prints subnormals
+    /// below 1e-322 (Float: 1e-43) with the closest two-digit decimal.
+    private func javaSmallSubnormalConcatText(units: Double, unitExponent: Int, isNegative: Bool) -> String {
+        let tenths = (units * 10).rounded()
+        let (digits, exponent) = tenths < 100
+            ? (Int(tenths), unitExponent)
+            : (Int(units.rounded()), unitExponent + 1)
+        return "\(isNegative ? "-" : "")\(digits / 10).\(digits % 10)E\(exponent)"
     }
 
     private func finishFloatingPointConcatText(rendered: String, useScientific: Bool) -> String {

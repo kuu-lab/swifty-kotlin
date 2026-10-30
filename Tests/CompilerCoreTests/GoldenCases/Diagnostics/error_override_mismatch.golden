@@ -17,6 +17,19 @@
     {
       "file": "error_override_mismatch.kt",
       "range": {
+        "start": { "line": 13, "character": 4 },
+        "end": { "line": 13, "character": 39 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-OVERRIDE-TYPE",
+      "source": "kswiftk",
+      "message": "Type of 'prop' doesn't match the type of the overridden property 'Class#0' defined in 'Base' (found 'String').",
+      "codeActions": []
+    },
+    {
+      "file": "error_override_mismatch.kt",
+      "range": {
         "start": { "line": 16, "character": 4 },
         "end": { "line": 16, "character": 59 }
       },
@@ -38,6 +51,19 @@
       "code": "KSWIFTK-SEMA-ABSTRACT",
       "source": "kswiftk",
       "message": "Class 'BadImpl' must override abstract member 'interfaceMethod' or be declared abstract.",
+      "codeActions": []
+    },
+    {
+      "file": "error_override_mismatch.kt",
+      "range": {
+        "start": { "line": 47, "character": 4 },
+        "end": { "line": 47, "character": 40 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-OVERRIDE-TYPE",
+      "source": "kswiftk",
+      "message": "Type of 'count' doesn't match the type of the overridden property 'Class#0' defined in 'TypeBase' (found 'String').",
       "codeActions": []
     }
   ]

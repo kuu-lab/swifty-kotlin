@@ -101,30 +101,13 @@ internal const val HASH_SET_NAME = "kotlin.collections.HashSet"
 internal const val LINKED_HASH_MAP_NAME = "kotlin.collections.LinkedHashMap"
 internal const val HASH_MAP_NAME = "kotlin.collections.HashMap"
 
-internal class PrimitiveArrayDescriptor internal constructor(
-    primitive: SerialDescriptor
-) : ListLikeDescriptor(primitive) {
-    override val serialName: String = "${primitive.serialName}Array"
-}
-
-internal class ArrayClassDesc(elementDesc: SerialDescriptor) : ListLikeDescriptor(elementDesc) {
-    override val serialName: String get() = ARRAY_NAME
-}
-
 internal class ArrayListClassDesc(elementDesc: SerialDescriptor) : ListLikeDescriptor(elementDesc) {
     override val serialName: String get() = ARRAY_LIST_NAME
-}
-
-internal class LinkedHashSetClassDesc(elementDesc: SerialDescriptor) : ListLikeDescriptor(elementDesc) {
-    override val serialName: String get() = LINKED_HASH_SET_NAME
 }
 
 internal class HashSetClassDesc(elementDesc: SerialDescriptor) : ListLikeDescriptor(elementDesc) {
     override val serialName: String get() = HASH_SET_NAME
 }
-
-internal class LinkedHashMapClassDesc(keyDesc: SerialDescriptor, valueDesc: SerialDescriptor) :
-    MapLikeDescriptor(LINKED_HASH_MAP_NAME, keyDesc, valueDesc)
 
 internal class HashMapClassDesc(keyDesc: SerialDescriptor, valueDesc: SerialDescriptor) :
     MapLikeDescriptor(HASH_MAP_NAME, keyDesc, valueDesc)

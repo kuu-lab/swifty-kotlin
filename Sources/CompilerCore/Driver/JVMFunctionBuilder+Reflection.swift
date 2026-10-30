@@ -204,6 +204,21 @@ extension JVMFunctionBuilder {
             return JVMIntrinsicResult(value: try jdkCall("kotlin/reflect/KCallable", "callBy", [mapType], object, receiver: convert(receiver, to: .reference("kotlin/reflect/KCallable", nullable: false)), arguments: [arguments], interface: true, resolved: resultType))
         }
         let propertyOwner = ownerName.hasPrefix("kotlin/reflect/KMutableProperty") ? ownerName : (ownerName.hasPrefix("kotlin/reflect/KProperty") ? ownerName : nil)
+        if let propertyOwner, name == "getDelegate", args.isEmpty, arena.isExplicitCall(id),
+           ["kotlin/reflect/KProperty0", "kotlin/reflect/KMutableProperty0"].contains(propertyOwner) {
+            let type = JVMValueType.reference("kotlin/reflect/KProperty0", nullable: false)
+            return JVMIntrinsicResult(value: try jdkCall("kotlin/reflect/KProperty0", name, [], object, receiver: convert(receiver, to: type), interface: true, resolved: program.expressionType(id)))
+        }
+        if let propertyOwner, name == "invoke", args.isEmpty, arena.isExplicitCall(id),
+           ["kotlin/reflect/KProperty0", "kotlin/reflect/KMutableProperty0", "kotlin/reflect/KProperty0$Getter"].contains(propertyOwner) {
+            let type = JVMValueType.reference("kotlin/jvm/functions/Function0", nullable: false)
+            return JVMIntrinsicResult(value: try jdkCall("kotlin/jvm/functions/Function0", name, [], object, receiver: convert(receiver, to: type), interface: true, resolved: program.expressionType(id)))
+        }
+        if propertyOwner == "kotlin/reflect/KMutableProperty0$Setter", name == "invoke", args.count == 1, arena.isExplicitCall(id) {
+            let type = JVMValueType.reference("kotlin/jvm/functions/Function1", nullable: false)
+            let result = JVMValueType.reference("kotlin/Unit", nullable: false)
+            return JVMIntrinsicResult(value: try jdkCall("kotlin/jvm/functions/Function1", name, [object], object, receiver: convert(receiver, to: type), arguments: [requireValue(args[0].expr)], interface: true, resolved: result))
+        }
         if let propertyOwner, ["get", "set"].contains(name), arena.isExplicitCall(id) {
             let types = Array(repeating: object, count: args.count)
             let values = try args.map { try requireValue($0.expr) }
@@ -213,6 +228,26 @@ extension JVMFunctionBuilder {
             return JVMIntrinsicResult(value: try jdkCall(ownerName, name, [object], .boolean, receiver: receiver, arguments: [requireValue(args[0].expr)], interface: isClass))
         }
         if !arena.isExplicitCall(id), args.isEmpty {
+            if let propertyOwner, name == "getter", ["kotlin/reflect/KProperty0", "kotlin/reflect/KMutableProperty0"].contains(propertyOwner) {
+                let type = JVMValueType.reference("kotlin/reflect/KProperty0", nullable: false)
+                let getter = JVMValueType.reference("kotlin/reflect/KProperty0$Getter", nullable: false)
+                return JVMIntrinsicResult(value: try jdkCall("kotlin/reflect/KProperty0", "getGetter", [], getter, receiver: convert(receiver, to: type), interface: true, resolved: program.expressionType(id)))
+            }
+            if let propertyOwner, name == "getter", ["kotlin/reflect/KProperty", "kotlin/reflect/KMutableProperty", "kotlin/reflect/KProperty1", "kotlin/reflect/KMutableProperty1"].contains(propertyOwner) {
+                let type = JVMValueType.reference("kotlin/reflect/KProperty", nullable: false)
+                let getter = JVMValueType.reference("kotlin/reflect/KProperty$Getter", nullable: false)
+                return JVMIntrinsicResult(value: try jdkCall("kotlin/reflect/KProperty", "getGetter", [], getter, receiver: convert(receiver, to: type), interface: true, resolved: program.expressionType(id)))
+            }
+            if propertyOwner == "kotlin/reflect/KMutableProperty0", name == "setter" {
+                let type = JVMValueType.reference("kotlin/reflect/KMutableProperty0", nullable: false)
+                let setter = JVMValueType.reference("kotlin/reflect/KMutableProperty0$Setter", nullable: false)
+                return JVMIntrinsicResult(value: try jdkCall("kotlin/reflect/KMutableProperty0", "getSetter", [], setter, receiver: convert(receiver, to: type), interface: true, resolved: program.expressionType(id)))
+            }
+            if let propertyOwner, name == "setter", ["kotlin/reflect/KMutableProperty", "kotlin/reflect/KMutableProperty1"].contains(propertyOwner) {
+                let type = JVMValueType.reference("kotlin/reflect/KMutableProperty", nullable: false)
+                let setter = JVMValueType.reference("kotlin/reflect/KMutableProperty$Setter", nullable: false)
+                return JVMIntrinsicResult(value: try jdkCall("kotlin/reflect/KMutableProperty", "getSetter", [], setter, receiver: convert(receiver, to: type), interface: true, resolved: program.expressionType(id)))
+            }
             let callableProperties = ["name", "parameters", "returnType", "isInline", "isOperator", "isSuspend", "isLateinit", "isConst"]
             let classProperties = ["simpleName", "qualifiedName", "members", "constructors", "nestedClasses", "objectInstance", "isFinal", "isOpen", "isAbstract", "isSealed", "isData", "isInner", "isCompanion", "isFun", "isValue"]
             var declaring: String?

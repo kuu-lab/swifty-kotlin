@@ -7,7 +7,6 @@ extension CallTypeChecker {
         range: SourceRange,
         ctx: TypeInferenceContext,
         locals: LocalBindings,
-        expectedType: TypeID?,
         explicitTypeArgs: [TypeID],
         calleeName: InternedString?,
         calleePath: [InternedString]?,
@@ -161,6 +160,101 @@ extension CallTypeChecker {
                             .filter { $0.receiverType == extensionReceiverType }
                             .map(\.symbol)
                         callImplicitReceiverType = extensionReceiverType
+                    }
+                }
+            }
+            // Kotlin's implicit receiver tower resolves member scopes
+            // innermost-first: a nearer receiver's member shadows the
+            // same-named members the scope chain surfaced from a farther
+            // receiver — the enclosing class's member scope is itself a
+            // tower level, not a lexical tier ahead of it. When the scope
+            // result only offers members of farther tower entries, probe
+            // the nearer entries and let the closest level supplying an
+            // applicable `calleeName` win.
+            if locals[calleeName] == nil,
+               ctx.implicitReceiverType != nil,
+               !candidates.isEmpty,
+               candidates == implicitReceiverScopeCandidates
+            {
+                let towerEntries = ctx.implicitReceiverMemberLookupEntries()
+                func towerLevelIndex(of candidate: SymbolID) -> Int? {
+                    guard let owner = sema.symbols.memberExtensionOwnerSymbol(for: candidate)
+                        ?? sema.symbols.parentSymbol(for: candidate)
+                    else { return nil }
+                    return towerEntries.firstIndex { entry in
+                        driver.helpers.allNominalSymbols(
+                            of: entry.type,
+                            types: sema.types,
+                            symbols: sema.symbols,
+                            interner: interner
+                        ).contains { nominal in
+                            nominal == owner
+                                || sema.types.isNominalSubtypeSymbol(nominal, of: owner)
+                        }
+                    }
+                }
+                let scopeOwnerLevels = candidates.compactMap(towerLevelIndex)
+                if scopeOwnerLevels.count == candidates.count,
+                   let nearestScopeLevel = scopeOwnerLevels.min()
+                {
+                    var membersAtLevel: [[SymbolID]] = []
+                    for entry in towerEntries {
+                        var members = driver.helpers.collectMemberFunctionCandidates(
+                            named: calleeName,
+                            receiverType: entry.type,
+                            sema: sema,
+                            interner: interner
+                        )
+                        if members.isEmpty {
+                            members = collectWorkerExecuteMemberCandidates(
+                                named: calleeName,
+                                receiverType: entry.type,
+                                sema: sema,
+                                interner: interner
+                            )
+                        }
+                        membersAtLevel.append(members.filter {
+                            !scopeSelection.excludedMembers.contains($0)
+                                && (sema.symbols.isSourceBackedSymbol($0)
+                                    || sema.symbols.symbol($0)?.flags.contains(.synthetic) == false)
+                        })
+                    }
+                    for levelIndex in 0..<nearestScopeLevel {
+                        var levelCandidates: [SymbolID] = membersAtLevel[levelIndex]
+                            .filter { sema.symbols.memberExtensionOwnerSymbol(for: $0) == nil }
+                        var levelReceiverMarks: [SymbolID: SymbolID] = [:]
+                        for ownerMembers in membersAtLevel {
+                            for candidate in ownerMembers {
+                                guard sema.symbols.memberExtensionOwnerSymbol(for: candidate) != nil,
+                                      let declaredReceiver = sema.symbols.functionSignature(
+                                          for: candidate
+                                      )?.receiverType,
+                                      let pickedIndex = towerEntries.firstIndex(where: { entry in
+                                          implicitMemberExtensionReceiverMatches(
+                                              entry.type,
+                                              declared: declaredReceiver,
+                                              sema: sema
+                                          )
+                                      }),
+                                      pickedIndex == levelIndex
+                                else { continue }
+                                levelCandidates.append(candidate)
+                                if let pickedSymbol = towerEntries[pickedIndex].symbol {
+                                    levelReceiverMarks[candidate] = pickedSymbol
+                                }
+                            }
+                        }
+                        let visibleLevel = ctx.filterByVisibility(levelCandidates).visible
+                        let applicableLevel = contextApplicableCallCandidates(
+                            visibleLevel, ctx: ctx
+                        )
+                        guard !applicableLevel.isEmpty else { continue }
+                        candidates = applicableLevel
+                        callImplicitReceiverType = towerEntries[levelIndex].type
+                        for (candidate, symbol) in levelReceiverMarks {
+                            memberExtensionReceiverMarks[candidate] = symbol
+                        }
+                        break
                     }
                 }
             }

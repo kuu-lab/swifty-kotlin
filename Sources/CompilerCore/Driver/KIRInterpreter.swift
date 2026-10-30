@@ -53,8 +53,7 @@ private enum IValue: Equatable {
     case int(Int64)
     case string(String)
     case unit
-
-    static let nullSentinel: Int64 = .min
+    case null
 }
 
 private struct InterpreterBail: Error {
@@ -68,11 +67,15 @@ private final class KIRInterpreterEngine {
     private static let supportedBuiltins: Set<String> = [
         "kk_unbox_int_static", "kk_unbox_bool_static", "kk_unbox_long_static",
         "kk_box_int", "kk_box_bool", "kk_box_long", "kk_box_long_nonnull",
+        "kk_box_int_static", "kk_box_bool_static", "kk_box_long_static",
+        "kk_box_long_nonnull_static", "kk_box_byte_static", "kk_box_short_static",
+        "kk_unbox_int", "kk_unbox_bool", "kk_unbox_long",
         "kk_int_narrow", "kk_uint_narrow",
         "kk_op_add", "kk_op_sub", "kk_op_mul", "kk_op_div", "kk_op_mod", "kk_op_rem",
         "kk_op_eq", "kk_op_ne", "kk_op_lt", "kk_op_le", "kk_op_gt", "kk_op_ge",
         "kk_double_equals", "kk_float_equals",
         "kk_nullable_double_equals", "kk_nullable_float_equals",
+        "kk_nullable_primitive_eq", "kk_nullable_primitive_ne",
         "kk_op_and", "kk_op_or", "kk_op_not",
         "kk_bitwise_and", "kk_bitwise_or", "kk_bitwise_xor",
         "kk_op_ishl", "kk_op_ishr",
@@ -265,6 +268,7 @@ private final class KIRInterpreterEngine {
                 case let .intLiteral(v), let .longLiteral(v): return .int(v)
                 case let .boolLiteral(b): return .int(b ? 1 : 0)
                 case let .stringLiteral(s): return .string(interner.resolve(s))
+                case .null: return .null
                 default: break
                 }
             }
@@ -286,7 +290,7 @@ private final class KIRInterpreterEngine {
             case let .jumpIfEqual(lhs, rhs, target):
                 if try read(lhs) == read(rhs) { try jump(to: target) }
             case let .jumpIfNotNull(value, target):
-                if try read(value) != .int(IValue.nullSentinel) { try jump(to: target) }
+                if try read(value) != .null { try jump(to: target) }
             case let .constValue(result, value):
                 if case let .symbolRef(symbol) = value, params[symbol] == nil, globalSymbols.contains(symbol) {
                     break // alias binding only; the global keeps its value
@@ -332,7 +336,7 @@ private final class KIRInterpreterEngine {
         case let .boolLiteral(b): return .int(b ? 1 : 0)
         case let .stringLiteral(s): return .string(interner.resolve(s))
         case .unit: return .unit
-        case .null: return .int(IValue.nullSentinel)
+        case .null: return .null
         case let .symbolRef(symbol):
             if let parameter = params[symbol] { return parameter }
             throw InterpreterBail(reason: "unresolved symbol reference")
@@ -364,7 +368,10 @@ private final class KIRInterpreterEngine {
 
         switch name {
         case "kk_unbox_int_static", "kk_unbox_bool_static", "kk_unbox_long_static",
-             "kk_box_int", "kk_box_bool", "kk_box_long", "kk_box_long_nonnull":
+             "kk_box_int", "kk_box_bool", "kk_box_long", "kk_box_long_nonnull",
+             "kk_box_int_static", "kk_box_bool_static", "kk_box_long_static",
+             "kk_box_long_nonnull_static", "kk_box_byte_static", "kk_box_short_static",
+             "kk_unbox_int", "kk_unbox_bool", "kk_unbox_long":
             guard args.count == 1 else { throw InterpreterBail(reason: "\(name): arity") }
             return args[0]
         case "kk_int_narrow": return .int(narrow32(try int(0)))
@@ -393,21 +400,50 @@ private final class KIRInterpreterEngine {
             let b = Float(bitPattern: UInt32(truncatingIfNeeded: try int(1)))
             return flag((a.isNaN && b.isNaN) || a.bitPattern == b.bitPattern)
         case "kk_nullable_double_equals":
-            let lhs = try int(0), rhs = try int(1)
-            let lhsNull = lhs == IValue.nullSentinel
-            let rhsNull = rhs == IValue.nullSentinel
+            guard args.count == 2 else { throw InterpreterBail(reason: "\(name): arity") }
+            let lhsNull = args[0] == .null, rhsNull = args[1] == .null
             if lhsNull || rhsNull { return flag(lhsNull && rhsNull) }
-            let a = Double(bitPattern: UInt64(bitPattern: lhs))
-            let b = Double(bitPattern: UInt64(bitPattern: rhs))
+            let a = Double(bitPattern: UInt64(bitPattern: try int(0)))
+            let b = Double(bitPattern: UInt64(bitPattern: try int(1)))
             return flag((a.isNaN && b.isNaN) || a.bitPattern == b.bitPattern)
         case "kk_nullable_float_equals":
-            let lhs = try int(0), rhs = try int(1)
-            let lhsNull = lhs == IValue.nullSentinel
-            let rhsNull = rhs == IValue.nullSentinel
+            guard args.count == 2 else { throw InterpreterBail(reason: "\(name): arity") }
+            let lhsNull = args[0] == .null, rhsNull = args[1] == .null
             if lhsNull || rhsNull { return flag(lhsNull && rhsNull) }
-            let a = Float(bitPattern: UInt32(truncatingIfNeeded: lhs))
-            let b = Float(bitPattern: UInt32(truncatingIfNeeded: rhs))
+            let a = Float(bitPattern: UInt32(truncatingIfNeeded: try int(0)))
+            let b = Float(bitPattern: UInt32(truncatingIfNeeded: try int(1)))
             return flag((a.isNaN && b.isNaN) || a.bitPattern == b.bitPattern)
+        case "kk_nullable_primitive_eq", "kk_nullable_primitive_ne":
+            guard args.count == 3, case let .int(peerFlag) = args[2] else {
+                throw InterpreterBail(reason: "\(name): arity")
+            }
+            // Mirrors runtimeNullablePrimitiveEqualityCheck: flag 0/1 use
+            // value equality once nullness is ruled out; flags 2-5 mark a
+            // Double/Float peer and compare IEEE-754 (boxes are identity in
+            // the interpreter, so a raw word is already the payload bits).
+            let equal: Bool
+            if peerFlag >= 2 {
+                let nullableIsNull = args[0] == .null
+                let peerIsNull = (peerFlag == 4 || peerFlag == 5) && args[1] == .null
+                if nullableIsNull || peerIsNull {
+                    equal = nullableIsNull && peerIsNull
+                } else if peerFlag == 2 || peerFlag == 4 {
+                    let a = Double(bitPattern: UInt64(bitPattern: try int(0)))
+                    let b = Double(bitPattern: UInt64(bitPattern: try int(1)))
+                    equal = a == b
+                } else {
+                    let a = Float(bitPattern: UInt32(truncatingIfNeeded: try int(0)))
+                    let b = Float(bitPattern: UInt32(truncatingIfNeeded: try int(1)))
+                    equal = a == b
+                }
+            } else {
+                let nullableIsNull = args[0] == .null
+                let peerIsNull = peerFlag != 0 && args[1] == .null
+                equal = nullableIsNull || peerIsNull
+                    ? nullableIsNull && peerIsNull
+                    : args[0] == args[1]
+            }
+            return flag(name == "kk_nullable_primitive_eq" ? equal : !equal)
         case "kk_op_lt": return flag(try int(0) < int(1))
         case "kk_op_le", "__kk_int_range_induction_le": return flag(try int(0) <= int(1))
         case "kk_op_gt": return flag(try int(0) > int(1))
@@ -434,13 +470,15 @@ private final class KIRInterpreterEngine {
             guard args.count == 2, case let .int(tag) = args[1] else {
                 throw InterpreterBail(reason: "kk_any_to_string: arity")
             }
+            if args[0] == .null { return .string("null") }
             if args[0] == .unit { return .string("kotlin.Unit") }
             if case let .string(s) = args[0], tag == 3 { return .string(s) }
+            if args[0] == .null { return .string("null") }
             guard case let .int(v) = args[0] else { throw InterpreterBail(reason: "kk_any_to_string: operand") }
             // Floating-point/ULong tags are decoded before the null check
-            // natively and need their own formatting; only Int/Boolean here.
-            guard tag == 1 || tag == 2 else { throw InterpreterBail(reason: "kk_any_to_string tag \(tag)") }
-            if v == IValue.nullSentinel { return .string("null") }
+            // natively and need their own formatting; only Int/Boolean/Long
+            // here (Long shares the Int rendering inside the `.int` domain).
+            guard tag == 1 || tag == 2 || tag == 8 else { throw InterpreterBail(reason: "kk_any_to_string tag \(tag)") }
             return .string(tag == 2 ? (v != 0 ? "true" : "false") : String(v))
         case "__kk_print_raw", "__kk_println_raw":
             guard args.count == 1, case let .string(s) = args[0] else {

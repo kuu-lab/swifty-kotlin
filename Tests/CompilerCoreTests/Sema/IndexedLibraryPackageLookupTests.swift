@@ -42,7 +42,7 @@ struct IndexedLibraryPackageLookupTests {
             #expect(names(missing).isEmpty)
         }
         #expect(claimed.isEmpty, "Package discovery must not materialize declarations")
-        provider.drainChildren(parentFQName: ["demo", "alpha"].map(interner.intern), into: symbols)
+        provider.drainChildren(parentFQName: ["demo", "alpha"].map(interner.intern))
         #expect(claimed == [1, 6])
         #expect(names(demo) == ["demo.alpha", "demo.zebra", "demo.日本語"])
         #expect(names(missing).isEmpty)

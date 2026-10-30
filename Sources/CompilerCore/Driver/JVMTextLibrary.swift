@@ -71,7 +71,7 @@ extension JVMProgramBuilder {
                         else if path.contains("text-") { owner = "kotlin/text/StringsKt" }
                         else if path.contains("arrays-") { owner = "kotlin/collections/ArraysKt" }
                         else { owner = "kotlin/collections/CollectionsKt" }
-                        if case .unsignedArray? = receiverType, !path.contains("arrays-utility-") {
+                        if case .unsignedArray? = receiverType, !path.contains("arrays-utility-"), !path.contains("unsigned-array-operations") {
                             receiverType = .reference("java/lang/Iterable", nullable: false)
                             owner = "kotlin/collections/CollectionsKt"
                         }
@@ -287,7 +287,7 @@ extension JVMFunctionBuilder {
         let ordered: (values: [JVMValue], masks: [UInt32])
         if entry.declarations.count == 1, entry.declarations[0].isVararg {
             let any = try arrayComponent(parameters[0])
-            let op = JVMTextOperation(name: method.name, receiver: "", receiverType: any, parameters: [JVMTextParameter(name: context.interner.resolve(entry.declarations[0].name), source: "T", type: any, fallback: nil, variadic: true)], sourceResult: "", result: method.result, owner: method.owner, method: nil, instance: false)
+            let op = JVMTextOperation(name: method.name, receiver: "", receiverType: any, parameters: [JVMTextParameter(name: context.interner.resolve(entry.declarations[0].name), type: any, fallback: nil, variadic: true)], sourceResult: "", result: method.result, owner: method.owner, method: nil, instance: false)
             ordered = (try textArguments(op, args: args, binding: binding, source: zero(any), id: id), [0])
         } else { ordered = try arguments(args, binding: binding, parameters: parameters, declarations: entry.declarations, id: id) }
         let values = ordered.values

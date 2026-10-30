@@ -494,6 +494,7 @@ public final class CodegenPhase: CompilerPhase {
         libraryInitBodyNamePrefixes.contains { name.hasPrefix($0) }
     }
 
+
     private func inlineReferencedExpressions(_ instruction: KIRInstruction) -> [KIRExprID] {
         switch instruction {
         case let .jumpIfEqual(lhs, rhs, _), let .returnIfEqual(lhs, rhs), let .binary(_, lhs, rhs, _):

@@ -37,6 +37,12 @@ final class RuntimeCPointerBox: @unchecked Sendable {
     }
 }
 
+private let runtimeCPointerNominalTypeID = runtimeStableNominalTypeID(fqName: "kotlinx.cinterop.CPointer")
+
+func registerRuntimeCPointer(_ pointer: RuntimeCPointerBox) -> Int {
+    registerRuntimeObject(pointer, typeID: runtimeCPointerNominalTypeID)
+}
+
 final class RuntimeCOpaquePointerBox: @unchecked Sendable {
     let address: UInt
     init(address: UInt) {
@@ -46,7 +52,7 @@ final class RuntimeCOpaquePointerBox: @unchecked Sendable {
 
 @_cdecl("kk_cpointer_new")
 public func kk_cpointer_new(_ address: Int) -> Int {
-    registerRuntimeObject(RuntimeCPointerBox(address: UInt(bitPattern: address)))
+    registerRuntimeCPointer(RuntimeCPointerBox(address: UInt(bitPattern: address)))
 }
 
 func resolveCPointerBox(from handle: Int) -> RuntimeCPointerBox? {
@@ -840,28 +846,86 @@ public func kk_stable_ref_dispose(_ pointerHandle: Int) -> Int {
 /// registers its referent as a GC root; `get()` returns null once the referent is
 /// no longer present in either domain.
 final class RuntimeWeakReferenceBox: @unchecked Sendable {
+    private enum ReferentKind {
+        case immediate
+        case heap(generation: UInt64)
+        case runtimeObject
+    }
+
     private let lock = NSLock()
     private var objectRaw: Int?
-    private let hasManagedReferent: Bool
+    private let referentKind: ReferentKind
+    private weak var runtimeObject: AnyObject?
 
     init(objectRaw: Int) {
         self.objectRaw = objectRaw
         // Primitive values may arrive here as immediate words rather than
         // registered object handles. Classify only by runtime registries; do
         // not dereference an ABI word to decide whether it is a pointer.
-        self.hasManagedReferent = runtimeWeakReferentIsManaged(objectRaw)
+        let (kind, object): (ReferentKind, AnyObject?) = runtimeStorage.withGCLock { state in
+            let key = UInt(bitPattern: objectRaw)
+            if let allocation = state.heapObjects[key] {
+                return (.heap(generation: allocation.generation), nil)
+            }
+            guard state.objectPointers.contains(key),
+                  let pointer = UnsafeMutableRawPointer(bitPattern: objectRaw)
+            else { return (.immediate, nil) }
+            let base = runtimePrimitiveBoxBasePointer(from: objectRaw) ?? pointer
+            let object = Unmanaged<AnyObject>.fromOpaque(base).retain().takeRetainedValue()
+            return (.runtimeObject, object)
+        }
+        self.referentKind = kind
+        self.runtimeObject = object
     }
 
-    func get() -> Int {
+    func get(rootSlot: Int? = nil) -> Int {
         lock.lock()
         let current = objectRaw
+        let runtimeObject = runtimeObject
         lock.unlock()
 
-        guard let current,
-              current != runtimeNullSentinelInt,
-              !hasManagedReferent || runtimeWeakReferentIsLive(current)
-        else {
+        guard let current, current != runtimeNullSentinelInt else {
+            runtimeStoreWeakResultInShadow(rootSlot, value: runtimeNullSentinelInt)
+            return runtimeNullSentinelInt
+        }
+        let live: Bool
+        switch referentKind {
+        case .immediate:
+            live = true
+            runtimeStoreWeakResultInShadow(rootSlot, value: current)
+        case .heap, .runtimeObject:
+            let threadID = ObjectIdentifier(Thread.current)
+            live = withExtendedLifetime(runtimeObject) {
+                runtimeStorage.withGCLock { state in
+                    let key = UInt(bitPattern: current)
+                    let isLive: Bool
+                    switch referentKind {
+                    case let .heap(generation):
+                        isLive = state.heapObjects[key]?.generation == generation
+                    case .runtimeObject:
+                        // Retaining the weak Swift object prevents its address
+                        // from being recycled during the registry check.
+                        isLive = runtimeObject != nil && state.objectPointers.contains(key)
+                    case .immediate:
+                        isLive = true
+                    }
+                    guard isLive else { return false }
+                    if let count = state.shadowFrames[threadID]?.count, count > 0 {
+                        if let rootSlot, rootSlot >= 0 {
+                            state.shadowFrames[threadID]?[count - 1].slots[rootSlot] = current
+                        } else {
+                            // Unframed native calls need their own root contract.
+                            // A legacy call in a frame is conservative until pop.
+                            runtimeRecordShadowHandoffLocked(current, threadID: threadID, state: &state)
+                        }
+                    }
+                    return true
+                }
+            }
+        }
+        guard live else {
             clear()
+            runtimeStoreWeakResultInShadow(rootSlot, value: runtimeNullSentinelInt)
             // The Kotlin-level `get(): T?` is a generic Any-erased slot, where a
             // reference's null representation is `runtimeNullSentinelInt` (bare
             // `0` there is otherwise read back as a boxed `Int` zero, not null;
@@ -881,46 +945,26 @@ final class RuntimeWeakReferenceBox: @unchecked Sendable {
     }
 }
 
-private func runtimeWeakReferentIsManaged(_ objectRaw: Int) -> Bool {
-    guard objectRaw != 0,
-          objectRaw != runtimeNullSentinelInt,
-          let ptr = UnsafeMutableRawPointer(bitPattern: objectRaw)
-    else {
-        return false
-    }
-    let key = UInt(bitPattern: ptr)
-    return runtimeStorage.withGCLock { state in
-        state.objectPointers.contains(key) || state.heapObjects[key] != nil
-    }
-}
-
-private func runtimeWeakReferentIsLive(_ objectRaw: Int) -> Bool {
-    guard let ptr = UnsafeMutableRawPointer(bitPattern: objectRaw) else {
-        return false
-    }
-    let key = UInt(bitPattern: ptr)
-    return runtimeStorage.withGCLock { state in
-        state.objectPointers.contains(key) || state.heapObjects[key] != nil
+private func runtimeStoreWeakResultInShadow(_ slot: Int?, value: Int) {
+    guard let slot, slot >= 0 else { return }
+    let threadID = ObjectIdentifier(Thread.current)
+    runtimeStorage.withGCLock { state in
+        if let count = state.shadowFrames[threadID]?.count, count > 0 {
+            state.shadowFrames[threadID]?[count - 1].slots[slot] = value
+        }
     }
 }
 
 private func runtimeWeakReferenceBox(from weakRefRaw: Int) -> RuntimeWeakReferenceBox? {
-    guard let ptr = UnsafeMutableRawPointer(bitPattern: weakRefRaw) else {
-        return nil
-    }
-    let key = UInt(bitPattern: ptr)
-    let isObjectPointer = runtimeStorage.withGCLock { state in
-        state.objectPointers.contains(key)
-    }
-    guard isObjectPointer else {
-        return nil
-    }
-    return tryCast(ptr, to: RuntimeWeakReferenceBox.self)
+    resolveRuntimeHandle(weakRefRaw, as: RuntimeWeakReferenceBox.self)
 }
 
 @_cdecl("kk_weak_ref_create")
 public func kk_weak_ref_create(_ objectRaw: Int) -> Int {
-    registerRuntimeObject(RuntimeWeakReferenceBox(objectRaw: objectRaw))
+    registerRuntimeObject(
+        RuntimeWeakReferenceBox(objectRaw: objectRaw),
+        typeID: runtimeStableNominalTypeID(fqName: "kotlin.native.ref.WeakReference")
+    )
 }
 
 @_cdecl("kk_weak_ref_get")
@@ -929,6 +973,17 @@ public func kk_weak_ref_get(_ weakRefRaw: Int) -> Int {
         return runtimeNullSentinelInt
     }
     return box.get()
+}
+
+/// Generated callers supply their shadow slot so a successful load and its
+/// strong root are published atomically with respect to collection.
+@_cdecl("kk_weak_ref_get_rooted")
+public func kk_weak_ref_get_rooted(_ weakRefRaw: Int, _ slot: Int) -> Int {
+    guard let box = runtimeWeakReferenceBox(from: weakRefRaw) else {
+        runtimeStoreWeakResultInShadow(slot, value: runtimeNullSentinelInt)
+        return runtimeNullSentinelInt
+    }
+    return box.get(rootSlot: slot)
 }
 
 @_cdecl("kk_weak_ref_clear")
@@ -1048,19 +1103,20 @@ private final class RuntimeFrozenRegistry: @unchecked Sendable {
             guard raw != 0 else { continue }
             let key = UInt(bitPattern: raw)
             guard visited.insert(key).inserted else { continue }
-            lock.lock()
-            frozen.insert(key)
-            lock.unlock()
             guard let ptr = UnsafeMutableRawPointer(bitPattern: raw) else { continue }
-            let isRegistered = runtimeStorage.withGCLock { state in
-                state.objectPointers.contains(UInt(bitPattern: ptr))
+            let object = runtimeStorage.withGCLock { state -> AnyObject? in
+                let isRegistered = state.objectPointers.contains(key)
+                guard raw == root || isRegistered || state.heapObjects[key] != nil else { return nil }
+                lock.lock()
+                frozen.insert(key)
+                lock.unlock()
+                guard isRegistered else { return nil }
+                // Primitive box handles are tagged; retain the base object while
+                // still holding gcLock so explicit release cannot invalidate it.
+                let basePtr = runtimePrimitiveBoxBasePointer(from: raw) ?? ptr
+                return Unmanaged<AnyObject>.fromOpaque(basePtr).retain().takeRetainedValue()
             }
-            guard isRegistered else { continue }
-            // Primitive box handles are tagged (kk_box_*); ARC reads need the
-            // base object pointer.
-            let basePtr = runtimePrimitiveBoxBasePointer(from: raw) ?? ptr
-            let anyObject = Unmanaged<AnyObject>.fromOpaque(basePtr).takeUnretainedValue()
-            if let provider = anyObject as? RuntimeChildReferenceProviding {
+            if let provider = object as? RuntimeChildReferenceProviding {
                 for child in provider.childRefs where child != 0 {
                     let childKey = UInt(bitPattern: child)
                     if !visited.contains(childKey) {
@@ -1202,7 +1258,9 @@ final class RuntimeWorkerBox: @unchecked Sendable {
             queue.async {
                 group.leave()
             }
+            let gcBlocking = runtimeGCSafepoints.beginBlockingIfEnrolled()
             group.wait()
+            if gcBlocking { runtimeGCSafepoints.endBlocking() }
         }
     }
 
@@ -1216,7 +1274,11 @@ final class RuntimeWorkerBox: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         while !terminated {
+            let gcBlocking = runtimeGCSafepoints.beginBlockingIfEnrolled()
             lock.wait()
+            lock.unlock()
+            if gcBlocking { runtimeGCSafepoints.endBlocking() }
+            lock.lock()
         }
     }
 
@@ -1253,7 +1315,9 @@ final class RuntimeWorkerBox: @unchecked Sendable {
         guard DispatchQueue.getSpecific(key: queueSpecificKey) == nil else {
             return hadPendingJobs
         }
+        let gcBlocking = runtimeGCSafepoints.beginBlockingIfEnrolled()
         queue.sync {}
+        if gcBlocking { runtimeGCSafepoints.endBlocking() }
         return hadPendingJobs
     }
 
@@ -1268,7 +1332,9 @@ final class RuntimeWorkerBox: @unchecked Sendable {
         guard timeoutMicroseconds > 0 else {
             return false
         }
+        let gcBlocking = runtimeGCSafepoints.beginBlockingIfEnrolled()
         Thread.sleep(forTimeInterval: Double(timeoutMicroseconds) / 1_000_000.0)
+        if gcBlocking { runtimeGCSafepoints.endBlocking() }
         return false
     }
 
@@ -1277,9 +1343,11 @@ final class RuntimeWorkerBox: @unchecked Sendable {
             return runtimeCurrentPlatformThreadID()
         }
         var threadID: UInt64 = 0
+        let gcBlocking = runtimeGCSafepoints.beginBlockingIfEnrolled()
         queue.sync {
             threadID = runtimeCurrentPlatformThreadID()
         }
+        if gcBlocking { runtimeGCSafepoints.endBlocking() }
         return threadID
     }
 }
@@ -1341,6 +1409,9 @@ public func kk_worker_execute(
         return 0
     }
 
+    kk_gc_shadow_push()
+    var returnedFuture = 0
+    defer { runtimePopNativeGCShadowFrame(returnedFuture, 0) }
     var producerThrown = 0
     let producedRaw = runtimeInvokeClosureThunkMaybeWrapped(
         fnPtr: producerFnPtr,
@@ -1370,7 +1441,11 @@ public func kk_worker_execute(
     // resolved raw (fnPtr, closureRaw) pair, so it carries no dependency on
     // the wrapper box surviving until the job actually executes.
     let resolvedJob = resolveFunctionValuePair(fnPtr: jobFnPtr, closureRaw: jobClosureRaw)
+    let queuedRoots = RuntimeQueuedGCRoots([resolvedJob.closureRaw, producedRaw, futureHandle])
     let submitted = worker.execute {
+        defer { queuedRoots.finish() }
+        kk_gc_shadow_push()
+        defer { runtimePopNativeGCShadowFrame(0, 0) }
         var jobThrown = 0
         let resultRaw = runtimeInvokeCollectionLambda1(
             fnPtr: resolvedJob.fnPtr,
@@ -1380,7 +1455,12 @@ public func kk_worker_execute(
         )
         _ = kk_future_complete(futureHandle, jobThrown == 0 ? resultRaw : 0)
     }
-    return submitted ? futureHandle : 0
+    if !submitted {
+        queuedRoots.finish()
+        _ = runtimeReleaseObject(futureHandle)
+    }
+    returnedFuture = submitted ? futureHandle : 0
+    return returnedFuture
 }
 
 @_cdecl("kk_worker_request_termination")
@@ -1466,33 +1546,3 @@ public func kk_cname_lookup(_ externNameRaw: Int) -> Int {
     return runtimeCNameRegistry.lookup(externName: name)
 }
 
-// Writes `size` bits from the low-order bits of `value` into raw memory starting
-// at bit position `offset` from the address `ptr`.
-//
-// Bounds contract: as with Kotlin/Native's cinterop `writeBits`, the caller owns
-// pointer correctness — `ptr` must reference storage large enough to hold the
-// touched byte range `[offset >> 3, (offset + size - 1) >> 3]`. The runtime does
-// not know the size of the allocation behind `ptr`, so it cannot fully validate
-// the upper bound. It does, however, reject parameter values that are guaranteed
-// to index outside the intended range: `offset` must be non-negative (a negative
-// bit offset produces a negative byte index and writes *before* the buffer via
-// the arithmetic shift `bitIndex >> 3`), and `size` must lie in `0...Int.bitWidth`
-// (`value` only carries `Int.bitWidth` meaningful bits, so a larger `size` cannot
-// encode real data and would only extend the write out of bounds).
-@_cdecl("kk_cinterop_writeBits")
-public func kk_cinterop_writeBits(_ ptr: Int, _ offset: Int, _ size: Int, _ value: Int) {
-    guard ptr != 0, let rawPtr = UnsafeMutableRawPointer(bitPattern: ptr) else { return }
-    guard offset >= 0, size >= 0, size <= Int.bitWidth else { return }
-    for i in 0..<size {
-        let bit = (value >> i) & 1
-        let (bitIndex, overflow) = offset.addingReportingOverflow(i)
-        guard !overflow else { return }
-        let bytePtr = rawPtr.advanced(by: bitIndex >> 3).bindMemory(to: UInt8.self, capacity: 1)
-        let mask: UInt8 = 1 << UInt8(bitIndex & 7)
-        if bit != 0 {
-            bytePtr.pointee |= mask
-        } else {
-            bytePtr.pointee &= ~mask
-        }
-    }
-}

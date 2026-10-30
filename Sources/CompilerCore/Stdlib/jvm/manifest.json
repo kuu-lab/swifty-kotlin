@@ -12,6 +12,21 @@
       "excludeFromStdlibBuild": true
     },
     {
+      "path": "kotlin/SinceKotlin.kt",
+      "virtualPath": "<kswiftk-jvm>/sinceKotlin.kt",
+      "excludeFromStdlibBuild": true
+    },
+    {
+      "path": "kotlin/DeprecatedSinceKotlin.kt",
+      "virtualPath": "<kswiftk-jvm>/deprecatedSinceKotlin.kt",
+      "excludeFromStdlibBuild": true
+    },
+    {
+      "path": "kotlin/WasExperimental.kt",
+      "virtualPath": "<kswiftk-jvm>/wasExperimental.kt",
+      "excludeFromStdlibBuild": true
+    },
+    {
       "path": "kotlin/Numbers.kt",
       "virtualPath": "<kswiftk-jvm>/number-predicates.kt",
       "excludeFromStdlibBuild": true,
@@ -34,6 +49,18 @@
       "virtualPath": "<kswiftk-jvm>/math.kt",
       "excludeFromStdlibBuild": true,
       "runtimeFacade": "kotlin/math/MathKt"
+    },
+    {
+      "path": "kotlin/comparisons/Comparisons.kt",
+      "virtualPath": "<kswiftk-jvm>/comparisons.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/comparisons/ComparisonsKt"
+    },
+    {
+      "path": "kotlin/comparisons/ComparisonFactories.kt",
+      "virtualPath": "<kswiftk-jvm>/comparison-factories.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/comparisons/ComparisonsKt__ComparisonsKt"
     },
     {
       "path": "declarations/JavaCollections.kt",
@@ -75,6 +102,11 @@
       "path": "declarations/ReflectionExtensions.kt",
       "virtualPath": "<kswiftk-jvm>/reflectionExtensions.kt",
       "excludeFromStdlibBuild": false
+    },
+    {
+      "path": "declarations/ReflectionPropertyException.kt",
+      "virtualPath": "<kswiftk-jvm>/reflectionPropertyException.kt",
+      "excludeFromStdlibBuild": true
     },
     {
       "path": "declarations/JavaReflection.kt",
@@ -125,6 +157,11 @@
     {
       "path": "declarations/Regex.kt",
       "virtualPath": "<kswiftk-jvm>/m19-regex.kt",
+      "excludeFromStdlibBuild": true
+    },
+    {
+      "path": "declarations/IntProgression.kt",
+      "virtualPath": "<kswiftk-jvm>/int-progression.kt",
       "excludeFromStdlibBuild": true
     },
     {

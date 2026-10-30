@@ -1,0 +1,17 @@
+symbol fq=classify.$0.x[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=classify[kind=fun;params=Any;ret=String;names=[x];origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[Any] ret=String
+file fwhen_guard_else package=_
+  decl classify[kind=fun;params=Any;ret=String;names=[x];origin=fixture] fun classify sym=classify[kind=fun;params=Any;ret=String;names=[x];origin=fixture]
+expr e@2:18 name(x) type=Any ref=classify.$0.x[kind=vparam;origin=fixture]
+expr e@2:18#1 isCheck expr=e@2:18 type=String type=Boolean
+expr e@3:22 name(x) type=String ref=classify.$0.x[kind=vparam;origin=fixture]
+expr e@3:22#1 memberCall recv=e@3:22 callee=length args=[] type=Int call=kotlin.length.$get[kind=fun;recv=String;params=;ret=Int]
+expr e@3:33 int(3) type=Int
+expr e@3:22#2 binary(greaterThan) lhs=e@3:22#1 rhs=e@3:33 type=Boolean
+expr e@3:38 string(long string) type=String
+expr e@4:17 name(x) type=Any ref=classify.$0.x[kind=vparam;origin=fixture]
+expr e@4:17#1 isCheck expr=e@4:17 type=Int type=Boolean
+expr e@4:29 string(guarded else int) type=String
+expr e@5:17 string(other) type=String
+expr e@2:12 when subject=e@2:18 branches=[e@2:18#1 if e@3:22#2->e@3:38,else if e@4:17#1->e@4:29] else=e@5:17 type=String
+expr e@2:5 return value=e@2:12 type=Nothing

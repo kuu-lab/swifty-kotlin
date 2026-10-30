@@ -14,12 +14,34 @@ extension JVMFunctionBuilder {
         return try constant(literal, type)
     }
 
+    /// The runtime array component a vararg call must allocate. The erased
+    /// descriptor of a generic callee takes Object[], but the invocation
+    /// passes the specialized array — String[] for T=String — which the
+    /// implementing class's erased-override bridge checkcasts back down.
+    func specializedVarargElement(at index: Int, erased: JVMValueType, binding: CallBinding?) throws -> JVMValueType {
+        guard let binding,
+              let signature = program.sema.symbols.functionSignature(for: binding.chosenCallee),
+              signature.valueParameterIsVararg.indices.contains(index), signature.valueParameterIsVararg[index],
+              signature.parameterTypes.indices.contains(index)
+        else { return try arrayComponent(erased) }
+        let declared = signature.parameterTypes[index]
+        let typeVarBySymbol = program.sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
+        var substitution: [TypeVarID: TypeID] = [:]
+        for (symbol, argument) in zip(signature.typeParameterSymbols, binding.substitutedTypeArguments) {
+            guard let variable = typeVarBySymbol[symbol] else { continue }
+            substitution[variable] = argument
+        }
+        let substituted = program.sema.types.substituteTypeParameters(in: declared, substitution: substitution, typeVarBySymbol: typeVarBySymbol)
+        guard substituted != declared else { return try arrayComponent(erased) }
+        return try JVMClasspathIndex.argumentType(.invariant(substituted), sema: program.sema, ctx: program.context)
+    }
+
     /// Evaluate explicit arguments in source order, then arrange parameter slots.
     /// Missing values are placeholders; the callee's default bridge evaluates
     /// defaults in declaration order after all explicit expressions have run.
     func arguments(_ args: [CallArgument], binding: CallBinding?, parameters: [JVMValueType], declarations: [ValueParamDecl]?, id: ExprID? = nil) throws -> (values: [JVMValue], masks: [UInt32]) {
         let varargIndex = declarations?.firstIndex(where: \.isVararg)
-        let varargElement = try varargIndex.map { try arrayComponent(parameters[$0]) }
+        let varargElement = try varargIndex.map { try specializedVarargElement(at: $0, erased: parameters[$0], binding: binding) }
         var supplied: [Int: JVMValue] = [:]
         var varargValues: [(JVMValue, Bool)] = []
         var positionalCursor = 0

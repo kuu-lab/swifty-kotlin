@@ -15,19 +15,28 @@ func runtimeKPropertyStubToString(_ property: RuntimeKPropertyStub) -> String {
 @_cdecl("__kk_print_raw")
 public func __kk_print_raw(_ messageRaw: Int) {
     let message = extractString(from: UnsafeMutableRawPointer(bitPattern: messageRaw)) ?? "null"
-    Swift.print(KotlinStringSurrogateEncoding.printableString(message), terminator: "")
+    let printable = KotlinStringSurrogateEncoding.printableString(message)
+    let gcBlocking = runtimeGCSafepoints.beginBlockingIfEnrolled()
+    Swift.print(printable, terminator: "")
+    if gcBlocking { runtimeGCSafepoints.endBlocking() }
 }
 
 @_cdecl("__kk_println_raw")
 public func __kk_println_raw(_ messageRaw: Int) {
     let message = extractString(from: UnsafeMutableRawPointer(bitPattern: messageRaw)) ?? "null"
-    Swift.print(KotlinStringSurrogateEncoding.printableString(message), terminator: "\n")
+    let printable = KotlinStringSurrogateEncoding.printableString(message)
+    let gcBlocking = runtimeGCSafepoints.beginBlockingIfEnrolled()
+    Swift.print(printable, terminator: "\n")
+    if gcBlocking { runtimeGCSafepoints.endBlocking() }
 }
 
 @_cdecl("__kk_printStderr")
 public func __kk_printStderr(_ messageRaw: Int) -> Int {
     let message = extractString(from: UnsafeMutableRawPointer(bitPattern: messageRaw)) ?? ""
-    FileHandle.standardError.write(Data(KotlinStringSurrogateEncoding.printableString(message).utf8))
+    let data = Data(KotlinStringSurrogateEncoding.printableString(message).utf8)
+    let gcBlocking = runtimeGCSafepoints.beginBlockingIfEnrolled()
+    FileHandle.standardError.write(data)
+    if gcBlocking { runtimeGCSafepoints.endBlocking() }
     return 0
 }
 
@@ -37,7 +46,10 @@ public func __kk_printStderr(_ messageRaw: Int) -> Int {
 /// live in `Stdlib/kotlin/io/Console.kt`.
 @_cdecl("__kk_readline_raw")
 public func __kk_readline_raw() -> Int {
-    guard let line = readLine() else {
+    let gcBlocking = runtimeGCSafepoints.beginBlockingIfEnrolled()
+    let input = readLine()
+    if gcBlocking { runtimeGCSafepoints.endBlocking() }
+    guard let line = input else {
         return runtimeNullSentinelInt
     }
     let utf8 = Array(line.utf8)
@@ -293,18 +305,32 @@ private func runtimeFinishFloatingPointFormat(rendered: String, useScientific: B
     return rendered
 }
 
+/// JDK 19+ `toString` widens a one-digit shortest decimal to the closest
+/// decimal of length 1 or 2 (`9.9E-324`, not Ryu's `1e-323`). That only
+/// changes the result below 1e-322 (Float: 1e-43), where the two-digit grid
+/// is finer than the subnormal spacing; there every value is printed with
+/// two digits. `units` is the magnitude in units of 10^`unitExponent`.
+private func runtimeJavaSmallSubnormalText(units: Double, unitExponent: Int, isNegative: Bool) -> String {
+    let tenths = (units * 10).rounded()
+    let (digits, exponent) = tenths < 100
+        ? (Int(tenths), unitExponent)
+        : (Int(units.rounded()), unitExponent + 1)
+    return "\(isNegative ? "-" : "")\(digits / 10).\(digits % 10)E\(exponent)"
+}
+
 func runtimeFormatFloatingPoint(_ value: Double) -> String {
     if value.isNaN { return "NaN" }
     if value == .infinity { return "Infinity" }
     if value == -.infinity { return "-Infinity" }
     // Explicit guard: String(describing:) may drop the sign of -0.0 on some platforms.
     if value == 0.0 && value.sign == .minus { return "-0.0" }
-    // Swift's Ryu selects the 1-significant-digit form (5e-324) for the minimum
-    // subnormal, but Java's FloatingDecimal emits 4.9E-324.  Both strings
-    // round-trip to the same bit pattern, but we must match the Java convention.
-    if value == Double.leastNonzeroMagnitude { return "4.9E-324" }
-    if value == -Double.leastNonzeroMagnitude { return "-4.9E-324" }
     let magnitude = abs(value)
+    let subnormalUnits = magnitude / Double.leastNonzeroMagnitude
+    if magnitude != 0, subnormalUnits <= 20 {
+        return runtimeJavaSmallSubnormalText(
+            units: subnormalUnits * 4.9406564584124654, unitExponent: -324, isNegative: value < 0
+        )
+    }
     return runtimeFinishFloatingPointFormat(
         rendered: String(describing: value),
         useScientific: magnitude != 0 && (magnitude >= 1e7 || magnitude < 1e-3)
@@ -317,10 +343,13 @@ func runtimeFormatFloatingPoint(_ value: Float) -> String {
     if value == -.infinity { return "-Infinity" }
     // Explicit guard: String(describing:) may drop the sign of -0.0 on some platforms.
     if value == 0.0 && value.sign == .minus { return "-0.0" }
-    // Same issue for Float: Ryu gives 1e-45, Java gives 1.4E-45.
-    if value == Float.leastNonzeroMagnitude { return "1.4E-45" }
-    if value == -Float.leastNonzeroMagnitude { return "-1.4E-45" }
     let magnitude = abs(value)
+    let subnormalUnits = magnitude / Float.leastNonzeroMagnitude
+    if magnitude != 0, subnormalUnits <= 71 {
+        return runtimeJavaSmallSubnormalText(
+            units: Double(subnormalUnits) * 1.4012984643248171, unitExponent: -45, isNegative: value < 0
+        )
+    }
     return runtimeFinishFloatingPointFormat(
         rendered: String(describing: value),
         useScientific: magnitude != 0 && (magnitude >= 1e7 || magnitude < 1e-3)

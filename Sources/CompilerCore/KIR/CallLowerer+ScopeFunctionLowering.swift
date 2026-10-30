@@ -24,7 +24,8 @@ extension CallLowerer {
             ast: ast,
             sema: sema,
             callBinding: sema.bindings.callBinding(for: exprID),
-            chosen: sema.bindings.callBinding(for: exprID)?.chosenCallee
+            chosen: sema.bindings.callBinding(for: exprID)?.chosenCallee,
+            intrinsicInline: scopeKind == .scopeUsePinned
         )
         defer { driver.ctx.pendingLambdaNonLocalReturnAllowance = previousLambdaAllowance }
 

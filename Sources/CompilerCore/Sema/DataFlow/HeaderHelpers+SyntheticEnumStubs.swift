@@ -52,6 +52,24 @@ extension DataFlowSemaPhase {
         if !symbols.deferUntilAfterImportedShellMaterializes(enumSymbol, work: ensureEnumTypeParameters) {
             ensureEnumTypeParameters()
         }
+        // `Enum<T>` is `Comparable<T>` with a concrete final `compareTo`
+        // (Stdlib/kotlin/Enum.kt). The synthetic shell used when that source
+        // does not participate (JVM stdlib build, --no-stdlib) carried
+        // neither, so the abstract-member completeness check believed every
+        // enum entry still owed `compareTo` (KUU-3764).
+        let registerComparableContract = { [self] in
+            registerEnumComparableContract(
+                symbols: symbols,
+                types: types,
+                interner: interner,
+                enumSymbol: enumSymbol,
+                enumFQName: enumFQName,
+                kotlinPkg: kotlinPkg
+            )
+        }
+        if !symbols.deferUntilAfterImportedShellMaterializes(enumSymbol, work: registerComparableContract) {
+            registerComparableContract()
+        }
         registerEnumNameOrdinalProperties(
             symbols: symbols,
             types: types,
@@ -99,6 +117,121 @@ extension DataFlowSemaPhase {
             symbols.setParentSymbol(pkg, for: symbol)
         }
         return symbol
+    }
+
+    /// Mirrors the `Enum<T> : Comparable<T>` contract the source declaration
+    /// carries: the nominal supertype edge plus a concrete `compareTo` member.
+    /// Without them, supertype member-provider lookups cannot see `compareTo`
+    /// as supplied by the Enum base and the enum-entry abstract-member check
+    /// demands it from every entry.
+    private func registerEnumComparableContract(
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner,
+        enumSymbol: SymbolID,
+        enumFQName: [InternedString],
+        kotlinPkg: [InternedString]
+    ) {
+        guard let comparableSymbol = types.comparableInterfaceSymbol
+            ?? symbols.lookup(fqName: kotlinPkg + [interner.intern("Comparable")])
+        else { return }
+
+        if !symbols.directSupertypes(for: enumSymbol).contains(comparableSymbol) {
+            symbols.setDirectSupertypes(
+                symbols.directSupertypes(for: enumSymbol) + [comparableSymbol],
+                for: enumSymbol
+            )
+        }
+        if !types.directNominalSupertypes(for: enumSymbol).contains(comparableSymbol) {
+            types.setNominalDirectSupertypes(
+                types.directNominalSupertypes(for: enumSymbol) + [comparableSymbol],
+                for: enumSymbol
+            )
+        }
+
+        guard let tParamSymbol = types.nominalTypeParameterSymbols(for: enumSymbol).first
+        else { return }
+        let tParamType = types.make(.typeParam(TypeParamType(symbol: tParamSymbol, nullability: .nonNull)))
+        if symbols.supertypeTypeArgs(for: enumSymbol, supertype: comparableSymbol).isEmpty {
+            let comparableArgs: [TypeArg] = [.in(tParamType)]
+            symbols.setSupertypeTypeArgs(comparableArgs, for: enumSymbol, supertype: comparableSymbol)
+            types.setNominalSupertypeTypeArgs(comparableArgs, for: enumSymbol, supertype: comparableSymbol)
+        }
+        registerEnumCompareToMember(
+            symbols: symbols,
+            types: types,
+            interner: interner,
+            enumSymbol: enumSymbol,
+            enumFQName: enumFQName,
+            tParamSymbol: tParamSymbol,
+            tParamType: tParamType
+        )
+    }
+
+    /// Registers `final override fun compareTo(other: T): Int` on the
+    /// synthetic `kotlin.Enum` shell — the member the bundled `Enum.kt`
+    /// declares with `@KsSymbolName("kk_enum_compareTo")`. Skipped when a
+    /// bundled or already-registered declaration owns the real member.
+    private func registerEnumCompareToMember(
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner,
+        enumSymbol: SymbolID,
+        enumFQName: [InternedString],
+        tParamSymbol: SymbolID,
+        tParamType: TypeID
+    ) {
+        let compareToName = interner.intern("compareTo")
+        let compareToFQName = enumFQName + [compareToName]
+        guard !BundledSyntheticStubRegistration.bundledIndex.contains(
+            ownerFQName: enumFQName,
+            name: compareToName,
+            arity: 1
+        ), symbols.lookupAll(fqName: compareToFQName)
+            .compactMap({ symbols.symbol($0) })
+            .allSatisfy({ $0.kind != .function })
+        else { return }
+
+        let otherName = interner.intern("other")
+        let otherParam = symbols.define(
+            kind: .valueParameter,
+            name: otherName,
+            fqName: compareToFQName + [otherName],
+            declSite: nil,
+            visibility: .private,
+            flags: [.synthetic]
+        )
+        symbols.setPropertyType(tParamType, for: otherParam)
+        let enumReceiver = types.make(.classType(ClassType(
+            classSymbol: enumSymbol,
+            args: [.invariant(tParamType)],
+            nullability: .nonNull
+        )))
+        let compareToSymbol = symbols.define(
+            kind: .function,
+            name: compareToName,
+            fqName: compareToFQName,
+            declSite: nil,
+            visibility: .public,
+            flags: [.synthetic, .operatorFunction, .overrideMember, .finalMember]
+        )
+        symbols.setParentSymbol(enumSymbol, for: compareToSymbol)
+        symbols.setParentSymbol(compareToSymbol, for: otherParam)
+        symbols.setExternalLinkName("kk_enum_compareTo", for: compareToSymbol)
+        symbols.setFunctionSignature(
+            FunctionSignature(
+                receiverType: enumReceiver,
+                parameterTypes: [tParamType],
+                returnType: types.intType,
+                isSuspend: false,
+                valueParameterSymbols: [otherParam],
+                valueParameterHasDefaultValues: [false],
+                valueParameterIsVararg: [false],
+                typeParameterSymbols: [tParamSymbol],
+                classTypeParameterCount: 1
+            ),
+            for: compareToSymbol
+        )
     }
 
     private func ensureEnumTypeParameter(

@@ -71,4 +71,3 @@ public fun UnconfinedTestDispatcher(
     name: String? = null
 ): TestDispatcher = UnconfinedTestDispatcherImpl(scheduler ?: TestCoroutineScheduler(), name)
 
-internal interface DelayWithTimeoutDiagnostics

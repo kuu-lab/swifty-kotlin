@@ -345,7 +345,7 @@ extension CallLowerer {
             {
                 instructions.append(.constValue(
                     result: result,
-                    value: .boolLiteral(op == .notEqual)
+                    value: .boolLiteral(op == .notIdentityEqual)
                 ))
                 return result
             }
@@ -646,6 +646,20 @@ extension CallLowerer {
                 )
                 var finalArguments = normalizedResult.arguments
                 finalArguments.insert(lhsID, at: 0)
+                if !signature.contextParameterTypes.isEmpty {
+                    let contextArguments = contextArgumentValues(
+                        for: signature,
+                        callExprID: exprID,
+                        callBinding: callBinding,
+                        sema: sema,
+                        arena: arena
+                    )
+                    // The callee ABI is `[receiver] + [contextParams] + [valueParams]`:
+                    // `lhsID` (the receiver) stays first and context arguments
+                    // slot in ahead of the value arguments, matching how member
+                    // calls and compound assignments place them.
+                    finalArguments.insert(contentsOf: contextArguments, at: min(1, finalArguments.count))
+                }
                 appendReifiedTypeTokens(
                     chosenCallee: callBinding.chosenCallee,
                     callBinding: callBinding,

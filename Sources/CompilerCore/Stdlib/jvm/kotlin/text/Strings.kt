@@ -75,6 +75,17 @@ public fun String.dropLast(n: Int): String {
     checkCount(n)
     return __jvmSubstring(this, 0, if (n < this.length) this.length - n else 0)
 }
+public fun String.slice(indices: IntRange): String {
+    if (indices.isEmpty()) return ""
+    return __jvmSubstring(this, indices.start, indices.endInclusive + 1)
+}
+public fun CharSequence.slice(indices: Iterable<Int>): CharSequence {
+    val result = StringBuilder()
+    for (index in indices) {
+        result.append(this[index])
+    }
+    return result.toString()
+}
 public fun String.padStart(length: Int, padChar: Char = ' '): String {
     if (length < 0) throw IllegalArgumentException("Desired length $length is less than zero.")
     if (length <= this.length) return this
@@ -110,6 +121,12 @@ public fun String.capitalize(): String {
     val upper = __jvmUpperChar(first)
     val capitalizedFirst = if (title != upper) title.toString() else first.toString().uppercase()
     return capitalizedFirst + __jvmSubstring(this, 1, this.length)
+}
+
+@Deprecated("Use replaceFirstChar instead.")
+public fun String.decapitalize(): String {
+    if (this.length == 0) return this
+    return __jvmLowerChar(this[0]).toString() + __jvmSubstring(this, 1, this.length)
 }
 
 @SinceKotlin("1.5")

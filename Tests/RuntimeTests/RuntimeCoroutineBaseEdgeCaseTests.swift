@@ -353,14 +353,14 @@ struct RuntimeCoroutineBaseEdgeCaseTests {
         #expect(key == kk_coroutine_name_key())
         #expect(kk_coroutine_name_key_get(first) == key)
         #expect(kk_context_get(first, key) == first)
-        #expect(kk_context_get(0, key) == 0)
+        #expect(kk_context_get(0, key) == runtimeNullSentinelInt)
         let dispatcher = kk_dispatcher_default()
         let combined = kk_context_plus(dispatcher, first)
         #expect(kk_context_get(combined, key) == first)
         let replaced = kk_context_plus(combined, second)
         #expect(kk_context_get(replaced, key) == second)
         let removed = kk_context_minusKey(replaced, key)
-        #expect(kk_context_get(removed, key) == 0)
+        #expect(kk_context_get(removed, key) == runtimeNullSentinelInt)
         #expect(kk_context_get_dispatcher(removed) == dispatcher)
         #expect(kk_context_get(combined, key) == first)
         let typeID = Int(runtimeStableNominalTypeID(fqName: "kotlin.coroutines.CoroutineContext.Element"))
@@ -469,15 +469,17 @@ struct RuntimeCoroutineBaseEdgeCaseTests {
         #expect(thrown == 0)
         let reduced = __kk_context_minusKey_dispatch(ctx, nameElem, &thrown)
         #expect(thrown == 0)
-        #expect(kk_context_get(reduced, nameElem) == 0)
+        #expect(kk_context_get(reduced, nameElem) == runtimeNullSentinelInt)
     }
 
-    /// kk_context_get returns 0 for a key not present in the context.
-    @Test func testContextGetAbsentKeyReturnsZero() {
+    /// kk_context_get returns the null sentinel for a key not present in the
+    /// context — the Kotlin-facing `E?` ABI reads raw 0 as `kotlin.Unit`
+    /// (KUU-3752).
+    @Test func testContextGetAbsentKeyReturnsNullSentinel() {
         let emptyCtx = kk_coroutine_continuation_context(kk_coroutine_continuation_new(9916))
         let nameElem = kk_coroutine_name_create(0)
         let result = kk_context_get(emptyCtx, nameElem)
-        #expect(result == 0, "context_get for absent key should return 0")
+        #expect(result == runtimeNullSentinelInt, "context_get for absent key should return the null sentinel")
     }
 
     /// kk_context_get returns element for a key that is present.

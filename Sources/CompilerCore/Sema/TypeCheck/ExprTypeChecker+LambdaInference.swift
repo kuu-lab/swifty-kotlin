@@ -395,6 +395,7 @@ extension ExprTypeChecker {
             bodyCtx = bodyCtx.with(
                 contextReceiverTypes: ctx.contextReceiverTypes + expectedFunctionType.contextReceivers
             )
+            bodyCtx.lambdaContextReceiverTypes[id] = expectedFunctionType.contextReceivers
         }
         let expectedReturnHasUnresolvedOutputTypeParameter: Bool = {
             guard let expectedFunctionType else {
@@ -536,6 +537,9 @@ extension ExprTypeChecker {
             expectedType: bodyExpectedType,
             isStatementContext: lambdaUsesUnitCoercion || lambdaTailIsElselessIf || lambdaTailIsWhenWithoutElse
                 || lambdaTailIsTry
+        )
+        driver.recordGenericCallConsumer(
+            body, type: expectedLambdaReturnType == sema.types.unitType ? nil : expectedLambdaReturnType
         )
         // A bare `ClassName` as the lambda's result denotes the companion
         // object; keep the companion value type in the inferred return type

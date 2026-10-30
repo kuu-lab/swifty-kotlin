@@ -120,7 +120,11 @@ extension ControlFlowLowerer {
                     propertyConstantInitializers: propertyConstantInitializers,
                     instructions: &instructions
                 )
-                instructions.append(.jumpIfEqual(lhs: guardID, rhs: falseID, target: nextBranchLabels[index]))
+                // A `Nothing` guard (`return`/`throw`/`break`/`continue`) never
+                // falls through, so no conditional jump can follow it.
+                if !isTerminatedExpr(guardID, arena: arena, sema: sema) {
+                    instructions.append(.jumpIfEqual(lhs: guardID, rhs: falseID, target: nextBranchLabels[index]))
+                }
             }
 
             let bodyID = driver.lowerExpr(

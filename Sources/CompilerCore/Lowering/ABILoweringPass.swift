@@ -1,5 +1,5 @@
 
-final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
+final class ABILoweringPass: LoweringPass {
     static let name = "ABILowering"
     static let requiredStage: KIRStage = .integerNarrowed
     static let producedStage: KIRStage = .abiLowered
@@ -551,8 +551,7 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                 {
                     let boxed = module.arena.appendTemporary(type: slotType)
                     emitValueClassBoxCall(
-                        value: value, classSymbol: vcSymbol, result: boxed,
-                        resultType: slotType, types: types, symbols: symbols,
+                        value: value, classSymbol: vcSymbol, result: boxed, types: types, symbols: symbols,
                         interner: ctx.interner, arena: module.arena, into: &newBody
                     )
                     newBody.append(.storeGlobal(value: boxed, symbol: symbol))
@@ -740,6 +739,14 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                         {
                             return 0
                         }
+                        // A member exposed through an external runtime bridge
+                        // can omit its Kotlin owner from the bridge ABI.
+                        if let symbol = effectiveCallSymbol,
+                           symbols?.externalLinkNameIfKnown(for: symbol) != nil,
+                           arguments.count == signature.parameterTypes.count + signature.contextParameterTypes.count
+                        {
+                            return 0
+                        }
                         return 1
                     }()
                     callCaptureOffset = localFunctionCaptureOffset(
@@ -910,7 +917,6 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                                     ordinal: boxedArguments[i],
                                     classSymbol: enumClass,
                                     result: boxedTemp,
-                                    resultType: types.anyType,
                                     types: types,
                                     symbols: symbols,
                                     interner: ctx.interner,
@@ -1007,7 +1013,6 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                                     ordinal: boxedArguments[i],
                                     classSymbol: classType.classSymbol,
                                     result: boxedTemp,
-                                    resultType: types.anyType,
                                     types: types,
                                     symbols: symbols,
                                     interner: ctx.interner,
@@ -1363,60 +1368,36 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
         // than a `kk_box_*`/`kk_unbox_*` callee (KUU-3115).
         if valueType != returnType, let symbols {
             let rawReturnKind = types.kind(of: returnType)
-            if let vcSymbol = nullableUnderlyingValueClassSymbol(
-                of: rawValueKind, types: types, symbols: symbols
-            ), valueClassBoxTargetIsBoxed(rawReturnKind, symbols: symbols) {
-                var instructions: [KIRInstruction] = []
-                let boxedResult = module.arena.appendTemporary(type: returnType)
-                emitValueClassBoxCall(
-                    value: value, classSymbol: vcSymbol, result: boxedResult,
-                    resultType: returnType, types: types, symbols: symbols,
-                    interner: interner, arena: module.arena, into: &instructions
-                )
-                instructions.append(.returnValue(boxedResult))
-                return instructions
-            }
             // Reference-backed value classes take the same wrapper when the
             // declared return slot is a boxed target — `fun f(): Any = r`
             // must not leak the payload handle as the Any value (KUU-3616).
-            if let vcSymbol = referenceBackedValueClassSymbol(
+            if let vcSymbol = nullableUnderlyingValueClassSymbol(
+                of: rawValueKind, types: types, symbols: symbols
+            ) ?? referenceBackedValueClassSymbol(
                 of: rawValueKind, types: types, symbols: symbols
             ), valueClassBoxTargetIsBoxed(rawReturnKind, symbols: symbols) {
                 var instructions: [KIRInstruction] = []
                 let boxedResult = module.arena.appendTemporary(type: returnType)
                 emitValueClassBoxCall(
-                    value: value, classSymbol: vcSymbol, result: boxedResult,
-                    resultType: returnType, types: types, symbols: symbols,
+                    value: value, classSymbol: vcSymbol, result: boxedResult, types: types, symbols: symbols,
                     interner: interner, arena: module.arena, into: &instructions
                 )
                 instructions.append(.returnValue(boxedResult))
-                return instructions
-            }
-            if let vcSymbol = nullableUnderlyingValueClassSymbol(
-                of: rawReturnKind, types: types, symbols: symbols
-            ), valueClassUnboxSourceIsBoxed(rawValueKind, symbols: symbols) {
-                var instructions: [KIRInstruction] = []
-                let unboxed = module.arena.appendTemporary(type: returnType)
-                emitValueClassUnboxCall(
-                    value: value, classSymbol: vcSymbol, result: unboxed,
-                    resultType: returnType, types: types, symbols: symbols,
-                    interner: interner, arena: module.arena, into: &instructions
-                )
-                instructions.append(.returnValue(unboxed))
                 return instructions
             }
             // `Any`/type-parameter/`V?` slots may hold a reference-backed
             // value-class box; an `R` return slot expects the payload, so
             // unwrap the nominal box the same way copies do — the helper
             // passes non-matching values through unchanged (KUU-3616).
-            if let vcSymbol = referenceBackedValueClassSymbol(
+            if let vcSymbol = nullableUnderlyingValueClassSymbol(
                 of: rawReturnKind, types: types, symbols: symbols
-            ), valueClassUnboxSourceIsBoxed(rawValueKind, symbols: symbols) {
+            ) ?? referenceBackedValueClassSymbol(
+                of: rawReturnKind, types: types, symbols: symbols
+            ), valueClassUnboxSourceIsBoxed(rawValueKind) {
                 var instructions: [KIRInstruction] = []
                 let unboxed = module.arena.appendTemporary(type: returnType)
                 emitValueClassUnboxCall(
-                    value: value, classSymbol: vcSymbol, result: unboxed,
-                    resultType: returnType, types: types, symbols: symbols,
+                    value: value, classSymbol: vcSymbol, result: unboxed, types: types, symbols: symbols,
                     interner: interner, arena: module.arena, into: &instructions
                 )
                 instructions.append(.returnValue(unboxed))
@@ -1517,34 +1498,21 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
         // `V` -> `V?`/`Any`/other reference slots box through
         // `kk_value_class_box`, while `V?`/reference -> `V` unwraps through
         // `kk_value_class_unbox` (KUU-3115).
-        if let symbols,
-           let vcSymbol = nullableUnderlyingValueClassSymbol(
-               of: rawFromKind, types: types, symbols: symbols
-           ),
-           valueClassBoxTargetIsBoxed(rawToKind, symbols: symbols)
-        {
-            var instructions: [KIRInstruction] = []
-            emitValueClassBoxCall(
-                value: from, classSymbol: vcSymbol, result: to,
-                resultType: toType, types: types, symbols: symbols,
-                interner: interner, arena: module.arena, into: &instructions
-            )
-            return instructions
-        }
         // A reference-backed value class needs the same nominal wrapper at a
         // copy boundary: `V` is the bare payload object, so `r as Any` would
         // otherwise stash the shared `c` handle into the Any slot and compare
         // equal to it — boxed equality is nominal on the JVM (KUU-3616).
         if let symbols,
-           let vcSymbol = referenceBackedValueClassSymbol(
+           let vcSymbol = nullableUnderlyingValueClassSymbol(
+               of: rawFromKind, types: types, symbols: symbols
+           ) ?? referenceBackedValueClassSymbol(
                of: rawFromKind, types: types, symbols: symbols
            ),
            valueClassBoxTargetIsBoxed(rawToKind, symbols: symbols)
         {
             var instructions: [KIRInstruction] = []
             emitValueClassBoxCall(
-                value: from, classSymbol: vcSymbol, result: to,
-                resultType: toType, types: types, symbols: symbols,
+                value: from, classSymbol: vcSymbol, result: to, types: types, symbols: symbols,
                 interner: interner, arena: module.arena, into: &instructions
             )
             return instructions
@@ -1553,27 +1521,13 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
         // `V?` slot can carry the wrapper, and `kk_value_class_unbox` passes
         // payloads and foreign boxes through unchanged (KUU-3616).
         if let symbols,
-           let vcSymbol = referenceBackedValueClassSymbol(of: rawToKind, types: types, symbols: symbols),
-           valueClassUnboxSourceIsBoxed(rawFromKind, symbols: symbols)
+           let vcSymbol = referenceBackedValueClassSymbol(of: rawToKind, types: types, symbols: symbols)
+               ?? nullableUnderlyingValueClassSymbol(of: rawToKind, types: types, symbols: symbols),
+           valueClassUnboxSourceIsBoxed(rawFromKind)
         {
             var instructions: [KIRInstruction] = []
             emitValueClassUnboxCall(
-                value: from, classSymbol: vcSymbol, result: to,
-                resultType: toType, types: types, symbols: symbols,
-                interner: interner, arena: module.arena, into: &instructions
-            )
-            return instructions
-        }
-        if let symbols,
-           let vcSymbol = nullableUnderlyingValueClassSymbol(
-               of: rawToKind, types: types, symbols: symbols
-           ),
-           valueClassUnboxSourceIsBoxed(rawFromKind, symbols: symbols)
-        {
-            var instructions: [KIRInstruction] = []
-            emitValueClassUnboxCall(
-                value: from, classSymbol: vcSymbol, result: to,
-                resultType: toType, types: types, symbols: symbols,
+                value: from, classSymbol: vcSymbol, result: to, types: types, symbols: symbols,
                 interner: interner, arena: module.arena, into: &instructions
             )
             return instructions

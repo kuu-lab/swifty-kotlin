@@ -88,7 +88,7 @@ struct RuntimeJobToStringTests {
         )
         let wrapperRaw = runtimeRegisterObject(wrapper)
         let jobRaw = Int(bitPattern: Unmanaged.passUnretained(job).toOpaque())
-        wrapper.coroutineJobHandle = jobRaw
+        wrapper.withCoroutineJobHandle { $0 = jobRaw }
         job.bindSourceWrapper(wrapper)
         job.nominalJobTypeID = runtimeStableNominalTypeID(fqName: "kotlinx.coroutines.CompletableJobImpl")
 
@@ -105,7 +105,7 @@ struct RuntimeJobToStringTests {
         let deferredJob = RuntimeJobHandle()
         deferredJob.markStarted()
         let deferredJobRaw = Int(bitPattern: Unmanaged.passUnretained(deferredJob).toOpaque())
-        deferredWrapper.coroutineJobHandle = deferredJobRaw
+        deferredWrapper.withCoroutineJobHandle { $0 = deferredJobRaw }
         deferredJob.bindSourceWrapper(deferredWrapper)
         deferredJob.nominalJobTypeID = runtimeStableNominalTypeID(
             fqName: "kotlinx.coroutines.CompletableDeferredImpl"

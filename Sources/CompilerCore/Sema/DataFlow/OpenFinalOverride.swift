@@ -85,6 +85,19 @@ extension DataFlowSemaPhase {
             memberFunctions = classDecl.memberFunctions
             nestedDeclarations = classDecl.nestedClasses + classDecl.nestedObjects
                 + (classDecl.companionObject.map { [$0] } ?? [])
+            if let ownerSymbol = ctx.bindings.declSymbols[declID],
+               ctx.symbols.symbol(ownerSymbol)?.kind == .enumClass
+            {
+                // Enum-entry body properties can infer their type from an
+                // initializer or custom getter. Their header type is only a
+                // placeholder, so check abstract completeness after body
+                // type checking has published the inferred property types.
+                validateEnumEntryAbstractCompleteness(
+                    classDecl,
+                    ownerSymbol: ownerSymbol,
+                    ctx: ctx
+                )
+            }
             for entry in classDecl.enumEntries {
                 for memberDeclID in entry.memberFunctions {
                     validateInferredOverrideReturnType(of: memberDeclID, ctx: ctx)
@@ -173,6 +186,182 @@ extension DataFlowSemaPhase {
         )
     }
 
+    /// `override` properties whose type is inferred from an initializer,
+    /// delegate, or custom getter (`override var x = ...`) still carry the
+    /// `anyType` placeholder during the header pass, so the OFO property-type
+    /// check skips them. Re-validate the inferred type against the overridden
+    /// property once type checking has published the final property types.
+    func validateInferredPropertyTypeOverrides(
+        ast: ASTModule,
+        symbols: SymbolTable,
+        bindings: BindingTable,
+        types: TypeSystem,
+        diagnostics: DiagnosticEngine,
+        interner: StringInterner,
+        compilationModuleName: String
+    ) {
+        let ctx = OpenFinalOverrideContext(
+            ast: ast,
+            symbols: symbols,
+            bindings: bindings,
+            types: types,
+            diagnostics: diagnostics,
+            interner: interner,
+            compilationModuleFQN: interner.intern(compilationModuleName)
+        )
+
+        var visited = Set<DeclID>()
+        for file in ast.sortedFiles {
+            for declID in file.topLevelDecls {
+                validateInferredPropertyTypeOverrides(in: declID, ctx: ctx, visited: &visited)
+            }
+        }
+        // Object literals and local nominal declarations are not reachable
+        // from topLevelDecls — their decls live behind expression nodes whose
+        // members are bound lazily during body checking.
+        for expr in ast.arena.exprs {
+            switch expr {
+            case let .objectLiteral(_, declID, _):
+                if let declID {
+                    validateInferredPropertyTypeOverrides(in: declID, ctx: ctx, visited: &visited)
+                }
+            case let .localNominalDecl(declID, _):
+                validateInferredPropertyTypeOverrides(in: declID, ctx: ctx, visited: &visited)
+            default:
+                continue
+            }
+        }
+    }
+
+    private func validateInferredPropertyTypeOverrides(
+        in declID: DeclID,
+        ctx: OpenFinalOverrideContext,
+        visited: inout Set<DeclID>
+    ) {
+        guard visited.insert(declID).inserted,
+              let declaration = ctx.ast.arena.decl(declID) else { return }
+
+        let memberProperties: [DeclID]
+        let nestedDeclarations: [DeclID]
+        switch declaration {
+        case let .classDecl(classDecl):
+            memberProperties = classDecl.memberProperties
+            nestedDeclarations = classDecl.nestedClasses + classDecl.nestedObjects
+                + (classDecl.companionObject.map { [$0] } ?? [])
+            for entry in classDecl.enumEntries {
+                for memberDeclID in entry.memberProperties {
+                    validateInferredPropertyTypeOverride(of: memberDeclID, ctx: ctx)
+                }
+                for nestedDeclID in entry.nestedClasses {
+                    validateInferredPropertyTypeOverrides(in: nestedDeclID, ctx: ctx, visited: &visited)
+                }
+            }
+        case let .interfaceDecl(interfaceDecl):
+            memberProperties = interfaceDecl.memberProperties
+            nestedDeclarations = interfaceDecl.nestedClasses + interfaceDecl.nestedObjects
+                + (interfaceDecl.companionObject.map { [$0] } ?? [])
+        case let .objectDecl(objectDecl):
+            memberProperties = objectDecl.memberProperties
+            nestedDeclarations = objectDecl.nestedClasses + objectDecl.nestedObjects
+        default:
+            return
+        }
+
+        for memberDeclID in memberProperties {
+            validateInferredPropertyTypeOverride(of: memberDeclID, ctx: ctx)
+        }
+        for nestedDeclID in nestedDeclarations {
+            validateInferredPropertyTypeOverrides(in: nestedDeclID, ctx: ctx, visited: &visited)
+        }
+    }
+
+    private func validateInferredPropertyTypeOverride(
+        of declID: DeclID,
+        ctx: OpenFinalOverrideContext
+    ) {
+        guard case let .propertyDecl(prop)? = ctx.ast.arena.decl(declID),
+              prop.type == nil,
+              prop.modifiers.contains(.override),
+              prop.initializer != nil || prop.delegateExpression != nil
+                || prop.getter != nil,
+              let memberSymbol = ctx.bindings.declSymbols[declID],
+              let memberSym = ctx.symbols.symbol(memberSymbol),
+              memberSym.kind == .property,
+              let ownerSymbol = ctx.symbols.parentSymbol(for: memberSymbol),
+              let childType = ctx.symbols.propertyType(for: memberSymbol),
+              childType != ctx.types.errorType,
+              !typeContainsAnyTypeParam(childType, types: ctx.types)
+        else { return }
+
+        checkPropertyTypeAgainstInherited(
+            memberName: prop.name,
+            memberRange: prop.range,
+            childType: childType,
+            childIsVar: memberSym.flags.contains(.mutable),
+            ownerSymbol: ownerSymbol,
+            ctx: ctx
+        )
+    }
+
+    /// Declarations bound lazily inside bodies — anonymous object literals
+    /// (`object : A() { ... }`) and local nominal declarations (`class`,
+    /// `interface`, named `object` in function/property bodies) — are never
+    /// reached by the main OFO walk over `topLevelDecls`, so their members
+    /// received no override validation at all: `override` on a nonexistent
+    /// member, `val`-over-`var`, type-mismatched and hidden (missing
+    /// `override`) members were all accepted. Run the same member checks
+    /// once their symbols and types have been published.
+    func validateBodyNestedDeclOverrides(
+        ast: ASTModule,
+        symbols: SymbolTable,
+        bindings: BindingTable,
+        types: TypeSystem,
+        diagnostics: DiagnosticEngine,
+        interner: StringInterner,
+        compilationModuleName: String
+    ) {
+        let ctx = OpenFinalOverrideContext(
+            ast: ast,
+            symbols: symbols,
+            bindings: bindings,
+            types: types,
+            diagnostics: diagnostics,
+            interner: interner,
+            compilationModuleFQN: interner.intern(compilationModuleName)
+        )
+        var visited = Set<DeclID>()
+        for expr in ast.arena.exprs {
+            switch expr {
+            case let .objectLiteral(_, declID, _):
+                if let declID {
+                    validateBodyNestedDeclOverrides(in: declID, ctx: ctx, visited: &visited)
+                }
+            case let .localNominalDecl(declID, _):
+                validateBodyNestedDeclOverrides(in: declID, ctx: ctx, visited: &visited)
+            default:
+                continue
+            }
+        }
+    }
+
+    private func validateBodyNestedDeclOverrides(
+        in declID: DeclID,
+        ctx: OpenFinalOverrideContext,
+        visited: inout Set<DeclID>
+    ) {
+        guard visited.insert(declID).inserted,
+              let ownerSymbol = ctx.bindings.declSymbols[declID],
+              let decl = ctx.ast.arena.decl(declID),
+              let info = extractDeclInfo(decl)
+        else { return }
+
+        validateMemberOverrides(info.memberFunctions, symbol: ownerSymbol, ctx: ctx)
+        validateMemberOverrides(info.memberProperties, symbol: ownerSymbol, ctx: ctx)
+        for nestedDeclID in info.nestedClasses {
+            validateBodyNestedDeclOverrides(in: nestedDeclID, ctx: ctx, visited: &visited)
+        }
+    }
+
     private func validateOFODecl(
         _ declID: DeclID,
         ctx: OpenFinalOverrideContext
@@ -223,11 +412,13 @@ extension DataFlowSemaPhase {
 
         if case let .classDecl(classDecl) = decl,
            ctx.symbols.symbol(symbol)?.kind == .enumClass {
-            validateEnumEntryAbstractCompleteness(
-                classDecl,
-                ownerSymbol: symbol,
-                ctx: ctx
-            )
+            for entry in classDecl.enumEntries {
+                validateEnumEntryMemberFinalityOverrides(
+                    entry: entry,
+                    ownerSymbol: symbol,
+                    ctx: ctx
+                )
+            }
         }
 
         if case let .interfaceDecl(interfaceDecl) = decl {
@@ -261,9 +452,18 @@ extension DataFlowSemaPhase {
             interner: ctx.interner
         )
         for inherited in inheritedRequirements {
-            if let enumMember = declaredMembers.first(where: {
-                enumMemberOverridesAbstractMember($0, inherited, ownerSymbol: ownerSymbol, ctx: ctx)
-            }) {
+            let satisfyingDeclID = declaredMemberDeclIDs.first { declID in
+                guard let member = ctx.bindings.declSymbols[declID] else { return false }
+                return enumMemberOverridesAbstractMember(
+                    member, inherited,
+                    memberDeclID: declID,
+                    ownerSymbol: ownerSymbol,
+                    ctx: ctx
+                )
+            }
+            if let satisfyingDeclID,
+               let enumMember = ctx.bindings.declSymbols[satisfyingDeclID]
+            {
                 if ctx.symbols.symbol(enumMember)?.flags.contains(.abstractType) == true {
                     requirements.append(enumMember)
                 }
@@ -298,6 +498,7 @@ extension DataFlowSemaPhase {
     private func enumMemberOverridesAbstractMember(
         _ member: SymbolID,
         _ abstractMember: SymbolID,
+        memberDeclID: DeclID,
         ownerSymbol: SymbolID,
         ctx: OpenFinalOverrideContext
     ) -> Bool {
@@ -314,14 +515,135 @@ extension DataFlowSemaPhase {
                 ctx: ctx
             )
         case .property:
+            let childTypeIsInferred: Bool
+            if case let .propertyDecl(property) = ctx.ast.arena.decl(memberDeclID) {
+                childTypeIsInferred = property.type == nil
+            } else {
+                childTypeIsInferred = false
+            }
             return enumPropertyOverrideMatches(
                 childMember: member,
                 abstractMember: abstractMember,
                 childOwner: ownerSymbol,
+                childTypeIsInferred: childTypeIsInferred,
                 ctx: ctx
             )
         default:
             return false
+        }
+    }
+
+    /// Enum entry bodies subclass the enum class, but their member symbols
+    /// are collected under the enum class itself, so the inherited-member
+    /// scan behind `validateOverrideTarget` never sees the enum's own
+    /// synthetic `name`/`ordinal` members (or any other non-overridable
+    /// member declared on the enum class). Without this check an entry can
+    /// silently `override` the final `kotlin.Enum.name`/`ordinal`; the
+    /// bogus member is then ignored or traps at runtime (KUU-3748).
+    private func validateEnumEntryMemberFinalityOverrides(
+        entry: EnumEntryDecl,
+        ownerSymbol: SymbolID,
+        ctx: OpenFinalOverrideContext
+    ) {
+        guard let ownerSym = ctx.symbols.symbol(ownerSymbol) else { return }
+        for memberDeclID in entry.memberFunctions + entry.memberProperties {
+            guard let memberDecl = ctx.ast.arena.decl(memberDeclID),
+                  let memberMeta = extractMemberMeta(
+                      memberDecl,
+                      declID: memberDeclID,
+                      ctx: ctx
+                  ),
+                  memberMeta.hasOverride
+            else { continue }
+            validateEnumEntryOverrideFinality(
+                memberName: memberMeta.name,
+                memberRange: memberMeta.range,
+                memberDeclID: memberDeclID,
+                parameterTypes: memberMeta.parameterTypes,
+                ownerSymbol: ownerSymbol,
+                ownerSym: ownerSym,
+                ctx: ctx
+            )
+        }
+    }
+
+    /// An `override` in an enum entry body is invalid when it targets any
+    /// non-overridable member reachable from the entry's anonymous class:
+    /// the enum class's own members (the entry subclasses the enum class)
+    /// plus the members it inherits. A single final match rejects the
+    /// override even when another same-named overridable member exists,
+    /// matching kotlinc ('X' in 'Y' is final and cannot be overridden).
+    private func validateEnumEntryOverrideFinality(
+        memberName: InternedString,
+        memberRange: SourceRange,
+        memberDeclID: DeclID,
+        parameterTypes: [TypeID]?,
+        ownerSymbol: SymbolID,
+        ownerSym: SemanticSymbol,
+        ctx: OpenFinalOverrideContext
+    ) {
+        let memberSymbol = ctx.bindings.declSymbols[memberDeclID]
+        let memberSym = memberSymbol.flatMap { ctx.symbols.symbol($0) }
+        let memberIsFunction = memberSym?.kind == .function
+        let memberIsExtension = memberSym?.flags.contains(.memberExtension) == true
+
+        // A same-named overload with a different signature is a separate
+        // member, not an override target.
+        func signatureMatches(_ candidateID: SymbolID) -> Bool {
+            guard memberIsFunction, let parameterTypes else { return true }
+            return ctx.symbols.symbol(candidateID)?.kind == .function
+                && ctx.symbols.functionSignature(for: candidateID)?.parameterTypes == parameterTypes
+        }
+        func flagsMatch(_ candidate: SemanticSymbol) -> Bool {
+            candidate.flags.contains(.memberExtension) == memberIsExtension
+        }
+
+        var finalTarget: (SymbolID, InternedString)?
+        for childID in ctx.symbols.children(ofFQName: ownerSym.fqName) {
+            guard childID != memberSymbol,
+                  let child = ctx.symbols.symbol(childID),
+                  child.fqName == ownerSym.fqName + [child.name],
+                  child.name == memberName,
+                  child.kind == .function || child.kind == .property,
+                  child.visibility != .private,
+                  !child.flags.contains(.extensionMemberAlias),
+                  flagsMatch(child),
+                  signatureMatches(childID)
+            else { continue }
+            let parent = OFOInheritedMember(
+                memberID: childID,
+                ownerName: ownerSym.name,
+                ownerIsInterface: false
+            )
+            if !isMemberOverridable(child, parent: parent) {
+                finalTarget = (childID, ownerSym.name)
+                break
+            }
+        }
+        if finalTarget == nil {
+            for parent in findAllInheritedMembers(
+                named: memberName,
+                for: ownerSymbol,
+                symbols: ctx.symbols
+            ) {
+                guard let parentSym = ctx.symbols.symbol(parent.memberID),
+                      flagsMatch(parentSym),
+                      signatureMatches(parent.memberID)
+                else { continue }
+                if !isMemberOverridable(parentSym, parent: parent) {
+                    finalTarget = (parent.memberID, parent.ownerName)
+                    break
+                }
+            }
+        }
+        if let (_, finalOwnerName) = finalTarget {
+            let name = ctx.interner.resolve(memberName)
+            let ownerName = ctx.interner.resolve(finalOwnerName)
+            ctx.diagnostics.error(
+                "KSWIFTK-SEMA-FINAL",
+                "'\(name)' in '\(ownerName)' is final and cannot be overridden.",
+                range: memberRange
+            )
         }
     }
 
@@ -360,6 +682,7 @@ extension DataFlowSemaPhase {
                       childMember: member,
                       abstractMember: abstractMember,
                       childOwner: ownerSymbol,
+                      childTypeIsInferred: property.type == nil,
                       ctx: ctx
                   )
             else {
@@ -374,6 +697,7 @@ extension DataFlowSemaPhase {
         childMember: SymbolID,
         abstractMember: SymbolID,
         childOwner: SymbolID,
+        childTypeIsInferred: Bool,
         ctx: OpenFinalOverrideContext
     ) -> Bool {
         guard let child = ctx.symbols.symbol(childMember),
@@ -381,7 +705,6 @@ extension DataFlowSemaPhase {
               let abstract = ctx.symbols.symbol(abstractMember),
               abstract.kind == .property,
               child.name == abstract.name,
-              let childType = ctx.symbols.propertyType(for: childMember),
               let abstractView = abstractMemberViewFromClass(
                   abstractMember,
                   for: childOwner,
@@ -409,6 +732,18 @@ extension DataFlowSemaPhase {
 
         let childIsMutable = child.flags.contains(.mutable)
         guard childIsMutable || !abstractView.isMutable else {
+            return false
+        }
+        // An `override val x = …` whose type is inferred carries only the
+        // `Any?` placeholder at this phase — inference runs during type
+        // checking. The name + override modifier already establish the
+        // implementation, matching the name-based accounting
+        // unimplementedAbstractMembers applies to ordinary classes via
+        // collectOverriddenMemberNames.
+        if childTypeIsInferred {
+            return true
+        }
+        guard let childType = ctx.symbols.propertyType(for: childMember) else {
             return false
         }
         if abstractView.isMutable {
@@ -607,6 +942,7 @@ extension DataFlowSemaPhase {
 
             if memberMeta.hasOverride {
                 validateOverrideTarget(
+                    memberDecl: memberDecl,
                     memberName: memberMeta.name,
                     memberRange: memberMeta.range,
                     ownerSymbol: symbol,
@@ -618,6 +954,12 @@ extension DataFlowSemaPhase {
                 validateValVarMutabilityOverride(
                     memberName: memberMeta.name,
                     memberRange: memberMeta.range,
+                    ownerSymbol: symbol,
+                    memberSymbol: memberSymbol,
+                    ctx: ctx
+                )
+                validatePropertyTypeOverride(
+                    memberDecl: memberDecl,
                     ownerSymbol: symbol,
                     memberSymbol: memberSymbol,
                     ctx: ctx
@@ -972,6 +1314,7 @@ extension DataFlowSemaPhase {
     }
 
     private func validateOverrideTarget(
+        memberDecl: Decl,
         memberName: InternedString,
         memberRange: SourceRange,
         ownerSymbol: SymbolID,
@@ -1053,6 +1396,22 @@ extension DataFlowSemaPhase {
         }
 
         if isMemberOverridable(parentSym, parent: parent) {
+            // An overriding function inherits default parameter values from
+            // the overridden declaration; redeclaring them is rejected by
+            // kotlinc ("an overriding function is not allowed to specify
+            // default values for its parameters"). This phase runs before
+            // `inheritDefaultArgumentValuesForOverrides`, so a non-nil
+            // `defaultValue` here always comes from the source.
+            if case let .funDecl(fun) = memberDecl,
+               fun.valueParams.contains(where: { $0.defaultValue != nil }) {
+                let name = ctx.interner.resolve(memberName)
+                ctx.diagnostics.error(
+                    "KSWIFTK-SEMA-OVERRIDE-DEFAULT-ARGS",
+                    "An overriding function is not allowed to specify default values for its parameters: '\(name)'.",
+                    range: memberRange
+                )
+            }
+
             if let returnType = returnType {
                 validateReturnTypeCovariance(
                     childReturnType: returnType,
@@ -1222,6 +1581,118 @@ extension DataFlowSemaPhase {
             ctx.diagnostics.error(
                 "KSWIFTK-SEMA-OVERRIDE-MUTABILITY",
                 "'var' property '\(name)' defined in '\(ownerName)' cannot be overridden by 'val' property.",
+                range: memberRange
+            )
+            return
+        }
+    }
+
+    /// Kotlin property override type rules:
+    ///   - `val` overriding `val`: the child type must be a *subtype* of the
+    ///     parent's (covariant read). Widening is rejected.
+    ///   - `var` overriding `val`: only the getter participates, so the same
+    ///     covariance applies.
+    ///   - `var` overriding `var`: the property is read AND written, so the
+    ///     child type must equal the parent type (invariant) — neither
+    ///     widening nor narrowing is allowed. kotlinc reports "type of 'var x'
+    ///     doesn't match the type of the overridden 'var' property".
+    /// A `val`-over-`var` pair is left to `validateValVarMutabilityOverride`
+    /// (it is rejected for mutability reasons regardless of types).
+    /// A parent type that mentions the superclass's own type parameters is
+    /// first substituted through the child's concrete supertype arguments;
+    /// types still parametric after substitution are skipped: those checks
+    /// belong to the generic-covariance path.
+    ///
+    /// When the override has no explicit type annotation the symbol stores the
+    /// `anyType` placeholder (see `extractMemberMeta` for the function case),
+    /// which would false-positive against any concrete parent type. Such
+    /// inferred-type overrides are skipped here and re-validated by
+    /// `validateInferredPropertyTypeOverrides` once type checking has
+    /// published the inferred property type.
+    private func validatePropertyTypeOverride(
+        memberDecl: Decl,
+        ownerSymbol: SymbolID,
+        memberSymbol: SymbolID,
+        ctx: OpenFinalOverrideContext
+    ) {
+        guard case let .propertyDecl(prop) = memberDecl,
+              prop.type != nil,
+              let memberSym = ctx.symbols.symbol(memberSymbol),
+              memberSym.kind == .property,
+              let childType = ctx.symbols.propertyType(for: memberSymbol),
+              !typeContainsAnyTypeParam(childType, types: ctx.types)
+        else { return }
+
+        checkPropertyTypeAgainstInherited(
+            memberName: prop.name,
+            memberRange: prop.range,
+            childType: childType,
+            childIsVar: memberSym.flags.contains(.mutable),
+            ownerSymbol: ownerSymbol,
+            ctx: ctx
+        )
+    }
+
+    private func checkPropertyTypeAgainstInherited(
+        memberName: InternedString,
+        memberRange: SourceRange,
+        childType: TypeID,
+        childIsVar: Bool,
+        ownerSymbol: SymbolID,
+        ctx: OpenFinalOverrideContext
+    ) {
+        for parent in findAllInheritedMembers(
+            named: memberName,
+            for: ownerSymbol,
+            symbols: ctx.symbols
+        ) {
+            guard let parentSym = ctx.symbols.symbol(parent.memberID),
+                  parentSym.kind == .property,
+                  let declaredParentType = ctx.symbols.propertyType(for: parent.memberID)
+            else { continue }
+
+            // A parent property declared over the superclass's own type
+            // parameters (`open var x: T`) must be compared through the
+            // child's concrete supertype arguments: `class D : Base<String>`
+            // sees `x` as `String`, not `T`. Parents still mentioning type
+            // parameters after substitution (e.g. `D<T> : Base<T>`) fall back
+            // to the old skip — the generic-covariance path owns those.
+            let parentType: TypeID
+            if typeContainsAnyTypeParam(declaredParentType, types: ctx.types),
+               let parentOwner = ctx.symbols.parentSymbol(for: parent.memberID),
+               let liftedArgs = liftedSupertypeArgs(
+                   from: ownerSymbol,
+                   to: parentOwner,
+                   types: ctx.types,
+                   symbols: ctx.symbols
+               ) {
+                parentType = ctx.types.substituteNominalTypeParameters(
+                    in: declaredParentType,
+                    owner: parentOwner,
+                    ownerArgs: liftedArgs
+                )
+            } else {
+                parentType = declaredParentType
+            }
+            guard !typeContainsAnyTypeParam(parentType, types: ctx.types)
+            else { continue }
+
+            let parentIsVar = parentSym.flags.contains(.mutable)
+            if !childIsVar && parentIsVar {
+                continue // 'val' over 'var': mutability check reports instead
+            }
+            let getterCovariant = ctx.types.isSubtype(childType, parentType)
+            let invariant = !childIsVar || !parentIsVar
+                || ctx.types.isSubtype(parentType, childType)
+            if getterCovariant && invariant { continue }
+
+            let name = ctx.interner.resolve(memberName)
+            let ownerName = ctx.interner.resolve(parent.ownerName)
+            let parentTypeStr = ctx.types.renderType(parentType)
+            let childTypeStr = ctx.types.renderType(childType)
+            ctx.diagnostics.error(
+                "KSWIFTK-SEMA-OVERRIDE-TYPE",
+                "Type of '\(name)' doesn't match the type of the overridden property '\(parentTypeStr)' defined in '\(ownerName)' (found '\(childTypeStr)').",
                 range: memberRange
             )
             return
@@ -1962,9 +2433,17 @@ extension DataFlowSemaPhase {
                     && childSignature.isSuspend == parentSignature.isSuspend
                     && ctx.types.isSubtype(childSignature.returnType, parentSignature.returnType)
             }
-        } else if ctx.symbols.symbol(memberSymbol)?.kind == .property {
+        } else if let childSymbol = ctx.symbols.symbol(memberSymbol), childSymbol.kind == .property {
+            // Extension properties can only override extension properties;
+            // a same-named non-extension interface member is unrelated.
             matchingParents = overridableParents.filter { parent in
-                ctx.symbols.symbol(parent.memberID)?.kind == .property
+                guard let parentSymbol = ctx.symbols.symbol(parent.memberID),
+                      parentSymbol.kind == .property
+                else {
+                    return false
+                }
+                return childSymbol.flags.contains(.memberExtension)
+                    == parentSymbol.flags.contains(.memberExtension)
             }
         } else {
             matchingParents = []
@@ -2092,9 +2571,7 @@ extension DataFlowSemaPhase {
                 guard child.fqName == sym.fqName + [child.name] else { continue }
                 guard !child.flags.contains(.extensionMemberAlias) else { continue }
                 guard isInheritedMember(child, from: sym) else { continue }
-                let isMatch = child.kind == .function
-                    || child.kind == .property
-                guard isMatch, child.name == memberName else {
+                guard child.kind == .function || child.kind == .property, child.name == memberName else {
                     continue
                 }
                 // Function overloads must be matched by their parameter types;
@@ -2107,13 +2584,11 @@ extension DataFlowSemaPhase {
                         continue
                     }
                 }
-                if isMatch {
-                    return OFOInheritedMember(
-                        memberID: childID,
-                        ownerName: sym.name,
-                        ownerIsInterface: sym.kind == .interface
-                    )
-                }
+                return OFOInheritedMember(
+                    memberID: childID,
+                    ownerName: sym.name,
+                    ownerIsInterface: sym.kind == .interface
+                )
             }
 
             queue.append(

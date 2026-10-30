@@ -92,6 +92,25 @@ public inline fun Int.toDouble(): Double = __intToDouble(this)
 @DeprecatedSinceKotlin(warningSince = "1.5", errorSince = "2.3")
 public fun Long.toChar(): Char = this.toInt().toChar()
 
+// KUU-3763: Byte/Short.toChar carry the same upstream deprecation as
+// Long.toChar (warning since 1.5, error since 2.3). They are declared as
+// package extensions so `checkBuiltinDeprecation` can read their metadata for
+// the explicit primitive-receiver fast path; the calls themselves still lower
+// through the primitive conversion path.
+@Deprecated(
+    "Direct conversion to Char is deprecated. Use toInt().toChar() or Char constructor instead.",
+    ReplaceWith("this.toInt().toChar()")
+)
+@DeprecatedSinceKotlin(warningSince = "1.5", errorSince = "2.3")
+public fun Byte.toChar(): Char = this.toInt().toChar()
+
+@Deprecated(
+    "Direct conversion to Char is deprecated. Use toInt().toChar() or Char constructor instead.",
+    ReplaceWith("this.toInt().toChar()")
+)
+@DeprecatedSinceKotlin(warningSince = "1.5", errorSince = "2.3")
+public fun Short.toChar(): Char = this.toInt().toChar()
+
 // KSP-647: Floating-point bit-pattern conversions keep the ABI-specific
 // reinterpretation in the runtime while exposing the public API as Kotlin.
 
@@ -138,6 +157,11 @@ public fun Double.toInt(): Int = __doubleToInt(this)
 
 public fun Double.toLong(): Long = __doubleToLong(this)
 
+@Deprecated(
+    "Direct conversion to Char is deprecated. Use toInt().toChar() or Char constructor instead.",
+    ReplaceWith("this.toInt().toChar()")
+)
+@DeprecatedSinceKotlin(warningSince = "1.5", errorSince = "2.3")
 public fun Double.toChar(): Char = toInt().toChar()
 
 public fun Float.toInt(): Int = __floatToInt(this)
@@ -146,6 +170,11 @@ public fun Float.toLong(): Long = __floatToLong(this)
 
 public fun Float.toDouble(): Double = __floatToDouble(this)
 
+@Deprecated(
+    "Direct conversion to Char is deprecated. Use toInt().toChar() or Char constructor instead.",
+    ReplaceWith("this.toInt().toChar()")
+)
+@DeprecatedSinceKotlin(warningSince = "1.5", errorSince = "2.3")
 public fun Float.toChar(): Char = toInt().toChar()
 
 // KSP-1544 (KUU-588): Float/Double narrowing to Byte/Short is defined by the

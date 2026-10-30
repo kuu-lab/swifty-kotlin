@@ -72,8 +72,6 @@ final class LLVMCAPIBindings {
     typealias LLVMBuildSubFn = @convention(c) (LLVMBuilderRef?, LLVMValueRef?, LLVMValueRef?, UnsafePointer<CChar>?) -> LLVMValueRef?
     typealias LLVMBuildMulFn = @convention(c) (LLVMBuilderRef?, LLVMValueRef?, LLVMValueRef?, UnsafePointer<CChar>?) -> LLVMValueRef?
     typealias LLVMBuildSDivFn = @convention(c) (LLVMBuilderRef?, LLVMValueRef?, LLVMValueRef?, UnsafePointer<CChar>?) -> LLVMValueRef?
-    typealias LLVMBuildUDivFn = @convention(c) (LLVMBuilderRef?, LLVMValueRef?, LLVMValueRef?, UnsafePointer<CChar>?) -> LLVMValueRef?
-    typealias LLVMBuildURemFn = @convention(c) (LLVMBuilderRef?, LLVMValueRef?, LLVMValueRef?, UnsafePointer<CChar>?) -> LLVMValueRef?
     typealias LLVMBuildAndFn = @convention(c) (LLVMBuilderRef?, LLVMValueRef?, LLVMValueRef?, UnsafePointer<CChar>?) -> LLVMValueRef?
     typealias LLVMBuildOrFn = @convention(c) (LLVMBuilderRef?, LLVMValueRef?, LLVMValueRef?, UnsafePointer<CChar>?) -> LLVMValueRef?
     typealias LLVMBuildXorFn = @convention(c) (LLVMBuilderRef?, LLVMValueRef?, LLVMValueRef?, UnsafePointer<CChar>?) -> LLVMValueRef?
@@ -83,7 +81,6 @@ final class LLVMCAPIBindings {
     typealias LLVMBuildNotFn = @convention(c) (LLVMBuilderRef?, LLVMValueRef?, UnsafePointer<CChar>?) -> LLVMValueRef?
     typealias LLVMBuildICmpFn = @convention(c) (LLVMBuilderRef?, UInt32, LLVMValueRef?, LLVMValueRef?, UnsafePointer<CChar>?) -> LLVMValueRef?
     typealias LLVMBuildZExtFn = @convention(c) (LLVMBuilderRef?, LLVMValueRef?, LLVMTypeRef?, UnsafePointer<CChar>?) -> LLVMValueRef?
-    typealias LLVMBuildTruncFn = @convention(c) (LLVMBuilderRef?, LLVMValueRef?, LLVMTypeRef?, UnsafePointer<CChar>?) -> LLVMValueRef?
     typealias LLVMBuildAllocaFn = @convention(c) (LLVMBuilderRef?, LLVMTypeRef?, UnsafePointer<CChar>?) -> LLVMValueRef?
     typealias LLVMBuildStoreFn = @convention(c) (LLVMBuilderRef?, LLVMValueRef?, LLVMValueRef?) -> LLVMValueRef?
     typealias LLVMBuildLoad2Fn = @convention(c) (LLVMBuilderRef?, LLVMTypeRef?, LLVMValueRef?, UnsafePointer<CChar>?) -> LLVMValueRef?
@@ -302,8 +299,6 @@ final class LLVMCAPIBindings {
     let buildSubFn: LLVMBuildSubFn
     let buildMulFn: LLVMBuildMulFn
     let buildSDivFn: LLVMBuildSDivFn
-    let buildUDivFn: LLVMBuildUDivFn
-    let buildURemFn: LLVMBuildURemFn
     let buildAndFn: LLVMBuildAndFn?
     let buildOrFn: LLVMBuildOrFn?
     let buildXorFn: LLVMBuildXorFn?
@@ -313,7 +308,6 @@ final class LLVMCAPIBindings {
     let buildNotFn: LLVMBuildNotFn?
     let buildICmpFn: LLVMBuildICmpFn
     let buildZExtFn: LLVMBuildZExtFn?
-    let buildTruncFn: LLVMBuildTruncFn?
     let buildAllocaFn: LLVMBuildAllocaFn?
     let buildStoreFn: LLVMBuildStoreFn?
     let buildLoad2Fn: LLVMBuildLoad2Fn?
@@ -421,8 +415,6 @@ final class LLVMCAPIBindings {
         buildSubFn: @escaping LLVMBuildSubFn,
         buildMulFn: @escaping LLVMBuildMulFn,
         buildSDivFn: @escaping LLVMBuildSDivFn,
-        buildUDivFn: @escaping LLVMBuildUDivFn,
-        buildURemFn: @escaping LLVMBuildURemFn,
         buildAndFn: LLVMBuildAndFn?,
         buildOrFn: LLVMBuildOrFn?,
         buildXorFn: LLVMBuildXorFn?,
@@ -432,7 +424,6 @@ final class LLVMCAPIBindings {
         buildNotFn: LLVMBuildNotFn?,
         buildICmpFn: @escaping LLVMBuildICmpFn,
         buildZExtFn: LLVMBuildZExtFn?,
-        buildTruncFn: LLVMBuildTruncFn?,
         buildAllocaFn: LLVMBuildAllocaFn?,
         buildStoreFn: LLVMBuildStoreFn?,
         buildLoad2Fn: LLVMBuildLoad2Fn?,
@@ -540,8 +531,6 @@ final class LLVMCAPIBindings {
         self.buildSubFn = buildSubFn
         self.buildMulFn = buildMulFn
         self.buildSDivFn = buildSDivFn
-        self.buildUDivFn = buildUDivFn
-        self.buildURemFn = buildURemFn
         self.buildAndFn = buildAndFn
         self.buildOrFn = buildOrFn
         self.buildXorFn = buildXorFn
@@ -551,7 +540,6 @@ final class LLVMCAPIBindings {
         self.buildNotFn = buildNotFn
         self.buildICmpFn = buildICmpFn
         self.buildZExtFn = buildZExtFn
-        self.buildTruncFn = buildTruncFn
         self.buildAllocaFn = buildAllocaFn
         self.buildStoreFn = buildStoreFn
         self.buildLoad2Fn = buildLoad2Fn

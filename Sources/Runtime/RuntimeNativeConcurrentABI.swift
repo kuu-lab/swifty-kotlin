@@ -105,11 +105,15 @@ public func kk_worker_id(_ workerHandle: Int) -> Int {
 /// A Future is a single-assignment promise: one producer calls `complete`,
 /// after which any number of consumers may call `result` (blocking until ready)
 /// or `consume` (one-shot retrieval that nulls out the stored value).
+private final class RuntimeFutureRootStorage {}
+
 final class RuntimeFutureBox: @unchecked Sendable {
     private let lock = NSLock()
+    private let gcRootStorage = RuntimeFutureRootStorage()
     private var _resultRaw: Int = 0
     private var _ready: Bool = false
     private var _consumed: Bool = false
+    private var nativeReadRetainsPayload = false
     /// Semaphores of threads blocked on this future: one per `blockUntilReady`
     /// caller and one shared signal per `wait_for_multiple_futures` call.
     /// `complete` signals each once, then clears the list.
@@ -127,7 +131,9 @@ final class RuntimeFutureBox: @unchecked Sendable {
         waitSignals.append(signal)
         lock.unlock()
 
+        let gcBlocking = runtimeGCSafepoints.beginBlockingIfEnrolled()
         _ = signal.wait(timeout: DispatchTime.now() + .nanoseconds(timeoutNs))
+        if gcBlocking { runtimeGCSafepoints.endBlocking() }
 
         removeWaitSignal(signal)
     }
@@ -159,7 +165,18 @@ final class RuntimeFutureBox: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         guard !_ready else { return } // single-assignment
-        _resultRaw = valueRaw
+        runtimeStorage.withGCLock { state in
+            _resultRaw = valueRaw
+            let storageID = ObjectIdentifier(gcRootStorage)
+            let child = UInt(bitPattern: valueRaw)
+            if state.heapObjects[child] != nil || state.objectPointers.contains(child) {
+                state.retainedFutureHeapFields[storageID] = RuntimeStorageHeapRoots(
+                    storage: gcRootStorage, fields: [0: child]
+                )
+            } else {
+                state.retainedFutureHeapFields.removeValue(forKey: storageID)
+            }
+        }
         _ready = true
         for signal in waitSignals {
             signal.signal()
@@ -188,19 +205,36 @@ final class RuntimeFutureBox: @unchecked Sendable {
 
     func result() -> Int {
         blockUntilReady()
+        let threadID = ObjectIdentifier(Thread.current)
         lock.lock()
         defer { lock.unlock() }
-        return _ready ? _resultRaw : 0
+        let value = _ready ? _resultRaw : 0
+        runtimeStorage.withGCLock { state in
+            if !runtimeRecordShadowHandoffLocked(value, threadID: threadID, state: &state),
+               (state.heapObjects[UInt(bitPattern: value)] != nil || state.objectPointers.contains(UInt(bitPattern: value))) {
+                nativeReadRetainsPayload = true
+            }
+        }
+        return value
     }
 
     func consume() -> Int {
         blockUntilReady()
+        let threadID = ObjectIdentifier(Thread.current)
         lock.lock()
         defer { lock.unlock() }
         guard _ready, !_consumed else { return 0 }
         _consumed = true
         let v = _resultRaw
-        _resultRaw = 0
+        runtimeStorage.withGCLock { state in
+            _resultRaw = 0
+            if runtimeRecordShadowHandoffLocked(v, threadID: threadID, state: &state),
+               !nativeReadRetainsPayload {
+                state.retainedFutureHeapFields.removeValue(forKey: ObjectIdentifier(gcRootStorage))
+            }
+            // Native callers without a shadow frame need an explicit root
+            // contract. Conservatively retain the result while the Future is live.
+        }
         return v
     }
 }
@@ -214,11 +248,7 @@ public func kk_future_new() -> Int {
 @discardableResult
 @_cdecl("kk_future_complete")
 public func kk_future_complete(_ futureHandle: Int, _ valueRaw: Int) -> Int {
-    guard let ptr = UnsafeMutableRawPointer(bitPattern: futureHandle),
-          let box = tryCast(ptr, to: RuntimeFutureBox.self)
-    else {
-        return 0
-    }
+    guard let box = resolveRuntimeHandle(futureHandle, as: RuntimeFutureBox.self) else { return 0 }
     box.complete(valueRaw: valueRaw)
     return 0
 }
@@ -259,22 +289,14 @@ public func kk_future_invoke(
 
 @_cdecl("kk_future_result")
 public func kk_future_result(_ futureHandle: Int) -> Int {
-    guard let ptr = UnsafeMutableRawPointer(bitPattern: futureHandle),
-          let box = tryCast(ptr, to: RuntimeFutureBox.self)
-    else {
-        return 0
-    }
+    guard let box = resolveRuntimeHandle(futureHandle, as: RuntimeFutureBox.self) else { return 0 }
     return box.result()
 }
 
 /// Second call returns 0.
 @_cdecl("kk_future_consume")
 public func kk_future_consume(_ futureHandle: Int) -> Int {
-    guard let ptr = UnsafeMutableRawPointer(bitPattern: futureHandle),
-          let box = tryCast(ptr, to: RuntimeFutureBox.self)
-    else {
-        return 0
-    }
+    guard let box = resolveRuntimeHandle(futureHandle, as: RuntimeFutureBox.self) else { return 0 }
     return box.consume()
 }
 
@@ -327,8 +349,16 @@ public func __kk_native_concurrent_execute_impl(
     typealias JobFunction = @convention(c) (Int) -> Int
     let job = unsafeBitCast(jobPointer, to: JobFunction.self)
     let futureHandle = kk_future_new()
+    let queuedRoots = RuntimeQueuedGCRoots([jobArgumentRaw, futureHandle])
     let submitted = worker.execute {
+        defer { queuedRoots.finish() }
+        kk_gc_shadow_push()
+        defer { runtimePopNativeGCShadowFrame(0, 0) }
         _ = kk_future_complete(futureHandle, job(jobArgumentRaw))
+    }
+    if !submitted {
+        queuedRoots.finish()
+        _ = runtimeReleaseObject(futureHandle)
     }
     return submitted ? futureHandle : 0
 }
@@ -391,14 +421,16 @@ public func __kk_native_concurrent_wait_for_multiple_futures(
         if !ready.isEmpty {
             return registerRuntimeObject(RuntimeSetBox(elements: ready))
         }
+        if let deadline, DispatchTime.now() >= deadline {
+            return registerRuntimeObject(RuntimeSetBox(elements: []))
+        }
+        let gcBlocking = runtimeGCSafepoints.beginBlockingIfEnrolled()
         if let deadline {
-            if DispatchTime.now() >= deadline {
-                return registerRuntimeObject(RuntimeSetBox(elements: []))
-            }
             _ = signal.wait(timeout: deadline)
         } else {
             signal.wait()
         }
+        if gcBlocking { runtimeGCSafepoints.endBlocking() }
     }
 }
 
@@ -585,14 +617,19 @@ public func kk_worker_execute_after(
     // no-exception path) stores through that garbage address and crashes.
     let fn = unsafeBitCast(UnsafeRawPointer(bitPattern: resolved.fnPtr)!, to: KKClosureThunkEntryPoint.self)
     let captured = resolved.closureRaw
+    let queuedRoots = RuntimeQueuedGCRoots([captured])
     let deadline: DispatchTime = afterMicroseconds > 0
         ? DispatchTime.now() + .microseconds(afterMicroseconds)
         : .now()
     let submitted = worker.executeAfter(deadline: deadline) {
+        defer { queuedRoots.finish() }
         // Fire-and-forget: executeAfter's Kotlin signature returns Unit with
         // no Future, so there is nothing to report a thrown exception to.
+        kk_gc_shadow_push()
+        defer { runtimePopNativeGCShadowFrame(0, 0) }
         var thrown = 0
         _ = fn(captured, &thrown)
     }
+    if !submitted { queuedRoots.finish() }
     return submitted ? 1 : 0
 }

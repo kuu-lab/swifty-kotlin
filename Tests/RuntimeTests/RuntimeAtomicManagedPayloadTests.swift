@@ -26,11 +26,41 @@ private func withAtomicPayloadTypeInfo(
 
 @Suite(.serialized, .runtimeIsolation(.gcAndMetadata))
 struct RuntimeAtomicManagedPayloadTests {
+    @Test func retainedAtomicReferencesKeepOrdinaryObjectsAlive() {
+        let scalarObject = kk_object_new(0, 71_001)
+        let arrayObject = kk_object_new(0, 71_002)
+        let scalarWeak = kk_weak_ref_create(scalarObject)
+        let arrayWeak = kk_weak_ref_create(arrayObject)
+        let cell = kk_atomic_ref_create(scalarObject)
+        let array = kk_atomic_ref_array_new(1)
+        _ = kk_atomic_ref_array_storeAt(array, 0, arrayObject)
+        kk_register_coroutine_root(UnsafeMutableRawPointer(bitPattern: cell))
+        kk_register_coroutine_root(UnsafeMutableRawPointer(bitPattern: array))
+
+        // A second collection catches implementations that only keep new
+        // allocations alive until the first collection completes.
+        kk_gc_collect()
+        kk_gc_collect()
+        #expect(kk_weak_ref_get(scalarWeak) == scalarObject)
+        #expect(kk_weak_ref_get(arrayWeak) == arrayObject)
+        #expect(__kk_atomic_ref_load(cell) == scalarObject)
+        #expect(kk_atomic_ref_array_loadAt(array, 0) == arrayObject)
+
+        _ = __kk_atomic_ref_store(cell, runtimeNullSentinelInt)
+        _ = kk_atomic_ref_array_storeAt(array, 0, runtimeNullSentinelInt)
+        kk_unregister_coroutine_root(UnsafeMutableRawPointer(bitPattern: cell))
+        kk_unregister_coroutine_root(UnsafeMutableRawPointer(bitPattern: array))
+        _ = kk_object_release(cell)
+        _ = kk_object_release(array)
+        _ = kk_object_release(scalarObject)
+        _ = kk_object_release(arrayObject)
+    }
+
     @Test func retainedScalarProtectsManagedPayloadUntilReplacementAndOwnerRelease() {
         withAtomicPayloadTypeInfo { info in
             let payload = kk_alloc(32, info)
             let cell = kk_atomic_ref_create(Int(bitPattern: payload))
-            weak var box: AtomicRefBox? = resolveRuntimeHandle(cell, as: AtomicRefBox.self)
+            weak let box: AtomicRefBox? = resolveRuntimeHandle(cell, as: AtomicRefBox.self)
             #expect(runtimeStorage.withGCLock { $0.retainedAtomicReferenceHandles.contains(UInt(bitPattern: cell)) })
             kk_gc_collect()
             #expect(kk_runtime_heap_object_count() == 1)
@@ -50,7 +80,7 @@ struct RuntimeAtomicManagedPayloadTests {
     @Test func retainedReferenceArrayProtectsEachCellAndDropsRemovedOwners() {
         withAtomicPayloadTypeInfo { info in
             let array = kk_atomic_ref_array_new(3)
-            weak var box: AtomicRefArrayBox? = resolveRuntimeHandle(array, as: AtomicRefArrayBox.self)
+            weak let box: AtomicRefArrayBox? = resolveRuntimeHandle(array, as: AtomicRefArrayBox.self)
             for index in 0 ..< 3 {
                 _ = kk_atomic_ref_array_storeAt(array, index, Int(bitPattern: kk_alloc(32, info)))
             }
@@ -156,11 +186,11 @@ struct RuntimeAtomicManagedPayloadTests {
     @Test func ownedSynchronizationKernelReleaseDropsARCButGCAloneDoesNot() {
         var thrown = 0
         let lock = __kk_atomicfu_lock_new(0)
-        weak var lockBox: RuntimeAtomicfuRecursiveLock? = resolveRuntimeHandle(lock, as: RuntimeAtomicfuRecursiveLock.self)
+        weak let lockBox: RuntimeAtomicfuRecursiveLock? = resolveRuntimeHandle(lock, as: RuntimeAtomicfuRecursiveLock.self)
         #expect(__kk_atomicfu_lock_lock(lock, &thrown) == 0 && thrown == 0)
         #expect(__kk_atomicfu_lock_unlock(lock, &thrown) == 0 && thrown == 0)
         let parker = __kk_atomicfu_parker_new()
-        weak var parkerBox: RuntimeAtomicfuParker? = resolveRuntimeHandle(parker, as: RuntimeAtomicfuParker.self)
+        weak let parkerBox: RuntimeAtomicfuParker? = resolveRuntimeHandle(parker, as: RuntimeAtomicfuParker.self)
         #expect(__kk_atomicfu_parker_unpark(parker, &thrown) == 0 && thrown == 0)
         #expect(__kk_atomicfu_parker_wait(parker, 0, &thrown) == 0 && thrown == 0)
         kk_gc_collect()

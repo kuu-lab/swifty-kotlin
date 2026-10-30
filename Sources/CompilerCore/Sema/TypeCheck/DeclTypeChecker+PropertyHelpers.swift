@@ -9,7 +9,6 @@ private struct PropertyDelegateFunctionResolution {
 }
 
 private struct ResolvedPropertyDelegateSignature {
-    let parameterTypes: [TypeID]
     let returnType: TypeID
 }
 
@@ -934,7 +933,6 @@ extension DeclTypeChecker {
             )
         }
         return ResolvedPropertyDelegateSignature(
-            parameterTypes: signature.parameterTypes.map(substitute),
             returnType: substitute(signature.returnType)
         )
     }

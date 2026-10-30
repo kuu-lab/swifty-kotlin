@@ -133,7 +133,6 @@ public enum RuntimeABISpec {
         memoryFunctions,
         nativeConcurrentFunctions,
         nativeRefFunctions,
-        networkFunctions,
         numericRuntimeBridgeFunctions,
         operatorFunctions,
         primitiveNumericConversionFunctions,

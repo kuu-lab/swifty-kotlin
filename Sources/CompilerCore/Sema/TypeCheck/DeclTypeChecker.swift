@@ -112,6 +112,9 @@ final class DeclTypeChecker {
 
         case let .expr(exprID, _):
             let type = driver.inferExpr(exprID, ctx: ctx, locals: &locals, expectedType: expectedType)
+            driver.recordGenericCallConsumer(
+                exprID, type: expectedType == ctx.sema.types.unitType ? nil : expectedType
+            )
             if !ctx.isPropertyGetterReturn, expectedType == ctx.sema.types.unitType,
                ctx.sema.types.makeNonNullable(type) == ctx.sema.types.unitType
             {
@@ -460,28 +463,18 @@ final class DeclTypeChecker {
         }
 
         switch sema.types.kind(of: finalPropertyType) {
-        case let .stringStruct(nullability):
+        case let .stringStruct(nullability), let .nothing(nullability), let .any(nullability):
             if nullability == .nullable {
                 emitLateinitMustBeNonNullDiagnostic(for: property, diagnostics: diagnostics)
             }
-        case let .primitive(primitive, nullability):
+        case let .primitive(_, nullability):
             if nullability == .nullable {
                 diagnostics.error(
                     "KSWIFTK-SEMA-LATEINIT",
                     "'lateinit' property type must be non-null.",
                     range: property.range
                 )
-            } else if primitive == .boolean
-                || primitive == .char
-                || primitive == .int
-                || primitive == .long
-                || primitive == .float
-                || primitive == .double
-                || primitive == .uint
-                || primitive == .ulong
-                || primitive == .ubyte
-                || primitive == .ushort
-            {
+            } else {
                 diagnostics.error(
                     "KSWIFTK-SEMA-LATEINIT",
                     "'lateinit' is not allowed on primitive property types.",
@@ -498,14 +491,6 @@ final class DeclTypeChecker {
             }
         case let .functionType(functionType):
             if functionType.nullability == .nullable {
-                emitLateinitMustBeNonNullDiagnostic(for: property, diagnostics: diagnostics)
-            }
-        case let .nothing(nullability):
-            if nullability == .nullable {
-                emitLateinitMustBeNonNullDiagnostic(for: property, diagnostics: diagnostics)
-            }
-        case let .any(nullability):
-            if nullability == .nullable {
                 emitLateinitMustBeNonNullDiagnostic(for: property, diagnostics: diagnostics)
             }
         case let .kClassType(kClassType):

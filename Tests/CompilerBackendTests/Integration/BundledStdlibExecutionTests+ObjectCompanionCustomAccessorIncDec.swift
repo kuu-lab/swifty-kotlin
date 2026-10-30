@@ -1,5 +1,4 @@
 @testable import CompilerCore
-@testable import CompilerTestSupport
 import Testing
 
 extension BundledStdlibExecutionTests {

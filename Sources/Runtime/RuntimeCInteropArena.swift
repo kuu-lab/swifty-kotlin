@@ -108,12 +108,7 @@ final class RuntimeCInteropArenaBox: @unchecked Sendable {
     private var deferredBlocks: [Int] = []
     /// Set once `clear()` has run; later allocation attempts trap.
     private var cleared = false
-    /// Nominal typeID the handle answers `is` checks as (MemScope or Arena).
-    let nominalTypeID: Int64
-
-    init(nominalTypeID: Int64) {
-        self.nominalTypeID = nominalTypeID
-    }
+    init() {}
 
     func addDeferred(_ block: Int) {
         lock.lock()
@@ -242,25 +237,18 @@ final class RuntimeCInteropNativePtrBox: @unchecked Sendable {
 /// `owner` keeps the arena alive while any var aliasing its memory survives.
 final class RuntimeCInteropVarBox: @unchecked Sendable {
     let address: UInt
-    let kind: RuntimeCInteropVarKind
     /// Nominal typeID of the pointee type (IntVar, CPointerVar, ...), 0 for
     /// untyped aggregate storage.
     let pointeeTypeID: Int64
-    /// Element count for array allocations; nil for scalar vars.
-    let elementCount: Int?
     let owner: AnyObject?
 
     init(
         address: UInt,
-        kind: RuntimeCInteropVarKind,
         pointeeTypeID: Int64,
-        elementCount: Int? = nil,
         owner: AnyObject?
     ) {
         self.address = address
-        self.kind = kind
         self.pointeeTypeID = pointeeTypeID
-        self.elementCount = elementCount
         self.owner = owner
     }
 }
@@ -281,6 +269,13 @@ private let cinteropCPrimitiveVarTypeID = runtimeStableNominalTypeID(fqName: "ko
 private let cinteropCPointedTypeID = runtimeStableNominalTypeID(fqName: "kotlinx.cinterop.CPointed")
 private let cinteropNativePointedTypeID = runtimeStableNominalTypeID(fqName: "kotlinx.cinterop.NativePointed")
 private let cinteropByteVarTypeID = runtimeStableNominalTypeID(fqName: "kotlinx.cinterop.ByteVar")
+private let cinteropByteVarOfTypeID = runtimeStableNominalTypeID(fqName: "kotlinx.cinterop.ByteVarOf")
+
+private func cinteropVariableClassID(for pointeeTypeID: Int64) -> Int64 {
+    // ByteVar is an alias; runtime casts use its concrete ByteVarOf class.
+    if pointeeTypeID == cinteropByteVarTypeID { return cinteropByteVarOfTypeID }
+    return pointeeTypeID != 0 ? pointeeTypeID : cinteropCVariableTypeID
+}
 
 /// Installs the MemScope/Arena/nativeHeap subtype edges once per metadata
 /// generation. Mirrors `registerReflectionRuntimeTypeMetadata`'s flag
@@ -381,7 +376,7 @@ func resolveCOpaquePointerBox(from handle: Int) -> RuntimeCOpaquePointerBox? {
 public func kk_memscope_new() -> Int {
     registerCInteropRuntimeTypeMetadata()
     return registerRuntimeObject(
-        RuntimeCInteropArenaBox(nominalTypeID: cinteropMemScopeTypeID),
+        RuntimeCInteropArenaBox(),
         typeID: cinteropMemScopeTypeID
     )
 }
@@ -390,7 +385,7 @@ public func kk_memscope_new() -> Int {
 public func kk_arena_new() -> Int {
     registerCInteropRuntimeTypeMetadata()
     return registerRuntimeObject(
-        RuntimeCInteropArenaBox(nominalTypeID: cinteropArenaTypeID),
+        RuntimeCInteropArenaBox(),
         typeID: cinteropArenaTypeID
     )
 }
@@ -445,7 +440,7 @@ public func kk_arena_alloc_var(_ scope: Int, _ typeToken: Int) -> Int {
     }
     return registerRuntimeObject(
         RuntimeCInteropVarBox(
-            address: address, kind: kind, pointeeTypeID: typeID, owner: owner
+            address: address, pointeeTypeID: typeID, owner: owner
         ),
         typeID: typeID != 0 ? typeID : cinteropCVariableTypeID
     )
@@ -736,12 +731,11 @@ public func kk_cvar_cpointer_store(_ varHandle: Int, _ value: Int) -> Int {
 @_cdecl("kk_cpointer_pointed")
 public func kk_cpointer_pointed(_ handle: Int) -> Int {
     guard let box = resolveCPointerBox(from: handle) else { return 0 }
-    let kind = runtimeCInteropVarKind(forNominalTypeID: box.pointeeTypeID) ?? .aggregate
     return registerRuntimeObject(
         RuntimeCInteropVarBox(
-            address: box.address, kind: kind, pointeeTypeID: box.pointeeTypeID, owner: nil
+            address: box.address, pointeeTypeID: box.pointeeTypeID, owner: nil
         ),
-        typeID: box.pointeeTypeID != 0 ? box.pointeeTypeID : cinteropCVariableTypeID
+        typeID: cinteropVariableClassID(for: box.pointeeTypeID)
     )
 }
 
@@ -754,11 +748,10 @@ public func kk_cpointer_get(_ handle: Int, _ index: Int) -> Int {
     return registerRuntimeObject(
         RuntimeCInteropVarBox(
             address: box.address + offset,
-            kind: kind,
             pointeeTypeID: box.pointeeTypeID,
             owner: nil
         ),
-        typeID: box.pointeeTypeID != 0 ? box.pointeeTypeID : cinteropCVariableTypeID
+        typeID: cinteropVariableClassID(for: box.pointeeTypeID)
     )
 }
 

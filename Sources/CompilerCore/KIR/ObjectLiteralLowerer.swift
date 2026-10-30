@@ -746,10 +746,60 @@ final class ObjectLiteralLowerer {
         }
     }
 
+    /// The nearest enclosing class's companion object when it is a nominal
+    /// subtype of `ownerSymbol` — i.e. when an implicit-companion-scope
+    /// member resolves to a member declared on the companion's supertype.
+    /// Walks the enclosing nominal chain so an outer class's companion is
+    /// found for nested declarations, innermost companion first (KUU-3153).
+    /// Each enclosing class's own companion wins over its superclasses'
+    /// companions, mirroring the scope chain built in
+    /// `DeclTypeChecker+ClassAndObjectChecking.companionMemberScope`.
+    func inheritedCompanionMemberReceiver(
+        forMemberOwner ownerSymbol: SymbolID,
+        sema: SemaModule
+    ) -> SymbolID? {
+        var current = driver.ctx.currentFunctionSymbol.flatMap {
+            sema.symbols.parentSymbol(for: $0)
+        }
+        var visited: Set<SymbolID> = []
+        while let enclosing = current, visited.insert(enclosing).inserted {
+            if let companion = sema.symbols.companionObjectSymbol(for: enclosing),
+               sema.types.isNominalSubtypeSymbol(companion, of: ownerSymbol)
+            {
+                return companion
+            }
+            // A class also inherits the unqualified companion shorthand of
+            // its class supertypes; the nearest superclass's companion is
+            // innermost among them (BFS order, same as the scope chain).
+            var classQueue = sema.symbols.directSupertypes(for: enclosing).filter {
+                sema.symbols.symbol($0)?.kind == .class
+            }
+            var classVisited: Set<SymbolID> = [enclosing]
+            var classIndex = 0
+            while classIndex < classQueue.count {
+                let superclass = classQueue[classIndex]
+                classIndex += 1
+                guard classVisited.insert(superclass).inserted else { continue }
+                if let companion = sema.symbols.companionObjectSymbol(for: superclass),
+                   sema.types.isNominalSubtypeSymbol(companion, of: ownerSymbol)
+                {
+                    return companion
+                }
+                classQueue.append(contentsOf: sema.symbols.directSupertypes(for: superclass).filter {
+                    sema.symbols.symbol($0)?.kind == .class
+                })
+            }
+            current = sema.symbols.parentSymbol(for: enclosing)
+        }
+        return nil
+    }
+
     func implicitReceiverExprID(
         forProperty symbol: SymbolID,
         sema: SemaModule,
-        arena: KIRArena
+        arena: KIRArena,
+        interner: StringInterner,
+        instructions: inout [KIRInstruction]
     ) -> KIRExprID? {
         // `field` is bound to its backing-field symbol, but its receiver is
         // the instance whose getter owns that field. Prefer the captured owner
@@ -796,23 +846,52 @@ final class ObjectLiteralLowerer {
         {
             return receiver
         }
-        guard let propertyOwner = sema.symbols.parentSymbol(for: symbol),
-              let functionSymbol = driver.ctx.currentFunctionSymbol,
-              let objectOwner = sema.symbols.parentSymbol(for: functionSymbol),
-              let capturedReceiver = sema.bindings.objectLiteralCapturedReceiver(for: objectOwner)
-        else {
-            return driver.ctx.activeImplicitReceiverExprID()
-        }
-        var visited: Set<SymbolID> = []
-        var pending = [capturedReceiver.ownerSymbol]
-        while let owner = pending.popLast() {
-            guard visited.insert(owner).inserted else { continue }
-            if owner == propertyOwner,
-               let receiverExprID = driver.ctx.capturedOuterReceiverExprID(for: capturedReceiver.ownerSymbol)
-            {
-                return receiverExprID
+        if let propertyOwner = sema.symbols.parentSymbol(for: symbol),
+           let functionSymbol = driver.ctx.currentFunctionSymbol,
+           let objectOwner = sema.symbols.parentSymbol(for: functionSymbol),
+           let capturedReceiver = sema.bindings.objectLiteralCapturedReceiver(for: objectOwner)
+        {
+            var visited: Set<SymbolID> = []
+            var pending = [capturedReceiver.ownerSymbol]
+            while let owner = pending.popLast() {
+                guard visited.insert(owner).inserted else { continue }
+                if owner == propertyOwner,
+                   let receiverExprID = driver.ctx.capturedOuterReceiverExprID(for: capturedReceiver.ownerSymbol)
+                {
+                    return receiverExprID
+                }
+                pending.append(contentsOf: sema.symbols.directSupertypes(for: owner))
             }
-            pending.append(contentsOf: sema.symbols.directSupertypes(for: owner))
+        }
+        // A bare member read inside a class body can resolve through the
+        // implicit companion scope to a member the companion inherits; the
+        // bound symbol's owner is the companion's supertype while the
+        // receiver must be the companion singleton (KUU-3153). Implicit
+        // receivers (`this` and captured outer receivers above) beat the
+        // lexical companion scope, so this check runs last.
+        if let owner = sema.symbols.parentSymbol(for: symbol),
+           let ownerKind = sema.symbols.symbol(owner)?.kind,
+           ownerKind == .class || ownerKind == .interface,
+           let companion = inheritedCompanionMemberReceiver(
+               forMemberOwner: owner,
+               sema: sema
+           )
+        {
+            driver.emitObjectLazyInitGuardIfNeeded(
+                objectSymbol: companion,
+                arena: arena,
+                sema: sema,
+                interner: interner,
+                instructions: &instructions
+            )
+            let companionType = sema.types.make(.classType(ClassType(
+                classSymbol: companion,
+                args: [],
+                nullability: .nonNull
+            )))
+            let receiver = arena.appendExpr(.symbolRef(companion), type: companionType)
+            instructions.append(.constValue(result: receiver, value: .symbolRef(companion)))
+            return receiver
         }
         return driver.ctx.activeImplicitReceiverExprID()
     }
@@ -925,8 +1004,7 @@ final class ObjectLiteralLowerer {
             return name.hasPrefix("__localdecl_") || name.hasPrefix("__ObjectLiteral_")
         }
         if isLocalOrAnonymous
-            || ownerKind.map({ [.function, .property, .local].contains($0) }) == true
-            || (symbol.kind == .object && symbol.flags.contains(.synthetic)) {
+            || ownerKind.map({ [.function, .property, .local].contains($0) }) == true {
             flags |= 1 << 13
         }
         let flagsExpr = arena.appendExpr(.intLiteral(flags), type: intType)
@@ -1119,14 +1197,10 @@ final class ObjectLiteralLowerer {
                     sema: sema,
                     interner: interner
                 )
-                let delegateKind = StdlibDelegateKind.detect(
-                    delegateExpr: delegateExpr, ast: ast, interner: interner
-                )
                 driver.memberLowerer.lowerDelegateAccessor(
                     propertySymbol: propertySymbol,
                     propertyType: propertyType,
                     delegateStorageSymbol: delegateStorageSymbol,
-                    delegateKind: delegateKind,
                     accessorKind: .getter,
                     ast: ast,
                     sema: sema,
@@ -1139,7 +1213,6 @@ final class ObjectLiteralLowerer {
                         propertySymbol: propertySymbol,
                         propertyType: propertyType,
                         delegateStorageSymbol: delegateStorageSymbol,
-                        delegateKind: delegateKind,
                         accessorKind: .setter,
                         ast: ast,
                         sema: sema,

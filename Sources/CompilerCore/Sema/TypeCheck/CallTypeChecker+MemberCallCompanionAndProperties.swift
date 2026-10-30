@@ -359,10 +359,7 @@ extension CallTypeChecker {
                     range: range,
                     diagnostics: ctx.sema.diagnostics
                 )
-                if bindExpression {
-                    return driver.helpers.bindAndReturnErrorType(id, sema: sema)
-                }
-                return sema.types.errorType
+                return driver.helpers.bindAndReturnErrorType(id, sema: sema)
             }
             return nil
         }
@@ -456,7 +453,12 @@ extension CallTypeChecker {
             chosenCallee: chosen,
             substitutedTypeArguments: resolved.substitutedTypeArguments.sorted { $0.key.rawValue < $1.key.rawValue }.map(\.value),
             parameterMapping: resolved.parameterMapping,
-            dispatchReceiverSymbol: dispatchReceiver
+            dispatchReceiverSymbol: dispatchReceiver,
+            contextParameterReceiverSymbols: contextParameterReceiverSymbols(
+                for: chosen,
+                substitution: resolved.substitutedTypeArguments,
+                ctx: ctx
+            )
         )
         if bindExpression {
             sema.bindings.bindExtensionPropertyGetterCall(id, binding: getterBinding)
@@ -775,7 +777,12 @@ extension CallTypeChecker {
                     .sorted(by: { $0.key.rawValue < $1.key.rawValue })
                     .map(\.value),
                 parameterMapping: resolved.parameterMapping,
-                dispatchReceiverSymbol: dispatchReceiverSymbol
+                dispatchReceiverSymbol: dispatchReceiverSymbol,
+                contextParameterReceiverSymbols: contextParameterReceiverSymbols(
+                    for: chosen,
+                    substitution: resolved.substitutedTypeArguments,
+                    ctx: ctx
+                )
             )
         )
         validateReifiedPropertyArguments(chosen, arguments: resolved.substitutedTypeArguments, range: range, ctx: ctx)

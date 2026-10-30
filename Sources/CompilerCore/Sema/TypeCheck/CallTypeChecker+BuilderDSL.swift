@@ -162,7 +162,7 @@ extension CallTypeChecker {
         return match.returnType
     }
 
-    func builderDSLKind(for name: InternedString, interner: StringInterner) -> BuilderDSLKind? {
+    func builderDSLKind() -> BuilderDSLKind? {
         // buildList, buildSet, and buildMap are fully Kotlinized (KSP-622, KSP-623)
         // and use @ExperimentalTypeInference. They no longer use builder-DSL special handling.
         return nil
@@ -1322,6 +1322,41 @@ extension CallTypeChecker {
         )))
     }
 
+    /// Leave open and callable parameter types to ordinary overload resolution.
+    /// Only reject a nearer candidate when its argument shape cannot accept a
+    /// lambda without inspecting the lambda body or its expected return type.
+    private func produceCandidateMayAcceptLambda(
+        _ candidate: SymbolID,
+        call: ExprID,
+        args: [CallArgument],
+        ctx: TypeInferenceContext
+    ) -> Bool {
+        let sema = ctx.sema
+        guard let signature = sema.symbols.functionSignature(for: candidate) else { return true }
+        guard isCallableArityCompatible(signature: signature, argCount: args.count) else { return false }
+        guard let range = ctx.ast.arena.exprRange(call),
+              let mapping = parameterMappingForCallArguments(args, in: signature, callRange: range, ctx: ctx)
+        else { return true }
+
+        for (index, argument) in args.enumerated() {
+            guard case .lambdaLiteral = ctx.ast.arena.expr(argument.expr) else { continue }
+            guard !argument.isSpread, let parameterIndex = mapping[index],
+                  let parameterType = contextualCallArgumentType(
+                      argument, parameterIndex: parameterIndex, in: signature, ctx: ctx
+                  )
+            else { return true }
+            let nonNullType = sema.types.makeNonNullable(parameterType)
+            if nonNullType == sema.types.errorType
+                || sema.types.typeContainsAnyTypeParam(parameterType)
+                || callableArgumentFunctionType(nonNullType, ctx: ctx) != nil
+                || callableArgumentAcceptsUnknownArity(nonNullType, isReference: false, ctx: ctx) {
+                continue
+            }
+            return false
+        }
+        return true
+    }
+
     /// KSP-1573: bind `produce { }` / `produce(capacity) { }` to the bundled
     /// source-backed `CoroutineScope.produce` extension. The element type
     /// keeps the same `send`-scan inference the synthetic launcher path used,
@@ -1335,9 +1370,7 @@ extension CallTypeChecker {
         args: [CallArgument],
         ctx: TypeInferenceContext,
         locals: inout LocalBindings,
-        expectedType: TypeID?,
-        ast: ASTModule
-    ) -> TypeID? {
+        expectedType: TypeID?) -> TypeID? {
         let sema = ctx.sema
         let interner = ctx.interner
         let knownNames = KnownCompilerNames(interner: interner)
@@ -1355,7 +1388,8 @@ extension CallTypeChecker {
         // source declSite), so the stub-exclusion test must distinguish a
         // genuinely synthetic launcher (kk_produce) from a source-backed
         // decl that merely arrived via .kklib metadata.
-        let produceSymbol = ctx.cachedScopeLookup(calleeName).first { candidate in
+        let nearestCandidates = ctx.cachedScopeLookup(calleeName)
+        func isMatchingBundledProduce(_ candidate: SymbolID) -> Bool {
             guard let symbol = ctx.cachedSymbol(candidate),
                   symbol.kind == .function,
                   !symbol.flags.contains(.synthetic) || symbol.flags.contains(.importedLibrary),
@@ -1366,6 +1400,16 @@ extension CallTypeChecker {
             else { return false }
             return true
         }
+        let directProduce = nearestCandidates.first(where: isMatchingBundledProduce)
+        let nearerCandidatesAreInapplicable = !nearestCandidates.isEmpty && nearestCandidates.allSatisfy { candidate in
+            !produceCandidateMayAcceptLambda(candidate, call: id, args: args, ctx: ctx)
+        }
+        // A same-name declaration with incompatible argument shape does not
+        // hide an imported builder. Resolve its lambda receiver before the
+        // synthetic fallback performs inference without the source signature.
+        let produceSymbol = directProduce ?? (nearerCandidatesAreInapplicable
+            ? ctx.scope.lookup(calleeName, matching: isMatchingBundledProduce).first
+            : nil)
         guard let produceSymbol,
               let signature = sema.symbols.functionSignature(for: produceSymbol),
               let blockParamType = signature.parameterTypes.last

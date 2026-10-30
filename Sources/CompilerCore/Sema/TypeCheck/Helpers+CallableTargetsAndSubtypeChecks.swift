@@ -697,7 +697,21 @@ extension TypeCheckHelpers {
                 isAnonymousExtension = false
             }
             let receiverOffset = !bindReceiver && (unboundReceiverType != nil || signature.receiverType != nil) && !isAnonymousExtension ? 1 : 0
-            let expectedArity = (expected.receiver == nil ? 0 : 1) + expected.params.count
+            // A contextual expectation (`context(C) () -> R`) accepts a
+            // reference whose *invocation-order* inputs pair positionally:
+            // the expected context receivers consume the candidate's leading
+            // inputs, which may be context receivers of their own
+            // (`::read`), the unbound receiver (`C::describe`), or leading
+            // value parameters (`C::prop` as `(C) -> R`) — KUU-3170. Count
+            // every expected input, minus candidate context receivers that
+            // fill leading positions themselves or are bound from the
+            // surrounding scope when the expectation has no context slots.
+            let expectedInputCount = expected.contextReceivers.count
+                + (expected.receiver == nil ? 0 : 1) + expected.params.count
+            let ambientlyBoundContextCount = expected.contextReceivers.isEmpty
+                ? base.contextReceivers.count : 0
+            let expectedArity = expectedInputCount
+                - (base.contextReceivers.count - ambientlyBoundContextCount)
             let expectedValueArity = isAnonymousExtension ? expected.params.count : (expectedArity - receiverOffset)
             guard expectedValueArity >= 0 else { return [] }
             let parameterCount = signature.parameterTypes.count
@@ -759,10 +773,13 @@ extension TypeCheckHelpers {
                 }
                 var requiresErasedPrimitiveInputAdapter = false
                 if case let .functionType(expectedFunction) = types.kind(of: expectedFunctionType) {
-                    let expectedInputs = (expectedFunction.receiver.map { [$0] } ?? []) + expectedFunction.params
+                    let expectedInputs = expectedFunction.contextReceivers
+                        + (expectedFunction.receiver.map { [$0] } ?? [])
+                        + expectedFunction.params
                     for sourceParameterIndex in 0 ..< sourceParameterCount {
                         let shapeIndex = receiverOffset + sourceParameterIndex
-                        let expectedIndex = receiverOffset + sourceParameterIndex
+                        let expectedIndex = expectedFunction.contextReceivers.count
+                            + receiverOffset + sourceParameterIndex
                         guard params.indices.contains(shapeIndex),
                               expectedInputs.indices.contains(expectedIndex)
                         else {
@@ -832,8 +849,10 @@ extension TypeCheckHelpers {
                   (varargIndex + 1 ..< parameterCount).allSatisfy({ hasDefaults[$0] })
             else { return shapes }
 
-            let expectedInputs = (expected.receiver.map { [$0] } ?? []) + expected.params
-            let expectedVarargIndex = receiverOffset + varargIndex
+            let expectedInputs = expected.contextReceivers
+                + (expected.receiver.map { [$0] } ?? []) + expected.params
+            let expectedVarargIndex = expected.contextReceivers.count
+                + receiverOffset + varargIndex
             let arrayShapedVarargContext: Bool = if let interner,
                                                     expectedInputs.indices.contains(expectedVarargIndex),
                                                     case let .classType(arrayType) = types.kind(of: types.makeNonNullable(
@@ -1236,7 +1255,12 @@ extension TypeCheckHelpers {
               case let .functionType(context) = sema.types.kind(of: matchingExpected),
               case let .typeParam(parameter) = sema.types.kind(of: context.returnType),
               parameter.symbol == postponedReturn
-        else { return sema.types.isSubtype(actualType, matchingExpected) }
+        else {
+            return sema.types.isSubtype(actualType, matchingExpected)
+                || contextFlattenedCallableReferenceMatch(
+                    actualType, expected: matchingExpected, sema: sema
+                )
+        }
         for bound in sema.symbols.typeParameterUpperBounds(for: postponedReturn)
             where !sema.types.typeContainsAnyTypeParam(bound) {
             let resultBound = parameter.nullability == .nullable ? sema.types.makeNullable(bound) : bound
@@ -1249,6 +1273,47 @@ extension TypeCheckHelpers {
             nullability: context.nullability, throws: context.throws
         )))
         return sema.types.isSubtype(actualType, comparison)
+    }
+
+    /// KUU-3170: a `context(A...) (params...) -> R` expectation is
+    /// assignment-compatible with a callable reference whose leading
+    /// invocation-order inputs are `A...` even when they sit in receiver or
+    /// value-parameter positions rather than context slots (`C::describe`
+    /// for `context(C) () -> String`, `C::prop` as `(C) -> String`). The
+    /// strict subtype check keeps context receivers distinct, so this
+    /// flattens a function type's `contextReceivers + receiver + params`
+    /// into a single parameter list for a positional comparison.
+    func contextFlattenedFunctionType(_ type: TypeID, sema: SemaModule) -> TypeID {
+        guard case let .functionType(function) = sema.types.kind(of: type),
+              !function.contextReceivers.isEmpty
+        else { return type }
+        return sema.types.make(.functionType(FunctionType(
+            receiver: nil,
+            params: function.contextReceivers
+                + (function.receiver.map { [$0] } ?? [])
+                + function.params,
+            returnType: function.returnType,
+            isSuspend: function.isSuspend,
+            isCallableReference: function.isCallableReference,
+            nullability: function.nullability,
+            throws: function.throws
+        )))
+    }
+
+    private func contextFlattenedCallableReferenceMatch(
+        _ actualType: TypeID,
+        expected: TypeID?,
+        sema: SemaModule
+    ) -> Bool {
+        guard let expected,
+              case let .functionType(actual) = sema.types.kind(of: actualType),
+              case let .functionType(expectedFunction) = sema.types.kind(of: expected),
+              !actual.contextReceivers.isEmpty || !expectedFunction.contextReceivers.isEmpty
+        else { return false }
+        return sema.types.isSubtype(
+            contextFlattenedFunctionType(actualType, sema: sema),
+            contextFlattenedFunctionType(expected, sema: sema)
+        )
     }
 
     func reflectiveCallableReferenceReturnType(

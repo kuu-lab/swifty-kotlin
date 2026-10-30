@@ -11,7 +11,7 @@ extension JVMClasspathIndex {
         if name == "kotlin/collections/AbstractSet" { return name }
         if ["kotlin/Function", "kotlin/Lazy", "kotlin/LazyThreadSafetyMode", "kotlin/reflect/KProperty", "kotlin/reflect/KMutableProperty", "kotlin/NotImplementedError", "kotlin/UninitializedPropertyAccessException", "kotlin/properties/ReadOnlyProperty", "kotlin/properties/ReadWriteProperty", "kotlin/properties/Delegates"].contains(name) { return name }
         if name.hasPrefix("kotlin/reflect/") || name == "java/lang/Class" { return name }
-        if ["java/util/NoSuchElementException", "java/util/Locale", "java/lang/StackTraceElement", "java/lang/reflect/Method", "java/lang/reflect/InvocationHandler"].contains(name) { return name }
+        if ["java/util/NoSuchElementException", "java/util/Locale", "java/lang/StackTraceElement", "java/lang/IllegalAccessException", "java/lang/reflect/Method", "java/lang/reflect/InvocationHandler"].contains(name) { return name }
         if name == "kotlin/Annotation" { return "java/lang/annotation/Annotation" }
         if name == "kotlin/annotation/AnnotationTarget" || name == "kotlin/annotation/AnnotationRetention" { return name }
         if name == "kotlin/Enum" { return "java/lang/Enum" }
@@ -25,7 +25,7 @@ extension JVMClasspathIndex {
         if name == "kotlin/NoSuchElementException" { return "java/util/NoSuchElementException" }
         if name == "kotlin/CharSequence" { return "java/lang/CharSequence" }
         if name == "kotlin/Number" { return "java/lang/Number" }
-        if name == "kotlin/Pair" || name == "java/io/Serializable" { return name }
+        if name == "kotlin/Pair" || name == "kotlin/Triple" || name == "java/io/Serializable" { return name }
         if name == "kotlin/Comparator" { return "java/util/Comparator" }
         if name == "kotlin/Comparable" { return "java/lang/Comparable" }
         // KUU-3537: kotlin.Cloneable is a typealias for java.lang.Cloneable on
@@ -170,7 +170,7 @@ extension JVMProgramBuilder {
             return "L" + erased.referenceName! + (args.isEmpty ? "" : "<" + args + ">") + ";"
         default:
             let t = try type(id)
-            if boxed && t == .unit { throw JVMFrontendError(message: "JVM M5 does not support Unit type arguments.") }
+            if boxed && t == .unit { return "Lkotlin/Unit;" }
             return (boxed ? JVMClasspathIndex.boxed(t) : t).descriptor
         }
     }

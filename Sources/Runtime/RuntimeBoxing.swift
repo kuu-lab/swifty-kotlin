@@ -777,6 +777,7 @@ public func kk_value_class_box(_ payload: Int, _ classID: Int) -> Int {
     let key = UInt(bitPattern: opaque)
     runtimeStorage.withGCLock { state in
         state.objectPointers.insert(key)
+        box.recordManagedHeapFieldsLocked(owner: key, state: &state)
     }
     runtimeStorage.withMetadataLock { state in
         state.objectTypeByPointer[key] = Int64(classID)

@@ -18,7 +18,6 @@ struct BuiltinTypeNames {
     let unit: InternedString
     let nothing: InternedString
     let annotation: InternedString
-    let null: InternedString
 
     init(interner: StringInterner) {
         self = interner.cachedBuiltinTypeNames {
@@ -44,7 +43,6 @@ struct BuiltinTypeNames {
         self.unit = interner.intern("Unit")
         self.nothing = interner.intern("Nothing")
         self.annotation = interner.intern("Annotation")
-        self.null = interner.intern("null")
     }
 
     func primitiveType(for name: InternedString) -> PrimitiveType? {

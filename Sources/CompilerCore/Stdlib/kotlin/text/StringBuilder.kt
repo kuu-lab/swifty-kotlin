@@ -18,12 +18,18 @@ public class StringBuilder : Appendable, CharSequence, Comparable<StringBuilder>
 
     fun getChars(srcBegin: Int, srcEnd: Int, dst: CharArray?, dstBegin: Int) {
         if (srcBegin < 0 || srcEnd < srcBegin || srcEnd > length) {
-            throw java.lang.StringIndexOutOfBoundsException()
+            throw java.lang.StringIndexOutOfBoundsException(
+                "Range [$srcBegin, $srcEnd) out of bounds for length $length"
+            )
         }
-        if (dst == null) throw NullPointerException()
+        if (dst == null) {
+            throw NullPointerException("Cannot read the array length because \"dst\" is null")
+        }
         val count = srcEnd - srcBegin
         if (dstBegin < 0 || dstBegin > dst.size - count) {
-            throw IndexOutOfBoundsException()
+            throw IndexOutOfBoundsException(
+                "Range [$dstBegin, ${dstBegin + count}) out of bounds for length ${dst.size}"
+            )
         }
         for (offset in 0 until count) {
             dst[dstBegin + offset] = this[srcBegin + offset]
@@ -71,7 +77,7 @@ public class StringBuilder : Appendable, CharSequence, Comparable<StringBuilder>
 
     fun codePointAt(index: Int): Int {
         if (index < 0 || index >= length) {
-            throw java.lang.StringIndexOutOfBoundsException(index)
+            throw java.lang.StringIndexOutOfBoundsException("Index $index out of bounds for length $length")
         }
         val first = this[index]
         if (first.isHighSurrogate() && index < length - 1) {
@@ -85,7 +91,7 @@ public class StringBuilder : Appendable, CharSequence, Comparable<StringBuilder>
 
     fun codePointBefore(index: Int): Int {
         if (index <= 0 || index > length) {
-            throw java.lang.StringIndexOutOfBoundsException(index)
+            throw java.lang.StringIndexOutOfBoundsException("Index ${index - 1} out of bounds for length $length")
         }
         val first = this[index - 1]
         if (first.isLowSurrogate() && index > 1) {
@@ -99,7 +105,7 @@ public class StringBuilder : Appendable, CharSequence, Comparable<StringBuilder>
 
     fun codePointCount(beginIndex: Int, endIndex: Int): Int {
         if (beginIndex < 0 || endIndex > length || beginIndex > endIndex) {
-            throw java.lang.StringIndexOutOfBoundsException(beginIndex)
+            throw IndexOutOfBoundsException("Range [$beginIndex, $endIndex) out of bounds for length $length")
         }
         var count = 0
         var index = beginIndex
@@ -134,13 +140,15 @@ public class StringBuilder : Appendable, CharSequence, Comparable<StringBuilder>
 
     // JVM's CharArray platform overload accepts nullable arguments, but throws on null.
     fun append(value: CharArray?): StringBuilder {
-        if (value == null) throw NullPointerException()
+        if (value == null) {
+            throw NullPointerException("Cannot read the array length because \"str\" is null")
+        }
         return appendRange(value, 0, value.size)
     }
 
     fun append(str: CharArray, offset: Int, len: Int): StringBuilder {
         if (offset < 0 || len < 0 || offset > str.size - len) {
-            throw IndexOutOfBoundsException("offset=$offset, length=$len, size=${str.size}")
+            throw IndexOutOfBoundsException("Range [$offset, ${offset + len}) out of bounds for length ${str.size}")
         }
         return appendRange(str, offset, offset + len)
     }
@@ -338,16 +346,30 @@ public class StringBuilder : Appendable, CharSequence, Comparable<StringBuilder>
     fun insert(index: Int, value: Short): StringBuilder =
         insertString(index, value.toString())
 
-    fun insert(index: Int, value: CharArray): StringBuilder =
-        insertRange(index, value, 0, value.size)
+    fun insert(index: Int, value: CharArray?): StringBuilder {
+        if (value == null) {
+            throw NullPointerException("Cannot read the array length because \"str\" is null")
+        }
+        return insertRange(index, value, 0, value.size)
+    }
 
-    fun insert(index: Int, value: CharSequence?): StringBuilder =
-        __kk_string_builder_insert_char_sequence(index, value)
+    fun insert(index: Int, value: CharSequence?): StringBuilder {
+        checkInsertIndex(index)
+        return __kk_string_builder_insert_char_sequence(index, value)
+    }
 
     fun delete(startIndex: Int, endIndex: Int): StringBuilder {
-        checkRange(startIndex, endIndex)
+        // AbstractStringBuilder clamps endIndex to the builder length before
+        // checking the reversed range, so delete(4, 9) deletes 4..length.
+        val builderLength = currentLength()
+        val effectiveEnd = if (endIndex > builderLength) builderLength else endIndex
+        if (startIndex < 0 || effectiveEnd < startIndex) {
+            throw java.lang.StringIndexOutOfBoundsException(
+                "Range [$startIndex, $effectiveEnd) out of bounds for length $builderLength"
+            )
+        }
         val current = toString()
-        return resetTo(current.substring(0, startIndex) + current.substring(endIndex))
+        return resetTo(current.substring(0, startIndex) + current.substring(effectiveEnd))
     }
 
     fun deleteRange(startIndex: Int, endIndex: Int): StringBuilder =
@@ -403,8 +425,12 @@ public class StringBuilder : Appendable, CharSequence, Comparable<StringBuilder>
         return appendCharSequenceRange(value, startIndex, endIndex)
     }
 
-    fun appendRange(value: CharArray, startIndex: Int, endIndex: Int): StringBuilder =
-        __kk_string_builder_append_char_array(value, startIndex, endIndex)
+    fun appendRange(value: CharArray, startIndex: Int, endIndex: Int): StringBuilder {
+        if (startIndex < 0 || startIndex > value.size || endIndex < startIndex || endIndex > value.size) {
+            throw IndexOutOfBoundsException("Range [$startIndex, $endIndex) out of bounds for length ${value.size}")
+        }
+        return __kk_string_builder_append_char_array(value, startIndex, endIndex)
+    }
 
     private fun appendCharSequenceRange(
         value: CharSequence,
@@ -414,7 +440,7 @@ public class StringBuilder : Appendable, CharSequence, Comparable<StringBuilder>
         val sourceLength = value.length
         if (startIndex < 0 || startIndex > sourceLength || endIndex < startIndex || endIndex > sourceLength) {
             throw IndexOutOfBoundsException(
-                "startIndex=$startIndex, endIndex=$endIndex, length=$sourceLength"
+                "Range [$startIndex, $endIndex) out of bounds for length $sourceLength"
             )
         }
         val chars = CharArray(endIndex - startIndex)
@@ -427,10 +453,18 @@ public class StringBuilder : Appendable, CharSequence, Comparable<StringBuilder>
     }
 
     fun insertRange(index: Int, value: CharSequence, startIndex: Int, endIndex: Int): StringBuilder {
+        // JVM checks the insertion index (StringIndexOutOfBoundsException)
+        // before the source range (IndexOutOfBoundsException).
+        val builderLength = currentLength()
+        if (index < 0 || index > builderLength) {
+            throw java.lang.StringIndexOutOfBoundsException(
+                "Range [$index, $builderLength) out of bounds for length $builderLength"
+            )
+        }
         val sourceLength = value.length
         if (startIndex < 0 || startIndex > sourceLength || endIndex < startIndex || endIndex > sourceLength) {
             throw IndexOutOfBoundsException(
-                "startIndex=$startIndex, endIndex=$endIndex, length=$sourceLength"
+                "Range [$startIndex, $endIndex) out of bounds for length $sourceLength"
             )
         }
         val chars = CharArray(endIndex - startIndex)
@@ -442,8 +476,20 @@ public class StringBuilder : Appendable, CharSequence, Comparable<StringBuilder>
         return insertRange(index, chars, 0, chars.size)
     }
 
-    fun insertRange(index: Int, value: CharArray, startIndex: Int, endIndex: Int): StringBuilder =
-        __kk_string_builder_insert_char_array(index, value, startIndex, endIndex)
+    fun insertRange(index: Int, value: CharArray, startIndex: Int, endIndex: Int): StringBuilder {
+        val builderLength = currentLength()
+        if (index < 0 || index > builderLength) {
+            throw java.lang.StringIndexOutOfBoundsException(
+                "Range [$index, $builderLength) out of bounds for length $builderLength"
+            )
+        }
+        if (startIndex < 0 || startIndex > value.size || endIndex < startIndex || endIndex > value.size) {
+            throw java.lang.StringIndexOutOfBoundsException(
+                "Range [$startIndex, $endIndex) out of bounds for length ${value.size}"
+            )
+        }
+        return __kk_string_builder_insert_char_array(index, value, startIndex, endIndex)
+    }
 
     fun indexOf(string: String): Int =
         __kk_string_builder_index_of(string, 0)
@@ -458,14 +504,31 @@ public class StringBuilder : Appendable, CharSequence, Comparable<StringBuilder>
         __kk_string_builder_last_index_of(string, startIndex)
 
     fun setLength(newLength: Int): Unit {
+        if (newLength < 0) {
+            throw java.lang.StringIndexOutOfBoundsException("String index out of range: $newLength")
+        }
         __kk_string_builder_set_length(newLength)
     }
 
-    fun substring(startIndex: Int): String =
-        __kk_string_builder_substring(startIndex, __kk_string_builder_length_utf16())
+    fun substring(startIndex: Int): String {
+        val builderLength = currentLength()
+        if (startIndex < 0 || startIndex > builderLength) {
+            throw java.lang.StringIndexOutOfBoundsException(
+                "Range [$startIndex, $builderLength) out of bounds for length $builderLength"
+            )
+        }
+        return __kk_string_builder_substring(startIndex, __kk_string_builder_length_utf16())
+    }
 
-    fun substring(startIndex: Int, endIndex: Int): String =
-        __kk_string_builder_substring(startIndex, endIndex)
+    fun substring(startIndex: Int, endIndex: Int): String {
+        val builderLength = currentLength()
+        if (startIndex < 0 || startIndex > builderLength || endIndex < startIndex || endIndex > builderLength) {
+            throw java.lang.StringIndexOutOfBoundsException(
+                "Range [$startIndex, $endIndex) out of bounds for length $builderLength"
+            )
+        }
+        return __kk_string_builder_substring(startIndex, endIndex)
+    }
 
     fun toCharArray(
         destination: CharArray,
@@ -473,11 +536,23 @@ public class StringBuilder : Appendable, CharSequence, Comparable<StringBuilder>
         startIndex: Int = 0,
         endIndex: Int = __kk_string_builder_length_utf16()
     ): Unit {
+        val builderLength = currentLength()
+        if (startIndex < 0 || startIndex > builderLength || endIndex < startIndex || endIndex > builderLength) {
+            throw java.lang.StringIndexOutOfBoundsException(
+                "Range [$startIndex, $endIndex) out of bounds for length $builderLength"
+            )
+        }
+        val count = endIndex - startIndex
+        if (destinationOffset < 0 || destinationOffset > destination.size - count) {
+            throw IndexOutOfBoundsException(
+                "Range [$destinationOffset, ${destinationOffset + count}) out of bounds for length ${destination.size}"
+            )
+        }
         __kk_string_builder_to_char_array(destination, destinationOffset, startIndex, endIndex)
     }
 
     fun setRange(startIndex: Int, endIndex: Int, value: String): StringBuilder =
-        replaceString(startIndex, endIndex, value, false)
+        replaceString(startIndex, endIndex, value, true)
 
     fun replace(start: Int, end: Int, str: String): StringBuilder =
         replaceString(start, end, str, true)
@@ -511,15 +586,16 @@ public class StringBuilder : Appendable, CharSequence, Comparable<StringBuilder>
     }
 
     private fun insertString(index: Int, value: String): StringBuilder {
+        checkInsertIndex(index)
         return __kk_string_builder_insert_obj(index, value)
     }
 
     private fun replaceString(startIndex: Int, endIndex: Int, value: String, clampEnd: Boolean): StringBuilder {
         val current = toString()
         val effectiveEnd = if (clampEnd && endIndex > current.length) current.length else endIndex
-        if (startIndex < 0 || startIndex > current.length || effectiveEnd < startIndex || effectiveEnd > current.length) {
-            throw IndexOutOfBoundsException(
-                "startIndex: $startIndex, endIndex: $endIndex, length: ${current.length}"
+        if (startIndex < 0 || effectiveEnd < startIndex || effectiveEnd > current.length) {
+            throw java.lang.StringIndexOutOfBoundsException(
+                "Range [$startIndex, $effectiveEnd) out of bounds for length ${current.length}"
             )
         }
         return resetTo(current.substring(0, startIndex) + value + current.substring(effectiveEnd))
@@ -534,21 +610,17 @@ public class StringBuilder : Appendable, CharSequence, Comparable<StringBuilder>
     private fun checkInsertIndex(index: Int) {
         val currentLength = currentLength()
         if (index < 0 || index > currentLength) {
-            throw IndexOutOfBoundsException("index=$index, length=$currentLength")
+            throw java.lang.StringIndexOutOfBoundsException(
+                "Range [$index, $currentLength) out of bounds for length $currentLength"
+            )
         }
     }
+
 
     private fun checkElementIndex(index: Int) {
         val currentLength = currentLength()
         if (index < 0 || index >= currentLength) {
-            throw IndexOutOfBoundsException("index=$index, length=$currentLength")
-        }
-    }
-
-    private fun checkRange(startIndex: Int, endIndex: Int) {
-        val currentLength = currentLength()
-        if (startIndex < 0 || startIndex > currentLength || endIndex < startIndex || endIndex > currentLength) {
-            throw IndexOutOfBoundsException("startIndex=$startIndex, endIndex=$endIndex, length=$currentLength")
+            throw java.lang.StringIndexOutOfBoundsException("Index $index out of bounds for length $currentLength")
         }
     }
 

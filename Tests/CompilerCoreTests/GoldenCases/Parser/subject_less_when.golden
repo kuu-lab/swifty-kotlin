@@ -21,19 +21,23 @@ node kotlinFile f0:0..117
         tok keyword(when) f0:47..51
         node block f0:52..115
           tok symbol({) f0:52..53
-          node statement f0:62..72
-            tok identifier(x) f0:62..63
-            tok symbol(>) f0:64..65
-            tok intLiteral(0) f0:66..67
+          node whenEntry f0:62..72
+            node whenConditionList f0:62..67
+              node whenCondition f0:62..67
+                tok identifier(x) f0:62..63
+                tok symbol(>) f0:64..65
+                tok intLiteral(0) f0:66..67
             tok symbol(->) f0:68..70
             tok intLiteral(1) f0:71..72
-          node statement f0:81..91
-            tok identifier(y) f0:81..82
-            tok symbol(>) f0:83..84
-            tok intLiteral(0) f0:85..86
+          node whenEntry f0:81..91
+            node whenConditionList f0:81..86
+              node whenCondition f0:81..86
+                tok identifier(y) f0:81..82
+                tok symbol(>) f0:83..84
+                tok intLiteral(0) f0:85..86
             tok symbol(->) f0:87..89
             tok intLiteral(2) f0:90..91
-          node statement f0:100..109
+          node whenEntry f0:100..109
             tok keyword(else) f0:100..104
             tok symbol(->) f0:105..107
             tok intLiteral(0) f0:108..109

@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "diagnostics": [
+    {
+      "file": "when_guard_invalid.kt",
+      "range": {
+        "start": { "line": 5, "character": 16 },
+        "end": { "line": 5, "character": 17 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-0447",
+      "source": "kswiftk",
+      "message": "A comma-separated list of conditions in a when branch cannot have a guard.",
+      "codeActions": []
+    },
+    {
+      "file": "when_guard_invalid.kt",
+      "range": {
+        "start": { "line": 12, "character": 17 },
+        "end": { "line": 12, "character": 18 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-0448",
+      "source": "kswiftk",
+      "message": "When branch guards are only allowed in 'when' with a subject.",
+      "codeActions": []
+    }
+  ]
+}

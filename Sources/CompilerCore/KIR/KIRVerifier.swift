@@ -11,8 +11,6 @@ struct KIRVerificationFailure: Equatable {
     }
 
     let kind: Kind
-    let functionName: String
-    let instructionIndex: Int?
     let message: String
 }
 
@@ -88,8 +86,6 @@ struct KIRVerifier {
             emitted += 1
             failures.append(KIRVerificationFailure(
                 kind: kind,
-                functionName: functionName,
-                instructionIndex: index,
                 message: "\(functionName): \(message)"
             ))
         }
@@ -100,24 +96,18 @@ struct KIRVerifier {
             switch instruction {
             case let .label(id):
                 definedLabels.insert(id)
-            case let .constValue(result, _):
+            case let .constValue(result, _),
+                 let .binary(_, _, _, result),
+                 let .unary(_, _, result),
+                 let .nullAssert(_, result),
+                 let .loadGlobal(result, _):
                 definedExprs.insert(result)
-            case let .binary(_, _, _, result):
-                definedExprs.insert(result)
-            case let .unary(_, _, result):
-                definedExprs.insert(result)
-            case let .nullAssert(_, result):
-                definedExprs.insert(result)
-            case let .call(_, _, _, result, _, thrownResult, _, _):
-                if let result { definedExprs.insert(result) }
-                if let thrownResult { definedExprs.insert(thrownResult) }
-            case let .virtualCall(_, _, _, _, result, _, thrownResult, _):
+            case let .call(_, _, _, result, _, thrownResult, _, _),
+                 let .virtualCall(_, _, _, _, result, _, thrownResult, _):
                 if let result { definedExprs.insert(result) }
                 if let thrownResult { definedExprs.insert(thrownResult) }
             case let .copy(_, to):
                 definedExprs.insert(to)
-            case let .loadGlobal(result, _):
-                definedExprs.insert(result)
             default:
                 break
             }

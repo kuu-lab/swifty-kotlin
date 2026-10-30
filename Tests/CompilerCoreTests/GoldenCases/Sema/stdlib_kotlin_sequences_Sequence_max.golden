@@ -78,8 +78,8 @@ expr e@18:53 string(b) type=String
 expr e@18:58 string(cc) type=String
 expr e@18:35 call callee=e@18:35#1 args=[_:e@18:46,_:e@18:53,_:e@18:58] type=kotlin.sequences.Sequence<String> call=kotlin.sequences.sequenceOf[kind=fun;params=*T0;ret=kotlin.sequences.Sequence<T0>;gen=1;vararg=[1];names=[elements]] targs=[String]
 expr e@18:5 localDecl words mutable=0 type=Sequence<String> init=e@18:35 type=Unit ref=__local_13.words[kind=local;type=kotlin.sequences.Sequence<String>;origin=fixture]
-expr e@19:41 name(a) type=Int! ref=s-4
-expr e@19:45 name(b) type=Int! ref=s-5
+expr e@19:41 name(a) type=Int ref=s-4
+expr e@19:45 name(b) type=Int ref=s-5
 expr e@19:41#1 binary(subtract) lhs=e@19:41 rhs=e@19:45 type=Int
 expr e@19:31 lambda params=[a,b] body=e@19:41#1 label=Comparator type=kotlin.Comparator<Int>
 expr e@19:15 call callee=e@19:15#1 args=[_:e@19:31] type=kotlin.Comparator<Int>

@@ -5,12 +5,19 @@ extension KIRLoweringDriver {
     /// PropertyReference0Impl), so `isLocal` selects the local-stub runtime
     /// entry point that registers the 0-arity reflection type and its
     /// unsupported-accessor behavior.
+    /// `delegateValue` is the live delegate handle (per-instance field or
+    /// global slot content) when the caller has one: it is stored on the stub
+    /// so `p.getDelegate()` inside getValue/setValue/provideDelegate answers
+    /// it like the JVM (KUU-3694). Local delegated properties keep the JVM's
+    /// `null` answer, so callers pass nil there.
     func emitKPropertyStubCreate(
         propertySymbol: SymbolID,
         sema: SemaModule,
         arena: KIRArena,
         interner: StringInterner,
         isLocal: Bool = false,
+        delegateValue: KIRExprID? = nil,
+        ast: ASTModule? = nil,
         emit body: inout KIRLoweringEmitContext
     ) -> KIRExprID {
         let propertyName = sema.symbols.symbol(propertySymbol)?.name ?? interner.intern("")
@@ -58,6 +65,21 @@ extension KIRLoweringDriver {
             stubArguments.append(isMutableExprID)
             stubCalleeName = "__kk_kproperty_stub_create_local"
         } else {
+            // KUU-3194: prefer a real accessor-backed wrapper object so the
+            // KProperty value dispatches get/set/invoke to the generated
+            // accessors. Fall back to the metadata-only runtime stub when the
+            // property shape is not representable as a wrapper.
+            if let wrapperValue = lambdaLowerer.lowerDelegatedPropertyStubWrapper(
+                propertySymbol: propertySymbol,
+                propertyName: propertyName,
+                ast: ast,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &body.instructions
+            ) {
+                return wrapperValue
+            }
             let arityExprID = arena.appendExpr(.intLiteral(hasReceiver ? 1 : 0), type: sema.types.intType)
             body.append(.constValue(result: arityExprID, value: .intLiteral(hasReceiver ? 1 : 0)))
             let isMutableExprID = arena.appendExpr(.intLiteral(isMutable ? 1 : 0), type: sema.types.intType)
@@ -77,6 +99,19 @@ extension KIRLoweringDriver {
         body.append(
             .call(callee: interner.intern(stubCalleeName), arguments: stubArguments, result: kPropertyExprID, canThrow: false)
         )
+        // The stub object is cached per property identity while member
+        // delegates differ per instance, so the delegate handle is pointed at
+        // it right before each call rather than baked into creation.
+        if let delegateValue, !isLocal {
+            let setDelegateResult = arena.appendTemporary(type: sema.types.intType
+            )
+            body.append(.call(
+                callee: interner.intern("__kk_kproperty_stub_set_delegate"),
+                arguments: [kPropertyExprID, delegateValue],
+                result: setDelegateResult,
+                canThrow: false
+            ))
+        }
         return kPropertyExprID
     }
 
@@ -116,6 +151,8 @@ extension KIRLoweringDriver {
             sema: sema,
             arena: arena,
             interner: interner,
+            delegateValue: delegateObjExpr,
+            ast: shared.ast,
             emit: &initInstructions
         )
 

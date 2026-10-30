@@ -44,6 +44,9 @@ public object System {
     @KsSymbolName("__kk_system_nanoTime")
     private external fun __nanoTime(): kotlin.Long
 
+    @KsSymbolName("__kk_system_process_start_nanos")
+    private external fun __processStartNanos(): kotlin.Long
+
     public fun getProperty(propertyName: String): String? = __getProperty(propertyName)
 
     public fun getProperty(propertyName: String, defaultValue: String): String =
@@ -67,6 +70,8 @@ public object System {
     public fun currentTimeMillis(): kotlin.Long = __currentTimeMillis()
 
     public fun nanoTime(): kotlin.Long = __nanoTime()
+
+    public fun processStartNanos(): kotlin.Long = __processStartNanos()
 
     public fun identityHashCode(value: Any?): Int = __identityHashCode(value)
 

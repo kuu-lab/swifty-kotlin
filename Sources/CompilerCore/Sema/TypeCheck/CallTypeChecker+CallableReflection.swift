@@ -1,6 +1,6 @@
 extension CallTypeChecker {
     func inferCallableReferenceMember(
-        _ id: ExprID, receiverID: ExprID, functionType: FunctionType, calleeName: InternedString,
+        _ id: ExprID, functionType: FunctionType, calleeName: InternedString,
         args: [CallArgument], safeCall: Bool, ctx: TypeInferenceContext, locals: inout LocalBindings
     ) -> TypeID? {
         let sema = ctx.sema

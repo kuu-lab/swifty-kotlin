@@ -2,7 +2,6 @@ extension LambdaLowerer {
     private func lowerCallableReferenceAdapter(
         _ exprID: ExprID,
         targetSymbol: SymbolID,
-        targetName: InternedString?,
         binding: CallBinding,
         isUnbound: Bool,
         captureArguments: [KIRExprID],
@@ -14,9 +13,7 @@ extension LambdaLowerer {
         sema: SemaModule,
         arena: KIRArena,
         interner: StringInterner,
-        propertyConstantInitializers: [SymbolID: KIRExprKind],
-        instructions: inout [KIRInstruction]
-    ) -> (symbol: SymbolID, name: InternedString) {
+        propertyConstantInitializers: [SymbolID: KIRExprKind]) -> (symbol: SymbolID, name: InternedString) {
         let callableSymbol = driver.ctx.syntheticLambdaSymbol(for: exprID)
         let callableName = syntheticLambdaName(for: exprID, interner: interner)
         let contextInputCount = functionType.contextReceivers.count
@@ -288,7 +285,17 @@ extension LambdaLowerer {
 
         let samMethodReceiverType = samFunctionType.receiver
         let samMethodParamTypes = samFunctionType.params
-        let samMethodInputTypes = (samMethodReceiverType.map { [$0] } ?? []) + samMethodParamTypes
+        // The SAM method's invocation ABI passes context receivers first
+        // (`contextReceivers + receiver + params`, matching the argument
+        // list `lowerSamWrapperValue` builds for the thunk call below),
+        // while the callee's own signature lays them out after its
+        // receivers (`receiver + contextParams + valueParams`). Keep both
+        // orders: invocation order for the thunk's parameter list, callee
+        // order for the forwarded call arguments.
+        let samMethodContextTypes = samFunctionType.contextReceivers
+        let samMethodInputTypes = samMethodContextTypes
+            + (samMethodReceiverType.map { [$0] } ?? [])
+            + samMethodParamTypes
         let returnType = samFunctionType.returnType
 
         let thunkName = interner.intern("kk_sam_ref_thunk_\(exprID.rawValue)")
@@ -315,12 +322,50 @@ extension LambdaLowerer {
         }
 
         var body: [KIRInstruction] = [.beginBlock]
-        var callArguments: [KIRExprID] = []
-        for param in captureParams + valueParams {
+        var captureRefExprs: [KIRExprID] = []
+        for param in captureParams {
             let paramExpr = arena.appendExpr(.symbolRef(param.symbol), type: param.type)
             body.append(.constValue(result: paramExpr, value: .symbolRef(param.symbol)))
-            callArguments.append(paramExpr)
+            captureRefExprs.append(paramExpr)
         }
+        var valueRefExprs: [KIRExprID] = []
+        for param in valueParams {
+            let paramExpr = arena.appendExpr(.symbolRef(param.symbol), type: param.type)
+            body.append(.constValue(result: paramExpr, value: .symbolRef(param.symbol)))
+            valueRefExprs.append(paramExpr)
+        }
+        // Reorder the invocation-order value refs into callee order
+        // (receivers first, then context receivers, then value params).
+        // Positions map across the target's own invocation-order layout —
+        // `contextReceivers + unbound receivers + value params` — rather
+        // than the SAM's, because a `context(C) () -> R` SAM may be
+        // implemented by a reference whose `C` is a receiver (`C::prop`,
+        // `C::describe`) instead of a context parameter (KUU-3170). Bound
+        // captures supply the leading callee receivers (the bound receiver
+        // is the first capture for `expr::method`).
+        let targetContextCount = sema.symbols.functionSignature(for: targetSymbol)
+            .map { $0.contextParameterTypes.count } ?? 0
+        let targetReceiverCount = sema.symbols.functionSignature(for: targetSymbol).map { signature in
+            (signature.receiverType == nil ? 0 : 1)
+                + (sema.symbols.memberExtensionOwnerSymbol(for: targetSymbol) == nil ? 0 : 1)
+        } ?? (samMethodReceiverType == nil ? 0 : 1)
+        let valueReceiverCount = max(0, targetReceiverCount - captureRefExprs.count)
+        var receiverArguments: [KIRExprID] = []
+        var contextArguments: [KIRExprID] = []
+        var valueArguments: [KIRExprID] = []
+        for (index, valueRef) in valueRefExprs.enumerated() {
+            if index < targetContextCount {
+                contextArguments.append(valueRef)
+            } else if index < targetContextCount + valueReceiverCount {
+                receiverArguments.append(valueRef)
+            } else {
+                valueArguments.append(valueRef)
+            }
+        }
+        var callArguments: [KIRExprID] = captureRefExprs
+        callArguments.append(contentsOf: receiverArguments)
+        callArguments.append(contentsOf: contextArguments)
+        callArguments.append(contentsOf: valueArguments)
         let callResult = arena.appendTemporary(type: returnType)
         let callee = targetName ?? callableTargetName(for: targetSymbol, sema: sema, interner: interner)
         if !isReifiedThunk, sema.bindings.implicitReceiverMemberNames[exprID] != nil,
@@ -380,6 +425,7 @@ extension LambdaLowerer {
             lambdaReturnType: returnType,
             captureBindings: captureBindings,
             samMethodReceiverType: samMethodReceiverType,
+            samMethodContextParameterTypes: samMethodContextTypes,
             samMethodParamTypes: samMethodParamTypes,
             sema: sema,
             arena: arena,
@@ -867,7 +913,12 @@ extension LambdaLowerer {
         // bundled KProperty and Function interfaces. A raw property symbol is
         // sufficient for a direct getter call, but it has no itable entries for
         // KProperty.get/invoke/set and cannot carry the bound receiver safely.
+        // KUU-3175: a property reference in SAM-conversion position
+        // (`SamInterface(C::prop)`) must skip this path — the KProperty
+        // wrapper does not implement the target interface's itable, so the
+        // SAM-wrapper branch below must build the adapter object instead.
         if sema.bindings.callableRefKind(for: exprID) == .propertyRef,
+           !sema.bindings.isSamConversion(exprID),
            let propertyValue = lowerPropertyReferenceWrapperValue(
                exprID,
                targetSymbol: targetSymbol,
@@ -975,7 +1026,6 @@ extension LambdaLowerer {
                 let adapter = lowerCallableReferenceAdapter(
                     exprID,
                     targetSymbol: callTargetSymbol,
-                    targetName: callTargetName,
                     binding: callableReferenceBinding,
                     isUnbound: isUnbound,
                     captureArguments: captureArguments,
@@ -987,9 +1037,7 @@ extension LambdaLowerer {
                     sema: sema,
                     arena: arena,
                     interner: interner,
-                    propertyConstantInitializers: propertyConstantInitializers,
-                    instructions: &instructions
-                )
+                    propertyConstantInitializers: propertyConstantInitializers)
                 samTarget = (adapter.symbol, adapter.name, false)
             } else {
                 samTarget = (callTargetSymbol, callTargetName, reifiedThunk != nil)
@@ -1106,7 +1154,6 @@ extension LambdaLowerer {
             let adapter = lowerCallableReferenceAdapter(
                 exprID,
                 targetSymbol: callTargetSymbol,
-                targetName: callTargetName,
                 binding: callableReferenceBinding,
                 isUnbound: isUnbound,
                 captureArguments: captureArguments,
@@ -1118,9 +1165,7 @@ extension LambdaLowerer {
                 sema: sema,
                 arena: arena,
                 interner: interner,
-                propertyConstantInitializers: propertyConstantInitializers,
-                instructions: &instructions
-            )
+                propertyConstantInitializers: propertyConstantInitializers)
             callableSymbol = adapter.symbol
             callableName = adapter.name
         } else if let callTargetSymbol, isConstructorTarget {
@@ -1319,14 +1364,24 @@ extension LambdaLowerer {
                 guard case let .functionType(ft) = sema.types.kind(of: typeID) else { return nil }
                 return ft
             }
-            let valueParamTypes = (functionType?.receiver.map { [$0] } ?? []) + (functionType?.params ?? [])
+            // The invocation ABI of a context function type passes context
+            // receivers first (`contextReceivers + receiver + params`, matching
+            // `materializeEscapingCallableValue`), while the callee's own
+            // signature lays them out after its receivers
+            // (`receiver + contextParams + valueParams`). Keep both orders:
+            // invocation order for the wrapper's parameter list, callee order
+            // for the forwarded call arguments.
+            let invocationParamTypes = (functionType?.contextReceivers ?? [])
+                + (functionType?.receiver.map { [$0] } ?? [])
+                + (functionType?.params ?? [])
+            let contextReceiverCount = functionType?.contextReceivers.count ?? 0
             let returnType = functionType?.returnType ?? sema.types.anyType
 
             let closureParam = KIRParameter(
                 symbol: syntheticLambdaClosureParamSymbol(lambdaExprID: exprID),
                 type: sema.types.intType
             )
-            let valueParams: [KIRParameter] = valueParamTypes.enumerated().map { index, type in
+            let valueParams: [KIRParameter] = invocationParamTypes.enumerated().map { index, type in
                 KIRParameter(
                     symbol: syntheticLambdaParamSymbol(lambdaExprID: exprID, paramIndex: index),
                     type: type
@@ -1341,7 +1396,7 @@ extension LambdaLowerer {
             let wrapperParams = (needsHOFWrapper ? [closureParam] : captureParams) + valueParams
 
             var body: [KIRInstruction] = [.beginBlock]
-            var callArgExprs: [KIRExprID] = []
+            var captureRefExprs: [KIRExprID] = []
             for index in captureArguments.indices {
                 let parameter = needsHOFWrapper ? closureParam : captureParams[index]
                 let captureRef = arena.appendExpr(
@@ -1349,8 +1404,9 @@ extension LambdaLowerer {
                     type: parameter.type
                 )
                 body.append(.constValue(result: captureRef, value: .symbolRef(parameter.symbol)))
-                callArgExprs.append(captureRef)
+                captureRefExprs.append(captureRef)
             }
+            var valueRefExprs: [KIRExprID] = []
             for valueParam in valueParams {
                 let paramExpr = arena.appendExpr(.symbolRef(valueParam.symbol), type: valueParam.type)
                 body.append(.constValue(result: paramExpr, value: .symbolRef(valueParam.symbol)))
@@ -1363,8 +1419,18 @@ extension LambdaLowerer {
                     instructions: &body,
                     isRawCallbackParameter: true
                 ) : paramExpr
-                callArgExprs.append(normalizedParamExpr)
+                valueRefExprs.append(normalizedParamExpr)
             }
+            // Reorder the invocation-order value refs
+            // (context receivers first) into callee order
+            // (receiver first, then context receivers, then value params).
+            let hasExplicitReceiver = functionType?.receiver != nil
+            var callArgExprs: [KIRExprID] = captureRefExprs
+            if hasExplicitReceiver {
+                callArgExprs.append(contentsOf: valueRefExprs.dropFirst(contextReceiverCount).prefix(1))
+            }
+            callArgExprs.append(contentsOf: valueRefExprs.prefix(contextReceiverCount))
+            callArgExprs.append(contentsOf: valueRefExprs.dropFirst(contextReceiverCount + (hasExplicitReceiver ? 1 : 0)))
             let callResult = arena.appendTemporary(type: returnType
             )
             body.append(.call(
@@ -1527,9 +1593,13 @@ extension LambdaLowerer {
         // Suspend references and primitive toString wrappers also need a box
         // without captures. The former supply a continuation-only entry ABI;
         // the latter return a flat String and need a function-value adapter.
+        // Capture-free references need the box too: a bare fnPtr has no
+        // self-contained invoke ABI, so passing it through `Any` and back to
+        // `FunctionN.invoke` (e.g. `call(f: Any)` / `f as Function1`) reaches
+        // kk_function_invoke's flat-entry path and calls the synthetic lambda
+        // with the wrong signature (KUU-3674).
         let callableValue: KIRExprID
         if case let .functionType(functionType) = sema.types.kind(of: callableType),
-           !captureArguments.isEmpty || functionType.isSuspend || needsPrimitiveToStringAdapter,
            let materialized = materializeEscapingCallableValue(
                exprID: exprID,
                lambdaSymbol: callableSymbol,
@@ -1588,13 +1658,22 @@ extension LambdaLowerer {
                 instructions: &instructions
             )
             if case let .functionType(functionType) = sema.types.kind(of: callableType) {
+                let receiverCount = isUnbound && targetSymbol.flatMap {
+                    sema.symbols.functionSignature(for: $0)
+                }?.receiverType != nil ? 1 : 0
+                let inputs = (functionType.receiver.map { [$0] } ?? []) + functionType.params
+                // An unbound receiver can be represented as either `receiver`
+                // or the first ordinary parameter of the function type.
+                let parameters = Array(inputs.prefix(receiverCount)) + functionType.contextReceivers
+                    + Array(inputs.dropFirst(receiverCount))
                 registerCallableReflection(
                     value: taggedExpr, callableSymbol: callableSymbol, callableName: callableName,
                     targetSymbol: targetSymbol,
-                    parameterTypes: (functionType.receiver.map { [$0] } ?? []) + functionType.params,
+                    parameterTypes: parameters,
                     returnType: functionType.returnType,
                     captures: captureArguments,
-                    receiverCount: isUnbound && targetSymbol.flatMap { sema.symbols.functionSignature(for: $0) }?.receiverType != nil ? 1 : 0,
+                    receiverCount: receiverCount,
+                    contextParameterCount: functionType.contextReceivers.count,
                     // KCallable.call's reflection bridge has no continuation
                     // parameter. Suspend references keep their suspend
                     // function-value invoke path instead of generating a

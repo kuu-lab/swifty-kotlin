@@ -63,7 +63,7 @@ expr e@19:14 name(range) type=kotlin.ranges.UIntRange ref=golden.sema.uintRangeC
 expr e@19:5#1 inExpr lhs=e@19:5 rhs=e@19:14 type=Boolean call=kotlin.ranges.contains[kind=fun;recv=kotlin.ranges.UIntRange;params=UShort;ret=Boolean;names=[value]]
 expr e@22:5 name(range) type=kotlin.ranges.UIntRange ref=golden.sema.uintRangeContainsUInt.$5.range[kind=vparam;origin=fixture]
 expr e@22:20 name(value) type=UInt ref=golden.sema.uintRangeContainsUInt.$5.value[kind=vparam;origin=fixture]
-expr e@22:5#1 memberCall recv=e@22:5 callee=contains args=[_:e@22:20] type=Boolean call=kotlin.ranges.ClosedRange.contains[kind=fun;recv=kotlin.ranges.ClosedRange<T0>;params=T0;ret=Boolean;gen=1;classGen=1;bounds=[kotlin.Comparable<T0>];names=[value]] targs=[UInt]
+expr e@22:5#1 memberCall recv=e@22:5 callee=contains args=[_:e@22:20] type=Boolean call=kotlin.ranges.contains[kind=fun;recv=kotlin.ranges.UIntRange;params=UInt;ret=Boolean;names=[value]]
 expr e@25:5 name(value) type=UInt ref=golden.sema.uintRangeContainsUIntIn.$6.value[kind=vparam;origin=fixture]
 expr e@25:14 name(range) type=kotlin.ranges.UIntRange ref=golden.sema.uintRangeContainsUIntIn.$6.range[kind=vparam;origin=fixture]
 expr e@25:5#1 inExpr lhs=e@25:5 rhs=e@25:14 type=Boolean call=kotlin.ranges.ClosedRange.contains[kind=fun;recv=kotlin.ranges.ClosedRange<T0>;params=T0;ret=Boolean;gen=1;classGen=1;bounds=[kotlin.Comparable<T0>];names=[value]] targs=[UInt]
@@ -77,4 +77,4 @@ expr e@34:5 name(range) type=kotlin.ranges.UIntRange ref=golden.sema.uintRangeCo
 expr e@34:20 name(value) type=UByte? ref=golden.sema.uintRangeContainsNullableUByte.$0.value[kind=vparam;origin=fixture]
 expr e@34:5#1 memberCall recv=e@34:5 callee=contains args=[_:e@34:20] type=<error>
 diagnostic severity=error code=KSWIFTK-SEMA-0002 at=31:5 msg=No viable overload found for call.
-diagnostic severity=error code=KSWIFTK-SEMA-0002 at=34:5 msg=No viable overload found for call.
+diagnostic severity=error code=KSWIFTK-TYPE-0001 at=34:5 msg=Type constraint is not satisfied: UByte? <: UInt.

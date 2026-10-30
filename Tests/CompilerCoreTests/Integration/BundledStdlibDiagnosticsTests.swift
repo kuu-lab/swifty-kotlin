@@ -164,6 +164,44 @@ struct BundledStdlibDiagnosticsTests {
         }
     }
 
+    /// KUU-3763: upstream deprecates Float/Double/Byte/Short.toChar() at error
+    /// level since Kotlin 2.3 (warning since 1.5). The bundled decls must emit
+    /// KSWIFTK-SEMA-DEPRECATED errors like kotlinc; Int/Char receivers and the
+    /// `toInt().toChar()` idiom stay clean.
+    @Test
+    func testDeprecatedPrimitiveToCharEmitErrorDiagnostics() throws {
+        let source = """
+        const val constDouble = 1.9.toChar()
+        const val constByte = 65.toByte().toChar()
+
+        fun main() {
+            println(1.9.toChar())
+            println(1.9f.toChar())
+            println(65.toByte().toChar())
+            println(65.toShort().toChar())
+            println(65.toChar())
+            println('a'.toChar())
+            println(65.toByte().toInt().toChar())
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            let deprecations = ctx.diagnostics.diagnostics.filter {
+                $0.code == "KSWIFTK-SEMA-DEPRECATED"
+            }
+            #expect(
+                deprecations.count == 6,
+                "Expected deprecation errors for Double/Float/Byte/Short.toChar(): \(ctx.diagnostics.diagnostics)"
+            )
+            #expect(
+                deprecations.allSatisfy { $0.severity == .error },
+                "Expected error severity, got: \(deprecations)"
+            )
+        }
+    }
+
     /// KUU-1393: `scanReduce` is not a Kotlin stdlib API — it was renamed to
     /// `runningReduce` in Kotlin 1.5 and does not exist on any receiver in
     /// Kotlin 2.3.10. Every receiver must reject it as unresolved, matching

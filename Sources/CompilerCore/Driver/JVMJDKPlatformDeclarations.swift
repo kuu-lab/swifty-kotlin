@@ -326,5 +326,17 @@ extension JVMClasspathIndex {
             sourceClasses[file] = info
             classes[info.name] = info
         }
+
+        // The bundled `kotlin.Comparator` declaration erases to the JDK
+        // interface (`builtinName` maps it to java/util/Comparator) and is
+        // never lowered into a classfile. Binding its source file to the
+        // platform import profile registers `compare` as an imported method
+        // like other JDK-backed declarations, which SAM conversion and member
+        // calls rely on.
+        let comparatorPath = "<kswiftk-jvm>/comparator.kt"
+        if let file = ctx.sourceManager.fileIDs().first(where: { ctx.sourceManager.path(of: $0) == comparatorPath }),
+           let info = classes["java/util/Comparator"] {
+            sourceClasses[file] = info
+        }
     }
 }

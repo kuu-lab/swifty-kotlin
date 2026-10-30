@@ -30,7 +30,7 @@ struct KotlinxIOUtf8ContractSurfaceTests {
     }
 
     @Test(arguments: [false, true])
-    func realNinePublicUtf8OverloadsKeepSourceAndImportedSignatures(library: Bool) throws {
+    func realTwelvePublicUtf8OverloadsKeepSourceAndImportedSignatures(library: Bool) throws {
         let ctx = try check("""
         @file:OptIn(kotlinx.io.DelicateIoApi::class)
         import kotlinx.io.*
@@ -38,6 +38,7 @@ struct KotlinxIOUtf8ContractSurfaceTests {
         fun use(source: Source, sink: Sink, buffer: Buffer, chars: CharSequence) {
             sink.writeString("A")
             sink.writeString("A", 0, 1)
+            sink.writeString("A", Charsets.UTF_8)
             sink.writeString(chars, 0, chars.length)
             sink.writeCodePointValue(0x10000)
             val point: Int = source.readCodePointValue()
@@ -97,7 +98,8 @@ struct KotlinxIOUtf8ContractSurfaceTests {
         """, library: library, expectsErrors: false)
         let sema = try #require(ctx.sema)
         var identities = Set<SymbolID>()
-        for (name, count) in [("writeString", 2), ("writeCodePointValue", 1), ("readString", 3),
+        var writeStringDefaultPatterns: [[Bool]] = []
+        for (name, count) in [("writeString", 3), ("writeCodePointValue", 1), ("readString", 5),
                               ("readCodePointValue", 1), ("readLine", 1), ("readLineStrict", 1)] {
             let ids = sema.symbols.lookupAll(fqName: ["kotlinx", "io", name].map(ctx.interner.intern))
                 .filter { id in
@@ -111,7 +113,7 @@ struct KotlinxIOUtf8ContractSurfaceTests {
                 try #require(symbol.flags.contains(.importedLibrary) == library)
                 let signature = try #require(sema.symbols.functionSignature(for: id))
                 if name == "writeString" {
-                    try #require(signature.valueParameterHasDefaultValues == [false, true, true])
+                    writeStringDefaultPatterns.append(signature.valueParameterHasDefaultValues)
                 } else if name == "readLineStrict" {
                     try #require(signature.valueParameterHasDefaultValues == [true])
                 }
@@ -121,7 +123,14 @@ struct KotlinxIOUtf8ContractSurfaceTests {
                 identities.insert(id)
             }
         }
-        try #require(identities.count == 9)
+        // Upstream kotlinx-io 0.9.1 declares two common `writeString` overloads
+        // (String/CharSequence with defaulted index bounds) plus the JVM
+        // `writeString(string, charset, startIndex, endIndex)` where only the
+        // index bounds carry defaults; `readString` likewise gains the two JVM
+        // charset overloads over its three common ones.
+        try #require(writeStringDefaultPatterns.filter { $0 == [false, true, true] }.count == 2)
+        try #require(writeStringDefaultPatterns.filter { $0 == [false, false, true, true] }.count == 1)
+        try #require(identities.count == 12)
         let ast = try #require(ctx.ast)
         let input = try #require(ctx.options.inputs.first)
         func requireProbeCalls(_ name: String, count: Int, chosenFQName: [String], receiverName: String) throws {

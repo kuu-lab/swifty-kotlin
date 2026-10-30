@@ -1195,6 +1195,30 @@ enum DiagnosticRegistry {
             defaultSeverity: .error,
             summary: "A data class componentN() conflicts with a user-declared member."
         ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0447",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "A comma-separated list of conditions in a when branch cannot have a guard."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0448",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "When branch guards are only allowed in 'when' with a subject."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0449",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "Illegal usage of an inline function parameter that is not 'noinline'."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0450",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "An inline parameter cannot be inlined in a context where non-local returns are not allowed."
+        ),
     ]
 
 

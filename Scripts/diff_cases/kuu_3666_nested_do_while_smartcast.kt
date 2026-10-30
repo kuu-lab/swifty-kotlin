@@ -69,3 +69,7 @@ fun box(): String {
     val result = foo("zzz")
     return if (result == 3) "OK" else "fail: $result"
 }
+
+fun main() {
+    println(box())
+}

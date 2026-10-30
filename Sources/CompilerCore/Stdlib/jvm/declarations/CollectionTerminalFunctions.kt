@@ -12,6 +12,7 @@ fun <T> Iterable<T>.take(n: Int): List<T> = null!!
 fun <T> List<T>.takeLast(n: Int): List<T> = null!!
 inline fun <T> Iterable<T>.takeWhile(predicate: (T) -> Boolean): List<T> = null!!
 fun <T> Iterable<T>.drop(n: Int): List<T> = null!!
+fun <T> List<T>.dropLast(n: Int): List<T> = null!!
 inline fun <T> Iterable<T>.dropWhile(predicate: (T) -> Boolean): List<T> = null!!
 fun <T> List<T>.dropLastWhile(predicate: (T) -> Boolean): List<T> = null!!
 fun <K, V> Iterable<Pair<K, V>>.toMap(): Map<K, V> = null!!

@@ -1,4 +1,3 @@
-import RuntimeABI
 
 struct StringLookupNames {
     let kkStringSplitName: InternedString

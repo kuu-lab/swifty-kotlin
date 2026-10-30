@@ -645,5 +645,74 @@ struct CodegenBackendObjectLiteralLocalCaptureExecutionTests {
             expected: "6\n"
         )
     }
+
+    // KUU-3193: a `by lazy` delegate body inside an anonymous object nested
+    // in another nominal's member reloads the outer parameter from the inner
+    // literal's own capture field — the enclosing literal must forward the
+    // inner one's registered capture set or the field is never stored.
+    @Test
+    func testCodegenNestedObjectLiteralLazyDelegateCapturesOuterParameter() throws {
+        let source = """
+        interface Matcher { fun check(): Boolean }
+        interface Outer { fun inner(): Matcher }
+
+        fun topLevel(pattern: String): Matcher = object : Matcher {
+            private val suffix: String? by lazy { pattern.takeIf { it == "x" } }
+            override fun check() = suffix != null
+        }
+
+        fun nested(pattern: String): Matcher = object : Outer {
+            override fun inner(): Matcher = object : Matcher {
+                private val suffix: String? by lazy { pattern.takeIf { it == "x" } }
+                override fun check() = suffix != null
+            }
+        }.inner()
+
+        fun main() {
+            println(if (topLevel("x").check()) "OK" else "FAIL")
+            println(if (nested("x").check()) "OK" else "FAIL")
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "NestedObjectLiteralLazyDelegateCaptureExecution",
+            expected: "OK\nOK\n"
+        )
+    }
+
+    // Same forwarding gap for the other member-body kinds an anonymous
+    // literal carries: a `by` delegate expression's argument, a custom
+    // accessor body, and an `init {}` block.
+    @Test
+    func testCodegenNestedObjectLiteralMemberBodiesCaptureOuterParameter() throws {
+        let source = """
+        interface Matcher { fun check(): Boolean }
+        interface Outer { fun inner(): Matcher }
+        class IntBox(var v: String) {
+            operator fun getValue(thisRef: Any?, property: kotlin.reflect.KProperty<*>): String = v
+        }
+
+        fun nested(tag: String): Matcher = object : Outer {
+            override fun inner(): Matcher = object : Matcher {
+                private val d: String by IntBox(tag)
+                private val g: String get() = tag
+                private var probe: String? = null
+                init { probe = tag.takeIf { it == "x" } }
+                override fun check() = d == "x" && g == "x" && probe != null
+            }
+        }.inner()
+
+        fun main() {
+            println(if (nested("x").check()) "OK" else "FAIL")
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "NestedObjectLiteralMemberBodyCaptureExecution",
+            expected: "OK\n"
+        )
+    }
 }
 #endif

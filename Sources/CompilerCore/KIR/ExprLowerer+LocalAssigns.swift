@@ -91,25 +91,34 @@ extension ExprLowerer {
                     ?? SyntheticSymbolScheme.propertySetterAccessorSymbol(for: symbol)
                 var setterInputs = [valueID]
                 if let ownerSymbol = sema.symbols.parentSymbol(for: symbol),
-                   sema.symbols.symbol(ownerSymbol)?.kind == .object,
-                   !sema.bindings.isObjectLiteralPropertySymbol(symbol)
+                   sema.symbols.symbol(ownerSymbol)?.kind == .object
                 {
-                    // Bare references to singleton properties omit the dispatch receiver.
-                    driver.emitObjectLazyInitGuardIfNeeded(
-                        objectSymbol: ownerSymbol,
-                        arena: arena,
-                        sema: sema,
-                        interner: interner,
-                        instructions: &instructions
-                    )
-                    let ownerType = sema.types.make(.classType(ClassType(
-                        classSymbol: ownerSymbol,
-                        args: [],
-                        nullability: .nonNull
-                    )))
-                    let receiver = arena.appendExpr(.symbolRef(ownerSymbol), type: ownerType)
-                    instructions.append(.constValue(result: receiver, value: .symbolRef(ownerSymbol)))
-                    setterInputs.insert(receiver, at: 0)
+                    if sema.bindings.isObjectLiteralPropertySymbol(symbol) {
+                        // A local object's member setter is a per-instance
+                        // accessor: its `this` is the active implicit receiver
+                        // (the materialized local object), not a global
+                        // singleton `symbolRef`.
+                        if let receiverExprID = driver.ctx.activeImplicitReceiverExprID() {
+                            setterInputs.insert(receiverExprID, at: 0)
+                        }
+                    } else {
+                        // Bare references to singleton properties omit the dispatch receiver.
+                        driver.emitObjectLazyInitGuardIfNeeded(
+                            objectSymbol: ownerSymbol,
+                            arena: arena,
+                            sema: sema,
+                            interner: interner,
+                            instructions: &instructions
+                        )
+                        let ownerType = sema.types.make(.classType(ClassType(
+                            classSymbol: ownerSymbol,
+                            args: [],
+                            nullability: .nonNull
+                        )))
+                        let receiver = arena.appendExpr(.symbolRef(ownerSymbol), type: ownerType)
+                        instructions.append(.constValue(result: receiver, value: .symbolRef(ownerSymbol)))
+                        setterInputs.insert(receiver, at: 0)
+                    }
                 }
                 let setterArguments = driver.callLowerer.propertyAccessorArguments(
                     for: setterSymbol,
@@ -201,7 +210,9 @@ extension ExprLowerer {
             } else if let receiverExprID = driver.objectLiteralLowerer.implicitReceiverExprID(
                 forProperty: symbol,
                 sema: sema,
-                arena: arena
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
             ),
                       let ownerSymbol = sema.symbols.parentSymbol(for: symbol),
                       sema.symbols.symbol(ownerSymbol)?.kind == .interface,
@@ -221,7 +232,9 @@ extension ExprLowerer {
             } else if let receiverExprID = driver.objectLiteralLowerer.implicitReceiverExprID(
                 forProperty: symbol,
                 sema: sema,
-                arena: arena
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
             ),
                       let ownerSymbol = sema.symbols.parentSymbol(for: symbol),
                       let ownerInfo = sema.symbols.symbol(ownerSymbol),
@@ -265,7 +278,9 @@ extension ExprLowerer {
             } else if let receiverExprID = driver.objectLiteralLowerer.implicitReceiverExprID(
                 forProperty: symbol,
                 sema: sema,
-                arena: arena
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
             ),
                       let symInfo = sema.symbols.symbol(symbol),
                       symInfo.kind == .property,

@@ -27,7 +27,7 @@ struct RuntimeKClassMetadataTests {
             isInterface: false,
             isObject: false,
             isEnumClass: false,
-            isAnnotationClass: false,
+
             isAbstract: false,
             fieldCount: 3,
             memberCount: 7,
@@ -64,7 +64,7 @@ struct RuntimeKClassMetadataTests {
             isInterface: false,
             isObject: false,
             isEnumClass: false,
-            isAnnotationClass: false,
+
             isAbstract: false,
             fieldCount: 2,
             memberCount: 5,
@@ -94,7 +94,7 @@ struct RuntimeKClassMetadataTests {
             isInterface: false,
             isObject: false,
             isEnumClass: false,
-            isAnnotationClass: false,
+
             isAbstract: false,
             fieldCount: 0,
             memberCount: 0,
@@ -129,7 +129,7 @@ struct RuntimeKClassMetadataTests {
             isInterface: false,
             isObject: false,
             isEnumClass: false,
-            isAnnotationClass: false,
+
             isAbstract: false,
             fieldCount: 4,
             memberCount: 6,
@@ -446,6 +446,23 @@ struct RuntimeKClassMetadataTests {
         #expect(kk_list_size(list) == 2)
         #expect(runtimeStringFromRaw(__kk_kclass_simple_name(kk_list_get(list, 0, nil))) == "Nested")
         #expect(runtimeStringFromRaw(__kk_kclass_simple_name(kk_list_get(list, 1, nil))) == "Inn")
+    }
+
+    @Test func repeatedNestedClassRegistrationIsIdempotentPerOwner() {
+        let outer = 335
+        let otherOuter = 336
+        _ = __kk_kclass_register_nested_class(outer, 337, makeRuntimeString("test.Outer.One"))
+        _ = __kk_kclass_register_nested_class(outer, 337, makeRuntimeString("test.Outer.One"))
+        _ = __kk_kclass_register_nested_class(outer, 338, makeRuntimeString("test.Outer.Two"))
+        _ = __kk_kclass_register_nested_class(otherOuter, 337, makeRuntimeString("test.Other.One"))
+
+        let outerClass = __kk_kclass_create(outer, makeRuntimeString("test.Outer"))
+        let nested = __kk_kclass_nested_classes(outerClass)
+        #expect(kk_list_size(nested) == 2)
+        #expect(runtimeStringFromRaw(__kk_kclass_simple_name(kk_list_get(nested, 0, nil))) == "One")
+        #expect(runtimeStringFromRaw(__kk_kclass_simple_name(kk_list_get(nested, 1, nil))) == "Two")
+        let otherClass = __kk_kclass_create(otherOuter, makeRuntimeString("test.Other"))
+        #expect(kk_list_size(__kk_kclass_nested_classes(otherClass)) == 1)
     }
 
     @Test func nestedClassesReturnsEmptyWithoutRegistration() {

@@ -187,6 +187,30 @@ func runtimeIsSourceCoroutineDispatcher(_ raw: Int) -> Bool {
     ) != nil
 }
 
+/// KUU-3719: resolves a `ContinuationInterceptor` element to a
+/// `RuntimeDispatcher` when the interceptor is dispatcher-backed (a
+/// `CoroutineDispatcher` object, a dispatcher tag, or a native dispatcher).
+/// Returns nil for user-defined interceptors so their custom interception
+/// still runs through `interceptContinuation`.
+func runtimeInterceptorDispatcher(_ interceptorRaw: Int) -> RuntimeDispatcher? {
+    guard interceptorRaw != 0 else {
+        return nil
+    }
+    if let sourceDispatcher = runtimeSourceCoroutineDispatcher(from: interceptorRaw) {
+        return sourceDispatcher
+    }
+    if isDispatcherTag(interceptorRaw) {
+        return runtimeResolveDispatcher(from: interceptorRaw)
+    }
+    if isRegisteredRuntimeObjectPointer(interceptorRaw),
+       let pointer = UnsafeMutableRawPointer(bitPattern: interceptorRaw),
+       let dispatcher = tryCast(pointer, to: RuntimeDispatcher.self)
+    {
+        return dispatcher
+    }
+    return nil
+}
+
 private final class RuntimeDispatcherExecutorBox: @unchecked Sendable {
     let dispatcherHandle: Int
     private let dispatcherPin: RuntimeObjectPin

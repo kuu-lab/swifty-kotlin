@@ -339,9 +339,8 @@ extension CallTypeChecker {
         // value: typing it as `Any` makes a primitive accumulator arrive at the
         // operator lowering as a reference, so `DoubleArray.fold(0.0) { a, b -> a + b }`
         // reinterprets the accumulator's raw word as an Int.
-        var accumulatorType: TypeID?
         if (memberName == "fold" || memberName == "foldIndexed"), args.indices.contains(0) {
-            accumulatorType = driver.inferExpr(
+            _ = driver.inferExpr(
                 args[0].expr,
                 ctx: ctx,
                 locals: &locals,
@@ -352,7 +351,6 @@ extension CallTypeChecker {
             memberName: memberName,
             argCount: args.count,
             receiverElementType: receiverElementType,
-            accumulatorType: accumulatorType ?? sema.types.anyType,
             sema: sema
         ),
             args.indices.contains(expectation.argumentIndex)
@@ -377,7 +375,6 @@ extension CallTypeChecker {
             memberName: memberName,
             receiverID: receiverID,
             elementType: receiverElementType,
-            accumulatorType: accumulatorType ?? sema.types.anyType,
             sema: sema,
             interner: interner
         )
@@ -421,7 +418,6 @@ extension CallTypeChecker {
         memberName: String,
         receiverID: ExprID,
         elementType: TypeID,
-        accumulatorType: TypeID,
         sema: SemaModule,
         interner: StringInterner
     ) -> TypeID {
@@ -470,7 +466,6 @@ extension CallTypeChecker {
         memberName: String,
         argCount: Int,
         receiverElementType: TypeID,
-        accumulatorType: TypeID,
         sema: SemaModule
     ) -> (argumentIndex: Int, expectedType: TypeID)? {
         if memberName == "copyOf", argCount == 2 {

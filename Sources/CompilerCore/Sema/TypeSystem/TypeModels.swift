@@ -290,44 +290,4 @@ extension TypeKind {
         }
     }
 
-    func mapSymbols(_ transform: (SymbolID) -> SymbolID) -> TypeKind {
-        switch self {
-        case .error, .unit, .nullableUnit, .platformUnit, .nothing, .any, .stringStruct, .primitive:
-            return self
-        case let .typeParam(type):
-            guard let capture = type.capture else {
-                return .typeParam(TypeParamType(
-                    symbol: transform(type.symbol),
-                    nullability: type.nullability
-                ))
-            }
-            let origin = capture.origin.map {
-                CapturedTypeOrigin(
-                    receiverType: $0.receiverType,
-                    parameter: transform($0.parameter),
-                    argumentIndex: $0.argumentIndex
-                )
-            }
-            return .typeParam(TypeParamType(
-                symbol: transform(type.symbol),
-                nullability: type.nullability,
-                capture: CapturedTypeBounds(
-                    identity: capture.identity,
-                    lower: capture.lower,
-                    upper: capture.upper,
-                    writeForbidden: capture.writeForbidden,
-                    origin: origin
-                )
-            ))
-        case let .classType(type):
-            return .classType(ClassType(
-                classSymbol: transform(type.classSymbol),
-                args: type.args,
-                enclosingTypeArgs: type.enclosingTypeArgs,
-                nullability: type.nullability
-            ))
-        case .functionType, .intersection, .kClassType:
-            return self
-        }
-    }
 }

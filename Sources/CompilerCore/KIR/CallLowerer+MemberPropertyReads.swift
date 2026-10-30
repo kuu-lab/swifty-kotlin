@@ -532,6 +532,26 @@ extension CallLowerer {
 
         let resultType = sema.bindings.exprTypes[exprID] ?? sema.symbols.propertyType(for: propertySymbol) ?? sema.types.anyType
         if objectLiteralPropertyUsesAccessor(propertySymbol, ast: ast, sema: sema) {
+            // Member-extension properties (`var O.e` inside a local object)
+            // lower to a real accessor function taking (dispatch, extension
+            // receiver), registered under extensionPropertyGetterAccessor.
+            // The placeholder call below only reaches the synthesized
+            // non-extension accessor, so route extension reads through the
+            // registered accessor like the member-assign setter path does.
+            if let getterSymbol = sema.symbols.extensionPropertyGetterAccessor(for: propertySymbol) {
+                let result = arena.appendTemporary(type: resultType)
+                appendPropertyGetterCall(
+                    getterSymbol: getterSymbol,
+                    receiver: loweredReceiverID,
+                    callExprID: exprID,
+                    result: result,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    instructions: &instructions
+                )
+                return result
+            }
             let result = arena.appendTemporary(type: resultType)
             instructions.append(.call(
                 symbol: propertySymbol,
@@ -646,6 +666,21 @@ extension CallLowerer {
         propertyConstantInitializers: [SymbolID: KIRExprKind],
         instructions: inout [KIRInstruction]
     ) -> KIRExprID? {
+        // KUU-3670: a property whose declared type erases to a non-reified
+        // type parameter crosses the read boundary in its raw erased
+        // representation (a heap handle), not the claim site's substituted
+        // representation. Materializing `val s: T` directly into a `String`
+        // result would reinterpret a foreign object before the boundary
+        // checkcast emitted by `checkedErasedGenericCallResult` can reject
+        // it, so the read produces the erased slot type and the claim-side
+        // cast performs the conversion.
+        let resultType: TypeID = if let declaredType = sema.symbols.propertyType(for: propertySymbol),
+                                    kirIsNonReifiedErasedABIType(declaredType, sema: sema)
+        {
+            sema.types.nullableAnyType
+        } else {
+            resultType
+        }
         let isSuperQualifiedReceiver: Bool
         if let isSuperQualifiedReceiverOverride {
             isSuperQualifiedReceiver = isSuperQualifiedReceiverOverride
@@ -841,6 +876,35 @@ extension CallLowerer {
             return nil
         }
 
+        // An enum-typed receiver is still a raw ordinal here. If an entry
+        // body overrides this property, route through its ordinal dispatcher
+        // before attempting the interface itable on that scalar value.
+        if !isSuperQualifiedReceiver,
+           let (_, receiverClassSymbol) = resolveClassTypeSymbol(
+               sema.types.makeNonNullable(receiverType), sema: sema
+           ),
+           receiverClassSymbol.kind == .enumClass
+        {
+            let getter = sema.symbols.extensionPropertyGetterAccessor(for: propertySymbol)
+                ?? SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: propertySymbol)
+            if let dispatch = kirEnumEntryDispatchHelper(
+                for: getter,
+                in: receiverClassSymbol.id,
+                sema: sema,
+                interner: interner
+            ), let dispatchInfo = sema.symbols.symbol(dispatch) {
+                let result = arena.appendTemporary(type: resultType)
+                instructions.append(.call(
+                    symbol: dispatch,
+                    callee: dispatchInfo.name,
+                    arguments: [loweredReceiverID],
+                    result: result,
+                    canThrow: true
+                ))
+                return result
+            }
+        }
+
         // KSP-928: an abstract/open class property is a getter dispatch point,
         // not an instance field or a direct abstract getter stub. In
         // particular, AbstractMap's skeletal methods must observe a concrete
@@ -911,7 +975,7 @@ extension CallLowerer {
                 getterSymbol: getterSymbol,
                 getterSlot: getterSlot,
                 receiver: loweredReceiverID,
-                callExprID: nil,
+                callExprID: callExprID,
                 bindingOverride: callBindingOverride,
                 result: result,
                 sema: sema,
@@ -939,7 +1003,7 @@ extension CallLowerer {
             ) {
                 let result = arena.appendTemporary(type: propertyCallResultType)
                 let virtualAccessorArguments = propertyAccessorArguments(
-                    for: accessorSymbol, arguments: [loweredReceiverID], callExprID: nil,
+                    for: accessorSymbol, arguments: [loweredReceiverID], callExprID: callExprID,
                     bindingOverride: callBindingOverride,
                     sema: sema, arena: arena, interner: interner, instructions: &instructions
                 )
@@ -966,7 +1030,7 @@ extension CallLowerer {
                 appendPropertyGetterCall(
                     getterSymbol: getterSymbol,
                     receiver: loweredReceiverID,
-                    callExprID: nil,
+                    callExprID: callExprID,
                     bindingOverride: callBindingOverride,
                     result: result,
                     sema: sema,
@@ -1026,7 +1090,7 @@ extension CallLowerer {
         ) {
             let result = arena.appendTemporary(type: propertyCallResultType)
             let virtualAccessorArguments = propertyAccessorArguments(
-                for: accessorSymbol, arguments: [loweredReceiverID], callExprID: nil,
+                for: accessorSymbol, arguments: [loweredReceiverID], callExprID: callExprID,
                 bindingOverride: callBindingOverride,
                 sema: sema, arena: arena, interner: interner, instructions: &instructions
             )

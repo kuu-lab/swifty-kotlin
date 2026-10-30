@@ -56,11 +56,9 @@ extension CallLowerer {
         _ exprID: ExprID,
         classRefTargetType: TypeID,
         memberName: String,
-        ast: ASTModule,
         sema: SemaModule,
         arena: KIRArena,
         interner: StringInterner,
-        propertyConstantInitializers: [SymbolID: KIRExprKind],
         instructions: inout [KIRInstruction]
     ) -> KIRExprID {
         let intType = sema.types.make(.primitive(.int, .nonNull))
@@ -367,8 +365,7 @@ extension CallLowerer {
             return name.hasPrefix("__localdecl_") || name.hasPrefix("__ObjectLiteral_")
         }
         if isLocalOrAnonymous
-            || ownerKind.map({ [.function, .property, .local].contains($0) }) == true
-            || (symbol.kind == .object && symbol.flags.contains(.synthetic)) {
+            || ownerKind.map({ [.function, .property, .local].contains($0) }) == true {
             flags |= 1 << 13
         }
         let flagsExpr = arena.appendExpr(.intLiteral(flags), type: intType)
@@ -517,20 +514,7 @@ extension CallLowerer {
             case .stringStruct:
                 return "java.lang.String"
             case let .primitive(primitive, _):
-                switch primitive {
-                case .boolean: return "boolean"
-                case .char: return "char"
-                case .int: return "int"
-                case .long: return "long"
-                case .float: return "float"
-                case .double: return "double"
-                case .byte: return "byte"
-                case .short: return "short"
-                case .uint: return "kotlin.UInt"
-                case .ulong: return "kotlin.ULong"
-                case .ubyte: return "kotlin.UByte"
-                case .ushort: return "kotlin.UShort"
-                }
+                return javaReflectionName(of: primitive)
             case let .classType(classType):
                 guard let typeSymbol = sema.symbols.symbol(classType.classSymbol) else {
                     return "java.lang.Object"
@@ -716,7 +700,7 @@ extension CallLowerer {
         let isLocalOrAnonymous = classInfo?.fqName.contains { component in
             let name = interner.resolve(component)
             return name.hasPrefix("__localdecl_") || name.hasPrefix("__ObjectLiteral_")
-        } == true || (classInfo?.kind == .object && classInfo?.flags.contains(.synthetic) == true)
+        } == true
 
         func lexicallyContainingSymbols(matching predicate: (SemanticSymbol) -> Bool) -> [SemanticSymbol] {
             guard let classRange = classInfo?.declSite else { return [] }
@@ -882,6 +866,12 @@ extension CallLowerer {
         ))
     }
 
+    /// Java reflection renders signed primitives by their JVM keyword and
+    /// unsigned ones by their Kotlin class name.
+    private func javaReflectionName(of primitive: PrimitiveType) -> String {
+        [.uint, .ulong, .ubyte, .ushort].contains(primitive) ? "kotlin." + primitive.kotlinName : primitive.rawValue
+    }
+
     private func javaReflectionTypeName(
         _ type: TypeID,
         sema: SemaModule,
@@ -893,20 +883,7 @@ extension CallLowerer {
         case .nothing: return "java.lang.Void"
         case .stringStruct: return "java.lang.String"
         case let .primitive(primitive, _):
-            switch primitive {
-            case .boolean: return "boolean"
-            case .char: return "char"
-            case .int: return "int"
-            case .long: return "long"
-            case .float: return "float"
-            case .double: return "double"
-            case .byte: return "byte"
-            case .short: return "short"
-            case .uint: return "kotlin.UInt"
-            case .ulong: return "kotlin.ULong"
-            case .ubyte: return "kotlin.UByte"
-            case .ushort: return "kotlin.UShort"
-            }
+            return javaReflectionName(of: primitive)
         case let .classType(classType):
             return sema.symbols.symbol(classType.classSymbol)
                 .map { $0.fqName.map(interner.resolve).joined(separator: ".") }

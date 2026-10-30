@@ -116,15 +116,11 @@ public operator fun Char.inc(): Char = __charFromCode(this.code + 1)
 
 public operator fun Char.dec(): Char = __charFromCode(this.code - 1)
 
-public fun Char.digitToInt(): Int = digitToInt(10)
+public fun Char.digitToInt(): Int =
+    digitToIntOrNull(10) ?: throw IllegalArgumentException("Char $this is not a decimal digit")
 
-public fun Char.digitToInt(radix: Int): Int {
-    val digit = charDigitOf(this, radix)
-    if (digit < 0) {
-        throw IllegalArgumentException("code point ${this.code} is not a valid digit in radix $radix")
-    }
-    return digit
-}
+public fun Char.digitToInt(radix: Int): Int =
+    digitToIntOrNull(radix) ?: throw IllegalArgumentException("Char $this is not a digit in the given radix=$radix")
 
 public fun Char.digitToIntOrNull(): Int? = digitToIntOrNull(10)
 
@@ -133,12 +129,19 @@ public fun Char.digitToIntOrNull(radix: Int): Int? {
     return if (digit < 0) null else digit
 }
 
-public fun Int.digitToChar(): Char = digitToChar(10)
+public fun Int.digitToChar(): Char {
+    if (this < 0 || this > 9) {
+        throw IllegalArgumentException("Int $this is not a decimal digit")
+    }
+    return __charFromCode(CHAR_CODE_ZERO + this)
+}
 
 public fun Int.digitToChar(radix: Int): Char {
-    charCheckRadix(radix)
+    if (radix < 2 || radix > 36) {
+        throw IllegalArgumentException("Invalid radix: $radix. Valid radix values are in range 2..36")
+    }
     if (this < 0 || this >= radix) {
-        throw IllegalArgumentException("digit $this is out of the valid range 0..<$radix")
+        throw IllegalArgumentException("Digit $this does not represent a valid digit in radix $radix")
     }
     return if (this < 10) {
         __charFromCode(CHAR_CODE_ZERO + this)
@@ -149,7 +152,7 @@ public fun Int.digitToChar(radix: Int): Char {
 
 private fun charCheckRadix(radix: Int) {
     if (radix < 2 || radix > 36) {
-        throw IllegalArgumentException("radix $radix is out of the valid range 2..36")
+        throw IllegalArgumentException("radix $radix was not in valid range 2..36")
     }
 }
 

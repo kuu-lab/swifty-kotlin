@@ -314,6 +314,64 @@ struct ConstPropertyEvaluationTests {
     }
 
     @Test
+    func foldsSmallSubnormalConcatenationWithJavaDigits() throws {
+        let ctx = makeContextFromSource("""
+        package subnormalTextConstants
+        const val DOUBLE_TWO = "" + 2 * Double.MIN_VALUE
+        const val DOUBLE_TEN = "" + 10 * Double.MIN_VALUE
+        const val FLOAT_THREE = "" + 3 * Float.MIN_VALUE
+        const val FLOAT_MIN = "" + Float.MIN_VALUE
+        const val FLOAT_SEVENTY_ONE = "" + 71 * Float.MIN_VALUE
+        """)
+        try runSema(ctx)
+
+        #expect(ctx.diagnostics.diagnostics.filter { $0.severity == .error }.isEmpty)
+        let sema = try #require(ctx.sema)
+        let expected = [
+            "DOUBLE_TWO": "9.9E-324", "DOUBLE_TEN": "4.9E-323",
+            "FLOAT_THREE": "4.2E-45", "FLOAT_MIN": "1.4E-45", "FLOAT_SEVENTY_ONE": "9.9E-44",
+        ]
+        for (name, text) in expected {
+            let symbol = try #require(sema.symbols.lookup(
+                fqName: ["subnormalTextConstants", name].map { ctx.interner.intern($0) }
+            ))
+            #expect(
+                sema.symbols.constValueExprKind(for: symbol) == .stringLiteral(ctx.interner.intern(text)),
+                "Incorrect constant for \(name)"
+            )
+        }
+    }
+
+    @Test
+    func foldsMixedIntLongFloorDivAndModWithKotlinResultTypes() throws {
+        let ctx = makeContextFromSource("""
+        package mixedFloorConstants
+        const val INT_MOD_LONG = 7.mod(-3L)
+        const val INT_FLOOR_DIV_LONG = 7.floorDiv(-3L)
+        const val LONG_MOD_INT = (-5L).mod(3)
+        const val LONG_MOD_INT_WRAPS = (5L.mod(3) + Int.MAX_VALUE).toLong()
+        const val LONG_FLOOR_DIV_INT = Long.MAX_VALUE.floorDiv(-1)
+        """)
+        try runSema(ctx)
+
+        #expect(ctx.diagnostics.diagnostics.filter { $0.severity == .error }.isEmpty)
+        let sema = try #require(ctx.sema)
+        let expected: [String: KIRExprKind] = [
+            "INT_MOD_LONG": .longLiteral(-2),
+            "INT_FLOOR_DIV_LONG": .longLiteral(-3),
+            "LONG_MOD_INT": .intLiteral(1),
+            "LONG_MOD_INT_WRAPS": .longLiteral(-2_147_483_647),
+            "LONG_FLOOR_DIV_INT": .longLiteral(-9_223_372_036_854_775_807),
+        ]
+        for (name, value) in expected {
+            let symbol = try #require(sema.symbols.lookup(
+                fqName: ["mixedFloorConstants", name].map { ctx.interner.intern($0) }
+            ))
+            #expect(sema.symbols.constValueExprKind(for: symbol) == value, "Incorrect constant for \(name)")
+        }
+    }
+
+    @Test
     func foldsFloatingFloorModWithInfiniteDivisor() throws {
         let ctx = makeContextFromSource("""
         package infiniteModConstants
@@ -577,6 +635,99 @@ struct ConstPropertyEvaluationTests {
             fqName: ["mixedStringConstants", "NOT_CONSTANT"].map { ctx.interner.intern($0) }
         ))
         #expect(sema.symbols.constValueExprKind(for: rejected) == nil)
+    }
+
+    /// KUU-3199: kotlinc's constant evaluator folds builtin member calls on
+    /// const receivers — Char->Float/Double conversions, String toString/
+    /// compareTo/get (including the `s[i]` indexed form), and Float/Double
+    /// `mod` across Float/Double argument mixing.
+    @Test
+    func foldsConstReceiverMemberCallsLikeKotlinc() throws {
+        let ctx = makeContextFromSource("""
+        package constReceiverCalls
+        const val ONE_BYTE = 1.toByte()
+        const val CONVERT1 = ONE_BYTE.toByte()
+        const val CONVERT2 = ONE_BYTE.toInt().toChar()
+        const val EQ1 = ONE_BYTE == (2.toByte())
+        const val MINUS1 = ONE_BYTE.minus(ONE_BYTE)
+        const val CHAR = 'A'
+        const val CHAR_TO_FLOAT = CHAR.toFloat()
+        const val CHAR_TO_DOUBLE = CHAR.toDouble()
+        const val CHAR_TO_FLOAT_LITERAL = 'B'.toFloat()
+        const val STRING = "hi"
+        const val STRING_TOSTRING = STRING.toString()
+        const val LITERAL_TOSTRING = "he".toString()
+        const val STRING_COMPARE = STRING.compareTo("he")
+        const val STRING_COMPARE_SAME = STRING.compareTo(STRING)
+        const val STRING_COMPARE_PREFIX = "he".compareTo(STRING)
+        const val STRING_GET = STRING[1]
+        const val LITERAL_GET = "abc"[0]
+        const val CONCAT_GET = ("a" + STRING)[2]
+        const val FLOAT_MOD_DOUBLE = 1.5f.mod(2.0)
+        const val DOUBLE_MOD_FLOAT = 2.0.mod(1.5f)
+        fun nonConstFun(): Int = 5
+        const val BAD = nonConstFun()
+        """)
+        try runSema(ctx)
+
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.count == 1, "Unexpected diagnostics: \(errors)")
+        #expect(errors.first?.code == "KSWIFTK-SEMA-0083")
+
+        let sema = try #require(ctx.sema)
+        let expected: [String: KIRExprKind] = [
+            "CONVERT1": .intLiteral(1),
+            "CONVERT2": .charLiteral(1),
+            "EQ1": .boolLiteral(false),
+            "MINUS1": .intLiteral(0),
+            "CHAR_TO_FLOAT": .floatLiteral(65),
+            "CHAR_TO_DOUBLE": .doubleLiteral(65),
+            "CHAR_TO_FLOAT_LITERAL": .floatLiteral(66),
+            "STRING_TOSTRING": .stringLiteral(ctx.interner.intern("hi")),
+            "LITERAL_TOSTRING": .stringLiteral(ctx.interner.intern("he")),
+            // JVM String.compareTo yields the UTF-16 unit/length difference.
+            "STRING_COMPARE": .intLiteral(4),
+            "STRING_COMPARE_SAME": .intLiteral(0),
+            "STRING_COMPARE_PREFIX": .intLiteral(-4),
+            "STRING_GET": .charLiteral(105),
+            "LITERAL_GET": .charLiteral(97),
+            "CONCAT_GET": .charLiteral(105),
+            "FLOAT_MOD_DOUBLE": .doubleLiteral(1.5),
+            "DOUBLE_MOD_FLOAT": .doubleLiteral(0.5),
+        ]
+        for (name, value) in expected {
+            let symbol = try #require(sema.symbols.lookup(
+                fqName: ["constReceiverCalls", name].map { ctx.interner.intern($0) }
+            ))
+            #expect(sema.symbols.constValueExprKind(for: symbol) == value, "Incorrect constant for \(name)")
+        }
+        let rejected = try #require(sema.symbols.lookup(
+            fqName: ["constReceiverCalls", "BAD"].map { ctx.interner.intern($0) }
+        ))
+        #expect(sema.symbols.constValueExprKind(for: rejected) == nil)
+    }
+
+    /// KUU-3199: kotlinc never treats an unsigned value as a compile-time
+    /// constant, so member calls on unsigned receivers stay rejected even
+    /// when their result is a signed primitive or a String.
+    @Test
+    func rejectsMemberCallsOnUnsignedReceivers() throws {
+        let ctx = makeContextFromSource("""
+        package unsignedReceiverCalls
+        const val UNSIGNED_COMPARE = 1u.compareTo(2u)
+        const val UNSIGNED_TOSTRING = 1u.toString()
+        const val UNSIGNED_CONCAT_CALL = "x" + 1u.toString()
+        """)
+        try runSema(ctx)
+        let errors = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0083" }
+        #expect(errors.count == 3, "Expected unsigned receiver calls to be non-constant: \(errors)")
+        let sema = try #require(ctx.sema)
+        for name in ["UNSIGNED_COMPARE", "UNSIGNED_TOSTRING", "UNSIGNED_CONCAT_CALL"] {
+            let symbol = try #require(sema.symbols.lookup(
+                fqName: ["unsignedReceiverCalls", name].map { ctx.interner.intern($0) }
+            ))
+            #expect(sema.symbols.constValueExprKind(for: symbol) == nil)
+        }
     }
 
     @Test

@@ -8,5 +8,5 @@ file fstdlib_kotlin_n_BuilderInference package=golden.sema annotations=[@file:Op
 expr e@6:28 int(0) type=Int
 expr e@9:26 int(0) type=Int
 expr e@11:55 name(null) type=Nothing?
-expr e@5:2 memberCall recv=e@5:2#1 callee=BuilderInference args=[] type=kotlin.BuilderInference call=kotlin.BuilderInference.<init>[kind=ctor;recv=kotlin.BuilderInference;params=;ret=kotlin.BuilderInference]
-expr e@8:2 memberCall recv=e@8:2#1 callee=BuilderInference args=[] type=kotlin.BuilderInference call=kotlin.BuilderInference.<init>[kind=ctor;recv=kotlin.BuilderInference;params=;ret=kotlin.BuilderInference]
+expr e@5:2 call callee=e@5:2#1 args=[] type=kotlin.BuilderInference call=kotlin.BuilderInference.<init>[kind=ctor;recv=kotlin.BuilderInference;params=;ret=kotlin.BuilderInference]
+expr e@8:2 call callee=e@8:2#1 args=[] type=kotlin.BuilderInference call=kotlin.BuilderInference.<init>[kind=ctor;recv=kotlin.BuilderInference;params=;ret=kotlin.BuilderInference]

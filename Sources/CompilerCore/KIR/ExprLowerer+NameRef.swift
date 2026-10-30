@@ -260,7 +260,9 @@ extension ExprLowerer {
                let capturedReceiver = driver.objectLiteralLowerer.implicitReceiverExprID(
                    forProperty: symbol,
                    sema: sema,
-                   arena: arena
+                   arena: arena,
+                   interner: interner,
+                   instructions: &instructions
                )
             {
                 receiverExprID = capturedReceiver
@@ -963,7 +965,9 @@ extension ExprLowerer {
                let receiverExprID = driver.objectLiteralLowerer.implicitReceiverExprID(
                    forProperty: symbol,
                    sema: sema,
-                   arena: arena
+                   arena: arena,
+                   interner: interner,
+                   instructions: &instructions
                ),
                let ownerSymbol = sema.symbols.parentSymbol(for: symbol),
                let ownerKind = sema.symbols.symbol(ownerSymbol)?.kind,
@@ -1026,7 +1030,9 @@ extension ExprLowerer {
                let receiverExprID = driver.objectLiteralLowerer.implicitReceiverExprID(
                    forProperty: symbol,
                    sema: sema,
-                   arena: arena
+                   arena: arena,
+                   interner: interner,
+                   instructions: &instructions
                ),
                let ownerSymbol = sema.symbols.parentSymbol(for: symbol),
                let ownerKind = sema.symbols.symbol(ownerSymbol)?.kind,

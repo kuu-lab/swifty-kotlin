@@ -50,7 +50,7 @@ expr e@22:13#1 memberCall recv=e@22:13 callee=size args=[] type=Int ref=kotlin.c
 expr e@22:5 call callee=e@22:5#1 args=[_:e@22:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
 expr e@23:13 name(hm) type=kotlin.collections.HashMap<String, Int> ref=__local_0.hm[kind=local;type=kotlin.collections.HashMap<String,Int>;origin=fixture]
 expr e@23:28 string(x) type=String
-expr e@23:13#1 memberCall recv=e@23:13 callee=containsKey args=[_:e@23:28] type=Boolean call=kotlin.collections.HashMap.containsKey[kind=fun;recv=kotlin.collections.HashMap<T0,T1>;params=T0;ret=Boolean;gen=2;classGen=2;names=[key]]
+expr e@23:13#1 memberCall recv=e@23:13 callee=containsKey args=[_:e@23:28] type=Boolean call=kotlin.collections.HashMap.containsKey[kind=fun;recv=kotlin.collections.HashMap<T0,T1>;params=T0;ret=Boolean;gen=2;classGen=2;names=[key]] targs=[String,Int]
 expr e@23:5 call callee=e@23:5#1 args=[_:e@23:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
 expr e@24:13 name(hm) type=kotlin.collections.HashMap<String, Int> ref=__local_0.hm[kind=local;type=kotlin.collections.HashMap<String,Int>;origin=fixture]
 expr e@24:30 int(99) type=Int

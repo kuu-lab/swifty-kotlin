@@ -4,8 +4,6 @@ extension DataFlowSemaPhase {
         symbols: SymbolTable,
         types: TypeSystem,
         interner: StringInterner,
-        kotlinPkg: [InternedString],
-        kotlinPropertiesPkg: [InternedString],
         bundledIndex: BundledDeclarationIndex
     ) {
         let anyType = types.anyType
@@ -147,13 +145,19 @@ extension DataFlowSemaPhase {
         let kMutablePropertySymbol = ensureInterfaceSymbol(
             named: "KMutableProperty", in: kotlinReflectPkg, symbols: symbols, interner: interner
         )
-        registerSyntheticKMutablePropertyStub(
-            kMutablePropertySymbol: kMutablePropertySymbol,
-            kPropertySymbol: kPropertySymbol,
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
+        if !bundledIndex.contains(
+            ownerFQName: kotlinReflectPkg + [interner.intern("KMutableProperty"), interner.intern("Setter")],
+            name: interner.intern("property"),
+            arity: 0
+        ) {
+            registerSyntheticKMutablePropertyStub(
+                kMutablePropertySymbol: kMutablePropertySymbol,
+                kPropertySymbol: kPropertySymbol,
+                symbols: symbols,
+                types: types,
+                interner: interner
+            )
+        }
         // KSP-682: KProperty0/1/2 and KMutableProperty0/1/2 are bundled Kotlin
         // source (Stdlib/kotlin/reflect/KProperty.kt) when the stdlib is
         // included; register the synthetic fallback shells only when the bundled

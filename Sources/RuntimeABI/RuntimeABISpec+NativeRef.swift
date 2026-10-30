@@ -4,6 +4,7 @@ public extension RuntimeABISpec {
     static let nativeRefFunctions: [RuntimeABIFunctionSpec] = [
         abi.nt("kk_weak_ref_create", "objectRaw"),
         abi.nt("kk_weak_ref_get", "weakRefRaw"),
+        abi.nt("kk_weak_ref_get_rooted", "weakRefRaw slot"),
         abi.nt("kk_weak_ref_clear", "weakRefRaw"),
         abi.nt("kk_cleaner_create", "valueRaw blockRaw"),
         abi.nt("kk_gc_schedule", "gcRaw"),

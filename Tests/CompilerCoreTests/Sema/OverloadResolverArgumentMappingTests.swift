@@ -15,7 +15,7 @@ extension OverloadResolverTests {
 
     @Test
     func testIndexedSetFinalValueArgumentCannotSkipRequiredParameters() {
-        let (fn, resolved) = resolveSyntheticIndexedSet(middleHasDefault: false)
+        let (_, resolved) = resolveSyntheticIndexedSet(middleHasDefault: false)
 
         #expect(resolved.chosenCallee == nil)
         #expect(resolved.diagnostic?.code == "KSWIFTK-SEMA-0002")

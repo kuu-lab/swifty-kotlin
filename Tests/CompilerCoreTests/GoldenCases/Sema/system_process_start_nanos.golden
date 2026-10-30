@@ -3,11 +3,11 @@ symbol fq=__local_1.now[kind=local;type=Long;origin=fixture] kind=local vis=priv
 symbol fq=main[kind=fun;params=;ret=Unit;origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
 file fsystem_process_start_nanos package=_
   decl main[kind=fun;params=;ret=Unit;origin=fixture] fun main sym=main[kind=fun;params=;ret=Unit;origin=fixture]
-expr e@2:28 name(System) type=kotlin.system.System ref=kotlin.system.System[kind=obj]
-expr e@2:28#1 memberCall recv=e@2:28 callee=processStartNanos args=[] type=Long call=kotlin.system.System.processStartNanos[kind=fun;recv=kotlin.system.System;params=;ret=Long]
+expr e@2:28 name(System) type=java.lang.System ref=java.lang.System[kind=obj]
+expr e@2:28#1 memberCall recv=e@2:28 callee=processStartNanos args=[] type=Long call=java.lang.System.processStartNanos[kind=fun;recv=java.lang.System;params=;ret=Long]
 expr e@2:5 localDecl startNanos mutable=0 type=Long init=e@2:28#1 type=Unit ref=__local_0.startNanos[kind=local;type=Long;origin=fixture]
-expr e@3:21 name(System) type=kotlin.system.System ref=kotlin.system.System[kind=obj]
-expr e@3:21#1 memberCall recv=e@3:21 callee=nanoTime args=[] type=Long call=kotlin.system.System.nanoTime[kind=fun;recv=kotlin.system.System;params=;ret=Long]
+expr e@3:21 name(System) type=java.lang.System ref=java.lang.System[kind=obj]
+expr e@3:21#1 memberCall recv=e@3:21 callee=nanoTime args=[] type=Long call=java.lang.System.nanoTime[kind=fun;recv=java.lang.System;params=;ret=Long]
 expr e@3:5 localDecl now mutable=0 type=Long init=e@3:21#1 type=Unit ref=__local_1.now[kind=local;type=Long;origin=fixture]
 expr e@4:13 name(startNanos) type=Long ref=__local_0.startNanos[kind=local;type=Long;origin=fixture]
 expr e@4:26 int(0) type=Int

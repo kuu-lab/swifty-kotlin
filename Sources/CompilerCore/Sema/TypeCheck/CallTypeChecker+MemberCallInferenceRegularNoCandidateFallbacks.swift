@@ -411,6 +411,11 @@ extension CallTypeChecker {
                sema: sema
            ),
            !(receiverQualifierIsTypeAlias(receiverID: receiverID, ctx: ctx)
+               && sema.symbols.symbol(staticMember.symbol)?.kind == .object),
+           // An explicit `()` on a nested `object` is a function invocation,
+           // not a value read — fall through so `invoke` can dispatch
+           // (KUU-3662).
+           !(ast.arena.isExplicitCall(id)
                && sema.symbols.symbol(staticMember.symbol)?.kind == .object)
         {
             if let memberSymbol = sema.symbols.symbol(staticMember.symbol),
@@ -1893,6 +1898,47 @@ extension CallTypeChecker {
             locals: &locals
         ) {
             return invokeType
+        }
+
+        // KUU-3751: inherited `private` members never enter the candidate
+        // set (they are not inherited), but the member still exists — report
+        // it as inaccessible rather than unresolved, matching kotlinc.
+        var privateMemberLookupTypes = [memberLookupType]
+        if isClassNameReceiver,
+           let ownerNominal = classNameReceiverNominalSymbol
+        {
+            // `WithComp.member` resolves against the companion object, whose
+            // inherited members do not appear on the owner class type itself.
+            let companionSymbol: SymbolID? = {
+                if let actualOwner = sema.symbols.actualSymbol(for: ownerNominal),
+                   let companion = sema.symbols.companionBlockObjectSymbol(for: actualOwner, interner: interner)
+                       ?? sema.symbols.companionObjectSymbol(for: actualOwner)
+                {
+                    return companion
+                }
+                return sema.symbols.companionBlockObjectSymbol(for: ownerNominal, interner: interner)
+                    ?? sema.symbols.companionObjectSymbol(for: ownerNominal)
+            }()
+            if let companionSymbol {
+                privateMemberLookupTypes.append(sema.types.make(.classType(ClassType(
+                    classSymbol: companionSymbol, args: [], nullability: .nonNull
+                ))))
+            }
+        }
+        for lookupType in privateMemberLookupTypes {
+            guard let privateMember = driver.helpers.privateMemberSymbolInHierarchy(
+                named: calleeName, receiverType: lookupType, sema: sema
+            ),
+               !ctx.visibilityChecker.isAccessible(
+                   privateMember,
+                   fromFile: ctx.currentFileID,
+                   enclosingClass: ctx.enclosingClassSymbol
+               )
+            else {
+                continue
+            }
+            driver.helpers.emitVisibilityError(for: privateMember, name: calleeStr, range: range, diagnostics: ctx.sema.diagnostics)
+            return driver.helpers.bindAndReturnErrorType(id, sema: sema)
         }
 
         ctx.sema.diagnostics.error("KSWIFTK-SEMA-0024", "Unresolved member function '\(calleeStr)'.", range: range)

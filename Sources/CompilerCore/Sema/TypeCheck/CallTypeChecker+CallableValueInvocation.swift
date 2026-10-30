@@ -105,7 +105,7 @@ extension CallTypeChecker {
     ) -> TypeID {
         let chosen = nullableConsoleCallee(id, chosen: initialCallee, sema: sema)
         if let range = driver.ast.arena.exprRange(id),
-           !validateReifiedIntersectionTypeArguments(for: chosen, resolved: resolved, range: range, sema: sema) {
+           !validateReifiedTypeArguments(for: chosen, substitutedTypeArguments: resolved.substitutedTypeArguments, range: range, sema: sema) {
             sema.bindings.bindExprType(id, type: sema.types.errorType)
             return sema.types.errorType
         }
@@ -183,6 +183,11 @@ extension CallTypeChecker {
                     in: signature.parameterTypes[parameterIndex],
                     substitution: resolved.substitutedTypeArguments,
                     typeVarBySymbol: typeVarBySymbol
+                )
+                // A generic parameter consumes its erased declaration type,
+                // not the type selected by inference for this particular call.
+                driver.recordGenericCallConsumer(
+                    argument.expr, type: signature.parameterTypes[parameterIndex]
                 )
                 driver.recordPlatformNullAssertion(
                     argument.expr, sourceType: sourceType, targetType: targetType,
@@ -389,6 +394,7 @@ extension CallTypeChecker {
             + ctx.implicitReceiverStack.map(\.type)
             + ctx.outerReceiverTypes.map(\.type)
             + (ctx.implicitReceiverType.map { [$0] } ?? [])
+            + ctx.implicitReceiverMemberLookupEntries().map(\.type)
         func hasImplicitContextValues() -> Bool {
             contextTypes.allSatisfy { requiredType in
                 if sema.types.typeContainsAnyTypeParam(requiredType) {
@@ -523,6 +529,7 @@ extension CallTypeChecker {
             let argIndex = paramIndex + receiverArgOffset + contextArgumentCount
             parameterMapping[argIndex] = paramIndex
             let argumentType = contextualizedArgumentType(at: argIndex, parameterType: functionType.params[paramIndex])
+            driver.recordGenericCallConsumer(args[argIndex].expr, type: functionType.params[paramIndex])
             driver.recordPlatformNullAssertion(args[argIndex].expr, sourceType: argumentType,
                                                targetType: functionType.params[paramIndex])
             emitCallableValueArgumentConstraint(

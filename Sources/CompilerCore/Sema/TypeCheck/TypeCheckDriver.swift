@@ -15,8 +15,6 @@ struct LocalBindings: ExpressibleByDictionaryLiteral, Sequence {
     }
 
     var values: Dictionary<InternedString, Value>.Values { bindings.values }
-    var isEmpty: Bool { bindings.isEmpty }
-
     func makeIterator() -> Dictionary<InternedString, Value>.Iterator {
         bindings.makeIterator()
     }
@@ -213,6 +211,9 @@ final class TypeCheckDriver {
         }
         let ctx = expressionContext.syncingImplicitReceiver(from: locals)
         let type = exprChecker.inferExpr(id, ctx: ctx, locals: &locals, expectedType: expectedType, isStatementContext: isStatementContext)
+        if let expectedType, sema.bindings.hasSourceDeclaredExpectedType(id) {
+            recordGenericCallConsumer(id, type: expectedType)
+        }
         // JVM Unit locals keep the Java value, while Unit returns discard it.
         // Argument checks are recorded separately after callable resolution.
         if let expectedType, type != sema.types.unitType,
@@ -232,6 +233,22 @@ final class TypeCheckDriver {
         }
         checkInlineCallVisibility(id, ctx: ctx)
         return type
+    }
+
+    /// Record an actual value destination separately from inference hints.
+    /// Transparent blocks forward their tail value to that destination, but
+    /// branches and other value-producing expressions have their own boundary.
+    func recordGenericCallConsumer(_ id: ExprID, type: TypeID?) {
+        var value = id
+        while case let .blockExpr(_, trailing, _) = ast.arena.expr(value), let trailing {
+            value = trailing
+        }
+        switch ast.arena.expr(value) {
+        case .call, .memberCall, .safeMemberCall, .indexedAccess:
+            sema.bindings.bindGenericCallConsumerType(value, type: type)
+        default:
+            break
+        }
     }
 
     func isCoroutineContextPropertyRead(_ id: ExprID) -> Bool {

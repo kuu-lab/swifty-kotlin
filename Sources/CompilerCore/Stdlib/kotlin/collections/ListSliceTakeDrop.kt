@@ -100,13 +100,11 @@ public fun <T> List<T>.dropLastWhile(predicate: (T) -> Boolean): List<T> {
 
 // KSP-1001: Keep the stdlib IntRange overload alongside the Iterable overload.
 // The List<Int> argument below remains an unambiguous match for Iterable<Int>.
+// The stdlib implementation delegates to `subList(start, endInclusive + 1)`,
+// which keeps both the view semantics and its bounds-error contract.
 public fun <T> List<T>.slice(indices: IntRange): List<T> {
     if (indices.isEmpty()) return emptyList()
-    val result = mutableListOf<T>()
-    for (index in indices) {
-        result.add(this[index])
-    }
-    return result
+    return this.subList(indices.start, indices.endInclusive + 1)
 }
 
 public fun <T> List<T>.slice(indices: Iterable<Int>): List<T> {

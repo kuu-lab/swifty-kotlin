@@ -482,51 +482,6 @@ extension CallLowerer {
             }
         }
 
-        if isConcreteListLikeType(nonNullReceiverType, sema: sema, interner: interner) {
-            switch memberName {
-            // KSP-426: List sorting and extrema HOFs are bundled Kotlin source.
-            case "sortedByDescending":
-                return interner.intern("kk_list_sortedByDescending")
-            case "sortedWith":
-                return interner.intern("kk_list_sortedWith")
-
-            case "maxBy":
-                return interner.intern("kk_list_maxBy")
-            case "maxByOrNull":
-                return interner.intern("kk_list_maxByOrNull")
-            case "minByOrNull":
-                return interner.intern("kk_list_minByOrNull")
-            case "minBy":
-                return interner.intern("kk_list_minBy")
-            case "maxOf":
-                return interner.intern("kk_list_maxOf")
-            case "minOf":
-                return interner.intern("kk_list_minOf")
-            case "max":
-                return interner.intern("kk_list_max")
-            case "min":
-                return interner.intern("kk_list_min")
-            case "maxWith":
-                return interner.intern("kk_list_maxWith")
-            case "maxWithOrNull":
-                return interner.intern("kk_list_maxWithOrNull")
-            case "minWith":
-                return interner.intern("kk_list_minWith")
-            case "minWithOrNull":
-                return interner.intern("kk_list_minWithOrNull")
-            case "maxOfWith":
-                return interner.intern("kk_list_maxOfWith")
-            case "maxOfWithOrNull":
-                return interner.intern("kk_list_maxOfWithOrNull")
-            case "minOfWith":
-                return interner.intern("kk_list_minOfWith")
-            case "minOfWithOrNull":
-                return interner.intern("kk_list_minOfWithOrNull")
-            default:
-                break
-            }
-        }
-
         if isMutableSetLikeType(nonNullReceiverType, sema: sema, interner: interner) {
             switch memberName {
             case "addAll":
@@ -653,6 +608,7 @@ extension CallLowerer {
         }
 
         let useSequenceRuntimeForCollectionFallback = isSequenceLikeType(nonNullReceiverType, sema: sema, interner: interner)
+            || isSequenceBoundTypeParameterType(nonNullReceiverType, sema: sema, interner: interner)
         let useIterableRuntimeForCollectionFallback = (sema.bindings.isCollectionExpr(receiverExpr)
             || isIterableOrCollectionInterfaceType(nonNullReceiverType, sema: sema, interner: interner))
             && !isConcreteCollectionLikeType(nonNullReceiverType, sema: sema, interner: interner)
@@ -746,10 +702,6 @@ extension CallLowerer {
                 return interner.intern("kk_sequence_mapNotNull")
             case interner.intern("mapIndexedNotNull"):
                 return interner.intern("kk_sequence_mapIndexedNotNull")
-            case interner.intern("firstNotNullOf"):
-                return interner.intern("kk_sequence_firstNotNullOf")
-            case interner.intern("firstNotNullOfOrNull"):
-                return interner.intern("kk_sequence_firstNotNullOfOrNull")
             case interner.intern("filterNot"):
                 return interner.intern("kk_sequence_filterNot")
             case interner.intern("filterNotNull"):
@@ -762,8 +714,6 @@ extension CallLowerer {
                 return interner.intern("kk_sequence_mapIndexed")
             case interner.intern("filterIndexed"):
                 return interner.intern("kk_sequence_filterIndexed")
-            case interner.intern("flatMapIndexed"):
-                return interner.intern("kk_sequence_flatMapIndexed")
             case interner.intern("withIndex"):
                 return interner.intern("kk_sequence_withIndex")
             case interner.intern("onEach"):
@@ -963,6 +913,22 @@ extension CallLowerer {
             return nil
         }
 
+        // The reduce family also lowers to the sequence runtime for a bare
+        // Iterable receiver, which collectionKindWithSupertypes does not classify.
+        func isIterableReduceReceiver() -> Bool {
+            switch collectionKindWithSupertypes(of: symbol, sema: sema, knownNames: knownNames) {
+            case .list?, .set?, .collection?:
+                return true
+            default:
+                return symbol.name == interner.intern("Iterable")
+                    || symbol.fqName == [
+                        interner.intern("kotlin"),
+                        interner.intern("collections"),
+                        interner.intern("Iterable"),
+                    ]
+            }
+        }
+
         switch memberName {
         case "iterator":
             switch collectionKindWithSupertypes(of: symbol, sema: sema, knownNames: knownNames) {
@@ -986,20 +952,7 @@ extension CallLowerer {
                 break
             }
         case "reduce":
-            switch collectionKindWithSupertypes(of: symbol, sema: sema, knownNames: knownNames) {
-            case .list?, .set?, .collection?:
-                return interner.intern("kk_sequence_reduce")
-            default:
-                if symbol.name == interner.intern("Iterable")
-                    || symbol.fqName == [
-                        interner.intern("kotlin"),
-                        interner.intern("collections"),
-                        interner.intern("Iterable"),
-                    ]
-                {
-                    return interner.intern("kk_sequence_reduce")
-                }
-            }
+            return isIterableReduceReceiver() ? interner.intern("kk_sequence_reduce") : nil
         case "requireNoNulls":
             switch collectionKindWithSupertypes(of: symbol, sema: sema, knownNames: knownNames) {
             case .list?, .set?, .collection?:
@@ -1008,80 +961,15 @@ extension CallLowerer {
                 break
             }
         case "reduceRight":
-            switch collectionKindWithSupertypes(of: symbol, sema: sema, knownNames: knownNames) {
-            case .list?, .set?, .collection?:
-                return interner.intern("kk_sequence_reduceRight")
-            default:
-                if symbol.name == interner.intern("Iterable")
-                    || symbol.fqName == [
-                        interner.intern("kotlin"),
-                        interner.intern("collections"),
-                        interner.intern("Iterable"),
-                    ]
-                {
-                    return interner.intern("kk_sequence_reduceRight")
-                }
-            }
+            return isIterableReduceReceiver() ? interner.intern("kk_sequence_reduceRight") : nil
         case "reduceIndexed":
-            switch collectionKindWithSupertypes(of: symbol, sema: sema, knownNames: knownNames) {
-            case .list?, .set?, .collection?:
-                return interner.intern("kk_sequence_reduceIndexed")
-            default:
-                if symbol.name == interner.intern("Iterable")
-                    || symbol.fqName == [
-                        interner.intern("kotlin"),
-                        interner.intern("collections"),
-                        interner.intern("Iterable"),
-                    ]
-                {
-                    return interner.intern("kk_sequence_reduceIndexed")
-                }
-            }
+            return isIterableReduceReceiver() ? interner.intern("kk_sequence_reduceIndexed") : nil
         case "reduceRightIndexed":
-            switch collectionKindWithSupertypes(of: symbol, sema: sema, knownNames: knownNames) {
-            case .list?, .set?, .collection?:
-                return interner.intern("kk_sequence_reduceRightIndexed")
-            default:
-                if symbol.name == interner.intern("Iterable")
-                    || symbol.fqName == [
-                        interner.intern("kotlin"),
-                        interner.intern("collections"),
-                        interner.intern("Iterable"),
-                    ]
-                {
-                    return interner.intern("kk_sequence_reduceRightIndexed")
-                }
-            }
+            return isIterableReduceReceiver() ? interner.intern("kk_sequence_reduceRightIndexed") : nil
         case "reduceRightOrNull":
-            switch collectionKindWithSupertypes(of: symbol, sema: sema, knownNames: knownNames) {
-            case .list?, .set?, .collection?:
-                return interner.intern("kk_sequence_reduceRightOrNull")
-            default:
-                if symbol.name == interner.intern("Iterable")
-                    || symbol.fqName == [
-                        interner.intern("kotlin"),
-                        interner.intern("collections"),
-                        interner.intern("Iterable"),
-                    ]
-                {
-                    return interner.intern("kk_sequence_reduceRightOrNull")
-                }
-            }
+            return isIterableReduceReceiver() ? interner.intern("kk_sequence_reduceRightOrNull") : nil
         case "reduceRightIndexedOrNull":
-            switch collectionKindWithSupertypes(of: symbol, sema: sema, knownNames: knownNames) {
-            case .list?, .set?, .collection?:
-                return interner.intern("kk_sequence_reduceRightIndexedOrNull")
-            default:
-                if symbol.name == interner.intern("Iterable")
-                    || symbol.fqName == [
-                        interner.intern("kotlin"),
-                        interner.intern("collections"),
-                        interner.intern("Iterable"),
-                    ]
-                {
-                    return interner.intern("kk_sequence_reduceRightIndexedOrNull")
-                }
-            }
+            return isIterableReduceReceiver() ? interner.intern("kk_sequence_reduceRightIndexedOrNull") : nil
         default:
             break
         }

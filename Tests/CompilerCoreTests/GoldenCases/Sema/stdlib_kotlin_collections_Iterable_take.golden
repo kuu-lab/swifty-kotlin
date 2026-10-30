@@ -24,7 +24,7 @@ expr e@14:22 name(it) type=Int ref=s-1
 expr e@14:27 int(0) type=Int
 expr e@14:22#1 binary(greaterThan) lhs=e@14:22 rhs=e@14:27 type=Boolean
 expr e@14:20 lambda params=[] body=e@14:22#1 label=takeWhile type=(Int) -> Boolean
-expr e@14:5#1 memberCall recv=e@14:5 callee=takeWhile args=[_:e@14:20] type=kotlin.collections.List<Int> call=kotlin.collections.takeWhile[kind=fun;recv=kotlin.collections.List<T0>;params=fn{p=T0;ret=Boolean};ret=kotlin.collections.List<T0>;gen=1;nonlocal=[0];names=[predicate]] targs=[Int]
+expr e@14:5#1 memberCall recv=e@14:5 callee=takeWhile args=[_:e@14:20] type=kotlin.collections.List<Int> call=kotlin.collections.takeWhile[kind=fun;recv=kotlin.collections.List<T0>;params=fn{p=T0;ret=Boolean};ret=kotlin.collections.List<T0>;gen=1;names=[predicate]] targs=[Int]
 expr e@15:5 name(sequence) type=kotlin.sequences.Sequence<Int> ref=probe.$0.sequence[kind=vparam;origin=fixture]
 expr e@15:19 int(2) type=Int
 expr e@15:5#1 memberCall recv=e@15:5 callee=take args=[_:e@15:19] type=kotlin.sequences.Sequence<Int> call=kotlin.sequences.take[kind=fun;recv=kotlin.sequences.Sequence<T0>;params=Int;ret=kotlin.sequences.Sequence<T0>;gen=1;names=[n]] targs=[Int]

@@ -28,7 +28,6 @@ extension MemberLowerer {
         propertySymbol: SymbolID,
         propertyType: TypeID,
         delegateStorageSymbol: SymbolID,
-        delegateKind: StdlibDelegateKind,
         accessorKind: PropertyAccessorKind,
         shared: KIRLoweringSharedContext,
         allDecls: inout [KIRDeclID]
@@ -141,6 +140,7 @@ extension MemberLowerer {
 
             let delegateHandleExprID = loadDelegateHandle(
                 delegateStorageSymbol: delegateStorageSymbol,
+                propertySymbol: propertySymbol,
                 ownerSymbol: ownerSymbol,
                 receiverExprID: dispatchReceiverBinding?.exprID ?? driver.ctx.activeImplicitReceiverExprID(),
                 sema: sema,
@@ -153,6 +153,8 @@ extension MemberLowerer {
             )
             let getterExtraArgs = buildCustomDelegateGetterArgs(
                 propertySymbol: propertySymbol,
+                delegateValue: delegateHandleExprID,
+                ast: shared.ast,
                 sema: sema,
                 arena: arena,
                 interner: interner,
@@ -199,6 +201,7 @@ extension MemberLowerer {
             body.append(.constValue(result: valueExprID, value: .symbolRef(valueParamSymbol)))
             let delegateHandleExprID = loadDelegateHandle(
                 delegateStorageSymbol: delegateStorageSymbol,
+                propertySymbol: propertySymbol,
                 ownerSymbol: ownerSymbol,
                 receiverExprID: dispatchReceiverBinding?.exprID ?? driver.ctx.activeImplicitReceiverExprID(),
                 sema: sema,
@@ -211,6 +214,8 @@ extension MemberLowerer {
             let setterExtraArgs = buildCustomDelegateSetterArgs(
                 propertySymbol: propertySymbol,
                 valueExprID: valueExprID,
+                delegateValue: delegateHandleExprID,
+                ast: shared.ast,
                 sema: sema,
                 arena: arena,
                 interner: interner,
@@ -350,26 +355,15 @@ extension MemberLowerer {
         return .call(symbol: symbol, callee: callee, arguments: captures + arguments, result: result, canThrow: false)
     }
 
-    func prependingMemberExtensionDispatchReceiver(
-        to arguments: [KIRExprID],
-        for symbol: SymbolID?,
-        sema: SemaModule
-    ) -> [KIRExprID] {
-        guard let symbol,
-              sema.symbols.memberExtensionOwnerSymbol(for: symbol) != nil,
-              let dispatchReceiver = driver.ctx.activeImplicitReceiverExprID()
-        else {
-            return arguments
-        }
-        return [dispatchReceiver] + arguments
-    }
-
     /// Class/interface instance delegates live inside the heap-allocated object,
     /// while enum delegates use a per-entry global slot because enum values are
     /// ordinal-backed. Top-level and `object`-member delegates intentionally
-    /// keep a single shared instance backed by a real global.
+    /// keep a single shared instance backed by a real global — but *local*
+    /// objects (object literals and named local `object` decls) are per-instance
+    /// values whose delegate storage lives in the layout fields like a class.
     private func loadDelegateHandle(
         delegateStorageSymbol: SymbolID,
+        propertySymbol: SymbolID,
         ownerSymbol: SymbolID?,
         receiverExprID: KIRExprID?,
         sema: SemaModule,
@@ -395,9 +389,16 @@ extension MemberLowerer {
             body.append(.call(callee: helperName, arguments: [receiverExprID], result: result, canThrow: false))
             return result
         }
+        let ownerStoresInInstanceField = switch sema.symbols.symbol(ownerSymbol ?? SymbolID(rawValue: 0))?.kind {
+        case .class, .interface:
+            true
+        case .object:
+            sema.bindings.isObjectLiteralPropertySymbol(propertySymbol)
+        default:
+            false
+        }
         if let ownerSymbol,
-           let ownerInfo = sema.symbols.symbol(ownerSymbol),
-           ownerInfo.kind == .class || ownerInfo.kind == .interface,
+           ownerStoresInInstanceField,
            let fieldOffset = sema.symbols.nominalLayout(for: ownerSymbol)?.fieldOffsets[delegateStorageSymbol],
            let receiverValue = receiverExprID ?? driver.ctx.activeImplicitReceiverExprID()
         {
@@ -419,6 +420,8 @@ extension MemberLowerer {
 
     private func buildCustomDelegateGetterArgs(
         propertySymbol: SymbolID,
+        delegateValue: KIRExprID? = nil,
+        ast: ASTModule?,
         sema: SemaModule,
         arena: KIRArena,
         interner: StringInterner,
@@ -436,6 +439,8 @@ extension MemberLowerer {
             sema: sema,
             arena: arena,
             interner: interner,
+            delegateValue: delegateValue,
+            ast: ast,
             body: &body
         )
         return [thisRefExprID, kPropertyExprID]
@@ -444,6 +449,8 @@ extension MemberLowerer {
     private func buildCustomDelegateSetterArgs(
         propertySymbol: SymbolID,
         valueExprID: KIRExprID,
+        delegateValue: KIRExprID? = nil,
+        ast: ASTModule?,
         sema: SemaModule,
         arena: KIRArena,
         interner: StringInterner,
@@ -451,6 +458,8 @@ extension MemberLowerer {
     ) -> [KIRExprID] {
         buildCustomDelegateGetterArgs(
             propertySymbol: propertySymbol,
+            delegateValue: delegateValue,
+            ast: ast,
             sema: sema,
             arena: arena,
             interner: interner,
@@ -484,6 +493,7 @@ extension MemberLowerer {
             arena: arena,
             interner: interner,
             isLocal: true,
+            ast: nil,
             body: &body
         )
         instructions = body.instructions
@@ -496,6 +506,8 @@ extension MemberLowerer {
         arena: KIRArena,
         interner: StringInterner,
         isLocal: Bool = false,
+        delegateValue: KIRExprID? = nil,
+        ast: ASTModule? = nil,
         body: inout KIRLoweringEmitContext
     ) -> KIRExprID {
         driver.emitKPropertyStubCreate(
@@ -504,6 +516,8 @@ extension MemberLowerer {
             arena: arena,
             interner: interner,
             isLocal: isLocal,
+            delegateValue: delegateValue,
+            ast: ast,
             emit: &body
         )
     }

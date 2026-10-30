@@ -100,7 +100,7 @@ final class RuntimeFlatStringStorage: @unchecked Sendable {
 }
 
 private struct RuntimeWeakStringBox {
-    weak var box: RuntimeStringBox?
+    weak let box: RuntimeStringBox?
 }
 
 private final class RuntimeFlatStringStorageRegistry: @unchecked Sendable {

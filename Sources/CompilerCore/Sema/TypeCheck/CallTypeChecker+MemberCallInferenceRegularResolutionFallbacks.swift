@@ -17,7 +17,6 @@ extension CallTypeChecker {
         isClassNameReceiver: Bool,
         classNameReceiverNominalSymbol: SymbolID?,
         isSuperCall: Bool,
-        typeAliasConstructor: TypeAliasConstructorContext? = nil,
         locals: inout LocalBindings
     ) -> TypeID? {
         let id = request.id
@@ -49,6 +48,11 @@ extension CallTypeChecker {
                    sema: sema
                ),
                !(receiverQualifierIsTypeAlias(receiverID: receiverID, ctx: ctx)
+                   && sema.symbols.symbol(staticMember.symbol)?.kind == .object),
+               // An explicit `()` on a nested `object` is a function invocation,
+               // not a value read — fall through so `invoke` can dispatch
+               // (KUU-3662).
+               !(ctx.ast.arena.isExplicitCall(id)
                    && sema.symbols.symbol(staticMember.symbol)?.kind == .object)
             {
                 if let memberSymbol = sema.symbols.symbol(staticMember.symbol),
@@ -271,6 +275,11 @@ extension CallTypeChecker {
                    sema: sema
                ),
                !(receiverQualifierIsTypeAlias(receiverID: receiverID, ctx: ctx)
+                   && sema.symbols.symbol(staticMember.symbol)?.kind == .object),
+               // An explicit `()` on a nested `object` is a function invocation,
+               // not a value read — fall through so `invoke` can dispatch
+               // (KUU-3662).
+               !(ctx.ast.arena.isExplicitCall(id)
                    && sema.symbols.symbol(staticMember.symbol)?.kind == .object)
             {
                 if let memberSymbol = sema.symbols.symbol(staticMember.symbol),
@@ -471,6 +480,14 @@ extension CallTypeChecker {
                     varianceResult.covariantSubstitution,
                     uniquingKeysWith: { _, projected in projected }
                 )
+            }
+            if !validateReifiedTypeArguments(
+                for: chosen,
+                substitutedTypeArguments: mergedSubstitution,
+                range: range,
+                sema: sema
+            ) {
+                return driver.helpers.bindAndReturnErrorType(id, sema: sema)
             }
             let projectedContextReceiverSymbols = contextParameterReceiverSymbols(
                 for: chosen,

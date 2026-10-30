@@ -64,7 +64,9 @@ final class RuntimeAtomicfuRecursiveLock: @unchecked Sendable {
         let waiter = Waiter(owner: selfID)
         waiters.append(waiter)
         stateLock.unlock()
+        let gcBlocking = runtimeGCSafepoints.beginBlockingIfEnrolled()
         _ = waiter.wake.wait(timeout: deadline)
+        if gcBlocking { runtimeGCSafepoints.endBlocking() }
         stateLock.lock()
         defer { stateLock.unlock() }
         // A grant racing a timeout transfers actual ownership; the awakened
@@ -127,7 +129,9 @@ final class RuntimeAtomicfuParker: @unchecked Sendable {
         let current = Waiter()
         waiter = current
         stateLock.unlock()
+        let gcBlocking = runtimeGCSafepoints.beginBlockingIfEnrolled()
         _ = current.wake.wait(timeout: atomicfuDeadline(timeoutNanos))
+        if gcBlocking { runtimeGCSafepoints.endBlocking() }
         afterWaitBeforeCleanup?()
         stateLock.lock()
         // A completed unpark detached this waiter. A subsequent unpark may

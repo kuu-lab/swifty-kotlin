@@ -164,6 +164,11 @@ public inline fun <T> Iterable<T>.dropWhile(predicate: (T) -> Boolean): List<T> 
     }
     return result
 }
+public fun <T> List<T>.dropLast(n: Int): List<T> {
+    if (n < 0) throw IllegalArgumentException("Requested element count $n is less than zero.")
+    if (n == 0) return this.toList()
+    return take((size - n).coerceAtLeast(0))
+}
 public fun <T> List<T>.dropLastWhile(predicate: (T) -> Boolean): List<T> {
     var end = size
     while (end > 0 && predicate(this[end - 1])) end--
@@ -199,6 +204,8 @@ public fun <T> Iterable<T>.asSequence(): kotlin.sequences.Sequence<T> {
         override fun iterator(): Iterator<T> = source.iterator()
     }
 }
+
+public fun <T> Iterable<T>.withIndex(): Iterable<IndexedValue<T>> = IndexingIterable(this)
 
 public fun <T> Iterable<T>.first(): T {
     if (this is List<*>) return (this as List<T>).first()

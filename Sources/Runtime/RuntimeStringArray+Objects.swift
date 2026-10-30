@@ -1,5 +1,4 @@
 import Foundation
-import RuntimeABI
 
 @_cdecl("kk_object_new")
 public func kk_object_new(_ length: Int, _ classId: Int) -> Int {
@@ -9,7 +8,11 @@ public func kk_object_new(_ length: Int, _ classId: Int) -> Int {
     runtimeStorage.withGCLock { state in
         state.objectPointers.insert(key)
         state.managedObjectPointers.insert(key)
+        precondition(state.nextManagedObjectGeneration < UInt64.max, "Managed object generation exhausted")
+        state.nextManagedObjectGeneration += 1
+        state.managedObjectGenerations[key] = state.nextManagedObjectGeneration
         state.pendingGCRoots.insert(key)
+        recordRetainedBoxManagedHeapFieldsLocked(box, owner: key, state: &state)
     }
     runtimeStorage.withMetadataLock { state in
         state.objectTypeByPointer[key] = Int64(classId)

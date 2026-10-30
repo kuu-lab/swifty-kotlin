@@ -199,21 +199,7 @@ extension CoroutineLoweringPass {
             switch instruction {
             case .label:
                 leaders.insert(index)
-            case let .jump(target):
-                if let targetIndex = labelToInstructionIndex[target] {
-                    leaders.insert(targetIndex)
-                }
-                if index + 1 < instructions.count {
-                    leaders.insert(index + 1)
-                }
-            case let .jumpIfEqual(_, _, target):
-                if let targetIndex = labelToInstructionIndex[target] {
-                    leaders.insert(targetIndex)
-                }
-                if index + 1 < instructions.count {
-                    leaders.insert(index + 1)
-                }
-            case let .jumpIfNotNull(_, target):
+            case let .jump(target), let .jumpIfEqual(_, _, target), let .jumpIfNotNull(_, target):
                 if let targetIndex = labelToInstructionIndex[target] {
                     leaders.insert(targetIndex)
                 }
@@ -610,5 +596,202 @@ extension CoroutineLoweringPass {
             return true
         }
         return runtimeSuspendCallNames.contains(callee)
+    }
+
+    /// KUU-3719: a suspend function whose suspending calls all sit in tail
+    /// position owns no `ContinuationImpl` of its own on JVM — its suspend
+    /// points bind the *caller's* continuation instead, so
+    /// `suspendCoroutine`'s `intercepted()` resolves on the nearest ancestor
+    /// frame that does own a machine. Such a callee is interception-
+    /// transparent: the child continuation created for its direct calls
+    /// shares the caller's interception rather than counting a second
+    /// `interceptContinuation`.
+    ///
+    /// A suspending call is in tail position when every CFG path after it
+    /// only carries the call's result through copies / runtime conversions
+    /// into a `returnValue` — any other computation, another suspend call,
+    /// or a discarded result means the function owns a resumption point and
+    /// therefore a real machine on JVM.
+    func isInterceptionTransparentBody(
+        originalBody: [KIRInstruction],
+        interner: StringInterner,
+        suspendFunctionSymbols: Set<SymbolID>,
+        suspendFunctionNames: Set<InternedString>,
+        runtimeSuspendCallNames: Set<InternedString>
+    ) -> Bool {
+        var labelToInstructionIndex: [Int32: Int] = [:]
+        for (index, instruction) in originalBody.enumerated() {
+            if case let .label(labelID) = instruction {
+                labelToInstructionIndex[labelID] = index
+            }
+        }
+
+        // A suspend function that never calls a suspend entry point still owns
+        // a machine on JVM; only callees that actually forward a suspension
+        // are transparent.
+        var sawSuspendCall = false
+        for (index, instruction) in originalBody.enumerated() {
+            guard let callInfo = extractCallInfo(instruction),
+                  isSuspendCall(
+                      symbol: callInfo.symbol,
+                      callee: callInfo.callee,
+                      suspendFunctionSymbols: suspendFunctionSymbols,
+                      suspendFunctionNames: suspendFunctionNames,
+                      runtimeSuspendCallNames: runtimeSuspendCallNames
+                  )
+            else {
+                continue
+            }
+            sawSuspendCall = true
+
+            var derived: Set<KIRExprID> = []
+            if let result = callInfo.result {
+                derived.insert(result)
+            }
+            // Exprs produced by `kk_coroutine_suspended` — the suspend-call
+            // protocol compares the call result against this token.
+            var suspendedTokens: Set<KIRExprID> = []
+            var stack = instructionSuccessors(
+                at: index,
+                instruction: instruction,
+                totalInstructions: originalBody.count,
+                labelToInstructionIndex: labelToInstructionIndex
+            )
+            var visited: Set<Int> = []
+            var isTailCall = true
+            while let next = stack.popLast(), isTailCall {
+                guard visited.insert(next).inserted else {
+                    continue
+                }
+                let nextInstruction = originalBody[next]
+                if let nextCallInfo = extractCallInfo(nextInstruction) {
+                    guard !nextCallInfo.isVirtual,
+                          nextCallInfo.symbol == nil,
+                          !isSuspendCall(
+                              symbol: nextCallInfo.symbol,
+                              callee: nextCallInfo.callee,
+                              suspendFunctionSymbols: suspendFunctionSymbols,
+                              suspendFunctionNames: suspendFunctionNames,
+                              runtimeSuspendCallNames: runtimeSuspendCallNames
+                          )
+                    else {
+                        isTailCall = false
+                        break
+                    }
+                    let calleeName = interner.resolve(nextCallInfo.callee)
+                    if calleeName == "kk_coroutine_suspended" {
+                        // Suspend-call protocol: fetch the suspended marker
+                        // the result is compared against below.
+                        if let token = nextCallInfo.result {
+                            suspendedTokens.insert(token)
+                        }
+                    } else {
+                        // Only result-representation conversions may follow
+                        // the call — anything else (arithmetic, I/O, a second
+                        // suspension) owns a resumption point on JVM.
+                        guard isTailResultConversionCallee(calleeName),
+                              nextCallInfo.arguments.contains(where: { derived.contains($0) }),
+                              let nextResult = nextCallInfo.result
+                        else {
+                            isTailCall = false
+                            break
+                        }
+                        derived.insert(nextResult)
+                    }
+                    stack.append(contentsOf: instructionSuccessors(
+                        at: next,
+                        instruction: nextInstruction,
+                        totalInstructions: originalBody.count,
+                        labelToInstructionIndex: labelToInstructionIndex
+                    ))
+                    continue
+                }
+                switch nextInstruction {
+                case .label, .jump, .constValue:
+                    stack.append(contentsOf: instructionSuccessors(
+                        at: next,
+                        instruction: nextInstruction,
+                        totalInstructions: originalBody.count,
+                        labelToInstructionIndex: labelToInstructionIndex
+                    ))
+                case let .jumpIfEqual(lhs, rhs, _):
+                    // Suspend-call protocol: `result == COROUTINE_SUSPENDED`.
+                    // Comparing the resumed value against anything else means
+                    // the function branches on it after resumption.
+                    if suspendedTokens.contains(lhs) || suspendedTokens.contains(rhs) {
+                        stack.append(contentsOf: instructionSuccessors(
+                            at: next,
+                            instruction: nextInstruction,
+                            totalInstructions: originalBody.count,
+                            labelToInstructionIndex: labelToInstructionIndex
+                        ))
+                    } else {
+                        isTailCall = false
+                    }
+                case let .jumpIfNotNull(value, _):
+                    // Suspend-call protocol: thrown-exception check. Any
+                    // other null check inspects the resumed value.
+                    if value == callInfo.thrownResult {
+                        stack.append(contentsOf: instructionSuccessors(
+                            at: next,
+                            instruction: nextInstruction,
+                            totalInstructions: originalBody.count,
+                            labelToInstructionIndex: labelToInstructionIndex
+                        ))
+                    } else {
+                        isTailCall = false
+                    }
+                case let .copy(from, to):
+                    if derived.contains(from) {
+                        derived.insert(to)
+                    }
+                    stack.append(contentsOf: instructionSuccessors(
+                        at: next,
+                        instruction: nextInstruction,
+                        totalInstructions: originalBody.count,
+                        labelToInstructionIndex: labelToInstructionIndex
+                    ))
+                case let .returnValue(value):
+                    isTailCall = derived.contains(value)
+                case let .returnIfEqual(lhs, rhs):
+                    // `return 0 when lhs == rhs`: only the suspend-propagation
+                    // check (`result == COROUTINE_SUSPENDED`) may end the
+                    // frame here — forwarding the suspension is tail-safe.
+                    if suspendedTokens.contains(lhs) || suspendedTokens.contains(rhs) {
+                        stack.append(contentsOf: instructionSuccessors(
+                            at: next,
+                            instruction: nextInstruction,
+                            totalInstructions: originalBody.count,
+                            labelToInstructionIndex: labelToInstructionIndex
+                        ))
+                    } else {
+                        isTailCall = false
+                    }
+                case .rethrow:
+                    break
+                default:
+                    isTailCall = false
+                }
+            }
+            if !isTailCall {
+                return false
+            }
+        }
+        return sawSuspendCall
+    }
+
+    /// KUU-3719: runtime callees that only adapt a suspend result's
+    /// *representation* between a tail suspend call and the `return` —
+    /// casts, box/unbox and integer-width narrowing — matching the
+    /// conversions JVM folds into a tail suspend call's resume path. Any
+    /// other `kk_` callee (arithmetic like `kk_op_add`, printing, object
+    /// allocation) is real post-resumption work and keeps the function's
+    /// own machine.
+    private func isTailResultConversionCallee(_ name: String) -> Bool {
+        name.hasPrefix("kk_op_cast")
+            || name.hasPrefix("kk_unbox")
+            || name.hasPrefix("kk_box")
+            || name.hasPrefix("kk_int_narrow")
+            || name.hasPrefix("kk_long_narrow")
     }
 }

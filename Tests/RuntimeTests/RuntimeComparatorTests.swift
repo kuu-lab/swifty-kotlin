@@ -14,11 +14,6 @@ private let selectModTen: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) 
     value % 10
 }
 
-private let throwingSelector: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, _, outThrown in
-    outThrown?.pointee = 1
-    return 0
-}
-
 private let comparatorNatural: @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, a, b, _ in
     if a < b { return -1 }
     if a > b { return 1 }
@@ -71,15 +66,6 @@ private func comparatorPtr(_ fn: @convention(c) (Int, Int, Int, UnsafeMutablePoi
 private func makeList(_ elements: [Int]) -> Int {
     let box = RuntimeListBox(elements: elements)
     return registerRuntimeObject(box)
-}
-
-private func makeArray(_ elements: [Int]) -> Int {
-    let array = kk_array_new(elements.count)
-    var thrown = 0
-    for (index, element) in elements.enumerated() {
-        _ = kk_array_set(array, index, element, &thrown)
-    }
-    return array
 }
 
 private func makeRuntimeString(_ value: String) -> Int {

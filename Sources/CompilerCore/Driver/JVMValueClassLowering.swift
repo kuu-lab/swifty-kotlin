@@ -291,7 +291,7 @@ extension JVMProgramBuilder {
                 let base = String(f.reference.name.dropLast(8))
                 let target = functions.first { candidate in
                     guard candidate.reference.name == base else { return false }
-                    let dispatch = (candidate.access ?? (owner == input.internalClassName ? 8 : 0)) & 8 == 0 ? 1 : 0
+                    let dispatch = (candidate.access ?? (fileFacades.contains(owner) ? 8 : 0)) & 8 == 0 ? 1 : 0
                     let parameters = candidate.reference.parameters
                     return f.reference.parameters.count == dispatch + parameters.count + (candidate.isSuspend ? 1 : 0) + (parameters.count - (candidate.kotlinReceiver == nil ? 0 : 1) + 31) / 32 + 1 && Array(f.reference.parameters.dropFirst(dispatch).prefix(parameters.count)) == parameters
                 }

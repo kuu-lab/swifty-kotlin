@@ -8,6 +8,8 @@ extension NativeEmitter.FunctionEmissionContext {
         }
         if let alloca = copyTargetAllocas[thrownResult.rawValue] {
             _ = bindings.buildStore(builder, value: zeroValue, pointer: alloca)
+            emitGCShadowSet(thrownResult, value: zeroValue)
+            storeGCRoot(for: thrownResult, value: zeroValue)
         } else {
             storeResult(thrownResult, zeroValue)
         }
@@ -33,6 +35,8 @@ extension NativeEmitter.FunctionEmissionContext {
         if let thrownResult {
             if let alloca = copyTargetAllocas[thrownResult.rawValue] {
                 _ = bindings.buildStore(builder, value: thrownValue, pointer: alloca)
+                emitGCShadowSet(thrownResult, value: thrownValue)
+                storeGCRoot(for: thrownResult, value: thrownValue)
             } else {
                 storeResult(thrownResult, thrownValue)
             }
@@ -61,6 +65,7 @@ extension NativeEmitter.FunctionEmissionContext {
             bindings.positionBuilder(builder, at: thrownBlock)
             storeOutThrownIfNonNull(thrownValue, suffix: "\(namePrefix)throw_\(instructionIndex)")
             emitGCFrameLeave(returning: thrownValue)
+            emitGCShadowPop(thrown: thrownValue)
             _ = bindings.buildRet(builder, value: zeroReturnValue)
 
             currentBlock = continueBlock

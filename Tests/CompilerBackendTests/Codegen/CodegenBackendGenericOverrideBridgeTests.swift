@@ -182,5 +182,123 @@ struct CodegenBackendGenericOverrideBridgeTests {
         """
         try assertKotlinOutput(source, moduleName: "GenericCovariantAbstractBridge", expected: "OK\n")
     }
+
+    // KUU-3670: kotlin/testData/codegen/box/bridges/test20.kt — a `val s: T`
+    // declared in a generic base travels through the erased slot, so the read
+    // at the substituted claim site (`A<Data>`) must checkcast the result.
+    @Test
+    func testGenericBaseValReadCheckcastsErasedResult() throws {
+        let source = """
+        open class A<T> {
+            val s: T = "zzz" as T
+        }
+        interface C {
+            val s: String
+        }
+        class B : C, A<String>()
+        class Data(val x: Int)
+        fun box(): String {
+            val b = B()
+            try {
+                val s = (b as A<Data>).s
+                return "FAIL: ${'$'}{s.x}"
+            } catch (e: ClassCastException) {
+                return "OK"
+            }
+        }
+        fun main() {
+            println(box())
+        }
+        """
+        try assertKotlinOutput(source, moduleName: "GenericBaseValReadCheckcast", expected: "OK\n")
+    }
+
+    // KUU-3670: kotlin/testData/codegen/box/bridges/test21.kt — a raw write
+    // through the wrongly-parameterized reference stores a Data into the
+    // `var x: T?` slot; the typed `String?` read must then checkcast.
+    @Test
+    func testGenericBaseVarReadCheckcastsErasedResult() throws {
+        let source = """
+        open class Base<T> {
+            open var x: T? = null
+        }
+        open class Derived : Base<String>()
+        class Data(val x: Int)
+        fun garble(d: Derived) {
+            (d as Base<Data>).x = Data(42)
+        }
+        fun box(): String {
+            val d = Derived()
+            garble(d)
+            try {
+                val x = d.x
+                return "FAIL: ${'$'}{x?.length}"
+            } catch (e: ClassCastException) {
+                return "OK"
+            }
+        }
+        fun main() {
+            println(box())
+        }
+        """
+        try assertKotlinOutput(source, moduleName: "GenericBaseVarReadCheckcast", expected: "OK\n")
+    }
+
+    // KUU-3172: kotlin/testData/codegen/box/bridges/test22.kt — an override
+    // narrowing an erased class parameter to a primitive (`foo(x: Int)`)
+    // needs a vtable bridge that checkcasts the boxed argument; the JVM
+    // bridge's `checkcast Integer` throws ClassCastException, but the
+    // unboxing bridge alone passed the wrong-type object through as a raw
+    // word.
+    @Test
+    func testPrimitiveParameterVtableBridgeCheckcastsArgument() throws {
+        try assertKotlinOutput(
+            source("kuu_3172_generic_primitive_bridge_test22"),
+            moduleName: "KUU3172PrimitiveBridgeCheckcast",
+            expected: "OK\n"
+        )
+    }
+
+    // KUU-3172: the same primitive checkcast must cover every boxed
+    // primitive representation (Long/Boolean/Double here), reject the
+    // wrong-type argument, and still dispatch correct-type calls.
+    @Test
+    func testPrimitiveParameterBridgeVariants() throws {
+        try assertKotlinOutput(
+            source("kuu_3172_generic_primitive_bridge_variants"),
+            moduleName: "KUU3172PrimitiveBridgeVariants",
+            expected: "OK\n"
+        )
+    }
+
+    // KUU-3670: kotlin/testData/codegen/box/bridges/test24.kt — an override
+    // narrowing an erased interface parameter to Nothing needs an itable
+    // bridge that checkcasts the argument (always failing for non-null).
+    @Test
+    func testNothingParameterItableBridgeCheckcastsArgument() throws {
+        let source = """
+        interface I<T> {
+            fun foo(p: T)
+        }
+        class C : I<Nothing> {
+            override fun foo(p: Nothing) {
+                println(p.toString())
+            }
+        }
+        fun box(): String {
+            val c = C()
+            try {
+                val x = (c as I<String>).foo("zzz")
+                return "FAIL: ${'$'}x"
+            } catch (e: ClassCastException) {
+                return "OK"
+            }
+        }
+        fun main() {
+            println(box())
+        }
+        """
+        try assertKotlinOutput(source, moduleName: "NothingParamItableBridgeCheckcast", expected: "OK\n")
+    }
 }
 #endif

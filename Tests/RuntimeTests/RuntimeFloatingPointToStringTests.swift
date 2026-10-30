@@ -53,6 +53,37 @@ struct RuntimeFloatingPointToStringTests {
     }
 
     @Test
+    func testSmallSubnormalsUseClosestTwoDigitDecimal() {
+        // JDK 19+ widens a one-digit shortest decimal to the closest one- or
+        // two-digit decimal; Ryu alone prints 1e-323 / 3e-45 for these.
+        let doubles: [(Double, String)] = [
+            (2 * Double.leastNonzeroMagnitude, "9.9E-324"),
+            (3 * Double.leastNonzeroMagnitude, "1.5E-323"),
+            (8 * Double.leastNonzeroMagnitude, "4.0E-323"),
+            (10 * Double.leastNonzeroMagnitude, "4.9E-323"),
+            (20 * Double.leastNonzeroMagnitude, "9.9E-323"),
+            (21 * Double.leastNonzeroMagnitude, "1.04E-322"),
+            (-2 * Double.leastNonzeroMagnitude, "-9.9E-324"),
+        ]
+        for (value, expected) in doubles {
+            #expect(runtimeFormatFloatingPoint(value) == expected)
+        }
+        let floats: [(Float, String)] = [
+            (2 * Float.leastNonzeroMagnitude, "2.8E-45"),
+            (3 * Float.leastNonzeroMagnitude, "4.2E-45"),
+            (5 * Float.leastNonzeroMagnitude, "7.0E-45"),
+            (7 * Float.leastNonzeroMagnitude, "9.8E-45"),
+            (8 * Float.leastNonzeroMagnitude, "1.1E-44"),
+            (21 * Float.leastNonzeroMagnitude, "2.9E-44"),
+            (71 * Float.leastNonzeroMagnitude, "9.9E-44"),
+            (-3 * Float.leastNonzeroMagnitude, "-4.2E-45"),
+        ]
+        for (value, expected) in floats {
+            #expect(runtimeFormatFloatingPoint(value) == expected)
+        }
+    }
+
+    @Test
     func testFloatDecimalRange() {
         #expect(runtimeFormatFloatingPoint(Float(0.0)) == "0.0")
         #expect(runtimeFormatFloatingPoint(Float(-0.0)) == "-0.0")
@@ -100,6 +131,23 @@ struct RuntimeFloatingPointToStringTests {
         // SPEC-NUM-0006: Java's FloatingDecimal emits "1.4E-45", not Swift/Ryu's "1.0E-45".
         #expect(runtimeFormatFloatingPoint(Float.leastNonzeroMagnitude) == "1.4E-45")
         #expect(runtimeFormatFloatingPoint(-Float.leastNonzeroMagnitude) == "-1.4E-45")
+    }
+
+    /// JDK-19+ selection rule: when a length-1 decimal round-trips, Java
+    /// still emits the closest decimal among all length-1-or-2 candidates,
+    /// not the globally shortest one Ryu picks (e.g. `3e-45` -> `2.8E-45`).
+    @Test
+    func testDenormalTwoDigitSelection() {
+        #expect(runtimeFormatFloatingPoint(Double(bitPattern: 2)) == "9.9E-324")
+        #expect(runtimeFormatFloatingPoint(Double(bitPattern: 3)) == "1.5E-323")
+        #expect(runtimeFormatFloatingPoint(Double(bitPattern: 4)) == "2.0E-323")
+        #expect(runtimeFormatFloatingPoint(Double(bitPattern: 6)) == "3.0E-323")
+        #expect(runtimeFormatFloatingPoint(-Double(bitPattern: 2)) == "-9.9E-324")
+        #expect(runtimeFormatFloatingPoint(Float(bitPattern: 2)) == "2.8E-45")
+        #expect(runtimeFormatFloatingPoint(Float(bitPattern: 3)) == "4.2E-45")
+        #expect(runtimeFormatFloatingPoint(Float(bitPattern: 4)) == "5.6E-45")
+        #expect(runtimeFormatFloatingPoint(Float(bitPattern: 6)) == "8.4E-45")
+        #expect(runtimeFormatFloatingPoint(-Float(bitPattern: 2)) == "-2.8E-45")
     }
 }
 #endif

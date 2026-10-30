@@ -123,6 +123,12 @@ extension CallTypeChecker {
             )
             sema.bindings.bindIdentifier(id, symbol: propResult.symbol)
             sema.bindings.bindExprType(id, type: propResult.type)
+            bindMemberContextPropertyGetterCall(
+                id,
+                propertySymbol: propResult.symbol,
+                memberLookupType: memberLookupType,
+                ctx: ctx
+            )
             let narrowedType: TypeID? = if let reference = ctx.dataFlow.resolveStableReference(
                 id, locals: locals, ast: ast, sema: sema, interner: interner
             ), reference.isStable {

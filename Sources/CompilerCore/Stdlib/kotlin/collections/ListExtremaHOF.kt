@@ -1,7 +1,7 @@
 package kotlin.collections
 
 public inline fun <T : Comparable<T>> List<T>.max(): T {
-    if (size == 0) throw NoSuchElementException("List is empty.")
+    if (size == 0) throw NoSuchElementException()
     var best = this[0]
     var i = 1
     while (i < size) {
@@ -23,7 +23,7 @@ public inline fun <T : Comparable<T>> List<T>.maxOrNull(): T? {
 }
 
 public inline fun <T : Comparable<T>> List<T>.min(): T {
-    if (size == 0) throw NoSuchElementException("List is empty.")
+    if (size == 0) throw NoSuchElementException()
     var best = this[0]
     var i = 1
     while (i < size) {
@@ -45,7 +45,7 @@ public inline fun <T : Comparable<T>> List<T>.minOrNull(): T? {
 }
 
 public inline fun <T, R : Comparable<R>> List<T>.maxBy(selector: (T) -> R): T {
-    if (size == 0) throw NoSuchElementException("List is empty.")
+    if (size == 0) throw NoSuchElementException()
     var bestElem = this[0]
     var bestKey = selector(bestElem)
     var i = 1
@@ -73,7 +73,7 @@ public inline fun <T, R : Comparable<R>> List<T>.maxByOrNull(selector: (T) -> R)
 }
 
 public inline fun <T, R : Comparable<R>> List<T>.minBy(selector: (T) -> R): T {
-    if (size == 0) throw NoSuchElementException("List is empty.")
+    if (size == 0) throw NoSuchElementException()
     var bestElem = this[0]
     var bestKey = selector(bestElem)
     var i = 1
@@ -101,7 +101,7 @@ public inline fun <T, R : Comparable<R>> List<T>.minByOrNull(selector: (T) -> R)
 }
 
 public inline fun <T, R : Comparable<R>> List<T>.maxOf(selector: (T) -> R): R {
-    if (size == 0) throw NoSuchElementException("List is empty.")
+    if (size == 0) throw NoSuchElementException()
     var bestKey = selector(this[0])
     var i = 1
     while (i < size) {
@@ -125,7 +125,7 @@ public inline fun <T, R : Comparable<R>> List<T>.maxOfOrNull(selector: (T) -> R)
 }
 
 public inline fun <T, R : Comparable<R>> List<T>.minOf(selector: (T) -> R): R {
-    if (size == 0) throw NoSuchElementException("List is empty.")
+    if (size == 0) throw NoSuchElementException()
     var bestKey = selector(this[0])
     var i = 1
     while (i < size) {
@@ -149,7 +149,7 @@ public inline fun <T, R : Comparable<R>> List<T>.minOfOrNull(selector: (T) -> R)
 }
 
 public inline fun <T> List<T>.maxWith(comparator: Comparator<in T>): T {
-    if (size == 0) throw NoSuchElementException("List is empty.")
+    if (size == 0) throw NoSuchElementException()
     var best = this[0]
     var i = 1
     while (i < size) {
@@ -171,7 +171,7 @@ public inline fun <T> List<T>.maxWithOrNull(comparator: Comparator<in T>): T? {
 }
 
 public inline fun <T> List<T>.minWith(comparator: Comparator<in T>): T {
-    if (size == 0) throw NoSuchElementException("List is empty.")
+    if (size == 0) throw NoSuchElementException()
     var best = this[0]
     var i = 1
     while (i < size) {
@@ -193,7 +193,7 @@ public inline fun <T> List<T>.minWithOrNull(comparator: Comparator<in T>): T? {
 }
 
 public inline fun <T, R> List<T>.maxOfWith(comparator: Comparator<R>, selector: (T) -> R): R {
-    if (size == 0) throw NoSuchElementException("List is empty.")
+    if (size == 0) throw NoSuchElementException()
     var bestValue = selector(this[0])
     var i = 1
     while (i < size) {
@@ -217,7 +217,7 @@ public inline fun <T, R> List<T>.maxOfWithOrNull(comparator: Comparator<R>, sele
 }
 
 public inline fun <T, R> List<T>.minOfWith(comparator: Comparator<R>, selector: (T) -> R): R {
-    if (size == 0) throw NoSuchElementException("List is empty.")
+    if (size == 0) throw NoSuchElementException()
     var bestValue = selector(this[0])
     var i = 1
     while (i < size) {

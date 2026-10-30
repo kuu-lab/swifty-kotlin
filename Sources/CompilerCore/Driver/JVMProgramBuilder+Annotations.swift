@@ -73,7 +73,7 @@ extension JVMProgramBuilder {
     func annotationPlan(_ symbol: SymbolID) -> JVMClassPlan? {
         if let plan = classes[symbol] { return plan.isAnnotation ? plan : nil }
         guard let name = sema.symbols.symbol(symbol)?.fqName.map(context.interner.resolve).joined(separator: "."),
-              ["kotlin.Deprecated", "kotlin.ReplaceWith"].contains(name),
+              ["kotlin.Deprecated", "kotlin.ReplaceWith", "kotlin.SinceKotlin", "kotlin.DeprecatedSinceKotlin"].contains(name),
               let declaration = sema.bindings.declSymbols.first(where: { $0.value == symbol })?.key,
               case let .classDecl(c) = ast.arena.decl(declaration), c.modifiers.contains(.annotationClass) else { return nil }
         return JVMClassPlan(symbol: symbol, name: name.replacingOccurrences(of: ".", with: "/"), declaration: c)
@@ -118,7 +118,7 @@ extension JVMProgramBuilder {
         }
         return JVMAnnotation(descriptor: "L" + plan.name + ";", values: checked)
     }
-    func annotationConstruction(_ record: MetadataAnnotationRecord, owner: SymbolID) -> ExprID? {
+    func annotationConstruction(_ record: MetadataAnnotationRecord) -> ExprID? {
         if let usage = record.usageID, let parsed = rawAnnotationConstructions[usage] { return parsed }
         if let factory = record.factorySymbol { return sema.bindings.annotationFactoryExpressions[factory] }
         guard let usage = record.usageID, let offset = Int(usage.split(separator: ":").last ?? "") else { return nil }
@@ -137,11 +137,14 @@ extension JVMProgramBuilder {
         for record in records where record.useSiteTarget == target {
             let name = record.annotationFQName
             if ["kotlin.annotation.Repeatable", "kotlin.jvm.JvmRepeatable"].contains(name), classes[symbol]?.isAnnotation != true { throw JVMFrontendError(message: "JVM repeatable can only annotate annotation classes.") }
-            if ["kotlin.Metadata", "kotlin.PublishedApi", "PublishedApi", "kotlin.jvm.JvmInline", "kotlin.jvm.JvmName", "kotlin.jvm.JvmField", "kotlin.jvm.JvmSynthetic", "kotlin.Suppress", "Suppress", "kotlin.OptIn", "kotlin.annotation.Retention", "kotlin.annotation.Target", "kotlin.annotation.MustBeDocumented", "kotlin.annotation.Repeatable", "kotlin.jvm.JvmRepeatable", "kotlin.SinceKotlin", "SinceKotlin", "kotlin.DeprecatedSinceKotlin", "DeprecatedSinceKotlin", "kotlin.WasExperimental", "WasExperimental"].contains(name) { continue }
+            // WasExperimental stays dropped: it is internal in kotlin-stdlib, so
+            // user code can never apply it legally, and no emitted JVM decl
+            // carries it (its bundled-stdlib usages live on non-emitted files).
+            if ["kotlin.Metadata", "kotlin.PublishedApi", "PublishedApi", "kotlin.jvm.JvmInline", "kotlin.jvm.JvmName", "kotlin.jvm.JvmField", "kotlin.jvm.JvmSynthetic", "kotlin.Suppress", "Suppress", "kotlin.OptIn", "kotlin.annotation.Retention", "kotlin.annotation.Target", "kotlin.annotation.MustBeDocumented", "kotlin.annotation.Repeatable", "kotlin.jvm.JvmRepeatable", "kotlin.WasExperimental", "WasExperimental"].contains(name) { continue }
             guard let owner = sema.symbols.lookup(fqName: name.split(separator: ".").map { context.interner.intern(String($0)) }), annotationPlan(owner) != nil else { throw JVMFrontendError(message: "Unsupported JVM annotation: " + name) }
             let retention = annotationRetention(owner)
             if retention == "SOURCE" { continue }
-            var annotation = try annotationValue(owner, construction: annotationConstruction(record, owner: symbol))
+            var annotation = try annotationValue(owner, construction: annotationConstruction(record))
             annotation.visible = retention != "BINARY"; result.append(annotation)
         }
         return try groupedRepeatableAnnotations(result)

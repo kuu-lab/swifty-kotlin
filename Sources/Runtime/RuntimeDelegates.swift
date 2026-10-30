@@ -3,7 +3,6 @@ import Foundation
 final class RuntimeKPropertyStub {
     let name: Int // intptr_t to a KKString (property name)
     let returnType: Int // intptr_t to a KKString (return type signature)
-    let visibility: Int // intptr_t to a KKString (e.g. "PUBLIC", "INTERNAL", etc.)
     let isLateinit: Bool
     let isConst: Bool
     let returnTypeKTypeRaw: Int
@@ -14,11 +13,17 @@ final class RuntimeKPropertyStub {
     /// reading storage that does not exist — matching the JVM's
     /// PropertyReference0Impl behavior for local delegated properties.
     let isLocalDelegated: Bool
+    /// KUU-3694: the delegate handle the compiler points at this stub right
+    /// before each getValue/setValue/provideDelegate call, so `p.getDelegate()`
+    /// answers the live delegate like the JVM. The stub is cached per property
+    /// identity while member delegates differ per instance, so this is a
+    /// mutable slot repointed per call — and stays 0 (read as `null`) for
+    /// local delegated properties, matching the JVM's PropertyReference0Impl.
+    var delegateRaw: Int = 0
 
     init(
         name: Int,
         returnType: Int,
-        visibility: Int = 0,
         isLateinit: Bool = false,
         isConst: Bool = false,
         returnTypeKTypeRaw: Int = 0,
@@ -27,7 +32,6 @@ final class RuntimeKPropertyStub {
     ) {
         self.name = name
         self.returnType = returnType
-        self.visibility = visibility
         self.isLateinit = isLateinit
         self.isConst = isConst
         self.returnTypeKTypeRaw = returnTypeKTypeRaw
@@ -370,42 +374,15 @@ public func kk_kproperty_stub_create_local(
     }
 }
 
-// (a) RF-DEAD-002: 配線予定 → MIGRATION-PROP-001 / STDLIB-REFLECT-062 (KProperty 完全メタデータ実装)
-// __kk_kproperty_stub_{create_full,is_const,is_lateinit,visibility} は全て同タスクに紐付く。
-@_cdecl("__kk_kproperty_stub_create_full")
-public func kk_kproperty_stub_create_full(
-    _ nameStr: Int,
-    _ returnTypeStr: Int,
-    _ visibilityStr: Int,
-    _ isLateinit: Int,
-    _ isConst: Int
-) -> Int {
-    let stub = RuntimeKPropertyStub(
-        name: nameStr,
-        returnType: returnTypeStr,
-        visibility: visibilityStr,
-        isLateinit: isLateinit != 0,
-        isConst: isConst != 0
-    )
-    registerReflectionRuntimeTypeMetadata()
-    return registerRuntimeObject(stub, typeID: kPropertyRuntimeTypeID)
-}
-
-@_cdecl("__kk_kproperty_stub_visibility")
-public func kk_kproperty_stub_visibility(_ handle: Int) -> Int {
-    guard let ptr = UnsafeMutableRawPointer(bitPattern: handle),
-          runtimeStorage.withGCLock({ state in state.objectPointers.contains(UInt(bitPattern: ptr)) }),
-          let stub = tryCast(ptr, to: RuntimeKPropertyStub.self)
-    else {
-        return runtimeNullSentinelInt
-    }
-    if stub.visibility == 0 {
-        if defaultKPropertyVisibilityPublicString == 0 {
-            defaultKPropertyVisibilityPublicString = kk_kproperty_stub_make_string("PUBLIC")
-        }
-        return defaultKPropertyVisibilityPublicString
-    }
-    return stub.visibility
+/// Repoints a delegated-property stub at the live delegate handle for the
+/// access it is about to be passed into. Emitted next to every
+/// getValue/setValue/provideDelegate stub argument (KUU-3694); the stub is
+/// shared and cached, so this must run before each call rather than once at
+/// creation.
+@_cdecl("__kk_kproperty_stub_set_delegate")
+public func kk_kproperty_stub_set_delegate(_ handle: Int, _ delegateRaw: Int) -> Int {
+    runtimeReflectionObject(from: handle, as: RuntimeKPropertyStub.self)?.delegateRaw = delegateRaw
+    return 0
 }
 
 @_cdecl("__kk_kproperty_stub_is_lateinit")
@@ -430,14 +407,3 @@ public func kk_kproperty_stub_is_const(_ handle: Int) -> Int {
     return stub.isConst ? 1 : 0
 }
 
-
-/// Initialized lazily on first use to avoid allocating a new string on every call.
-private nonisolated(unsafe) var defaultKPropertyVisibilityPublicString: Int = 0
-
-private func kk_kproperty_stub_make_string(_ s: String) -> Int {
-    let utf8 = Array(s.utf8)
-    guard !utf8.isEmpty else { return runtimeNullSentinelInt }
-    return utf8.withUnsafeBufferPointer { buffer in
-        Int(bitPattern: kk_string_from_utf8(buffer.baseAddress!, Int32(buffer.count)))
-    }
-}

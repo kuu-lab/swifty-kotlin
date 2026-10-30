@@ -1,7 +1,6 @@
 symbol fq=__local_0.$incdec$345$1[kind=local;type=Int;origin=fixture] kind=local vis=private flags=_ type=Int
-symbol fq=__local_1.$incdec$new$408$1[kind=local;type=Int;origin=fixture] kind=local vis=private flags=_ type=Int
-symbol fq=__local_2.asList[kind=local;type=kotlin.collections.List<Int>;origin=fixture] kind=local vis=private flags=_ type=kotlin.collections.List<Int>
-symbol fq=__local_3.asMutable[kind=local;type=kotlin.collections.MutableList<Int>;origin=fixture] kind=local vis=private flags=_ type=kotlin.collections.MutableList<Int>
+symbol fq=__local_1.asList[kind=local;type=kotlin.collections.List<Int>;origin=fixture] kind=local vis=private flags=_ type=kotlin.collections.List<Int>
+symbol fq=__local_2.asMutable[kind=local;type=kotlin.collections.MutableList<Int>;origin=fixture] kind=local vis=private flags=_ type=kotlin.collections.MutableList<Int>
 symbol fq=golden.sema.Probe.add.$0.element[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
 symbol fq=golden.sema.Probe.add.$0.index[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
 symbol fq=golden.sema.Probe.get.$1.index[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
@@ -45,9 +44,7 @@ expr e@15:9 name(storage) type=kotlin.collections.ArrayList<Int> ref=golden.sema
 expr e@15:28 name(index) type=Int ref=golden.sema.ProbeIterator.index[kind=prop;type=Int;mutable;origin=fixture]
 expr e@15:26 int(1) type=Int
 expr e@15:28#1 compoundAssign(minusAssign) name=index value=e@15:26 type=Int ref=golden.sema.ProbeIterator.index[kind=prop;type=Int;mutable;origin=fixture]
-expr e@15:28#2 localDecl $incdec$new$408$1 mutable=0 type=_ init=e@15:28#1 type=Unit ref=__local_1.$incdec$new$408$1[kind=local;type=Int;origin=fixture]
-expr e@15:28#3 name($incdec$new$408$1) type=Int ref=__local_1.$incdec$new$408$1[kind=local;type=Int;origin=fixture]
-expr e@15:26#1 blockExpr stmts=[e@15:28#2] trailing=e@15:28#3 type=Int
+expr e@15:26#1 blockExpr stmts=[e@15:28#1] trailing=e@15:28 type=Int
 expr e@15:9#1 memberCall recv=e@15:9 callee=removeAt args=[_:e@15:26#1] type=Int call=kotlin.collections.ArrayList.removeAt[kind=fun;recv=kotlin.collections.ArrayList<T0>;params=Int;ret=T0;gen=1;classGen=1;names=[index]] targs=[Int]
 expr e@20:39 int(1) type=Int
 expr e@20:42 int(2) type=Int
@@ -76,22 +73,22 @@ expr e@38:37#1 memberCall recv=e@38:37 callee=size args=[] type=Int ref=kotlin.c
 expr e@40:51 name(values) type=kotlin.collections.MutableList<Int> ref=golden.sema.acceptMutableList.$6.values[kind=vparam;origin=fixture]
 expr e@40:51#1 memberCall recv=e@40:51 callee=size args=[] type=Int ref=kotlin.collections.List.size[kind=prop;type=Int]
 expr e@43:29 name(values) type=golden.sema.Probe ref=golden.sema.probe.$7.values[kind=vparam;origin=fixture]
-expr e@43:5 localDecl asList mutable=0 type=List<Int> init=e@43:29 type=Unit ref=__local_2.asList[kind=local;type=kotlin.collections.List<Int>;origin=fixture]
+expr e@43:5 localDecl asList mutable=0 type=List<Int> init=e@43:29 type=Unit ref=__local_1.asList[kind=local;type=kotlin.collections.List<Int>;origin=fixture]
 expr e@44:39 name(values) type=golden.sema.Probe ref=golden.sema.probe.$7.values[kind=vparam;origin=fixture]
-expr e@44:5 localDecl asMutable mutable=0 type=MutableList<Int> init=e@44:39 type=Unit ref=__local_3.asMutable[kind=local;type=kotlin.collections.MutableList<Int>;origin=fixture]
-expr e@45:5 name(asList) type=kotlin.collections.List<Int> ref=__local_2.asList[kind=local;type=kotlin.collections.List<Int>;origin=fixture]
+expr e@44:5 localDecl asMutable mutable=0 type=MutableList<Int> init=e@44:39 type=Unit ref=__local_2.asMutable[kind=local;type=kotlin.collections.MutableList<Int>;origin=fixture]
+expr e@45:5 name(asList) type=kotlin.collections.List<Int> ref=__local_1.asList[kind=local;type=kotlin.collections.List<Int>;origin=fixture]
 expr e@45:20 int(0) type=Int
 expr e@45:23 int(0) type=Int
 expr e@45:5#1 memberCall recv=e@45:5 callee=subList args=[_:e@45:20,_:e@45:23] type=kotlin.collections.List<Int> call=kotlin.collections.List.subList[kind=fun;recv=kotlin.collections.List<T0>;params=Int,Int;ret=kotlin.collections.List<T0>;gen=1;classGen=1;names=[fromIndex,toIndex]] targs=[Int]
-expr e@46:5 name(asMutable) type=kotlin.collections.MutableList<Int> ref=__local_3.asMutable[kind=local;type=kotlin.collections.MutableList<Int>;origin=fixture]
+expr e@46:5 name(asMutable) type=kotlin.collections.MutableList<Int> ref=__local_2.asMutable[kind=local;type=kotlin.collections.MutableList<Int>;origin=fixture]
 expr e@46:5#1 memberCall recv=e@46:5 callee=listIterator args=[] type=kotlin.collections.MutableListIterator<Int> call=kotlin.collections.MutableList.listIterator[kind=fun;recv=kotlin.collections.MutableList<T0>;params=;ret=kotlin.collections.MutableListIterator<T0>;gen=1;classGen=1] targs=[Int]
-expr e@47:5 name(asMutable) type=kotlin.collections.MutableList<Int> ref=__local_3.asMutable[kind=local;type=kotlin.collections.MutableList<Int>;origin=fixture]
+expr e@47:5 name(asMutable) type=kotlin.collections.MutableList<Int> ref=__local_2.asMutable[kind=local;type=kotlin.collections.MutableList<Int>;origin=fixture]
 expr e@47:23 int(0) type=Int
 expr e@47:26 int(0) type=Int
 expr e@47:5#1 memberCall recv=e@47:5 callee=subList args=[_:e@47:23,_:e@47:26] type=kotlin.collections.MutableList<Int> call=kotlin.collections.MutableList.subList[kind=fun;recv=kotlin.collections.MutableList<T0>;params=Int,Int;ret=kotlin.collections.MutableList<T0>;gen=1;classGen=1;names=[fromIndex,toIndex]] targs=[Int]
-expr e@48:23 name(asList) type=kotlin.collections.List<Int> ref=__local_2.asList[kind=local;type=kotlin.collections.List<Int>;origin=fixture]
+expr e@48:23 name(asList) type=kotlin.collections.List<Int> ref=__local_1.asList[kind=local;type=kotlin.collections.List<Int>;origin=fixture]
 expr e@48:12 call callee=e@48:12#1 args=[_:e@48:23] type=Int call=golden.sema.acceptList[kind=fun;params=kotlin.collections.List<Int>;ret=Int;names=[values];origin=fixture]
-expr e@48:51 name(asMutable) type=kotlin.collections.MutableList<Int> ref=__local_3.asMutable[kind=local;type=kotlin.collections.MutableList<Int>;origin=fixture]
+expr e@48:51 name(asMutable) type=kotlin.collections.MutableList<Int> ref=__local_2.asMutable[kind=local;type=kotlin.collections.MutableList<Int>;origin=fixture]
 expr e@48:33 call callee=e@48:33#1 args=[_:e@48:51] type=Int call=golden.sema.acceptMutableList[kind=fun;params=kotlin.collections.MutableList<Int>;ret=Int;names=[values];origin=fixture]
 expr e@48:12#2 binary(add) lhs=e@48:12 rhs=e@48:33 type=Int
 expr e@48:64 name(values) type=golden.sema.Probe ref=golden.sema.probe.$7.values[kind=vparam;origin=fixture]

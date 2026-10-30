@@ -80,3 +80,43 @@ internal fun scheduleTimerTaskAtFixedRate(timer: Timer, task: TimerTask, time: D
     timer.scheduleAtFixedRate(task, time, period)
     return task
 }
+
+@PublishedApi
+internal fun newTimer(name: String?, daemon: Boolean): Timer =
+    if (name == null) Timer(daemon) else Timer(name, daemon)
+
+public inline fun timer(
+    name: String? = null, daemon: Boolean = false, initialDelay: Long = 0L,
+    period: Long, crossinline action: TimerTask.() -> Unit
+): Timer {
+    val result = newTimer(name, daemon)
+    result.schedule(initialDelay, period, action)
+    return result
+}
+
+public inline fun timer(
+    name: String? = null, daemon: Boolean = false, startAt: Date,
+    period: Long, crossinline action: TimerTask.() -> Unit
+): Timer {
+    val result = newTimer(name, daemon)
+    result.schedule(startAt, period, action)
+    return result
+}
+
+public inline fun fixedRateTimer(
+    name: String? = null, daemon: Boolean = false, initialDelay: Long = 0L,
+    period: Long, crossinline action: TimerTask.() -> Unit
+): Timer {
+    val result = newTimer(name, daemon)
+    result.scheduleAtFixedRate(initialDelay, period, action)
+    return result
+}
+
+public inline fun fixedRateTimer(
+    name: String? = null, daemon: Boolean = false, startAt: Date,
+    period: Long, crossinline action: TimerTask.() -> Unit
+): Timer {
+    val result = newTimer(name, daemon)
+    result.scheduleAtFixedRate(startAt, period, action)
+    return result
+}

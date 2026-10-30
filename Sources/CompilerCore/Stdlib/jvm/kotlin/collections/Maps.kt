@@ -143,3 +143,5 @@ public operator fun <K, V> Map<out K, V>.minus(keys: kotlin.sequences.Sequence<K
     if (!removed.isEmpty()) __jvmRemoveAllCollection(result.keys, removed)
     return optimizeOperatorMap(result)
 }
+
+public fun <K, V> Map<K, V>.getOrImplicitDefaultNullable(key: K): V? = this[key]

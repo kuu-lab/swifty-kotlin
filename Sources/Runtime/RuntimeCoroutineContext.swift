@@ -44,7 +44,7 @@ final class RuntimeCoroutineContext: @unchecked Sendable {
         self.dispatcherHandleRaw = dispatcherHandleRaw
         self.name = name
         self.nameHandleRaw = nameHandleRaw != 0 ? nameHandleRaw
-            : name.map { runtimeRegisterObject(RuntimeCoroutineNameBox(name: $0)) } ?? 0
+            : name.map { registerRuntimeCoroutineName($0) } ?? 0
         self.exceptionHandler = exceptionHandler
         self.jobHandleRaw = jobHandleRaw
         self.extras = extras
@@ -254,6 +254,40 @@ final class RuntimeCoroutineNameBox: @unchecked Sendable {
     }
 }
 
+private let runtimeCoroutineNameTypeID = runtimeStableNominalTypeID(fqName: "kotlinx.coroutines.CoroutineName")
+private let runtimeCoroutineElementTypeID = runtimeStableNominalTypeID(fqName: "kotlin.coroutines.CoroutineContext.Element")
+private let runtimeCoroutineContextTypeID = runtimeStableNominalTypeID(fqName: "kotlin.coroutines.CoroutineContext")
+
+private func registerRuntimeCoroutineName(_ name: String) -> Int {
+    let raw = runtimeRegisterObject(RuntimeCoroutineNameBox(name: name))
+    runtimeRegisterObjectType(rawValue: raw, classID: runtimeCoroutineNameTypeID)
+    runtimeRegisterTypeEdge(childTypeID: runtimeCoroutineNameTypeID, parentTypeID: runtimeCoroutineElementTypeID)
+    runtimeRegisterTypeEdge(childTypeID: runtimeCoroutineElementTypeID, parentTypeID: runtimeCoroutineContextTypeID)
+    return raw
+}
+
+private let runtimeExceptionHandlerTypeID = runtimeStableNominalTypeID(
+    fqName: "kotlinx.coroutines.CoroutineExceptionHandler"
+)
+
+/// KUU-3752: handler boxes used to register with no nominal tag, so the
+/// erased `E` cast on `ctx[CoroutineExceptionHandler]` — and `is`/`as`
+/// checks on a `CoroutineExceptionHandler { }` SAM — fell through to
+/// ClassCastException. Tag them like CoroutineName boxes (KUU-3700).
+func runtimeRegisterExceptionHandler(_ box: RuntimeExceptionHandlerBox) -> Int {
+    let raw = runtimeRegisterObject(box)
+    runtimeRegisterObjectType(rawValue: raw, classID: runtimeExceptionHandlerTypeID)
+    runtimeRegisterTypeEdge(
+        childTypeID: runtimeExceptionHandlerTypeID,
+        parentTypeID: runtimeCoroutineElementTypeID
+    )
+    runtimeRegisterTypeEdge(
+        childTypeID: runtimeCoroutineElementTypeID,
+        parentTypeID: runtimeCoroutineContextTypeID
+    )
+    return raw
+}
+
 private final class RuntimeCoroutineNameKey: @unchecked Sendable {}
 private let runtimeCoroutineNameKeyRaw = runtimeRegisterObject(RuntimeCoroutineNameKey())
 
@@ -438,7 +472,9 @@ private func runtimeCoroutineElementKeyHandle(for receiver: Int) -> Int {
 func runtimeRegisterObject<T: AnyObject>(_ object: T) -> Int {
     let ptr = UnsafeMutableRawPointer(Unmanaged.passRetained(object).toOpaque())
     runtimeStorage.withGCLock { state in
-        state.objectPointers.insert(UInt(bitPattern: ptr))
+        let key = UInt(bitPattern: ptr)
+        state.objectPointers.insert(key)
+        recordRetainedBoxManagedHeapFieldsLocked(object, owner: key, state: &state)
     }
     return Int(bitPattern: ptr)
 }
@@ -456,8 +492,7 @@ public func kk_coroutine_name_create(_ nameRaw: Int) -> Int {
     } else {
         nameStr = "coroutine"
     }
-    let box = RuntimeCoroutineNameBox(name: nameStr)
-    return runtimeRegisterObject(box)
+    return registerRuntimeCoroutineName(nameStr)
 }
 
 /// Returns a RuntimeStringBox pointer.
@@ -508,7 +543,7 @@ public func kk_exception_handler_create(_ handlerFnPtr: Int) -> Int {
             FileHandle.standardError.write(Data("CoroutineExceptionHandler: \(message)\n".utf8))
         }
     }
-    return runtimeRegisterObject(box)
+    return runtimeRegisterExceptionHandler(box)
 }
 
 @_cdecl("kk_exception_handler_invoke")
@@ -568,13 +603,22 @@ public func __kk_context_plus_dispatch(
 
 /// The current runtime recognizes the closed set of coroutine element handles
 /// already modeled in RuntimeCoroutineContext.
+///
+/// Kotlin-facing callers (`CoroutineContext.get`, `Element.get`, the
+/// `CoroutineName`/`Job` member bridges, and itable thunks inheriting them)
+/// declare an `E?` result, so an absent key must report the null sentinel —
+/// never raw 0, which crosses the erased boundary as `kotlin.Unit`
+/// (KUU-3752). The two-element `kk_context_get` ABI is therefore
+/// sentinel-based; internal callers that modeled "absent" as 0 already pass
+/// `runtimeNullSentinelInt` through their `== 0 ? sentinel : result`
+/// normalization unchanged.
 @_cdecl("kk_context_get")
 public func kk_context_get(_ contextRaw: Int, _ keyRaw: Int) -> Int {
     let ctx = resolveToCoroutineContext(contextRaw)
     if let match = runtimeCoroutineContextElementHandle(for: keyRaw, in: ctx) {
         return match
     }
-    return 0
+    return runtimeNullSentinelInt
 }
 
 @_cdecl("__kk_context_get_dispatch")
@@ -733,7 +777,7 @@ func runtimeContinuationInterceptor(context: Int, key: Int, outThrown: UnsafeMut
     return kk_context_get_dispatcher(context)
 }
 
-private final class RuntimeGeneratedContinuation: KKContinuation, @unchecked Sendable {
+final class RuntimeGeneratedContinuation: KKContinuation, @unchecked Sendable {
     let state: RuntimeContinuationState
     let raw: Int
 
@@ -1240,7 +1284,7 @@ private func runtimeInstallWithContextChildContext(
                 guard let childJob = runtimeJobHandle(from: child)
                     ?? runtimeAsyncTask(from: child)?.completionJob else { continue }
                 _ = childJob.join()
-                let failure = childJob.completionSnapshot().exception
+                let failure = childJob.completionSnapshot(handoff: .exception).exception
                 if failure != 0, kk_is_cancellation_exception(failure) == 0 {
                     blockScope.recordBodyFailure(failure)
                     blockScope.cancel(message: "withContext child failed", cause: failure)
@@ -1255,7 +1299,7 @@ private func runtimeInstallWithContextChildContext(
         }
         if failure != 0 { _ = blockJob?.completeExceptionally(with: failure) }
         else { _ = blockJob?.complete(with: 0) }
-        let settledCause = blockJob?.completionSnapshot().exception ?? failure
+        let settledCause = blockJob?.completionSnapshot(handoff: .exception).exception ?? failure
         // A scoped failure is delivered through its caller. Once caught it
         // must not remain in the parent's hierarchy as an unhandled child.
         blockParent?.detachChild(blockJobRaw)
@@ -1507,10 +1551,6 @@ class RuntimeDispatcher: @unchecked Sendable {
 final class RuntimeLimitedDispatcher: RuntimeDispatcher, @unchecked Sendable {
     let base: RuntimeDispatcher
     let parallelismLimit: Int
-    /// The name prefix for this view's default display name. When another
-    /// limited view is created on top, reuse this prefix so `toString()` shows
-    /// the outermost limit instead of accumulating the view chain.
-    let displayNamePrefix: String
     private let gateLock = NSLock()
     private var inFlight = 0
     private var pending: [@Sendable () -> Void] = []
@@ -1518,11 +1558,7 @@ final class RuntimeLimitedDispatcher: RuntimeDispatcher, @unchecked Sendable {
     init(base: RuntimeDispatcher, parallelism: Int, name: String?) {
         self.base = base
         self.parallelismLimit = parallelism
-        let displayNamePrefix = name
-            ?? (base as? RuntimeLimitedDispatcher)?.displayNamePrefix
-            ?? base.displayName
-            ?? "dispatcher"
-        self.displayNamePrefix = displayNamePrefix
+        let displayNamePrefix = base.displayName ?? "dispatcher"
         super.init(
             queue: base.queue,
             tag: 0,

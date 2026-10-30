@@ -181,12 +181,23 @@ extension LocalDeclTypeChecker {
                 driver.callChecker.contextualizeResolvedIntegerArguments(
                     args: indices.map { CallArgument(expr: $0) }, resolved: resolved, ctx: ctx, locals: &locals
                 )
+                // A projected receiver (e.g. `MutableList<in Int>`) reads the
+                // projection's captured upper bound, not the solver's raw type
+                // argument — mirror the member-call path's projection merge.
+                var mergedSubstitution = resolved.substitutedTypeArguments
+                if let varianceResult = sema.types.buildVarianceProjectionSubstitutions(
+                    receiverType: receiverType,
+                    signature: signature,
+                    symbols: sema.symbols
+                ) {
+                    mergedSubstitution.merge(varianceResult.covariantSubstitution) { _, projected in projected }
+                }
                 // Record the resolved call so KIR lowering can dispatch correctly
                 sema.bindings.bindCall(
                     id,
                     binding: CallBinding(
                         chosenCallee: chosen,
-                        substitutedTypeArguments: resolved.substitutedTypeArguments
+                        substitutedTypeArguments: mergedSubstitution
                             .sorted(by: { $0.key.rawValue < $1.key.rawValue })
                             .map { _, value in value },
                         parameterMapping: resolved.parameterMapping,
@@ -202,7 +213,7 @@ extension LocalDeclTypeChecker {
                 let typeVarBySymbol = sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
                 let returnType = sema.types.substituteTypeParameters(
                     in: signature.returnType,
-                    substitution: resolved.substitutedTypeArguments,
+                    substitution: mergedSubstitution,
                     typeVarBySymbol: typeVarBySymbol
                 )
                 sema.bindings.bindExprType(id, type: returnType)
@@ -582,6 +593,39 @@ extension LocalDeclTypeChecker {
                 ctx: ctx.sema
             )
             if let chosen = resolved.chosenCallee {
+                // A projected receiver forbids writing through an `in`
+                // parameter (e.g. `xs[0] = v` on `MutableList<out Int>`),
+                // matching the member-call path's variance violation check.
+                if !driver.callChecker.allowsProjectedReceiverUnsafeVariance(
+                    chosen, sema: sema, interner: interner
+                ),
+                   let signature = sema.symbols.functionSignature(for: chosen),
+                   let varianceResult = sema.types.buildVarianceProjectionSubstitutions(
+                       receiverType: receiverType,
+                       signature: signature,
+                       symbols: sema.symbols
+                   ),
+                   let violatingParamIndex = sema.types.checkVarianceViolationInParameters(
+                       signature: signature,
+                       writeForbiddenSymbols: varianceResult.writeForbiddenSymbols,
+                       nullableWriteSymbols: varianceResult.nullableWriteSymbols,
+                       argumentTypes: setCallArgs.map(\.type),
+                       parameterMapping: resolved.parameterMapping
+                   )
+                {
+                    let paramType = sema.types.displayName(
+                        of: signature.parameterTypes[violatingParamIndex],
+                        symbols: sema.symbols,
+                        interner: interner
+                    )
+                    ctx.sema.diagnostics.error(
+                        "KSWIFTK-SEMA-VAR-OUT",
+                        "A type projection on the receiver prevents calling 'set' because the type parameter appears in an 'in' position (parameter type '\(paramType)').",
+                        range: range
+                    )
+                    sema.bindings.bindExprType(id, type: sema.types.errorType)
+                    return sema.types.errorType
+                }
                 driver.callChecker.contextualizeResolvedIntegerArguments(
                     args: argumentExprs.map { CallArgument(expr: $0) }, resolved: resolved, ctx: ctx, locals: &locals
                 )

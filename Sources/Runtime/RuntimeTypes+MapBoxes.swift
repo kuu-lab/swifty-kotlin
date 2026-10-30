@@ -421,14 +421,12 @@ final class RuntimeMapBox {
 final class RuntimeMapIteratorBox {
     let mapRaw: Int
     let keys: [Int]
-    let values: [Int]
     var index: Int
     var expectedModCount: Int
 
-    init(mapRaw: Int, keys: [Int], values: [Int]) {
+    init(mapRaw: Int, keys: [Int]) {
         self.mapRaw = mapRaw
         self.keys = keys
-        self.values = values
         index = 0
         expectedModCount = runtimeMapBox(from: mapRaw)?.modCount ?? 0
     }
@@ -469,8 +467,24 @@ final class RuntimeMutableMapIteratorBox {
 
 extension RuntimeMapBox: RuntimeChildReferenceProviding {
     var childRefs: [Int] {
-        keyValues.compactMap(\.childReferenceRawValue)
-            + entryValues.compactMap(\.childReferenceRawValue)
+        var references: [Int] = []
+        var current = self
+        while true {
+            let metadata: [Int?] = [
+                current.comparatorRaw, current.defaultValueFnPtr, current.defaultValueClosureRaw,
+                current.rangeView?.lowerBoundRaw, current.rangeView?.upperBoundRaw,
+                current.rangeBounds?.lowerBoundRaw, current.rangeBounds?.upperBoundRaw,
+            ]
+            references.append(contentsOf: metadata.compactMap { $0 }.filter { $0 != 0 && $0 != runtimeNullSentinelInt })
+            if let backingMap = current.backingMap {
+                references.append(Int(bitPattern: Unmanaged.passUnretained(backingMap).toOpaque()))
+                current = backingMap
+            } else {
+                references.append(contentsOf: current.keyStorage.compactMap(\.childReferenceRawValue))
+                references.append(contentsOf: current.valueStorage.compactMap(\.childReferenceRawValue))
+                return references
+            }
+        }
     }
 }
 

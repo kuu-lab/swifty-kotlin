@@ -572,7 +572,7 @@ public func kk_test_run_blocking_with_cont(
         return 0
     }
     _ = scope.schedulerForTest()
-    contState.launcherArgs[Int64(scopeSlotRaw)] = Int64(scopeHandle)
+    contState.setLauncherArg(Int64(scopeSlotRaw), value: Int64(scopeHandle))
     contState.scope = scope
     // Binding the body to the test scope's Job is what lets the watchdog's
     // cancel wake a suspended body: the suspend-entry loop registers its

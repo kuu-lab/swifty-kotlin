@@ -97,6 +97,21 @@ extension LocalDeclTypeChecker {
             elementType = resolvedElementType
             operatorResolved = true
         case .noCandidate:
+            // A member `get` sharing only the convention name (no `operator`
+            // modifier) cannot serve `x[i] op= v`; reject instead of falling
+            // back to the built-in array path. This must be diagnosed before
+            // the unresolved-member error below: a non-array receiver that
+            // declares `get` without `operator` reports SEMA-0432, not
+            // SEMA-0024.
+            if allGetMembers.contains(where: { driver.helpers.isNonOperatorConventionFunction($0, sema: sema) }) {
+                ctx.sema.diagnostics.error(
+                    "KSWIFTK-SEMA-0432",
+                    "'operator' modifier is required on 'get' in '\(driver.helpers.conventionReceiverDisplayName(receiverType, sema: sema, interner: interner))'.",
+                    range: range
+                )
+                sema.bindings.bindExprType(id, type: sema.types.errorType)
+                return sema.types.errorType
+            }
             // The raw read-modify-write below lowers to kk_array_get /
             // kk_array_set, so it is only valid on a genuine array receiver.
             // A non-array receiver with no `get` candidate at all must reject
@@ -120,21 +135,6 @@ extension LocalDeclTypeChecker {
         if ctx.ast.arena.isNullAssertedCompoundAssignRead(id) {
             // `a[i]!! += v`: the `!!` applies to the element read by `get()`.
             elementType = sema.types.definitelyNonNullForm(of: elementType)
-        }
-
-        // A member `get` sharing only the convention name (no `operator`
-        // modifier) cannot serve `x[i] op= v`; reject instead of falling back
-        // to the built-in array path.
-        if !operatorResolved,
-           allGetMembers.contains(where: { driver.helpers.isNonOperatorConventionFunction($0, sema: sema) })
-        {
-            ctx.sema.diagnostics.error(
-                "KSWIFTK-SEMA-0432",
-                "'operator' modifier is required on 'get' in '\(driver.helpers.conventionReceiverDisplayName(receiverType, sema: sema, interner: interner))'.",
-                range: range
-            )
-            sema.bindings.bindExprType(id, type: sema.types.errorType)
-            return sema.types.errorType
         }
 
         let isBuiltinNumericIncrement = isIncrementDecrement
@@ -582,6 +582,39 @@ extension LocalDeclTypeChecker {
             return false
         }
 
+        // A projected receiver forbids writing through an `in` parameter
+        // (e.g. `xs[0] += v` on `MutableList<out Int>` desugars to `set`),
+        // matching the member-call path's variance violation check.
+        if !driver.callChecker.allowsProjectedReceiverUnsafeVariance(
+            chosenSet, sema: sema, interner: interner
+        ),
+           let signature = sema.symbols.functionSignature(for: chosenSet),
+           let varianceResult = sema.types.buildVarianceProjectionSubstitutions(
+               receiverType: receiverType,
+               signature: signature,
+               symbols: sema.symbols
+           ),
+           let violatingParamIndex = sema.types.checkVarianceViolationInParameters(
+               signature: signature,
+               writeForbiddenSymbols: varianceResult.writeForbiddenSymbols,
+               nullableWriteSymbols: varianceResult.nullableWriteSymbols,
+               argumentTypes: callArgs.map(\.type),
+               parameterMapping: resolved.parameterMapping
+           )
+        {
+            let paramType = sema.types.displayName(
+                of: signature.parameterTypes[violatingParamIndex],
+                symbols: sema.symbols,
+                interner: interner
+            )
+            ctx.sema.diagnostics.error(
+                "KSWIFTK-SEMA-VAR-OUT",
+                "A type projection on the receiver prevents calling 'set' because the type parameter appears in an 'in' position (parameter type '\(paramType)').",
+                range: range
+            )
+            return false
+        }
+
         sema.bindings.bindIndexedCompoundAssignOperator(
             id,
             binding: IndexedCompoundAssignOperatorBinding(
@@ -677,9 +710,20 @@ extension LocalDeclTypeChecker {
             return .failed
         }
 
+        // A projected receiver (e.g. `MutableList<in Int>`) reads the
+        // projection's captured upper bound as the element type, not the
+        // solver's raw type argument — mirror the member-call projection merge.
+        var mergedSubstitution = resolved.substitutedTypeArguments
+        if let varianceResult = sema.types.buildVarianceProjectionSubstitutions(
+            receiverType: receiverType,
+            signature: signature,
+            symbols: sema.symbols
+        ) {
+            mergedSubstitution.merge(varianceResult.covariantSubstitution) { _, projected in projected }
+        }
         sema.bindings.bindCall(id, binding: CallBinding(
             chosenCallee: chosen,
-            substitutedTypeArguments: resolved.substitutedTypeArguments
+            substitutedTypeArguments: mergedSubstitution
                 .sorted(by: { $0.key.rawValue < $1.key.rawValue }).map { _, value in value },
             parameterMapping: resolved.parameterMapping,
             dispatchReceiverSymbol: indexedOperatorDispatchReceiverSymbol(
@@ -690,7 +734,7 @@ extension LocalDeclTypeChecker {
         let typeVarBySymbol = sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
         let elementType = sema.types.substituteTypeParameters(
             in: signature.returnType,
-            substitution: resolved.substitutedTypeArguments,
+            substitution: mergedSubstitution,
             typeVarBySymbol: typeVarBySymbol
         )
         return .resolved(elementType)
@@ -926,6 +970,12 @@ extension LocalDeclTypeChecker {
                 inferenceContext: functionTypeContext,
                 usageRange: range
             )
+        } else if isAnonymousFunction, let expectedFunctionType {
+            // An anonymous function's unannotated return type comes from the
+            // expected function type, just like its unannotated parameters:
+            // `return fun(value) { return value + 1 }` against `(Int) -> Int`
+            // checks `value + 1` against `Int`, not `Unit`.
+            expectedFunctionType.returnType
         } else {
             switch body {
             case .expr:
@@ -1174,14 +1224,30 @@ extension LocalDeclTypeChecker {
             }
         }
 
-        if returnTypeRef == nil, case .expr = body, inferredBodyType != sema.types.errorType {
+        // An anonymous block body that does not end in a `return`/`throw`
+        // produces `Unit` rather than the expected return type:
+        // `fun(x) { sideEffect() }` stays `(T) -> Unit` even where
+        // `(T) -> R` is expected. Bodies ending in a return keep the
+        // expected return type their return values were checked against.
+        let signatureReturnType: TypeID? = if returnTypeRef != nil {
+            nil
+        } else if isAnonymousFunction, case .block = body,
+                  inferredBodyType != sema.types.nothingType
+        {
+            sema.types.unitType
+        } else if case .expr = body, inferredBodyType != sema.types.errorType {
+            inferredBodyType
+        } else {
+            nil
+        }
+        if let signatureReturnType {
             let inferredSignature = FunctionSignature(
                 receiverType: receiverType,
                 contextReceiverTypes: contextReceiverTypes,
                 contextParameterSymbols: contextParameterDeclarations.map(\.symbol),
                 contextParameterTypes: contextParameterDeclarations.map(\.type),
                 parameterTypes: parameterTypes,
-                returnType: inferredBodyType,
+                returnType: signatureReturnType,
                 isSuspend: isSuspend,
                 valueParameterSymbols: paramSymbols,
                 valueParameterHasDefaultValues: valueParams.map(\.hasDefaultValue),

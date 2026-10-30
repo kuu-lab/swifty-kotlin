@@ -81,6 +81,31 @@ extension BuildASTPhase {
                 let members = declarationMemberDecls(
                     from: entryNodeID, in: arena, interner: interner, astArena: astArena
                 )
+                // Object declarations inside enum entries are prohibited on
+                // JVM ("named object 'X' cannot be local" / "'companion' is
+                // not applicable inside 'enum entry'"); EnumEntryDecl has no
+                // object slots, so they are diagnosed here instead of being
+                // silently dropped.
+                for declID in members.nestedObjects {
+                    guard case let .objectDecl(objectDecl) = astArena.decl(declID) else {
+                        continue
+                    }
+                    diagnostics?.error(
+                        "KSWIFTK-SEMA-0429",
+                        "named object '\(interner.resolve(objectDecl.name))' cannot be local. Try to use an anonymous object instead.",
+                        range: objectDecl.range
+                    )
+                }
+                for declID in [members.companionObject, members.companionBlockObject].compactMap({ $0 }) {
+                    guard case let .objectDecl(companionDecl) = astArena.decl(declID) else {
+                        continue
+                    }
+                    diagnostics?.error(
+                        "KSWIFTK-SEMA-0401",
+                        "modifier 'companion' is not applicable inside 'enum entry'.",
+                        range: companionDecl.range
+                    )
+                }
                 entries.append(EnumEntryDecl(
                     range: arena.node(entryNodeID).range,
                     name: name,
@@ -915,6 +940,11 @@ extension BuildASTPhase {
         var byIndex: Int?
         var depth = BracketDepth()
         for (index, token) in tokens.enumerated() {
+            // Once the initializer starts, any `by` belongs to that expression,
+            // not to the property declaration.
+            if token.kind == .symbol(.assign), depth.isAtTopLevel {
+                return nil
+            }
             if case .softKeyword(.by) = token.kind, depth.isAtTopLevel {
                 byIndex = index
                 break
