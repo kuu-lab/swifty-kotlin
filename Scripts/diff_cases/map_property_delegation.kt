@@ -13,6 +13,12 @@ class InitializedMapOwner {
     val a by map
 }
 
+// KUU-3843: a class property initialized from mapOf remains a valid Map delegate.
+class MapOfInitializedMapOwner {
+    val map: Map<String, String> = mapOf("a" to "all")
+    val a by map
+}
+
 fun main() {
     val m = mapOf("a" to 1, "b" to 2)
     val a by m
@@ -65,4 +71,5 @@ fun main() {
     println(owner.member)
 
     println(InitializedMapOwner().a)
+    println(MapOfInitializedMapOwner().a)
 }
