@@ -221,6 +221,34 @@ private func runtimeIsFunctionObject(_ rawValue: Int) -> Bool {
     }
 }
 
+/// KUU-3802: codegen registers a nominal `SuspendFunctionN` implementor's
+/// invoke launcher thunk — the `(continuation, outThrown)` entry point a
+/// `RuntimeFunctionValueBox` carries — under this reserved itable method slot,
+/// alongside the ordinary invoke bridge at slot 0. The value is far outside
+/// the method-slot range any declared interface member can occupy.
+let runtimeSuspendInvokeEntryMethodSlot = Int(UInt32.max)
+
+/// A nominal class instance implementing a suspend function type
+/// (`class C : suspend () -> T`) is not a `RuntimeFunctionValueBox` — its
+/// constructor registers a `kotlin.coroutines.SuspendFunction{arity}` itable
+/// whose reserved method slot carries the invoke launcher thunk. Resolving it
+/// lets suspend-function call sites and the coroutine builders drive the
+/// object through the same child-continuation state-machine machinery a
+/// boxed suspend callable uses.
+func runtimeSuspendInvokeEntryPoint(objectRaw: Int, arity: Int) -> Int {
+    guard objectRaw != 0, (0 ... 22).contains(arity) else {
+        return 0
+    }
+    let interfaceTypeID = runtimeStableNominalTypeID(
+        fqName: "kotlin.coroutines.SuspendFunction\(arity)"
+    )
+    return kk_itable_lookup_dynamic(
+        objectRaw,
+        Int(interfaceTypeID),
+        runtimeSuspendInvokeEntryMethodSlot
+    )
+}
+
 private func runtimeFunctionInvocationPair(
     _ rawValue: Int,
     arity: Int,
@@ -330,6 +358,26 @@ func runtimeInvokeSuspendFunction(
             return kk_coroutine_call_direct_suspend(box.suspendEntryPoint, child, continuation)
         }
         return kk_kxmini_run_blocking_with_cont(box.suspendEntryPoint, child, outThrown)
+    }
+
+    // KUU-3802: a nominal `SuspendFunctionN` implementor has no callable box —
+    // codegen recorded the invoke launcher thunk in the interface's reserved
+    // itable slot. Drive it through the same child-continuation machinery the
+    // boxed path uses so suspensions, results, and thrown exceptions flow
+    // identically to a boxed suspend callable.
+    let objectEntryRaw = runtimeSuspendInvokeEntryPoint(
+        objectRaw: functionRaw,
+        arity: arguments.count
+    )
+    if objectEntryRaw != 0 {
+        let child = kk_coroutine_continuation_new(objectEntryRaw)
+        for (index, argument) in ([functionRaw] + arguments).enumerated() {
+            _ = kk_coroutine_launcher_arg_set(child, Int64(index), Int64(argument))
+        }
+        if runtimeContinuationState(from: continuation) != nil {
+            return kk_coroutine_call_direct_suspend(objectEntryRaw, child, continuation)
+        }
+        return kk_kxmini_run_blocking_with_cont(objectEntryRaw, child, outThrown)
     }
 
     // Legacy raw thunks and synchronous callbacks retain their ordinary ABI.

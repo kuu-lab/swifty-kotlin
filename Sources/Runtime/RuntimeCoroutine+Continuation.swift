@@ -191,16 +191,37 @@ public func kk_create_coroutine_unintercepted(_ entryPointRaw: Int, _ completion
     return continuation
 }
 
+/// The `(continuation, outThrown)` entry point for a dynamic suspend function
+/// value: the callable box's suspend entry, or — for a nominal
+/// `SuspendFunctionN` implementor (KUU-3802) — the invoke launcher thunk
+/// codegen registered in the interface's reserved itable slot. The value's
+/// leading launcher argument is also returned: the box's captured closure, or
+/// the object itself as `invoke`'s receiver.
+private func suspendCoroutineFunctionEntry(
+    functionRaw: Int,
+    arity: Int
+) -> (entryPointRaw: Int, receiverRaw: Int)? {
+    if let box = runtimeFunctionValueBox(from: functionRaw), box.suspendEntryPoint != 0 {
+        guard box.arity == arity else {
+            return nil
+        }
+        return (box.suspendEntryPoint, box.closureRaw)
+    }
+    let objectEntryRaw = runtimeSuspendInvokeEntryPoint(objectRaw: functionRaw, arity: arity)
+    guard objectEntryRaw != 0 else {
+        return nil
+    }
+    return (objectEntryRaw, functionRaw)
+}
+
 /// Dynamic suspend function values keep their CPS entry point in the callable
 /// box. Known symbols are still rewritten directly by coroutine lowering.
 private func createCoroutineFromFunctionValue(_ functionRaw: Int, arguments: [Int], completion: Int) -> Int {
-    guard let box = runtimeFunctionValueBox(from: functionRaw),
-          box.suspendEntryPoint != 0,
-          box.arity == arguments.count else {
+    guard let entry = suspendCoroutineFunctionEntry(functionRaw: functionRaw, arity: arguments.count) else {
         preconditionFailure("Coroutine builder requires a boxed suspend callable")
     }
-    let continuation = kk_create_coroutine_unintercepted(box.suspendEntryPoint, completion)
-    for (index, argument) in ([box.closureRaw] + arguments).enumerated() {
+    let continuation = kk_create_coroutine_unintercepted(entry.entryPointRaw, completion)
+    for (index, argument) in ([entry.receiverRaw] + arguments).enumerated() {
         _ = kk_coroutine_launcher_arg_set(continuation, Int64(index), Int64(argument))
     }
     return continuation
@@ -224,16 +245,14 @@ public func kk_start_coroutine_unintercepted_or_return_no_receiver(
     _ completionContinuation: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    guard let box = runtimeFunctionValueBox(from: functionRaw),
-          box.suspendEntryPoint != 0,
-          box.arity == 0 else {
+    guard let entry = suspendCoroutineFunctionEntry(functionRaw: functionRaw, arity: 0) else {
         preconditionFailure("Coroutine builder requires a boxed suspend callable")
     }
     let continuation = createCoroutineFromFunctionValue(
         functionRaw, arguments: [], completion: completionContinuation
     )
     return startCoroutineUninterceptedOrReturn(
-        entryPointRaw: box.suspendEntryPoint,
+        entryPointRaw: entry.entryPointRaw,
         continuation: continuation,
         completionContinuation: completionContinuation,
         outThrown: outThrown
@@ -258,16 +277,14 @@ public func kk_start_coroutine_unintercepted_or_return_with_receiver(
     _ completionContinuation: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    guard let box = runtimeFunctionValueBox(from: functionRaw),
-          box.suspendEntryPoint != 0,
-          box.arity == 1 else {
+    guard let entry = suspendCoroutineFunctionEntry(functionRaw: functionRaw, arity: 1) else {
         preconditionFailure("Coroutine builder requires a boxed suspend callable")
     }
     let continuation = createCoroutineFromFunctionValue(
         functionRaw, arguments: [receiverRaw], completion: completionContinuation
     )
     return startCoroutineUninterceptedOrReturn(
-        entryPointRaw: box.suspendEntryPoint,
+        entryPointRaw: entry.entryPointRaw,
         continuation: continuation,
         completionContinuation: completionContinuation,
         outThrown: outThrown

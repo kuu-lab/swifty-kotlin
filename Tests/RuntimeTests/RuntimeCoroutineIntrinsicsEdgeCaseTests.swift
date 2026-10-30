@@ -57,6 +57,53 @@ private func coro_intrinsics_nested_throw(_ continuation: Int, _ outThrown: Unsa
     return kk_coroutine_state_exit(continuation, 0)
 }
 
+// KUU-3802: a nominal class implementing `suspend () -> T` / `suspend (P) -> T`
+// is an ordinary object — never a `RuntimeFunctionValueBox`. Codegen registers
+// its invoke launcher thunk in the `SuspendFunctionN` itable under the reserved
+// method slot `runtimeSuspendInvokeEntryMethodSlot`; these stand-in thunks
+// emulate the emitted `kk_launcher_thunk_invoke` shape so the runtime paths can
+// be exercised without a compiled Kotlin object.
+private final class KUU3802SuspendObjectBox {}
+
+@_cdecl("coro_suspend_object_return_4242")
+private func coro_suspend_object_return_4242(_ continuation: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    _ = kk_coroutine_state_enter(continuation, 8830)
+    outThrown?.pointee = 0
+    return kk_coroutine_state_exit(continuation, 4242)
+}
+
+@_cdecl("coro_suspend_object_echo_second_arg")
+private func coro_suspend_object_echo_second_arg(_ continuation: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    _ = kk_coroutine_state_enter(continuation, 8831)
+    outThrown?.pointee = 0
+    return kk_coroutine_state_exit(continuation, Int(kk_coroutine_launcher_arg_get(continuation, 1)))
+}
+
+@_cdecl("coro_suspend_object_caller_invokes_child")
+private func coro_suspend_object_caller_invokes_child(_ continuation: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    _ = kk_coroutine_state_enter(continuation, 8832)
+    var thrown = 0
+    let result = kk_suspend_function_invoke_0(
+        Int(kk_coroutine_launcher_arg_get(continuation, 0)),
+        continuation,
+        &thrown
+    )
+    outThrown?.pointee = thrown
+    return kk_coroutine_state_exit(continuation, result)
+}
+
+private func registerSuspendObjectEntry(
+    _ object: Int,
+    arity: Int,
+    entryRaw: Int
+) {
+    let typeID = Int(runtimeStableNominalTypeID(fqName: "kotlin.coroutines.SuspendFunction\(arity)"))
+    _ = kk_object_register_itable_iface(object, typeID, 7 + arity)
+    _ = kk_object_register_itable_method(
+        object, 7 + arity, runtimeSuspendInvokeEntryMethodSlot, entryRaw
+    )
+}
+
 //   • runtimeResultRunCatching + cancellation-exception propagation through Result
 
 @Suite(.serialized, .runtimeIsolation(.all))
@@ -221,6 +268,97 @@ struct RuntimeCoroutineIntrinsicsEdgeCaseTests {
         #expect(thrown != 0)
         #expect(Int(completionState.completion) == 0)
         #expect(completionState.thrownException == 0)
+    }
+
+    // MARK: - nominal SuspendFunctionN implementors (KUU-3802)
+
+    /// A class instance implementing `suspend () -> T` registers the invoke
+    /// launcher thunk in the reserved `SuspendFunctionN` itable slot at
+    /// construction; the coroutine builders must find it instead of trapping
+    /// on the missing `RuntimeFunctionValueBox`.
+    @Test func nominalSuspendObjectResolvesInvokeEntryThroughReservedItableSlot() {
+        let object = runtimeRegisterObject(KUU3802SuspendObjectBox())
+        let entry = unsafeBitCast(coro_suspend_object_return_4242 as RuntimeCoroutineIntrinsicEntry, to: Int.self)
+        registerSuspendObjectEntry(object, arity: 0, entryRaw: entry)
+
+        #expect(runtimeSuspendInvokeEntryPoint(objectRaw: object, arity: 0) == entry)
+        #expect(runtimeSuspendInvokeEntryPoint(objectRaw: object, arity: 1) == 0)
+        #expect(runtimeSuspendInvokeEntryPoint(objectRaw: 0, arity: 0) == 0)
+    }
+
+    @Test func nominalSuspendObjectCreateCoroutinePlacesObjectAsReceiver() throws {
+        let object = runtimeRegisterObject(KUU3802SuspendObjectBox())
+        let entry = unsafeBitCast(coro_suspend_object_return_4242 as RuntimeCoroutineIntrinsicEntry, to: Int.self)
+        registerSuspendObjectEntry(object, arity: 0, entryRaw: entry)
+
+        let completion = kk_coroutine_continuation_new(8833)
+        defer { _ = kk_coroutine_state_exit(completion, 0) }
+        let completionState = try #require(runtimeContinuationState(from: completion))
+        let prepared = kk_create_coroutine_unintercepted_no_receiver(object, 0, completion)
+        #expect(kk_coroutine_launcher_arg_get(prepared, 0) == Int64(object))
+        kk_coroutine_continuation_resume(prepared, 0)
+        #expect(Int(completionState.completion) == 4242)
+        #expect(completionState.thrownException == 0)
+    }
+
+    @Test func nominalSuspendObjectStartCoroutineUninterceptedOrReturnReturnsResult() {
+        let object = runtimeRegisterObject(KUU3802SuspendObjectBox())
+        let entry = unsafeBitCast(coro_suspend_object_return_4242 as RuntimeCoroutineIntrinsicEntry, to: Int.self)
+        registerSuspendObjectEntry(object, arity: 0, entryRaw: entry)
+
+        let completion = kk_coroutine_continuation_new(8834)
+        defer { _ = kk_coroutine_state_exit(completion, 0) }
+        var thrown = 0
+        let result = kk_start_coroutine_unintercepted_or_return_no_receiver(object, 0, completion, &thrown)
+        #expect(result == 4242)
+        #expect(thrown == 0)
+    }
+
+    @Test func nominalSuspendObjectInvokeWithoutCallerDrainsOnBlockingFallback() {
+        let object = runtimeRegisterObject(KUU3802SuspendObjectBox())
+        let entry = unsafeBitCast(coro_suspend_object_return_4242 as RuntimeCoroutineIntrinsicEntry, to: Int.self)
+        registerSuspendObjectEntry(object, arity: 0, entryRaw: entry)
+
+        var thrown = 0
+        #expect(kk_suspend_function_invoke_0(object, 0, &thrown) == 4242)
+        #expect(thrown == 0)
+    }
+
+    @Test func nominalSuspendObjectInvokeFromSuspendCallerUsesDirectSuspend() throws {
+        let object = runtimeRegisterObject(KUU3802SuspendObjectBox())
+        let entry = unsafeBitCast(coro_suspend_object_return_4242 as RuntimeCoroutineIntrinsicEntry, to: Int.self)
+        registerSuspendObjectEntry(object, arity: 0, entryRaw: entry)
+
+        let completion = kk_coroutine_continuation_new(8835)
+        defer { _ = kk_coroutine_state_exit(completion, 0) }
+        let completionState = try #require(runtimeContinuationState(from: completion))
+        let parent = kk_create_coroutine_unintercepted(
+            unsafeBitCast(coro_suspend_object_caller_invokes_child as RuntimeCoroutineIntrinsicEntry, to: Int.self),
+            completion
+        )
+        _ = kk_coroutine_launcher_arg_set(parent, 0, Int64(object))
+        kk_coroutine_continuation_resume(parent, 0)
+        #expect(Int(completionState.completion) == 4242)
+        #expect(completionState.thrownException == 0)
+    }
+
+    @Test func nominalSuspendObjectReceiverCoroutinePlacesReceiverAfterObject() throws {
+        let object = runtimeRegisterObject(KUU3802SuspendObjectBox())
+        let entry = unsafeBitCast(coro_suspend_object_echo_second_arg as RuntimeCoroutineIntrinsicEntry, to: Int.self)
+        registerSuspendObjectEntry(object, arity: 1, entryRaw: entry)
+
+        let completion = kk_coroutine_continuation_new(8836)
+        defer { _ = kk_coroutine_state_exit(completion, 0) }
+        let completionState = try #require(runtimeContinuationState(from: completion))
+        let prepared = kk_create_coroutine_unintercepted_with_receiver(object, 0, 555, completion)
+        #expect(kk_coroutine_launcher_arg_get(prepared, 0) == Int64(object))
+        #expect(kk_coroutine_launcher_arg_get(prepared, 1) == 555)
+        kk_coroutine_continuation_resume(prepared, 0)
+        #expect(Int(completionState.completion) == 555)
+
+        var thrown = 0
+        #expect(kk_suspend_function_invoke(object, 777, 0, &thrown) == 777)
+        #expect(thrown == 0)
     }
 
     // MARK: - intercepted() — bypass semantics
