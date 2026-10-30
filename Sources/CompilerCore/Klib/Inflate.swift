@@ -55,22 +55,29 @@ package enum Inflater {
         var reader = BitReader(bytes: bytes)
         var output: [UInt8] = []
         output.reserveCapacity(uncompressedSize ?? bytes.count * 4)
+        // The declared size is enforced while decoding, not only afterwards:
+        // a deflate stream expands up to ~1032x its compressed size, so a
+        // crafted archive entry could otherwise allocate unboundedly before
+        // the post-decode equality check ever runs.
+        let outputLimit = uncompressedSize ?? Int.max
 
         while true {
             let isFinal = try reader.bits(1) != 0
             let type = try reader.bits(2)
             switch type {
             case 0:
-                try inflateStored(reader: &reader, into: &output)
+                try inflateStored(reader: &reader, into: &output, outputLimit: outputLimit)
             case 1:
                 try inflateHuffman(reader: &reader, into: &output,
                                    literalTable: fixedLiteralTable,
-                                   distanceTable: fixedDistanceTable)
+                                   distanceTable: fixedDistanceTable,
+                                   outputLimit: outputLimit)
             case 2:
                 let tables = try readDynamicTables(reader: &reader)
                 try inflateHuffman(reader: &reader, into: &output,
                                    literalTable: tables.literal,
-                                   distanceTable: tables.distance)
+                                   distanceTable: tables.distance,
+                                   outputLimit: outputLimit)
             default:
                 throw KlibFormatError.corruptDeflateStream("reserved block type")
             }
@@ -136,7 +143,7 @@ package enum Inflater {
         }
     }
 
-    private static func inflateStored(reader: inout BitReader, into output: inout [UInt8]) throws {
+    private static func inflateStored(reader: inout BitReader, into output: inout [UInt8], outputLimit: Int) throws {
         reader.alignToByte()
         let lenLo = Int(try reader.alignedByte())
         let lenHi = Int(try reader.alignedByte())
@@ -146,6 +153,11 @@ package enum Inflater {
         let nlen = nlenLo | (nlenHi << 8)
         guard len == ~nlen & 0xFFFF else {
             throw KlibFormatError.corruptDeflateStream("stored block LEN/NLEN mismatch")
+        }
+        guard len <= outputLimit - output.count else {
+            throw KlibFormatError.sizeMismatch(
+                "deflate output exceeds declared size \(outputLimit)"
+            )
         }
         for _ in 0 ..< len {
             output.append(try reader.alignedByte())
@@ -318,11 +330,17 @@ package enum Inflater {
         reader: inout BitReader,
         into output: inout [UInt8],
         literalTable: HuffmanTable,
-        distanceTable: HuffmanTable
+        distanceTable: HuffmanTable,
+        outputLimit: Int
     ) throws {
         while true {
             let symbol = try literalTable.decode(reader: &reader)
             if symbol < 256 {
+                guard output.count < outputLimit else {
+                    throw KlibFormatError.sizeMismatch(
+                        "deflate output exceeds declared size \(outputLimit)"
+                    )
+                }
                 output.append(UInt8(symbol))
                 continue
             }
@@ -341,6 +359,11 @@ package enum Inflater {
             let distance = distanceBase[distanceSymbol] + distanceExtraBits
             guard distance <= output.count else {
                 throw KlibFormatError.corruptDeflateStream("distance \(distance) exceeds output")
+            }
+            guard length <= outputLimit - output.count else {
+                throw KlibFormatError.sizeMismatch(
+                    "deflate output exceeds declared size \(outputLimit)"
+                )
             }
             output.reserveCapacity(output.count + length)
             let sourceStart = output.count - distance

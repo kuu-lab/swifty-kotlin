@@ -74,6 +74,38 @@ struct ZipArchiveTests {
         }
     }
 
+    @Test
+    func inflateStopsAtDeclaredSizeInsideHuffmanBlock() {
+        // The declared size is enforced during decode, not only afterwards.
+        // This stream is truncated after two literals ("He" + a partial
+        // third): unbounded decoding dies at end-of-input
+        // (corruptDeflateStream), while the bounded decoder hits the declared
+        // size first and reports sizeMismatch.
+        do {
+            _ = try Inflater.inflate([0xF3, 0x48, 0xCD][...], uncompressedSize: 1)
+            Issue.record("expected inflate to throw")
+        } catch KlibFormatError.sizeMismatch {
+        } catch {
+            Issue.record("expected sizeMismatch, got \(error)")
+        }
+    }
+
+    @Test
+    func inflateStopsAtDeclaredSizeInsideStoredBlock() {
+        // Stored block claiming LEN=255 with only 3 payload bytes present;
+        // a declared size of 10 must reject it before the read starves.
+        do {
+            _ = try Inflater.inflate(
+                [0x01, 0xFF, 0x00, 0x00, 0xFF, 0x41, 0x41, 0x41][...],
+                uncompressedSize: 10
+            )
+            Issue.record("expected inflate to throw")
+        } catch KlibFormatError.sizeMismatch {
+        } catch {
+            Issue.record("expected sizeMismatch, got \(error)")
+        }
+    }
+
     // MARK: - Zip container
 
     /// Assembles a minimal zip archive (local headers + data + central
