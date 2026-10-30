@@ -6,8 +6,8 @@ import Testing
 @Suite
 struct CompanionClassScopeTests {
     @Test func nestedSealedInterfaceCompanionPropertyHasConcreteTypeInIfJoin() throws {
-        // The external atomicfu API is supplied by a fixture, not the bundled stdlib.
-        let ctx = makeContextFromSources(["""
+        // The atomicfu API comes from the bundled stdlib.
+        let ctx = makeContextFromSource("""
         import kotlinx.atomicfu.*
 
         class Ch {
@@ -25,17 +25,7 @@ struct CompanionClassScopeTests {
             private fun closed(cause: Throwable?) =
                 if (cause != null) Slot.Closed(cause) else Slot.CLOSED
         }
-        """, """
-        package kotlinx.atomicfu
-        class AtomicRef<T>(private var current: T) {
-            fun getAndSet(value: T): T {
-                val previous = current
-                current = value
-                return previous
-            }
-        }
-        fun <T> atomic(value: T): AtomicRef<T> = AtomicRef(value)
-        """])
+        """)
         try runToKIR(ctx)
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
         #expect(errors.isEmpty, "Got: \(errors)")
