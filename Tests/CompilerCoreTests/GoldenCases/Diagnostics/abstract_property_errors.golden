@@ -4,14 +4,14 @@
     {
       "file": "abstract_property_errors.kt",
       "range": {
-        "start": { "line": 4, "character": 4 },
+        "start": { "line": 4, "character": 32 },
         "end": { "line": 4, "character": 39 }
       },
       "severity": 1,
       "severityLabel": "error",
       "code": "KSWIFTK-SEMA-ABSTRACT",
       "source": "kswiftk",
-      "message": "Abstract property 'name' cannot have an initializer.",
+      "message": "property with initializer cannot be abstract.",
       "codeActions": []
     },
     {
@@ -30,14 +30,14 @@
     {
       "file": "abstract_property_errors.kt",
       "range": {
-        "start": { "line": 15, "character": 4 },
+        "start": { "line": 15, "character": 33 },
         "end": { "line": 15, "character": 49 }
       },
       "severity": 1,
       "severityLabel": "error",
       "code": "KSWIFTK-SEMA-ABSTRACT",
       "source": "kswiftk",
-      "message": "Abstract property 'data' cannot have a delegate expression.",
+      "message": "delegated property cannot be abstract.",
       "codeActions": []
     },
     {
@@ -50,7 +50,7 @@
       "severityLabel": "error",
       "code": "KSWIFTK-SEMA-ABSTRACT",
       "source": "kswiftk",
-      "message": "Abstract property 'value' cannot have a getter body.",
+      "message": "property with getter implementation cannot be abstract.",
       "codeActions": []
     },
     {
@@ -63,7 +63,7 @@
       "severityLabel": "error",
       "code": "KSWIFTK-SEMA-ABSTRACT",
       "source": "kswiftk",
-      "message": "Abstract property 'mutable' cannot have a setter body.",
+      "message": "property with setter implementation cannot be abstract.",
       "codeActions": []
     },
     {

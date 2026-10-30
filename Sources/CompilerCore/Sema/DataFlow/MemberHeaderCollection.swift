@@ -202,7 +202,7 @@ extension DataFlowSemaPhase {
             if funDecl.modifiers.contains(.abstract) && funDecl.body != .unit {
                 diagnostics.error(
                     "KSWIFTK-SEMA-ABSTRACT",
-                    "Abstract function '\(interner.resolve(funDecl.name))' cannot have a body.",
+                    "function '\(interner.resolve(funDecl.name))' with a body cannot be abstract.",
                     range: funDecl.range
                 )
             }
@@ -503,17 +503,36 @@ extension DataFlowSemaPhase {
                 )
             }
 
+            // Abstract-declaration content checks only run when the owner can
+            // legally hold abstract members; otherwise 'abstract ... in
+            // non-abstract class' owns the diagnosis (kotlinc suppresses the
+            // content errors there but still reports them for functions).
+            let ownerCanDeclareAbstractMembers: Bool
+            if let ownerSym = symbols.symbol(ownerSymbol) {
+                ownerCanDeclareAbstractMembers = ownerSym.flags.contains(.abstractType)
+                    || ownerSym.kind == .interface
+                    || ownerSym.kind == .enumClass
+            } else {
+                ownerCanDeclareAbstractMembers = false
+            }
+
             // STDLIB-CLASS-010: Abstract properties cannot have initializers
-            if propertyDecl.modifiers.contains(.abstract) && propertyDecl.initializer != nil {
+            if propertyDecl.modifiers.contains(.abstract),
+               let initializer = propertyDecl.initializer,
+               ownerCanDeclareAbstractMembers
+            {
                 diagnostics.error(
                     "KSWIFTK-SEMA-ABSTRACT",
-                    "Abstract property '\(interner.resolve(propertyDecl.name))' cannot have an initializer.",
-                    range: propertyDecl.range
+                    "property with initializer cannot be abstract.",
+                    range: ast.arena.exprRange(initializer) ?? propertyDecl.range
                 )
             }
 
             // STDLIB-CLASS-010: Abstract properties cannot have explicit backing fields
-            if propertyDecl.modifiers.contains(.abstract) && propertyDecl.explicitBackingField != nil {
+            if propertyDecl.modifiers.contains(.abstract),
+               propertyDecl.explicitBackingField != nil,
+               ownerCanDeclareAbstractMembers
+            {
                 diagnostics.error(
                     "KSWIFTK-SEMA-ABSTRACT",
                     "Abstract property '\(interner.resolve(propertyDecl.name))' cannot have an explicit backing field.",
@@ -522,11 +541,14 @@ extension DataFlowSemaPhase {
             }
 
             // STDLIB-CLASS-010: Abstract properties cannot have delegate expressions
-            if propertyDecl.modifiers.contains(.abstract) && propertyDecl.delegateExpression != nil {
+            if propertyDecl.modifiers.contains(.abstract),
+               let delegate = propertyDecl.delegateExpression,
+               ownerCanDeclareAbstractMembers
+            {
                 diagnostics.error(
                     "KSWIFTK-SEMA-ABSTRACT",
-                    "Abstract property '\(interner.resolve(propertyDecl.name))' cannot have a delegate expression.",
-                    range: propertyDecl.range
+                    "delegated property cannot be abstract.",
+                    range: ast.arena.exprRange(delegate) ?? propertyDecl.range
                 )
             }
 
@@ -544,14 +566,16 @@ extension DataFlowSemaPhase {
                 let hasCustomAccessor = propertyDecl.getter != nil || propertyDecl.setter != nil
                 let hasInitializer = propertyDecl.initializer != nil
                 let hasDelegate = propertyDecl.delegateExpression != nil
-                if hasInitializer {
+                // An explicitly abstract member reports the abstract-content
+                // errors instead, which already cover the forbidden state.
+                if hasInitializer, !propertyDecl.modifiers.contains(.abstract) {
                     diagnostics.error(
                         "KSWIFTK-SEMA-0303",
                         "Property initializers in interfaces are prohibited.",
                         range: propertyDecl.range
                     )
                 }
-                if hasDelegate {
+                if hasDelegate, !propertyDecl.modifiers.contains(.abstract) {
                     diagnostics.error(
                         "KSWIFTK-SEMA-0304",
                         "Delegated properties in interfaces are prohibited.",
@@ -601,18 +625,18 @@ extension DataFlowSemaPhase {
             scope.insert(memberSymbol)
 
             // STDLIB-CLASS-010: Abstract properties cannot have getter/setter bodies
-            if propertyDecl.modifiers.contains(.abstract) {
+            if propertyDecl.modifiers.contains(.abstract), ownerCanDeclareAbstractMembers {
                 if let getter = propertyDecl.getter, getter.body != .unit {
                     diagnostics.error(
                         "KSWIFTK-SEMA-ABSTRACT",
-                        "Abstract property '\(interner.resolve(propertyDecl.name))' cannot have a getter body.",
+                        "property with getter implementation cannot be abstract.",
                         range: getter.range
                     )
                 }
                 if let setter = propertyDecl.setter, setter.body != .unit {
                     diagnostics.error(
                         "KSWIFTK-SEMA-ABSTRACT",
-                        "Abstract property '\(interner.resolve(propertyDecl.name))' cannot have a setter body.",
+                        "property with setter implementation cannot be abstract.",
                         range: setter.range
                     )
                 }
