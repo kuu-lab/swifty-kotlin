@@ -1,4 +1,5 @@
-// CANDIDATE-ONLY: runtime resource helpers have no JVM reference; backend
+// DIFF_CANDIDATE_ONLY_EXPECTED_OUTPUT: resource_helpers.expected.stdout
+// Candidate-only: runtime resource helpers have no JVM reference; backend
 // execution coverage stages the resource under an isolated runtime root.
 import java.lang.getSystemClassLoader
 import kotlin.io.resourceExists

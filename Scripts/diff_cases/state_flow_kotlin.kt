@@ -1,4 +1,5 @@
-// CANDIDATE-ONLY: KSwiftK's bundled stateIn/shareIn signatures intentionally differ from JVM kotlinx.coroutines.
+// DIFF_CANDIDATE_ONLY_EXPECTED_OUTPUT: state_flow_kotlin.expected.stdout
+// Candidate-only: KSwiftK's bundled stateIn/shareIn signatures intentionally differ from JVM kotlinx.coroutines.
 
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*

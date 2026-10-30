@@ -1,4 +1,5 @@
-// CANDIDATE-ONLY: kotlin.native APIs are platform-specific and have no JVM analogue.
+// DIFF_CANDIDATE_ONLY_EXPECTED_OUTPUT: stdlib_kotlin_native_ImmutableBlob_n.expected.stdout
+// Candidate-only: kotlin.native APIs are platform-specific and have no JVM analogue.
 @file:Suppress("DEPRECATION_ERROR")
 @file:OptIn(ExperimentalUnsignedTypes::class, kotlinx.cinterop.ExperimentalForeignApi::class)
 

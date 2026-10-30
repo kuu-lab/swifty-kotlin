@@ -1,4 +1,5 @@
-// SKIP-DIFF (DEBT-DIFF-001): kotlinc 2.4.20 rejects callable references to context-parameter functions.
+// DIFF_CANDIDATE_ONLY_EXPECTED_OUTPUT: kuu_3309_contextual_callable_reference_equality.expected.stdout
+// Candidate-only (DEBT-DIFF-001): kotlinc 2.4.20 rejects callable references to context-parameter functions.
 import kotlin.ExperimentalContextParameters
 
 @OptIn(ExperimentalContextParameters::class)

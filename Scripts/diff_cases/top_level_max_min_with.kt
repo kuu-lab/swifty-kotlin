@@ -1,4 +1,5 @@
-// CANDIDATE-ONLY: DEBT-DIFF-001; kotlinc lacks KSwiftK's bundled top-level two-value API.
+// DIFF_CANDIDATE_ONLY_EXPECTED_OUTPUT: top_level_max_min_with.expected.stdout
+// Candidate-only: DEBT-DIFF-001; kotlinc lacks KSwiftK's bundled top-level two-value API.
 import kotlin.comparisons.maxWith
 import kotlin.comparisons.minWith
 import kotlin.comparisons.naturalOrder

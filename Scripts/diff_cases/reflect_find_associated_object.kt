@@ -1,4 +1,5 @@
-// CANDIDATE-ONLY: main only prints "ok"; this does not exercise findAssociatedObject lookup semantics.
+// DIFF_CANDIDATE_ONLY_EXPECTED_OUTPUT: reflect_find_associated_object.expected.stdout
+// Candidate-only: main only prints "ok"; this does not exercise findAssociatedObject lookup semantics.
 import kotlin.reflect.ExperimentalAssociatedObjects
 import kotlin.reflect.KClass
 import kotlin.reflect.findAssociatedObject

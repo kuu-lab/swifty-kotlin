@@ -183,10 +183,13 @@ bash Scripts/diff_kotlinc.sh --candidate-only Scripts/diff_cases/stdlib_kotlin_c
 ```
 
 Regular differential runs execute these cases in the same source mode, in
-both serial and parallel runs. The separate `run_candidate_only.sh` lane
-continues to own `// CANDIDATE-ONLY` cases with `.expected.stdout` or
-`.expected.stderr` sidecars. Run `bash Scripts/test_diff_kotlinc_candidate_from_source.sh`
-to verify discovery, source compilation, and exclusion from that lane.
+both serial and parallel runs. Expected-stdout oracles that do not need
+bundled sources use `// DIFF_CANDIDATE_ONLY_EXPECTED_OUTPUT: <sidecar>` and
+also run in the regular lane. The separate `run_candidate_only.sh` lane
+owns `// CANDIDATE-ONLY` cases with `.expected.stderr` compile-diagnostics
+sidecars (and any remaining `.expected.stdout` ones). Run `bash
+Scripts/test_diff_kotlinc_candidate_from_source.sh` to verify discovery,
+source compilation, and exclusion from that lane.
 
 A source-only case whose bundled-source compile has a measured exceptional
 cost may set `// DIFF_CANDIDATE_ONLY_FROM_SOURCE_COMPILE_TIMEOUT: <seconds>`.

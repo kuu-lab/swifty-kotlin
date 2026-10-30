@@ -1,4 +1,5 @@
-// CANDIDATE-ONLY: kotlin.native.runtime APIs are unavailable in the JVM kotlinc reference.
+// DIFF_CANDIDATE_ONLY_EXPECTED_OUTPUT: stdlib_kotlin_native_runtime_GCInfo_properties_n.expected.stdout
+// Candidate-only: kotlin.native.runtime APIs are unavailable in the JVM kotlinc reference.
 import kotlin.native.runtime.GCInfo
 import kotlin.native.runtime.MemoryUsage
 import kotlin.native.runtime.RootSetStatistics

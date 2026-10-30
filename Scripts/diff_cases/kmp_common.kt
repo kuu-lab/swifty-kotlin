@@ -1,4 +1,5 @@
-// CANDIDATE-ONLY: this single-file harness cannot model common/platform source sets for JVM kotlinc; compare the candidate's expect/actual runtime output directly.
+// DIFF_CANDIDATE_ONLY_EXPECTED_OUTPUT: kmp_common.expected.stdout
+// Candidate-only: this single-file harness cannot model common/platform source sets for JVM kotlinc; compare the candidate's expect/actual runtime output directly.
 package diff.kmp
 
 expect fun <T> identity(value: T): T
