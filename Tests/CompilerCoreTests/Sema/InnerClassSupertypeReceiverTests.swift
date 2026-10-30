@@ -238,5 +238,83 @@ struct InnerClassSupertypeReceiverTests {
                     "Expected the missing-receiver diagnostic, got: \(ctx.diagnostics.diagnostics)")
         }
     }
+
+    // KUU-3859: the qualifier's type arguments must reach the inner
+    // constructor call — `Outer<Int>.I` stores `Int` as enclosing args,
+    // which the super-delegation target type needs to bind `V`. Dropping
+    // them left `V` unsolved and reported SEMA-0002 even though the
+    // extension receiver supplied a valid enclosing instance.
+    @Test func localClassQualifiedInnerSupertypeInGenericExtensionIsAccepted() throws {
+        try withSemaContext("""
+        open class Outer<V> { open inner class I }
+        fun Outer<Int>.extSub() {
+            class L : Outer<Int>.I()
+        }
+        """) { ctx in
+            #expect(!ctx.diagnostics.hasError,
+                    "Expected the extension receiver to satisfy the inner constructor, got: \(ctx.diagnostics.diagnostics)")
+        }
+    }
+
+    @Test func localClassQualifiedInnerSupertypeInTypeParamExtensionIsAccepted() throws {
+        try withSemaContext("""
+        open class Outer<V> { open inner class I }
+        fun <V> Outer<V>.extSub() {
+            class M : Outer<V>.I()
+        }
+        """) { ctx in
+            #expect(!ctx.diagnostics.hasError,
+                    "Expected the extension receiver to satisfy the inner constructor, got: \(ctx.diagnostics.diagnostics)")
+        }
+    }
+
+    @Test func localClassQualifiedInnerSupertypeWithOwnTypeArgsIsAccepted() throws {
+        try withSemaContext("""
+        open class Outer<V> { open inner class JI<W>(val w: W) }
+        fun Outer<Int>.extSub() {
+            class L2 : Outer<Int>.JI<String>("s")
+        }
+        """) { ctx in
+            #expect(!ctx.diagnostics.hasError,
+                    "Expected enclosing and own type arguments to bind, got: \(ctx.diagnostics.diagnostics)")
+        }
+    }
+
+    @Test func objectLiteralQualifiedInnerSupertypeInGenericExtensionIsAccepted() throws {
+        try withSemaContext("""
+        open class Outer<V> { open inner class I }
+        fun Outer<Int>.extObj() {
+            val o = object : Outer<Int>.I() {}
+        }
+        """) { ctx in
+            #expect(!ctx.diagnostics.hasError,
+                    "Expected the extension receiver to satisfy the inner constructor, got: \(ctx.diagnostics.diagnostics)")
+        }
+    }
+
+    @Test func localClassQualifiedInnerSupertypeUnrelatedReceiverIsRejected() throws {
+        try withSemaContext("""
+        open class Outer<V> { open inner class I }
+        class Other
+        fun Other.extBad() {
+            class Bad : Outer<Int>.I()
+        }
+        """) { ctx in
+            #expect(errorCodes(ctx) == ["KSWIFTK-SEMA-0439"],
+                    "Expected the missing-receiver diagnostic, got: \(ctx.diagnostics.diagnostics)")
+        }
+    }
+
+    @Test func memberClassQualifiedInnerSupertypeIsAccepted() throws {
+        try withSemaContext("""
+        open class Outer<V> { open inner class I }
+        class SubOuter : Outer<Int>() {
+            inner class L4 : Outer<Int>.I()
+        }
+        """) { ctx in
+            #expect(!ctx.diagnostics.hasError,
+                    "Expected the enclosing receiver to satisfy the inner constructor, got: \(ctx.diagnostics.diagnostics)")
+        }
+    }
 }
 #endif
