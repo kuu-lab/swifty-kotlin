@@ -424,22 +424,35 @@ final class WasmModuleContext {
             return name == "isInitialized"
                 ? "kk_lazy_is_initialized"
                 : "kk_lazy_get_value"
-        case "isSuccess", "isFailure", "getOrNull", "exceptionOrNull", "getOrThrow":
+        case "isSuccess", "isFailure", "getOrNull", "exceptionOrNull", "getOrThrow",
+             "getOrDefault", "equals":
             // `kotlin.Result` members — the box carries
             // {isSuccess@16, value@24, exception@32}.
-            guard argumentTypes.count == 1,
-                  let recv = argumentTypes.first, let t = recv,
+            guard let recv = argumentTypes.first, let t = recv,
                   let types, case let .classType(ct) = types.kind(of: t),
                   let recvSym = symbols?.symbol(ct.classSymbol)
             else { return nil }
             let recvFQ = recvSym.fqName.map({ interner.resolve($0) })
             guard recvFQ == ["kotlin", "Result"] else { return nil }
             switch name {
-            case "isSuccess": return "kk_runtime_result_is_success"
-            case "isFailure": return "kk_runtime_result_is_failure"
-            case "getOrNull": return "kk_runtime_result_value_or_null"
-            case "exceptionOrNull": return "kk_runtime_result_exception_or_null"
-            default: return "kk_runtime_result_get_or_throw"
+            case "isSuccess", "isFailure", "getOrNull", "exceptionOrNull", "getOrThrow":
+                guard argumentTypes.count == 1 else { return nil }
+                switch name {
+                case "isSuccess": return "kk_runtime_result_is_success"
+                case "isFailure": return "kk_runtime_result_is_failure"
+                case "getOrNull": return "kk_runtime_result_value_or_null"
+                case "exceptionOrNull": return "kk_runtime_result_exception_or_null"
+                default: return "kk_runtime_result_get_or_throw"
+                }
+            case "getOrDefault":
+                return argumentTypes.count == 2
+                    ? "kk_runtime_result_get_or_default" : nil
+            default:
+                // `equals` is an `Any` member — the receiver is already
+                // verified `kotlin.Result`; other Result implementations
+                // (custom subclasses) don't exist since Result is final.
+                return argumentTypes.count == 2
+                    ? "kk_runtime_result_equals" : nil
             }
         case "lazyOf":
             return argumentTypes.count == 1 ? "kk_lazy_of" : nil
@@ -524,6 +537,10 @@ final class WasmModuleContext {
                 .replacingOccurrences(of: ".$set", with: "")
             if components.count >= 2, components[1] == "Throwable" {
                 switch member {
+                case "message":
+                    return "__kk_throwable_message"
+                case "cause":
+                    return "__kk_throwable_cause"
                 case "suppressed":
                     return "__kk_throwable_suppressedRaw"
                 case "getStackTrace":

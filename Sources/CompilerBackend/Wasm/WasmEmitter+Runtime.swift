@@ -20,6 +20,7 @@ enum WasmRuntimeHelpers {
         "kk_int_narrow",
         "kk_abort_unreachable",
         "kk_lateinit_is_initialized",
+        "kk_lateinit_get_or_throw",
     ]
 
     static func isBoxName(_ name: String) -> Bool {
@@ -92,6 +93,34 @@ enum WasmRuntimeHelpers {
             code.i64Const(L.nullSentinel)
             code.op(WasmOpcode.i64Ne)
             code.i64ExtendFromComparison()
+        case "kk_lateinit_get_or_throw":
+            // `(field, propertyName) -> T`: the sentinel means the property
+            // was never assigned — report it through the thrown channel
+            // without `return` (the inline emit shares the caller's frame).
+            code.localSet(emission.scratchLocal + 1)
+            code.localSet(emission.scratchLocal)
+            code.localGet(emission.scratchLocal)
+            code.i64Const(L.nullSentinel)
+            code.op(WasmOpcode.i64Eq)
+            code.openIf(result: .i64)
+            emitLiteralString(&code, ctx: ctx, "lateinit property ")
+            code.localGet(emission.scratchLocal + 1)
+            code.call(ctx.emittedHelperIndex(
+                for: "__kk_string_concat_flat", argumentCount: 2
+            ))
+            emitLiteralString(&code, ctx: ctx, " has not been initialized")
+            code.call(ctx.emittedHelperIndex(
+                for: "__kk_string_concat_flat", argumentCount: 2
+            ))
+            code.call(ctx.emittedHelperIndex(
+                for: "__kk_uninitialized_property_access_exception_new_message",
+                argumentCount: 1
+            ))
+            code.globalSet(ctx.thrownGlobal)
+            code.i64Const(0)
+            code.elseBranch()
+            code.localGet(emission.scratchLocal)
+            code.end()
         default:
             code.i64Const(0)
         }
@@ -597,6 +626,8 @@ enum WasmRuntimeHelpers {
         "kk_runtime_result_value_or_null",
         "kk_runtime_result_exception_or_null",
         "kk_runtime_result_get_or_throw",
+        "kk_runtime_result_get_or_default",
+        "kk_runtime_result_equals",
         "kk_runtime_result_run_catching",
         // Generic iterator entry points dispatch on the iterator type ID.
         "kk_iterator_hasNext",
@@ -1594,6 +1625,64 @@ enum WasmRuntimeHelpers {
             code.op(WasmOpcode.return)
             code.end()
             emitLoadAt(&code, baseLocal: 0, byteOffset: 24)
+        case "kk_runtime_result_get_or_default":
+            // `(this, default) -> T`: the box's flag selects the payload.
+            extraLocals = 0
+            emitLoadAt(&code, baseLocal: 0, byteOffset: 16)
+            code.op(WasmOpcode.i64Eqz)
+            code.openIf(result: .i64)
+            code.localGet(1)
+            code.elseBranch()
+            emitLoadAt(&code, baseLocal: 0, byteOffset: 24)
+            code.end()
+        case "kk_runtime_result_equals":
+            // `(this, other) -> Boolean`: identity fast path, then nominal
+            // Result tag + flag + structural payload equality. Non-object
+            // `other` (`< dataStart`) can never equal a box.
+            extraLocals = 0
+            code.localGet(0)
+            code.localGet(1)
+            code.op(WasmOpcode.i64Eq)
+            code.openIf(result: .i64)
+            code.i64Const(1)
+            code.elseBranch()
+            code.localGet(1)
+            code.i64Const(L.dataStart)
+            code.op(WasmOpcode.i64LtS)
+            code.openIf(result: .i64)
+            code.i64Const(0)
+            code.elseBranch()
+            emitLoadAt(&code, baseLocal: 1, byteOffset: L.typeIDOffset)
+            code.i64Const(Self.stableNominalTypeID("kotlin.Result"))
+            code.op(WasmOpcode.i64Ne)
+            code.openIf(result: .i64)
+            code.i64Const(0)
+            code.elseBranch()
+            emitLoadAt(&code, baseLocal: 0, byteOffset: 16)
+            emitLoadAt(&code, baseLocal: 1, byteOffset: 16)
+            code.op(WasmOpcode.i64Ne)
+            code.openIf(result: .i64)
+            code.i64Const(0)
+            code.elseBranch()
+            emitLoadAt(&code, baseLocal: 0, byteOffset: 16)
+            code.op(WasmOpcode.i64Eqz)
+            code.openIf(result: .i64)
+            emitLoadAt(&code, baseLocal: 0, byteOffset: 32)
+            emitLoadAt(&code, baseLocal: 1, byteOffset: 32)
+            code.call(ctx.emittedHelperIndex(
+                for: "kk_structural_eq", argumentCount: 2
+            ))
+            code.elseBranch()
+            emitLoadAt(&code, baseLocal: 0, byteOffset: 24)
+            emitLoadAt(&code, baseLocal: 1, byteOffset: 24)
+            code.call(ctx.emittedHelperIndex(
+                for: "kk_structural_eq", argumentCount: 2
+            ))
+            code.end()
+            code.end()
+            code.end()
+            code.end()
+            code.end()
         case "kk_runtime_result_run_catching":
             // (fnPtr, closureRaw) — the only stdlib caller is
             // `Result.Companion.failure`, which wraps `e` in a `{ throw e }`
