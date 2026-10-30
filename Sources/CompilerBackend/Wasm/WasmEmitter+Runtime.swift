@@ -8224,7 +8224,7 @@ enum WasmRuntimeHelpers {
         ctx: WasmModuleContext
     ) {
         let nodeL = 11
-        code.i64Const(12)
+        code.i64Const(13)
         code.i64Const(L.regEntryTypeID)
         code.call(ctx.emittedHelperIndex(for: "kk_object_new", argumentCount: 2))
         code.localSet(nodeL)
@@ -8321,7 +8321,7 @@ enum WasmRuntimeHelpers {
         code.localGet(1)
         code.call(ctx.emittedHelperIndex(for: "__kk_kclass_create", argumentCount: 2))
         code.localSet(kL)
-        code.i64Const(4)
+        code.i64Const(5)
         code.i64Const(L.ktypeTypeID)
         code.call(ctx.emittedHelperIndex(for: "kk_object_new", argumentCount: 2))
         code.localSet(ktL)
@@ -8337,7 +8337,7 @@ enum WasmRuntimeHelpers {
         ctx: WasmModuleContext
     ) {
         let ktL = 3
-        code.i64Const(4)
+        code.i64Const(5)
         code.i64Const(L.ktypeTypeID)
         code.call(ctx.emittedHelperIndex(for: "kk_object_new", argumentCount: 2))
         code.localSet(ktL)
@@ -8414,18 +8414,17 @@ enum WasmRuntimeHelpers {
         emitStoreAt(&code, baseLocal: cL, byteOffset: 56, valueLocal: 5)
         emitStoreAt(&code, baseLocal: cL, byteOffset: 64, valueLocal: 6)
         code.localGet(6)
-        code.op(WasmOpcode.i64Eqz)
-        code.openIf()
         code.i64Const(0)
-        code.elseBranch()
+        code.op(WasmOpcode.i64Ne)
+        code.openIf()
         code.localGet(6)
         code.i64Const(17)
         code.i64Const(1)
         code.localGet(cL)
         for _ in 0..<7 { code.i64Const(0) }
         code.call(ctx.emittedHelperIndex(for: "$__kk_wasm_reglist_add", argumentCount: 11))
-        code.end()
         code.op(WasmOpcode.drop)
+        code.end()
         code.localGet(cL)
     }
 
@@ -8616,6 +8615,8 @@ enum WasmRuntimeHelpers {
         // (`kk_object_register_equals_override` → registry[obj].s1); the
         // bridge takes (a, b) and returns i64.
         code.localGet(aHeap)
+        code.i64Const(0)
+        code.op(WasmOpcode.i64Ne)
         code.openIf()
         emitLoadAt(&code, baseLocal: 0, byteOffset: L.typeIDOffset)
         code.i64Const(0)
