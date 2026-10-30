@@ -28,6 +28,27 @@ struct InnerClassOuterReceiverCallTests {
                 "Expected a typealias to an inner class to resolve through its outer receiver, got: \(ctx.diagnostics.diagnostics)")
     }
 
+    @Test func inheritedInnerClassConstructorResolvesThroughSubclassReceiver() throws {
+        let ctx = try context("""
+        abstract class Base {
+            inner class Inner { fun o() = "O"; fun k() = "K" }
+        }
+        class Child : Base()
+        fun value(): String = Child().Inner().o()
+        """)
+
+        #expect(!ctx.diagnostics.hasError,
+                "Expected an inherited inner constructor to resolve through its subclass receiver, got: \(ctx.diagnostics.diagnostics)")
+        let sema = try #require(ctx.sema)
+        let ast = try #require(ctx.ast)
+        let call = try #require(memberCallExprIDs(named: "Inner", in: ast, interner: ctx.interner).first)
+        let binding = try #require(sema.bindings.callBinding(for: call))
+        let innerClass = try #require(sema.symbols.parentSymbol(for: binding.chosenCallee))
+
+        #expect(sema.symbols.symbol(binding.chosenCallee)?.kind == .constructor)
+        #expect(sema.symbols.symbol(innerClass)?.fqName.map(ctx.interner.resolve) == ["Base", "Inner"])
+    }
+
     @Test func genericInnerTypeAliasesMapOuterAndInnerArguments() throws {
         let ctx = try context("""
         class Foo<T> {
