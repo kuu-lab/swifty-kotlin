@@ -1846,6 +1846,27 @@ struct DeclarationPositionValidationTests {
         assertNoDiagnostic("KSWIFTK-SEMA-MODIFIER-CONFLICT", in: ctx)
     }
 
+    @Test func bodiedAbstractLocalFunctionInsideClassIsRejected() throws {
+        // kotlinc reports 'with a body cannot be abstract' on a local
+        // `abstract fun` whenever a class encloses it — regardless of the
+        // owner's abstractness — but never inside a top-level function.
+        let ctx = try semaContext(for: """
+            class C { fun m() { abstract fun c() { } } }
+            abstract class A { fun m() { abstract fun a() { } } }
+            interface I { fun m() { abstract fun i() { } } }
+            fun tf() { abstract fun t() { } }
+            """)
+        let diags = ctx.diagnostics.diagnostics.filter {
+            $0.code == "KSWIFTK-SEMA-ABSTRACT"
+        }
+        #expect(diags.count == 3, "diagnostics: \(diags.map(\.message))")
+        #expect(diags.map(\.message).sorted() == [
+            "function 'a' with a body cannot be abstract.",
+            "function 'c' with a body cannot be abstract.",
+            "function 'i' with a body cannot be abstract.",
+        ], "diagnostics: \(diags.map(\.message))")
+    }
+
     @Test func initBlockInitializedPropertyIsAccepted() throws {
         let ctx = try semaContext(for: """
             class C { val x: Int
