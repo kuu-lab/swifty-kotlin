@@ -168,6 +168,67 @@ extension DataFlowSemaPhase {
         func isInitBodySymbol(_ symbol: SymbolID) -> Bool {
             initBodySymbols.contains(symbol)
         }
+
+        // Bodies reach inline-kir/ two ways without an index binding: init
+        // shells (symbols created by `applyImportedInitializerShells`) and
+        // synthetic or non-inline functions whose bodies the producer
+        // serialized because init code reaches them transitively. When a
+        // `kk_fn_` link name has a shipped body, register a descriptor for
+        // the resolving symbol — synthesizing a shell when no symbol exists
+        // (`__ctor_reflect_init_*`, per-object lazy-init trampolines).
+        let linkNameDrivenDirs = materializeInitBodiesForWasm
+            ? Array(Set(state.allImportedBindings.compactMap(\.inlineKIRDir)))
+            : []
+        var linkNameDrivenShells: [String: SymbolID] = [:]
+        var linkNameDrivenMisses: Set<String> = []
+        func linkNameDrivenShellSymbol(_ linkName: String) -> SymbolID? {
+            if let memo = linkNameDrivenShells[linkName] {
+                return memo
+            }
+            func memoize(_ symbol: SymbolID?) -> SymbolID? {
+                if let symbol {
+                    linkNameDrivenShells[linkName] = symbol
+                } else {
+                    linkNameDrivenMisses.insert(linkName)
+                }
+                return symbol
+            }
+            guard linkName.hasPrefix("kk_fn_"), !linkNameDrivenMisses.contains(linkName) else {
+                return nil
+            }
+            let fileName = MetadataEncoder.inlineKIRFileName(for: linkName)
+            guard let dir = linkNameDrivenDirs.first(where: {
+                FileManager.default.fileExists(atPath: $0 + "/" + fileName)
+            }) else {
+                return memoize(nil)
+            }
+            let symbol: SymbolID
+            if let existing = resolver.symbol(forLinkName: linkName) {
+                symbol = existing
+            } else {
+                let name = interner.intern(linkName)
+                symbol = symbols.define(
+                    kind: .function,
+                    name: name,
+                    fqName: [name],
+                    declSite: nil,
+                    visibility: .private,
+                    flags: [.synthetic, .importedLibrary]
+                )
+                symbols.setExternalLinkName(linkName, for: symbol)
+            }
+            state.importedInlineFunctions.register(
+                ImportedInlineFunctionStore.Descriptor(
+                    path: dir + "/" + fileName,
+                    signature: symbols.functionSignature(for: symbol),
+                    name: interner.intern(linkName)
+                ),
+                for: symbol
+            )
+            initBodySymbols.insert(symbol)
+            initSymbolsByLinkName[linkName] = symbol
+            return memoize(symbol)
+        }
         func resolveOne(_ symbol: SymbolID) -> KIRFunction? {
             guard let binding = state.pendingInlineBindings.removeValue(forKey: symbol) else {
                 return materializeInitBodiesForWasm
@@ -235,14 +296,26 @@ extension DataFlowSemaPhase {
                     ?? drainThenRead(calleeName)
                 // Init shells aren't index bindings, so their link names
                 // never enter pendingInlineSymbolsByName — resolve them
-                // through the registered descriptor map instead.
+                // through the registered descriptor map, synthesizing a
+                // shell when the link name has a shipped body but no symbol.
                 if targets.isEmpty, materializeInitBodiesForWasm,
                    let initSymbol = initSymbolsByLinkName[interner.resolve(calleeName)]
+                        ?? linkNameDrivenShellSymbol(interner.resolve(calleeName))
                 {
                     targets = [initSymbol]
                 }
                 for target in targets where scannedSymbols.insert(target).inserted {
-                    if let function = resolveOne(target) {
+                    var function = resolveOne(target)
+                    // A resolved callee whose record is not inline still has
+                    // a shipped body when init reaches it transitively —
+                    // retry once after registering its descriptor.
+                    if function == nil, materializeInitBodiesForWasm,
+                       let linkName = symbols.externalLinkNameIfKnown(for: target),
+                       linkNameDrivenShellSymbol(linkName) != nil
+                    {
+                        function = resolveOne(target)
+                    }
+                    if let function {
                         bodiesToScan.append(function.body)
                     }
                 }
