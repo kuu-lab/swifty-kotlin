@@ -14,6 +14,14 @@ extension KIRLoweringDriver {
         var declIDs: [KIRDeclID] = []
         let propType = sema.symbols.propertyType(for: symbol) ?? sema.types.anyType
         let isExtensionProperty = propertyDecl.receiverType != nil
+        // KUU-3845: `companion val T.x`/`companion var T.x` is parsed as a
+        // top-level extension property, but its storage and implicit
+        // accessors live in the target's companion scope. Ordinary extension
+        // properties emit no storage; companion extensions do, and reads go
+        // through the synthetic accessor symbols, so they also need real
+        // implicit getter/setter bodies to link.
+        let isCompanionExtensionProperty = isExtensionProperty
+            && propertyDecl.modifiers.contains(.companion)
         let isThreadLocal = !isExtensionProperty && sema.symbols.annotations(for: symbol).contains {
             KnownCompilerAnnotation.nativeThreadLocal.matches($0.annotationFQName)
         }
@@ -39,7 +47,9 @@ extension KIRLoweringDriver {
             && !hasExplicitBackingField
         let isDelegateProperty = propertyDecl.delegateExpression != nil
 
-        if !isExtensionProperty, !isGetterOnlyComputed, !isDelegateProperty {
+        if (!isExtensionProperty || isCompanionExtensionProperty),
+           !isGetterOnlyComputed, !isDelegateProperty
+        {
             let kirID = arena.appendDecl(.global(KIRGlobal(
                 symbol: symbol, type: propType, isThreadLocal: isThreadLocal
             )))
@@ -55,6 +65,11 @@ extension KIRLoweringDriver {
             propertyDecl, symbol: symbol, propType: propType,
             shared: shared, declIDs: &declIDs
         )
+        emitImplicitCompanionExtensionAccessors(
+            propertyDecl, symbol: symbol, propType: propType,
+            isCompanionExtensionProperty: isCompanionExtensionProperty,
+            shared: shared, declIDs: &declIDs
+        )
 
         if let explicitField = propertyDecl.explicitBackingField, !isExtensionProperty {
             lowerExplicitBackingFieldInitializer(
@@ -67,7 +82,7 @@ extension KIRLoweringDriver {
 
         lowerPropertyInitializer(
             propertyDecl, symbol: symbol, propType: propType,
-            isExtensionProperty: isExtensionProperty,
+            isExtensionProperty: isExtensionProperty && !isCompanionExtensionProperty,
             shared: shared,
             allTopLevelInitInstructions: &allTopLevelInitInstructions,
             declIDs: &declIDs
@@ -174,6 +189,86 @@ extension KIRLoweringDriver {
                 allDecls: &declIDs
             )
         }
+    }
+
+
+    /// `companion val/var T.x` stores its value in the companion scope, so it
+    /// gets a module-level global (emitted above) even though it is parsed as
+    /// an extension property. Reads and writes lower to calls on the
+    /// `extensionPropertyGetterAccessor`/`...SetterAccessor` symbols that
+    /// Sema registers for every extension property — emit matching implicit
+    /// accessor bodies when the declaration has no explicit accessor of its
+    /// own, otherwise the calls fall back to an undefined property-named
+    /// symbol at link time (KUU-3845).
+    private func emitImplicitCompanionExtensionAccessors(
+        _ propertyDecl: PropertyDecl,
+        symbol: SymbolID,
+        propType: TypeID,
+        isCompanionExtensionProperty: Bool,
+        shared: KIRLoweringSharedContext,
+        declIDs: inout [KIRDeclID]
+    ) {
+        guard isCompanionExtensionProperty,
+              let receiverType = shared.sema.symbols.extensionPropertyReceiverType(for: symbol)
+        else { return }
+        let sema = shared.sema
+        let arena = shared.arena
+        let interner = shared.interner
+        let semanticSignature = sema.symbols.extensionPropertyGetterAccessor(for: symbol)
+            .flatMap { sema.symbols.functionSignature(for: $0) }
+        let receiverSymbol = callSupportLowerer.syntheticReceiverParameterSymbol(functionSymbol: symbol)
+        let receiverParam = KIRParameter(symbol: receiverSymbol, type: receiverType)
+        let receiverExpr = arena.appendExpr(.symbolRef(receiverSymbol), type: receiverType)
+        // Mirror `lowerAccessorBody`: context parameters trail the extension
+        // receiver so the emitted signature matches `propertyAccessorArguments`.
+        let contextParams = zip(
+            semanticSignature?.contextParameterSymbols ?? [],
+            semanticSignature?.contextParameterTypes ?? []
+        ).map { KIRParameter(symbol: $0, type: $1) }
+
+        if !(propertyDecl.getter.map { $0.body != .unit } ?? false) {
+            let getterSymbol = sema.symbols.extensionPropertyGetterAccessor(for: symbol)
+                ?? SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: symbol)
+            var body: KIRLoweringEmitContext = [.beginBlock]
+            body.append(.constValue(result: receiverExpr, value: .symbolRef(receiverSymbol)))
+            let result = arena.appendTemporary(type: propType)
+            body.append(.loadGlobal(result: result, symbol: symbol))
+            body.append(.returnValue(result))
+            body.append(.endBlock)
+            declIDs.append(arena.appendDecl(.function(KIRFunction(
+                symbol: getterSymbol,
+                name: interner.intern("get"),
+                params: [receiverParam] + contextParams,
+                returnType: propType,
+                body: body,
+                isSuspend: false,
+                isInline: false
+            ))))
+        }
+
+        guard propertyDecl.isVar,
+              !(propertyDecl.setter.map { $0.body != .unit } ?? false)
+        else { return }
+        let setterSymbol = sema.symbols.extensionPropertySetterAccessor(for: symbol)
+            ?? SyntheticSymbolScheme.propertySetterAccessorSymbol(for: symbol)
+        let valueParamSymbol = SyntheticSymbolScheme.setterValueParameterSymbol(for: symbol)
+        let valueParam = KIRParameter(symbol: valueParamSymbol, type: propType)
+        let valueExpr = arena.appendExpr(.symbolRef(valueParamSymbol), type: propType)
+        var setterBody: KIRLoweringEmitContext = [.beginBlock]
+        setterBody.append(.constValue(result: receiverExpr, value: .symbolRef(receiverSymbol)))
+        setterBody.append(.constValue(result: valueExpr, value: .symbolRef(valueParamSymbol)))
+        setterBody.append(.storeGlobal(value: valueExpr, symbol: symbol))
+        setterBody.append(.returnUnit)
+        setterBody.append(.endBlock)
+        declIDs.append(arena.appendDecl(.function(KIRFunction(
+            symbol: setterSymbol,
+            name: interner.intern("set"),
+            params: [receiverParam] + contextParams + [valueParam],
+            returnType: sema.types.unitType,
+            body: setterBody,
+            isSuspend: false,
+            isInline: false
+        ))))
     }
 
 
