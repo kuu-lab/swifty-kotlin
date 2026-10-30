@@ -67,10 +67,12 @@ import Testing
             visibility: .internal
         )
 
-        // Function signature for speak: (Animal) -> Unit
+        // Function signature for speak: () -> Unit. The receiver must stay
+        // unset — an `Any` receiver type is interpreted as an extension
+        // receiver, which resolveVirtualDispatchKind keeps on static
+        // dispatch (#9185).
         symbols.setFunctionSignature(
             FunctionSignature(
-                receiverType: anyType,
                 parameterTypes: [],
                 returnType: types.unitType,
                 valueParameterSymbols: []
