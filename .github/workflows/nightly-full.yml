@@ -1225,9 +1225,9 @@ jobs:
   kotlinx-io-apple-candidate:
     name: Darwin SDK and Apple IO focused candidate
     runs-on: macos-26
-    # Existing runner bounds: build 600 + Core 1200 + Runtime 900 + Backend
+    # Existing runner bounds: build 1200 + Core 1200 + Runtime 900 + Backend
     # 3600 seconds. Leave setup/upload margin; retried wrapper runs cannot pass the audit.
-    timeout-minutes: 120
+    timeout-minutes: 150
     env:
       HOMEBREW_NO_AUTO_UPDATE: "1"
       KSWIFTK_IO1763_RECEIPT_DIRECTORY: ${{ github.workspace }}/apple-candidate-receipts
