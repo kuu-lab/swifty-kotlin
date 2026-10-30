@@ -49,7 +49,7 @@ extension BuildASTPhase {
             var startIndex = statementTokens.startIndex
             while startIndex < statementTokens.endIndex,
                   case let .keyword(keyword) = statementTokens[startIndex].kind,
-                  KotlinParser.isDeclarationModifierKeyword(keyword)
+                  BuildASTPhase.isLocalStatementModifierKeyword(keyword)
             {
                 if keyword == .lateinit { isLateinit = true }
                 startIndex = statementTokens.index(after: startIndex)

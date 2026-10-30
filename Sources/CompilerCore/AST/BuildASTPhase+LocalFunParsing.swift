@@ -94,7 +94,7 @@ extension BuildASTPhase {
         var leadingModifiers: [(name: String, range: SourceRange)] = []
         while startIndex < statementTokens.count,
               case let .keyword(keyword) = statementTokens[startIndex].kind,
-              KotlinParser.isDeclarationModifierKeyword(keyword)
+              Self.isLocalStatementModifierKeyword(keyword)
         {
             if keyword == .suspend {
                 isSuspend = true
@@ -139,7 +139,16 @@ extension BuildASTPhase {
         // is deferred to sema (`inferLocalFunDeclExpr`): emitting it here would
         // abort the pipeline before `@Suppress` registrations run, making
         // `NOT_YET_SUPPORTED_LOCAL_INLINE_FUNCTION` impossible to honor.
+        var seenModifiers: Set<String> = []
         for modifier in leadingModifiers {
+            if !seenModifiers.insert(modifier.name).inserted {
+                diagnostics?.error(
+                    "KSWIFTK-SEMA-0448",
+                    "repeated '\(modifier.name)'.",
+                    range: modifier.range
+                )
+                continue
+            }
             switch modifier.name {
             case "suspend", "infix", "operator", "tailrec", "inline":
                 continue

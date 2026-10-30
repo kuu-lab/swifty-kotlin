@@ -114,6 +114,15 @@ extension BuildASTPhase {
         return nil
     }
 
+    /// `enum` and `companion` can head a nominal declaration, but every
+    /// nominal shape is claimed by the local-nominal probe first — when a
+    /// function/property statement scan still sees them they are
+    /// (invalid but diagnosable) modifiers.
+    static func isLocalStatementModifierKeyword(_ keyword: Keyword) -> Bool {
+        KotlinParser.isDeclarationModifierKeyword(keyword)
+            || keyword == .enum || keyword == .companion
+    }
+
     private static func diagnoseLocalInterface(
         at index: Int,
         in tokens: [Token],
