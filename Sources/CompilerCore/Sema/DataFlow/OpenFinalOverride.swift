@@ -330,9 +330,9 @@ extension DataFlowSemaPhase {
                 + (classDecl.companionObject.map { [$0] } ?? [])
             for entry in classDecl.enumEntries {
                 for memberDeclID in entry.memberProperties {
+                    validateDeferredValVarMutabilityOverride(of: memberDeclID, ctx: ctx)
                     validateInferredPropertyTypeOverride(of: memberDeclID, ctx: ctx)
                     validateExplicitPropertyTypeOverrideAgainstInferredParent(of: memberDeclID, ctx: ctx)
-                    validateDeferredValVarMutabilityOverride(of: memberDeclID, ctx: ctx)
                 }
                 for nestedDeclID in entry.nestedClasses {
                     validateInferredPropertyTypeOverrides(in: nestedDeclID, ctx: ctx, visited: &visited)
@@ -350,9 +350,9 @@ extension DataFlowSemaPhase {
         }
 
         for memberDeclID in memberProperties {
+            validateDeferredValVarMutabilityOverride(of: memberDeclID, ctx: ctx)
             validateInferredPropertyTypeOverride(of: memberDeclID, ctx: ctx)
             validateExplicitPropertyTypeOverrideAgainstInferredParent(of: memberDeclID, ctx: ctx)
-            validateDeferredValVarMutabilityOverride(of: memberDeclID, ctx: ctx)
         }
         for nestedDeclID in nestedDeclarations {
             validateInferredPropertyTypeOverrides(in: nestedDeclID, ctx: ctx, visited: &visited)
@@ -1895,9 +1895,6 @@ extension DataFlowSemaPhase {
             else { continue }
 
             let parentIsVar = parentSym.flags.contains(.mutable)
-            if !childIsVar && parentIsVar {
-                continue // 'val' over 'var': mutability check reports instead
-            }
             let getterCovariant = ctx.types.isSubtype(childType, parentType)
             let invariant = !childIsVar || !parentIsVar
                 || ctx.types.isSubtype(parentType, childType)
@@ -1930,11 +1927,19 @@ extension DataFlowSemaPhase {
 
         let name = ctx.interner.resolve(memberName)
         let ownerName = ctx.interner.resolve(parent.ownerName)
-        let parentTypeStr = ctx.types.renderType(parentType)
-        let childTypeStr = ctx.types.renderType(childType)
+        let parentSig = ctx.types.displayName(of: parentType, symbols: ctx.symbols, interner: ctx.interner)
+        let childSig = ctx.types.displayName(of: childType, symbols: ctx.symbols, interner: ctx.interner)
+        let parentKeyword = ctx.symbols.symbol(parent.memberID)?.flags.contains(.mutable) == true ? "var" : "val"
+        let message: String = if childIsVar {
+            // kotlinc labels the overridden property 'var' whenever the
+            // child is mutable, even when the parent is a `val`.
+            "type of 'var \(name): \(childSig)' doesn't match the type of the overridden 'var' property '\(parentKeyword) \(name): \(parentSig)' defined in '\(ownerName)'."
+        } else {
+            "type of 'val \(name): \(childSig)' is not a subtype of overridden property '\(parentKeyword) \(name): \(parentSig)' defined in '\(ownerName)'."
+        }
         ctx.diagnostics.error(
             "KSWIFTK-SEMA-OVERRIDE-TYPE",
-            "Type of '\(name)' doesn't match the type of the overridden property '\(parentTypeStr)' defined in '\(ownerName)' (found '\(childTypeStr)').",
+            message,
             range: memberRange
         )
     }
