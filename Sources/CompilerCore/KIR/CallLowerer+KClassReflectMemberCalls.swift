@@ -368,6 +368,12 @@ extension CallLowerer {
             || ownerKind.map({ [.function, .property, .local].contains($0) }) == true {
             flags |= 1 << 13
         }
+        // KUU-3828: anonymous object literals have no name on the JVM;
+        // reflection reports null simpleName despite the synthetic fqName.
+        if symbol.flags.contains(.synthetic),
+           interner.resolve(symbol.name).hasPrefix("__ObjectLiteral_") {
+            flags |= 1 << 14
+        }
         let flagsExpr = arena.appendExpr(.intLiteral(flags), type: intType)
         instructions.append(.constValue(result: flagsExpr, value: .intLiteral(flags)))
 

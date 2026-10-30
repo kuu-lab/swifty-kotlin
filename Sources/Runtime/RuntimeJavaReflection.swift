@@ -398,7 +398,8 @@ public func __kk_class_simple_name(_ classRaw: Int) -> Int {
     }
 
     if let metadata = runtimeKClassMetadataRegistry.lookup(typeToken: javaClass.typeToken), metadata.isLocal {
-        return runtimeMakeStringRaw(metadata.simpleName)
+        // JVM Class.getSimpleName() returns "" for anonymous classes (KUU-3828).
+        return runtimeMakeStringRaw(metadata.isAnonymous ? "" : metadata.simpleName)
     }
 
     let displayText = javaClass.displayText

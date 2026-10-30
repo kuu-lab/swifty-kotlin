@@ -525,6 +525,43 @@ struct RuntimeKClassMetadataTests {
         #expect(__kk_kfunction_is_inline(tagged) == 0)
     }
 
+    // MARK: - KUU-3828: anonymous object literal names
+
+    @Test func anonymousMetadataReportsNullSimpleNameAndQualifiedName() {
+        let typeToken = 340
+        _ = __kk_kclass_register_metadata(
+            typeToken,
+            makeRuntimeString("__ObjectLiteral_0_1_2"),
+            makeRuntimeString("__ObjectLiteral_0_1_2"),
+            0,
+            (1 << 13) | (1 << 14), // local + anonymous
+            0, 0, 0
+        )
+        let kclass = __kk_kclass_create(typeToken, 0)
+        #expect(__kk_kclass_simple_name(kclass) == runtimeNullSentinelInt)
+        #expect(__kk_kclass_qualified_name(kclass) == runtimeNullSentinelInt)
+        #expect(runtimeKClassMetadataRegistry.lookup(typeToken: typeToken)?.isAnonymous == true)
+        // The synthetic name stays in metadata for class-cast and toString
+        // rendering; only the public simpleName hides it.
+        #expect(runtimeKClassMetadataRegistry.lookup(typeToken: typeToken)?.simpleName == "__ObjectLiteral_0_1_2")
+    }
+
+    @Test func namedLocalClassKeepsSimpleNameWhenAnonymousBitUnset() {
+        let typeToken = 341
+        _ = __kk_kclass_register_metadata(
+            typeToken,
+            makeRuntimeString("__localdecl_0.Local"),
+            makeRuntimeString("Local"),
+            0,
+            1 << 13, // local only
+            0, 0, 0
+        )
+        let kclass = __kk_kclass_create(typeToken, 0)
+        #expect(runtimeStringFromRaw(__kk_kclass_simple_name(kclass)) == "Local")
+        #expect(__kk_kclass_qualified_name(kclass) == runtimeNullSentinelInt)
+        #expect(runtimeKClassMetadataRegistry.lookup(typeToken: typeToken)?.isAnonymous == false)
+    }
+
     // MARK: - Helpers
 
     private func makeRuntimeString(_ value: String) -> Int {

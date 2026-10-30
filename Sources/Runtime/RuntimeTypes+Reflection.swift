@@ -32,6 +32,9 @@ struct RuntimeKClassMetadataEntry {
     var isCompanion: Bool = false
     var isFunInterface: Bool = false
     var isLocal: Bool = false
+    /// Anonymous object literals: `KClass.simpleName` is null on the JVM even
+    /// though the class has a synthetic internal name (KUU-3828).
+    var isAnonymous: Bool = false
     var annotations: [RuntimeAnnotationRecord] = []
 }
 
