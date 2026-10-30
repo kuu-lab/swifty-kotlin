@@ -875,7 +875,7 @@ extension BuildASTPhase {
             return nil
         }
         var depth = 0
-        var nameToken: Token?
+        var nameZoneTokens: [Token] = []
         var colonIndex: Int?
         var sawTokenAfterColon = false
         for index in (openParenIndex + 1) ..< headerTokens.count {
@@ -897,11 +897,8 @@ extension BuildASTPhase {
             }
             if colonIndex != nil {
                 sawTokenAfterColon = true
-            } else if nameToken == nil,
-                      internedIdentifier(from: token, interner: interner) != nil,
-                      TypeRefParserCore.isDeclarationNameToken(token.kind)
-            {
-                nameToken = token
+            } else if depth == 0 {
+                nameZoneTokens.append(token)
             }
         }
         if let colonIndex, !sawTokenAfterColon {
@@ -912,10 +909,58 @@ extension BuildASTPhase {
                 range: following?.range ?? headerTokens[colonIndex].range
             )
         }
-        guard let nameToken else {
+        // The parameter name is the last identifier-like token in the name
+        // zone; soft keywords such as `vararg` ahead of it act as modifiers.
+        let nameIndex = nameZoneTokens.lastIndex(where: { token in
+            internedIdentifier(from: token, interner: interner) != nil
+                && TypeRefParserCore.isDeclarationNameToken(token.kind)
+        })
+        var modifierEntries: [(element: Modifiers.Element, name: String, range: SourceRange)] = []
+        var seenModifiers: Modifiers = []
+        for (index, token) in nameZoneTokens.enumerated() {
+            if let nameIndex, index >= nameIndex {
+                break
+            }
+            if token.kind == .keyword(.val) || token.kind == .keyword(.var) {
+                diagnostics?.error(
+                    "KSWIFTK-PARSE-0002",
+                    "Expected parameter name.",
+                    range: token.range
+                )
+                let followingIndex = index + 1
+                if followingIndex < nameZoneTokens.count {
+                    diagnostics?.error(
+                        "KSWIFTK-PARSE-0002",
+                        "Expected ')'.",
+                        range: nameZoneTokens[followingIndex].range
+                    )
+                }
+                continue
+            }
+            guard let candidate = modifier(from: token),
+                  case let .keyword(keyword) = token.kind
+            else {
+                continue
+            }
+            guard seenModifiers.insert(candidate).inserted else {
+                diagnostics?.error(
+                    "KSWIFTK-SEMA-0448",
+                    "repeated '\(keyword.rawValue)'.",
+                    range: token.range
+                )
+                continue
+            }
+            modifierEntries.append((candidate, keyword.rawValue, token.range))
+        }
+        diagnoseParameterModifierDiagnostics(
+            modifierEntries,
+            site: .setter,
+            isPropertyParameter: false
+        )
+        guard let nameIndex else {
             return nil
         }
-        return internedIdentifier(from: nameToken, interner: interner)
+        return internedIdentifier(from: nameZoneTokens[nameIndex], interner: interner)
     }
 
     private func siblingBlockAccessors(

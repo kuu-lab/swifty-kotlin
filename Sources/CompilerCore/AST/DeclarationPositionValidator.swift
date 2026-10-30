@@ -252,12 +252,13 @@ struct DeclarationPositionValidator {
     }
 
     private func validateProperty(_ decl: PropertyDecl, site: OwnerSite) {
-        let visibilityCovered = validateVisibilityModifierConflicts(decl.modifiers, range: decl.range)
         // Primary-constructor `val`/`var` parameters are materialized as
-        // member properties; their restrictions are checked on the class.
+        // member properties; modifier applicability and conflicts were already
+        // reported on the parameter tokens by BuildAST.
         if decl.isSynthesizedPrimaryConstructorProperty {
             return
         }
+        let visibilityCovered = validateVisibilityModifierConflicts(decl.modifiers, range: decl.range)
         let modifiers = decl.modifiers
         let pairPlan = incompatiblePairEmissions(
             modifiers,

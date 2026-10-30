@@ -602,6 +602,7 @@ extension BuildASTPhase {
         case function(inline: Bool)
         case primaryConstructor
         case secondaryConstructor
+        case setter
     }
 
     func declarationValueParameters(
@@ -916,6 +917,7 @@ extension BuildASTPhase {
             token.kind == .keyword(.val) || token.kind == .keyword(.var)
         }
         var candidateModifiers: Modifiers = []
+        var modifierEntries: [(element: Modifiers.Element, name: String, range: SourceRange)] = []
         for token in modifierPrefixTokens {
             if token.kind == .keyword(.val) || token.kind == .keyword(.var) {
                 diagnoseValVarParameterKeyword(token, site: site)
@@ -934,14 +936,13 @@ extension BuildASTPhase {
                 )
                 continue
             }
-            diagnoseParameterModifierApplicability(
-                candidate,
-                keyword: keyword,
-                site: site,
-                isPropertyParameter: isPropertyParameter,
-                range: token.range
-            )
+            modifierEntries.append((candidate, keyword.rawValue, token.range))
         }
+        diagnoseParameterModifierDiagnostics(
+            modifierEntries,
+            site: site,
+            isPropertyParameter: isPropertyParameter
+        )
         let isVararg = candidateModifiers.contains(.vararg)
         let varargRange = isVararg
             ? modifierPrefixTokens.first(where: { $0.kind == .keyword(.vararg) })?.range
@@ -983,11 +984,25 @@ extension BuildASTPhase {
         ))
     }
 
-    /// Modifiers a primary-constructor property parameter can never carry;
-    /// kotlinc reports them against the parameter, not the property.
-    private static let constructorPropertyForbiddenParameterModifiers: Modifiers = [
-        .sealed, .enumModifier, .companion, .inner, .suspend, .infix, .operator,
-        .tailrec, .inline, .annotationClass, .value, .data, .expect, .funModifier,
+    /// Modifiers a primary-constructor `val`/`var` parameter can legally carry;
+    /// they describe the synthesized property rather than the parameter itself.
+    private static let constructorPropertyLegalParameterModifiers: Modifiers = [
+        .public, .private, .internal, .protected, .open, .final, .override,
+        .actual, .external, .lateinit, .const,
+    ]
+
+    /// Modifier pairs kotlinc reports as conflicts on a value parameter — the
+    /// union of the declaration-level conflict tables plus the parameter-only
+    /// `noinline`/`crossinline` and `value`/`inline` pairs.
+    private static let valueParameterConflictPairs: [(Modifiers.Element, Modifiers.Element)] = [
+        (.private, .public), (.private, .internal), (.private, .protected),
+        (.public, .internal), (.public, .protected), (.internal, .protected),
+        (.abstract, .final), (.sealed, .final), (.final, .open),
+        (.sealed, .open), (.sealed, .inner),
+        (.data, .inner), (.data, .open), (.data, .abstract), (.data, .sealed),
+        (.data, .value), (.inline, .data), (.value, .inline),
+        (.private, .open), (.private, .abstract),
+        (.expect, .actual), (.noinline, .crossinline),
     ]
 
     private func diagnoseValVarParameterKeyword(_ token: Token, site: ValueParameterSite) {
@@ -1000,7 +1015,7 @@ extension BuildASTPhase {
             parameterKind = "function parameter"
         case .secondaryConstructor:
             parameterKind = "secondary constructor parameter"
-        case .primaryConstructor:
+        case .primaryConstructor, .setter:
             return
         }
         diagnostics?.error(
@@ -1010,46 +1025,95 @@ extension BuildASTPhase {
         )
     }
 
-    private func diagnoseParameterModifierApplicability(
-        _ modifier: Modifiers.Element,
-        keyword: Keyword,
+    /// kotlinc's per-modifier parameter diagnostics: `noinline`/`crossinline`
+    /// are parameter-legal but restricted to inline functions (reported once at
+    /// the first such modifier); a modifier the site accepts reports a conflict
+    /// against the first-declared conflicting partner in either direction,
+    /// while an inapplicable modifier reports `not applicable` unless an
+    /// earlier partner claims it first.
+    func diagnoseParameterModifierDiagnostics(
+        _ entries: [(element: Modifiers.Element, name: String, range: SourceRange)],
         site: ValueParameterSite,
-        isPropertyParameter: Bool,
-        range: SourceRange
+        isPropertyParameter: Bool
     ) {
-        if modifier == .vararg {
-            return
+        var isPrimaryConstructorProperty = false
+        var ownerIsInlineFunction = false
+        switch site {
+        case .primaryConstructor:
+            isPrimaryConstructorProperty = isPropertyParameter
+        case .function(let inline):
+            ownerIsInlineFunction = inline
+        case .secondaryConstructor, .setter:
+            break
         }
-        if modifier == .noinline || modifier == .crossinline {
-            if case .function(let inline) = site, inline {
-                return
+        var inlineGateReported = ownerIsInlineFunction
+        for (index, entry) in entries.enumerated() {
+            var firstPartner: String?
+            var earlierPartner: String?
+            for (otherIndex, other) in entries.enumerated() where otherIndex != index {
+                guard Self.valueParameterConflictPairs.contains(where: {
+                    ($0 == entry.element && $1 == other.element)
+                        || ($1 == entry.element && $0 == other.element)
+                }) else {
+                    continue
+                }
+                if firstPartner == nil { firstPartner = other.name }
+                if otherIndex < index, earlierPartner == nil { earlierPartner = other.name }
             }
-            diagnostics?.error(
-                "KSWIFTK-SEMA-0449",
-                "modifier is only allowed for function parameters of an inline function.",
-                range: range
-            )
-            return
-        }
-        if case .primaryConstructor = site, isPropertyParameter {
-            if modifier == .abstract {
-                diagnostics?.error(
-                    "KSWIFTK-SEMA-0450",
-                    "property in primary constructor cannot be declared as abstract.",
-                    range: range
-                )
-            } else if Self.constructorPropertyForbiddenParameterModifiers.contains(modifier) {
-                diagnostics?.error(
-                    "KSWIFTK-SEMA-0400",
-                    "modifier '\(keyword.rawValue)' is not applicable to 'value parameter'.",
-                    range: range
-                )
+            switch entry.element {
+            case .vararg:
+                if case .setter = site {
+                    diagnostics?.error(
+                        "KSWIFTK-SEMA-0401",
+                        "modifier 'vararg' is not applicable inside 'setter'.",
+                        range: entry.range
+                    )
+                }
+            case .noinline, .crossinline:
+                if !inlineGateReported {
+                    inlineGateReported = true
+                    diagnostics?.error(
+                        "KSWIFTK-SEMA-0449",
+                        "modifier is only allowed for function parameters of an inline function.",
+                        range: entry.range
+                    )
+                }
+                if let firstPartner {
+                    emitParameterModifierConflict(entry.name, partner: firstPartner, range: entry.range)
+                }
+            default:
+                let isLegalPropertyModifier = isPrimaryConstructorProperty
+                    && Self.constructorPropertyLegalParameterModifiers.contains(entry.element)
+                if isLegalPropertyModifier {
+                    if let firstPartner {
+                        emitParameterModifierConflict(entry.name, partner: firstPartner, range: entry.range)
+                    }
+                } else {
+                    if isPrimaryConstructorProperty, entry.element == .abstract {
+                        diagnostics?.error(
+                            "KSWIFTK-SEMA-0450",
+                            "property in primary constructor cannot be declared as abstract.",
+                            range: entry.range
+                        )
+                    } else if earlierPartner == nil {
+                        diagnostics?.error(
+                            "KSWIFTK-SEMA-0400",
+                            "modifier '\(entry.name)' is not applicable to 'value parameter'.",
+                            range: entry.range
+                        )
+                    }
+                    if let earlierPartner {
+                        emitParameterModifierConflict(entry.name, partner: earlierPartner, range: entry.range)
+                    }
+                }
             }
-            return
         }
+    }
+
+    private func emitParameterModifierConflict(_ name: String, partner: String, range: SourceRange) {
         diagnostics?.error(
-            "KSWIFTK-SEMA-0400",
-            "modifier '\(keyword.rawValue)' is not applicable to 'value parameter'.",
+            "KSWIFTK-SEMA-0402",
+            "modifier '\(name)' is incompatible with '\(partner)'.",
             range: range
         )
     }
