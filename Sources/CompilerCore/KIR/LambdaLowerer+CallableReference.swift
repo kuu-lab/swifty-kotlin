@@ -2201,11 +2201,17 @@ extension LambdaLowerer {
             isSuspendFlag = 0
         }
 
+        // KUU-3810: a constructor reference reports `<init>` as its
+        // KCallable.name (`::A.name == "<init>"`), not the referenced
+        // class name spelled in the source.
+        let metadataName = targetSymbol.flatMap { sema.symbols.symbol($0)?.kind } == .constructor
+            ? interner.intern("<init>")
+            : memberName
         let nameExpr = arena.appendExpr(
-            .stringLiteral(memberName),
+            .stringLiteral(metadataName),
             type: sema.types.stringType
         )
-        instructions.append(.constValue(result: nameExpr, value: .stringLiteral(memberName)))
+        instructions.append(.constValue(result: nameExpr, value: .stringLiteral(metadataName)))
 
         // KCallable.returnType is represented by the same compact type-name
         // handle used by KClass reflection metadata. KUU-3864: function
@@ -2290,7 +2296,7 @@ extension LambdaLowerer {
                     ? functionType.map { functionTypeDescription($0, sema: sema, interner: interner) }
                         ?? "kotlin.Function\(arity)"
                     : functionReferenceDescription(
-                        name: memberName, type: callableType, targetSymbol: targetSymbol,
+                        name: metadataName, type: callableType, targetSymbol: targetSymbol,
                         sema: sema, interner: interner
                     ),
                 identity: anonymous && functionType == nil,

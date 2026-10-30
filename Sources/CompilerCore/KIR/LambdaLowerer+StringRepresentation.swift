@@ -59,6 +59,20 @@ extension LambdaLowerer {
             return "fun \(interner.resolve(name))()"
         }
         let signature = targetSymbol.flatMap { sema.symbols.functionSignature(for: $0) }
+        // kotlin-reflect renders a constructor reference with the `<init>`
+        // name backtick-escaped and no receiver prefix for an ordinary
+        // class (`fun `<init>`(kotlin.Int): B`), while an `inner class`
+        // constructor keeps its outer-class dispatch receiver
+        // (`fun Outer.`<init>`(): Outer.Inner`) (KUU-3810).
+        let isConstructor = targetSymbol.flatMap { sema.symbols.symbol($0)?.kind } == .constructor
+        let innerConstructorOuterClass = targetSymbol
+            .flatMap { sema.symbols.parentSymbol(for: $0) }
+            .flatMap { owner -> SymbolID? in
+                guard sema.symbols.symbol(owner)?.flags.contains(.innerClass) == true else {
+                    return nil
+                }
+                return sema.symbols.parentSymbol(for: owner)
+            }
         let receiver = signature?.receiverType ?? targetSymbol.flatMap {
             sema.symbols.parentSymbol(for: $0)
         }.flatMap { owner -> TypeID? in
@@ -67,12 +81,23 @@ extension LambdaLowerer {
             else { return nil }
             return sema.types.make(.classType(ClassType(classSymbol: owner, args: [], nullability: .nonNull)))
         }
-        let receiverText = receiver.map { reflectionTypeName($0, sema: sema, interner: interner) + "." } ?? ""
+        let receiverText: String
+        if isConstructor {
+            receiverText = innerConstructorOuterClass.map {
+                reflectionTypeName(
+                    sema.types.make(.classType(ClassType(classSymbol: $0, args: [], nullability: .nonNull))),
+                    sema: sema, interner: interner
+                ) + "."
+            } ?? ""
+        } else {
+            receiverText = receiver.map { reflectionTypeName($0, sema: sema, interner: interner) + "." } ?? ""
+        }
         let params = (signature?.parameterTypes ?? function.params)
             .map { reflectionTypeName($0, sema: sema, interner: interner) }.joined(separator: ", ")
         let result = reflectionTypeName(signature?.returnType ?? function.returnType, sema: sema, interner: interner)
         let prefix = function.isSuspend ? "suspend fun " : "fun "
-        return "\(prefix)\(receiverText)\(interner.resolve(name))(\(params)): \(result)"
+        let renderedName = isConstructor ? "`\(interner.resolve(name))`" : interner.resolve(name)
+        return "\(prefix)\(receiverText)\(renderedName)(\(params)): \(result)"
     }
 
     func functionTypeDescription(

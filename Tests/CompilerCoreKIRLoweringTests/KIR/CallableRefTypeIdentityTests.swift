@@ -635,5 +635,56 @@ struct CallableRefTypeIdentityTests {
         let tagCall = try #require(kirCalls(to: .tagKFunction, in: mainBody, interner: ctx.interner).first)
         #expect(!tagCall.canThrow, "Callable ref tagging call should be non-throwing.")
     }
+
+    /// KUU-3810: `::Box.name` reports `<init>` on the JVM, not the class name
+    /// spelled in the source, and the function description renders the
+    /// escaped `<init>` signature (`fun `<init>`(kotlin.Int): Box`). An inner
+    /// class constructor keeps its outer-class dispatch receiver prefix
+    /// (`fun Outer.`<init>`(): Outer.Inner`).
+    @Test func testKIRKFunctionTagForConstructorRefUsesInitName() throws {
+        let source = """
+        import kotlin.reflect.KFunction1
+        class Box(val x: Int)
+        class Outer { inner class Inner(val s: String) }
+        fun main() {
+            val ref = ::Box
+            val inner: KFunction1<String, Outer.Inner> = Outer()::Inner
+            println(ref.name)
+            println(inner.name)
+        }
+        """
+
+        let ctx = makeContextFromSource(source)
+        try runToKIR(ctx)
+
+        let module = try #require(ctx.kir)
+        let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+
+        let tagCalls = kirCalls(to: .tagKFunction, in: mainBody, interner: ctx.interner)
+        #expect(!tagCalls.isEmpty, "Expected tag calls for ::Box and Outer()::Inner.")
+        for tagCall in tagCalls {
+            // arguments[0] = callable value, arguments[1] = KCallable.name metadata.
+            guard let nameExpr = module.arena.expr(tagCall.arguments[1]),
+                  case let .stringLiteral(nameInterned) = nameExpr
+            else {
+                Issue.record("Second argument to tag call should be a string literal.")
+                continue
+            }
+            #expect(
+                ctx.interner.resolve(nameInterned) == "<init>",
+                "Constructor reference KCallable.name must be <init>, got \(ctx.interner.resolve(nameInterned))."
+            )
+        }
+
+        let descriptions = kirCalls(to: .functionSetDescription, in: mainBody, interner: ctx.interner)
+            .compactMap { call -> String? in
+                guard call.arguments.count == 3,
+                      case let .stringLiteral(text) = module.arena.expr(call.arguments[1])
+                else { return nil }
+                return ctx.interner.resolve(text)
+            }
+        #expect(descriptions.contains("fun `<init>`(kotlin.Int): Box"))
+        #expect(descriptions.contains("fun Outer.`<init>`(kotlin.String): Outer.Inner"))
+    }
 }
 #endif
