@@ -44,6 +44,10 @@ extension BuildASTPhase {
                 range: tokens[headIndex].range
             )
             return rejectedPlaceholder()
+        case .keyword(.companion) where headIndex + 1 < tokens.count
+            && tokens[headIndex + 1].kind == .keyword(.interface):
+            diagnoseLocalInterface(at: headIndex + 1, in: tokens, interner: interner, diagnostics: diagnostics)
+            return rejectedPlaceholder()
         default:
             break
         }
@@ -59,6 +63,10 @@ extension BuildASTPhase {
                 return nil
             }
             nominalHeadIndex = headIndex + 1 + realHead
+            if tokens[nominalHeadIndex].kind == .keyword(.interface) {
+                diagnoseLocalInterface(at: nominalHeadIndex, in: tokens, interner: interner, diagnostics: diagnostics)
+                return rejectedPlaceholder()
+            }
         }
         guard localNominalDeclExpectsName(at: nominalHeadIndex, in: tokens),
               let first = tokens.first,
@@ -112,6 +120,54 @@ extension BuildASTPhase {
         interner: StringInterner,
         diagnostics: DiagnosticEngine?
     ) {
+        // Modifier diagnostics come first, in source order: non-default
+        // visibility is positional, kind-invalid modifiers report to
+        // 'interface' (`external` to 'class'), and `fun`/`public`/`open`/
+        // `abstract`/`sealed`/`expect`/`actual` are legal or unreported.
+        var scan = 0
+        while scan < index {
+            let token = tokens[scan]
+            if token.kind == .symbol(.at) {
+                if let parsed = AnnotationParsingSupport.parseAnnotation(
+                    from: tokens, start: scan, interner: interner,
+                    allowUseSiteTarget: true
+                ) {
+                    scan = parsed.nextIndex
+                } else {
+                    scan += 1
+                }
+                continue
+            }
+            if case let .keyword(keyword) = token.kind {
+                switch keyword {
+                case .private, .internal, .protected:
+                    diagnostics?.error(
+                        "KSWIFTK-SEMA-0401",
+                        "modifier '\(keyword.rawValue)' is not applicable inside 'function'.",
+                        range: token.range
+                    )
+                case .external:
+                    diagnostics?.error(
+                        "KSWIFTK-SEMA-0400",
+                        "modifier 'external' is not applicable to 'class'.",
+                        range: token.range
+                    )
+                case .fun, .public, .open, .abstract, .sealed, .expect, .actual:
+                    break
+                default:
+                    if KotlinParser.isDeclarationModifierKeyword(keyword)
+                        || keyword == .enum || keyword == .companion
+                    {
+                        diagnostics?.error(
+                            "KSWIFTK-SEMA-0400",
+                            "modifier '\(keyword.rawValue)' is not applicable to 'interface'.",
+                            range: token.range
+                        )
+                    }
+                }
+            }
+            scan += 1
+        }
         var name = ""
         if index + 1 < tokens.count {
             switch tokens[index + 1].kind {
@@ -128,7 +184,7 @@ extension BuildASTPhase {
         diagnostics?.error(
             "KSWIFTK-SEMA-0429",
             "interface '\(name)' cannot be local. Try to use an anonymous object or abstract class instead.",
-            range: tokens[index].range
+            range: tokens[0].range
         )
     }
 
@@ -150,6 +206,8 @@ extension BuildASTPhase {
             }
             if case let .keyword(keyword) = token.kind,
                KotlinParser.isDeclarationModifierKeyword(keyword)
+                || (keyword == .enum && index + 1 < tokens.count
+                    && tokens[index + 1].kind != .keyword(.class))
             {
                 index += 1
                 continue

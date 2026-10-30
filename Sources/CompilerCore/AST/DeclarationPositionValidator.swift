@@ -1543,8 +1543,10 @@ struct DeclarationPositionValidator {
         (.value, "value"), (.enumModifier, "enum"), (.companion, "companion"),
     ]
 
+    /// `open`, `abstract` and `sealed` are legal on an interface — kotlinc
+    /// reports no diagnostic for them, so they must not appear here.
     private static let interfaceForbiddenModifiers: [(Modifiers, String)] = [
-        (.open, "open"), (.final, "final"), (.inner, "inner"),
+        (.final, "final"), (.inner, "inner"),
         (.data, "data"), (.value, "value"), (.enumModifier, "enum"),
         (.annotationClass, "annotation"), (.companion, "companion"),
         (.const, "const"), (.lateinit, "lateinit"), (.suspend, "suspend"),
