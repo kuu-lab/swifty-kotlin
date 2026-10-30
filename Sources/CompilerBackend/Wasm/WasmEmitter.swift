@@ -296,25 +296,62 @@ final class WasmModuleContext {
                 emittedHelperIndex(for: thunk.helper, argumentCount: thunk.arity)
             )
         }
-        // `kk_fn_<name>_s<id>__<ns>` link names whose bodies were materialized
-        // from the artifact's inline-kir resolve to the decl's bare name —
-        // demangle synthetic (`__*`) init-family names for symbol-less calls.
-        if name.hasPrefix("kk_fn___") {
-            var inner = String(name.dropFirst(6))
-            if let range = inner.range(of: "__", options: .backwards) {
-                inner = String(inner[..<range.lowerBound])
-            }
-            if let range = inner.range(of: "_s", options: .backwards),
-               range.upperBound < inner.endIndex,
-               inner[range.upperBound...].allSatisfy({ $0.isNumber })
-            {
-                inner = String(inner[..<range.lowerBound])
-            }
+        // `kk_fn_<name>_s<id>__<ns>` / `kk_fn_<name>_<id>__<ns>` link names
+        // whose bodies were materialized from the artifact's inline-kir
+        // resolve to the decl's bare name — demangle for symbol-less calls
+        // and let the receiver-type shims pick up known stdlib members.
+        if let inner = Self.demangleKkFnName(name) {
             if let index = functionIndexByNameArity["\(inner)/\(argumentCount)"] {
                 return .direct(index)
             }
+            if let helper = stdlibShimName(for: inner, argumentTypes: argumentTypes) {
+                return .emittedHelper(
+                    emittedHelperIndex(for: helper, argumentCount: argumentCount)
+                )
+            }
         }
         return .stub(name)
+    }
+
+    /// `kk_fn_<name>[_s<id>|_<id>][__<ns>]` → `<name>`, else nil. Synthetic
+    /// `__`-prefixed decls carry their decl-id as `_s<digits>` and may embed
+    /// digit suffixes in the name itself (`__ctor_reflect_init_1601`), so
+    /// the bare `_<digits>` strip only applies to regular names.
+    static func demangleKkFnName(_ name: String) -> String? {
+        guard name.hasPrefix("kk_fn_") else { return nil }
+        var inner = String(name.dropFirst(6))
+        if let range = inner.range(of: "__", options: .backwards) {
+            inner = String(inner[..<range.lowerBound])
+        }
+        if let range = inner.range(of: "_s", options: .backwards),
+           range.upperBound < inner.endIndex,
+           inner[range.upperBound...].allSatisfy({ $0.isNumber })
+        {
+            // The `_s<id>` suffix already carries the decl-id — a further
+            // `_<digits>` strip would eat real name segments such as the
+            // `_<adapterSymbol>` tail of `kk_closure_thunk_adapter_*`.
+            return String(inner[..<range.lowerBound])
+        }
+        if !inner.hasPrefix("__"),
+           let range = inner.range(of: "_", options: .backwards),
+           range.upperBound < inner.endIndex,
+           inner[range.upperBound...].allSatisfy({ $0.isNumber })
+        {
+            inner = String(inner[..<range.lowerBound])
+        }
+        return inner
+    }
+
+    /// Itable registrations store a callee's table slot through
+    /// `externSymbolAddress("kk_fn_…")`. When the member body never
+    /// materialized, the slot would stay 0 and dispatch traps — map the
+    /// demangled member name onto the emitted helper that reproduces it.
+    /// Registered methods always take the receiver as arg0.
+    func externLinkNameHelper(forLinkName linkName: String) -> (name: String, arity: Int)? {
+        switch Self.demangleKkFnName(linkName) {
+        case "isInitialized": return ("kk_lazy_is_initialized", 1)
+        default: return nil
+        }
     }
 
     /// Stdlib shims whose symbol doesn't survive lowering (the
@@ -370,10 +407,12 @@ final class WasmModuleContext {
             return isChar(1)
                 ? "__kk_wasm_string_ends_with_char"
                 : "__kk_wasm_string_ends_with"
-        case "getValue":
-            // `Lazy.getValue` (lazy delegation) — receiver must be a Lazy
-            // class; ReadOnlyProperty/Map.getValue stay unrouted.
-            guard let recv = argumentTypes.first, let t = recv,
+        case "getValue", "get", "value", "isInitialized":
+            // `Lazy.getValue` (lazy delegation) and the `value`/`isInitialized`
+            // accessors — receiver must be a Lazy class; Map.get and other
+            // same-named members stay unrouted.
+            guard argumentTypes.count == (name == "getValue" ? 3 : 1),
+                  let recv = argumentTypes.first, let t = recv,
                   let types, case let .classType(ct) = types.kind(of: t),
                   let recvSym = symbols?.symbol(ct.classSymbol)
             else { return nil }
@@ -382,7 +421,28 @@ final class WasmModuleContext {
                   ["Lazy", "LazyImpl", "SynchronizedLazyImpl", "UnsafeLazyImpl"]
                       .contains(recvFQ[1])
             else { return nil }
-            return "kk_lazy_get_value"
+            return name == "isInitialized"
+                ? "kk_lazy_is_initialized"
+                : "kk_lazy_get_value"
+        case "isSuccess", "isFailure", "getOrNull", "exceptionOrNull", "getOrThrow":
+            // `kotlin.Result` members — the box carries
+            // {isSuccess@16, value@24, exception@32}.
+            guard argumentTypes.count == 1,
+                  let recv = argumentTypes.first, let t = recv,
+                  let types, case let .classType(ct) = types.kind(of: t),
+                  let recvSym = symbols?.symbol(ct.classSymbol)
+            else { return nil }
+            let recvFQ = recvSym.fqName.map({ interner.resolve($0) })
+            guard recvFQ == ["kotlin", "Result"] else { return nil }
+            switch name {
+            case "isSuccess": return "kk_runtime_result_is_success"
+            case "isFailure": return "kk_runtime_result_is_failure"
+            case "getOrNull": return "kk_runtime_result_value_or_null"
+            case "exceptionOrNull": return "kk_runtime_result_exception_or_null"
+            default: return "kk_runtime_result_get_or_throw"
+            }
+        case "lazyOf":
+            return argumentTypes.count == 1 ? "kk_lazy_of" : nil
         case "replace$default":
             return isChar(1)
                 ? "__kk_wasm_string_replace_char"
@@ -496,11 +556,28 @@ final class WasmModuleContext {
                     if member == "<init>" || member == components[1] {
                         return "kk_lazy_new"
                     }
-                    if member == "getValue" { return "kk_lazy_get_value" }
+                    if member == "getValue" || member == "value" {
+                        return "kk_lazy_get_value"
+                    }
+                    if member == "isInitialized" { return "kk_lazy_is_initialized" }
                 case "Lazy":
-                    if member == "getValue" { return "kk_lazy_get_value" }
+                    if member == "getValue" || member == "value" {
+                        return "kk_lazy_get_value"
+                    }
+                    if member == "isInitialized" { return "kk_lazy_is_initialized" }
                 case "lazy":
                     if components.count == 2 { return "kk_lazy_new" }
+                case "lazyOf":
+                    if components.count == 2 { return "kk_lazy_of" }
+                case "Result":
+                    switch member {
+                    case "isSuccess": return "kk_runtime_result_is_success"
+                    case "isFailure": return "kk_runtime_result_is_failure"
+                    case "getOrNull": return "kk_runtime_result_value_or_null"
+                    case "exceptionOrNull": return "kk_runtime_result_exception_or_null"
+                    case "getOrThrow": return "kk_runtime_result_get_or_throw"
+                    default: break
+                    }
                 default: break
                 }
             }
@@ -588,6 +665,7 @@ final class WasmModuleContext {
                 case "initCause": return "__kk_throwable_setCause"
                 case "error": return "__kk_wasm_error"
                 case "TODO": return "__kk_wasm_todo"
+                case "runCatching": return "kk_runtime_result_run_catching"
                 // `kotlin.getValue(Lazy<T>, thisRef, KProperty<*>)` — the
                 // delegated-property read is a top-level extension, not a
                 // Lazy member. The helper only needs arg0 (the lazy box).

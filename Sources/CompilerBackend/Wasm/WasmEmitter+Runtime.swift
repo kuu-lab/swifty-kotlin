@@ -360,15 +360,15 @@ enum WasmRuntimeHelpers {
         code.localSet(lhs)
         code.localGet(rhs)
         code.op(WasmOpcode.i64Eqz)
-        code.openIf()
+        code.openIf(result: .i64)
         code.i64Const(1)
         code.globalSet(ctx.thrownGlobal)
         code.i64Const(0)
-        code.op(WasmOpcode.return)
-        code.end()
+        code.elseBranch()
         code.localGet(lhs)
         code.localGet(rhs)
         code.op(name == "kk_op_div" ? WasmOpcode.i64DivS : WasmOpcode.i64RemS)
+        code.end()
     }
 
     // MARK: - Emitted helper functions
@@ -588,6 +588,16 @@ enum WasmRuntimeHelpers {
         "__kk_string_builder_toString",
         "kk_lazy_new",
         "kk_lazy_get_value",
+        "kk_lazy_of",
+        "kk_lazy_is_initialized",
+        "kk_runtime_result_success",
+        "kk_runtime_result_failure",
+        "kk_runtime_result_is_success",
+        "kk_runtime_result_is_failure",
+        "kk_runtime_result_value_or_null",
+        "kk_runtime_result_exception_or_null",
+        "kk_runtime_result_get_or_throw",
+        "kk_runtime_result_run_catching",
         // Generic iterator entry points dispatch on the iterator type ID.
         "kk_iterator_hasNext",
         "kk_iterator_next",
@@ -1504,11 +1514,10 @@ enum WasmRuntimeHelpers {
                 // fabricate the same layout in a fresh 7-word box with the
                 // initializer (always the last argument) at word 2.
                 extraLocals = 1
-                emitSmallBoxBody(
-                    &code, ctx: ctx, typeID: L.lazyBoxTypeID, slots: 7,
-                    fields: [16: argumentCount - 1],
-                    boxLocal: argumentCount
-                )
+                emitLazyFactoryBoxBody(&code, ctx: ctx, boxLocal: argumentCount)
+                emitStoreAt(&code, baseLocal: argumentCount, byteOffset: 16,
+                            valueLocal: argumentCount - 1)
+                code.localGet(argumentCount)
             }
         case "kk_lazy_get_value":
             extraLocals = 1
@@ -1524,6 +1533,93 @@ enum WasmRuntimeHelpers {
             emitStoreAtConst(&code, baseLocal: 0, byteOffset: 48, value: 1)
             code.end()
             emitLoadAt(&code, baseLocal: 0, byteOffset: 40)
+        case "kk_lazy_of":
+            // `lazyOf(v)` — pre-seeded box: cached@40=v, computed@48=1.
+            extraLocals = 1
+            emitLazyFactoryBoxBody(&code, ctx: ctx, boxLocal: argumentCount)
+            emitStoreAt(&code, baseLocal: argumentCount, byteOffset: 40, valueLocal: 0)
+            emitStoreAtConst(&code, baseLocal: argumentCount, byteOffset: 48, value: 1)
+            code.localGet(argumentCount)
+        case "kk_lazy_is_initialized":
+            extraLocals = 0
+            emitLoadAt(&code, baseLocal: 0, byteOffset: 48)
+        // `Result` box `{isSuccess@16, value@24, exception@32}` carrying the
+        // nominal `kotlin.Result` type so `is Result` resolves.
+        case "kk_runtime_result_success", "kk_runtime_result_failure":
+            extraLocals = 1
+            let success = name.hasSuffix("success")
+            code.i64Const(5)
+            code.i64Const(Self.stableNominalTypeID("kotlin.Result"))
+            code.call(ctx.emittedHelperIndex(for: "kk_object_new", argumentCount: 2))
+            code.localSet(argumentCount)
+            emitStoreAtConst(&code, baseLocal: argumentCount, byteOffset: 16,
+                             value: success ? 1 : 0)
+            emitStoreAt(&code, baseLocal: argumentCount,
+                        byteOffset: success ? 24 : 32, valueLocal: 0)
+            code.localGet(argumentCount)
+        case "kk_runtime_result_is_success":
+            extraLocals = 0
+            emitLoadAt(&code, baseLocal: 0, byteOffset: 16)
+        case "kk_runtime_result_is_failure":
+            extraLocals = 0
+            emitLoadAt(&code, baseLocal: 0, byteOffset: 16)
+            code.op(WasmOpcode.i64Eqz)
+            code.i64ExtendFromComparison()
+        case "kk_runtime_result_value_or_null":
+            extraLocals = 0
+            emitLoadAt(&code, baseLocal: 0, byteOffset: 16)
+            code.op(WasmOpcode.i64Eqz)
+            code.openIf(result: .i64)
+            code.i64Const(L.nullSentinel)
+            code.elseBranch()
+            emitLoadAt(&code, baseLocal: 0, byteOffset: 24)
+            code.end()
+        case "kk_runtime_result_exception_or_null":
+            extraLocals = 0
+            emitLoadAt(&code, baseLocal: 0, byteOffset: 16)
+            code.op(WasmOpcode.i64Eqz)
+            code.openIf(result: .i64)
+            emitLoadAt(&code, baseLocal: 0, byteOffset: 32)
+            code.elseBranch()
+            code.i64Const(L.nullSentinel)
+            code.end()
+        case "kk_runtime_result_get_or_throw":
+            extraLocals = 0
+            emitLoadAt(&code, baseLocal: 0, byteOffset: 16)
+            code.op(WasmOpcode.i64Eqz)
+            code.openIf()
+            emitLoadAt(&code, baseLocal: 0, byteOffset: 32)
+            code.globalSet(ctx.thrownGlobal)
+            code.i64Const(0)
+            code.op(WasmOpcode.return)
+            code.end()
+            emitLoadAt(&code, baseLocal: 0, byteOffset: 24)
+        case "kk_runtime_result_run_catching":
+            // (fnPtr, closureRaw) — the only stdlib caller is
+            // `Result.Companion.failure`, which wraps `e` in a `{ throw e }`
+            // thunk. The synthesized thunk adapter lives in the stdlib
+            // module and is unreachable from wasm, so decode the env slot
+            // directly: boxed envs carry the throwable in array slot 2
+            // (byte 16), while raw closureRaw values and objects with a real
+            // typeID are the throwable itself.
+            extraLocals = 0
+            code.localGet(1)
+            code.i64Const(L.dataStart)
+            code.op(WasmOpcode.i64LtS)
+            code.openIf(result: .i64)
+            code.localGet(1)
+            code.elseBranch()
+            emitLoadAt(&code, baseLocal: 1, byteOffset: L.typeIDOffset)
+            code.op(WasmOpcode.i64Eqz)
+            code.openIf(result: .i64)
+            emitLoadAt(&code, baseLocal: 1, byteOffset: 16)
+            code.elseBranch()
+            code.localGet(1)
+            code.end()
+            code.end()
+            code.call(ctx.emittedHelperIndex(
+                for: "kk_runtime_result_failure", argumentCount: 1
+            ))
         case "__kk_map_iterator", "__kk_mutable_map_iterator":
             extraLocals = 1
             emitMapIteratorBody(&code, ctx: ctx, name: name, argumentCount: argumentCount)
@@ -8453,6 +8549,52 @@ enum WasmRuntimeHelpers {
             emitStoreAt(&code, baseLocal: bxL, byteOffset: offset, valueLocal: arg)
         }
         code.localGet(bxL)
+    }
+
+    /// `() -> i64` at `boxLocal`: allocate the 7-word LazyImpl-layout box
+    /// `{header, initializer@16, mode@24, lock@32, cached@40, computed@48}`
+    /// and register the `kotlin.Lazy` itable (isInitialized@0, value get@1)
+    /// plus the `LazyImpl → Lazy`/`LazyImpl → Any` type edges, so interface
+    /// dispatch and `is` checks work on factory-produced lazies exactly as
+    /// they do on the caller-constructed delegate object.
+    private static func emitLazyFactoryBoxBody(
+        _ code: inout WasmCode,
+        ctx: WasmModuleContext,
+        boxLocal: Int
+    ) {
+        let lazyImplTID = Self.stableNominalTypeID("kotlin.LazyImpl")
+        let lazyTID = Self.stableNominalTypeID("kotlin.Lazy")
+        let anyTID = Self.stableNominalTypeID("kotlin.Any")
+        code.i64Const(7)
+        code.i64Const(lazyImplTID)
+        code.call(ctx.emittedHelperIndex(for: "kk_object_new", argumentCount: 2))
+        code.localSet(boxLocal)
+        code.i64Const(lazyImplTID)
+        code.i64Const(lazyTID)
+        code.call(ctx.emittedHelperIndex(for: "kk_type_register_iface", argumentCount: 2))
+        code.op(WasmOpcode.drop)
+        code.i64Const(lazyImplTID)
+        code.i64Const(anyTID)
+        code.call(ctx.emittedHelperIndex(for: "kk_type_register_super", argumentCount: 2))
+        code.op(WasmOpcode.drop)
+        code.localGet(boxLocal)
+        code.i64Const(lazyTID)
+        code.i64Const(0)
+        code.call(ctx.emittedHelperIndex(
+            for: "kk_object_register_itable_iface", argumentCount: 3
+        ))
+        code.op(WasmOpcode.drop)
+        for (methodSlot, helper) in [(0, "kk_lazy_is_initialized"), (1, "kk_lazy_get_value")] {
+            code.localGet(boxLocal)
+            code.i64Const(0)
+            code.i64Const(Int64(methodSlot))
+            let fnIndex = ctx.emittedHelperIndex(for: helper, argumentCount: 1)
+            code.i64Const(Int64(ctx.module.tableSlot(forFunction: fnIndex)))
+            code.call(ctx.emittedHelperIndex(
+                for: "kk_object_register_itable_method", argumentCount: 4
+            ))
+            code.op(WasmOpcode.drop)
+        }
     }
 
     /// `__kk_ktypeparameter_create(identity, name, variance, isReified)`

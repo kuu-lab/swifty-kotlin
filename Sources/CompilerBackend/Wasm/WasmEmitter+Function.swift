@@ -311,9 +311,63 @@ final class WasmFunctionEmission {
         let resolved = ctx.interner.resolve(name)
         for (symbol, functionIndex) in ctx.functionIndexBySymbol {
             if ctx.symbols?.externalLinkName(for: symbol) == resolved {
+                if ProcessInfo.processInfo.environment["KSWIFTK_WASM_EXTERN_TRACE"] != nil {
+                    FileHandle.standardError.write(
+                        "extern '\(resolved)' -> symbol \(symbol.rawValue) slot \(ctx.module.tableSlot(forFunction: functionIndex))\n".data(using: .utf8)!)
+                }
                 code.i64Const(Int64(ctx.module.tableSlot(forFunction: functionIndex)))
                 return
             }
+        }
+        // Synthesized module functions (`kk_closure_thunk_adapter_*` etc.)
+        // register under their decl name rather than the `kk_fn_` link name —
+        // demangle (and un-escape `_`→`__`) to find them in the name/arity
+        // table. Only a unique match is safe to call.
+        if resolved.hasPrefix("kk_fn_"),
+           let inner = WasmModuleContext.demangleKkFnName(resolved) {
+            var candidates = [inner]
+            if !inner.hasPrefix("__"), inner.contains("__") {
+                candidates.append(inner.replacingOccurrences(of: "__", with: "_"))
+            }
+            var match: Int?
+            var ambiguous = false
+            for candidate in candidates {
+                for (key, index) in ctx.functionIndexByNameArity
+                where key.hasPrefix("\(candidate)/") {
+                    if let existing = match, existing != index { ambiguous = true }
+                    match = index
+                }
+            }
+            if let match, !ambiguous {
+                if ProcessInfo.processInfo.environment["KSWIFTK_WASM_EXTERN_TRACE"] != nil {
+                    FileHandle.standardError.write(
+                        "extern '\(resolved)' -> decl \(match) slot \(ctx.module.tableSlot(forFunction: match))\n".data(using: .utf8)!)
+                }
+                code.i64Const(Int64(ctx.module.tableSlot(forFunction: match)))
+                return
+            }
+        }
+        // The member's body wasn't materialized — demangle `kk_fn_<name>_*`
+        // link names and fall back to an emitted helper so the registered
+        // table slot dispatches instead of silently staying 0. Itable
+        // registrations always take the receiver as arg0, matching each
+        // helper's signature.
+        if resolved.hasPrefix("kk_fn_"),
+           let helper = ctx.externLinkNameHelper(forLinkName: resolved)
+        {
+            let helperIndex = ctx.emittedHelperIndex(
+                for: helper.name, argumentCount: helper.arity
+            )
+            if ProcessInfo.processInfo.environment["KSWIFTK_WASM_EXTERN_TRACE"] != nil {
+                FileHandle.standardError.write(
+                    "extern '\(resolved)' -> helper '\(helper.name)' slot \(ctx.module.tableSlot(forFunction: helperIndex))\n".data(using: .utf8)!)
+            }
+            code.i64Const(Int64(ctx.module.tableSlot(forFunction: helperIndex)))
+            return
+        }
+        if ProcessInfo.processInfo.environment["KSWIFTK_WASM_EXTERN_TRACE"] != nil {
+            FileHandle.standardError.write(
+                "extern '\(resolved)' -> 0 (unresolved)\n".data(using: .utf8)!)
         }
         code.i64Const(0)
     }
@@ -645,6 +699,19 @@ final class WasmFunctionEmission {
                 methodSlot: methodSlot
             )
         case let .itableDynamic(interfaceTypeID, methodSlot):
+            // `Lazy.isInitialized` / `Lazy.value` — the member bodies live in
+            // the kklib and are not materializable into this module, so the
+            // caller-side itable entries resolve to dead extern slots. Route
+            // the interface dispatch straight to the emitted lazy helpers;
+            // they implement the same field protocol on the LazyImpl layout.
+            if interfaceTypeID == WasmRuntimeHelpers.stableNominalTypeID("kotlin.Lazy"),
+               arguments.isEmpty, methodSlot <= 1 {
+                let helper = methodSlot == 0
+                    ? "kk_lazy_is_initialized" : "kk_lazy_get_value"
+                code.call(ctx.emittedHelperIndex(for: helper, argumentCount: 1))
+                emitCallResult(result: result, canThrow: canThrow, thrownResult: thrownResult)
+                return
+            }
             // Resolve the interface slot from the object's iface map. A
             // lookup miss yields table index 0 — trap rather than call
             // whatever funcref happens to live there (native's
