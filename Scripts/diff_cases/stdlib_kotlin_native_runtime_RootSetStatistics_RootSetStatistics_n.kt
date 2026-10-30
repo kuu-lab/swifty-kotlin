@@ -1,4 +1,4 @@
-// CANDIDATE-ONLY
+// DIFF_CANDIDATE_ONLY_EXPECTED_OUTPUT: stdlib_kotlin_native_runtime_RootSetStatistics_RootSetStatistics_n.expected.stdout
 import kotlin.native.runtime.RootSetStatistics
 
 @OptIn(kotlin.native.runtime.NativeRuntimeApi::class)

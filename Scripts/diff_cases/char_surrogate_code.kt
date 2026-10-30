@@ -1,4 +1,5 @@
-// CANDIDATE-ONLY: Char.Companion code-point helpers are Kotlin/Native-only APIs without a JVM kotlinc reference.
+// DIFF_CANDIDATE_ONLY_EXPECTED_OUTPUT: char_surrogate_code.expected.stdout
+// Candidate-only: Char.Companion code-point helpers are Kotlin/Native-only APIs without a JVM kotlinc reference.
 @file:OptIn(kotlin.experimental.ExperimentalNativeApi::class)
 
 fun main() {

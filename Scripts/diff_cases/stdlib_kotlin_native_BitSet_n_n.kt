@@ -1,4 +1,5 @@
-// CANDIDATE-ONLY: kotlin.native.BitSet is Kotlin/Native-only and has no JVM kotlinc counterpart.
+// DIFF_CANDIDATE_ONLY_EXPECTED_OUTPUT: stdlib_kotlin_native_BitSet_n_n.expected.stdout
+// Candidate-only: kotlin.native.BitSet is Kotlin/Native-only and has no JVM kotlinc counterpart.
 // DIFF_CANDIDATE_ONLY_EXPECTED_OUTPUT: stdlib_kotlin_native_BitSet_n_n.expected.stdout
 @file:OptIn(kotlin.native.ObsoleteNativeApi::class)
 

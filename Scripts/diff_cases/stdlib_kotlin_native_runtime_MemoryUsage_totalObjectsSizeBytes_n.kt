@@ -1,4 +1,5 @@
-// CANDIDATE-ONLY: kotlin.native.* APIs are Kotlin/Native-only; verify the candidate's exact stdout without JVM kotlinc.
+// DIFF_CANDIDATE_ONLY_EXPECTED_OUTPUT: stdlib_kotlin_native_runtime_MemoryUsage_totalObjectsSizeBytes_n.expected.stdout
+// Candidate-only: kotlin.native.* APIs are Kotlin/Native-only; verify the candidate's exact stdout without JVM kotlinc.
 import kotlin.native.runtime.MemoryUsage
 
 @OptIn(kotlin.native.runtime.NativeRuntimeApi::class)

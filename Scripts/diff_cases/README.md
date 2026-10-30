@@ -15,10 +15,15 @@ bash Scripts/diff_kotlinc.sh \
   Scripts/diff_cases/flow_cold.kt
 ```
 
-Cases marked `// CANDIDATE-ONLY` have no usable JVM reference. Run them with
-`bash Scripts/run_candidate_only.sh <file-or-dir>`; each case must have either
-`<name>.expected.stdout` or `<name>.expected.stderr` beside its `.kt` file.
-The regular `diff_kotlinc.sh` lane excludes these cases.
+Cases whose stdout oracle is a sidecar file use
+`// DIFF_CANDIDATE_ONLY_EXPECTED_OUTPUT: <name>.expected.stdout` and run in
+the regular `diff_kotlinc.sh` lane without a JVM reference.
+
+Cases marked `// CANDIDATE-ONLY` pin candidate compile diagnostics via a
+`<name>.expected.stderr` sidecar instead; the `diff_kotlinc.sh` lane has no
+compile-failure oracle and excludes them. Run them with
+`bash Scripts/run_candidate_only.sh <file-or-dir>` (`.expected.stdout`
+sidecars are also accepted there).
 
 Cases:
 
@@ -98,7 +103,7 @@ retain the stdout diff, KIR, crash diagnostics, and a reproduction script.
 - `flow_cold.kt`: `Flow<T>` cold stream chain（`flow { emit(...) }.map { ... }.collect { ... }`）の parity（kotlinx classpath 必須）
 - `stdlib_kotlin_concurrent_AtomicIntArray_n_n.kt`: Kotlin/Native-only `AtomicIntArray` constructor and copied-array behavior, checked by the candidate-only runner against its `.expected` output
 - `native_pointer_array_accessors.kt`: Kotlin/Native `ByteArray` signed, unsigned, and primitive `get*At` / `set*At` APIs, checked against exact candidate-only stdout
-- `state_flow_kotlin.kt`: `MutableStateFlow` / `StateFlow` / `Flow.stateIn` / `Flow.shareIn` の bundled Kotlin source 実行 parity（JVM の `stateIn` / `shareIn` シグネチャと意図的に異なるため、`Scripts/run_candidate_only.sh` で `.expected.stdout` と照合）
+- `state_flow_kotlin.kt`: `MutableStateFlow` / `StateFlow` / `Flow.stateIn` / `Flow.shareIn` の bundled Kotlin source 実行 parity（JVM の `stateIn` / `shareIn` シグネチャと意図的に異なるため、`DIFF_CANDIDATE_ONLY_EXPECTED_OUTPUT` で `.expected.stdout` と照合）
 - `jdbc_basic.kt`: SQLite in-memory JDBC の基本操作を `jdbc_basic.expected` と照合する candidate-only output coverage（JVM kotlinc を起動しない）
 - `connection_validation.kt`: JDBC façade が提供する API を除き、残る JVM `Thread` API の未実装について kswiftc の compile diagnostics を `connection_validation.expected.stderr` と照合する candidate-only coverage（JVM kotlinc を起動しない）
 - `transaction_management.kt`: JDBC façade に未実装のトランザクション API 呼び出しが出す `kswiftc` compile diagnostics を `transaction_management.expected.stderr` と照合する candidate-only coverage（JVM kotlinc を起動しない）

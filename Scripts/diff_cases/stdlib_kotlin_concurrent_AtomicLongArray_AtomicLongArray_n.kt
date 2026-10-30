@@ -1,4 +1,5 @@
-// CANDIDATE-ONLY: kotlin.concurrent atomic APIs have no JVM kotlinc reference.
+// DIFF_CANDIDATE_ONLY_EXPECTED_OUTPUT: stdlib_kotlin_concurrent_AtomicLongArray_AtomicLongArray_n.expected.stdout
+// Candidate-only: kotlin.concurrent atomic APIs have no JVM kotlinc reference.
 
 @file:OptIn(kotlin.ExperimentalStdlibApi::class)
 

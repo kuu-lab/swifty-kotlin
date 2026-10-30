@@ -1,4 +1,5 @@
-// CANDIDATE-ONLY: kotlin.concurrent KMutableProperty0 field APIs are Kotlin/Native-only and have no JVM reference.
+// DIFF_CANDIDATE_ONLY_EXPECTED_OUTPUT: stdlib_kotlin_concurrent_KMutableProperty0_n.expected.stdout
+// Candidate-only: kotlin.concurrent KMutableProperty0 field APIs are Kotlin/Native-only and have no JVM reference.
 // KSP-1084: source-backed receiverless mutable property field operations.
 // The upstream declarations are Kotlin/Native-only; the local implementation
 // preserves their sequential get/set and arithmetic behavior.

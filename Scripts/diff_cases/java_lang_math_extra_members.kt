@@ -1,4 +1,4 @@
-// CANDIDATE-ONLY: These bundled Math methods are unavailable in the JDK 21 reference.
+// Candidate-only: These bundled Math methods are unavailable in the JDK 21 reference.
 // DIFF_CANDIDATE_ONLY_EXPECTED_OUTPUT: java_lang_math_extra_members.expected
 fun main() {
     println(Math.asinh(1.0) > 0.0 && Math.acosh(2.0) > 0.0 && Math.atanh(0.5) > 0.0)
