@@ -247,6 +247,12 @@ final class ClassMemberScope: BaseScope {
             index += 1
             for child in memberLookupSymbols.children(of: current) {
                 guard let info = memberLookupSymbols.symbol(child), info.name == name else { continue }
+                // Private members are not inherited: a `private` nested
+                // classifier declared on a supertype is not a member of this
+                // scope and must not shadow an accessible same-named
+                // declaration from an outer lexical scope (KUU-3798). The
+                // owner's own private members remain visible.
+                guard current == ownerSymbol || info.visibility != .private else { continue }
                 switch info.kind {
                 case .class, .interface, .object, .enumClass, .annotationClass, .typeAlias:
                     if !result.contains(child) {

@@ -342,6 +342,18 @@ extension ExprTypeChecker {
                     range: nameRange,
                     diagnostics: ctx.sema.diagnostics
                 )
+            } else if let privateClassifier = driver.helpers.inaccessiblePrivateNestedClassifier(
+                named: name, ctx: ctx
+            ) {
+                // A `private` nested classifier on a supertype is likewise not
+                // inherited — report it as inaccessible rather than
+                // unresolved, matching kotlinc (KUU-3798).
+                driver.helpers.emitVisibilityError(
+                    for: privateClassifier,
+                    name: interner.resolve(name),
+                    range: nameRange,
+                    diagnostics: ctx.sema.diagnostics
+                )
             } else {
                 ctx.sema.diagnostics.error(
                     "KSWIFTK-SEMA-0022",
@@ -637,12 +649,22 @@ extension ExprTypeChecker {
             // Inherited `private` members never enter member lookup (they are
             // not inherited), but the member still exists — report it as
             // inaccessible rather than unresolved, matching kotlinc
-            // (KUU-3766).
+            // (KUU-3766). A `private` nested classifier on a supertype is not
+            // inherited either and gets the same treatment (KUU-3798).
             if let privateMember = driver.helpers.inaccessiblePrivateImplicitReceiverMember(
                 named: name, ctx: ctx
             ) {
                 driver.helpers.emitVisibilityError(
                     for: privateMember,
+                    name: resolvedName,
+                    range: nameRange,
+                    diagnostics: ctx.sema.diagnostics
+                )
+            } else if let privateClassifier = driver.helpers.inaccessiblePrivateNestedClassifier(
+                named: name, ctx: ctx
+            ) {
+                driver.helpers.emitVisibilityError(
+                    for: privateClassifier,
                     name: resolvedName,
                     range: nameRange,
                     diagnostics: ctx.sema.diagnostics

@@ -839,6 +839,20 @@ extension CallTypeChecker {
                 range: range,
                 diagnostics: ctx.sema.diagnostics
             )
+        } else if let calleeName,
+                  let privateClassifier = driver.helpers.inaccessiblePrivateNestedClassifier(
+                      named: calleeName, ctx: ctx
+                  )
+        {
+            // A `private` nested classifier on a supertype is not inherited,
+            // so it stays out of the candidate set — report it as
+            // inaccessible rather than unresolved, matching kotlinc (KUU-3798).
+            driver.helpers.emitVisibilityError(
+                for: privateClassifier,
+                name: interner.resolve(calleeName),
+                range: range,
+                diagnostics: ctx.sema.diagnostics
+            )
         } else {
             let nameStr = calleeName.map { interner.resolve($0) } ?? "<unknown>"
             ctx.sema.diagnostics.error(

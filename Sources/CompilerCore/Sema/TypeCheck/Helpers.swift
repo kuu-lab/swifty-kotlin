@@ -1168,11 +1168,30 @@ struct TypeCheckHelpers {
                         nullability: nullability
                     )))
                 }
-                diagnostics?.error(
-                    "KSWIFTK-SEMA-0025",
-                    "Unresolved type '\(interner.resolve(shortName))'.",
-                    range: usageRange
-                )
+                // A `private` nested classifier on a supertype is not
+                // inherited and never reached the candidate lists — report it
+                // as inaccessible rather than unresolved, matching kotlinc
+                // (KUU-3798).
+                if let inferenceContext,
+                   let privateClassifier = inaccessiblePrivateNestedClassifier(
+                       named: shortName, ctx: inferenceContext
+                   )
+                {
+                    if let diagnostics {
+                        emitVisibilityError(
+                            for: privateClassifier,
+                            name: interner.resolve(shortName),
+                            range: usageRange,
+                            diagnostics: diagnostics
+                        )
+                    }
+                } else {
+                    diagnostics?.error(
+                        "KSWIFTK-SEMA-0025",
+                        "Unresolved type '\(interner.resolve(shortName))'.",
+                        range: usageRange
+                    )
+                }
                 return sema.types.errorType
             }
 

@@ -945,6 +945,63 @@ extension TypeCheckHelpers {
         return nil
     }
 
+    /// A `private` nested classifier declared on a supertype is likewise not
+    /// inherited — it never enters the member scope's candidate set — but an
+    /// unqualified reference must still report it as inaccessible rather than
+    /// unresolved, matching kotlinc (KUU-3798). Probe the implicit receiver
+    /// tower's nominal hierarchies and every nominal enclosing the use site
+    /// for a same-named `private` classifier for the unresolved fallbacks.
+    /// Nested classifiers inherit through the superclass chain only
+    /// (KUU-3637), so interfaces end the walk.
+    func inaccessiblePrivateNestedClassifier(
+        named name: InternedString,
+        ctx: TypeInferenceContext
+    ) -> SemanticSymbol? {
+        let sema = ctx.sema
+        let classifierKinds: Set<SymbolKind> = [
+            .class, .interface, .object, .enumClass, .annotationClass, .typeAlias,
+        ]
+        var roots = ctx.implicitReceiverMemberLookupEntries().flatMap { entry in
+            allNominalSymbols(of: entry.type, types: sema.types, symbols: sema.symbols)
+        }
+        var ancestor = ctx.enclosingClassSymbol
+        var seenAncestors: Set<SymbolID> = []
+        while let current = ancestor, seenAncestors.insert(current).inserted {
+            roots.append(current)
+            ancestor = sema.symbols.parentSymbol(for: current)
+        }
+        var visited: Set<SymbolID> = []
+        var index = 0
+        while index < roots.count {
+            let owner = roots[index]
+            index += 1
+            guard visited.insert(owner).inserted,
+                  let ownerSymbol = sema.symbols.symbol(owner)
+            else {
+                continue
+            }
+            for candidate in sema.symbols.lookupAll(fqName: ownerSymbol.fqName + [name]) {
+                guard let member = sema.symbols.symbol(candidate),
+                      sema.symbols.parentSymbol(for: candidate) == owner,
+                      member.visibility == .private,
+                      classifierKinds.contains(member.kind),
+                      !ctx.visibilityChecker.isAccessible(
+                          member,
+                          fromFile: ctx.currentFileID,
+                          enclosingClass: ctx.enclosingClassSymbol
+                      )
+                else {
+                    continue
+                }
+                return member
+            }
+            roots.append(contentsOf: sema.symbols.directSupertypes(for: owner).filter {
+                sema.symbols.symbol($0)?.kind == .class
+            })
+        }
+        return nil
+    }
+
     /// Member-scope lookup keeps `private` members out of the inherited
     /// candidate set because they are not inherited, but a member access
     /// must still report them as inaccessible rather than unresolved
