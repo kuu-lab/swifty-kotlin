@@ -170,6 +170,15 @@ struct TypeInferenceContext: CustomStringConvertible {
     /// enclosing class must not act as an implicit receiver there (it still
     /// drives visibility checks).
     var excludesEnclosingClassReceiver = false
+    /// Receivers kept for capture in supertype constructor arguments that
+    /// delegate to their own class. When `inner class Inner : Outer({ ok })`
+    /// delegates to `Outer`, kotlinc resolves a bare `ok` to the companion
+    /// scope before the captured outer instance's members — but the receiver
+    /// still resolves as a fallback when no class-scope member matches
+    /// (`val ok = "x"` alone still binds `this@Outer.ok`), and stays
+    /// capturable for explicit `this@Outer.x`. Marking the matching receiver
+    /// demotes it below its companion block in the lookup tower.
+    var companionDemotedReceiverSymbols: Set<SymbolID> = []
     /// When true, the current scope is a builder DSL lambda body.
     /// Used to scope `append`/`add`/`put` fallback resolution.
     var isBuilderLambdaScope: Bool = false
@@ -301,6 +310,15 @@ struct TypeInferenceContext: CustomStringConvertible {
     func excludingEnclosingClassReceiver() -> TypeInferenceContext {
         var copy = self
         copy.excludesEnclosingClassReceiver = true
+        return copy
+    }
+
+    /// Demotes the implicit receiver whose class is `classSymbol` below its
+    /// companion block in member lookup — see
+    /// `companionDemotedReceiverSymbols`.
+    func demotingReceiverBelowCompanion(_ classSymbol: SymbolID) -> TypeInferenceContext {
+        var copy = self
+        copy.companionDemotedReceiverSymbols.insert(classSymbol)
         return copy
     }
 
@@ -522,8 +540,7 @@ struct TypeInferenceContext: CustomStringConvertible {
                 })
             }
         }
-        func appendReceiverAndCompanionBlock(_ type: TypeID, symbol: SymbolID?) {
-            appendUnique(type, symbol: symbol)
+        func appendCompanionChain(forReceiverType type: TypeID) {
             guard case let .classType(classType) = sema.types.kind(of: type),
                   let receiverSymbol = sema.symbols.symbol(classType.classSymbol)
             else {
@@ -537,6 +554,10 @@ struct TypeInferenceContext: CustomStringConvertible {
                 appendCompanionBlockChain(for: classType.classSymbol)
             }
         }
+        func appendReceiverAndCompanionBlock(_ type: TypeID, symbol: SymbolID?) {
+            appendUnique(type, symbol: symbol)
+            appendCompanionChain(forReceiverType: type)
+        }
         if let implicitReceiverType {
             appendReceiverAndCompanionBlock(implicitReceiverType, symbol: nil)
         }
@@ -544,7 +565,24 @@ struct TypeInferenceContext: CustomStringConvertible {
             appendReceiverAndCompanionBlock(entry.type, symbol: entry.symbol)
         }
         for entry in outerReceiverTypes.reversed() {
-            appendReceiverAndCompanionBlock(entry.type, symbol: entry.symbol)
+            if case let .classType(classType) = sema.types.kind(of: entry.type),
+               companionDemotedReceiverSymbols.contains(classType.classSymbol)
+            {
+                appendCompanionChain(forReceiverType: entry.type)
+                if let companion = sema.symbols.companionObjectSymbol(for: classType.classSymbol) {
+                    appendUnique(
+                        sema.types.make(.classType(ClassType(
+                            classSymbol: companion,
+                            args: [],
+                            nullability: .nonNull
+                        ))),
+                        symbol: companion
+                    )
+                }
+                appendUnique(entry.type, symbol: entry.symbol)
+            } else {
+                appendReceiverAndCompanionBlock(entry.type, symbol: entry.symbol)
+            }
         }
         if let enclosingClassSymbol, !excludesEnclosingClassReceiver {
             let ownerArgs = sema.types.nominalTypeParameterSymbols(for: enclosingClassSymbol).map {
@@ -583,8 +621,27 @@ struct TypeInferenceContext: CustomStringConvertible {
         for entry in implicitReceiverStack.reversed() {
             appendUnique(entry.type)
         }
+        var demoted: [TypeID] = []
         for entry in outerReceiverTypes.reversed() {
-            appendUnique(entry.type)
+            if case let .classType(classType) = sema.types.kind(of: entry.type),
+               companionDemotedReceiverSymbols.contains(classType.classSymbol)
+            {
+                if let companion = sema.symbols.companionObjectSymbol(for: classType.classSymbol) {
+                    demoted.append(
+                        sema.types.make(.classType(ClassType(
+                            classSymbol: companion,
+                            args: [],
+                            nullability: .nonNull
+                        )))
+                    )
+                }
+                demoted.append(entry.type)
+            } else {
+                appendUnique(entry.type)
+            }
+        }
+        for type in demoted {
+            appendUnique(type)
         }
         if let enclosingClassSymbol, !excludesEnclosingClassReceiver {
             let ownerArgs = sema.types.nominalTypeParameterSymbols(for: enclosingClassSymbol).map {

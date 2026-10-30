@@ -1,13 +1,15 @@
-// CANDIDATE-ONLY: kotlin.concurrent.thread is unavailable; compare the expected
-// diagnostics with connection_validation.expected.stderr. The JDBC calls now have a native facade.
+// CANDIDATE-ONLY: the JDBC calls run against the native sqlite facade
+// (jdbc:sqlite:), so this case has no kotlinc reference output.
+import java.lang.Thread
 import java.sql.Connection
 import java.sql.DriverManager
 import java.sql.SQLException
+import java.util.concurrent.atomic.AtomicInteger
 import kotlin.concurrent.thread
 
 fun main() {
     // Test basic connection validation
-    val connection = DriverManager.getConnection("jdbc:kswiftk:memory")
+    val connection = DriverManager.getConnection("jdbc:sqlite::memory:")
     println(!connection.isClosed())
     
     // Test connection close and validation
@@ -110,15 +112,17 @@ fun main() {
     println(pool.timeoutMillis == 1000)
     
     // Test concurrent access
-    val results = mutableListOf<Int>()
+    val acquired = AtomicInteger(0)
     val threads = mutableListOf<Thread>()
-    
+
     repeat(5) { i ->
-        val thread = thread {
+        // `thread {}` starts immediately; an explicit start() would throw
+        // IllegalThreadStateException.
+        val t = thread {
             try {
                 val conn = pool.acquire()
                 if (conn > 0) {
-                    results.add(conn)
+                    acquired.incrementAndGet()
                     Thread.sleep(100) // Simulate work
                     pool.release(conn)
                 }
@@ -126,14 +130,13 @@ fun main() {
                 println("Thread $i error: ${e.message}")
             }
         }
-        threads.add(thread)
-        thread.start()
+        threads.add(t)
     }
-    
+
     // Wait for all threads to complete
     threads.forEach { it.join() }
-    
-    println(results.size <= 2) // Should not exceed max connections
+
+    println(acquired.get() <= 2) // Should not exceed max connections
     println(pool.activeCount == 1) // leakConn is still active
     println(pool.idleCount >= 0)
     
