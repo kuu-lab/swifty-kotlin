@@ -36,7 +36,8 @@ extension BuildASTPhase {
             && tokens[headIndex + 1].kind == .keyword(.interface):
             diagnoseLocalInterface(at: headIndex + 1, in: tokens, interner: interner, diagnostics: diagnostics)
             return rejectedPlaceholder()
-        case .keyword(.companion):
+        case .keyword(.companion) where headIndex + 1 < tokens.count
+            && tokens[headIndex + 1].kind == .keyword(.object):
             diagnostics?.error(
                 "KSWIFTK-SEMA-0401",
                 "modifier 'companion' is not applicable inside 'function'.",
@@ -46,7 +47,20 @@ extension BuildASTPhase {
         default:
             break
         }
-        guard localNominalDeclExpectsName(at: headIndex, in: tokens),
+        var nominalHeadIndex = headIndex
+        if tokens[headIndex].kind == .keyword(.companion) {
+            // `companion` only introduces a local companion-object
+            // declaration; before other nominal heads it is a (invalid but
+            // parseable) modifier, so keep scanning for the real head and let
+            // the decl-level validator report it.
+            guard let realHead = localNominalDeclHeadIndex(
+                in: Array(tokens[(headIndex + 1)...]), interner: interner
+            ) else {
+                return nil
+            }
+            nominalHeadIndex = headIndex + 1 + realHead
+        }
+        guard localNominalDeclExpectsName(at: nominalHeadIndex, in: tokens),
               let first = tokens.first,
               let last = tokens.last
         else {

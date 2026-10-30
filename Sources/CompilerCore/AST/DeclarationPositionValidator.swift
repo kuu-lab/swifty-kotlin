@@ -90,7 +90,7 @@ struct DeclarationPositionValidator {
             case .interface:
                 return "interface"
             case .object:
-                return isLocal ? "local object" : "standalone object"
+                return "standalone object"
             case .companionObject:
                 return "companion object"
             case .enumEntry:
@@ -637,18 +637,22 @@ struct DeclarationPositionValidator {
             validateVisibilityModifierConflicts(constructor.modifiers, range: constructor.range)
         }
         let isEnum = modifiers.contains(.enumModifier)
-        let isAnnotation = modifiers.contains(.annotationClass)
+        // `annotation enum class` resolves to an enum: the annotation modifier
+        // is kind-invalid on it rather than making it an annotation class.
+        let isAnnotation = modifiers.contains(.annotationClass) && !isEnum
         // `inline class` is the deprecated spelling of `value class`, so it
         // obeys the same position/finality constraints (SEMA-0420/0422).
         let isValue = modifiers.contains(.value)
             || (modifiers.contains(.inline) && !isEnum && !isAnnotation)
         let kindName: String
-        if site == .function {
+        if isAnnotation {
+            // kotlinc keeps the 'annotation class' kind name for local
+            // annotation classes; only class and enum become 'local class'.
+            kindName = "annotation class"
+        } else if site == .function {
             kindName = "local class"
         } else if isEnum {
             kindName = "enum class"
-        } else if isAnnotation {
-            kindName = "annotation class"
         } else if isValue {
             kindName = "value class"
         } else {
@@ -698,25 +702,49 @@ struct DeclarationPositionValidator {
             }
         }
         if site == .function {
-            for (modifier, name) in Self.localClassForbiddenModifiers
-            where modifiers.contains(modifier) && !conflictCovered.contains(modifier) {
-                emitNotApplicable(name, to: "local class", range: decl.range)
-            }
-            if modifiers.contains(.final), !conflictCovered.contains(.final) {
-                emitInside("final", inside: "function", range: decl.range)
-            }
             if isAnnotation {
+                // A local annotation class still takes its kind-forbidden
+                // diagnostics below, but kotlinc phrases visibility
+                // positionally and never emits the local-class set.
+                for (modifier, name) in Self.localNominalVisibilityModifiers
+                where modifiers.contains(modifier) {
+                    emitInside(name, inside: "function", range: decl.range)
+                }
                 diagnostics?.error(
                     "KSWIFTK-SEMA-0429",
                     "annotation class cannot be local.",
                     range: decl.range
                 )
+            } else {
+                for (modifier, name) in Self.localClassForbiddenModifiers
+                where modifiers.contains(modifier) && !conflictCovered.contains(modifier) {
+                    emitNotApplicable(name, to: "local class", range: decl.range)
+                }
+                if modifiers.contains(.final), !conflictCovered.contains(.final) {
+                    emitInside("final", inside: "function", range: decl.range)
+                }
             }
         }
+        if modifiers.contains(.external) {
+            // kotlinc calls every nominal 'class' for the external check.
+            emitNotApplicable("external", to: "class", range: decl.range)
+        }
         if isEnum {
+            let enumKindName = site == .function ? "local class" : "enum class"
             for (modifier, name) in Self.enumForbiddenModifiers
             where modifiers.contains(modifier) && !conflictCovered.contains(modifier) {
-                emitNotApplicable(name, to: "enum class", range: decl.range)
+                if site == .function {
+                    // A locally declared 'enum' is only diagnosed for its
+                    // nominal-kind conflicts: modality modifiers and `data`
+                    // are subsumed by the 'enum to local class' error, and
+                    // local-class-forbidden modifiers already fired above.
+                    if modifier == .open || modifier == .abstract || modifier == .data
+                        || Self.localClassForbiddenModifiers.contains(where: { $0.0 == modifier })
+                    {
+                        continue
+                    }
+                }
+                emitNotApplicable(name, to: enumKindName, range: decl.range)
             }
         }
         if isAnnotation {
@@ -758,7 +786,9 @@ struct DeclarationPositionValidator {
             }
         }
 
-        if !conflictCovered.contains(.inner) {
+        // `inner` is kind-invalid on enum and annotation classes, so the
+        // not-applicable-to diagnostic owns it without a positional duplicate.
+        if !conflictCovered.contains(.inner), !isEnum, !isAnnotation {
             validateInnerPosition(modifiers, site: site, target: kindName, range: decl.range)
         }
         if case .nominal(let nominal) = site {
@@ -767,7 +797,7 @@ struct DeclarationPositionValidator {
 
         emitPairConflicts(pairPlan.emissions, range: decl.range)
 
-        if modifiers.contains(.data), decl.primaryConstructorParams.isEmpty {
+        if modifiers.contains(.data), !isEnum, !isAnnotation, decl.primaryConstructorParams.isEmpty {
             diagnostics?.error(
                 "KSWIFTK-SEMA-0404",
                 "data class must have at least one primary constructor parameter.",
@@ -775,7 +805,7 @@ struct DeclarationPositionValidator {
             )
         }
 
-        if isValue {
+        if isValue, !isEnum, !isAnnotation {
             if site == .function || modifiers.contains(.inner) {
                 diagnostics?.error(
                     "KSWIFTK-SEMA-0422",
@@ -896,11 +926,15 @@ struct DeclarationPositionValidator {
         for (modifier, name) in Self.interfaceForbiddenModifiers where modifiers.contains(modifier) {
             emitNotApplicable(name, to: "interface", range: decl.range)
         }
+        if modifiers.contains(.external) {
+            emitNotApplicable("external", to: "class", range: decl.range)
+        }
 
         if site == .file, modifiers.contains(.protected) {
             emitNotApplicable("protected", to: "top level interface", range: decl.range)
         }
-        validateInnerPosition(modifiers, site: site, target: "interface", range: decl.range)
+        // `inner` is always kind-invalid on interfaces, so validateInnerPosition
+        // would double-report; the not-applicable-to diagnostic owns it.
         if case .nominal(let nominal) = site {
             validateMemberSiteModifiers(modifiers, site: nominal, target: "member interface", range: decl.range)
         }
@@ -955,14 +989,21 @@ struct DeclarationPositionValidator {
     private func validateObject(_ decl: ObjectDecl, site: OwnerSite) {
         let modifiers = decl.modifiers
         validateVisibilityModifierConflicts(modifiers, range: decl.range)
-        let kindName = site == .function ? "local object" : "standalone object"
+        // kotlinc calls every named object a 'standalone object' in modifier
+        // diagnostics, including function-local ones.
+        let kindName = "standalone object"
 
         for (modifier, name) in Self.objectImpossibleModifiers where modifiers.contains(modifier) {
             emitNotApplicable(name, to: kindName, range: decl.range)
         }
+        if modifiers.contains(.external) {
+            emitNotApplicable("external", to: "class", range: decl.range)
+        }
         if site == .function {
-            for (modifier, name) in Self.localNominalForbiddenModifiers where modifiers.contains(modifier) {
-                emitNotApplicable(name, to: "local object", range: decl.range)
+            // kotlinc phrases visibility on local objects positionally and
+            // skips `public`/`expect` entirely.
+            for (modifier, name) in Self.localNominalVisibilityModifiers where modifiers.contains(modifier) {
+                emitInside(name, inside: "function", range: decl.range)
             }
         }
 
@@ -1486,7 +1527,7 @@ struct DeclarationPositionValidator {
         (.const, "const"), (.lateinit, "lateinit"), (.suspend, "suspend"),
         (.tailrec, "tailrec"), (.operator, "operator"),
         (.infix, "infix"), (.vararg, "vararg"), (.crossinline, "crossinline"),
-        (.noinline, "noinline"), (.funModifier, "fun"), (.external, "external"),
+        (.noinline, "noinline"), (.funModifier, "fun"),
         (.companion, "companion"), (.override, "override"),
     ]
 
@@ -1508,7 +1549,7 @@ struct DeclarationPositionValidator {
         (.annotationClass, "annotation"), (.companion, "companion"),
         (.const, "const"), (.lateinit, "lateinit"), (.suspend, "suspend"),
         (.tailrec, "tailrec"), (.inline, "inline"), (.operator, "operator"),
-        (.infix, "infix"), (.external, "external"), (.override, "override"),
+        (.infix, "infix"), (.override, "override"),
         (.vararg, "vararg"), (.crossinline, "crossinline"), (.noinline, "noinline"),
     ]
 
@@ -1517,7 +1558,7 @@ struct DeclarationPositionValidator {
         (.inner, "inner"), (.enumModifier, "enum"), (.value, "value"),
         (.annotationClass, "annotation"), (.const, "const"), (.lateinit, "lateinit"),
         (.suspend, "suspend"), (.tailrec, "tailrec"), (.inline, "inline"),
-        (.operator, "operator"), (.infix, "infix"), (.external, "external"),
+        (.operator, "operator"), (.infix, "infix"),
         (.override, "override"), (.vararg, "vararg"), (.crossinline, "crossinline"),
         (.noinline, "noinline"), (.funModifier, "fun"),
     ]
@@ -1530,10 +1571,11 @@ struct DeclarationPositionValidator {
         (.sealed, "sealed"), (.enumModifier, "enum"),
     ]
 
-    /// Kind-impossible modifiers are already covered by `objectImpossibleModifiers`.
-    private static let localNominalForbiddenModifiers: [(Modifiers, String)] = [
-        (.public, "public"), (.private, "private"), (.internal, "internal"),
-        (.protected, "protected"), (.expect, "expect"),
+    /// On local objects (and, separately, local interfaces) kotlinc phrases
+    /// non-default visibility positionally rather than as a kind conflict;
+    /// `public` and `expect` go unreported there.
+    private static let localNominalVisibilityModifiers: [(Modifiers, String)] = [
+        (.private, "private"), (.internal, "internal"), (.protected, "protected"),
     ]
 
     private static let typeAliasForbiddenModifiers: [(Modifiers, String)] = [
