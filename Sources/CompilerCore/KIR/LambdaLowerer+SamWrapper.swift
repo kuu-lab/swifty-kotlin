@@ -337,6 +337,24 @@ extension LambdaLowerer {
             instructions: &instructions
         )
 
+        // KUU-3824: a fun interface may declare an abstract `Any` member as
+        // its SAM (`fun interface F { override fun toString(): String }`),
+        // in which case the synthesized wrapper method above is the runtime
+        // `toString` override. Interface dispatch reaches it through the
+        // itable, but a call erased through `Any` is answered by
+        // `kk_any_to_string`, which consults the per-object override table —
+        // register the wrapper's `toString` there too, or the erased call
+        // falls back to the default object rendering.
+        appendObjectAnyToStringRegistration(
+            objectValue: wrapperValue,
+            nominalSymbol: wrapperSymbol,
+            driver: driver,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            instructions: &instructions
+        )
+
         // Expose the SAM wrapper as an invokable comparator value so stdlib
         // comparison lowering can call `compare` directly when needed.
         driver.ctx.registerCallableValue(

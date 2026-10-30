@@ -204,10 +204,20 @@ func resolveClassToStringSymbol(
         let candidate = sema.symbols.lookupAll(
             fqName: classSymbol.fqName + [toStringName]
         ).first { id in
-            guard let symbol = sema.symbols.symbol(id), symbol.kind == .function else {
+            guard let symbol = sema.symbols.symbol(id), symbol.kind == .function,
+                  // A member extension is only callable inside its owner with
+                  // an explicit extension receiver — it can never be the
+                  // erased-`Any` `toString` implementation, whose dispatch ABI
+                  // passes the instance alone (KUU-3824).
+                  !symbol.flags.contains(.memberExtension)
+            else {
                 return false
             }
-            return sema.symbols.functionSignature(for: id)?.parameterTypes.isEmpty ?? true
+            guard let signature = sema.symbols.functionSignature(for: id) else {
+                return true
+            }
+            return signature.parameterTypes.isEmpty
+                && signature.contextParameterTypes.isEmpty
         }
         if let candidate,
            let symbol = sema.symbols.symbol(candidate),
