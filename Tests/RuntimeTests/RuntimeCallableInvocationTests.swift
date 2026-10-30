@@ -8,7 +8,7 @@ private func callableSumBridge(_ environment: Int, _ arguments: Int, _ mask: Int
     return kk_box_int(first + second + environment)
 }
 
-private func callableThrowingBridge(_ environment: Int, _ arguments: Int, _ mask: Int, _ thrown: UnsafeMutablePointer<Int>?) -> Int {
+private func callableThrowingBridge(_: Int, _: Int, _: Int, _ thrown: UnsafeMutablePointer<Int>?) -> Int {
     thrown?.pointee = runtimeAllocateIllegalArgumentException(message: "boom")
     return runtimeNullSentinelInt
 }

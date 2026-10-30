@@ -6,7 +6,7 @@ import Testing
 
 @_cdecl("coro_base_success_123_lambda")
 private func coro_base_success_123_lambda(
-    _ closureRaw: Int,
+    _: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
     outThrown?.pointee = 0
