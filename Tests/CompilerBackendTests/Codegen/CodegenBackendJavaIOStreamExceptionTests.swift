@@ -8,13 +8,17 @@ import Testing
 struct CodegenBackendJavaIOStreamExceptionTests {
 
     @Test func testStreamIOFailureIsCaughtAsExceptionAndIOException() throws {
+        // `SequenceInputStream` does not support mark/reset, so `reset()`
+        // throws `IOException` exactly like the JVM — the exception must be
+        // catchable through both the `Exception` and `IOException` supertypes.
         let source = """
-        import java.io.ByteArrayInputStream
+        import java.io.SequenceInputStream
         import java.io.IOException
 
         fun main() {
             try {
-                val stream = ByteArrayInputStream(listOf(1))
+                val stream = SequenceInputStream("a".byteInputStream(), "b".byteInputStream())
+                stream.mark(1)
                 stream.reset()
                 println("not caught")
             } catch (e: Exception) {
@@ -24,7 +28,8 @@ struct CodegenBackendJavaIOStreamExceptionTests {
             }
 
             try {
-                val stream = ByteArrayInputStream(listOf(1))
+                val stream = SequenceInputStream("a".byteInputStream(), "b".byteInputStream())
+                stream.mark(1)
                 stream.reset()
                 println("not caught")
             } catch (e: IOException) {

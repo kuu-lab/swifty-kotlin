@@ -1612,13 +1612,18 @@ extension CallLowerer {
     /// `__kk_hash_set_of`, `TreeMap()` → `__kk_tree_map_of`, and so on) produce
     /// `Runtime*Box` handles rather than `kk_object_new` objects, so a bridged
     /// member such as `ArrayList.get` (`__kk_list_get`) must keep its direct
-    /// runtime call for receivers typed by those nominals. A source subclass
-    /// of them — `class StringList : ArrayList<String>` — still allocates a
-    /// real object and registers its vtable overrides at construction, so the
-    /// same bridged member must dispatch through the inherited vtable slot to
-    /// reach the override (KUU-3669). The receiver's own nominal layout is the
-    /// membership oracle: only a class that actually inherits the callee's
-    /// slot carries an object vtable entry for it.
+    /// runtime call for receivers typed by those nominals. The synthetic
+    /// `java.io` stream classes (`ByteArrayInputStream`, `SequenceInputStream`,
+    /// `BufferedInputStream`, `ByteArrayOutputStream`) are box handles in the
+    /// same way — their inherited `InputStream`/`OutputStream` members must
+    /// call the `__kk_*` bridge directly because the box never registered a
+    /// vtable (KUU-3846). A source subclass of them — `class StringList :
+    /// ArrayList<String>` — still allocates a real object and registers its
+    /// vtable overrides at construction, so the same bridged member must
+    /// dispatch through the inherited vtable slot to reach the override
+    /// (KUU-3669). The receiver's own nominal layout is the membership
+    /// oracle: only a class that actually inherits the callee's slot carries
+    /// an object vtable entry for it.
     func isRuntimeBoxedCollectionVirtualBridge(
         _ callee: SymbolID,
         receiverTypeID: TypeID?,
@@ -1640,6 +1645,9 @@ extension CallLowerer {
               !receiverSymbol.flags.contains(.valueType),
               receiverClassType.classSymbol != owner,
               !isRuntimeBoxedCollectionNominal(
+                  receiverClassType.classSymbol, sema: sema, interner: interner
+              ),
+              !isRuntimeBoxedJavaIOStreamNominal(
                   receiverClassType.classSymbol, sema: sema, interner: interner
               ),
               sema.symbols.nominalLayout(for: receiverClassType.classSymbol)?
@@ -1670,6 +1678,34 @@ extension CallLowerer {
              ["kotlin", "collections", "LinkedHashMap"],
              ["java", "util", "TreeSet"],
              ["java", "util", "TreeMap"]:
+            return true
+        default:
+            return false
+        }
+    }
+
+    /// Synthetic `java.io` stream nominals whose constructors lower to
+    /// `__kk_*` runtime factories returning `Runtime*Box` handles
+    /// (`RuntimeInputStreamBox`, `RuntimeSequenceInputStreamBox`, …) instead
+    /// of `kk_object_new` objects. They are final, so no real-object subtype
+    /// can ever carry a Kotlin vtable, and their inherited `InputStream` /
+    /// `OutputStream` members (`read`, `available`, `close`, `toString`, …)
+    /// resolve to `__kk_*` bridges whose dispatch must stay on direct calls —
+    /// a `.vtable` lookup on the raw handle traps with
+    /// KSWIFTK-RUNTIME-0001 (KUU-3846). The abstract bases themselves
+    /// (`InputStream`/`OutputStream`) are not listed: their member calls
+    /// resolve owner == receiver and already stay direct.
+    private func isRuntimeBoxedJavaIOStreamNominal(
+        _ classSymbol: SymbolID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> Bool {
+        guard let symbol = sema.symbols.symbol(classSymbol) else { return false }
+        switch symbol.fqName.map(interner.resolve) {
+        case ["java", "io", "ByteArrayInputStream"],
+             ["java", "io", "SequenceInputStream"],
+             ["java", "io", "BufferedInputStream"],
+             ["java", "io", "ByteArrayOutputStream"]:
             return true
         default:
             return false
