@@ -233,7 +233,6 @@ extension CompanionObjectTests {
         try runSema(ctx)
         #expect(ctx.diagnostics.diagnostics.contains { $0.severity == .error })
     }
-    }
 
     @Test func testCompanionShorthandDoesNotExposeOwnerInstanceMembers() throws {
         let source = """
