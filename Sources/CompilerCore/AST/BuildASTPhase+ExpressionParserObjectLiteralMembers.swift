@@ -129,8 +129,7 @@ extension BuildASTPhase.ExpressionParser {
                 from: nodeID,
                 in: parsed.arena,
                 interner: interner,
-                astArena: astArena,
-                companionSiteName: "anonymous object"
+                astArena: astArena
             ))
         }
         return nil

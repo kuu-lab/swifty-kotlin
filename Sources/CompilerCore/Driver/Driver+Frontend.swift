@@ -84,8 +84,11 @@ public extension CompilerDriver {
 
             // The LSP policy allows Parse to hand its recovered syntax tree to
             // BuildAST and Sema. Other frontend errors, and the default policy,
-            // retain the fail-fast behavior.
+            // retain the fail-fast behavior. BuildAST diagnostics are the
+            // exception: they are validation errors on a complete AST, so Sema
+            // still runs to surface semantic diagnostics like kotlinc does.
             if context.diagnostics.hasError {
+                if phase is BuildASTPhase { continue }
                 if !continuedAfterParseError {
                     break
                 }

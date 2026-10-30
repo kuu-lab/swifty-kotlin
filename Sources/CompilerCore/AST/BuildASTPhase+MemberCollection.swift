@@ -849,6 +849,11 @@ extension BuildASTPhase {
                         "A declaration can have only one companion object.",
                         range: objectDecl.range
                     )
+                    // Keep the duplicate in the tree as a nested object so
+                    // member references still resolve and its members are
+                    // analyzed, like kotlinc — which also reports it under
+                    // `companion`-modifier site checks where applicable.
+                    nestedObjects.append(declID)
                 }
             } else {
                 nestedObjects.append(declID)

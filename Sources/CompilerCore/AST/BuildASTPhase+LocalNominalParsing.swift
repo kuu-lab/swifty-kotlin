@@ -75,8 +75,7 @@ extension BuildASTPhase {
             case .objectDecl:
                 declID = astArena.appendDecl(.objectDecl(
                     BuildASTPhase(diagnostics: diagnostics).makeObjectDecl(
-                        from: childID, in: parsed.arena, interner: interner, astArena: astArena,
-                        companionSiteName: "local object"
+                        from: childID, in: parsed.arena, interner: interner, astArena: astArena
                     )
                 ))
             default:
