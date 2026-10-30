@@ -438,7 +438,19 @@ func kirErasedBoundaryCheckable(_ type: TypeID, sema: SemaModule) -> Bool {
     case .unknown, .any, .null:
         return false
     case let .nominal(symbol):
-        return sema.symbols.symbol(symbol)?.kind != .enumClass
+        // A stale or unresolved class symbol has no stable runtime type ID.
+        // Emitting a checkcast for it creates a token that reports its target
+        // as `Unknown` and rejects every value crossing the erased boundary.
+        guard let semanticSymbol = sema.symbols.symbol(symbol),
+              !semanticSymbol.fqName.isEmpty
+        else {
+            return false
+        }
+        // Synthetic interfaces are header-only runtime handles (for example,
+        // kotlinx.coroutines.sync.Mutex). Their values have no emitted
+        // nominal class metadata for `kk_op_cast` to inspect.
+        return semanticSymbol.kind != .enumClass
+            && !(semanticSymbol.kind == .interface && semanticSymbol.flags.contains(.synthetic))
     default:
         return true
     }

@@ -96,6 +96,56 @@ struct RuntimeTypeCheckTokenTests {
         }
     }
 
+    @Test func testErasedBoundaryRejectsNominalTypeWithoutRuntimeIdentity() {
+        let types = TypeSystem()
+        let sema = makeSemaModule(types: types).ctx
+        let unresolvedType = types.make(.classType(ClassType(
+            classSymbol: .invalid,
+            args: [],
+            nullability: .nonNull
+        )))
+
+        #expect(!kirErasedBoundaryCheckable(unresolvedType, sema: sema))
+    }
+
+    @Test func testErasedBoundaryRejectsSyntheticInterfaceWithoutRuntimeIdentity() {
+        let interner = StringInterner()
+        let types = TypeSystem()
+        let symbols = SymbolTable()
+        let sema = makeSemaModule(symbols: symbols, types: types).ctx
+        let package = ["kotlinx", "coroutines", "sync"].map(interner.intern)
+        let mutexName = interner.intern("Mutex")
+        let mutexSymbol = symbols.define(
+            kind: .interface,
+            name: mutexName,
+            fqName: package + [mutexName],
+            declSite: nil,
+            visibility: .public,
+            flags: [.synthetic]
+        )
+        let sourceInterfaceName = interner.intern("RuntimeCheckable")
+        let sourceInterfaceSymbol = symbols.define(
+            kind: .interface,
+            name: sourceInterfaceName,
+            fqName: [interner.intern("example"), sourceInterfaceName],
+            declSite: makeRange(),
+            visibility: .public
+        )
+        let mutexType = types.make(.classType(ClassType(
+            classSymbol: mutexSymbol,
+            args: [],
+            nullability: .nonNull
+        )))
+        let sourceInterfaceType = types.make(.classType(ClassType(
+            classSymbol: sourceInterfaceSymbol,
+            args: [],
+            nullability: .nonNull
+        )))
+
+        #expect(!kirErasedBoundaryCheckable(mutexType, sema: sema))
+        #expect(kirErasedBoundaryCheckable(sourceInterfaceType, sema: sema))
+    }
+
     @Test func testClassifyFunctionType() {
         let types = TypeSystem()
         let sema = makeSemaModule(types: types).ctx
