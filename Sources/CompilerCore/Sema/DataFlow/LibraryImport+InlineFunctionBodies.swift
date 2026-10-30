@@ -160,9 +160,10 @@ extension DataFlowSemaPhase {
         // resolves from the artifact's .o must instead materialize from the
         // serialized KIR shipped in inline-kir/ (see CodegenPhase).
         var initBodySymbols: Set<SymbolID> = []
+        var initSymbolsByLinkName: [String: SymbolID] = [:]
         if materializeInitBodiesForWasm {
-            initBodySymbols = registerWasmInitBodyDescriptors(
-                state: state, symbols: symbols
+            (initBodySymbols, initSymbolsByLinkName) = registerWasmInitBodyDescriptors(
+                state: state, symbols: symbols, interner: interner
             )
         }
         func isInitBodySymbol(_ symbol: SymbolID) -> Bool {
@@ -231,8 +232,16 @@ extension DataFlowSemaPhase {
                 guard case let .call(callSymbol, calleeName, _, _, _, _, _, _) = instruction else {
                     continue
                 }
-                let targets: [SymbolID] = callSymbol.map { [$0] }
+                var targets: [SymbolID] = callSymbol.map { [$0] }
                     ?? drainThenRead(calleeName)
+                // Init shells aren't index bindings, so their link names
+                // never enter pendingInlineSymbolsByName — resolve them
+                // through the registered descriptor map instead.
+                if targets.isEmpty, materializeInitBodiesForWasm,
+                   let initSymbol = initSymbolsByLinkName[interner.resolve(calleeName)]
+                {
+                    targets = [initSymbol]
+                }
                 for target in targets where scannedSymbols.insert(target).inserted {
                     if let function = resolveOne(target) {
                         bodiesToScan.append(function.body)
@@ -280,16 +289,19 @@ extension DataFlowSemaPhase {
 
     /// Registers lazy descriptors for the imported object/companion/enum
     /// init shells (`applyImportedInitializerShells`) so a call site bearing
-    /// one of their symbols materializes the shipped kirbin on demand.
-    /// Returns the covered symbols for decl materialization.
+    /// one of their symbols — or only its `kk_fn_` link name — materializes
+    /// the shipped kirbin on demand. Returns the covered symbols plus the
+    /// link-name index for symbol-less call sites.
     private func registerWasmInitBodyDescriptors(
         state: ImportedLibraryLazyLoaderState,
-        symbols: SymbolTable
-    ) -> Set<SymbolID> {
+        symbols: SymbolTable,
+        interner: StringInterner
+    ) -> (symbols: Set<SymbolID>, byLinkName: [String: SymbolID]) {
         let prefixes = [
             "__object_init_", "__companion_init_", "__enum_static_init_",
             "__kk_library_top_level_init_", "__kk_synthetic_companion_init_",
             "__klib_object_init_", "__klib_object_lazy_init_",
+            "__object_lazy_init_", "__companion_lazy_init_", "__ctor_reflect_init_",
         ]
         let store = state.importedInlineFunctions
         var initSymbols: Set<SymbolID> = []
@@ -304,15 +316,26 @@ extension DataFlowSemaPhase {
                 initSymbols.insert(initSymbol)
             }
         }
-        let linkNames = initSymbols.compactMap { symbol -> (SymbolID, String)? in
+        // Shells reachable only by link name (the library's own
+        // `__kk_library_top_level_init_`, lazy-init trampolines) never appear
+        // in the per-record initializer slots — sweep imported function
+        // symbols by external link name instead.
+        for info in symbols.allSymbols() {
+            guard info.kind == .function,
+                  info.flags.contains(.importedLibrary),
+                  let linkName = symbols.externalLinkNameIfKnown(for: info.id),
+                  prefixes.contains(where: { linkName.contains($0) })
+            else { continue }
+            initSymbols.insert(info.id)
+        }
+        let dirs = Array(Set(state.allImportedBindings.compactMap(\.inlineKIRDir)))
+        var byLinkName: [String: SymbolID] = [:]
+        for symbol in initSymbols {
             guard let linkName = symbols.externalLinkName(for: symbol),
                   linkName.hasPrefix("kk_fn_"),
                   prefixes.contains(where: { linkName.contains($0) })
-            else { return nil }
-            return (symbol, linkName)
-        }
-        let dirs = Array(Set(state.allImportedBindings.compactMap(\.inlineKIRDir)))
-        for (symbol, linkName) in linkNames {
+            else { continue }
+            byLinkName[linkName] = symbol
             let fileName = MetadataEncoder.inlineKIRFileName(for: linkName)
             guard let dir = dirs.first(where: {
                 FileManager.default.fileExists(atPath: $0 + "/" + fileName)
@@ -320,13 +343,13 @@ extension DataFlowSemaPhase {
             store.register(
                 ImportedInlineFunctionStore.Descriptor(
                     path: dir + "/" + fileName,
-                    signature: nil,
-                    name: symbols.symbol(symbol)?.name ?? InternedString(rawValue: 0)
+                    signature: symbols.functionSignature(for: symbol),
+                    name: symbols.symbol(symbol)?.name ?? interner.intern(linkName)
                 ),
                 for: symbol
             )
         }
-        return Set(linkNames.map(\.0))
+        return (initSymbols, byLinkName)
     }
 
     /// Snapshot archives bypass the compact-index provider on consumer loads,

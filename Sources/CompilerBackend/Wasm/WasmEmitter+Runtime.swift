@@ -390,6 +390,7 @@ enum WasmRuntimeHelpers {
         "$__kk_wasm_is_assignable",
         "__kk_wasm_itable_lookup",
         "kk_object_new",
+        "kk_non_cancellable_instance",
         "kk_array_new",
         "kk_array_new_checked",
         "kk_array_of",
@@ -779,6 +780,23 @@ enum WasmRuntimeHelpers {
         case "kk_object_new":
             extraLocals = 1
             emitObjectNewBody(&code, ctx: ctx)
+        case "kk_non_cancellable_instance":
+            // Native returns a preallocated immortal handle; the wasm object
+            // model allocates the singleton box lazily and caches it in a
+            // module global so every reference sees one identity.
+            extraLocals = 1
+            let cached = ctx.module.addGlobal(initialValue: 0, name: "$__kk_non_cancellable_instance")
+            code.globalGet(cached)
+            code.localTee(0)
+            code.op(WasmOpcode.i64Eqz)
+            code.openIf()
+            code.i64Const(4)
+            code.i64Const(L.nonCancellableTypeID)
+            code.call(ctx.emittedHelperIndex(for: "kk_object_new", argumentCount: 2))
+            code.localTee(0)
+            code.globalSet(cached)
+            code.end()
+            code.localGet(0)
         case "kk_array_new", "kk_array_new_checked":
             extraLocals = 2
             emitArrayNewBody(&code, ctx: ctx)

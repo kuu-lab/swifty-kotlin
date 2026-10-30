@@ -433,6 +433,7 @@ public final class CodegenPhase: CompilerPhase {
         "__object_init_", "__companion_init_", "__enum_static_init_",
         "__kk_library_top_level_init_", "__kk_synthetic_companion_init_",
         "__klib_object_init_", "__klib_object_lazy_init_",
+        "__object_lazy_init_", "__companion_lazy_init_", "__ctor_reflect_init_",
     ]
 
     private static func isLibraryInitBodyName(_ name: String) -> Bool {

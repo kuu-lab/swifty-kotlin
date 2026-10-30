@@ -112,6 +112,11 @@ final class WasmModuleContext {
         /// expectedParentMod@48}`. Backing is the root parent's array pointer
         /// pre-adjusted by `from*8`, so all element reads work unchanged.
         static let listViewTypeID: Int64 = -9_017
+        /// `kotlinx.coroutines.NonCancellable`'s nominal tag — the same
+        /// FNV-1a `stableNominalTypeID` payload the KIR initializer bodies
+        /// embed, so `is` checks and itable lookups match the singleton the
+        /// `kk_non_cancellable_instance` helper lazily allocates.
+        static let nonCancellableTypeID: Int64 = 8_366_687_476_779_162
         static let listParentOffset: Int64 = 40
         static let listExpectedModOffset: Int64 = 48
         /// flags bit layout (list/set/view boxes): bit0 = readOnly,
