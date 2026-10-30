@@ -1846,6 +1846,23 @@ struct DeclarationPositionValidationTests {
         assertNoDiagnostic("KSWIFTK-SEMA-MODIFIER-CONFLICT", in: ctx)
     }
 
+    @Test func bodiedExternalLocalFunctionIsRejected() throws {
+        // kotlinc reports 'external declaration cannot have a body' on any
+        // external function that carries one — local or not, class or not.
+        let ctx = try semaContext(for: """
+            fun outer() { external fun a() { } }
+            class C { fun m() { external fun b() { } } }
+            fun outer2() { external fun c(): Int }
+            """)
+        let diags = ctx.diagnostics.diagnostics.filter {
+            $0.code == "KSWIFTK-SEMA-EXTERNAL"
+        }
+        #expect(diags.count == 2, "diagnostics: \(diags.map(\.message))")
+        #expect(diags.allSatisfy {
+            $0.message == "external declaration cannot have a body."
+        }, "diagnostics: \(diags.map(\.message))")
+    }
+
     @Test func bodiedAbstractLocalFunctionInsideClassIsRejected() throws {
         // kotlinc reports 'with a body cannot be abstract' on a local
         // `abstract fun` whenever a class encloses it — regardless of the
