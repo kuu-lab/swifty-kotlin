@@ -169,4 +169,33 @@ struct GenericErasedLambdaArgExecutionTests {
             moduleName: "KUU3675GenericExtensionCompanionLambda"
         )
     }
+
+    /// KUU-3689: a function-value adapter param typed as a concrete non-null
+    /// primitive goes through the erased-boundary checkcast, whose operand is
+    /// boxed by argument normalization. The adapter must unbox the cast result
+    /// again before forwarding it into the lambda's raw arithmetic; previously
+    /// the tagged box was added as a raw word and the result box then failed
+    /// the declared-type cast, panicking with KSWIFTK-LINK-0003.
+    @Test(arguments: [true, false])
+    func genericFoldLambdaPrimitiveCheckcastUnbox(allowDefaultStdlibLibrary: Bool) throws {
+        TestStdlibCache.shared.prepare()
+        try compileAndRunKotlin(
+            """
+            fun <A> fold(seed: A, step: (Int, A) -> A): A = step(1, seed)
+            fun <A> foldLongFirst(seed: A, step: (Long, A) -> A): A = step(1L, seed)
+            fun <A> foldMiddle(seed: A, step: (A, Int, A) -> A): A = step(seed, 2, seed)
+            fun main() {
+                println(fold(0) { element: Int, accumulator: Long -> accumulator + element })
+                println(fold(0L) { element: Int, accumulator: Long -> accumulator + element })
+                println(fold<Long>(0) { element: Int, accumulator: Long -> accumulator + element })
+                println(fold(0) { element: Int, accumulator: Int -> accumulator + element })
+                println(foldLongFirst(0L) { element: Long, accumulator: Long -> accumulator + element })
+                println(foldMiddle(0L) { a: Long, e: Int, b: Long -> a + e + b })
+            }
+            """,
+            expectedOutput: "1\n1\n1\n1\n1\n2\n",
+            moduleName: "KUU3689GenericFoldLambdaPrimitiveCheckcastUnbox",
+            allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
+        )
+    }
 }

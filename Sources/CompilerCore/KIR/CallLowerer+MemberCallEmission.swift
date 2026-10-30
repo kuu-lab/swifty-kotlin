@@ -409,6 +409,12 @@ extension CallLowerer {
         else {
             return
         }
+        if calleeText == "concatToString", arguments.isEmpty,
+           isConcreteArrayLikeType(sema.types.makeNonNullable(receiverType), sema: sema, interner: interner)
+        {
+            arguments.insert(loweredReceiverID, at: 0)
+            return
+        }
         if Self.unresolvedCollectionMemberNames.contains(calleeText) {
             arguments.insert(loweredReceiverID, at: 0)
             return
@@ -661,6 +667,39 @@ extension CallLowerer {
             ))
             return
         }
+        if finalArguments.first == receiver.loweredID,
+           finalArguments.count == 1,
+           sourceArgExprs.isEmpty,
+           let chosenCallee,
+           sema.symbols.externalLinkName(for: chosenCallee) == "kk_any_member_hashCode",
+           let receiverType = receiver.type(in: sema),
+           usesPrimitiveAnyFallbackRepresentation(for: receiverType, sema: sema)
+        {
+            // Primitive and unboxed primitive-backed value-class receivers
+            // are raw scalars, so neither the object member bridge nor
+            // vtable dispatch may see the payload (KSWIFTK-RUNTIME-0001).
+            // Use the tagged Any hash bridge — its tag decodes the raw
+            // representation (e.g. Double bits for a Double-backed VC).
+            let intType = sema.types.make(.primitive(.int, .nonNull))
+            let hashReceiverID = boxSentinelProneHashCodeReceiver(
+                receiver.loweredID,
+                sourceType: receiverType,
+                sema: sema,
+                interner: interner,
+                arena: arena,
+                into: &instructions
+            )
+            let receiverTag = computeAnyFallbackTag(for: receiverType, sema: sema)
+            let receiverTagID = arena.appendExpr(.intLiteral(receiverTag), type: intType)
+            instructions.append(.constValue(result: receiverTagID, value: .intLiteral(receiverTag)))
+            instructions.append(.call(
+                callee: interner.intern("kk_any_hashCode"),
+                arguments: [hashReceiverID, receiverTagID],
+                result: result,
+                canThrow: false
+            ))
+            return
+        }
         // Enum values are raw ordinals while they remain statically enum-typed.
         // Enum.equals(Any?) is an Any-boundary call, so box the receiver with
         // its nominal class ID before reaching the shared Any bridge. Without
@@ -680,7 +719,6 @@ extension CallLowerer {
                 ordinal: receiver.loweredID,
                 classSymbol: receiverClassType.classSymbol,
                 result: boxedReceiver,
-                resultType: sema.types.anyType,
                 types: sema.types,
                 symbols: sema.symbols,
                 interner: interner,
@@ -1393,15 +1431,32 @@ extension CallLowerer {
                 bridgeArguments[bridgeArguments.count - 2] = split.fnPtrExpr
                 bridgeArguments[bridgeArguments.count - 1] = split.envPtrExpr
             }
+            let bridgeThrownResult = bridgeCall.canThrow
+                ? arena.appendTemporary(type: sema.types.nullableAnyType)
+                : nil
             instructions.append(.call(
                 callee: bridgeCall.callee,
                 arguments: bridgeArguments,
                 result: result,
                 canThrow: bridgeCall.canThrow,
-                thrownResult: bridgeCall.canThrow ? arena.appendTemporary(type: sema.types.nullableAnyType) : nil,
+                thrownResult: bridgeThrownResult,
                 isSuperCall: isSuperCall,
                 qualifiedSuperType: qualifiedSuperType
             ))
+            // Without a rethrow the callee's thrown value would stay in the
+            // temp forever: outside an explicit try region nobody reads the
+            // thrownResult slot, so `list.chunked(0)` silently produced the
+            // exception sentinel instead of throwing. Inside a try this is a
+            // no-op — the guarded copy+check already diverted on a throw.
+            if let bridgeThrownResult {
+                let continueLabel = driver.ctx.makeLoopLabel()
+                let rethrowLabel = driver.ctx.makeLoopLabel()
+                instructions.append(.jumpIfNotNull(value: bridgeThrownResult, target: rethrowLabel))
+                instructions.append(.jump(continueLabel))
+                instructions.append(.label(rethrowLabel))
+                instructions.append(.rethrow(value: bridgeThrownResult))
+                instructions.append(.label(continueLabel))
+            }
             return
         }
         let throwingCallees = Self.throwingMemberCalleeNames

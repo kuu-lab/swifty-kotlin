@@ -454,6 +454,32 @@ struct DriverIncrementalTests {
         #expect(stats.restoredOutputs >= 1)
     }
 
+    /// `-o` with an explicit `.kir` extension used to write `out.kir.kir`
+    /// while the cache stored and restored `out.kir`, so no-op rebuilds never
+    /// restored the dump.
+    @Test
+    func testExplicitKIRExtensionIsWrittenAndRestoredFromCache() throws {
+        let cachePath = tempDir + "/cache"
+        defer { try? FileManager.default.removeItem(atPath: tempDir) }
+        let path = tempDir + "/main.kt"
+        try "fun main() {}".write(toFile: path, atomically: true, encoding: .utf8)
+        let kirPath = tempDir + "/out.kir"
+        let options = CompilerOptions(
+            moduleName: "Test", inputs: [path], outputPath: kirPath, emit: .kirDump,
+            target: defaultTargetTriple(), includeStdlib: false,
+            incrementalCachePath: cachePath
+        )
+        #expect(makeDriver().runForTesting(options: options).exitCode == 0)
+        let original = try String(contentsOfFile: kirPath, encoding: .utf8)
+        #expect(!FileManager.default.fileExists(atPath: kirPath + ".kir"))
+        try FileManager.default.removeItem(atPath: kirPath)
+        #expect(makeDriver().runForTesting(options: options).exitCode == 0)
+        #expect(try String(contentsOfFile: kirPath, encoding: .utf8) == original)
+        let data = try Data(contentsOf: URL(fileURLWithPath: cachePath + "/stats.json"))
+        let stats = try JSONDecoder().decode(IncrementalStats.self, from: data)
+        #expect(stats.restoredOutputs >= 1)
+    }
+
     @Test
     func testArtifactGenerationsAreCapped() throws {
         let cachePath = tempDir + "/cache"

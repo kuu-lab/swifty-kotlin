@@ -35,8 +35,6 @@ struct ReceiverPredicateEquivalenceTests {
         let sema: SemaModule
         let callLowerer: CallLowerer
         let callChecker: CallTypeChecker
-        private let typeCheckDriver: TypeCheckDriver
-        private let kirDriver: KIRLoweringDriver
         private let sourceManager: SourceManager
 
         init() {
@@ -66,8 +64,6 @@ struct ReceiverPredicateEquivalenceTests {
 
             self.interner = interner
             self.sema = sema
-            self.typeCheckDriver = typeCheckDriver
-            self.kirDriver = kirDriver
             self.callLowerer = CallLowerer(driver: kirDriver)
             self.callChecker = CallTypeChecker(driver: typeCheckDriver)
             self.sourceManager = SourceManager()
@@ -294,6 +290,50 @@ struct ReceiverPredicateEquivalenceTests {
         #expect(classifier.isCollectionLikeType(intersection))
         #expect(!classifier.isConcreteCollectionLikeType(intersection))
         #expect(!fixture.callLowerer.isConcreteCollectionLikeType(intersection, sema: fixture.sema, interner: fixture.interner))
+    }
+
+    /// KUU-3202: `T : Sequence` must reach the `kk_sequence_*` fallback through
+    /// the bound-aware predicate, while the exact `isSequenceLikeType` keeps
+    /// rejecting type parameters so unrelated fast paths see no new receivers.
+    @Test
+    func sequenceBoundTypeParameterIsOnlySeenByTheBoundAwarePredicate() {
+        let fixture = Fixture()
+        let string = fixture.sema.types.stringType
+        let sequence = fixture.classType(
+            ["kotlin", "sequences", "Sequence"],
+            args: [.invariant(string)]
+        )
+        let record = fixture.classType(["com", "example", "Record"], kind: .class)
+
+        func typeParam(_ name: String, bounds: [TypeID], nullable: Bool = false) -> TypeID {
+            let symbol = fixture.sema.symbols.define(
+                kind: .typeParameter,
+                name: fixture.interner.intern(name),
+                fqName: [fixture.interner.intern(name)],
+                declSite: nil,
+                visibility: .public,
+                flags: []
+            )
+            fixture.sema.symbols.setTypeParameterUpperBounds(bounds, for: symbol)
+            return fixture.sema.types.make(.typeParam(TypeParamType(
+                symbol: symbol,
+                nullability: nullable ? .nullable : .nonNull
+            )))
+        }
+
+        let sequenceBoundT = typeParam("TSeq", bounds: [sequence])
+        let nullableSequenceBoundT = typeParam("TNSeq", bounds: [sequence], nullable: true)
+        let recordBoundT = typeParam("TRec", bounds: [record])
+        let classifier = ReceiverClassifier(sema: fixture.sema, interner: fixture.interner)
+
+        #expect(classifier.isSequenceBoundTypeParameterType(sequenceBoundT))
+        #expect(classifier.isSequenceBoundTypeParameterType(nullableSequenceBoundT))
+        #expect(!classifier.isSequenceBoundTypeParameterType(recordBoundT))
+        // The bound-aware predicate intentionally ignores direct Sequence
+        // receivers; those already match `isSequenceLikeType`.
+        #expect(!classifier.isSequenceBoundTypeParameterType(sequence))
+        #expect(classifier.isSequenceLikeType(sequence))
+        #expect(!classifier.isSequenceLikeType(sequenceBoundT))
     }
 
     @Test

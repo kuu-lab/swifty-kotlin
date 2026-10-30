@@ -77,7 +77,14 @@ extension LambdaLowerer {
             symbol: syntheticLambdaCaptureParamSymbol(lambdaExprID: exprID, captureIndex: 0),
             type: sourceType
         )
-        let params = samFunction.params.enumerated().map { index, type in
+        // The thunk's value parameters mirror the SAM member's full input
+        // shape — context receivers, then the extension receiver, then value
+        // parameters — so `lowerSamWrapperValue` can forward every argument
+        // it synthesizes and `kk_function_invoke_N` sees its declared arity.
+        let samInputTypes = samFunction.contextReceivers
+            + (samFunction.receiver.map { [$0] } ?? [])
+            + samFunction.params
+        let params = samInputTypes.enumerated().map { index, type in
             KIRParameter(symbol: syntheticLambdaParamSymbol(lambdaExprID: exprID, paramIndex: index), type: type)
         }
         var body: [KIRInstruction] = [.beginBlock]
@@ -88,7 +95,9 @@ extension LambdaLowerer {
         }
         // Contravariant inputs and covariant results can cross boxed/unboxed
         // boundaries. Typed copies let ABI lowering apply those conversions.
-        let sourceParams = (functionType.receiver.map { [$0] } ?? []) + functionType.params
+        let sourceParams = functionType.contextReceivers
+            + (functionType.receiver.map { [$0] } ?? [])
+            + functionType.params
         for (index, type) in sourceParams.enumerated() {
             let adapted = arena.appendTemporary(type: type)
             body.append(.copy(from: arguments[index + 1], to: adapted))
@@ -114,6 +123,8 @@ extension LambdaLowerer {
             exprID, interfaceType: interface, lambdaSymbol: symbol, lambdaName: name,
             lambdaReturnType: samFunction.returnType,
             captureBindings: [(capturedSymbol: capture.symbol, param: capture, valueExpr: boxedValue, declaredType: sourceType)],
+            samMethodReceiverType: samFunction.receiver,
+            samMethodContextParameterTypes: samFunction.contextReceivers,
             samMethodParamTypes: samFunction.params, sema: sema, arena: arena,
             interner: interner, instructions: &instructions
         )

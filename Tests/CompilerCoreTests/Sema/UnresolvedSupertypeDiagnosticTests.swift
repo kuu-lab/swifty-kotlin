@@ -167,11 +167,14 @@ struct UnresolvedSupertypeDiagnosticTests {
 
     @Test func inheritedMemberClassifierResolvesAsSupertype() throws {
         // `I` inside `Sub.M` names `Outer.I` through `Sub`'s inherited member
-        // scope; the bound edge makes `C` assignable to `I`.
+        // scope; the bound edge makes `C` assignable to `I`. `M` is inner so
+        // `C`'s receiver chain reaches `Sub`'s `Outer` instance — kotlinc
+        // accepts this shape and rejects a non-inner `M` ("outer class 'Sub'
+        // of non-inner class cannot be used as receiver", KUU-3236).
         try withSemaContext("""
         open class Outer { open inner class I }
         class Sub : Outer() {
-            class M {
+            inner class M {
                 inner class C : I()
                 fun asI(c: C): I = c
             }
@@ -258,6 +261,83 @@ struct UnresolvedSupertypeDiagnosticTests {
         """) { ctx in
             #expect(!errorCodes(ctx).contains("KSWIFTK-SEMA-0025"),
                     "Unexpected KSWIFTK-SEMA-0025, got: \(ctx.diagnostics.diagnostics)")
+        }
+    }
+
+    @Test func companionObjectSupertypeResolvesInheritedNestedClassifier() throws {
+        // KUU-3128: `Nested` in a companion object's superclass header is a
+        // member classifier inherited from the enclosing class's superclass
+        // (`Base.Nested` through `Impl`). The bound edge makes both the bare
+        // class name and `Impl.Companion` acceptable as `Base.Nested`.
+        try withSemaContext("""
+        open class Base { open class Nested }
+        class Impl : Base() { companion object : Nested() }
+        fun takeNested(value: Base.Nested) {}
+        fun box() { takeNested(Impl); takeNested(Impl.Companion) }
+        """) { ctx in
+            #expect(errorCodes(ctx).isEmpty,
+                    "Expected no errors, got: \(ctx.diagnostics.diagnostics)")
+        }
+    }
+
+    @Test func companionObjectSupertypeInheritedNestedClassifierAssignment() throws {
+        try withSemaContext("""
+        open class Base { open class Nested }
+        class Impl : Base() { companion object : Nested() }
+        fun box() {
+            val a: Base.Nested = Impl
+            val b: Base.Nested = Impl.Companion
+        }
+        """) { ctx in
+            #expect(errorCodes(ctx).isEmpty,
+                    "Expected no errors, got: \(ctx.diagnostics.diagnostics)")
+        }
+    }
+
+    @Test func companionObjectSupertypePrefersNearestInheritedNestedClassifier() throws {
+        // KUU-3128 / KT-54645: `Derived` redeclares `Nested`, so the name in
+        // `Impl`'s companion header resolves to `Derived.Nested` (the nearest
+        // superclass member), not `Base.Nested`.
+        try withSemaContext("""
+        abstract class Base { open class Nested }
+        sealed class Derived : Base() { open class Nested }
+        class Impl : Derived() { companion object : Nested() }
+        fun takeDerivedNested(x: Derived.Nested) {}
+        fun box() { takeDerivedNested(Impl); takeDerivedNested(Impl.Companion) }
+        """) { ctx in
+            #expect(errorCodes(ctx).isEmpty,
+                    "Expected no errors, got: \(ctx.diagnostics.diagnostics)")
+        }
+    }
+
+    @Test func companionObjectShadowedNestedSupertypeIsNotOuterNestedSubtype() throws {
+        // `Derived.Nested` shadows `Base.Nested` inside `Impl`; the companion
+        // is a `Derived.Nested`, which kotlinc does not accept as a
+        // `Base.Nested` argument.
+        try withSemaContext("""
+        abstract class Base { open class Nested }
+        sealed class Derived : Base() { open class Nested }
+        class Impl : Derived() { companion object : Nested() }
+        fun takeBaseNested(x: Base.Nested) {}
+        fun box() { takeBaseNested(Impl.Companion) }
+        """) { ctx in
+            #expect(!errorCodes(ctx).isEmpty,
+                    "Expected a subtype error, got: \(ctx.diagnostics.diagnostics)")
+        }
+    }
+
+    @Test func unrelatedCompanionObjectIsNotInheritedNestedSubtype() throws {
+        // Negative control: a companion whose superclass is unrelated to the
+        // expected nested classifier is still rejected.
+        try withSemaContext("""
+        open class Base { open class Nested }
+        class Impl : Base() { companion object : Nested() }
+        class Unrelated { companion object }
+        fun takeNested(value: Base.Nested) {}
+        fun box() { takeNested(Unrelated) }
+        """) { ctx in
+            #expect(!errorCodes(ctx).isEmpty,
+                    "Expected a subtype error, got: \(ctx.diagnostics.diagnostics)")
         }
     }
 }

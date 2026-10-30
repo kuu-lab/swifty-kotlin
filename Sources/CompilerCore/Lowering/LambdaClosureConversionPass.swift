@@ -543,22 +543,16 @@ final class LambdaClosureConversionPass: LoweringPass {
         for instruction in function.body {
             let exprIDs: [KIRExprID?]
             switch instruction {
-            case let .call(_, _, _, result, _, _, _, _):
+            case let .call(_, _, _, result, _, _, _, _), let .virtualCall(_, _, _, _, result, _, _, _):
                 exprIDs = [result]
-            case let .virtualCall(_, _, _, _, result, _, _, _):
-                exprIDs = [result]
-            case let .binary(_, _, _, result):
-                exprIDs = [result]
-            case let .unary(_, _, result):
-                exprIDs = [result]
-            case let .constValue(result, _):
+            case let .binary(_, _, _, result),
+                 let .unary(_, _, result),
+                 let .constValue(result, _),
+                 let .nullAssert(_, result),
+                 let .loadGlobal(result, _):
                 exprIDs = [result]
             case let .copy(_, to):
                 exprIDs = [to]
-            case let .nullAssert(_, result):
-                exprIDs = [result]
-            case let .loadGlobal(result, _):
-                exprIDs = [result]
             default:
                 exprIDs = []
             }

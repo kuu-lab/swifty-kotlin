@@ -764,7 +764,6 @@ struct ExpectActualCompatibilityTests {
     }
 
     private struct TestCase {
-        let name: String
         let sources: [String]
         let assertion: (CompilationContext) throws -> Void
     }
@@ -772,7 +771,6 @@ struct ExpectActualCompatibilityTests {
     @Test func testExpectActualCompatibility() throws {
         let cases: [TestCase] = [
             TestCase(
-                name: "genericExpectActualClassLinks",
                 sources: [
                     """
                     package sample.kmp
@@ -800,7 +798,6 @@ struct ExpectActualCompatibilityTests {
                 }
             ),
             TestCase(
-                name: "expectValDoesNotMatchActualVar",
                 sources: [
                     """
                     package sample.kmp
@@ -823,7 +820,6 @@ struct ExpectActualCompatibilityTests {
                 }
             ),
             TestCase(
-                name: "expectValPropertyMatchesActualValWithStringType",
                 sources: [
                     """
                     package sample.kmp.platform
@@ -852,7 +848,6 @@ struct ExpectActualCompatibilityTests {
                 }
             ),
             TestCase(
-                name: "expectActualGenericFunctionCallIsNotAmbiguous",
                 sources: [
                     """
                     package sample.kmp.funconly
@@ -873,7 +868,6 @@ struct ExpectActualCompatibilityTests {
                 }
             ),
             TestCase(
-                name: "expectClassSupertypeMismatchIsRejected",
                 sources: [
                     """
                     package sample.kmp

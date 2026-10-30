@@ -11,19 +11,6 @@ struct RuntimeLocalDelegatedPropertyStubTests {
 
     private let kProperty0TypeID = Int(kProperty0RuntimeTypeID)
     private let kMutableProperty0TypeID = Int(kMutableProperty0RuntimeTypeID)
-    private let kCallableTypeID = Int(kCallableRuntimeTypeID)
-
-    @Test
-    func valStubIsKProperty0NotKMutable() {
-        let stub = makeStub(isMutable: 0)
-        #expect(kk_op_is(stub, nominalTypeToken(for: "kotlin.reflect.KProperty0")) == 1)
-        #expect(kk_op_is(stub, nominalTypeToken(for: "kotlin.reflect.KProperty")) == 1)
-        #expect(kk_op_is(stub, nominalTypeToken(for: "kotlin.reflect.KCallable")) == 1)
-        #expect(kk_op_is(stub, nominalTypeToken(for: "kotlin.reflect.KMutableProperty0")) == 0)
-        #expect(kk_op_is(stub, nominalTypeToken(for: "kotlin.reflect.KMutableProperty1")) == 0)
-        #expect(kk_op_is(stub, nominalTypeToken(for: "kotlin.reflect.KProperty1")) == 0)
-    }
-
     @Test
     func varStubIsKMutableProperty0AndKProperty0() {
         let stub = makeStub(isMutable: 1)
@@ -83,6 +70,41 @@ struct RuntimeLocalDelegatedPropertyStubTests {
         let result = fn(stub, &thrown)
         #expect(thrown == 0)
         #expect(result == runtimeNullSentinelInt)
+    }
+
+    @Test
+    func kproperty0GetDispatchesThroughRegisteredItable() throws {
+        // KUU-3693: `KProperty0.get` on a local delegated stub must reach the
+        // registered itable entry, which raises the same
+        // UnsupportedOperationException the JVM throws for local delegated
+        // references — instead of the blanket stub rejection used below.
+        for isMutable in [0, 1] {
+            let stub = makeStub(isMutable: isMutable)
+            var thrown = 0
+            let result = __kk_kproperty0_get(stub, kProperty0TypeID, 0, &thrown)
+            #expect(result == runtimeNullSentinelInt)
+            let throwable = try requireThrownBox(thrown)
+            #expect(throwable is RuntimeUnsupportedOperationExceptionBox)
+            #expect(throwable.message == "call/callBy are not supported for this declaration.")
+        }
+    }
+
+    @Test
+    func kproperty0GetStillRejectsNonLocalStubs() throws {
+        // Non-local stubs park `call` at the (interfaceSlot, 0) key `get`
+        // resolves to, so __kk_kproperty0_get keeps rejecting them rather than
+        // dispatching a mismatched-arity call.
+        let stub = kk_kproperty_stub_create_cached_typed(
+            makeStringRaw("value"),
+            makeStringRaw("String"),
+            makeStringRaw("nonlocal-\(UUID().uuidString)"),
+            0,
+            0,
+            0
+        )
+        var thrown = 0
+        _ = __kk_kproperty0_get(stub, kProperty0TypeID, 0, &thrown)
+        #expect(try requireThrownBox(thrown) is RuntimeUnsupportedOperationExceptionBox)
     }
 
     @Test

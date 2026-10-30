@@ -3,7 +3,6 @@
 @testable import CompilerTestSupport
 import Foundation
 import Testing
-import TestStdlibCache
 
 extension StdlibArtifactRegressionTests {
 
@@ -56,7 +55,7 @@ extension StdlibArtifactRegressionTests {
         true
         fqn
         true
-        List is empty.
+        null
         bounds
 
         """

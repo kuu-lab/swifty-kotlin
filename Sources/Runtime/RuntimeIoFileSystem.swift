@@ -210,11 +210,13 @@ public func __kk_io_fs_resolve(_ pathRaw: Int, _ outThrown: UnsafeMutablePointer
 public func __kk_io_fs_open_read(_ pathRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     let path = ioFileSystemPath(pathRaw)
+    let gcBlocking = runtimeGCSafepoints.beginBlockingIfEnrolled()
     let descriptor = open(path, O_RDONLY)
+    let openError = errno
+    if gcBlocking { runtimeGCSafepoints.endBlocking() }
     if descriptor < 0 {
-        let code = errno
         outThrown?.pointee = ioFileSystemError(
-            "Open failed for \(path): \(String(cString: strerror(code)))", missing: true
+            "Open failed for \(path): \(String(cString: strerror(openError)))", missing: true
         )
         return -1
     }
@@ -236,11 +238,13 @@ public func __kk_io_fs_open_write(
     outThrown?.pointee = 0
     let path = ioFileSystemPath(pathRaw)
     let flags = O_WRONLY | O_CREAT | (append != 0 ? O_APPEND : O_TRUNC)
+    let gcBlocking = runtimeGCSafepoints.beginBlockingIfEnrolled()
     let descriptor = open(path, flags, 0o666)
+    let openError = errno
+    if gcBlocking { runtimeGCSafepoints.endBlocking() }
     if descriptor < 0 {
-        let code = errno
         outThrown?.pointee = ioFileSystemError(
-            "Open failed for \(path): \(String(cString: strerror(code)))", missing: true
+            "Open failed for \(path): \(String(cString: strerror(openError)))", missing: true
         )
         return -1
     }
@@ -278,6 +282,7 @@ public func __kk_io_fs_read(
     let fd = Int32(descriptor)
     var readError: Int32 = 0
     var scratch = [UInt8](repeating: 0, count: byteCount)
+    let gcBlocking = runtimeGCSafepoints.beginBlockingIfEnrolled()
     let readCount = scratch.withUnsafeMutableBytes { buffer -> Int in
         guard let base = buffer.baseAddress else { return 0 }
         while true {
@@ -290,6 +295,7 @@ public func __kk_io_fs_read(
             return result
         }
     }
+    if gcBlocking { runtimeGCSafepoints.endBlocking() }
     if readCount < 0 {
         outThrown?.pointee = ioFileSystemError("Read failed: \(String(cString: strerror(readError)))")
         return 0
@@ -331,6 +337,7 @@ public func __kk_io_fs_write(
     }
     let fd = Int32(descriptor)
     var writeError: Int32 = EIO
+    let gcBlocking = runtimeGCSafepoints.beginBlockingIfEnrolled()
     let writeResult = bytes.withUnsafeBytes { buffer -> Int in
         guard let base = buffer.baseAddress else { return -1 }
         var writtenTotal = 0
@@ -346,6 +353,7 @@ public func __kk_io_fs_write(
         }
         return writtenTotal
     }
+    if gcBlocking { runtimeGCSafepoints.endBlocking() }
     if writeResult < 0 {
         outThrown?.pointee = ioFileSystemError("Write failed: \(String(cString: strerror(writeError)))")
     }

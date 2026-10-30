@@ -46,7 +46,13 @@ extension JVMFunctionBuilder {
         let name = (owner?.name ?? program.facadeName) + "$SAM" + String(program.nextClosure)
         program.nextClosure += 1
         let immediateSuspend = method.isSuspend && function.type.referenceName == "kotlin/jvm/functions/Function" + String(method.parameters.count)
-        program.closureClasses.append(program.samClass(name, target: try program.className(t.classSymbol), method: method, immediateSuspend: immediateSuspend))
+        // The wrapper must implement the erased runtime interface: bundled
+        // declarations like `kotlin.Comparator` erase to a mapped JDK name
+        // (java/util/Comparator) rather than their source binary name.
+        let interfaceName: String
+        if let erased = type.referenceName { interfaceName = erased }
+        else { interfaceName = try program.className(t.classSymbol) }
+        program.closureClasses.append(program.samClass(name, target: interfaceName, method: method, immediateSuspend: immediateSuspend))
         let nullableResult = type.isNullable && function.type.isNullable ? try value(type) : nil
         let nullCase = label(), end = label()
         if nullableResult != nil {

@@ -65,6 +65,7 @@ struct NativeEmitter {
     let bindings: LLVMCAPIBindings
     let reusableContext: LLVMCAPIBindings.LLVMContextRef?
     let module: KIRModule
+    let threadLocalGCGlobalSymbols: Set<SymbolID>
     let interner: StringInterner
     let moduleName: String
     let typeSystem: TypeSystem?
@@ -108,6 +109,10 @@ struct NativeEmitter {
         self.bindings = bindings
         self.reusableContext = reusableContext
         self.module = module
+        self.threadLocalGCGlobalSymbols = Set(module.arena.declarations.compactMap { declaration in
+            guard case let .global(global) = declaration, global.isThreadLocal else { return nil }
+            return global.symbol
+        })
         self.interner = interner
         self.moduleName = moduleName
         self.typeSystem = typeSystem

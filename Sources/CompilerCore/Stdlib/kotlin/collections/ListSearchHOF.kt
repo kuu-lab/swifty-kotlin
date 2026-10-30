@@ -10,7 +10,7 @@ import kotlin.internal.__kk_list_lastIndexOf
 //   Sources/Runtime/RuntimeCollections.swift    (firstOrNull / lastOrNull / single / singleOrNull, contains / containsAll)
 
 public fun <T> List<T>.first(): T {
-    if (size == 0) throw NoSuchElementException("Collection is empty.")
+    if (size == 0) throw NoSuchElementException("List is empty.")
     return this[0]
 }
 
@@ -53,7 +53,7 @@ public inline fun <T> List<T>.find(predicate: (T) -> Boolean): T? {
 }
 
 public fun <T> List<T>.last(): T {
-    if (size == 0) throw NoSuchElementException("Collection is empty.")
+    if (size == 0) throw NoSuchElementException("List is empty.")
     return this[size - 1]
 }
 
@@ -64,7 +64,7 @@ public inline fun <T> List<T>.last(predicate: (T) -> Boolean): T {
         if (predicate(element)) return element
         i--
     }
-    throw NoSuchElementException("Collection contains no element matching the predicate.")
+    throw NoSuchElementException("List contains no element matching the predicate.")
 }
 
 public fun <T> List<T>.lastOrNull(): T? {
@@ -95,8 +95,8 @@ public fun <T> List<T>.findLast(predicate: (T) -> Boolean): T? {
 public fun <T> List<T>.single(): T {
     val sz = size
     if (sz == 1) return this[0]
-    if (sz == 0) throw NoSuchElementException("Collection is empty.")
-    throw IllegalArgumentException("Collection has more than one element.")
+    if (sz == 0) throw NoSuchElementException("List is empty.")
+    throw IllegalArgumentException("List has more than one element.")
 }
 
 public inline fun <T> List<T>.single(predicate: (T) -> Boolean): T {

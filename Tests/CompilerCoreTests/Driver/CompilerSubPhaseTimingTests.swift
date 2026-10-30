@@ -80,4 +80,43 @@ struct CompilerSubPhaseTimingTests {
         timer.endPhase()
         #expect(timer.phaseRecords[1].subRecords.map(\.name) == ["imports.lazyMaterialize"])
     }
+
+    @Test
+    func testKIRDumpIsTimedAsItsOwnPhase() throws {
+        try withTemporaryFile(contents: "fun main(): Int = 42") { path in
+            let output = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
+            defer { try? FileManager.default.removeItem(atPath: output + ".kir") }
+            let ctx = makeCompilationContext(inputs: [path], outputPath: output, includeStdlib: false)
+            let timer = PhaseTimer()
+            ctx.installPhaseTimer(timer)
+            try runFrontend(ctx)
+            try SemaPhase().run(ctx)
+            try BuildKIRPhase().run(ctx)
+            try LoweringPhase().run(ctx)
+            CompilerDriver().emitKIRDump(ctx: ctx)
+            #expect(!ctx.diagnostics.hasError)
+            let dump = try #require(timer.phaseRecords.first { $0.name == "KIRDump" })
+            #expect(dump.subRecords.map(\.name) == ["render", "write"])
+            #expect(FileManager.default.fileExists(atPath: output + ".kir"))
+        }
+    }
+
+    @Test
+    func testKIRDumpReplacesExistingFileWithoutLeavingTempFiles() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let path = directory.appendingPathComponent("out.kir").path
+        try "stale".write(toFile: path, atomically: false, encoding: .utf8)
+        try CompilerDriver.writeReplacingAtomically(path: path) { handle in
+            try handle.write(contentsOf: Data("fresh".utf8))
+        }
+        #expect(try String(contentsOfFile: path, encoding: .utf8) == "fresh")
+        struct Failure: Error {}
+        #expect(throws: Failure.self) {
+            try CompilerDriver.writeReplacingAtomically(path: path) { _ in throw Failure() }
+        }
+        #expect(try String(contentsOfFile: path, encoding: .utf8) == "fresh")
+        #expect(try FileManager.default.contentsOfDirectory(atPath: directory.path) == ["out.kir"])
+    }
 }

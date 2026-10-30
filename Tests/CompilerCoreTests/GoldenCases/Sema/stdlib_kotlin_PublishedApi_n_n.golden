@@ -2,3 +2,5 @@ symbol fq=golden.sema.PublishedApiConstructorUse[kind=class;origin=fixture] kind
 file fstdlib_kotlin_PublishedApi_n_n package=golden.sema
   decl golden.sema.PublishedApiConstructorUse[kind=class;origin=fixture] class PublishedApiConstructorUse sym=golden.sema.PublishedApiConstructorUse[kind=class;origin=fixture]
 expr e@3:2 call callee=e@3:2#1 args=[] type=kotlin.PublishedApi call=kotlin.PublishedApi.<init>[kind=ctor;recv=kotlin.PublishedApi;params=;ret=kotlin.PublishedApi]
+expr e@4:44 call callee=e@4:44#1 args=[] type=kotlin.PublishedApi call=kotlin.PublishedApi.<init>[kind=ctor;recv=kotlin.PublishedApi;params=;ret=kotlin.PublishedApi]
+expr e@4:44#2 call callee=e@4:44#3 args=[] type=kotlin.PublishedApi call=kotlin.PublishedApi.<init>[kind=ctor;recv=kotlin.PublishedApi;params=;ret=kotlin.PublishedApi]

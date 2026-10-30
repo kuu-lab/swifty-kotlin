@@ -190,9 +190,12 @@ final class TypeCheckSemaPhase: CompilerPhase {
         var inlineAnonymousFunctionArguments: Set<ExprID> = []
         var suspendLambdaArguments: Set<ExprID> = []
         let samHelpers = TypeCheckHelpers()
-        func recordLambdaArguments(_ arguments: [ExprID], binding: CallBinding) {
+        func recordLambdaArguments(
+            _ arguments: [ExprID], binding: CallBinding, intrinsicInline: Bool = false
+        ) {
             guard let signature = sema.symbols.functionSignature(for: binding.chosenCallee) else { return }
-            let calleeIsInline = sema.symbols.symbol(binding.chosenCallee)?.flags.contains(.inlineFunction) == true
+            let calleeIsInline = intrinsicInline
+                || sema.symbols.symbol(binding.chosenCallee)?.flags.contains(.inlineFunction) == true
             for (index, argument) in arguments.enumerated() {
                 let parameterIndex = binding.parameterMapping[index] ?? index
                 guard signature.parameterTypes.indices.contains(parameterIndex) else { continue }
@@ -253,7 +256,10 @@ final class TypeCheckSemaPhase: CompilerPhase {
             default:
                 continue
             }
-            recordLambdaArguments(arguments, binding: binding)
+            // The usePinned intrinsic is expanded by the compiler even when
+            // its imported declaration has no serialized inline KIR body.
+            let intrinsicInline = sema.bindings.scopeFunctionKind(for: callExprID) == .scopeUsePinned
+            recordLambdaArguments(arguments, binding: binding, intrinsicInline: intrinsicInline)
         }
         // Indexed compound assignments bind get() on the expression itself
         // and keep the element's plusAssign()/plus() call separately.
@@ -403,6 +409,12 @@ private final class TypeCheckWork: @unchecked Sendable {
             diagnostics: driver.diagnostics, interner: driver.interner
         )
         DataFlowSemaPhase().validateInferredOverrideReturnTypes(
+            ast: driver.ast, symbols: driver.sema.symbols,
+            bindings: driver.sema.bindings, types: driver.sema.types,
+            diagnostics: driver.diagnostics, interner: driver.interner,
+            compilationModuleName: driver.compilationContext?.options.moduleName ?? "TestModule"
+        )
+        DataFlowSemaPhase().validateInferredPropertyTypeOverrides(
             ast: driver.ast, symbols: driver.sema.symbols,
             bindings: driver.sema.bindings, types: driver.sema.types,
             diagnostics: driver.diagnostics, interner: driver.interner,

@@ -12,6 +12,21 @@
       "excludeFromStdlibBuild": true
     },
     {
+      "path": "kotlin/SinceKotlin.kt",
+      "virtualPath": "<kswiftk-jvm>/sinceKotlin.kt",
+      "excludeFromStdlibBuild": true
+    },
+    {
+      "path": "kotlin/DeprecatedSinceKotlin.kt",
+      "virtualPath": "<kswiftk-jvm>/deprecatedSinceKotlin.kt",
+      "excludeFromStdlibBuild": true
+    },
+    {
+      "path": "kotlin/WasExperimental.kt",
+      "virtualPath": "<kswiftk-jvm>/wasExperimental.kt",
+      "excludeFromStdlibBuild": true
+    },
+    {
       "path": "kotlin/Numbers.kt",
       "virtualPath": "<kswiftk-jvm>/number-predicates.kt",
       "excludeFromStdlibBuild": true,

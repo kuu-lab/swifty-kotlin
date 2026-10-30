@@ -616,6 +616,19 @@ final class LocalDeclTypeChecker {
                 "'field' can only be used inside a property getter or setter body.",
                 range: range
             )
+        } else if let privateMember = driver.helpers.inaccessiblePrivateImplicitReceiverMember(
+            named: name, ctx: ctx
+        ) {
+            // Inherited `private` members never enter member lookup (they are
+            // not inherited), but the member still exists — report it as
+            // inaccessible rather than unresolved, matching kotlinc
+            // (KUU-3766).
+            driver.helpers.emitVisibilityError(
+                for: privateMember,
+                name: interner.resolve(name),
+                range: range,
+                diagnostics: ctx.sema.diagnostics
+            )
         } else {
             ctx.sema.diagnostics.error(
                 "KSWIFTK-SEMA-0013",

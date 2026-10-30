@@ -197,7 +197,7 @@ public func kk_coroutine_launcher_arg_set(_ continuation: Int, _ index: Int64, _
     guard let state = runtimeContinuationState(from: continuation) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_coroutine_launcher_arg_set received invalid continuation handle")
     }
-    state.launcherArgs[index] = value
+    state.setLauncherArg(index, value: value)
     return value
 }
 
@@ -206,7 +206,7 @@ public func kk_coroutine_launcher_arg_get(_ continuation: Int, _ index: Int64) -
     guard let state = runtimeContinuationState(from: continuation) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_coroutine_launcher_arg_get received invalid continuation handle")
     }
-    return state.launcherArgs[index] ?? 0
+    return state.rootedLauncherArg(index)
 }
 
 @_cdecl("kk_kxmini_run_blocking_with_cont")
@@ -527,7 +527,7 @@ private func runtimeAsyncUndispatched(entryPointRaw: Int, continuation: Int) -> 
 public func kk_produce(_ entryPointRaw: Int, _ capture0: Int) -> Int {
     let continuation = kk_coroutine_continuation_new(entryPointRaw)
     if let contState = runtimeContinuationState(from: continuation) {
-        contState.launcherArgs[1] = Int64(capture0)
+        contState.setLauncherArg(1, value: Int64(capture0))
     }
     return kk_kxmini_produce_with_cont(entryPointRaw, continuation)
 }
@@ -631,7 +631,7 @@ func runtimeKxMiniProduceWithCont(
     if let contState = runtimeContinuationState(from: continuation) {
         job.continuationState = contState
         contState.jobHandle = job
-        contState.launcherArgs[0] = Int64(channelHandle)
+        contState.setLauncherArg(0, value: Int64(channelHandle))
         contState.eventLoop = RuntimeEventLoop.current
     }
 
@@ -1004,9 +1004,7 @@ public func __kk_produce_launch_with_cont(_ channelHandle: Int, _ entryPointRaw:
     contState.jobHandle = job
     // Legacy launchers leave slot zero for the receiver; closure-first
     // adapters seed both the closure and receiver at the call site.
-    if contState.launcherArgs[0] == nil {
-        contState.launcherArgs[0] = Int64(channelHandle)
-    }
+    contState.setLauncherArg(0, value: Int64(channelHandle), onlyIfAbsent: true)
     let callerScope = RuntimeCoroutineScope.current
     callerScope?.registerChild(Int(bitPattern: jobPtr))
     contState.scope = callerScope

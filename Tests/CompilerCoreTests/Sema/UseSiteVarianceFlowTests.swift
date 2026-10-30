@@ -229,6 +229,83 @@ struct UseSiteVarianceFlowTests {
     }
 
     @Test
+    func testIndexedAccessAndAssignApplyProjectedReceiverVariance() throws {
+        // Indexed operators must honor the receiver's use-site projection the
+        // same way member calls do: `out` forbids `set`, `in` reads the
+        // captured upper bound instead of the raw type argument (kotlinc
+        // parity — `xs[0]` used to bind E directly and accept both shapes).
+        let sources = [
+            """
+            package indexedOut
+
+            class E
+
+            class Box<T> {
+                operator fun get(index: Int): T = throw E()
+                operator fun set(index: Int, v: T) {}
+            }
+
+            fun readOk(box: Box<out Any>): Any = box[0]
+
+            fun writeBlocked(box: Box<out Any>) {
+                box[0] = 42
+            }
+
+            fun compoundWriteBlocked(box: Box<out Int>) {
+                box[0] += 42
+            }
+            """,
+            """
+            package indexedIn
+
+            class E
+
+            class Box<T> {
+                operator fun get(index: Int): T = throw E()
+                operator fun set(index: Int, v: T) {}
+            }
+
+            fun writeOk(box: Box<in Int>) {
+                box[0] = 42
+            }
+
+            fun readWide(box: Box<in Int>): Any? = box[0]
+
+            fun readTooNarrow(box: Box<in Int>): Int = box[0]
+
+            fun compoundReadCaptured(box: Box<in Int>) {
+                box[0] += 42
+            }
+            """,
+        ]
+
+        try withTemporaryFiles(contents: sources) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
+            try runSema(ctx)
+
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
+
+            // `box[0]` on `Box<out Any>` reads the captured upper bound `Any`,
+            // matching `box.get()`.
+            let outIndexedRead = try #require(firstExprID(in: ast, path: paths[0], ctx: ctx) { _, expr in
+                guard case .indexedAccess = expr else { return false }
+                return true
+            })
+            #expect(sema.bindings.exprType(for: outIndexedRead) == sema.types.anyType)
+
+            // `out` projection forbids the indexed `set` — plain `=` and the
+            // `set` half of `+=` alike; `in` accepts writes.
+            assertDiagnosticCount("KSWIFTK-SEMA-VAR-OUT", expected: 2, in: ctx)
+            // `Box<in Int>` reads a captured type — assigning it to `Int` fails.
+            assertDiagnosticCount("KSWIFTK-TYPE-0001", expected: 1, in: ctx)
+            // `box[0] += v` on `Box<in Int>` reads a captured type on which
+            // `plus` does not resolve (kotlinc: unresolved reference '+=').
+            assertDiagnosticCount("KSWIFTK-SEMA-0002", expected: 1, in: ctx)
+        }
+    }
+
+    @Test
     func forLoopOverReadOnlyMapStillRejectsSetValue() throws {
         // KUU-1420 companion: `for (e in map)` over read-only Map yields
         // Map.Entry<K, V> — setValue is not a member, so the write stays

@@ -128,9 +128,19 @@ public fun CharSequence.removeRange(startIndex: Int, endIndex: Int): CharSequenc
         return this.subSequence(0, length)
     }
 
+    // JVM allocates the destination builder before appending, so an oversized
+    // removed span surfaces as NegativeArraySizeException ahead of the range
+    // checks on the two appends below.
+    val sb = StringBuilder(length - (endIndex - startIndex))
+    if (startIndex < 0 || startIndex > length) {
+        throw IndexOutOfBoundsException("Range [0, $startIndex) out of bounds for length $length")
+    }
+    if (endIndex > length) {
+        throw IndexOutOfBoundsException("Range [$endIndex, $length) out of bounds for length $length")
+    }
+
     // Use StringBuilder's CharSequence-aware appendRange so custom receivers
     // retain indexed UTF-16 dispatch and the stable bridge's range checks.
-    val sb = StringBuilder(length - (endIndex - startIndex))
     sb.appendRange(this, 0, startIndex)
     sb.appendRange(this, endIndex, length)
     return sb

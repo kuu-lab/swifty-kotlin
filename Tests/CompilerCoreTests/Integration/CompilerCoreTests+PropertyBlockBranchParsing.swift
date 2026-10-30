@@ -104,13 +104,16 @@ extension CompilerCoreTests {
         fun main() { println(o.f()) }
         """
         let ctx = makeContextFromSource(source)
-        try runFrontend(ctx)
+        try runSema(ctx)
+
+        #expect(!ctx.diagnostics.hasError, "Got: \(ctx.diagnostics.diagnostics)")
 
         let parse0025 = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-PARSE-0025" }
         #expect(parse0025.isEmpty, "Expected the object literal and its delegate expression to stay in the property initializer.")
 
         let ast = try #require(ctx.ast)
         let property = try #require(topLevelProperty(named: "o", in: ast, interner: ctx.interner))
+        #expect(property.delegateExpression == nil)
         let initializerID = try #require(property.initializer)
         guard case let .objectLiteral(_, objectDeclID?, _)? = ast.arena.expr(initializerID),
               case let .objectDecl(objectDecl)? = ast.arena.decl(objectDeclID)
@@ -126,6 +129,52 @@ extension CompilerCoreTests {
             return
         }
         #expect(objectDecl.memberFunctions.count == 1)
+    }
+
+    @Test(arguments: ["Impl", "make()", "when (true) { else -> Impl }"])
+    func testObjectInterfaceDelegationStaysInsidePropertyInitializer(delegate: String) throws {
+        let source = """
+        interface C { fun f(): String }
+        object Impl : C { override fun f() = "OK" }
+        fun make(): C = Impl
+        class Getter { operator fun getValue(thisRef: Any?, property: Any?): String = "property" }
+        val actual by Getter()
+        val item = object : C by \(delegate) { fun own() = "own" }
+        class Wrapper { val member = object : C by Impl {} }
+        val ordinary = object : C { override fun f() = "direct" }
+        """
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+
+        #expect(!ctx.diagnostics.hasError, "Got: \(ctx.diagnostics.diagnostics)")
+        let ast = try #require(ctx.ast)
+        let item = try #require(topLevelProperty(named: "item", in: ast, interner: ctx.interner))
+        #expect(item.delegateExpression == nil)
+        let initializer = try #require(item.initializer)
+        guard case let .objectLiteral(_, declID?, _)? = ast.arena.expr(initializer),
+              case let .objectDecl(objectDecl)? = ast.arena.decl(declID)
+        else {
+            Issue.record("Expected an object literal initializer.")
+            return
+        }
+        let delegateID = try #require(objectDecl.superTypeEntries.first?.delegateExpression)
+        switch (delegate, ast.arena.expr(delegateID)) {
+        case ("Impl", .nameRef?), ("make()", .call?), ("when (true) { else -> Impl }", .whenExpr?):
+            break
+        default:
+            Issue.record("Expected the original supertype delegate expression.")
+        }
+        #expect(objectDecl.memberFunctions.count == 1)
+
+        let member = try #require(memberProperty(named: "member", ofClass: "Wrapper", in: ast, interner: ctx.interner))
+        #expect(member.initializer != nil)
+        #expect(member.delegateExpression == nil)
+        let actual = try #require(topLevelProperty(named: "actual", in: ast, interner: ctx.interner))
+        #expect(actual.initializer == nil)
+        #expect(actual.delegateExpression != nil)
+        let ordinary = try #require(topLevelProperty(named: "ordinary", in: ast, interner: ctx.interner))
+        #expect(ordinary.initializer != nil)
+        #expect(ordinary.delegateExpression == nil)
     }
 }
 #endif

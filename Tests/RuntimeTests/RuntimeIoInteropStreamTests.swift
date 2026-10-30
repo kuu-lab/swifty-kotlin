@@ -20,6 +20,19 @@ private let ioRangeThunk: @convention(c) (Int, Int, Int, Int, UnsafeMutablePoint
     }
     return 1
 }
+private let ioObserveBytesThunk: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { raw, bytes, thrown in
+    thrown?.pointee = 0
+    runtimeArrayBox(from: raw)?[2] = bytes
+    return 0
+}
+private let ioObserveRangeThunk: @convention(c) (Int, Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = { raw, bytes, offset, count, thrown in
+    thrown?.pointee = 0
+    guard let state = runtimeArrayBox(from: raw) else { return 0 }
+    state[2] = bytes
+    state[3] = offset
+    state[4] = count
+    return 0
+}
 private let ioFiniteRangeThunk: @convention(c) (Int, Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = { raw, bytes, offset, count, thrown in
     thrown?.pointee = 0
     guard let state = runtimeArrayBox(from: raw), let destination = runtimeArrayBox(from: bytes) else { return -1 }
@@ -81,6 +94,33 @@ struct RuntimeIoInteropStreamTests {
             unsafeBitCast(ioDescriptionThunk, to: Int.self), state)
     }
 
+    @Test func outputCallbacksReceiveTypedByteArrays() throws {
+        let stateRaw = array([0, 0, 0, 0, 0, 0])
+        let state = try #require(runtimeArrayBox(from: stateRaw))
+        let range = __kk_kotlin_sink_output_stream_range(
+            unsafeBitCast(ioObserveRangeThunk, to: Int.self), stateRaw,
+            unsafeBitCast(ioNoopThunk, to: Int.self), stateRaw,
+            unsafeBitCast(ioNoopThunk, to: Int.self), stateRaw,
+            unsafeBitCast(ioNoopThunk, to: Int.self), stateRaw)
+        let whole = __kk_kotlin_sink_output_stream(
+            unsafeBitCast(ioObserveBytesThunk, to: Int.self), stateRaw,
+            unsafeBitCast(ioNoopThunk, to: Int.self), stateRaw,
+            unsafeBitCast(ioNoopThunk, to: Int.self), stateRaw)
+        let typeID = runtimeStableNominalTypeID(fqName: "kotlin.ByteArray")
+        let token = Int(RuntimeTypeTokenEncoding.nominalBase
+            | ((typeID & RuntimeTypeTokenEncoding.payloadMask) << RuntimeTypeTokenEncoding.payloadShift))
+        var thrown = 0
+        for stream in [range, whole] {
+            _ = __kk_output_stream_write_byte(stream, 255, &thrown)
+            #expect(thrown == 0)
+            #expect(kk_op_is(state[2], token) == 1)
+            #expect(try values(state[2]) == [-1])
+        }
+        let original = array([10, 20, 30])
+        _ = __kk_output_stream_write_range(range, original, 1, 2, &thrown)
+        #expect(thrown == 0 && state[2] == original && state[3] == 1 && state[4] == 2)
+    }
+
     @Test func sourceCallbacksRemainLazyAndPreserveRangesAndThrowableIdentity() throws {
         let stateRaw = array([0, 0, 0, 0, 0, 0])
         let state = try #require(runtimeArrayBox(from: stateRaw))
@@ -136,7 +176,7 @@ struct RuntimeIoInteropStreamTests {
         let object = try #require(UnsafeMutableRawPointer(bitPattern: stream))
         let memory = try #require(tryCast(object, to: RuntimeInputStreamBox.self))
         #expect(memory.markSupported())
-        memory.mark(readLimit: 0)
+        memory.mark()
         #expect(memory.readByte() == 2 && memory.reset())
         source[1] = 8
         #expect(memory.readByte() == 8)

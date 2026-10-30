@@ -119,6 +119,29 @@ struct KClassIsInstanceTests {
         #expect(ctx.diagnostics.hasError)
     }
 
+    @Test(arguments: ["out Number", "in Int"])
+    func projectedCaptureCannotBeReified(projection: String) throws {
+        let ctx = makeContextFromSource("""
+        import kotlin.reflect.KClass
+        inline fun <reified T : Any> KClass<T>.reifiedRead(): Boolean = true
+        fun wrong(k: KClass<\(projection)>): Boolean = k.reifiedRead()
+        """)
+        try runSema(ctx)
+        #expect(ctx.diagnostics.hasError)
+        #expect(ctx.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-SEMA-REIFIED" })
+    }
+
+    @Test func concreteAndReifiedForwardedArgumentsCanBeReified() throws {
+        let ctx = makeContextFromSource("""
+        import kotlin.reflect.KClass
+        inline fun <reified T : Any> KClass<T>.reifiedRead(): Boolean = true
+        fun ok(k: KClass<Int>): Boolean = k.reifiedRead()
+        inline fun <reified U : Any> fwd(k: KClass<U>): Boolean = k.reifiedRead()
+        """)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+    }
+
     @Test func starCaptureCannotWidenAnInvariantResult() throws {
         let ctx = makeContextFromSource("""
         import kotlin.reflect.KClass

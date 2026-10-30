@@ -282,10 +282,9 @@ extension CallTypeChecker {
     ) -> TypeID? {
         guard args.count == 1,
               args[0].label == nil, !args[0].isSpread,
-              case let .nameRef(argName, _)? = ctx.ast.arena.expr(args[0].expr),
-              let local = locals[argName],
-              case .functionType = ctx.sema.types.kind(of: local.type),
-              samConstructorTarget(named: calleeName, qualifiedName: qualifiedName, ctx: ctx) != nil
+              let target = samConstructorTarget(
+                  named: calleeName, qualifiedName: qualifiedName, ctx: ctx
+              )
         else { return nil }
         let hasCallable = !ctx.filterByVisibility(
             ctx.cachedScopeLookup(calleeName).filter { candidate in
@@ -294,11 +293,66 @@ extension CallTypeChecker {
             }
         ).visible.isEmpty
         guard !hasCallable else { return nil }
+
+        // The argument may be any expression producing a function value —
+        // calls on callable references like `::foo.get()` or `(::A)()`,
+        // casts, `if`/`when` results, nominal FunctionN subtypes — not only a
+        // bare local of function type (KUU-3203). Infer it, then check its
+        // function view against the SAM member signature.
+        let argExpr = args[0].expr
+        let argType = driver.inferExpr(argExpr, ctx: ctx, locals: &locals)
+        guard let probeInterfaceType = samFunctionValueProbeInterfaceType(
+            target.interfaceSymbol,
+            expectedType: expectedType,
+            explicitTypeArgs: explicitTypeArgs,
+            ctx: ctx
+        ), let samFunction = driver.helpers.samFunctionType(
+            for: probeInterfaceType, sema: ctx.sema
+        ), ctx.sema.types.functionTypeWitness(
+            from: argType,
+            compatibleWith: ctx.sema.types.make(.functionType(samFunction))
+        ) != nil
+        else { return nil }
         return inferSamConstructorCallExpr(
             id, calleeName: calleeName, qualifiedName: qualifiedName,
-            argExpr: args[0].expr, ctx: ctx, locals: &locals,
+            argExpr: argExpr, ctx: ctx, locals: &locals,
             expectedType: expectedType, explicitTypeArgs: explicitTypeArgs
         )
+    }
+
+    /// Best-effort interface type for checking a non-literal SAM constructor
+    /// argument before `inferSamConstructorCallExpr` commits: the expected
+    /// type when it names the interface, then explicit type arguments, then
+    /// the raw (parameterless) interface. Generic interfaces without either
+    /// source of arguments defer to the normal path, which resolves their
+    /// type arguments from the argument itself.
+    private func samFunctionValueProbeInterfaceType(
+        _ interfaceSymbol: SymbolID,
+        expectedType: TypeID?,
+        explicitTypeArgs: [TypeID],
+        ctx: TypeInferenceContext
+    ) -> TypeID? {
+        let sema = ctx.sema
+        if let expectedType,
+           let expectedClassType = resolveClassType(expectedType, sema: sema),
+           expectedClassType.classSymbol == interfaceSymbol
+        {
+            return expectedType
+        }
+        let typeParameters = sema.types.nominalTypeParameterSymbols(for: interfaceSymbol)
+        if !explicitTypeArgs.isEmpty, explicitTypeArgs.count == typeParameters.count {
+            return sema.types.make(.classType(ClassType(
+                classSymbol: interfaceSymbol,
+                args: explicitTypeArgs.map { .invariant($0) },
+                nullability: .nonNull
+            )))
+        }
+        guard typeParameters.isEmpty else { return nil }
+        return sema.types.make(.classType(ClassType(
+            classSymbol: interfaceSymbol,
+            args: [],
+            nullability: .nonNull
+        )))
     }
 
     func narrowSamCandidates(
@@ -451,13 +505,28 @@ extension CallTypeChecker {
     ) -> TypeID? {
         // A function-typed value converts like a lambda (`Owner.Nested(f)`,
         // KUU-3662) — `isSamConvertibleArgument` only sees literal forms.
+        // Nominal FunctionN subtypes (e.g. `Owner.Nested((::A)())`, KUU-3203)
+        // qualify through their function-type witness as well.
         let argIsFunctionValue = args.count == 1
             && !isSamConvertibleArgument(args[0].expr, ast: ctx.ast)
             && (argTypes.first.map { argType in
                 if case .functionType = ctx.sema.types.kind(of: ctx.sema.types.makeNonNullable(argType)) {
                     return true
                 }
-                return false
+                guard let probeInterfaceType = samFunctionValueProbeInterfaceType(
+                    classifierSymbol,
+                    expectedType: expectedType,
+                    explicitTypeArgs: explicitTypeArgs,
+                    ctx: ctx
+                ), let samFunction = driver.helpers.samFunctionType(
+                    for: probeInterfaceType, sema: ctx.sema
+                ) else {
+                    return false
+                }
+                return ctx.sema.types.functionTypeWitness(
+                    from: argType,
+                    compatibleWith: ctx.sema.types.make(.functionType(samFunction))
+                ) != nil
             } ?? false)
         guard args.count == 1,
               args[0].label == nil,
@@ -583,11 +652,22 @@ extension CallTypeChecker {
         }
         let samFTTypeID = sema.types.make(.functionType(samFT))
 
+        // Literals (lambda / callable reference) are checked directly against
+        // the interface so their SAM conversion resolves. Produced function
+        // values — calls like `::foo.get()` or `(::A)()` — must instead see
+        // the SAM member's function type: the interface itself is not their
+        // type and would inject an unsatisfiable constraint (KUU-3203).
+        let argExpectedType: TypeID = switch ctx.ast.arena.expr(argExpr) {
+        case .lambdaLiteral, .callableRef:
+            interfaceType
+        default:
+            samFTTypeID
+        }
         _ = driver.inferExpr(
             argExpr,
             ctx: ctx,
             locals: &locals,
-            expectedType: interfaceType
+            expectedType: argExpectedType
         )
 
         sema.bindings.markSamConversion(argExpr)

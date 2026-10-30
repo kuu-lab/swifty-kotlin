@@ -772,7 +772,6 @@ extension KIRLoweringDriver {
             for: objectSymbol,
             ensureInitSymbol: ensureInitSymbol,
             ensureInitName: ensureInitName,
-            flagSymbol: flagSymbol
         )
 
         var declIDs: [KIRDeclID] = [flagGlobalDeclID, ensureInitDeclID]

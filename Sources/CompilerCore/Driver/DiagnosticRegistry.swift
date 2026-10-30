@@ -1195,6 +1195,18 @@ enum DiagnosticRegistry {
             defaultSeverity: .error,
             summary: "A data class componentN() conflicts with a user-declared member."
         ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0447",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "A comma-separated list of conditions in a when branch cannot have a guard."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0448",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "When branch guards are only allowed in 'when' with a subject."
+        ),
     ]
 
 

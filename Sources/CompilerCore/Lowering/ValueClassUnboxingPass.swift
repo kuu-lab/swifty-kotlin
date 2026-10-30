@@ -1,5 +1,5 @@
 /// This pass must run **before** PropertyLoweringPass and ABILoweringPass.
-final class ValueClassUnboxingPass: LoweringPass, ParallelLoweringPass {
+final class ValueClassUnboxingPass: LoweringPass {
     static let name = "ValueClassUnboxing"
     static let requiredStage: KIRStage = .desugared
     static let producedStage: KIRStage = .valueClassUnboxed
@@ -209,9 +209,9 @@ final class ValueClassUnboxingPass: LoweringPass, ParallelLoweringPass {
     /// itself as the underlying field — `println(s?.x)` then dispatches
     /// `S.toString` on the box and recurses (`S(x=S(x=…`). Emit the matching
     /// `kk_unbox_*`/`kk_string_to_flat` payload extraction instead. A
-    /// non-null `V` receiver already holds the unboxed payload, and value
-    /// classes whose underlying type has no boxing callee (reference-type
-    /// payloads) stay on the plain copy — their `V?` slot *is* the payload.
+    /// non-null `V` receiver already holds the unboxed payload. A nullable
+    /// reference-backed receiver uses a separate nominal box, which the caller
+    /// handles with `kk_value_class_unbox` when this helper returns nil.
     private func valueClassPayloadUnboxCallee(
         for receiver: KIRExprID,
         arena: KIRArena,
@@ -592,7 +592,7 @@ final class ValueClassUnboxingPass: LoweringPass, ParallelLoweringPass {
                             var payloadBoxInstructions: [KIRInstruction] = []
                             emitValueClassBoxCall(
                                 value: arguments[1], classSymbol: sourceClassSymbol,
-                                result: callResult, resultType: arena.exprType(callResult),
+                                result: callResult,
                                 types: types, symbols: symbols, interner: interner,
                                 arena: arena, into: &payloadBoxInstructions
                             )
@@ -712,6 +712,28 @@ final class ValueClassUnboxingPass: LoweringPass, ParallelLoweringPass {
                         result.append(.call(
                             symbol: nil, callee: unboxCallee, arguments: [arguments[0]],
                             result: callResult, canThrow: false, thrownResult: nil
+                        ))
+                    } else if let receiverType = arena.exprType(arguments[0]),
+                              case let .classType(classType) = types.kind(of: receiverType),
+                              classType.nullability != .nonNull,
+                              let classSymbol = referenceBackedValueClassSymbol(
+                                  of: types.kind(of: types.makeNonNullable(receiverType)),
+                                  types: types, symbols: symbols
+                              )
+                    {
+                        // Nullable reference-backed values carry a nominal box;
+                        // unboxing also safely passes through a raw payload.
+                        let classID = RuntimeTypeCheckToken.stableNominalTypeID(
+                            symbol: classSymbol, symbols: symbols, interner: interner
+                        )
+                        let classIDExpr = arena.appendExpr(.intLiteral(classID), type: types.intType)
+                        result.append(.constValue(result: classIDExpr, value: .intLiteral(classID)))
+                        resultLocations.append(location)
+                        result.append(.call(
+                            callee: interner.intern("kk_value_class_unbox"),
+                            arguments: [arguments[0], classIDExpr],
+                            result: callResult,
+                            canThrow: false
                         ))
                     } else {
                         // A non-null value class whose underlying representation can

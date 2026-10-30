@@ -925,8 +925,7 @@ final class ObjectLiteralLowerer {
             return name.hasPrefix("__localdecl_") || name.hasPrefix("__ObjectLiteral_")
         }
         if isLocalOrAnonymous
-            || ownerKind.map({ [.function, .property, .local].contains($0) }) == true
-            || (symbol.kind == .object && symbol.flags.contains(.synthetic)) {
+            || ownerKind.map({ [.function, .property, .local].contains($0) }) == true {
             flags |= 1 << 13
         }
         let flagsExpr = arena.appendExpr(.intLiteral(flags), type: intType)
@@ -1126,7 +1125,6 @@ final class ObjectLiteralLowerer {
                     propertySymbol: propertySymbol,
                     propertyType: propertyType,
                     delegateStorageSymbol: delegateStorageSymbol,
-                    delegateKind: delegateKind,
                     accessorKind: .getter,
                     ast: ast,
                     sema: sema,
@@ -1139,7 +1137,6 @@ final class ObjectLiteralLowerer {
                         propertySymbol: propertySymbol,
                         propertyType: propertyType,
                         delegateStorageSymbol: delegateStorageSymbol,
-                        delegateKind: delegateKind,
                         accessorKind: .setter,
                         ast: ast,
                         sema: sema,

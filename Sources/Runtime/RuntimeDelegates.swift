@@ -13,6 +13,13 @@ final class RuntimeKPropertyStub {
     /// reading storage that does not exist — matching the JVM's
     /// PropertyReference0Impl behavior for local delegated properties.
     let isLocalDelegated: Bool
+    /// KUU-3694: the delegate handle the compiler points at this stub right
+    /// before each getValue/setValue/provideDelegate call, so `p.getDelegate()`
+    /// answers the live delegate like the JVM. The stub is cached per property
+    /// identity while member delegates differ per instance, so this is a
+    /// mutable slot repointed per call — and stays 0 (read as `null`) for
+    /// local delegated properties, matching the JVM's PropertyReference0Impl.
+    var delegateRaw: Int = 0
 
     init(
         name: Int,
@@ -365,6 +372,17 @@ public func kk_kproperty_stub_create_local(
             return created
         }
     }
+}
+
+/// Repoints a delegated-property stub at the live delegate handle for the
+/// access it is about to be passed into. Emitted next to every
+/// getValue/setValue/provideDelegate stub argument (KUU-3694); the stub is
+/// shared and cached, so this must run before each call rather than once at
+/// creation.
+@_cdecl("__kk_kproperty_stub_set_delegate")
+public func kk_kproperty_stub_set_delegate(_ handle: Int, _ delegateRaw: Int) -> Int {
+    runtimeReflectionObject(from: handle, as: RuntimeKPropertyStub.self)?.delegateRaw = delegateRaw
+    return 0
 }
 
 @_cdecl("__kk_kproperty_stub_is_lateinit")

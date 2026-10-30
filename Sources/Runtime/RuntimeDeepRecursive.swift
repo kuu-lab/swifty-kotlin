@@ -111,6 +111,21 @@ private func runtimeDeepRecursiveScopeBox(from rawValue: Int) -> RuntimeDeepRecu
     resolveRuntimeHandle(rawValue, as: RuntimeDeepRecursiveScopeBox.self)
 }
 
+/// KUU-3701: the trampoline's scope/function boxes are runtime objects with
+/// no object type metadata, yet they stand in for the public
+/// kotlin.DeepRecursive* classes — recover that nominal identity so
+/// `is`/`as` checks (including the receiver cast a suspend function value
+/// adapter emits for `DeepRecursiveScope<T, R>.() -> R`) match kotlinc.
+func runtimeDeepRecursiveNominalTypeID(rawValue: Int) -> Int64? {
+    if runtimeDeepRecursiveScopeBox(from: rawValue) != nil {
+        return runtimeStableNominalTypeID(fqName: "kotlin.DeepRecursiveScope")
+    }
+    if runtimeDeepRecursiveFunctionBox(from: rawValue) != nil {
+        return runtimeStableNominalTypeID(fqName: "kotlin.DeepRecursiveFunction")
+    }
+    return nil
+}
+
 private enum DeepRecursiveWork {
     case startNew
     case resume(cont: Int, value: Int, thrown: Int)
@@ -129,8 +144,24 @@ private func runtimeCallDeepRecursiveEntry(
     }
     RuntimeContinuationState.installState(state, forTask: taskKey)
     defer { RuntimeContinuationState.removeState(forTask: taskKey) }
+    let suspendedToken = Int(bitPattern: kk_coroutine_suspended())
     var thrown = 0
-    let result = entryPoint(continuation, &thrown)
+    var result = entryPoint(continuation, &thrown)
+    // KUU-3701: a suspend-point callee that already completed exceptionally
+    // before suspending returns COROUTINE_SUSPENDED and marks this state for
+    // inline exceptional delivery (KUU-2724). The trampoline is not a
+    // suspend-entry loop, so consume the mark and re-enter the machine until
+    // the failure reaches this frame's catch label; otherwise the suspended
+    // result is misread as a callRecursive park and the block restarts
+    // forever, leaking continuations.
+    while thrown == 0,
+          result == suspendedToken,
+          state.consumeInlineExceptionalDelivery()
+    {
+        thrown = 0
+        state.consumeCancellableDelivery()
+        result = entryPoint(continuation, &thrown)
+    }
     return (result, thrown)
 }
 

@@ -33,8 +33,16 @@ extension ExprLowerer {
                 case .functionType, .any, .typeParam:
                     return true
                 default:
-                    return false
+                    break
                 }
+                // A nominal value whose class implements FunctionN — e.g. the
+                // `(::A)()` result in `SamInterface((::A)())` (KUU-3203) —
+                // is invocable through the same callable ABI, so the wrapper
+                // can capture and `invoke` it like any function value.
+                return sema.types.functionTypeWitness(
+                    from: loweredType,
+                    compatibleWith: type
+                ) != nil
             }()
             // A discarded cast can smartcast an `Any` local without changing
             // the stored KIR value type. Already-wrapped SAM values stay nominal.
@@ -136,10 +144,11 @@ extension ExprLowerer {
         expr: Expr?,
         sema: SemaModule
     ) -> TypeID? {
-        if let boundType = sema.bindings.exprTypes[exprID],
-           case .nothing(.nonNull) = sema.types.kind(of: boundType)
-        {
-            return boundType
+        if let boundType = sema.bindings.exprTypes[exprID] {
+            if case .nothing(.nonNull) = sema.types.kind(of: boundType) {
+                return boundType
+            }
+            return nil
         }
 
         let isDirectCall: Bool = switch expr {

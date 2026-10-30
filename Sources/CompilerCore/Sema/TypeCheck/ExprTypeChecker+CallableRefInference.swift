@@ -129,6 +129,43 @@ extension ExprTypeChecker {
         return (companionType, candidates)
     }
 
+    /// In value position a bare class name denotes its companion object, so
+    /// `A::member` also carries a bound interpretation on the `A.Companion`
+    /// singleton — the same candidate space `A.Companion::member` resolves.
+    /// Which members that singleton can actually receive is decided by the
+    /// per-candidate receiver checks: members and extensions declared on
+    /// `A.Companion` always accept it, while members and extensions declared
+    /// on `A` need the companion itself to inherit `A`
+    /// (`companion object : A()`, JetBrains
+    /// companionObjectReceiverInheritsFromOuter.kt). Returns the companion's
+    /// receiver type, or `nil` when the class has no companion at all.
+    private func classNameCompanionCallableReferenceReceiverType(
+        for unboundClassType: TypeID,
+        ctx: TypeInferenceContext
+    ) -> TypeID? {
+        let sema = ctx.sema
+        let interner = ctx.interner
+        guard let (_, ownerSymbol) = resolveClassTypeSymbol(unboundClassType, sema: sema)
+        else {
+            return nil
+        }
+        let companionSymbol = sema.symbols.companionBlockObjectSymbol(
+            for: ownerSymbol.id,
+            interner: interner
+        ) ?? sema.symbols.companionObjectSymbol(for: ownerSymbol.id)
+            ?? sema.symbols.actualSymbol(for: ownerSymbol.id).flatMap {
+                sema.symbols.companionBlockObjectSymbol(for: $0, interner: interner)
+                    ?? sema.symbols.companionObjectSymbol(for: $0)
+            }
+        guard let companionSymbol else { return nil }
+        return sema.symbols.propertyType(for: companionSymbol)
+            ?? sema.types.make(.classType(ClassType(
+                classSymbol: companionSymbol,
+                args: [],
+                nullability: .nonNull
+            )))
+    }
+
     func inferCallableRefExpr(
         _ id: ExprID,
         receiver: ExprID?,
@@ -859,6 +896,52 @@ extension ExprTypeChecker {
                 if let property = memberProperty,
                    sema.symbols.extensionPropertyReceiverType(for: property.symbol) == nil
                 {
+                    // KUU-3683: `A::prop` where `A`'s companion inherits `A`
+                    // also carries a bound `KProperty0` interpretation on the
+                    // companion singleton. Prefer it only when the unbound
+                    // `KProperty1<A, V>` shape cannot satisfy the expected
+                    // type (for example `call(A::instanceProp)` for a
+                    // `() -> Boolean` parameter).
+                    if let unboundClassType,
+                       let expectedType,
+                       let companionType = classNameCompanionCallableReferenceReceiverType(
+                           for: unboundClassType, ctx: ctx
+                       ),
+                       sema.types.isSubtype(companionType, unboundClassType)
+                    {
+                        let isMutable = isPropertySetterAccessible(property.symbol, ctx: ctx)
+                        let unboundShape = kPropertyReferenceType(
+                            ownerType: nonNullReceiver,
+                            valueType: property.type,
+                            isMutable: isMutable,
+                            sema: sema,
+                            interner: interner
+                        )
+                        let boundShape = kPropertyReferenceType(
+                            ownerType: nil,
+                            valueType: property.type,
+                            isMutable: isMutable,
+                            sema: sema,
+                            interner: interner
+                        )
+                        if let boundShape,
+                           sema.types.isSubtype(boundShape, expectedType),
+                           unboundShape.map({ !sema.types.isSubtype($0, expectedType) }) ?? true
+                        {
+                            return bindPropertyCallableRef(
+                                id,
+                                propertySymbol: property.symbol,
+                                ownerType: nil,
+                                isUnbound: false,
+                                expectedType: expectedType,
+                                range: range,
+                                ctx: ctx,
+                                sema: sema,
+                                interner: interner,
+                                resolvedPropertyType: property.type
+                            )
+                        }
+                    }
                     // `lookupMemberProperty` has already substituted the
                     // receiver's arguments into the property type. Keep that
                     // specialized value type even for a bound reference, whose
@@ -1016,6 +1099,74 @@ extension ExprTypeChecker {
                             )
                             return driver.helpers.bindAndReturnErrorType(id, sema: sema)
                         }
+                        // KUU-3683: `A::extProp` where `A`'s companion
+                        // inherits `A` also has a bound `KProperty0`
+                        // interpretation on that singleton. Prefer it only
+                        // when the unbound `KProperty1<A, V>` shape cannot
+                        // satisfy the expected type.
+                        if let unboundClassType,
+                           let expectedType,
+                           let companionType = classNameCompanionCallableReferenceReceiverType(
+                               for: unboundClassType, ctx: ctx
+                           ),
+                           sema.types.isSubtype(companionType, unboundClassType),
+                           let propertyType = sema.symbols.propertyType(
+                               for: extensionPropertyReference.symbol
+                           )
+                        {
+                            let boundResolution = resolveExtensionPropertyReferenceType(
+                                extensionPropertyReference.symbol,
+                                receiverType: companionType,
+                                fallbackPropertyType: propertyType,
+                                sema: sema,
+                                interner: interner
+                            )
+                            let boundValueType = boundResolution?.valueType ?? propertyType
+                            let isMutable = isPropertySetterAccessible(
+                                extensionPropertyReference.symbol, ctx: ctx
+                            )
+                            let unboundShape = kPropertyReferenceType(
+                                ownerType: effectiveReceiverType,
+                                valueType: extensionPropertyReference.valueType,
+                                isMutable: isMutable,
+                                sema: sema,
+                                interner: interner
+                            )
+                            let boundShape = kPropertyReferenceType(
+                                ownerType: nil,
+                                valueType: boundValueType,
+                                isMutable: isMutable,
+                                sema: sema,
+                                interner: interner
+                            )
+                            if let boundShape,
+                               sema.types.isSubtype(boundShape, expectedType),
+                               unboundShape.map({ !sema.types.isSubtype($0, expectedType) }) ?? true
+                            {
+                                let resultType = bindPropertyCallableRef(
+                                    id,
+                                    propertySymbol: extensionPropertyReference.symbol,
+                                    ownerType: nil,
+                                    isUnbound: false,
+                                    expectedType: expectedType,
+                                    range: range,
+                                    ctx: ctx,
+                                    sema: sema,
+                                    interner: interner,
+                                    resolvedPropertyType: boundValueType
+                                )
+                                if let specialization = boundResolution?.specialization,
+                                   let getter = sema.symbols.extensionPropertyGetterAccessor(
+                                       for: extensionPropertyReference.symbol
+                                   ) {
+                                    bindCallableReferenceBinding(
+                                        id, target: getter, specialization: specialization,
+                                        range: range, ctx: ctx
+                                    )
+                                }
+                                return resultType
+                            }
+                        }
                         let resultType = bindPropertyCallableRef(
                             id,
                             propertySymbol: extensionPropertyReference.symbol,
@@ -1038,6 +1189,88 @@ extension ExprTypeChecker {
                             )
                         }
                         return resultType
+                    }
+                    // KUU-3683: an extension property declared on
+                    // `A.Companion` (for example
+                    // `val A.Companion.companionExtProp`) is only reachable
+                    // through the bound interpretation of `A::prop` — its
+                    // declared receiver never accepts `A` itself, so the
+                    // unbound lookup above cannot see it. Collect it against
+                    // the companion type instead; the reference is bound
+                    // `KProperty0` unconditionally (there is no unbound
+                    // shape for it to compete with).
+                    if let unboundClassType,
+                       let companionType = classNameCompanionCallableReferenceReceiverType(
+                           for: unboundClassType, ctx: ctx
+                       )
+                    {
+                        let boundExtensionProperties = ctx.cachedScopeLookup(member).filter { symbolID in
+                            guard let symbol = ctx.cachedSymbol(symbolID),
+                                  symbol.kind == .property,
+                                  let declaredReceiver = sema.symbols.extensionPropertyReceiverType(
+                                      for: symbolID
+                                  ),
+                                  !isCompanionExtension(symbolID, ctx: ctx)
+                            else {
+                                return false
+                            }
+                            return driver.callChecker.extensionSyntheticFallbackReceiverMatches(
+                                callSiteReceiver: companionType,
+                                declaredReceiver: declaredReceiver,
+                                sema: sema
+                            )
+                        }
+                        for boundProperty in boundExtensionProperties {
+                            guard let propertyType = sema.symbols.propertyType(for: boundProperty)
+                            else {
+                                continue
+                            }
+                            let boundResolution = resolveExtensionPropertyReferenceType(
+                                boundProperty,
+                                receiverType: companionType,
+                                fallbackPropertyType: propertyType,
+                                sema: sema,
+                                interner: interner
+                            )
+                            let boundValueType = boundResolution?.valueType ?? propertyType
+                            let boundShape = kPropertyReferenceType(
+                                ownerType: nil,
+                                valueType: boundValueType,
+                                isMutable: isPropertySetterAccessible(boundProperty, ctx: ctx),
+                                sema: sema,
+                                interner: interner
+                            ) ?? boundValueType
+                            // Bound is the only interpretation this
+                            // candidate has, so it resolves unconditionally;
+                            // an expected type still has to accept it.
+                            if let expectedType,
+                               !sema.types.isSubtype(boundShape, expectedType)
+                            {
+                                continue
+                            }
+                            let resultType = bindPropertyCallableRef(
+                                id,
+                                propertySymbol: boundProperty,
+                                ownerType: nil,
+                                isUnbound: false,
+                                expectedType: expectedType,
+                                range: range,
+                                ctx: ctx,
+                                sema: sema,
+                                interner: interner,
+                                resolvedPropertyType: boundValueType
+                            )
+                            if let specialization = boundResolution?.specialization,
+                               let getter = sema.symbols.extensionPropertyGetterAccessor(
+                                   for: boundProperty
+                               ) {
+                                bindCallableReferenceBinding(
+                                    id, target: getter, specialization: specialization,
+                                    range: range, ctx: ctx
+                                )
+                            }
+                            return resultType
+                        }
                     }
 
                 }
@@ -1434,12 +1667,14 @@ extension ExprTypeChecker {
         // references (obj::member), the receiver is captured. Ordinary
         // constructor references have no receiver parameter; inner
         // constructors use their enclosing instance as that parameter.
-        let isBoundReceiver = (receiver != nil
+        // `var`: the companion-inherits-owner retry below can still turn an
+        // unresolved unbound reference into a bound `A.Companion` one.
+        var isBoundReceiver = (receiver != nil
             && (unboundClassType == nil || companionCallableReferenceReceiverType != nil))
             || (isConstructorReference && unboundInnerConstructorReceiverType == nil)
             || importedObjectCallableReferenceReceiver != nil
             || isImplicitlyBoundMember
-        let unboundCallableReceiverType: TypeID?
+        var unboundCallableReceiverType: TypeID?
         if let unboundInnerConstructorReceiverType {
             unboundCallableReceiverType = unboundInnerConstructorReceiverType
         } else if !isBoundReceiver, !isConstructorReference {
@@ -1751,6 +1986,115 @@ extension ExprTypeChecker {
             }
         }
 
+        // KUU-3683: `A::member` also resolves as a bound reference on the
+        // `A.Companion` singleton — in value position `A` denotes that
+        // object, so the bound candidate space is the one
+        // `A.Companion::member` already resolves: the companion's own
+        // members, members of `A` reachable only when the companion itself
+        // inherits `A` (`companion object : A()`, JetBrains
+        // companionObjectReceiverInheritsFromOuter.kt), and package
+        // extensions whose declared receiver accepts the companion type.
+        // The unbound interpretation keeps priority: this retry only runs
+        // when nothing above matched the expected function type, so
+        // `A::instance` stays `(A) -> Boolean` for an `(A) -> Boolean`
+        // context and becomes `() -> Boolean` only when the unbound shape
+        // cannot apply.
+        if chosen == nil,
+           receiver != nil,
+           !isBoundReceiver,
+           !isConstructorReference,
+           !isImplicitlyBoundMember,
+           companionCallableReferenceReceiverType == nil,
+           propertyReferenceCandidate == nil,
+           let unboundClassType,
+           let companionType = classNameCompanionCallableReferenceReceiverType(
+               for: unboundClassType,
+               ctx: ctx
+           )
+        {
+            let boundMembers = driver.helpers.collectMemberFunctionCandidates(
+                named: member,
+                receiverType: companionType,
+                sema: sema,
+                interner: interner
+            ).filter { candidate in
+                !driver.helpers.declaresExtensionReceiver(
+                    candidate,
+                    sema: sema,
+                    interner: interner
+                )
+            }
+            let boundExtensions: [SymbolID] = {
+                func isApplicableExtension(_ symbolID: SymbolID) -> Bool {
+                    guard let symbol = ctx.cachedSymbol(symbolID),
+                          symbol.kind == .function,
+                          !(symbol.flags.contains(.expectDeclaration)
+                              && sema.symbols.actualSymbol(for: symbolID) != nil),
+                          sema.symbols.memberExtensionOwnerSymbol(for: symbolID) == nil,
+                          driver.helpers.declaresExtensionReceiver(
+                              symbolID, sema: sema, interner: interner
+                          ),
+                          let declaredReceiver = sema.symbols.functionSignature(
+                              for: symbolID
+                          )?.receiverType
+                    else { return false }
+                    return driver.callChecker.extensionSyntheticFallbackReceiverMatches(
+                        callSiteReceiver: companionType,
+                        declaredReceiver: declaredReceiver,
+                        sema: sema
+                    )
+                }
+                let localExtensions = ctx.scope.lookup(member, matching: { symbolID in
+                    ctx.cachedSymbol(symbolID)?.flags.contains(.localFunction) == true
+                        && isApplicableExtension(symbolID)
+                })
+                if !localExtensions.isEmpty {
+                    return localExtensions
+                }
+                if let local = locals[member],
+                   ctx.cachedSymbol(local.symbol)?.flags.contains(.localFunction) == true,
+                   isApplicableExtension(local.symbol)
+                {
+                    return [local.symbol]
+                }
+                return ctx.scope.lookup(member, matching: isApplicableExtension)
+            }()
+            let boundPool = boundMembers + boundExtensions
+            if boundPool.count == 1 {
+                driver.inferFunctionReturnTypesIfNeeded(for: boundPool)
+            }
+            func boundMatch(_ candidate: SymbolID) -> Bool {
+                guard let signature = sema.symbols.functionSignature(for: candidate)
+                else { return false }
+                return driver.helpers.contextualCallableReferenceBinding(
+                    for: signature,
+                    targetSymbol: candidate,
+                    bindReceiver: true,
+                    boundReceiver: (candidate, companionType),
+                    expectedFunctionType: expectedFunctionType,
+                    postponedReturnTypeParameter: postponedReturnParameter,
+                    interner: interner,
+                    availableContextReceiverTypes: availableContextReceiverTypes,
+                    sema: sema
+                ) != nil
+            }
+            // Members outrank same-named extensions for the bound
+            // interpretation, mirroring Kotlin's member-call resolution.
+            let boundChosen = boundMembers.filter(boundMatch)
+                + boundExtensions.filter(boundMatch)
+            let mostSpecificBound = driver.callChecker.preferMostSpecificMemberReceiverCandidates(
+                boundChosen, receiverType: companionType, sema: sema, interner: interner
+            )
+            if mostSpecificBound.count == 1 {
+                candidates = mostSpecificBound
+                chosen = mostSpecificBound[0]
+                companionCallableReferenceReceiverType = companionType
+                boundReceiverType = companionType
+                unboundCallableReceiverType = nil
+                isBoundReceiver = true
+            }
+        }
+
         if let chosen,
            let signature = sema.symbols.functionSignature(for: chosen)
         {
@@ -2029,11 +2373,26 @@ extension ExprTypeChecker {
         }
 
         if candidates.isEmpty {
-            ctx.sema.diagnostics.error(
-                "KSWIFTK-SEMA-0022",
-                "Unresolved reference '::\(interner.resolve(member))'.",
-                range: range
-            )
+            // Inherited `private` members never enter the candidate set (they
+            // are not inherited), but the member still exists — report it as
+            // inaccessible rather than unresolved, matching kotlinc
+            // (KUU-3766).
+            if let privateMember = driver.helpers.inaccessiblePrivateImplicitReceiverMember(
+                named: member, ctx: ctx
+            ) {
+                driver.helpers.emitVisibilityError(
+                    for: privateMember,
+                    name: interner.resolve(member),
+                    range: range,
+                    diagnostics: ctx.sema.diagnostics
+                )
+            } else {
+                ctx.sema.diagnostics.error(
+                    "KSWIFTK-SEMA-0022",
+                    "Unresolved reference '::\(interner.resolve(member))'.",
+                    range: range
+                )
+            }
         } else {
             ctx.sema.diagnostics.error(
                 "KSWIFTK-TYPE-0001",

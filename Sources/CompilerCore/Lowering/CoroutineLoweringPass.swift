@@ -94,8 +94,6 @@ final class CoroutineLoweringPass: LoweringPass {
         let kxMiniAsyncCallee = ctx.interner.intern("async")
         let kxMiniProduceCallee = ctx.interner.intern("produce")
         let kxMiniWithContextCallee = ctx.interner.intern("withContext")
-        let kxMiniWithTimeoutCallee = ctx.interner.intern("withTimeout")
-        let kxMiniWithTimeoutOrNullCallee = ctx.interner.intern("withTimeoutOrNull")
         let suspendCoroutineUninterceptedOrReturnCallee = ctx.interner.intern("suspendCoroutineUninterceptedOrReturn")
         let kxMiniDelayCallee = ctx.interner.intern("delay")
         let kxMiniYieldCallee = ctx.interner.intern("yield")
@@ -195,6 +193,7 @@ final class CoroutineLoweringPass: LoweringPass {
 
         var nextSyntheticSymbol = nextAvailableSyntheticSymbol(module: module, sema: ctx.sema)
         var loweredBySymbol: [SymbolID: (name: InternedString, symbol: SymbolID)] = [:]
+        var interceptionTransparentSymbols: Set<SymbolID> = []
         var continuationTypeByLoweredSymbol: [SymbolID: TypeID] = [:]
         var suspendFunctionArityBySymbol: [SymbolID: Int] = [:]
         var loweredByNameBuckets: [InternedString: [(name: InternedString, symbol: SymbolID)]] = [:]
@@ -225,6 +224,19 @@ final class CoroutineLoweringPass: LoweringPass {
                 suspendFunctionNames: suspendFunctionNames,
                 runtimeSuspendCallNames: runtimeSuspendCallNames
             )
+            // KUU-3719: a callee whose suspending calls are all in tail
+            // position owns no ContinuationImpl on JVM — its suspend points
+            // bind the caller's continuation. Mark its lowered symbol so
+            // direct-call sites can share the caller's interception.
+            if isInterceptionTransparentBody(
+                originalBody: suspendFunction.body,
+                interner: ctx.interner,
+                suspendFunctionSymbols: suspendFunctionSymbols,
+                suspendFunctionNames: suspendFunctionNames,
+                runtimeSuspendCallNames: runtimeSuspendCallNames
+            ) {
+                interceptionTransparentSymbols.insert(loweredSymbol)
+            }
             let continuationNominal = synthesizeContinuationNominalIfPossible(
                 original: suspendFunction,
                 loweredName: loweredName,
@@ -364,9 +376,7 @@ final class CoroutineLoweringPass: LoweringPass {
             flowCollectLatestCallee: flowCollectLatestCallee,
             withContextCallee: kxMiniWithContextCallee,
             runtimeWithContextCallee: ctx.interner.intern("kk_with_context"),
-            withTimeoutCallee: kxMiniWithTimeoutCallee,
             runtimeWithTimeoutCallee: runtimeWithTimeoutCallee,
-            withTimeoutOrNullCallee: kxMiniWithTimeoutOrNullCallee,
             runtimeWithTimeoutOrNullCallee: runtimeWithTimeoutOrNullCallee,
             yieldCallee: kxMiniYieldCallee,
             runtimeYieldCallee: runtimeYieldCallee,
@@ -398,6 +408,7 @@ final class CoroutineLoweringPass: LoweringPass {
             loweredBySymbol: loweredBySymbol,
             originalByLoweredName: originalByLoweredName,
             continuationTypeByLoweredSymbol: continuationTypeByLoweredSymbol,
+            interceptionTransparentSymbols: interceptionTransparentSymbols,
             suspendFunctionArityBySymbol: suspendFunctionArityBySymbol,
             loweredByUniqueNameArity: loweredByUniqueNameArity,
             loweredByUniqueName: loweredByUniqueName,

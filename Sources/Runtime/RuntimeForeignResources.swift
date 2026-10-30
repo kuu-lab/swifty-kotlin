@@ -49,11 +49,18 @@ func runtimeForeignResourceForOwner<T: AnyObject>(_ owner: Int, as type: T.Type)
 /// lease and therefore bounds the pin. No permanent StableRef or Cleaner root.
 final class RuntimeForeignCallbackPin: @unchecked Sendable {
     private let root: Int
+    private let lock = NSLock()
+    private var active = true
     init(root: Int) {
         self.root = root
         runtimeStorage.withGCLock { $0.pinnedObjectCounts[UInt(bitPattern: root), default: 0] += 1 }
     }
-    deinit {
+    /// Call only after all users of this pin have finished accessing its root.
+    func finish() {
+        lock.lock()
+        defer { lock.unlock() }
+        guard active else { return }
+        active = false
         runtimeStorage.withGCLock { state in
             let key = UInt(bitPattern: root)
             if let count = state.pinnedObjectCounts[key], count > 1 {
@@ -61,6 +68,34 @@ final class RuntimeForeignCallbackPin: @unchecked Sendable {
             } else { state.pinnedObjectCounts.removeValue(forKey: key) }
         }
     }
+
+    deinit { finish() }
+}
+
+/// Keeps queued native arguments pinned and blocks test reset until the pins
+/// are removed. The caller must keep the values rooted until construction.
+final class RuntimeQueuedGCRoots: @unchecked Sendable {
+    private let lock = NSLock()
+    private let resetLease: RuntimeGCResetWorkLease
+    private var pins: [RuntimeForeignCallbackPin]
+    private var active = true
+
+    init(_ roots: [Int]) {
+        resetLease = RuntimeGCResetWorkLease()
+        pins = roots.map { RuntimeForeignCallbackPin(root: $0) }
+    }
+
+    func finish() {
+        lock.lock()
+        defer { lock.unlock() }
+        guard active else { return }
+        active = false
+        for pin in pins { pin.finish() }
+        pins.removeAll()
+        resetLease.finish()
+    }
+
+    deinit { finish() }
 }
 
 /// Retained RuntimeObjectBox instances have an explicit release lifecycle in

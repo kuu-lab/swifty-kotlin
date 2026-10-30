@@ -116,4 +116,47 @@ struct RuntimeFunctionArityTests {
         #expect(kk_op_is(value, functionToken(1, suspend: true)) == 0)
         #expect(kk_op_is(value, functionToken(0)) == 0)
     }
+
+    @Test func samCallableAdaptersRespectNominalFunctionSupertypes() {
+        let actionID = runtimeStableNominalTypeID(fqName: "test.Action")
+        let actionWrapperID = runtimeStableNominalTypeID(fqName: "test.ActionWrapper")
+        let functionActionID = runtimeStableNominalTypeID(fqName: "test.FunctionAction")
+        let functionWrapperID = runtimeStableNominalTypeID(fqName: "test.FunctionActionWrapper")
+        let suspendedID = runtimeStableNominalTypeID(fqName: "test.SuspendedAction")
+        let suspendedWrapperID = runtimeStableNominalTypeID(fqName: "test.SuspendedActionWrapper")
+        let suspendFunctionID = runtimeStableNominalTypeID(fqName: "test.SuspendFunctionAction")
+        let suspendWrapperID = runtimeStableNominalTypeID(fqName: "test.SuspendFunctionActionWrapper")
+        let function0ID = runtimeStableNominalTypeID(fqName: "kotlin.Function.Function0")
+        let suspendFunction0ID = runtimeStableNominalTypeID(fqName: "kotlin.coroutines.SuspendFunction0")
+
+        runtimeRegisterTypeEdge(childTypeID: actionWrapperID, parentTypeID: actionID)
+        runtimeRegisterTypeEdge(childTypeID: functionWrapperID, parentTypeID: functionActionID)
+        runtimeRegisterTypeEdge(childTypeID: functionActionID, parentTypeID: function0ID)
+        runtimeRegisterTypeEdge(childTypeID: suspendedWrapperID, parentTypeID: suspendedID)
+        runtimeRegisterTypeEdge(childTypeID: suspendWrapperID, parentTypeID: suspendFunctionID)
+        runtimeRegisterTypeEdge(childTypeID: suspendFunctionID, parentTypeID: suspendFunction0ID)
+
+        let action = kk_object_new(2, Int(actionWrapperID))
+        let functionAction = kk_object_new(2, Int(functionWrapperID))
+        let suspended = kk_object_new(2, Int(suspendedWrapperID))
+        let suspendFunctionAction = kk_object_new(2, Int(suspendWrapperID))
+        __kk_sam_adapter_set_identity(action, Int(actionID), 0x123400, runtimeNullSentinelInt, 0, 0)
+        __kk_sam_adapter_set_identity(functionAction, Int(functionActionID), 0x123400, runtimeNullSentinelInt, 0, 0)
+        __kk_sam_adapter_set_identity(suspended, Int(suspendedID), 0x123400, runtimeNullSentinelInt, 0, 1)
+        __kk_sam_adapter_set_identity(suspendFunctionAction, Int(suspendFunctionID), 0x123400, runtimeNullSentinelInt, 0, 1)
+        // A stale function tag must not override the SAM's nominal identity.
+        _ = kk_function_value_tag_arity(action, 0)
+
+        #expect(kk_op_is(action, functionToken(0)) == 0)
+        #expect(kk_op_is(functionAction, functionToken(0)) == 1)
+        #expect(kk_op_is(functionAction, functionToken(1)) == 0)
+        #expect(kk_op_is(suspended, functionToken(1)) == 0)
+        #expect(kk_op_is(suspendFunctionAction, functionToken(1)) == 1)
+        #expect(kk_op_is(suspendFunctionAction, functionToken(0, suspend: true)) == 1)
+
+        let function = kk_function_create_0(0x123400, 0, nil)
+        __kk_callable_adapter_set_identity(function, 0, 0x123400, runtimeNullSentinelInt, 0, 0, 0)
+        #expect(kk_op_is(function, functionToken(0)) == 1)
+        #expect(kk_op_is(function, functionToken(1)) == 0)
+    }
 }

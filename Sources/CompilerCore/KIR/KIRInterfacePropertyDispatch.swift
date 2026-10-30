@@ -557,7 +557,7 @@ func appendObjectItablePropertyGetterRegistrations<C: RangeReplaceableCollection
                 continue
             }
 
-            synthesizeEnumBaseOrdinalGetterIfNeeded(
+            synthesizeEnumBasePropertyGetterIfNeeded(
                 implGetter,
                 sema: sema,
                 arena: arena,
@@ -619,10 +619,11 @@ func appendObjectItablePropertyGetterRegistrations<C: RangeReplaceableCollection
     }
 }
 
-/// Enum classes have a compiler-provided `ordinal` property, not a source
-/// accessor with a KIR body. Materialize its getter before its symbol is used
-/// in the interface table.
-private func synthesizeEnumBaseOrdinalGetterIfNeeded(
+/// Enum classes have compiler-provided `name`/`ordinal` properties, not source
+/// accessors with KIR bodies. Materialize the getter before its symbol is used
+/// in the interface table — an `enum class E : Named` that only overrides
+/// `name` via the base still leaves `__itable_impl_<name getter>` dangling.
+private func synthesizeEnumBasePropertyGetterIfNeeded(
     _ getterSymbol: SymbolID,
     sema: SemaModule,
     arena: KIRArena,
@@ -633,13 +634,23 @@ private func synthesizeEnumBaseOrdinalGetterIfNeeded(
           decoded.kind == .getter,
           let property = sema.symbols.symbol(decoded.property),
           property.kind == .property,
-          property.name == interner.intern("ordinal"),
           let ownerSymbol = sema.symbols.parentSymbol(for: decoded.property),
           sema.symbols.symbol(ownerSymbol)?.kind == .enumClass,
           property.flags.contains(.synthetic),
-          let propertyType = sema.symbols.propertyType(for: decoded.property),
-          propertyType == sema.types.intType
+          let propertyType = sema.symbols.propertyType(for: decoded.property)
     else {
+        return
+    }
+
+    let callee: InternedString
+    if property.name == interner.intern("ordinal"), propertyType == sema.types.intType {
+        callee = interner.intern("kk_unbox_int")
+    } else if property.name == interner.intern("name"), propertyType == sema.types.stringType {
+        // Emit the same placeholder as a dynamic `.name` read
+        // (CallLowerer+MemberPropertyReads): EnumNameAccessLoweringPass
+        // rewrites it to `$enumOrdinalToName$` once that helper exists.
+        callee = interner.intern("name")
+    } else {
         return
     }
 
@@ -648,8 +659,7 @@ private func synthesizeEnumBaseOrdinalGetterIfNeeded(
     )))
     let receiverSymbol = SyntheticSymbolScheme.receiverParameterSymbol(for: decoded.property)
     let receiver = arena.appendExpr(.symbolRef(receiverSymbol), type: ownerType)
-    let ordinal = arena.appendTemporary(type: propertyType)
-    let ordinalCallee = interner.intern("kk_unbox_int")
+    let value = arena.appendTemporary(type: propertyType)
     let function = KIRFunction(
         symbol: getterSymbol,
         name: interner.intern("get"),
@@ -658,8 +668,8 @@ private func synthesizeEnumBaseOrdinalGetterIfNeeded(
         body: [
             .beginBlock,
             .constValue(result: receiver, value: .symbolRef(receiverSymbol)),
-            .call(callee: ordinalCallee, arguments: [receiver], result: ordinal, canThrow: false),
-            .returnValue(ordinal),
+            .call(callee: callee, arguments: [receiver], result: value, canThrow: false),
+            .returnValue(value),
             .endBlock,
         ],
         isSuspend: false,

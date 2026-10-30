@@ -170,7 +170,10 @@ extension KotlinParser {
                 break
             }
             if case .symbol(.lBrace) = token.kind, inBlock {
-                children.append(.node(parseBlock()))
+                let blockID = consumedTokensEndWithWhenSubject(children)
+                    ? parseWhenBody(inBlock: inBlock)
+                    : parseBlock()
+                children.append(.node(blockID))
                 if isInitializerBlock {
                     if case .symbol(.semicolon) = stream.peek().kind {
                         _ = consumeToken(into: &children, range: &range)
@@ -426,7 +429,9 @@ extension KotlinParser {
             }
 
             if case .symbol(.lBrace) = token.kind, inBlock, atTopLevel {
-                let block = parseBlock()
+                let block = consumedTokensEndWithWhenSubject(children)
+                    ? parseWhenBody(inBlock: inBlock)
+                    : parseBlock()
                 children.append(.node(block))
                 range.append(arena.node(block).range)
                 continue
@@ -491,6 +496,14 @@ extension KotlinParser {
 
         if stream.peek().kind == .keyword(.else) {
             _ = consumeToken(into: &children, range: &range)
+            // Kotlin 2.1 when guards: `else if <guard> ->` is a fallible
+            // catch-all branch, not the final else — parse the guard like a
+            // branch condition so the `->` terminates the entry normally.
+            if stream.peek().kind == .keyword(.if) {
+                let guardCondition = parseWhenConditionList()
+                children.append(.node(guardCondition))
+                range.append(arena.node(guardCondition).range)
+            }
         } else {
             let conditionList = parseWhenConditionList()
             children.append(.node(conditionList))
@@ -543,6 +556,40 @@ extension KotlinParser {
         return arena.appendNode(kind: .whenConditionList, range: range.value ?? invalidRange, children)
     }
 
+    /// Whether the flat tokens already consumed end in `when` or
+    /// `when (subject)`, so a `{` at the current position opens a when body
+    /// rather than a plain block or lambda. `when` reached through generic
+    /// statement/declaration tails (`= when (x) {`, `return when (x) {`,
+    /// `x = when (x) {`) routes here so entries are parsed as when entries —
+    /// otherwise a newline-leading `if` (a Kotlin 2.1 branch guard:
+    /// `cond\nif g ->`, `else\nif g ->`) would be reclaimed as an if
+    /// statement.
+    private func consumedTokensEndWithWhenSubject(_ children: [SyntaxChild]) -> Bool {
+        var parenDepth = 0
+        for child in children.reversed() {
+            // Nodes are opaque balanced groups (blocks, balanced parens):
+            // their inner parens cannot affect the depth at this level.
+            guard case let .token(tokenID) = child, let token = arena.token(tokenID) else {
+                continue
+            }
+            switch token.kind {
+            case .symbol(.rParen):
+                parenDepth += 1
+            case .symbol(.lParen):
+                parenDepth -= 1
+                if parenDepth < 0 { return false }
+            default:
+                if parenDepth == 0 {
+                    // The first top-level token looking back: `when` means
+                    // the trailing `)` closed a `when (…)` subject, or `when`
+                    // directly precedes the brace (`when {`).
+                    return token.kind == .keyword(.when)
+                }
+            }
+        }
+        return false
+    }
+
     private func parseWhenCondition() -> NodeID {
         var children: [SyntaxChild] = []
         var range = RangeAccumulator()
@@ -554,7 +601,16 @@ extension KotlinParser {
                 if token.kind == .symbol(.comma) || token.kind == .symbol(.arrow) || token.kind == .symbol(.rBrace) {
                     break
                 }
-                if hasLeadingNewline(token), !children.isEmpty {
+                // A leading-newline `if` continues the condition as a Kotlin
+                // 2.1 branch guard (`is T\nif cond ->`), as does the guard
+                // operand after `if` itself (`is T if\ncond ->`) or a pending
+                // infix operator (`cond if a &&\nb ->`); other tokens start a
+                // new entry.
+                if hasLeadingNewline(token), !children.isEmpty,
+                   token.kind != .keyword(.if),
+                   lastConsumedToken?.kind != .keyword(.if),
+                   !endsWithPendingInfixOperator(children)
+                {
                     break
                 }
             }
@@ -1192,14 +1248,18 @@ extension KotlinParser {
                 continue
             }
             if case .symbol(.lBrace) = token.kind, inBlock, atTopLevel {
-                let blockID = parseBlock()
+                let blockID = consumedTokensEndWithWhenSubject(children)
+                    ? parseWhenBody(inBlock: inBlock)
+                    : parseBlock()
                 children.append(.node(blockID))
                 range.append(arena.node(blockID).range)
                 progress = true
                 continue
             }
             if case .symbol(.lBrace) = token.kind, atTopLevel {
-                let blockID = parseBlock(isClassBody: isClassBody)
+                let blockID = consumedTokensEndWithWhenSubject(children)
+                    ? parseWhenBody(inBlock: inBlock)
+                    : parseBlock(isClassBody: isClassBody)
                 children.append(.node(blockID))
                 range.append(arena.node(blockID).range)
                 progress = true

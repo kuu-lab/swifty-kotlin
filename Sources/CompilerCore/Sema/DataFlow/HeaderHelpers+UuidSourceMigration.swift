@@ -5,12 +5,9 @@ extension DataFlowSemaPhase {
 
     func attachUuidSourceMigrationBridgeIfNeeded(
         to symbolID: SymbolID,
-        fqName: [InternedString],
         sourceFileID: FileID,
         ctx: CompilationContext,
-        symbols: SymbolTable,
-        interner: StringInterner
-    ) {
+        symbols: SymbolTable) {
         guard isBundledUuidSource(sourceFileID, ctx: ctx),
               let symbol = symbols.symbol(symbolID),
               symbol.kind == .function,

@@ -67,6 +67,9 @@ extension JVMFunctionBuilder {
         if let target = Self.numericConversions[name], sourceType.isNumeric, args.isEmpty {
             return JVMIntrinsicResult(value: try convert(requireValue(receiver), to: target))
         }
+        if name == "mod", let result = try numericMod(receiver, sourceType: sourceType, args: args, id: id) {
+            return JVMIntrinsicResult(value: result)
+        }
         if name == "toString", args.count == 1,
            [.byte, .short, .int, .long, .uint, .ulong, .ubyte, .ushort].contains(sourceType)
         {

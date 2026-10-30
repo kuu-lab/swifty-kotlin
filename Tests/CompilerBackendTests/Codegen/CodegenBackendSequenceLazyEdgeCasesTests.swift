@@ -779,6 +779,7 @@ struct CodegenBackendSequenceLazyEdgeCasesTests {
                 """ + "\n"
         )
     }
+    @Test
     func testConstrainOnceThrowsOnSecondIteration() throws {
         let source = """
         fun main() {

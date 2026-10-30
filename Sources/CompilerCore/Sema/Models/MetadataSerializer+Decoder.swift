@@ -248,7 +248,60 @@ final class MetadataDecoder {
         var schemaVersion: String?
     }
 
+    private static let booleanFlagKeys: [String: WritableKeyPath<MutableMetadataRecord, Bool> & Sendable] = [
+        "constructorVisibilityInherited": \.constructorVisibilityInherited,
+        "suspend": \.isSuspend,
+        "inline": \.isInline,
+        "infix": \.isInfix,
+        "operator": \.isOperator,
+        "override": \.isOverride,
+        "memberExtension": \.isMemberExtension,
+        "canThrow": \.canThrow,
+        "dataClass": \.isDataClass,
+        "openClass": \.isOpenClass,
+        "innerClass": \.isInnerClass,
+        "sealedClass": \.isSealedClass,
+        "funInterface": \.isFunInterface,
+        "valueClass": \.isValueClass,
+        "expect": \.isExpect,
+        "actual": \.isActual,
+        "mutable": \.isMutable,
+    ]
+
+    private static let optionalStringKeys: [String: WritableKeyPath<MutableMetadataRecord, String?> & Sendable] = [
+        "receiverFq": \.receiverOwnerFQName,
+        "defaultLink": \.defaultStubExternalLinkName,
+        "sig": \.typeSignature,
+        "link": \.externalLinkName,
+        "superFq": \.superFQName,
+        "typeParamsSig": \.nominalTypeParametersSignature,
+        "companionFq": \.companionObjectFQName,
+        "fieldOffsets": \.fieldOffsets,
+        "vtableSlots": \.vtableSlots,
+        "itableSlots": \.itableSlots,
+        "typeParams": \.nominalTypeParameters,
+        "objectInitLink": \.objectInitializerLinkName,
+        "companionInitLink": \.companionInitializerLinkName,
+        "objectLazyInitLink": \.objectLazyInitializerLinkName,
+        "enumStaticInitLink": \.enumStaticInitLinkName,
+        "valueUnderlying": \.valueClassUnderlyingTypeSig,
+        "recv": \.propertyReceiverTypeSignature,
+        "getterLink": \.propertyGetterExternalLinkName,
+        "setterLink": \.propertySetterExternalLinkName,
+        "getterAbiSig": \.propertyGetterAbiReturnTypeSignature,
+        "const": \.constValueLiteral,
+        "abiSig": \.abiReturnTypeSignature,
+    ]
+
     private func applyKeyValuePart(key: String, value: String, into record: inout MutableMetadataRecord) {
+        if let flag = Self.booleanFlagKeys[key] {
+            record[keyPath: flag] = value == "1" || value == "true"
+            return
+        }
+        if let field = Self.optionalStringKeys[key] {
+            record[keyPath: field] = value.isEmpty ? nil : value
+            return
+        }
         switch key {
         case "fq":
             record.fqName = value
@@ -260,24 +313,8 @@ final class MetadataDecoder {
             case "protected": .protected
             default: .private
             }
-        case "constructorVisibilityInherited":
-            record.constructorVisibilityInherited = value == "1" || value == "true"
         case "arity":
             record.arity = Int(value) ?? Int.max
-        case "suspend":
-            record.isSuspend = value == "1" || value == "true"
-        case "inline":
-            record.isInline = value == "1" || value == "true"
-        case "infix":
-            record.isInfix = value == "1" || value == "true"
-        case "operator":
-            record.isOperator = value == "1" || value == "true"
-        case "override":
-            record.isOverride = value == "1" || value == "true"
-        case "memberExtension":
-            record.isMemberExtension = value == "1" || value == "true"
-        case "receiverFq":
-            record.receiverOwnerFQName = value.isEmpty ? nil : value
         case "vararg":
             record.valueParameterIsVararg = value.map { $0 == "1" }
         case "unsafeVarianceParams":
@@ -329,8 +366,6 @@ final class MetadataDecoder {
                 return ContractImplicationEffect(target: target, returnCondition: result,
                     argumentCondition: condition, targetTypeSignature: signature)
             }
-        case "canThrow":
-            record.canThrow = value == "1" || value == "true"
         case "paramNames":
             record.valueParameterNames = value.split(separator: ",").map(String.init)
         case "unstableParams":
@@ -339,18 +374,12 @@ final class MetadataDecoder {
             record.reifiedTypeParameterIndices = Set(
                 value.split(separator: ",").compactMap { Int($0.trimmingCharacters(in: .whitespaces)) }
             )
-        case "defaultLink":
-            record.defaultStubExternalLinkName = value.isEmpty ? nil : value
-        case "sig":
-            record.typeSignature = value.isEmpty ? nil : value
         case "typeBounds":
             record.typeParameterUpperBoundsSignatures = decodeMetadataTypeParameterUpperBounds(value)
         case "callTParams":
             record.callableTypeParameterSignatures = value.split(separator: ",").map(String.init)
         case "inputOnlyTParams":
             record.inputOnlyTypeParameterIndices = Set(value.split(separator: ",").compactMap { Int($0) })
-        case "link":
-            record.externalLinkName = value.isEmpty ? nil : value
         case "fields":
             record.declaredFieldCount = Int(value)
         case "layoutWords":
@@ -359,60 +388,14 @@ final class MetadataDecoder {
             record.declaredVtableSize = Int(value)
         case "itable":
             record.declaredItableSize = Int(value)
-        case "superFq":
-            record.superFQName = value.isEmpty ? nil : value
-        case "typeParamsSig":
-            record.nominalTypeParametersSignature = value.isEmpty ? nil : value
         case "superSigs":
             record.nominalSupertypeSignatures = value.split(separator: "|").map(String.init)
-        case "companionFq":
-            record.companionObjectFQName = value.isEmpty ? nil : value
-        case "fieldOffsets":
-            record.fieldOffsets = value.isEmpty ? nil : value
-        case "vtableSlots":
-            record.vtableSlots = value.isEmpty ? nil : value
-        case "itableSlots":
-            record.itableSlots = value.isEmpty ? nil : value
-        case "typeParams":
-            record.nominalTypeParameters = value.isEmpty ? nil : value
-        case "objectInitLink":
-            record.objectInitializerLinkName = value.isEmpty ? nil : value
-        case "companionInitLink":
-            record.companionInitializerLinkName = value.isEmpty ? nil : value
-        case "objectLazyInitLink":
-            record.objectLazyInitializerLinkName = value.isEmpty ? nil : value
-        case "enumStaticInitLink":
-            record.enumStaticInitLinkName = value.isEmpty ? nil : value
-        case "dataClass":
-            record.isDataClass = value == "1" || value == "true"
-        case "openClass":
-            record.isOpenClass = value == "1" || value == "true"
-        case "innerClass":
-            record.isInnerClass = value == "1" || value == "true"
         case "modality":
             record.modality = MetadataModality(rawValue: value) ?? .final
-        case "sealedClass":
-            record.isSealedClass = value == "1" || value == "true"
-        case "funInterface":
-            record.isFunInterface = value == "1" || value == "true"
-        case "valueClass":
-            record.isValueClass = value == "1" || value == "true"
-        case "valueUnderlying":
-            record.valueClassUnderlyingTypeSig = value.isEmpty ? nil : value
         case "sealedSubs":
             record.sealedSubclassFQNames = value.split(separator: ",").map(String.init).filter { !$0.isEmpty }
         case "annotations":
             record.annotations = decodeAnnotations(value)
-        case "expect":
-            record.isExpect = value == "1" || value == "true"
-        case "actual":
-            record.isActual = value == "1" || value == "true"
-        case "recv":
-            record.propertyReceiverTypeSignature = value.isEmpty ? nil : value
-        case "getterLink":
-            record.propertyGetterExternalLinkName = value.isEmpty ? nil : value
-        case "setterLink":
-            record.propertySetterExternalLinkName = value.isEmpty ? nil : value
         case "setterVisibility":
             record.propertySetterVisibility = switch value {
             case "public": .public
@@ -420,14 +403,6 @@ final class MetadataDecoder {
             case "protected": .protected
             default: .private
             }
-        case "getterAbiSig":
-            record.propertyGetterAbiReturnTypeSignature = value.isEmpty ? nil : value
-        case "mutable":
-            record.isMutable = value == "1" || value == "true"
-        case "const":
-            record.constValueLiteral = value.isEmpty ? nil : value
-        case "abiSig":
-            record.abiReturnTypeSignature = value.isEmpty ? nil : value
         case "schema":
             record.schemaVersion = value
         default:

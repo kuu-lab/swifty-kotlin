@@ -214,7 +214,92 @@ extension BuildASTPhase.ExpressionParser {
             }
             merged.append((start, end))
         }
-        return merged
+
+        // KUU-3175: a `context(...)` clause written on its own line inside an
+        // object literal body (`context(i: C)\n    override fun accept()`)
+        // lands in its own statement range. It is a declaration prefix, not a
+        // member, so no member parser accepts it and `parseObjectLiteralDecl`
+        // would return nil — dropping the literal's ObjectDecl and with it
+        // every itable entry. Glue the prefix to the declaration that follows.
+        var contextMerged: [(Int, Int)] = []
+        var pendingPrefixStart: Int? = nil
+        for (start, end) in merged {
+            if objectLiteralRangeIsDanglingContextClause(tokens[start ..< end]) {
+                if pendingPrefixStart == nil {
+                    pendingPrefixStart = start
+                }
+                continue
+            }
+            contextMerged.append((pendingPrefixStart ?? start, end))
+            pendingPrefixStart = nil
+        }
+        if let pendingPrefixStart, let last = merged.last {
+            // A trailing unattached clause keeps its own (unparseable) group —
+            // same outcome as without this merge.
+            contextMerged.append((pendingPrefixStart, last.1))
+        }
+        return contextMerged
+    }
+
+    /// True when the group consists solely of declaration-prefix material
+    /// (annotations, declaration modifier keywords, and `context(...)` clauses)
+    /// and contains at least one `context(...)` clause — i.e. a fragment that
+    /// can only attach to a following member declaration.
+    private func objectLiteralRangeIsDanglingContextClause(_ tokens: ArraySlice<Token>) -> Bool {
+        var index = tokens.startIndex
+        var sawContextClause = false
+        while index < tokens.endIndex {
+            let kind = tokens[index].kind
+            if kind == .symbol(.at) {
+                // Annotation: `@Name`, `@A.B`, `@Name(args)` — skip its span.
+                var scan = tokens.index(after: index)
+                while scan < tokens.endIndex,
+                      tokens[scan].kind.isLabelName || tokens[scan].kind == .symbol(.dot)
+                {
+                    scan = tokens.index(after: scan)
+                }
+                if scan < tokens.endIndex, tokens[scan].kind == .symbol(.lParen) {
+                    var depth = 0
+                    repeat {
+                        switch tokens[scan].kind {
+                        case .symbol(.lParen): depth += 1
+                        case .symbol(.rParen): depth -= 1
+                        default: break
+                        }
+                        scan = tokens.index(after: scan)
+                    } while scan < tokens.endIndex && depth > 0
+                }
+                index = scan
+                continue
+            }
+            if kind == .softKeyword(.context),
+               tokens.index(after: index) < tokens.endIndex,
+               tokens[tokens.index(after: index)].kind == .symbol(.lParen)
+            {
+                var scan = tokens.index(after: index)
+                var depth = 0
+                repeat {
+                    switch tokens[scan].kind {
+                    case .symbol(.lParen): depth += 1
+                    case .symbol(.rParen): depth -= 1
+                    default: break
+                    }
+                    scan = tokens.index(after: scan)
+                } while scan < tokens.endIndex && depth > 0
+                guard depth == 0 else { return false }
+                sawContextClause = true
+                index = scan
+                continue
+            }
+            if case let .keyword(keyword) = kind,
+               KotlinParser.isDeclarationModifierKeyword(keyword)
+            {
+                index = tokens.index(after: index)
+                continue
+            }
+            return false
+        }
+        return sawContextClause
     }
 
     private func parseObjectLiteralFunctionDecl(from tokens: ArraySlice<Token>) -> FunDecl? {
@@ -310,7 +395,29 @@ extension BuildASTPhase.ExpressionParser {
         }
         let hasTypeParameters = sanitized.index(after: declarationIndex) < sanitized.endIndex
             && sanitized[sanitized.index(after: declarationIndex)].kind == .symbol(.lessThan)
-        if hasLeadingAnnotation || hasTypeParameters {
+        // `val O.e` inside an object literal is a member extension property:
+        // a top-level `.` in the header (before `:`, `=`, or an accessor/`by`
+        // suffix) separates the receiver type from the property name. The
+        // hand-rolled local-decl prefix parser cannot read receiver-qualified
+        // names, so route these through the regular declaration builder, which
+        // preserves `PropertyDecl.receiverType`.
+        var hasReceiverQualifier = false
+        var headerDepth = BuildASTPhase.BracketDepth()
+        scanHeader: for token in sanitized.dropFirst(declarationIndex + 1) {
+            defer { headerDepth.track(token.kind) }
+            guard headerDepth.isAtTopLevel else { continue }
+            switch token.kind {
+            case .symbol(.dot), .symbol(.questionDot):
+                hasReceiverQualifier = true
+                break scanHeader
+            case .symbol(.colon), .symbol(.assign),
+                 .softKeyword(.by), .softKeyword(.get), .softKeyword(.set):
+                break scanHeader
+            default:
+                continue
+            }
+        }
+        if hasLeadingAnnotation || hasTypeParameters || hasReceiverQualifier {
             // The hand-built property path below uses a local-declaration parser
             // that does not consume declaration annotations. Reparse annotated
             // members through the normal declaration builder so their

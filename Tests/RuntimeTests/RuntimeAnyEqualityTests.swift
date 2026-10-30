@@ -249,6 +249,33 @@ struct RuntimeAnyEqualityTests {
     }
 
     @Test
+    func equalCallableReferencesShareElementKeyHash() {
+        // KUU-3691: `RuntimeElementKey.hash(into:)` must agree with its `==`,
+        // which resolves callable references by identity content. Equal
+        // references previously hashed by object identity and corrupted
+        // hashed collections ("Duplicate keys of type 'RuntimeElementKey'").
+        var thrown = 0
+        let target = unsafeBitCast(runtimeCallableReferenceTarget, to: Int.self)
+        func reference() -> Int {
+            let value = kk_function_create_1(target, 0, &thrown)
+            _ = kk_callable_ref_tag_kfunction(
+                value,
+                runtimeMakeStringRaw("f"),
+                runtimeMakeStringRaw("kotlin.Int"),
+                1,
+                0
+            )
+            __kk_callable_ref_set_identity(value, target, runtimeNullSentinelInt)
+            return value
+        }
+        let first = reference()
+        let same = reference()
+
+        #expect(RuntimeElementKey(value: first) == RuntimeElementKey(value: same))
+        #expect(RuntimeElementKey(value: first).hashValue == RuntimeElementKey(value: same).hashValue)
+    }
+
+    @Test
     func adaptedCallableReferenceIdentityDoesNotExposeKCallable() {
         func reference(target: Int, arity: Int, captures: [Int] = []) -> Int {
             var thrown = 0

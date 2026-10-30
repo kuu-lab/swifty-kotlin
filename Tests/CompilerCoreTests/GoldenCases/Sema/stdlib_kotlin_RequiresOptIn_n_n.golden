@@ -5,9 +5,9 @@ file fstdlib_kotlin_RequiresOptIn_n_n package=golden.sema
   decl golden.sema.DefaultMarker[kind=anno;origin=fixture] class DefaultMarker sym=golden.sema.DefaultMarker[kind=anno;origin=fixture]
   decl golden.sema.WarningMarker[kind=anno;origin=fixture] class WarningMarker sym=golden.sema.WarningMarker[kind=anno;origin=fixture]
   decl golden.sema.useMarkers[kind=fun;params=;ret=Unit;origin=fixture] fun useMarkers sym=golden.sema.useMarkers[kind=fun;params=;ret=Unit;origin=fixture]
-expr e@3:2 memberCall recv=e@3:2#1 callee=RequiresOptIn args=[] type=kotlin.RequiresOptIn call=kotlin.RequiresOptIn.<init>[kind=ctor;recv=kotlin.RequiresOptIn;params=String,kotlin.RequiresOptIn.Level;ret=kotlin.RequiresOptIn;defaults=[1,1];names=[message,level]]
+expr e@3:2 call callee=e@3:2#1 args=[] type=kotlin.RequiresOptIn call=kotlin.RequiresOptIn.<init>[kind=ctor;recv=kotlin.RequiresOptIn;params=String,kotlin.RequiresOptIn.Level;ret=kotlin.RequiresOptIn;defaults=[1,1];names=[message,level]]
 expr e@6:23 string(warning) type=String
 expr e@6:34 memberCall recv=e@6:34#1 callee=RequiresOptIn args=[] type=kotlin.RequiresOptIn ref=kotlin.RequiresOptIn[kind=anno]
 expr e@6:34#2 memberCall recv=e@6:34 callee=Level args=[] type=kotlin.RequiresOptIn.Level ref=kotlin.RequiresOptIn.Level[kind=enum]
 expr e@6:34#3 memberCall recv=e@6:34#2 callee=WARNING args=[] type=kotlin.RequiresOptIn.Level ref=kotlin.RequiresOptIn.Level.WARNING[kind=field;type=kotlin.RequiresOptIn.Level]
-expr e@6:2 memberCall recv=e@6:2#1 callee=RequiresOptIn args=[_:e@6:23,_:e@6:34#3] type=kotlin.RequiresOptIn call=kotlin.RequiresOptIn.<init>[kind=ctor;recv=kotlin.RequiresOptIn;params=String,kotlin.RequiresOptIn.Level;ret=kotlin.RequiresOptIn;defaults=[1,1];names=[message,level]]
+expr e@6:2 call callee=e@6:2#1 args=[_:e@6:23,_:e@6:34#3] type=kotlin.RequiresOptIn call=kotlin.RequiresOptIn.<init>[kind=ctor;recv=kotlin.RequiresOptIn;params=String,kotlin.RequiresOptIn.Level;ret=kotlin.RequiresOptIn;defaults=[1,1];names=[message,level]]

@@ -404,6 +404,19 @@ extension JVMProgramBuilder {
             }
             return mapped
         }
+        // A vararg signature carries the component type, while the erased
+        // method parameter is an array of the specialized component.
+        func specializedParameterTypes(of signature: FunctionSignature, receiver: [TypeID], mapping: [SymbolID: TypeID]) throws -> [JVMValueType] {
+            try (receiver + signature.parameterTypes).enumerated().map { index, parameter in
+                let specialized = try parameterType(parameter, mapping)
+                let valueIndex = index - receiver.count
+                guard valueIndex >= 0,
+                      signature.valueParameterIsVararg.indices.contains(valueIndex),
+                      signature.valueParameterIsVararg[valueIndex]
+                else { return specialized }
+                return .reference("[" + specialized.descriptor, nullable: false)
+            }
+        }
         var specializationVisited: Set<SymbolID> = []
         func specialize(_ symbol: SymbolID, mapping: [SymbolID: TypeID]) throws {
             guard specializationVisited.insert(symbol).inserted else { return }
@@ -412,7 +425,7 @@ extension JVMProgramBuilder {
                     if let id = (parent.declaration?.memberFunctions ?? parent.interface!.memberFunctions).first(where: { if case let .funDecl(f) = ast.arena.decl($0) { return f.range == decl.range }; return false }),
                        let member = sema.bindings.declSymbol(for: id), let signature = sema.symbols.functionSignature(for: member) {
                         let receiver = extensionSymbols.contains(member) ? [signature.receiverType].compactMap { $0 } : []
-                        specializedParameters[method.owner + method.name + method.descriptor] = try (receiver + signature.parameterTypes).map { try parameterType($0, mapping) }
+                        specializedParameters[method.owner + method.name + method.descriptor] = try specializedParameterTypes(of: signature, receiver: receiver, mapping: mapping)
                     }
                 }
                 for (id, _, property) in parent.properties {
@@ -425,7 +438,7 @@ extension JVMProgramBuilder {
             if classes[symbol] == nil {
                 for child in sema.symbols.children(of: symbol) {
                     if let method = methods[child] ?? collectionInterfaceMethods[child] ?? textLibraryMethods[child]?.method, let signature = sema.symbols.functionSignature(for: child) {
-                        specializedParameters[method.owner + method.name + method.descriptor] = try signature.parameterTypes.map { try parameterType($0, mapping) }
+                        specializedParameters[method.owner + method.name + method.descriptor] = try specializedParameterTypes(of: signature, receiver: [], mapping: mapping)
                     }
                 }
             }

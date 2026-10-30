@@ -438,7 +438,7 @@ extension KotlinParser {
             // declarations on the next line are part of the property declaration.
             // After parseTail stops at a newline, absorb trailing accessor and
             // explicit field lines into dedicated CST nodes.
-            while isPropertyAccessorStart(stream.peek(), allowsBodyless: allowsBodylessAccessors)
+            while isPropertyAccessorStart(allowsBodyless: allowsBodylessAccessors)
                 || isExplicitBackingFieldStart(stream.peek())
             {
                 if isExplicitBackingFieldStart(stream.peek()) {

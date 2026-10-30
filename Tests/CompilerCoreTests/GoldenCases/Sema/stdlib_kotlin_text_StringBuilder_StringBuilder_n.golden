@@ -92,7 +92,7 @@ expr e@27:5#1 memberCall recv=e@27:5 callee=insert args=[_:e@27:20,_:e@27:23#1] 
 expr e@28:5 name(builder) type=kotlin.text.StringBuilder ref=__local_8.builder[kind=local;type=kotlin.text.StringBuilder;origin=fixture]
 expr e@28:20 int(1) type=Int
 expr e@28:23 name(chars) type=kotlin.CharArray ref=__local_6.chars[kind=local;type=kotlin.CharArray;origin=fixture]
-expr e@28:5#1 memberCall recv=e@28:5 callee=insert args=[_:e@28:20,_:e@28:23] type=kotlin.text.StringBuilder call=kotlin.text.StringBuilder.insert[kind=fun;recv=kotlin.text.StringBuilder;params=Int,kotlin.CharArray;ret=kotlin.text.StringBuilder;names=[index,value]]
+expr e@28:5#1 memberCall recv=e@28:5 callee=insert args=[_:e@28:20,_:e@28:23] type=kotlin.text.StringBuilder call=kotlin.text.StringBuilder.insert[kind=fun;recv=kotlin.text.StringBuilder;params=Int,kotlin.CharArray?;ret=kotlin.text.StringBuilder;names=[index,value]]
 expr e@29:5 name(builder) type=kotlin.text.StringBuilder ref=__local_8.builder[kind=local;type=kotlin.text.StringBuilder;origin=fixture]
 expr e@29:20 int(1) type=Int
 expr e@29:23 name(sequence) type=kotlin.CharSequence? ref=__local_7.sequence[kind=local;type=kotlin.CharSequence?;origin=fixture]

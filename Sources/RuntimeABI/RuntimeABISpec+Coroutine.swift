@@ -21,6 +21,7 @@ public extension RuntimeABISpec {
         abi.nt("kk_coroutine_continuation_new", "functionID"),
         abi.nt("kk_coroutine_current_context"),
         abi.nt("kk_coroutine_call_direct_suspend", "entryPointRaw childContinuation callerContinuationRaw"),
+        abi.nt("kk_coroutine_child_share_interception", "childContinuation callerContinuationRaw"),
         abi.th("kk_coroutine_call_suspend_wrapper", "entryPointRaw continuation outThrown"),
         abi.nt("kk_coroutine_continuation_factory", "contextRaw resumeWithRaw"),
         createCoroutineUninterceptedSpec,

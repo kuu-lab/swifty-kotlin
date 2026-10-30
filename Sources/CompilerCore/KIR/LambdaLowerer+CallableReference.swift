@@ -2,7 +2,6 @@ extension LambdaLowerer {
     private func lowerCallableReferenceAdapter(
         _ exprID: ExprID,
         targetSymbol: SymbolID,
-        targetName: InternedString?,
         binding: CallBinding,
         isUnbound: Bool,
         captureArguments: [KIRExprID],
@@ -14,9 +13,7 @@ extension LambdaLowerer {
         sema: SemaModule,
         arena: KIRArena,
         interner: StringInterner,
-        propertyConstantInitializers: [SymbolID: KIRExprKind],
-        instructions: inout [KIRInstruction]
-    ) -> (symbol: SymbolID, name: InternedString) {
+        propertyConstantInitializers: [SymbolID: KIRExprKind]) -> (symbol: SymbolID, name: InternedString) {
         let callableSymbol = driver.ctx.syntheticLambdaSymbol(for: exprID)
         let callableName = syntheticLambdaName(for: exprID, interner: interner)
         let contextInputCount = functionType.contextReceivers.count
@@ -288,7 +285,12 @@ extension LambdaLowerer {
 
         let samMethodReceiverType = samFunctionType.receiver
         let samMethodParamTypes = samFunctionType.params
-        let samMethodInputTypes = (samMethodReceiverType.map { [$0] } ?? []) + samMethodParamTypes
+        // KUU-3175: context parameters are the leading dispatch arguments of
+        // the SAM method — the thunk must declare them and the wrapper must
+        // forward them, mirroring `[receiver][context][value]` KIR ordering.
+        let samMethodInputTypes = samFunctionType.contextReceivers
+            + (samMethodReceiverType.map { [$0] } ?? [])
+            + samMethodParamTypes
         let returnType = samFunctionType.returnType
 
         let thunkName = interner.intern("kk_sam_ref_thunk_\(exprID.rawValue)")
@@ -380,6 +382,7 @@ extension LambdaLowerer {
             lambdaReturnType: returnType,
             captureBindings: captureBindings,
             samMethodReceiverType: samMethodReceiverType,
+            samMethodContextParameterTypes: samFunctionType.contextReceivers,
             samMethodParamTypes: samMethodParamTypes,
             sema: sema,
             arena: arena,
@@ -867,7 +870,12 @@ extension LambdaLowerer {
         // bundled KProperty and Function interfaces. A raw property symbol is
         // sufficient for a direct getter call, but it has no itable entries for
         // KProperty.get/invoke/set and cannot carry the bound receiver safely.
+        // KUU-3175: a property reference in SAM-conversion position
+        // (`SamInterface(C::prop)`) must skip this path — the KProperty
+        // wrapper does not implement the target interface's itable, so the
+        // SAM-wrapper branch below must build the adapter object instead.
         if sema.bindings.callableRefKind(for: exprID) == .propertyRef,
+           !sema.bindings.isSamConversion(exprID),
            let propertyValue = lowerPropertyReferenceWrapperValue(
                exprID,
                targetSymbol: targetSymbol,
@@ -975,7 +983,6 @@ extension LambdaLowerer {
                 let adapter = lowerCallableReferenceAdapter(
                     exprID,
                     targetSymbol: callTargetSymbol,
-                    targetName: callTargetName,
                     binding: callableReferenceBinding,
                     isUnbound: isUnbound,
                     captureArguments: captureArguments,
@@ -987,9 +994,7 @@ extension LambdaLowerer {
                     sema: sema,
                     arena: arena,
                     interner: interner,
-                    propertyConstantInitializers: propertyConstantInitializers,
-                    instructions: &instructions
-                )
+                    propertyConstantInitializers: propertyConstantInitializers)
                 samTarget = (adapter.symbol, adapter.name, false)
             } else {
                 samTarget = (callTargetSymbol, callTargetName, reifiedThunk != nil)
@@ -1106,7 +1111,6 @@ extension LambdaLowerer {
             let adapter = lowerCallableReferenceAdapter(
                 exprID,
                 targetSymbol: callTargetSymbol,
-                targetName: callTargetName,
                 binding: callableReferenceBinding,
                 isUnbound: isUnbound,
                 captureArguments: captureArguments,
@@ -1118,9 +1122,7 @@ extension LambdaLowerer {
                 sema: sema,
                 arena: arena,
                 interner: interner,
-                propertyConstantInitializers: propertyConstantInitializers,
-                instructions: &instructions
-            )
+                propertyConstantInitializers: propertyConstantInitializers)
             callableSymbol = adapter.symbol
             callableName = adapter.name
         } else if let callTargetSymbol, isConstructorTarget {
@@ -1527,9 +1529,13 @@ extension LambdaLowerer {
         // Suspend references and primitive toString wrappers also need a box
         // without captures. The former supply a continuation-only entry ABI;
         // the latter return a flat String and need a function-value adapter.
+        // Capture-free references need the box too: a bare fnPtr has no
+        // self-contained invoke ABI, so passing it through `Any` and back to
+        // `FunctionN.invoke` (e.g. `call(f: Any)` / `f as Function1`) reaches
+        // kk_function_invoke's flat-entry path and calls the synthetic lambda
+        // with the wrong signature (KUU-3674).
         let callableValue: KIRExprID
         if case let .functionType(functionType) = sema.types.kind(of: callableType),
-           !captureArguments.isEmpty || functionType.isSuspend || needsPrimitiveToStringAdapter,
            let materialized = materializeEscapingCallableValue(
                exprID: exprID,
                lambdaSymbol: callableSymbol,
@@ -1588,13 +1594,22 @@ extension LambdaLowerer {
                 instructions: &instructions
             )
             if case let .functionType(functionType) = sema.types.kind(of: callableType) {
+                let receiverCount = isUnbound && targetSymbol.flatMap {
+                    sema.symbols.functionSignature(for: $0)
+                }?.receiverType != nil ? 1 : 0
+                let inputs = (functionType.receiver.map { [$0] } ?? []) + functionType.params
+                // An unbound receiver can be represented as either `receiver`
+                // or the first ordinary parameter of the function type.
+                let parameters = Array(inputs.prefix(receiverCount)) + functionType.contextReceivers
+                    + Array(inputs.dropFirst(receiverCount))
                 registerCallableReflection(
                     value: taggedExpr, callableSymbol: callableSymbol, callableName: callableName,
                     targetSymbol: targetSymbol,
-                    parameterTypes: (functionType.receiver.map { [$0] } ?? []) + functionType.params,
+                    parameterTypes: parameters,
                     returnType: functionType.returnType,
                     captures: captureArguments,
-                    receiverCount: isUnbound && targetSymbol.flatMap { sema.symbols.functionSignature(for: $0) }?.receiverType != nil ? 1 : 0,
+                    receiverCount: receiverCount,
+                    contextParameterCount: functionType.contextReceivers.count,
                     // KCallable.call's reflection bridge has no continuation
                     // parameter. Suspend references keep their suspend
                     // function-value invoke path instead of generating a

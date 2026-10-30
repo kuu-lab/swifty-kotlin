@@ -520,6 +520,19 @@ struct CaptureAnalyzer {
                 else {
                     break
                 }
+                // Forward the literal's own registered capture set, the same
+                // pull `visitLocalNominalDecl` performs for named local
+                // nominals. Member bodies lowered as standalone KIR
+                // functions (member functions, custom accessors, and
+                // `by`-delegate bodies such as `lazy { ... }`) already
+                // recorded the outer references they need there, so an outer
+                // local referenced only inside them still reaches this
+                // literal's construction site (KUU-3193).
+                if let owner = sema.bindings.declSymbol(for: declID) {
+                    captured.formUnion(sema.bindings.objectLiteralCaptureSymbols(for: owner).filter {
+                        outerSymbols.contains($0)
+                    })
+                }
                 // KSP-CAP-018: the superclass constructor call's arguments
                 // (`object : Base(x) { ... }`) are lowered in the enclosing
                 // function's context (ObjectLiteralLowerer.
@@ -543,12 +556,32 @@ struct CaptureAnalyzer {
                 }
                 for propertyID in objectDecl.memberProperties {
                     guard let propertyDecl = ast.arena.decl(propertyID),
-                          case let .propertyDecl(property) = propertyDecl,
-                          let initializer = property.initializer
+                          case let .propertyDecl(property) = propertyDecl
                     else {
                         continue
                     }
-                    visit(initializer)
+                    if let initializer = property.initializer {
+                        visit(initializer)
+                    }
+                    // A `by` delegate expression (`IntBox(x)`, `lazy { ... }`)
+                    // evaluates inline at the construction site like an
+                    // initializer; accessor and delegate bodies run as
+                    // standalone KIR functions and are also covered by the
+                    // forwarded capture set above.
+                    if let delegateExpression = property.delegateExpression {
+                        visit(delegateExpression)
+                    }
+                    for accessorBody in [property.getter?.body, property.setter?.body, property.delegateBody] {
+                        if let accessorBody {
+                            visitBody(accessorBody)
+                        }
+                    }
+                }
+                // `init {}` blocks lower inline at the construction site
+                // alongside the initializers, so their outer references need
+                // the same enclosing-scope visibility.
+                for initBlock in objectDecl.initBlocks {
+                    visitBody(initBlock)
                 }
                 // Nested nominals (e.g. `inner class` inside an object
                 // expression, which Kotlin/JVM permits) run as their own

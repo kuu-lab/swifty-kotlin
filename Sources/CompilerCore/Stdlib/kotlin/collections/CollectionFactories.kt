@@ -17,6 +17,9 @@ private external fun <T> __kk_emptyList(): List<T>
 @KsSymbolName("__kk_list_of")
 private external fun <T> __kk_list_of(array: Any?, count: Int): MutableList<T>
 
+@KsSymbolName("__kk_singleton_list_of")
+private external fun <T> __kk_singleton_list_of(element: T): List<T>
+
 @KsSymbolName("__kk_emptySet")
 private external fun <T> __kk_emptySet(): Set<T>
 
@@ -44,12 +47,7 @@ public fun <K, V> emptyMap(): Map<K, V> = __kk_emptyMap()
 public fun <T> listOf(): List<T> = emptyList()
 
 @SinceKotlin("1.9")
-@Suppress("UNCHECKED_CAST")
-public fun <T> listOf(element: T): List<T> {
-    val result: MutableList<T> = __kk_list_of(null, 0)
-    result.add(element)
-    return result as List<T>
-}
+public fun <T> listOf(element: T): List<T> = __kk_singleton_list_of(element)
 
 @Suppress("UNCHECKED_CAST")
 public fun <T> listOf(vararg elements: T): List<T> {
@@ -95,7 +93,7 @@ public fun <T : Any> listOfNotNull(element: T?): List<T> =
     if (element != null) listOf(element) else emptyList()
 
 public fun <T : Any> listOfNotNull(vararg elements: T?): List<T> {
-    val result: MutableList<T> = __kk_list_of(null, 0)
+    val result: MutableList<T> = ArrayList<T>()
     for (element in elements) {
         if (element != null) result.add(element)
     }

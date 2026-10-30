@@ -345,7 +345,7 @@ extension CallLowerer {
             {
                 instructions.append(.constValue(
                     result: result,
-                    value: .boolLiteral(op == .notEqual)
+                    value: .boolLiteral(op == .notIdentityEqual)
                 ))
                 return result
             }

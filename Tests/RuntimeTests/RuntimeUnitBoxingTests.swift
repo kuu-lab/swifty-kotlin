@@ -38,7 +38,7 @@ struct RuntimeUnitBoxingTests {
         #expect(boolValue(kk_any_equals(first, 1, second, 1)))
         #expect(extractString(from: kk_any_to_string(first, 1)) == "kotlin.Unit")
 
-        kk_runtime_reset_gc()
+        #expect(kk_runtime_reset_gc())
 
         #expect(kk_box_unit(0) == first)
         #expect(runtimeIsUnitBox(first))

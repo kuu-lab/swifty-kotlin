@@ -42,7 +42,6 @@ final class CollectionVirtualCallRewriteLoweringPass: CollectionLiteralLoweringS
         result: KIRExprID?,
         origCanThrow: Bool,
         origThrownResult: KIRExprID?,
-        functionBody: [KIRInstruction],
         module: KIRModule,
         ctx: KIRContext,
         lookup: CollectionLiteralLookupTables,
@@ -60,7 +59,6 @@ final class CollectionVirtualCallRewriteLoweringPass: CollectionLiteralLoweringS
             context: .init(
                 module: module,
                 lookup: lookup,
-                functionBody: functionBody,
                 sema: ctx.sema,
                 interner: ctx.interner
             ),
@@ -144,7 +142,6 @@ struct CollectionLiteralLoweringRegistry {
                         result: result,
                         origCanThrow: origCanThrow,
                         origThrownResult: origThrownResult,
-                        functionBody: function.body,
                         module: module,
                         ctx: ctx,
                         lookup: lookup,

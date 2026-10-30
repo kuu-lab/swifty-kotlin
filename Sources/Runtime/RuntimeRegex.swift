@@ -70,6 +70,12 @@ final class RuntimeRegexBox {
     }
 }
 
+private let runtimeMatchResultTypeID = runtimeStableNominalTypeID(fqName: "kotlin.text.MatchResult")
+
+private func registerRuntimeMatchResult(_ match: RuntimeMatchResultBox) -> Int {
+    registerRuntimeObject(match, typeID: runtimeMatchResultTypeID)
+}
+
 final class RuntimeMatchResultBox {
     let value: String
     let groupValues: [String]
@@ -740,7 +746,7 @@ private func runtimeRegexFind(_ regexRaw: Int, input rawStr: String) -> Int {
         return runtimeNullSentinelInt
     }
     let matchResult = makeMatchResult(from: result, in: str, regexBox: regexBox)
-    return registerRuntimeObject(matchResult)
+    return registerRuntimeMatchResult(matchResult)
 }
 
 @_cdecl("__kk_regex_findAll_flat")
@@ -766,7 +772,7 @@ private func runtimeRegexFindAll(_ regexRaw: Int, input rawStr: String) -> Int {
     let utf16Count = str.utf16.count
     let matchResults = results.map { result -> Int in
         let matchResult = makeMatchResult(from: result, in: str, regexBox: regexBox, inputUTF16Count: utf16Count)
-        return registerRuntimeObject(matchResult)
+        return registerRuntimeMatchResult(matchResult)
     }
     return regexMakeListRaw(matchResults)
 }
@@ -885,7 +891,7 @@ public func kk_regex_replace_lambda(
         guard let matchRange = Range(match.range, in: str) else { continue }
         result.append(String(str[lastEnd ..< matchRange.lowerBound]))
         let matchResult = makeMatchResult(from: match, in: str, regexBox: regexBox, inputUTF16Count: utf16Count)
-        let matchResultRaw = registerRuntimeObject(matchResult)
+        let matchResultRaw = registerRuntimeMatchResult(matchResult)
         var thrown = 0
         let replacementRaw = runtimeInvokeCollectionLambda1(fnPtr: fnPtr, closureRaw: closureRaw, value: matchResultRaw, outThrown: &thrown)
         if thrown != 0 {
@@ -933,7 +939,7 @@ private func runtimeRegexMatchEntire(_ regexRaw: Int, input rawStr: String) -> I
         return runtimeNullSentinelInt
     }
     let matchResult = makeMatchResult(from: result, in: str, regexBox: regexBox)
-    return registerRuntimeObject(matchResult)
+    return registerRuntimeMatchResult(matchResult)
 }
 
 
@@ -1248,7 +1254,7 @@ public func __kk_match_result_next(_ matchRaw: Int) -> Int {
     ) else {
         return runtimeNullSentinelInt
     }
-    return registerRuntimeObject(makeMatchResult(from: result, in: inputString, regexBox: regexBox, inputUTF16Count: utf16Count))
+    return registerRuntimeMatchResult(makeMatchResult(from: result, in: inputString, regexBox: regexBox, inputUTF16Count: utf16Count))
 }
 
 

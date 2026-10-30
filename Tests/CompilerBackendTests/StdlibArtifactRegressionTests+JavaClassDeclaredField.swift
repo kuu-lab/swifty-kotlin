@@ -1,9 +1,7 @@
 @testable import CompilerCore
-@testable import CompilerBackend
 @testable import CompilerTestSupport
 import Foundation
 import Testing
-import TestStdlibCache
 
 extension StdlibArtifactRegressionTests {
     /// KUU-2186: enum entry fields expose runtime-retained annotations through java.lang.reflect.Field.

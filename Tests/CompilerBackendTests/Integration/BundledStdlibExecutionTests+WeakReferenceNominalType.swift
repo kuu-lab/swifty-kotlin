@@ -1,0 +1,17 @@
+@testable import CompilerCore
+@testable import CompilerTestSupport
+import Testing
+
+extension BundledStdlibExecutionTests {
+    @Test(arguments: [false, true], [0, 2])
+    func weakReferenceRetainsTypeAcrossErasure(fromArtifact: Bool, optimization: Int) throws {
+        try compileAndRunKotlin(
+            try diffCaseSource("weak_reference_nominal_type.kt", file: #filePath),
+            expectedOutput: "true\ntrue\ntrue\nfalse\n",
+            moduleName: "WeakReferenceNominalType",
+            allowDefaultStdlibLibrary: fromArtifact,
+            optLevel: try #require(OptimizationLevel(rawValue: optimization)),
+            expectedStderr: ""
+        )
+    }
+}

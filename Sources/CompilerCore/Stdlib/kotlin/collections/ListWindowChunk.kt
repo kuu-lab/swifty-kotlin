@@ -38,12 +38,12 @@ private external fun <T, R> __kk_list_zipWithNextTransform(
 ): List<R>
 
 public fun <T> Iterable<T>.chunked(size: Int): List<List<T>> {
-    require(size > 0) { "size must be positive, but was $size" }
+    require(size > 0) { "size $size must be greater than zero." }
     return __kk_list_chunked(this, size)
 }
 
 public fun <T, R> Iterable<T>.chunked(size: Int, transform: (List<T>) -> R): List<R> {
-    require(size > 0) { "size must be positive, but was $size" }
+    require(size > 0) { "size $size must be greater than zero." }
     return __kk_list_chunked_transform(this, size, transform)
 }
 
@@ -52,8 +52,7 @@ public fun <T> Iterable<T>.windowed(
     step: Int = 1,
     partialWindows: Boolean = false
 ): List<List<T>> {
-    require(size > 0) { "size must be positive, but was $size" }
-    require(step > 0) { "step must be positive, but was $step" }
+    require(size > 0 && step > 0) { "Both size $size and step $step must be greater than zero." }
     return __kk_list_windowed(this, size, step, partialWindows)
 }
 
@@ -63,8 +62,7 @@ public fun <T, R> Iterable<T>.windowed(
     partialWindows: Boolean = false,
     transform: (List<T>) -> R
 ): List<R> {
-    require(size > 0) { "size must be positive, but was $size" }
-    require(step > 0) { "step must be positive, but was $step" }
+    require(size > 0 && step > 0) { "Both size $size and step $step must be greater than zero." }
     return __kk_list_windowed_transform(this, size, step, partialWindows, transform)
 }
 

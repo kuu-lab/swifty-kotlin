@@ -249,6 +249,7 @@ struct CodegenBackendThrowableEdgeCasesTests {
 
     // KSP-616: TODO() is a bundled Kotlin declaration throwing NotImplementedError,
     // which must stay catchable both as its own type and as its Error supertype.
+    @Test
     func testCodegenTodoThrowsCatchableNotImplementedError() throws {
         let source = """
         fun main() {
@@ -277,7 +278,7 @@ struct CodegenBackendThrowableEdgeCasesTests {
                 """
                 An operation is not implemented.
                 An operation is not implemented: later
-                Throwable(NotImplementedError: An operation is not implemented: rendered)
+                kotlin.NotImplementedError: An operation is not implemented: rendered
                 """ + "\n"
         )
     }

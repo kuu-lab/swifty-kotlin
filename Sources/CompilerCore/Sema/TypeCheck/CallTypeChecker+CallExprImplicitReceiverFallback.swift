@@ -10,7 +10,6 @@ extension CallTypeChecker {
         expectedType: TypeID?,
         explicitTypeArgs: [TypeID],
         calleeName: InternedString?,
-        candidates: [SymbolID],
         memberExtensionReceiverMarks: inout [SymbolID: SymbolID]
     ) -> TypeID? {
         let sema = ctx.sema

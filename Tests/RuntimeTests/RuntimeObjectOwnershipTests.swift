@@ -131,6 +131,23 @@ struct RuntimeObjectOwnershipTests {
     }
 
     @Test
+    func releasingCachedBoxesDoesNotLeaveStaleHandles() {
+        let primitive = kk_box_int(7)
+        #expect(kk_box_int(7) == primitive)
+        #expect(kk_object_release(primitive) == 1)
+        let replacement = kk_box_int(7)
+        #expect(kk_unbox_int(replacement) == 7)
+        #expect(kk_object_release(replacement) == 1)
+
+        let entry = kk_enum_box_ordinal(3, 0, 91_903)
+        #expect(kk_enum_box_ordinal(3, 0, 91_903) == entry)
+        #expect(kk_object_release(entry) == 1)
+        let replacementEntry = kk_enum_box_ordinal(3, 0, 91_903)
+        #expect(kk_unbox_int(replacementEntry) == 3)
+        #expect(kk_object_release(replacementEntry) == 1)
+    }
+
+    @Test
     func borrowedSentinelsAreNotPassedToARCRelease() {
         let suspended = Int(bitPattern: kk_coroutine_suspended())
         let flowStopped = __kk_flow_stopped()
@@ -148,7 +165,9 @@ struct RuntimeObjectOwnershipTests {
         var peakObjectCount = baselineObjectCount
         var peakResidentBytes = baselineResidentBytes
 
-        for value in 0 ..< 100_000 {
+        // Keep the loop outside the shared primitive cache so it does not
+        // consume a canonical box retained by another test or runtime user.
+        for value in 20_000 ..< 120_000 {
             let object = kk_box_int(value)
             if value.isMultiple(of: 256) {
                 peakObjectCount = max(peakObjectCount, runtimeObjectPointerCount())

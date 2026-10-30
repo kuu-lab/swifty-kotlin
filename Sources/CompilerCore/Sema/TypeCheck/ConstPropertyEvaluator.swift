@@ -114,10 +114,30 @@ final class ConstPropertyEvaluator {
     }
 
     private func canFoldMemberCall(_ expr: ExprID) -> Bool {
+        // `s[i]` desugars to the String.get operator; only the bundled
+        // kotlin.text.get declaration is foldable.
+        if case let .indexedAccess(receiver, indices, _) = ast.arena.expr(expr) {
+            guard indices.count == 1,
+                  let receiverType = sema.bindings.exprType(for: receiver),
+                  sema.types.makeNonNullable(receiverType) == sema.types.stringType,
+                  let indexType = sema.bindings.exprType(for: indices[0]),
+                  sema.types.makeNonNullable(indexType) == sema.types.intType
+            else {
+                return false
+            }
+            return isBuiltinStringGetCall(expr)
+        }
         guard case let .memberCall(receiver, callee, _, args, _) = ast.arena.expr(expr) else { return false }
         let name = interner.resolve(callee)
         guard let receiverType = sema.bindings.exprType(for: receiver) else { return false }
         let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
+
+        // kotlinc's constant evaluator never treats an unsigned value as a
+        // compile-time constant: every member call on an unsigned receiver is
+        // rejected even when the result is a signed primitive or a String
+        // (`1u.compareTo(2u)`, `1u.toString()`). Unsigned literals may still
+        // appear as String `+` operands, which does not go through this gate.
+        if isUnsignedPrimitiveType(nonNullReceiverType) { return false }
 
         if name == "plus", nonNullReceiverType == sema.types.stringType {
             return args.count == 1
@@ -156,7 +176,10 @@ final class ConstPropertyEvaluator {
             )
         }
         if name == "toFloat" || name == "toDouble" {
-            guard args.isEmpty, isIntegerPrimitiveType(nonNullReceiverType) else { return false }
+            guard args.isEmpty,
+                  isIntegerPrimitiveType(nonNullReceiverType)
+                      || nonNullReceiverType == sema.types.charType
+            else { return false }
             guard isSourceBackedMemberExtensionCall(expr) else { return true }
             let resultType = name == "toFloat" ? sema.types.floatType : sema.types.doubleType
             return isBuiltinKotlinNumericConversion(
@@ -166,6 +189,21 @@ final class ConstPropertyEvaluator {
                 resultType: resultType
             )
         }
+        // `Int.toChar` is the only non-deprecated numeric->Char conversion; the
+        // bundled stdlib declares it as a kotlin-package extension. Long/Float/
+        // Double.toChar are deprecated at error level upstream and stay
+        // rejected here until the bundled metadata carries that deprecation.
+        if name == "toChar" {
+            guard args.isEmpty, isNumericPrimitiveType(nonNullReceiverType) else { return false }
+            guard isSourceBackedMemberExtensionCall(expr) else { return true }
+            return nonNullReceiverType == sema.types.intType
+                && isBuiltinKotlinNumericConversion(
+                    expr,
+                    name: name,
+                    receiverType: nonNullReceiverType,
+                    resultType: sema.types.charType
+                )
+        }
         if name == "compareTo" {
             guard args.count == 1,
                   let argumentType = sema.bindings.exprType(for: args[0].expr),
@@ -174,9 +212,12 @@ final class ConstPropertyEvaluator {
             return !isSourceBackedMemberExtensionCall(expr)
                 || isBuiltinKotlinComparableMemberCall(expr)
                 || isBuiltinKotlinPrimitiveExtensionCall(expr, name: name, receiverType: nonNullReceiverType)
+                || isBuiltinStringCompareToCall(expr)
         }
         if name == "toString" {
-            return args.isEmpty && isPrimitiveType(nonNullReceiverType)
+            return args.isEmpty
+                && (isPrimitiveType(nonNullReceiverType)
+                    || nonNullReceiverType == sema.types.stringType)
                 && !isSourceBackedMemberExtensionCall(expr)
         }
         if name == "unaryPlus" || name == "unaryMinus" {
@@ -267,6 +308,23 @@ final class ConstPropertyEvaluator {
         return sema.symbols.isSourceBackedSymbol(callee) || sema.symbols.isSyntheticStubSymbol(callee)
     }
 
+    /// `kotlin.text.String.compareTo(String)` is a source-backed extension in
+    /// the bundled stdlib; only that canonical declaration may fold, so a
+    /// user extension of the same shape is never treated as constant.
+    private func isBuiltinStringCompareToCall(_ expr: ExprID) -> Bool {
+        guard let callee = sema.bindings.callBinding(for: expr)?.chosenCallee,
+              let symbol = sema.symbols.symbol(callee),
+              symbol.kind == .function,
+              symbol.fqName == ["kotlin", "text", "compareTo"].map(interner.intern),
+              sema.symbols.isSourceBackedSymbol(callee),
+              let signature = sema.symbols.functionSignature(for: callee),
+              signature.receiverType.map(sema.types.makeNonNullable) == sema.types.stringType,
+              signature.parameterTypes == [sema.types.stringType],
+              signature.returnType == sema.types.intType
+        else { return false }
+        return true
+    }
+
     private func isBuiltinCharCodeProperty(_ expr: ExprID) -> Bool {
         guard let callee = sema.bindings.callBinding(for: expr)?.chosenCallee,
               let calleeSymbol = sema.symbols.symbol(callee)
@@ -281,6 +339,15 @@ final class ConstPropertyEvaluator {
               sema.symbols.extensionPropertyReceiverType(for: propertySymbol) == sema.types.charType
         else { return false }
         return sema.symbols.isSourceBackedSymbol(propertySymbol)
+    }
+
+    private func isUnsignedPrimitiveType(_ type: TypeID) -> Bool {
+        switch sema.types.kind(of: sema.types.makeNonNullable(type)) {
+        case .primitive(.ubyte, _), .primitive(.ushort, _), .primitive(.uint, _), .primitive(.ulong, _):
+            return true
+        default:
+            return false
+        }
     }
 
     private func isNumericPrimitiveType(_ type: TypeID) -> Bool {
@@ -325,6 +392,9 @@ final class ConstPropertyEvaluator {
         let receiverType = sema.types.makeNonNullable(receiverType)
         let argumentType = sema.types.makeNonNullable(argumentType)
         if isSignedNumericPrimitiveType(receiverType), isSignedNumericPrimitiveType(argumentType) {
+            return true
+        }
+        if receiverType == sema.types.stringType, argumentType == sema.types.stringType {
             return true
         }
         return receiverType == argumentType && isPrimitiveType(receiverType)
@@ -381,6 +451,13 @@ final class ConstPropertyEvaluator {
         let path = owner.fqName.map { interner.resolve($0) }
         guard path.count == 3, path[0] == "kotlin", path[2] == "Companion" else { return nil }
         let member = interner.resolve(info.name)
+        let sizeBits: [String: Int64] = [
+            "Byte": 8, "UByte": 8, "Short": 16, "UShort": 16, "Int": 32, "UInt": 32,
+            "Float": 32, "Long": 64, "ULong": 64, "Double": 64,
+        ]
+        if let bits = sizeBits[path[1]], member == "SIZE_BITS" || member == "SIZE_BYTES" {
+            return .intLiteral(member == "SIZE_BITS" ? bits : bits / 8)
+        }
         switch (path[1], member) {
         case ("Char", "MIN_VALUE"): return .charLiteral(0)
         case ("Char", "MAX_VALUE"): return .charLiteral(65535)
@@ -409,22 +486,6 @@ final class ConstPropertyEvaluator {
         case ("Double", "POSITIVE_INFINITY"): return .doubleLiteral(.infinity)
         case ("Double", "NEGATIVE_INFINITY"): return .doubleLiteral(-.infinity)
         case ("Double", "NaN"): return .doubleLiteral(Double(bitPattern: 0x7FF8_0000_0000_0000))
-        case ("Byte", "SIZE_BITS"): return .intLiteral(8)
-        case ("Byte", "SIZE_BYTES"): return .intLiteral(1)
-        case ("Short", "SIZE_BITS"): return .intLiteral(16)
-        case ("Short", "SIZE_BYTES"): return .intLiteral(2)
-        case ("Int", "SIZE_BITS"), ("Float", "SIZE_BITS"): return .intLiteral(32)
-        case ("Int", "SIZE_BYTES"), ("Float", "SIZE_BYTES"): return .intLiteral(4)
-        case ("Long", "SIZE_BITS"), ("Double", "SIZE_BITS"): return .intLiteral(64)
-        case ("Long", "SIZE_BYTES"), ("Double", "SIZE_BYTES"): return .intLiteral(8)
-        case ("UByte", "SIZE_BITS"): return .intLiteral(8)
-        case ("UByte", "SIZE_BYTES"): return .intLiteral(1)
-        case ("UShort", "SIZE_BITS"): return .intLiteral(16)
-        case ("UShort", "SIZE_BYTES"): return .intLiteral(2)
-        case ("UInt", "SIZE_BITS"): return .intLiteral(32)
-        case ("UInt", "SIZE_BYTES"): return .intLiteral(4)
-        case ("ULong", "SIZE_BITS"): return .intLiteral(64)
-        case ("ULong", "SIZE_BYTES"): return .intLiteral(8)
         default: return nil
         }
     }

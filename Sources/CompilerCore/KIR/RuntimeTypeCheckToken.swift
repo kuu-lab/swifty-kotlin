@@ -384,7 +384,8 @@ func kirCheckableCastErasure(of type: TypeID, sema: SemaModule) -> TypeID? {
         else {
             return nil
         }
-        current = bound
+        // A nullable type parameter remains nullable when erased to its bound.
+        current = parameter.nullability == .nullable ? sema.types.makeNullable(bound) : bound
     }
     switch RuntimeTypeCheckToken.classify(type: current, sema: sema).category {
     case .unknown, .any:
@@ -523,6 +524,13 @@ func kirErasedGenericCallClaimCheck(
           let checkType = kirCheckableCastErasure(of: bound, sema: sema),
           kirErasedBoundaryCheckable(checkType, sema: sema)
     else {
+        return nil
+    }
+    // Calls coerced to Unit evaluate for side effects and discard their
+    // erased result, so no cast of that result is observable in Kotlin.
+    // Property reads retain their own platform-Unit behavior.
+    if propertySymbol == nil,
+       (bound == sema.types.unitType || sema.bindings.unitReturnCoercionExprs.contains(exprID)) {
         return nil
     }
     return (bound, checkType)

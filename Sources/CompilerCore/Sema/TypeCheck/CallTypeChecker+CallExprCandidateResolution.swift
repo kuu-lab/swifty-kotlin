@@ -537,12 +537,28 @@ extension CallTypeChecker {
                 return sema.types.errorType
             }
             guard let chosen = resolved.chosenCallee else {
-                let nameStr = calleeName.map { interner.resolve($0) } ?? "<unknown>"
-                ctx.sema.diagnostics.error(
-                    "KSWIFTK-SEMA-0023",
-                    "Unresolved function '\(nameStr)'.",
-                    range: range
-                )
+                // Inherited `private` members are not candidates (they are not
+                // inherited) but still report as inaccessible, not unresolved
+                // (KUU-3766).
+                if let calleeName,
+                   let privateMember = driver.helpers.inaccessiblePrivateImplicitReceiverMember(
+                       named: calleeName, ctx: ctx
+                   )
+                {
+                    driver.helpers.emitVisibilityError(
+                        for: privateMember,
+                        name: interner.resolve(calleeName),
+                        range: range,
+                        diagnostics: ctx.sema.diagnostics
+                    )
+                } else {
+                    let nameStr = calleeName.map { interner.resolve($0) } ?? "<unknown>"
+                    ctx.sema.diagnostics.error(
+                        "KSWIFTK-SEMA-0023",
+                        "Unresolved function '\(nameStr)'.",
+                        range: range
+                    )
+                }
                 sema.bindings.bindExprType(id, type: sema.types.errorType)
                 return sema.types.errorType
             }

@@ -104,14 +104,27 @@ struct VisibilityChecker {
                 return false
             }
             // A protected member declared in a companion object is scoped to
-            // the companion's containing class: the class itself, its
-            // subclasses, and every declaration lexically nested inside it —
-            // inner and nested classes included — may access it (KUU-3605).
+            // the companion's containing class: the class itself and every
+            // declaration lexically nested inside it — inner and nested
+            // classes included — may access it (KUU-3605).
             var protectedScopeOwner = ownerClass
+            var ownerIsCompanion = false
             if let companionOwner = symbols.parentSymbol(for: ownerClass),
                symbols.companionObjectSymbol(for: companionOwner) == ownerClass {
                 protectedScopeOwner = companionOwner
+                ownerIsCompanion = true
             }
+            // Kotlin/JVM rejects subclass access to a companion's
+            // non-@JvmStatic protected members as "not yet supported": only
+            // the containing class's lexical scope — the class itself and
+            // declarations nested inside it — reaches them, so a subclass
+            // that is not also nested inside the containing class cannot
+            // call them (KUU-3141). An @JvmStatic member is a static of the
+            // containing class and keeps regular subclass semantics.
+            let companionScopeIsLexicalOnly = ownerIsCompanion
+                && !symbols.annotations(for: symbol.id).contains(where: {
+                    KnownCompilerAnnotation.jvmStatic.matches($0.annotationFQName)
+                })
             // Protected access is evaluated against every nominal enclosing
             // the use site, not only the innermost one: a nested or inner
             // class also sees protected members that an enclosing class can
@@ -121,7 +134,8 @@ struct VisibilityChecker {
             var visited: Set<SymbolID> = []
             var useSiteClass: SymbolID? = enclosingClass
             while let candidate = useSiteClass, visited.insert(candidate).inserted {
-                if candidate == protectedScopeOwner || isSubclass(candidate, of: protectedScopeOwner) {
+                if candidate == protectedScopeOwner
+                    || (!companionScopeIsLexicalOnly && isSubclass(candidate, of: protectedScopeOwner)) {
                     return true
                 }
                 useSiteClass = symbols.parentSymbol(for: candidate)

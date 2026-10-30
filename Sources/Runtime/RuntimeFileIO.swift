@@ -990,7 +990,7 @@ public func __kk_input_stream_mark(_ streamRaw: Int, _ readLimitRaw: Int) -> Int
     guard let stream = runtimeInputStreamBox(from: streamRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_input_stream_mark received invalid InputStream handle")
     }
-    stream.mark(readLimit: readLimitRaw)
+    stream.mark()
     return 0
 }
 

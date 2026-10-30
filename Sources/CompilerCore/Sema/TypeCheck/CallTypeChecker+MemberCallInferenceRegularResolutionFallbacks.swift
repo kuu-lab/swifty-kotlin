@@ -17,7 +17,6 @@ extension CallTypeChecker {
         isClassNameReceiver: Bool,
         classNameReceiverNominalSymbol: SymbolID?,
         isSuperCall: Bool,
-        typeAliasConstructor: TypeAliasConstructorContext? = nil,
         locals: inout LocalBindings
     ) -> TypeID? {
         let id = request.id
@@ -481,6 +480,14 @@ extension CallTypeChecker {
                     varianceResult.covariantSubstitution,
                     uniquingKeysWith: { _, projected in projected }
                 )
+            }
+            if !validateReifiedTypeArguments(
+                for: chosen,
+                substitutedTypeArguments: mergedSubstitution,
+                range: range,
+                sema: sema
+            ) {
+                return driver.helpers.bindAndReturnErrorType(id, sema: sema)
             }
             let projectedContextReceiverSymbols = contextParameterReceiverSymbols(
                 for: chosen,

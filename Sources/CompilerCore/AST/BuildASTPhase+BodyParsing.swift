@@ -584,15 +584,21 @@ extension BuildASTPhase {
     ) -> Bool where C.Element == Token {
         var depth = BracketDepth()
         var sawLocalProperty = false
+        var awaitsObjectBody = false
         for token in tokens {
             if depth.isBracketBraceParenTopLevel {
                 if token.kind == .keyword(.val) || token.kind == .keyword(.var) {
                     sawLocalProperty = true
                 }
+                if token.kind == .keyword(.object) {
+                    awaitsObjectBody = true
+                } else if token.kind == .symbol(.lBrace) {
+                    awaitsObjectBody = false
+                }
             }
             depth.track(token.kind)
         }
-        guard sawLocalProperty, let last = tokens.last else {
+        guard sawLocalProperty, !awaitsObjectBody, let last = tokens.last else {
             return false
         }
         switch last.kind {

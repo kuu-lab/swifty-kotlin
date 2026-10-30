@@ -1,7 +1,6 @@
 import Dispatch
 import Foundation
 @testable import Runtime
-import RuntimeABI
 import Testing
 
 /// Regression coverage for stale coroutine handle resolution: continuation /
@@ -49,7 +48,9 @@ struct RuntimeLiveHandleRegistryTests {
                 // Either freed (nil) or recycled into a live state, but never a
                 // resolution of deallocated memory.
                 if let state = runtimeContinuationState(from: handle) {
-                    #expect(state.launcherArgs[0] == nil || state.launcherArgs[0] == 111)
+                    state.withRetainedLauncherArgs { args in
+                        #expect(args[0] == nil || args[0] == 111)
+                    }
                 }
             }
             stale.append(continuation)

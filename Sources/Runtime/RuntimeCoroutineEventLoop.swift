@@ -206,8 +206,10 @@ final class RuntimeEventLoop: @unchecked Sendable {
                 Date().addingTimeInterval(RuntimeEventLoop.idleWaitSeconds),
                 deadline ?? Date.distantFuture
             )
+            let gcBlocking = runtimeGCSafepoints.beginBlockingIfEnrolled()
             _ = condition.wait(until: limit)
             condition.unlock()
+            if gcBlocking { runtimeGCSafepoints.endBlocking() }
         }
     }
 }
@@ -263,12 +265,17 @@ final class RuntimeWorkItemBox: @unchecked Sendable {
 /// can be promised while a thread is parked on a non-suspension wait anyway.
 func runtimeWaitDrainingEventLoop(_ semaphore: DispatchSemaphore) {
     guard let loop = RuntimeEventLoop.current else {
+        let gcBlocking = runtimeGCSafepoints.beginBlockingIfEnrolled()
         semaphore.wait()
+        if gcBlocking { runtimeGCSafepoints.endBlocking() }
         return
     }
     while true {
         loop.offloadReadyTasksToGlobalPool()
-        if semaphore.wait(timeout: .now() + .milliseconds(5)) == .success {
+        let gcBlocking = runtimeGCSafepoints.beginBlockingIfEnrolled()
+        let result = semaphore.wait(timeout: .now() + .milliseconds(5))
+        if gcBlocking { runtimeGCSafepoints.endBlocking() }
+        if result == .success {
             return
         }
     }

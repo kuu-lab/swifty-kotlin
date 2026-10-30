@@ -43,6 +43,19 @@
     {
       "file": "error_redeclaration.kt",
       "range": {
+        "start": { "line": 17, "character": 4 },
+        "end": { "line": 17, "character": 13 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-0001",
+      "source": "kswiftk",
+      "message": "Conflicting local declarations for 'x'.",
+      "codeActions": []
+    },
+    {
+      "file": "error_redeclaration.kt",
+      "range": {
         "start": { "line": 31, "character": 4 },
         "end": { "line": 31, "character": 10 }
       },

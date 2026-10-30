@@ -5,7 +5,7 @@ file fstdlib_kotlin_n_ExperimentalContextParameters package=golden.sema
   decl golden.sema.callerOfContextParameters[kind=fun;params=;ret=Int;origin=fixture] fun callerOfContextParameters sym=golden.sema.callerOfContextParameters[kind=fun;params=;ret=Int;origin=fixture]
 expr e@4:42 int(1) type=Int
 expr e@7:40 call callee=e@7:40#1 args=[] type=Int call=golden.sema.markedWithContextParameters[kind=fun;params=;ret=Int;origin=fixture]
-expr e@3:2 memberCall recv=e@3:2#1 callee=ExperimentalContextParameters args=[] type=kotlin.ExperimentalContextParameters call=kotlin.ExperimentalContextParameters.<init>[kind=ctor;recv=kotlin.ExperimentalContextParameters;params=;ret=kotlin.ExperimentalContextParameters]
+expr e@3:2 call callee=e@3:2#1 args=[] type=kotlin.ExperimentalContextParameters call=kotlin.ExperimentalContextParameters.<init>[kind=ctor;recv=kotlin.ExperimentalContextParameters;params=;ret=kotlin.ExperimentalContextParameters]
 expr e@6:8 memberCall recv=e@6:8#1 callee=ExperimentalContextParameters args=[] type=kotlin.ExperimentalContextParameters ref=kotlin.ExperimentalContextParameters[kind=anno]
 expr e@6:8#2 callableRef recv=e@6:8 member=class type=KClass<kotlin.ExperimentalContextParameters>
 expr e@6:2 call callee=e@6:2#1 args=[_:e@6:8#2] type=kotlin.OptIn call=kotlin.OptIn.<init>[kind=ctor;recv=kotlin.OptIn;params=*kotlin.reflect.KClass<out kotlin.Annotation>;ret=kotlin.OptIn;vararg=[1];names=[markerClass]]

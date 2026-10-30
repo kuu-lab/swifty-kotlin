@@ -200,6 +200,8 @@ public fun <T> Iterable<T>.asSequence(): kotlin.sequences.Sequence<T> {
     }
 }
 
+public fun <T> Iterable<T>.withIndex(): Iterable<IndexedValue<T>> = IndexingIterable(this)
+
 public fun <T> Iterable<T>.first(): T {
     if (this is List<*>) return (this as List<T>).first()
     val iterator = this.iterator()

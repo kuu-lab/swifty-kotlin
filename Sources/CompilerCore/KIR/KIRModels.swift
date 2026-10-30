@@ -458,6 +458,26 @@ public final class KIRArena {
     }
 }
 
+/// Dump rendering only reads the module, interner snapshot and symbol table;
+/// results land in distinct slots under the lock, matching
+/// `ParallelTransformWork`.
+private final class ParallelDumpWork: @unchecked Sendable {
+    let module: KIRModule
+    let declarations: [KIRDecl]
+    let names: KIRDumpNames
+    let symbols: SymbolTable?
+    let lock = NSLock()
+    var results: [String]
+
+    init(module: KIRModule, declarations: [KIRDecl], names: KIRDumpNames, symbols: SymbolTable?, batch: Range<Int>) {
+        self.module = module
+        self.declarations = declarations
+        self.names = names
+        self.symbols = symbols
+        results = Array(repeating: "", count: batch.count)
+    }
+}
+
 private final class ParallelTransformWork: @unchecked Sendable {
     let functions: [(Int, KIRFunction)]
     let transform: (KIRFunction) -> KIRFunction
@@ -645,138 +665,407 @@ public final class KIRModule {
     }
 
     public func dump(interner: StringInterner, symbols: SymbolTable?) -> String {
-        var lines: [String] = []
-        for (index, decl) in arena.declarations.enumerated() {
-            switch decl {
-            case let .function(function):
-                let name = interner.resolve(function.name)
-                lines.append("decl[\(index)] function #\(function.symbol.rawValue) \(name) params=\(function.params.count) suspend=\(function.isSuspend) inline=\(function.isInline)")
-                for instruction in function.body {
-                    lines.append("  \(instructionDescription(instruction, interner: interner, arena: arena, symbols: symbols))")
-                }
-            case .global:
-                lines.append("decl[\(index)] global")
-            case let .nominalType(nominal):
-                if let symbol = symbols?.symbol(nominal.symbol) {
-                    let name = interner.resolve(symbol.name)
-                    lines.append("decl[\(index)] type \(name)")
-                } else {
-                    lines.append("decl[\(index)] type")
-                }
+        var output = KIRDumpOutput(reservingBytes: estimatedDumpLineCount() * KIRDumpOutput.estimatedBytesPerLine)
+        renderDump(interner: interner, symbols: symbols, into: &output) { _ in }
+        return output.text
+    }
+
+    /// Streams the dump through `write` in chunks of roughly `chunkBytes`, so
+    /// a multi-megabyte dump never has to be resident as one String. The
+    /// concatenated chunks equal `dump(interner:symbols:)`.
+    public func dump(
+        interner: StringInterner,
+        symbols: SymbolTable?,
+        chunkBytes: Int,
+        write: (String) throws -> Void
+    ) rethrows {
+        var output = KIRDumpOutput(reservingBytes: chunkBytes)
+        try renderDump(interner: interner, symbols: symbols, into: &output) { output in
+            if output.byteCount >= chunkBytes {
+                try write(output.drain(reservingBytes: chunkBytes))
             }
+        }
+        if output.byteCount > 0 {
+            try write(output.drain(reservingBytes: 0))
+        }
+    }
+
+    /// Declarations render independently, so each batch fans out across
+    /// cores and is then appended in declaration order; `flush` runs after
+    /// every appended declaration, letting the streaming variant hand off
+    /// full chunks while the String variant keeps everything.
+    private func renderDump(
+        interner: StringInterner,
+        symbols: SymbolTable?,
+        into output: inout KIRDumpOutput,
+        flush: (inout KIRDumpOutput) throws -> Void
+    ) rethrows {
+        let names = KIRDumpNames(interner)
+        let declarations = arena.declarations
+        var batchStart = 0
+        while batchStart < declarations.count {
+            let batch = batchStart ..< min(batchStart + Self.dumpBatchSize, declarations.count)
+            for rendered in renderDeclarations(declarations, in: batch, names: names, symbols: symbols) {
+                output.appendLine(rendered)
+                try flush(&output)
+            }
+            batchStart = batch.upperBound
         }
         if !executedLowerings.isEmpty {
-            lines.append("lowerings: \(executedLowerings.joined(separator: ", "))")
+            output.appendLine("lowerings: \(executedLowerings.joined(separator: ", "))")
         }
-        return lines.joined(separator: "\n")
     }
 
-    private func instructionDescription(
-        _ instruction: KIRInstruction,
-        interner: StringInterner,
-        arena _: KIRArena,
+    /// Bounds how much rendered-but-unwritten text a streamed dump holds.
+    private static let dumpBatchSize = 256
+    /// Below this, thread fan-out costs more than rendering serially.
+    private static let parallelDumpThreshold = 8
+
+    private func renderDeclarations(
+        _ declarations: [KIRDecl],
+        in batch: Range<Int>,
+        names: KIRDumpNames,
+        symbols: SymbolTable?
+    ) -> [String] {
+        guard batch.count >= Self.parallelDumpThreshold else {
+            return batch.map { renderDeclaration(declarations[$0], index: $0, names: names, symbols: symbols) }
+        }
+        let work = ParallelDumpWork(module: self, declarations: declarations, names: names, symbols: symbols, batch: batch)
+        DispatchQueue.concurrentPerform(iterations: batch.count) { offset in
+            let index = batch.lowerBound + offset
+            let rendered = work.module.renderDeclaration(
+                work.declarations[index], index: index, names: work.names, symbols: work.symbols
+            )
+            work.lock.lock()
+            work.results[offset] = rendered
+            work.lock.unlock()
+        }
+        return work.results
+    }
+
+    fileprivate func renderDeclaration(
+        _ decl: KIRDecl,
+        index: Int,
+        names: KIRDumpNames,
         symbols: SymbolTable?
     ) -> String {
-        switch instruction {
-        case .nop:
-            return "nop"
-        case .beginBlock:
-            return "beginBlock"
-        case .endBlock:
-            return "endBlock"
-        case let .label(id):
-            return "label L\(id)"
-        case let .jump(target):
-            return "jump L\(target)"
-        case let .jumpIfEqual(lhs, rhs, target):
-            return "jumpIfEqual r\(lhs.rawValue), r\(rhs.rawValue) -> L\(target)"
-        case let .constValue(result, value):
-            return "const r\(result.rawValue)=\(valueDescription(value, interner: interner))"
-        case let .binary(op, lhs, rhs, result):
-            return "binary \(op) r\(lhs.rawValue), r\(rhs.rawValue) -> r\(result.rawValue)"
-        case let .unary(op, operand, result):
-            return "unary \(op) r\(operand.rawValue) -> r\(result.rawValue)"
-        case let .nullAssert(operand, result):
-            return "nullAssert r\(operand.rawValue) -> r\(result.rawValue)"
-        case let .call(symbol, callee, arguments, result, canThrow, thrownResult, isSuperCall, qualifiedSuperType):
-            let calleeName = interner.resolve(callee)
-            let args = arguments.map { "r\($0.rawValue)" }.joined(separator: ", ")
-            let symbolLabel: String = if let symbol, let sym = symbols?.symbol(symbol) {
-                interner.resolve(sym.name)
-            } else {
-                "_"
+        switch decl {
+        case let .function(function):
+            var output = KIRDumpOutput(reservingBytes: (function.body.count + 1) * KIRDumpOutput.estimatedBytesPerLine)
+            let name = names.resolve(function.name)
+            output.appendLine("decl[\(index)] function #\(function.symbol.rawValue) \(name) params=\(function.params.count) suspend=\(function.isSuspend) inline=\(function.isInline)")
+            for instruction in function.body {
+                output.appendLine { line in
+                    line += "  "
+                    appendInstruction(instruction, names: names, symbols: symbols, to: &line)
+                }
             }
-            let ret = result.map { "r\($0.rawValue)" } ?? "_"
-            let thrownRet = thrownResult.map { "r\($0.rawValue)" } ?? "_"
-            let superTag = isSuperCall ? " super=1" : ""
-            let qualifiedSuperTag = qualifiedSuperType.map { " qualifiedSuper=\($0.rawValue)" } ?? ""
-            return "call \(calleeName) symbol=\(symbolLabel) args=[\(args)] ret=\(ret) thrown=\(canThrow) thrownResult=\(thrownRet)\(superTag)\(qualifiedSuperTag)"
-        case let .virtualCall(symbol, callee, receiver, arguments, result, canThrow, thrownResult, dispatch):
-            let calleeName = interner.resolve(callee)
-            let args = arguments.map { "r\($0.rawValue)" }.joined(separator: ", ")
-            let symbolLabel: String = if let symbol, let sym = symbols?.symbol(symbol) {
-                interner.resolve(sym.name)
-            } else {
-                "_"
+            return output.text
+        case .global:
+            return "decl[\(index)] global"
+        case let .nominalType(nominal):
+            if let symbolName = symbols?.name(of: nominal.symbol) {
+                return "decl[\(index)] type \(names.resolve(symbolName))"
             }
-            let ret = result.map { "r\($0.rawValue)" } ?? "_"
-            let thrownRet = thrownResult.map { "r\($0.rawValue)" } ?? "_"
-            let dispatchLabel = switch dispatch {
-            case let .vtable(slot):
-                "vtable[\(slot)]"
-            case let .itable(interfaceSlot, methodSlot):
-                "itable[\(interfaceSlot):\(methodSlot)]"
-            case let .itableDynamic(interfaceTypeID, methodSlot):
-                "itableDynamic[\(interfaceTypeID):\(methodSlot)]"
-            }
-            return "virtualCall \(calleeName) symbol=\(symbolLabel) receiver=r\(receiver.rawValue) args=[\(args)] ret=\(ret) thrown=\(canThrow) thrownResult=\(thrownRet) dispatch=\(dispatchLabel)"
-        case let .jumpIfNotNull(value, target):
-            return "jumpIfNotNull r\(value.rawValue) -> L\(target)"
-        case let .copy(from, to):
-            return "copy r\(from.rawValue) -> r\(to.rawValue)"
-        case let .storeGlobal(value, symbol):
-            return "storeGlobal r\(value.rawValue) -> s\(symbol.rawValue)"
-        case let .loadGlobal(result, symbol):
-            return "loadGlobal s\(symbol.rawValue) -> r\(result.rawValue)"
-        case let .rethrow(value):
-            return "rethrow r\(value.rawValue)"
-        case let .returnIfEqual(lhs, rhs):
-            return "returnIfEqual r\(lhs.rawValue), r\(rhs.rawValue)"
-        case .returnUnit:
-            return "returnUnit"
-        case let .returnValue(value):
-            return "return r\(value.rawValue)"
-        case let .nonLocalReturn(value, target):
-            if let value {
-                return "nonLocalReturn r\(value.rawValue)" + (target.map { " target=\($0)" } ?? "")
-            } else {
-                return "nonLocalReturnUnit" + (target.map { " target=\($0)" } ?? "")
-            }
-        case .beginFinallyGuard:
-            return "beginFinallyGuard"
-        case let .beginNonLocalReturnScope(value, target, function):
-            return "beginNonLocalReturnScope r\(value.rawValue), L\(target)" + (function.map { " function=\($0)" } ?? "")
-        case .endNonLocalReturnScope:
-            return "endNonLocalReturnScope"
-        case let .resumeNonLocalReturn(value):
-            return "resumeNonLocalReturn r\(value.rawValue)"
-        case let .beginFinallyCleanup(skipping):
-            return "beginFinallyCleanup skipping=\(skipping)"
-        case .endFinallyCleanup:
-            return "endFinallyCleanup"
-        case .endFinallyGuard:
-            return "endFinallyGuard"
+            return "decl[\(index)] type"
         }
     }
 
-    private func valueDescription(_ value: KIRExprKind, interner: StringInterner) -> String {
+    private func estimatedDumpLineCount() -> Int {
+        arena.declarations.reduce(1) { count, decl in
+            if case let .function(function) = decl {
+                return count + 1 + function.body.count
+            }
+            return count + 1
+        }
+    }
+
+    /// Appends straight into the dump buffer so an instruction line costs no
+    /// intermediate String, and register lists no temporary array.
+    private func appendInstruction(
+        _ instruction: KIRInstruction,
+        names: KIRDumpNames,
+        symbols: SymbolTable?,
+        to out: inout String
+    ) {
+        switch instruction {
+        case .nop:
+            out += "nop"
+        case .beginBlock:
+            out += "beginBlock"
+        case .endBlock:
+            out += "endBlock"
+        case let .label(id):
+            out += "label L\(id)"
+        case let .jump(target):
+            out += "jump L\(target)"
+        case let .jumpIfEqual(lhs, rhs, target):
+            out += "jumpIfEqual r\(lhs.rawValue), r\(rhs.rawValue) -> L\(target)"
+        case let .constValue(result, value):
+            out += "const r\(result.rawValue)=\(valueDescription(value, names: names))"
+        case let .binary(op, lhs, rhs, result):
+            out += "binary \(op.dumpName) r\(lhs.rawValue), r\(rhs.rawValue) -> r\(result.rawValue)"
+        case let .unary(op, operand, result):
+            out += "unary \(op.dumpName) r\(operand.rawValue) -> r\(result.rawValue)"
+        case let .nullAssert(operand, result):
+            out += "nullAssert r\(operand.rawValue) -> r\(result.rawValue)"
+        case let .call(symbol, callee, arguments, result, canThrow, thrownResult, isSuperCall, qualifiedSuperType):
+            out += "call "
+            out += names.resolve(callee)
+            appendSymbolLabel(symbol, names: names, symbols: symbols, to: &out)
+            appendRegisterList(arguments, to: &out)
+            appendRegisterSlot(" ret=", result, to: &out)
+            out += canThrow ? " thrown=true" : " thrown=false"
+            appendThrownResult(thrownResult, to: &out)
+            if isSuperCall {
+                out += " super=1"
+            }
+            if let qualifiedSuperType {
+                out += " qualifiedSuper=\(qualifiedSuperType.rawValue)"
+            }
+        case let .virtualCall(symbol, callee, receiver, arguments, result, canThrow, thrownResult, dispatch):
+            out += "virtualCall "
+            out += names.resolve(callee)
+            appendSymbolLabel(symbol, names: names, symbols: symbols, to: &out)
+            out += " receiver=r\(receiver.rawValue)"
+            appendRegisterList(arguments, to: &out)
+            appendRegisterSlot(" ret=", result, to: &out)
+            out += canThrow ? " thrown=true" : " thrown=false"
+            appendThrownResult(thrownResult, to: &out)
+            switch dispatch {
+            case let .vtable(slot):
+                out += " dispatch=vtable[\(slot)]"
+            case let .itable(interfaceSlot, methodSlot):
+                out += " dispatch=itable[\(interfaceSlot):\(methodSlot)]"
+            case let .itableDynamic(interfaceTypeID, methodSlot):
+                out += " dispatch=itableDynamic[\(interfaceTypeID):\(methodSlot)]"
+            }
+        case let .jumpIfNotNull(value, target):
+            out += "jumpIfNotNull r\(value.rawValue) -> L\(target)"
+        case let .copy(from, to):
+            out += "copy r\(from.rawValue) -> r\(to.rawValue)"
+        case let .storeGlobal(value, symbol):
+            out += "storeGlobal r\(value.rawValue) -> s\(symbol.rawValue)"
+        case let .loadGlobal(result, symbol):
+            out += "loadGlobal s\(symbol.rawValue) -> r\(result.rawValue)"
+        case let .rethrow(value):
+            out += "rethrow r\(value.rawValue)"
+        case let .returnIfEqual(lhs, rhs):
+            out += "returnIfEqual r\(lhs.rawValue), r\(rhs.rawValue)"
+        case .returnUnit:
+            out += "returnUnit"
+        case let .returnValue(value):
+            out += "return r\(value.rawValue)"
+        case let .nonLocalReturn(value, target):
+            if let value {
+                out += "nonLocalReturn r\(value.rawValue)" + (target.map { " target=\($0.dumpDescription(names: names))" } ?? "")
+            } else {
+                out += "nonLocalReturnUnit" + (target.map { " target=\($0.dumpDescription(names: names))" } ?? "")
+            }
+        case .beginFinallyGuard:
+            out += "beginFinallyGuard"
+        case let .beginNonLocalReturnScope(value, target, function):
+            out += "beginNonLocalReturnScope r\(value.rawValue), L\(target)" + (function.map { " function=\($0.dumpDescription(names: names))" } ?? "")
+        case .endNonLocalReturnScope:
+            out += "endNonLocalReturnScope"
+        case let .resumeNonLocalReturn(value):
+            out += "resumeNonLocalReturn r\(value.rawValue)"
+        case let .beginFinallyCleanup(skipping):
+            out += "beginFinallyCleanup skipping=\(skipping)"
+        case .endFinallyCleanup:
+            out += "endFinallyCleanup"
+        case .endFinallyGuard:
+            out += "endFinallyGuard"
+        }
+    }
+
+    private func appendSymbolLabel(
+        _ symbol: SymbolID?,
+        names: KIRDumpNames,
+        symbols: SymbolTable?,
+        to out: inout String
+    ) {
+        out += " symbol="
+        if let symbol, let name = symbols?.name(of: symbol) {
+            out += names.resolve(name)
+        } else {
+            out += "_"
+        }
+    }
+
+    private func appendRegisterList(_ registers: [KIRExprID], to out: inout String) {
+        out += " args=["
+        for (position, register) in registers.enumerated() {
+            if position > 0 {
+                out += ", "
+            }
+            out += "r\(register.rawValue)"
+        }
+        out += "]"
+    }
+
+    /// Most calls have no thrown-result slot; omitting the "_" placeholder
+    /// removes one of the most repeated tokens in large dumps.
+    private func appendThrownResult(_ register: KIRExprID?, to out: inout String) {
+        if let register {
+            out += " thrownResult=r\(register.rawValue)"
+        }
+    }
+
+    private func appendRegisterSlot(_ label: String, _ register: KIRExprID?, to out: inout String) {
+        out += label
+        if let register {
+            out += "r\(register.rawValue)"
+        } else {
+            out += "_"
+        }
+    }
+
+    /// Payload spellings follow the old reflection-derived format except for
+    /// symbol ids, which print as `s<N>` like `storeGlobal`. Floating-point
+    /// payloads use their debug representation, as reflection did.
+    private func valueDescription(_ value: KIRExprKind, names: KIRDumpNames) -> String {
         switch value {
+        case let .intLiteral(literal):
+            return "intLiteral(\(literal))"
+        case let .longLiteral(literal):
+            return "longLiteral(\(literal))"
+        case let .uintLiteral(literal):
+            return "uintLiteral(\(literal))"
+        case let .ulongLiteral(literal):
+            return "ulongLiteral(\(literal))"
+        case let .floatLiteral(literal):
+            return "floatLiteral(\(String(reflecting: literal)))"
+        case let .doubleLiteral(literal):
+            return "doubleLiteral(\(String(reflecting: literal)))"
+        case let .charLiteral(literal):
+            return "charLiteral(\(literal))"
+        case let .boolLiteral(literal):
+            return "boolLiteral(\(literal))"
         case let .stringLiteral(interned):
-            return "stringLiteral(\"\(interner.resolve(interned))\")"
+            return "stringLiteral(\"\(names.resolve(interned))\")"
+        case let .symbolRef(symbol):
+            return "symbolRef(\(symbol.dumpDescription))"
         case let .externSymbolAddress(interned):
-            return "externSymbolAddress(\"\(interner.resolve(interned))\")"
-        default:
-            return "\(value)"
+            return "externSymbolAddress(\"\(names.resolve(interned))\")"
+        case let .temporary(index):
+            return "temporary(\(index))"
+        case .null:
+            return "null"
+        case .unit:
+            return "unit"
+        }
+    }
+}
+
+/// Lock-free name lookups for one dump. `StringInterner.resolve` takes the
+/// interner lock on every call, and a dump resolves each callee and symbol
+/// name it prints; the snapshot is copy-on-write, so taking it is O(1).
+struct KIRDumpNames {
+    private let values: [String]
+
+    init(_ interner: StringInterner) {
+        values = interner.snapshotValues()
+    }
+
+    /// Mirrors `StringInterner.resolve`, including "" for unknown ids.
+    func resolve(_ id: InternedString) -> String {
+        let index = Int(id.rawValue)
+        guard index >= 0, index < values.count else {
+            return ""
+        }
+        return values[index]
+    }
+}
+
+/// Builds the dump in one growing buffer: collecting a `[String]` of lines
+/// and joining it kept every line alive as its own allocation and copied the
+/// whole dump a second time. Lines are separated, not terminated, by "\n" to
+/// match `joined(separator:)`.
+struct KIRDumpOutput {
+    /// Typical dump line length; only sizes the initial reservation.
+    static let estimatedBytesPerLine = 64
+
+    private(set) var text = ""
+    private var isEmpty = true
+
+    init(reservingBytes: Int) {
+        text.reserveCapacity(reservingBytes)
+    }
+
+    /// O(1) for the native UTF-8 storage the dump builds.
+    var byteCount: Int {
+        text.utf8.count
+    }
+
+    /// Hands off the buffered text while keeping separator state, so the
+    /// next line still gets its leading "\n".
+    mutating func drain(reservingBytes: Int) -> String {
+        let chunk = text
+        text = ""
+        text.reserveCapacity(reservingBytes)
+        return chunk
+    }
+
+    mutating func appendLine(_ line: String) {
+        appendLine { $0 += line }
+    }
+
+    mutating func appendLine(_ build: (inout String) -> Void) {
+        if isEmpty {
+            isEmpty = false
+        } else {
+            text += "\n"
+        }
+        build(&text)
+    }
+}
+
+/// Compact spellings for ids the dump used to print through reflection as
+/// `CompilerCore.SymbolID(rawValue: N)`; `KIRDumpFormatTests` pins them.
+private extension SymbolID {
+    var dumpDescription: String {
+        "s\(rawValue)"
+    }
+}
+
+private extension KIRReturnTarget {
+    func dumpDescription(names: KIRDumpNames) -> String {
+        switch self {
+        case let .function(symbol):
+            "function(\(symbol.dumpDescription))"
+        case let .importedFunction(name):
+            "importedFunction(\"\(names.resolve(name))\")"
+        }
+    }
+}
+
+private extension KIRBinaryOp {
+    var dumpName: String {
+        switch self {
+        case .add: "add"
+        case .subtract: "subtract"
+        case .multiply: "multiply"
+        case .divide: "divide"
+        case .modulo: "modulo"
+        case .equal: "equal"
+        case .notEqual: "notEqual"
+        case .lessThan: "lessThan"
+        case .lessOrEqual: "lessOrEqual"
+        case .greaterThan: "greaterThan"
+        case .greaterOrEqual: "greaterOrEqual"
+        case .logicalAnd: "logicalAnd"
+        case .logicalOr: "logicalOr"
+        }
+    }
+}
+
+private extension KIRUnaryOp {
+    var dumpName: String {
+        switch self {
+        case .not: "not"
+        case .unaryPlus: "unaryPlus"
+        case .unaryMinus: "unaryMinus"
         }
     }
 }

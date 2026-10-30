@@ -789,13 +789,7 @@ struct TypeCheckHelpers {
              interner.intern("zip"), interner.intern("combine"), interner.intern("merge"):
             guard argumentCount == 1 || argumentCount == 2 else { return nil }
             return sema.types.nullableAnyType
-        case interner.intern("toList"):
-            guard argumentCount == 0 || argumentCount == 1 else { return nil }
-            return sema.types.anyType
-        case interner.intern("first"):
-            guard argumentCount == 0 || argumentCount == 1 else { return nil }
-            return sema.types.anyType
-        case interner.intern("single"):
+        case interner.intern("toList"), interner.intern("first"), interner.intern("single"):
             guard argumentCount == 0 || argumentCount == 1 else { return nil }
             return sema.types.anyType
         default:

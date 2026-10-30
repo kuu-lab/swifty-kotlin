@@ -85,7 +85,9 @@ func runtimeMapArrayPair(
 func registerRuntimeObject(_ box: AnyObject) -> Int {
     let opaque = UnsafeMutableRawPointer(Unmanaged.passRetained(box).toOpaque())
     runtimeStorage.withGCLock { state in
-        state.objectPointers.insert(UInt(bitPattern: opaque))
+        let key = UInt(bitPattern: opaque)
+        state.objectPointers.insert(key)
+        recordRetainedBoxManagedHeapFieldsLocked(box, owner: key, state: &state)
     }
     let raw = Int(bitPattern: opaque)
     registerRuntimeCollectionBoxIdentity(raw: raw, box: box)
@@ -200,7 +202,7 @@ private let runtimeListIteratorHasPreviousThunk: @convention(c) (Int, UnsafeMuta
 private let runtimeListIteratorPreviousThunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { raw, outThrown in
     outThrown?.pointee = 0
     guard let iter = runtimeListIteratorBox(from: raw), listIteratorCanGoBack(iter) else {
-        runtimeSetThrown(outThrown, runtimeAllocateNoSuchElementException(message: "List iterator has no previous element."))
+        runtimeSetThrown(outThrown, runtimeAllocateNoSuchElementException(message: nil))
         return 0
     }
     return kk_list_iterator_previous(raw)

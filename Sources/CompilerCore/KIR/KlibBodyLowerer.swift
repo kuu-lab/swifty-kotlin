@@ -984,7 +984,6 @@ final class KlibBodyLowerer {
             for: objectSymbol,
             ensureInitSymbol: lazySymbol,
             ensureInitName: lazyName,
-            flagSymbol: flagSymbol
         )
         return declIDs
     }
