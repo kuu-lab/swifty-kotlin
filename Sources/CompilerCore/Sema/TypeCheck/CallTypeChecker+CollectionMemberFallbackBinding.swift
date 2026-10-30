@@ -1755,17 +1755,100 @@ extension CallTypeChecker {
         // Prefer the overload whose parameter count matches the call-site
         // argument count so that e.g. windowed(3, 2, true) resolves to the
         // 3-param overload instead of the 2-param one.
-        if let exactMatch = arityCandidates.first(where: { candidate in
-            guard let sig = sema.symbols.functionSignature(for: candidate) else { return false }
-            return sig.parameterTypes.count == argCount
-        }) {
-            return exactMatch
+        let arityMatched = arityCandidates.filter { candidate in
+            sema.symbols.functionSignature(for: candidate)?.parameterTypes.count == argCount
         }
-        if let first = arityCandidates.first {
+        let selectionPool = arityMatched.isEmpty ? arityCandidates : arityMatched
+        // KUU-3819: several same-arity stdlib overloads share the nominal
+        // receiver owner and differ only in the receiver's element-type
+        // argument (e.g. the bundled `Iterable<Double>`/`Iterable<Float>`/
+        // `Iterable<T : Comparable<T>>` extrema overloads). Arity-first
+        // selection bound `MutableCollection<Int>.maxOrNull()` to
+        // `Iterable<Double>.maxOrNull`, whose body unboxes the Int elements
+        // as Double and throws ClassCastException at runtime. Prefer the
+        // overload whose receiver element matches the call site's element
+        // type before falling back to registration order.
+        if selectionPool.count > 1,
+           let elementMatched = preferCollectionFallbackReceiverElementMatch(
+               selectionPool,
+               owner: owner,
+               receiverType: receiverType,
+               sema: sema
+           )
+        {
+            return elementMatched
+        }
+        if let first = selectionPool.first {
             return first
         }
         queue.append(contentsOf: sema.symbols.directSupertypes(for: owner))
         }
         return nil
+    }
+
+    /// Returns the receiver's element-type argument as seen from `owner`
+    /// (the nominal currently being walked), e.g. `Int` for a
+    /// `MutableCollection<Int>` call site once `Iterable` is the owner.
+    private func collectionFallbackOwnerElementType(
+        of type: TypeID,
+        owner: SymbolID,
+        sema: SemaModule
+    ) -> TypeID? {
+        guard let (classType, _) = resolveClassTypeSymbol(
+            sema.types.makeNonNullable(type),
+            sema: sema
+        ),
+        let liftedArgs = sema.types.liftedNominalSupertypeArgs(
+            from: classType.classSymbol,
+            childArgs: classType.args,
+            to: owner
+        ),
+        let firstArg = liftedArgs.first
+        else {
+            return nil
+        }
+        return switch firstArg {
+        case let .invariant(inner), let .out(inner), let .in(inner): inner
+        case .star: nil
+        }
+    }
+
+    /// KUU-3819: rank same-owner same-arity fallback candidates by the
+    /// declared receiver's element-type argument against the call site's
+    /// element type. An exact concrete element match (e.g. `Iterable<Double>`
+    /// for an `Iterable<Double>` receiver, matching Kotlin's non-generic
+    /// overload preference) wins; a generic receiver whose element is a
+    /// type parameter accepts any element and ranks next. Returns nil when
+    /// no candidate's element relates, preserving registration order.
+    private func preferCollectionFallbackReceiverElementMatch(
+        _ candidates: [SymbolID],
+        owner: SymbolID,
+        receiverType: TypeID,
+        sema: SemaModule
+    ) -> SymbolID? {
+        guard let callSiteElement = collectionFallbackOwnerElementType(
+            of: receiverType, owner: owner, sema: sema
+        ) else {
+            return nil
+        }
+        var genericMatch: SymbolID?
+        for candidate in candidates {
+            guard let signature = sema.symbols.functionSignature(for: candidate),
+                  let declaredReceiver = signature.receiverType,
+                  let element = collectionFallbackOwnerElementType(
+                      of: declaredReceiver, owner: owner, sema: sema
+                  )
+            else {
+                continue
+            }
+            if case .typeParam = sema.types.kind(of: sema.types.makeNonNullable(element)) {
+                if genericMatch == nil {
+                    genericMatch = candidate
+                }
+            } else if sema.types.makeNonNullable(element) == sema.types.makeNonNullable(callSiteElement) {
+                return candidate
+            }
+        }
+        return genericMatch
     }
 }
