@@ -1,9 +1,0 @@
-Scripts/diff_cases/connection_validation.kt:6:1: error KSWIFTK-SEMA-UNRESOLVED-IMPORT: Unresolved import path.
-import kotlin.concurrent.thread
-^
-Scripts/diff_cases/connection_validation.kt:117:22: error KSWIFTK-SEMA-0023: Unresolved function 'thread'.
-        val thread = thread {
-                     ^
-Scripts/diff_cases/connection_validation.kt:130:9: error KSWIFTK-SEMA-0003: Ambiguous overload resolution.
-        thread.start()
-        ^

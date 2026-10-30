@@ -191,6 +191,7 @@ extension DeclTypeChecker {
                 implicitReceiverType: .some(nil),
                 outerReceiverTypes: outerReceiversToKeep ?? []
             ).excludingEnclosingClassReceiver()
+             .demotingReceiverBelowCompanion(superclassSymbol)
         }
 
         let candidates = sema.symbols
@@ -638,7 +639,7 @@ extension DeclTypeChecker {
                 // objects, capturable outer `this` values) remain visible, so
                 // `object Host { class C : B { init() : super(this.f()) } }`
                 // resolves `this` to Host (KUU-3595).
-                let delegationArgCtx = ctx.copying(
+                var delegationArgCtx = ctx.copying(
                     implicitReceiverType: .some(nil),
                     outerReceiverTypes: ctx.outerReceiverTypes.filter { entry in
                         guard case let .classType(classType) = sema.types.kind(of: entry.type)
@@ -646,6 +647,10 @@ extension DeclTypeChecker {
                         return classType.classSymbol != ownerSymbol
                     }
                 ).excludingEnclosingClassReceiver()
+                if let targetOwner {
+                    delegationArgCtx = delegationArgCtx
+                        .demotingReceiverBelowCompanion(targetOwner)
+                }
                 let resolved = inferConstructorDelegationArguments(
                     delegation.args,
                     candidates: candidates,
