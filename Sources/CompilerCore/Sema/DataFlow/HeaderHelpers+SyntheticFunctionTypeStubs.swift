@@ -1,7 +1,7 @@
-/// Synthetic stubs for kotlin.Function0..N type hierarchy.
+/// Synthetic stubs for the kotlin.Function0..Function255 type hierarchy.
 ///
-/// Kept separate from the source-backed migration buckets because
-/// Function0..22 are compiler-known residual interfaces.
+/// Function0..22 are registered eagerly for compatibility. Higher arities are
+/// materialized on demand so unused invoke signatures do not inflate every Sema run.
 extension DataFlowSemaPhase {
     func registerSyntheticFunctionTypes(
         symbols: SymbolTable,
@@ -24,6 +24,31 @@ extension DataFlowSemaPhase {
         }
 
         registerSyntheticSuspendFunctionTypes(symbols: symbols, types: types, interner: interner)
+    }
+
+    func ensureSyntheticFunctionInterface(
+        arity: Int,
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner
+    ) -> SymbolID? {
+        guard (0...255).contains(arity) else { return nil }
+        if let interfaceSymbol = types.functionNInterfaceSymbols[arity] {
+            return interfaceSymbol
+        }
+
+        let packageFQName = ensureSyntheticPackageHierarchy(
+            fqName: [interner.intern("kotlin"), interner.intern("Function")],
+            symbols: symbols
+        )
+        registerSyntheticFunctionInterface(
+            arity: arity,
+            packageFQName: packageFQName,
+            symbols: symbols,
+            types: types,
+            interner: interner
+        )
+        return types.functionNInterfaceSymbols[arity]
     }
 
     func registerSyntheticSuspendFunctionTypes(
@@ -227,7 +252,8 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             types: types,
             interner: interner,
-            isAbstract: true
+            isAbstract: true,
+            usesRuntimeInvokeBridge: arity <= 22
         )
     }
 

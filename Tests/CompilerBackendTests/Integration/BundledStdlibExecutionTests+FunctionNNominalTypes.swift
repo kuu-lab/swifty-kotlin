@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 
 extension BundledStdlibExecutionTests {
@@ -26,6 +27,29 @@ extension BundledStdlibExecutionTests {
             """,
             expectedOutput: "2\n3\n4\n42\n",
             moduleName: "KUU3580FunctionNNominalTypes",
+            allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
+        )
+    }
+
+    /// KUU-3578: named FunctionN checks and function-type subclasses work above arity 22.
+    @Test(arguments: [false, true])
+    func testFunctionNNominalTypesBeyond22CompileAndRun(allowDefaultStdlibLibrary: Bool) throws {
+        let repository = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let source = try String(
+            contentsOf: repository.appendingPathComponent(
+                "Scripts/diff_cases/kuu_3578_functionn_over_22.kt"
+            ),
+            encoding: .utf8
+        )
+
+        try compileAndRunKotlin(
+            source,
+            expectedOutput: "true\nfalse\nfalse\nOK\n",
+            moduleName: "KUU3578FunctionNNominalTypesBeyond22",
             allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
         )
     }

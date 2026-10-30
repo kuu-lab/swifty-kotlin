@@ -1023,7 +1023,14 @@ struct TypeCheckHelpers {
                     nestedCandidates
                 } else if !shortNameCandidates.isEmpty {
                     shortNameCandidates
-                } else if let functionN = sema.types.functionNInterfaceSymbol(named: path, interner: interner) {
+                } else if let arity = sema.types.functionNInterfaceArity(named: path, interner: interner),
+                          let functionN = DataFlowSemaPhase().ensureSyntheticFunctionInterface(
+                              arity: arity,
+                              symbols: sema.symbols,
+                              types: sema.types,
+                              interner: interner
+                          )
+                {
                     [functionN]
                 } else {
                     // Preserve short-name recovery for legacy and generated

@@ -36,5 +36,24 @@ struct FunctionNNominalResolutionTests {
             #expect(errors.isEmpty, Comment(rawValue: "Unexpected diagnostics: \(errors)"))
         }
     }
+
+    @Test
+    func functionNTypesCanBeNamedThroughArity255() throws {
+        let typeArguments = Array(repeating: "*", count: 256).joined(separator: ", ")
+        let source = "fun matches(value: Any): Boolean = value is Function255<\(typeArguments)>"
+
+        try withTemporaryFile(contents: source) { path in
+            let context = makeCompilationContext(inputs: [path], includeStdlib: false)
+            try runSema(context)
+
+            let errors = context.diagnostics.diagnostics.filter { $0.severity == .error }
+            #expect(errors.isEmpty, Comment(rawValue: "Unexpected diagnostics: \(errors)"))
+
+            let sema = try #require(context.sema)
+            let function255 = try #require(sema.types.functionNInterfaceSymbols[255])
+            #expect(sema.types.nominalFunctionInterfaceShape(of: function255)?.arity == 255)
+            #expect(sema.types.functionNInterfaceSymbols[254] == nil)
+        }
+    }
 }
 #endif
