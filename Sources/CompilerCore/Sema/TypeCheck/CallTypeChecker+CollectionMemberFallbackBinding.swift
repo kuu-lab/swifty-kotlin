@@ -1738,6 +1738,31 @@ extension CallTypeChecker {
                     && sig.valueParameterHasDefaultValues[index]
             }
         }
+        // KUU-3862: the extrema selector family (maxOf/minOf/maxOfOrNull/
+        // minOfOrNull) declares same-arity overloads that differ only in
+        // the selector's return type — `(T) -> Double`, `(T) -> Float`,
+        // and the generic `(T) -> R`. `Iterable.maxOfOrNull` registers the
+        // Double overload first, so `xs.maxOfOrNull { it }` on an
+        // `Iterable<Int>` bound it and the Int selector results were
+        // unboxed as Double bits (`3.0E-323`). Rank the trailing-lambda
+        // candidates by the selector's inferred return type before
+        // falling back to registration order.
+        if (memberName == knownNames.maxOfOrNull
+            || memberName == knownNames.minOfOrNull
+            || memberName == knownNames.maxOf
+            || memberName == knownNames.minOf),
+           argCount == 1,
+           let selectorExpr = argExprs.last,
+           isCollectionFallbackSelectorArgFunctionTyped(selectorExpr, ctx: ctx, sema: sema),
+           let selectorMatch = preferCollectionFallbackSelectorReturnMatch(
+               allCandidates,
+               selectorExpr: selectorExpr,
+               ctx: ctx,
+               sema: sema
+           )
+        {
+            return selectorMatch
+        }
         if lastArgIsFunctionLike,
            let lambdaMatch = allCandidates.first(where: canMatchViaTrailingLambda) {
             return lambdaMatch
@@ -1846,6 +1871,69 @@ extension CallTypeChecker {
                     genericMatch = candidate
                 }
             } else if sema.types.makeNonNullable(element) == sema.types.makeNonNullable(callSiteElement) {
+                return candidate
+            }
+        }
+        return genericMatch
+    }
+
+    /// KUU-3862: a selector argument to the extrema family can be a lambda,
+    /// a callable reference, or any expression whose inferred type is a
+    /// function type (e.g. a `val selector: (Int) -> Int` local — which is
+    /// not `isLambdaOrCallableRef` but must still admit the HOF overloads).
+    private func isCollectionFallbackSelectorArgFunctionTyped(
+        _ expr: ExprID,
+        ctx: TypeInferenceContext,
+        sema: SemaModule
+    ) -> Bool {
+        if let node = ctx.ast.arena.expr(expr), node.isLambdaOrCallableRef {
+            return true
+        }
+        guard let argType = sema.bindings.exprTypes[expr] else {
+            return false
+        }
+        if case .functionType = sema.types.kind(of: sema.types.makeNonNullable(argType)) {
+            return true
+        }
+        return false
+    }
+
+    /// KUU-3862: rank same-owner same-arity selector candidates by the
+    /// selector's inferred return type. A non-generic overload whose
+    /// selector return type matches exactly (e.g. `(T) -> Double` for a
+    /// selector inferred to return `Double`) wins over the generic
+    /// `(T) -> R` overload, mirroring Kotlin's non-generic overload
+    /// preference; the generic overload's `R` return is a type parameter
+    /// that accepts any selector result, so it ranks next. Returns nil
+    /// when no candidate's selector return type relates, preserving
+    /// registration order.
+    private func preferCollectionFallbackSelectorReturnMatch(
+        _ candidates: [SymbolID],
+        selectorExpr: ExprID,
+        ctx: TypeInferenceContext,
+        sema: SemaModule
+    ) -> SymbolID? {
+        let selectorReturnType = sema.types.makeNonNullable(
+            inferredLambdaReturnType(argExpr: selectorExpr, ast: ctx.ast, sema: sema)
+        )
+        var genericMatch: SymbolID?
+        for candidate in candidates {
+            guard let signature = sema.symbols.functionSignature(for: candidate),
+                  let lastParamType = signature.parameterTypes.last,
+                  case let .functionType(fnType) = sema.types.kind(
+                      of: sema.types.makeNonNullable(lastParamType)
+                  )
+            else {
+                continue
+            }
+            let candidateReturn = sema.types.makeNonNullable(fnType.returnType)
+            if case .typeParam = sema.types.kind(of: candidateReturn) {
+                if genericMatch == nil {
+                    genericMatch = candidate
+                }
+                continue
+            }
+            if candidateReturn == selectorReturnType {
                 return candidate
             }
         }
