@@ -1035,6 +1035,17 @@ extension LocalDeclTypeChecker {
                 range: range
             )
         }
+        // 'with a body cannot be abstract' applies to local `abstract fun`
+        // too, but only when a class encloses it — kotlinc does not run the
+        // member check on declarations inside top-level functions.
+        if ast.arena.isLocalAbstractFunction(id), body != .unit,
+           ctx.enclosingClassSymbol != nil {
+            sema.diagnostics.error(
+                "KSWIFTK-SEMA-ABSTRACT",
+                "function '\(interner.resolve(name))' with a body cannot be abstract.",
+                range: range
+            )
+        }
         if isSuspend {
             functionFlags.insert(.suspendFunction)
         }
