@@ -25,24 +25,69 @@ struct KIRInterfacePropertyDispatchTests {
         }
     }
 
+    /// `kirInterfacePropertyGetterSlots` must produce the same table whether a
+    /// runtime bridge is recorded as the property's `externalLinkName` (the
+    /// source-compiled stdlib shape) or only as a surviving `@KsSymbolName`
+    /// annotation — precompiled-library metadata puts the link name on the
+    /// getter accessor, leaving the property's own link name empty.
+    ///
+    /// `Job` can no longer model this mix: KUU-1386 bridged all of its
+    /// properties (`key` included — `job.key` reads lower to the
+    /// `__kkCoroutineElementKey` helper, which re-dispatches source objects
+    /// through `Element.key`'s non-bridged slot, while `kk_job_key_get`
+    /// covers raw handles and `super<Job>.key`), so the KUU-1087
+    /// `NonCancellable.key` regression is reproduced on a synthetic
+    /// interface instead.
     @Test
-    func runtimeBridgedPropertiesDoNotShiftImportedJobKeySlot() throws {
-        try withTemporaryFile(contents: "import kotlinx.coroutines.*\nfun main() { println(NonCancellable.key) }\n") { path in
-            let ctx = makeCompilationContext(inputs: [path])
+    func runtimeBridgedPropertiesDoNotShiftSourceBackedGetterSlot() throws {
+        let source = """
+        interface BridgedSlotProbe {
+            val alpha: Int
+            val beta: Int
+            val gamma: Int
+            val sourceBacked: Int
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], includeStdlib: false)
             try runSema(ctx)
             #expect(!ctx.diagnostics.hasError)
             let sema = try #require(ctx.sema)
-            let jobName = ["kotlinx", "coroutines", "Job"].map(ctx.interner.intern)
-            let job = try #require(sema.symbols.lookup(fqName: jobName))
-            let expected = kirInterfacePropertyGetterSlots(interfaceSymbol: job, sema: sema, interner: ctx.interner)
-            #expect(expected.map { ctx.interner.resolve($0.propertyName) } == ["key"])
+            let interfaceName = [ctx.interner.intern("BridgedSlotProbe")]
+            let interfaceSymbol = try #require(sema.symbols.lookup(fqName: interfaceName))
+            let bridged = try ["alpha", "beta", "gamma"].map { name in
+                try #require(sema.symbols.lookup(fqName: interfaceName + [ctx.interner.intern(name)]))
+            }
 
-            for name in ["isActive", "isCompleted", "isCancelled"] {
-                let property = try #require(sema.symbols.lookup(fqName: jobName + [ctx.interner.intern(name)]))
+            // Source-compiled stdlib shape: `@KsSymbolName` leaves both the
+            // annotation record and the resolved external link name on the
+            // property (HeaderHelpers).
+            for (index, property) in bridged.enumerated() {
+                let linkName = "kk_bridged_slot_probe_\(index)"
+                sema.symbols.setAnnotations(
+                    [MetadataAnnotationRecord(
+                        annotationFQName: "kotlin.internal.KsSymbolName",
+                        arguments: [linkName]
+                    )],
+                    for: property
+                )
+                sema.symbols.setExternalLinkName(linkName, for: property)
+            }
+            let expected = kirInterfacePropertyGetterSlots(
+                interfaceSymbol: interfaceSymbol, sema: sema, interner: ctx.interner
+            )
+            #expect(expected.map { ctx.interner.resolve($0.propertyName) } == ["sourceBacked"])
+
+            // Imported-library shape: the bridge lives on the getter accessor,
+            // so the property's own link name is empty — but the annotation
+            // still marks it bridged and the layout must not change.
+            for property in bridged {
                 sema.symbols.setExternalLinkName("", for: property)
             }
-            let imported = kirInterfacePropertyGetterSlots(interfaceSymbol: job, sema: sema, interner: ctx.interner)
-            #expect(imported.map { ctx.interner.resolve($0.propertyName) } == ["key"])
+            let imported = kirInterfacePropertyGetterSlots(
+                interfaceSymbol: interfaceSymbol, sema: sema, interner: ctx.interner
+            )
+            #expect(imported.map { ctx.interner.resolve($0.propertyName) } == ["sourceBacked"])
             #expect(imported.map(\.slot) == expected.map(\.slot))
         }
     }
