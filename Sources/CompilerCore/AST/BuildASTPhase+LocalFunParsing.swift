@@ -324,13 +324,17 @@ extension BuildASTPhase {
         // written, so kotlinc emits neither 'must have a body' nor 'must be
         // abstract' for them. `expect` stays non-exempt: kotlinc still
         // reports 'without a body must be abstract' on local expect funs.
+        // Anonymous function expressions get the same 'must have a body'
+        // diagnostic as kotlinc, displayed with the literal name 'anonymous'.
         let bodilessExempt = hasExternal
             || leadingModifiers.contains(where: { $0.name == "abstract" })
-        if body == .unit, !bodilessExempt, !isSyntheticAnonymous,
+        if body == .unit, !bodilessExempt,
            !leadingModifiers.contains(where: { $0.name == "expect" }) {
             diagnostics?.error(
                 "KSWIFTK-SEMA-0426",
-                "function '\(interner.resolve(name))' must have a body.",
+                isSyntheticAnonymous
+                    ? "function 'anonymous' must have a body."
+                    : "function '\(interner.resolve(name))' must have a body.",
                 range: head.range
             )
         }

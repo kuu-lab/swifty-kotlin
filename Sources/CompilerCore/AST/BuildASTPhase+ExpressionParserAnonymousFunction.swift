@@ -165,11 +165,42 @@ extension BuildASTPhase.ExpressionParser {
         if matches(.symbol(.colon)) {
             _ = consume()
             var depth = BuildASTPhase.BracketDepth()
-            while let token = current() {
-                if depth.isAtTopLevel, token.kind == .symbol(.lBrace) || token.kind == .symbol(.assign) {
-                    break
+            var previousKind: TokenKind?
+            var sawAnnotation = false
+            // The return type ends at `{`/`=` (body) or, for a bodiless
+            // `fun(...): T`, at the enclosing boundary. Closers and
+            // separators can't appear inside a type at top level, and a
+            // second identifier can't extend a completed atom (`Int f`).
+            typeScan: while let token = current() {
+                if depth.isAtTopLevel {
+                    switch token.kind {
+                    case .symbol(.lBrace), .symbol(.assign),
+                         .symbol(.rParen), .symbol(.rBracket), .symbol(.rBrace),
+                         .symbol(.semicolon), .symbol(.comma), .eof:
+                        break typeScan
+                    case .identifier, .backtickedIdentifier, .softKeyword:
+                        let followsAnnotationArgs = sawAnnotation
+                            && previousKind == .symbol(.rParen)
+                        if let previousKind,
+                           !Self.isAnonymousFunctionTypeConnector(previousKind),
+                           !followsAnnotationArgs {
+                            break typeScan
+                        }
+                    case .keyword(.suspend), .keyword(.dynamic):
+                        if previousKind != nil {
+                            break typeScan
+                        }
+                    case .keyword:
+                        break typeScan
+                    default:
+                        break
+                    }
+                }
+                if token.kind == .symbol(.at) {
+                    sawAnnotation = true
                 }
                 depth.track(token.kind)
+                previousKind = token.kind
                 _ = consume()
             }
         }
@@ -187,8 +218,11 @@ extension BuildASTPhase.ExpressionParser {
             skipBalancedBraceIfNeeded()
             expressionBody = nil
         } else {
-            index = expressionStartIndex
-            return nil
+            // A bodiless `fun(...)` still parses as an anonymous function;
+            // parseLocalFunDeclExpr reports 'must have a body' on it, the
+            // same diagnostic kotlinc emits ('function 'anonymous' must
+            // have a body.').
+            expressionBody = nil
         }
         let endIndex = index
 
@@ -220,6 +254,20 @@ extension BuildASTPhase.ExpressionParser {
         astArena.markAnonymousFunction(localFunExprID)
         astArena.markAnonymousFunction(function)
         return function
+    }
+
+    /// Tokens after which an identifier can still continue a return-type
+    /// spelling (qualified names, function types, generic arguments,
+    /// `suspend`). Everything else means the type is complete.
+    private static func isAnonymousFunctionTypeConnector(_ kind: TokenKind) -> Bool {
+        switch kind {
+        case .symbol(.dot), .symbol(.questionDot), .symbol(.arrow),
+             .symbol(.lessThan), .symbol(.at), .keyword(.suspend),
+             .softKeyword(.context):
+            return true
+        default:
+            return false
+        }
     }
 
     private func skipBalancedBraceIfNeeded() {
