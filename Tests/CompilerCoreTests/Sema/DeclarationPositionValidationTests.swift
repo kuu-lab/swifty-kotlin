@@ -1798,6 +1798,42 @@ struct DeclarationPositionValidationTests {
         #expect(diags.first?.message == "function 'e' without a body must be abstract.")
     }
 
+    @Test func abstractLocalFunctionInNonAbstractClassIsRejected() throws {
+        // kotlinc applies 'abstract member requires abstract owner' to local
+        // `abstract fun` too, keyed on the enclosing class's abstractness.
+        let ctx = try semaContext(for: """
+            class C { fun m() { abstract fun c() } }
+            object O { fun m() { abstract fun o() } }
+            open class OC { fun m() { abstract fun oc() } }
+            class Outer { class Inner { fun m() { abstract fun i() } } }
+            fun tf() { class LC { fun m() { abstract fun lc() } } }
+            """)
+        let diags = ctx.diagnostics.diagnostics.filter {
+            $0.code == "KSWIFTK-SEMA-MODIFIER-CONFLICT"
+        }
+        #expect(diags.count == 5, "diagnostics: \(diags.map(\.message))")
+        #expect(diags.map(\.message).sorted() == [
+            "abstract function 'c' in non-abstract class 'C'.",
+            "abstract function 'i' in non-abstract class 'Inner'.",
+            "abstract function 'lc' in non-abstract class 'LC'.",
+            "abstract function 'o' in non-abstract class 'O'.",
+            "abstract function 'oc' in non-abstract class 'OC'.",
+        ], "diagnostics: \(diags.map(\.message))")
+    }
+
+    @Test func abstractLocalFunctionInAbstractOwnerIsAccepted() throws {
+        // Interfaces, enum classes and abstract classes may host abstract
+        // members, so kotlinc exempts local `abstract fun` inside them — and
+        // a top-level function has no enclosing class at all.
+        let ctx = try semaContext(for: """
+            abstract class A { fun m() { abstract fun a() } }
+            interface I { fun m() { abstract fun i() } }
+            enum class E { X; fun m() { abstract fun e() } }
+            fun tf() { abstract fun t() }
+            """)
+        assertNoDiagnostic("KSWIFTK-SEMA-MODIFIER-CONFLICT", in: ctx)
+    }
+
     @Test func initBlockInitializedPropertyIsAccepted() throws {
         let ctx = try semaContext(for: """
             class C { val x: Int
