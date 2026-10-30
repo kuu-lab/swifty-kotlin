@@ -631,6 +631,7 @@ public inline fun <T> Iterable<T>.lastOrNull(predicate: (T) -> Boolean): T? {
 // using one iterator traversal for non-List receivers. The List branch
 // delegates to `get` directly so bounds errors keep the implementation's own
 // exception type and message (kotlin.collections.ElementAtOrElseKt).
+@Suppress("UNCHECKED_CAST")
 public fun <T> Iterable<T>.elementAt(index: Int): T {
     if (this is List) {
         return (this as List<T>)[index]
