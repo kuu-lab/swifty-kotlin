@@ -11,6 +11,14 @@ import Testing
         )
     }
 
+    @Test func labeledQualifiedSuperPropertyDelegationExecutes() throws {
+        try compileAndRunKotlin(
+            diffCaseSource("kt11634_4.kt"),
+            expectedOutput: "OK\n",
+            moduleName: "LabeledQualifiedSuperObjectDelegation"
+        )
+    }
+
     @Test func funInterfaceLambdaDelegationExecutes() throws {
         try compileAndRunKotlin(
             """

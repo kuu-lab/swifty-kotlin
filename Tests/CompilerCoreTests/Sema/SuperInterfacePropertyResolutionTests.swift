@@ -62,5 +62,36 @@ import Testing
         #expect(errors.first?.code == "KSWIFTK-SEMA-0056")
         #expect(errors.first?.message.contains("super<Foo>") == true)
     }
+
+    @Test func resolvesLabeledQualifiedSuperPropertyInObjectDelegation() throws {
+        let ctx = try semaContext(for: ["""
+        interface A { fun foo(): String }
+        open class Base(val p: String) {
+            open val a = object : A { override fun foo() = p }
+        }
+        open class Derived1(p: String) : Base(p) {
+            override open val a = object : A { override fun foo() = "fail" }
+            inner class Derived2(p: String) : Base(p) {
+                val x = object : A by super<Base>@Derived1.a {}
+            }
+        }
+        """])
+        #expect(!ctx.diagnostics.hasError, "Unexpected errors: \(ctx.diagnostics.diagnostics)")
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let baseProperty = try #require(
+            sema.symbols.lookup(fqName: ["Base", "a"].map(ctx.interner.intern))
+        )
+        let delegatedProperty = try #require(memberCallExprIDs(named: "a", in: ast, interner: ctx.interner).first { id in
+            guard case let .memberCall(receiver, _, _, _, _) = ast.arena.expr(id),
+                  case let .superRef(interfaceQualifier, label, _) = ast.arena.expr(receiver)
+            else {
+                return false
+            }
+            return interfaceQualifier == ctx.interner.intern("Base")
+                && label == ctx.interner.intern("Derived1")
+        })
+        #expect(sema.bindings.identifierSymbol(for: delegatedProperty) == baseProperty)
+    }
 }
 #endif
