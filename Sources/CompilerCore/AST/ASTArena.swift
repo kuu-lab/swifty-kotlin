@@ -30,6 +30,7 @@ public struct ASTArenaSnapshot: Codable {
     public let localFunContextReceivers: [ExprID: [ContextReceiverDecl]]
     public let localTailrecFunctionExpressions: Set<ExprID>
     public let localInlineFunctionExpressions: Set<ExprID>
+    public let localBodilessExemptFunctionExpressions: Set<ExprID>
     public let destructuringDeclLayouts: [ExprID: DestructuringDeclLayout]
 
     private enum CodingKeys: String, CodingKey {
@@ -60,6 +61,7 @@ public struct ASTArenaSnapshot: Codable {
         case localFunContextReceivers
         case localTailrecFunctionExpressions
         case localInlineFunctionExpressions
+        case localBodilessExemptFunctionExpressions
         case destructuringDeclLayouts
     }
 
@@ -91,6 +93,7 @@ public struct ASTArenaSnapshot: Codable {
         localFunContextReceivers: [ExprID: [ContextReceiverDecl]] = [:],
         localTailrecFunctionExpressions: Set<ExprID> = [],
         localInlineFunctionExpressions: Set<ExprID> = [],
+        localBodilessExemptFunctionExpressions: Set<ExprID> = [],
         destructuringDeclLayouts: [ExprID: DestructuringDeclLayout] = [:]
     ) {
         self.declarations = declarations
@@ -120,6 +123,7 @@ public struct ASTArenaSnapshot: Codable {
         self.localFunContextReceivers = localFunContextReceivers
         self.localTailrecFunctionExpressions = localTailrecFunctionExpressions
         self.localInlineFunctionExpressions = localInlineFunctionExpressions
+        self.localBodilessExemptFunctionExpressions = localBodilessExemptFunctionExpressions
         self.destructuringDeclLayouts = destructuringDeclLayouts
     }
 
@@ -192,6 +196,9 @@ public struct ASTArenaSnapshot: Codable {
         ) ?? []
         localInlineFunctionExpressions = try container.decodeIfPresent(
             Set<ExprID>.self, forKey: .localInlineFunctionExpressions
+        ) ?? []
+        localBodilessExemptFunctionExpressions = try container.decodeIfPresent(
+            Set<ExprID>.self, forKey: .localBodilessExemptFunctionExpressions
         ) ?? []
         destructuringDeclLayouts = try container.decodeIfPresent(
             [ExprID: DestructuringDeclLayout].self, forKey: .destructuringDeclLayouts
@@ -305,6 +312,7 @@ public final class ASTArena: @unchecked Sendable {
     private var _localFunContextReceivers: [ExprID: [ContextReceiverDecl]] = [:]
     private var _localTailrecFunctionExpressions: Set<ExprID> = []
     private var _localInlineFunctionExpressions: Set<ExprID> = []
+    private var _localBodilessExemptFunctionExpressions: Set<ExprID> = []
     private var _destructuringDeclLayouts: [ExprID: DestructuringDeclLayout] = [:]
 
     public var decls: [Decl] {
@@ -348,6 +356,7 @@ public final class ASTArena: @unchecked Sendable {
         _localFunContextReceivers = snapshot.localFunContextReceivers
         _localTailrecFunctionExpressions = snapshot.localTailrecFunctionExpressions
         _localInlineFunctionExpressions = snapshot.localInlineFunctionExpressions
+        _localBodilessExemptFunctionExpressions = snapshot.localBodilessExemptFunctionExpressions
         _destructuringDeclLayouts = snapshot.destructuringDeclLayouts
     }
 
@@ -382,6 +391,7 @@ public final class ASTArena: @unchecked Sendable {
             localFunContextReceivers: _localFunContextReceivers,
             localTailrecFunctionExpressions: _localTailrecFunctionExpressions,
             localInlineFunctionExpressions: _localInlineFunctionExpressions,
+            localBodilessExemptFunctionExpressions: _localBodilessExemptFunctionExpressions,
             destructuringDeclLayouts: _destructuringDeclLayouts
         )
     }
@@ -439,6 +449,9 @@ public final class ASTArena: @unchecked Sendable {
         )
         _localInlineFunctionExpressions.formUnion(
             snapshot.localInlineFunctionExpressions.map { remapper.remap($0) }
+        )
+        _localBodilessExemptFunctionExpressions.formUnion(
+            snapshot.localBodilessExemptFunctionExpressions.map { remapper.remap($0) }
         )
         for (key, value) in snapshot.destructuringDeclLayouts {
             _destructuringDeclLayouts[remapper.remap(key)] = DestructuringDeclLayout(
@@ -838,6 +851,21 @@ public final class ASTArena: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         return _localInlineFunctionExpressions.contains(exprID)
+    }
+
+    /// Local functions whose bodiless form is legal as written (`external` or
+    /// `abstract`). They are exempt from both 'must have a body' and
+    /// 'without a body must be abstract' diagnostics.
+    public func markLocalBodilessExemptFunction(_ exprID: ExprID) {
+        lock.lock()
+        defer { lock.unlock() }
+        _localBodilessExemptFunctionExpressions.insert(exprID)
+    }
+
+    public func isLocalBodilessExemptFunction(_ exprID: ExprID) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return _localBodilessExemptFunctionExpressions.contains(exprID)
     }
 
     public func markInfixCall(_ exprID: ExprID) {

@@ -1118,9 +1118,15 @@ extension DeclTypeChecker {
             {
                 return
             }
+            // kotlinc phrases a bodiless member as 'without a body must be
+            // abstract' (abstract is what would make it legal), while a
+            // top-level function 'must have a body'.
+            let isMember = sema.symbols.parentSymbol(for: symbol) != nil
             diagnostics.error(
                 "KSWIFTK-SEMA-0009",
-                "Function '\(ctx.interner.resolve(function.name))' must have a body.",
+                isMember
+                    ? "function '\(ctx.interner.resolve(function.name))' without a body must be abstract."
+                    : "function '\(ctx.interner.resolve(function.name))' must have a body.",
                 range: function.range
             )
             return
