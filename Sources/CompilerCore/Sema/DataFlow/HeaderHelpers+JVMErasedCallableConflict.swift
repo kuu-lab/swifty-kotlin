@@ -30,6 +30,10 @@ extension DataFlowSemaPhase {
             return symbols.functionSignature(for: id)
         }
         guard !constructors.isEmpty else { return }
+        // A constructor's implicit class receiver is not part of the callable
+        // signature a same-named top-level function must match — comparing it
+        // against the function's absent receiver would mask the conflict.
+        let constructorSignatures = constructors.map { $0.replacingReceiverType(nil) }
         let hasConflict = symbols.lookupAll(fqName: classFQName).contains { id in
             guard let symbol = symbols.symbol(id), symbol.kind == .function,
                   !symbol.flags.contains(.synthetic),
@@ -40,7 +44,7 @@ extension DataFlowSemaPhase {
                   signature.contextReceiverTypes.isEmpty,
                   signature.contextParameterTypes.isEmpty
             else { return false }
-            return constructors.contains { constructor in
+            return constructorSignatures.contains { constructor in
                 hasSameSourceCallableSignature(signature, constructor, types: types)
                     || isJVMTarget && hasSameJVMErasedCallableSignature(
                         signature,
@@ -100,7 +104,19 @@ extension DataFlowSemaPhase {
             else {
                 return false
             }
-            return hasSameSourceCallableSignature(newSignature, existingSignature, types: types)
+            // A dispatch receiver's nullability is not part of the callable
+            // identity, so `String.f` and `String?.f` still collide even
+            // though nullable value-parameter overloads stay legal on
+            // non-JVM targets (KUU-3750).
+            return hasSameSourceCallableSignature(
+                newSignature.replacingReceiverType(newSignature.receiverType.map {
+                    jvmErasedCallableType($0, types: types)
+                }),
+                existingSignature.replacingReceiverType(existingSignature.receiverType.map {
+                    jvmErasedCallableType($0, types: types)
+                }),
+                types: types
+            )
         }
 
         if hasConflict {

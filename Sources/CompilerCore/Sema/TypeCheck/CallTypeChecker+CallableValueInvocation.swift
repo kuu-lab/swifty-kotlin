@@ -715,9 +715,21 @@ extension CallTypeChecker {
         // diagnostics inside their ranges. They are re-inferred below under
         // the receiver-function's own parameters, so stale argument errors
         // must not leak past a successful bind (KUU-3145).
+        var removedArgumentDiagnostics: [(ExprID, Diagnostic)] = []
         for argument in request.args {
             guard let argumentRange = ctx.ast.arena.exprRange(argument.expr) else { continue }
-            sema.diagnostics.removeErrorDiagnostics(containedIn: argumentRange)
+            for removed in sema.diagnostics.removeErrorDiagnostics(containedIn: argumentRange) {
+                removedArgumentDiagnostics.append((argument.expr, removed))
+            }
+        }
+        defer {
+            // An argument still bound to the error type was not recovered by
+            // the retry, so its removed diagnostics remain genuine failures
+            // that nothing re-emitted (KUU-3750).
+            for (argumentExpr, diagnostic) in removedArgumentDiagnostics
+            where sema.bindings.exprType(for: argumentExpr) == sema.types.errorType {
+                sema.diagnostics.emit(diagnostic)
+            }
         }
 
         let calleeExpr = ctx.ast.arena.appendExpr(.nameRef(name, request.range))
