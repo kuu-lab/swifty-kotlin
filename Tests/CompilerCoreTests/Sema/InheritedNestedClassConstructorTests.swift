@@ -275,5 +275,88 @@ struct InheritedNestedClassConstructorTests {
         }
         #expect(protectedErrors.count == 2, "\(protectedErrors)")
     }
+
+    // KUU-3858: an inner class on an implicit receiver is callable by its
+    // simple name — the receiver supplies the enclosing instance. kotlinc
+    // accepts `I()` inside `fun Outer.extSub()` exactly like `this.I()`.
+    @Test
+    func innerConstructorCallableByBareNameInExtensionFunction() throws {
+        let source = """
+        open class Outer { open inner class I }
+        fun Outer.extSub() {
+            val x = I()
+        }
+        """
+        let ctx = try context(source, library: false)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+    }
+
+    @Test
+    func innerConstructorCallableThroughInheritedExtensionReceiver() throws {
+        let source = """
+        open class Outer { open inner class I }
+        class Sub : Outer()
+        fun Sub.extSub() {
+            val x = I()
+        }
+        """
+        let ctx = try context(source, library: false)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+    }
+
+    @Test
+    func nonInnerNestedConstructorStaysUnresolvedInExtensionFunction() throws {
+        let source = """
+        open class Outer { open class Nested }
+        fun Outer.extSub() {
+            val x = Nested()
+        }
+        """
+        let ctx = try context(source, library: false)
+        try runSema(ctx)
+        #expect(ctx.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-SEMA-0023" })
+    }
+
+    @Test
+    func unrelatedExtensionReceiverLeavesInnerConstructorUnresolved() throws {
+        let source = """
+        open class Outer { open inner class I }
+        class Other
+        fun Other.extSub() {
+            val x = I()
+        }
+        """
+        let ctx = try context(source, library: false)
+        try runSema(ctx)
+        #expect(ctx.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-SEMA-0023" })
+    }
+
+    @Test
+    func qualifiedInnerConstructorStillRequiresReceiverInExtension() throws {
+        let source = """
+        open class Outer { open inner class I }
+        fun Outer.extSub() {
+            val x = Outer.I()
+        }
+        """
+        let ctx = try context(source, library: false)
+        try runSema(ctx)
+        #expect(ctx.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-SEMA-0437" })
+    }
+
+    @Test
+    func lambdaInsideExtensionFunctionStillCallsInnerConstructor() throws {
+        let source = """
+        open class Outer { open inner class I }
+        fun Outer.extSub() {
+            val f = { I() }
+        }
+        """
+        let ctx = try context(source, library: false)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+    }
 }
 #endif
