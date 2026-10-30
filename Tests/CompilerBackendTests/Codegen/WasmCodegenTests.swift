@@ -1485,4 +1485,83 @@ struct WasmCodegenTests {
         #expect(run?.status == 0)
         #expect(run?.stdout == "700\n709\n")
     }
+
+    // MARK: - Registered Any overrides (metadata-registry follow-up)
+
+    /// `kk_object_register_*_override` stores the override's funcref table
+    /// slot in the object's metadata-registry record; `kk_any_to_string`
+    /// and `__kk_wasm_elem_eq` consult the record for nominal boxes and
+    /// dispatch through `call_indirect`.
+    @Test
+    func dispatchesRegisteredAnyOverridesUnderNodeWASI() throws {
+        guard nodePath() != nil else { return }
+        let arena = KIRArena()
+        let mainSymbol = SymbolID(rawValue: 1)
+        let toStrSymbol = SymbolID(rawValue: 2)
+        let eqSymbol = SymbolID(rawValue: 3)
+        func e(_ kind: KIRExprKind = .unit) -> KIRExprID { arena.appendExpr(kind) }
+        // toString bridge: (obj) -> "OVR"
+        var toStrBody: [KIRInstruction] = []
+        let s = e()
+        toStrBody.append(.constValue(result: s, value: .stringLiteral(interner.intern("OVR"))))
+        toStrBody.append(.returnValue(s))
+        // equals bridge: (a, b) -> 1
+        var eqBody: [KIRInstruction] = []
+        let one = e()
+        eqBody.append(.constValue(result: one, value: .intLiteral(1)))
+        eqBody.append(.returnValue(one))
+        var body: [KIRInstruction] = []
+        func const(_ v: Int64) -> KIRExprID {
+            let id = e()
+            body.append(.constValue(result: id, value: .intLiteral(v)))
+            return id
+        }
+        func call(_ name: String, _ args: [KIRExprID], result: KIRExprID? = nil) {
+            body.append(.call(symbol: nil, callee: interner.intern(name),
+                              arguments: args, result: result,
+                              canThrow: false, thrownResult: nil))
+        }
+        let obj = e(), str = e(), eqRes = e()
+        let toStrRef = e(), eqRef = e()
+        call("kk_object_new", [const(4), const(4242)], result: obj)
+        body.append(.constValue(result: toStrRef, value: .symbolRef(toStrSymbol)))
+        body.append(.constValue(result: eqRef, value: .symbolRef(eqSymbol)))
+        call("kk_object_register_any_to_string", [obj, toStrRef])
+        call("kk_object_register_equals_override", [obj, eqRef])
+        call("kk_any_to_string", [obj], result: str)
+        call("__kk_println_raw", [str])
+        call("kk_any_member_equals", [obj, const(7)], result: eqRes)
+        call("kk_any_to_string", [eqRes], result: str)
+        call("__kk_println_raw", [str])
+        body.append(.returnUnit)
+        let decls = [
+            arena.appendDecl(.function(
+                makeFunction(symbol: mainSymbol, name: "main", params: [], body: body)
+            )),
+            arena.appendDecl(.function(
+                makeFunction(
+                    symbol: toStrSymbol, name: "objToString",
+                    params: [KIRParameter(symbol: SymbolID(rawValue: 10), type: TypeID(rawValue: 0))],
+                    body: toStrBody
+                )
+            )),
+            arena.appendDecl(.function(
+                makeFunction(
+                    symbol: eqSymbol, name: "objEquals",
+                    params: [
+                        KIRParameter(symbol: SymbolID(rawValue: 11), type: TypeID(rawValue: 0)),
+                        KIRParameter(symbol: SymbolID(rawValue: 12), type: TypeID(rawValue: 0)),
+                    ],
+                    body: eqBody
+                )
+            )),
+        ]
+        let module = KIRModule(
+            files: [KIRFile(fileID: FileID(rawValue: 0), decls: decls)],
+            arena: arena
+        )
+        let run = try runUnderNode(try emit(module, entry: mainSymbol))
+        #expect(run?.status == 0)
+        #expect(run?.stdout == "OVR\n1\n")
+    }
 }

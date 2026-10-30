@@ -136,6 +136,48 @@ final class WasmModuleContext {
         static let functionClosureOffset: Int64 = 24
         static let functionArityOffset: Int64 = 32
         static let functionDescOffset: Int64 = 40
+        /// `kk_enum_box_ordinal` enum entry box: `{ordinal@16, name@24,
+        /// classID@32}`.
+        static let enumEntryTypeID: Int64 = -9_018
+        /// Token-keyed metadata registry record produced by
+        /// `$__kk_wasm_token_record`: `{token@16, s0@24, s1@32, s2@40, s3@48,
+        /// pad@56..72, regHead@80}`. The s* slots are domain-local: for a
+        /// typeToken record s0 caches the KClass/KTypeParameter box, s1 the
+        /// value-class toString fn, s2 the enum values array; for an
+        /// object-handle record s0/s1/s2 hold the toString/equals/hashCode
+        /// overrides registered via `kk_object_register_*`.
+        static let metaRecordTypeID: Int64 = -9_019
+        /// Registration node in a record's regHead list:
+        /// `{kind@16, argc@24, a0@32..a7@88, next@96}`.
+        static let regEntryTypeID: Int64 = -9_020
+        /// `kotlin.reflect.KClass` box: `{token@16, name@24, displayName@32,
+        /// ..., regHead@80}` — same head offset as metadata records so
+        /// `reglist_add` works uniformly.
+        static let kclassTypeID: Int64 = -9_021
+        /// `kotlin.reflect.KType` box: `{classifier@16, args@24, nullable@32}`.
+        static let ktypeTypeID: Int64 = -9_022
+        /// `kotlin.reflect.KTypeProjection` box: `{type@16, variance@24}`.
+        static let ktypeProjectionTypeID: Int64 = -9_023
+        /// `kotlin.reflect.KTypeParameter` box:
+        /// `{identity@16, name@24, variance@32, isReified@40, upperBounds@48}`.
+        static let ktypeParameterTypeID: Int64 = -9_024
+        /// `kotlin.reflect.KParameter` box: `{index@16, name@24, type@32,
+        /// flags@40, kind@48, typeToken@56, callableOwner@64,
+        /// arrayComponent@72}`.
+        static let kparameterTypeID: Int64 = -9_025
+        /// `kotlin.reflect.KProperty` stub box: `{name@16, returnType@24}`.
+        static let kpropertyStubTypeID: Int64 = -9_026
+        /// `kotlin.reflect.KFunction` box: `{name@16, arity@24,
+        /// returnType@32, flags@40, fnPtr@48, closure@56}`.
+        static let kfunctionTypeID: Int64 = -9_027
+        /// `kotlin.reflect.KConstructor` box: `{name@16, arity@24,
+        /// returnType@32, fnPtr@40, isPrimary@48, visibility@56, kclass@64,
+        /// callable@72, paramHead@80}` — paramHead reuses the regHead offset.
+        static let kconstructorTypeID: Int64 = -9_028
+        /// Registration-list head offset shared by metadata records, KClass
+        /// boxes and KConstructor boxes (`kk_object_new(11..13)` keeps that
+        /// slot free).
+        static let regHeadOffset: Int64 = 80
         /// Set boxes share the list layout `{array@16, count@24, flags@32}`
         /// so `kk_list_iterator` iterates them unchanged. Concrete nominal
         /// tags come from `stableNominalTypeID` so `is` checks work.
