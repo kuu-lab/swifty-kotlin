@@ -215,14 +215,32 @@ struct InnerClassSupertypeReceiverTests {
     }
 
     @Test func localClassInExtensionFunctionIsAccepted() throws {
+        // kotlinc requires the qualified name here: an extension receiver is
+        // an implicit receiver, not a lexical classifier scope, so a bare `I`
+        // is unresolved even though `Outer.I()` is accepted and the extension
+        // receiver satisfies the inner class's enclosing-instance requirement.
+        try withSemaContext("""
+        open class Outer { open inner class I }
+        fun Outer.extSub() {
+            class L : Outer.I()
+        }
+        """) { ctx in
+            #expect(!ctx.diagnostics.hasError,
+                    "Expected the extension receiver to satisfy the inner constructor, got: \(ctx.diagnostics.diagnostics)")
+        }
+    }
+
+    @Test func localClassInExtensionFunctionUnqualifiedInnerNameIsRejected() throws {
+        // kotlinc: "unresolved reference 'I'" — member classifiers are not
+        // reachable by bare name through an extension receiver.
         try withSemaContext("""
         open class Outer { open inner class I }
         fun Outer.extSub() {
             class L : I()
         }
         """) { ctx in
-            #expect(!ctx.diagnostics.hasError,
-                    "Expected the extension receiver to satisfy the inner constructor, got: \(ctx.diagnostics.diagnostics)")
+            #expect(errorCodes(ctx) == ["KSWIFTK-SEMA-0025"],
+                    "Expected the unresolved-type diagnostic, got: \(ctx.diagnostics.diagnostics)")
         }
     }
 

@@ -222,7 +222,8 @@ extension ExprTypeChecker {
                 sema: sema,
                 interner: interner,
                 scope: ctx.scope,
-                diagnostics: ctx.sema.diagnostics
+                diagnostics: ctx.sema.diagnostics,
+                usageRange: entry.range ?? objectDecl.range
             )
             let field = inheritance.registerClassDelegation(
                 delegateExpression: delegateExpr,
