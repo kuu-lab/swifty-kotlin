@@ -761,6 +761,52 @@ struct DeclarationPositionValidationTests {
         assertHasDiagnostic("KSWIFTK-SEMA-0424", in: ctx)
     }
 
+    @Test func interfaceComputedPropertyReportsBackingFieldMessage() throws {
+        // kotlinc phrases interface storage failures as a backing-field
+        // prohibition, not a missing initializer.
+        let ctx = try semaContext(for: """
+            interface I {
+                var a: Int get() = 1
+                var b: Int set(v) {}
+                val c: Int get() = field
+            }
+            """)
+        let diags = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0424" }
+        #expect(diags.count == 3, "diagnostics: \(diags.map(\.message))")
+        for diag in diags {
+            #expect(diag.message == "property in interface cannot have a backing field.")
+        }
+    }
+
+    @Test func concreteAccessorPropertyReportsInitializedMessage() throws {
+        // Accessor-bearing properties are concrete, so kotlinc reports plain
+        // "must be initialized" without the abstract hint.
+        let ctx = try semaContext(for: """
+            class C {
+                var a: Int get() = 1
+                val b: Int get() = field
+            }
+            object O { var c: Int get() = 2 }
+            """)
+        let diags = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0424" }
+        #expect(diags.count == 3, "diagnostics: \(diags.map(\.message))")
+        for diag in diags {
+            #expect(diag.message == "property must be initialized.")
+        }
+    }
+
+    @Test func bodilessMemberPropertyReportsAbstractHint() throws {
+        let ctx = try semaContext(for: """
+            class C { var x: Int }
+            abstract class D { var y: Int }
+            """)
+        let diags = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0424" }
+        #expect(diags.count == 2, "diagnostics: \(diags.map(\.message))")
+        for diag in diags {
+            #expect(diag.message == "property must be initialized or be abstract.")
+        }
+    }
+
     @Test func abstractMemberPropertyIsAccepted() throws {
         let ctx = try semaContext(for: """
             abstract class C { abstract val x: Int }
