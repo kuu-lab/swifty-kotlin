@@ -303,6 +303,55 @@ extension DataFlowSemaPhase {
         )
     }
 
+    /// Anonymous object declarations (`object : A() { ... }`) are bound
+    /// lazily during type checking, so the main OFO walk over
+    /// `topLevelDecls` never sees them and their members received no
+    /// override validation at all: `override` on a nonexistent member,
+    /// `val`-over-`var`, type-mismatched and hidden (missing `override`)
+    /// members were all accepted. Run the same member checks once their
+    /// symbols and types have been published.
+    func validateObjectLiteralOverrides(
+        ast: ASTModule,
+        symbols: SymbolTable,
+        bindings: BindingTable,
+        types: TypeSystem,
+        diagnostics: DiagnosticEngine,
+        interner: StringInterner,
+        compilationModuleName: String
+    ) {
+        let ctx = OpenFinalOverrideContext(
+            ast: ast,
+            symbols: symbols,
+            bindings: bindings,
+            types: types,
+            diagnostics: diagnostics,
+            interner: interner,
+            compilationModuleFQN: interner.intern(compilationModuleName)
+        )
+        for expr in ast.arena.exprs {
+            guard case let .objectLiteral(_, declID, _) = expr,
+                  let declID
+            else { continue }
+            validateObjectLiteralDeclOverrides(in: declID, ctx: ctx)
+        }
+    }
+
+    private func validateObjectLiteralDeclOverrides(
+        in declID: DeclID,
+        ctx: OpenFinalOverrideContext
+    ) {
+        guard let ownerSymbol = ctx.bindings.declSymbols[declID],
+              let decl = ctx.ast.arena.decl(declID),
+              let info = extractDeclInfo(decl)
+        else { return }
+
+        validateMemberOverrides(info.memberFunctions, symbol: ownerSymbol, ctx: ctx)
+        validateMemberOverrides(info.memberProperties, symbol: ownerSymbol, ctx: ctx)
+        for nestedDeclID in info.nestedClasses {
+            validateObjectLiteralDeclOverrides(in: nestedDeclID, ctx: ctx)
+        }
+    }
+
     private func validateOFODecl(
         _ declID: DeclID,
         ctx: OpenFinalOverrideContext
