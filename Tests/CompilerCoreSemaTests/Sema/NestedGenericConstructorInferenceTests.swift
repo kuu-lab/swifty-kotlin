@@ -67,6 +67,80 @@ struct NestedGenericConstructorInferenceTests {
         #expect(hasError, "Expected the invalid nested constructor call to fail")
     }
 
+    @Test func nestedCtorInIfElseBlockUsesSiblingType() throws {
+        let ctx = makeContextFromSource("""
+        class OD<T : Any, R>(val t: T, val dv: R? = null)
+        fun h(b: Boolean): OD<Boolean, Boolean> {
+            val d = if (b) OD<Boolean, Boolean>(false) else {
+                OD(false)
+            }
+            return d
+        }
+        """)
+        try runSema(ctx)
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.isEmpty, "\(errors)")
+    }
+
+    @Test func nestedCtorInWhenElseBlockUsesSiblingType() throws {
+        let ctx = makeContextFromSource("""
+        class TN<K, V>(val dataMap: Int, val nodeMap: Int, val buffer: Array<Any?>) {
+            val ownedBy: Any? = null
+            fun f(mutator: Any): TN<K, V> {
+                var newDataMap = 0
+                var newNodeMap = 0
+                val mutableNode = when {
+                    this.ownedBy == mutator -> this
+                    else -> {
+                        val newBuffer = arrayOfNulls<Any>(3)
+                        TN(newDataMap, newNodeMap, newBuffer)
+                    }
+                }
+                return mutableNode
+            }
+        }
+        """)
+        try runSema(ctx)
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.isEmpty, "\(errors)")
+    }
+
+    @Test func nestedCtorInWhenSubjectBranchUsesSiblingType() throws {
+        let ctx = makeContextFromSource("""
+        class TN<K, V>(val dataMap: Int, val nodeMap: Int, val buffer: Array<Any?>) {
+            val ownedBy: Any? = null
+            fun f(mutator: Any): TN<K, V> {
+                var newDataMap = 0
+                var newNodeMap = 0
+                val mutableNode = when (ownedBy) {
+                    mutator -> this
+                    else -> TN(newDataMap, newNodeMap, arrayOfNulls<Any>(3))
+                }
+                return mutableNode
+            }
+        }
+        """)
+        try runSema(ctx)
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.isEmpty, "\(errors)")
+    }
+
+    @Test func incompatibleWhenSiblingStillFails() throws {
+        let ctx = makeContextFromSource("""
+        class OD<T : Any, R>(val t: T, val dv: R? = null)
+        fun odBool(): OD<Boolean, Boolean> = OD(false)
+        fun h(b: Boolean) {
+            val d = when {
+                b -> odBool()
+                else -> OD("x")
+            }
+        }
+        """)
+        try runSema(ctx)
+        let hasError = ctx.diagnostics.hasError
+        #expect(hasError, "Expected a when whose branches disagree to fail")
+    }
+
     @Test func incompatibleIfElseSiblingStillFails() throws {
         let ctx = makeContextFromSource("""
         class OD<T : Any, R>(val t: T, val dv: R? = null)
