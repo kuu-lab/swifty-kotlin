@@ -588,6 +588,11 @@ final class WasmModuleContext {
                 case "initCause": return "__kk_throwable_setCause"
                 case "error": return "__kk_wasm_error"
                 case "TODO": return "__kk_wasm_todo"
+                // `kotlin.getValue(Lazy<T>, thisRef, KProperty<*>)` — the
+                // delegated-property read is a top-level extension, not a
+                // Lazy member. The helper only needs arg0 (the lazy box).
+                case "getValue" where argumentCount == 3:
+                    return "kk_lazy_get_value"
                 default: break
                 }
             }

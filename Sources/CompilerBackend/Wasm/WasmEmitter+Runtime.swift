@@ -1485,31 +1485,45 @@ enum WasmRuntimeHelpers {
         case "__kk_string_builder_toString":
             extraLocals = 0
             emitLoadAt(&code, baseLocal: 0, byteOffset: 16)
-        // `lazy {}` box `{state@16, value@24, fnSlot@32}`; `getValue` runs
-        // the initializer table slot once via call_indirect then caches.
+        // `LazyImpl` field words mirror the class layout
+        // `initializer@2, mode@3, lock@4, cached@5, computed@6` (byte 16...48).
         case "kk_lazy_new":
-            extraLocals = 1
-            // `LazyImpl(initializer, mode, lock, initialValue, initialComputed)`
-            // passes the seeded state/value; the `lazy(...)` factory arity
-            // (1–3) only carries the initializer slot.
-            emitSmallBoxBody(
-                &code, ctx: ctx, typeID: L.lazyBoxTypeID, slots: 4,
-                fields: argumentCount >= 5 ? [32: 0, 24: 3, 16: 4] : [32: 0],
-                boxLocal: argumentCount
-            )
+            if argumentCount >= 6 {
+                // `LazyImpl.<init>` is a field-init on the pre-allocated
+                // `this` (arg0): declared params land at field words 2...6.
+                extraLocals = 0
+                for (argIdx, off) in [16, 24, 32, 40, 48].enumerated() {
+                    emitStoreAt(
+                        &code, baseLocal: 0, byteOffset: Int64(off),
+                        valueLocal: argIdx + 1
+                    )
+                }
+                code.localGet(0)
+            } else {
+                // `lazy(...)`/`lazyOf(...)` factory calls carry no `this`;
+                // fabricate the same layout in a fresh 7-word box with the
+                // initializer (always the last argument) at word 2.
+                extraLocals = 1
+                emitSmallBoxBody(
+                    &code, ctx: ctx, typeID: L.lazyBoxTypeID, slots: 7,
+                    fields: [16: argumentCount - 1],
+                    boxLocal: argumentCount
+                )
+            }
         case "kk_lazy_get_value":
             extraLocals = 1
-            emitLoadAt(&code, baseLocal: 0, byteOffset: 16)
+            emitLoadAt(&code, baseLocal: 0, byteOffset: 48)
             code.op(WasmOpcode.i64Eqz)
             code.openIf()
-            emitLoadAt(&code, baseLocal: 0, byteOffset: 32)
-            code.op(WasmOpcode.i32WrapI64)
-            code.callIndirect(ctx.module.funcTypeIndex(.i64Signature(0)))
+            emitLoadAt(&code, baseLocal: 0, byteOffset: 16)
+            code.call(ctx.emittedHelperIndex(
+                for: "kk_function_invoke_0", argumentCount: 1
+            ))
             code.localSet(argumentCount)
-            emitStoreAt(&code, baseLocal: 0, byteOffset: 24, valueLocal: argumentCount)
-            emitStoreAtConst(&code, baseLocal: 0, byteOffset: 16, value: 1)
+            emitStoreAt(&code, baseLocal: 0, byteOffset: 40, valueLocal: argumentCount)
+            emitStoreAtConst(&code, baseLocal: 0, byteOffset: 48, value: 1)
             code.end()
-            emitLoadAt(&code, baseLocal: 0, byteOffset: 24)
+            emitLoadAt(&code, baseLocal: 0, byteOffset: 40)
         case "__kk_map_iterator", "__kk_mutable_map_iterator":
             extraLocals = 1
             emitMapIteratorBody(&code, ctx: ctx, name: name, argumentCount: argumentCount)
