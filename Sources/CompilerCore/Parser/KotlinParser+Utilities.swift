@@ -471,7 +471,7 @@ extension KotlinParser {
         switch keyword {
         case .public, .private, .internal, .protected, .open, .abstract, .sealed, .data, .annotation,
              .inner, .expect, .actual, .const, .lateinit, .override, .final, .crossinline, .noinline, .tailrec,
-             .inline, .suspend, .operator, .infix, .external, .value:
+             .inline, .suspend, .operator, .infix, .external, .value, .vararg:
             true
         default:
             false

@@ -1225,6 +1225,12 @@ enum DiagnosticRegistry {
             defaultSeverity: .error,
             summary: "Declaration kind is prohibited here."
         ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0448",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "Modifier is repeated."
+        ),
     ]
 
 
