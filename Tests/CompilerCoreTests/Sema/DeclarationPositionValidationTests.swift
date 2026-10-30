@@ -353,6 +353,120 @@ struct DeclarationPositionValidationTests {
         #expect(conflicts.count == 2)
     }
 
+    @Test func privateAbstractMemberFunctionReportsBothDirections() throws {
+        let ctx = try semaContext(for: """
+            abstract class AC {
+                private abstract fun pa(): Int
+            }
+            """)
+        let conflicts = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0402" }
+        #expect(conflicts.count == 2)
+        #expect(conflicts.contains { $0.message == "modifier 'private' is incompatible with 'abstract'." })
+        #expect(conflicts.contains { $0.message == "modifier 'abstract' is incompatible with 'private'." })
+    }
+
+    @Test func abstractPrivateMemberFunctionReportsBothDirections() throws {
+        let ctx = try semaContext(for: """
+            abstract class AC {
+                abstract private fun ap(): Int
+            }
+            """)
+        let conflicts = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0402" }
+        #expect(conflicts.count == 2)
+        #expect(conflicts.contains { $0.message == "modifier 'abstract' is incompatible with 'private'." })
+        #expect(conflicts.contains { $0.message == "modifier 'private' is incompatible with 'abstract'." })
+    }
+
+    @Test func privateAbstractMemberPropertyReportsBothDirections() throws {
+        let ctx = try semaContext(for: """
+            abstract class AC {
+                private abstract val pa: Int
+            }
+            """)
+        let conflicts = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0402" }
+        #expect(conflicts.count == 2)
+    }
+
+    @Test func privateAbstractNestedClassIsAccepted() throws {
+        let ctx = try semaContext(for: """
+            class Outer {
+                private abstract class Module(val name: String)
+            }
+            private abstract class TopLevel
+            """)
+        assertNoDiagnostic("KSWIFTK-SEMA-0402", in: ctx)
+    }
+
+    @Test func expectActualMemberFunctionReportsApplicabilityAndConflict() throws {
+        let ctx = try semaContext(for: """
+            class C {
+                expect actual fun ea(): Int
+            }
+            """)
+        let notApplicable = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0400" }
+        #expect(notApplicable.count == 1)
+        #expect(notApplicable.contains { $0.message == "modifier 'expect' is not applicable to 'member function'." })
+        let conflicts = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0402" }
+        #expect(conflicts.count == 1)
+        #expect(conflicts.contains { $0.message == "modifier 'actual' is incompatible with 'expect'." })
+    }
+
+    @Test func expectActualMemberPropertyReportsApplicabilityAndConflict() throws {
+        let ctx = try semaContext(for: """
+            class C {
+                expect actual val ea: Int
+            }
+            """)
+        let notApplicable = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0400" }
+        #expect(notApplicable.count == 1)
+        #expect(notApplicable.contains { $0.message.contains("'expect'") })
+        let conflicts = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0402" }
+        #expect(conflicts.count == 1)
+        #expect(conflicts.contains { $0.message == "modifier 'actual' is incompatible with 'expect'." })
+    }
+
+    @Test func expectActualTopLevelFunctionReportsBothDirections() throws {
+        let ctx = try semaContext(for: """
+            expect actual fun ea(): Int
+            """)
+        let conflicts = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0402" }
+        #expect(conflicts.count == 2)
+        #expect(conflicts.contains { $0.message == "modifier 'expect' is incompatible with 'actual'." })
+        #expect(conflicts.contains { $0.message == "modifier 'actual' is incompatible with 'expect'." })
+    }
+
+    @Test func privateAbstractInterfaceFunctionKeepsBodilessDiagnostic() throws {
+        let ctx = try semaContext(for: """
+            interface I {
+                private abstract fun pa()
+            }
+            """)
+        let conflicts = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0402" }
+        #expect(conflicts.count == 2)
+        assertHasDiagnostic("KSWIFTK-SEMA-0426", in: ctx)
+    }
+
+    @Test func privateAbstractInterfacePropertyOmitsCannotBePrivate() throws {
+        let ctx = try semaContext(for: """
+            interface I {
+                private abstract val pa: Int
+            }
+            """)
+        let conflicts = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0402" }
+        #expect(conflicts.count == 2)
+        assertNoDiagnostic("KSWIFTK-SEMA-0428", in: ctx)
+    }
+
+    @Test func privateImplicitAbstractInterfacePropertyKeepsCannotBePrivate() throws {
+        let ctx = try semaContext(for: """
+            interface I {
+                private val pa: Int
+            }
+            """)
+        assertHasDiagnostic("KSWIFTK-SEMA-0428", in: ctx)
+        assertNoDiagnostic("KSWIFTK-SEMA-0402", in: ctx)
+    }
+
     @Test func privateLocalVariableIsRejected() throws {
         let ctx = try semaContext(for: """
             fun f() { private val x = 1 }
