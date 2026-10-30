@@ -16,6 +16,14 @@ public struct CallBinding {
     /// Whether lowering must wrap this reference to adapt its function shape,
     /// including its arity, receiver, or return type, to the selected type.
     public let isCallableReferenceAdapter: Bool
+    /// Whether the adapted reference's bound signature differs from the
+    /// callee's public callable signature (arity, scalar-packed varargs,
+    /// bound context, or a coerced return/suspend type). On the JVM such
+    /// references materialize as adapted function objects that do not
+    /// implement KCallable, so lowering must not expose reflection metadata
+    /// for them (KUU-3361). Thunks that only repackage the call ABI —
+    /// erased or reified inputs — keep KCallable identity (KUU-3863).
+    public let hidesKCallable: Bool
     /// Context parameters captured when a context-requiring callable reference
     /// is adapted to a function type without context receivers.
     public let boundContextParameterTypes: [TypeID]
@@ -29,6 +37,7 @@ public struct CallBinding {
         dispatchReceiverSymbol: SymbolID? = nil,
         contextParameterReceiverSymbols: [SymbolID?] = [],
         isCallableReferenceAdapter: Bool = false,
+        hidesKCallable: Bool = false,
         boundContextParameterTypes: [TypeID] = []
     ) {
         self.chosenCallee = chosenCallee
@@ -39,6 +48,7 @@ public struct CallBinding {
         self.dispatchReceiverSymbol = dispatchReceiverSymbol
         self.contextParameterReceiverSymbols = contextParameterReceiverSymbols
         self.isCallableReferenceAdapter = isCallableReferenceAdapter
+        self.hidesKCallable = hidesKCallable
         self.boundContextParameterTypes = boundContextParameterTypes
     }
 }

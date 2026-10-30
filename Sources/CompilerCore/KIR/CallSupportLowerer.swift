@@ -766,6 +766,7 @@ final class CallSupportLowerer {
                 dispatchReceiverSymbol: callBinding.dispatchReceiverSymbol,
                 contextParameterReceiverSymbols: callBinding.contextParameterReceiverSymbols,
                 isCallableReferenceAdapter: callBinding.isCallableReferenceAdapter,
+                hidesKCallable: callBinding.hidesKCallable,
                 boundContextParameterTypes: callBinding.boundContextParameterTypes
             )
             return normalizedCallArguments(

@@ -204,6 +204,7 @@ extension FunctionBodySemaSnapshot {
             && lhs.defaultArgumentOwner == rhs.defaultArgumentOwner
             && lhs.dispatchReceiverSymbol == rhs.dispatchReceiverSymbol
             && lhs.isCallableReferenceAdapter == rhs.isCallableReferenceAdapter
+            && lhs.hidesKCallable == rhs.hidesKCallable
             && lhs.boundContextParameterTypes == rhs.boundContextParameterTypes
     }
 }

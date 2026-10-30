@@ -40,6 +40,7 @@ extension ExprTypeChecker {
             defaultArgumentOwner: specialization.defaultArgumentOwner,
             dispatchReceiverSymbol: dispatchReceiverSymbol,
             isCallableReferenceAdapter: specialization.requiresAdapter || requiresFunctionConversion,
+            hidesKCallable: specialization.isSignatureAdapted || requiresFunctionConversion,
             boundContextParameterTypes: specialization.boundContextParameterTypes
         ))
     }
