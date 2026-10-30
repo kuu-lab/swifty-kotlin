@@ -467,6 +467,113 @@ struct DeclarationPositionValidationTests {
         assertNoDiagnostic("KSWIFTK-SEMA-0402", in: ctx)
     }
 
+    @Test func expectPrivateDeclarationsCannotBePrivate() throws {
+        for source in [
+            "expect private fun f()",
+            "private expect fun f()",
+            "expect private val v: Int",
+            "expect private class C",
+            "expect private object O",
+            "expect private interface I",
+            "expect private typealias T = Int",
+        ] {
+            let ctx = try semaContextWithoutStdlib(for: source)
+            let diags = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0451" }
+            #expect(diags.count == 1, "expected one cannot-be-private for \(source)")
+            #expect(diags.first?.message == "'expect' declaration cannot be private.")
+        }
+    }
+
+    @Test func expectFunctionWithBodyIsRejected() throws {
+        for source in [
+            "expect fun f() {}",
+            "expect fun f() = 1",
+            "class C { expect fun m() {} }",
+        ] {
+            let ctx = try semaContextWithoutStdlib(for: source)
+            let diags = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0452" }
+            #expect(diags.count == 1, "expected one cannot-have-a-body for \(source)")
+            #expect(diags.first?.message == "'expect' declaration cannot have a body.")
+        }
+    }
+
+    @Test func expectMembersOfExpectOwnerCannotHaveBodies() throws {
+        let ctx = try semaContextWithoutStdlib(for: """
+            expect class E {
+                fun m() {}
+                private fun p() {}
+                val v = 1
+                val w by lazy { 2 }
+            }
+            """)
+        let codes = ctx.diagnostics.diagnostics.map(\.code)
+        #expect(codes.filter { $0 == "KSWIFTK-SEMA-0452" }.count == 2)
+        #expect(codes.contains("KSWIFTK-SEMA-0451"))
+        #expect(codes.contains("KSWIFTK-SEMA-0453"))
+        #expect(codes.contains("KSWIFTK-SEMA-0454"))
+    }
+
+    @Test func expectPropertyInitializerAndDelegateAreRejected() throws {
+        let ctx = try semaContextWithoutStdlib(for: """
+            expect val v = 1
+            expect val w by lazy { 2 }
+            """)
+        #expect(ctx.diagnostics.diagnostics.contains {
+            $0.code == "KSWIFTK-SEMA-0453"
+                && $0.message == "'expect' property cannot have an initializer."
+        })
+        #expect(ctx.diagnostics.diagnostics.contains {
+            $0.code == "KSWIFTK-SEMA-0454"
+                && $0.message == "'expect' property cannot be delegated."
+        })
+    }
+
+    @Test func expectAccessorBodyIsRejected() throws {
+        let ctx = try semaContextWithoutStdlib(for: """
+            expect val v: Int get() = 1
+            """)
+        let diags = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0452" }
+        #expect(diags.count == 1)
+    }
+
+    @Test func expectInitBlockIsRejected() throws {
+        let ctx = try semaContextWithoutStdlib(for: """
+            expect class E {
+                init {}
+            }
+            """)
+        assertHasDiagnostic("KSWIFTK-SEMA-0452", in: ctx)
+    }
+
+    @Test func expectMemberInsideExpectClassIsNotApplicable() throws {
+        let ctx = try semaContextWithoutStdlib(for: """
+            expect class E { expect fun m() }
+            """)
+        let diags = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0400" }
+        #expect(diags.contains { $0.message == "modifier 'expect' is not applicable to 'member function'." })
+    }
+
+    @Test func expectNestedNominalsAreNotApplicable() throws {
+        for source in [
+            "class B { expect class N }",
+            "class B { expect interface N }",
+            "class B { expect object N }",
+        ] {
+            let ctx = try semaContextWithoutStdlib(for: source)
+            let diags = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0400" }
+            #expect(diags.contains { $0.message == "modifier 'expect' is not applicable to 'nested class'." },
+                    "expected nested-class diagnostic for \(source)")
+        }
+    }
+
+    @Test func expectLocalFunctionWithoutBodyIsAccepted() throws {
+        let ctx = try semaContextWithoutStdlib(for: """
+            fun f() { expect fun g() }
+            """)
+        let diags = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0426" }
+        #expect(diags.isEmpty)
+    }
+
     @Test func privateLocalVariableIsRejected() throws {
         let ctx = try semaContext(for: """
             fun f() { private val x = 1 }

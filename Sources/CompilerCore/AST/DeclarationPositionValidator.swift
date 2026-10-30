@@ -140,6 +140,15 @@ struct DeclarationPositionValidator {
             .union(pairPlan.covered)
         let target = functionTargetName(site: site)
 
+        if isExpectContext(modifiers, site: site) {
+            if modifiers.contains(.private) {
+                emitExpectNotPrivate(range: decl.range)
+            }
+            if decl.body != .unit {
+                emitExpectHasBody(range: decl.range)
+            }
+        }
+
         validateDuplicateTypeParamNames(decl.typeParams, range: decl.range)
 
         if let whereClauseRange = decl.whereClauseRange, decl.typeParams.isEmpty {
@@ -178,9 +187,7 @@ struct DeclarationPositionValidator {
                     emitInside("protected", inside: nominal.name, range: decl.range)
                 }
             }
-            if modifiers.contains(.expect), !nominal.ownerModifiers.contains(.expect),
-               !conflictCovered.contains(.expect)
-            {
+            if modifiers.contains(.expect), !conflictCovered.contains(.expect) {
                 emitNotApplicable("expect", to: "member function", range: decl.range)
             }
             // `actual` members are covered by the orphan-actual symbol check
@@ -239,7 +246,6 @@ struct DeclarationPositionValidator {
         // KSWIFTK-SEMA-0009; only the interface-private combination is a gap.
         if decl.body == .unit,
            modifiers.contains(.private),
-           !modifiers.contains(.expect),
            !modifiers.contains(.external),
            case .nominal(let nominal) = site,
            nominal.kind == .interface
@@ -268,6 +274,30 @@ struct DeclarationPositionValidator {
         )
         let conflictCovered = visibilityCovered.union(pairPlan.covered)
         let target = propertyTargetName(decl: decl, site: site)
+
+        if isExpectContext(modifiers, site: site) {
+            if modifiers.contains(.private) {
+                emitExpectNotPrivate(range: decl.range)
+            }
+            if let initializer = decl.initializer {
+                diagnostics?.error(
+                    "KSWIFTK-SEMA-0453",
+                    "'expect' property cannot have an initializer.",
+                    range: astArena.exprRange(initializer) ?? decl.range
+                )
+            }
+            if let delegate = decl.delegateExpression {
+                diagnostics?.error(
+                    "KSWIFTK-SEMA-0454",
+                    "'expect' property cannot be delegated.",
+                    range: astArena.exprRange(delegate) ?? decl.range
+                )
+            }
+            for accessor in [decl.getter, decl.setter].compactMap({ $0 })
+            where accessor.body != .unit {
+                emitExpectHasBody(range: accessor.range)
+            }
+        }
 
         for (modifier, name) in Self.propertyImpossibleModifiers where modifiers.contains(modifier) {
             if modifier == .inline, isInlinePropertyWithCustomAccessors(decl, site: site) {
@@ -300,9 +330,7 @@ struct DeclarationPositionValidator {
             {
                 emitInside("protected", inside: nominal.name, range: decl.range)
             }
-            if modifiers.contains(.expect), !nominal.ownerModifiers.contains(.expect),
-               !conflictCovered.contains(.expect)
-            {
+            if modifiers.contains(.expect), !conflictCovered.contains(.expect) {
                 emitNotApplicable("expect", to: target, range: decl.range)
             }
             if nominal.kind == .interface {
@@ -662,6 +690,20 @@ struct DeclarationPositionValidator {
         )
         let conflictCovered = visibilityCovered.union(pairPlan.covered)
 
+        if isExpectContext(modifiers, site: site) {
+            if modifiers.contains(.private) {
+                emitExpectNotPrivate(range: decl.range)
+            }
+            for body in decl.initBlocks {
+                switch body {
+                case .block(_, let bodyRange), .expr(_, let bodyRange):
+                    emitExpectHasBody(range: bodyRange)
+                case .unit:
+                    break
+                }
+            }
+        }
+
         for (modifier, name) in Self.classImpossibleModifiers where modifiers.contains(modifier) {
             emitNotApplicable(name, to: kindName, range: decl.range)
         }
@@ -765,7 +807,7 @@ struct DeclarationPositionValidator {
             validateInnerPosition(modifiers, site: site, target: kindName, range: decl.range)
         }
         if case .nominal(let nominal) = site {
-            validateMemberSiteModifiers(modifiers, site: nominal, target: "member class", range: decl.range)
+            validateMemberSiteModifiers(modifiers, site: nominal, target: "nested class", range: decl.range)
         }
 
         emitPairConflicts(pairPlan.emissions, range: decl.range)
@@ -908,8 +950,12 @@ struct DeclarationPositionValidator {
         }
         // `inner` is always kind-invalid on interfaces, so validateInnerPosition
         // would double-report; the not-applicable-to diagnostic owns it.
+        if isExpectContext(modifiers, site: site), modifiers.contains(.private) {
+            emitExpectNotPrivate(range: decl.range)
+        }
+
         if case .nominal(let nominal) = site {
-            validateMemberSiteModifiers(modifiers, site: nominal, target: "member interface", range: decl.range)
+            validateMemberSiteModifiers(modifiers, site: nominal, target: "nested class", range: decl.range)
         }
 
         if decl.isFunInterface, decl.superTypes.isEmpty {
@@ -972,6 +1018,19 @@ struct DeclarationPositionValidator {
         if modifiers.contains(.external) {
             emitNotApplicable("external", to: "class", range: decl.range)
         }
+        if isExpectContext(modifiers, site: site) {
+            if modifiers.contains(.private) {
+                emitExpectNotPrivate(range: decl.range)
+            }
+            for body in decl.initBlocks {
+                switch body {
+                case .block(_, let bodyRange), .expr(_, let bodyRange):
+                    emitExpectHasBody(range: bodyRange)
+                case .unit:
+                    break
+                }
+            }
+        }
         if site == .function {
             // kotlinc phrases visibility on local objects positionally and
             // skips `public`/`expect` entirely.
@@ -1018,7 +1077,7 @@ struct DeclarationPositionValidator {
             emitNotApplicable("protected", to: "top level object", range: decl.range)
         }
         if case .nominal(let nominal) = site {
-            validateMemberSiteModifiers(modifiers, site: nominal, target: "member object", range: decl.range)
+            validateMemberSiteModifiers(modifiers, site: nominal, target: "nested class", range: decl.range)
         }
 
         let isCompanion = modifiers.contains(.companion)
@@ -1077,6 +1136,9 @@ struct DeclarationPositionValidator {
         }
         if site == .file, decl.modifiers.contains(.protected) {
             emitNotApplicable("protected", to: "top level typealias", range: decl.range)
+        }
+        if isExpectContext(decl.modifiers, site: site), decl.modifiers.contains(.private) {
+            emitExpectNotPrivate(range: decl.range)
         }
     }
 
@@ -1144,7 +1206,7 @@ struct DeclarationPositionValidator {
         if site.kind == .object, modifiers.contains(.protected) {
             emitInside("protected", inside: site.name, range: range)
         }
-        if modifiers.contains(.expect), !site.ownerModifiers.contains(.expect) {
+        if modifiers.contains(.expect) {
             emitNotApplicable("expect", to: target, range: range)
         }
     }
@@ -1253,6 +1315,34 @@ struct DeclarationPositionValidator {
         diagnostics?.error(
             "KSWIFTK-SEMA-0401",
             "modifier '\(name)' is not applicable inside '\(site)'.",
+            range: range
+        )
+    }
+
+    /// `expect` declarations — including members of `expect` owners, which
+    /// are expected implicitly — cannot be private or carry a body.
+    private func isExpectContext(_ modifiers: Modifiers, site: OwnerSite) -> Bool {
+        if modifiers.contains(.expect) {
+            return true
+        }
+        if case .nominal(let nominal) = site, nominal.ownerModifiers.contains(.expect) {
+            return true
+        }
+        return false
+    }
+
+    private func emitExpectNotPrivate(range: SourceRange) {
+        diagnostics?.error(
+            "KSWIFTK-SEMA-0451",
+            "'expect' declaration cannot be private.",
+            range: range
+        )
+    }
+
+    private func emitExpectHasBody(range: SourceRange) {
+        diagnostics?.error(
+            "KSWIFTK-SEMA-0452",
+            "'expect' declaration cannot have a body.",
             range: range
         )
     }
@@ -1490,8 +1580,8 @@ struct DeclarationPositionValidator {
         case .file:
             [.abstract, .open, .final, .override, .protected]
         case .nominal(let nominal) where nominal.kind == .interface:
-            nominal.ownerModifiers.contains(.expect) ? [.final] : [.final, .expect]
-        case .nominal(let nominal) where !nominal.ownerModifiers.contains(.expect):
+            [.final, .expect]
+        case .nominal:
             [.expect]
         default:
             []
@@ -1595,5 +1685,6 @@ struct DeclarationPositionValidator {
         (.operator, "operator"), (.infix, "infix"), (.external, "external"),
         (.override, "override"), (.funModifier, "fun"), (.vararg, "vararg"),
         (.crossinline, "crossinline"), (.noinline, "noinline"),
+        (.expect, "expect"),
     ]
 }
