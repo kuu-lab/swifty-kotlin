@@ -198,7 +198,15 @@ extension OverloadResolver {
             return variable
         })
         return solution.substitution.filter {
-            lowerBoundedVariables.contains($0.key) || lambdaInputTypeVariables.contains($0.key)
+            // An unbound variable carries no usable evidence. Returning
+            // `errorType` would poison the lambda's expected type (e.g.
+            // turning `(T) -> Unit` into `(<error>) -> Unit`), which then
+            // surfaces as a spurious `<error>` upper bound when the
+            // authoritative solve sees the lambda's argument type. Callers
+            // already treat a missing key as "unconstrained".
+            $0.value != typeSystem.errorType
+                && (lowerBoundedVariables.contains($0.key)
+                    || lambdaInputTypeVariables.contains($0.key))
         }
     }
 
