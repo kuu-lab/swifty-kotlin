@@ -683,7 +683,31 @@ extension LambdaLowerer {
         }
         // An ABI wrapper is not a Kotlin callable-reference adaptation. Only
         // an actual adaptation changes the reference's KFunction identity.
-        let isAdaptedCallableReference = existingBinding?.isCallableReferenceAdapter == true
+        // A signature-level adaptation (dropped/added parameters, packed
+        // scalar varargs, bound context receivers) materializes an adapted
+        // function value that does not expose KCallable reflection
+        // (KUU-3361). Adapters that only repackage the call ABI — erased or
+        // reified inputs, suspend/Unit conversions, subtype-joined branch
+        // literals — keep the callee's public signature, so the value stays
+        // a KCallable and is tagged like any unadapted reference (KUU-3886).
+        // The binding's parameter mapping covers exactly the callee's value
+        // parameters when the bound signature matches them one-to-one.
+        let isAdaptedCallableReference: Bool = {
+            guard let existingBinding, existingBinding.isCallableReferenceAdapter else {
+                return false
+            }
+            guard existingBinding.boundContextParameterTypes.isEmpty,
+                  let signature = sema.symbols.functionSignature(for: existingBinding.chosenCallee)
+            else {
+                return true
+            }
+            let mapping = existingBinding.parameterMapping
+            guard mapping.count == signature.parameterTypes.count else { return true }
+            // Scalar-vararg packing maps multiple bound inputs onto one
+            // signature parameter, so an injective mapping means the bound
+            // shape is unchanged.
+            return Set(mapping.values).count != mapping.count
+        }()
         let requiresCallableReferenceAdapter = callableReferenceBinding?.isCallableReferenceAdapter == true
         let isInnerConstructorTarget = targetSymbol.flatMap { target -> Bool? in
             guard sema.symbols.symbol(target)?.kind == .constructor,
