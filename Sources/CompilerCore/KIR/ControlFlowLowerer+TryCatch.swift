@@ -605,6 +605,23 @@ extension ControlFlowLowerer {
                 // `OperatorLoweringPass` runs after this source-level control-flow
                 // lowering. Lower the assertion here as well so its thrown value
                 // is routed to the enclosing try/catch exception slot.
+                let resultType = arena.exprType(result)
+                if let operandType = arena.exprType(operand),
+                   nullAssertProbeCannotBeNull(
+                       sema.types.kind(of: operandType),
+                       types: sema.types,
+                       symbols: sema.symbols
+                   )
+                {
+                    // The operand's non-null unboxed representation cannot
+                    // encode a null value: the sentinel bit pattern is a
+                    // legitimate payload there (`Long.MIN_VALUE`/`-0.0`, or
+                    // `V(null)` for a nullable-underlying value class), never
+                    // a null reference — probing it throws on valid values,
+                    // so the assertion reduces to a copy (KUU-3899).
+                    instructions.append(.copy(from: operand, to: result))
+                    continue
+                }
                 let notNullResult = arena.appendTemporary(type: arena.exprType(result))
                 instructions.append(.call(
                     callee: interner.intern("kk_op_notnull"),
@@ -613,7 +630,6 @@ extension ControlFlowLowerer {
                     canThrow: true,
                     thrownResult: exceptionSlot
                 ))
-                let resultType = arena.exprType(result)
                 let unboxCallee: InternedString? = if let resultType,
                                                        case .primitive(_, .nonNull) = sema.types.kind(of: resultType)
                 {
