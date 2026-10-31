@@ -29,5 +29,20 @@ struct ValueClassGenericBoxingTests {
             allowDefaultStdlibLibrary: true
         )
     }
+
+    /// KUU-3771: `IC<T:Int>(42).i` regressed to a runtime
+    /// `KSWIFTK-LINK-0003` panic when the KUU-3670 erased-generic claim
+    /// checkcast observed the payload re-tagged as the value class. The
+    /// property read must keep the raw payload representation.
+    @Test
+    func genericValueClassUnderlyingPropertyReadClaimsPayload() throws {
+        TestStdlibCache.shared.prepare()
+        try compileAndRunKotlin(
+            try diffCaseSource("kuu_3771_generic_value_class_erased_read.kt", file: #filePath),
+            expectedOutput: "42\n7\n43\n9\n9\nnull\n42\n11\n",
+            moduleName: "KUU3771GenericValueClassErasedRead",
+            allowDefaultStdlibLibrary: true
+        )
+    }
 }
 #endif

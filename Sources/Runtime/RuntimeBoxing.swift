@@ -812,11 +812,34 @@ public func kk_value_class_box(_ payload: Int, _ classID: Int) -> Int {
 @_cdecl("kk_value_class_unbox")
 public func kk_value_class_unbox(_ rawValue: Int, _ classID: Int) -> Int {
     guard classID != 0,
-          runtimeObjectTypeID(rawValue: rawValue) == Int64(classID),
-          let box = runtimeArrayBox(from: rawValue),
-          box.count > 2
+          runtimeObjectTypeID(rawValue: rawValue) == Int64(classID)
     else {
         return rawValue
     }
-    return box[2]
+    if let box = runtimeArrayBox(from: rawValue), box.count > 2 {
+        return box[2]
+    }
+    // The `V`-slot value may instead be the tagged primitive box minted by
+    // `kk_tag_value_class_box` (e.g. `this` inside a member of a value class
+    // that arrived through an erased `T`/`Any` boundary). Unwrap its payload
+    // so underlying-property reads observe the payload, not the tagged
+    // handle (KUU-3771). The registry membership check mirrors
+    // `runtimeStaticUnbox`: the tag bit pattern alone can coincide with an
+    // unrelated Int.
+    if let base = runtimePrimitiveBoxBasePointer(from: rawValue),
+       runtimeStorage.withGCLock({ state in
+           state.objectPointers.contains(UInt(bitPattern: rawValue))
+       })
+    {
+        if let box = tryCast(base, to: RuntimeIntBox.self) { return box.value }
+        if let box = tryCast(base, to: RuntimeBoolBox.self) { return box.value ? 1 : 0 }
+        if let box = tryCast(base, to: RuntimeLongBox.self) { return box.value }
+        if let box = tryCast(base, to: RuntimeULongBox.self) { return box.value }
+        if let box = tryCast(base, to: RuntimeFloatBox.self) { return Int(box.value.bitPattern) }
+        if let box = tryCast(base, to: RuntimeDoubleBox.self) {
+            return Int(bitPattern: UInt(truncatingIfNeeded: box.value.bitPattern))
+        }
+        if let box = tryCast(base, to: RuntimeCharBox.self) { return box.value }
+    }
+    return rawValue
 }

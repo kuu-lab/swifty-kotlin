@@ -228,35 +228,62 @@ final class ValueClassUnboxingPass: LoweringPass {
         symbols: SymbolTable,
         valueClassSymbols: Set<SymbolID>,
         boxingCalleeTable: BoxingCalleeTable
-    ) -> InternedString? {
+    ) -> (InternedString, SymbolID)? {
         guard let receiverType = arena.exprType(receiver) else { return nil }
         let classSymbol: SymbolID?
+        var ownerArgs: [TypeArg] = []
+        var requirePrimitiveUnderlying = false
         switch types.kind(of: receiverType) {
         case let .classType(classType):
-            // Non-null receivers already hold the unboxed payload.
-            guard classType.nullability != .nonNull else { return nil }
             classSymbol = classType.classSymbol
+            ownerArgs = classType.args
+            // A non-null receiver nominally holds the unboxed payload, but an
+            // erased edge — `x as V`, the non-null branch of `v?.p`, or an
+            // `Any`-erased slot re-widened to `V` — can leave the tagged
+            // primitive box in the slot. The `kk_unbox_*_static` callees are
+            // idempotent across raw payloads, plain boxes, and tagged boxes,
+            // so extracting through them keeps every representation correct
+            // (KUU-3771). Only primitive underlyings take this route:
+            // reference-backed payloads are already the right shape and use
+            // the copy path below.
+            requirePrimitiveUnderlying = classType.nullability == .nonNull
         case let .typeParam(typeParameter):
             // Generic slots are erased, so a type-parameter receiver bounded
             // by a value class carries the tagged box at any nullability.
+            var boundArgs: [TypeArg] = []
             classSymbol = symbols.typeParameterUpperBounds(for: typeParameter.symbol).compactMap { bound -> SymbolID? in
                 guard case let .classType(boundClass) = types.kind(of: bound),
                       valueClassSymbols.contains(boundClass.classSymbol)
                 else { return nil }
+                boundArgs = boundClass.args
                 return boundClass.classSymbol
             }.first
+            ownerArgs = boundArgs
         default:
             classSymbol = nil
         }
         guard let classSymbol,
               valueClassSymbols.contains(classSymbol),
-              let underlyingType = symbols.effectiveValueClassUnderlyingType(for: classSymbol)
+              let declaredUnderlyingType = symbols.effectiveValueClassUnderlyingType(for: classSymbol)
         else { return nil }
-        return boxingCalleeTable.unboxCallee(
-            for: types.kind(of: underlyingType),
+        // A generic value class declares its underlying as the class type
+        // parameter (`IC<T>(val i: T)`); resolve `T` through the receiver's
+        // arguments before selecting a primitive unbox callee.
+        let underlyingType = types.substituteNominalTypeParameters(
+            in: declaredUnderlyingType,
+            owner: classSymbol,
+            ownerArgs: ownerArgs
+        )
+        let underlyingKind = types.kind(of: underlyingType)
+        if requirePrimitiveUnderlying {
+            guard case .primitive = underlyingKind else { return nil }
+        }
+        guard let callee = boxingCalleeTable.unboxCallee(
+            for: underlyingKind,
             requireNonNull: true,
             preferStaticPrimitive: true
-        )
+        ) else { return nil }
+        return (callee, classSymbol)
     }
 
     /// KUU-3115: a `V?` receiver of a value class whose underlying payload can
@@ -713,13 +740,40 @@ final class ValueClassUnboxingPass: LoweringPass {
                             result: callResult,
                             canThrow: false
                         ))
-                    } else if let unboxCallee = valueClassPayloadUnboxCallee(
+                    } else if let (unboxCallee, payloadClassSymbol) = valueClassPayloadUnboxCallee(
                         for: arguments[0], arena: arena, types: types, symbols: symbols,
                         valueClassSymbols: valueClassSymbols,
                         boxingCalleeTable: boxingCalleeTable
                     ) {
+                        // A `V`-typed slot can still carry the nominal
+                        // `kk_value_class_box` or a tagged primitive box after
+                        // crossing erased boundaries (`as`, generic interface
+                        // returns, `?.` non-null branches). Normalize through
+                        // `kk_value_class_unbox` before the payload extraction —
+                        // both entry points are idempotent across raw payloads
+                        // and either box form (KUU-3771).
+                        let classID = module.isRawValueClassPayload(arguments[0])
+                            ? 0
+                            : RuntimeTypeCheckToken.stableNominalTypeID(
+                                symbol: payloadClassSymbol, symbols: symbols, interner: interner
+                            )
+                        let classIDExpr = arena.appendExpr(
+                            .intLiteral(classID), type: types.intType
+                        )
+                        result.append(.constValue(
+                            result: classIDExpr, value: .intLiteral(classID)
+                        ))
+                        resultLocations.append(location)
+                        let normalized = arena.appendTemporary(type: types.nullableAnyType)
                         result.append(.call(
-                            symbol: nil, callee: unboxCallee, arguments: [arguments[0]],
+                            callee: interner.intern("kk_value_class_unbox"),
+                            arguments: [arguments[0], classIDExpr],
+                            result: normalized,
+                            canThrow: false
+                        ))
+                        resultLocations.append(location)
+                        result.append(.call(
+                            symbol: nil, callee: unboxCallee, arguments: [normalized],
                             result: callResult, canThrow: false, thrownResult: nil
                         ))
                     } else if let receiverType = arena.exprType(arguments[0]),
@@ -745,38 +799,22 @@ final class ValueClassUnboxingPass: LoweringPass {
                             canThrow: false
                         ))
                     } else {
-                        // A non-null value class whose underlying representation can
-                        // itself be null already stores the raw payload. Preserve this
-                        // property read as a representation-only copy; ABI lowering
-                        // would otherwise mistake X -> Any? for boxing X itself.
+                        // A non-null value-class receiver already holds the unboxed
+                        // payload, so this read is a representation-only copy. Mark
+                        // the result as the raw payload regardless of its declared
+                        // type: erased-ABI property reads type it `Any?`, which ABI
+                        // lowering would otherwise mistake for boxing the class
+                        // itself — re-tagging the payload as `V` makes the erased
+                        // generic claim checkcast (KUU-3670) throw on a well-formed
+                        // `v.i` where `i: T` (KUU-3771). This subsumes the
+                        // nullable-underlying and reference-backed special cases:
+                        // both only fire for non-null class-typed receivers.
                         if let receiverType = arena.exprType(arguments[0]),
-                           let classSymbol = nullableUnderlyingValueClassSymbol(
-                               of: types.kind(of: receiverType), types: types, symbols: symbols
-                           ),
-                           symbols.effectiveValueClassUnderlyingType(for: classSymbol)
-                               == arena.exprType(callResult)
+                           case let .classType(classType) = types.kind(of: receiverType),
+                           classType.nullability == .nonNull,
+                           valueClassSymbols.contains(classType.classSymbol)
                         {
                             module.markRawValueClassPayload(callResult)
-                        } else if let receiverType = arena.exprType(arguments[0]),
-                                  let classSymbol = referenceBackedValueClassSymbol(
-                                      of: types.kind(of: receiverType), types: types, symbols: symbols
-                                  ),
-                                  case let .classType(classType) = types.kind(of: receiverType),
-                                  let declaredUnderlyingType = symbols.effectiveValueClassUnderlyingType(
-                                      for: classSymbol
-                                  )
-                        {
-                            // A reference-backed value class's non-null representation is
-                            // already its payload. Keep an underlying-property read raw;
-                            // otherwise ABI lowering reboxes the payload as the class.
-                            let underlyingType = types.substituteNominalTypeParameters(
-                                in: declaredUnderlyingType,
-                                owner: classSymbol,
-                                ownerArgs: classType.args
-                            )
-                            if underlyingType == arena.exprType(callResult) {
-                                module.markRawValueClassPayload(callResult)
-                            }
                         }
                         result.append(.copy(from: arguments[0], to: callResult))
                     }
