@@ -179,5 +179,57 @@ extension BuildKIRRegressionTests {
         try runToLowering(ctx)
         #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
     }
+
+    /// KUU-3901: `suspendCoroutine` nested inside a second suspend lambda (the
+    /// `onEach` argument) left the `kk_lambda_*` decl non-suspend, so
+    /// CoroutineLoweringPass skipped it and the inlined
+    /// `<suspendCoroutineUninterceptedOrReturn>` marker reached the verifier.
+    /// The lambda's bound type is non-suspend (`Iterable.onEach` takes a plain
+    /// `(T) -> Unit`), so the body scan is the only signal that it suspends;
+    /// the kklib `suspendCoroutine` callee owns no arena declaration and only
+    /// carries the `.suspendFunction` symbol flag.
+    @Test
+    func suspendCoroutineInsideNestedSuspendLambdaPassesVerifier() throws {
+        TestStdlibCache.shared.prepare()
+        let ctx = makeContextFromSource("""
+        import kotlin.coroutines.*
+
+        object EmptyContinuation : Continuation<Unit> {
+            override val context: CoroutineContext = EmptyCoroutineContext
+            override fun resumeWith(result: kotlin.Result<Unit>) { result.getOrThrow() }
+        }
+        fun builder(c: suspend () -> Unit) { c.startCoroutine(EmptyContinuation) }
+
+        suspend fun <T> List<T>.onEach(c: suspend (T) -> Unit) { for (e in this) c(e) }
+        var c: Continuation<Any>? = null
+
+        fun main() {
+            var res = ""
+            builder {
+                listOf("O", "K").onEach { res += suspendCoroutine<String> { cont ->
+                    @Suppress("UNCHECKED_CAST")
+                    c = cont as Continuation<Any>
+                } }
+            }
+            c?.resume("O")
+            c?.resume("K")
+            println(res)
+        }
+        """, allowDefaultStdlibLibrary: true)
+        try runToLowering(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+        let module = try #require(ctx.kir)
+        for function in findAllKIRFunctions(in: module) {
+            for instruction in function.body {
+                guard case let .call(_, callee, _, _, _, _, _, _) = instruction else { continue }
+                let calleeName = ctx.interner.resolve(callee)
+                #expect(
+                    calleeName != "<suspendCoroutineUninterceptedOrReturn>"
+                        && calleeName != "suspendCoroutineUninterceptedOrReturn",
+                    "unlowered suspend intrinsic in \(ctx.interner.resolve(function.name))"
+                )
+            }
+        }
+    }
 }
 #endif

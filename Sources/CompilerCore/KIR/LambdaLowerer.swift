@@ -114,6 +114,7 @@ final class LambdaLowerer {
     private func lambdaBodyRequiresSuspend(
         _ body: [KIRInstruction],
         arena: KIRArena,
+        sema: SemaModule,
         interner: StringInterner
     ) -> Bool {
         let suspendIndicatorNames: Set<String> = [
@@ -137,6 +138,13 @@ final class LambdaLowerer {
             "kk_flow_collect",
             "__kk_flow_collectLatest",
             "kk_flow_emit",
+            // `suspendCoroutineUninterceptedOrReturn` reaches this scan as a
+            // symbol-less call: CallLowerer emits the angle-bracket marker for
+            // the stdlib special-call kind, and serialized inline bodies (e.g.
+            // `suspendCoroutine`, expanded later by InlineLoweringPass) keep
+            // the plain source-name spelling.
+            "suspendCoroutineUninterceptedOrReturn",
+            "<suspendCoroutineUninterceptedOrReturn>",
         ]
         for instruction in body {
             let calleeInfo: (symbol: SymbolID?, callee: InternedString)?
@@ -152,8 +160,19 @@ final class LambdaLowerer {
             if suspendIndicatorNames.contains(interner.resolve(calleeInfo.callee)) {
                 return true
             }
-            if let symbol = calleeInfo.symbol, arena.function(for: symbol)?.isSuspend == true {
-                return true
+            if let symbol = calleeInfo.symbol {
+                if arena.function(for: symbol)?.isSuspend == true {
+                    return true
+                }
+                // Imported suspend callees (e.g. the kklib `suspendCoroutine`)
+                // own no KIR declaration in the arena, so the lookup above
+                // cannot see that they suspend. The bound symbol's
+                // `.suspendFunction` flag is the only signal left -- without
+                // it the lambda stays non-suspend, CoroutineLoweringPass skips
+                // it, and its suspension points survive to the KIR verifier.
+                if sema.symbols.symbol(symbol)?.flags.contains(.suspendFunction) == true {
+                    return true
+                }
             }
         }
         return false
@@ -570,7 +589,7 @@ final class LambdaLowerer {
         // of suspending. Detect that mismatch directly from the lowered body so
         // the declared isSuspend always matches what the body actually needs.
         let effectiveIsSuspend = (functionType?.isSuspend ?? false)
-            || lambdaBodyRequiresSuspend(lambdaBody, arena: arena, interner: interner)
+            || lambdaBodyRequiresSuspend(lambdaBody, arena: arena, sema: sema, interner: interner)
         let hasNonLocalReturn = lambdaBody.contains { instruction in
             if case .nonLocalReturn = instruction { return true }
             return false
@@ -895,7 +914,7 @@ final class LambdaLowerer {
         // contextual functionType doesn't always match what the body actually
         // does, so trust the lowered body over a non-suspend contextual type.
         let effectiveIsSuspend = (functionType?.isSuspend ?? false)
-            || lambdaBodyRequiresSuspend(lambdaBody, arena: arena, interner: interner)
+            || lambdaBodyRequiresSuspend(lambdaBody, arena: arena, sema: sema, interner: interner)
         let hasNonLocalReturn = lambdaBody.contains { instruction in
             if case .nonLocalReturn = instruction { return true }
             return false
