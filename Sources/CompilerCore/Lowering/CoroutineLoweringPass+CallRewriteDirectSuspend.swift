@@ -9,7 +9,15 @@ extension CoroutineLoweringPass {
         }
 
         let resultKind = sema.types.kind(of: resultType)
+        // Nullable-underlying and reference-backed value classes both carry the
+        // nominal `kk_value_class_box` wrapper across the erased completion
+        // boundary; unwrap it the same way so the caller's slot receives the
+        // payload rather than a doubly boxed value (KUU-3782).
         if let classSymbol = nullableUnderlyingValueClassSymbol(
+            of: resultKind,
+            types: sema.types,
+            symbols: sema.symbols
+        ) ?? referenceBackedValueClassSymbol(
             of: resultKind,
             types: sema.types,
             symbols: sema.symbols
@@ -142,7 +150,13 @@ extension CoroutineLoweringPass {
                     return nil
                 }
                 entryPointSymbol = thunk.symbol
-                for (index, argumentExpr) in call.arguments.enumerated() {
+                let stagedArguments = stagedLauncherArguments(
+                    call: call,
+                    originalSymbol: originalSymbol,
+                    using: rewrite,
+                    into: &instructions
+                )
+                for (index, argumentExpr) in stagedArguments.enumerated() {
                     let slotExpr = rewrite.module.arena.appendExpr(
                         .intLiteral(Int64(index)),
                         type: rewrite.intType
@@ -244,7 +258,13 @@ extension CoroutineLoweringPass {
                 return nil
             }
             entryPointSymbol = thunk.symbol
-            for (index, argumentExpr) in call.arguments.enumerated() {
+            let stagedArguments = stagedLauncherArguments(
+                call: call,
+                originalSymbol: originalSymbol,
+                using: rewrite,
+                into: &instructions
+            )
+            for (index, argumentExpr) in stagedArguments.enumerated() {
                 let slotExpr = rewrite.module.arena.appendExpr(
                     .intLiteral(Int64(index)),
                     type: rewrite.intType
@@ -334,5 +354,56 @@ extension CoroutineLoweringPass {
             return loweredByNameArity
         }
         return rewrite.loweredByUniqueName[callee]
+    }
+
+    /// A suspend call stages its arguments into the callee's launcher-arg
+    /// continuation storage, replacing the ordinary `call` instruction whose
+    /// argument list `ABILoweringPass` would box for erased parameters.
+    /// Restore the same ABI boundary here: a value-class (or primitive/enum)
+    /// argument bound for an erased parameter (type parameter or `Any`) must
+    /// be stored boxed, and a boxed argument for a concrete value-class
+    /// parameter must be unboxed, or the callee's state machine reads the
+    /// wrong representation and the value arrives unboxed (KUU-3782).
+    func stagedLauncherArguments(
+        call: CallRewriteInput,
+        originalSymbol: SymbolID,
+        using rewrite: SuspendRewriteContext,
+        into instructions: inout [KIRInstruction]
+    ) -> [KIRExprID] {
+        guard let sema = rewrite.ctx.sema,
+              let signature = sema.symbols.functionSignature(for: originalSymbol)
+        else {
+            return call.arguments
+        }
+        // Suspend functions are never constructor calls; mirror the member and
+        // member-extension receiver offsets ABILoweringPass applies.
+        let receiverOffset: Int = {
+            guard signature.receiverType != nil else { return 0 }
+            if sema.symbols.memberExtensionOwnerSymbol(for: originalSymbol) != nil {
+                return 2
+            }
+            return 1
+        }()
+        var emitContext = KIRLoweringEmitContext()
+        let abiPass = ABILoweringPass()
+        let stagedArguments = abiPass.applyArgumentBoxing(
+            arguments: call.arguments,
+            signature: signature,
+            receiverOffset: receiverOffset,
+            module: rewrite.module,
+            types: sema.types,
+            symbols: sema.symbols,
+            boxingCalleeTable: BoxingCalleeTable(interner: rewrite.ctx.interner),
+            callee: call.callee,
+            interner: rewrite.ctx.interner,
+            boxTypeParamArguments: abiPass.isKotlinSourceCallee(
+                originalSymbol, symbols: sema.symbols
+            ),
+            sema: sema,
+            cache: rewrite.ctx.nominalDispatchCache,
+            newBody: &emitContext
+        )
+        instructions.append(contentsOf: emitContext.instructions)
+        return stagedArguments
     }
 }
