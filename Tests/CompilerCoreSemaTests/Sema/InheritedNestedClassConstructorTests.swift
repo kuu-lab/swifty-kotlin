@@ -374,5 +374,61 @@ struct InheritedNestedClassConstructorTests {
         try runSema(ctx)
         #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
     }
+
+    // KUU-3798: a `private` nested classifier on a supertype is not inherited,
+    // so it must not shadow a lexically enclosing declaration of the same
+    // name. Mirrors kotlinx.collections.immutable's ImmutableList.SubList,
+    // whose self-constructor call lost to `private AbstractList.SubList`.
+    @Test(arguments: [false, true])
+    func privateSupertypeNestedClassifierDoesNotShadowLexicalClassifier(library: Bool) throws {
+        let source = """
+        open class Base { private class Same(val number: Int) }
+        interface Host<out E> {
+            fun mk(n: Int): Host<E> = Same(n)
+            private class Same<E>(val number: Int) : Host<E>, Base() {
+                fun dup(): Host<E> = Same(number)
+            }
+        }
+        """
+        let ctx = try context(source, library: library)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+    }
+
+    // KUU-3798: when the only `Same`-named classifier anywhere is a
+    // supertype's private nested one, the reference still resolves to it —
+    // reported as inaccessible rather than unresolved, matching kotlinc.
+    @Test(arguments: [false, true])
+    func privateSupertypeNestedClassifierStillReportsInaccessible(library: Bool) throws {
+        let source = """
+        open class Base { private class Hidden(val number: Int) }
+        class Child : Base() {
+            fun use() = Hidden(1)
+        }
+        """
+        let ctx = try context(source, library: library)
+        try runSema(ctx)
+        #expect(ctx.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-SEMA-0040" })
+        #expect(!ctx.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-SEMA-0023" })
+    }
+
+    // KUU-3798: the same rule applies to bare classifier references — a
+    // supertype's private nested classifier is invisible but must not shadow
+    // the enclosing declaration either.
+    @Test(arguments: [false, true])
+    func privateSupertypeNestedClassifierDoesNotShadowLexicalValue(library: Bool) throws {
+        let source = """
+        open class Base { private class Hidden(val number: Int) }
+        class Outer {
+            private class Hidden(val text: String)
+            class Child : Base() {
+                fun value(): String = Hidden("lexical").text
+            }
+        }
+        """
+        let ctx = try context(source, library: library)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+    }
 }
 #endif
