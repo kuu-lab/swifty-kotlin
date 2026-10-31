@@ -40,6 +40,7 @@ final class OperatorLoweringPass: LoweringPass {
                         arena: module.arena,
                         interner: ctx.interner,
                         types: ctx.sema?.types,
+                        symbols: ctx.sema?.symbols,
                         newBody: &newBody
                     )
                 case .call:
@@ -60,25 +61,47 @@ final class OperatorLoweringPass: LoweringPass {
         arena: KIRArena,
         interner: StringInterner,
         types: TypeSystem?,
+        symbols: SymbolTable?,
         newBody: inout KIRLoweringEmitContext
     ) {
         let notNullResult = arena.appendTemporary(type: arena.exprType(result))
-        newBody.append(
-            .call(callee: interner.intern("kk_op_notnull"), arguments: [operand], result: notNullResult, canThrow: true)
-        )
+        let checkedOperand: KIRExprID
+        if operandNullAssertProbeCannotBeNull(operand, arena: arena, types: types, symbols: symbols) {
+            // The operand's non-null unboxed representation cannot encode a
+            // null value: the sentinel bit pattern is a legitimate payload
+            // there (`Long.MIN_VALUE`/`-0.0` for raw primitives, `V(null)` or
+            // a colliding payload for an unboxed value class), never a null
+            // reference — the probe can only fire spuriously (KUU-3899).
+            checkedOperand = operand
+        } else {
+            checkedOperand = notNullResult
+            newBody.append(
+                .call(callee: interner.intern("kk_op_notnull"), arguments: [operand], result: notNullResult, canThrow: true)
+            )
+        }
 
         guard let types, let resultType = arena.exprType(result) else {
-            newBody.append(.copy(from: notNullResult, to: result))
+            newBody.append(.copy(from: checkedOperand, to: result))
             return
         }
 
         if let unboxCallee = unboxCallee(for: types.kind(of: resultType), interner: interner) {
             newBody.append(
-                .call(callee: unboxCallee, arguments: [notNullResult], result: result, canThrow: false)
+                .call(callee: unboxCallee, arguments: [checkedOperand], result: result, canThrow: false)
             )
         } else {
-            newBody.append(.copy(from: notNullResult, to: result))
+            newBody.append(.copy(from: checkedOperand, to: result))
         }
+    }
+
+    private func operandNullAssertProbeCannotBeNull(
+        _ exprID: KIRExprID,
+        arena: KIRArena,
+        types: TypeSystem?,
+        symbols: SymbolTable?
+    ) -> Bool {
+        guard let types, let typeID = arena.exprType(exprID) else { return false }
+        return nullAssertProbeCannotBeNull(types.kind(of: typeID), types: types, symbols: symbols)
     }
 
     private func unboxCallee(for typeKind: TypeKind, interner: StringInterner) -> InternedString? {
