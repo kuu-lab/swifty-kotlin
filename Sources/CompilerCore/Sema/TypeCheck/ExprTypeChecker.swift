@@ -48,6 +48,16 @@ final class ExprTypeChecker {
 
         validateExpressionAnnotationVisibility(id, ctx: ctx)
 
+        // A discarded statement evaluates a call for its side effects only —
+        // the JVM pops the result without checkcasting it, so a statement-
+        // context erased result must not claim its substituted type either
+        // (KUU-3893). Branch tails reach this through the propagated
+        // isStatementContext flag; transparent blocks forward it through the
+        // consumer unwrap in recordGenericCallConsumer.
+        if isStatementContext, expectedType == nil {
+            driver.recordGenericCallConsumer(id, type: sema.types.unitType)
+        }
+
         // An Int constant expression (`1 shl 31`) takes a wider integer expected
         // type the way a plain literal does; its Int value is computed first.
         if let expectedType,
@@ -115,6 +125,10 @@ final class ExprTypeChecker {
             for part in parts {
                 if case let .expression(exprID) = part {
                     _ = driver.inferExpr(exprID, ctx: ctx, locals: &locals)
+                    // Template parts are appended through Any?
+                    // (StringBuilder.append(Object)); the JVM does not claim
+                    // the part's substituted type (KUU-3893).
+                    driver.recordGenericCallConsumer(exprID, type: sema.types.nullableAnyType)
                 }
             }
             sema.bindings.bindExprType(id, type: stringType)
@@ -546,6 +560,16 @@ final class ExprTypeChecker {
 
         case let .isCheck(exprID, typeRefID, negated, range):
             let subjectType = driver.inferExpr(exprID, ctx: ctx, locals: &locals)
+            // `is`/`!is` tests the raw operand — the JVM emits instanceof on
+            // the erased value (or a null check when the static type already
+            // proves it), never a claim checkcast first (KUU-3893). A `when`
+            // subject is different: its synthesized `is` conditions reuse the
+            // subject ExprID directly, and the JVM has already claimed that
+            // value into a typed local before the checks run — the subject's
+            // own boundary claim must stand.
+            if exprID != ctx.whenConditionSubject {
+                driver.recordGenericCallConsumer(exprID, type: sema.types.nullableAnyType)
+            }
             let targetType = driver.helpers.resolveTypeRef(
                 typeRefID,
                 ast: ast,
@@ -672,6 +696,9 @@ final class ExprTypeChecker {
 
         case let .asCast(exprID, typeRefID, isSafe, range):
             let sourceType = driver.inferExpr(exprID, ctx: ctx, locals: &locals)
+            // `as`/`as?` run their own cast on the raw operand; the operand
+            // position itself does not claim the erased result (KUU-3893).
+            driver.recordGenericCallConsumer(exprID, type: sema.types.nullableAnyType)
             var targetType = driver.helpers.resolveTypeRef(
                 typeRefID,
                 ast: ast,
@@ -765,6 +792,12 @@ final class ExprTypeChecker {
                 exprID, ctx: ctx, locals: &locals,
                 expectedType: expectedType.map { sema.types.makeNullable($0) }
             )
+            if expectedType == nil {
+                // `x!!` only asserts non-null — the JVM emits checkNotNull on
+                // the erased value without a claim checkcast (KUU-3893). An
+                // expected type still claims it through the fallback below.
+                driver.recordGenericCallConsumer(exprID, type: sema.types.anyType)
+            }
             let type = sema.types.definitelyNonNullForm(of: operandType)
             if let assertSubjectExpr = ast.arena.expr(exprID),
                case let .nameRef(assertVarName, _) = assertSubjectExpr,
@@ -804,6 +837,9 @@ final class ExprTypeChecker {
 
         case let .throwExpr(value, range):
             let operandType = driver.inferExpr(value, ctx: ctx, locals: &locals, expectedType: nil)
+            // ATHROW consumes the erased value directly; no claim checkcast
+            // precedes it on the JVM (KUU-3893).
+            driver.recordGenericCallConsumer(value, type: sema.types.nullableAnyType)
             if operandType != sema.types.errorType,
                let throwableType = driver.helpers.throwableType(sema: sema, interner: ctx.interner),
                !sema.types.isSubtype(operandType, throwableType)

@@ -5,19 +5,53 @@ extension ExprLowerer {
         targetType: TypeID,
         sema: SemaModule
     ) -> TypeID {
-        guard let subjectType,
-              case .functionType = sema.types.kind(of: targetType),
-              sema.types.isSubtype(
-                  sema.types.makeNonNullable(subjectType),
-                  sema.types.makeNonNullable(targetType)
-              )
-        else {
+        guard let subjectType else {
+            return targetType
+        }
+        let subjectNonNull = sema.types.makeNonNullable(subjectType)
+        let targetNonNull = sema.types.makeNonNullable(targetType)
+        let isCompatibleFunctionValue: Bool = {
+            guard case .functionType = sema.types.kind(of: targetType) else { return false }
+            return sema.types.isSubtype(subjectNonNull, targetNonNull)
+        }()
+        // JVM `x is T` folds to a null check when the subject's erased
+        // classifier already is the target's — `x: T?` `is T` emits `x !=
+        // null`, tolerating unchecked-cast heap pollution exactly the way the
+        // claim boundary does (KUU-3893). A nullable target keeps the real
+        // check: `x is T?` is `x == null || x instanceof T`, not a null check.
+        let foldsToNullCheck = isCompatibleFunctionValue
+            || (isSameErasedClassifier(subject: subjectNonNull, target: targetNonNull, sema: sema)
+                && sema.types.nullability(of: targetType) != .nullable)
+        guard foldsToNullCheck else {
             return targetType
         }
         // Compatible function values may be raw pointers or boxed closures;
-        // their signature is known statically, so only nullability remains.
+        // their signature is known statically, so only nullability remains
+        // for either shape.
         return sema.types.nullability(of: targetType) == .nullable
             ? sema.types.nullableAnyType : sema.types.anyType
+    }
+
+    /// Whether subject and target share the same erased runtime classifier —
+    /// the nominal symbol, builtin base, or FunctionN shape `kk_op_is` would
+    /// test — so a subject already inside the target statically leaves only
+    /// nullability to verify. `.unknown`/`typeParam` subjects keep the real
+    /// check: without a runtime classifier there is nothing to prove.
+    private func isSameErasedClassifier(subject: TypeID, target: TypeID, sema: SemaModule) -> Bool {
+        switch (RuntimeTypeCheckToken.classify(type: subject, sema: sema).category,
+                RuntimeTypeCheckToken.classify(type: target, sema: sema).category) {
+        case let (.nominal(lhs), .nominal(rhs)):
+            return lhs == rhs
+        case let (.function(arityLHS, suspendLHS), .function(arityRHS, suspendRHS)):
+            return arityLHS == arityRHS && suspendLHS == suspendRHS
+        case (.any, .any), (.string, .string), (.boolean, .boolean),
+             (.int, .int), (.uint, .uint), (.ulong, .ulong), (.ubyte, .ubyte),
+             (.ushort, .ushort), (.byte, .byte), (.short, .short), (.long, .long),
+             (.double, .double), (.float, .float), (.char, .char), (.unit, .unit):
+            return true
+        default:
+            return false
+        }
     }
 
     /// A generic comparison helper uses an erased Comparable cast to reach the
