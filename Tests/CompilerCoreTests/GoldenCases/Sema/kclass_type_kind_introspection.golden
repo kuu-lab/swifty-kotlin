@@ -93,4 +93,4 @@ expr e@33:24 string(fun) type=String
 expr e@34:17 string(other) type=String
 expr e@26:12 when subject=_ branches=[e@27:9#1->e@27:25,e@28:9#1->e@28:27,e@29:9#1->e@29:25,e@30:9#1->e@30:26,e@31:9#1->e@31:30,e@32:9#1->e@32:27,e@33:9#1->e@33:24] else=e@34:17 type=String
 expr e@26:5 return value=e@26:12 type=Nothing
-diagnostic severity=error code=KSWIFTK-SEMA-0400 at=11:1 msg=modifier 'inner' is not applicable to 'top level class'.
+diagnostic severity=error code=KSWIFTK-SEMA-0401 at=11:1 msg=modifier 'inner' is not applicable inside 'file'.
