@@ -234,6 +234,53 @@ struct CallableRefTypeIdentityTests {
         #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
     }
 
+    /// KUU-3863: signature adaptation (which hides KCallable on the JVM via
+    /// AdaptedFunctionReference) is a different flag from needing an adapter
+    /// thunk at all. A generic `::id` bound to `KFunction1<Int, Int>` needs
+    /// the erased-input ABI wrapper yet still exposes KCallable reflection.
+    @Test func testGenericCallableReferenceAdaptsABIButKeepsKCallable() throws {
+        let ctx = makeContextFromSource("""
+        import kotlin.reflect.KFunction1
+        fun <T> id(v: T): T = v
+        fun main() {
+            val g: KFunction1<Int, Int> = ::id
+            println(g.name)
+        }
+        """)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let ref = try #require(firstExprID(in: ast) { _, expr in
+            if case .callableRef = expr { return true }
+            return false
+        })
+        let binding = try #require(sema.bindings.callableReferenceBinding(for: ref))
+        #expect(binding.isCallableReferenceAdapter)
+        #expect(!binding.hidesKCallable)
+    }
+
+    @Test func testSignatureAdaptedCallableReferenceHidesKCallable() throws {
+        let ctx = makeContextFromSource("""
+        fun vsum(vararg xs: Int): Int { var s = 0; for (x in xs) s += x; return s }
+        fun main() {
+            val g: (Int, Int) -> Int = ::vsum
+            println(g(1, 2))
+        }
+        """)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let ref = try #require(firstExprID(in: ast) { _, expr in
+            if case .callableRef = expr { return true }
+            return false
+        })
+        let binding = try #require(sema.bindings.callableReferenceBinding(for: ref))
+        #expect(binding.isCallableReferenceAdapter)
+        #expect(binding.hidesKCallable)
+    }
+
     @Test func testBoxedFunctionReferencesResolveInheritedReflectionMembers() throws {
         let ctx = makeContextFromSource("""
         fun defaultFun(x: Int = 2) = x + 1
@@ -533,6 +580,54 @@ struct CallableRefTypeIdentityTests {
         )
     }
 
+    /// KUU-3863: a generic callable reference stored as KFunctionN needs an
+    /// ABI adapter thunk (the erased T input must be boxed for the call), but
+    /// the thunk keeps the callee's public signature — on the JVM this is a
+    /// plain FunctionReference that still implements KCallable. The lowered
+    /// value must therefore carry the KFunction tag and reflection metadata
+    /// so `.name` resolves through the runtime fast path instead of crashing
+    /// on vtable/itable dispatch.
+    @Test func testKIREmitsKCallableMetadataForGenericCallableRef() throws {
+        let source = """
+        import kotlin.reflect.KFunction1
+        fun <T> id(v: T): T = v
+        fun main() {
+            val g: KFunction1<Int, Int> = ::id
+            println(g.name)
+        }
+        """
+
+        let ctx = makeContextFromSource(source)
+        try runToKIR(ctx)
+
+        let module = try #require(ctx.kir)
+        let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+        let callees = extractCallees(from: mainBody, interner: ctx.interner)
+
+        let tagged = try #require(
+            kirCalls(to: .tagKFunction, in: mainBody, interner: ctx.interner).first?.result,
+            "Generic ::id should materialize through kk_callable_ref_tag_kfunction. Callees: \(callees)"
+        )
+        #expect(
+            kirCalls(to: .kcallableRegister, in: mainBody, interner: ctx.interner).contains {
+                $0.arguments.first == tagged
+            },
+            "Generic ::id should register KCallable metadata on the tagged value. Callees: \(callees)"
+        )
+        // The stored copy must source its description+metadata from the
+        // tagged value, not from the untagged adapter function value.
+        #expect(
+            kirCalls(to: .functionCopyDescription, in: mainBody, interner: ctx.interner).contains {
+                $0.arguments.first == tagged
+            },
+            "Generic ::id should copy description+metadata from the tagged value. Callees: \(callees)"
+        )
+        #expect(
+            kirCalls(to: .callableAdapterSetIdentity, in: mainBody, interner: ctx.interner).isEmpty,
+            "Generic ::id keeps KCallable identity and must not take the adapter-identity path. Callees: \(callees)"
+        )
+    }
+
     /// A genuinely signature-adapted reference (the bound arity differs from
     /// the callee's declared parameters) keeps hiding KCallable reflection.
     @Test func testKIRSkipsKFunctionTagForSignatureAdaptedCallableRef() throws {
@@ -553,6 +648,36 @@ struct CallableRefTypeIdentityTests {
         #expect(
             kirCalls(to: .tagKFunction, in: mainBody, interner: ctx.interner).isEmpty,
             "A signature-adapted reference must not be tagged as KFunction."
+        )
+    }
+
+    /// KUU-3863 companion check: a genuinely signature-adapted reference
+    /// (scalar-packed varargs here) still materializes as a plain function
+    /// value — the JVM's AdaptedFunctionReference does not implement
+    /// KCallable — so the adapter-identity path must be preserved.
+    @Test func testKIRHidesKCallableForSignatureAdaptedCallableRef() throws {
+        let source = """
+        fun vsum(vararg xs: Int): Int { var s = 0; for (x in xs) s += x; return s }
+        fun main() {
+            val g: (Int, Int) -> Int = ::vsum
+            println(g(1, 2))
+        }
+        """
+
+        let ctx = makeContextFromSource(source)
+        try runToKIR(ctx)
+
+        let module = try #require(ctx.kir)
+        let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+        let callees = extractCallees(from: mainBody, interner: ctx.interner)
+
+        #expect(
+            !kirCalls(to: .callableAdapterSetIdentity, in: mainBody, interner: ctx.interner).isEmpty,
+            "Signature-adapted ::vsum should keep the adapter-identity path. Callees: \(callees)"
+        )
+        #expect(
+            kirCalls(to: .tagKFunction, in: mainBody, interner: ctx.interner).isEmpty,
+            "Signature-adapted ::vsum must not expose KCallable metadata. Callees: \(callees)"
         )
     }
 

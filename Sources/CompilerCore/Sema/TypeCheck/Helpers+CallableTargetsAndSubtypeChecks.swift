@@ -3,6 +3,12 @@ struct ContextualCallableReferenceBinding {
     let typeArguments: [TypeID]
     let parameterMapping: [Int: Int]
     let requiresAdapter: Bool
+    /// The reference's bound signature differs from the callee's public
+    /// callable signature (arity, scalar-packed varargs, or bound context
+    /// receivers). On the JVM such references materialize as adapted
+    /// function objects that do not implement KCallable; wrappers that only
+    /// repackage the call ABI (erased or reified inputs) keep it.
+    let isSignatureAdapted: Bool
     let boundContextParameterTypes: [TypeID]
     let defaultArgumentOwner: SymbolID?
 }
@@ -11,6 +17,7 @@ private struct CallableReferenceFunctionShape {
     let functionType: TypeID
     let parameterMapping: [Int: Int]
     let requiresAdapter: Bool
+    let isSignatureAdapted: Bool
     let isScalarVarargAdaptation: Bool
     let contextArgumentTypes: [TypeID]
     let boundContextParameterTypes: [TypeID]
@@ -683,6 +690,7 @@ extension TypeCheckHelpers {
                     functionType: packedCallableType,
                     parameterMapping: Dictionary(uniqueKeysWithValues: signature.parameterTypes.indices.map { ($0, $0) }),
                     requiresAdapter: false,
+                    isSignatureAdapted: false,
                     isScalarVarargAdaptation: false,
                     contextArgumentTypes: [],
                     boundContextParameterTypes: []
@@ -821,6 +829,8 @@ extension TypeCheckHelpers {
                     parameterMapping: mapping,
                     requiresAdapter: scalarVarargCount != nil || sourceParameterCount != parameterCount
                         || !contextArgumentTypes.isEmpty || requiresErasedPrimitiveInputAdapter,
+                    isSignatureAdapted: scalarVarargCount != nil || sourceParameterCount != parameterCount
+                        || !contextArgumentTypes.isEmpty,
                     isScalarVarargAdaptation: scalarVarargCount != nil,
                     contextArgumentTypes: contextArgumentTypes,
                     boundContextParameterTypes: contextArgumentTypes.isEmpty ? [] : base.contextReceivers
@@ -909,6 +919,7 @@ extension TypeCheckHelpers {
                     typeArguments: [],
                     parameterMapping: shape.parameterMapping,
                     requiresAdapter: shape.requiresAdapter,
+                    isSignatureAdapted: shape.isSignatureAdapted,
                     boundContextParameterTypes: shape.boundContextParameterTypes,
                     defaultArgumentOwner: defaultArgumentOwner
                 )
@@ -1196,6 +1207,7 @@ extension TypeCheckHelpers {
                 typeArguments: arguments,
                 parameterMapping: shape.parameterMapping,
                 requiresAdapter: shape.requiresAdapter,
+                isSignatureAdapted: shape.isSignatureAdapted,
                 boundContextParameterTypes: specializedContextTypes,
                 defaultArgumentOwner: defaultArgumentOwner
             )

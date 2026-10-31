@@ -64,6 +64,7 @@ public struct SnapshotCallBinding: Codable, Hashable, Sendable {
     public let defaultArgumentOwner: SnapshotSymbol?
     public let dispatchReceiverSymbol: SnapshotSymbol?
     public let isCallableReferenceAdapter: Bool
+    public let hidesKCallable: Bool
     public let boundContextParameterTypes: [SnapshotType]
 
     private enum CodingKeys: String, CodingKey {
@@ -74,6 +75,7 @@ public struct SnapshotCallBinding: Codable, Hashable, Sendable {
         case defaultArgumentOwner
         case dispatchReceiverSymbol
         case isCallableReferenceAdapter
+        case hidesKCallable
         case boundContextParameterTypes
     }
 
@@ -85,6 +87,7 @@ public struct SnapshotCallBinding: Codable, Hashable, Sendable {
         defaultArgumentOwner: SnapshotSymbol?,
         dispatchReceiverSymbol: SnapshotSymbol?,
         isCallableReferenceAdapter: Bool,
+        hidesKCallable: Bool = false,
         boundContextParameterTypes: [SnapshotType]
     ) {
         self.chosenCallee = chosenCallee
@@ -94,6 +97,7 @@ public struct SnapshotCallBinding: Codable, Hashable, Sendable {
         self.defaultArgumentOwner = defaultArgumentOwner
         self.dispatchReceiverSymbol = dispatchReceiverSymbol
         self.isCallableReferenceAdapter = isCallableReferenceAdapter
+        self.hidesKCallable = hidesKCallable
         self.boundContextParameterTypes = boundContextParameterTypes
     }
 
@@ -109,6 +113,7 @@ public struct SnapshotCallBinding: Codable, Hashable, Sendable {
         defaultArgumentOwner = try container.decodeIfPresent(SnapshotSymbol.self, forKey: .defaultArgumentOwner)
         dispatchReceiverSymbol = try container.decodeIfPresent(SnapshotSymbol.self, forKey: .dispatchReceiverSymbol)
         isCallableReferenceAdapter = try container.decode(Bool.self, forKey: .isCallableReferenceAdapter)
+        hidesKCallable = try container.decodeIfPresent(Bool.self, forKey: .hidesKCallable) ?? false
         boundContextParameterTypes = try container.decode([SnapshotType].self, forKey: .boundContextParameterTypes)
     }
 }
@@ -393,6 +398,7 @@ final class SemaSnapshotCodec {
             contextParameterArgumentMapping: contextMapping,
             defaultArgumentOwner: owner, dispatchReceiverSymbol: dispatch,
             isCallableReferenceAdapter: binding.isCallableReferenceAdapter,
+            hidesKCallable: binding.hidesKCallable,
             boundContextParameterTypes: contextTypes
         )
     }
@@ -420,7 +426,8 @@ final class SemaSnapshotCodec {
             chosenCallee: callee, substitutedTypeArguments: typeArguments, parameterMapping: mapping,
             contextParameterArgumentMapping: contextMapping,
             defaultArgumentOwner: owner, dispatchReceiverSymbol: dispatch,
-            isCallableReferenceAdapter: ref.isCallableReferenceAdapter, boundContextParameterTypes: contextTypes
+            isCallableReferenceAdapter: ref.isCallableReferenceAdapter,
+            hidesKCallable: ref.hidesKCallable, boundContextParameterTypes: contextTypes
         )
     }
 }

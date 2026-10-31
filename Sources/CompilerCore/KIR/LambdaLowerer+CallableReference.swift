@@ -1642,8 +1642,14 @@ extension LambdaLowerer {
             callableValue = callableExpr
         }
 
-        // Adapted references are ordinary function values and do not expose KCallable reflection.
-        if isAdaptedCallableReference {
+        // A signature-adapted reference materializes as a JVM
+        // AdaptedFunctionReference — an ordinary function value that does
+        // not expose KCallable reflection (KUU-3361). Thunks that only
+        // repackage the call ABI (erased or reified inputs, subtype-joined
+        // branches) keep the callee's public signature, so the value stays
+        // a KCallable and is tagged below like any unadapted reference
+        // (KUU-3863).
+        if isAdaptedCallableReference || callableReferenceBinding?.hidesKCallable == true {
             if let targetSymbol,
                let refKind = sema.bindings.callableRefKind(for: exprID)
             {

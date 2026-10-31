@@ -49,6 +49,17 @@ extension BundledStdlibExecutionTests {
         )
     }
 
+    /// KUU-3863: a generic callable reference stored as KFunctionN still
+    /// carries KCallable metadata, so `.name` resolves through the runtime
+    /// fast path instead of crashing on vtable/itable dispatch.
+    @Test func genericCallableReferenceKeepsKFunctionName() throws {
+        try compileAndRunKotlin(
+            try diffCaseSource("callable_ref_generic_kfunction_name.kt", file: #filePath),
+            expectedOutput: "gid\n5\ntrue\ngpair\n1\nid2\n6\n7\n",
+            moduleName: "KUU3863GenericKFunctionName"
+        )
+    }
+
     @Test(arguments: [true, false])
     func varargKParameterTypesUseCorrespondingArrayTypes(allowDefaultStdlibLibrary: Bool) throws {
         try compileAndRunKotlin(

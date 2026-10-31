@@ -223,7 +223,8 @@ extension CallTypeChecker {
                                 substitutedTypeArguments: [resultElementType],
                                 parameterMapping: binding.parameterMapping,
                                 defaultArgumentOwner: binding.defaultArgumentOwner,
-                                isCallableReferenceAdapter: binding.isCallableReferenceAdapter
+                                isCallableReferenceAdapter: binding.isCallableReferenceAdapter,
+                                hidesKCallable: binding.hidesKCallable
                             )
                         )
                         let resultType = makeSyntheticListType(
