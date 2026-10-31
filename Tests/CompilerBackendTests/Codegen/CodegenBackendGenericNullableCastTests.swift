@@ -12,7 +12,7 @@ struct CodegenBackendGenericNullableCastTests {
         try assertKotlinOutput(
             source,
             moduleName: "GenericNullableAsCast",
-            expected: "OK\nOK\n42\n"
+            expected: "marker\nOK\n42\n"
         )
     }
 }
