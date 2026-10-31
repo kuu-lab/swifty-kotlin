@@ -32,7 +32,7 @@ class Regex private constructor(private val nativePattern: Any) {
         for (option in RegexOption.values()) if ((flags and (if (option == RegexOption.IGNORE_CASE) 2 else regexFlag(option))) != 0) result.add(option)
         return __jvmUnmodifiableSet(result)
     }
-    fun matches(input: CharSequence): Boolean = __jvmMatcherMatches(__jvmMatcher(nativePattern, input))
+    infix fun matches(input: CharSequence): Boolean = __jvmMatcherMatches(__jvmMatcher(nativePattern, input))
     fun containsMatchIn(input: CharSequence): Boolean = __jvmMatcherFind(__jvmMatcher(nativePattern, input))
     fun find(input: CharSequence, startIndex: Int = 0): MatchResult? {
         val matcher = __jvmMatcher(nativePattern, input)
