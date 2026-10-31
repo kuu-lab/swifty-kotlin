@@ -2315,11 +2315,13 @@ final class ExprTypeChecker {
     }
 
     /// Resolves the type of an unsuffixed integer literal given the expected
-    /// type at its use site. Kotlin widens such literals to `Long`/`UInt`/`ULong`
+    /// type at its use site. Kotlin widens such literals to `Long`/`Byte`/`Short`
     /// when that is the expected type (e.g. a value class field declared `Long`
     /// receiving a plain `1500`); values outside the Int32 range infer `Long`.
-    /// `literalValue` is used to reject out-of-range constants for `Byte`/`Short`
-    /// and negative constants for unsigned types.
+    /// `literalValue` is used to reject out-of-range constants for `Byte`/`Short`.
+    /// Unsigned types are never an expected type here: Kotlin requires the
+    /// `u`/`uL` suffix for UInt/ULong, so a signed literal assigned to them is
+    /// an initializer type mismatch (KUU-3890).
     private func inferWidenedIntegerConstantExpression(
         _ id: ExprID,
         ctx: TypeInferenceContext,
@@ -2368,8 +2370,8 @@ final class ExprTypeChecker {
         }
         switch primitive {
         case .long: return sema.types.longType
-        case .uint: return literalValue >= 0 ? sema.types.uintType : inferredType
-        case .ulong: return literalValue >= 0 ? sema.types.ulongType : inferredType
+        // Unsuffixed literals never coerce to unsigned types: Kotlin requires
+        // the `u`/`uL` suffix, so `val x: UInt = 0` is a type mismatch (KUU-3890).
         case .byte: return (literalValue >= -128 && literalValue <= 127) ? sema.types.byteType : inferredType
         case .short: return (literalValue >= -32768 && literalValue <= 32767) ? sema.types.shortType : inferredType
         default: return inferredType

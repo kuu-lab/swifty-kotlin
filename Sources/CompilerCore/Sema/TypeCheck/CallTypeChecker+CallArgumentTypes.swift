@@ -177,11 +177,14 @@ extension CallTypeChecker {
         }
     }
 
-    /// Returns the expected numeric type (Long/UInt/ULong/Byte/Short) for an
-    /// unsuffixed int-literal argument if every applicable candidate agrees on
-    /// that parameter being one of those types, so the literal can be widened
-    /// before overload resolution instead of defaulting to Int and rejecting
-    /// every candidate. Returns nil (leaving the literal as Int) when applicable
+    /// Returns the expected numeric type (Long/Byte/Short) for an unsuffixed
+    /// int-literal argument if every applicable candidate agrees on that
+    /// parameter being one of those types, so the literal can be widened before
+    /// overload resolution instead of defaulting to Int and rejecting every
+    /// candidate. Unsigned parameters are deliberately excluded: Kotlin
+    /// requires the `u`/`uL` suffix for UInt/ULong arguments, so leaving the
+    /// literal as Int makes such calls fail resolution like kotlinc does
+    /// (KUU-3890). Returns nil (leaving the literal as Int) when applicable
     /// candidates disagree or none expect a wideable numeric type — the normal
     /// Int-literal path and existing overload resolution still handle those cases.
     func uniformNumericLiteralParameterType(
@@ -218,10 +221,10 @@ extension CallTypeChecker {
             if primitive == .int {
                 return nil
             }
-            guard primitive == .long || primitive == .uint || primitive == .ulong ||
-                  primitive == .byte || primitive == .short
+            guard primitive == .long || primitive == .byte || primitive == .short
             else {
-                // Float/Double/other primitives cannot take an integer literal.
+                // Float/Double/unsigned/other primitives cannot take an
+                // unsuffixed integer literal (KUU-3890).
                 continue
             }
             if let result, result != nonNullParameterType {
