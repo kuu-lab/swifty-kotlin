@@ -328,20 +328,31 @@ public func __kk_ktypeprojection_create_checked(
     )
 }
 
-/// Returns the Kotlin declaration ordinal for a projection's variance, or null.
+/// Returns the projection's variance as a `kotlin.reflect.KVariance` enum box
+/// (the canonical `kk_enum_box_ordinal` handle, like the KTypeParameter and
+/// KClass visibility getters), or the null sentinel for a star projection.
+/// A `KVariance?` slot must carry the box-or-sentinel form: a raw ordinal
+/// would reach erased `==`/`===` slots unboxed and compare unequal to the
+/// same entry's tagged singleton box (KUU-3814).
 @_cdecl("__kk_ktypeprojection_get_variance")
 public func __kk_ktypeprojection_get_variance(_ projectionRaw: Int) -> Int {
     guard let box = runtimeKTypeProjectionBox(from: projectionRaw), let variance = box.variance else {
         return runtimeNullSentinelInt
     }
-    switch variance {
+    let names = ["INVARIANT", "IN", "OUT"]
+    let ordinal: Int = switch variance {
     case .invariant:
-        return 0
+        0
     case .in:
-        return 1
+        1
     case .out:
-        return 2
+        2
     }
+    return kk_enum_box_ordinal(
+        ordinal,
+        runtimeMakeStringRaw(names[ordinal]),
+        Int(runtimeStableNominalTypeID(fqName: "kotlin.reflect.KVariance"))
+    )
 }
 
 @_cdecl("__kk_ktypeprojection_get_type")
