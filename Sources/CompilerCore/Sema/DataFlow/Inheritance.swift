@@ -74,7 +74,7 @@ extension DataFlowSemaPhase {
                 && (classDecl.hasPrimaryConstructorSyntax || classDecl.secondaryConstructors.isEmpty)
         case let .interfaceDecl(interfaceDecl):
             superTypeRefs = interfaceDecl.superTypes
-            superTypeEntries = []
+            superTypeEntries = interfaceDecl.superTypeEntries
             nestedDecls = interfaceDecl.nestedClasses + interfaceDecl.nestedObjects
                 + (interfaceDecl.companionObject.map { [$0] } ?? [])
             requiresClassSupertypeConstructorInvocation = false

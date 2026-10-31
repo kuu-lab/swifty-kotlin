@@ -650,6 +650,74 @@ struct DeclarationPositionValidationTests {
         assertNoDiagnostic("KSWIFTK-SEMA-0460", in: ctx)
     }
 
+    // MARK: - interface delegation (KUU-3949)
+
+    @Test func interfaceDelegationIsRejected() throws {
+        let source = """
+            interface I
+            val i = object : I {}
+            interface K : I by i
+            """
+        let ctx = try semaContextWithoutStdlib(for: source)
+        let diags = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0461" }
+        #expect(diags.count == 1)
+        #expect(diags.first?.message == "delegation cannot be used in interfaces.")
+        // kotlinc underlines only the delegated type `I`, not `by i`.
+        let match = try #require(source.range(of: "I by", options: .backwards))
+        #expect(diags.first?.primaryRange?.start.offset == source[..<match.lowerBound].utf8.count)
+        #expect(diags.first?.primaryRange?.end.offset == source[..<match.lowerBound].utf8.count + 1)
+    }
+
+    @Test func expectInterfaceDelegationReportsBothErrors() throws {
+        let ctx = try semaContextWithoutStdlib(for: """
+            interface I
+            val i = object : I {}
+            expect interface J : I by i
+            """)
+        // kotlinc reports 'delegation cannot be used in interfaces.' and
+        // 'implementation by delegation in 'expect' classes is prohibited.'
+        // on the same specifier.
+        #expect(ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0461" }.count == 1)
+        #expect(ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0460" }.count == 1)
+    }
+
+    @Test func interfaceDelegationReportsEachEntry() throws {
+        let ctx = try semaContextWithoutStdlib(for: """
+            interface I
+            interface J
+            val i = object : I {}
+            val j = object : J {}
+            interface K : I by i, J by j
+            """)
+        #expect(ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0461" }.count == 2)
+    }
+
+    @Test func nestedInterfaceInsideExpectOwnerReportsBothErrors() throws {
+        let ctx = try semaContextWithoutStdlib(for: """
+            interface I
+            val i = object : I {}
+            expect class Outer {
+                interface J : I by i
+            }
+            """)
+        // Members of an expect owner are implicitly expected.
+        #expect(ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0461" }.count == 1)
+        #expect(ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0460" }.count == 1)
+    }
+
+    @Test func interfaceDelegationOutsideInterfacesIsAccepted() throws {
+        let ctx = try semaContextWithoutStdlib(for: """
+            interface I
+            interface J
+            val i = object : I {}
+            interface K : I, J
+            class C : I by i
+            object O : I by i
+            fun g(): I = object : I by i {}
+            """)
+        assertNoDiagnostic("KSWIFTK-SEMA-0461", in: ctx)
+    }
+
     @Test func expectLocalFunctionWithoutBodyIsAccepted() throws {
         let ctx = try semaContextWithoutStdlib(for: """
             fun f() { expect fun g() }

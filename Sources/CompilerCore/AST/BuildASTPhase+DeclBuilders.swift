@@ -201,6 +201,14 @@ extension BuildASTPhase {
         let members = declarationMemberDecls(from: nodeID, in: arena, interner: interner, astArena: astArena)
         let modifiers = declarationModifiers(from: nodeID, in: arena)
         let annotations = declarationAnnotations(from: nodeID, in: arena, interner: interner)
+        // `by`-delegation is illegal on interfaces, but the entries are kept
+        // so the position validator can point at the `I by d` specifier.
+        let superTypeEntries = declarationSuperTypeEntries(
+            from: nodeID,
+            in: arena,
+            interner: interner,
+            astArena: astArena
+        )
         for initBody in declarationInitBlocks(from: nodeID, in: arena, interner: interner, astArena: astArena) {
             diagnostics?.error(
                 "KSWIFTK-SEMA-0408",
@@ -222,7 +230,8 @@ extension BuildASTPhase {
             annotations: annotations,
             isFunInterface: modifiers.contains(.funModifier),
             typeParams: typeParams,
-            superTypes: declarationSuperTypes(from: nodeID, in: arena, interner: interner, astArena: astArena),
+            superTypes: superTypeEntries.map(\.typeRef),
+            superTypeEntries: superTypeEntries,
             nestedTypeAliases: declarationNestedTypeAliases(from: nodeID, in: arena, interner: interner, astArena: astArena),
             memberFunctions: members.functions,
             memberProperties: members.properties,
