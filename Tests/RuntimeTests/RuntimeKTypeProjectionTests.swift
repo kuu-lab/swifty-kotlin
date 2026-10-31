@@ -60,12 +60,26 @@ struct RuntimeKTypeProjectionTests {
 
     @Test func sourceBackedAccessorsExposeKotlinProjectionSurface() throws {
         let typeRaw = 1
+        let varianceNames = ["INVARIANT", "IN", "OUT"]
+        let kVarianceClassID = Int(
+            runtimeStableNominalTypeID(fqName: "kotlin.reflect.KVariance")
+        )
         for (varianceOrdinal, expectedVarianceOrdinal) in [(0, 0), (1, 1), (2, 2)] {
             let boxedVariance = kk_enum_box_ordinal(varianceOrdinal, 0, 0)
             var thrown = 0
             let raw = __kk_ktypeprojection_create_checked(boxedVariance, typeRaw, &thrown)
             #expect(thrown == 0)
-            #expect(__kk_ktypeprojection_get_variance(raw) == expectedVarianceOrdinal)
+            let varianceResult = __kk_ktypeprojection_get_variance(raw)
+            // A `KVariance?` slot holds the box-or-sentinel form: the getter
+            // returns the canonical enum box (unboxing to the Kotlin
+            // declaration ordinal), identical to a fresh box for the same
+            // entry so erased `==`/`===` see the same object (KUU-3814).
+            #expect(kk_unbox_int(varianceResult) == expectedVarianceOrdinal)
+            #expect(varianceResult == kk_enum_box_ordinal(
+                expectedVarianceOrdinal,
+                runtimeMakeStringRaw(varianceNames[expectedVarianceOrdinal]),
+                kVarianceClassID
+            ))
             #expect(__kk_ktypeprojection_get_type(raw) == typeRaw)
         }
 
