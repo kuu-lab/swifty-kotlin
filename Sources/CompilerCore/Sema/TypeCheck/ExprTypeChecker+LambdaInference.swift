@@ -493,8 +493,11 @@ extension ExprTypeChecker {
             return elseExpr == nil
         }()
         // A non-exhaustive `when` at the end of a lambda is a statement in
-        // Kotlin. Parentheses make it an expression, so leave that form on the
-        // normal expression path and let exhaustiveness checking reject it.
+        // Kotlin — with or without a subject. It types as Unit, and kotlinc
+        // reports a return-type mismatch on the lambda rather than an
+        // exhaustiveness error (KUU-3903). Parentheses make it an expression,
+        // so leave that form on the normal expression path and let
+        // exhaustiveness checking reject it.
         let lambdaTailIsWhenWithoutElse: Bool = {
             let tailExpr: ExprID = if case let .blockExpr(_, trailingExpr, _) = ast.arena.expr(body),
                                       let trailingExpr {

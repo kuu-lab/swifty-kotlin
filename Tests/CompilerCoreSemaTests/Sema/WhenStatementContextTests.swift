@@ -137,7 +137,6 @@ struct WhenStatementContextTests {
             "fun test(flag: Boolean): Int = when { flag -> when { flag -> 1 }; else -> 0 }",
             "fun test(flag: Boolean): Int = when (flag) { true -> 0; else -> when { flag -> 1 } }",
             "fun test(flag: Boolean): Unit = when { flag -> println(1) }",
-            "fun test(flag: Boolean) { val action: () -> Int = { when { flag -> 1 } } }",
         ]
         let packagedSources = sources.enumerated().map { "package value\($0.offset)\n\($0.element)" }
         try withTemporaryFiles(contents: packagedSources) { paths in
