@@ -302,5 +302,52 @@ struct CallableReferenceContextualInputTests {
             "A same-typed multi-context anonymous function must satisfy `context(S, S) () -> Unit`: \(errors)"
         )
     }
+
+    // MARK: - KUU-3805 / KT-90169: composite generic results fix vararg reference inputs
+
+    /// `make(::countG)` where `make` returns `(T) -> Int` must resolve `T`
+    /// from the expected result `(Array<String>) -> Int` before shaping the
+    /// reference, so `::countG` keeps its packed vararg-array input instead of
+    /// degrading to scalar vararg adaptation (which would print `1` for a
+    /// two-element array where kotlinc prints `2`).
+    @Test func compositeGenericResultKeepsPackedVarargReferenceInput() throws {
+        let ctx = makeContextFromSource("""
+        fun <T> make(f: (T) -> Int): (T) -> Int = f
+        fun <E> countG(vararg xs: E): Int = xs.size
+        fun main() {
+            val g: (Array<String>) -> Int = make(::countG)
+        }
+        """)
+        try runSema(ctx)
+
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.isEmpty, "The adapted reference must type-check: \(errors)")
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let reference = try #require(firstExprID(in: ast) { _, expr in
+            if case let .callableRef(_, member, _) = expr {
+                return ctx.interner.resolve(member) == "countG"
+            }
+            return false
+        })
+        let referenceType = try #require(sema.bindings.exprType(for: reference))
+        guard case let .functionType(functionType) = sema.types.kind(of: referenceType) else {
+            Issue.record("Expected ::countG to keep a function type.")
+            return
+        }
+        #expect(functionType.params.count == 1)
+        guard let parameter = functionType.params.first,
+              case let .classType(arrayType) = sema.types.kind(of: sema.types.makeNonNullable(parameter))
+        else {
+            Issue.record("Expected the packed vararg input Array<String>, got \(functionType.params).")
+            return
+        }
+        #expect(
+            sema.symbols.symbol(arrayType.classSymbol)?.fqName
+                == ["kotlin", "Array"].map(ctx.interner.intern)
+        )
+        let binding = try #require(sema.bindings.callableReferenceBinding(for: reference))
+        #expect(!binding.isCallableReferenceAdapter)
+    }
 }
 #endif
