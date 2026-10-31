@@ -10,4 +10,14 @@ extension BundledStdlibExecutionTests {
             allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
         )
     }
+
+    @Test(arguments: [true, false])
+    func ulongNarrowLiteralSlotBoxesAsULongIntoAny(allowDefaultStdlibLibrary: Bool) throws {
+        try compileAndRunKotlin(
+            try diffCaseSource("kuu_3790_ulong_narrow_literal_incdec_boxing.kt", file: #filePath),
+            expectedOutput: "OK\n",
+            moduleName: "KUU3790ULongNarrowLiteralBoxing",
+            allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
+        )
+    }
 }

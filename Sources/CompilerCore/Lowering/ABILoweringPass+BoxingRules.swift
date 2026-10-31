@@ -317,9 +317,14 @@ extension ABILoweringPass {
             case .longLiteral:
                 return types.make(.primitive(.long, .nonNull))
             case .uintLiteral:
+                // `0u` under an explicit `ULong`/`UByte`/`UShort` annotation keeps
+                // its `.uintLiteral` expr kind while carrying the wider/narrower
+                // bound type. Honor the annotation like `.intLiteral` does, or a
+                // `ULong` slot boxing to `Any` would take `kk_box_uint` and
+                // truncate to 32 bits (KUU-3790).
                 if let annotatedType = arena.exprType(argExprID),
                    case let .primitive(primitive, _) = types.kind(of: annotatedType),
-                   primitive == .ubyte || primitive == .ushort
+                   primitive == .ubyte || primitive == .ushort || primitive == .ulong
                 {
                     return types.make(.primitive(primitive, .nonNull))
                 }
