@@ -25,6 +25,13 @@ extension ExprTypeChecker {
             flags: symbolKind == .class ? [.synthetic, .objectLiteralType] : [.synthetic]
         )
         sema.bindings.bindDecl(declID, symbol: objectSymbol)
+        // KUU-3867: the object type itself keeps every lexical type parameter
+        // as its own arguments — escaped members whose inferred types still
+        // resolve to them (e.g. `val stored = v` / `fun get() = stored`)
+        // substitute through these arguments at the call site. What must not
+        // happen is each member *signature* prefixing parameters its declared
+        // surface does not spell; `collectObjectLiteralMemberFunctions`
+        // filters that per-member prefix instead.
         let capturedTypeParameters = driver.helpers.lexicalTypeParameterSymbols(in: ctx)
             .sorted { $0.rawValue < $1.rawValue }
         sema.types.setNominalTypeParameterSymbols(capturedTypeParameters, for: objectSymbol)

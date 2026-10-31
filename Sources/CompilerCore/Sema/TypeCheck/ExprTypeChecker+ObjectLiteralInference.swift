@@ -328,6 +328,7 @@ extension ExprTypeChecker {
             objectSymbol: objectSymbol,
             objectType: objectType,
             classTypeParameterSymbols: sema.types.nominalTypeParameterSymbols(for: objectSymbol),
+            limitsClassTypeParameterPrefixToMemberSurface: true,
             objectScope: objectScope,
             ctx: ctx
         )
@@ -1322,6 +1323,7 @@ extension ExprTypeChecker {
         objectSymbol: SymbolID,
         objectType: TypeID,
         classTypeParameterSymbols: [SymbolID] = [],
+        limitsClassTypeParameterPrefixToMemberSurface: Bool = false,
         objectScope: ClassMemberScope,
         ctx: TypeInferenceContext
     ) -> [DeclID: SymbolID] {
@@ -1512,6 +1514,40 @@ extension ExprTypeChecker {
                 receiverType = objectType
             }
 
+            // KUU-3867: an anonymous object keeps every lexical type parameter
+            // on its own type so escaped members whose *inferred* types still
+            // resolve to them can substitute through the object arguments.
+            // The member signature prefix must only carry the parameters the
+            // member's declared surface actually spells — an outer generic
+            // function's unused parameters would otherwise sit ahead of the
+            // member's own type parameters, shifting them (and the reified
+            // indices and upper-bound lists derived from them) off index 0
+            // and breaking explicit type-argument calls.
+            //
+            // The prefix is all-or-nothing: receiver-owner constraint paths
+            // pair it positionally with the object type's argument list, so a
+            // partial prefix would misalign arity and bind the wrong
+            // arguments. A member spelling any captured parameter therefore
+            // keeps the full prefix — as do members with an inferred
+            // signature position (`fun get() = stored`, an untyped parameter),
+            // whose refined types may still mention one.
+            let memberClassTypeParameterSymbols: [SymbolID]
+            if limitsClassTypeParameterPrefixToMemberSurface,
+               !objectLiteralMemberHasInferredSignatureType(functionDecl) {
+                let spelledTypeParameterNames = objectLiteralMemberSpelledTypeNames(
+                    functionDecl, ast: ast
+                )
+                let spellsCapturedParameter = classTypeParameterSymbols.contains { symbol in
+                    guard let name = sema.symbols.symbol(symbol)?.name else { return false }
+                    return spelledTypeParameterNames.contains(name)
+                }
+                memberClassTypeParameterSymbols = spellsCapturedParameter
+                    ? classTypeParameterSymbols
+                    : []
+            } else {
+                memberClassTypeParameterSymbols = classTypeParameterSymbols
+            }
+
             sema.symbols.setFunctionSignature(
                 FunctionSignature(
                     receiverType: receiverType,
@@ -1524,16 +1560,16 @@ extension ExprTypeChecker {
                     valueParameterSymbols: parameterSymbols,
                     valueParameterHasDefaultValues: functionDecl.valueParams.map(\.hasDefaultValue),
                     valueParameterIsVararg: functionDecl.valueParams.map(\.isVararg),
-                    typeParameterSymbols: classTypeParameterSymbols + typeParamResult.typeParameterSymbols,
+                    typeParameterSymbols: memberClassTypeParameterSymbols + typeParamResult.typeParameterSymbols,
                     reifiedTypeParameterIndices: Set(
-                        typeParamResult.reifiedIndices.map { $0 + classTypeParameterSymbols.count }
+                        typeParamResult.reifiedIndices.map { $0 + memberClassTypeParameterSymbols.count }
                     ),
                     typeParameterUpperBoundsList: (
-                        classTypeParameterSymbols + typeParamResult.typeParameterSymbols
+                        memberClassTypeParameterSymbols + typeParamResult.typeParameterSymbols
                     ).map {
                         sema.symbols.typeParameterUpperBounds(for: $0)
                     },
-                    classTypeParameterCount: classTypeParameterSymbols.count
+                    classTypeParameterCount: memberClassTypeParameterSymbols.count
                 ),
                 for: memberSymbol
             )
@@ -1607,5 +1643,88 @@ extension ExprTypeChecker {
             stack.append(contentsOf: sema.symbols.directSupertypes(for: current))
         }
         return false
+    }
+
+    /// KUU-3867: a member with an inferred signature position (`fun get() = stored`,
+    /// an untyped value parameter) may still resolve to a captured type
+    /// parameter once its body is refined. Such members keep the full class
+    /// type-parameter prefix so the refined types bind through the object's
+    /// own type arguments exactly as they did before the prefix filtering.
+    private func objectLiteralMemberHasInferredSignatureType(_ functionDecl: FunDecl) -> Bool {
+        if functionDecl.returnType == nil, case .expr = functionDecl.body {
+            return true
+        }
+        return functionDecl.valueParams.contains { $0.type == nil }
+    }
+
+    /// KUU-3867: names the member's declared signature surface spells —
+    /// own type-parameter bounds, receiver, context receivers, value
+    /// parameters, and return type. Only these positions let an explicit
+    /// type-argument call (or the signature's own bound/reified metadata)
+    /// observe a captured type parameter.
+    private func objectLiteralMemberSpelledTypeNames(
+        _ functionDecl: FunDecl,
+        ast: ASTModule
+    ) -> Set<InternedString> {
+        var names: Set<InternedString> = []
+        for typeParameter in functionDecl.typeParams {
+            for bound in typeParameter.upperBounds {
+                collectObjectLiteralTypeRefNames(bound, ast: ast, into: &names)
+            }
+        }
+        if let receiverType = functionDecl.receiverType {
+            collectObjectLiteralTypeRefNames(receiverType, ast: ast, into: &names)
+        }
+        for contextReceiver in functionDecl.contextReceivers {
+            collectObjectLiteralTypeRefNames(contextReceiver.type, ast: ast, into: &names)
+        }
+        for valueParam in functionDecl.valueParams {
+            if let typeRef = valueParam.type {
+                collectObjectLiteralTypeRefNames(typeRef, ast: ast, into: &names)
+            }
+        }
+        if let returnType = functionDecl.returnType {
+            collectObjectLiteralTypeRefNames(returnType, ast: ast, into: &names)
+        }
+        return names
+    }
+
+    private func collectObjectLiteralTypeRefNames(
+        _ typeRefID: TypeRefID,
+        ast: ASTModule,
+        into names: inout Set<InternedString>
+    ) {
+        guard let typeRef = ast.arena.typeRef(typeRefID) else { return }
+        switch typeRef {
+        case let .named(path, args, _):
+            if let last = path.last {
+                names.insert(last)
+            }
+            for arg in args {
+                switch arg {
+                case let .invariant(typeRef), let .out(typeRef), let .in(typeRef):
+                    collectObjectLiteralTypeRefNames(typeRef, ast: ast, into: &names)
+                case .star:
+                    break
+                }
+            }
+        case let .functionType(contextReceivers, receiver, params, returnType, _, _):
+            for typeRef in contextReceivers {
+                collectObjectLiteralTypeRefNames(typeRef, ast: ast, into: &names)
+            }
+            if let receiver {
+                collectObjectLiteralTypeRefNames(receiver, ast: ast, into: &names)
+            }
+            for param in params {
+                collectObjectLiteralTypeRefNames(param, ast: ast, into: &names)
+            }
+            collectObjectLiteralTypeRefNames(returnType, ast: ast, into: &names)
+        case let .intersection(parts):
+            for part in parts {
+                collectObjectLiteralTypeRefNames(part, ast: ast, into: &names)
+            }
+        case let .annotated(base, _):
+            collectObjectLiteralTypeRefNames(base, ast: ast, into: &names)
+        }
     }
 }
