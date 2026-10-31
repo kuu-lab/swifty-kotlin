@@ -28,7 +28,7 @@ extension LambdaLowerer {
         }
     }
 
-    private struct PropertyReferenceAccessor {
+    struct PropertyReferenceAccessor {
         let propertySymbol: SymbolID
         let getterSymbol: SymbolID
         let setterSymbol: SymbolID?
@@ -640,7 +640,7 @@ extension LambdaLowerer {
         return (symbol, name)
     }
 
-    private func ensurePropertyReferenceAccessor(
+    func ensurePropertyReferenceAccessor(
         targetSymbol: SymbolID,
         ast: ASTModule,
         sema: SemaModule,

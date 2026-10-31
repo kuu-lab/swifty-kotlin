@@ -208,6 +208,42 @@ public func __kk_function_value_set_callable_ref_identity(
     }
 }
 
+/// Record equality identity on a `KClass.members` reflection handle
+/// (`RuntimeKFunctionBox`/`RuntimeKPropertyStub`) so a member looked up
+/// through `functions`/`memberProperties`/`members` compares equal to the
+/// matching unbound `Owner::member` callable reference, like the JVM's
+/// kotlin-reflect does (KUU-3806).
+///
+/// These handles carry no `RuntimeCallableRefMetadata` — the identity lives
+/// in the same side table adapted function values use, which
+/// `runtimeCallableReferenceIdentity` already consults. Member reflection
+/// handles are always unbound, so the capture list is empty and `arity`
+/// counts the receiver the unbound reference exposes as a parameter; a
+/// bound `instance::member` reference keeps its captured receiver and a
+/// receiver-free arity, so it still compares unequal.
+@_cdecl("__kk_reflection_member_set_identity")
+public func __kk_reflection_member_set_identity(
+    _ member: Int,
+    _ targetRaw: Int,
+    _ returnTypeRaw: Int,
+    _ arity: Int,
+    _ kindRaw: Int,
+    _ flags: Int
+) {
+    guard member != 0, targetRaw != 0, arity >= 0, (0...1).contains(kindRaw) else { return }
+    runtimeStorage.withDelegateLock { state in
+        state.functionValueCallableRefIdentityByValue[member] = RuntimeCallableReferenceIdentity(
+            targetRaw: targetRaw,
+            returnTypeRaw: returnTypeRaw,
+            arity: arity,
+            kind: kindRaw == 0 ? .function : .property,
+            isSuspend: (flags & 1) != 0,
+            modifierFlags: flags & ~1,
+            captures: []
+        )
+    }
+}
+
 /// `flags` packs KFunction modifier bits like `kk_callable_ref_tag_kfunction`:
 /// bit0=suspend, bit1=inline, bit2=operator, bit3=infix, bit4=external.
 private func runtimeSetCallableAdapterIdentity(
@@ -293,6 +329,7 @@ func runtimeCallableRoots() -> [Int] {
     }
     for (raw, identity) in functionValueEntries {
         roots.append(raw)
+        roots.append(identity.returnTypeRaw)
         roots.append(contentsOf: identity.captures)
     }
     return roots
