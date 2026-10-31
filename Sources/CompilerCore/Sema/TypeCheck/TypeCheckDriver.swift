@@ -79,7 +79,7 @@ final class TypeCheckDriver {
     var inferredReturnFunctions: [SymbolID: (function: FunDecl, context: TypeInferenceContext)] = [:]
     var checkingInferredReturnFunctions: Set<SymbolID> = []
     var checkedInferredReturnFunctions: Set<SymbolID> = []
-    var inferredPropertyDeclarations: [SymbolID: (declaration: DeclID, property: PropertyDecl, context: TypeInferenceContext)] = [:]
+    var inferredPropertyDeclarations: [SymbolID: (declaration: DeclID, property: PropertyDecl, context: TypeInferenceContext, initialLocals: LocalBindings)] = [:]
     var checkingInferredProperties: Set<SymbolID> = []
     var pendingPropertyTypes: Set<SymbolID> = []
     var deferredInferredReturnFunctions: Set<SymbolID> = []
@@ -464,7 +464,7 @@ final class TypeCheckDriver {
                 switch ast.arena.decl(declaration) {
                 case let .propertyDecl(property)
                     where property.type == nil && property.receiverType == nil:
-                    inferredPropertyDeclarations[symbol] = (declaration, property, declarationCtx)
+                    inferredPropertyDeclarations[symbol] = (declaration, property, declarationCtx, [:])
                 default:
                     break
                 }
