@@ -315,16 +315,6 @@ final class ABILoweringPass: LoweringPass {
                     : nil
                 let instruction = function.body[idx]
                 if case let .virtualCall(vcSymbol, vcCallee, vcReceiver, vcArguments, vcResult, _, vcThrownResult, vcDispatch) = instruction {
-                    if let vcSymbol, listViewMembers.contains(vcSymbol) {
-                        appendListViewChecks(
-                            arguments: [vcReceiver], checkedIndices: [0], thrownResult: vcThrownResult,
-                            followingInstructions: function.body[(idx + 1)...],
-                            checkCallee: listViewCheckCallee, newBody: &newBody
-                        )
-                    }
-                    let vcIsClosureRelated = module.nonThrowingClosureCallees.contains(vcCallee)
-                    let vcCanThrow = !vcIsClosureRelated
-                        && !nonThrowingCalleeSet.contains(vcCallee)
                     var vcSignature: FunctionSignature?
                     if let symbols, let vcSymbol {
                         vcSignature = symbols.functionSignature(for: vcSymbol)
@@ -332,6 +322,60 @@ final class ABILoweringPass: LoweringPass {
                     if vcSignature == nil {
                         vcSignature = signatureByName[vcCallee]
                     }
+                    // An itable dispatch resolves the callee through the
+                    // receiver object's registered itable
+                    // (`kk_itable_lookup`/`kk_itable_lookup_dynamic`), so the
+                    // receiver must reach codegen as an object handle. A
+                    // statically enum-typed receiver is still a raw ordinal
+                    // here — the `.call` receiver boxing cannot see it because
+                    // it rides in the dedicated `receiver` operand rather than
+                    // `arguments` — so box it across the same interface
+                    // boundary an enum argument crosses (KUU-3807). The enum
+                    // box helper also emits the entry's itable
+                    // interface/method/property registrations
+                    // (`appendEnumBoxItableRegistrations`) the lookup needs.
+                    // `.vtable` slots are never registered on tagged entry
+                    // boxes either, so boxing cannot rescue that lookup.
+                    let vcBoxedReceiver: KIRExprID = switch vcDispatch {
+                    case .itable, .itableDynamic:
+                        if let types, let symbols,
+                           let receiverType = intrinsicArgType(
+                               vcReceiver, arena: module.arena, types: types
+                           ),
+                           case let .classType(receiverClass) = types.kind(of: receiverType),
+                           receiverClass.nullability == .nonNull,
+                           symbols.symbol(receiverClass.classSymbol)?.kind == .enumClass
+                        {
+                            boxValueForAnySlot(
+                                vcReceiver,
+                                sourceType: receiverType,
+                                types: types,
+                                symbols: symbols,
+                                interner: ctx.interner,
+                                arena: module.arena,
+                                resultType: vcSignature?.receiverType ?? types.anyType,
+                                requireNonNull: true,
+                                boxingCalleeTable: boxingCalleeTable,
+                                sema: ctx.sema,
+                                cache: ctx.nominalDispatchCache,
+                                into: &newBody.instructions
+                            )
+                        } else {
+                            vcReceiver
+                        }
+                    case .vtable:
+                        vcReceiver
+                    }
+                    if let vcSymbol, listViewMembers.contains(vcSymbol) {
+                        appendListViewChecks(
+                            arguments: [vcBoxedReceiver], checkedIndices: [0], thrownResult: vcThrownResult,
+                            followingInstructions: function.body[(idx + 1)...],
+                            checkCallee: listViewCheckCallee, newBody: &newBody
+                        )
+                    }
+                    let vcIsClosureRelated = module.nonThrowingClosureCallees.contains(vcCallee)
+                    let vcCanThrow = !vcIsClosureRelated
+                        && !nonThrowingCalleeSet.contains(vcCallee)
                     let vcBoxedArguments: [KIRExprID] = if let vcSignature, let types {
                         applyArgumentBoxing(
                             arguments: vcArguments,
@@ -385,7 +429,7 @@ final class ABILoweringPass: LoweringPass {
                         newBody.append(.virtualCall(
                             symbol: vcSymbol,
                             callee: vcCallee,
-                            receiver: vcReceiver,
+                            receiver: vcBoxedReceiver,
                             arguments: vcBoxedArguments,
                             result: tempResult,
                             canThrow: vcCanThrow,
@@ -417,7 +461,7 @@ final class ABILoweringPass: LoweringPass {
                         newBody.append(.virtualCall(
                             symbol: vcSymbol,
                             callee: vcCallee,
-                            receiver: vcReceiver,
+                            receiver: vcBoxedReceiver,
                             arguments: vcBoxedArguments,
                             result: tempResult,
                             canThrow: vcCanThrow,
@@ -443,7 +487,7 @@ final class ABILoweringPass: LoweringPass {
                         newBody.append(.virtualCall(
                             symbol: vcSymbol,
                             callee: vcCallee,
-                            receiver: vcReceiver,
+                            receiver: vcBoxedReceiver,
                             arguments: vcBoxedArguments,
                             result: vcResult,
                             canThrow: vcCanThrow,

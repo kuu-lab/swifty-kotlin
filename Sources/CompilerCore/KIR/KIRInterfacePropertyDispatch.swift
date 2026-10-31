@@ -259,6 +259,14 @@ func kirFindOverridePropertyGetter(
             if candidateSym.visibility == .private {
                 continue
             }
+            // A `static` member never dispatches on an instance: the
+            // compiler-provided `E.entries` EnumEntries stub shares the enum
+            // class's fqName scope but is not an `I.entries` implementation —
+            // its accessor has no KIR body, so registering it leaves a
+            // dangling `__itable_impl_` reference at link time (KUU-3807).
+            if candidateSym.flags.contains(.static) {
+                continue
+            }
             return sema.symbols.extensionPropertyGetterAccessor(for: candidate)
                 ?? SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: candidate)
         }
@@ -348,6 +356,10 @@ private func kirFindOverridePropertyGetter(
         }
         // A `private` member never overrides (kt2477).
         if candidateSym.visibility == .private {
+            continue
+        }
+        // A `static` member never dispatches on an instance (KUU-3807).
+        if candidateSym.flags.contains(.static) {
             continue
         }
         return sema.symbols.extensionPropertyGetterAccessor(for: candidate)
@@ -440,6 +452,10 @@ func kirFindOverridePropertySetter(
             }
             // A `private` member never overrides (kt2477).
             if candidateSym.visibility == .private {
+                continue
+            }
+            // A `static` member never dispatches on an instance (KUU-3807).
+            if candidateSym.flags.contains(.static) {
                 continue
             }
             return sema.symbols.extensionPropertySetterAccessor(for: candidate)
