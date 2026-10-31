@@ -334,6 +334,28 @@ public func kk_suspend_function_create(
     ))
 }
 
+/// KUU-3884: `invoke(args..., continuation)` on an erased `Function{n+1}`
+/// value — the ordinary `FunctionN` invoke ABI with the child continuation
+/// appended as the last argument, the same calling convention the JVM uses
+/// for a suspend function invoked through `Function{n+1}`. `arguments`
+/// already carries the trailing continuation, so its count is the erased
+/// arity (1...22).
+func runtimeInvokeErasedFunctionValue(
+    functionRaw: Int,
+    arguments: [Int],
+    outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    switch arguments.count {
+    case 1: return kk_function_invoke(functionRaw, arguments[0], outThrown)
+    case 2: return kk_function_invoke_2(functionRaw, arguments[0], arguments[1], outThrown)
+    case 3: return kk_function_invoke_3(functionRaw, arguments[0], arguments[1], arguments[2], outThrown)
+    case 4: return kk_function_invoke_4(functionRaw, arguments[0], arguments[1], arguments[2], arguments[3], outThrown)
+    case 5: return kk_function_invoke_5(functionRaw, arguments[0], arguments[1], arguments[2], arguments[3], arguments[4], outThrown)
+    case 6: return kk_function_invoke_6(functionRaw, arguments[0], arguments[1], arguments[2], arguments[3], arguments[4], arguments[5], outThrown)
+    default: return runtimeInvokeHighArityFunctionValue(functionRaw, arguments: arguments, outThrown: outThrown)
+    }
+}
+
 func runtimeInvokeSuspendFunction(
     _ functionRaw: Int,
     arguments: [Int],
@@ -378,6 +400,23 @@ func runtimeInvokeSuspendFunction(
             return kk_coroutine_call_direct_suspend(objectEntryRaw, child, continuation)
         }
         return kk_kxmini_run_blocking_with_cont(objectEntryRaw, child, outThrown)
+    }
+
+    // KUU-3884: an erased `Function{n+1}` value (`(P1..Pn, Continuation<R>)
+    // -> Any?`, the JVM shape) has no CPS entry of its own. Drive it through
+    // the generic erased-suspend entry point, which appends the child
+    // continuation as the last invoke argument and reads the return like a
+    // suspend call. Slot 0 spills the value itself.
+    if runtimeErasedSuspendShape(functionRaw: functionRaw, arity: arguments.count) {
+        let entryRaw = runtimeErasedSuspendFunctionEntryPointRaw
+        let child = kk_coroutine_continuation_new(entryRaw)
+        for (index, argument) in ([functionRaw] + arguments).enumerated() {
+            _ = kk_coroutine_launcher_arg_set(child, Int64(index), Int64(argument))
+        }
+        if runtimeContinuationState(from: continuation) != nil {
+            return kk_coroutine_call_direct_suspend(entryRaw, child, continuation)
+        }
+        return kk_kxmini_run_blocking_with_cont(entryRaw, child, outThrown)
     }
 
     // Legacy raw thunks and synchronous callbacks retain their ordinary ABI.
