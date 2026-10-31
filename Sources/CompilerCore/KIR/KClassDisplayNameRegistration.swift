@@ -3,6 +3,14 @@ private func kclassDisplayName(
     for symbolID: SymbolID, sema: SemaModule, interner: StringInterner
 ) -> String {
     guard let symbol = sema.symbols.symbol(symbolID) else { return "" }
+    // KUU-3811: the FunctionN interfaces nest under the `kotlin.Function`
+    // namespace only for internal identity; their display name is the flat
+    // `kotlin.FunctionN`. The parent walk below would otherwise render them
+    // nested as `kotlin.Function$FunctionN`.
+    if let shape = sema.types.nominalFunctionInterfaceShape(of: symbolID),
+       !shape.isSuspend {
+        return "kotlin.Function\(shape.arity)"
+    }
     let parentID = sema.symbols.parentSymbol(for: symbolID)
         ?? sema.symbols.lookup(fqName: Array(symbol.fqName.dropLast()))
     if let parentID, let parent = sema.symbols.symbol(parentID) {

@@ -311,7 +311,7 @@ extension CallLowerer {
         }
 
         let fqName = RuntimeTypeCheckToken.qualifiedName(of: classRefTargetType, sema: sema, interner: interner)
-            ?? symbol.fqName.map { interner.resolve($0) }.joined(separator: ".")
+            ?? RuntimeTypeCheckToken.reflectionQualifiedName(of: symbol, sema: sema, interner: interner)
         let fqNameInterned = interner.intern(fqName)
         let fqNameExpr = arena.appendExpr(.stringLiteral(fqNameInterned), type: intType)
         instructions.append(.constValue(result: fqNameExpr, value: .stringLiteral(fqNameInterned)))
@@ -525,7 +525,9 @@ extension CallLowerer {
                 guard let typeSymbol = sema.symbols.symbol(classType.classSymbol) else {
                     return "java.lang.Object"
                 }
-                let name = typeSymbol.fqName.map(interner.resolve).joined(separator: ".")
+                let name = RuntimeTypeCheckToken.reflectionQualifiedName(
+                    of: typeSymbol, sema: sema, interner: interner
+                )
                 return name == "kotlin.RuntimeException" ? "java.lang.RuntimeException" : name
             case .typeParam, .intersection:
                 return "java.lang.Object"
@@ -735,6 +737,12 @@ extension CallLowerer {
         }
 
         func namedEnclosingClass() -> SemanticSymbol? {
+            // KUU-3811: the FunctionN interfaces nest under the
+            // `kotlin.Function` namespace for internal identity only — they
+            // are top-level classifiers with no enclosing/declaring class.
+            if sema.types.nominalFunctionInterfaceShape(of: classSymbol) != nil {
+                return nil
+            }
             var owner = directOwner
             while let candidate = owner, let info = sema.symbols.symbol(candidate) {
                 if nominalKinds.contains(info.kind) { return info }
@@ -892,7 +900,7 @@ extension CallLowerer {
             return javaReflectionName(of: primitive)
         case let .classType(classType):
             return sema.symbols.symbol(classType.classSymbol)
-                .map { $0.fqName.map(interner.resolve).joined(separator: ".") }
+                .map { RuntimeTypeCheckToken.reflectionQualifiedName(of: $0, sema: sema, interner: interner) }
                 ?? "java.lang.Object"
         case .error, .any, .intersection, .typeParam, .functionType, .kClassType:
             return "java.lang.Object"

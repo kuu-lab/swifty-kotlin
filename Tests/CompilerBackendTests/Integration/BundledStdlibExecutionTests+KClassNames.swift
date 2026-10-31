@@ -12,6 +12,9 @@ extension BundledStdlibExecutionTests {
             class RuntimeException
             object Named
             class Holder { companion object }
+            class Adder : Function2<Int, Int, Int> {
+                override fun invoke(a: Int, b: Int): Int = a + b
+            }
             @OptIn(ExperimentalStdlibApi::class)
             fun main() {
                 val exception = kotlin.RuntimeException::class
@@ -41,6 +44,15 @@ extension BundledStdlibExecutionTests {
                 val anonymous = object {}
                 println(Local::class.qualifiedName)
                 println(anonymous::class.qualifiedName)
+                // KUU-3811: FunctionN classifiers report the flat
+                // `kotlin.FunctionN` name like Kotlin/JVM, not the internal
+                // `kotlin.Function.FunctionN` nesting.
+                println(Function0::class.qualifiedName)
+                println(Function5::class.qualifiedName)
+                println(Function5::class.simpleName)
+                println(Adder::class.supertypes)
+                println(Adder::class.supertypes.first().classifier == Function2::class)
+                println((typeOf<Function2<Int, Int, Int>>().classifier as KClass<*>).qualifiedName)
             }
             """,
             expectedOutput: """
@@ -64,6 +76,12 @@ extension BundledStdlibExecutionTests {
             reflectionnames.Holder.Companion
             null
             null
+            kotlin.Function0
+            kotlin.Function5
+            Function5
+            [(kotlin.Int, kotlin.Int) -> kotlin.Int, kotlin.Any]
+            true
+            kotlin.Function2
             """ + "\n",
             moduleName: "KUU1303KClassNames",
             allowDefaultStdlibLibrary: fromArtifact

@@ -71,7 +71,9 @@ extension CallLowerer {
         let typeTokenExpr = arena.appendExpr(.intLiteral(typeToken), type: intType)
         instructions.append(.constValue(result: typeTokenExpr, value: .intLiteral(typeToken)))
 
-        let fqName = symbol.fqName.map { interner.resolve($0) }.joined(separator: ".")
+        let fqName = RuntimeTypeCheckToken.reflectionQualifiedName(
+            of: symbol, sema: sema, interner: interner
+        )
         let fqNameInterned = interner.intern(fqName)
         let fqNameExpr = arena.appendExpr(.stringLiteral(fqNameInterned), type: intType)
         instructions.append(.constValue(result: fqNameExpr, value: .stringLiteral(fqNameInterned)))
