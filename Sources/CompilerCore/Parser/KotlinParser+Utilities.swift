@@ -703,6 +703,11 @@ extension KotlinParser {
                  .keyword(.this), .keyword(.true), .keyword(.false), .keyword(.null):
                 runLength += 1
                 index = postfixOperandStart(in: tokens, endingAt: current)
+            case .symbol(.bangBang):
+                // `!!` is a postfix on the operand that precedes it, not a
+                // separate alternation element. Skip it so `a!! or b`
+                // keeps operand parity.
+                index = current
             case .symbol(.rParen), .symbol(.rBracket):
                 let open: TokenKind = token.kind == .symbol(.rParen) ? .symbol(.lParen) : .symbol(.lBracket)
                 guard matchingOpenIndex(in: tokens, closingAt: current, open: open, close: token.kind) != nil else {
@@ -726,6 +731,12 @@ extension KotlinParser {
         var start = end
         var current = end
 
+        // `!!` is a postfix on the operand that precedes it, so the operand
+        // ending at `a!!` starts where `a` starts.
+        if tokens[current].kind == .symbol(.bangBang), current > tokens.startIndex {
+            return postfixOperandStart(in: tokens, endingAt: tokens.index(before: current))
+        }
+
         if tokens[current].kind == .symbol(.rParen) || tokens[current].kind == .symbol(.rBracket) {
             let open: TokenKind = tokens[current].kind == .symbol(.rParen) ? .symbol(.lParen) : .symbol(.lBracket)
             guard let openIndex = matchingOpenIndex(in: tokens, closingAt: current, open: open, close: tokens[current].kind) else {
@@ -734,32 +745,21 @@ extension KotlinParser {
             start = openIndex
             current = openIndex
 
-            if tokens[end].kind == .symbol(.rBracket), current > tokens.startIndex {
+            // A `(`/`[` group is a call-argument or index postfix only when
+            // the token in front of the opener completes an operand (`f()`,
+            // `a.b()`, `a[i]`). After an infix *name* the group is the next
+            // operand instead — `a or (b)` keeps `or` in the name slot and
+            // `(b)` as its operand. Checking operand position rather than
+            // only `.`-adjacency keeps an unqualified `f()` receiver inside
+            // one operand; otherwise `x = f() or y` counts `f` and `()`
+            // separately, flips the pending-infix parity, and swallows the
+            // next statement.
+            if current > tokens.startIndex,
+               isOperandEnd(in: tokens, endingAt: tokens.index(before: current))
+            {
                 let target = tokens.index(before: current)
                 start = postfixOperandStart(in: tokens, endingAt: target)
                 current = start
-            } else if tokens[end].kind == .symbol(.rParen), current > tokens.startIndex {
-                let target = tokens.index(before: current)
-                let isPrecededByDot: Bool = {
-                    guard target > tokens.startIndex else { return false }
-                    let beforeTarget = tokens[tokens.index(before: target)].kind
-                    return beforeTarget == .symbol(.dot) || beforeTarget == .symbol(.questionDot)
-                }()
-                let isFollowedByDot: Bool = {
-                    let afterEnd = tokens.index(after: end)
-                    guard afterEnd < tokens.endIndex else { return false }
-                    let kind = tokens[afterEnd].kind
-                    return kind == .symbol(.dot) || kind == .symbol(.questionDot)
-                }()
-                if isPrecededByDot || isFollowedByDot {
-                    switch tokens[target].kind {
-                    case .identifier, .backtickedIdentifier:
-                        start = postfixOperandStart(in: tokens, endingAt: target)
-                        current = start
-                    default:
-                        break
-                    }
-                }
             }
         }
 
@@ -781,6 +781,33 @@ extension KotlinParser {
         }
 
         return start
+    }
+
+    /// Whether the token *ending* at `end` closes a complete operand — one
+    /// element of the operand / infix-name alternation that
+    /// `endsWithPendingInfixOperator` counts. Identifiers alternate: a name
+    /// directly after an operand is the infix callee (`a or` — `or` is the
+    /// name, not an operand-end), while a name after a name or a
+    /// non-operand boundary is the next operand (`x = f`, `a or f`).
+    private static func isOperandEnd<C: BidirectionalCollection>(
+        in tokens: C, endingAt end: C.Index
+    ) -> Bool where C.Element == Token {
+        switch tokens[end].kind {
+        case .identifier, .backtickedIdentifier:
+            guard end > tokens.startIndex else { return true }
+            return !isOperandEnd(in: tokens, endingAt: tokens.index(before: end))
+        case .intLiteral, .longLiteral, .uintLiteral, .ulongLiteral,
+             .floatLiteral, .doubleLiteral, .charLiteral,
+             .stringQuote, .rawStringQuote, .multiDollarStringQuote,
+             .multiDollarRawStringQuote, .templateExprEnd,
+             .keyword(.this), .keyword(.super), .keyword(.true),
+             .keyword(.false), .keyword(.null),
+             .symbol(.rParen), .symbol(.rBracket), .symbol(.rBrace),
+             .symbol(.bangBang):
+            return true
+        default:
+            return false
+        }
     }
 
     private static func matchingOpenIndex<C: BidirectionalCollection>(

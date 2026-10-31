@@ -447,6 +447,107 @@ struct BuildASTBodyParsingRegressionTests {
         }
     }
 
+    /// KUU-3795: an unqualified call receiver before an infix name
+    /// (`f() op operand`) must stay a *single* operand in the
+    /// pending-infix parity count. Counting `f` and `()` as separate
+    /// elements flipped the parity so a complete statement looked like a
+    /// dangling infix call, and the next line's `val` was merged into —
+    /// and swallowed by — that statement group, so the local never
+    /// reached the function body AST.
+    @Test
+    func testCallReceiverInfixDoesNotSwallowNextStatement() throws {
+        let sources = [
+            // The ticket scenario: `rootSize() shr LOG` then `val x`.
+            """
+            package buildast.infixcall0
+            class B {
+                private fun rootSize() = 4
+                fun g(): Int {
+                    val leafCount = rootSize() shr LOG
+                    val x = 1
+                    return x
+                }
+                companion object { const val LOG: Int = 4 }
+            }
+            """,
+            // A parenthesized infix operand keeps the infix *name* in the
+            // name slot: `a or (b)` is complete and must not merge `val x`.
+            """
+            package buildast.infixcall1
+            fun g(): Int {
+                val r = a or (b)
+                val x = 1
+                return x
+            }
+            """,
+            // `!!` is a postfix on its operand, not an alternation
+            // element: `n!! or 2` is complete.
+            """
+            package buildast.infixcall2
+            fun g(): Int {
+                val m = n!! or 2
+                val x = 1
+                return x
+            }
+            """,
+            // A genuinely pending infix name still continues on the next
+            // line: `a or\nb` stays one statement.
+            """
+            package buildast.infixcall3
+            fun g(): Int {
+                val r = a or
+                    b
+                val x = 1
+                return x
+            }
+            """,
+        ]
+
+        try withTemporaryFiles(contents: sources) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
+            try runFrontend(ctx)
+
+            for path in paths {
+                let errors = diagnosticsForPath(path, in: ctx).filter { $0.severity == .error }
+                #expect(errors.isEmpty, "Call-receiver infix boundary should have no errors for \(path): \(errors.map(\.message))")
+            }
+
+            let ast = try #require(ctx.ast)
+            let interner = ctx.interner
+            let gName = interner.intern("g")
+            let xName = interner.intern("x")
+            for path in paths {
+                let fileID = try #require(ctx.sourceManager.fileID(forPath: path))
+                let file = try #require(ast.files.first { $0.fileID == fileID })
+                let funDecl = try #require(ast.arena.declarations().compactMap { decl -> FunDecl? in
+                    guard case let .funDecl(funDecl) = decl,
+                          funDecl.name == gName
+                    else {
+                        return nil
+                    }
+                    return funDecl
+                }.first, "Expected `fun g` in \(path)")
+
+                guard case let .block(bodyExprs, _) = funDecl.body else {
+                    Issue.record("g should have a block body in \(path)")
+                    return
+                }
+                #expect(bodyExprs.count == 3,
+                        "Expected 3 statements (two vals + return) in \(path), got \(bodyExprs.count)")
+                let localNames = bodyExprs.compactMap { exprID -> InternedString? in
+                    guard let expr = ast.arena.expr(exprID),
+                          case let .localDecl(name, _, _, _, _, _, _) = expr
+                    else {
+                        return nil
+                    }
+                    return name
+                }
+                #expect(localNames.contains(xName),
+                        "`val x` must survive after the infix statement in \(path), got locals \(localNames.map(interner.resolve))")
+            }
+        }
+    }
+
     // MARK: - Shared KIR fixture
 
     @Test
