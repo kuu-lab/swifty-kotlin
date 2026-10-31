@@ -64,6 +64,62 @@ struct LocalNominalGenericMemberMethodTypeParameterTests {
         #expect(sema.symbols.symbol(reifiedTypeParameter)?.flags.contains(.reifiedTypeParameter) == true)
     }
 
+    /// KUU-3867: members whose types are only inferred (`val stored = v`,
+    /// `fun get() = stored`) may still resolve to a captured type parameter
+    /// once the body refines them. The object keeps every lexical type
+    /// parameter as its own type arguments so these members substitute
+    /// through them exactly like a member spelling the parameter does.
+    @Test(arguments: [false, true])
+    func preservesInferredMembersBoundToCapturedTypeParameters(fromSource: Bool) throws {
+        let ctx = try makeTestContext("""
+        private class Box {
+            private fun <T : Any> make(v: T) = object {
+                val stored = v
+                fun get() = stored
+            }
+            fun use(): Int = make(6).get()
+        }
+        fun box(): Int = Box().use()
+        """, fromSource: fromSource)
+
+        try runSema(ctx)
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.isEmpty, "\(errors)")
+    }
+
+    /// KUU-3867: a member spelling a captured parameter (`makeWindow(): List<T>`
+    /// on a `object : It<R>` nested in `windowed<T, R>`) must keep the whole
+    /// class prefix — the receiver-owner constraints bind it positionally to
+    /// the object type's argument list — while members spelling none drop it.
+    @Test(arguments: [false, true])
+    func preservesNestedObjectsSpellingCapturedTypeParameters(fromSource: Bool) throws {
+        let ctx = try makeTestContext("""
+        interface It<T> { fun hasNext(): Boolean; fun next(): T }
+        interface Seq<T> { fun iterator(): It<T> }
+        fun <T, R> Seq<T>.windowed(transform: (List<T>) -> R): Seq<R> {
+            val source = this
+            return object : Seq<R> {
+                override fun iterator(): It<R> = object : It<R> {
+                    val sourceIterator = source.iterator()
+                    fun makeWindow(): List<T> = mutableListOf()
+                    fun fill() {
+                        while (sourceIterator.hasNext()) { }
+                    }
+                    fun compute() {
+                        if (sourceIterator.hasNext()) { fill() }
+                        transform(makeWindow())
+                    }
+                    override fun hasNext(): Boolean { compute(); return true }
+                    override fun next(): R = transform(mutableListOf())
+                }
+            }
+        }
+        """, fromSource: fromSource)
+        try runSema(ctx)
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.isEmpty, "\(errors)")
+    }
+
     @Test(arguments: [false, true])
     func resolvesLocalClassGenericMemberMethods(fromSource: Bool) throws {
         let ctx = try makeTestContext("""
