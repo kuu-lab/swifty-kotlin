@@ -104,6 +104,70 @@ private func registerSuspendObjectEntry(
     )
 }
 
+// KUU-3884: an erased `(P1..Pn, Continuation<R>) -> Any?` value — JVM
+// `Function{n+1}` — driven through the suspend ABI must run its ordinary
+// closure-first `invoke` with the child continuation appended as the last
+// argument. These stand-ins emulate generated invoke bodies: they carry no
+// CPS entry point and read the continuation purely as a value.
+private typealias RuntimeErasedClosureEntry1 = @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int
+private typealias RuntimeErasedClosureEntry2 = @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int
+
+nonisolated(unsafe) private var erasedSuspendProbeContinuation = 0
+nonisolated(unsafe) private var erasedSuspendProbeInvokeCount = 0
+nonisolated(unsafe) private var erasedSuspendProbeFirstArg: Int64 = 0
+
+private func resetErasedSuspendProbe() {
+    erasedSuspendProbeContinuation = 0
+    erasedSuspendProbeInvokeCount = 0
+    erasedSuspendProbeFirstArg = 0
+}
+
+@_cdecl("coro_erased_return_910")
+private func coro_erased_return_910(_ closureRaw: Int, _ continuation: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    outThrown?.pointee = 0
+    erasedSuspendProbeContinuation = continuation
+    erasedSuspendProbeInvokeCount += 1
+    return 910
+}
+
+@_cdecl("coro_erased_park")
+private func coro_erased_park(_ closureRaw: Int, _ continuation: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    outThrown?.pointee = 0
+    erasedSuspendProbeContinuation = continuation
+    erasedSuspendProbeInvokeCount += 1
+    return Int(bitPattern: kk_coroutine_suspended())
+}
+
+@_cdecl("coro_erased_echo_arg_plus_one")
+private func coro_erased_echo_arg_plus_one(_ closureRaw: Int, _ arg1: Int, _ continuation: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    outThrown?.pointee = 0
+    erasedSuspendProbeContinuation = continuation
+    erasedSuspendProbeFirstArg = Int64(arg1)
+    erasedSuspendProbeInvokeCount += 1
+    return arg1 + 1
+}
+
+@_cdecl("coro_erased_throw_immediately")
+private func coro_erased_throw_immediately(_ closureRaw: Int, _ continuation: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    outThrown?.pointee = runtimeAllocateThrowable(message: "erased boom")
+    erasedSuspendProbeContinuation = continuation
+    erasedSuspendProbeInvokeCount += 1
+    return 0
+}
+
+@_cdecl("coro_erased_caller_invokes_child")
+private func coro_erased_caller_invokes_child(_ continuation: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    _ = kk_coroutine_state_enter(continuation, 8860)
+    var thrown = 0
+    let result = kk_suspend_function_invoke_0(
+        Int(kk_coroutine_launcher_arg_get(continuation, 0)),
+        continuation,
+        &thrown
+    )
+    outThrown?.pointee = thrown
+    return kk_coroutine_state_exit(continuation, result)
+}
+
 //   • runtimeResultRunCatching + cancellation-exception propagation through Result
 
 @Suite(.serialized, .runtimeIsolation(.all))
@@ -359,6 +423,171 @@ struct RuntimeCoroutineIntrinsicsEdgeCaseTests {
         var thrown = 0
         #expect(kk_suspend_function_invoke(object, 777, 0, &thrown) == 777)
         #expect(thrown == 0)
+    }
+
+    // MARK: - erased Function{n+1} values (KUU-3884)
+
+    /// A `RuntimeFunctionValueBox` carrying a plain `(Continuation<R>) -> Any?`
+    /// fnPtr — arity 1, no CPS entry — is the erased `Function1` shape of a
+    /// `suspend () -> R` value. `kk_suspend_function_invoke_0` must run it
+    /// like a suspend call: the child continuation is appended as the last
+    /// invoke argument and the return value becomes the coroutine result.
+    @Test func erasedFunctionValueInvokeWithoutCallerRunsToResult() {
+        resetErasedSuspendProbe()
+        let fnRaw = unsafeBitCast(coro_erased_return_910 as RuntimeErasedClosureEntry1, to: Int.self)
+        let function = registerRuntimeObject(RuntimeFunctionValueBox(fnPtr: fnRaw, closureRaw: 0, arity: 1))
+
+        var thrown = 0
+        let result = kk_suspend_function_invoke_0(function, 0, &thrown)
+
+        #expect(result == 910)
+        #expect(thrown == 0)
+        #expect(erasedSuspendProbeInvokeCount == 1)
+        #expect(erasedSuspendProbeContinuation != 0)
+    }
+
+    @Test func erasedFunctionValueStartCoroutineDeliversResultToCompletion() throws {
+        resetErasedSuspendProbe()
+        let fnRaw = unsafeBitCast(coro_erased_return_910 as RuntimeErasedClosureEntry1, to: Int.self)
+        let function = registerRuntimeObject(RuntimeFunctionValueBox(fnPtr: fnRaw, closureRaw: 0, arity: 1))
+
+        let completion = kk_coroutine_continuation_new(8861)
+        defer { _ = kk_coroutine_state_exit(completion, 0) }
+        let completionState = try #require(runtimeContinuationState(from: completion))
+        let prepared = kk_create_coroutine_unintercepted_no_receiver(function, 0, completion)
+        #expect(kk_coroutine_launcher_arg_get(prepared, 0) == Int64(function))
+
+        kk_coroutine_continuation_resume(prepared, 0)
+
+        #expect(erasedSuspendProbeInvokeCount == 1)
+        #expect(erasedSuspendProbeContinuation != 0)
+        #expect(Int(completionState.completion) == 910)
+        #expect(completionState.thrownException == 0)
+    }
+
+    @Test func erasedFunctionValueStartCoroutineUninterceptedOrReturnReturnsResult() {
+        resetErasedSuspendProbe()
+        let fnRaw = unsafeBitCast(coro_erased_return_910 as RuntimeErasedClosureEntry1, to: Int.self)
+        let function = registerRuntimeObject(RuntimeFunctionValueBox(fnPtr: fnRaw, closureRaw: 0, arity: 1))
+        let completion = kk_coroutine_continuation_new(8862)
+        defer { _ = kk_coroutine_state_exit(completion, 0) }
+
+        var thrown = 0
+        let result = kk_start_coroutine_unintercepted_or_return_no_receiver(function, 0, completion, &thrown)
+
+        #expect(result == 910)
+        #expect(thrown == 0)
+        #expect(erasedSuspendProbeInvokeCount == 1)
+    }
+
+    /// An erased function returning `COROUTINE_SUSPENDED` parks the coroutine;
+    /// resuming the continuation it received completes the coroutine with that
+    /// Result — without re-invoking the erased function (it is not a CPS state
+    /// machine, matching JVM `createCoroutineFromSuspendFunction` label-1).
+    @Test func erasedFunctionValueSuspendsAndResumedValueCompletes() throws {
+        resetErasedSuspendProbe()
+        let fnRaw = unsafeBitCast(coro_erased_park as RuntimeErasedClosureEntry1, to: Int.self)
+        let function = registerRuntimeObject(RuntimeFunctionValueBox(fnPtr: fnRaw, closureRaw: 0, arity: 1))
+
+        let completion = kk_coroutine_continuation_new(8863)
+        defer { _ = kk_coroutine_state_exit(completion, 0) }
+        let completionState = try #require(runtimeContinuationState(from: completion))
+        let prepared = kk_create_coroutine_unintercepted_no_receiver(function, 0, completion)
+        kk_coroutine_continuation_resume(prepared, 0)
+
+        #expect(erasedSuspendProbeInvokeCount == 1)
+        let child = erasedSuspendProbeContinuation
+        #expect(child != 0)
+        #expect(Int(completionState.completion) == 0)
+
+        kk_coroutine_continuation_resume(child, 777)
+
+        #expect(erasedSuspendProbeInvokeCount == 1)
+        #expect(Int(completionState.completion) == 777)
+        #expect(completionState.thrownException == 0)
+    }
+
+    @Test func erasedFunctionValueResumedExceptionFailsCompletion() throws {
+        resetErasedSuspendProbe()
+        let fnRaw = unsafeBitCast(coro_erased_park as RuntimeErasedClosureEntry1, to: Int.self)
+        let function = registerRuntimeObject(RuntimeFunctionValueBox(fnPtr: fnRaw, closureRaw: 0, arity: 1))
+
+        let completion = kk_coroutine_continuation_new(8864)
+        defer { _ = kk_coroutine_state_exit(completion, 0) }
+        let completionState = try #require(runtimeContinuationState(from: completion))
+        let prepared = kk_create_coroutine_unintercepted_no_receiver(function, 0, completion)
+        kk_coroutine_continuation_resume(prepared, 0)
+        let child = erasedSuspendProbeContinuation
+        #expect(child != 0)
+
+        let exception = runtimeAllocateThrowable(message: "erased resume boom")
+        kk_coroutine_continuation_resume_with_exception(child, exception)
+
+        #expect(erasedSuspendProbeInvokeCount == 1)
+        #expect(completionState.thrownException == exception)
+    }
+
+    /// `(P1, Continuation<R>) -> Any?` — erased `Function2` — as
+    /// `suspend (P1) -> R`: the declared argument keeps its slot and the
+    /// child continuation lands last, for both `invoke` and the receiver
+    /// coroutine builder.
+    @Test func erasedFunctionValueWithReceiverAppendsContinuation() throws {
+        resetErasedSuspendProbe()
+        let fnRaw = unsafeBitCast(coro_erased_echo_arg_plus_one as RuntimeErasedClosureEntry2, to: Int.self)
+        let function = registerRuntimeObject(RuntimeFunctionValueBox(fnPtr: fnRaw, closureRaw: 0, arity: 2))
+
+        var thrown = 0
+        let result = kk_suspend_function_invoke(function, 555, 0, &thrown)
+        #expect(result == 556)
+        #expect(thrown == 0)
+        #expect(erasedSuspendProbeFirstArg == 555)
+
+        resetErasedSuspendProbe()
+        let completion = kk_coroutine_continuation_new(8865)
+        defer { _ = kk_coroutine_state_exit(completion, 0) }
+        let completionState = try #require(runtimeContinuationState(from: completion))
+        let prepared = kk_create_coroutine_unintercepted_with_receiver(function, 0, 41, completion)
+        kk_coroutine_continuation_resume(prepared, 0)
+
+        #expect(erasedSuspendProbeFirstArg == 41)
+        #expect(Int(completionState.completion) == 42)
+        #expect(completionState.thrownException == 0)
+    }
+
+    /// `susp(args)` on an erased value inside a live suspend caller drives it
+    /// through the same child-continuation machinery as a boxed suspend
+    /// callable (KUU-3802 parity).
+    @Test func erasedFunctionValueInvokeFromSuspendCallerUsesDirectSuspend() throws {
+        resetErasedSuspendProbe()
+        let fnRaw = unsafeBitCast(coro_erased_return_910 as RuntimeErasedClosureEntry1, to: Int.self)
+        let function = registerRuntimeObject(RuntimeFunctionValueBox(fnPtr: fnRaw, closureRaw: 0, arity: 1))
+
+        let completion = kk_coroutine_continuation_new(8866)
+        defer { _ = kk_coroutine_state_exit(completion, 0) }
+        let completionState = try #require(runtimeContinuationState(from: completion))
+        let parent = kk_create_coroutine_unintercepted(
+            unsafeBitCast(coro_erased_caller_invokes_child as RuntimeCoroutineIntrinsicEntry, to: Int.self),
+            completion
+        )
+        _ = kk_coroutine_launcher_arg_set(parent, 0, Int64(function))
+        kk_coroutine_continuation_resume(parent, 0)
+
+        #expect(erasedSuspendProbeInvokeCount == 1)
+        #expect(Int(completionState.completion) == 910)
+        #expect(completionState.thrownException == 0)
+    }
+
+    @Test func erasedFunctionValueThrowPropagatesToCaller() {
+        resetErasedSuspendProbe()
+        let fnRaw = unsafeBitCast(coro_erased_throw_immediately as RuntimeErasedClosureEntry1, to: Int.self)
+        let function = registerRuntimeObject(RuntimeFunctionValueBox(fnPtr: fnRaw, closureRaw: 0, arity: 1))
+
+        var thrown = 0
+        let result = kk_suspend_function_invoke_0(function, 0, &thrown)
+
+        #expect(result == 0)
+        #expect(thrown != 0)
+        #expect(erasedSuspendProbeInvokeCount == 1)
     }
 
     // MARK: - intercepted() — bypass semantics

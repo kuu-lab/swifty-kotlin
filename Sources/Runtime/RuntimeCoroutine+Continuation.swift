@@ -191,6 +191,95 @@ public func kk_create_coroutine_unintercepted(_ entryPointRaw: Int, _ completion
     return continuation
 }
 
+/// KUU-3884: generic `(continuation, outThrown)` entry point for a value
+/// erased to `(P1..Pn, Continuation<R>) -> Any?` — JVM `Function{n+1}` —
+/// invoked as `suspend (P1..Pn) -> R`. The coroutine builders spill the
+/// function value itself into launcher slot 0 and the suspend arguments into
+/// slots 1...n; the thunk appends the child continuation as the last
+/// argument and reads the return like a suspend call: a non-suspended value
+/// completes the coroutine, `COROUTINE_SUSPENDED` parks it until the erased
+/// function resumes the continuation it received, and that resumed Result
+/// then becomes the coroutine result. Two states, matching the label machine
+/// JVM `createCoroutineFromSuspendFunction` synthesizes for a
+/// non-`ContinuationImpl` receiver: label 0 invokes the erased function
+/// exactly once, label 1 delivers the resumed value (or rethrows the resumed
+/// exception) as the coroutine outcome.
+private let runtimeErasedSuspendFunctionEntryPoint: KKSuspendEntryPoint = { continuationRaw, outThrown in
+    let label = kk_coroutine_state_enter(continuationRaw, runtimeErasedSuspendFunctionEntryPointRaw)
+    if label != 0 {
+        let thrown = kk_coroutine_state_get_thrown_exception(continuationRaw)
+        if thrown != 0 {
+            outThrown?.pointee = thrown
+            _ = kk_coroutine_state_exit(continuationRaw, 0)
+            return 0
+        }
+        let result = kk_coroutine_state_get_completion(continuationRaw)
+        outThrown?.pointee = 0
+        return kk_coroutine_state_exit(continuationRaw, result)
+    }
+    _ = kk_coroutine_state_set_label(continuationRaw, 1)
+    let functionRaw = Int(kk_coroutine_launcher_arg_get(continuationRaw, 0))
+    let erasedArity: Int
+    if let box = runtimeFunctionValueBox(from: functionRaw) {
+        erasedArity = box.arity
+    } else if let object = runtimeCallableObjectPair(from: functionRaw) {
+        erasedArity = object.arity
+    } else {
+        erasedArity = 0
+    }
+    guard (1 ... 22).contains(erasedArity) else {
+        outThrown?.pointee = runtimeAllocateThrowable(message: "Invalid erased suspend function value")
+        _ = kk_coroutine_state_exit(continuationRaw, 0)
+        return 0
+    }
+    var arguments: [Int] = []
+    arguments.reserveCapacity(erasedArity)
+    for index in 1 ..< erasedArity {
+        arguments.append(Int(kk_coroutine_launcher_arg_get(continuationRaw, Int64(index))))
+    }
+    arguments.append(continuationRaw)
+    var thrown = 0
+    let result = runtimeInvokeErasedFunctionValue(
+        functionRaw: functionRaw,
+        arguments: arguments,
+        outThrown: &thrown
+    )
+    if thrown != 0 {
+        outThrown?.pointee = thrown
+        _ = kk_coroutine_state_exit(continuationRaw, 0)
+        return 0
+    }
+    if result != Int(bitPattern: kk_coroutine_suspended()) {
+        outThrown?.pointee = 0
+        return kk_coroutine_state_exit(continuationRaw, result)
+    }
+    outThrown?.pointee = 0
+    return result
+}
+
+/// The erased-suspend thunk's address as a suspend entry point raw value.
+/// Continuations driving the erased shape carry it as their `functionID`, so
+/// `kk_coroutine_state_enter` sees a stable identity across resume hops.
+let runtimeErasedSuspendFunctionEntryPointRaw = unsafeBitCast(
+    runtimeErasedSuspendFunctionEntryPoint, to: Int.self
+)
+
+/// KUU-3884: whether a `suspend (P1..Pn) -> R` value is a plain erased
+/// `Function{n+1}` — a `RuntimeFunctionValueBox` without a CPS entry point
+/// whose arity is n+1 (`(P1..Pn, Continuation<R>) -> Any?`), or a nominal
+/// `Function{n+1}` implementor. Such values take the generic erased-suspend
+/// entry point above instead of a callable-box `suspendEntryPoint` or a
+/// nominal `SuspendFunctionN` invoke launcher.
+func runtimeErasedSuspendShape(functionRaw: Int, arity: Int) -> Bool {
+    guard functionRaw != 0, (0 ... 21).contains(arity) else {
+        return false
+    }
+    if let box = runtimeFunctionValueBox(from: functionRaw) {
+        return box.suspendEntryPoint == 0 && box.arity == arity + 1
+    }
+    return runtimeCallableObjectPair(from: functionRaw, arity: arity + 1) != nil
+}
+
 /// The `(continuation, outThrown)` entry point for a dynamic suspend function
 /// value: the callable box's suspend entry, or — for a nominal
 /// `SuspendFunctionN` implementor (KUU-3802) — the invoke launcher thunk
@@ -208,10 +297,17 @@ private func suspendCoroutineFunctionEntry(
         return (box.suspendEntryPoint, box.closureRaw)
     }
     let objectEntryRaw = runtimeSuspendInvokeEntryPoint(objectRaw: functionRaw, arity: arity)
-    guard objectEntryRaw != 0 else {
-        return nil
+    if objectEntryRaw != 0 {
+        return (objectEntryRaw, functionRaw)
     }
-    return (objectEntryRaw, functionRaw)
+    // KUU-3884: an erased `Function{n+1}` value (`(P1..Pn, Continuation<R>)
+    // -> Any?`, the JVM shape) driven as `suspend (P1..Pn) -> R` goes through
+    // the generic erased-suspend entry point. Launcher slot 0 spills the
+    // value itself so the thunk resolves its invoke pair at call time.
+    if runtimeErasedSuspendShape(functionRaw: functionRaw, arity: arity) {
+        return (runtimeErasedSuspendFunctionEntryPointRaw, functionRaw)
+    }
+    return nil
 }
 
 /// Dynamic suspend function values keep their CPS entry point in the callable
