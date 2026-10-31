@@ -276,7 +276,10 @@ final class CoroutineLoweringPass: LoweringPass {
                     intType: intType,
                     longType: longType,
                     unitType: unitType
-                )
+                ),
+                suspendReturnType: suspendFunction.returnType,
+                sema: ctx.sema,
+                nominalDispatchCache: ctx.nominalDispatchCache
             )
             if let continuationNominal {
                 _ = module.arena.appendDecl(.nominalType(KIRNominalType(symbol: continuationNominal.typeSymbol)))

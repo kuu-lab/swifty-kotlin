@@ -27,7 +27,10 @@ extension CoroutineLoweringPass {
         sourceYieldCallee: InternedString,
         suspendPlan: SuspendLoweringPlan,
         spillSlotByExpr: [KIRExprID: Int64],
-        smTypes: StateMachineTypeContext
+        smTypes: StateMachineTypeContext,
+        suspendReturnType: TypeID,
+        sema: SemaModule?,
+        nominalDispatchCache: KIRNominalDispatchCache?
     ) -> KIRLoweringEmitContext {
         let continuationType = smTypes.continuationType
         let anyType = smTypes.anyType
@@ -421,19 +424,47 @@ extension CoroutineLoweringPass {
 
                 switch instruction {
                 case let .returnValue(value):
+                    // The coroutine's completion value doubles as the `Result`
+                    // payload and the suspend call's `Any?` result, so it must
+                    // cross this boundary in boxed form — the same
+                    // representation `Result.success(v)` stores. Without
+                    // boxing, Unit/primitive/enum completions surface as their
+                    // raw representation (`Success(0)` instead of
+                    // `Success(kotlin.Unit)`, `Success(1)` instead of
+                    // `Success(GREEN)`).
+                    let exitPayload = boxedCoroutineCompletionValue(
+                        value,
+                        suspendReturnType: suspendReturnType,
+                        resultType: anyType,
+                        sema: sema,
+                        nominalDispatchCache: nominalDispatchCache,
+                        interner: interner,
+                        module: module,
+                        into: &lowered
+                    )
                     let exitValueExpr = module.arena.appendTemporary(type: continuationType
                     )
                     lowered.append(
-                        .call(callee: exitCallee, arguments: [continuationExpr, value], result: exitValueExpr, canThrow: false)
+                        .call(callee: exitCallee, arguments: [continuationExpr, exitPayload], result: exitValueExpr, canThrow: false)
                     )
                     lowered.append(.returnValue(exitValueExpr))
 
                 case .returnUnit:
                     let unitExpr = module.arena.appendExpr(.unit, type: unitType)
+                    // `.returnUnit` completes the coroutine with kotlin.Unit —
+                    // box the raw representation so the `Result` payload is
+                    // the Unit singleton, not raw 0.
+                    let boxedUnit = emitNonThrowingCall(
+                        callee: interner.intern("kk_box_unit"),
+                        arg: unitExpr,
+                        resultType: anyType,
+                        arena: module.arena,
+                        into: &lowered
+                    )
                     let exitValueExpr = module.arena.appendTemporary(type: continuationType
                     )
                     lowered.append(
-                        .call(callee: exitCallee, arguments: [continuationExpr, unitExpr], result: exitValueExpr, canThrow: false)
+                        .call(callee: exitCallee, arguments: [continuationExpr, boxedUnit], result: exitValueExpr, canThrow: false)
                     )
                     lowered.append(.returnValue(exitValueExpr))
 
@@ -444,6 +475,42 @@ extension CoroutineLoweringPass {
         }
 
         return lowered
+    }
+
+    /// Boxes a suspend function's completion value for the `Any?` boundary it
+    /// crosses on coroutine exit. The returned value is the payload of the
+    /// `Result` delivered to the completion continuation and the value a
+    /// synchronous suspend call returns to its caller, so primitives, Unit,
+    /// enums, and value classes must arrive boxed exactly like the argument
+    /// to `Result.success`. Falls back to the raw value when the type system
+    /// is unavailable.
+    private func boxedCoroutineCompletionValue(
+        _ value: KIRExprID,
+        suspendReturnType: TypeID,
+        resultType: TypeID,
+        sema: SemaModule?,
+        nominalDispatchCache: KIRNominalDispatchCache?,
+        interner: StringInterner,
+        module: KIRModule,
+        into lowered: inout KIRLoweringEmitContext
+    ) -> KIRExprID {
+        guard let types = sema?.types else {
+            return value
+        }
+        let sourceType = module.arena.exprType(value) ?? suspendReturnType
+        return boxValueForAnySlot(
+            value,
+            sourceType: sourceType,
+            types: types,
+            symbols: sema?.symbols,
+            interner: interner,
+            arena: module.arena,
+            resultType: resultType,
+            requireNonNull: true,
+            sema: sema,
+            cache: nominalDispatchCache,
+            into: &lowered
+        )
     }
 
     func stateDispatchLabel(for resumeLabel: Int64) -> Int32 {
