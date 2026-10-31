@@ -160,6 +160,29 @@ struct RuntimeLocalDelegatedPropertyStubTests {
         #expect(kk_op_is(member, nominalTypeToken(for: "kotlin.reflect.KProperty0")) == 0)
     }
 
+    @Test
+    func toStringQualifiesBuiltinReturnTypeDescriptor() {
+        // KUU-3896: a local delegated stub carries only the legacy `returnType`
+        // descriptor (no KType handle), so `property.toString()` renders it
+        // through the same builtin-name qualification `property.returnType`
+        // uses — `val value: kotlin.Int`, matching kotlinc.
+        let valStub = kk_kproperty_stub_create_local(
+            makeStringRaw("value"),
+            makeStringRaw("Int"),
+            makeStringRaw("local-delegated-\(UUID().uuidString)"),
+            0
+        )
+        #expect(runtimeRenderAnyForPrint(valStub) == "val value: kotlin.Int")
+
+        let varStub = kk_kproperty_stub_create_local(
+            makeStringRaw("count"),
+            makeStringRaw("Int?"),
+            makeStringRaw("local-delegated-\(UUID().uuidString)"),
+            1
+        )
+        #expect(runtimeRenderAnyForPrint(varStub) == "var count: kotlin.Int?")
+    }
+
     private func makeStub(isMutable: Int) -> Int {
         kk_kproperty_stub_create_local(
             makeStringRaw("value"),
