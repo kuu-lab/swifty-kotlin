@@ -161,7 +161,14 @@ extension KIRLoweringDriver {
                   superSymbol != sema.types.anyClassSymbol,
                   visited.insert(superSymbol).inserted
             else { continue }
-            if let companionSymbol = sema.symbols.companionObjectSymbolIfKnown(for: superSymbol) {
+            // KUU-3822: a `companion {}` block is an initialization scope too;
+            // when a supertype carries only blocks (no `companion object`),
+            // its hidden `$CompanionBlocks` ensure-init is the <clinit> to
+            // call here. When both exist, the named companion's ensure-init
+            // already folds the block call inside itself.
+            if let companionSymbol = sema.symbols.companionObjectSymbolIfKnown(for: superSymbol)
+                ?? sema.symbols.companionBlockObjectSymbol(for: superSymbol, interner: interner)
+            {
                 emitObjectLazyInitGuardIfNeeded(
                     objectSymbol: companionSymbol, arena: arena, sema: sema,
                     interner: interner, instructions: &instructions
@@ -193,6 +200,7 @@ extension KIRLoweringDriver {
         guard visited.insert(interfaceSymbol).inserted else { return }
         if interfaceDeclaresConcreteMember(interfaceSymbol, sema: sema),
            let companionSymbol = sema.symbols.companionObjectSymbolIfKnown(for: interfaceSymbol)
+            ?? sema.symbols.companionBlockObjectSymbol(for: interfaceSymbol, interner: interner)
         {
             emitObjectLazyInitGuardIfNeeded(
                 objectSymbol: companionSymbol, arena: arena, sema: sema,
@@ -732,11 +740,21 @@ extension KIRLoweringDriver {
         // sees "already initialized" and does not recurse.
         body.append(.storeGlobal(value: trueExpr, symbol: flagSymbol))
 
+        // KUU-3822: a `$CompanionBlocks` object is the hidden implementation
+        // scope of a `companion {}` block, so its <clinit> is the *owner*
+        // class's companion initialization: the owner's supertype companions
+        // initialize before the block's own body, exactly like a named
+        // `companion object` (whose ensure-init takes the same preamble).
+        let companionBlockOwnerSymbol = sema.symbols.parentSymbolIfKnown(for: objectSymbol).flatMap { owner in
+            sema.symbols.companionBlockObjectSymbol(for: owner, interner: interner) == objectSymbol ? owner : nil
+        }
+
         // KUU-3225: touching the object is an active use of its class — on
         // the JVM the supertype companions initialize before this object's
         // own <clinit> body (and before the super-constructor call below).
         emitSupertypeCompanionInitCalls(
-            for: objectSymbol, sema: sema, arena: arena, interner: interner,
+            for: companionBlockOwnerSymbol ?? objectSymbol,
+            sema: sema, arena: arena, interner: interner,
             instructions: &body.instructions
         )
 
@@ -755,6 +773,23 @@ extension KIRLoweringDriver {
             body: &body
         )
         emitObjectBodyInitializers(objectDecl, shared: shared, body: &body)
+
+        // KUU-3821: `companion {}` blocks and a `companion object` share one
+        // companion scope on the JVM — touching either half initializes the
+        // whole scope. When a named companion object also exists, chain to
+        // its ensure-init after the block initializers so block-first entry
+        // still runs the object's body (blocks-then-object order, matching
+        // kotlinc). Reentry is cut by each ensure-init's own `$initialized`
+        // flag, and the named companion's ensure-init calls back into this
+        // one before its own body for the symmetric object-first entry.
+        if let companionBlockOwnerSymbol,
+           let namedCompanion = sema.symbols.companionObjectSymbolIfKnown(for: companionBlockOwnerSymbol)
+        {
+            emitObjectLazyInitGuardIfNeeded(
+                objectSymbol: namedCompanion, arena: arena, sema: sema,
+                interner: interner, instructions: &body.instructions
+            )
+        }
 
         body.append(.label(alreadyInitializedLabel))
         body.append(.returnUnit)

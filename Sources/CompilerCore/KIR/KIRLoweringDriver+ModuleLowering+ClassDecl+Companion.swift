@@ -231,6 +231,21 @@ extension KIRLoweringDriver {
             instructions: &body.instructions
         )
 
+        // KUU-3821: `companion {}` blocks belong to the same companion scope
+        // as this object — kotlinc runs their initializers in the same
+        // <clinit> before the companion object's own body, so fold the
+        // `$CompanionBlocks` ensure-init in here. Its lazy-init entry is
+        // registered later (nested objects synthesize after companions), so
+        // this call resolves through the deferred-guard rewrite.
+        if let companionBlockObject = sema.symbols.companionBlockObjectSymbol(
+            for: ownerSymbol, interner: interner
+        ) {
+            emitObjectLazyInitGuardIfNeeded(
+                objectSymbol: companionBlockObject, arena: arena, sema: sema,
+                interner: interner, instructions: &body.instructions
+            )
+        }
+
         emitSingletonLateinitSentinels(companionDecl.memberProperties, shared: shared, body: &body)
         emitNamedObjectSuperConstructorCall(
             companionDecl,

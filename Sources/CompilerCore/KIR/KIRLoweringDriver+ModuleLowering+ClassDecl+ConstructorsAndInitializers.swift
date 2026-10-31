@@ -104,7 +104,9 @@ extension KIRLoweringDriver {
         // supertype companion initializers (KUU-3225) — executes before
         // superclass or instance init code. A companion-less class still
         // owes its supertype chain's initialization.
-        if let companionSymbol = sema.symbols.companionObjectSymbol(for: ownerSymbol) {
+        if let companionSymbol = sema.symbols.companionObjectSymbol(for: ownerSymbol)
+            ?? sema.symbols.companionBlockObjectSymbol(for: ownerSymbol, interner: shared.interner)
+        {
             emitObjectLazyInitGuardIfNeeded(
                 objectSymbol: companionSymbol,
                 arena: shared.arena,

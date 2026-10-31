@@ -86,7 +86,8 @@ extension CallLowerer {
         let deferCompanionInitialization = shouldDeferCompanionInitializationUntilArgumentsAreEvaluated(
             exprID: exprID,
             args: args,
-            sema: sema
+            sema: sema,
+            interner: interner
         )
         if !deferCompanionInitialization {
             emitCompanionInitializationForConstructorCall(

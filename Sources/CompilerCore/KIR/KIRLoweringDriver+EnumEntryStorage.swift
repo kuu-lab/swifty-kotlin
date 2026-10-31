@@ -731,9 +731,19 @@ extension KIRLoweringDriver {
             // initialization by calling `$enumEnsureInit$` alone — including
             // paths the entry-reference trigger pass cannot see (the
             // synthesized values/valueOf/entries bodies and enumValues).
-            if let companionSymbol = sema.symbols.companionObjectSymbolIfKnown(for: ownerSymbol),
-               let companionLazyInit = ctx.objectLazyInit(for: companionSymbol)
-            {
+            // KUU-3827: with no `companion object`, `companion {}` block
+            // members still share that <clinit> — their `$CompanionBlocks`
+            // ensure-init is the fold target instead. An enum without a
+            // source companion still owns a *synthetic* companion symbol
+            // (hosting values/valueOf/entries) that never registers a lazy
+            // init, so resolve whichever target actually has one. A real
+            // companion's ensure-init already folds the blocks call inside
+            // itself, so a single call covers both.
+            let companionLazyInit = sema.symbols.companionObjectSymbolIfKnown(for: ownerSymbol)
+                .flatMap({ ctx.objectLazyInit(for: $0) })
+                ?? sema.symbols.companionBlockObjectSymbol(for: ownerSymbol, interner: interner)
+                    .flatMap({ ctx.objectLazyInit(for: $0) })
+            if let companionLazyInit {
                 let companionInitResult = arena.appendTemporary(type: sema.types.unitType)
                 body.append(.call(
                     symbol: companionLazyInit.ensureInitSymbol,
@@ -1121,30 +1131,39 @@ extension KIRLoweringDriver {
         }
     }
 
-    func insertEnumLazyInitTriggers(arena: KIRArena, sema: SemaModule) {
+    func insertEnumLazyInitTriggers(arena: KIRArena, sema: SemaModule, interner: StringInterner) {
         let lazyInits = ctx.enumLazyInitByOwner
         var companionLazyInits: [SymbolID: (symbol: SymbolID, name: InternedString)] = [:]
         var enumLazyInitByCompanionLazyInit: [SymbolID: (symbol: SymbolID, name: InternedString)] = [:]
         // A companion is initialized after its enclosing enum. Other nested
         // objects have independent initialization and must not trigger it.
+        // KUU-3823/KUU-3827: `companion {}` blocks initialize inside the same
+        // <clinit> — map the `$CompanionBlocks` ensure-init alongside the
+        // named companion's so a block-member access also prepends the enum's
+        // `$enumEnsureInit$` (entries first) and entry references on
+        // storage-free enums still trigger the block initializers.
         for enumSymbol in sema.symbols.allSymbols() where enumSymbol.kind == .enumClass {
-            guard let companionSymbol = sema.symbols.companionObjectSymbolIfKnown(for: enumSymbol.id) else {
-                continue
-            }
-            let companionLazyInit: (symbol: SymbolID, name: InternedString)?
-            if let lazyInit = ctx.objectLazyInit(for: companionSymbol) {
-                companionLazyInit = (lazyInit.ensureInitSymbol, lazyInit.ensureInitName)
-            } else if let importedInit = sema.symbols.objectLazyInitializerSymbol(for: companionSymbol),
-                      let importedSymbol = sema.symbols.symbol(importedInit)
-            {
-                companionLazyInit = (importedInit, importedSymbol.name)
-            } else {
-                companionLazyInit = nil
-            }
-            guard let companionLazyInit else { continue }
-            companionLazyInits[enumSymbol.id] = companionLazyInit
-            if let enumLazyInit = lazyInits[enumSymbol.id] {
-                enumLazyInitByCompanionLazyInit[companionLazyInit.symbol] = enumLazyInit
+            for companionSymbol in [
+                sema.symbols.companionObjectSymbolIfKnown(for: enumSymbol.id),
+                sema.symbols.companionBlockObjectSymbol(for: enumSymbol.id, interner: interner),
+            ].compactMap({ $0 }) {
+                let companionLazyInit: (symbol: SymbolID, name: InternedString)?
+                if let lazyInit = ctx.objectLazyInit(for: companionSymbol) {
+                    companionLazyInit = (lazyInit.ensureInitSymbol, lazyInit.ensureInitName)
+                } else if let importedInit = sema.symbols.objectLazyInitializerSymbol(for: companionSymbol),
+                          let importedSymbol = sema.symbols.symbol(importedInit)
+                {
+                    companionLazyInit = (importedInit, importedSymbol.name)
+                } else {
+                    companionLazyInit = nil
+                }
+                guard let companionLazyInit else { continue }
+                if companionLazyInits[enumSymbol.id] == nil {
+                    companionLazyInits[enumSymbol.id] = companionLazyInit
+                }
+                if let enumLazyInit = lazyInits[enumSymbol.id] {
+                    enumLazyInitByCompanionLazyInit[companionLazyInit.symbol] = enumLazyInit
+                }
             }
         }
         guard !lazyInits.isEmpty || !companionLazyInits.isEmpty else { return }
