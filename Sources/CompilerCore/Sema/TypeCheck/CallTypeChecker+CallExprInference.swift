@@ -657,6 +657,7 @@ extension CallTypeChecker {
             locals: locals,
             preInferredArgumentTypes: preInferredSamConstructorSiblingTypes,
             withContextExpectedLambdaType: withContextExpectedLambdaType,
+            receiverType: argumentContextReceiverType,
             expectedTypeOverrides: &expectedTypeOverrides,
             lambdaContextOverrides: &lambdaContextOverrides
         )
