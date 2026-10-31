@@ -343,6 +343,13 @@ extension CallTypeChecker {
             ctx.sema.diagnostics.error("KSWIFTK-SEMA-0024", "Unresolved member function '\(interner.resolve(calleeName))'.", range: range)
             return driver.helpers.bindAndReturnErrorType(id, sema: sema)
         }
+        // A member-style call that resolved to a local extension function is
+        // a lexical reference to that declaration. Record the identifier
+        // binding the callable-value path used to keep on `request.id` so
+        // capture analysis and identifier lookups see the resolved local.
+        if sema.symbols.symbol(chosen)?.flags.contains(.localFunction) == true {
+            sema.bindings.bindIdentifier(id, symbol: chosen)
+        }
         markRegexReplaceLambdaIfNeeded(chosenCallee: chosen, args: args, ctx: ctx)
         driver.helpers.checkDeprecation(
             for: chosen,
