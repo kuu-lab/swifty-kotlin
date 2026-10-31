@@ -1167,7 +1167,7 @@ extension DeclTypeChecker {
             }
             let branch = ctx.dataFlow.branchOnCondition(
                 lhs,
-                base: ctx.flowState.includingMembers(from: locals),
+                base: ctx.flowState.includingMembers(from: locals, types: types),
                 locals: locals,
                 ast: ctx.ast,
                 sema: ctx.sema,

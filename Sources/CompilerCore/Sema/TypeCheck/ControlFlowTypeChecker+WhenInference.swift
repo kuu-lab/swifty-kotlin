@@ -160,7 +160,7 @@ extension ControlFlowTypeChecker {
             let subjectValueFacts: DataFlowValueFacts? = if let subjectLocalBinding,
                                                                subjectLocalBinding.isStable
             {
-                ctx.flowState.includingMembers(from: locals)[subjectLocalBinding.symbol]?.valueFacts
+                ctx.flowState.includingMembers(from: locals, types: sema.types)[subjectLocalBinding.symbol]?.valueFacts
             } else {
                 nil
             }
@@ -322,7 +322,7 @@ extension ControlFlowTypeChecker {
                 // cannot leak to the enclosing conditional path.
                 branchCtx.isConditionallyEvaluated = false
                 var trueFlowStates: [DataFlowState] = []
-                var cumulativeFalseState = ctx.flowState.includingMembers(from: locals)
+                var cumulativeFalseState = ctx.flowState.includingMembers(from: locals, types: sema.types)
                 var branchConditionKeys: Set<String> = []
 
                 for cond in branch.conditions {
@@ -451,7 +451,7 @@ extension ControlFlowTypeChecker {
                         let nonNullState = ctx.dataFlow.whenNonNullBranchState(
                             subjectSymbol: subjectLocalBinding.symbol,
                             subjectType: subjectLocalBinding.type,
-                            base: ctx.flowState.includingMembers(from: locals),
+                            base: ctx.flowState.includingMembers(from: locals, types: sema.types),
                             sema: sema
                         )
                         branchCtx = ctx.copying(flowState: nonNullState)
@@ -510,7 +510,7 @@ extension ControlFlowTypeChecker {
                         subjectSymbol: subjectLocalBinding.symbol,
                         subjectType: subjectLocalBinding.type,
                         hasExplicitNullBranch: hasExplicitNullBranch,
-                        base: ctx.flowState.includingMembers(from: locals), sema: sema
+                        base: ctx.flowState.includingMembers(from: locals, types: sema.types), sema: sema
                     )
                     elseCtx = ctx.copying(flowState: elseFlowState)
                     driver.exprChecker.applyFlowStateToLocals(elseFlowState, locals: &elseLocals, sema: sema)
@@ -666,7 +666,7 @@ extension ControlFlowTypeChecker {
             var allBranchLocals: [LocalBindings] = []
             var hasTrueCase = false
             var hasFalseCase = false
-            var cumulativeFalseState = ctx.flowState.includingMembers(from: locals)
+            var cumulativeFalseState = ctx.flowState.includingMembers(from: locals, types: sema.types)
             for branch in branches {
                 var branchLocals = locals
                 var condCtx = ctx.copying(flowState: cumulativeFalseState)

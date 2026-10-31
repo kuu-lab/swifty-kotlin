@@ -70,7 +70,7 @@ extension ExprTypeChecker {
             )
             let lhsBranch = ctx.dataFlow.branchOnCondition(
                 lhsID,
-                base: ctx.flowState.includingMembers(from: locals),
+                base: ctx.flowState.includingMembers(from: locals, types: sema.types),
                 locals: locals,
                 ast: ast,
                 sema: sema,

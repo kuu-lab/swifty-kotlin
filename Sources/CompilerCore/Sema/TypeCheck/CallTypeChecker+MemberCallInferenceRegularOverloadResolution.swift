@@ -267,7 +267,7 @@ extension CallTypeChecker {
         let hasNonNullFlowFact = if let reference = ctx.dataFlow.resolveStableReference(
             request.receiverID, locals: locals, ast: ast, sema: sema, interner: interner
         ), reference.isStable,
-           let flow = ctx.flowState.includingMembers(from: locals)[reference.symbol]
+           let flow = ctx.flowState.includingMembers(from: locals, types: sema.types)[reference.symbol]
         {
             flow.isStable && flow.nullability == .nonNull
         } else {

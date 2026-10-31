@@ -94,7 +94,7 @@ extension CallTypeChecker {
         // lambda). The narrowing is scoped to the arguments: the receiver may
         // still be null afterwards, so the narrowed local must be restored.
         if safeCall {
-            let baseState = ctx.flowState.includingMembers(from: locals)
+            let baseState = ctx.flowState.includingMembers(from: locals, types: ctx.sema.types)
             let narrowedState = ctx.dataFlow.narrowNonNull(
                 receiverID,
                 base: baseState,

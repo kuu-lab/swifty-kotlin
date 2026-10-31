@@ -650,7 +650,7 @@ final class ControlFlowTypeChecker {
             diagnostics: ctx.sema.diagnostics
         )
         let branch = ctx.dataFlow.branchOnCondition(
-            conditionExpr, base: ctx.flowState.includingMembers(from: locals), locals: locals,
+            conditionExpr, base: ctx.flowState.includingMembers(from: locals, types: sema.types), locals: locals,
             ast: ast, sema: sema, interner: interner, scope: ctx.scope
         )
         var bodyLocals = locals
@@ -1022,7 +1022,7 @@ final class ControlFlowTypeChecker {
             )
         }
         let branch = ctx.dataFlow.branchOnCondition(
-            condition, base: ctx.flowState.includingMembers(from: locals), locals: locals,
+            condition, base: ctx.flowState.includingMembers(from: locals, types: sema.types), locals: locals,
             ast: ast, sema: sema, interner: interner, scope: ctx.scope
         )
         var thenLocals = locals

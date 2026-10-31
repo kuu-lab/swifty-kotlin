@@ -88,7 +88,7 @@ struct DataFlowState: Equatable {
         }
     }
 
-    func includingMembers(from locals: LocalBindings) -> DataFlowState {
+    func includingMembers(from locals: LocalBindings, types: TypeSystem) -> DataFlowState {
         var state = self
         state.members = locals.memberFlow
         for symbol in locals.invalidatedVariableFacts {
@@ -103,12 +103,35 @@ struct DataFlowState: Equatable {
         }
         // Assignments update local bindings. Do not revive a stale fact from
         // an enclosing branch when splitting flow again after such a write.
-        for local in locals.values where local.isMutable {
-            if let variable = state.variables[local.symbol],
-               variable.possibleTypes.count == 1, !variable.possibleTypes.contains(local.type)
-            {
+        // Immutable bindings can only narrow past the snapshot — a contract
+        // call such as `require`/`check` writes the narrowed type into locals
+        // but leaves the flow-state entry behind — so the local's current
+        // type is the fresher fact and the stale wider entry must not
+        // clobber it when this state is written back to locals.
+        for local in locals.values {
+            guard let variable = state.variables[local.symbol],
+                  variable.possibleTypes.count == 1,
+                  let flowType = variable.possibleTypes.first,
+                  flowType != local.type
+            else { continue }
+            if local.isMutable || local.type == types.errorType {
                 state.variables.removeValue(forKey: local.symbol)
+                continue
             }
+            let narrowedType: TypeID
+            if types.isSubtype(local.type, flowType) {
+                narrowedType = local.type
+            } else if types.isSubtype(flowType, local.type) {
+                narrowedType = flowType
+            } else {
+                narrowedType = types.make(.intersection([local.type, flowType]))
+            }
+            state.variables[local.symbol] = VariableFlowState(
+                possibleTypes: [narrowedType],
+                nullability: types.nullability(of: narrowedType),
+                isStable: variable.isStable,
+                valueFacts: variable.valueFacts
+            )
         }
         return state
     }

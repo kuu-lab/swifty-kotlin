@@ -212,7 +212,7 @@ extension ExprTypeChecker {
                     id, locals: locals, ast: ctx.ast, sema: sema, interner: interner
                 ), reference.isStable,
                    let narrowedType = ctx.dataFlow.resolvedTypeFromFlowState(
-                       ctx.flowState.includingMembers(from: locals), reference: reference.symbol,
+                       ctx.flowState.includingMembers(from: locals, types: sema.types), reference: reference.symbol,
                        types: sema.types
                    )
                 {
