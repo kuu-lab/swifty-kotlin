@@ -311,6 +311,8 @@ extension BuildASTPhase.ExpressionParser {
         let name: InternedString
         let typeRef: TypeRefID?
         let destructuringNames: [InternedString?]?
+        let destructuringProperties: [InternedString?]?
+        let destructuringMutableFlags: [Bool]?
         let destructuringSyntax: ForDestructuringSyntax?
     }
 
@@ -355,6 +357,8 @@ extension BuildASTPhase.ExpressionParser {
                     name: parameterName,
                     typeRef: parseLambdaParamTypeAnnotation(in: segment, after: closeIndex),
                     destructuringNames: destructuring.names,
+                    destructuringProperties: destructuring.properties,
+                    destructuringMutableFlags: destructuring.mutableFlags,
                     destructuringSyntax: destructuring.syntax
                 ))
                 continue
@@ -368,6 +372,8 @@ extension BuildASTPhase.ExpressionParser {
                 name: name,
                 typeRef: parseLambdaParamTypeAnnotation(in: segment, after: nameIndex),
                 destructuringNames: nil,
+                destructuringProperties: nil,
+                destructuringMutableFlags: nil,
                 destructuringSyntax: nil
             ))
         }
@@ -402,7 +408,7 @@ extension BuildASTPhase.ExpressionParser {
 
     private func extractDestructuringParameter(
         from paramTokens: [Token]
-    ) -> (names: [InternedString?], syntax: ForDestructuringSyntax)? {
+    ) -> (names: [InternedString?], properties: [InternedString?], mutableFlags: [Bool], syntax: ForDestructuringSyntax)? {
         guard paramTokens.count >= 2,
               let syntax = lambdaDestructuringSyntax(for: paramTokens[0].kind),
               let closeIndex = lambdaDestructuringCloseIndex(in: paramTokens[...]),
@@ -410,38 +416,76 @@ extension BuildASTPhase.ExpressionParser {
         else { return nil }
         let innerTokens = Array(paramTokens.dropFirst().dropLast())
         guard isDestructuringEntries(innerTokens[...]) else { return nil }
-        let names = parseDestructuringNames(from: innerTokens)
-        return names.isEmpty ? nil : (names, syntax)
+        let entries = parseDestructuringEntries(from: innerTokens)
+        return entries.names.isEmpty ? nil : (entries.names, entries.properties, entries.mutableFlags, syntax)
     }
 
-    private func parseDestructuringNames(from innerTokens: [Token]) -> [InternedString?] {
+    /// Splits the inside of a lambda destructuring parameter into entries.
+    /// `isDestructuringEntries` already guaranteed the full form is
+    /// all-or-nothing, so `mutableFlags` is non-empty exactly when the
+    /// entries declare `val`/`var` (name-based) — the same layout contract
+    /// statement destructuring uses.
+    private func parseDestructuringEntries(
+        from innerTokens: [Token]
+    ) -> (names: [InternedString?], properties: [InternedString?], mutableFlags: [Bool]) {
         var names: [InternedString?] = []
+        var properties: [InternedString?] = []
+        var declaredMutability: [Bool?] = []
         var depth = BuildASTPhase.BracketDepth()
         var entryStart = innerTokens.startIndex
         for index in innerTokens.indices {
             if innerTokens[index].kind == .symbol(.comma), depth.isAtTopLevel {
-                appendDestructuringName(in: innerTokens[entryStart ..< index], to: &names)
+                appendDestructuringName(
+                    in: innerTokens[entryStart ..< index],
+                    to: &names, properties: &properties, declaredMutability: &declaredMutability
+                )
                 entryStart = index + 1
             }
             depth.track(innerTokens[index].kind)
         }
-        appendDestructuringName(in: innerTokens[entryStart...], to: &names)
-        return names
+        appendDestructuringName(
+            in: innerTokens[entryStart...],
+            to: &names, properties: &properties, declaredMutability: &declaredMutability
+        )
+        let hasDeclaringEntries = declaredMutability.contains { $0 != nil }
+        return (names, properties, hasDeclaringEntries ? declaredMutability.map { $0 ?? false } : [])
     }
 
     private func appendDestructuringName(
         in entry: ArraySlice<Token>,
-        to names: inout [InternedString?]
+        to names: inout [InternedString?],
+        properties: inout [InternedString?],
+        declaredMutability: inout [Bool?]
     ) {
         guard !entry.isEmpty else { return }
         var firstIndex = entry.startIndex
+        var entryMutable: Bool?
         if entry[firstIndex].kind == .keyword(.val) || entry[firstIndex].kind == .keyword(.var) {
+            entryMutable = entry[firstIndex].kind == .keyword(.var)
             firstIndex = entry.index(after: firstIndex)
         }
         guard firstIndex < entry.endIndex,
               let name = tokenText(entry[firstIndex])
         else {
             return
+        }
+        // `val a = first` binds `a` to the property named `first`; without
+        // recording the alias Sema can only guess the declared name.
+        var property: InternedString?
+        var depth = BuildASTPhase.BracketDepth()
+        var scan = entry.index(after: firstIndex)
+        while scan < entry.endIndex {
+            if entry[scan].kind == .symbol(.assign), depth.isAtTopLevel {
+                let propertyIndex = entry.index(after: scan)
+                if propertyIndex < entry.endIndex,
+                   let alias = tokenText(entry[propertyIndex])
+                {
+                    property = alias
+                }
+                break
+            }
+            depth.track(entry[scan].kind)
+            scan = entry.index(after: scan)
         }
         // Only a bare `_` skips the entry; a backticked `` `_` `` binds a real
         // variable named `_`, matching kotlinc.
@@ -450,6 +494,8 @@ extension BuildASTPhase.ExpressionParser {
         } else {
             names.append(name)
         }
+        properties.append(property)
+        declaredMutability.append(entryMutable)
     }
 
     private func wrapLambdaDestructuring(
@@ -470,8 +516,9 @@ extension BuildASTPhase.ExpressionParser {
             astArena.setDestructuringDeclLayout(
                 DestructuringDeclLayout(
                     syntax: syntax,
-                    properties: Array(repeating: nil, count: names.count),
-                    mutableFlags: []
+                    properties: param.destructuringProperties
+                        ?? Array(repeating: nil, count: names.count),
+                    mutableFlags: param.destructuringMutableFlags ?? []
                 ),
                 for: declaration
             )

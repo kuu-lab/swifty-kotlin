@@ -502,4 +502,96 @@ struct ForLoopReceiverValidationTests {
         #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
     }
 
+    @Test
+    func fullFormForDestructuringBindsEntriesByNameWithoutFeatureFlag() throws {
+        // KUU-3826: `for ((val name) in it)` must bind the component *named*
+        // `name`, not positionally componentN — no feature flag is required
+        // for the full form (entries declare `val`, so there is no positional
+        // reading).
+        let source = """
+        class Tuple(val first: Int, val second: Int)
+        class Cursor {
+            operator fun hasNext(): Boolean = false
+            operator fun next(): Tuple = Tuple(1, 2)
+        }
+        class Values {
+            operator fun iterator(): Cursor = Cursor()
+        }
+        fun test(values: Values): Int {
+            var total = 0
+            for ((val second, val first) in values) total = first + second
+            return total
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(
+                inputs: [path],
+                includeStdlib: false,
+                allowDefaultStdlibLibrary: false
+            )
+            try runSema(ctx)
+            let sourceDiagnostics = diagnosticsForPath(path, in: ctx)
+            #expect(!sourceDiagnostics.hasError, "\(sourceDiagnostics)")
+
+            let ast = try #require(ctx.ast)
+            let sourceFile = try #require(ctx.sourceManager.fileID(forPath: path))
+            let loopIndex = try #require(ast.arena.exprs.indices.first { index in
+                let id = ExprID(rawValue: Int32(index))
+                guard case .forDestructuringExpr = ast.arena.exprs[index] else { return false }
+                return ast.arena.exprRange(id)?.start.file == sourceFile
+                    && ctx.sema?.bindings.destructuringProperty(for: id, index: 0) != nil
+            })
+            let loopID = ExprID(rawValue: Int32(loopIndex))
+            // Entry order is (second, first): a positional binding would put
+            // component1 first; the full form must bind index 0 to `second`.
+            let indexEntryBinding = try #require(
+                ctx.sema?.bindings.destructuringProperty(for: loopID, index: 0)
+            )
+            let valueEntryBinding = try #require(
+                ctx.sema?.bindings.destructuringProperty(for: loopID, index: 1)
+            )
+            #expect(ctx.sema?.symbols.symbol(indexEntryBinding.propertySymbol)?.name == ctx.interner.intern("second"))
+            #expect(ctx.sema?.symbols.symbol(valueEntryBinding.propertySymbol)?.name == ctx.interner.intern("first"))
+        }
+    }
+
+    @Test
+    func mixedFullFormForDestructuringIsAParseError() throws {
+        // kotlinc requires every entry to declare `val` once one does
+        // ("Expecting val keyword").
+        TestStdlibCache.shared.prepare()
+        let ctx = makeContextFromSource("""
+        fun test() {
+            for ((val index, value) in listOf(1).withIndex()) {}
+        }
+        """, allowDefaultStdlibLibrary: true)
+        do { try runSema(ctx) } catch {}
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.contains { $0.code == "KSWIFTK-PARSE-0029" }, "\(errors)")
+    }
+
+    @Test
+    func fullFormLambdaDestructuringBindsEntriesByNameWithoutFeatureFlag() throws {
+        // Same KUU-3826 root cause through the lambda-parameter path:
+        // `(val second)` must look up the property named `second`, not
+        // component1 — `Tuple` has no componentN operators at all.
+        let source = """
+        class Tuple(val first: String, val second: Int)
+        fun test(): Int {
+            val check: (Tuple) -> Int = { (val second) -> second }
+            return check(Tuple("OK", 7))
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(
+                inputs: [path],
+                includeStdlib: false,
+                allowDefaultStdlibLibrary: false
+            )
+            try runSema(ctx)
+            let sourceDiagnostics = diagnosticsForPath(path, in: ctx)
+            #expect(!sourceDiagnostics.hasError, "\(sourceDiagnostics)")
+        }
+    }
+
 }
