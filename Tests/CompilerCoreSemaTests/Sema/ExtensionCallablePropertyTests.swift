@@ -214,6 +214,7 @@ struct ExtensionCallablePropertyTests {
     func localParameterAndNullableReceiverFunctionValuesAreAccepted() throws {
         let ctx = makeContextFromSource("""
         fun local(i: Int, action: Int.(Int) -> Int): Int = i.action(2)
+        fun localTwoParams(i: Int, action: Int.(Int, Int) -> Int): Int = i.action(2, 3)
         fun nullable(s: String?, action: String?.() -> Int): Int = s.action()
         fun safe(s: String?, action: String.() -> Int): Int? = s?.action()
         """)
@@ -239,6 +240,7 @@ struct ExtensionCallablePropertyTests {
     @Test(arguments: [
         "fun bad(action: Int.() -> Int): Int = \"x\".action()",
         "fun bad(action: Int.(Int) -> Int): Int = 1.action()",
+        "fun bad(action: Int.(Int, Int) -> Int): Int = 1.action(2)",
         "fun bad(action: Int.() -> Int): Int = 1.action(2)",
         "fun bad(action: Int.(Int) -> Int): Int = 1.action(\"x\")",
         "fun bad(action: (Int.() -> Int)?): Int = 1.action()",

@@ -1778,8 +1778,13 @@ extension CallTypeChecker {
             // Support function values that were represented as a regular
             // function type where the first parameter is the receiver.
             // Example: `val f: StringBuilder.() -> Unit` may be encoded as
-            // `(StringBuilder) -> Unit` in some contexts.
+            // `(StringBuilder) -> Unit` in some contexts. A declared
+            // receiver already owns that role — its `params` are all
+            // ordinary value parameters, so folding `params[0]` into a
+            // synthetic receiver here would accept calls missing one
+            // argument (KUU-3871).
             if case let .functionType(fnType) = sema.types.kind(of: localType),
+               fnType.receiver == nil,
                !fnType.params.isEmpty,
                args.count == fnType.params.count - 1,
                sema.types.isSubtype(
