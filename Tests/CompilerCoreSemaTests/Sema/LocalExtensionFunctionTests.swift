@@ -516,5 +516,114 @@ struct LocalExtensionFunctionTests {
         }
         #expect(boundToLocal, "The prefix-unary statement must bind to the local \(operatorName) operator")
     }
+
+    @Test
+    func localExtensionFunctionOutranksSameNamedCallableLocalOnExplicitReceiver() throws {
+        // KUU-3791: a local extension function is a declaration, not a
+        // function value. Declared in the same block as a same-named
+        // `String.() -> Boolean` local, `"1".foo()` must bind the function —
+        // Kotlin prints `true`, while invoking the value prints `false`.
+        let ctx = makeContextFromSource("""
+        fun probe(): Boolean {
+            val foo: String.() -> Boolean = { false }
+            fun String.foo(): Boolean { return true }
+            return "1".foo()
+        }
+        """)
+        try runToKIR(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let foo = try #require(localFunctionSymbol(
+            named: ctx.interner.intern("foo"),
+            in: ast,
+            sema: sema
+        ))
+        let call = try #require(memberCallExprIDs(named: "foo", in: ast, interner: ctx.interner).first)
+        #expect(sema.bindings.callBinding(for: call)?.chosenCallee == foo)
+    }
+
+    @Test
+    func memberExtensionFunctionOutranksCallableMemberPropertyOnExplicitReceiver() throws {
+        // KUU-3791: a member extension function and a member `val` of
+        // function type sit on the same implicit-receiver tier, where the
+        // declaration wins (`B.test3` in the Kotlin `extensionFunInvoke`
+        // test prints `true`).
+        let ctx = makeContextFromSource("""
+        class Box {
+            val foo: String.() -> Boolean = { false }
+            fun String.foo(): Boolean = true
+            fun probe(): Boolean = "1".foo()
+        }
+        """)
+        try runToKIR(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let memberFoo = try #require(sema.symbols.lookupAll(
+            fqName: ["Box", "foo"].map(ctx.interner.intern)
+        ).first {
+            sema.symbols.symbol($0)?.kind == .function
+        })
+        let call = try #require(memberCallExprIDs(named: "foo", in: ast, interner: ctx.interner).first)
+        #expect(sema.bindings.callBinding(for: call)?.chosenCallee == memberFoo)
+    }
+
+    @Test
+    func innerLocalExtensionFunctionOutranksOuterCallableLocal() throws {
+        // KUU-3791: a local extension function declared inside a deeper
+        // lexical level still wins over a `val` in an enclosing scope —
+        // `"1".foo()` binds the function, not the outer callable value.
+        let ctx = makeContextFromSource("""
+        fun probe(): Boolean {
+            val foo: String.() -> Boolean = { false }
+            fun inner(): Boolean {
+                fun String.foo(): Boolean = true
+                return "1".foo()
+            }
+            return inner()
+        }
+        """)
+        try runToKIR(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let foo = try #require(localFunctionSymbol(
+            named: ctx.interner.intern("foo"),
+            in: ast,
+            sema: sema
+        ))
+        let call = try #require(memberCallExprIDs(named: "foo", in: ast, interner: ctx.interner).first)
+        #expect(sema.bindings.callBinding(for: call)?.chosenCallee == foo)
+    }
+
+    @Test
+    func innerCallableLocalStillOutranksOuterLocalExtensionFunction() throws {
+        // KUU-3791: the nearer scope wins over declarations too — a `val` in
+        // a nested body shadows an outer local extension function, so
+        // `"1".foo()` keeps invoking the value (`false`) instead of binding
+        // the function.
+        let ctx = makeContextFromSource("""
+        fun probe(): Boolean {
+            fun String.foo(): Boolean = true
+            fun inner(): Boolean {
+                val foo: String.() -> Boolean = { false }
+                return "1".foo()
+            }
+            return inner()
+        }
+        """)
+        try runToKIR(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let foo = try #require(localFunctionSymbol(
+            named: ctx.interner.intern("foo"),
+            in: ast,
+            sema: sema
+        ))
+        let call = try #require(memberCallExprIDs(named: "foo", in: ast, interner: ctx.interner).first)
+        #expect(sema.bindings.callBinding(for: call)?.chosenCallee != foo)
+    }
 }
 #endif

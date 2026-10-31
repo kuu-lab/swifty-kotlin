@@ -366,7 +366,7 @@ extension CallTypeChecker {
         if !isSuperCall, !args.isEmpty || ast.arena.isExplicitCall(id),
            !hasReceiverMember,
            localExtensionMatchesCallShape,
-           let result = inferLexicalExtensionCallableInvocation(request, receiverType: receiverType, locals: &locals)
+           let result = inferLexicalExtensionCallableInvocation(request, receiverType: receiverType, argumentTypes: argTypes, locals: &locals)
         {
             return result
         }
