@@ -479,6 +479,21 @@ extension CallTypeChecker {
         if memberName == knownNames.maxOfOrNull
             || memberName == knownNames.minOfOrNull
         {
+            // KUU-3862: the call's element type is the selector's inferred
+            // return type (R? / Double? / Float?). Binding `Any?` here let
+            // the wrong `(T) -> Double` overload pass unnoticed and made
+            // `val x: Int? = xs.maxOfOrNull { it }` fail constraint
+            // checking even though kotlinc accepts it.
+            if args.count == 1, let selectorArg = args.last {
+                let selectorReturnType = inferredLambdaReturnType(
+                    argExpr: selectorArg.expr,
+                    ast: ctx.ast,
+                    sema: sema
+                )
+                if selectorReturnType != sema.types.anyType {
+                    return sema.types.makeNullable(selectorReturnType)
+                }
+            }
             return sema.types.nullableAnyType
         }
 
