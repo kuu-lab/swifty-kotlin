@@ -1056,6 +1056,60 @@ struct DeclarationPositionValidationTests {
         assertNoDiagnostic("KSWIFTK-SEMA-0416", in: ctx)
     }
 
+    // MARK: - collection-literals `of` operator (KUU-3837)
+
+    @Test(arguments: [
+        // `of` is legal only as a `companion object` member; every other
+        // position reports the eligibility violation instead of an illegal
+        // name.
+        "operator fun of(vararg s: String) = s.size",
+        "class C { operator fun of(vararg s: String): C = C() }",
+        "object O { operator fun of(vararg s: String): O = O }",
+        "enum class E { A; operator fun of(vararg s: String): E = A }",
+        "fun f() { operator fun of(vararg s: String) = s.size }",
+        "class C { companion object { fun ext() { operator fun of(vararg s: String) = s.size } } }",
+    ])
+    func operatorOfOutsideCompanionIsRejected(source: String) throws {
+        let ctx = try semaContextWithoutStdlib(for: source)
+        let diagnostics = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0439" }
+        #expect(diagnostics.contains {
+            $0.message == "'operator' modifier is not applicable: must be a member of companion."
+        })
+        assertNoDiagnostic("KSWIFTK-SEMA-0416", in: ctx)
+    }
+
+    @Test func companionOperatorOfWithoutVarargOverloadIsRejected() throws {
+        // kotlinc requires at least one `of` overload in the companion to
+        // carry a `vararg` parameter; the error lands on every overload.
+        let ctx = try semaContextWithoutStdlib(for: """
+            class C {
+                companion object {
+                    operator fun of(s: String): C = C()
+                    operator fun of(a: Int, b: Int): C = C()
+                }
+            }
+            """)
+        let diagnostics = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0455" }
+        #expect(diagnostics.count == 2, "Expected one diagnostic per 'of' overload, got: \(diagnostics)")
+        #expect(diagnostics.allSatisfy {
+            $0.message == "one of the overloads of operator 'of' must have a single 'vararg' parameter."
+        })
+    }
+
+    @Test(arguments: [
+        "class C { companion object { operator fun of(vararg s: String): C = C() } }",
+        "class C { companion object { operator fun of(s: String): C = C()\n operator fun of(vararg s: String): C = C() } }",
+        "class C { companion object { operator fun of(first: String, vararg rest: String): C = C() } }",
+        "interface I { companion object { operator fun of(vararg s: String): I = TODO() } }",
+        "class C { companion object { fun of(s: String): C = C() } }",
+    ])
+    func companionOperatorOfIsAccepted(source: String) throws {
+        let ctx = try semaContextWithoutStdlib(for: source)
+        assertNoDiagnostic("KSWIFTK-SEMA-0416", in: ctx)
+        assertNoDiagnostic("KSWIFTK-SEMA-0439", in: ctx)
+        assertNoDiagnostic("KSWIFTK-SEMA-0455", in: ctx)
+    }
+
     // MARK: - infix function requirements (KUU-2996)
 
     @Test(arguments: [

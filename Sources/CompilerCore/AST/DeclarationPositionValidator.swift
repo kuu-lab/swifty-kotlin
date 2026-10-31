@@ -53,6 +53,15 @@ struct DeclarationPositionValidator {
             }
             return false
         }
+
+        /// `true` when the declaration is a member of a `companion object` —
+        /// the only site where the collection-literals `of` operator is legal.
+        var isCompanionMemberSite: Bool {
+            if case .nominal(let site) = self, site.kind == .companionObject {
+                return true
+            }
+            return false
+        }
     }
 
     struct NominalSite: Equatable {
@@ -207,6 +216,7 @@ struct DeclarationPositionValidator {
                 isMember: site.isNominalMemberSite,
                 isExtension: decl.receiverType != nil,
                 isSuspend: decl.isSuspend,
+                isCompanionMember: site.isCompanionMemberSite,
                 valueParams: decl.valueParams
             ) {
                 diagnostics?.error(
@@ -1126,6 +1136,40 @@ struct DeclarationPositionValidator {
         for typeAlias in decl.nestedTypeAliases {
             validateTypeAlias(typeAlias, site: memberSite)
         }
+        if site.kind == .companionObject {
+            validateCollectionLiteralOfOverloadSet(decl.memberFunctions)
+        }
+    }
+
+    /// kotlinc's collection-literals rule: once a companion object declares
+    /// `operator fun of` overloads, at least one of them must carry a
+    /// `vararg` parameter — otherwise the error lands on every `of` overload.
+    private func validateCollectionLiteralOfOverloadSet(_ memberFunctions: [DeclID]) {
+        var ofDecls: [FunDecl] = []
+        var hasVarargOf = false
+        for declID in memberFunctions {
+            guard let decl = astArena.decl(declID),
+                  case .funDecl(let funDecl) = decl,
+                  funDecl.modifiers.contains(.operator),
+                  interner.resolve(funDecl.name) == "of"
+            else {
+                continue
+            }
+            ofDecls.append(funDecl)
+            if funDecl.valueParams.contains(where: \.isVararg) {
+                hasVarargOf = true
+            }
+        }
+        guard !ofDecls.isEmpty, !hasVarargOf else {
+            return
+        }
+        for funDecl in ofDecls {
+            diagnostics?.error(
+                "KSWIFTK-SEMA-0455",
+                "one of the overloads of operator 'of' must have a single 'vararg' parameter.",
+                range: funDecl.range
+            )
+        }
     }
 
     private func validateTypeAlias(_ decl: TypeAliasDecl, site: OwnerSite) {
@@ -1415,6 +1459,11 @@ struct DeclarationPositionValidator {
         "rangeTo", "rangeUntil", "contains",
         "get", "set", "invoke", "iterator", "next", "hasNext",
         "compareTo", "equals", "provideDelegate", "getValue", "setValue",
+        // `of` is the collection-literals factory operator. kotlinc gates it
+        // behind the experimental `-Xcollection-literals` flag; KSwiftK
+        // accepts it unconditionally (same posture as explicit backing
+        // fields).
+        "of",
     ]
 
     /// KUU-3149: per-name `operator` eligibility rules mirroring the check
@@ -1428,6 +1477,7 @@ struct DeclarationPositionValidator {
         isMember: Bool,
         isExtension: Bool,
         isSuspend: Bool,
+        isCompanionMember: Bool = false,
         valueParams: [ValueParamDecl]
     ) -> String? {
         guard let rules = operatorEligibilityRules(for: name) else {
@@ -1438,6 +1488,7 @@ struct DeclarationPositionValidator {
                 isMember: isMember,
                 isExtension: isExtension,
                 isSuspend: isSuspend,
+                isCompanionMember: isCompanionMember,
                 valueParams: valueParams
             ) {
                 return violation
@@ -1472,6 +1523,8 @@ struct DeclarationPositionValidator {
             [.memberOrExtension, .noParams]
         case "inc", "dec":
             [.memberOrExtension]
+        case "of":
+            [.memberOfCompanion]
         case "equals":
             [.member, .overridesAnyEquals]
         default:
@@ -1490,6 +1543,8 @@ struct DeclarationPositionValidator {
     enum OperatorEligibilityRule {
         case memberOrExtension
         case member
+        /// Collection-literals `of` is only legal on a `companion object`.
+        case memberOfCompanion
         case noParams
         case singleParam
         case atLeast(Int)
@@ -1507,6 +1562,7 @@ struct DeclarationPositionValidator {
             isMember: Bool,
             isExtension: Bool,
             isSuspend: Bool,
+            isCompanionMember: Bool,
             valueParams: [ValueParamDecl]
         ) -> String? {
             switch self {
@@ -1514,6 +1570,8 @@ struct DeclarationPositionValidator {
                 return (isMember || isExtension) ? nil : "must be a member or an extension function"
             case .member:
                 return isMember ? nil : "must be a member function"
+            case .memberOfCompanion:
+                return isCompanionMember ? nil : "must be a member of companion"
             case .noParams:
                 return valueParams.isEmpty ? nil : "must have no value parameters"
             case .singleParam:

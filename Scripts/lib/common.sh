@@ -252,6 +252,7 @@ validated_kotlinc_flag_argv() {
             # scalar mode name, never a path or list.
             -Xexplicit-backing-fields|-Xreturn-value-checker|-Xcontext-parameters|\
 -Xcontext-receivers|-Xwhen-guards|-Xmulti-dollar-interpolation|\
+-Xcollection-literals|\
 -Xnon-local-break-continue|-Xnested-type-aliases|\
 -Xdata-flow-based-exhaustiveness|-Xannotation-target-all-params|\
 -Xexplicit-api-mode|-Xjspecify-annotations|-Xjvm-default|-Xjdk-release|\
