@@ -6,7 +6,8 @@ extension DeclTypeChecker {
         ctx: TypeInferenceContext,
         initialLocals: LocalBindings = [:],
         solver: ConstraintSolver,
-        diagnostics: DiagnosticEngine
+        diagnostics: DiagnosticEngine,
+        checkAccessorBodies: Bool = true
     ) {
         let tracksInferredProperty = driver.inferredPropertyDeclarations[symbol] != nil
         let tracksPendingProperty = driver.pendingPropertyTypes.contains(symbol)
@@ -32,7 +33,10 @@ extension DeclTypeChecker {
             }
             if tracksInferredProperty {
                 driver.checkingInferredProperties.remove(symbol)
-                if !hasNewErrors,
+                // A type-only run leaves accessor bodies for the source-order
+                // pass, so the declaration must not count as fully prechecked.
+                if checkAccessorBodies,
+                   !hasNewErrors,
                    !driver.deferredInferredProperties.contains(symbol),
                    !currentDiagnostics.contains(where: {
                        $0.primaryRange.map(property.range.contains) ?? true
@@ -53,7 +57,8 @@ extension DeclTypeChecker {
             ctx: propertyCtx,
             initialLocals: initialLocals,
             solver: solver,
-            diagnostics: diagnostics
+            diagnostics: diagnostics,
+            checkAccessorBodies: checkAccessorBodies
         )
     }
 

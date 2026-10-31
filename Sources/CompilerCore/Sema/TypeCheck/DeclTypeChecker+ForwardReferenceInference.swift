@@ -242,16 +242,46 @@ extension DeclTypeChecker {
                 guard !driver.precheckedPropertyDecls.contains(declID),
                       let decl = ctx.ast.arena.decl(declID),
                       case let .propertyDecl(property) = decl,
-                      let propertySymbol = sema.bindings.declSymbols[declID],
-                      canSafelyPrecheckInferredProperty(
+                      let propertySymbol = sema.bindings.declSymbols[declID]
+                else {
+                    continue
+                }
+                if canSafelyPrecheckInferredProperty(
+                    property,
+                    symbol: propertySymbol,
+                    in: ctx,
+                    initialLocals: initialLocals
+                ) {
+                    typeCheckBoundPropertyDecl(
+                        property,
+                        declID: declID,
+                        symbol: propertySymbol,
+                        ctx: ctx.with(currentDeclSymbol: propertySymbol),
+                        initialLocals: initialLocals,
+                        solver: solver,
+                        diagnostics: diagnostics
+                    )
+                    driver.precheckedPropertyDecls.insert(declID)
+                    didPrecheckProperty = true
+                    continue
+                }
+                // A custom accessor body cannot run early: it may read member
+                // types this pass has not resolved yet, and a speculative
+                // check could succeed against the Any? placeholder while
+                // recording wrong bindings. A safe initializer still fixes
+                // the property's type on its own, so publish that type while
+                // the header placeholder is in place; the source-order pass
+                // then re-checks the whole declaration, accessors included.
+                guard sema.symbols.propertyType(for: propertySymbol) == sema.types.nullableAnyType,
+                      canPublishInferredPropertyTypeEarly(
                           property,
-                          symbol: propertySymbol,
                           in: ctx,
                           initialLocals: initialLocals
                       )
                 else {
                     continue
                 }
+                let diagnosticSnapshot = diagnostics.count
                 typeCheckBoundPropertyDecl(
                     property,
                     declID: declID,
@@ -259,9 +289,12 @@ extension DeclTypeChecker {
                     ctx: ctx.with(currentDeclSymbol: propertySymbol),
                     initialLocals: initialLocals,
                     solver: solver,
-                    diagnostics: diagnostics
+                    diagnostics: diagnostics,
+                    checkAccessorBodies: false
                 )
-                driver.precheckedPropertyDecls.insert(declID)
+                // Publish only the inferred type; diagnostics belong to the
+                // authoritative pass, which re-emits them in source order.
+                diagnostics.truncate(to: diagnosticSnapshot)
                 didPrecheckProperty = true
             }
         } while didPrecheckProperty
@@ -394,6 +427,41 @@ extension DeclTypeChecker {
               case let .expr(bodyExpr, _) = property.delegateBody,
               let type = safePrecheckExpressionType(
                   bodyExpr,
+                  in: ctx,
+                  locals: initialLocals
+              )
+        else {
+            return false
+        }
+        return type != ctx.sema.types.nullableNothingType
+    }
+
+    /// An inferred property with a custom accessor body still derives its type
+    /// from a safe initializer — the accessor bodies only constrain that type,
+    /// they cannot replace it. Such a property may publish its inferred type
+    /// ahead of source order so earlier declarations see the concrete type
+    /// instead of the nullable-Any placeholder; the accessor bodies themselves
+    /// stay on the source-order pass, which re-checks the whole declaration.
+    func canPublishInferredPropertyTypeEarly(
+        _ property: PropertyDecl,
+        in ctx: TypeInferenceContext,
+        initialLocals: LocalBindings = [:]
+    ) -> Bool {
+        guard property.type == nil,
+              property.explicitBackingField == nil,
+              property.receiverType == nil,
+              property.delegateExpression == nil,
+              let initializer = property.initializer
+        else {
+            return false
+        }
+        let hasAccessorBody = [property.getter, property.setter].contains { accessor in
+            guard let body = accessor?.body else { return false }
+            return body != .unit
+        }
+        guard hasAccessorBody,
+              let type = safePrecheckExpressionType(
+                  initializer,
                   in: ctx,
                   locals: initialLocals
               )
