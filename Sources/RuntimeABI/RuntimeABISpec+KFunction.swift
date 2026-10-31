@@ -74,6 +74,7 @@ public extension RuntimeABISpec {
         abi.nt("kk_callable_ref_tag_kfunction", "callable name returnType arity flags"),
         abi.nt("__kk_callable_ref_set_identity", "callable targetRaw capturesRaw", ret: .void),
         abi.nt("__kk_function_value_set_callable_ref_identity", "callable targetRaw capturesRaw arity kind flags", ret: .void),
+        abi.nt("__kk_reflection_member_set_identity", "member targetRaw returnTypeRaw arity kind flags", ret: .void),
         abi.nt("__kk_callable_adapter_set_identity", "callable samInterfaceTypeID targetRaw capturesRaw arity flags returnTypeRaw", ret: .void),
         abi.nt("__kk_sam_adapter_set_identity", "callable interfaceTypeID targetRaw capturesRaw arity flags", ret: .void),
         abi.nt("kk_callable_ref_tag_kproperty", "callable name returnType arity"),

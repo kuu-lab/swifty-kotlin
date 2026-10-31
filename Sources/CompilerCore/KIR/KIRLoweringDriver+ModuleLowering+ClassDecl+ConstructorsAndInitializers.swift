@@ -1439,6 +1439,8 @@ extension KIRLoweringDriver {
         emitMemberReflectionRegistration(
             ownerSymbol: ownerSymbol,
             kclassExpr: kclassExpr,
+            ast: shared.ast,
+            propertyConstantInitializers: shared.propertyConstantInitializers,
             sema: sema,
             arena: arena,
             interner: interner,
@@ -1480,6 +1482,8 @@ extension KIRLoweringDriver {
     func emitMemberReflectionRegistration(
         ownerSymbol: SymbolID,
         kclassExpr: KIRExprID,
+        ast: ASTModule,
+        propertyConstantInitializers: [SymbolID: KIRExprKind],
         sema: SemaModule,
         arena: KIRArena,
         interner: StringInterner,
@@ -1542,6 +1546,32 @@ extension KIRLoweringDriver {
                     result: fnRegisterResult,
                     canThrow: false
                 ))
+                // KUU-3806: record the same equality identity a `C::foo`
+                // unbound callable reference carries, so a handle from
+                // `C::class.functions`/`members` compares equal to it. The
+                // member handle is always unbound, so its identity arity
+                // counts the dispatch receiver the reference exposes as a
+                // parameter (matching `emitCallableRefTypeTag`'s arity) and
+                // its capture list is empty — a bound `c::foo` keeps its
+                // receiver capture and stays unequal.
+                let identityArity = Int64(
+                    (signature.receiverType == nil ? 0 : 1)
+                        + signature.contextReceiverTypes.count
+                        + signature.parameterTypes.count
+                )
+                let identityArityExpr = arena.appendExpr(.intLiteral(identityArity), type: intType)
+                body.append(.constValue(result: identityArityExpr, value: .intLiteral(identityArity)))
+                let functionKindExpr = arena.appendExpr(.intLiteral(0), type: intType)
+                body.append(.constValue(result: functionKindExpr, value: .intLiteral(0)))
+                body.append(.call(
+                    callee: interner.intern("__kk_reflection_member_set_identity"),
+                    arguments: [
+                        kfunctionResult, fnPtrExpr, retTypeExpr,
+                        identityArityExpr, functionKindExpr, isSuspendExpr,
+                    ],
+                    result: nil,
+                    canThrow: false
+                ))
             case .property:
                 let propName = interner.resolve(childSym.name)
                 let propNameInterned = interner.intern(propName)
@@ -1572,6 +1602,42 @@ extension KIRLoweringDriver {
                     result: propRegisterResult,
                     canThrow: false
                 ))
+                // KUU-3806: a `C::bar` unbound property reference keys its
+                // equality identity on the property's getter accessor symbol.
+                // Register the same target on the `C::class.memberProperties`
+                // handle so the two compare equal. The member handle reflects
+                // as an unbound `KProperty1` (arity 1) — a member extension
+                // property adds its extension receiver (KProperty2, arity 2)
+                // — while a bound `c::bar` keeps its receiver capture and
+                // stays unequal.
+                if let accessor = lambdaLowerer.ensurePropertyReferenceAccessor(
+                    targetSymbol: childID,
+                    ast: ast,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    propertyConstantInitializers: propertyConstantInitializers
+                ) {
+                    let getterExpr = arena.appendExpr(.symbolRef(accessor.getterSymbol), type: intType)
+                    body.append(.constValue(result: getterExpr, value: .symbolRef(accessor.getterSymbol)))
+                    let memberPropertyArity: Int64 =
+                        sema.symbols.extensionPropertyReceiverType(for: childID) != nil ? 2 : 1
+                    let propArityExpr = arena.appendExpr(.intLiteral(memberPropertyArity), type: intType)
+                    body.append(.constValue(result: propArityExpr, value: .intLiteral(memberPropertyArity)))
+                    let propertyKindExpr = arena.appendExpr(.intLiteral(1), type: intType)
+                    body.append(.constValue(result: propertyKindExpr, value: .intLiteral(1)))
+                    let noFlagsExpr = arena.appendExpr(.intLiteral(0), type: intType)
+                    body.append(.constValue(result: noFlagsExpr, value: .intLiteral(0)))
+                    body.append(.call(
+                        callee: interner.intern("__kk_reflection_member_set_identity"),
+                        arguments: [
+                            kpropResult, getterExpr, propTypeExpr,
+                            propArityExpr, propertyKindExpr, noFlagsExpr,
+                        ],
+                        result: nil,
+                        canThrow: false
+                    ))
+                }
             default:
                 break
             }
