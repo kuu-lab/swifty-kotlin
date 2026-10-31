@@ -514,14 +514,31 @@ extension CallLowerer {
         // peer through the JVM-compatible identity cache, so `x === 5`
         // converges on the shared box while out-of-cache-range values stay
         // distinct. Operands of any other type keep their existing handle.
+        //
+        // KUU-3861: the same route applies to a *non-null* primitive operand
+        // facing a non-primitive peer (`x === -0.0` where x is `Any`). The
+        // JVM boxes the primitive — Double/Float/unsigned kinds always get a
+        // fresh box — and compares references, so the reference operand must
+        // not be unboxed back to raw bits: a boxed -0.0 would otherwise
+        // compare equal to the -0.0 literal's bit pattern, and even a null
+        // `Any?` operand would alias the same raw word. Two non-null
+        // primitive operands keep the value compare below (same-type pairs
+        // are JVM `==` — Float/Double already returned via the IEEE path —
+        // and distinct primitive types are rejected in Sema).
         if op == .identityEqual || op == .notIdentityEqual {
             let lhsKind = lhsType.map { sema.types.kind(of: $0) }
             let rhsKind = rhsType.map { sema.types.kind(of: $0) }
-            let hasNullablePrimitiveOperand = [lhsKind, rhsKind].contains { kind in
-                guard case .primitive(_, let nullability) = kind else { return false }
-                return nullability != .nonNull
+            func isPrimitiveKind(_ kind: TypeKind?) -> Bool {
+                guard case .primitive = kind else { return false }
+                return true
             }
-            if hasNullablePrimitiveOperand {
+            func isNonNullPrimitiveKind(_ kind: TypeKind?) -> Bool {
+                guard case .primitive(_, .nonNull) = kind else { return false }
+                return true
+            }
+            let hasPrimitiveOperand = isPrimitiveKind(lhsKind) || isPrimitiveKind(rhsKind)
+            let bothNonNullPrimitive = isNonNullPrimitiveKind(lhsKind) && isNonNullPrimitiveKind(rhsKind)
+            if hasPrimitiveOperand && !bothNonNullPrimitive {
                 let boxingTable = BoxingCalleeTable(interner: interner)
                 var operandIDs = [lhsID, rhsID]
                 for (index, kind) in [lhsKind, rhsKind].enumerated() {
