@@ -98,7 +98,7 @@ public fun String.split(regex: Regex): List<String> =
 public fun String.split(regex: Regex, limit: Int): List<String> =
     regex.split(this, limit)
 
-public fun String.matches(regex: Regex): Boolean =
+public infix fun String.matches(regex: Regex): Boolean =
     __kk_string_matches_regex(regex)
 
 @kotlin.internal.InlineOnly
