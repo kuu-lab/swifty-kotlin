@@ -1125,11 +1125,6 @@ extension DataFlowSemaPhase {
                     memberSymbol: memberSymbol,
                     ctx: ctx
                 )
-                validateAbstractOverrideConstraints(
-                    memberMeta: memberMeta,
-                    ownerSymbol: symbol,
-                    ctx: ctx
-                )
                 validateOverrideOpenness(
                     memberMeta: memberMeta,
                     memberSymbol: memberSymbol,
@@ -1162,6 +1157,7 @@ extension DataFlowSemaPhase {
         let hasAbstract: Bool
         let hasFinal: Bool
         let visibility: Visibility
+        let isFunction: Bool
     }
 
     private func extractMemberMeta(
@@ -1196,7 +1192,8 @@ extension DataFlowSemaPhase {
                 returnType: returnType,
                 hasAbstract: fun.modifiers.contains(.abstract),
                 hasFinal: fun.modifiers.contains(.final),
-                visibility: extractVisibility(from: fun.modifiers)
+                visibility: extractVisibility(from: fun.modifiers),
+                isFunction: true
             )
         case let .propertyDecl(prop):
             return MemberMeta(
@@ -1208,7 +1205,8 @@ extension DataFlowSemaPhase {
                 returnType: nil,
                 hasAbstract: prop.modifiers.contains(.abstract),
                 hasFinal: prop.modifiers.contains(.final),
-                visibility: extractVisibility(from: prop.modifiers)
+                visibility: extractVisibility(from: prop.modifiers),
+                isFunction: false
             )
         default:
             return nil
@@ -1282,10 +1280,12 @@ extension DataFlowSemaPhase {
            !ownerSym.flags.contains(.abstractType),
            ownerSym.kind != .interface,
            ownerSym.kind != .enumClass {
-            let ownerName = ownerSym.fqName.map { ctx.interner.resolve($0) }.joined(separator: ".")
+            let ownerName = ownerSym.fqName.last.map { ctx.interner.resolve($0) }
+                ?? ownerSym.fqName.map { ctx.interner.resolve($0) }.joined(separator: ".")
+            let memberKindWord = memberMeta.isFunction ? "function" : "property"
             ctx.diagnostics.error(
                 "KSWIFTK-SEMA-MODIFIER-CONFLICT",
-                "'\(memberName)' cannot be abstract in non-abstract class '\(ownerName)'. Abstract members require an abstract class.",
+                "abstract \(memberKindWord) '\(memberName)' in non-abstract class '\(ownerName)'.",
                 range: memberMeta.range
             )
         }
@@ -1414,47 +1414,6 @@ extension DataFlowSemaPhase {
                 }
             }
         }
-    }
-
-    private func validateAbstractOverrideConstraints(
-        memberMeta: MemberMeta,
-        ownerSymbol: SymbolID,
-        ctx: OpenFinalOverrideContext
-    ) {
-        // STDLIB-INHERIT-018: Validate abstract override combinations
-
-        if memberMeta.hasAbstract {
-            guard let ownerSym = ctx.symbols.symbol(ownerSymbol) else { return }
-
-            // Enum classes may re-abstract an inherited member because each
-            // enum entry can provide its own concrete implementation.
-            if !ownerSym.flags.contains(.abstractType), ownerSym.kind != .enumClass {
-                let memberName = ctx.interner.resolve(memberMeta.name)
-                let ownerName = ownerSym.fqName.map { ctx.interner.resolve($0) }.joined(separator: ".")
-                ctx.diagnostics.error(
-                    "KSWIFTK-SEMA-ABSTRACT-OVERRIDE",
-                    "'\(memberName)' cannot be abstract in non-abstract class '\(ownerName)'. Abstract members are only allowed in abstract classes.",
-                    range: memberMeta.range
-                )
-                return
-            }
-
-            let parent = findInheritedMember(
-                named: memberMeta.name,
-                for: ownerSymbol,
-                symbols: ctx.symbols
-            )
-            if parent == nil {
-                let memberName = ctx.interner.resolve(memberMeta.name)
-                let ownerName = ownerSym.fqName.map { ctx.interner.resolve($0) }.joined(separator: ".")
-                ctx.diagnostics.error(
-                    "KSWIFTK-SEMA-ABSTRACT-OVERRIDE",
-                    "'\(memberName)' in '\(ownerName)' is marked 'abstract override' but no inherited member was found to override.",
-                    range: memberMeta.range
-                )
-            }
-        }
-
     }
 
     private func validateOverrideTarget(

@@ -353,7 +353,10 @@ import TestStdlibCache
                 let sampleDiags = diagnosticsForPath(sample1Path, in: ctx)
 
 
-                        assertHasDiagnostic("KSWIFTK-SEMA-ABSTRACT-OVERRIDE", in: sampleDiags)
+                        // 'abstract ... in non-abstract class' is owned by
+                        // Rule 3a (MODIFIER-CONFLICT) for all abstract
+                        // members including overrides.
+                        assertHasDiagnostic("KSWIFTK-SEMA-MODIFIER-CONFLICT", in: sampleDiags)
 
             }
             // testAbstractOverrideOfAbstractMember
