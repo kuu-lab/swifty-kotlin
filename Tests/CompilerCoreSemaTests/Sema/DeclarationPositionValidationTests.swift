@@ -566,6 +566,90 @@ struct DeclarationPositionValidationTests {
         }
     }
 
+    // MARK: - expect delegation (KUU-3945)
+
+    @Test(arguments: [
+        "expect class E(d: I) : I by d",
+        "expect object O : I by i",
+        "expect enum class En : I by i { A }",
+    ])
+    func expectNominalDelegationIsRejected(declaration: String) throws {
+        let source = "interface I\nval i = object : I {}\n\(declaration)"
+        let ctx = try semaContextWithoutStdlib(for: source)
+        let diags = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0460" }
+        #expect(diags.count == 1, "expected one delegation diagnostic for \(declaration)")
+        #expect(
+            diags.first?.message
+                == "implementation by delegation in 'expect' classes is prohibited."
+        )
+        // kotlinc underlines the whole `I by d` specifier, not only `d`.
+        let match = try #require(source.range(of: "I by", options: .backwards))
+        #expect(diags.first?.primaryRange?.start.offset == source[..<match.lowerBound].utf8.count)
+        // `I by` is 4 chars; the specifier ends one space + one delegate
+        // identifier char later.
+        #expect(diags.first?.primaryRange?.end.offset == source[..<match.upperBound].utf8.count + 2)
+    }
+
+    @Test func expectClassDelegationReportsEachEntry() throws {
+        let ctx = try semaContextWithoutStdlib(for: """
+            interface I
+            interface J
+            val i = object : I {}
+            val j = object : J {}
+            expect class E : I by i, J by j
+            """)
+        #expect(ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0460" }.count == 2)
+    }
+
+    @Test func nestedNominalsInsideExpectOwnerAreRejected() throws {
+        let ctx = try semaContextWithoutStdlib(for: """
+            interface I
+            val i = object : I {}
+            expect class Outer {
+                class Inner(d: I) : I by d
+                object Obj : I by i
+                companion object : I by i
+            }
+            """)
+        // Members of an expect owner are implicitly expected.
+        #expect(ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0460" }.count == 3)
+    }
+
+    @Test func memberExpectNominalReportsDelegationAlongsideNotApplicable() throws {
+        let ctx = try semaContextWithoutStdlib(for: """
+            interface I
+            val i = object : I {}
+            class C {
+                expect class D(d: I) : I by d
+                expect object O : I by i
+            }
+            """)
+        // kotlinc emits the delegation error even though `expect` itself is
+        // not applicable to a nested class.
+        #expect(ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0460" }.count == 2)
+        assertHasDiagnostic("KSWIFTK-SEMA-0400", in: ctx)
+    }
+
+    @Test func localExpectClassDelegationIsRejected() throws {
+        let ctx = try semaContextWithoutStdlib(for: """
+            interface I
+            fun f(i: I) { expect class L : I by i }
+            """)
+        assertHasDiagnostic("KSWIFTK-SEMA-0460", in: ctx)
+        assertHasDiagnostic("KSWIFTK-SEMA-0400", in: ctx)
+    }
+
+    @Test func nonExpectDelegationIsAccepted() throws {
+        let ctx = try semaContextWithoutStdlib(for: """
+            interface I
+            val i = object : I {}
+            class C : I by i
+            object O : I by i
+            fun g(): I = object : I by i {}
+            """)
+        assertNoDiagnostic("KSWIFTK-SEMA-0460", in: ctx)
+    }
+
     @Test func expectLocalFunctionWithoutBodyIsAccepted() throws {
         let ctx = try semaContextWithoutStdlib(for: """
             fun f() { expect fun g() }
