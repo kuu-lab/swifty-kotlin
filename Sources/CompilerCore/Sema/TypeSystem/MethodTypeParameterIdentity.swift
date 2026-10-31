@@ -122,7 +122,13 @@ private func methodIdentityTypesMatch(
 ) -> Bool {
     if candidate == interface { return true }
     if allowTypeParameterWildcards {
-        if case .typeParam = types.kind(of: candidate) { return true }
+        // Only the interface side is a wildcard. A rigid candidate type
+        // parameter (a class binder, or an enclosing function's type
+        // parameter captured by an object literal) can only override a
+        // signature that specializes to that same variable — never a
+        // concrete type. JVM agrees: `foo(t: T)` erases to `foo(Object)`,
+        // which does not override e.g. `foo(Int)` from another interface
+        // (KUU-3793: `object : A<T>, B` must not steal `B.foo(Int)`'s slot).
         if case .typeParam = types.kind(of: interface) { return true }
     }
     switch (types.kind(of: candidate), types.kind(of: interface)) {
