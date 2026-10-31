@@ -246,6 +246,31 @@ func findKIRCoroutineBlockAdapters(in context: CompilationContext) throws -> [KI
     }
 }
 
+/// Follows `.copy` forwarding back to the originating `.symbolRef` — e.g. a
+/// checked-cast operand an adapter derives from its receiver parameter, which
+/// the erased invoke ABI hands over as raw bits (KUU-3535).
+func resolveForwardedSymbolRef(
+    _ exprID: KIRExprID,
+    in body: [KIRInstruction],
+    module: KIRModule
+) -> SymbolID? {
+    var current = exprID
+    var visited: Set<KIRExprID> = []
+    while visited.insert(current).inserted {
+        if case let .symbolRef(symbol) = module.arena.expr(current) {
+            return symbol
+        }
+        guard let copy = body.first(where: { instruction in
+            if case let .copy(_, to) = instruction { return to == current }
+            return false
+        }), case let .copy(from, _) = copy else {
+            return nil
+        }
+        current = from
+    }
+    return nil
+}
+
 func referencedKIRFunction(_ reference: KIRExprID, in module: KIRModule) throws -> KIRFunction {
     let symbol: SymbolID?
     if case let .symbolRef(value) = module.arena.expr(reference) {
