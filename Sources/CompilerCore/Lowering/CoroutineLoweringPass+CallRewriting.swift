@@ -252,6 +252,15 @@ extension CoroutineLoweringPass {
         let callerContinuationSymbol = rewrite.continuationTypeByLoweredSymbol[function.symbol] != nil
             ? function.params.last?.symbol
             : nil
+        // KUU-3802: index `kk_object_register_itable_method` registrations that
+        // bind a `SuspendFunctionN` interface slot to a suspend `invoke`
+        // implementation owning a launcher thunk, so the default path below can
+        // mirror each with the reserved-slot entry registration.
+        let suspendEntryRegistrations = suspendObjectEntryRegistrations(
+            in: function,
+            symbolByExprRaw: symbolByExprRaw,
+            using: rewrite
+        )
         var loweredBody = KIRLoweringEmitContext()
         loweredBody.instructions.reserveCapacity(function.body.count)
 
@@ -434,6 +443,15 @@ extension CoroutineLoweringPass {
             }
 
             loweredBody.append(instruction)
+            if let registration = suspendEntryRegistrations[index] {
+                appendSuspendObjectEntryRegistration(
+                    objectExpr: registration.objectExpr,
+                    slotExpr: registration.slotExpr,
+                    thunkSymbol: registration.thunkSymbol,
+                    into: &loweredBody,
+                    using: rewrite
+                )
+            }
         }
         return loweredBody
     }
