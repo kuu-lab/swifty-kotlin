@@ -115,7 +115,13 @@ struct CallableRefTypeIdentityTests {
         #expect(sema.types.typeContainsAnyTypeParam(signature.returnType))
     }
 
-    @Test func testFunctionValueDescriptionsIncludeReferenceSignaturesAndLambdaIdentity() throws {
+    /// Since #11613, lambda / anonymous-function values describe themselves by
+    /// their reflective function type (`"() -> kotlin.Int"`, identity flag 0)
+    /// instead of the identity-suffixed `kotlin.Function{N}` marker. Each
+    /// materialized value (raw lambda value, `kk_function_create` box and
+    /// KFunction-tagged wrapper) carries its own description call, so the
+    /// two anonymous function values produce more than two calls in `main`.
+    @Test func testFunctionValueDescriptionsIncludeReferenceSignaturesAndFunctionTypes() throws {
         let ctx = makeContextFromSource("""
         fun top(): Int = 7
         fun main() {
@@ -138,7 +144,18 @@ struct CallableRefTypeIdentityTests {
             return ctx.interner.resolve(text)
         }
         #expect(descriptions.contains("fun top(): kotlin.Int"))
-        #expect(descriptions.filter { $0 == "kotlin.Function0" }.count == 2)
+        // `{ 1 }` and `fun(): Int { ... }` (plus their boxed/tagged adapter
+        // values) each carry the reflective function-type description.
+        #expect(descriptions.filter { $0 == "() -> kotlin.Int" }.count >= 2)
+        #expect(!descriptions.contains { $0.hasPrefix("kotlin.Function") })
+        // Function-type descriptions are shared signature text: the identity
+        // flag stays 0 so the runtime does not append an `@hash` suffix.
+        #expect(descriptionCalls.allSatisfy { call in
+            guard case let .intLiteral(flag) = module.arena.expr(call.arguments[2]) else {
+                return false
+            }
+            return flag == 0
+        })
     }
 
     @Test func testInferredFunctionReferenceNameResolvesAndLowersToMetadata() throws {
