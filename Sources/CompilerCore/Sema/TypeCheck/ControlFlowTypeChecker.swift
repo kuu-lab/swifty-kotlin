@@ -1056,9 +1056,17 @@ final class ControlFlowTypeChecker {
             // type was provided, and the sibling produced a usable type,
             // retry the failing branch against that sibling type so
             // `if (b) OD<Boolean, Boolean>(false) else OD(false)` resolves.
+            // Block bodies qualify through their value-producing tail
+            // expression (KUU-3797).
             func retriableBranchExpr(_ expr: ExprID) -> Bool {
-                switch ast.arena.expr(expr) {
-                case .call, .memberCall, .ifExpr:
+                var candidate = expr
+                while case let .blockExpr(_, trailingExpr, _) = ast.arena.expr(candidate),
+                      let trailingExpr
+                {
+                    candidate = trailingExpr
+                }
+                switch ast.arena.expr(candidate) {
+                case .call, .memberCall, .ifExpr, .whenExpr, .tryExpr:
                     return true
                 default:
                     return false
@@ -1068,6 +1076,14 @@ final class ControlFlowTypeChecker {
                thenType != sema.types.errorType, thenType != sema.types.nothingType,
                retriableBranchExpr(elseExpr)
             {
+                // Drop the first pass's error diagnostics inside the branch
+                // range up front: re-inference re-emits the ones that stay
+                // genuine, while inference-dependent ones prove stale when
+                // the retry succeeds (same restore pattern as KUU-3750).
+                var removedDiagnostics: [Diagnostic] = []
+                if let elseRange = ast.arena.exprRange(elseExpr) {
+                    removedDiagnostics = ctx.sema.diagnostics.removeErrorDiagnostics(containedIn: elseRange)
+                }
                 let retryCheckpoint = ctx.sema.diagnostics.checkpoint()
                 var retryLocals = locals
                 driver.exprChecker.applyFlowStateToLocals(branch.falseState, locals: &retryLocals, sema: sema)
@@ -1081,17 +1097,21 @@ final class ControlFlowTypeChecker {
                 if retried != sema.types.errorType {
                     elseType = retried
                     elseLocals = retryLocals
-                    if let elseRange = ast.arena.exprRange(elseExpr) {
-                        ctx.sema.diagnostics.removeErrorDiagnostics(containedIn: elseRange)
-                    }
                 } else {
                     ctx.sema.diagnostics.rollback(to: retryCheckpoint)
+                    for diagnostic in removedDiagnostics {
+                        ctx.sema.diagnostics.emit(diagnostic)
+                    }
                 }
             }
             if expectedType == nil, thenType == sema.types.errorType,
                elseType != sema.types.errorType, elseType != sema.types.nothingType,
                retriableBranchExpr(thenExpr)
             {
+                var removedDiagnostics: [Diagnostic] = []
+                if let thenRange = ast.arena.exprRange(thenExpr) {
+                    removedDiagnostics = ctx.sema.diagnostics.removeErrorDiagnostics(containedIn: thenRange)
+                }
                 let retryCheckpoint = ctx.sema.diagnostics.checkpoint()
                 var retryLocals = locals
                 driver.exprChecker.applyFlowStateToLocals(branch.trueState, locals: &retryLocals, sema: sema)
@@ -1105,11 +1125,11 @@ final class ControlFlowTypeChecker {
                 if retried != sema.types.errorType {
                     thenType = retried
                     thenLocals = retryLocals
-                    if let thenRange = ast.arena.exprRange(thenExpr) {
-                        ctx.sema.diagnostics.removeErrorDiagnostics(containedIn: thenRange)
-                    }
                 } else {
                     ctx.sema.diagnostics.rollback(to: retryCheckpoint)
+                    for diagnostic in removedDiagnostics {
+                        ctx.sema.diagnostics.emit(diagnostic)
+                    }
                 }
             }
             if let companionType = driver.helpers.retypeBranchClassObjectValue(

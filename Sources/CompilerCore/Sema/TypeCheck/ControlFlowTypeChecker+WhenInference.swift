@@ -16,6 +16,84 @@ extension ControlFlowTypeChecker {
         let interner = ctx.interner
         let boolType = sema.types.booleanType
 
+        // Mirrors `inferIfExpr`'s sibling retry: a branch body can leave a
+        // type variable unresolved because it is only pinned by the sibling
+        // branches' types — kotlinc checks all branches under one constraint
+        // system. Block bodies qualify through their value-producing tail
+        // expression, so `else -> { ...; TN(...) }` retries too.
+        func retriableBranchBody(_ expr: ExprID) -> Bool {
+            var candidate = expr
+            while case let .blockExpr(_, trailingExpr, _) = ast.arena.expr(candidate),
+                  let trailingExpr
+            {
+                candidate = trailingExpr
+            }
+            switch ast.arena.expr(candidate) {
+            case .call, .memberCall, .ifExpr, .whenExpr, .tryExpr:
+                return true
+            default:
+                return false
+            }
+        }
+
+        // When no expected type was available, re-infers each branch body
+        // that produced an error type against the join of the successful
+        // sibling types, so `when { c -> this else -> TN(...) }` fixes TN's
+        // type variables from `this`. A retry that still fails is rolled
+        // back, keeping the original diagnostics.
+        func retryFailedBranchesAgainstSiblings(
+            _ retries: [(body: ExprID, ctx: TypeInferenceContext, locals: LocalBindings, index: Int)],
+            branchTypes: inout [TypeID],
+            allBranchLocals: inout [LocalBindings]
+        ) {
+            guard expectedType == nil, !retries.isEmpty else { return }
+            let siblingTypes = branchTypes.filter {
+                $0 != sema.types.errorType && $0 != sema.types.nothingType
+            }
+            guard !siblingTypes.isEmpty else { return }
+            let siblingExpected = sema.types.lub(siblingTypes)
+            guard siblingExpected != sema.types.errorType else { return }
+            for retry in retries
+            where branchTypes[retry.index] == sema.types.errorType && retriableBranchBody(retry.body)
+            {
+                // Drop the first pass's error diagnostics inside the branch
+                // range up front: re-inference re-emits the ones that stay
+                // genuine (e.g. an unrelated bad statement inside a block
+                // body), while inference-dependent ones prove stale when the
+                // retry succeeds. Removing first also defeats the duplicate
+                // suppression that would otherwise hide the re-emission —
+                // the same restore pattern call-site reinference uses
+                // (KUU-3750).
+                var removedDiagnostics: [Diagnostic] = []
+                if let bodyRange = ast.arena.exprRange(retry.body) {
+                    removedDiagnostics = ctx.sema.diagnostics.removeErrorDiagnostics(containedIn: bodyRange)
+                }
+                let retryCheckpoint = ctx.sema.diagnostics.checkpoint()
+                var retryLocals = retry.locals
+                var retried = driver.inferExpr(
+                    retry.body,
+                    ctx: retry.ctx,
+                    locals: &retryLocals,
+                    expectedType: siblingExpected,
+                    isStatementContext: isStatementContext
+                )
+                if let companionType = driver.helpers.retypeBranchClassObjectValue(
+                    retry.body, currentType: retried, ast: ast, sema: sema
+                ) {
+                    retried = companionType
+                }
+                guard retried != sema.types.errorType else {
+                    ctx.sema.diagnostics.rollback(to: retryCheckpoint)
+                    for diagnostic in removedDiagnostics {
+                        ctx.sema.diagnostics.emit(diagnostic)
+                    }
+                    continue
+                }
+                branchTypes[retry.index] = retried
+                allBranchLocals[retry.index] = retryLocals
+            }
+        }
+
         if let subjectID {
             let declaredType = ast.arena.whenSubjectTypeRef(for: id).map {
                 driver.helpers.resolveTypeRef(
@@ -109,6 +187,7 @@ extension ControlFlowTypeChecker {
                 }
             }
             var branchTypes: [TypeID] = []
+            var pendingBranchRetries: [(body: ExprID, ctx: TypeInferenceContext, locals: LocalBindings, index: Int)] = []
             var covered: Set<InternedString> = []
             var coveredTypeSymbols: Set<SymbolID> = []
             var negatedTypeCheckTypes: Set<TypeID> = []
@@ -410,6 +489,8 @@ extension ControlFlowTypeChecker {
                     }
                 }
 
+                let branchBodyCtx = branchCtx
+                let branchBodyLocals = branchLocals
                 var branchBodyType = driver.inferExpr(branch.body, ctx: branchCtx, locals: &branchLocals, expectedType: expectedType, isStatementContext: isStatementContext)
                 if let companionType = driver.helpers.retypeBranchClassObjectValue(
                     branch.body, currentType: branchBodyType, ast: ctx.ast, sema: ctx.sema
@@ -418,6 +499,7 @@ extension ControlFlowTypeChecker {
                 }
                 branchTypes.append(branchBodyType)
                 allBranchLocals.append(branchLocals)
+                pendingBranchRetries.append((branch.body, branchBodyCtx, branchBodyLocals, branchTypes.count - 1))
             }
 
             if let elseExpr {
@@ -441,6 +523,8 @@ extension ControlFlowTypeChecker {
                         elseCtx = elseCtx.copying(implicitReceiverType: narrowedType)
                     }
                 }
+                let elseBodyCtx = elseCtx
+                let elseBodyLocals = elseLocals
                 var elseBodyType = driver.inferExpr(elseExpr, ctx: elseCtx, locals: &elseLocals, expectedType: expectedType, isStatementContext: isStatementContext)
                 if let companionType = driver.helpers.retypeBranchClassObjectValue(
                     elseExpr, currentType: elseBodyType, ast: ctx.ast, sema: ctx.sema
@@ -449,7 +533,14 @@ extension ControlFlowTypeChecker {
                 }
                 branchTypes.append(elseBodyType)
                 allBranchLocals.append(elseLocals)
+                pendingBranchRetries.append((elseExpr, elseBodyCtx, elseBodyLocals, branchTypes.count - 1))
             }
+
+            retryFailedBranchesAgainstSiblings(
+                pendingBranchRetries,
+                branchTypes: &branchTypes,
+                allBranchLocals: &allBranchLocals
+            )
 
             let summary = WhenBranchSummary(
                 coveredSymbols: covered, hasElse: elseExpr != nil,
@@ -571,6 +662,7 @@ extension ControlFlowTypeChecker {
             return type
         } else {
             var branchTypes: [TypeID] = []
+            var pendingBranchRetries: [(body: ExprID, ctx: TypeInferenceContext, locals: LocalBindings, index: Int)] = []
             var allBranchLocals: [LocalBindings] = []
             var hasTrueCase = false
             var hasFalseCase = false
@@ -637,6 +729,8 @@ extension ControlFlowTypeChecker {
                     _ = driver.inferExpr(guardExpr, ctx: branchCtx, locals: &branchLocals)
                 }
 
+                let branchBodyCtx = branchCtx
+                let branchBodyLocals = branchLocals
                 var branchBodyType = driver.inferExpr(branch.body, ctx: branchCtx, locals: &branchLocals, expectedType: expectedType, isStatementContext: isStatementContext)
                 if let companionType = driver.helpers.retypeBranchClassObjectValue(
                     branch.body, currentType: branchBodyType, ast: ctx.ast, sema: ctx.sema
@@ -645,12 +739,15 @@ extension ControlFlowTypeChecker {
                 }
                 branchTypes.append(branchBodyType)
                 allBranchLocals.append(branchLocals)
+                pendingBranchRetries.append((branch.body, branchBodyCtx, branchBodyLocals, branchTypes.count - 1))
             }
 
             if let elseExpr {
                 var elseLocals = locals
                 let elseCtx = ctx.copying(flowState: cumulativeFalseState)
                 driver.exprChecker.applyFlowStateToLocals(cumulativeFalseState, locals: &elseLocals, sema: sema)
+                let elseBodyCtx = elseCtx
+                let elseBodyLocals = elseLocals
                 var elseBodyType = driver.inferExpr(elseExpr, ctx: elseCtx, locals: &elseLocals, expectedType: expectedType, isStatementContext: isStatementContext)
                 if let companionType = driver.helpers.retypeBranchClassObjectValue(
                     elseExpr, currentType: elseBodyType, ast: ctx.ast, sema: ctx.sema
@@ -659,7 +756,14 @@ extension ControlFlowTypeChecker {
                 }
                 branchTypes.append(elseBodyType)
                 allBranchLocals.append(elseLocals)
+                pendingBranchRetries.append((elseExpr, elseBodyCtx, elseBodyLocals, branchTypes.count - 1))
             }
+
+            retryFailedBranchesAgainstSiblings(
+                pendingBranchRetries,
+                branchTypes: &branchTypes,
+                allBranchLocals: &allBranchLocals
+            )
 
             let summary = WhenBranchSummary(
                 coveredSymbols: [], hasElse: elseExpr != nil,
