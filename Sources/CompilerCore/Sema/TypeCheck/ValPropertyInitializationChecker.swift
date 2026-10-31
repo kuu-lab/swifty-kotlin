@@ -53,14 +53,17 @@ final class ValPropertyInitializationChecker {
     private let ast: ASTModule
     private let sema: SemaModule
     private let sourceManager: SourceManager?
+    private let interner: StringInterner
     private let declarationValidator: DeclarationPositionValidator
     private var checkingConstructorBody = false
     private var owner: SymbolID?
     private var fields: Set<SymbolID> = []
+    private var backedFields: Set<SymbolID> = []
     private var customSetterFields: Set<SymbolID> = []
     private var immutableFields: Set<SymbolID> = []
     private var reportedMissing: Set<SymbolID> = []
     private var reportedWrites: Set<ExprID> = []
+    private var reportedReads: Set<ExprID> = []
     private var inlineLambdaBodyDepth = 0
     private var deferredLambdaBodyDepth = 0
 
@@ -68,6 +71,7 @@ final class ValPropertyInitializationChecker {
         self.ast = ast
         self.sema = sema
         self.sourceManager = sourceManager
+        self.interner = interner
         declarationValidator = DeclarationPositionValidator(astArena: ast.arena, interner: interner, diagnostics: nil)
     }
 
@@ -144,6 +148,21 @@ final class ValPropertyInitializationChecker {
         } else {
             isBundledStdlibOwner = false
         }
+        // Fields whose read actually dereferences backing storage. Only those
+        // are subject to kotlinc's "variable must be initialized" read check;
+        // computed accessors, `lateinit`, `const`, `expect`, `abstract`, and
+        // extension properties are plain calls or exempt by design. The
+        // bundled stdlib is exempt like the missing-initializer check above.
+        backedFields = isBundledStdlibOwner ? [] : Set(properties.compactMap { id -> SymbolID? in
+            guard case let .propertyDecl(property) = ast.arena.decl(id),
+                  let field = sema.bindings.declSymbol(for: id),
+                  !property.modifiers.contains(.abstract), !property.modifiers.contains(.lateinit),
+                  !property.modifiers.contains(.expect), !property.modifiers.contains(.const),
+                  property.receiverType == nil,
+                  !isFieldless(property, symbol: field)
+            else { return nil }
+            return field
+        })
         let hasPropertyInitializationExpression = !isBundledStdlibOwner && properties.contains { id in
             guard case let .propertyDecl(property) = ast.arena.decl(id) else { return false }
             return property.initializer != nil
@@ -274,8 +293,10 @@ final class ValPropertyInitializationChecker {
         }
     }
 
-    private func write(_ id: ExprID, receiver: ExprID?, flow: inout Flow, permitsInitialization: Bool) {
-        guard let field = sema.bindings.identifierSymbol(for: id), fields.contains(field),
+    private func write(_ id: ExprID, receiver: ExprID?, memberName: InternedString? = nil, flow: inout Flow, permitsInitialization: Bool) {
+        guard let field = sema.bindings.identifierSymbol(for: id) ?? memberName.flatMap({ name in
+            fields.first { sema.symbols.symbol($0)?.name == name }
+        }), fields.contains(field),
               let initialized = flow.paths[.normal] else { return }
         let ownReceiver: Bool
         if let receiver {
@@ -305,6 +326,50 @@ final class ValPropertyInitializationChecker {
             // Calling a custom setter does not initialize the backing field.
             if !customSetterFields.contains(field) { flow.paths[.normal]?.definite.insert(field) }
         }
+    }
+
+    /// kotlinc's "variable 'x' must be initialized": reading a backed member
+    /// property of the instance being initialized before the field is
+    /// definitely initialized reports an error instead of silently observing
+    /// a zeroed or null backing field at runtime. Reads inside lambdas and
+    /// local functions are deferred past initialization, so only direct
+    /// initializer code (`permitsInitialization` and outside any lambda) is
+    /// checked. Bound callable references (`this::y`) do not read the field.
+    private func read(_ id: ExprID, receiver: ExprID?, memberName: InternedString? = nil, flow: Flow, permitsInitialization: Bool) {
+        guard permitsInitialization,
+              deferredLambdaBodyDepth == 0,
+              inlineLambdaBodyDepth == 0,
+              let initialized = flow.paths[.normal]
+        else { return }
+        // Property reads normally carry an identifier binding to the property
+        // symbol. Qualified invokes like `this.picked()` bind nothing on the
+        // memberCall itself, so fall back to a member-name lookup in that case.
+        let field: SymbolID? = sema.bindings.identifierSymbol(for: id) ?? memberName.flatMap { name in
+            backedFields.first { sema.symbols.symbol($0)?.name == name }
+        }
+        guard let field,
+              backedFields.contains(field),
+              !initialized.definite.contains(field)
+        else { return }
+        let ownReceiver: Bool
+        if let receiver {
+            if case .thisRef = ast.arena.expr(receiver),
+               let type = sema.bindings.exprType(for: receiver),
+               case let .classType(classType) = sema.types.kind(of: type) {
+                ownReceiver = classType.classSymbol == owner
+            } else {
+                ownReceiver = false
+            }
+        } else {
+            ownReceiver = true
+        }
+        guard ownReceiver, reportedReads.insert(id).inserted else { return }
+        let name = sema.symbols.symbol(field).map { interner.resolve($0.name) } ?? ""
+        sema.diagnostics.error(
+            "KSWIFTK-SEMA-0031",
+            "Variable '\(name)' must be initialized before use.",
+            range: ast.arena.exprRange(id)
+        )
     }
 
     private func walk(_ id: ExprID, flow: inout Flow, permitsInitialization: Bool = true) {
@@ -409,11 +474,16 @@ final class ValPropertyInitializationChecker {
             if op == .logicalAnd || op == .logicalOr || op == .elvis {
                 if let entry = flow.paths[.normal] { flow.merge(branch(rhs, from: entry)) }
             } else { visit(rhs) }
-        case let .call(callee, _, args, _), let .memberCall(callee, _, _, args, _):
+        case let .call(callee, _, args, _):
             visit(callee)
             visitArguments(args, callExprID: id, flow: &flow, permitsInitialization: permitsInitialization)
-        case let .safeMemberCall(receiver, _, _, args, _):
+        case let .memberCall(receiver, callee, _, args, _):
             visit(receiver)
+            read(id, receiver: receiver, memberName: callee, flow: flow, permitsInitialization: permitsInitialization)
+            visitArguments(args, callExprID: id, flow: &flow, permitsInitialization: permitsInitialization)
+        case let .safeMemberCall(receiver, callee, _, args, _):
+            visit(receiver)
+            read(id, receiver: receiver, memberName: callee, flow: flow, permitsInitialization: permitsInitialization)
             var called = flow
             visitArguments(args, callExprID: id, flow: &called, permitsInitialization: permitsInitialization)
             flow.merge(called)
@@ -432,16 +502,27 @@ final class ValPropertyInitializationChecker {
             visit(receiver); for index in indices { visit(index) }
         case let .indexedAssign(receiver, indices, value, _), let .indexedCompoundAssign(_, receiver, indices, value, _):
             visit(receiver); for index in indices { visit(index) }; visit(value)
-        case let .compoundAssign(_, _, value, _): visit(value)
-        case let .memberCompoundAssign(_, receiver, _, value, _): visit(receiver); visit(value)
+        case let .compoundAssign(_, name, value, _):
+            visit(value)
+            // A compound assignment both reads the field and writes it back,
+            // which also counts as initialization for definite-init purposes.
+            read(id, receiver: nil, memberName: name, flow: flow, permitsInitialization: permitsInitialization)
+            write(id, receiver: nil, memberName: name, flow: &flow, permitsInitialization: permitsInitialization)
+        case let .memberCompoundAssign(_, receiver, callee, value, _):
+            visit(receiver)
+            visit(value)
+            read(id, receiver: receiver, memberName: callee, flow: flow, permitsInitialization: permitsInitialization)
+            write(id, receiver: receiver, memberName: callee, flow: &flow, permitsInitialization: permitsInitialization)
         case let .unaryExpr(_, operand, _), let .isCheck(operand, _, _, _),
              let .asCast(operand, _, _, _), let .nullAssert(operand, _): visit(operand)
         case let .inExpr(lhs, rhs, _), let .notInExpr(lhs, rhs, _): visit(lhs); visit(rhs)
         case let .callableRef(receiver, _, _): if let receiver { visit(receiver) }
         case let .stringTemplate(parts, _):
             for part in parts { if case let .expression(child) = part { visit(child) } }
+        case .nameRef:
+            read(id, receiver: nil, flow: flow, permitsInitialization: permitsInitialization)
         case .intLiteral, .longLiteral, .uintLiteral, .ulongLiteral, .floatLiteral, .doubleLiteral,
-             .charLiteral, .nullLiteral, .boolLiteral, .stringLiteral, .nameRef, .superRef, .thisRef,
+             .charLiteral, .nullLiteral, .boolLiteral, .stringLiteral, .superRef, .thisRef,
              .objectLiteral, .localNominalDecl:
             break
         }

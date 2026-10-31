@@ -147,10 +147,10 @@
             val dependentString = forwardString + "!"
             val forwardString = "forward"
             class Holder {
-                val dependentMemberInt = forwardMemberInt + 2
                 val forwardMemberInt = 40
-                val dependentMemberString = forwardMemberString + "!"
                 val forwardMemberString = "member"
+                val dependentMemberInt = forwardMemberInt + 2
+                val dependentMemberString = forwardMemberString + "!"
                 val lazyMemberInt by lazy { forwardMemberInt + 2 }
                 val lazyMemberString by lazy { forwardMemberString + "!" }
             }
