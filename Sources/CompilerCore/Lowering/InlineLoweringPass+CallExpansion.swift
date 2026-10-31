@@ -5,11 +5,14 @@ extension InlineLoweringPass {
         allFunctionsBySymbol: [SymbolID: KIRFunction],
         module: KIRModule,
         ctx: KIRContext,
-        callerBody: [KIRInstruction],
+        callerBodyIndex: InlineCallerBodyIndex,
+        calleeFacts: InlineCalleeFacts,
         labels: inout InlineLabelAllocator,
         expansionBudget: InlineExpansionBudget? = nil,
         externalLoopAliases: [InlineLoopLabelAliases] = []
     ) -> InlineExpansion? {
+        stats.callExpansions += 1
+        stats.callExpansionInput += inlineTarget.body.count
         guard arguments.count == inlineTarget.params.count else {
             return nil
         }
@@ -41,39 +44,20 @@ extension InlineLoweringPass {
             in: ctx
         ) ?? inlineTarget.returnType
 
-        let lambdaParamSymbols: Set<SymbolID> = {
-            guard let sema = ctx.sema else { return [] }
-            var result: Set<SymbolID> = []
-            for param in inlineTarget.params {
-                if case .functionType = sema.types.kind(of: param.type) {
-                    result.insert(param.symbol)
-                }
-            }
-            return result
-        }()
-
-        let lambdaParamByCalleeName: [InternedString: SymbolID] = {
-            guard let sema = ctx.sema else { return [:] }
-            var result: [InternedString: SymbolID] = [:]
-            for param in inlineTarget.params {
-                if case .functionType = sema.types.kind(of: param.type),
-                   let symbolInfo = sema.symbols.symbol(param.symbol) {
-                    result[symbolInfo.name] = param.symbol
-                }
-            }
-            return result
-        }()
+        let lambdaParamSymbols = calleeFacts.lambdaParamSymbols
+        let lambdaParamByCalleeName = calleeFacts.lambdaParamByCalleeName
 
         // A body restored from a library's inline KIR was ABI-lowered when that
         // library was built: it passes and receives every erased value boxed,
         // and its instructions carry no expr types to detect that from.
-        let erasedExpansionABI = InlineErasedLambdaABI.usesErasedLambdaABI(inlineTarget, ctx: ctx)
+        let erasedExpansionABI = calleeFacts.usesErasedLambdaABI
 
         var localExprMap: [KIRExprID: KIRExprID] = [:]
         var unitResultAliasExprs: Set<KIRExprID> = []
         var lowered = KIRLoweringEmitContext()
         var callAncestries: [Int: [SymbolID]] = [:]
         var callExternalLoopAliases: [Int: [InlineLoopLabelAliases]] = [:]
+        var emittedDefinedExprs = InlineDefinedExprIndex(stats: stats)
         lowered.instructions.reserveCapacity(inlineTarget.body.count)
         for param in inlineTarget.params {
             guard let argument = parameterValues[param.symbol] else { continue }
@@ -90,72 +74,24 @@ extension InlineLoweringPass {
         // rebound this way does not hold its initial argument on later
         // iterations, so a `kk_function_invoke` through it must stay a dynamic
         // dispatch: splicing the call-site lambda's body would freeze
-        // iteration-0's callable into the loop (KUU-3222).
-        let reboundParamSymbols: Set<SymbolID> = {
-            var storageSymbols: [KIRExprID: SymbolID] = [:]
-            for instruction in inlineTarget.body {
-                guard case let .constValue(expr, .symbolRef(symbol)) = instruction else { continue }
-                storageSymbols[expr] = symbol
-            }
-            var rebound: Set<SymbolID> = []
-            for instruction in inlineTarget.body {
-                let written: [KIRExprID]
-                switch instruction {
-                case let .copy(_, to):
-                    written = [to]
-                case let .constValue(result, value):
-                    // The constValue that binds the parameter symbol is the
-                    // slot's own definition; anything else written over it
-                    // reassigns the parameter.
-                    if case let .symbolRef(bound) = value, storageSymbols[result] == bound {
-                        written = []
-                    } else {
-                        written = [result]
-                    }
-                case let .call(_, _, _, result, _, thrownResult, _, _),
-                     let .virtualCall(_, _, _, _, result, _, thrownResult, _):
-                    written = [result, thrownResult].compactMap { $0 }
-                case let .beginNonLocalReturnScope(value, _, function):
-                    written = function != nil ? [value] : []
-                default:
-                    written = InlineExprAliasing.definedResult(in: instruction).map { [$0] } ?? []
-                }
-                for expr in written {
-                    if let symbol = storageSymbols[expr] {
-                        rebound.insert(symbol)
-                    }
-                }
-            }
-            return rebound
-        }()
+        // iteration-0's callable into the loop (KUU-3222). The write-scan is
+        // shared across call sites via `calleeFacts`.
+        let reboundParamSymbols = calleeFacts.reboundParamSymbols
         let reboundArgumentExprs = Set(reboundParamSymbols.compactMap { parameterValues[$0] })
 
         var returnedExpr: KIRExprID?
         var hasNonLocalReturn = false
         var hasNormalReturn = false
-        let ownsNonLocalReturn = nonLocalReturnTargets.contains(.function(inlineTarget.symbol)) || inlineTarget.body.contains {
-            if case let .nonLocalReturn(_, target) = $0 { return target == .function(inlineTarget.symbol) }
-            return false
-        }
-        let inlineReturnCount = inlineTarget.body.reduce(0) { count, inst in
-            switch inst {
-            case .returnUnit, .returnValue, .returnIfEqual: return count + 1
-            default: return count
-            }
-        }
-        let needsInlineMergeLabel = inlineReturnCount > 1 || ownsNonLocalReturn || inlineTarget.body.contains {
-            if case .returnIfEqual = $0 { return true }
-            return false
-        }
+        let ownsNonLocalReturn = nonLocalReturnTargets.contains(.function(inlineTarget.symbol))
+            || calleeFacts.bodyOwnsNonLocalReturn
+        let needsInlineMergeLabel = calleeFacts.inlineReturnCount > 1
+            || ownsNonLocalReturn
+            || calleeFacts.hasReturnIfEqual
         let inlineExitLabel: Int32
         var inlineMergeResult: KIRExprID?
         if needsInlineMergeLabel {
             inlineExitLabel = labels.allocateScratchLabel()
-            let hasValueReturn = inlineTarget.body.contains {
-                if case .returnValue = $0 { return true }
-                return false
-            }
-            if hasValueReturn || ownsNonLocalReturn {
+            if calleeFacts.hasValueReturn || ownsNonLocalReturn {
                 inlineMergeResult = module.arena.appendTemporary(type: substitutedInlineReturnType)
             }
             if ownsNonLocalReturn, let slot = inlineMergeResult {
@@ -173,16 +109,16 @@ extension InlineLoweringPass {
         // one of their writers below would redirect every reader to the
         // replacement expression while the other writers keep filling the
         // original, so they are left alone.
-        let mergeSlotExprs = multiplyWrittenExprs(in: inlineTarget.body)
+        let mergeSlotExprs = calleeFacts.mergeSlotExprs
 
         // Give this expansion its own label IDs, so the same function inlined
         // twice does not define one label twice. The caller relocates them
-        // again on the way in (see `InlineLabelAllocator`).
+        // again on the way in (see `InlineLabelAllocator`). `bodyLabelIDs`
+        // preserves per-occurrence order, so scratch allocation happens in the
+        // same sequence as rescanning the body would.
         var labelRemap: [Int32: Int32] = [:]
-        for instruction in inlineTarget.body {
-            if case let .label(id) = instruction {
-                labelRemap[id] = labels.allocateScratchLabel()
-            }
+        for id in calleeFacts.bodyLabelIDs {
+            labelRemap[id] = labels.allocateScratchLabel()
         }
 
         let sequenceGenerateCallee = ctx.interner.intern("__kk_sequence_generate")
@@ -312,7 +248,7 @@ extension InlineLoweringPass {
                        argExpr: argExpr,
                        arena: module.arena,
                        allFunctionsBySymbol: allFunctionsBySymbol,
-                       callerBody: callerBody,
+                       callerBodyIndex: callerBodyIndex,
                        ctx: ctx
                    )
                 {
@@ -322,9 +258,7 @@ extension InlineLoweringPass {
                         aliases: localExprMap, arena: module.arena, ctx: ctx, into: &lowered
                     )
                     let valueArgs: [KIRExprID]
-                    if ["kk_function_invoke", "kk_function_invoke_0", "kk_function_invoke_2", "kk_function_invoke_3", "kk_function_invoke_4", "kk_suspend_function_invoke", "kk_suspend_function_invoke_0", "kk_suspend_function_invoke_2", "kk_suspend_function_invoke_3", "kk_suspend_function_invoke_4", "kk_suspend_function_invoke_5", "kk_suspend_function_invoke_6"]
-                        .contains(calleeStr)
-                    {
+                    if functionInvokeCallees.contains(callee) {
                         valueArgs = Array(resolvedArgs.dropFirst())
                     } else {
                         valueArgs = resolvedArgs
@@ -365,7 +299,7 @@ extension InlineLoweringPass {
                         )
                         if let result {
                             if let lambdaReturn = lambdaExpansion.returnedExpr,
-                               (exprIsDefined(lambdaReturn, in: lowered.instructions) || fullArgs.contains(lambdaReturn))
+                               (emittedDefinedExprs.contains(lambdaReturn, in: lowered.instructions) || fullArgs.contains(lambdaReturn))
                             {
                                 restoreErasedInvokeResultType(
                                     result: result,
@@ -399,14 +333,14 @@ extension InlineLoweringPass {
                 // local alias map, inline its body here as well so returned
                 // function values preserve their captures.
                 let resolvedArgs = args.map { InlineExprAliasing.resolveAlias(of: $0, aliases: localExprMap) }
-                if ["kk_function_invoke", "kk_function_invoke_0", "kk_function_invoke_2", "kk_function_invoke_3", "kk_function_invoke_4", "kk_suspend_function_invoke", "kk_suspend_function_invoke_0", "kk_suspend_function_invoke_2", "kk_suspend_function_invoke_3", "kk_suspend_function_invoke_4", "kk_suspend_function_invoke_5", "kk_suspend_function_invoke_6"].contains(calleeStr),
+                if functionInvokeCallees.contains(callee),
                    let callableExpr = resolvedArgs.first,
                    !reboundArgumentExprs.contains(callableExpr),
                    let lambdaFunction = resolveLambdaFunction(
                        argExpr: callableExpr,
                        arena: module.arena,
                        allFunctionsBySymbol: allFunctionsBySymbol,
-                       callerBody: callerBody,
+                       callerBodyIndex: callerBodyIndex,
                        ctx: ctx
                    )
                 {
@@ -450,7 +384,7 @@ extension InlineLoweringPass {
                         )
                         if let result {
                             if let lambdaReturn = lambdaExpansion.returnedExpr,
-                               (exprIsDefined(lambdaReturn, in: lowered.instructions) || fullArgs.contains(lambdaReturn))
+                               (emittedDefinedExprs.contains(lambdaReturn, in: lowered.instructions) || fullArgs.contains(lambdaReturn))
                             {
                                 restoreErasedInvokeResultType(
                                     result: result,
@@ -813,27 +747,6 @@ extension InlineLoweringPass {
             return true
         }
         return false
-    }
-
-    private func multiplyWrittenExprs(in body: [KIRInstruction]) -> Set<KIRExprID> {
-        var writeCounts: [KIRExprID: Int] = [:]
-        for instruction in body {
-            let written: KIRExprID? = switch instruction {
-            case let .copy(_, to): to
-            case let .call(_, _, _, result, _, _, _, _): result
-            case let .virtualCall(_, _, _, _, result, _, _, _): result
-            case let .binary(_, _, _, result): result
-            case let .unary(_, _, result): result
-            case let .constValue(result, _): result
-            case let .nullAssert(_, result): result
-            case let .loadGlobal(result, _): result
-            default: nil
-            }
-            if let written {
-                writeCounts[written, default: 0] += 1
-            }
-        }
-        return Set(writeCounts.filter { $0.value > 1 }.keys)
     }
 
     private func shouldRetypeInlineCopyTarget(

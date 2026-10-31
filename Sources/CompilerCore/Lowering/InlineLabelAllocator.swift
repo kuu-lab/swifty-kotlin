@@ -44,7 +44,7 @@ struct InlineLabelAllocator {
             if case let .label(id) = instruction {
                 highestDefined = max(highestDefined, id)
             }
-            for id in KIRLabelRelocation.labelIDs(of: instruction) {
+            if let id = KIRLabelRelocation.maxLabelID(of: instruction) {
                 highestReferenced = max(highestReferenced, id)
             }
         }
@@ -90,7 +90,9 @@ struct InlineLabelAllocator {
             return nil
         })
         for instruction in instructions {
-            labelIDs.formUnion(KIRLabelRelocation.labelIDs(of: instruction))
+            if let id = KIRLabelRelocation.maxLabelID(of: instruction) {
+                labelIDs.insert(id)
+            }
             if case let .jump(target) = instruction,
                let externalTarget = KIRExternalLoopJump.label(for: target),
                locallyDefinedLabels.contains(externalTarget)
