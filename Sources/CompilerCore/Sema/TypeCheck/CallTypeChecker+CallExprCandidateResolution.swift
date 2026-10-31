@@ -895,6 +895,27 @@ extension CallTypeChecker {
         else {
             return []
         }
+        return contextParameterReceiverSymbols(
+            contextParameterTypes: signature.contextParameterTypes,
+            typeParameterSymbols: signature.typeParameterSymbols,
+            substitution: substitution,
+            ctx: ctx
+        )
+    }
+
+    /// Same nearest-receiver resolution as `contextParameterReceiverSymbols(for:)`
+    /// but driven by an explicit context-parameter type list — used by
+    /// callable-value invocations (`f()` on a `context(A, B) () -> T`), where
+    /// the "signature" is the function type itself rather than a callee symbol.
+    func contextParameterReceiverSymbols(
+        contextParameterTypes: [TypeID],
+        typeParameterSymbols: [SymbolID],
+        substitution: [TypeVarID: TypeID],
+        ctx: TypeInferenceContext
+    ) -> [SymbolID?] {
+        guard !contextParameterTypes.isEmpty else {
+            return []
+        }
 
         // Kotlin resolves the *nearest* receiver for an implicit context
         // argument: receivers a lambda introduces inside the enclosing
@@ -931,8 +952,8 @@ extension CallTypeChecker {
         let contextReceiverTypes = ctx.contextReceiverTypes.map {
             ctx.sema.types.makeNonNullable($0)
         }
-        let typeVariables = ctx.sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
-        return signature.contextParameterTypes.map { requestedType in
+        let typeVariables = ctx.sema.types.makeTypeVarBySymbol(typeParameterSymbols)
+        return contextParameterTypes.map { requestedType in
             let resolvedType = ctx.sema.types.substituteTypeParameters(
                 in: requestedType,
                 substitution: substitution,
