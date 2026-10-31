@@ -194,18 +194,27 @@ extension KIRLoweringDriver {
             }
 
             let nonNullableType = sema.types.makeNonNullable(type)
+            // KUU-3816 (KT-77299): a definitely-non-null `T & Any` intersection
+            // reflects as its plain type parameter — `typeOf<List<T & Any>>()`
+            // renders `kotlin.collections.List<T>` on the JVM. Unwrap the
+            // intersection so the KType materializes the parameter classifier
+            // instead of an unknown-token `java.lang.Void` leak.
+            let definitelyNonNullParameter = kirDefinitelyNotNullTypeParameter(
+                of: nonNullableType, sema: sema
+            )
+            let reflectedType = definitelyNonNullParameter ?? nonNullableType
             let typeParameter: TypeParamType? = {
-                guard case let .typeParam(parameter) = sema.types.kind(of: nonNullableType),
+                guard case let .typeParam(parameter) = sema.types.kind(of: reflectedType),
                       sema.symbols.symbol(parameter.symbol)?.flags.contains(.reifiedTypeParameter) != true
                 else {
                     return nil
                 }
                 return parameter
             }()
-            let tokenExpr = makeTypeTokenExpr(for: nonNullableType)
+            let tokenExpr = makeTypeTokenExpr(for: reflectedType)
             if typeParameter == nil && registerClassMetadata {
                 callLowerer.emitClassLiteralMetadataRegistration(
-                    classRefTargetType: nonNullableType,
+                    classRefTargetType: reflectedType,
                     typeTokenExpr: tokenExpr,
                     sema: sema,
                     arena: arena,
@@ -215,7 +224,7 @@ extension KIRLoweringDriver {
             }
 
             let typeArguments: [TypeArg]
-            switch sema.types.kind(of: nonNullableType) {
+            switch sema.types.kind(of: reflectedType) {
             case let .classType(classType):
                 typeArguments = classType.args + enclosingTypeArgumentsInReflectionOrder(for: classType)
             case let .kClassType(kClassType):
@@ -233,7 +242,11 @@ extension KIRLoweringDriver {
             }
             let argumentRaws = typeArguments.map(lowerProjection)
             let argumentList = list(argumentRaws)
-            let nullability = makeNullabilityExpr(for: type)
+            // An unwrapped `T & Any` intersection is itself non-null, but the
+            // parameter inside it carries the reflected nullability — a
+            // reified substitution may still be nullable (`R=String?`
+            // renders `kotlin.String?`).
+            let nullability = makeNullabilityExpr(for: definitelyNonNullParameter ?? type)
             let ktype = arena.appendTemporary(type: sema.types.anyType)
 
             if let typeParameter {
