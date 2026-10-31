@@ -19,6 +19,21 @@ extension CallTypeChecker {
            let local = locals[calleeName],
            case .classType = sema.types.kind(of: sema.types.makeNonNullable(local.type))
         {
+            // A local nominal declaration binds its classifier symbol into
+            // `locals`, so `local.symbol` names the *type*, not a value —
+            // `C()` is a constructor call resolved through the ordinary
+            // candidate path (companion `invoke`s are collected there too),
+            // never the invoke convention on an instance. Routing it through
+            // here rewrites `C()` to `C.invoke()` on a class-name receiver,
+            // where the instance member can never resolve (KUU-3875). Named
+            // local `object`s keep the value path: in expression position
+            // their name denotes the singleton instance.
+            switch sema.symbols.symbol(local.symbol)?.kind {
+            case .class, .interface, .enumClass, .annotationClass:
+                return nil
+            default:
+                break
+            }
             let invokeName = interner.intern("invoke")
             var invokeCandidates = driver.helpers.collectMemberFunctionCandidates(
                 named: invokeName,
@@ -106,7 +121,14 @@ extension CallTypeChecker {
             sema.bindings.bindIdentifier(calleeID, symbol: local.symbol)
             sema.bindings.bindExprType(calleeID, type: local.type)
             let localSymbolKind = ctx.cachedSymbol(local.symbol)?.kind
-            if localSymbolKind != .function {
+            switch localSymbolKind {
+            case .function, .class, .interface, .enumClass, .annotationClass:
+                // A local nominal declaration binds the classifier symbol,
+                // not a callable value — `C()` stays on the constructor
+                // candidate path so an inaccessible `<init>` still reports
+                // as such instead of materializing `C.invoke()` (KUU-3875).
+                break
+            default:
                 callableTarget = .localValue(local.symbol)
                 callableCalleeType = local.type
             }

@@ -37,6 +37,61 @@ struct FunctionNNominalResolutionTests {
         }
     }
 
+    /// KUU-3875: a local class implementing a FunctionN interface — or merely
+    /// declaring an `operator invoke` member — still constructs via `C()`:
+    /// the class name is a classifier, not a callable value, so the invoke
+    /// convention must not intercept the constructor call. Function-type
+    /// supertypes (`() -> Int`, `suspend () -> Int`) record the same
+    /// FunctionN / SuspendFunctionN edge the nominal spelling does.
+    @Test
+    func localClassWithFunctionSupertypeStillConstructs() throws {
+        let source = """
+        fun checkSuspend(block: suspend () -> Int) {}
+
+        fun main() {
+            class Nominal : Function0<Int> {
+                override fun invoke(): Int = 42
+            }
+            println(Nominal().invoke())
+            println(Nominal()())
+
+            class Unary : Function1<Int, String> {
+                override fun invoke(value: Int): String = "v" + value
+            }
+            println(Unary().invoke(5))
+
+            class FnType : () -> Int {
+                override fun invoke(): Int = 7
+            }
+            println(FnType().invoke())
+
+            class SuspendFn : suspend () -> Int {
+                override suspend fun invoke(): Int = 1
+            }
+            val suspendInstance = SuspendFn()
+            checkSuspend(suspendInstance)
+
+            class Generic<T> : Function1<T, String> {
+                override fun invoke(value: T): String = "g" + value
+            }
+            println(Generic<Int>().invoke(3))
+
+            class OperatorOnly {
+                operator fun invoke(): Int = 9
+            }
+            println(OperatorOnly()())
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let context = makeCompilationContext(inputs: [path])
+            try runSema(context)
+
+            let errors = context.diagnostics.diagnostics.filter { $0.severity == .error }
+            #expect(errors.isEmpty, Comment(rawValue: "Unexpected diagnostics: \(errors)"))
+        }
+    }
+
     @Test
     func functionNTypesCanBeNamedThroughArity255() throws {
         let typeArguments = Array(repeating: "*", count: 256).joined(separator: ", ")

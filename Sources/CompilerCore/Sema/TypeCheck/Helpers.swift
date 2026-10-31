@@ -1237,9 +1237,9 @@ struct TypeCheckHelpers {
     /// declarations. Supertype collectors that go through `resolveTypeRef`
     /// (anonymous object literals, local classes) must apply the same lift or
     /// the literal's `invoke` override and function-type subtyping silently
-    /// drop the edge (KUU-3838). Context-receiver function types have no
-    /// nominal equivalent and are returned unchanged, matching the named
-    /// declaration path.
+    /// drop the edge (KUU-3838, KUU-3875). Context-receiver function types
+    /// have no nominal equivalent and are returned unchanged, matching the
+    /// named declaration path.
     func nominalFunctionInterfaceSupertype(
         for resolved: TypeID,
         owner: SymbolID,
