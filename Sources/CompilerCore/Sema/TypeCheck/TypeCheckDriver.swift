@@ -70,6 +70,10 @@ final class TypeCheckDriver {
     /// Properties whose types were inferred in a safe module pre-pass so earlier
     /// files can use them without running the property checker a second time.
     var precheckedPropertyDecls: Set<DeclID> = []
+    /// Inferred properties whose initializer type alone was published in the
+    /// pre-pass. Their accessors may depend on declarations checked later, so
+    /// the authoritative pass still rechecks the whole declaration.
+    var publishedInferredPropertyDecls: Set<DeclID> = []
     /// Object headers published for forward references, with bodies still unchecked.
     var predeclaredObjectLiteralDecls: Set<DeclID> = []
     var inferredReturnFunctions: [SymbolID: (function: FunDecl, context: TypeInferenceContext)] = [:]
@@ -572,9 +576,11 @@ final class TypeCheckDriver {
         // stay on the source-order pass.
         var previousPrecheckedCount: Int
         var previousPendingCount: Int
+        var previousPublishedCount: Int
         repeat {
             previousPrecheckedCount = precheckedPropertyDecls.count
             previousPendingCount = pendingPropertyTypes.count
+            previousPublishedCount = publishedInferredPropertyDecls.count
             for file in files {
                 guard let inferCtx = inferenceContext(for: file) else { continue }
                 for declID in file.topLevelDecls {
@@ -623,6 +629,18 @@ final class TypeCheckDriver {
                                 checkAccessorBodies: false
                             )
                             diagnostics.truncate(to: diagnosticSnapshot)
+                        } else if !publishedInferredPropertyDecls.contains(declID),
+                                  declChecker.canSafelyPrecheckInferredPropertyInitializerType(
+                                      property,
+                                      in: inferCtx
+                                  )
+                        {
+                            declChecker.publishInferredPropertyInitializerType(
+                                property,
+                                symbol: symbol,
+                                in: inferCtx.with(currentDeclSymbol: symbol)
+                            )
+                            publishedInferredPropertyDecls.insert(declID)
                         }
                     case let .classDecl(classDecl):
                         declChecker.precheckIndependentClassMemberProperties(
@@ -647,6 +665,7 @@ final class TypeCheckDriver {
             }
         } while precheckedPropertyDecls.count > previousPrecheckedCount
             || pendingPropertyTypes.count < previousPendingCount
+            || publishedInferredPropertyDecls.count > previousPublishedCount
 
         // Dependency inference and contract collection above remain module-owned.
         // Workers cannot demand an inferred declaration or modify a signature.

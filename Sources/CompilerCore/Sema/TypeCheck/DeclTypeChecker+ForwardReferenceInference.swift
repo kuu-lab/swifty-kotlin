@@ -206,7 +206,6 @@ extension DeclTypeChecker {
         diagnostics: DiagnosticEngine
     ) {
         let sema = ctx.sema
-
         for declID in memberProperties {
             guard !driver.precheckedPropertyDecls.contains(declID),
                   case let .propertyDecl(property)? = ctx.ast.arena.decl(declID),
@@ -272,32 +271,111 @@ extension DeclTypeChecker {
                 // the property's type on its own, so publish that type while
                 // the header placeholder is in place; the source-order pass
                 // then re-checks the whole declaration, accessors included.
-                guard sema.symbols.propertyType(for: propertySymbol) == sema.types.nullableAnyType,
-                      canPublishInferredPropertyTypeEarly(
-                          property,
-                          in: ctx,
-                          initialLocals: initialLocals
-                      )
-                else {
+                if sema.symbols.propertyType(for: propertySymbol) == sema.types.nullableAnyType,
+                   canPublishInferredPropertyTypeEarly(
+                       property,
+                       in: ctx,
+                       initialLocals: initialLocals
+                   )
+                {
+                    let diagnosticSnapshot = diagnostics.count
+                    typeCheckBoundPropertyDecl(
+                        property,
+                        declID: declID,
+                        symbol: propertySymbol,
+                        ctx: ctx.with(currentDeclSymbol: propertySymbol),
+                        initialLocals: initialLocals,
+                        solver: solver,
+                        diagnostics: diagnostics,
+                        checkAccessorBodies: false
+                    )
+                    // Publish only the inferred type; diagnostics belong to the
+                    // authoritative pass, which re-emits them in source order.
+                    diagnostics.truncate(to: diagnosticSnapshot)
+                    didPrecheckProperty = true
                     continue
                 }
-                let diagnosticSnapshot = diagnostics.count
-                typeCheckBoundPropertyDecl(
-                    property,
-                    declID: declID,
-                    symbol: propertySymbol,
-                    ctx: ctx.with(currentDeclSymbol: propertySymbol),
-                    initialLocals: initialLocals,
-                    solver: solver,
-                    diagnostics: diagnostics,
-                    checkAccessorBodies: false
-                )
-                // Publish only the inferred type; diagnostics belong to the
-                // authoritative pass, which re-emits them in source order.
-                diagnostics.truncate(to: diagnosticSnapshot)
-                didPrecheckProperty = true
+                if !driver.publishedInferredPropertyDecls.contains(declID),
+                   canSafelyPrecheckInferredPropertyInitializerType(
+                       property,
+                       in: ctx,
+                       initialLocals: initialLocals
+                   )
+                {
+                    publishInferredPropertyInitializerType(
+                        property,
+                        symbol: propertySymbol,
+                        in: ctx,
+                        initialLocals: initialLocals
+                    )
+                    driver.publishedInferredPropertyDecls.insert(declID)
+                    didPrecheckProperty = true
+                }
             }
         } while didPrecheckProperty
+    }
+
+    /// A `var` with a real custom setter cannot run its bound declaration
+    /// check early — the setter body may reference declarations that are only
+    /// checked later — but its property type comes solely from the
+    /// initializer. When that initializer is safe to precheck, publish just
+    /// the inferred type so earlier bodies see the concrete type; the
+    /// authoritative declaration pass still rechecks the whole property,
+    /// including the accessors (KUU-3799).
+    func canSafelyPrecheckInferredPropertyInitializerType(
+        _ property: PropertyDecl,
+        in ctx: TypeInferenceContext,
+        initialLocals: LocalBindings = [:]
+    ) -> Bool {
+        guard property.type == nil,
+              property.explicitBackingField == nil,
+              property.getter == nil,
+              property.receiverType == nil,
+              property.contextReceivers.isEmpty,
+              property.delegateExpression == nil,
+              let initializer = property.initializer,
+              let type = safePrecheckExpressionType(
+                  initializer,
+                  in: ctx,
+                  locals: initialLocals
+              )
+        else {
+            return false
+        }
+        return type != ctx.sema.types.nullableNothingType
+    }
+
+    func publishInferredPropertyInitializerType(
+        _ property: PropertyDecl,
+        symbol: SymbolID,
+        in ctx: TypeInferenceContext,
+        initialLocals: LocalBindings = [:]
+    ) {
+        guard let initializer = property.initializer,
+              driver.checkingInferredProperties.insert(symbol).inserted
+        else {
+            return
+        }
+        defer { driver.checkingInferredProperties.remove(symbol) }
+        // The declaration is not marked as checked, so the authoritative pass
+        // rechecks it and owns all of its diagnostics. Roll back anything the
+        // speculative initializer inference emitted to avoid duplicates.
+        let diagnosticSnapshot = ctx.sema.diagnostics.count
+        defer { ctx.sema.diagnostics.truncate(to: diagnosticSnapshot) }
+        var locals = initialLocals
+        let inferredType = driver.inferExpr(
+            initializer,
+            ctx: ctx.with(initializingPropertySymbol: symbol),
+            locals: &locals,
+            expectedType: nil
+        )
+        guard inferredType != ctx.sema.types.errorType else {
+            return
+        }
+        ctx.sema.symbols.setPropertyType(
+            exposedAnonymousType(inferredType, symbol: symbol, range: property.range, ctx: ctx),
+            for: symbol
+        )
     }
 
     func canSafelyPrecheckExplicitBackingFieldProperty(
@@ -754,7 +832,11 @@ extension DeclTypeChecker {
                 in: ctx
             )
         })
-        return safePrecheckCallResultType(Array(Set(candidates)), in: ctx)
+        return safePrecheckCallResultType(
+            Array(Set(candidates)),
+            receiverType: nonNullReceiverType,
+            in: ctx
+        )
     }
 
     /// Enum-entry initializers can appear as a classifier-qualified chain
@@ -864,6 +946,20 @@ extension DeclTypeChecker {
         else {
             return false
         }
+        // A short-name symbol lookup also returns ordinary class and
+        // interface members. Member dispatch already filters overridden
+        // declarations, so admitting a shadowed interface member here would
+        // make its return type conflict with the winning override's
+        // covariant return type (KUU-3799). Keep only package-scope
+        // extensions, including package extensions attached to a receiver
+        // nominal while keeping their package-qualified name.
+        if let parentID = ctx.sema.symbols.parentSymbol(for: candidate),
+           let parent = ctx.sema.symbols.symbol(parentID),
+           parent.kind != .package,
+           symbol.fqName == parent.fqName + [symbol.name]
+        {
+            return false
+        }
         return driver.callChecker.extensionSyntheticFallbackReceiverMatches(
             callSiteReceiver: receiverType,
             declaredReceiver: declaredReceiver,
@@ -897,6 +993,7 @@ extension DeclTypeChecker {
 
     private func safePrecheckCallResultType(
         _ candidates: [SymbolID],
+        receiverType: TypeID? = nil,
         in ctx: TypeInferenceContext
     ) -> TypeID? {
         var resultType: TypeID?
@@ -907,19 +1004,82 @@ extension DeclTypeChecker {
                   signature.contextReceiverTypes.isEmpty,
                   canBeCalledWithoutArguments(signature),
                   signature.returnType != ctx.sema.types.nullableAnyType,
-                  isSafePrecheckValueType(signature.returnType, in: ctx),
                   !returnTypeDependsOnFunctionTypeParameters(signature, in: ctx)
             else {
                 return nil
             }
-            if let resultType, resultType != signature.returnType {
+            let candidateReturnType = specializedPrecheckMemberReturnType(
+                signature.returnType,
+                candidate: candidate,
+                receiverType: receiverType,
+                in: ctx
+            )
+            guard isSafePrecheckValueType(candidateReturnType, in: ctx) else {
+                return nil
+            }
+            if let resultType, resultType != candidateReturnType {
                 // Without resolving an overload, only accept a result type that
                 // is the same for every zero-argument candidate.
                 return nil
             }
-            resultType = signature.returnType
+            resultType = candidateReturnType
         }
         return resultType
+    }
+
+    /// A member signature's return type is stored in terms of the declaring
+    /// owner's type parameters. Substitute the call-site receiver's lifted
+    /// supertype arguments so `map.hashMap.builder()` on
+    /// `PersistentHashMap<K, LinkedValue<V>>` yields
+    /// `PersistentHashMapBuilder<K, LinkedValue<V>>` rather than the
+    /// owner's raw `PersistentHashMapBuilder<K, V>` (KUU-3799).
+    private func specializedPrecheckMemberReturnType(
+        _ returnType: TypeID,
+        candidate: SymbolID,
+        receiverType: TypeID?,
+        in ctx: TypeInferenceContext
+    ) -> TypeID {
+        guard let receiverType,
+              ctx.sema.symbols.memberExtensionOwnerSymbol(for: candidate) == nil,
+              let owner = ctx.sema.symbols.parentSymbol(for: candidate),
+              case let .classType(classType) = ctx.sema.types.kind(
+                  of: ctx.sema.types.makeNonNullable(receiverType)
+              ),
+              ctx.sema.types.isNominalSubtypeSymbol(classType.classSymbol, of: owner),
+              let ownerTypeArgs = ctx.sema.types.liftedNominalSupertypeArgs(
+                  from: classType,
+                  to: owner
+              )
+        else {
+            return returnType
+        }
+        let ownerTypeParameters = ctx.sema.types.allTypeParameterSymbols(for: owner)
+        guard !ownerTypeParameters.isEmpty else {
+            return returnType
+        }
+        let typeVarBySymbol = ctx.sema.types.makeTypeVarBySymbol(ownerTypeParameters)
+        var substitution: [TypeVarID: TypeID] = [:]
+        for (index, typeParameter) in ownerTypeParameters.enumerated() {
+            guard index < ownerTypeArgs.count,
+                  let typeVar = typeVarBySymbol[typeParameter]
+            else {
+                continue
+            }
+            switch ownerTypeArgs[index] {
+            case let .invariant(inner), let .out(inner), let .in(inner):
+                substitution[typeVar] = inner
+            case .star:
+                substitution[typeVar] = ctx.sema.types.nullableAnyType
+            }
+        }
+        guard !substitution.isEmpty else {
+            return returnType
+        }
+        return ctx.sema.types.substituteTypeParameters(
+            in: returnType,
+            substitution: substitution,
+            typeVarBySymbol: typeVarBySymbol
+        )
     }
 
     private func hasExplicitReturnTypeIfSourceDefined(
