@@ -71,7 +71,7 @@ struct PrivateNestedWildcardImportTests {
                 sourceManager: ctx.sourceManager
             )[fileID.rawValue])
             #expect(scope.lookup(ctx.interner.intern("D")).contains(nestedType))
-            #expect(!VisibilityChecker(symbols: sema.symbols, sourceManager: ctx.sourceManager)
+            #expect(!VisibilityChecker(symbols: sema.symbols, sourceManager: ctx.sourceManager, interner: ctx.interner)
                 .isAccessible(try #require(sema.symbols.symbol(nestedType)), fromFile: fileID, enclosingClass: nil))
             let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
             #expect(!errors.isEmpty, "Expected the inaccessible nested type use to be rejected")

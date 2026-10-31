@@ -238,7 +238,7 @@ struct VisibilityAccessControlTests {
 
 
                 let (_, symbols, _, interner) = makeSemaModule()
-                let checker = VisibilityChecker(symbols: symbols)
+                let checker = VisibilityChecker(symbols: symbols, interner: interner)
                 let sym = defineSymbol(symbols, interner: interner, kind: .function, name: "pubFn", visibility: .public)
                 let symbol = try #require(symbols.symbol(sym))
                 #expect(checker.isAccessible(symbol, fromFile: FileID(rawValue: 1), enclosingClass: nil))
@@ -252,7 +252,7 @@ struct VisibilityAccessControlTests {
 
 
                 let (_, symbols, _, interner) = makeSemaModule()
-                let checker = VisibilityChecker(symbols: symbols)
+                let checker = VisibilityChecker(symbols: symbols, interner: interner)
                 let sym = defineSymbol(symbols, interner: interner, kind: .function, name: "intFn", visibility: .internal)
                 let symbol = try #require(symbols.symbol(sym))
                 #expect(checker.isAccessible(symbol, fromFile: FileID(rawValue: 1), enclosingClass: nil))
@@ -266,7 +266,7 @@ struct VisibilityAccessControlTests {
 
 
                 let (_, symbols, _, interner) = makeSemaModule()
-                let checker = VisibilityChecker(symbols: symbols)
+                let checker = VisibilityChecker(symbols: symbols, interner: interner)
                 let sym = defineSymbol(symbols, interner: interner, kind: .function, name: "privFn", visibility: .private, file: FileID(rawValue: 0))
                 let symbol = try #require(symbols.symbol(sym))
                 #expect(checker.isAccessible(symbol, fromFile: FileID(rawValue: 0), enclosingClass: nil))
@@ -280,7 +280,7 @@ struct VisibilityAccessControlTests {
 
 
                 let (_, symbols, _, interner) = makeSemaModule()
-                let checker = VisibilityChecker(symbols: symbols)
+                let checker = VisibilityChecker(symbols: symbols, interner: interner)
                 let sym = defineSymbol(symbols, interner: interner, kind: .function, name: "privFn2", visibility: .private, file: FileID(rawValue: 0))
                 let symbol = try #require(symbols.symbol(sym))
                 #expect(!(checker.isAccessible(symbol, fromFile: FileID(rawValue: 1), enclosingClass: nil)))
@@ -294,7 +294,7 @@ struct VisibilityAccessControlTests {
 
 
                 let (_, symbols, _, interner) = makeSemaModule()
-                let checker = VisibilityChecker(symbols: symbols)
+                let checker = VisibilityChecker(symbols: symbols, interner: interner)
                 let classSym = defineSymbol(symbols, interner: interner, kind: .class, name: "MyClass", visibility: .public)
                 let memberSym = defineSymbol(symbols, interner: interner, kind: .function, name: "protMethod", visibility: .protected)
                 symbols.setParentSymbol(classSym, for: memberSym)
@@ -310,7 +310,7 @@ struct VisibilityAccessControlTests {
 
 
                 let (_, symbols, _, interner) = makeSemaModule()
-                let checker = VisibilityChecker(symbols: symbols)
+                let checker = VisibilityChecker(symbols: symbols, interner: interner)
                 let classSym = defineSymbol(symbols, interner: interner, kind: .class, name: "MyClass2", visibility: .public)
                 let memberSym = defineSymbol(symbols, interner: interner, kind: .function, name: "protMethod2", visibility: .protected)
                 symbols.setParentSymbol(classSym, for: memberSym)
@@ -326,7 +326,7 @@ struct VisibilityAccessControlTests {
 
 
                 let (_, symbols, _, interner) = makeSemaModule()
-                let checker = VisibilityChecker(symbols: symbols)
+                let checker = VisibilityChecker(symbols: symbols, interner: interner)
                 let baseSym = defineSymbol(symbols, interner: interner, kind: .class, name: "Base", visibility: .public)
                 let memberSym = defineSymbol(symbols, interner: interner, kind: .function, name: "protSubMethod", visibility: .protected)
                 symbols.setParentSymbol(baseSym, for: memberSym)
@@ -344,7 +344,7 @@ struct VisibilityAccessControlTests {
 
 
                 let (_, symbols, _, interner) = makeSemaModule()
-                let checker = VisibilityChecker(symbols: symbols)
+                let checker = VisibilityChecker(symbols: symbols, interner: interner)
                 let classSym = defineSymbol(symbols, interner: interner, kind: .class, name: "PrivClass", visibility: .public)
                 let memberSym = defineSymbol(symbols, interner: interner, kind: .function, name: "privMethod", visibility: .private)
                 symbols.setParentSymbol(classSym, for: memberSym)
@@ -360,7 +360,7 @@ struct VisibilityAccessControlTests {
 
 
                 let (_, symbols, _, interner) = makeSemaModule()
-                let checker = VisibilityChecker(symbols: symbols)
+                let checker = VisibilityChecker(symbols: symbols, interner: interner)
                 let classSym = defineSymbol(symbols, interner: interner, kind: .class, name: "OwnerClass", visibility: .public)
                 let otherClassSym = defineSymbol(symbols, interner: interner, kind: .class, name: "OtherClass", visibility: .public)
                 let memberSym = defineSymbol(symbols, interner: interner, kind: .function, name: "privMethod2", visibility: .private)
@@ -406,17 +406,24 @@ struct VisibilityAccessControlTests {
 
             }
 
-            // === testVisibilityCheckerSharedEnclosingClassPrivateAccess ===
+            // === testVisibilityCheckerPrivateMemberScopedToDeclaringBody ===
+            // kotlinc scopes a private member to its declaring class body:
+            // `Outer.g` and sibling `NestedB` cannot reach `NestedA.privA`,
+            // while `NestedA` itself and a class nested inside it can. The
+            // previous any-common-ancestor check allowed the first two
+            // (KUU-3880).
 
             do {
 
                 let (_, symbols, _, interner) = makeSemaModule()
-                let checker = VisibilityChecker(symbols: symbols)
+                let checker = VisibilityChecker(symbols: symbols, interner: interner)
                 let outerClassSym = defineSymbol(symbols, interner: interner, kind: .class, name: "OuterClass", visibility: .public)
                 let nestedASym = defineSymbol(symbols, interner: interner, kind: .class, name: "NestedA", visibility: .private)
                 symbols.setParentSymbol(outerClassSym, for: nestedASym)
                 let nestedBSym = defineSymbol(symbols, interner: interner, kind: .class, name: "NestedB", visibility: .public)
                 symbols.setParentSymbol(outerClassSym, for: nestedBSym)
+                let innermostSym = defineSymbol(symbols, interner: interner, kind: .class, name: "Innermost", visibility: .public)
+                symbols.setParentSymbol(nestedASym, for: innermostSym)
 
                 let nestedAMemberSym = defineSymbol(symbols, interner: interner, kind: .function, name: "privA", visibility: .private)
                 symbols.setParentSymbol(nestedASym, for: nestedAMemberSym)
@@ -424,11 +431,15 @@ struct VisibilityAccessControlTests {
 
                 let unrelatedClassSym = defineSymbol(symbols, interner: interner, kind: .class, name: "UnrelatedClass", visibility: .public)
 
-                // Access from outer class to nested private member
-                #expect(checker.isAccessible(nestedAMember, fromFile: FileID(rawValue: 0), enclosingClass: outerClassSym))
-                // Access from sibling nested class to nested private member
-                #expect(checker.isAccessible(nestedAMember, fromFile: FileID(rawValue: 0), enclosingClass: nestedBSym))
-                // Access from unrelated class should be rejected
+                // Access from the declaring class itself
+                #expect(checker.isAccessible(nestedAMember, fromFile: FileID(rawValue: 0), enclosingClass: nestedASym))
+                // Access from a class nested inside the declaring class
+                #expect(checker.isAccessible(nestedAMember, fromFile: FileID(rawValue: 0), enclosingClass: innermostSym))
+                // Access from the enclosing class to a nested private member
+                #expect(!checker.isAccessible(nestedAMember, fromFile: FileID(rawValue: 0), enclosingClass: outerClassSym))
+                // Access from a sibling nested class to a nested private member
+                #expect(!checker.isAccessible(nestedAMember, fromFile: FileID(rawValue: 0), enclosingClass: nestedBSym))
+                // Access from an unrelated class is rejected
                 #expect(!checker.isAccessible(nestedAMember, fromFile: FileID(rawValue: 0), enclosingClass: unrelatedClassSym))
 
             }
@@ -443,7 +454,7 @@ struct VisibilityAccessControlTests {
             do {
 
                 let (_, symbols, _, interner) = makeSemaModule()
-                let checker = VisibilityChecker(symbols: symbols)
+                let checker = VisibilityChecker(symbols: symbols, interner: interner)
                 let classSym = defineSymbol(
                     symbols, interner: interner, kind: .class, name: "InheritedOwner",
                     visibility: .private, file: FileID(rawValue: 0)
@@ -472,7 +483,7 @@ struct VisibilityAccessControlTests {
             do {
 
                 let (_, symbols, _, interner) = makeSemaModule()
-                let checker = VisibilityChecker(symbols: symbols)
+                let checker = VisibilityChecker(symbols: symbols, interner: interner)
                 let classSym = defineSymbol(
                     symbols, interner: interner, kind: .class, name: "ExplicitOwner",
                     visibility: .public, file: FileID(rawValue: 0)

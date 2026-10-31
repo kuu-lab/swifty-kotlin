@@ -359,7 +359,7 @@ struct AtomicfuBundledSourceRegistrationTests {
                ["equals", "hashCode", "toString"].contains(ctx.interner.resolve(symbol.name)) {
                 return false
             }
-            return VisibilityChecker(symbols: sema.symbols, sourceManager: ctx.sourceManager).isPublicAPI(symbol)
+            return VisibilityChecker(symbols: sema.symbols, sourceManager: ctx.sourceManager, interner: ctx.interner).isPublicAPI(symbol)
         }.map { qualifiedName($0.id, sema, ctx) }
         #expect(extras.isEmpty, "unexpected atomicfu public/PublishedApi API: \(extras)")
         if let destination = ProcessInfo.processInfo.environment["ATOMICFU_API_SNAPSHOT_DIR"] {

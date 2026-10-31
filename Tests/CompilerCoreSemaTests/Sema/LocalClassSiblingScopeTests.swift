@@ -179,4 +179,143 @@ struct LocalClassSiblingScopeTests {
             }, "Expected a scope error at line \(expectedLine): \(ctx.diagnostics.diagnostics)")
         }
     }
+
+    // KUU-3880: a local class's explicit `private constructor` is scoped to
+    // the class body, so `C()` in the enclosing function is rejected — same
+    // as kotlinc. Implicit or unannotated constructors keep working because
+    // they inherit the local class's own private visibility through
+    // `.constructorVisibilityInherited`, which delegates the check back to
+    // the class.
+    @Test(arguments: [
+        ("""
+        fun main() {
+            class C private constructor() {
+                fun foo() = 1
+            }
+            val c = C()
+            println(c.foo())
+        }
+        """, 5),
+        ("""
+        class Outer {
+            fun f() {
+                class C private constructor() {
+                    fun foo() = 1
+                }
+                val c = C()
+            }
+        }
+        """, 6),
+    ])
+    func rejectsPrivateConstructorOfLocalClassFromEnclosingScope(
+        source: String, expectedLine: Int
+    ) throws {
+        try withTemporaryFile(contents: source) { path in
+            let ctx = context(inputs: [path])
+            try runSema(ctx)
+            #expect(ctx.diagnostics.diagnostics.contains { diagnostic in
+                diagnostic.severity == .error && diagnostic.code == "KSWIFTK-SEMA-0040"
+                    && diagnostic.primaryRange.map { ctx.sourceManager.lineColumn(of: $0.start).line } == expectedLine
+            }, "Expected a private-constructor error at line \(expectedLine): \(ctx.diagnostics.diagnostics)")
+        }
+    }
+
+    @Test(arguments: [
+        // Members inside the local class body can still call the private
+        // primary constructor, and private members resolve in-class.
+        """
+        fun main() {
+            class C private constructor() {
+                fun make() = C()
+                private val x = 1
+                fun read() = x
+            }
+        }
+        """,
+        // The public secondary constructor stays callable from the enclosing
+        // scope even when a private secondary exists.
+        """
+        fun main() {
+            class C {
+                private constructor(x: Int)
+                constructor() : this(1)
+            }
+            val ok = C()
+        }
+        """,
+        // Unannotated and `internal` constructors on a local class keep
+        // inheriting the class's private visibility, so they stay callable
+        // in the enclosing function.
+        """
+        fun main() {
+            class C(val v: Int)
+            class D internal constructor(val w: Int)
+            val c = C(1)
+            val d = D(2)
+            println(c.v + d.w)
+        }
+        """,
+        // Members of an object literal are still reachable on the instance
+        // when they are not private.
+        """
+        fun main() {
+            val o = object {
+                private val hidden = 1
+                fun read() = hidden
+            }
+            println(o.read())
+        }
+        """,
+    ])
+    func acceptsLocalNominalUsesInsideTheirVisibilityScope(source: String) throws {
+        try withTemporaryFile(contents: source) { path in
+            let ctx = context(inputs: [path])
+            try runSema(ctx)
+            #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+        }
+    }
+
+    // A `private` member property of a local class or object literal is
+    // scoped to that body; reads from the enclosing scope are rejected.
+    @Test(arguments: [
+        ("""
+        fun main() {
+            class C {
+                private val x = 1
+            }
+            val c = C()
+            println(c.x)
+        }
+        """, 6),
+        ("""
+        class Outer {
+            fun probe() {
+                class C {
+                    private val x = 1
+                }
+                println(C().x)
+            }
+        }
+        """, 6),
+        ("""
+        fun main() {
+            val o = object {
+                private val x = 1
+            }
+            println(o.x)
+        }
+        """, 5),
+    ])
+    func rejectsPrivateMemberPropertyOfLocalNominalFromEnclosingScope(
+        source: String, expectedLine: Int
+    ) throws {
+        try withTemporaryFile(contents: source) { path in
+            let ctx = context(inputs: [path])
+            try runSema(ctx)
+            #expect(ctx.diagnostics.diagnostics.contains { diagnostic in
+                diagnostic.severity == .error && diagnostic.code == "KSWIFTK-SEMA-0040"
+                    && diagnostic.primaryRange.map { ctx.sourceManager.lineColumn(of: $0.start).line } == expectedLine
+            }, "Expected a private-member error at line \(expectedLine): \(ctx.diagnostics.diagnostics)")
+        }
+    }
 }

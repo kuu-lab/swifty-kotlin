@@ -2,14 +2,16 @@
 struct VisibilityChecker {
     let symbols: SymbolTable
     let sourceManager: SourceManager?
+    let interner: StringInterner
     /// Files that opted into calling otherwise-invisible declarations via
     /// `@file:Suppress("INVISIBLE_MEMBER", "INVISIBLE_REFERENCE")`, the same
     /// escape hatch kotlin-stdlib uses to reach `@PublishedApi internal` API.
     let invisibleAccessFiles: Set<Int32>
 
-    init(symbols: SymbolTable, sourceManager: SourceManager? = nil, invisibleAccessFiles: Set<Int32> = []) {
+    init(symbols: SymbolTable, sourceManager: SourceManager? = nil, interner: StringInterner, invisibleAccessFiles: Set<Int32> = []) {
         self.symbols = symbols
         self.sourceManager = sourceManager
+        self.interner = interner
         self.invisibleAccessFiles = invisibleAccessFiles
     }
 
@@ -187,20 +189,31 @@ struct VisibilityChecker {
         return false
     }
 
+    /// `b` is the member's declaring owner; `a` is the use site's innermost
+    /// enclosing class. A private member is reachable only from use sites
+    /// lexically inside that owner — the owner itself or a nominal nested
+    /// inside it. (The previous any-common-ancestor check additionally let an
+    /// enclosing class reach private members of the declarations nested
+    /// inside it — e.g. a local class's `private constructor` — and let
+    /// sibling nested classifiers see each other's private members; both
+    /// diverge from kotlinc — KUU-3880.)
     private func shareEnclosingClass(_ a: SymbolID?, _ b: SymbolID) -> Bool {
         guard let a else { return false }
-        var ancestorsA: Set<SymbolID> = []
-        var currentA: SymbolID? = a
-        while let ca = currentA, !ancestorsA.contains(ca) {
-            ancestorsA.insert(ca)
-            currentA = symbols.parentSymbol(for: ca)
+        // A companion-scope object (`companion object`, or a `companion { }`
+        // block's hidden `$CompanionBlocks` object) scopes its private
+        // members to the containing class: the class body and everything
+        // nested inside it can reach them (KUU-3605). Check that owner.
+        var scopeOwner = b
+        if let ownerParent = symbols.parentSymbol(for: b),
+           symbols.companionObjectSymbol(for: ownerParent) == b
+               || symbols.companionBlockObjectSymbol(for: ownerParent, interner: interner) == b {
+            scopeOwner = ownerParent
         }
-        var currentB: SymbolID? = b
-        var visitedB: Set<SymbolID> = []
-        while let cb = currentB, !visitedB.contains(cb) {
-            if ancestorsA.contains(cb) { return true }
-            visitedB.insert(cb)
-            currentB = symbols.parentSymbol(for: cb)
+        var current: SymbolID? = a
+        var visited: Set<SymbolID> = []
+        while let candidate = current, visited.insert(candidate).inserted {
+            if candidate == scopeOwner { return true }
+            current = symbols.parentSymbol(for: candidate)
         }
         return false
     }

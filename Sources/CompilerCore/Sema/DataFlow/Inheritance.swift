@@ -183,6 +183,7 @@ extension DataFlowSemaPhase {
                     } == true
                     let checker = VisibilityChecker(
                         symbols: symbols,
+                        interner: interner,
                         invisibleAccessFiles: suppressed ? [fileID.rawValue] : []
                     )
                     if !checker.isAccessible(imported, fromFile: fileID, enclosingClass: nil) {

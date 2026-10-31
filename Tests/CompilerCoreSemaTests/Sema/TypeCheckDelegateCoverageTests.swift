@@ -741,7 +741,7 @@ private struct TypeCheckFixture {
             flowState: DataFlowState(),
             currentFileID: FileID(rawValue: 0),
             enclosingClassSymbol: nil,
-            visibilityChecker: VisibilityChecker(symbols: symbols),
+            visibilityChecker: VisibilityChecker(symbols: symbols, interner: interner),
             outerReceiverTypes: [],
             semaCacheContext: nil,
             useNewInference: false,
