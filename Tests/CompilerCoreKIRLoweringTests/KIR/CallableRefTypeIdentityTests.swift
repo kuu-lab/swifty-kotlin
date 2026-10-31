@@ -488,6 +488,74 @@ struct CallableRefTypeIdentityTests {
         )
     }
 
+    /// KUU-3886: a callable reference to a generic declaration needs an
+    /// ABI-only adapter (its erased parameter inputs are boxed before the
+    /// callee sees them), but the bound signature still matches the callee's
+    /// public one — so the value keeps KCallable identity: it must be tagged
+    /// and registered as a KFunction instead of taking the adapted-reference
+    /// identity path that hides reflection metadata and crashes
+    /// `.parameters`/`.returnType` with KSWIFTK-RUNTIME-0001.
+    @Test func testKIREmitsKFunctionTagForABIAdaptedGenericCallableRef() throws {
+        let source = """
+        class Box<T>(val t: T)
+        fun <Q> gen(q: Q): Q = q
+        fun main() {
+            val ref: kotlin.reflect.KFunction1<Int, Box<Int>> = ::Box
+            val ref2: kotlin.reflect.KFunction1<Int, Int> = ::gen
+            println(ref.parameters.size)
+            println(ref2.parameters.size)
+        }
+        """
+
+        let ctx = makeContextFromSource(source)
+        try runToKIR(ctx)
+
+        let module = try #require(ctx.kir)
+        let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+
+        #expect(
+            kirCalls(to: .tagKFunction, in: mainBody, interner: ctx.interner).count == 2,
+            "Both ABI-adapted references should be tagged as KFunction. Callees: \(extractCallees(from: mainBody, interner: ctx.interner))"
+        )
+        let registerCalls = kirCalls(in: mainBody).filter {
+            ctx.interner.resolve($0.callee) == "__kk_kcallable_register"
+        }
+        #expect(
+            registerCalls.count == 2,
+            "Both ABI-adapted references should register KCallable metadata."
+        )
+        let adapterIdentityCalls = kirCalls(in: mainBody).filter {
+            ctx.interner.resolve($0.callee) == "__kk_callable_adapter_set_identity"
+        }
+        #expect(
+            adapterIdentityCalls.isEmpty,
+            "ABI-only adapters must not take the hidden-KCallable adapter identity path."
+        )
+    }
+
+    /// A genuinely signature-adapted reference (the bound arity differs from
+    /// the callee's declared parameters) keeps hiding KCallable reflection.
+    @Test func testKIRSkipsKFunctionTagForSignatureAdaptedCallableRef() throws {
+        let source = """
+        fun withDefault(a: Int, b: Int = 9): Int = a + b
+        fun main() {
+            val d: (Int) -> Int = ::withDefault
+            println(d(1))
+        }
+        """
+
+        let ctx = makeContextFromSource(source)
+        try runToKIR(ctx)
+
+        let module = try #require(ctx.kir)
+        let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+
+        #expect(
+            kirCalls(to: .tagKFunction, in: mainBody, interner: ctx.interner).isEmpty,
+            "A signature-adapted reference must not be tagged as KFunction."
+        )
+    }
+
     /// KSP-496 follow-up: a bare `::member` reference to a member property
     /// of the enclosing class must capture the implicit `this` receiver into
     /// the generated KProperty wrapper object, the same way an explicit

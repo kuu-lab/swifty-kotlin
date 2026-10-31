@@ -89,6 +89,36 @@ extension BundledStdlibExecutionTests {
         )
     }
 
+    /// KUU-3886: a callable reference to a generic declaration conformed to
+    /// KFunctionN uses an ABI-only adapter but keeps the callee's public
+    /// signature, so KCallable members must be served from registered
+    /// reflection metadata — previously `.parameters` fell back to an itable
+    /// dispatch and crashed with KSWIFTK-RUNTIME-0001.
+    @Test(arguments: [true, false])
+    func genericCallableReferenceConformedToKFunctionNExposesKCallableMembers(
+        allowDefaultStdlibLibrary: Bool
+    ) throws {
+        try compileAndRunKotlin(
+            """
+            class Box<T>(val t: T)
+            fun <Q> gen(q: Q): Q = q
+            fun main() {
+                val ref: kotlin.reflect.KFunction1<Int, Box<Int>> = ::Box
+                println(ref.parameters.size)
+                println(ref(7).t)
+                println(ref.call(8).t)
+                val ref2: kotlin.reflect.KFunction1<Int, Int> = ::gen
+                println(ref2.parameters.size)
+                println(ref2.name)
+                println(ref2(42))
+            }
+            """,
+            expectedOutput: "1\n7\n8\n1\ngen\n42\n",
+            moduleName: "KUU3886GenericKFunctionN",
+            allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
+        )
+    }
+
     @Test(arguments: [true, false])
     func functionReferenceCallableMembers(allowDefaultStdlibLibrary: Bool) throws {
         try compileAndRunKotlin(
