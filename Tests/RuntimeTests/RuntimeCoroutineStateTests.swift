@@ -644,6 +644,66 @@ struct RuntimeCoroutineStateTests {
         #expect(result != Int(bitPattern: kk_coroutine_suspended()))
     }
 
+    // KUU-3808 / KT-66098: through the erased non-suspend `FunctionN` view of a
+    // suspend function value, the completion continuation occupies the last
+    // argument slot. A synchronously completing body returns its bare result;
+    // a body that really suspends returns COROUTINE_SUSPENDED and the
+    // completion receives the eventual result through its resume channel.
+    @Test func testFunctionInvokeWithExplicitContinuationRunsSuspendBody() {
+        let entry: RuntimeTestSuspendEntry = { continuation, outThrown in
+            outThrown?.pointee = 0
+            let closure = kk_coroutine_launcher_arg_get(continuation, 0)
+            let argument = kk_coroutine_launcher_arg_get(continuation, 1)
+            return kk_coroutine_state_exit(continuation, Int(closure + argument))
+        }
+        let entryRaw = unsafeBitCast(entry, to: Int.self)
+        let function = kk_suspend_function_create(0, 10, 1, entryRaw)
+        let completion = kk_coroutine_continuation_new(9221)
+        defer { _ = kk_coroutine_state_exit(completion, 0) }
+        var thrown = 0
+
+        // Function2 view: `invoke(arg, continuation)` on a `suspend (Int) -> Int` box.
+        #expect(kk_function_invoke_2(function, 32, completion, &thrown) == 42)
+        #expect(thrown == 0)
+
+        // A non-continuation last argument is a cast failure, not an invoke.
+        #expect(kk_function_invoke_2(function, 32, 5, &thrown) == 0)
+        #expect(thrown != 0)
+    }
+
+    @Test func testFunctionInvokeWithExplicitContinuationDeliversAfterSuspension() throws {
+        let entry: RuntimeTestSuspendEntry = { continuation, outThrown in
+            if kk_coroutine_state_enter(continuation, 9222) == 0 {
+                _ = kk_coroutine_state_set_label(continuation, 1)
+                return kk_kxmini_delay(1, continuation)
+            }
+            outThrown?.pointee = 0
+            let argument = kk_coroutine_launcher_arg_get(continuation, 1)
+            return kk_coroutine_state_exit(continuation, Int(argument) + 1)
+        }
+        let entryRaw = unsafeBitCast(entry, to: Int.self)
+        let function = kk_suspend_function_create(0, 0, 1, entryRaw)
+        let completion = kk_coroutine_continuation_new(9222)
+        defer { _ = kk_coroutine_state_exit(completion, 0) }
+        let completionState = try #require(runtimeContinuationState(from: completion))
+        let resumed = DispatchSemaphore(value: 0)
+        let probe = ResumerProbe()
+        completionState.installResumeContinuation {
+            probe.record(
+                result: Int(completionState.completion), thrown: completionState.thrownException
+            )
+            resumed.signal()
+        }
+        var thrown = 0
+
+        #expect(kk_function_invoke_2(function, 41, completion, &thrown)
+            == Int(bitPattern: kk_coroutine_suspended()))
+        #expect(thrown == 0)
+        #expect(resumed.wait(timeout: .now() + 2) == .success)
+        #expect(probe.result == 42)
+        #expect(probe.thrown == 0)
+    }
+
     @Test func testCoroutineScopeIgnoresIndependentlyCancelledChild() {
         let scope = kk_coroutine_scope_new()
         let job = RuntimeJobHandle()

@@ -310,6 +310,33 @@ private func suspendCoroutineFunctionEntry(
     return nil
 }
 
+/// KUU-3808 / KT-66098: reports whether `raw` can serve as the completion
+/// continuation passed as the last argument of a suspend function value
+/// invoked through its erased non-suspend `FunctionN` view. The check mirrors
+/// the resolution order `__kk_coroutine_continuation_resume_with` uses to
+/// deliver the final `Result` — a source-level `Continuation` object (itable
+/// `resumeWith` slot), a runtime callback/native continuation, or an internal
+/// continuation-state handle — without dereferencing unregistered raws.
+func runtimeIsContinuationArgument(_ raw: Int) -> Bool {
+    if kk_itable_lookup_dynamic(
+        raw, Int(runtimeStableNominalTypeID(fqName: "kotlin.coroutines.Continuation")), 0
+    ) != 0 {
+        return true
+    }
+    if runtimeContinuationState(from: raw) != nil {
+        return true
+    }
+    guard isRegisteredRuntimeObjectPointer(raw),
+          let ptr = UnsafeMutableRawPointer(bitPattern: raw)
+    else {
+        return false
+    }
+    if tryCast(ptr, to: RuntimeCallbackContinuation.self) != nil {
+        return true
+    }
+    return Unmanaged<AnyObject>.fromOpaque(ptr).takeUnretainedValue() is KKContinuation
+}
+
 /// Dynamic suspend function values keep their CPS entry point in the callable
 /// box. Known symbols are still rewritten directly by coroutine lowering.
 private func createCoroutineFromFunctionValue(_ functionRaw: Int, arguments: [Int], completion: Int) -> Int {
