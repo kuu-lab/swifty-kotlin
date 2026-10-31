@@ -430,7 +430,7 @@ public func __kk_input_stream_reader_new(_ streamRaw: Int) -> Int {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_input_stream_reader_new received invalid InputStream handle")
     }
     let readerRaw = registerRuntimeObject(RuntimeBufferedReaderBox(inputStream: stream))
-    runtimeRegisterBufferedReaderCloseDispatch(readerRaw)
+    runtimeRegisterJavaReader(readerRaw, fqName: "java.io.InputStreamReader", parentFQName: "java.io.Reader")
     return readerRaw
 }
 
@@ -440,7 +440,7 @@ public func __kk_buffered_reader_new(_ readerRaw: Int) -> Int {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_buffered_reader_new received invalid Reader handle")
     }
     let bufferedReaderRaw = registerRuntimeObject(RuntimeBufferedReaderBox(reader: reader))
-    runtimeRegisterBufferedReaderCloseDispatch(bufferedReaderRaw)
+    runtimeRegisterJavaReader(bufferedReaderRaw, fqName: "java.io.BufferedReader", parentFQName: "java.io.Reader")
     return bufferedReaderRaw
 }
 
@@ -661,7 +661,7 @@ public func __kk_input_stream_bufferedReader(
           let decoded = extractString(from: pointer) else { return 0 }
     let utf8 = Data(KotlinStringSurrogateEncoding.unicodeString(decoded).utf8)
     let readerRaw = registerRuntimeObject(RuntimeBufferedReaderBox(data: utf8))
-    runtimeRegisterBufferedReaderCloseDispatch(readerRaw)
+    runtimeRegisterJavaReader(readerRaw, fqName: "java.io.BufferedReader", parentFQName: "java.io.Reader")
     return readerRaw
 }
 

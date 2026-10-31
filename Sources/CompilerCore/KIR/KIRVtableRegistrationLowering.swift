@@ -1025,8 +1025,21 @@ func itableBridgeSymbolForMethod(
         else { return false }
         return true
     }()
+    // A `__kk_*`-linked dispatch slot speaks the raw runtime ABI, so an
+    // imported Kotlin implementation (no KIR body, no runtime spec, no
+    // explicit signature) cannot be stored directly when its flat `String`
+    // ABI mismatches the slot — the bridge synthesized below must adapt it.
+    // Let the evaluation continue in that case; `needsBridge` still returns
+    // the implementation untouched when no ABI adaptation is required
+    // (KUU-3860).
+    let interfaceRuntimeSpec: RuntimeABIFunctionSpec? = {
+        guard let linkName = sema.symbols.externalLinkName(for: interfaceMethod),
+              linkName.hasPrefix("__kk_")
+        else { return nil }
+        return RuntimeABISpec.byName[linkName]
+    }()
     guard implementationFn != nil || implementationSignature != nil || hasForwardObjectSignature
-        || implementationRuntimeSpec != nil
+        || implementationRuntimeSpec != nil || interfaceRuntimeSpec != nil
     else {
         return implementation
     }
@@ -1044,6 +1057,23 @@ func itableBridgeSymbolForMethod(
     // single words, not the flat aggregate source functions pass.
     func implIsStringAggregate(_ type: TypeID?) -> Bool {
         isStringAggregate(type) && implementationRuntimeSpec == nil
+    }
+    // The same raw-ABI rule applies to the dispatch slot itself: virtual call
+    // sites invoke a `__kk_*`-linked slot through the runtime signature —
+    // `__kk_*` links never resolve a `kk_fn_` source signature, so
+    // `emitVirtualCall` bridges every String argument to a raw handle — and
+    // runtime-produced boxes register the raw `__kk_*` entry there, so the
+    // bridge's outer parameter and return types must carry raw words even
+    // though the semantic signature says `String` (KUU-3860). `kk_*` runtime
+    // members are deliberately excluded: root slots such as `Any.toString`
+    // keep their own mixed flat/raw ABI (KUU-3197/KUU-3230).
+    func ifaceIsStringAggregate(_ type: TypeID?) -> Bool {
+        isStringAggregate(type) && interfaceRuntimeSpec == nil
+    }
+    func bridgeDispatchType(_ type: TypeID) -> TypeID {
+        isStringAggregate(type) && interfaceRuntimeSpec != nil
+            ? sema.types.intType
+            : type
     }
 
     let memberExtensionOwner = sema.symbols.symbol(interfaceMethod)?.kind == .function
@@ -1130,7 +1160,7 @@ func itableBridgeSymbolForMethod(
 
     var needsBridge = argumentCastTargets.contains { $0 != nil }
         || barrierCheckTypes.contains { $0 != nil }
-    if implIsStringAggregate(implementationReturnType) != isStringAggregate(interfaceSig.returnType) {
+    if implIsStringAggregate(implementationReturnType) != ifaceIsStringAggregate(interfaceSig.returnType) {
         needsBridge = true
     }
     func isErasedValueSlot(_ type: TypeID) -> Bool {
@@ -1209,7 +1239,7 @@ func itableBridgeSymbolForMethod(
     }
     if !needsBridge {
         for (implType, ifaceType) in zip(implementationParamTypes, interfaceParamTypes) {
-            if implIsStringAggregate(implType) != isStringAggregate(ifaceType)
+            if implIsStringAggregate(implType) != ifaceIsStringAggregate(ifaceType)
                 || needsErasedValueParamAdaptation(implType: implType, ifaceType: ifaceType)
             {
                 needsBridge = true
@@ -1247,7 +1277,8 @@ func itableBridgeSymbolForMethod(
             declSite: nil, visibility: .private, flags: [.synthetic]
         )
     }
-    for paramType in interfaceParamTypes {
+    let bridgeParamTypes = interfaceParamTypes.map(bridgeDispatchType)
+    for paramType in bridgeParamTypes {
         let paramSymbol = parameterSymbol(bridgeParams.count)
         bridgeParams.append(KIRParameter(symbol: paramSymbol, type: paramType))
     }
@@ -1445,13 +1476,14 @@ func itableBridgeSymbolForMethod(
     }
     body.append(.endBlock)
 
+    let bridgeReturnType = bridgeDispatchType(interfaceSig.returnType)
     let bridgeDecl = arena.appendDecl(
         .function(
             KIRFunction(
                 symbol: bridgeSymbol,
                 name: bridgeName,
                 params: bridgeParams,
-                returnType: interfaceSig.returnType,
+                returnType: bridgeReturnType,
                 body: body,
                 isSuspend: false,
                 isInline: false
@@ -1463,8 +1495,8 @@ func itableBridgeSymbolForMethod(
         let bridgeSignature = interfaceDispatchReceiver == nil
             ? interfaceSig
             : FunctionSignature(
-                parameterTypes: interfaceParamTypes,
-                returnType: interfaceSig.returnType,
+                parameterTypes: bridgeParamTypes,
+                returnType: bridgeReturnType,
                 canThrow: interfaceSig.canThrow
             )
         sema.symbols.setFunctionSignature(bridgeSignature, for: bridgeSymbol)

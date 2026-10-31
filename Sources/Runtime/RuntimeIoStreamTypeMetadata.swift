@@ -60,6 +60,12 @@ private let ioBufferedReaderCloseEntry: @convention(c) (Int, UnsafeMutablePointe
     return __kk_buffered_reader_close(raw)
 }
 
+private let ioWriterWriteEntry: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { raw, text, thrown in
+    __kk_buffered_writer_write(raw, text, thrown)
+}
+private let ioWriterFlushEntry: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { raw, thrown in
+    __kk_buffered_writer_flush(raw, thrown)
+}
 private let ioWriterCloseEntry: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { raw, thrown in
     __kk_buffered_writer_close_throwing(raw, thrown)
 }
@@ -92,9 +98,30 @@ private enum RuntimeIoStreamVTableSlot {
     static let outputWriteRange = 4
     static let outputFlush = 5
     static let outputClose = 6
+
+    // Writer declares only write/flush/close (in that order) — unlike the
+    // stream classes it has no synthetic toString member, so its slots start
+    // at 0. BufferedWriter inherits these same slots via the override mapping.
+    static let writerWrite = 0
+    static let writerFlush = 1
+    static let writerClose = 2
 }
 
-func runtimeRegisterBufferedReaderCloseDispatch(_ objectRaw: Int) {
+/// Registers the reader-box nominal type and ancestry the same way
+/// `runtimeRegisterJavaWriter`/`runtimeRegisterIoStream` do for their
+/// producers: without the nominal typeID and `typeParents` edges, `is`/`as`
+/// checks (`kk_op_is`) on raw `RuntimeBufferedReaderBox` handles answered
+/// `false` for `java.io.Reader`, `java.io.BufferedReader`/`InputStreamReader`
+/// and every closeable interface (KUU-3860).
+func runtimeRegisterJavaReader(_ objectRaw: Int, fqName: String, parentFQName: String) {
+    let nominalID = runtimeStableNominalTypeID(fqName: fqName)
+    runtimeRegisterObjectType(rawValue: objectRaw, classID: nominalID)
+    let parentID = runtimeStableNominalTypeID(fqName: parentFQName)
+    let closeNames = ["kotlin.io.Closeable", "java.io.Closeable", "kotlin.AutoCloseable", "java.lang.AutoCloseable"]
+    runtimeStorage.withMetadataLock { state in
+        if nominalID != parentID { state.typeParents[nominalID, default: []].insert(parentID) }
+        for name in closeNames { state.typeParents[parentID, default: []].insert(runtimeStableNominalTypeID(fqName: name)) }
+    }
     let closeEntry = unsafeBitCast(ioBufferedReaderCloseEntry, to: Int.self)
     let closeableInterfaces = [
         "kotlin.AutoCloseable",
@@ -135,6 +162,18 @@ func runtimeRegisterJavaWriter(
     for (interfaceSlot, interfaceName) in closeableInterfaces.enumerated() {
         _ = kk_object_register_itable_iface(raw, Int(runtimeStableNominalTypeID(fqName: interfaceName)), interfaceSlot)
         _ = kk_object_register_itable_method(raw, interfaceSlot, 0, closeEntry)
+    }
+    // Fixed vtable bridge slots matching the synthetic java.io.Writer layout:
+    // base-typed calls (w: Writer; w.flush()) dispatch through these so a
+    // Kotlin subclass override wins while the box resolves to the same
+    // __kk_buffered_writer_* bridge a direct call would have used (KUU-3860).
+    let writerVtableEntries: [(slot: Int, entry: Int)] = [
+        (RuntimeIoStreamVTableSlot.writerWrite, unsafeBitCast(ioWriterWriteEntry, to: Int.self)),
+        (RuntimeIoStreamVTableSlot.writerFlush, unsafeBitCast(ioWriterFlushEntry, to: Int.self)),
+        (RuntimeIoStreamVTableSlot.writerClose, unsafeBitCast(ioWriterCloseEntry, to: Int.self)),
+    ]
+    for registration in writerVtableEntries {
+        _ = kk_object_register_vtable_method(raw, registration.slot, registration.entry)
     }
     if object is RuntimeStringWriterBox {
         _ = kk_object_register_any_to_string(
