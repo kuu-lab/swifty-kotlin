@@ -211,6 +211,14 @@ final class RuntimeContinuationState: @unchecked Sendable {
     /// so that any subsequent resume call is rejected with an `IllegalStateException`.
     /// Reset by `resetResumeState()` when the coroutine advances to the next suspend point.
     private var hasResumed: Bool = false
+    /// KUU-3833: `suspendCoroutineUninterceptedOrReturn` hands the coroutine's own
+    /// continuation to its block. A resume delivered through it while the block is
+    /// in flight is recorded here so `kk_coroutine_call_direct_suspend` keeps
+    /// reporting the suspend call as suspended: on JVM the delivered result rides
+    /// the completion channel (each caller's resumeWith), not the call's return
+    /// value.
+    private var orReturnBlockDepth = 0
+    private var orReturnResumeDelivered = false
     private var cancellableDelivery: RuntimeCancellableContinuation?
     private var delayTimers: [ObjectIdentifier: DispatchSourceTimer]
     private static let taskStateLock = NSLock()
@@ -831,6 +839,38 @@ final class RuntimeContinuationState: @unchecked Sendable {
         delivery?.delegateDidExit()
     }
 
+    func beginOrReturnBlock() {
+        stateLock.lock()
+        orReturnBlockDepth += 1
+        stateLock.unlock()
+    }
+
+    func endOrReturnBlock() {
+        stateLock.lock()
+        if orReturnBlockDepth > 0 {
+            orReturnBlockDepth -= 1
+        }
+        stateLock.unlock()
+    }
+
+    /// True after this coroutine's completion was delivered through
+    /// `suspendCoroutineUninterceptedOrReturn`'s block-scoped continuation —
+    /// the suspend call that drove it must report suspended, not the value.
+    var wasOrReturnResumed: Bool {
+        stateLock.lock()
+        defer { stateLock.unlock() }
+        return orReturnResumeDelivered
+    }
+
+    /// Propagates the OrReturn provenance to the caller when a suspend call
+    /// reports suspended for it, so multi-level suspend chains keep reporting
+    /// suspended all the way to the driver's completion delivery.
+    func markOrReturnDelivery() {
+        stateLock.lock()
+        orReturnResumeDelivered = true
+        stateLock.unlock()
+    }
+
     func beginCancellationShield() {
         stateLock.lock()
         cancellationShieldDepth += 1
@@ -911,6 +951,9 @@ final class RuntimeContinuationState: @unchecked Sendable {
         hasResumed = true
         completion = Int64(value)
         thrownException = 0
+        if orReturnBlockDepth > 0 {
+            orReturnResumeDelivered = true
+        }
         stateLock.unlock()
         signalResume()
         return nil
@@ -933,6 +976,9 @@ final class RuntimeContinuationState: @unchecked Sendable {
         hasResumed = true
         completion = 0
         thrownException = exception
+        if orReturnBlockDepth > 0 {
+            orReturnResumeDelivered = true
+        }
         stateLock.unlock()
         signalResume()
         return nil

@@ -269,7 +269,11 @@ extension CoroutineLoweringPass {
                             lowered.append(instruction)
                             continue
                         }
-                        loweredSuspendCallee = interner.intern("kk_function_invoke")
+                        // KUU-3833: route through the OrReturn-aware invoke so a
+                        // resume delivered through the block's continuation marks
+                        // the state — the suspend call then reports suspended
+                        // while the delivered value rides the completion channel.
+                        loweredSuspendCallee = interner.intern("kk_suspend_coroutine_orreturn")
                         loweredSuspendArguments = [blockExpr, continuationExpr]
                     // The intrinsic `yield()` is top-level and argumentless. Same-name
                     // suspend members must keep their declared dispatch and ABI.

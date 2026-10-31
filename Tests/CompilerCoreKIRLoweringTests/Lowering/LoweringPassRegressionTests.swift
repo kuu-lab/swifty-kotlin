@@ -55,6 +55,7 @@ struct LoweringPassRegressionTests {
         case coroutineStateSetLabel = "kk_coroutine_state_set_label"
         case coroutineStateSetSpill = "kk_coroutine_state_set_spill"
         case coroutineSuspended = "kk_coroutine_suspended"
+        case suspendCoroutineOrReturn = "kk_suspend_coroutine_orreturn"
         case createCoroutineUnintercepted = "kk_create_coroutine_unintercepted"
         case durationInWholeMilliseconds = "kk_duration_inWholeMilliseconds"
         case enumMakeEntriesListCached = "kk_enum_make_entries_list_cached"

@@ -141,6 +141,20 @@ public func kk_coroutine_call_direct_suspend(
             callerState.signalResume()
             return suspendedToken
         }
+        if childState?.wasOrReturnResumed == true {
+            // KUU-3833: the child completed only because a resume arrived through
+            // suspendCoroutineUninterceptedOrReturn's block-scoped continuation.
+            // That result already rode the completion channel (the relay above),
+            // so this suspend call still reports suspended — matching JVM, where
+            // resumeWith delivery and the COROUTINE_SUSPENDED return coexist.
+            // Marking the caller propagates the provenance so multi-level
+            // suspend chains keep reporting suspended to their own callers. The
+            // explicit signal is needed because the synchronous completion made
+            // record() skip its own signalResume.
+            callerState.markOrReturnDelivery()
+            callerState.signalResume()
+            return suspendedToken
+        }
         return outcome.result
     }
     return suspendedToken
@@ -163,6 +177,24 @@ public func kk_coroutine_child_share_interception(
         return
     }
     childState.bindInterceptionAnchor(callerState)
+}
+
+/// KUU-3833: `suspendCoroutineUninterceptedOrReturn`'s block invocation, wrapped
+/// so a resume delivered through the block's continuation while the block is in
+/// flight is flagged on the state — `kk_coroutine_call_direct_suspend` then
+/// reports this suspend call as suspended instead of folding the delivered
+/// result into a synchronous return.
+@_cdecl("kk_suspend_coroutine_orreturn")
+public func kk_suspend_coroutine_orreturn(
+    _ blockRaw: Int,
+    _ continuation: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    let state = runtimeContinuationState(from: continuation)
+    state?.beginOrReturnBlock()
+    defer { state?.endOrReturnBlock() }
+    return kk_function_invoke(blockRaw, continuation, outThrown)
 }
 
 /// Source suspend wrappers relay to an active caller instead of nesting a
@@ -503,16 +535,38 @@ private func startCoroutineUninterceptedOrReturn(
     let suspendedToken = Int(bitPattern: kk_coroutine_suspended())
     var thrownValue = 0
     var result: Int
+    var resumedPendingException = false
     repeat {
         thrownValue = 0
         state.consumeCancellableDelivery()
         result = entryPoint(continuation, &thrownValue)
         // Immediate child failures return the sentinel to reach the caller's catch label.
         // Deliver that pending exception inline instead of manufacturing a suspension.
-    } while thrownValue == 0 && result == suspendedToken && state.consumePendingExceptionalResume()
+        if thrownValue == 0 && result == suspendedToken && state.consumePendingExceptionalResume() {
+            resumedPendingException = true
+            continue
+        }
+        break
+    } while true
     if thrownValue != 0 {
-        outThrown?.pointee = thrownValue
         state.thrownException = thrownValue
+        if resumedPendingException && completionContinuation != 0 {
+            // KUU-3833: the consumed resume was exceptional (a child suspend call
+            // that failed before returning, or resumeWithException delivered
+            // through suspendCoroutineUninterceptedOrReturn's continuation). The
+            // coroutine failed while suspended — deliver Result.failure to the
+            // completion continuation and still report it as suspended, matching
+            // JVM's resumeWith(Result.failure) + COROUTINE_SUSPENDED outcome.
+            // Exiting the state first also releases the interception before the
+            // completion's resumeWith body runs, as ContinuationImpl does on JVM.
+            _ = kk_coroutine_state_exit(continuation, 0)
+            __kk_coroutine_continuation_resume_with(
+                completionContinuation, runtimeResultFailure(thrownValue), nil
+            )
+            outThrown?.pointee = 0
+            return suspendedToken
+        }
+        outThrown?.pointee = thrownValue
         _ = kk_coroutine_state_exit(continuation, 0)
         return 0
     }
