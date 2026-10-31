@@ -181,7 +181,12 @@ public func __kk_ktypeparameter_get_name(_ parameterRaw: Int) -> Int {
         ?? runtimeNullSentinelInt
 }
 
-private func runtimeKTypeCreate(_ classifierRaw: Int, _ argsRaw: Int, _ isNullable: Int) -> Int {
+private func runtimeKTypeCreate(
+    _ classifierRaw: Int,
+    _ argsRaw: Int,
+    _ isNullable: Int,
+    typeNameRaw: Int = 0
+) -> Int {
     var argumentRaws: [Int] = []
     if argsRaw != 0 && argsRaw != runtimeNullSentinelInt,
        let ptr = UnsafeMutableRawPointer(bitPattern: argsRaw) {
@@ -195,7 +200,8 @@ private func runtimeKTypeCreate(_ classifierRaw: Int, _ argsRaw: Int, _ isNullab
     let box = RuntimeKTypeBox(
         classifierRaw: classifierRaw,
         argumentRaws: argumentRaws,
-        isMarkedNullable: isNullable != 0
+        isMarkedNullable: isNullable != 0,
+        typeNameRaw: typeNameRaw
     )
     registerReflectionRuntimeTypeMetadata()
     return registerRuntimeObject(box)
@@ -363,11 +369,36 @@ public func __kk_ktypeprojection_get_type(_ projectionRaw: Int) -> Int {
     return box.typeRaw
 }
 
+/// KUU-3895: unknown-base tokens all encode to 0, so a token-0 KClass box
+/// cannot trust the token-keyed metadata registry (Kotlin `Nothing` eagerly
+/// registers its `java.lang.Void` entry under token 0) — the KType must
+/// carry its own Kotlin type name. `Nothing` is also the only type whose
+/// *type* name (`kotlin.Nothing`) differs from its *classifier* hint
+/// (`java.lang.Void` — `Nothing::class` really is `Void::class`), so the
+/// hint is remapped for it alone; a Java `Void` type arrives through a
+/// nominal token and keeps its own name.
+private func runtimeAmbiguousKTypeName(typeToken: Int, nameHint: Int) -> Int {
+    guard Int64(truncatingIfNeeded: typeToken) & RuntimeTypeTokenEncoding.baseMask == 0,
+          nameHint != 0,
+          nameHint != runtimeNullSentinelInt,
+          let hint = extractString(from: UnsafeMutableRawPointer(bitPattern: nameHint)),
+          !hint.isEmpty
+    else {
+        return 0
+    }
+    return runtimeMakeStringRaw(hint == "java.lang.Void" ? "kotlin.Nothing" : hint)
+}
+
 /// The compiler emits the type token and nullability at the call site.
 @_cdecl("kk_typeof")
 public func kk_typeof(_ typeToken: Int, _ nameHint: Int, _ argsRaw: Int, _ isNullable: Int) -> Int {
     let classifierRaw = __kk_kclass_create(typeToken, nameHint)
-    return runtimeKTypeCreate(classifierRaw, argsRaw, isNullable)
+    return runtimeKTypeCreate(
+        classifierRaw,
+        argsRaw,
+        isNullable,
+        typeNameRaw: runtimeAmbiguousKTypeName(typeToken: typeToken, nameHint: nameHint)
+    )
 }
 
 private func runtimeKTypeBox(from raw: Int) -> RuntimeKTypeBox? {

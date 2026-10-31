@@ -187,6 +187,37 @@ struct RuntimeKTypeReflectionTests {
         #expect(thrown == 0)
     }
 
+    /// KUU-3895: unknown-token (base 0) KType boxes carry their own Kotlin
+    /// type name — Kotlin `Nothing` renders `kotlin.Nothing` while its
+    /// classifier hint is `java.lang.Void` (`Nothing::class` is `Void::class`)
+    /// — and token-0 KClass boxes stay interned per name hint instead of
+    /// collapsing into whichever registered first.
+    @Test func unknownTokenKTypesKeepDistinctNameHints() {
+        // The Nothing class metadata registers under token 0 (its real token);
+        // token-0 KType boxes must not inherit its `java.lang.Void` rendering.
+        registerKClassMetadata(
+            typeToken: 0,
+            qualifiedName: "java.lang.Void",
+            simpleName: "Void"
+        )
+
+        let nothingType = kk_typeof(0, makeRuntimeString("java.lang.Void"), 0, 0)
+        let nullableNothingType = kk_typeof(0, makeRuntimeString("kotlin.Nothing"), 0, 1)
+        let otherUnknownType = kk_typeof(0, makeRuntimeString("com.example.Unresolved"), 0, 0)
+
+        #expect(runtimeRenderAnyForPrint(nothingType) == "kotlin.Nothing")
+        #expect(runtimeRenderAnyForPrint(nullableNothingType) == "kotlin.Nothing?")
+        #expect(runtimeRenderAnyForPrint(otherUnknownType) == "com.example.Unresolved")
+
+        let voidClass = __kk_kclass_create(0, makeRuntimeString("java.lang.Void"))
+        let kotlinNothingClass = __kk_kclass_create(0, makeRuntimeString("kotlin.Nothing"))
+        let unresolvedClass = __kk_kclass_create(0, makeRuntimeString("com.example.Unresolved"))
+        #expect(voidClass != kotlinNothingClass)
+        #expect(voidClass != unresolvedClass)
+        #expect(kotlinNothingClass != unresolvedClass)
+        #expect(__kk_kclass_create(0, makeRuntimeString("java.lang.Void")) == voidClass)
+    }
+
     @Test func invalidHandlesReturnSentinels() {
         #expect(__kk_ktype_classifier(123_456) == runtimeNullSentinelInt)
         #expect(runtimeListBox(from: __kk_ktype_arguments(123_456))?.elements.count == 0)

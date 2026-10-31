@@ -128,12 +128,31 @@ func runtimeKClassBox(from raw: Int) -> RuntimeKClassBox? {
     resolveRuntimeHandle(raw, as: RuntimeKClassBox.self)
 }
 
+/// KUU-3895: unknown-base tokens all encode to 0, so the KClass cache must
+/// distinguish them by their decoded name hint — otherwise `Nothing`
+/// (`java.lang.Void`), callable-reflection return descriptors and other
+/// unknown-token classifiers would collapse into whichever box registered
+/// first. Concrete tokens identify the classifier on their own, so they
+/// skip the string decode entirely.
+private func runtimeAmbiguousKClassNameHint(typeToken: Int, nameHint: Int) -> String? {
+    guard Int64(truncatingIfNeeded: typeToken) & RuntimeTypeTokenEncoding.baseMask == 0,
+          nameHint != 0,
+          nameHint != runtimeNullSentinelInt
+    else {
+        return nil
+    }
+    return extractString(from: UnsafeMutableRawPointer(bitPattern: nameHint))
+}
+
 /// KClass boxes are interned: repeated calls with the same `typeToken`
 /// return the same pointer without allocating a new box. This avoids
 /// unbounded memory growth when `T::class` is evaluated in a loop.
 @_cdecl("__kk_kclass_create")
 public func __kk_kclass_create(_ typeToken: Int, _ nameHint: Int) -> Int {
-    let cacheKey = KClassCacheKey(typeToken: typeToken)
+    let cacheKey = KClassCacheKey(
+        typeToken: typeToken,
+        ambiguousNameHint: runtimeAmbiguousKClassNameHint(typeToken: typeToken, nameHint: nameHint)
+    )
     if let cached = runtimeStorage.withMetadataLock({ state in state.kClassBoxCache[cacheKey] }) {
         return cached
     }
