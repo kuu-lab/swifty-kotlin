@@ -798,6 +798,12 @@ extension CallTypeChecker {
         guard resolved.diagnostic == nil, let chosen = resolved.chosenCallee else {
             return nil
         }
+        // Same as the primary member-call binder: a call that resolved to a
+        // local extension function is a lexical reference to that local
+        // declaration, so keep the identifier binding on the call expr.
+        if sema.symbols.symbol(chosen)?.flags.contains(.localFunction) == true {
+            sema.bindings.bindIdentifier(id, symbol: chosen)
+        }
 
         markRegexReplaceLambdaIfNeeded(chosenCallee: chosen, args: args, ctx: ctx)
         driver.helpers.checkDeprecation(
