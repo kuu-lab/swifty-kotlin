@@ -1,0 +1,94 @@
+symbol fq=golden.sema.ChainNode.$class0.K[kind=tparam;origin=fixture] kind=typeParameter vis=private flags=_
+symbol fq=golden.sema.ChainNode.$class0.V[kind=tparam;origin=fixture] kind=typeParameter vis=private flags=_
+symbol fq=golden.sema.ChainNode.equalsWith.$0.K1[kind=tparam;origin=fixture] kind=typeParameter vis=private flags=_
+symbol fq=golden.sema.ChainNode.equalsWith.$0.V1[kind=tparam;origin=fixture] kind=typeParameter vis=private flags=_
+symbol fq=golden.sema.ChainNode.equalsWith.$0.cmp[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.ChainNode.equalsWith.$0.that[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.ChainNode.equalsWith[kind=fun;recv=golden.sema.ChainNode<T0,T1>;params=golden.sema.ChainNode<T2,T3>,fn{p=T1,T3;ret=Boolean};ret=Boolean;gen=4;classGen=2;names=[that,cmp];origin=fixture] kind=function vis=public flags=_ sig=recv=golden.sema.ChainNode<golden.sema.ChainNode.$class0.K, golden.sema.ChainNode.$class0.V> params=[golden.sema.ChainNode<golden.sema.ChainNode.equalsWith.$0.K1, golden.sema.ChainNode.equalsWith.$0.V1>,(golden.sema.ChainNode.$class0.V, golden.sema.ChainNode.equalsWith.$0.V1) -> Boolean] ret=Boolean
+symbol fq=golden.sema.ChainNode[kind=class;gen=2;variance=[i,i];origin=fixture] kind=class vis=public flags=_
+symbol fq=golden.sema.ChainValue.$class1.V[kind=tparam;origin=fixture] kind=typeParameter vis=private flags=_
+symbol fq=golden.sema.ChainValue.value[kind=prop;type=T0;origin=fixture] kind=property vis=public flags=_ type=golden.sema.ChainValue.$class1.V
+symbol fq=golden.sema.ChainValue[kind=class;gen=1;variance=[i];origin=fixture] kind=class vis=public flags=_
+symbol fq=golden.sema.StarHashMap.$class2.K[kind=tparam;origin=fixture] kind=typeParameter vis=private flags=_
+symbol fq=golden.sema.StarHashMap.$class2.V[kind=tparam;origin=fixture] kind=typeParameter vis=private flags=_
+symbol fq=golden.sema.StarHashMap.builder[kind=fun;recv=golden.sema.StarHashMap<T0,T1>;params=;ret=golden.sema.StarHashMapBuilder<T0,T1>;gen=2;classGen=2;origin=fixture] kind=function vis=public flags=overrideMember sig=recv=golden.sema.StarHashMap<golden.sema.StarHashMap.$class2.K, golden.sema.StarHashMap.$class2.V> params=[] ret=golden.sema.StarHashMapBuilder<golden.sema.StarHashMap.$class2.K, golden.sema.StarHashMap.$class2.V>
+symbol fq=golden.sema.StarHashMap.equals.$1.other[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.StarHashMap.node[kind=prop;type=golden.sema.ChainNode<T0,T1>;origin=fixture] kind=property vis=public flags=_ type=golden.sema.ChainNode<golden.sema.StarHashMap.$class2.K, golden.sema.StarHashMap.$class2.V>
+symbol fq=golden.sema.StarHashMapBuilder.$backing_node[kind=bfield;type=Any?;mutable;origin=fixture] kind=backingField vis=private flags=mutable type=Any?
+symbol fq=golden.sema.StarHashMapBuilder.$class3.K[kind=tparam;origin=fixture] kind=typeParameter vis=private flags=_
+symbol fq=golden.sema.StarHashMapBuilder.$class3.V[kind=tparam;origin=fixture] kind=typeParameter vis=private flags=_
+symbol fq=golden.sema.StarHashMapBuilder.<init>.$2.map[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.StarHashMapBuilder.<init>[kind=ctor;recv=golden.sema.StarHashMapBuilder<T0,T1>;params=golden.sema.StarHashMap<T0,T1>;ret=golden.sema.StarHashMapBuilder<T0,T1>;gen=2;classGen=2;names=[map];origin=fixture] kind=constructor vis=public flags=_ sig=recv=golden.sema.StarHashMapBuilder<golden.sema.StarHashMapBuilder.$class3.K, golden.sema.StarHashMapBuilder.$class3.V> params=[golden.sema.StarHashMap<golden.sema.StarHashMapBuilder.$class3.K, golden.sema.StarHashMapBuilder.$class3.V>] ret=golden.sema.StarHashMapBuilder<golden.sema.StarHashMapBuilder.$class3.K, golden.sema.StarHashMapBuilder.$class3.V>
+symbol fq=golden.sema.StarHashMapBuilder.builtMap[kind=prop;type=golden.sema.StarHashMap<T0,T1>?;mutable;origin=fixture] kind=property vis=public flags=mutable type=golden.sema.StarHashMap<golden.sema.StarHashMapBuilder.$class3.K, golden.sema.StarHashMapBuilder.$class3.V>?
+symbol fq=golden.sema.StarHashMapBuilder.node[kind=prop;type=golden.sema.ChainNode<T0,T1>;mutable;origin=fixture] kind=property vis=public flags=mutable type=golden.sema.ChainNode<golden.sema.StarHashMapBuilder.$class3.K, golden.sema.StarHashMapBuilder.$class3.V>
+symbol fq=golden.sema.StarHashMapBuilder[kind=class;gen=2;variance=[i,i];origin=fixture] kind=class vis=public flags=_
+symbol fq=golden.sema.StarHashMap[kind=class;gen=2;variance=[i,i];origin=fixture] kind=class vis=public flags=_
+symbol fq=golden.sema.StarMapBuilder[kind=iface;gen=2;variance=[i,i];origin=fixture] kind=interface vis=public flags=_
+symbol fq=golden.sema.StarMap[kind=iface;gen=2;variance=[i,i];origin=fixture] kind=interface vis=public flags=_
+symbol fq=golden.sema.StarOrderedMap.$class4.K[kind=tparam;origin=fixture] kind=typeParameter vis=private flags=_
+symbol fq=golden.sema.StarOrderedMap.$class4.V[kind=tparam;origin=fixture] kind=typeParameter vis=private flags=_
+symbol fq=golden.sema.StarOrderedMap.hashMap[kind=prop;type=golden.sema.StarHashMap<T0,golden.sema.ChainValue<T1>>;origin=fixture] kind=property vis=public flags=_ type=golden.sema.StarHashMap<golden.sema.StarOrderedMap.$class4.K, golden.sema.ChainValue<golden.sema.StarOrderedMap.$class4.V>>
+symbol fq=golden.sema.StarOrderedMapBuilder.$class5.K[kind=tparam;origin=fixture] kind=typeParameter vis=private flags=_
+symbol fq=golden.sema.StarOrderedMapBuilder.$class5.V[kind=tparam;origin=fixture] kind=typeParameter vis=private flags=_
+symbol fq=golden.sema.StarOrderedMapBuilder.<init>.$3.map[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.StarOrderedMapBuilder.hashMapBuilder[kind=prop;type=golden.sema.StarHashMapBuilder<T0,golden.sema.ChainValue<T1>>;origin=fixture] kind=property vis=public flags=_ type=golden.sema.StarHashMapBuilder<golden.sema.StarOrderedMapBuilder.$class5.K, golden.sema.ChainValue<golden.sema.StarOrderedMapBuilder.$class5.V>>
+symbol fq=golden.sema.StarOrderedMapBuilder[kind=class;gen=2;variance=[i,i];origin=fixture] kind=class vis=public flags=_
+symbol fq=golden.sema.StarOrderedMap[kind=class;gen=2;variance=[i,i];origin=fixture] kind=class vis=public flags=_
+file fstar_projected_inferred_member_chain package=golden.sema
+  decl golden.sema.StarMapBuilder[kind=iface;gen=2;variance=[i,i];origin=fixture] interface StarMapBuilder sym=golden.sema.StarMapBuilder[kind=iface;gen=2;variance=[i,i];origin=fixture]
+  decl golden.sema.StarMap[kind=iface;gen=2;variance=[i,i];origin=fixture] interface StarMap sym=golden.sema.StarMap[kind=iface;gen=2;variance=[i,i];origin=fixture]
+  decl golden.sema.ChainNode[kind=class;gen=2;variance=[i,i];origin=fixture] class ChainNode sym=golden.sema.ChainNode[kind=class;gen=2;variance=[i,i];origin=fixture]
+  decl golden.sema.ChainValue[kind=class;gen=1;variance=[i];origin=fixture] class ChainValue sym=golden.sema.ChainValue[kind=class;gen=1;variance=[i];origin=fixture]
+  decl golden.sema.StarHashMap[kind=class;gen=2;variance=[i,i];origin=fixture] class StarHashMap sym=golden.sema.StarHashMap[kind=class;gen=2;variance=[i,i];origin=fixture]
+  decl golden.sema.StarHashMapBuilder[kind=class;gen=2;variance=[i,i];origin=fixture] class StarHashMapBuilder sym=golden.sema.StarHashMapBuilder[kind=class;gen=2;variance=[i,i];origin=fixture]
+  decl golden.sema.StarOrderedMap[kind=class;gen=2;variance=[i,i];origin=fixture] class StarOrderedMap sym=golden.sema.StarOrderedMap[kind=class;gen=2;variance=[i,i];origin=fixture]
+  decl golden.sema.StarOrderedMapBuilder[kind=class;gen=2;variance=[i,i];origin=fixture] class StarOrderedMapBuilder sym=golden.sema.StarOrderedMapBuilder[kind=class;gen=2;variance=[i,i];origin=fixture]
+expr e@9:90 bool(true) type=Boolean
+expr e@14:75 this type=golden.sema.StarHashMap<golden.sema.StarHashMap.$class2.K, golden.sema.StarHashMap.$class2.V> ref=s-0
+expr e@14:56 call callee=e@14:56#1 args=[_:e@14:75] type=golden.sema.StarHashMapBuilder<golden.sema.StarHashMap.$class2.K, golden.sema.StarHashMap.$class2.V> call=golden.sema.StarHashMapBuilder.<init>[kind=ctor;recv=golden.sema.StarHashMapBuilder<T0,T1>;params=golden.sema.StarHashMap<T0,T1>;ret=golden.sema.StarHashMapBuilder<T0,T1>;gen=2;classGen=2;names=[map];origin=fixture] targs=[golden.sema.StarHashMap.$class2.K,golden.sema.StarHashMap.$class2.V]
+expr e@16:13 name(other) type=Any? ref=golden.sema.StarHashMap.equals.$1.other[kind=vparam;origin=fixture]
+expr e@16:13#1 isCheck! expr=e@16:13 type=kotlin.collections.Map<*, *> type=Boolean
+expr e@16:41 bool(false) type=Boolean
+expr e@16:34 return value=e@16:41 type=Nothing
+expr e@16:9 if cond=e@16:13#1 then=e@16:34 else=_ type=Unit
+expr e@17:22 name(other) type=kotlin.collections.Map<*, *> ref=golden.sema.StarHashMap.equals.$1.other[kind=vparam;origin=fixture]
+expr e@17:22#1 isCheck expr=e@17:22 type=golden.sema.StarOrderedMapBuilder<*, *> type=Boolean
+expr e@18:47 name(node) type=golden.sema.ChainNode<golden.sema.StarHashMap.$class2.K, golden.sema.StarHashMap.$class2.V> ref=golden.sema.StarHashMap.node[kind=prop;type=golden.sema.ChainNode<T0,T1>;origin=fixture]
+expr e@18:63 name(other) type=golden.sema.StarOrderedMapBuilder<*, *> ref=golden.sema.StarHashMap.equals.$1.other[kind=vparam;origin=fixture]
+expr e@18:63#1 memberCall recv=e@18:63 callee=hashMapBuilder args=[] type=golden.sema.StarHashMapBuilder<Any?, golden.sema.ChainValue<Any?>> ref=golden.sema.StarOrderedMapBuilder.hashMapBuilder[kind=prop;type=golden.sema.StarHashMapBuilder<T0,golden.sema.ChainValue<T1>>;origin=fixture]
+expr e@18:63#2 memberCall recv=e@18:63#1 callee=node args=[] type=golden.sema.ChainNode<Any?, golden.sema.ChainValue<Any?>> ref=golden.sema.StarHashMapBuilder.node[kind=prop;type=golden.sema.ChainNode<T0,T1>;mutable;origin=fixture]
+expr e@18:100 name(a) type=golden.sema.StarHashMap.$class2.V ref=s-1
+expr e@18:105 name(b) type=golden.sema.ChainValue<Any?> ref=s-2
+expr e@18:105#1 memberCall recv=e@18:105 callee=value args=[] type=Any? ref=golden.sema.ChainValue.value[kind=prop;type=T0;origin=fixture]
+expr e@18:100#1 binary(equal) lhs=e@18:100 rhs=e@18:105#1 type=Boolean
+expr e@18:90 lambda params=[a,b] body=e@18:100#1 label=equalsWith type=(golden.sema.StarHashMap.$class2.V, golden.sema.ChainValue<Any?>) -> Boolean
+expr e@18:47#1 memberCall recv=e@18:47 callee=equalsWith args=[_:e@18:63#2,_:e@18:90] type=Boolean call=golden.sema.ChainNode.equalsWith[kind=fun;recv=golden.sema.ChainNode<T0,T1>;params=golden.sema.ChainNode<T2,T3>,fn{p=T1,T3;ret=Boolean};ret=Boolean;gen=4;classGen=2;names=[that,cmp];origin=fixture] targs=[golden.sema.StarHashMap.$class2.K,golden.sema.StarHashMap.$class2.V,Any?,golden.sema.ChainValue<Any?>]
+expr e@17:22#2 isCheck expr=e@17:22 type=golden.sema.StarHashMapBuilder<*, *> type=Boolean
+expr e@19:44 name(node) type=golden.sema.ChainNode<golden.sema.StarHashMap.$class2.K, golden.sema.StarHashMap.$class2.V> ref=golden.sema.StarHashMap.node[kind=prop;type=golden.sema.ChainNode<T0,T1>;origin=fixture]
+expr e@19:60 name(other) type=golden.sema.StarHashMapBuilder<*, *> ref=golden.sema.StarHashMap.equals.$1.other[kind=vparam;origin=fixture]
+expr e@19:60#1 memberCall recv=e@19:60 callee=node args=[] type=golden.sema.ChainNode<Any?, Any?> ref=golden.sema.StarHashMapBuilder.node[kind=prop;type=golden.sema.ChainNode<T0,T1>;mutable;origin=fixture]
+expr e@19:82 name(a) type=golden.sema.StarHashMap.$class2.V ref=s-3
+expr e@19:87 name(b) type=Any? ref=s-4
+expr e@19:82#1 binary(equal) lhs=e@19:82 rhs=e@19:87 type=Boolean
+expr e@19:72 lambda params=[a,b] body=e@19:82#1 label=equalsWith type=(golden.sema.StarHashMap.$class2.V, Any?) -> Boolean
+expr e@19:44#1 memberCall recv=e@19:44 callee=equalsWith args=[_:e@19:60#1,_:e@19:72] type=Boolean call=golden.sema.ChainNode.equalsWith[kind=fun;recv=golden.sema.ChainNode<T0,T1>;params=golden.sema.ChainNode<T2,T3>,fn{p=T1,T3;ret=Boolean};ret=Boolean;gen=4;classGen=2;names=[that,cmp];origin=fixture] targs=[golden.sema.StarHashMap.$class2.K,golden.sema.StarHashMap.$class2.V,Any?,Any?]
+expr e@20:21 bool(false) type=Boolean
+expr e@17:16 when subject=e@17:22 branches=[e@17:22#1->e@18:47#1,e@17:22#2->e@19:44#1] else=e@20:21 type=Boolean
+expr e@17:9 return value=e@17:16 type=Nothing
+expr e@23:36 int(0) type=Int
+expr e@27:40 name(map) type=golden.sema.StarHashMap<golden.sema.StarHashMapBuilder.$class3.K, golden.sema.StarHashMapBuilder.$class3.V> ref=golden.sema.StarHashMapBuilder.<init>.$2.map[kind=vparam;origin=fixture]
+expr e@33:17 name(value) type=golden.sema.ChainNode<golden.sema.StarHashMapBuilder.$class3.K, golden.sema.StarHashMapBuilder.$class3.V> ref=s-5
+expr e@33:27 name(field) type=golden.sema.ChainNode<golden.sema.StarHashMapBuilder.$class3.K, golden.sema.StarHashMapBuilder.$class3.V> ref=golden.sema.StarHashMapBuilder.$backing_node[kind=bfield;type=Any?;mutable;origin=fixture]
+expr e@33:17#1 binary(notIdentityEqual) lhs=e@33:17 rhs=e@33:27 type=Boolean
+expr e@34:25 name(value) type=golden.sema.ChainNode<golden.sema.StarHashMapBuilder.$class3.K, golden.sema.StarHashMapBuilder.$class3.V> ref=s-5
+expr e@34:17 localAssign field value=e@34:25 type=Unit ref=golden.sema.StarHashMapBuilder.$backing_node[kind=bfield;type=Any?;mutable;origin=fixture]
+expr e@35:28 name(null) type=Nothing?
+expr e@35:17 localAssign builtMap value=e@35:28 type=Unit ref=golden.sema.StarHashMapBuilder.builtMap[kind=prop;type=golden.sema.StarHashMap<T0,T1>?;mutable;origin=fixture]
+expr e@33:34 blockExpr stmts=[e@34:17,e@35:17] trailing=_ type=Unit
+expr e@33:13 if cond=e@33:17#1 then=e@33:34 else=_ type=Unit
+expr e@31:16 name(map) type=golden.sema.StarHashMap<golden.sema.StarHashMapBuilder.$class3.K, golden.sema.StarHashMapBuilder.$class3.V> ref=golden.sema.StarHashMapBuilder.<init>.$2.map[kind=vparam;origin=fixture]
+expr e@31:16#1 memberCall recv=e@31:16 callee=node args=[] type=golden.sema.ChainNode<golden.sema.StarHashMapBuilder.$class3.K, golden.sema.StarHashMapBuilder.$class3.V> ref=golden.sema.StarHashMap.node[kind=prop;type=golden.sema.ChainNode<T0,T1>;origin=fixture]
+expr e@38:33 this type=golden.sema.StarHashMapBuilder<golden.sema.StarHashMapBuilder.$class3.K, golden.sema.StarHashMapBuilder.$class3.V> ref=s-6
+expr e@43:26 name(map) type=golden.sema.StarOrderedMap<golden.sema.StarOrderedMapBuilder.$class5.K, golden.sema.StarOrderedMapBuilder.$class5.V> ref=golden.sema.StarOrderedMapBuilder.<init>.$3.map[kind=vparam;origin=fixture]
+expr e@43:26#1 memberCall recv=e@43:26 callee=hashMap args=[] type=golden.sema.StarHashMap<golden.sema.StarOrderedMapBuilder.$class5.K, golden.sema.ChainValue<golden.sema.StarOrderedMapBuilder.$class5.V>> ref=golden.sema.StarOrderedMap.hashMap[kind=prop;type=golden.sema.StarHashMap<T0,golden.sema.ChainValue<T1>>;origin=fixture]
+expr e@43:26#2 memberCall recv=e@43:26#1 callee=builder args=[] type=golden.sema.StarHashMapBuilder<golden.sema.StarOrderedMapBuilder.$class5.K, golden.sema.ChainValue<golden.sema.StarOrderedMapBuilder.$class5.V>> call=golden.sema.StarHashMap.builder[kind=fun;recv=golden.sema.StarHashMap<T0,T1>;params=;ret=golden.sema.StarHashMapBuilder<T0,T1>;gen=2;classGen=2;origin=fixture] targs=[golden.sema.StarOrderedMapBuilder.$class5.K,golden.sema.ChainValue<golden.sema.StarOrderedMapBuilder.$class5.V>]
