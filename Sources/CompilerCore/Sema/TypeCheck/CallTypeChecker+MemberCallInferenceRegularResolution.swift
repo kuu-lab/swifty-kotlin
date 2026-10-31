@@ -306,8 +306,10 @@ extension CallTypeChecker {
         }
         if !hasUserNumericMod, let result = tryInferRegularMemberCallPrimitiveSpecials(
             request,
+            receiverType: receiverType,
             lookupReceiverType: lookupReceiverType,
-            argTypes: argTypes) {
+            argTypes: argTypes,
+            locals: &locals) {
             return result
         }
 
@@ -616,8 +618,8 @@ extension CallTypeChecker {
         // Any infix extension, even an inapplicable one, prevents this fallback.
         if ast.arena.isInfixCall(id), allCandidates.isEmpty,
            let result = tryInferRegularMemberCallPrimitiveSpecials(
-               request, lookupReceiverType: lookupReceiverType,
-               argTypes: argTypes, enforceInfixEligibility: false
+               request, receiverType: receiverType, lookupReceiverType: lookupReceiverType,
+               argTypes: argTypes, locals: &locals, enforceInfixEligibility: false
            )
         {
             return result
