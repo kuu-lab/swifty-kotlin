@@ -935,6 +935,10 @@ extension CallLowerer {
                 sema: sema, arena: arena, interner: interner,
                 instructions: &instructions, arguments: &finalArgIDs
             )
+            // An implicit-receiver member call emitted as `.virtualCall`
+            // below is never inlined, so its lambda arguments need the boxed
+            // function-value ABI — a raw lambda symbolRef crosses the vtable
+            // boundary and crashes in `kk_function_invoke` (KUU-3818).
             materializeSourceBackedFunctionValueArguments(
                 chosenCallee: chosen,
                 sourceArgExprs: sourceArgExprs,
@@ -942,7 +946,8 @@ extension CallLowerer {
                 arena: arena,
                 interner: interner,
                 instructions: &instructions,
-                arguments: &finalArgIDs
+                arguments: &finalArgIDs,
+                callDispatchesVirtually: implicitReceiverDispatch != nil
             )
         }
         if loweredCallable == nil, let chosen {

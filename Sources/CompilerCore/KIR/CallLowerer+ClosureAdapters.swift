@@ -532,7 +532,8 @@ extension CallLowerer {
         instructions: inout [KIRInstruction],
         arguments: inout [KIRExprID],
         valueArgOffsetOverride: Int? = nil,
-        parameterMapping: [Int: Int]? = nil
+        parameterMapping: [Int: Int]? = nil,
+        callDispatchesVirtually: Bool = false
     ) {
         guard let chosenCallee,
               let signature = sema.symbols.functionSignature(for: chosenCallee)
@@ -666,10 +667,16 @@ extension CallLowerer {
                 ? signature.valueParameterAllowsNonLocalReturn[parameterIndex]
                 : !isImported || hasImportedInlineBody
             // Keep the erased function-value ABI when an imported declaration
-            // has no body available for inlining.
+            // has no body available for inlining. A virtual-dispatched member
+            // call is never inlined (InlineLoweringPass expands only `.call`
+            // instructions), so the raw lambda symbol would cross the call
+            // boundary unboxed: the callee's `kk_function_invoke` then drives
+            // the flat (arg, outThrown) path against a (closure, arg,
+            // outThrown) entry and crashes for capturing lambdas (KUU-3818).
             if isInline, (!isImported || hasImportedInlineBody),
                allowsRawInlineArgument,
                !isCallableReference,
+               !callDispatchesVirtually,
                case .symbolRef? = arena.expr(arguments[finalArgIndex])
             {
                 continue
@@ -741,6 +748,7 @@ extension CallLowerer {
             if isInline,
                (!isImported || hasImportedInlineBody),
                !isCallableReference,
+               !callDispatchesVirtually,
                case .symbolRef? = arena.expr(arguments[finalArgIndex]),
                let callable = driver.ctx.callableValueInfo(for: arguments[finalArgIndex]),
                (!isImported || (!callable.hasClosureParam && callable.captureArguments.isEmpty)
