@@ -368,6 +368,16 @@ extension BuildASTPhase {
                 guard case let .node(childID) = child, arena.node(childID).kind == .block else {
                     return nil
                 }
+                // A `.block` child already covered by the delegate expression's
+                // own range is part of that expression — an `object { }` body,
+                // a `when`/`if`/`try` branch — not a separate trailing lambda.
+                // Re-parsing it as a statement block reports member `operator`
+                // functions as ineligible local functions (KSWIFTK-SEMA-0439)
+                // and duplicates their bodies into `delegateBody`.
+                if let delegateRange = astArena.exprRange(delegateExpr),
+                   delegateRange.contains(arena.node(childID).range) {
+                    return nil
+                }
                 return childID
             }).first {
                 // A parameterized trailing lambda (`{ prop, old, new -> ... }`)
