@@ -767,17 +767,22 @@ extension DataFlowSemaPhase {
                   child.name == memberName,
                   child.kind == .function || child.kind == .property,
                   child.visibility != .private,
-                  !child.flags.contains(.extensionMemberAlias),
-                  flagsMatch(child),
-                  signatureMatches(childID)
+                  !child.flags.contains(.extensionMemberAlias)
+            else { continue }
+            // An expect-declared member only mirrors the name: judge the
+            // finality against the linked actual declaration instead.
+            let resolvedChildID = resolveInheritedMember(childID, symbols: ctx.symbols)
+            guard let resolvedChild = ctx.symbols.symbol(resolvedChildID),
+                  flagsMatch(resolvedChild),
+                  signatureMatches(resolvedChildID)
             else { continue }
             let parent = OFOInheritedMember(
-                memberID: childID,
+                memberID: resolvedChildID,
                 ownerName: ownerSym.name,
                 ownerIsInterface: false
             )
-            if !isMemberOverridable(child, parent: parent) {
-                finalTarget = (childID, ownerSym.name)
+            if !isMemberOverridable(resolvedChild, parent: parent) {
+                finalTarget = (resolvedChildID, ownerSym.name)
                 break
             }
         }
@@ -2120,21 +2125,47 @@ extension DataFlowSemaPhase {
         }
 
         let childClassArgs = classTypeParamArgs(for: childOwner, types: types)
-        if let lifted = types.liftedNominalSupertypeArgs(
-            from: childOwner,
-            childArgs: childClassArgs,
-            to: parentOwner
-        ) {
-            return lifted
+
+        // The child's supertype edge may resolve to either side of an
+        // expect/actual pair while `parentOwner` names the other — both
+        // share one FQName and one member set, so search both twins.
+        var candidateOwners = [parentOwner]
+        if let parentSym = symbols.symbol(parentOwner),
+           parentSym.flags.contains(.expectDeclaration)
+               || parentSym.flags.contains(.actualDeclaration)
+        {
+            let counterpartFlag: SymbolFlags = parentSym.flags.contains(.expectDeclaration)
+                ? .actualDeclaration
+                : .expectDeclaration
+            candidateOwners += symbols.lookupAll(fqName: parentSym.fqName)
+                .filter { candidateID in
+                    guard candidateID != parentOwner,
+                          let candidate = symbols.symbol(candidateID)
+                    else { return false }
+                    return candidate.kind == parentSym.kind
+                        && candidate.flags.contains(counterpartFlag)
+                }
+                .sorted { $0.rawValue < $1.rawValue }
         }
 
-        let directArgs = symbols.supertypeTypeArgs(for: childOwner, supertype: parentOwner)
-        guard !directArgs.isEmpty else { return nil }
-        guard !childClassArgs.isEmpty else { return directArgs }
+        for ownerID in candidateOwners {
+            if let lifted = types.liftedNominalSupertypeArgs(
+                from: childOwner,
+                childArgs: childClassArgs,
+                to: ownerID
+            ) {
+                return lifted
+            }
 
-        return directArgs.map { arg in
-            substituteTypeArgForOwner(arg, owner: childOwner, ownerArgs: childClassArgs, types: types)
+            let directArgs = symbols.supertypeTypeArgs(for: childOwner, supertype: ownerID)
+            guard !directArgs.isEmpty else { continue }
+            guard !childClassArgs.isEmpty else { return directArgs }
+
+            return directArgs.map { arg in
+                substituteTypeArgForOwner(arg, owner: childOwner, ownerArgs: childClassArgs, types: types)
+            }
         }
+        return nil
     }
 
     private func classTypeParamArgs(for owner: SymbolID, types: TypeSystem) -> [TypeArg] {
@@ -2325,15 +2356,16 @@ extension DataFlowSemaPhase {
                       !candidate.flags.contains(.extensionMemberAlias)
                 else { continue }
 
+                let resolvedCandidateID = resolveInheritedMember(candidateID, symbols: ctx.symbols)
                 if !requireMatchingSignature || overrideFunctionSignatureMatches(
                     childMember: childMember,
-                    parentMember: candidateID,
+                    parentMember: resolvedCandidateID,
                     childOwner: childOwner,
                     requireCovariantReturn: false,
                     ctx: ctx
                 ) {
                     return OFOInheritedMember(
-                        memberID: candidateID,
+                        memberID: resolvedCandidateID,
                         ownerName: owner.name,
                         ownerIsInterface: owner.kind == .interface
                     )
@@ -2777,6 +2809,55 @@ extension DataFlowSemaPhase {
         let ownerIsInterface: Bool
     }
 
+    /// Members of same-module expect and actual declarations share the
+    /// owner's FQName, so `children(ofFQName:)` yields both sides of a
+    /// paired class. The expect side carries no `open`/`abstract`/`override`
+    /// information — Kotlin spells those modifiers on the `actual`
+    /// counterpart — so an expect-declared member must be judged through
+    /// its linked actual declaration whenever the pair is available.
+    /// Header-time passes run before `setExpectActualLink`, so when no link
+    /// exists yet, pair the declarations positionally: a compatible
+    /// expect/actual class lists the same members in the same order.
+    private func resolveInheritedMember(
+        _ memberID: SymbolID,
+        symbols: SymbolTable
+    ) -> SymbolID {
+        guard let member = symbols.symbol(memberID),
+              member.flags.contains(.expectDeclaration)
+        else { return memberID }
+        if let linked = symbols.actualSymbol(for: memberID),
+           symbols.symbol(linked)?.kind == member.kind {
+            return linked
+        }
+        guard let expectOwnerID = symbols.parentSymbolIfKnown(for: memberID)
+            ?? symbols.parentSymbol(for: memberID),
+              let expectOwner = symbols.symbol(expectOwnerID),
+              expectOwner.flags.contains(.expectDeclaration)
+        else { return memberID }
+        let actualOwnerIDs = symbols.lookupAll(fqName: expectOwner.fqName)
+            .filter { candidateID in
+                guard let candidate = symbols.symbol(candidateID) else { return false }
+                return candidate.flags.contains(.actualDeclaration)
+                    && candidate.kind == expectOwner.kind
+            }
+            .sorted { $0.rawValue < $1.rawValue }
+        let expectSiblings = symbols.children(of: expectOwnerID).filter { candidateID in
+            guard let candidate = symbols.symbol(candidateID) else { return false }
+            return candidate.name == member.name && candidate.kind == member.kind
+        }
+        guard let position = expectSiblings.firstIndex(of: memberID)
+        else { return memberID }
+        for actualOwnerID in actualOwnerIDs {
+            let actualSiblings = symbols.children(of: actualOwnerID).filter { candidateID in
+                guard let candidate = symbols.symbol(candidateID) else { return false }
+                return candidate.name == member.name && candidate.kind == member.kind
+            }
+            guard position < actualSiblings.count else { continue }
+            return actualSiblings[position]
+        }
+        return memberID
+    }
+
     private func isInheritedMember(_ member: SemanticSymbol, from owner: SemanticSymbol) -> Bool {
         owner.kind != .interface || member.visibility != .private
     }
@@ -2805,18 +2886,21 @@ extension DataFlowSemaPhase {
                 guard child.kind == .function || child.kind == .property, child.name == memberName else {
                     continue
                 }
+                // An expect-declared member only mirrors the name: judge the
+                // override against the linked actual declaration instead.
+                let resolvedChildID = resolveInheritedMember(childID, symbols: symbols)
                 // Function overloads must be matched by their parameter types;
                 // name-only lookup can select a synthetic range overload before
                 // the real member being overridden.
                 if let parameterTypes {
                     guard child.kind == .function,
-                          symbols.functionSignature(for: childID)?.parameterTypes == parameterTypes
+                          symbols.functionSignature(for: resolvedChildID)?.parameterTypes == parameterTypes
                     else {
                         continue
                     }
                 }
                 return OFOInheritedMember(
-                    memberID: childID,
+                    memberID: resolvedChildID,
                     ownerName: sym.name,
                     ownerIsInterface: sym.kind == .interface
                 )
@@ -2876,11 +2960,16 @@ extension DataFlowSemaPhase {
                 guard isInheritedMember(child, from: sym) else { continue }
                 let isMatch = child.kind == .function || child.kind == .property
                 if isMatch, child.name == memberName {
-                    results.append(OFOInheritedMember(
-                        memberID: childID,
-                        ownerName: sym.name,
-                        ownerIsInterface: sym.kind == .interface
-                    ))
+                    // An expect-declared member resolves to its linked actual
+                    // declaration; deduplicate when both sides surface here.
+                    let resolvedChildID = resolveInheritedMember(childID, symbols: symbols)
+                    if !results.contains(where: { $0.memberID == resolvedChildID }) {
+                        results.append(OFOInheritedMember(
+                            memberID: resolvedChildID,
+                            ownerName: sym.name,
+                            ownerIsInterface: sym.kind == .interface
+                        ))
+                    }
                     foundAtThisLevel = true
                 }
             }
