@@ -17,6 +17,7 @@ extension LoweringPassRegressionTests {
     @Test
     func testNullableUnderlyingValueClassInitBoxesIntoNullableSlot() throws {
         let source = """
+        annotation class JvmInline
         @JvmInline
         value class V(val x: String?)
         fun store(): V? = V(null)
@@ -29,6 +30,7 @@ extension LoweringPassRegressionTests {
     @Test
     func testNullableUnderlyingValueClassUnwrapUnboxes() throws {
         let source = """
+        annotation class JvmInline
         @JvmInline
         value class V(val x: String?)
         fun unwrap(v: V?): V = v!!
@@ -40,6 +42,7 @@ extension LoweringPassRegressionTests {
     @Test
     func testNullableUnderlyingValueClassArgumentUnboxesForNonNullParameter() throws {
         let source = """
+        annotation class JvmInline
         @JvmInline
         value class V(val x: String?)
         fun take(v: V): String? = v.x
@@ -52,6 +55,7 @@ extension LoweringPassRegressionTests {
     @Test
     func testNullableUnderlyingValueClassSafeReadUsesInboundsFieldAccess() throws {
         let source = """
+        annotation class JvmInline
         @JvmInline
         value class V(val x: String?)
         fun read(v: V?): String? = v?.x
@@ -63,6 +67,7 @@ extension LoweringPassRegressionTests {
     @Test
     func testNestedNullableValueClassSafeCallBoxesMemberResult() throws {
         let source = """
+        annotation class JvmInline
         @JvmInline
         value class V(val x: String?)
         @JvmInline
@@ -77,6 +82,7 @@ extension LoweringPassRegressionTests {
     @Test
     func testNestedNullableValueClassChainedSafeCallBoxesMemberResult() throws {
         let source = """
+        annotation class JvmInline
         @JvmInline
         value class V(val x: String?)
         @JvmInline
@@ -91,6 +97,7 @@ extension LoweringPassRegressionTests {
     @Test
     func testNullableUnderlyingValueClassAnyBoundaryUsesValueClassBox() throws {
         let source = """
+        annotation class JvmInline
         @JvmInline
         value class V(val x: String?)
         fun erase(): Any = V(null)
@@ -103,6 +110,7 @@ extension LoweringPassRegressionTests {
     @Test
     func testNullableUnderlyingValueClassFieldReadDoesNotReboxPayload() throws {
         let source = """
+        annotation class JvmInline
         @JvmInline
         value class V(val x: Any?)
         fun isNull(v: V): Boolean = v.x == null
@@ -114,6 +122,7 @@ extension LoweringPassRegressionTests {
     @Test
     func testNullableUnderlyingValueClassMemberCallUnboxesReceiver() throws {
         let source = """
+        annotation class JvmInline
         @JvmInline
         value class V(val x: String?) {
             fun tag(): String = "V(" + (x ?: "<null>") + ")"
@@ -127,6 +136,7 @@ extension LoweringPassRegressionTests {
     @Test
     func testNonNullableUnderlyingValueClassKeepsExistingRepresentation() throws {
         let source = """
+        annotation class JvmInline
         @JvmInline
         value class S(val x: String)
         fun store(s: S): S? = s

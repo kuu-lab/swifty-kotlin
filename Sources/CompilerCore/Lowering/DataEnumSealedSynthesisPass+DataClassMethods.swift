@@ -935,6 +935,13 @@ extension DataEnumSealedSynthesisPass {
             if sema.symbols.effectiveValueClassUnderlyingType(for: owner.id) != nil {
                 // This body is synthesized after ValueClassUnboxingPass, so read
                 // the underlying field from the raw receiver without a heap load.
+                // The copy target's declared type is the field type (`Any` for a
+                // reference-backed payload); mark it as a raw value-class payload
+                // so ABI lowering keeps the copy verbatim instead of re-boxing the
+                // payload as `V` — which would feed the box back into this same
+                // toString through the nominal Any bridge and recurse
+                // `IC(s=IC(s=…` (KUU-3902).
+                module.markRawValueClassPayload(propValue)
                 body.append(.copy(from: receiverRef, to: propValue))
             } else if let layout,
                let fieldOffset = layout.fieldOffsets[backingField] ?? layout.fieldOffsets[property.id]
@@ -987,14 +994,26 @@ extension DataEnumSealedSynthesisPass {
                     // Non-null value-class fields have already been unboxed.
                     // Call the implementation with that payload directly; a
                     // vtable lookup would treat it as an object pointer.
-                    let toStringCall = { (result: KIRExprID) -> KIRInstruction in
-                        .call(
+                    // A `V?` field instead stores the tagged/nominal box —
+                    // normalize it back to the payload first, or the impl
+                    // re-renders its own wrapper (`IC(s=IC(s=…))`, KUU-3902).
+                    let toStringCall = { (result: KIRExprID) in
+                        let receiver = unboxedValueClassReceiverExpr(
+                            value: propValue,
+                            receiverType: sema.types.makeNonNullable(propType),
+                            types: sema.types,
+                            symbols: sema.symbols,
+                            interner: interner,
+                            arena: module.arena,
+                            into: &body
+                        )
+                        body.append(.call(
                             symbol: classToString.symbol,
                             callee: classToString.callee,
-                            arguments: [propValue],
+                            arguments: [receiver],
                             result: result,
                             canThrow: false
-                        )
+                        ))
                     }
                     if propIsNullable {
                         let nonNullLabel = allocateLabel()
@@ -1010,11 +1029,11 @@ extension DataEnumSealedSynthesisPass {
                         body.append(.jump(endLabel))
                         body.append(.label(nonNullLabel))
                         let innerPropStr = module.arena.appendTemporary(type: stringType)
-                        body.append(toStringCall(innerPropStr))
+                        toStringCall(innerPropStr)
                         body.append(.copy(from: innerPropStr, to: propStr))
                         body.append(.label(endLabel))
                     } else {
-                        body.append(toStringCall(propStr))
+                        toStringCall(propStr)
                     }
                 } else {
                     // Without an own implementation, preserve the nominal tag
