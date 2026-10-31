@@ -8,6 +8,7 @@ public extension RuntimeABISpec {
         // so older artifacts keep passing 0/1 and simply lack the vararg bit.
         abi.nt("__kk_kparameter_create_typed", "index nameRaw typeRaw flags kind typeToken callableOwner"),
         abi.nt("__kk_kparameter_create", "index nameRaw typeRaw flags kind"),
+        abi.nt("__kk_kparameter_set_type", "parameterRaw typeRaw"),
         abi.nt("__kk_kparameter_get_index", "handle"),
         abi.nt("__kk_kparameter_get_name", "handle"),
         abi.nt("__kk_kparameter_get_type", "handle"),
