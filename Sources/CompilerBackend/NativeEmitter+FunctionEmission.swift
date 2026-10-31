@@ -305,7 +305,9 @@ extension NativeEmitter.FunctionEmissionContext {
             argumentCount: 1,
             appendThrownChannel: false
         )
-        let liveness = computeFunctionLivenessAnalysis()
+        let liveness = withSubPhaseTiming("gcRootLiveness", timer: emitter.phaseTimer, accumulating: true) {
+            computeFunctionLivenessAnalysis()
+        }
         livenessAnalysis = liveness
 
         for (instructionIndex, instruction) in function.body.enumerated() {
