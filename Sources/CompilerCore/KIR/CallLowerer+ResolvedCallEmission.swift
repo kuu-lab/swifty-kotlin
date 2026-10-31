@@ -430,9 +430,16 @@ extension CallLowerer {
                )
             {
                 let contextArguments = callableValueCallBinding.contextArgumentCount == 0
-                    ? functionType.contextReceivers.compactMap {
+                    ? functionType.contextReceivers.enumerated().compactMap { index, contextType in
                         contextArgumentValue(
-                            matching: $0, callExprID: exprID, sema: sema, arena: arena
+                            matching: contextType,
+                            callExprID: exprID,
+                            preferredReceiverSymbol: callableValueCallBinding.contextReceiverSymbols
+                                .indices.contains(index)
+                                ? callableValueCallBinding.contextReceiverSymbols[index]
+                                : nil,
+                            sema: sema,
+                            arena: arena
                         )
                     }
                     : []
@@ -478,9 +485,16 @@ extension CallLowerer {
                                                        of: sema.types.makeNonNullable(callableValueCallBinding.functionType)
                                                    )
             {
-                functionType.contextReceivers.compactMap {
+                functionType.contextReceivers.enumerated().compactMap { index, contextType in
                     contextArgumentValue(
-                        matching: $0, callExprID: exprID, sema: sema, arena: arena
+                        matching: contextType,
+                        callExprID: exprID,
+                        preferredReceiverSymbol: callableValueCallBinding.contextReceiverSymbols
+                            .indices.contains(index)
+                            ? callableValueCallBinding.contextReceiverSymbols[index]
+                            : nil,
+                        sema: sema,
+                        arena: arena
                     )
                 }
             } else {

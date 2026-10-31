@@ -40,7 +40,8 @@ extension CallTypeChecker {
                         extensionCallableExpr: binding.extensionCallableExpr,
                         implicitInvokeReceiverExpr: thisExpr,
                         contextArgumentCount: binding.contextArgumentCount,
-                        receiverArgumentOffset: binding.receiverArgumentOffset
+                        receiverArgumentOffset: binding.receiverArgumentOffset,
+                        contextReceiverSymbols: binding.contextReceiverSymbols
                     )
                 )
             }
