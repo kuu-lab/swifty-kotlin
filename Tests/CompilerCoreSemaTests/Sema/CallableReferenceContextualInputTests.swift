@@ -218,10 +218,17 @@ struct CallableReferenceContextualInputTests {
         )
     }
 
-    /// `::topCtx` on a context function binds the context argument at the
-    /// reference site, producing `() -> Boolean`; kotlinc reports it
-    /// inapplicable to both `context(A) () -> Boolean` and `(A) -> Boolean`.
-    @Test func contextFunctionReferenceIsRejectedForBothFunctionSpellings() throws {
+    /// `::topCtx` keeps its `context(A) () -> Boolean` type even inside
+    /// `with(a)` — ambient receivers never force reference-site binding.
+    /// It therefore satisfies `take(f: context(A) () -> Boolean)` directly
+    /// (invocation supplies the context; verified end-to-end the ambient `a`
+    /// is not captured). kotlinc rejects both uses because its context
+    /// references always bind at the reference site; KSwiftK deliberately
+    /// accepts the contextual spelling per KUU-3355/KUU-3770 semantics.
+    /// `takePlain(f: (A) -> Boolean)` still rejects: `topCtx`'s `A` is a
+    /// context parameter, not a value parameter, so no `(A) -> Boolean`
+    /// adaptation exists.
+    @Test func contextFunctionReferenceMatchesContextualButNotPlainSpelling() throws {
         let ctx = makeContextFromSource("""
         class A { fun instance() = true }
         context(a: A) fun topCtx() = true
@@ -238,7 +245,62 @@ struct CallableReferenceContextualInputTests {
         try runSema(ctx)
 
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-        #expect(errors.count == 2, "Both `::topCtx` uses must be rejected like kotlinc: \(errors)")
+        #expect(errors.count == 1, "Only the `(A) -> Boolean` use must be rejected: \(errors)")
+        #expect(errors.first?.code == "KSWIFTK-TYPE-0001")
+    }
+
+    // MARK: - KUU-3770: context-function references vs contextual expected types
+
+    /// A callable reference to a context-parameter function keeps its
+    /// `context(X) (...) -> R` type and satisfies a `context(X) (...) -> T`
+    /// expected type directly — through a generic `T` return, a concrete
+    /// return, and with value parameters following the context slots.
+    /// (kotlinc 2.4.20 rejects these adaptations; KSwiftK accepts them per
+    /// KUU-3355 semantics — regression coverage for the TYPE-0001 rejection
+    /// that returned between 04d99b7c33 and 34adf47f8b.)
+    @Test func contextFunctionReferencesMatchContextualExpectedType() throws {
+        let ctx = makeContextFromSource("""
+        context(c: String) fun ctxLen(): Int = c.length
+        class Foo { val x = "OK" }
+        context(f: Foo) fun readX(): String = f.x
+        context(c: String) fun greet(name: String): String = "$c:$name"
+        fun <T> withCtx(v: String, f: context(String) () -> T): T = with(v) { f() }
+        fun <T> withFoo(f: Foo, b: context(Foo) () -> T): T = with(f) { b() }
+        fun directCtx(v: String, f: context(String) () -> Int): Int = with(v) { f() }
+        fun applyCtx(v: String, f: context(String) (String) -> String): String = with(v) { f("N") }
+        fun main() {
+            println(withCtx("hi", ::ctxLen))
+            println(withFoo(Foo(), ::readX))
+            println(directCtx("hey", ::ctxLen))
+            println(applyCtx("hi", ::greet))
+        }
+        """)
+        try runSema(ctx)
+
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(
+            errors.isEmpty,
+            "Context function references must satisfy contextual expected types: \(errors)"
+        )
+    }
+
+    /// An anonymous context function with two same-typed context parameters
+    /// type-checks against `context(S, S) () -> Unit` (KUU-3770 reproduction
+    /// that regressed to "Type constraint could not be satisfied").
+    @Test func sameTypedContextAnonymousFunctionMatchesContextualType() throws {
+        let ctx = makeContextFromSource("""
+        interface S { fun foo(c: Int) }
+        fun main() {
+            val f: context(S, S) () -> Unit = context(s1: S, s2: S) fun() { s1.foo(2); s2.foo(3) }
+        }
+        """)
+        try runSema(ctx)
+
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(
+            errors.isEmpty,
+            "A same-typed multi-context anonymous function must satisfy `context(S, S) () -> Unit`: \(errors)"
+        )
     }
 }
 #endif
