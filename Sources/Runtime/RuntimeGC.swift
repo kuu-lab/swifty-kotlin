@@ -179,10 +179,14 @@ struct FrameMapDescriptorC {
     let rootOffsets: UnsafePointer<Int32>?
 }
 
-/// `typeToken` uniquely identifies a `KClass<T>` at runtime, so caching by it
-/// alone ensures stable hits across repeated evaluations.
+/// `typeToken` uniquely identifies a `KClass<T>` at runtime for every token
+/// that carries a real classifier identity, so caching by it alone ensures
+/// stable hits across repeated evaluations. Ambiguous (unknown-base) tokens
+/// all encode to 0 — `Nothing`, erased bounds, unresolved types — so the
+/// decoded name hint joins the key for those; `nil` for everything else.
 struct KClassCacheKey: Hashable {
     let typeToken: Int
+    let ambiguousNameHint: String?
 }
 
 /// A Java Class handle is canonical per Kotlin classifier, except for runtime
