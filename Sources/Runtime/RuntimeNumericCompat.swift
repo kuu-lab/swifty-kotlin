@@ -635,6 +635,13 @@ public func kk_any_equals(_ lhs: Int, _ lhsTag: Int, _ rhs: Int, _ rhsTag: Int) 
     if let lhsRange = runtimeRangeBox(from: lhs), let rhsRange = runtimeRangeBox(from: rhs) {
         return kk_box_bool(runtimeRangesEqual(lhsRange, rhsRange) ? 1 : 0)
     }
+    // A registered `Any.equals` override is the virtual dispatch target for
+    // `a.equals(b)`: it answers every right operand — including `null` —
+    // before the kind fast-path can fall back to structural/identity
+    // semantics (KUU-3865).
+    if let overridden = runtimeObjectEqualsOverride(lhs, rhs) {
+        return kk_box_bool(overridden ? 1 : 0)
+    }
     let lhsKind = runtimeAnyKind(lhs, lhsTag)
     let rhsKind = runtimeAnyKind(rhs, rhsTag)
     if lhsKind != rhsKind {
