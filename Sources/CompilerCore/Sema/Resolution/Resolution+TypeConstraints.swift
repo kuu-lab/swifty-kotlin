@@ -1276,7 +1276,7 @@ extension OverloadResolver {
         return false
     }
 
-    private func applyDeclarationVariance(
+    func applyDeclarationVariance(
         _ arg: TypeArg,
         declarationVariance: TypeVariance
     ) -> TypeArg {

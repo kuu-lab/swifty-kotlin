@@ -564,6 +564,69 @@ extension OverloadResolver {
                     ))
                 }
             }
+
+            // A constructor's own class parameters share symbols with the
+            // class's lexical type parameters. Inside the class body an
+            // argument type `T` or an expected type `P<T>` names the rigid
+            // declaration parameter, but the constraint solver maps it to the
+            // fresh constructor variable: a `key: T` argument constrains a
+            // parameter's declared `Any?` into an unrelated `V <: Any?`
+            // bound, and an expected `P<T>` collapses to a `V <: V`
+            // tautology (KUU-3796). Bind the variables directly from the
+            // expected type's owner arguments, projected by the owner's
+            // declared variance — the same relation the substituted
+            // constructor return type `P<V>` must satisfy.
+            if aliasConstructor == nil,
+               constructorOwnTypeParameterCount > 0,
+               call.explicitTypeArgs.isEmpty,
+               let expectedType,
+               let owner = ctx.symbols.parentSymbol(for: candidate),
+               let expectedClassType = resolveClassType(expectedType, sema: ctx),
+               let ownerArguments = ctx.types.liftedNominalSupertypeArgs(
+                   from: expectedClassType,
+                   to: owner
+               )
+            {
+                let ownerVariances = ctx.types.allTypeParameterVariances(for: owner)
+                for (index, symbol) in signature.typeParameterSymbols
+                    .prefix(signature.classTypeParameterCount).enumerated()
+                where index >= constructorCapturedTypeParameterCount
+                    && index < ownerArguments.count
+                {
+                    guard let variable = typeVarBySymbol[symbol] else { continue }
+                    let variance = ownerVariances.indices.contains(index)
+                        ? ownerVariances[index]
+                        : .invariant
+                    switch applyDeclarationVariance(
+                        ownerArguments[index],
+                        declarationVariance: variance
+                    ) {
+                    case let .invariant(argument):
+                        constraints.append(VariableConstraint(
+                            kind: .equal,
+                            left: .variable(variable),
+                            right: .type(argument),
+                            blameRange: call.range
+                        ))
+                    case let .out(argument):
+                        constraints.append(VariableConstraint(
+                            kind: .subtype,
+                            left: .variable(variable),
+                            right: .type(argument),
+                            blameRange: call.range
+                        ))
+                    case let .in(argument):
+                        constraints.append(VariableConstraint(
+                            kind: .subtype,
+                            left: .type(argument),
+                            right: .variable(variable),
+                            blameRange: call.range
+                        ))
+                    case .star:
+                        continue
+                    }
+                }
+            }
         } else {
             guard let receiverConstraints = buildReceiverConstraints(
                 signature: signature,
