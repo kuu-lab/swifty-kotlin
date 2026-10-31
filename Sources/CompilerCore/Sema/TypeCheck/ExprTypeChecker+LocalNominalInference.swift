@@ -436,7 +436,7 @@ extension ExprTypeChecker {
             // A function-type delegation specifier (`class C : suspend () -> T`
             // inside a function) resolves to a structural `.functionType`;
             // lift it to the nominal SuspendFunctionN / FunctionN interface
-            // the named-declaration path records (KUU-3838).
+            // the named-declaration path records (KUU-3838, KUU-3875).
             let resolvedNominal = driver.helpers.nominalFunctionInterfaceSupertype(
                 for: resolved,
                 owner: classSymbol,
