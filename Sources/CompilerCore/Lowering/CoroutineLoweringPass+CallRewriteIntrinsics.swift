@@ -49,12 +49,17 @@ extension CoroutineLoweringPass {
         // argument as a `(fnPtr, context)` pair — one extra slot versus the
         // source-level argument list. Strip the context slot so the rewrite
         // sees the same shape either mode produces; the link-ABI fallback
-        // below re-adds it when the function cannot be resolved.
+        // below re-adds it when the function cannot be resolved. The context
+        // half is the callable's closure environment, though — the launcher
+        // thunk of a suspend function *value* reads it as its leading slot —
+        // so keep it for the resolved-path launcher setup below.
+        var contextArgument: KIRExprID? = nil
         if (call.callee == rewrite.createCoroutineUninterceptedWithReceiverCallee
                 && call.arguments.count == 4)
             || (call.callee == rewrite.createCoroutineUninterceptedNoReceiverCallee
                 && call.arguments.count == 3)
         {
+            contextArgument = call.arguments[1]
             call = CallRewriteInput(
                 instruction: call.instruction,
                 symbol: call.symbol,
@@ -99,16 +104,17 @@ extension CoroutineLoweringPass {
             ]
         }
 
-        let capturedLauncherArguments = capturedLauncherArguments(
+        let launcherArguments = resolvedLauncherArguments(
             for: call,
             referencedSymbol: referencedSymbol,
+            contextArgument: contextArgument,
             functionValueInfoByExprRaw: functionValueInfoByExprRaw,
             using: rewrite
         )
         let entryPointSymbol = entryPointSymbol(
             for: referencedSymbol,
             loweredTarget: loweredTarget,
-            hasLauncherArg: call.arguments.count == 3 || !capturedLauncherArguments.isEmpty,
+            hasLauncherArg: call.arguments.count == 3 || !launcherArguments.isEmpty,
             using: rewrite
         )
         let entryPointExpr = rewrite.module.arena.appendTemporary(type: rewrite.intType
@@ -126,15 +132,8 @@ extension CoroutineLoweringPass {
             )
         ]
 
-        if call.arguments.count == 3 {
-            let slotExpr = rewrite.module.arena.appendExpr(.intLiteral(0), type: rewrite.intType)
-            rewritten.append(
-                .call(callee: rewrite.launcherArgSetCallee, arguments: [continuationExpr, slotExpr, call.arguments[1]], result: nil, canThrow: false)
-            )
-        }
-
         appendCapturedLauncherArgumentSetup(
-            capturedLauncherArguments,
+            launcherArguments,
             continuationExpr: continuationExpr,
             using: rewrite,
             into: &rewritten
@@ -152,12 +151,15 @@ extension CoroutineLoweringPass {
         var call = call
         // See the normalization note in rewriteCreateCoroutineUninterceptedCall:
         // kklib-serialized marker calls carry an extra context slot after the
-        // function argument.
+        // function argument. The context half is the suspend function value's
+        // closure environment; keep it for the resolved-path launcher setup.
+        var contextArgument: KIRExprID? = nil
         if (call.callee == rewrite.startCoroutineUninterceptedOrReturnWithReceiverCallee
                 && call.arguments.count == 4)
             || (call.callee == rewrite.startCoroutineUninterceptedOrReturnNoReceiverCallee
                 && call.arguments.count == 3)
         {
+            contextArgument = call.arguments[1]
             call = CallRewriteInput(
                 instruction: call.instruction,
                 symbol: call.symbol,
@@ -220,16 +222,17 @@ extension CoroutineLoweringPass {
             ]
         }
 
-        let capturedLauncherArguments = capturedLauncherArguments(
+        let launcherArguments = resolvedLauncherArguments(
             for: call,
             referencedSymbol: referencedSymbol,
+            contextArgument: contextArgument,
             functionValueInfoByExprRaw: functionValueInfoByExprRaw,
             using: rewrite
         )
         let entryPointSymbol = entryPointSymbol(
             for: referencedSymbol,
             loweredTarget: loweredTarget,
-            hasLauncherArg: call.arguments.count == 3 || !capturedLauncherArguments.isEmpty,
+            hasLauncherArg: call.arguments.count == 3 || !launcherArguments.isEmpty,
             using: rewrite
         )
         let entryPointExpr = rewrite.module.arena.appendTemporary(type: rewrite.intType
@@ -247,15 +250,8 @@ extension CoroutineLoweringPass {
             ),
         ]
 
-        if call.arguments.count == 3 {
-            let slotExpr = rewrite.module.arena.appendExpr(.intLiteral(0), type: rewrite.intType)
-            rewritten.append(
-                .call(callee: rewrite.launcherArgSetCallee, arguments: [continuationExpr, slotExpr, call.arguments[1]], result: nil, canThrow: false)
-            )
-        }
-
         appendCapturedLauncherArgumentSetup(
-            capturedLauncherArguments,
+            launcherArguments,
             continuationExpr: continuationExpr,
             using: rewrite,
             into: &rewritten
@@ -307,16 +303,17 @@ extension CoroutineLoweringPass {
             type: rewrite.unitType
         )
 
-        let capturedLauncherArguments = capturedLauncherArguments(
+        let launcherArguments = resolvedLauncherArguments(
             for: call,
             referencedSymbol: referencedSymbol,
+            contextArgument: nil,
             functionValueInfoByExprRaw: functionValueInfoByExprRaw,
             using: rewrite
         )
         let entryPointSymbol = entryPointSymbol(
             for: referencedSymbol,
             loweredTarget: loweredTarget,
-            hasLauncherArg: call.arguments.count == 3 || !capturedLauncherArguments.isEmpty,
+            hasLauncherArg: call.arguments.count == 3 || !launcherArguments.isEmpty,
             using: rewrite
         )
 
@@ -330,15 +327,8 @@ extension CoroutineLoweringPass {
             ),
         ]
 
-        if call.arguments.count == 3 {
-            let slotExpr = rewrite.module.arena.appendExpr(.intLiteral(0), type: rewrite.intType)
-            rewritten.append(
-                .call(callee: rewrite.launcherArgSetCallee, arguments: [continuationExpr, slotExpr, call.arguments[1]], result: nil, canThrow: false)
-            )
-        }
-
         appendCapturedLauncherArgumentSetup(
-            capturedLauncherArguments,
+            launcherArguments,
             continuationExpr: continuationExpr,
             using: rewrite,
             into: &rewritten
@@ -354,27 +344,79 @@ extension CoroutineLoweringPass {
         return rewritten
     }
 
-    /// A capturing suspend lambda reaches these entry-point intrinsics as a function
-    /// value (`kk_function_create_N(adapter, closureState)`). The adapter's suspend
-    /// body reads that closure state from its first parameter, so starting it
-    /// through the bare entry point (which only supplies the continuation) would
-    /// hand it garbage. Returns the closure arguments that must be threaded through
-    /// the launcher thunk; empty when the lambda captures nothing, has no thunk, or
-    /// already uses slot 0 for an explicit receiver.
-    private func capturedLauncherArguments(
+    /// A resolved suspend callable's launcher thunk reads the suspend
+    /// function's original parameters straight from the continuation's
+    /// launcher slots, so the explicit receiver that the
+    /// `createCoroutineUnintercepted` / `startCoroutine` family passes must
+    /// land at the slot matching its parameter position — not always slot 0.
+    /// The returned list is written positionally into launcher slots.
+    ///
+    /// A suspend function *value* (`kk_function_create_N(adapter, env)`,
+    /// rewritten to `kk_suspend_function_create`) reaches the thunk as a
+    /// `kk_function_value_adapter_*` whose leading slot is the callable's
+    /// closure environment: the kklib marker's `(fnPtr, context)` pair
+    /// carries it as `contextArgument`, while a source-level box records it
+    /// as the callable's single capture argument. This mirrors the runtime's
+    /// `createCoroutineFromFunctionValue`, which seeds the launcher args
+    /// `[closureRaw, receiver]`. A raw suspend callable instead keeps its
+    /// captures in the leading slots (capture-first ABI), or follows the
+    /// receiver-first layout launcher-marked literals use.
+    private func resolvedLauncherArguments(
         for call: CallRewriteInput,
         referencedSymbol: SymbolID,
+        contextArgument: KIRExprID?,
         functionValueInfoByExprRaw: [Int32: KIRCallableValueInfo],
         using rewrite: SuspendRewriteContext
     ) -> [KIRExprID] {
-        guard call.arguments.count == 2,
-              rewrite.launcherThunkByOriginalSymbol[referencedSymbol] != nil,
-              let callableInfo = rewrite.module.arena.callableValueInfo(for: call.arguments[0])
-              ?? functionValueInfoByExprRaw[call.arguments[0].rawValue]
-        else {
+        guard rewrite.launcherThunkByOriginalSymbol[referencedSymbol] != nil else {
             return []
         }
-        return callableInfo.captureArguments
+        let callableInfo = rewrite.module.arena.callableValueInfo(for: call.arguments[0])
+            ?? functionValueInfoByExprRaw[call.arguments[0].rawValue]
+        let receiverArgument: KIRExprID? = call.arguments.count == 3 ? call.arguments[1] : nil
+
+        if isFunctionValueAdapterSymbol(referencedSymbol, using: rewrite) {
+            // The adapter thunk's leading slot is the callable box's
+            // `closureRaw` — the environment object its body unpacks. A
+            // source-level box records it as the callable's single capture
+            // argument; the kklib marker path instead carries a placeholder
+            // context slot, so recover the environment from the
+            // `kk_function_create_*` producer recorded for the box.
+            let environment = callableInfo?.captureArguments.first
+                ?? functionValueInfoByExprRaw.values
+                    .first(where: { $0.symbol == referencedSymbol })
+                    .flatMap(\.captureArguments.first)
+                ?? contextArgument
+            var arguments = environment.map { [$0] } ?? []
+            if let receiverArgument {
+                arguments.append(receiverArgument)
+            }
+            return arguments
+        }
+
+        let captures = callableInfo?.captureArguments
+            ?? rewrite.module.arena.lambdaCaptureArgsBySymbol[referencedSymbol]
+            ?? []
+
+        guard let receiverArgument else {
+            return captures
+        }
+        if rewrite.module.arena.receiverFirstLauncherLambdaSymbols.contains(referencedSymbol) {
+            // Launcher-marked literals lower receiver-first:
+            // `[receiver, cap0..capN]`.
+            return [receiverArgument] + captures
+        }
+        // Capture-first suspend callables forward each capture in the leading
+        // slots; a hasClosureParam value folds them into a single environment
+        // slot — the marker pair's context argument.
+        let leadingSlotCount = (rewrite.module.arena.function(for: referencedSymbol)?.params.count ?? 0) - 1
+        if captures.count == leadingSlotCount {
+            return captures + [receiverArgument]
+        }
+        if leadingSlotCount == 1, let contextArgument {
+            return [contextArgument, receiverArgument]
+        }
+        return [receiverArgument]
     }
 
     private func appendCapturedLauncherArgumentSetup(
