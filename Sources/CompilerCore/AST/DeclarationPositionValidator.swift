@@ -700,9 +700,52 @@ struct DeclarationPositionValidator {
         )
         let conflictCovered = visibilityCovered.union(pairPlan.covered)
 
-        if isExpectContext(modifiers, site: site) {
+        let inExpectContext = isExpectContext(modifiers, site: site)
+        if inExpectContext {
             if modifiers.contains(.private) {
                 emitExpectNotPrivate(range: decl.range)
+            }
+            if isEnum, decl.hasPrimaryConstructorSyntax || !decl.secondaryConstructors.isEmpty {
+                diagnostics?.error(
+                    "KSWIFTK-SEMA-0458",
+                    "'expect' enum class cannot have a constructor.",
+                    range: decl.range
+                )
+            }
+            // Annotation and value classes must declare their `val`
+            // parameters, so kotlinc exempts them from the property-parameter
+            // rule; every other expect class kind reports the constructor.
+            if !isAnnotation, isEnum || !isValue, decl.primaryConstructorParams.contains(where: \.isProperty) {
+                diagnostics?.error(
+                    "KSWIFTK-SEMA-0456",
+                    "'expect' class constructor cannot have a property parameter.",
+                    range: decl.range
+                )
+            }
+            for superType in decl.superTypeEntries where superType.hasConstructorCallSyntax {
+                diagnostics?.error(
+                    "KSWIFTK-SEMA-0457",
+                    "'expect' classes cannot initialize supertypes.",
+                    range: superType.range ?? decl.range
+                )
+            }
+            for entry in decl.enumEntries {
+                // An entry's `(...)` invokes the enum's constructor — inside an
+                // expect enum that is a supertype initialization site.
+                if entry.hasConstructorCallSyntax {
+                    diagnostics?.error(
+                        "KSWIFTK-SEMA-0457",
+                        "'expect' classes cannot initialize supertypes.",
+                        range: entry.range
+                    )
+                }
+                if entry.hasBody {
+                    diagnostics?.error(
+                        "KSWIFTK-SEMA-0459",
+                        "'expect' enum entry cannot have a body.",
+                        range: entry.range
+                    )
+                }
             }
             for body in decl.initBlocks {
                 switch body {
@@ -1031,6 +1074,13 @@ struct DeclarationPositionValidator {
         if isExpectContext(modifiers, site: site) {
             if modifiers.contains(.private) {
                 emitExpectNotPrivate(range: decl.range)
+            }
+            for superType in decl.superTypeEntries where superType.hasConstructorCallSyntax {
+                diagnostics?.error(
+                    "KSWIFTK-SEMA-0457",
+                    "'expect' classes cannot initialize supertypes.",
+                    range: superType.range ?? decl.range
+                )
             }
             for body in decl.initBlocks {
                 switch body {

@@ -635,6 +635,14 @@ public struct EnumEntryDecl: Codable {
     public let name: InternedString
     public let annotations: [AnnotationNode]
     public let constructorArgs: [CallArgument]
+    /// True when the source wrote the superclass-style constructor invocation
+    /// — `A(...)` including `A()` — rather than a bare `A` entry name. The
+    /// argument list alone cannot distinguish `A()` from `A`.
+    public let hasConstructorCallSyntax: Bool
+    /// True when the entry carries an anonymous class body — `A { ... }`,
+    /// including an empty `A {}` that member lists alone cannot distinguish
+    /// from a bare `A`.
+    public let hasBody: Bool
     public let initBlocks: [FunctionBody]
     /// Property initializers and init blocks execute in declaration order.
     public let classBodyInitOrder: [ClassBodyInitMember]
@@ -656,6 +664,8 @@ public struct EnumEntryDecl: Codable {
         name: InternedString,
         annotations: [AnnotationNode] = [],
         constructorArgs: [CallArgument] = [],
+        hasConstructorCallSyntax: Bool = false,
+        hasBody: Bool = false,
         initBlocks: [FunctionBody] = [],
         classBodyInitOrder: [ClassBodyInitMember] = [],
         memberFunctions: [DeclID] = [],
@@ -666,6 +676,8 @@ public struct EnumEntryDecl: Codable {
         self.name = name
         self.annotations = annotations
         self.constructorArgs = constructorArgs
+        self.hasConstructorCallSyntax = hasConstructorCallSyntax
+        self.hasBody = hasBody
         self.initBlocks = initBlocks
         self.classBodyInitOrder = classBodyInitOrder
         self.memberFunctions = memberFunctions
@@ -678,6 +690,8 @@ public struct EnumEntryDecl: Codable {
         case name
         case annotations
         case constructorArgs
+        case hasConstructorCallSyntax
+        case hasBody
         case initBlocks
         case classBodyInitOrder
         case memberFunctions
@@ -691,6 +705,8 @@ public struct EnumEntryDecl: Codable {
         name = try container.decode(InternedString.self, forKey: .name)
         annotations = try container.decodeIfPresent([AnnotationNode].self, forKey: .annotations) ?? []
         constructorArgs = try container.decodeIfPresent([CallArgument].self, forKey: .constructorArgs) ?? []
+        hasConstructorCallSyntax = try container.decodeIfPresent(Bool.self, forKey: .hasConstructorCallSyntax) ?? false
+        hasBody = try container.decodeIfPresent(Bool.self, forKey: .hasBody) ?? false
         initBlocks = try container.decodeIfPresent([FunctionBody].self, forKey: .initBlocks) ?? []
         classBodyInitOrder = try container.decodeIfPresent(
             [ClassBodyInitMember].self, forKey: .classBodyInitOrder

@@ -1279,6 +1279,30 @@ enum DiagnosticRegistry {
             defaultSeverity: .error,
             summary: "One of the overloads of operator 'of' must have a single 'vararg' parameter."
         ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0456",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "'expect' class constructor cannot have a property parameter."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0457",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "'expect' classes cannot initialize supertypes."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0458",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "'expect' enum class cannot have a constructor."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0459",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "'expect' enum entry cannot have a body."
+        ),
     ]
 
 
