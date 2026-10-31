@@ -347,4 +347,67 @@ struct InnerClassTypeParameterScopeTests {
             #expect(g.returnType == expected)
         }
     }
+
+    @Test
+    func inferredMemberTypesKeepInnerClassEnclosingArguments() throws {
+        // KUU-3874: inferred expression-body return types and inferred
+        // property types must keep an inner class's `enclosingTypeArgs`.
+        // Dropping them produced a bare `It`, so `for` loop operator
+        // resolution and every member call on the returned value failed
+        // with SEMA-0002.
+        let ctx = makeContextFromSource("""
+        class G<T>(val s: List<T>) : Iterable<T> {
+            inner class It(val it: Iterator<T>) : Iterator<T> {
+                override fun hasNext() = it.hasNext()
+                override fun next() = it.next()
+            }
+            val probe = It(s.iterator())
+            override fun iterator() = It(s.iterator())
+        }
+        class S<T>(val items: List<T>) : Sequence<T> {
+            inner class Sit(val it: Iterator<T>) : Iterator<T> {
+                override fun hasNext() = it.hasNext()
+                override fun next() = it.next()
+            }
+            override fun iterator() = Sit(items.iterator())
+        }
+        fun collect(g: G<String>): String {
+            var out = ""
+            for (e in g) { out += e }
+            val iter = g.iterator()
+            while (iter.hasNext()) { out += iter.next() }
+            return out + g.probe.it.next()
+        }
+        fun scollect(s: S<String>): String {
+            var out = ""
+            for (e in s) { out += e }
+            return out
+        }
+        """)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+        let sema = try #require(ctx.sema)
+        let g = try #require(sema.symbols.lookup(fqName: [ctx.interner.intern("G")]))
+        let it = try #require(sema.symbols.lookup(fqName: ["G", "It"].map(ctx.interner.intern)))
+        let outerParameter = try #require(sema.types.nominalTypeParameterSymbols(for: g).first)
+        let expected = sema.types.make(.classType(sema.types.classType(
+            for: it,
+            arguments: [.invariant(sema.types.make(.typeParam(TypeParamType(symbol: outerParameter))))]
+        )))
+        let iteratorSymbol = try #require(sema.symbols.lookup(fqName: ["G", "iterator"].map(ctx.interner.intern)))
+        let signature = try #require(sema.symbols.functionSignature(for: iteratorSymbol))
+        #expect(signature.returnType == expected)
+        let probeSymbol = try #require(sema.symbols.lookup(fqName: ["G", "probe"].map(ctx.interner.intern)))
+        #expect(sema.symbols.propertyType(for: probeSymbol) == expected)
+        let s = try #require(sema.symbols.lookup(fqName: [ctx.interner.intern("S")]))
+        let sit = try #require(sema.symbols.lookup(fqName: ["S", "Sit"].map(ctx.interner.intern)))
+        let sParameter = try #require(sema.types.nominalTypeParameterSymbols(for: s).first)
+        let sExpected = sema.types.make(.classType(sema.types.classType(
+            for: sit,
+            arguments: [.invariant(sema.types.make(.typeParam(TypeParamType(symbol: sParameter))))]
+        )))
+        let sIteratorSymbol = try #require(sema.symbols.lookup(fqName: ["S", "iterator"].map(ctx.interner.intern)))
+        let sSignature = try #require(sema.symbols.functionSignature(for: sIteratorSymbol))
+        #expect(sSignature.returnType == sExpected)
+    }
 }
