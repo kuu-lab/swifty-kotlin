@@ -181,6 +181,123 @@ extension DataFlowAnalyzerTests {
         #expect(!analyzer.isWhenExhaustive(subjectType: sealedType, branches: summary, sema: sema))
     }
 
+    // KUU-3775: covering every grandchild of a nested sealed child counts as
+    // covering that child (`is A` + `is B` exhaust `N : F` inside `when (f: F)`).
+    @Test(arguments: [false, true])
+    func testNestedSealedSubtypeCoveredByGrandchildren(useMetadata: Bool) {
+        let analyzer = DataFlowAnalyzer()
+        let (sema, symbols, types, interner) = makeSemaModule()
+        func define(_ name: String, kind: SymbolKind = .class, flags: SymbolFlags = []) -> SymbolID {
+            let interned = interner.intern(name)
+            return symbols.define(kind: kind, name: interned, fqName: [interned], declSite: nil, visibility: .public, flags: flags)
+        }
+        let f = define("F", kind: .interface, flags: .sealedType)
+        let n = define("N", kind: .interface, flags: .sealedType)
+        let a = define("A")
+        let b = define("B")
+        let c = define("C")
+        symbols.setDirectSupertypes([f], for: n)
+        symbols.setDirectSupertypes([n], for: a)
+        symbols.setDirectSupertypes([n], for: b)
+        symbols.setDirectSupertypes([f], for: c)
+        if useMetadata {
+            symbols.setSealedSubclasses([n, c], for: f)
+            symbols.setSealedSubclasses([a, b], for: n)
+        }
+        let fType = types.make(.classType(ClassType(classSymbol: f)))
+
+        // `is A` + `is B` + `is C` exhausts F through N's covered children.
+        let complete = WhenBranchSummary(coveredSymbols: [], hasElse: false, coveredTypeSymbols: [a, b, c])
+        #expect(analyzer.isWhenExhaustive(subjectType: fType, branches: complete, sema: sema))
+        #expect(analyzer.missingSealedBranches(subjectType: fType, branches: complete, sema: sema) == nil)
+
+        // Direct `is N` coverage still counts.
+        let directN = WhenBranchSummary(coveredSymbols: [], hasElse: false, coveredTypeSymbols: [n, c])
+        #expect(analyzer.isWhenExhaustive(subjectType: fType, branches: directN, sema: sema))
+
+        // A partially covered sealed child reports the uncovered grandchild
+        // (`is B`), not the intermediate `N` — matching kotlinc's message.
+        let partial = WhenBranchSummary(coveredSymbols: [], hasElse: false, coveredTypeSymbols: [a, c])
+        #expect(!analyzer.isWhenExhaustive(subjectType: fType, branches: partial, sema: sema))
+        #expect(analyzer.missingSealedBranches(subjectType: fType, branches: partial, sema: sema) == [interner.intern("B")])
+
+        // Nothing under N covered: the diagnostic enumerates its leaves.
+        let noneUnderN = WhenBranchSummary(coveredSymbols: [], hasElse: false, coveredTypeSymbols: [c])
+        #expect(!analyzer.isWhenExhaustive(subjectType: fType, branches: noneUnderN, sema: sema))
+        #expect(
+            Set(analyzer.missingSealedBranches(subjectType: fType, branches: noneUnderN, sema: sema) ?? [])
+                == [interner.intern("A"), interner.intern("B")]
+        )
+    }
+
+    // KUU-3775: exhaustiveness propagates through more than one sealed level.
+    @Test func testDeeplyNestedSealedCoverage() {
+        let analyzer = DataFlowAnalyzer()
+        let (sema, symbols, types, interner) = makeSemaModule()
+        func define(_ name: String, kind: SymbolKind = .class, flags: SymbolFlags = []) -> SymbolID {
+            let interned = interner.intern(name)
+            return symbols.define(kind: kind, name: interned, fqName: [interned], declSite: nil, visibility: .public, flags: flags)
+        }
+        let r = define("R", kind: .interface, flags: .sealedType)
+        let mid = define("Mid", kind: .interface, flags: .sealedType)
+        let leaf = define("Leaf", kind: .interface, flags: .sealedType)
+        let x = define("X")
+        let y = define("Y")
+        let z = define("Z")
+        let w = define("W")
+        symbols.setDirectSupertypes([r], for: mid)
+        symbols.setDirectSupertypes([mid], for: leaf)
+        symbols.setDirectSupertypes([leaf], for: x)
+        symbols.setDirectSupertypes([leaf], for: y)
+        symbols.setDirectSupertypes([mid], for: z)
+        symbols.setDirectSupertypes([r], for: w)
+        let rType = types.make(.classType(ClassType(classSymbol: r)))
+
+        let complete = WhenBranchSummary(coveredSymbols: [], hasElse: false, coveredTypeSymbols: [x, y, z, w])
+        #expect(analyzer.isWhenExhaustive(subjectType: rType, branches: complete, sema: sema))
+
+        let missingY = WhenBranchSummary(coveredSymbols: [], hasElse: false, coveredTypeSymbols: [x, z, w])
+        #expect(!analyzer.isWhenExhaustive(subjectType: rType, branches: missingY, sema: sema))
+        #expect(analyzer.missingSealedBranches(subjectType: rType, branches: missingY, sema: sema) == [interner.intern("Y")])
+    }
+
+    // KUU-3775: an enum subtype nested in a sealed hierarchy is exhausted by
+    // enumerating all of its entries (`E.X` + `E.Y` cover `E : F`).
+    @Test(arguments: [false, true])
+    func testEnumSubtypeCoveredByEntries(useMetadata: Bool) {
+        let analyzer = DataFlowAnalyzer()
+        let (sema, symbols, types, interner) = makeSemaModule()
+        let fName = interner.intern("F")
+        let eName = interner.intern("E")
+        let cName = interner.intern("C")
+        let f = symbols.define(kind: .interface, name: fName, fqName: [fName], declSite: nil, visibility: .public, flags: .sealedType)
+        let e = symbols.define(kind: .enumClass, name: eName, fqName: [eName], declSite: nil, visibility: .public)
+        let c = symbols.define(kind: .class, name: cName, fqName: [cName], declSite: nil, visibility: .public)
+        let xName = interner.intern("X")
+        let yName = interner.intern("Y")
+        _ = symbols.define(kind: .field, name: xName, fqName: [eName, xName], declSite: nil, visibility: .public)
+        _ = symbols.define(kind: .field, name: yName, fqName: [eName, yName], declSite: nil, visibility: .public)
+        symbols.setDirectSupertypes([f], for: e)
+        symbols.setDirectSupertypes([f], for: c)
+        if useMetadata {
+            symbols.setSealedSubclasses([e, c], for: f)
+        }
+        let fType = types.make(.classType(ClassType(classSymbol: f)))
+
+        let complete = WhenBranchSummary(coveredSymbols: [xName, yName], hasElse: false, coveredTypeSymbols: [c])
+        #expect(analyzer.isWhenExhaustive(subjectType: fType, branches: complete, sema: sema))
+        #expect(analyzer.missingSealedBranches(subjectType: fType, branches: complete, sema: sema) == nil)
+
+        // `is E` coverage still counts.
+        let directE = WhenBranchSummary(coveredSymbols: [], hasElse: false, coveredTypeSymbols: [e, c])
+        #expect(analyzer.isWhenExhaustive(subjectType: fType, branches: directE, sema: sema))
+
+        // A missing entry is reported by its own name (`Y`), matching kotlinc.
+        let missingY = WhenBranchSummary(coveredSymbols: [xName], hasElse: false, coveredTypeSymbols: [c])
+        #expect(!analyzer.isWhenExhaustive(subjectType: fType, branches: missingY, sema: sema))
+        #expect(analyzer.missingSealedBranches(subjectType: fType, branches: missingY, sema: sema) == [yName])
+    }
+
     // MARK: - resolvedTypeFromFlowState
 
     @Test func testResolvedTypeFromFlowStateReturnsSingleType() {
@@ -345,7 +462,10 @@ extension DataFlowAnalyzerTests {
             base: base,
             sema: sema
         )
-        #expect(result.variables[sym]?.possibleTypes == [nonNullTP])
+        // Bare `T` stays null-capable through its implicit `Any?` bound, so the
+        // definitely-non-null refinement is `T & Any` (KUU-2693), not plain `T`.
+        let definitelyNonNullTP = types.make(.intersection([nonNullTP, types.anyType]))
+        #expect(result.variables[sym]?.possibleTypes == [definitelyNonNullTP])
     }
 
     @Test func testMakeTypeNonNullableForNullableFunctionType() {

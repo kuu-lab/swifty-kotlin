@@ -1288,13 +1288,54 @@ final class DataFlowAnalyzer {
         guard !subtypes.isEmpty else {
             return nil
         }
-        let missing = subtypes.filter {
-            !isSealedSubtypeCovered($0, branches: branches, sema: sema, valueFacts: valueFacts)
+        let missing = subtypes.flatMap {
+            uncoveredSealedBranchSymbols($0, branches: branches, sema: sema, valueFacts: valueFacts)
         }
         guard !missing.isEmpty else {
             return nil
         }
         return Array(Set(missing.compactMap { sema.symbols.symbol($0)?.name }))
+    }
+
+    /// Returns the still-uncovered symbols under `subtype`: kotlinc names the
+    /// missing leaf branches (`is B`) rather than a partially covered sealed
+    /// intermediate (`N`), so a sealed subtype descends to its uncovered
+    /// children when it cannot be proven covered as a whole (KUU-3775).
+    private func uncoveredSealedBranchSymbols(
+        _ subtype: SymbolID,
+        branches: WhenBranchSummary,
+        sema: SemaModule,
+        valueFacts: DataFlowValueFacts?
+    ) -> [SymbolID] {
+        if isSealedSubtypeCovered(subtype, branches: branches, sema: sema, valueFacts: valueFacts) {
+            return []
+        }
+        guard let subtypeSymbol = sema.symbols.symbol(subtype) else {
+            return [subtype]
+        }
+        if subtypeSymbol.kind == .enumClass {
+            // A partially covered enum child reports its uncovered entries
+            // (`E.Y`), matching the subject-level enum exhaustiveness rule.
+            let entries = enumEntrySymbols(for: subtypeSymbol, sema: sema)
+            guard !entries.isEmpty else {
+                return [subtype]
+            }
+            let uncovered = entries.filter {
+                valueMayReach(.symbol($0), facts: valueFacts)
+                    && !isWhenBranchCovered(.symbol($0), branches: branches, sema: sema)
+            }
+            return uncovered.isEmpty ? [subtype] : uncovered
+        }
+        guard subtypeSymbol.flags.contains(.sealedType) else {
+            return [subtype]
+        }
+        let nested = sealedSubtypeSymbols(for: subtypeSymbol, sema: sema)
+        guard !nested.isEmpty else {
+            return [subtype]
+        }
+        return nested.flatMap {
+            uncoveredSealedBranchSymbols($0, branches: branches, sema: sema, valueFacts: valueFacts)
+        }
     }
 
     /// Exposes nominal components of a captured parameter's upper bound for
@@ -1377,7 +1418,17 @@ final class DataFlowAnalyzer {
         sema: SemaModule,
         valueFacts: DataFlowValueFacts? = nil
     ) -> Bool {
-        if let possibleValues = valueFacts?.possibleValues,
+        // A sealed intermediate or enum class is never a value itself, so
+        // `.symbol(subtype)` can never appear in a finite value set — the
+        // leaf-oriented possibleValues shortcut would mark it covered
+        // unconditionally. Its reachability is decided by the recursive
+        // inhabitant check below.
+        let enumeratesInhabitants: Bool = {
+            guard let symbol = sema.symbols.symbol(subtype) else { return false }
+            return symbol.flags.contains(.sealedType) || symbol.kind == .enumClass
+        }()
+        if !enumeratesInhabitants,
+           let possibleValues = valueFacts?.possibleValues,
            !possibleValues.contains(.symbol(subtype))
         {
             return true
@@ -1400,9 +1451,31 @@ final class DataFlowAnalyzer {
         }) {
             return true
         }
-        return branches.negatedTypeCheckTypes.contains {
+        if branches.negatedTypeCheckTypes.contains(where: {
             isSealedSubtypeDisjointFrom(subtype, targetType: $0, sema: sema)
+        }) {
+            return true
         }
+        // Inhabitant-enumerating subtypes propagate coverage upward: `is A` +
+        // `is B` exhaust a sealed child `N : F`, and `E.X` + `E.Y` exhaust an
+        // enum child `E : F` inside `when (f: F)` (KUU-3775).
+        guard let subtypeSymbol = sema.symbols.symbol(subtype) else {
+            return false
+        }
+        if subtypeSymbol.kind == .enumClass {
+            let entries = enumEntrySymbols(for: subtypeSymbol, sema: sema)
+            return !entries.isEmpty && entries.allSatisfy {
+                !valueMayReach(.symbol($0), facts: valueFacts)
+                    || isWhenBranchCovered(.symbol($0), branches: branches, sema: sema)
+            }
+        }
+        if subtypeSymbol.flags.contains(.sealedType) {
+            let nested = sealedSubtypeSymbols(for: subtypeSymbol, sema: sema)
+            return !nested.isEmpty && nested.allSatisfy {
+                isSealedSubtypeCovered($0, branches: branches, sema: sema, valueFacts: valueFacts)
+            }
+        }
+        return false
     }
 
     private func valueMayReach(_ value: DataFlowValue, facts: DataFlowValueFacts?) -> Bool {
