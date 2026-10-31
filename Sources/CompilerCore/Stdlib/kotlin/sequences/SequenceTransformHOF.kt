@@ -28,10 +28,12 @@ public fun <T, R> Sequence<T>.mapIndexed(transform: (Int, T) -> R): Sequence<R> 
             var index = 0
             override fun hasNext(): Boolean = sourceIterator.hasNext()
             override fun next(): R {
-                if (!sourceIterator.hasNext()) throw NoSuchElementException()
-                val result = transform(index, sourceIterator.next())
-                index = index + 1
-                return result
+                // Upstream TransformingIndexedSequence.next() does not probe
+                // hasNext() here: an extra source hasNext() per element is
+                // observable through iterator side effects (KUU-3809). An
+                // exhausted sourceIterator.next() throws NoSuchElementException
+                // on its own.
+                return transform(checkIndexOverflow(index++), sourceIterator.next())
             }
         }
     }
