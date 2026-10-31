@@ -427,7 +427,7 @@ final class RuntimeSequenceCoroutine: @unchecked Sendable {
             _ = runSuspendEntryLoopWithContinuation(
                 entryPointRaw: fnPtr,
                 continuation: continuation,
-                onCompletion: { _, thrown in
+                onCompletion: { _, thrown, _ in
                     coroutine.markFinished(thrown: thrown)
                 }
             )
@@ -747,7 +747,7 @@ final class RuntimeIteratorBuilderBox: @unchecked Sendable {
             _ = runSuspendEntryLoopWithContinuation(
                 entryPointRaw: fnPtr,
                 continuation: continuation,
-                onCompletion: { _, thrown in
+                onCompletion: { _, thrown, _ in
                     box.stateLock.lock()
                     box.failure = thrown
                     box.state = .done

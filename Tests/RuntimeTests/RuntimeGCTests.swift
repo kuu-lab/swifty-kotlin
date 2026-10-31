@@ -809,7 +809,7 @@ struct RuntimeGCTests {
                 _ = runSuspendEntryLoopWithContinuation(
                     entryPointRaw: entry,
                     continuation: continuation,
-                    onCompletion: { result, thrown in
+                    onCompletion: { result, thrown, _ in
                         #expect((isFailure ? thrown : result) == value)
                         callbackEntered.signal()
                         releaseCallback.wait()

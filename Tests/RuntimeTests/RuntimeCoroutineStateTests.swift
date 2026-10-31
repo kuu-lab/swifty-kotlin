@@ -452,7 +452,7 @@ struct RuntimeCoroutineStateTests {
         _ = runSuspendEntryLoopWithContinuation(
             entryPointRaw: unsafeBitCast(entry, to: Int.self),
             continuation: continuation,
-            onCompletion: { result, thrown in
+            onCompletion: { result, thrown, _ in
                 probe.record(result: result, thrown: thrown)
                 completed.signal()
             }
@@ -525,7 +525,7 @@ struct RuntimeCoroutineStateTests {
         let probe = ResumerProbe()
         _ = runSuspendEntryLoopWithContinuation(
             entryPointRaw: unsafeBitCast(entry, to: Int.self), continuation: continuation,
-            onCompletion: { result, thrown in
+            onCompletion: { result, thrown, _ in
                 probe.record(result: result, thrown: thrown)
                 completed.signal()
             }
@@ -1217,7 +1217,7 @@ struct RuntimeCoroutineStateTests {
         let immediate = runSuspendEntryLoopWithContinuation(
             entryPointRaw: entryRaw,
             continuation: continuation,
-            onCompletion: { result, thrown in
+            onCompletion: { result, thrown, _ in
                 probe.record(result: result, thrown: thrown)
                 completed.signal()
             }
