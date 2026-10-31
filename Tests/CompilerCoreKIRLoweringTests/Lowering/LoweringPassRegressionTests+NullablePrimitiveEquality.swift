@@ -29,6 +29,53 @@ extension LoweringPassRegressionTests {
         #expect(!boxCallees.contains(RuntimeCall.boxIntStatic.name), "No set element should be boxed as Int: \(boxCallees)")
     }
 
+    // KUU-3789: the list-side factory fast path must contextualize a bare
+    // integer literal through the explicit element type the way the set
+    // factories already do. `mutableListOf<Long>(1)` boxing its element as
+    // Int stores an IntBox that a later Long unbox rejects (CCE panic).
+    @Test(arguments: ["mutableListOf", "arrayListOf", "listOfNotNull"])
+    func testMutableListFactoriesBoxExplicitLongLiteralAsLong(factory: String) throws {
+        let source = """
+        fun main() {
+            val values = \(factory)<Long>(1)
+            println(values[0])
+        }
+        """
+        let callees = try loweredCallees(for: source, function: "main")
+        let boxCallees = callees.filter { $0.hasPrefix("kk_box_") }
+        #expect(
+            boxCallees.contains { $0.hasPrefix("kk_box_long") },
+            "\(factory)<Long>(1) must box its element as Long: \(boxCallees)"
+        )
+        #expect(
+            !boxCallees.contains { $0.hasPrefix("kk_box_int") },
+            "\(factory)<Long>(1) must not box its element as Int: \(boxCallees)"
+        )
+    }
+
+    // A bare constant mixed with a non-literal Long input also widens to the
+    // inferred element type: mutableListOf(1, 1L) is MutableList<Long> on the
+    // JVM, so both elements must reach the backing array as Long boxes.
+    @Test(arguments: ["mutableListOf", "arrayListOf", "listOfNotNull"])
+    func testMutableListFactoriesBoxMixedLiteralsAsInferredLong(factory: String) throws {
+        let source = """
+        fun main() {
+            val values = \(factory)(1, 1L)
+            println(values[0])
+        }
+        """
+        let callees = try loweredCallees(for: source, function: "main")
+        let boxCallees = callees.filter { $0.hasPrefix("kk_box_") }
+        #expect(
+            boxCallees.filter { $0.hasPrefix("kk_box_long") }.count >= 2,
+            "\(factory)(1, 1L) must box both elements as Long: \(boxCallees)"
+        )
+        #expect(
+            !boxCallees.contains { $0.hasPrefix("kk_box_int") },
+            "\(factory)(1, 1L) must not box an element as Int: \(boxCallees)"
+        )
+    }
+
     @Test
     func testGenericCallsBoxContextualLongIntegerLiteralsAsLong() throws {
         let source = """

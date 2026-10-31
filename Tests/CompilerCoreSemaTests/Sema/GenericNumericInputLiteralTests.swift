@@ -68,6 +68,100 @@ struct GenericNumericInputLiteralTests {
         )
     }
 
+    // KUU-3789: the list-factory fast path resolves the element type from the
+    // explicit type argument but used to leave the bare integer literal typed
+    // Int, so the lowering boxed it with kk_box_int and a later Long unbox
+    // rejected the IntBox. The literal must be re-inferred against the
+    // resolved element type like the set factories already do.
+    @Test(arguments: ["mutableListOf", "arrayListOf", "listOfNotNull"])
+    func listFactoriesContextualizeBareIntegerLiteralToExplicitLongElementType(factory: String) throws {
+        let ctx = try context("""
+        fun main() {
+            val values = \(factory)<Long>(1)
+            println(values[0])
+        }
+        """, library: false, cache: false)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let sourcePath = try #require(ctx.options.inputs.first)
+        let call = try #require(ast.arena.exprs.enumerated().compactMap { index, expr -> ExprID? in
+            guard case let .call(callee, _, _, _) = expr,
+                  case let .nameRef(name, _) = ast.arena.expr(callee),
+                  ctx.interner.resolve(name) == factory,
+                  let range = ast.arena.exprRange(ExprID(rawValue: Int32(index))),
+                  ctx.sourceManager.path(of: range.start.file) == sourcePath
+            else {
+                return nil
+            }
+            return ExprID(rawValue: Int32(index))
+        }.first)
+
+        guard case let .call(_, _, arguments, _) = ast.arena.expr(call) else {
+            Issue.record("Expected \(factory) call")
+            return
+        }
+        let binding = try #require(sema.bindings.callBinding(for: call))
+        let inferredType = try #require(binding.substitutedTypeArguments.first)
+        #expect(
+            inferredType == sema.types.longType,
+            "\(factory) element type: \(sema.types.renderType(inferredType))"
+        )
+        let firstArgumentType = sema.bindings.exprType(for: arguments[0].expr)
+        #expect(
+            firstArgumentType == sema.types.longType,
+            "\(factory) literal type: \(sema.types.renderType(firstArgumentType ?? sema.types.errorType))"
+        )
+    }
+
+    // A non-literal Long argument infers the element type and the bare
+    // constant widens to it: mutableListOf(1, 1L) is MutableList<Long> with
+    // the `1` bound as Long, matching setOf(1, 1L) -> Set<Long>.
+    @Test(arguments: ["mutableListOf", "arrayListOf", "listOfNotNull"])
+    func listFactoriesInferLongElementTypeFromMixedIntegerLiterals(factory: String) throws {
+        let ctx = try context("""
+        fun main() {
+            val values = \(factory)(1, 1L)
+            println(values[0])
+        }
+        """, library: false, cache: false)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let sourcePath = try #require(ctx.options.inputs.first)
+        let call = try #require(ast.arena.exprs.enumerated().compactMap { index, expr -> ExprID? in
+            guard case let .call(callee, _, _, _) = expr,
+                  case let .nameRef(name, _) = ast.arena.expr(callee),
+                  ctx.interner.resolve(name) == factory,
+                  let range = ast.arena.exprRange(ExprID(rawValue: Int32(index))),
+                  ctx.sourceManager.path(of: range.start.file) == sourcePath
+            else {
+                return nil
+            }
+            return ExprID(rawValue: Int32(index))
+        }.first)
+
+        guard case let .call(_, _, arguments, _) = ast.arena.expr(call) else {
+            Issue.record("Expected \(factory) call")
+            return
+        }
+        let binding = try #require(sema.bindings.callBinding(for: call))
+        let inferredType = try #require(binding.substitutedTypeArguments.first)
+        #expect(
+            inferredType == sema.types.longType,
+            "\(factory)(1, 1L) element type: \(sema.types.renderType(inferredType))"
+        )
+        let firstArgumentType = sema.bindings.exprType(for: arguments[0].expr)
+        #expect(
+            firstArgumentType == sema.types.longType,
+            "\(factory)(1, 1L) literal type: \(sema.types.renderType(firstArgumentType ?? sema.types.errorType))"
+        )
+    }
+
     @Test
     func mutableMapOfContextualizesIntegerLiteralInsidePairArgument() throws {
         let ctx = try context("""
