@@ -193,13 +193,34 @@ struct SuspendCallContextTests {
 
     @Test
     func callableLocalDoesNotHideApplicableTrailingLambdaExtension() throws {
+        // kotlinc parity: the trailing-lambda call binds to the
+        // `Flow<T>.transform` member extension, and the inner `transform(value)`
+        // invokes the function-typed parameter. Since that lambda escapes into
+        // a non-inline function, the inner call is only legal when the
+        // parameter is `crossinline` (see the companion test below).
+        let result = try diagnostics("""
+        class Flow<T>
+        fun <T, R> Flow<T>.transform(action: (T) -> R): Flow<R> = Flow()
+        inline fun <T, R> Flow<T>.map(crossinline transform: (T) -> R): Flow<R> =
+            transform { value -> transform(value) }
+        """)
+        #expect(!result.hasError, "\(result.diagnostics)")
+    }
+
+    @Test
+    func nonCrossinlineParameterInsideEscapingTrailingLambdaIsRejected() throws {
+        // kotlinc 2.4.20 emits the same diagnostic at the inner `transform`
+        // call: a non-crossinline functional parameter cannot be invoked
+        // inside a lambda that escapes into a non-inline function.
         let result = try diagnostics("""
         class Flow<T>
         fun <T, R> Flow<T>.transform(action: (T) -> R): Flow<R> = Flow()
         inline fun <T, R> Flow<T>.map(transform: (T) -> R): Flow<R> =
             transform { value -> transform(value) }
         """)
-        #expect(!result.hasError, "\(result.diagnostics)")
+        let errors = result.diagnostics.filter { $0.severity == .error }
+        #expect(errors.count == 1, "\(result.diagnostics)")
+        #expect(errors.allSatisfy { $0.code == "KSWIFTK-SEMA-0450" })
     }
 
     @Test
