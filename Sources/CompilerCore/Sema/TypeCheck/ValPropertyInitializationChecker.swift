@@ -77,13 +77,17 @@ final class ValPropertyInitializationChecker {
         // are not in the AST's pre-inference active declaration snapshot.
         for declID in sema.bindings.declSymbols.keys.sorted(by: { $0.rawValue < $1.rawValue }) {
             guard let symbol = sema.bindings.declSymbol(for: declID) else { continue }
+            // `expect` marks propagate to members at any nesting depth (e.g. a
+            // `companion object` inside an `expect class`), so consult the
+            // inherited symbol flag rather than the decl's own modifiers.
+            let isExpectDeclaration = sema.symbols.symbol(symbol)?.flags.contains(.expectDeclaration) == true
             switch ast.arena.decl(declID) {
             case let .classDecl(decl):
                 checkOwner(symbol, properties: decl.memberProperties, blocks: decl.initBlocks,
                            order: decl.classBodyInitOrder, constructors: decl.secondaryConstructors,
                            parameters: decl.primaryConstructorParams,
                            hasPrimaryConstructor: decl.hasPrimaryConstructorSyntax || decl.secondaryConstructors.isEmpty,
-                           checksDefiniteInitialization: !decl.modifiers.contains(.expect) && !decl.modifiers.contains(.annotationClass))
+                           checksDefiniteInitialization: !isExpectDeclaration && !decl.modifiers.contains(.annotationClass))
                 if sema.symbols.symbol(symbol)?.kind == .enumClass,
                    let enumInfo = sema.symbols.symbol(symbol)
                 {
@@ -101,14 +105,14 @@ final class ValPropertyInitializationChecker {
                             blocks: entry.initBlocks,
                             order: entry.classBodyInitOrder,
                             constructors: [],
-                            checksDefiniteInitialization: !decl.modifiers.contains(.expect)
+                            checksDefiniteInitialization: !isExpectDeclaration
                         )
                     }
                 }
             case let .objectDecl(decl):
                 checkOwner(symbol, properties: decl.memberProperties, blocks: decl.initBlocks,
                            order: decl.classBodyInitOrder, constructors: [],
-                           checksDefiniteInitialization: !decl.modifiers.contains(.expect))
+                           checksDefiniteInitialization: !isExpectDeclaration)
             default:
                 break
             }

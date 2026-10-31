@@ -888,7 +888,7 @@ struct DeclarationPositionValidator {
         let memberSite = NominalSite(
             kind: isEnum ? .enum : (isAnnotation ? .annotationClass : .class),
             isLocal: site == .function,
-            ownerModifiers: modifiers,
+            ownerModifiers: memberOwnerModifiers(modifiers, site: site),
             allowsImperativeInit: !decl.initBlocks.isEmpty
                 || !decl.secondaryConstructors.isEmpty,
             defersPropertyInitialization: !decl.initBlocks.isEmpty
@@ -926,7 +926,7 @@ struct DeclarationPositionValidator {
             let entrySite = OwnerSite.nominal(NominalSite(
                 kind: .enumEntry,
                 isLocal: site.isLocal,
-                ownerModifiers: [],
+                ownerModifiers: site.ownerModifiers.intersection(.expect),
                 allowsImperativeInit: !entry.initBlocks.isEmpty,
                 defersPropertyInitialization: !entry.initBlocks.isEmpty
             ))
@@ -988,7 +988,7 @@ struct DeclarationPositionValidator {
         let memberSite = NominalSite(
             kind: .interface,
             isLocal: site == .function,
-            ownerModifiers: modifiers
+            ownerModifiers: memberOwnerModifiers(modifiers, site: site)
         )
         validateInterfaceMembers(decl, site: memberSite)
     }
@@ -1094,7 +1094,7 @@ struct DeclarationPositionValidator {
         let memberSite = NominalSite(
             kind: isCompanion ? .companionObject : .object,
             isLocal: site == .function,
-            ownerModifiers: modifiers,
+            ownerModifiers: memberOwnerModifiers(modifiers, site: site),
             allowsImperativeInit: !decl.initBlocks.isEmpty,
             defersPropertyInitialization: !decl.initBlocks.isEmpty
                 || hasPropertyInitializationExpression(decl.memberProperties)
@@ -1380,6 +1380,14 @@ struct DeclarationPositionValidator {
             return true
         }
         return false
+    }
+
+    /// Members of an `expect` owner are themselves expected implicitly at any
+    /// nesting depth — e.g. properties of a `companion object` inside an
+    /// `expect class` need no initializer — so the marker propagates into
+    /// each member site.
+    private func memberOwnerModifiers(_ modifiers: Modifiers, site: OwnerSite) -> Modifiers {
+        isExpectContext(modifiers, site: site) ? modifiers.union(.expect) : modifiers
     }
 
     private func emitExpectNotPrivate(range: SourceRange) {
