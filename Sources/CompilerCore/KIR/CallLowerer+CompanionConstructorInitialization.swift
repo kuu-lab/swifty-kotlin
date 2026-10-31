@@ -3,13 +3,15 @@ extension CallLowerer {
     func shouldDeferCompanionInitializationUntilArgumentsAreEvaluated(
         exprID: ExprID,
         args: [CallArgument],
-        sema: SemaModule
+        sema: SemaModule,
+        interner: StringInterner
     ) -> Bool {
         guard let callBinding = sema.bindings.callBinding(for: exprID),
               let constructor = sema.symbols.symbol(callBinding.chosenCallee),
               constructor.kind == .constructor,
               let ownerSymbol = sema.symbols.parentSymbol(for: callBinding.chosenCallee),
               sema.symbols.companionObjectSymbol(for: ownerSymbol) != nil
+                || sema.symbols.companionBlockObjectSymbol(for: ownerSymbol, interner: interner) != nil
         else {
             return false
         }
@@ -36,6 +38,7 @@ extension CallLowerer {
               constructor.kind == .constructor,
               let ownerSymbol = sema.symbols.parentSymbol(for: callBinding.chosenCallee),
               let companionSymbol = sema.symbols.companionObjectSymbol(for: ownerSymbol)
+                ?? sema.symbols.companionBlockObjectSymbol(for: ownerSymbol, interner: interner)
         else {
             return
         }
