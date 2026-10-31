@@ -306,8 +306,15 @@ struct RuntimeKClassIntrospectionEdgeCaseTests {
             0
         )
         let kclass = __kk_kclass_create(token, 0)
-        let vis = strValue(from: __kk_kclass_visibility(kclass))
-        #expect(vis == "PUBLIC")
+        // `__kk_kclass_visibility` returns a kotlin.reflect.KVisibility enum
+        // box — the same kk_enum_box_ordinal contract
+        // `__kk_kcallable_get_metadata` uses for callable visibility — not a
+        // string box, matching `KClass.visibility: KVisibility?`.
+        let visRaw = __kk_kclass_visibility(kclass)
+        #expect(strValue(from: kk_enum_name(visRaw)) == "PUBLIC")
+        #expect(kk_unbox_int(visRaw) == 0) // KVisibility.PUBLIC ordinal
+        let visBox = tryCast(UnsafeMutableRawPointer(bitPattern: visRaw)!, to: RuntimeIntBox.self)
+        #expect(visBox?.enumClassID == runtimeStableNominalTypeID(fqName: "kotlin.reflect.KVisibility"))
     }
 
     @Test
@@ -322,8 +329,19 @@ struct RuntimeKClassIntrospectionEdgeCaseTests {
             0
         )
         let kclass = __kk_kclass_create(token, 0)
-        let vis = strValue(from: __kk_kclass_visibility(kclass))
-        #expect(vis == "INTERNAL")
+        let visRaw = __kk_kclass_visibility(kclass)
+        #expect(strValue(from: kk_enum_name(visRaw)) == "INTERNAL")
+        #expect(kk_unbox_int(visRaw) == 2) // KVisibility.INTERNAL ordinal
+        let visBox = tryCast(UnsafeMutableRawPointer(bitPattern: visRaw)!, to: RuntimeIntBox.self)
+        #expect(visBox?.enumClassID == runtimeStableNominalTypeID(fqName: "kotlin.reflect.KVisibility"))
+    }
+
+    @Test
+    func testVisibilityNullForUnregisteredKClass() {
+        // `KClass.visibility` is nullable: a KClass with no registered
+        // metadata must produce the null sentinel, not an enum box.
+        let kclass = __kk_kclass_create(10006, 0)
+        #expect(__kk_kclass_visibility(kclass) == runtimeNullSentinelInt)
     }
 
     // MARK: - Type parameters
