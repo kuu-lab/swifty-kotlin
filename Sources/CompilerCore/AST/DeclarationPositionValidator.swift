@@ -822,6 +822,14 @@ struct DeclarationPositionValidator {
 
         emitPairConflicts(pairPlan.emissions, range: decl.range)
 
+        // kotlinc prohibits `by`-delegation in `expect` classes (one error
+        // per delegated supertype entry, at the `I by d` specifier). Kept in
+        // its own expect-context block so it stays independent of the
+        // KUU-3898 expect-shape checks above.
+        if isExpectContext(modifiers, site: site) {
+            emitExpectDelegationDiagnostics(decl.superTypeEntries, fallbackRange: decl.range)
+        }
+
         if modifiers.contains(.data), !isEnum, !isAnnotation, decl.primaryConstructorParams.isEmpty {
             diagnostics?.error(
                 "KSWIFTK-SEMA-0404",
@@ -1088,6 +1096,12 @@ struct DeclarationPositionValidator {
         }
         if case .nominal(let nominal) = site {
             validateMemberSiteModifiers(modifiers, site: nominal, target: "nested class", range: decl.range)
+        }
+
+        // kotlinc reports the same 'expect' delegation error on objects
+        // (`expect object O : I by d`), still phrased "'expect' classes".
+        if isExpectContext(modifiers, site: site) {
+            emitExpectDelegationDiagnostics(decl.superTypeEntries, fallbackRange: decl.range)
         }
 
         let isCompanion = modifiers.contains(.companion)
@@ -1404,6 +1418,36 @@ struct DeclarationPositionValidator {
             "'expect' declaration cannot have a body.",
             range: range
         )
+    }
+
+    /// kotlinc emits "implementation by delegation in 'expect' classes is
+    /// prohibited." once per delegated supertype entry (`I by d`), covering
+    /// the whole `Type by expr` specifier. Applies to classes, objects,
+    /// enum classes, and their nested members inside an `expect` owner —
+    /// anywhere `isExpectContext` holds.
+    private func emitExpectDelegationDiagnostics(
+        _ entries: [SuperTypeEntry],
+        fallbackRange: SourceRange
+    ) {
+        for entry in entries {
+            guard let delegateExpression = entry.delegateExpression else {
+                continue
+            }
+            let delegateRange = astArena.exprRange(delegateExpression)
+            let range: SourceRange
+            if let typeRange = entry.range, let delegateRange,
+               typeRange.start.file == delegateRange.end.file
+            {
+                range = SourceRange(start: typeRange.start, end: delegateRange.end)
+            } else {
+                range = delegateRange ?? entry.range ?? fallbackRange
+            }
+            diagnostics?.error(
+                "KSWIFTK-SEMA-0460",
+                "implementation by delegation in 'expect' classes is prohibited.",
+                range: range
+            )
+        }
     }
 
     private func functionTargetName(site: OwnerSite) -> String {
