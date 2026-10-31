@@ -105,10 +105,43 @@ extension CallTypeChecker {
                             : type
                     }
                 let contextualElementType = expectedType.flatMap { typeArgs(from: $0).first }
-                let inferredElementType = elementTypes.isEmpty
+                let explicitElementType = resolvedExplicitTypeArgument(at: 0, in: explicitTypeArgs)
+                // Kotlin infers a generic collection's element type from a
+                // non-literal input and then widens compatible integer constant
+                // expressions to that type — `mutableListOf(1, 1L)` is a
+                // MutableList<Long>. Keep the constants out of the ordinary
+                // LUB the way the set factories below already do, then bind
+                // the literals to that element type before lowering reads
+                // their types (KUU-3789; mirrors the setOf fix).
+                let integerConstantArguments = args.indices.filter { index in
+                    guard !args[index].isSpread else { return false }
+                    let literal = integerLiteralValues(args[index].expr, ast: ctx.ast)
+                    return literal.signed != nil || literal.unsigned != nil
+                }
+                let nonLiteralElementTypes = zip(args, argTypes).compactMap { argument, type -> TypeID? in
+                    guard !argument.isSpread else { return nil }
+                    let literal = integerLiteralValues(argument.expr, ast: ctx.ast)
+                    guard literal.signed == nil, literal.unsigned == nil else { return nil }
+                    if name == "listOfNotNull", type == sema.types.nullableNothingType {
+                        return nil
+                    }
+                    return name == "listOfNotNull" ? sema.types.makeNonNullable(type) : type
+                }
+                let contextualIntegerType = explicitElementType
+                    ?? (nonLiteralElementTypes.isEmpty ? nil : sema.types.lub(nonLiteralElementTypes))
+                let canContextualizeIntegerConstants = !args.contains(where: \.isSpread)
+                    && !integerConstantArguments.isEmpty
+                    && contextualIntegerType.map { targetType in
+                        integerConstantArguments.allSatisfy { index in
+                            integerLiteralFitsParameter(args[index].expr, parameterType: targetType, ctx: ctx)
+                        }
+                    } == true
+                let fallbackElementType = elementTypes.isEmpty
                     ? contextualElementType ?? sema.types.nothingType
                     : sema.types.lub(elementTypes)
-                let explicitElementType = resolvedExplicitTypeArgument(at: 0, in: explicitTypeArgs)
+                let inferredElementType = canContextualizeIntegerConstants
+                    ? contextualIntegerType ?? fallbackElementType
+                    : fallbackElementType
 
                 func collectionType(elementType: TypeID) -> TypeID {
                     if name == "arrayListOf" {
@@ -380,7 +413,14 @@ extension CallTypeChecker {
                           ).viableCandidates.isEmpty
                     else { return nil }
                 }
-                if ["emptySet", "setOf", "setOfNotNull", "mutableSetOf", "hashSetOf", "linkedSetOf"]
+                // KUU-3789: the same integer-literal rebinding the set
+                // factories already get. `mutableListOf<Long>(1)` resolves
+                // T=Long only for the result type here; without re-inferring
+                // the literal against that element type it stays Int, the
+                // lowering boxes it with kk_box_int, and a later Long unbox
+                // reads the wrong box.
+                if ["emptyList", "listOf", "listOfNotNull", "mutableListOf", "arrayListOf",
+                    "emptySet", "setOf", "setOfNotNull", "mutableSetOf", "hashSetOf", "linkedSetOf"]
                     .contains(resolvedName),
                    let elementType = sourceBackedFactory.typeArgs.first
                 {
