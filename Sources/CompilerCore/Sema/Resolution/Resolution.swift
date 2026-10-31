@@ -1171,6 +1171,53 @@ extension OverloadResolver {
             return upperBounds.contains(where: ctx.types.isDefinitelyNonNull)
         }
 
+        // A member of a generic declaration can see its own type parameters in
+        // the expected type — for example `POS(element, element)` inside
+        // `class POS<E>` returning `PS<E>`. The expected `E` is the lexical
+        // parameter, not the call's inference variable, but it shares the same
+        // symbol, so decomposing `POS<E'> <: PS<E>` collapses to a vacuous
+        // `E' <: E'` self-constraint that gives the solver no usable bound
+        // (KUU-3937). Pin the variable to the parameter itself — the same
+        // binding an explicit `POS<E>(...)` supplies. The pin is only added
+        // where decomposition actually produced that self-constraint, so an
+        // expected type that merely mentions the parameter in a nested
+        // position (e.g. `PS<List<E>>`, which correctly binds `E' = List<E>`)
+        // keeps its ordinary decomposition.
+        if let expectedType {
+            let expectedDecomposed = decomposeSubtypeConstraint(
+                subtype: signature.returnType,
+                supertype: expectedType,
+                typeVarBySymbol: typeVarBySymbol,
+                typeSystem: ctx.types,
+                blameRange: call.range
+            )
+            var pinnedVariables: Set<TypeVarID> = []
+            for constraint in expectedDecomposed {
+                guard case let (.variable(left), .variable(right)) =
+                        (constraint.left, constraint.right),
+                      left == right,
+                      explicitTypeSubstitution[left] == nil,
+                      pinnedVariables.insert(left).inserted,
+                      let symbol = signature.typeParameterSymbols.first(where: {
+                          typeVarBySymbol[$0] == left
+                      })
+                else {
+                    continue
+                }
+                let pinnedConstraint = VariableConstraint(
+                    kind: .equal,
+                    left: .variable(left),
+                    right: .type(ctx.types.make(.typeParam(TypeParamType(
+                        symbol: symbol,
+                        nullability: .nonNull
+                    )))),
+                    blameRange: call.range
+                )
+                constraints.append(pinnedConstraint)
+                inputConstraints.append(pinnedConstraint)
+            }
+        }
+
         let constraintsBeforeElvisLhsHint = constraints
         let inputsBeforeElvisLhsHint = inputConstraints
         var hasElvisLhsHintConstraints = false
