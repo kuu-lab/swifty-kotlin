@@ -570,8 +570,10 @@ final class TypeCheckDriver {
         // placeholders. Unresolved references, inferred-return calls and cycles
         // stay on the source-order pass.
         var previousPrecheckedCount: Int
+        var previousPendingCount: Int
         repeat {
             previousPrecheckedCount = precheckedPropertyDecls.count
+            previousPendingCount = pendingPropertyTypes.count
             for file in files {
                 guard let inferCtx = inferenceContext(for: file) else { continue }
                 for declID in file.topLevelDecls {
@@ -583,22 +585,44 @@ final class TypeCheckDriver {
                     }
                     switch decl {
                     case let .propertyDecl(property):
-                        guard declChecker.canSafelyPrecheckInferredProperty(
+                        if declChecker.canSafelyPrecheckInferredProperty(
                             property,
                             symbol: symbol,
                             in: inferCtx
-                        ) else {
-                            continue
+                        ) {
+                            declChecker.typeCheckBoundPropertyDecl(
+                                property,
+                                declID: declID,
+                                symbol: symbol,
+                                ctx: inferCtx.with(currentDeclSymbol: symbol),
+                                solver: solver,
+                                diagnostics: diagnostics
+                            )
+                            precheckedPropertyDecls.insert(declID)
+                        } else if sema.symbols.propertyType(for: symbol) == sema.types.nullableAnyType,
+                                  declChecker.canPublishInferredPropertyTypeEarly(
+                                      property,
+                                      in: inferCtx
+                                  )
+                        {
+                            // A custom accessor body cannot run ahead of
+                            // source order, but a safe initializer still fixes
+                            // the property's type. Publish that type while the
+                            // header placeholder is in place; the source-order
+                            // pass re-checks the whole declaration, accessors
+                            // included, and re-emits any diagnostics.
+                            let diagnosticSnapshot = diagnostics.count
+                            declChecker.typeCheckBoundPropertyDecl(
+                                property,
+                                declID: declID,
+                                symbol: symbol,
+                                ctx: inferCtx.with(currentDeclSymbol: symbol),
+                                solver: solver,
+                                diagnostics: diagnostics,
+                                checkAccessorBodies: false
+                            )
+                            diagnostics.truncate(to: diagnosticSnapshot)
                         }
-                        declChecker.typeCheckBoundPropertyDecl(
-                            property,
-                            declID: declID,
-                            symbol: symbol,
-                            ctx: inferCtx.with(currentDeclSymbol: symbol),
-                            solver: solver,
-                            diagnostics: diagnostics
-                        )
-                        precheckedPropertyDecls.insert(declID)
                     case let .classDecl(classDecl):
                         declChecker.precheckIndependentClassMemberProperties(
                             classDecl,
@@ -621,6 +645,7 @@ final class TypeCheckDriver {
                 }
             }
         } while precheckedPropertyDecls.count > previousPrecheckedCount
+            || pendingPropertyTypes.count < previousPendingCount
 
         // Dependency inference and contract collection above remain module-owned.
         // Workers cannot demand an inferred declaration or modify a signature.

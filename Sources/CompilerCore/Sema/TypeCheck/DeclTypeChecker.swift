@@ -165,7 +165,8 @@ final class DeclTypeChecker {
         ctx: TypeInferenceContext,
         initialLocals: LocalBindings = [:],
         solver: ConstraintSolver,
-        diagnostics: DiagnosticEngine
+        diagnostics: DiagnosticEngine,
+        checkAccessorBodies: Bool = true
     ) {
         let annotations = property.annotations + (ctx.sema.bindings.primaryConstructorPropertyAnnotations[symbol] ?? [])
         typeCheckAnnotationFactories(annotations, symbol: symbol, ctx: ctx)
@@ -371,7 +372,11 @@ final class DeclTypeChecker {
             )
         }
 
-        if let getter = property.getter {
+        // A custom accessor body may reference members still waiting on the
+        // source-order pass. When this run only publishes the inferred type,
+        // accessor bodies stay deferred and are re-checked in source order;
+        // they cannot change the type an initializer already determines.
+        if checkAccessorBodies, let getter = property.getter {
             inferredPropertyType = typeCheckGetter(
                 getter, property: property, symbol: symbol,
                 inferredPropertyType: inferredPropertyType,
@@ -424,7 +429,7 @@ final class DeclTypeChecker {
             )
         }
 
-        if let setter = property.setter {
+        if checkAccessorBodies, let setter = property.setter {
             typeCheckSetter(
                 setter, property: property, symbol: symbol,
                 finalPropertyType: finalPropertyType,
