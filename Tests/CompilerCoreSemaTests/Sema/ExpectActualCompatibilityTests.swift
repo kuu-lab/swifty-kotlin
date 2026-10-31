@@ -395,6 +395,35 @@ struct ExpectActualCompatibilityTests {
         }
     }
 
+    /// KUU-3887: an override targeting a member of an expect/actual paired
+    /// class must be judged against the actual declaration — the expect side
+    /// carries no `open`/`abstract` information. This runs at header time,
+    /// before `setExpectActualLink`, so the check pairs the declarations
+    /// positionally.
+    @Test func testSubclassOverrideThroughPairedActualClass() throws {
+        let ctx = makeContextFromSources([
+            """
+            package x
+            interface Pool<T> { fun borrow(): T }
+            expect abstract class DP<T : Any>(val capacity: Int) : Pool<T> {
+                protected fun produce(): T
+            }
+            """,
+            """
+            package x
+            actual abstract class DP<T : Any>(actual val capacity: Int) : Pool<T> {
+                protected actual open fun produce(): T = TODO()
+                actual override fun borrow(): T = produce()
+            }
+            class Sub : DP<Int>(8) { override fun produce(): Int = 1 }
+            """,
+        ])
+        try runSema(ctx)
+
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.isEmpty, "Expected override through expect/actual pair to judge the actual member, got: \(errors)")
+    }
+
     @Test func testActualAbstractFunctionMatchesExpectClassMember() throws {
         let ctx = makeContextFromSources([
             """

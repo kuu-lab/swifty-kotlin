@@ -105,7 +105,7 @@ struct CodegenBackendObjectLiteralClassInheritanceTests {
         """
         let actualSource = """
         package x
-        actual abstract class DP<T : Any>(actual override val capacity: Int) : Pool<T> {
+        actual abstract class DP<T : Any>(actual val capacity: Int) : Pool<T> {
             protected actual open fun produce(): T = TODO()
             actual override fun borrow(): T = produce()
         }
