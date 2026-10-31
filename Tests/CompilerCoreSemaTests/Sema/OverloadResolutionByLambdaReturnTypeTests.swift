@@ -180,6 +180,22 @@ struct OverloadResolutionByLambdaReturnTypeTests {
 
                     fun test(host: Host): Int = host.foo { 42 }
 
+            """,
+
+            // testParenthesizedLambdaConstructorOverloadRemainsAmbiguous
+            """
+            package sample11
+                    class Foo(vararg val strings: () -> String, var result: String = "primary") {
+                        constructor(unit: () -> Unit) : this() { result = "secondary" }
+                    }
+
+                    fun test() {
+                        Foo { "" }
+                        Foo { Unit }
+                        Foo({ "" })
+                        Foo({ Unit })
+                    }
+
             """
         ]
 
@@ -287,6 +303,23 @@ struct OverloadResolutionByLambdaReturnTypeTests {
 
                 #expect(sampleDiags.isEmpty, "Expected extension-call refinement to resolve cleanly, got: \(sampleDiags)")
             }
+            // testParenthesizedLambdaConstructorOverloadRemainsAmbiguous
+            do {
+                let samplePath = paths[11]
+                let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
+
+                // The trailing-lambda calls resolve to the `() -> Unit`
+                // secondary constructor, matching kotlinc; only the two
+                // parenthesized lambda calls are ambiguous.
+                #expect(
+                    sampleDiags.filter { $0.code == "KSWIFTK-SEMA-0003" }.count == 2,
+                    "Expected ambiguity on both parenthesized lambda calls, got: \(sampleDiags)"
+                )
+                #expect(
+                    sampleDiags.filter { $0.severity == .error }.count == 2,
+                    "Expected no diagnostics beyond the two ambiguity errors, got: \(sampleDiags)"
+                )
+            }
 
         }
     }
@@ -315,6 +348,16 @@ struct OverloadResolutionByLambdaReturnTypeTests {
     // type regardless of what the surviving candidates expect, so there is no implicit-`it`
     // ambiguity to detect -- normal argument-type matching picks the one candidate whose
     // parameter type accepts it, exactly like kotlinc.
+
+
+    // KUU-3834 (false positive): the JetBrains box test
+    // `codegen/box/inference/varargInConstructor.kt` enables
+    // `// LANGUAGE: +EagerLambdaAnalysis, +UnitConversionsOnArbitraryExpressions, ...`, under
+    // which `Foo({ "" })`/`Foo({ Unit })` resolve to distinct constructor overloads. Default
+    // kotlinc 2.4.20 (no experimental flags) instead reports `overload resolution ambiguity`
+    // on both parenthesized calls -- identical to kswiftc's two KSWIFTK-SEMA-0003 diagnostics.
+    // The trailing-lambda calls bind only to the last parameter, so `result: String` keeps the
+    // primary constructor inapplicable and `() -> Unit` resolves both `Foo { ... }` forms.
 
 
 
