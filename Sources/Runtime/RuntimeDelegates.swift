@@ -340,7 +340,8 @@ public func kk_kproperty_stub_create_local(
     guard let identity = runtimeStringFromRaw(identityStr) else {
         registerReflectionRuntimeTypeMetadata()
         let stub = RuntimeKPropertyStub(
-            name: nameStr, returnType: returnTypeStr, isLocalDelegated: true
+            name: nameStr, returnType: returnTypeStr, isMutable: isMutableFlag,
+            isLocalDelegated: true
         )
         let raw = registerRuntimeObject(
             stub,
@@ -360,7 +361,8 @@ public func kk_kproperty_stub_create_local(
 
         registerReflectionRuntimeTypeMetadata()
         let stub = RuntimeKPropertyStub(
-            name: nameStr, returnType: returnTypeStr, isLocalDelegated: true
+            name: nameStr, returnType: returnTypeStr, isMutable: isMutableFlag,
+            isLocalDelegated: true
         )
         let created = registerRuntimeObject(
             stub,
