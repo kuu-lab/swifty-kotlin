@@ -279,8 +279,18 @@ extension ExprTypeChecker {
                 diagnostics: ctx.sema.diagnostics,
                 usageRange: entry.range ?? classDecl.range
             )
-            directSuperTypes.append(resolved)
-            if case let .classType(classType) = sema.types.kind(of: resolved) {
+            // A function-type delegation specifier (`class C : suspend () -> T`
+            // inside a function) resolves to a structural `.functionType`;
+            // lift it to the nominal SuspendFunctionN / FunctionN interface
+            // the named-declaration path records (KUU-3838).
+            let resolvedNominal = driver.helpers.nominalFunctionInterfaceSupertype(
+                for: resolved,
+                owner: classSymbol,
+                sema: sema,
+                interner: interner
+            )
+            directSuperTypes.append(resolvedNominal)
+            if case let .classType(classType) = sema.types.kind(of: resolvedNominal) {
                 if classType.classSymbol == classSymbol {
                     ctx.sema.diagnostics.error(
                         "KSWIFTK-SEMA-SUPER-CYCLE",

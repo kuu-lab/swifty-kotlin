@@ -70,7 +70,17 @@ extension ExprTypeChecker {
                     ? objectDecl.superTypeEntries[index].range ?? objectDecl.range
                     : objectDecl.range
             )
-            if case let .classType(classType) = sema.types.kind(of: resolved),
+            // A function-type delegation specifier (`object : suspend () -> T`)
+            // resolves to a structural `.functionType`; lift it to the nominal
+            // SuspendFunctionN / FunctionN interface the named-declaration path
+            // records (KUU-3838).
+            let resolvedNominal = driver.helpers.nominalFunctionInterfaceSupertype(
+                for: resolved,
+                owner: objectSymbol,
+                sema: sema,
+                interner: interner
+            )
+            if case let .classType(classType) = sema.types.kind(of: resolvedNominal),
                !directSuperSymbols.contains(classType.classSymbol)
             {
                 if index < objectDecl.superTypeEntries.count {

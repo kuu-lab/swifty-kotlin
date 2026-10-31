@@ -75,7 +75,14 @@ extension BuildASTPhase.ExpressionParser {
         if consumeIf(.symbol(.colon)) != nil {
             while true {
                 let typeStart = current()?.range.start ?? objectToken.range.start
-                guard let superType = parseTypeReference(current()?.range ?? objectToken.range) else {
+                // Kotlin's delegationSpecifier grammar admits functionType
+                // supertypes (`object : suspend () -> Int`, `object : R.() -> T`),
+                // which map to the SuspendFunctionN / FunctionN interfaces —
+                // the same path named-class supertypes already take.
+                guard let superType = parseTypeReference(
+                    current()?.range ?? objectToken.range,
+                    allowFunctionType: true
+                ) else {
                     break
                 }
                 let typeEnd = index > 0 ? tokens[index - 1].range.end : typeStart
