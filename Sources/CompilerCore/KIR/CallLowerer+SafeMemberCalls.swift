@@ -1620,6 +1620,14 @@ extension CallLowerer {
             return linkName.hasPrefix("__kk_input_stream_")
         case ["java", "io", "OutputStream"]:
             return linkName.hasPrefix("__kk_output_stream_")
+        case ["java", "io", "Writer"], ["java", "io", "BufferedWriter"]:
+            // Writer-family members all link to the shared __kk_buffered_writer_*
+            // bridges, which accept any RuntimeJavaWriter handle. Covering
+            // BufferedWriter too keeps overrides on user subclasses (e.g.
+            // `class W : BufferedWriter(w) { override fun flush() }`)
+            // reachable through a BufferedWriter-typed receiver instead of
+            // handing the raw object to the bridge (KSWIFTK-RUNTIME-0001).
+            return linkName.hasPrefix("__kk_buffered_writer_")
         default:
             return false
         }
@@ -1962,6 +1970,21 @@ private func resolveItableDispatchKind(
             guard hasSubtypes || needsAbstractInterfaceDispatch,
                   let receiverLayout = sema.symbols.nominalLayout(for: receiverClassSymID)
             else { return nil }
+            if receiverClassSym.flags.contains(.synthetic) {
+                // Synthetic nominals (e.g. the java.io stream/reader/writer
+                // stubs) never get generated construction, so no call emits
+                // the kk_object_register_itable_iface sequence that would
+                // install this class's itable ordering on the object. The
+                // receiver is always a runtime box whose iface->slot map was
+                // registered ad hoc (streams use slot 0 for every closeable
+                // nominal), so a constant class-layout ifaceSlot would miss
+                // and trap KSWIFTK-RUNTIME-0001 — `stream.use {}` hit exactly
+                // that. Key the lookup by interface type ID instead (KUU-3860).
+                let interfaceTypeID = RuntimeTypeCheckToken.stableNominalTypeID(
+                    symbol: parentID, sema: sema, interner: interner
+                )
+                return .itableDynamic(interfaceTypeID: interfaceTypeID, methodSlot: methodSlot)
+            }
             let interfaceSlot: Int
             if let registeredSlot = receiverLayout.itableSlots[parentID] {
                 interfaceSlot = registeredSlot

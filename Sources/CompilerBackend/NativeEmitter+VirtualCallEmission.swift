@@ -103,8 +103,15 @@ extension NativeEmitter.FunctionEmissionContext {
                 // A runtime-builtin root such as `kotlin.Any.toString` has
                 // no emitted Kotlin ABI to recover, so anchoring on it would
                 // type a flat-String override slot as a raw Int handle.
+                // `__kk_*` roots are the opposite convention: they ARE the
+                // slot's canonical raw runtime ABI — every registered entry
+                // (runtime box bridges, `kk_itable_bridge_*` adapters) shares
+                // it — so overrides of `Writer.write` and friends must call
+                // through the root's raw signature (KUU-3860).
+                let candidateLinkName = symbols.externalLinkName(for: candidate)
                 let candidateHasEmittedABI = internalFunctions[candidate] != nil
-                    || symbols.externalLinkName(for: candidate)?.hasPrefix("kk_fn_") == true
+                    || candidateLinkName?.hasPrefix("kk_fn_") == true
+                    || candidateLinkName?.hasPrefix("__kk_") == true
                 guard candidateProperty != nil
                     || (symbols.functionSignature(for: candidate) != nil && candidateHasEmittedABI),
                       let candidateOwner = virtualCallNominalOwner(for: candidate, symbols: symbols),
