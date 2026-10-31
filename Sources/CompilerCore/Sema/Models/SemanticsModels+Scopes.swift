@@ -43,6 +43,13 @@ open class BaseScope: Scope {
         []
     }
 
+    /// Whether this scope level registered a local value or classifier
+    /// declaration for `name`. Those declarations live outside the symbol
+    /// lookup table but still mark the lexical level that owns them.
+    func declaresLocalValueOrClassifier(named name: InternedString) -> Bool {
+        localValueOrClassifierDeclarations[name]?.isEmpty == false
+    }
+
     /// Bound symbols plus lazily supplied same-tier candidates, deduplicated.
     func candidates(for name: InternedString) -> [SymbolID] {
         let bound = locals[name] ?? []

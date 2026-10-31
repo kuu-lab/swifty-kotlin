@@ -686,6 +686,7 @@ extension CallTypeChecker {
     func inferLexicalExtensionCallableInvocation(
         _ request: MemberCallInferenceRequest,
         receiverType: TypeID,
+        argumentTypes: [TypeID],
         locals: inout LocalBindings
     ) -> TypeID? {
         let ctx = request.ctx
@@ -694,12 +695,26 @@ extension CallTypeChecker {
         guard !ctx.ast.arena.isInfixCall(request.id) else { return nil }
         let sema = ctx.sema
         let name = request.calleeName
+        let callSiteReceiver = request.safeCall
+            ? sema.types.makeNonNullable(receiverType)
+            : receiverType
         let candidateType: TypeID?
         if let local = locals[name] {
             // A local `fun T.name()` is a declaration, not a function value:
             // naming it bare is rejected (KUU-3007), so leave it to the
             // ordinary candidate path that ranks it above package extensions.
             guard sema.symbols.symbol(local.symbol)?.kind != .function else { return nil }
+            // A same-named local extension function declared at the same or a
+            // nearer lexical level is a declaration, not a competing value:
+            // it outranks the function-typed local, so leave the call to the
+            // ordinary candidate path that binds the function symbol
+            // (KUU-3791).
+            if localExtensionFunctionShadowsCallableValue(
+                local, named: name, request: request,
+                argumentTypes: argumentTypes, receiverType: callSiteReceiver, ctx: ctx
+            ) {
+                return nil
+            }
             candidateType = local.type
         } else if let implicitReceiver = ctx.implicitReceiverType,
                   let property = driver.helpers.lookupMemberProperty(
@@ -707,15 +722,46 @@ extension CallTypeChecker {
                       receiverType: sema.types.makeNonNullable(implicitReceiver),
                       sema: sema
                   ) {
+            // A member extension function reachable through the same implicit
+            // receiver shares the property's tier, where the declaration wins;
+            // local functions are strictly nearer than the implicit receiver
+            // (KUU-3791).
+            if nearerTierExtensionFunctionShadowsCallableValue(
+                named: name,
+                implicitReceivers: [sema.types.makeNonNullable(implicitReceiver)],
+                maximumScopePriority: 0,
+                request: request,
+                argumentTypes: argumentTypes,
+                receiverType: callSiteReceiver,
+                ctx: ctx
+            ) {
+                return nil
+            }
             candidateType = property.type
         } else {
             // Package-scope properties only: extension properties carry a
             // receiver on the property itself and resolve through
-            // resolveExtensionPropertyGetter instead (KUU-3145).
-            candidateType = ctx.cachedScopeLookup(name).first(where: {
+            // resolveExtensionPropertyGetter instead (KUU-3145). Functions at
+            // the property's own tier or a nearer one — locals, implicit
+            // receiver member extensions, explicit imports, same-package
+            // declarations — outrank its function value (KUU-3791).
+            let property = ctx.cachedScopeLookup(name).first(where: {
                 sema.symbols.symbol($0)?.kind == .property
                     && sema.symbols.extensionPropertyReceiverType(for: $0) == nil
-            }).flatMap { sema.symbols.propertyType(for: $0) }
+            })
+            if property != nil,
+               nearerTierExtensionFunctionShadowsCallableValue(
+                   named: name,
+                   implicitReceivers: ctx.implicitReceiverMemberLookupEntries().map(\.type),
+                   maximumScopePriority: 3,
+                   request: request,
+                   argumentTypes: argumentTypes,
+                   receiverType: callSiteReceiver,
+                   ctx: ctx
+               ) {
+                return nil
+            }
+            candidateType = property.flatMap { sema.symbols.propertyType(for: $0) }
         }
         guard let candidateType,
               case let .functionType(candidateFunction) = sema.types.kind(of: candidateType),
@@ -828,5 +874,132 @@ extension CallTypeChecker {
         let finalType = request.safeCall ? sema.types.makeNullable(result) : result
         sema.bindings.bindExprType(request.id, type: finalType)
         return finalType
+    }
+
+    /// Whether the extension-function `candidate` accepts this call's receiver
+    /// and argument shape the way `collectExtensionCallCandidates` judges
+    /// applicability (KUU-3791).
+    private func applicableShadowingExtensionFunction(
+        _ candidate: SymbolID,
+        request: MemberCallInferenceRequest,
+        argumentTypes: [TypeID],
+        receiverType: TypeID,
+        ctx: TypeInferenceContext
+    ) -> Bool {
+        let sema = ctx.sema
+        guard let symbol = sema.symbols.symbol(candidate),
+              symbol.kind == .function,
+              let declaredReceiver = sema.symbols.functionSignature(for: candidate)?.receiverType,
+              extensionReceiverMatchesDuringBuilderInference(
+                  callSiteReceiver: receiverType,
+                  declaredReceiver: declaredReceiver,
+                  ctx: ctx
+              )
+        else { return false }
+        return extensionCandidateMatchesCallShape(
+            candidate, request: request, argumentTypes: argumentTypes, receiverType: receiverType
+        )
+    }
+
+    /// Whether a same-named local extension function declared at the same or a
+    /// nearer lexical level shadows `value` for `receiver.name()` calls.
+    ///
+    /// Local `val`/`var` declarations mark their owning scope through
+    /// `registerLocalValueOrClassifierDeclaration`, and scope-inserted symbols
+    /// (e.g. constructor parameters) appear in `candidates(for:)`. Parameters
+    /// and synthetic locals never register: a value parameter lives at its
+    /// owner function's signature level, so only a local function declared
+    /// inside that same function beats it; other unregistered locals such as
+    /// `it` are innermost and keep the invocation (KUU-3791).
+    private func localExtensionFunctionShadowsCallableValue(
+        _ value: LocalBindings.Value,
+        named name: InternedString,
+        request: MemberCallInferenceRequest,
+        argumentTypes: [TypeID],
+        receiverType: TypeID,
+        ctx: TypeInferenceContext
+    ) -> Bool {
+        let sema = ctx.sema
+        var functionSymbol: SymbolID?
+        var functionDepth = 0
+        var valueDepth: Int?
+        var scope = ctx.scope as? BaseScope
+        var depth = 0
+        while let base = scope {
+            let candidates = base.candidates(for: name)
+            if functionSymbol == nil,
+               let match = candidates.first(where: { candidate in
+                   sema.symbols.symbol(candidate)?.flags.contains(.localFunction) == true
+                       && applicableShadowingExtensionFunction(
+                           candidate, request: request, argumentTypes: argumentTypes,
+                           receiverType: receiverType, ctx: ctx
+                       )
+               }) {
+                functionSymbol = match
+                functionDepth = depth
+            }
+            if valueDepth == nil,
+               candidates.contains(value.symbol)
+                   || base.declaresLocalValueOrClassifier(named: name) {
+                valueDepth = depth
+            }
+            if functionSymbol != nil, valueDepth != nil { break }
+            scope = base.parent as? BaseScope
+            depth += 1
+        }
+        guard let functionSymbol else { return false }
+        if let valueDepth {
+            return functionDepth <= valueDepth
+        }
+        guard let owner = sema.symbols.valueParameterOwner(for: value.symbol),
+              let ownerRange = sema.symbols.symbol(owner)?.declSite,
+              let functionRange = sema.symbols.symbol(functionSymbol)?.declSite
+        else { return false }
+        return ownerRange.contains(functionRange)
+    }
+
+    /// Whether a same-named extension function nearer than (or at) the given
+    /// value tier shadows a function-typed value. `implicitReceivers` lists
+    /// the implicit receiver types whose member extensions share the value's
+    /// tier: only the property's own receiver for a member property, the
+    /// whole implicit receiver tower for a package property.
+    /// `maximumScopePriority` is the highest `callableInvocationScopePriority`
+    /// a scope function may have and still outrank the value — 0 admits only
+    /// local functions, 3 admits everything down to the package tier
+    /// (KUU-3791).
+    private func nearerTierExtensionFunctionShadowsCallableValue(
+        named name: InternedString,
+        implicitReceivers: [TypeID],
+        maximumScopePriority: Int,
+        request: MemberCallInferenceRequest,
+        argumentTypes: [TypeID],
+        receiverType: TypeID,
+        ctx: TypeInferenceContext
+    ) -> Bool {
+        let sema = ctx.sema
+        if ctx.scope.lookupMergingChain(name).contains(where: { candidate in
+            guard let symbol = sema.symbols.symbol(candidate),
+                  symbol.flags.contains(.localFunction)
+                      || callableInvocationScopePriority(candidate, named: name, ctx: ctx) <= maximumScopePriority
+            else { return false }
+            return applicableShadowingExtensionFunction(
+                candidate, request: request, argumentTypes: argumentTypes,
+                receiverType: receiverType, ctx: ctx
+            )
+        }) {
+            return true
+        }
+        // Member extensions on implicit receivers never appear in the scope
+        // chain, so they are probed through member lookup directly.
+        return implicitReceivers.contains { receiver in
+            driver.helpers.collectMemberFunctionCandidates(
+                named: name, receiverType: receiver, sema: sema, interner: ctx.interner
+            ).contains(where: {
+                applicableShadowingExtensionFunction(
+                    $0, request: request, argumentTypes: argumentTypes,
+                    receiverType: receiverType, ctx: ctx
+                )
+            })
+        }
     }
 }

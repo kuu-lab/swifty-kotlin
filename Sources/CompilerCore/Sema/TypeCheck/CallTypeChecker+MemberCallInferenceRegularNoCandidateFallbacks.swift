@@ -50,7 +50,7 @@ extension CallTypeChecker {
                maximumPropertyPriority == nil || callableValueAcceptsArgumentShape(
                    function, receiverIsExplicit: false, request: request, argTypes: argTypes, locals: invocationLocals
                ),
-               let result = inferLexicalExtensionCallableInvocation(request, receiverType: memberLookupType, locals: &locals) {
+               let result = inferLexicalExtensionCallableInvocation(request, receiverType: memberLookupType, argumentTypes: argTypes, locals: &locals) {
                 return result
             }
         }
@@ -235,7 +235,7 @@ extension CallTypeChecker {
                packageProperty, request: request, argTypes: argTypes,
                receiverType: memberLookupType, locals: invocationLocals
            ),
-           let result = inferLexicalExtensionCallableInvocation(request, receiverType: memberLookupType, locals: &locals) {
+           let result = inferLexicalExtensionCallableInvocation(request, receiverType: memberLookupType, argumentTypes: argTypes, locals: &locals) {
             return result
         }
 
@@ -1769,7 +1769,7 @@ extension CallTypeChecker {
         // records the `(` token, so admit any call that carries arguments.
         if !isClassNameReceiver,
            !args.isEmpty || ast.arena.isExplicitCall(id),
-           let result = inferLexicalExtensionCallableInvocation(request, receiverType: receiverType, locals: &locals) {
+           let result = inferLexicalExtensionCallableInvocation(request, receiverType: receiverType, argumentTypes: argTypes, locals: &locals) {
             return result
         }
 
