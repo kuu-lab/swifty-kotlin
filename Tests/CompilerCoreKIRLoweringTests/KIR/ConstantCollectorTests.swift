@@ -293,5 +293,30 @@ struct ConstantCollectorTests {
 
         #expect(mapping[propertySymbol] == .intLiteral(7))
     }
+
+    @Test func testCustomGetterWithNonLiteralBodyIsNotFoldedToInitializer() throws {
+        let ctx = makeContextFromSources([
+            """
+            val answer: Int = 42
+                get() = compute()
+            fun compute() = 7
+            """
+        ])
+        try runSema(ctx)
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let declID = try #require(ast.sortedFiles.first?.topLevelDecls.first)
+        let propertySymbol = try #require(sema.bindings.declSymbols[declID])
+        let mapping = collector.collectPropertyConstantInitializers(
+            ast: ast,
+            sema: sema,
+            interner: ctx.interner,
+            sourceByFileID: buildSourceByFileID(ctx: ctx)
+        )
+
+        // KUU-3788: a non-constant explicit getter must run at run time; the
+        // backing initializer is not the observed value.
+        #expect(mapping[propertySymbol] == nil)
+    }
 }
 #endif
