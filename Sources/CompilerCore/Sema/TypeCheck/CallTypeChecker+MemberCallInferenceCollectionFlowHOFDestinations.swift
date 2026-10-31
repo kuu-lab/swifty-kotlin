@@ -281,6 +281,12 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                 sema.bindings.markCollectionHOFLambdaExpr(args[1].expr)
             }
             _ = driver.inferExpr(args[1].expr, ctx: ctx, locals: &locals, expectedType: effectiveLambdaExpectedType)
+            func unwrappedTypeArgument(_ arg: TypeArg) -> TypeID {
+                switch arg {
+                case let .invariant(id), let .out(id), let .in(id): id
+                case .star: sema.types.anyType
+                }
+            }
             if destinationNeedsDeferredInference {
                 // The destination argument's element types only become
                 // knowable once the transform lambda has produced its
@@ -304,12 +310,6 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                         : extractListElementType(rawLambdaReturnType, sema: sema, interner: interner)
                 default:
                     sema.types.anyType
-                }
-                func unwrappedTypeArgument(_ arg: TypeArg) -> TypeID {
-                    switch arg {
-                    case let .invariant(id), let .out(id), let .in(id): id
-                    case .star: sema.types.anyType
-                    }
                 }
                 let deferredMapPairTypes: (key: TypeID, value: TypeID)? = if case let .classType(pairClassType) = sema.types.kind(
                     of: sema.types.makeNonNullable(rawLambdaReturnType)
@@ -401,6 +401,138 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                     // lambda expectation so the mismatch still diagnoses.
                     _ = driver.inferExpr(args[1].expr, ctx: ctx, locals: &locals, expectedType: lambdaExpectedType)
                 }
+            }
+            // The bound check above re-parameterized MutableCollection /
+            // MutableMap with the destination's *own* arguments, so it only
+            // proves the destination is a collection at all. kotlinc declares
+            // the bound contravariantly — `C : MutableCollection<in T>` and
+            // `M : MutableMap<in K, in V>` — which additionally requires the
+            // destination element types to be *supertypes* of the element the
+            // transform produces: `listOf("a").filterTo(ArrayList<Int>())`
+            // must diagnose because `String` is not an `Int` (KUU-3955). The
+            // produced element is only knowable after the transform lambda —
+            // and any deferred factory destination — has been inferred, so
+            // the contravariant check runs here, against the final
+            // destination type.
+            let boundLambdaReturnType: TypeID? = if case let .lambdaLiteral(_, bodyExpr, _, _) = ast.arena.expr(args[1].expr) {
+                sema.bindings.exprType(for: bodyExpr)
+            } else if let argType = sema.bindings.exprType(for: args[1].expr),
+                      case let .functionType(argFunctionType) = sema.types.kind(of: argType)
+            {
+                argFunctionType.returnType
+            } else {
+                nil
+            }
+            // `nil` for a required bound argument means the call never fixed
+            // it — an unbound transform result, or a receiver whose declared
+            // type arguments are absent (`class L : MutableList<Int>` leaves
+            // `collectionMapTypes`/`collectionElementType` at their `Any`
+            // fallbacks, which are not evidence the bound demands `in Any`).
+            // Checking anyway would reject destinations the bound does not
+            // actually forbid.
+            let receiverDeclaresMapArguments = resolveClassType(receiverType, sema: sema)
+                .map { $0.args.count >= 2 } ?? false
+            let receiverDeclaresElementArgument = collectionElementType != sema.types.anyType
+                || (resolveClassType(receiverType, sema: sema).map { !$0.args.isEmpty } ?? false)
+            let requiredMapTypes: (key: TypeID, value: TypeID)? = switch calleeStr {
+            case "mapKeysTo":
+                receiverDeclaresMapArguments
+                    ? boundLambdaReturnType.map { (key: $0, value: collectionMapTypes.value) }
+                    : nil
+            case "mapValuesTo":
+                receiverDeclaresMapArguments
+                    ? boundLambdaReturnType.map { (key: collectionMapTypes.key, value: $0) }
+                    : nil
+            case "associateTo":
+                {
+                    guard let lambdaReturn = boundLambdaReturnType,
+                          case let .classType(pairClassType) = sema.types.kind(
+                              of: sema.types.makeNonNullable(lambdaReturn)
+                          ),
+                          pairClassType.args.count == 2
+                    else {
+                        return nil
+                    }
+                    return (
+                        key: unwrappedTypeArgument(pairClassType.args[0]),
+                        value: unwrappedTypeArgument(pairClassType.args[1])
+                    )
+                }()
+            default:
+                // Only map receivers' filterTo/filterNotTo take a MutableMap
+                // destination; they copy matching entries, so the bound keeps
+                // the receiver's own key/value types.
+                receiverDeclaresMapArguments ? collectionMapTypes : nil
+            }
+            let requiredCollectionElement: TypeID? = switch calleeStr {
+            case "filterTo", "filterNotTo", "filterIndexedTo":
+                receiverDeclaresElementArgument ? collectionElementType : nil
+            case "mapTo", "mapIndexedTo":
+                boundLambdaReturnType
+            case "mapNotNullTo", "mapIndexedNotNullTo":
+                boundLambdaReturnType.map { sema.types.makeNonNullable($0) }
+            case "flatMapTo", "flatMapIndexedTo":
+                boundLambdaReturnType.flatMap { lambdaReturn -> TypeID? in
+                    let extracted = !isSequenceReceiver && isIterableReceiver
+                        && !receiverClassification.isListReceiver
+                        && !receiverClassification.isSetReceiver
+                        && !receiverClassification.isMapReceiver
+                        ? extractIterableOrSequenceElementType(lambdaReturn, sema: sema, interner: interner)
+                        : extractListElementType(lambdaReturn, sema: sema, interner: interner)
+                    return extracted == sema.types.anyType ? nil : extracted
+                }
+            default:
+                nil
+            }
+            let requiredDestinationBound: TypeID? = if destinationRequiresMutableMap {
+                requiredMapTypes.flatMap { mapTypes in
+                    lookupStdlibSymbol("MutableMap", symbols: sema.symbols, interner: interner).map { mutableMapSymbol in
+                        sema.types.make(.classType(ClassType(
+                            classSymbol: mutableMapSymbol,
+                            args: [.in(mapTypes.key), .in(mapTypes.value)],
+                            nullability: .nonNull
+                        )))
+                    }
+                }
+            } else {
+                requiredCollectionElement.flatMap { elementType in
+                    lookupStdlibSymbol("MutableCollection", symbols: sema.symbols, interner: interner).map { mutableCollectionSymbol in
+                        sema.types.make(.classType(ClassType(
+                            classSymbol: mutableCollectionSymbol,
+                            args: [.in(elementType)],
+                            nullability: .nonNull
+                        )))
+                    }
+                }
+            }
+            // A destination still holding `Nothing` arguments is a factory
+            // whose inference could not be completed — its element type is a
+            // variable the bound may still fix, not a violation.
+            if let requiredDestinationBound,
+               !typeContainsNothingType(nonNullableDestinationType, sema: sema),
+               !sema.types.isSubtype(nonNullableDestinationType, requiredDestinationBound)
+            {
+                let actualTypeName = sema.types.displayName(
+                    of: destinationType,
+                    symbols: sema.symbols,
+                    interner: interner
+                )
+                let requiredTypeName = sema.types.displayName(
+                    of: requiredDestinationBound,
+                    symbols: sema.symbols,
+                    interner: interner
+                )
+                ctx.sema.diagnostics.emit(Diagnostic(
+                    severity: .error,
+                    code: "KSWIFTK-TYPE-0001",
+                    message: "Type mismatch: destination has type '\(actualTypeName)', but '\(requiredTypeName)' is required for '\(calleeStr)'.",
+                    primaryRange: ast.arena.exprRange(args[0].expr) ?? range,
+                    secondaryRanges: []
+                ))
+                if let lambdaExpr = ast.arena.expr(args[1].expr), lambdaExpr.isLambdaOrCallableRef {
+                    sema.bindings.unmarkCollectionHOFLambdaExpr(args[1].expr)
+                }
+                return sema.types.errorType
             }
             resultType = destinationType
             // Sequence and List now share top-level source-backed overload names.
