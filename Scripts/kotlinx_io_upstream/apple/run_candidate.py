@@ -116,13 +116,20 @@ def execute(argv, seconds, prefix, cwd):
         raise RuntimeError(f'Gate incomplete/failed/unreaped: {prefix}; {receipt}')
     return receipt
 
+# Swift Testing status icons: classic output marks status lines with BMP
+# symbols such as U+2714, while SF Symbols mode (SWT_SF_SYMBOLS_ENABLED on
+# newer toolchains, e.g. Swift 6.4 CLT) emits private-use-area glyphs
+# followed by two spaces. Accept U+2714 or any PUA code point with trailing
+# spaces; the "passed" wording, never the icon, proves a line is a success.
+STATUS_ICON=r'[\u2714\uE000-\uF8FF\U000F0000-\U000FFFFD\U00100000-\U0010FFFD] +'
+
 def testing_counts(log, expected_methods):
     # Swift Testing counts methods in its final summary. Case counts come from
     # successful method lines; XCTest's zero-test launcher summary is irrelevant.
-    summaries=re.findall(r'✔ Test run with (\d+) tests? in (\d+) suites? passed after ([0-9.]+) seconds',log)
+    summaries=re.findall(STATUS_ICON+r'Test run with (\d+) tests? in (\d+) suites? passed after ([0-9.]+) seconds',log)
     if len(summaries)!=1:
         raise RuntimeError(f'Expected exactly one observed Swift Testing PASS summary, got {summaries}')
-    lines=re.findall(r'^✔ Test (?!run with )([^\n]+?) passed after [0-9.]+ seconds\.$',log,re.MULTILINE)
+    lines=re.findall(r'^'+STATUS_ICON+r'Test (?!run with )([^\n]+?) passed after [0-9.]+ seconds\.$',log,re.MULTILINE)
     methods={}
     for line in lines:
         name=line.split('(')[0].strip()
