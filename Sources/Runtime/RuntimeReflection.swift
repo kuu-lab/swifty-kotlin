@@ -859,7 +859,7 @@ private func runtimeKTypeToString(raw ktypeRaw: Int) -> String {
     return runtimeKTypeToString(box)
 }
 
-private func runtimeQualifiedTypeName(_ name: String) -> String {
+func runtimeQualifiedTypeName(_ name: String) -> String {
     switch name {
     case "Unit", "Nothing", "Any", "String", "Boolean", "Byte", "Short", "Int", "Long", "Float", "Double", "Char",
          "UByte", "UShort", "UInt", "ULong":
