@@ -556,12 +556,14 @@ func kirErasedGenericCallClaimCheck(
         // representation even though no checkcast is emitted.
         return consumer == nil ? nil : (bound, nil)
     }
-    // A platform result can still contain null. Check its erased classifier
-    // without rejecting null; a non-null use inserts its own assertion later.
-    let nullableCheckType = isPlatformResult
-        ? sema.types.makeNullable(checkType)
-        : checkType
-    return (bound, nullableCheckType)
+    // A JVM `checkcast` never rejects null: it verifies only the erased
+    // classifier, while a surviving null contract is enforced by the
+    // assertion a later non-null use inserts for itself. Emit the nullable
+    // token for every claim — not just platform results, which need it for
+    // their flexible representation — so an unchecked-cast `null as T`
+    // result crosses the boundary as the null sentinel that `==`/`!=`
+    // comparisons observe, instead of throwing at the store (KUU-3882).
+    return (bound, sema.types.makeNullable(checkType))
 }
 
 /// True when a generic call or property getter's substituted result can be
