@@ -290,6 +290,19 @@ extension ExprTypeChecker {
         let inferredRhs = rhs
         rhs = sema.types.capturedOperatorReceiverType(of: inferredRhs)
 
+        // `==`/`!=` lower to Intrinsics.areEqual and `===`/`!==` to IF_ACMP
+        // on the JVM — both consume the raw operand as `Any?` without
+        // claiming its substituted type. Recording that consumer keeps an
+        // erased generic result uncheckcast here: `foo<Other>() != null`
+        // must observe the erased value, not throw ClassCastException
+        // (KUU-3893).
+        if op == .equal || op == .notEqual
+            || op == .identityEqual || op == .notIdentityEqual
+        {
+            driver.recordGenericCallConsumer(lhsID, type: sema.types.nullableAnyType)
+            driver.recordGenericCallConsumer(rhsID, type: sema.types.nullableAnyType)
+        }
+
         // Numeric operators on a type parameter are resolved against its
         // concrete primitive upper bound (for example, `T : Double`). Keep
         // the operand bindings generic; the resulting primitive expression
