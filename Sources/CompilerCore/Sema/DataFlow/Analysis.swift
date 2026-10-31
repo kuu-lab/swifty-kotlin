@@ -94,21 +94,29 @@ struct DataFlowState: Equatable {
         for symbol in locals.invalidatedVariableFacts {
             state.variables[symbol]?.valueFacts = DataFlowValueFacts()
         }
+        // Assignments update local bindings. Do not revive a stale fact from
+        // an enclosing branch when splitting flow again after such a write.
+        // Immutable locals diverge the same way: a `flowState` snapshot taken
+        // at a branch entry does not see narrowings applied inside the branch
+        // (smart casts, `require`/`check`-style contracts), so a single-type
+        // entry disagreeing with the local's current type is stale either way
+        // and must not overwrite the local when the split result is applied
+        // back (KUU-3928). Run before the facts merge so still-valid
+        // `variableFacts` are re-attached to a fresh entry instead of being
+        // dropped with the stale one.
+        for local in locals.values {
+            if let variable = state.variables[local.symbol],
+               variable.possibleTypes.count == 1, !variable.possibleTypes.contains(local.type)
+            {
+                state.variables.removeValue(forKey: local.symbol)
+            }
+        }
         for (symbol, facts) in locals.variableFacts {
             var variable = state.variables[symbol] ?? VariableFlowState(
                 possibleTypes: [], nullability: .nonNull, isStable: true
             )
             variable.valueFacts = variable.valueFacts.combining(facts)
             state.variables[symbol] = variable
-        }
-        // Assignments update local bindings. Do not revive a stale fact from
-        // an enclosing branch when splitting flow again after such a write.
-        for local in locals.values where local.isMutable {
-            if let variable = state.variables[local.symbol],
-               variable.possibleTypes.count == 1, !variable.possibleTypes.contains(local.type)
-            {
-                state.variables.removeValue(forKey: local.symbol)
-            }
         }
         return state
     }
