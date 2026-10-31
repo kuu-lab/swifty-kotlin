@@ -340,5 +340,60 @@ struct AdvancedTypeInferenceTests {
             "Expected annotation-driven builder inference to succeed, got: \(diagnostics)"
         )
     }
+
+    // KUU-3792: an `out`-projected argument feeding an `in`-projected
+    // parameter contributes the captured projection's `Nothing` lower bound,
+    // so the callee's type argument collapses to `Nothing` (JVM then throws
+    // `KotlinNothingValueException` when a value materializes).
+    @Test func testOutProjectedArgumentIntoInParameterInfersNothing() throws {
+        let path = "/virtual/out-into-in-nothing.kt"
+        let source = """
+        class Context<T>
+        fun <T> decodeIn(typeFrom: Context<in T>): T? = null
+        fun <T> decodeOut(typeFrom: Context<out T>): T {
+            val x = decodeIn(typeFrom)
+            return x!!
+        }
+        """
+        let context = makeCompilationContext(inputs: [path], includeStdlib: false)
+        _ = context.sourceManager.addFile(path: path, contents: Data(source.utf8))
+        try runSema(context)
+        #expect(!context.diagnostics.hasError, "\(context.diagnostics.diagnostics)")
+        let ast = try #require(context.ast)
+        let sema = try #require(context.sema)
+        let call = try #require(firstExprID(in: ast, path: path, ctx: context) { _, expr in
+            guard case let .call(callee, _, _, _) = expr,
+                  case let .nameRef(name, _) = ast.arena.expr(callee)
+            else { return false }
+            return context.interner.resolve(name) == "decodeIn"
+        })
+        let binding = try #require(sema.bindings.callBinding(for: call))
+        #expect(binding.substitutedTypeArguments == [sema.types.nothingType])
+    }
+
+    // The mirror `Context<in X>` argument against `Context<out T>` contributes
+    // the `in` projection's `Any?` upper bound as the variable's lower bound.
+    @Test func testInProjectedArgumentIntoOutParameterInfersNullableAny() throws {
+        let path = "/virtual/in-into-out-any.kt"
+        let source = """
+        class Context<T>
+        fun <T> produce(typeFrom: Context<out T>): T? = null
+        fun <T> feed(typeFrom: Context<in T>): Any? = produce(typeFrom)
+        """
+        let context = makeCompilationContext(inputs: [path], includeStdlib: false)
+        _ = context.sourceManager.addFile(path: path, contents: Data(source.utf8))
+        try runSema(context)
+        #expect(!context.diagnostics.hasError, "\(context.diagnostics.diagnostics)")
+        let ast = try #require(context.ast)
+        let sema = try #require(context.sema)
+        let call = try #require(firstExprID(in: ast, path: path, ctx: context) { _, expr in
+            guard case let .call(callee, _, _, _) = expr,
+                  case let .nameRef(name, _) = ast.arena.expr(callee)
+            else { return false }
+            return context.interner.resolve(name) == "produce"
+        })
+        let binding = try #require(sema.bindings.callBinding(for: call))
+        #expect(binding.substitutedTypeArguments == [sema.types.nullableAnyType])
+    }
 }
 #endif

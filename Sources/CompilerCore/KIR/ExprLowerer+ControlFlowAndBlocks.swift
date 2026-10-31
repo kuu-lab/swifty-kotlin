@@ -158,9 +158,24 @@ extension ExprLowerer {
             false
         }
         guard isDirectCall,
-              let binding = sema.bindings.callBinding(for: exprID),
-              let signature = sema.symbols.functionSignature(for: binding.chosenCallee),
-              signature.typeParameterSymbols.count == binding.substitutedTypeArguments.count,
+              let binding = sema.bindings.callBinding(for: exprID)
+        else {
+            return nil
+        }
+        return nothingProducingSubstitutedResultType(callBinding: binding, sema: sema)
+    }
+
+    /// The call's substituted return type when it collapses to non-null
+    /// `Nothing`: a value must not materialize on that edge (JVM throws
+    /// `KotlinNothingValueException`). Shared between direct calls
+    /// (`nonNullNothingResultType` above) and the safe-call lowering,
+    /// which throws inside the non-null receiver branch.
+    func nothingProducingSubstitutedResultType(
+        callBinding: CallBinding,
+        sema: SemaModule
+    ) -> TypeID? {
+        guard let signature = sema.symbols.functionSignature(for: callBinding.chosenCallee),
+              signature.typeParameterSymbols.count == callBinding.substitutedTypeArguments.count,
               !signature.typeParameterSymbols.isEmpty
         else {
             return nil
@@ -169,11 +184,11 @@ extension ExprLowerer {
         let typeVarBySymbol = sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
         let typeVariables = signature.typeParameterSymbols.compactMap { typeVarBySymbol[$0] }
             .sorted { $0.rawValue < $1.rawValue }
-        guard typeVariables.count == binding.substitutedTypeArguments.count else {
+        guard typeVariables.count == callBinding.substitutedTypeArguments.count else {
             return nil
         }
         var substitution: [TypeVarID: TypeID] = [:]
-        for (variable, argument) in zip(typeVariables, binding.substitutedTypeArguments) {
+        for (variable, argument) in zip(typeVariables, callBinding.substitutedTypeArguments) {
             substitution[variable] = argument
         }
         let resultType = sema.types.substituteTypeParameters(
