@@ -50,7 +50,20 @@ extension BuildKIRRegressionTests {
         let lambdaArgs = try #require(lambdaCallArguments.first)
         #expect(lambdaArgs.count == parameterCount + 2)
         #expect(lambdaArgs[0] == captureLoad)
-        #expect(module.arena.expr(lambdaArgs[1]) == .symbolRef(adapter.params[1].symbol))
+        // KUU-3535: the erased invoke ABI hands the adapter the raw receiver
+        // bits, so the receiver reaches the lambda through a checked-cast
+        // temporary rather than the bare parameter symbolRef.
+        let receiverCastOperand = try #require(adapter.body.compactMap { instruction -> KIRExprID? in
+            guard case let .call(_, callee, args, result, _, _, _, _) = instruction,
+                  callee == ctx.interner.intern("kk_op_cast"),
+                  result == lambdaArgs[1]
+            else { return nil }
+            return args.first
+        }.first)
+        #expect(
+            resolveForwardedSymbolRef(receiverCastOperand, in: adapter.body, module: module)
+                == adapter.params[1].symbol
+        )
     }
 
     @Test

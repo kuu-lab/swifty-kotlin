@@ -54,20 +54,21 @@ extension BuildKIRRegressionTests {
                 .contains(where: { runtimeFunctionCreateCallees().contains($0) }))
             let launcherCall = try #require(helper.body.first { instruction in
                 guard case let .call(_, callee, _, _, _, _, _, _) = instruction else { return false }
-                return callee == KnownCompilerNames(interner: ctx.interner).runBlocking
+                return callee == ctx.interner.intern("runBlocking$default")
             })
             guard case let .call(_, _, arguments, _, _, _, _, _) = launcherCall else { return }
-            #expect(arguments.count == 2)
-            let entry = try #require(arguments.first)
-            let adapter = try referencedKIRFunction(entry, in: module)
-            let adapters = try findKIRCoroutineBlockAdapters(in: ctx)
-            #expect(adapters.map(\.symbol) == [adapter.symbol])
-            #expect(adapter.isSuspend)
-            #expect(adapter.params.count == 1)
-            #expect(extractCallees(from: adapter.body, interner: ctx.interner)
-                .contains(runtimeCallee(.suspendFunctionInvoke)))
-            #expect(module.arena.expr(arguments[0]) == .symbolRef(adapter.symbol))
+            // `runBlocking(block = block)` skips `context`, so the source-backed
+            // builder is reached through `runBlocking$default`: a zero
+            // placeholder for the omitted context, the block value itself,
+            // then the default-args mask word.
+            #expect(arguments.count == 3)
+            #expect(module.arena.expr(arguments[0]) == .intLiteral(0))
             #expect(module.arena.expr(arguments[1]) == .symbolRef(helper.params[0].symbol))
+            #expect(module.arena.expr(arguments[2]) == .intLiteral(1))
+            // The stored suspend value crosses the launcher boundary as-is —
+            // no `kk_coroutine_block_adapter` re-packaging — so its capture
+            // environment rides inside the boxed function value.
+            #expect(try findKIRCoroutineBlockAdapters(in: ctx).isEmpty)
 
             let main = try #require(functions.first { $0.name == KnownCompilerNames(interner: ctx.interner).main })
             #expect(extractCallees(from: main.body, interner: ctx.interner).contains(runtimeCallee(.functionCreate1)))
@@ -161,16 +162,45 @@ extension BuildKIRRegressionTests {
             try runToKIR(ctx)
             #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
             let module = try #require(ctx.kir)
-            let adapters = try findKIRCoroutineBlockAdapters(in: ctx)
-            #expect(adapters.count == 1)
-            let capturedAdapter = try #require(adapters.first { $0.params.count == 1 })
-            #expect(capturedAdapter.isSuspend)
-            let scopeCall = try #require(capturedAdapter.body.first { instruction in
-                guard case let .call(_, callee, _, _, _, _, _, _) = instruction else { return false }
-                return callee == ctx.interner.intern(runtimeCallee(.coroutineCurrentScope))
+            // The bundled `CoroutineScope.async` is an external member call:
+            // the runBlocking literal forwards its own `this` receiver and the
+            // stored `block` boxed as an ordinary suspend function value — no
+            // `kk_coroutine_block_adapter`/`kk_coroutine_current_scope` read.
+            let scopeAsyncCallee = ctx.interner.intern("kk_coroutine_scope_async")
+            let launcherLambda = try #require(findKIRLambdaFunctions(in: ctx).first { function in
+                function.body.contains { instruction in
+                    guard case let .call(_, callee, _, _, _, _, _, _) = instruction else { return false }
+                    return callee == scopeAsyncCallee
+                }
             })
-            guard case let .call(_, _, _, scope, _, _, _, _) = scopeCall else { return }
-            let invocation = try #require(capturedAdapter.body.first { instruction in
+            #expect(try findKIRCoroutineBlockAdapters(in: ctx).isEmpty)
+            let asyncCall = try #require(launcherLambda.body.first { instruction in
+                guard case let .call(_, callee, _, _, _, _, _, _) = instruction else { return false }
+                return callee == scopeAsyncCallee
+            })
+            guard case let .call(_, _, asyncArguments, _, _, _, _, _) = asyncCall else { return }
+            #expect(asyncArguments.count == 4)
+            #expect(module.arena.expr(asyncArguments[0]) == .symbolRef(launcherLambda.params[0].symbol))
+            let createCall = try #require(launcherLambda.body.first { instruction in
+                guard case let .call(_, callee, _, _, _, _, _, _) = instruction else { return false }
+                return callee == ctx.interner.intern(runtimeFunctionCreateCallee(arity: 1))
+            })
+            guard case let .call(_, _, createArguments, createResult, _, _, _, _) = createCall else { return }
+            #expect(asyncArguments.last == createResult)
+            let adapter = try referencedKIRFunction(try #require(createArguments.first), in: module)
+            #expect(adapter.isSuspend)
+            #expect(adapter.params.count == 2)
+            // The adapter's closure env carries the capture, while the
+            // launcher-supplied scope receiver reaches the lambda through a
+            // checked cast of the adapter's receiver parameter (KUU-3535).
+            let captureLoad = try #require(adapter.body.compactMap { instruction -> KIRExprID? in
+                guard case let .call(_, callee, args, result, _, _, _, _) = instruction,
+                      callee == ctx.interner.intern(runtimeCallee(.arrayGetInbounds)),
+                      case .intLiteral(2) = module.arena.expr(args[1])
+                else { return nil }
+                return result
+            }.first)
+            let invocation = try #require(adapter.body.first { instruction in
                 guard case let .call(symbol?, _, _, _, _, _, _, _) = instruction else { return false }
                 return module.arena.declarations.contains {
                     $0.function?.symbol == symbol && $0.function?.isSuspend == true
@@ -178,7 +208,21 @@ extension BuildKIRRegressionTests {
             })
             guard case let .call(_, _, arguments, _, _, _, _, _) = invocation else { return }
             #expect(arguments.count == 2)
-            #expect(arguments.last == scope)
+            #expect(adapter.body.contains { instruction in
+                guard case let .call(_, _, args, result, _, _, _, _) = instruction else { return false }
+                return result == arguments[0] && args.first == captureLoad
+            })
+            let receiverCastOperand = try #require(adapter.body.compactMap { instruction -> KIRExprID? in
+                guard case let .call(_, callee, args, result, _, _, _, _) = instruction,
+                      callee == ctx.interner.intern("kk_op_cast"),
+                      result == arguments[1]
+                else { return nil }
+                return args.first
+            }.first)
+            #expect(
+                resolveForwardedSymbolRef(receiverCastOperand, in: adapter.body, module: module)
+                    == adapter.params[1].symbol
+            )
         }
     }
 
