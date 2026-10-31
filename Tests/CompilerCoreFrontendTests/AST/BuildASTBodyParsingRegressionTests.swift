@@ -501,6 +501,31 @@ struct BuildASTBodyParsingRegressionTests {
                 return x
             }
             """,
+            // KUU-3938: same boundary with a file-top-level `val` as the
+            // infix operand — `h() shr LOG` inside a non-main function
+            // must not drop the following `val x`.
+            """
+            package buildast.infixcall4
+            val LOG = 5
+            fun h(): Int = 32
+            fun g(): Int {
+                val a = h() shr LOG
+                val x = 1
+                return x
+            }
+            """,
+            // KUU-3938 variant: the operand is a file-top-level
+            // `const val`.
+            """
+            package buildast.infixcall5
+            const val LOGC = 4
+            fun h(): Int = 32
+            fun g(): Int {
+                val a = h() shr LOGC
+                val x = 1
+                return x
+            }
+            """,
         ]
 
         try withTemporaryFiles(contents: sources) { paths in
