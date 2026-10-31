@@ -8,6 +8,8 @@ extension LambdaLowerer {
         targetSymbol: SymbolID?,
         parameterTypes: [TypeID],
         returnType: TypeID,
+        reflectedParameterTypes: [TypeID]? = nil,
+        reflectedReturnType: TypeID? = nil,
         captures: [KIRExprID],
         receiverCount: Int,
         contextParameterCount: Int = 0,
@@ -50,7 +52,7 @@ extension LambdaLowerer {
                 allowScalarVarargAdaptation: false, sema: sema
             ) != nil
         }()
-        func parameters(_ types: [TypeID], isSetter: Bool = false) -> KIRExprID {
+        func parameters(_ types: [TypeID], reflectedTypes: [TypeID]? = nil, isSetter: Bool = false) -> KIRExprID {
             var elements: [KIRExprID] = []
             for (index, type) in types.enumerated() {
                 let contextIndex = index - receiverCount
@@ -78,9 +80,23 @@ extension LambdaLowerer {
                 let reflectedType = vararg && packedPublicParameters && type != declarationType ? type : callableReflectionParameterType(
                     type, isVararg: vararg, declarationType: declarationType, sema: sema, interner: interner
                 )
-                let reflectedTypeName = vararg
-                    ? callableReflectionTypeName(of: reflectedType, sema: sema, interner: interner)
-                    : sema.types.displayName(of: type, symbols: sema.symbols, interner: interner)
+                // KUU-3864 — the public `KParameter.type` reflects the member
+                // in the *erased* receiver class parameterized by its own type
+                // parameters (the declared signature substituted through the
+                // supertype instantiation), never the use-site `Type::member`
+                // arguments. The invocation-ABI `type` still drives the type
+                // token used by `callBy` vararg packing.
+                let metadataType = reflectedTypes?.indices.contains(index) == true
+                    ? reflectedTypes![index] : type
+                let metadataReflectedType = vararg
+                    ? callableReflectionParameterType(
+                        metadataType, isVararg: true, declarationType: metadataType,
+                        sema: sema, interner: interner
+                    )
+                    : metadataType
+                let reflectedTypeName = callableReflectionTypeName(
+                    of: metadataReflectedType, sema: sema, interner: interner
+                )
                 let args = [integer(index), name.map(string) ?? {
                     let null = arena.appendExpr(.null, type: sema.types.nullableAnyType)
                     instructions.append(.constValue(result: null, value: .null))
@@ -92,6 +108,20 @@ extension LambdaLowerer {
                 let result = arena.appendTemporary(type: sema.types.anyType)
                 instructions.append(.call(callee: interner.intern("__kk_kparameter_create_typed"), arguments: args,
                                           result: result, canThrow: false))
+                // KParameter.type is a real KType so primitive qualifiers and
+                // generic arguments render exactly like the JVM.
+                let parameterKType = driver.lowerKTypeExpr(
+                    for: metadataReflectedType,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    instructions: &instructions
+                )
+                instructions.append(.call(
+                    callee: interner.intern("__kk_kparameter_set_type"),
+                    arguments: [result, parameterKType],
+                    result: nil, canThrow: false
+                ))
                 if vararg, let declarationType,
                    primitiveVarargArrayType(elementType: declarationType, sema: sema, interner: interner) == nil {
                     let component = runtimeArrayComponentTypeExpr(
@@ -139,7 +169,7 @@ extension LambdaLowerer {
         } else {
             invoker = integer(0)
         }
-        let parameterList = parameters(parameterTypes)
+        let parameterList = parameters(parameterTypes, reflectedTypes: reflectedParameterTypes)
         var typeParameterValues: [KIRExprID] = []
         if let signature,
            let factory = sema.symbols.lookup(fqName: ["kotlin", "reflect", "callableTypeParameter"].map(interner.intern)) {
@@ -185,7 +215,11 @@ extension LambdaLowerer {
             if let reference = arena.expr(setter) {
                 instructions.append(.constValue(result: setter, value: reference))
             }
-            setterParameters = parameters(parameterTypes + [returnType], isSetter: true)
+            setterParameters = parameters(
+                parameterTypes + [returnType],
+                reflectedTypes: (reflectedParameterTypes ?? parameterTypes) + [reflectedReturnType ?? returnType],
+                isSetter: true
+            )
         } else {
             setter = integer(0)
             setterParameters = list([])
@@ -196,7 +230,7 @@ extension LambdaLowerer {
             result: nil, canThrow: false
         ))
         let returnTypeKType = driver.lowerKTypeExpr(
-            for: returnType,
+            for: reflectedReturnType ?? returnType,
             sema: sema,
             arena: arena,
             interner: interner,

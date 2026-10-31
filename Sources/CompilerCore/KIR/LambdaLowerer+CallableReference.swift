@@ -1645,6 +1645,46 @@ extension LambdaLowerer {
         // that downstream callable-value-call lowering resolves the
         // correct target symbol and capture arguments.
         if let refKind = sema.bindings.callableRefKind(for: exprID) {
+            let callableFunctionType: FunctionType? = if case let .functionType(functionType) = sema.types.kind(of: callableType) {
+                functionType
+            } else {
+                nil
+            }
+            let signature = targetSymbol.flatMap { sema.symbols.functionSignature(for: $0) }
+            // KUU-3864 — JVM kotlin-reflect semantics: `Type::member` reflects
+            // the member in the *erased* receiver class parameterized by its
+            // own type parameters, so inherited generics are substituted
+            // through the supertype instantiation (`A : H<A>` maps T→A) while
+            // the written LHS type arguments are ignored (`H<A>::foo` stays
+            // `T`, `B<Int>::foo` stays `U`). A bound `expr::member` uses the
+            // bound receiver's static type the same way.
+            let receiverClassSymbol = callableFunctionType.flatMap { functionType in
+                functionReferenceReceiverClassSymbol(
+                    isUnbound: isUnbound,
+                    hasSignatureReceiver: signature?.receiverType != nil,
+                    functionType: functionType,
+                    boundReceiverType: isUnbound ? nil : receiverExpr.flatMap {
+                        sema.bindings.exprType(for: $0)
+                    },
+                    captureArguments: captureArguments,
+                    sema: sema,
+                    arena: arena
+                )
+            }
+            let memberScope = functionReferenceMemberScope(
+                targetSymbol: targetSymbol,
+                receiverClassSymbol: receiverClassSymbol,
+                sema: sema
+            )
+            func reflect(_ type: TypeID) -> TypeID {
+                guard let memberScope else { return type }
+                return sema.types.substituteTypeParameters(
+                    in: type,
+                    substitution: memberScope.substitution,
+                    typeVarBySymbol: memberScope.typeVarBySymbol
+                )
+            }
+            let reflectedReturnType = signature.map { reflect($0.returnType) }
             let taggedExpr = emitCallableRefTypeTag(
                 callableExpr: callableValue,
                 callableType: callableType,
@@ -1652,25 +1692,56 @@ extension LambdaLowerer {
                 memberName: memberName,
                 targetSymbol: targetSymbol,
                 identityCaptures: captureArguments,
+                reflectedReturnType: reflectedReturnType,
                 sema: sema,
                 arena: arena,
                 interner: interner,
                 instructions: &instructions
             )
-            if case let .functionType(functionType) = sema.types.kind(of: callableType) {
-                let receiverCount = isUnbound && targetSymbol.flatMap {
-                    sema.symbols.functionSignature(for: $0)
-                }?.receiverType != nil ? 1 : 0
+            if let functionType = callableFunctionType {
+                let receiverCount = isUnbound && signature?.receiverType != nil ? 1 : 0
                 let inputs = (functionType.receiver.map { [$0] } ?? []) + functionType.params
                 // An unbound receiver can be represented as either `receiver`
                 // or the first ordinary parameter of the function type.
                 let parameters = Array(inputs.prefix(receiverCount)) + functionType.contextReceivers
                     + Array(inputs.dropFirst(receiverCount))
+                // The public KParameter.type slots mirror `parameters`
+                // positionally but carry the declared signature types through
+                // the erased receiver member scope. Any slot the signature
+                // cannot supply falls back to the use-site type.
+                let boundContextCount = max(
+                    (signature?.contextParameterTypes.count ?? 0) - functionType.contextReceivers.count, 0
+                )
+                let reflectedParameterTypes = parameters.enumerated().map { index, type -> TypeID in
+                    if index < receiverCount {
+                        return functionReferenceReceiverParameterType(
+                            targetSymbol: targetSymbol,
+                            receiverClassSymbol: receiverClassSymbol,
+                            declaredReceiverType: signature?.receiverType.map(reflect),
+                            fallback: type,
+                            sema: sema
+                        )
+                    }
+                    guard let signature else { return type }
+                    let contextIndex = index - receiverCount
+                    if contextIndex >= 0 && contextIndex < functionType.contextReceivers.count {
+                        let declaredIndex = boundContextCount + contextIndex
+                        guard signature.contextParameterTypes.indices.contains(declaredIndex) else {
+                            return type
+                        }
+                        return reflect(signature.contextParameterTypes[declaredIndex])
+                    }
+                    let valueIndex = index - receiverCount - functionType.contextReceivers.count
+                    guard signature.parameterTypes.indices.contains(valueIndex) else { return type }
+                    return reflect(signature.parameterTypes[valueIndex])
+                }
                 registerCallableReflection(
                     value: taggedExpr, callableSymbol: callableSymbol, callableName: callableName,
                     targetSymbol: targetSymbol,
                     parameterTypes: parameters,
                     returnType: functionType.returnType,
+                    reflectedParameterTypes: reflectedParameterTypes,
+                    reflectedReturnType: reflectedReturnType,
                     captures: captureArguments,
                     receiverCount: receiverCount,
                     contextParameterCount: functionType.contextReceivers.count,
@@ -1679,7 +1750,7 @@ extension LambdaLowerer {
                     // function-value invoke path instead of generating a
                     // non-suspend reflection thunk that cannot call the target.
                     includeInvocation: !functionType.isSuspend
-                        && targetSymbol.flatMap { sema.symbols.functionSignature(for: $0) }?.reifiedTypeParameterIndices.isEmpty != false,
+                        && signature?.reifiedTypeParameterIndices.isEmpty != false,
                     ast: ast, sema: sema, arena: arena, interner: interner, instructions: &instructions
                 )
             }
@@ -2112,6 +2183,7 @@ extension LambdaLowerer {
         memberName: InternedString,
         targetSymbol: SymbolID? = nil,
         identityCaptures: [KIRExprID] = [],
+        reflectedReturnType: TypeID? = nil,
         sema: SemaModule,
         arena: KIRArena,
         interner: StringInterner,
@@ -2136,12 +2208,17 @@ extension LambdaLowerer {
         instructions.append(.constValue(result: nameExpr, value: .stringLiteral(memberName)))
 
         // KCallable.returnType is represented by the same compact type-name
-        // handle used by KClass reflection metadata.
-        let returnType: TypeID = if case let .functionType(functionType) = sema.types.kind(of: callableType) {
+        // handle used by KClass reflection metadata. KUU-3864: function
+        // references reflect the declared signature return type substituted
+        // through the erased receiver class's member scope (the caller's
+        // `reflectedReturnType`), not the use-site `Type::member` function
+        // type.
+        let fallbackReturnType: TypeID = if case let .functionType(functionType) = sema.types.kind(of: callableType) {
             functionType.returnType
         } else {
             sema.types.anyType
         }
+        let returnType = reflectedReturnType ?? fallbackReturnType
         let returnTypeName = interner.intern(
             sema.types.displayName(of: returnType, symbols: sema.symbols, interner: interner)
         )
@@ -2221,6 +2298,113 @@ extension LambdaLowerer {
             )
         }
         return taggedExpr
+    }
+
+    /// Erased class through which a function reference is taken: the receiver
+    /// type of the unbound `Type::member` function type, or the bound
+    /// receiver's static type for `expr::member`. Only the nominal symbol
+    /// matters — the written type arguments are dropped, matching the JVM's
+    /// raw `KClass` owner (KUU-3864, mirrors the KUU-3813 property path).
+    private func functionReferenceReceiverClassSymbol(
+        isUnbound: Bool,
+        hasSignatureReceiver: Bool,
+        functionType: FunctionType,
+        boundReceiverType: TypeID?,
+        captureArguments: [KIRExprID],
+        sema: SemaModule,
+        arena: KIRArena
+    ) -> SymbolID? {
+        let receiverType: TypeID? = {
+            if isUnbound {
+                // A top-level reference's first function-type parameter is an
+                // ordinary value parameter, not a receiver.
+                guard hasSignatureReceiver else { return nil }
+                return functionType.receiver ?? functionType.params.first
+            }
+            return boundReceiverType ?? captureArguments.first.flatMap { arena.exprType($0) }
+        }()
+        guard let receiverType,
+              case let .classType(receiver) = sema.types.kind(of: sema.types.makeNonNullable(receiverType))
+        else {
+            return nil
+        }
+        return receiver.classSymbol
+    }
+
+    /// The `receiverClass` instantiation of the declaring class's type
+    /// parameters — the member-scope substitution a `Type::member` reference
+    /// applies to the member's declared signature. Falls back to nil whenever
+    /// no substitution applies (non-class owner, non-generic declaring class,
+    /// or unreachable supertype), in which case the declared types are
+    /// reflected unchanged.
+    private func functionReferenceMemberScope(
+        targetSymbol: SymbolID?,
+        receiverClassSymbol: SymbolID?,
+        sema: SemaModule
+    ) -> (substitution: [TypeVarID: TypeID], typeVarBySymbol: [SymbolID: TypeVarID])? {
+        guard let targetSymbol,
+              let receiverClassSymbol,
+              let declaringSymbol = sema.symbols.parentSymbol(for: targetSymbol),
+              let declaringInfo = sema.symbols.symbol(declaringSymbol),
+              [.class, .interface, .object, .enumClass, .annotationClass].contains(declaringInfo.kind)
+        else {
+            return nil
+        }
+        let declaringParameters = sema.types.allTypeParameterSymbols(for: declaringSymbol)
+        guard !declaringParameters.isEmpty else { return nil }
+
+        let receiverArgs: [TypeArg] = sema.types.allTypeParameterSymbols(for: receiverClassSymbol).map {
+            .invariant(sema.types.make(.typeParam(TypeParamType(symbol: $0, nullability: .nonNull))))
+        }
+        guard let lifted = sema.types.liftedNominalSupertypeArgs(
+            from: receiverClassSymbol,
+            childArgs: receiverArgs,
+            to: declaringSymbol
+        ) else {
+            return nil
+        }
+
+        let typeVarBySymbol = sema.types.makeTypeVarBySymbol(declaringParameters)
+        var substitution: [TypeVarID: TypeID] = [:]
+        for (index, arg) in lifted.enumerated() where declaringParameters.indices.contains(index) {
+            guard let typeVar = typeVarBySymbol[declaringParameters[index]] else { continue }
+            switch arg {
+            case let .invariant(type), let .out(type), let .in(type):
+                substitution[typeVar] = type
+            case .star:
+                continue
+            }
+        }
+        guard !substitution.isEmpty else { return nil }
+        return (substitution, typeVarBySymbol)
+    }
+
+    /// INSTANCE parameter type of the reflected member: the erased receiver
+    /// class parameterized by its own type parameters (e.g. `A` for
+    /// `A::foo`, `H<T>` for `H<A>::foo`). Extension receivers keep their
+    /// declared receiver type.
+    private func functionReferenceReceiverParameterType(
+        targetSymbol: SymbolID?,
+        receiverClassSymbol: SymbolID?,
+        declaredReceiverType: TypeID?,
+        fallback: TypeID,
+        sema: SemaModule
+    ) -> TypeID {
+        let isMember = targetSymbol
+            .flatMap { sema.symbols.parentSymbol(for: $0) }
+            .flatMap { sema.symbols.symbol($0) }
+            .map { [.class, .interface, .object, .enumClass, .annotationClass].contains($0.kind) } == true
+        guard isMember, let receiverClassSymbol else {
+            return declaredReceiverType ?? fallback
+        }
+        let selfArgs: [TypeArg] = sema.types.allTypeParameterSymbols(for: receiverClassSymbol).map {
+            .invariant(sema.types.make(.typeParam(TypeParamType(symbol: $0, nullability: .nonNull))))
+        }
+        return sema.types.make(.classType(sema.types.classType(
+            for: receiverClassSymbol,
+            arguments: selfArgs,
+            nullability: .nonNull
+        )))
     }
 
     func emitCallableReferenceIdentity(

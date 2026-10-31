@@ -367,6 +367,12 @@ public func __kk_kparameter_create_typed(
     return raw
 }
 
+@_cdecl("__kk_kparameter_set_type")
+public func __kk_kparameter_set_type(_ raw: Int, _ typeRaw: Int) -> Int {
+    runtimeKParameterBox(from: raw)?.reflectedTypeRaw = typeRaw
+    return 1
+}
+
 @_cdecl("__kk_kparameter_get_index")
 public func __kk_kparameter_get_index(_ raw: Int) -> Int {
     guard let box = runtimeKParameterBox(from: raw) else {
