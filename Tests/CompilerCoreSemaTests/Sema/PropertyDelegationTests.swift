@@ -1038,14 +1038,22 @@ struct SemaDelegateTypeCheckTests {
 
             let moduleCandidate = ctx.kir
             let module = try #require(moduleCandidate, "Expected KIR")
+            // The four delegate-convention operands (dispatch receiver,
+            // extension receiver, thisRef, KProperty) reach the callee as four
+            // `.call` arguments on direct dispatch or, since class-member
+            // delegate conventions dispatch through the vtable (#11638), as a
+            // `.virtualCall` whose `receiver` field carries the dispatch
+            // receiver with the remaining three in `arguments`.
             let calls = allKIRFunctions(in: module).flatMap { function in
                 function.body.compactMap { instruction -> (SymbolID, Int)? in
-                    guard case let .call(symbol, _, arguments, _, _, _, _, _) = instruction,
-                          let symbol
-                    else {
+                    switch instruction {
+                    case let .call(symbol, _, arguments, _, _, _, _, _):
+                        return symbol.map { ($0, arguments.count) }
+                    case let .virtualCall(symbol, _, _, arguments, _, _, _, _):
+                        return symbol.map { ($0, arguments.count + 1) }
+                    default:
                         return nil
                     }
-                    return (symbol, arguments.count)
                 }
             }
             #expect(calls.contains { $0.0 == tokenProvideDelegate && $0.1 == 4 })
