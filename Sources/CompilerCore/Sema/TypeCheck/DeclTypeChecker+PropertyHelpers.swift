@@ -188,9 +188,23 @@ extension DeclTypeChecker {
                 )
             }
             : nil
+        // A `fun interface` SAM constructor used directly as the delegate
+        // (`val p by ReadOnlyProperty { _, property -> property }`, KT-78073)
+        // binds its getValue `thisRef` parameter from the delegate convention —
+        // the only inference source an in-position interface parameter has
+        // when no explicit type arguments or declared property type exist
+        // (KUU-3839). Remaining parameters are inferred from the lambda's
+        // return type inside the SAM constructor path.
+        let samConstructorDelegateType = (expectedDelegateType == nil && contextualDelegateType == nil)
+            ? samConstructorExpectedDelegateType(
+                for: delegateExpr,
+                propertySymbol: symbol,
+                ctx: ctx
+            )
+            : nil
         let delegateType = driver.inferExpr(
             delegateExpr, ctx: ctx, locals: &locals,
-            expectedType: expectedDelegateType ?? contextualDelegateType
+            expectedType: expectedDelegateType ?? contextualDelegateType ?? samConstructorDelegateType
         )
 
         // Record the delegate type for KIR lowering.
@@ -886,6 +900,51 @@ extension DeclTypeChecker {
             sema.types.anyType
         }
         return [thisRefType, kPropertyType]
+    }
+
+    /// Expected type for a `by` delegate written as a bare SAM constructor
+    /// (`InterfaceName { ... }` without explicit type arguments). The delegate
+    /// convention's `getValue` `thisRef` argument is passed back as the
+    /// interface argument for whichever type parameter occupies the SAM
+    /// method's first parameter; the rest stay star-projected so the lambda's
+    /// return type can infer them (KUU-3839).
+    private func samConstructorExpectedDelegateType(
+        for delegateExpr: ExprID,
+        propertySymbol: SymbolID,
+        ctx: TypeInferenceContext
+    ) -> TypeID? {
+        let sema = ctx.sema
+        let interner = ctx.interner
+        guard let interfaceSymbol = driver.callChecker.inferableSamConstructorSymbol(
+            delegateExpr, ctx: ctx
+        ),
+            let samMethod = driver.helpers.effectiveSamAbstractMethod(
+                for: interfaceSymbol, symbols: sema.symbols
+            ),
+            let methodSymbol = sema.symbols.symbol(samMethod),
+            methodSymbol.name == interner.intern("getValue"),
+            methodSymbol.flags.contains(.operatorFunction),
+            let signature = sema.symbols.functionSignature(for: samMethod),
+            let declaredThisRef = signature.parameterTypes.first,
+            case let .typeParam(thisRefParam) = sema.types.kind(of: declaredThisRef)
+        else {
+            return nil
+        }
+        let typeParameters = sema.types.nominalTypeParameterSymbols(for: interfaceSymbol)
+        guard !typeParameters.isEmpty,
+              typeParameters.contains(thisRefParam.symbol)
+        else {
+            return nil
+        }
+        let thisRefType = propertyDelegateThisRefType(for: propertySymbol, ctx: ctx)
+        let args: [TypeArg] = typeParameters.map { parameter in
+            parameter == thisRefParam.symbol ? .invariant(thisRefType) : .star
+        }
+        return sema.types.make(.classType(ClassType(
+            classSymbol: interfaceSymbol,
+            args: args,
+            nullability: .nonNull
+        )))
     }
 
     private func propertyDelegateThisRefType(
