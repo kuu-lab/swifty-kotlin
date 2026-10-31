@@ -1573,6 +1573,34 @@ extension CallLowerer {
         if memberResult != result {
             instructions.append(.copy(from: memberResult, to: result))
         }
+        // KUU-3792: a callee whose substituted return type collapses to
+        // non-null `Nothing` must not produce a value — JVM throws
+        // `KotlinNothingValueException` on that edge. Emitting inside the
+        // non-null branch keeps the null receiver path flowing to the
+        // merge slot, unlike the unconditional throw `lowerExpr` appends
+        // after a direct call.
+        if let callBinding = sema.bindings.callBinding(for: exprID),
+           driver.exprLowerer.nothingProducingSubstitutedResultType(
+               callBinding: callBinding,
+               sema: sema
+           ) != nil
+        {
+            let exceptionType: TypeID = if let symbol = sema.symbols.lookup(fqName: [
+                interner.intern("kotlin"), interner.intern("KotlinNothingValueException"),
+            ]) {
+                sema.types.make(.classType(ClassType(classSymbol: symbol)))
+            } else {
+                sema.types.anyType
+            }
+            let exception = arena.appendTemporary(type: exceptionType)
+            instructions.append(.call(
+                callee: interner.intern("__kk_kotlin_nothing_value_exception_new"),
+                arguments: [],
+                result: exception,
+                canThrow: false
+            ))
+            instructions.append(.rethrow(value: exception))
+        }
         instructions.append(.label(endLabel))
         return result
     }

@@ -1244,6 +1244,28 @@ extension OverloadResolver {
                 blameRange: blameRange, depth: depth
             )
 
+        case let (.out(_), .in(superInner)):
+            // `Context<out X>` <: `Context<in T>` requires `T <: CAP` where the
+            // `out` projection captures with lower bound `Nothing` — only
+            // `Nothing` itself satisfies that containment, so an inferred `T`
+            // collapses to `Nothing` (JVM then throws
+            // `KotlinNothingValueException` on the value edge, KUU-3792).
+            return decomposeSubtypeConstraintImpl(
+                subtype: superInner, supertype: typeSystem.nothingType,
+                typeVarBySymbol: typeVarBySymbol, typeSystem: typeSystem,
+                blameRange: blameRange, depth: depth + 1
+            )
+
+        case let (.in(_), .out(superInner)):
+            // Mirror image: `Context<in X>` <: `Context<out T>` requires
+            // `CAP <: T` where the `in` projection captures with upper bound
+            // `Any?` — i.e. `Any? <: T`.
+            return decomposeSubtypeConstraintImpl(
+                subtype: typeSystem.nullableAnyType, supertype: superInner,
+                typeVarBySymbol: typeVarBySymbol, typeSystem: typeSystem,
+                blameRange: blameRange, depth: depth + 1
+            )
+
         default:
             // Incompatible variance combinations (e.g. .out vs .in) – conservatively
             // treat as invariant so the original subtype relation is still enforced.
