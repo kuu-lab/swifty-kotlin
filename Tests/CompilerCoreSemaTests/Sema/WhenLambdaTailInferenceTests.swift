@@ -66,6 +66,11 @@ struct WhenLambdaTailInferenceTests {
             """,
             """
             fun infer() {
+                val bad: () -> Int = { when { true -> 42 } }
+            }
+            """,
+            """
+            fun infer() {
                 val bad = { (when (1) { 1 -> 42 }) }
             }
             """,
@@ -80,14 +85,21 @@ struct WhenLambdaTailInferenceTests {
             let ctx = makeCompilationContext(inputs: paths, includeStdlib: false)
             try runSema(ctx)
 
-            let explicitlyTypedErrors = diagnosticsForPath(paths[0], in: ctx).filter { $0.severity == .error }
-            #expect(!explicitlyTypedErrors.isEmpty, "A Unit-valued lambda must not satisfy () -> Int")
-            #expect(
-                !explicitlyTypedErrors.contains(where: { $0.code == "KSWIFTK-SEMA-0004" }),
-                "The lambda tail should be treated as a statement before its return type is checked: \(explicitlyTypedErrors)"
-            )
+            // A `when` at a lambda tail is a statement in Kotlin regardless of
+            // whether it carries a subject: it types as Unit, and the mismatch
+            // surfaces on the lambda's return type rather than as an
+            // exhaustiveness error (kotlinc reports
+            // "return type mismatch: expected 'Int', actual 'Unit'").
+            for index in 0 ... 1 {
+                let explicitlyTypedErrors = diagnosticsForPath(paths[index], in: ctx).filter { $0.severity == .error }
+                #expect(!explicitlyTypedErrors.isEmpty, "A Unit-valued lambda must not satisfy () -> Int")
+                #expect(
+                    !explicitlyTypedErrors.contains(where: { $0.code == "KSWIFTK-SEMA-0004" }),
+                    "The lambda tail should be treated as a statement before its return type is checked: \(explicitlyTypedErrors)"
+                )
+            }
 
-            for index in 1 ... 2 {
+            for index in 2 ... 3 {
                 let errors = diagnosticsForPath(paths[index], in: ctx).filter { $0.severity == .error }
                 #expect(
                     errors.contains(where: { $0.code == "KSWIFTK-SEMA-0004" }),
