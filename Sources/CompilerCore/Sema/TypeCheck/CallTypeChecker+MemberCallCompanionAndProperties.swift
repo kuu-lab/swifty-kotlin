@@ -93,6 +93,14 @@ extension CallTypeChecker {
         let scopedCandidates = invocationCandidateFilter == nil
             ? ctx.cachedScopeLookup(calleeName) : ctx.scope.lookupMergingChain(calleeName)
         let visible = ctx.filterByVisibility(scopedCandidates).visible
+        // `visible` keeps only the innermost scope tier, so a nearer
+        // non-extension binding (an unrelated class member or local `val`
+        // of the same name) hides an imported member extension from it even
+        // though explicit-receiver `recv.name` access still sees the
+        // extension (KUU-3776). The merged chain retains those shadowed
+        // scope bindings for the dispatch-receiver/import reachability
+        // check below.
+        let reachableScopeCandidates = Set(ctx.scope.lookupMergingChain(calleeName))
         var getterCandidates: [SymbolID] = []
         var propertyForGetter: [SymbolID: SymbolID] = [:]
         var deferredReceiverConstraints: [SymbolID: [VariableConstraint]] = [:]
@@ -113,7 +121,7 @@ extension CallTypeChecker {
             else {
                 return true
             }
-            if visible.contains(candidate) {
+            if visible.contains(candidate) || reachableScopeCandidates.contains(candidate) {
                 return true
             }
             let ownerType = sema.types.make(.classType(ClassType(

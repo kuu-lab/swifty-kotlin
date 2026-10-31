@@ -58,6 +58,31 @@ struct ExtensionCallablePropertyTests {
         #expect(outsideErrorCodes.contains("KSWIFTK-SEMA-0040"), "Expected an inaccessible member-property diagnostic, got \(outsideErrorCodes)")
     }
 
+    /// KUU-3776: an explicitly imported member extension property stays a
+    /// `recv.name` candidate even when an unrelated member of the enclosing
+    /// class shares its name — the member shadows only unqualified access.
+    @Test
+    func importedMemberExtensionPropertySurvivesSameNamedClassMember() throws {
+        let ctx = makeContextFromSource("""
+        import Box.Companion.foo
+        class Box { companion object { val Long.foo: String get() = "ext" } }
+        class T(val foo: Int) {
+            fun bar(x: Long) = x.foo
+            fun baz() = foo
+        }
+        """)
+        try runToKIR(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+        let sema = try #require(ctx.sema)
+        let getterCall = try #require(sema.bindings.extensionPropertyGetterCalls.values.first(where: { call in
+            guard let property = sema.symbols.parentSymbol(for: call.chosenCallee) else { return false }
+            return sema.symbols.symbol(property)?.name == ctx.interner.intern("foo")
+        }), "Expected an extension property getter call binding for foo")
+        let dispatchOwner = try #require(sema.symbols.memberExtensionOwnerSymbol(for: getterCall.chosenCallee))
+        let ownerName = try #require(sema.symbols.symbol(dispatchOwner)?.name)
+        #expect(ctx.interner.resolve(ownerName) == "Companion")
+    }
+
     @Test
     func memberPropertiesKeepDispatchAndExtensionReceiversSeparate() throws {
         let ctx = makeContextFromSource("""
