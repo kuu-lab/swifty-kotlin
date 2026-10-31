@@ -221,6 +221,21 @@ struct ExtensionCallablePropertyTests {
         #expect(!ctx.diagnostics.hasError)
     }
 
+    @Test
+    func bareReceiverFunctionCallsUseImplicitReceiverScope() throws {
+        let ctx = makeContextFromSource("""
+        fun scoped(action: Int.(Int) -> Int): Int = with(1) { action(2) }
+        fun nested(action: Int.(Int) -> Int): Int = with(1) { with("s") { action(2) } }
+        fun Int.extensionReceiver(action: Int.(Int) -> Int): Int = action(1)
+        class Owner {
+            fun memberThis(action: Owner.(Int) -> Int): Int = action(1)
+            fun Int.memberExtension(action: Owner.(Int) -> Int): Int = action(1)
+        }
+        """)
+        try runToKIR(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+    }
+
     @Test(arguments: [
         "fun bad(action: Int.() -> Int): Int = \"x\".action()",
         "fun bad(action: Int.(Int) -> Int): Int = 1.action()",
@@ -229,7 +244,14 @@ struct ExtensionCallablePropertyTests {
         "fun bad(action: (Int.() -> Int)?): Int = 1.action()",
         "fun bad(s: String?, action: String.() -> Int): Int = s.action()",
         "fun bad(action: Int.(Int) -> Int): Int = 1.action(value = 2)",
-        "fun bad(action: Int.() -> Int): Int = 1.action<Int>()"
+        "fun bad(action: Int.() -> Int): Int = 1.action<Int>()",
+        // A bare `f(...)` call must draw the receiver from an implicit
+        // receiver scope; without one it is an arity error like kotlinc's
+        // "no value passed for parameter" (KUU-3878).
+        "fun bad(action: Int.(Int) -> Int): Int = action(1)",
+        "fun bad(action: Int.(Int) -> Int): Int = with(\"x\") { action(2) }",
+        "fun bad(f: Int.(Int) -> Int): Int = f.invoke(4)",
+        "context(i: Int) fun bad(action: Int.(Int) -> Int): Int = action(1)"
     ])
     func invalidReceiverFunctionValueCallsAreRejected(_ source: String) throws {
         let ctx = makeContextFromSource(source)
