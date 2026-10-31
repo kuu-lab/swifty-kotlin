@@ -250,7 +250,7 @@ final class TestRunnerGenerator {
 
     private func validateSuite(_ suite: Suite) {
         guard let sema = context.sema, let symbol = sema.symbols.symbol(suite.symbol) else { return }
-        let visibility = VisibilityChecker(symbols: sema.symbols, sourceManager: context.sourceManager)
+        let visibility = VisibilityChecker(symbols: sema.symbols, sourceManager: context.sourceManager, interner: context.interner)
         var owner: SymbolID? = suite.symbol
         var accessible = true
         while let current = owner, let info = sema.symbols.symbol(current), info.kind != .package {
@@ -320,7 +320,7 @@ final class TestRunnerGenerator {
 
     private func addSuitePhases(_ hooks: [Method], suite: Suite?, file: FileID, suiteKey: String? = nil) {
         let group = suiteKey ?? key(suite: suite, file: file)
-        let visibility = context.sema.map { VisibilityChecker(symbols: $0.symbols, sourceManager: context.sourceManager) }
+        let visibility = context.sema.map { VisibilityChecker(symbols: $0.symbols, sourceManager: context.sourceManager, interner: context.interner) }
         var lexicalOwner: Suite?
         if let suite, suite.isCompanion, let sema = context.sema,
            let symbol = sema.symbols.symbol(suite.symbol),

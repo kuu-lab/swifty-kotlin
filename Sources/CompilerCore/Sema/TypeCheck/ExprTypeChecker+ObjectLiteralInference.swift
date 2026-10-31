@@ -673,7 +673,10 @@ extension ExprTypeChecker {
                 name: propertyDecl.name,
                 fqName: ownerFQName + [propertyDecl.name],
                 declSite: propertyDecl.range,
-                visibility: .public,
+                // Keep the declared visibility (e.g. `private val`) so a
+                // member of a local class or object literal stays scoped to
+                // its body, matching the member-function path (KUU-3880).
+                visibility: Visibility(modifiers: propertyDecl.modifiers),
                 flags: propertyFlags
             )
             sema.bindings.bindDecl(propertyDeclID, symbol: propertySymbol)

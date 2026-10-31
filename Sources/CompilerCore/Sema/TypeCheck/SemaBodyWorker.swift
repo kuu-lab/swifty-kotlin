@@ -53,6 +53,7 @@ final class SemaBodyWorker: @unchecked Sendable {
             currentFileID: file.fileID, currentDeclSymbol: nil, enclosingClassSymbol: nil,
             visibilityChecker: VisibilityChecker(
                 symbols: driver.sema.symbols, sourceManager: driver.sourceManager,
+                interner: driver.interner,
                 invisibleAccessFiles: invisibleAccessFiles
             ),
             outerReceiverTypes: [], semaCacheContext: driver.semaCacheContext,

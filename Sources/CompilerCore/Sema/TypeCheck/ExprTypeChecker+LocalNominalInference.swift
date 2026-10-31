@@ -362,20 +362,38 @@ extension ExprTypeChecker {
 
         let initName = interner.intern("<init>")
         let hasPrimaryConstructor = classDecl.hasPrimaryConstructorSyntax || classDecl.secondaryConstructors.isEmpty
-        var constructorHeaders: [(params: [ValueParamDecl], range: SourceRange)] = []
+        var constructorHeaders: [(params: [ValueParamDecl], range: SourceRange, modifiers: Modifiers)] = []
         if hasPrimaryConstructor {
-            constructorHeaders.append((classDecl.primaryConstructorParams, classDecl.range))
+            constructorHeaders.append((classDecl.primaryConstructorParams, classDecl.range, classDecl.primaryConstructorModifiers))
         }
-        constructorHeaders.append(contentsOf: classDecl.secondaryConstructors.map { ($0.valueParams, $0.range) })
+        constructorHeaders.append(contentsOf: classDecl.secondaryConstructors.map { ($0.valueParams, $0.range, $0.modifiers) })
         var constructorSymbols: [SymbolID] = []
+        let dataFlow = DataFlowSemaPhase()
         for header in constructorHeaders {
+            // Same rule as header collection (`HeaderCollection+CollectHeader`):
+            // an unannotated constructor inherits the class's visibility, here
+            // the `.private` assigned to the local class symbol above — but
+            // through `constructorVisibilityInherited`, which delegates the
+            // access check back to the class so `C()` still works inside the
+            // enclosing declaration. An explicit `private constructor` keeps
+            // its own `.private`, scoped to the class body (KUU-3880).
+            let ctorVisibilityDetail = dataFlow.constructorVisibilityDetail(
+                explicitModifiers: header.modifiers,
+                classKind: .class,
+                isSealedClass: classDecl.modifiers.contains(.sealed),
+                declarationVisibility: .private
+            )
+            var ctorFlags: SymbolFlags = [.synthetic]
+            if ctorVisibilityDetail.isInheritedFromOwner {
+                ctorFlags.insert(.constructorVisibilityInherited)
+            }
             let ctorSymbol = sema.symbols.define(
                 kind: .constructor,
                 name: initName,
                 fqName: classFQName + [initName],
                 declSite: header.range,
-                visibility: .public,
-                flags: [.synthetic]
+                visibility: ctorVisibilityDetail.visibility,
+                flags: ctorFlags
             )
             constructorSymbols.append(ctorSymbol)
             sema.symbols.setParentSymbol(classSymbol, for: ctorSymbol)

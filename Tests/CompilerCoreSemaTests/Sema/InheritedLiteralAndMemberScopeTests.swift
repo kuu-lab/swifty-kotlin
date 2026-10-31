@@ -351,7 +351,7 @@ struct InheritedLiteralAndMemberScopeTests {
             interner: interner, scope: scope, implicitReceiverType: receiverType,
             loopDepth: 0, loopLabelStack: [], lambdaLabelStack: [], exportBlockLocalsForExpr: nil,
             flowState: DataFlowState(), currentFileID: FileID(rawValue: 0), enclosingClassSymbol: owner,
-            visibilityChecker: VisibilityChecker(symbols: symbols), outerReceiverTypes: [],
+            visibilityChecker: VisibilityChecker(symbols: symbols, interner: interner), outerReceiverTypes: [],
             semaCacheContext: nil, useNewInference: false, useUnrestrictedBuilderInference: false,
             useProperTypeInferenceConstraintsProcessing: false, globalOptInMarkerNames: []
         )

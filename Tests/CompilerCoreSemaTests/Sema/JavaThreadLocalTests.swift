@@ -21,7 +21,7 @@ struct JavaThreadLocalTests {
                 let symbol = try #require(sema.symbols.lookup(fqName: ["java", "lang", "ThreadLocal", name].map(ctx.interner.intern)))
                 #expect(sema.symbols.symbol(symbol)?.visibility == visibility)
                 let declaration = try #require(sema.symbols.symbol(symbol))
-                let checker = VisibilityChecker(symbols: sema.symbols)
+                let checker = VisibilityChecker(symbols: sema.symbols, interner: ctx.interner)
                 #expect(checker.isAccessible(
                     declaration, fromFile: FileID(rawValue: 0), enclosingClass: nil
                 ) == (visibility == .public))

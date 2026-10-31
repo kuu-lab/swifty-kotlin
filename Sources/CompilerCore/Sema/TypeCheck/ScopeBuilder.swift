@@ -367,7 +367,7 @@ struct TypeCheckScopeBuilder {
             }
         }
         let visibility = VisibilityChecker(
-            symbols: sema.symbols, sourceManager: sourceManager,
+            symbols: sema.symbols, sourceManager: sourceManager, interner: interner,
             invisibleAccessFiles: suppressesInvisibleAccess ? [file.fileID.rawValue] : []
         )
         // Bundled stdlib source contains platform-specific imports (for

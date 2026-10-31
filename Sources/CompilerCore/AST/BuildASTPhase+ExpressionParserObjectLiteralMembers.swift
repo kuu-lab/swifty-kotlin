@@ -514,14 +514,19 @@ extension BuildASTPhase.ExpressionParser {
             }
         }
 
-        // Keep storage and dispatch modifiers when rebuilding an anonymous
-        // property. Dropping `override` prevents its accessor from replacing
-        // the superclass's abstract vtable slot (KUU-1251).
+        // Keep storage, dispatch, and visibility modifiers when rebuilding an
+        // anonymous property. Dropping `override` prevents its accessor from
+        // replacing the superclass's abstract vtable slot (KUU-1251); dropping
+        // `private`/`internal`/`protected` made the member read as public to
+        // the enclosing scope (KUU-3880).
         var modifiers: Modifiers = []
         let declKeywordIndex = sanitized.firstIndex { $0.kind == .keyword(.val) || $0.kind == .keyword(.var) }
             ?? sanitized.endIndex
         for token in sanitized[..<declKeywordIndex] {
             switch token.kind {
+            case .keyword(.private): modifiers.insert(.private)
+            case .keyword(.internal): modifiers.insert(.internal)
+            case .keyword(.protected): modifiers.insert(.protected)
             case .keyword(.lateinit): modifiers.insert(.lateinit)
             case .keyword(.override): modifiers.insert(.override)
             case .keyword(.open): modifiers.insert(.open)

@@ -41,11 +41,11 @@ struct ImportedMetadataVisibilityTests {
             )
             return symbols.symbol(id)!
         }
-        let checker = VisibilityChecker(symbols: symbols)
+        let checker = VisibilityChecker(symbols: symbols, interner: interner)
         #expect(checker.isAccessible(imported("publicFn", .public), fromFile: file, enclosingClass: nil))
         #expect(!checker.isAccessible(imported("internalFn", .internal), fromFile: file, enclosingClass: nil))
         #expect(!checker.isAccessible(imported("privateFn", .private), fromFile: file, enclosingClass: nil))
-        let suppressed = VisibilityChecker(symbols: symbols, invisibleAccessFiles: [file.rawValue])
+        let suppressed = VisibilityChecker(symbols: symbols, interner: interner, invisibleAccessFiles: [file.rawValue])
         #expect(suppressed.isAccessible(imported("publishedApi", .internal), fromFile: file, enclosingClass: nil))
 
         let className = interner.intern("Hidden")

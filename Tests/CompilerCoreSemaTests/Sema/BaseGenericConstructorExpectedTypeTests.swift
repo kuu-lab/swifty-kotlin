@@ -201,7 +201,7 @@ struct BaseGenericConstructorExpectedTypeTests {
             interner: compilation.interner, scope: FileScope(parent: nil, symbols: sema.symbols),
             implicitReceiverType: nil, loopDepth: 0, loopLabelStack: [], lambdaLabelStack: [],
             exportBlockLocalsForExpr: nil, flowState: DataFlowState(), currentFileID: ast.files[0].fileID,
-            enclosingClassSymbol: nil, visibilityChecker: VisibilityChecker(symbols: sema.symbols),
+            enclosingClassSymbol: nil, visibilityChecker: VisibilityChecker(symbols: sema.symbols, interner: compilation.interner),
             outerReceiverTypes: [], semaCacheContext: nil, useNewInference: false,
             useUnrestrictedBuilderInference: false, useProperTypeInferenceConstraintsProcessing: false,
             globalOptInMarkerNames: []
