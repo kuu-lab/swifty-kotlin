@@ -479,6 +479,37 @@ extension NativeEmitter.FunctionEmissionContext {
             return
         }
 
+        // KUU-3786: the dispatch blocks and the callee's thrown slot are
+        // created up-front so an erased-boundary checkcast on a
+        // type-parameter receiver (below) — and the dynamic-itable miss
+        // path — can route a thrown ClassCastException into the same merge
+        // the virtual call itself uses.
+        guard let useVirtualBlock = bindings.appendBasicBlock(
+            context: context,
+            function: llvmFunction.value,
+            name: "lookup_ok_\(instructionIndex)"
+        ),
+            let fallbackBlock = bindings.appendBasicBlock(
+                context: context,
+                function: llvmFunction.value,
+                name: "lookup_fallback_\(instructionIndex)"
+            ),
+            let mergeBlock = bindings.appendBasicBlock(
+                context: context,
+                function: llvmFunction.value,
+                name: "vcall_merge_\(instructionIndex)"
+            )
+        else {
+            return
+        }
+        var thrownSlotPointer: LLVMCAPIBindings.LLVMValueRef?
+        if usesThrownChannel, shouldAppendThrownChannel {
+            thrownSlotPointer = stringAggregateBridge.buildEntrySlot(name: "vthrown_slot_\(instructionIndex)")
+            if let thrownSlotPointer {
+                _ = bindings.buildStore(builder, value: zeroValue, pointer: thrownSlotPointer)
+            }
+        }
+
         let calleeKIRFunction = effectiveABISymbol.flatMap { module.arena.function(for: $0) }
         let isRuntimeCallbackRawABIVirtualCall = isInternalCall
             && effectiveSymbol.map { runtimeCallbackRawReturnSymbols.contains($0) } == true
@@ -559,7 +590,84 @@ extension NativeEmitter.FunctionEmissionContext {
         // required boxing before the getter is invoked, while using the
         // original aggregate here makes the runtime look up a bogus
         // object address and report a missing itable entry.
-        let lookupReceiver = virtualCallArguments.first ?? resolveValue(receiver)
+        var lookupReceiver = virtualCallArguments.first ?? resolveValue(receiver)
+
+        // KUU-3786: a member invoked on a non-reified type-parameter
+        // receiver goes through the parameter's erasure. When that erasure
+        // does not already cover the member's declaring class (e.g.
+        // `T : I1, T : B` calling a `B` member), kotlinc emits
+        // `checkcast B` ahead of the invoke — an unchecked `as` cast can
+        // otherwise smuggle in an object that does not implement the
+        // bound, and the vtable lookup would either index a foreign
+        // layout or misdispatch instead of throwing ClassCastException.
+        if case .vtable = dispatch,
+           let boundaryTypeID = erasedVirtualDispatchBoundaryTypeID(
+               memberSymbol: normalizedSymbol,
+               receiverExpr: receiver
+           ),
+           let checkSlot = stringAggregateBridge.buildEntrySlot(name: "vcast_thrown_\(instructionIndex)"),
+           let castFunction = declareExternalFunction(
+               named: "kk_op_cast",
+               argumentCount: 2,
+               appendThrownChannel: true
+           ),
+           let tokenValue = bindings.constInt(
+               int64Type,
+               value: UInt64(bitPattern: erasedBoundaryCheckcastToken(nominalTypeID: boundaryTypeID))
+           ),
+           let thrownBlock = bindings.appendBasicBlock(
+               context: context,
+               function: llvmFunction.value,
+               name: "vcast_throw_\(instructionIndex)"
+           ),
+           let checkedBlock = bindings.appendBasicBlock(
+               context: context,
+               function: llvmFunction.value,
+               name: "vcast_ok_\(instructionIndex)"
+           )
+        {
+            _ = bindings.buildStore(builder, value: zeroValue, pointer: checkSlot)
+            guard let checkedReceiver = bindings.buildCall(
+                builder,
+                functionType: castFunction.type,
+                callee: castFunction.value,
+                arguments: [lookupReceiver, tokenValue, checkSlot],
+                name: "vcast_receiver_\(instructionIndex)"
+            ),
+                let thrownValue = bindings.buildLoad(
+                    builder,
+                    type: int64Type,
+                    pointer: checkSlot,
+                    name: "vcast_thrown_val_\(instructionIndex)"
+                ),
+                let isThrown = buildThrownSlotCondition(
+                    from: thrownValue,
+                    name: "vcast_is_thrown_\(instructionIndex)"
+                )
+            else {
+                return
+            }
+            _ = bindings.buildCondBr(
+                builder,
+                condition: isThrown,
+                thenBlock: thrownBlock,
+                elseBlock: checkedBlock
+            )
+            bindings.positionBuilder(builder, at: thrownBlock)
+            currentBlock = thrownBlock
+            emitVirtualDispatchThrownEdge(
+                thrownValue,
+                thrownSlotPointer: thrownSlotPointer,
+                thrownResult: thrownResult,
+                mergeBlock: mergeBlock,
+                suffix: "vcast_\(instructionIndex)"
+            )
+            bindings.positionBuilder(builder, at: checkedBlock)
+            currentBlock = checkedBlock
+            lookupReceiver = checkedReceiver
+            virtualCallArguments[0] = checkedReceiver
+        }
+
         switch dispatch {
         case let .vtable(slot):
             lookupFunction = declareExternalFunction(named: "kk_vtable_lookup", argumentCount: 2, appendThrownChannel: false)
@@ -738,22 +846,7 @@ extension NativeEmitter.FunctionEmissionContext {
             lhs: fptrRaw,
             rhs: zeroValue,
             name: "lookup_nonnull_\(instructionIndex)"
-        ),
-            let useVirtualBlock = bindings.appendBasicBlock(
-                context: context,
-                function: llvmFunction.value,
-                name: "lookup_ok_\(instructionIndex)"
-            ),
-            let fallbackBlock = bindings.appendBasicBlock(
-                context: context,
-                function: llvmFunction.value,
-                name: "lookup_fallback_\(instructionIndex)"
-            ),
-            let mergeBlock = bindings.appendBasicBlock(
-                context: context,
-                function: llvmFunction.value,
-                name: "vcall_merge_\(instructionIndex)"
-            )
+        )
         else {
             return
         }
@@ -765,6 +858,7 @@ extension NativeEmitter.FunctionEmissionContext {
             elseBlock: fallbackBlock
         )
         bindings.positionBuilder(builder, at: useVirtualBlock)
+        currentBlock = useVirtualBlock
         let functionPointerType = bindings.pointerType(calleeFunction.type)
         let fptr = bindings.buildIntToPtr(
             builder,
@@ -774,20 +868,8 @@ extension NativeEmitter.FunctionEmissionContext {
         )
 
         var callArguments = virtualCallArguments
-        var thrownSlotPointer: LLVMCAPIBindings.LLVMValueRef?
         if shouldAppendThrownChannel {
-            if usesThrownChannel {
-                let thrownSlot = stringAggregateBridge.buildEntrySlot(name: "vthrown_slot_\(instructionIndex)")
-                if let thrownSlot {
-                    _ = bindings.buildStore(builder, value: zeroValue, pointer: thrownSlot)
-                    callArguments.append(thrownSlot)
-                    thrownSlotPointer = thrownSlot
-                } else {
-                    callArguments.append(nullThrownPointer)
-                }
-            } else {
-                callArguments.append(nullThrownPointer)
-            }
+            callArguments.append(thrownSlotPointer ?? nullThrownPointer)
         }
 
         let vCallValue = bindings.buildCall(
@@ -800,16 +882,12 @@ extension NativeEmitter.FunctionEmissionContext {
         if let result, let vCallValue {
             rawResultValues[result.rawValue] = vCallValue
         }
-        _ = bindings.buildBr(builder, destination: mergeBlock)
-
-        bindings.positionBuilder(builder, at: fallbackBlock)
-        if let trapFn = declareExternalFunction(named: "kk_dispatch_error", argumentCount: 0, appendThrownChannel: false) {
-            _ = bindings.buildCall(builder, functionType: trapFn.type, callee: trapFn.value, arguments: [], name: "trap_\(instructionIndex)")
-        }
-        _ = bindings.buildUnreachable(builder)
-
-        bindings.positionBuilder(builder, at: mergeBlock)
-        currentBlock = mergeBlock
+        // KUU-3786: the merged result is materialized here, not in the
+        // merge block — the merge block now has thrown-path predecessors
+        // (the erased-boundary checkcast and the itable-miss probe) that
+        // never execute this call, so `vCallValue` only dominates uses
+        // inside this block. `storeResult` writes the result's copy-slot
+        // alloca, keeping downstream `resolveValue` loads path-safe.
         let mergedValue: LLVMCAPIBindings.LLVMValueRef
         if isThrowableMessageVirtualGetter,
            let result,
@@ -882,10 +960,206 @@ extension NativeEmitter.FunctionEmissionContext {
         if !hasGCRootSlot(for: result) {
             emitGCShadowRetireReturnHandoff(value: vCallValue)
         }
+        _ = bindings.buildBr(builder, destination: mergeBlock)
+
+        bindings.positionBuilder(builder, at: fallbackBlock)
+        currentBlock = fallbackBlock
+        // KUU-3786: a dynamic-itable miss means the runtime object does not
+        // implement the member's interface — the same spot where a JVM
+        // `checkcast` on the erased receiver rejects a value smuggled past
+        // an unchecked `as` cast with ClassCastException. Reproduce that
+        // failure through `kk_op_cast` so it surfaces as a catchable CCE;
+        // when the object *does* implement the interface, the miss is a
+        // genuine registration gap and keeps the original dispatch trap.
+        if case let .itableDynamic(interfaceTypeID, _) = dispatch,
+           let checkSlot = stringAggregateBridge.buildEntrySlot(name: "imiss_thrown_\(instructionIndex)"),
+           let castFunction = declareExternalFunction(
+               named: "kk_op_cast",
+               argumentCount: 2,
+               appendThrownChannel: true
+           ),
+           let tokenValue = bindings.constInt(
+               int64Type,
+               value: UInt64(bitPattern: erasedBoundaryCheckcastToken(nominalTypeID: interfaceTypeID))
+           ),
+           let thrownBlock = bindings.appendBasicBlock(
+               context: context,
+               function: llvmFunction.value,
+               name: "imiss_throw_\(instructionIndex)"
+           ),
+           let trapBlock = bindings.appendBasicBlock(
+               context: context,
+               function: llvmFunction.value,
+               name: "imiss_trap_\(instructionIndex)"
+           )
+        {
+            _ = bindings.buildStore(builder, value: zeroValue, pointer: checkSlot)
+            _ = bindings.buildCall(
+                builder,
+                functionType: castFunction.type,
+                callee: castFunction.value,
+                arguments: [lookupReceiver, tokenValue, checkSlot],
+                name: "imiss_cast_\(instructionIndex)"
+            )
+            if let thrownValue = bindings.buildLoad(
+                builder,
+                type: int64Type,
+                pointer: checkSlot,
+                name: "imiss_thrown_val_\(instructionIndex)"
+            ),
+               let isThrown = buildThrownSlotCondition(
+                   from: thrownValue,
+                   name: "imiss_is_thrown_\(instructionIndex)"
+               )
+            {
+                _ = bindings.buildCondBr(
+                    builder,
+                    condition: isThrown,
+                    thenBlock: thrownBlock,
+                    elseBlock: trapBlock
+                )
+                bindings.positionBuilder(builder, at: thrownBlock)
+                currentBlock = thrownBlock
+                emitVirtualDispatchThrownEdge(
+                    thrownValue,
+                    thrownSlotPointer: thrownSlotPointer,
+                    thrownResult: thrownResult,
+                    mergeBlock: mergeBlock,
+                    suffix: "imiss_\(instructionIndex)"
+                )
+                bindings.positionBuilder(builder, at: trapBlock)
+                currentBlock = trapBlock
+            }
+        }
+        if let trapFn = declareExternalFunction(named: "kk_dispatch_error", argumentCount: 0, appendThrownChannel: false) {
+            _ = bindings.buildCall(builder, functionType: trapFn.type, callee: trapFn.value, arguments: [], name: "trap_\(instructionIndex)")
+        }
+        _ = bindings.buildUnreachable(builder)
+
+        bindings.positionBuilder(builder, at: mergeBlock)
+        currentBlock = mergeBlock
 
         if usesThrownChannel {
             handleThrownSlot(thrownSlotPointer, thrownResult: thrownResult, instructionIndex: instructionIndex, namePrefix: "v")
         }
+    }
+
+    /// KUU-3786: `kk_op_cast` token for a nominal dispatch-boundary
+    /// checkcast. Encodes `nominalBase | (payload << payloadShift)` — the
+    /// same bit layout `RuntimeTypeCheckToken.encode` produces — so the
+    /// runtime's `kk_op_is` edge walk recognizes the target type ID. The
+    /// backend keeps its own copy of the layout the same way
+    /// `WasmRuntimeHelpers` replicates `stableNominalTypeID`.
+    private func erasedBoundaryCheckcastToken(nominalTypeID: Int64) -> Int64 {
+        // nominalBase = 6, payloadShift = 9, payloadMask = (1 << 55) - 1.
+        6 | ((nominalTypeID & ((Int64(1) << 55) - 1)) << 9)
+    }
+
+    /// KUU-3786: the stable nominal type ID the receiver must be checkcast
+    /// against before a vtable dispatch, or nil when no check is needed.
+    ///
+    /// A call `x.m()` where `x` is typed as a non-reified type parameter
+    /// (or its definitely-non-null `T & Any` shape) erases the receiver to
+    /// the parameter's first upper bound. When that erasure does not
+    /// already cover the member's declaring nominal, kotlinc inserts
+    /// `checkcast` so a value smuggled past an unchecked `as` cast fails
+    /// with ClassCastException rather than indexing a foreign vtable.
+    /// When the erasure *is* a subtype of the declaring nominal the value
+    /// is statically guaranteed — JVM emits no checkcast either — so the
+    /// check is skipped.
+    private func erasedVirtualDispatchBoundaryTypeID(
+        memberSymbol: SymbolID?,
+        receiverExpr: KIRExprID
+    ) -> Int64? {
+        guard let memberSymbol,
+              let symbols,
+              let typeSystem,
+              let receiverType = module.arena.exprType(receiverExpr)
+        else {
+            return nil
+        }
+        // Recover the type parameter inside a `T & Any` intersection.
+        var parameterType = receiverType
+        if case let .intersection(parts) = typeSystem.kind(of: receiverType),
+           parts.count == 2,
+           parts.contains(where: { typeSystem.kind(of: $0) == .any(.nonNull) }),
+           let inner = parts.first(where: {
+               if case .typeParam = typeSystem.kind(of: $0) { return true }
+               return false
+           })
+        {
+            parameterType = inner
+        }
+        guard case let .typeParam(typeParam) = typeSystem.kind(of: parameterType),
+              symbols.symbol(typeParam.symbol)?.flags.contains(.reifiedTypeParameter) != true
+        else {
+            return nil
+        }
+        // The erased runtime classifier of a type parameter is its first
+        // upper bound, resolved transitively through dependent parameters —
+        // mirrors `kirCheckableCastErasure`.
+        var visited: Set<SymbolID> = []
+        var erasure = parameterType
+        while case let .typeParam(parameter) = typeSystem.kind(of: erasure) {
+            guard visited.insert(parameter.symbol).inserted,
+                  let bound = symbols.typeParameterUpperBounds(for: parameter.symbol).first
+            else {
+                return nil
+            }
+            erasure = parameter.nullability == .nullable
+                ? typeSystem.makeNullable(bound)
+                : bound
+        }
+        guard let owner = virtualCallNominalOwner(for: memberSymbol, symbols: symbols),
+              let ownerInfo = symbols.symbol(owner),
+              !ownerInfo.fqName.isEmpty,
+              ownerInfo.kind != .enumClass,
+              !(ownerInfo.kind == .interface && ownerInfo.flags.contains(.synthetic))
+        else {
+            return nil
+        }
+        let ownerType = typeSystem.make(.classType(ClassType(classSymbol: owner)))
+        guard !typeSystem.isSubtype(erasure, ownerType) else {
+            return nil
+        }
+        let fqName = ownerInfo.fqName.map { interner.resolve($0) }.joined(separator: ".")
+        return WasmRuntimeHelpers.stableNominalTypeID(fqName)
+    }
+
+    /// Route an exception raised while resolving a virtual dispatch — the
+    /// erased-boundary checkcast above, or the dynamic-itable miss probe —
+    /// through the same channel the virtual call itself uses: the callee's
+    /// outThrown slot when the call carries a thrown channel (the merge
+    /// then forwards it through `handleThrownSlot`), the enclosing try's
+    /// `thrownResult` slot when it does not, or this function's own
+    /// outThrown/return edge when neither applies.
+    private func emitVirtualDispatchThrownEdge(
+        _ thrownValue: LLVMCAPIBindings.LLVMValueRef,
+        thrownSlotPointer: LLVMCAPIBindings.LLVMValueRef?,
+        thrownResult: KIRExprID?,
+        mergeBlock: LLVMCAPIBindings.LLVMBasicBlockRef,
+        suffix: String
+    ) {
+        if let thrownSlotPointer {
+            _ = bindings.buildStore(builder, value: thrownValue, pointer: thrownSlotPointer)
+            _ = bindings.buildBr(builder, destination: mergeBlock)
+            return
+        }
+        if let thrownResult {
+            if let alloca = copyTargetAllocas[thrownResult.rawValue] {
+                _ = bindings.buildStore(builder, value: thrownValue, pointer: alloca)
+                emitGCShadowSet(thrownResult, value: thrownValue)
+                storeGCRoot(for: thrownResult, value: thrownValue)
+            } else {
+                storeResult(thrownResult, thrownValue)
+            }
+            _ = bindings.buildBr(builder, destination: mergeBlock)
+            return
+        }
+        storeOutThrownIfNonNull(thrownValue, suffix: suffix)
+        emitGCFrameLeave(returning: thrownValue)
+        emitGCShadowPop(thrown: thrownValue)
+        _ = bindings.buildRet(builder, value: zeroReturnValue)
     }
 
 }
