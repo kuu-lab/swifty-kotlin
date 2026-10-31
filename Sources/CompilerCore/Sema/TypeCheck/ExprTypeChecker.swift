@@ -531,6 +531,18 @@ final class ExprTypeChecker {
                         locals: locals,
                         expectedType: expectedType
                     ) {
+                        // The resolved `unaryPlus`/`unaryMinus` member call keeps
+                        // the operand as its receiver, so a platform-primitive
+                        // operand needs the same runtime null assertion the
+                        // fallback path below records — `-list.pollFirst()`
+                        // on an empty container must NPE like the JVM unbox.
+                        if case .primitive(_, .platformType) = sema.types.kind(of: operandType) {
+                            driver.recordPlatformNullAssertion(
+                                operandID,
+                                sourceType: operandType,
+                                targetType: sema.types.makeNonNullable(operandType)
+                            )
+                        }
                         return overloadedType
                     }
                     if case .primitive(_, .platformType) = sema.types.kind(of: operandType) {
