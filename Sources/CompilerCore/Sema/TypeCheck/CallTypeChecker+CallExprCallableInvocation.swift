@@ -437,6 +437,43 @@ extension CallTypeChecker {
         return nil
     }
 
+    /// Kotlin resolves `name(...)` against a single candidate set that also
+    /// includes the implicit `invoke` of every callable value named `name` in
+    /// scope — a function-typed property such as `var resume: () -> Unit`, or
+    /// an object type carrying an `invoke` operator. When no function
+    /// candidate is viable the call can still bind through that value, so the
+    /// overload resolver defers to the callable-value path instead of
+    /// reporting "no viable overload".
+    func callableValueCalleeInScope(
+        named calleeName: InternedString,
+        ctx: TypeInferenceContext,
+        locals: LocalBindings
+    ) -> Bool {
+        let sema = ctx.sema
+        func isCallableType(_ type: TypeID) -> Bool {
+            let nonNull = sema.types.makeNonNullable(type)
+            if case .functionType = sema.types.kind(of: nonNull) {
+                return true
+            }
+            return !implicitInvokeOperatorCandidates(for: nonNull, ctx: ctx).isEmpty
+        }
+        if let local = locals[calleeName], isCallableType(local.type) {
+            return true
+        }
+        if implicitReceiverFunctionProperty(named: calleeName, ctx: ctx) != nil {
+            return true
+        }
+        return ctx.valueScopeLookup(calleeName).matches.contains { candidate in
+            guard let symbol = ctx.cachedSymbol(candidate),
+                  symbol.kind == .property || symbol.kind == .valueParameter || symbol.kind == .local,
+                  let type = sema.symbols.propertyType(for: candidate)
+            else {
+                return false
+            }
+            return isCallableType(type)
+        }
+    }
+
     func shouldFallThroughFromInapplicableLocalFunctionsToImplicitCallableProperty(
         candidates: [SymbolID],
         args: [CallArgument],

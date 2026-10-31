@@ -248,7 +248,7 @@ public func __kk_run_blocking_context(
                 _ = runSuspendEntryLoopWithContinuation(
                     entryPointRaw: box.suspendEntryPoint,
                     continuation: child,
-                    onCompletion: { bodyResult, bodyThrown in
+                    onCompletion: { bodyResult, bodyThrown, _ in
                         if let childState = runtimeContinuationState(from: child) {
                             invocation.unbindSuspendedCallChild(childState)
                         }

@@ -295,7 +295,7 @@ func runtimeRunBlockingOnEventLoop(
     _ = runSuspendEntryLoopWithContinuation(
         entryPointRaw: entryPointRaw,
         continuation: continuation,
-        onCompletion: { result, thrown in
+        onCompletion: { result, thrown, _ in
             outcome.complete(result: result, thrown: thrown)
             loop.wake()
         }
@@ -328,16 +328,23 @@ func runtimeRunBlockingOnEventLoop(
 /// caller on `completionGate`.
 /// When `onCompletion` is non-nil, this starts the loop, returns immediately,
 /// and invokes the callback on completion without blocking a dispatcher thread.
+///
+/// `onCompletion`'s third parameter is the resumer's own thrown slot for the
+/// burst that is finishing (KUU-3783): when a `resume` call synchronously
+/// drives the coroutine to completion, an exception escaping the delivery of
+/// that completion — e.g. a parent coroutine's completion continuation
+/// rethrowing inside `resumeWith` — must propagate back to the resumer's call
+/// site, matching the JVM single-call-stack semantics of `resume`.
 func runSuspendEntryLoopWithContinuation(
     entryPointRaw: Int,
     continuation: Int,
     outThrown: UnsafeMutablePointer<Int>? = nil,
-    onCompletion: (@Sendable (_ result: Int, _ thrown: Int) -> Void)? = nil
+    onCompletion: (@Sendable (_ result: Int, _ thrown: Int, _ resumeThrown: UnsafeMutablePointer<Int>?) -> Void)? = nil
 ) -> Int {
     guard let entryPoint = suspendEntryPoint(from: entryPointRaw) else {
         outThrown?.pointee = 0
         _ = kk_coroutine_state_exit(continuation, 0)
-        onCompletion?(0, 0)
+        onCompletion?(0, 0, nil)
         return 0
     }
 
@@ -424,8 +431,10 @@ func runSuspendEntryLoopWithContinuation(
     // the resume continuation without recursion or blocking.
     //
     // Using a box to hold the closure so it can reference itself.
+    // The parameter is the resumer's thrown slot — non-nil only when a
+    // `resume` call invoked this burst synchronously (see signalResume).
     final class LoopBodyBox: @unchecked Sendable {
-        var body: (() -> Void)?
+        var body: ((UnsafeMutablePointer<Int>?) -> Void)?
     }
     let loopBodyBox = LoopBodyBox()
 
@@ -445,7 +454,7 @@ func runSuspendEntryLoopWithContinuation(
     taskKeyBox.outerKey = outerTaskKey
     taskKeyBox.outerJob = outerJob
 
-    loopBodyBox.body = {
+    loopBodyBox.body = { resumeThrown in
         // A generated entry point transfers its return and exception to this
         // frame before native completion code or a nested wait can run.
         kk_gc_shadow_push()
@@ -507,7 +516,7 @@ func runSuspendEntryLoopWithContinuation(
             contState?.thrownException = thrownValue
             if let onCompletion {
                 loopBodyBox.body = nil
-                onCompletion(0, thrownValue)
+                onCompletion(0, thrownValue, resumeThrown)
             } else {
                 resultBox.store(result: 0, thrown: thrownValue)
                 syncCompleted.set()
@@ -528,7 +537,7 @@ func runSuspendEntryLoopWithContinuation(
             RuntimeJobHandle.current = taskKeyBox.outerJob
             if let onCompletion {
                 loopBodyBox.body = nil
-                onCompletion(result, 0)
+                onCompletion(result, 0, resumeThrown)
             } else {
                 resultBox.store(result: result, thrown: 0)
                 syncCompleted.set()
@@ -549,7 +558,7 @@ func runSuspendEntryLoopWithContinuation(
             RuntimeJobHandle.current = taskKeyBox.outerJob
             if let onCompletion {
                 loopBodyBox.body = nil
-                onCompletion(0, 0)
+                onCompletion(0, 0, resumeThrown)
             } else {
                 resultBox.store(result: 0, thrown: 0)
                 syncCompleted.set()
@@ -577,7 +586,7 @@ func runSuspendEntryLoopWithContinuation(
         // TaskKeyBox for the resumed burst on a different thread.
         let burstOuterKey = taskKeyBox.outerKey
         let burstOuterJob = taskKeyBox.outerJob
-        state.installResumeContinuation {
+        state.installResumeContinuation { resumeThrown in
             // CORO-003: After suspend/resume we are on a (possibly different)
             // GCD thread.  Re-install the task key so the scope map lookup
             // still works.
@@ -607,7 +616,7 @@ func runSuspendEntryLoopWithContinuation(
             // installResumeContinuation) to avoid clearing a pending
             // signal meant for the current suspend point.
             state.resetResumeState()
-            loopBodyBox.body?()
+            loopBodyBox.body?(resumeThrown)
         }
         if state.blockingScheduler != nil {
             RuntimeCoroutineScopeTaskKey.restoreKey(burstOuterKey)
@@ -615,7 +624,7 @@ func runSuspendEntryLoopWithContinuation(
         }
     }
 
-    loopBodyBox.body?()
+    loopBodyBox.body?(nil)
 
     if let gate = completionGate {
         if let loop = callerEventLoop {

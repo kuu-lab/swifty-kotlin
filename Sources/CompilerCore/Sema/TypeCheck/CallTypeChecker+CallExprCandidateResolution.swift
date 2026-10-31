@@ -539,6 +539,18 @@ extension CallTypeChecker {
                 return sema.types.errorType
             }
             if let diagnostic = resolved.diagnostic {
+                // A callable value sharing the callee's name — a
+                // function-typed property like `var resume: () -> Unit`, or
+                // an invoke-bearing object in scope — is part of the same
+                // Kotlin candidate set. With no viable function candidate the
+                // call can still bind through that value's implicit `invoke`,
+                // so defer to the callable-value path rather than diagnosing.
+                if let calleeName,
+                   diagnostic.severity == .error,
+                   callableValueCalleeInScope(named: calleeName, ctx: ctx, locals: locals)
+                {
+                    return nil
+                }
                 ctx.sema.diagnostics.emit(diagnostic)
                 sema.bindings.bindExprType(id, type: sema.types.errorType)
                 return sema.types.errorType
