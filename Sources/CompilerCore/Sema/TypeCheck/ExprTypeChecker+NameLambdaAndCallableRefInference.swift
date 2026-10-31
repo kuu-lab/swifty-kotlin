@@ -317,6 +317,30 @@ extension ExprTypeChecker {
                 )
                 sema.bindings.bindExprType(id, type: result.type)
                 return result.type
+            } else if let staticMember = driver.helpers.lookupStaticPropertyInEnclosingClassScope(
+                named: name, ctx: ctx
+            ) {
+                // Same classifier static scope as `resolveImplicitReceiverMember`:
+                // `.static` members stay invisible to instance receivers but an
+                // unqualified reference inside the class body resolves them
+                // (KUU-3891).
+                sema.bindings.bindIdentifier(id, symbol: staticMember.symbol)
+                sema.bindings.markImplicitReceiverMember(id, name: name)
+                driver.helpers.checkDeprecation(
+                    for: staticMember.symbol,
+                    sema: sema,
+                    interner: interner,
+                    range: nameRange,
+                    diagnostics: ctx.sema.diagnostics
+                )
+                driver.helpers.checkOptIn(
+                    for: staticMember.symbol,
+                    ctx: ctx,
+                    range: nameRange,
+                    diagnostics: ctx.sema.diagnostics
+                )
+                sema.bindings.bindExprType(id, type: staticMember.type)
+                return staticMember.type
             } else if let firstInvisible = invisibleSyms.first {
                 driver.helpers.emitVisibilityError(for: firstInvisible, name: interner.resolve(name), range: nameRange, diagnostics: ctx.sema.diagnostics)
             } else if name == knownNames.field {
@@ -644,6 +668,30 @@ extension ExprTypeChecker {
             sema.bindings.markImplicitReceiverMember(id, name: name, receiverType: nonNullReceiver)
             sema.bindings.bindExprType(id, type: memberType)
             return memberType
+        }
+        // Kotlin interleaves each enclosing classifier's static scope into
+        // the implicit-receiver tower: a `.static` member (the enum class's
+        // synthetic `entries` stub) is invisible to `lookupMemberProperty`,
+        // but an unqualified reference inside the class body still resolves
+        // it — after this receiver's instance members, before outer
+        // receivers' members and unresolved diagnostics (KUU-3891).
+        if let staticMember = driver.helpers.lookupStaticPropertyInClassScope(
+            named: name, receiverType: nonNullReceiver, ctx: ctx
+        ) {
+            sema.bindings.markImplicitReceiverMember(id, name: name, receiverType: nonNullReceiver)
+            sema.bindings.bindIdentifier(id, symbol: staticMember.symbol)
+            driver.helpers.checkDeprecation(
+                for: staticMember.symbol, sema: sema, interner: interner,
+                range: nameRange, diagnostics: ctx.sema.diagnostics
+            )
+            driver.helpers.checkOptIn(
+                for: staticMember.symbol,
+                ctx: ctx,
+                range: nameRange,
+                diagnostics: ctx.sema.diagnostics
+            )
+            sema.bindings.bindExprType(id, type: staticMember.type)
+            return staticMember.type
         }
         if emitDiagnosticOnFailure {
             // Inherited `private` members never enter member lookup (they are
