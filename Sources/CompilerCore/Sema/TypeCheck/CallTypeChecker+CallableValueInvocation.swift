@@ -408,14 +408,51 @@ extension CallTypeChecker {
                 }
             }
         }
+        /// Whether an implicit receiver with a type assignable to the
+        /// function type's own receiver is in scope to supply a receiver the
+        /// call omits positionally (`with(1) { f(2) }`, a member function's
+        /// `this`, an outer `this@label`). The candidates mirror the
+        /// `markImplicitExtensionReceiver` lookup below plus the active
+        /// `implicitReceiverType`, which lowering reads via
+        /// `activeImplicitReceiverExprID`; context parameters and companion
+        /// objects outside a `.companion` declaration cannot be materialized
+        /// there, so they do not qualify. Without one, the omitted-receiver
+        /// shape is an arity error like kotlinc's "no value passed for
+        /// parameter" (KUU-3878).
+        func hasImplicitReceiverValue() -> Bool {
+            guard let requiredReceiver = functionType.receiver else { return true }
+            if let thisLocal = locals[ctx.interner.intern("this")],
+               sema.types.isSubtype(thisLocal.type, requiredReceiver)
+            {
+                return true
+            }
+            if let activeReceiver = ctx.implicitReceiverType,
+               sema.types.isSubtype(activeReceiver, requiredReceiver)
+            {
+                return true
+            }
+            if ctx.implicitReceiverStack.contains(where: {
+                sema.types.isSubtype($0.type, requiredReceiver)
+            }) {
+                return true
+            }
+            // Mirror the mark lookup below: only the innermost matching
+            // outer entry can be bound, and `nil` symbols are `this@Label`
+            // typing entries whose runtime value cannot be captured.
+            return ctx.outerReceiverTypes.reversed().first(where: {
+                sema.types.isSubtype($0.type, requiredReceiver)
+            })?.symbol != nil
+        }
         func receiverOffset(for argumentCount: Int) -> Int? {
             switch arityPolicy {
             case .receiverNeverExplicit:
-                return 0
+                return functionType.receiver == nil || hasImplicitReceiverValue() ? 0 : nil
             case .receiverOptionallyExplicit:
                 guard functionType.receiver != nil else { return 0 }
                 if argumentCount == functionType.params.count + 1 { return 1 }
-                if argumentCount == functionType.params.count { return 0 }
+                if argumentCount == functionType.params.count {
+                    return hasImplicitReceiverValue() ? 0 : nil
+                }
                 return nil
             case let .receiverExplicitOrMemberDispatch(dispatchReceiverType):
                 guard let functionReceiver = functionType.receiver else {
