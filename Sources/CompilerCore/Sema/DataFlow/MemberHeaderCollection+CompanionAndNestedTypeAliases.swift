@@ -101,6 +101,7 @@ extension DataFlowSemaPhase {
         collectNestedTypeAliases(
             companionObject.nestedTypeAliases,
             ownerFQName: companionFQName,
+            ownerSymbol: companionSymbol,
             sourceFileID: sourceFileID,
             ast: ast,
             symbols: symbols,
@@ -147,6 +148,7 @@ extension DataFlowSemaPhase {
     func collectNestedTypeAliases(
         _ aliases: [TypeAliasDecl],
         ownerFQName: [InternedString],
+        ownerSymbol: SymbolID,
         sourceFileID: FileID,
         ast: ASTModule,
         symbols: SymbolTable,
@@ -155,6 +157,7 @@ extension DataFlowSemaPhase {
         interner: StringInterner,
         sourceManager: SourceManager? = nil
     ) {
+        let sourceFile = ast.file(for: sourceFileID)
         for alias in aliases {
             let aliasFQName = ownerFQName + [alias.name]
             checkAndReportDuplicateDeclaration(
@@ -174,6 +177,10 @@ extension DataFlowSemaPhase {
                 flags: flags(from: alias.modifiers)
             )
             symbols.setSourceFileID(sourceFileID, for: aliasSymbol)
+            // Member-scope lookup resolves nested classifiers through
+            // `children(of:)`; without the parent edge the alias is invisible
+            // to simple-name and qualified member references (KUU-3840).
+            symbols.setParentSymbol(ownerSymbol, for: aliasSymbol)
             let localTypeParameters = registerTypeAliasTypeParameters(
                 alias.typeParams,
                 aliasSymbol: aliasSymbol,
@@ -197,6 +204,9 @@ extension DataFlowSemaPhase {
                 interner: interner,
                 sourceManager: sourceManager,
                 localTypeParameters: localTypeParameters,
+                relativeOwnerFQName: ownerFQName,
+                currentPackageFQName: sourceFile?.packageFQName,
+                imports: sourceFile?.imports ?? [],
                 diagnostics: diagnostics,
                 usageRange: alias.range
             ) {

@@ -100,6 +100,12 @@ extension BuildASTPhase {
                         from: childID, in: parsed.arena, interner: interner, astArena: astArena
                     )
                 ))
+            case .typeAliasDecl:
+                declID = astArena.appendDecl(.typeAliasDecl(
+                    BuildASTPhase(diagnostics: diagnostics).makeTypeAliasDecl(
+                        from: childID, in: parsed.arena, interner: interner, astArena: astArena
+                    )
+                ))
             default:
                 continue
             }
@@ -244,7 +250,7 @@ extension BuildASTPhase {
     ) -> Bool {
         let nameIndex: Int
         switch tokens[index].kind {
-        case .keyword(.class), .keyword(.object):
+        case .keyword(.class), .keyword(.object), .keyword(.typealias):
             nameIndex = index + 1
         case .keyword(.enum):
             // `enum class X` is parsed as a class carrying the enum modifier;

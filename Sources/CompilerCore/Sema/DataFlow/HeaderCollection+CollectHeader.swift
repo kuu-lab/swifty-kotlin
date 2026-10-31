@@ -100,6 +100,7 @@ extension DataFlowSemaPhase {
             collectNestedTypeAliases(
                 classDecl.nestedTypeAliases,
                 ownerFQName: fqName,
+                ownerSymbol: symbol,
                 sourceFileID: file.fileID,
                 ast: ast,
                 symbols: symbols,
@@ -549,6 +550,7 @@ extension DataFlowSemaPhase {
             collectNestedTypeAliases(
                 interfaceDecl.nestedTypeAliases,
                 ownerFQName: fqName,
+                ownerSymbol: symbol,
                 sourceFileID: file.fileID,
                 ast: ast,
                 symbols: symbols,
@@ -619,6 +621,7 @@ extension DataFlowSemaPhase {
             collectNestedTypeAliases(
                 objectDecl.nestedTypeAliases,
                 ownerFQName: fqName,
+                ownerSymbol: symbol,
                 sourceFileID: file.fileID,
                 ast: ast,
                 symbols: symbols,

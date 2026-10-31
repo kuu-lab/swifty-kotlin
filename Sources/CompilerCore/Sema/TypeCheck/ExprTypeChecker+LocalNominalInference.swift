@@ -82,9 +82,152 @@ extension ExprTypeChecker {
             _ = range
             return sema.types.unitType
 
+        case let .typeAliasDecl(typeAliasDecl):
+            driver.diagnoseLocalValueOrClassifierRedeclaration(
+                named: typeAliasDecl.name,
+                expression: id,
+                range: range,
+                ctx: ctx
+            )
+            let aliasSymbol = ensureLocalTypeAliasSymbol(
+                declID: declID,
+                typeAliasDecl: typeAliasDecl,
+                fqNamePrefix: fqNamePrefix,
+                ctx: ctx
+            )
+            // Insert at check time so the alias is visible only to statements
+            // that follow its declaration in the same block.
+            ctx.scope.insert(aliasSymbol)
+            sema.bindings.bindIdentifier(id, symbol: aliasSymbol)
+            sema.bindings.bindExprType(id, type: sema.types.unitType)
+            return sema.types.unitType
+
         default:
             sema.bindings.bindExprType(id, type: sema.types.unitType)
             return sema.types.unitType
+        }
+    }
+
+    /// Local typealiases are checked on demand like local nominals: the alias
+    /// symbol is defined under a per-expression FQ prefix, its own type
+    /// parameters and RHS resolve through the enclosing lexical scope, and the
+    /// statement expression itself yields Unit (KUU-3840).
+    private func ensureLocalTypeAliasSymbol(
+        declID: DeclID,
+        typeAliasDecl: TypeAliasDecl,
+        fqNamePrefix: [InternedString],
+        ctx: TypeInferenceContext
+    ) -> SymbolID {
+        let sema = ctx.sema
+
+        if let existing = sema.bindings.declSymbols[declID] {
+            return existing
+        }
+
+        let aliasFQName = fqNamePrefix + [typeAliasDecl.name]
+        let aliasSymbol = sema.symbols.define(
+            kind: .typeAlias,
+            name: typeAliasDecl.name,
+            fqName: aliasFQName,
+            declSite: typeAliasDecl.range,
+            visibility: .private,
+            flags: [.synthetic]
+        )
+        sema.bindings.bindDecl(declID, symbol: aliasSymbol)
+        sema.symbols.setSourceFileID(ctx.currentFileID, for: aliasSymbol)
+
+        resolveLocalTypeAliasUnderlying(
+            typeAliasDecl,
+            aliasSymbol: aliasSymbol,
+            aliasFQName: aliasFQName,
+            lexicalScope: ctx.scope,
+            ctx: ctx
+        )
+        return aliasSymbol
+    }
+
+    /// A local class's nested typealiases are collected with the local class's
+    /// member scope as the lexical parent: the RHS can spell the class itself,
+    /// sibling members, enclosing local classifiers, and outer type parameters
+    /// (KUU-3840).
+    private func collectLocalNestedTypeAliases(
+        _ aliases: [TypeAliasDecl],
+        ownerFQName: [InternedString],
+        ownerSymbol: SymbolID,
+        ownerScope: Scope,
+        ctx: TypeInferenceContext
+    ) {
+        let sema = ctx.sema
+        for alias in aliases {
+            let aliasFQName = ownerFQName + [alias.name]
+            let aliasSymbol = sema.symbols.define(
+                kind: .typeAlias,
+                name: alias.name,
+                fqName: aliasFQName,
+                declSite: alias.range,
+                visibility: Visibility(modifiers: alias.modifiers),
+                flags: [.synthetic]
+            )
+            sema.symbols.setSourceFileID(ctx.currentFileID, for: aliasSymbol)
+            sema.symbols.setParentSymbol(ownerSymbol, for: aliasSymbol)
+            resolveLocalTypeAliasUnderlying(
+                alias,
+                aliasSymbol: aliasSymbol,
+                aliasFQName: aliasFQName,
+                lexicalScope: ownerScope,
+                ctx: ctx
+            )
+        }
+    }
+
+    /// Registers the alias's own type parameters, then resolves the right-hand
+    /// type through a scope that layers them over `lexicalScope`.
+    private func resolveLocalTypeAliasUnderlying(
+        _ typeAliasDecl: TypeAliasDecl,
+        aliasSymbol: SymbolID,
+        aliasFQName: [InternedString],
+        lexicalScope: Scope,
+        ctx: TypeInferenceContext
+    ) {
+        let ast = ctx.ast
+        let sema = ctx.sema
+        let interner = ctx.interner
+        let localTypeParameters = DataFlowSemaPhase().registerTypeAliasTypeParameters(
+            typeAliasDecl.typeParams,
+            aliasSymbol: aliasSymbol,
+            parentFQName: aliasFQName,
+            declSite: typeAliasDecl.range,
+            symbols: sema.symbols,
+            interner: interner,
+            diagnostics: sema.diagnostics
+        )
+        // The alias's own type parameters outrank outer bindings while its
+        // RHS still resolves every other name through the enclosing scope
+        // (local classifiers, outer type parameters, member-scope symbols).
+        let aliasScope = BlockScope(parent: lexicalScope, symbols: sema.symbols)
+        for typeParameterSymbol in localTypeParameters.values {
+            aliasScope.insert(typeParameterSymbol)
+        }
+        if typeAliasDecl.underlyingType == nil {
+            sema.diagnostics.error(
+                "KSWIFTK-SEMA-0061",
+                "Type alias '\(interner.resolve(typeAliasDecl.name))' must have a right-hand side type.",
+                range: typeAliasDecl.range
+            )
+        } else if let underlyingTypeRef = typeAliasDecl.underlyingType {
+            let resolved = driver.helpers.resolveTypeRef(
+                underlyingTypeRef,
+                ast: ast,
+                sema: sema,
+                interner: interner,
+                scope: aliasScope,
+                diagnostics: sema.diagnostics,
+                inferenceContext: ctx,
+                usageRange: typeAliasDecl.range
+            )
+            if resolved != sema.types.errorType {
+                sema.symbols.setTypeAliasUnderlyingType(resolved, for: aliasSymbol)
+            }
         }
     }
 
@@ -228,6 +371,17 @@ extension ExprTypeChecker {
         for typeParameterSymbol in typeParameterResult.symbols {
             classScope.insert(typeParameterSymbol)
         }
+        // Nested typealiases inside a local class get the same treatment a
+        // function-local alias gets: defined on demand with the class's
+        // member scope as the lexical parent, then linked into the symbol
+        // graph so member lookups find them (KUU-3840).
+        collectLocalNestedTypeAliases(
+            classDecl.nestedTypeAliases,
+            ownerFQName: classFQName,
+            ownerSymbol: classSymbol,
+            ownerScope: classScope,
+            ctx: ctx
+        )
         let classCtx = ctx.withoutSuspensionContext().withOuterReceiver(
             label: classDecl.name,
             type: classType

@@ -1172,6 +1172,7 @@ extension DataFlowSemaPhase {
             collectNestedTypeAliases(
                 nestedClass.nestedTypeAliases,
                 ownerFQName: nestedFQName,
+                ownerSymbol: nestedSymbol,
                 sourceFileID: sourceFileID,
                 ast: ast,
                 symbols: symbols,
@@ -1636,6 +1637,7 @@ extension DataFlowSemaPhase {
             collectNestedTypeAliases(
                 nestedInterface.nestedTypeAliases,
                 ownerFQName: nestedFQName,
+                ownerSymbol: nestedSymbol,
                 sourceFileID: sourceFileID,
                 ast: ast,
                 symbols: symbols,
@@ -1739,6 +1741,7 @@ extension DataFlowSemaPhase {
         collectNestedTypeAliases(
             nestedObject.nestedTypeAliases,
             ownerFQName: nestedFQName,
+            ownerSymbol: nestedSymbol,
             sourceFileID: sourceFileID,
             ast: ast,
             symbols: symbols,

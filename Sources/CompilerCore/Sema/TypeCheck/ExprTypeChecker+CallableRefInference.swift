@@ -1521,6 +1521,49 @@ extension ExprTypeChecker {
                     }
                 }
             }
+            // A bare `::Alias` resolves to the expanded classifier's
+            // constructors — the same constructor reference `::Class`
+            // produces (KUU-3840). Inner-class expansions keep their
+            // implicit-receiver paths below.
+            if candidates.isEmpty {
+                for aliasID in ctx.cachedScopeLookup(member) {
+                    guard let aliasSymbol = ctx.cachedSymbol(aliasID),
+                          aliasSymbol.kind == .typeAlias
+                    else { continue }
+                    let aliasTypeArgs: [TypeArg] = sema.symbols
+                        .typeAliasTypeParameters(for: aliasID)
+                        .map {
+                            .invariant(sema.types.make(.typeParam(TypeParamType(
+                                symbol: $0, nullability: .nonNull
+                            ))))
+                        }
+                    guard let expanded = driver.helpers.expandTypeAlias(
+                        aliasID,
+                        typeArgs: aliasTypeArgs,
+                        sema: sema,
+                        visited: [],
+                        depth: 0,
+                        diagnostics: sema.diagnostics
+                    ), case let .classType(classType) = sema.types.kind(of: expanded)
+                    else { continue }
+                    let ownerID = sema.symbols.actualSymbol(for: classType.classSymbol)
+                        ?? classType.classSymbol
+                    guard let ownerSymbol = ctx.cachedSymbol(ownerID),
+                          !ownerSymbol.flags.contains(.innerClass)
+                    else { continue }
+                    if ownerSymbol.kind == .interface, ownerSymbol.flags.contains(.funInterface) {
+                        if let type = inferFunInterfaceConstructorCallableReference(
+                            id, interfaceSymbol: ownerID, expectedType: expectedType, range: range, ctx: ctx
+                        ) {
+                            return type
+                        }
+                    } else if let ctorCandidates = visibleConstructorCandidates(of: ownerSymbol, ctx: ctx) {
+                        candidates = ctorCandidates
+                        isConstructorReference = true
+                        break
+                    }
+                }
+            }
         }
 
         // A bare `::Alias` inside an enclosing class is bound to that class's
