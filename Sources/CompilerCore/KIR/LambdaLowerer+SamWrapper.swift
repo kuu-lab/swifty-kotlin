@@ -355,6 +355,22 @@ extension LambdaLowerer {
             instructions: &instructions
         )
 
+        // KUU-3865: `equals`/`hashCode` SAMs have the same erased-`Any` gap
+        // as `toString` — a call erased through `Any` is answered by the
+        // per-object override tables, not the itable — so the wrapper method
+        // must register there too or the call falls back to identity
+        // semantics.
+        appendSamWrapperAnyEqualsHashCodeOverrideRegistrations(
+            objectValue: wrapperValue,
+            nominalSymbol: wrapperSymbol,
+            implementation: methodSymbol,
+            driver: driver,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            instructions: &instructions
+        )
+
         // Expose the SAM wrapper as an invokable comparator value so stdlib
         // comparison lowering can call `compare` directly when needed.
         driver.ctx.registerCallableValue(

@@ -402,6 +402,62 @@ private func appendObjectAnyEqualsOverrideRegistration<C: RangeReplaceableCollec
     ))
 }
 
+/// KUU-3865: companion to `appendObjectAnyEqualsOverrideRegistration` /
+/// `appendObjectAnyHashCodeOverrideRegistration` for synthesized SAM-wrapper
+/// classes. A `fun interface` may declare an abstract `Any` member as its
+/// single abstract method (`override fun equals(other: Any?): Boolean`,
+/// `override fun hashCode(): Int`); the synthesized wrapper method is then
+/// the object's `Any` override, but it never carries `.overrideMember`, so
+/// the helpers above skip it. Its source ABI already matches the runtime
+/// tables' convention — every emitted function carries the trailing outThrown
+/// channel — so unlike `toString` no raw bridge is needed. Member-extension
+/// SAMs are not `Any` overrides and never match the signature probe.
+func appendSamWrapperAnyEqualsHashCodeOverrideRegistrations<C: RangeReplaceableCollection>(
+    objectValue: KIRExprID,
+    nominalSymbol: SymbolID,
+    implementation: SymbolID,
+    driver: KIRLoweringDriver,
+    sema: SemaModule,
+    arena: KIRArena,
+    interner: StringInterner,
+    instructions: inout C
+) where C.Element == KIRInstruction {
+    let anyFQName = [interner.intern("kotlin"), interner.intern("Any")]
+    guard let anySymbol = sema.symbols.lookup(fqName: anyFQName),
+          let implementationSignature = sema.symbols.functionSignature(for: implementation)
+    else {
+        return
+    }
+    let intType = sema.types.intType
+    for (memberName, registerCallee, expectedReturnType) in [
+        (interner.intern("equals"), interner.intern("kk_object_register_equals_override"), sema.types.booleanType),
+        (interner.intern("hashCode"), interner.intern("kk_object_register_hashcode_override"), sema.types.intType),
+    ] {
+        guard implementationSignature.returnType == expectedReturnType,
+              let anyMember = sema.symbols.lookupAll(
+                  fqName: anyFQName + [memberName]
+              ).first(where: { sema.symbols.parentSymbol(for: $0) == anySymbol }),
+              driver.ctx.nominalDispatchCache.itableImplementation(
+                  for: anyMember,
+                  in: nominalSymbol,
+                  sema: sema,
+                  interner: interner
+              ) == implementation
+        else {
+            continue
+        }
+        let methodFnExpr = arena.appendExpr(.symbolRef(implementation), type: intType)
+        instructions.append(.constValue(result: methodFnExpr, value: .symbolRef(implementation)))
+        let registerResult = arena.appendTemporary(type: intType)
+        instructions.append(.call(
+            callee: registerCallee,
+            arguments: [objectValue, methodFnExpr],
+            result: registerResult,
+            canThrow: false
+        ))
+    }
+}
+
 /// Runtime Any dispatch only has an `Int` receiver and an `Int` string-handle
 /// result, while Kotlin class methods use the flat String aggregate ABI.
 func anyToStringBridgeSymbolForImplementation(

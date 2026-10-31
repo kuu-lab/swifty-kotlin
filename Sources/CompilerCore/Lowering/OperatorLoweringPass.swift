@@ -148,6 +148,19 @@ final class OperatorLoweringPass: LoweringPass {
                 newBody.append(.constValue(result: result, value: .boolLiteral(op == .notEqual)))
                 return
             }
+            // `x == null` / `x != null` is `x === null` / `x !== null` on the
+            // JVM — a raw slot-vs-sentinel check that never calls
+            // `Any.equals`. Routing a reference operand through
+            // kk_structural_eq asks the registered equals override about the
+            // null sentinel instead, flipping the result for overrides that
+            // answer true for null (KUU-3865).
+            if lhsIsNull != rhsIsNull,
+               isRawNullCheckableOperand(lhsIsNull ? rhs : lhs, arena: arena, types: types, symbols: symbols)
+            {
+                let callee = interner.intern(op == .equal ? "kk_op_eq" : "kk_op_ne")
+                newBody.append(.call(callee: callee, arguments: [lhs, rhs], result: result, canThrow: false))
+                return
+            }
         }
 
         // A nullable `Long?`/`ULong?`/`Double?`/`Float?` operand in `==`/`!=`
@@ -418,6 +431,49 @@ final class OperatorLoweringPass: LoweringPass {
             resolvePrimitiveValueUpperBound(of: typeID, types: types, symbols: $0)
         } ?? typeID
         return types.nullability(of: resolvedType) != .nonNull
+    }
+
+    /// Operand types whose runtime slot is a single word equal to the null
+    /// sentinel exactly when the value is null (object/class handles, `Any`,
+    /// function references, `T?` boxes). For those, `x == null` reduces to a
+    /// raw `kk_op_eq`/`kk_op_ne` compare — Kotlin lowers `== null` to `===`,
+    /// which must not invoke a registered `Any.equals` override. String's
+    /// flat aggregate, sentinel-colliding unboxed primitives, and value types
+    /// resolving to them are excluded and keep the structural path.
+    private func isRawNullCheckableOperand(
+        _ exprID: KIRExprID,
+        arena: KIRArena,
+        types: TypeSystem?,
+        symbols: SymbolTable?
+    ) -> Bool {
+        guard let types, let typeID = arena.exprType(exprID) else { return false }
+        switch types.kind(of: typeID) {
+        case .classType, .any, .functionType:
+            // A non-null value class reuses its underlying representation; a
+            // String-backed one is a flat aggregate, not a single word.
+            if case .stringStruct = resolveValueClassKind(
+                types.kind(of: typeID), types: types, symbols: symbols
+            ) {
+                return false
+            }
+            return true
+        case .typeParam:
+            // A `T` bound to a non-null sentinel-colliding primitive carries
+            // raw bits (e.g. `T : Long` holding `Long.MIN_VALUE`), which a
+            // raw compare would misreport as null.
+            if let symbols,
+               let upperBound = resolvePrimitiveArithmeticUpperBound(
+                   of: typeID, types: types, symbols: symbols
+               ),
+               case let .primitive(primitive, .nonNull) = types.kind(of: upperBound),
+               primitive.rawValueCollidesWithNullSentinel
+            {
+                return false
+            }
+            return true
+        default:
+            return false
+        }
     }
 
     /// String is a compiler aggregate, so pointer comparison is insufficient.
