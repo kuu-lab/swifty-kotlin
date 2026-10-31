@@ -221,4 +221,48 @@ struct NestedTypeAliasResolutionTests {
         """], includeStdlib: true)
         #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
     }
+
+    // MARK: - Member typealias to sibling nested type (KUU-3769)
+
+    @Test func memberTypeAliasResolvesSiblingNestedEnum() throws {
+        // kotlinx-cli ArgParser.kt:215 pattern: `typealias T = E` where E is
+        // an enum nested in the same class. Member access through the alias
+        // (T.X) must resolve too.
+        let ctx = try context(["""
+        class A {
+            enum class E { X, Y }
+            typealias T = E
+            fun f(): T = T.X
+        }
+        fun main() = A().f()
+        """])
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+        _ = try expectAlias(["A", "T"], target: ["A", "E"], in: ctx)
+    }
+
+    @Test func memberTypeAliasResolvesSiblingDeclaredLater() throws {
+        let ctx = try context(["""
+        class A {
+            typealias T = E
+            enum class E { X, Y }
+            fun f(): T = T.X
+        }
+        fun main() = A().f()
+        """])
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+        _ = try expectAlias(["A", "T"], target: ["A", "E"], in: ctx)
+    }
+
+    @Test func memberTypeAliasResolvesSiblingNestedClass() throws {
+        let ctx = try context(["""
+        class B {
+            class N(val v: Int)
+            typealias Alias = N
+            fun make(): Alias = Alias(7)
+        }
+        fun main() = B().make().v
+        """])
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+        _ = try expectAlias(["B", "Alias"], target: ["B", "N"], in: ctx)
+    }
 }
