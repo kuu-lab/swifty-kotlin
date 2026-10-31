@@ -418,7 +418,7 @@ extension TypeSystem {
             else {
                 return false
             }
-            let children = symbols.children(ofFQName: sym.fqName)
+            let children = symbols.declaredChildren(of: leftClass.classSymbol)
             var abstractSignatures: [(SymbolID, FunctionSignature)] = []
             for childID in children {
                 guard let childSym = symbols.symbol(childID),

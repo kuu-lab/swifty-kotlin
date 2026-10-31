@@ -2231,7 +2231,7 @@ extension DataFlowSemaPhase {
                   !missingSymbol.flags.contains(.memberExtension),
                   let missingSignature = symbols.functionSignature(for: missingMember)
             else { return true }
-            return !symbols.children(ofFQName: symbolInfo.fqName).contains { memberID in
+            return !symbols.declaredChildren(of: symbolInfo.id).contains { memberID in
                 guard let member = symbols.symbol(memberID),
                       member.kind == .function,
                       member.flags.contains(.synthetic),

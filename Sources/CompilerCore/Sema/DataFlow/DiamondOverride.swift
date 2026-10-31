@@ -214,9 +214,9 @@ extension DataFlowSemaPhase {
             while !queue.isEmpty {
                 let (currentInterfaceID, depth) = queue.removeFirst()
                 guard visited.insert(currentInterfaceID).inserted else { continue }
-                guard let ifaceSym = symbols.symbol(currentInterfaceID) else { continue }
+                guard symbols.symbol(currentInterfaceID) != nil else { continue }
 
-                for childID in symbols.children(ofFQName: ifaceSym.fqName) {
+                for childID in symbols.declaredChildren(of: currentInterfaceID) {
                     guard let childSym = symbols.symbol(childID),
                           childSym.kind == .function
                     else { continue }
@@ -497,12 +497,12 @@ extension DataFlowSemaPhase {
         while !queue.isEmpty {
             let current = queue.removeFirst()
             guard visited.insert(current).inserted,
-                  let currentSym = symbols.symbol(current)
+                  symbols.symbol(current) != nil
             else {
                 continue
             }
 
-            for childID in symbols.children(ofFQName: currentSym.fqName) {
+            for childID in symbols.declaredChildren(of: current) {
                 guard let childSym = symbols.symbol(childID),
                       childSym.kind == .function,
                       !childSym.flags.contains(.abstractType)
