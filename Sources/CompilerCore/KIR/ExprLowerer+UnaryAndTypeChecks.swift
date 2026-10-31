@@ -491,9 +491,22 @@ extension ExprLowerer {
         // the operand is already an instance of its own class. Only the null
         // contract remains: `as` to a non-null target asserts non-null,
         // everything else is a pass-through.
+        //
+        // The static-subtype shortcut assumes the operand's type was verified
+        // — but an erased generic call result is *claimed*, not checked: the
+        // suppressed claim boundary can deliver a wrong-type value, and the
+        // JVM still emits its own `checkcast` for `x as T` here, catching the
+        // pollution with a ClassCastException (KUU-3893). Keep the real cast
+        // whenever the operand crossed an erased boundary.
+        let operandCrossesErasedBoundary = kirShouldCheckErasedGenericCallResult(
+            exprID: exprToCast,
+            boundType: sema.bindings.exprType(for: exprToCast),
+            sema: sema
+        )
         if let targetType = sema.bindings.castTargetType(for: exprID),
            let operandType = sema.bindings.exprType(for: exprToCast),
-           sameNominalCastClass(operandType, targetType, sema: sema)
+           sameNominalCastClass(operandType, targetType, sema: sema),
+           !operandCrossesErasedBoundary
         {
             let result = arena.appendTemporary(type: boundType ?? sema.types.anyType)
             if !isSafe,

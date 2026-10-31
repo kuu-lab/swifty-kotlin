@@ -43,4 +43,44 @@ extension BundledStdlibExecutionTests {
         )
     }
 
+    @Test(arguments: [false, true], [0, 2])
+    func erasedGenericClaimConsumers(fromArtifact: Bool, optimization: Int) throws {
+        let source = try diffCaseSource("unchecked_cast_claim_consumers.kt", file: #filePath)
+        try compileAndRunKotlin(
+            source,
+            expectedOutput: """
+            ne:true
+            eq-null:false
+            id-eq-self:false
+            id-ne-null:true
+            eq-other:false
+            is-claimed:true
+            is-ci:true
+            is-c:true
+            is-i1:true
+            not-is-claimed:false
+            is-claimed-nullable:false
+            is-c-nullable:true
+            null-is-nullable:true
+            as:CCE
+            safe-as-claimed:true
+            safe-as-c:true
+            bang:CI1I2
+            template:CI1I2
+            thrown-re
+            when:CCE
+            typed:CCE
+            typed-arg:true
+            any-arg:true
+            raw-is-ci:true
+            raw-ne:true
+            stmt-ok
+
+            """,
+            moduleName: "ErasedGenericClaimConsumers",
+            allowDefaultStdlibLibrary: fromArtifact,
+            optLevel: try #require(OptimizationLevel(rawValue: optimization))
+        )
+    }
+
 }
