@@ -7,10 +7,22 @@ file fstdlib_kotlin_collections_n_throw package=golden.sema annotations=[@file:S
   decl golden.sema.indexOverflowReturnsUnit[kind=fun;params=;ret=Unit;origin=fixture] fun indexOverflowReturnsUnit sym=golden.sema.indexOverflowReturnsUnit[kind=fun;params=;ret=Unit;origin=fixture]
   decl golden.sema.countOverflowAsStatement[kind=fun;params=;ret=Unit;origin=fixture] fun countOverflowAsStatement sym=golden.sema.countOverflowAsStatement[kind=fun;params=;ret=Unit;origin=fixture]
   decl golden.sema.indexOverflowAsStatement[kind=fun;params=;ret=Unit;origin=fixture] fun indexOverflowAsStatement sym=golden.sema.indexOverflowAsStatement[kind=fun;params=;ret=Unit;origin=fixture]
-expr e@3:40 memberCall recv=e@3:40#1 callee=throwCountOverflow args=[] type=Unit call=kotlin.collections.throwCountOverflow[kind=fun;params=;ret=Unit]
-expr e@5:40 memberCall recv=e@5:40#1 callee=throwIndexOverflow args=[] type=Unit call=kotlin.collections.throwIndexOverflow[kind=fun;params=;ret=Unit]
-expr e@8:5 memberCall recv=e@8:5#1 callee=throwCountOverflow args=[] type=Unit call=kotlin.collections.throwCountOverflow[kind=fun;params=;ret=Unit]
-expr e@12:5 memberCall recv=e@12:5#1 callee=throwIndexOverflow args=[] type=Unit call=kotlin.collections.throwIndexOverflow[kind=fun;params=;ret=Unit]
+expr e@3:40 name(kotlin) type=<error>
+expr e@3:40#1 memberCall recv=e@3:40 callee=collections args=[] type=<error>
+expr e@3:40#2 memberCall recv=e@3:40#1 callee=throwCountOverflow args=[] type=<error>
+expr e@5:40 name(kotlin) type=<error>
+expr e@5:40#1 memberCall recv=e@5:40 callee=collections args=[] type=<error>
+expr e@5:40#2 memberCall recv=e@5:40#1 callee=throwIndexOverflow args=[] type=<error>
+expr e@8:5 name(kotlin) type=<error>
+expr e@8:5#1 memberCall recv=e@8:5 callee=collections args=[] type=<error>
+expr e@8:5#2 memberCall recv=e@8:5#1 callee=throwCountOverflow args=[] type=<error>
+expr e@12:5 name(kotlin) type=<error>
+expr e@12:5#1 memberCall recv=e@12:5 callee=collections args=[] type=<error>
+expr e@12:5#2 memberCall recv=e@12:5#1 callee=throwIndexOverflow args=[] type=<error>
 expr e@2:16 string(INVISIBLE_MEMBER) type=String
 expr e@2:36 string(INVISIBLE_REFERENCE) type=String
 expr e@2:7 call callee=e@2:7#1 args=[_:e@2:16,_:e@2:36] type=kotlin.Suppress call=kotlin.Suppress.<init>[kind=ctor;recv=kotlin.Suppress;params=*String;ret=kotlin.Suppress;vararg=[1];names=[names]]
+diagnostic severity=error code=KSWIFTK-SEMA-0022 at=3:40 msg=Unresolved reference 'kotlin'.
+diagnostic severity=error code=KSWIFTK-SEMA-0022 at=5:40 msg=Unresolved reference 'kotlin'.
+diagnostic severity=error code=KSWIFTK-SEMA-0022 at=8:5 msg=Unresolved reference 'kotlin'.
+diagnostic severity=error code=KSWIFTK-SEMA-0022 at=12:5 msg=Unresolved reference 'kotlin'.
