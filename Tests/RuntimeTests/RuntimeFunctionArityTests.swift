@@ -39,6 +39,54 @@ struct RuntimeFunctionArityTests {
         #expect(kk_op_safe_cast(plainRaw, functionToken(0, suspend: true)) == runtimeNullSentinelInt)
     }
 
+    @Test func suspendCastAcceptsLoweredFunctionShape() {
+        // KUU-3801: `x as suspend (P1..Pn) -> R` is a JVM checkcast of the
+        // lowered `Function{n+1}` shape — a plain
+        // `(P1..Pn, Continuation<R>) -> Any?` value passes, while `is`/`as?`
+        // keep requiring the SuspendFunction marker.
+        let erasedRaw = 0x123700      // (Continuation<Unit>) -> Any?, Function1
+        let suspendRaw = 0x123800     // suspend () -> Unit
+        let wrongArityRaw = 0x123900  // () -> Unit, Function0
+        _ = kk_function_value_tag_arity(erasedRaw, 1)
+        _ = kk_function_value_tag_arity(suspendRaw, 0x100)
+        _ = kk_function_value_tag_arity(wrongArityRaw, 0)
+
+        var thrown = 0
+        #expect(kk_op_cast(erasedRaw, functionToken(0, suspend: true), &thrown) == erasedRaw)
+        #expect(thrown == 0)
+        #expect(kk_op_cast(suspendRaw, functionToken(0, suspend: true), &thrown) == suspendRaw)
+        #expect(thrown == 0)
+        _ = kk_op_cast(wrongArityRaw, functionToken(0, suspend: true), &thrown)
+        #expect(thrown != 0)
+        thrown = 0
+
+        // The boxed Function1 path answers the same lowered-shape check.
+        let boxed = kk_function_create_1(0x456700, 0, nil)
+        #expect(kk_op_cast(boxed, functionToken(0, suspend: true), &thrown) == boxed)
+        #expect(thrown == 0)
+
+        // A true suspend lambda still passes, at its declared arity only.
+        let suspended = kk_suspend_function_create(0x234500, 0, 0, 0x345600)
+        #expect(kk_op_cast(suspended, functionToken(0, suspend: true), &thrown) == suspended)
+        #expect(thrown == 0)
+        _ = kk_op_cast(suspended, functionToken(1, suspend: true), &thrown)
+        #expect(thrown != 0)
+        thrown = 0
+
+        // `is`/`as?` keep the marker check: the erased Function1 shape is
+        // not a SuspendFunction0.
+        #expect(kk_op_is(erasedRaw, functionToken(0, suspend: true)) == 0)
+        #expect(kk_op_safe_cast(erasedRaw, functionToken(0, suspend: true)) == runtimeNullSentinelInt)
+
+        // Arity scales: (P, Continuation<R>) -> Any? as suspend (P) -> R.
+        let erasedUnaryRaw = 0x124000  // Function2
+        _ = kk_function_value_tag_arity(erasedUnaryRaw, 2)
+        #expect(kk_op_cast(erasedUnaryRaw, functionToken(1, suspend: true), &thrown) == erasedUnaryRaw)
+        #expect(thrown == 0)
+        _ = kk_op_cast(erasedUnaryRaw, functionToken(0, suspend: true), &thrown)
+        #expect(thrown != 0)
+    }
+
     @Test func taggedCallableReferencesMatchFunctionArity() {
         let function = kk_callable_ref_tag_kfunction(0x234500, 0, 0, 2, 0)
         #expect(kk_op_is(function, functionToken(2)) == 1)

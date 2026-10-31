@@ -619,10 +619,36 @@ public func kk_op_is(_ value: Int, _ typeToken: Int) -> Int {
     }
 }
 
+/// KUU-3801: whether `value` satisfies `x as suspend (P1..Pn) -> R` through
+/// the lowered `Function{n+1}` runtime representation. JVM emits a plain
+/// checkcast of `Function{n+1}` for the unsafe `as` cast — the
+/// SuspendFunction marker is only tested by `is`/`as?` — so a plain
+/// `(P1..Pn, Continuation<R>) -> Any?` function value (the erased form of
+/// the suspend type) must pass. The retry reuses the ordinary
+/// `Function{n+1}` check, which a true suspend lambda also answers through
+/// its lowered arity.
+private func runtimeSuspendCastAcceptsLoweredShape(value: Int, typeToken: Int) -> Bool {
+    let token = Int64(truncatingIfNeeded: typeToken)
+    guard token & RuntimeTypeTokenEncoding.baseMask == RuntimeTypeTokenEncoding.functionBase else {
+        return false
+    }
+    let payload = (token >> RuntimeTypeTokenEncoding.payloadShift) & RuntimeTypeTokenEncoding.payloadMask
+    let (arity, isSuspend) = RuntimeTypeTokenEncoding.functionPayloadParts(payload)
+    guard isSuspend, arity < 0xFF else {
+        return false
+    }
+    let loweredToken = (token & ~(RuntimeTypeTokenEncoding.payloadMask << RuntimeTypeTokenEncoding.payloadShift))
+        | (Int64(arity + 1) << RuntimeTypeTokenEncoding.payloadShift)
+    return kk_op_is(value, Int(truncatingIfNeeded: loweredToken)) != 0
+}
+
 @_cdecl("kk_op_cast")
 public func kk_op_cast(_ value: Int, _ typeToken: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     if kk_op_is(value, typeToken) != 0 {
+        return value
+    }
+    if runtimeSuspendCastAcceptsLoweredShape(value: value, typeToken: typeToken) {
         return value
     }
     // Kotlin/JVM reports a null-to-non-null cast as NullPointerException,
