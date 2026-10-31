@@ -38,6 +38,10 @@ public final class CompilationContext: @unchecked Sendable {
     /// Non-nil when the `time-phases` frontend flag is active.
     public internal(set) var phaseTimer: PhaseTimer?
 
+    /// KUU-3779: counters collected inside `TypeCheckSemaPhase`'s `type-check`
+    /// sub-phase while `time-phases` is active; printed after the phase summary.
+    var typeCheckAttribution: TypeCheckAttribution?
+
     public init(
         options: CompilerOptions,
         sourceManager: SourceManager,

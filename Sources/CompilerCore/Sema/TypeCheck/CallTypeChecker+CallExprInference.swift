@@ -13,6 +13,7 @@ extension CallTypeChecker {
         expectedType: TypeID?,
         explicitTypeArgs: [TypeID] = []
     ) -> TypeID {
+        ctx.sema.types.attribution?.increment(.callSites)
         let ast = ctx.ast
         let sema = ctx.sema
         let interner = ctx.interner

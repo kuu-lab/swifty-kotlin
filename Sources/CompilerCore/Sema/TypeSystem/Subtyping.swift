@@ -1,5 +1,6 @@
 extension TypeSystem {
     public func isSubtype(_ subtype: TypeID, _ supertype: TypeID) -> Bool {
+        attribution?.increment(.subtypeChecks)
         let (subtype, lhs) = normalizedBuiltinDisguisedClassTypeAndKind(subtype)
         let (supertype, rhs) = normalizedBuiltinDisguisedClassTypeAndKind(supertype)
         if subtype == supertype {
