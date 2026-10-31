@@ -15,5 +15,15 @@ struct CodegenBackendGenericNullableCastTests {
             expected: "marker\nOK\n42\n"
         )
     }
+
+    @Test
+    func nullAsUnboundedTypeParameterCrossesErasedClaimAsNull() throws {
+        let source = try diffCaseSource("null_as_generic_type_parameter.kt", file: #filePath)
+        try assertKotlinOutput(
+            source,
+            moduleName: "NullAsGenericTypeParameter",
+            expected: "int:OK\nstr:OK\nbounded:NPE\niface:NPE\n"
+        )
+    }
 }
 #endif
