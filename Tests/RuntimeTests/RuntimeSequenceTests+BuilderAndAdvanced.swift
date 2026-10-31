@@ -350,7 +350,7 @@ extension RuntimeSequenceTests {
         }
         let fnPtr = unsafeBitCast(thunk, to: Int.self)
         let seqHandle = __kk_sequence_builder_build(fnPtr)
-        let taken = kk_sequence_take(seqHandle, 3)
+        let taken = kk_sequence_take(seqHandle, 3, nil)
         #expect(sequenceElements(taken) == [1, 2, 3])
     }
 
@@ -404,7 +404,7 @@ extension RuntimeSequenceTests {
         let outerFnPtr = unsafeBitCast(lazyYieldAllOuterThunk, to: Int.self)
         let seqHandle = __kk_sequence_builder_build(outerFnPtr)
 
-        let taken = kk_sequence_take(seqHandle, 2)
+        let taken = kk_sequence_take(seqHandle, 2, nil)
         #expect(sequenceElements(taken) == [10, 20])
         #expect(_lazyTestYieldCounter <= 3, "yieldAll should not eagerly evaluate all 5 elements of the nested sequence before first consumer demand")
         let firstTraversalYields = _lazyTestYieldCounter
@@ -470,7 +470,7 @@ extension RuntimeSequenceTests {
         }
         let fnPtr = unsafeBitCast(thunk, to: Int.self)
         let seqHandle = __kk_sequence_builder_build(fnPtr)
-        let taken = kk_sequence_take(seqHandle, 2)
+        let taken = kk_sequence_take(seqHandle, 2, nil)
         let result = sequenceElements(taken)
         #expect(result == [1, 2])
         // The producer should have yielded at most 3 times (2 consumed + 1 ahead
@@ -565,7 +565,7 @@ extension RuntimeSequenceTests {
         )
 
         // Take only first element to verify laziness
-        let taken = kk_sequence_take(filtered, 1)
+        let taken = kk_sequence_take(filtered, 1, nil)
         let result = sequenceElements(taken)
         #expect(result == [1]) // Should be [1, 3] but take(1) gives [1]
 
@@ -603,7 +603,7 @@ extension RuntimeSequenceTests {
         )
 
         // Take only first element to verify laziness
-        let taken = kk_sequence_take(mapped, 1)
+        let taken = kk_sequence_take(mapped, 1, nil)
         let result = sequenceElements(taken)
         #expect(result == [2]) // 1 * 2 = 2, null is filtered out
 
@@ -630,7 +630,7 @@ extension RuntimeSequenceTests {
         let filtered = kk_sequence_filterNotNull(seqHandle)
 
         // Take only first element to verify laziness
-        let taken = kk_sequence_take(filtered, 1)
+        let taken = kk_sequence_take(filtered, 1, nil)
         let result = sequenceElements(taken)
         #expect(result == [1]) // null is filtered out
 
@@ -664,7 +664,7 @@ extension RuntimeSequenceTests {
         )
 
         // Take only first element to verify laziness
-        let taken = kk_sequence_take(mapped, 1)
+        let taken = kk_sequence_take(mapped, 1, nil)
         let result = sequenceElements(taken)
         #expect(result == [10]) // index 0 + value 10 = 10
 
@@ -693,7 +693,7 @@ extension RuntimeSequenceTests {
             nil
         )
 
-        let taken = kk_sequence_take(onEachIndexed, 1)
+        let taken = kk_sequence_take(onEachIndexed, 1, nil)
         let result = sequenceElements(taken)
         #expect(result == [10])
         #expect(_lazySequenceOnEachIndexedTrace == [10])
@@ -712,7 +712,7 @@ extension RuntimeSequenceTests {
             nil
         )
 
-        let taken = kk_sequence_take(onEachIndexed, 2)
+        let taken = kk_sequence_take(onEachIndexed, 2, nil)
         let result = sequenceElements(taken)
         #expect(result == [10, 20])
         #expect(_lazySequenceOnEachIndexedTrace == [10, 120])
@@ -735,13 +735,15 @@ extension RuntimeSequenceTests {
         let withIndex = kk_sequence_withIndex(seqHandle)
 
         // Take only first element to verify laziness
-        let taken = kk_sequence_take(withIndex, 1)
+        let taken = kk_sequence_take(withIndex, 1, nil)
         let result = sequenceElements(taken)
         #expect(result.count == 1)
-        // Should be a pair (0, 10)
+        // withIndex yields `IndexedValue` objects (index@2, value@3), not
+        // `Pair` boxes — read the fields like compiled component calls do.
         let pair = result[0]
-        let first = kk_pair_first(pair)
-        let second = kk_pair_second(pair)
+        var thrown = 0
+        let first = kk_array_get(pair, 2, &thrown)
+        let second = kk_array_get(pair, 3, &thrown)
         #expect(first == 0) // index
         #expect(second == 10) // value
 
@@ -779,7 +781,7 @@ extension RuntimeSequenceTests {
         )
 
         // Take only first element to verify laziness
-        let taken = kk_sequence_take(flatMapped, 1)
+        let taken = kk_sequence_take(flatMapped, 1, nil)
         let result = sequenceElements(taken)
         #expect(result == [1]) // First element of [1, 10] from first input value 1
 
@@ -1018,14 +1020,16 @@ extension RuntimeSequenceTests {
         let withIndex = kk_sequence_withIndex(seq)
         let result = sequenceElements(withIndex)
         #expect(result.count == 3)
-        // Check first pair (0, 10)
-        let first = kk_pair_first(result[0])
-        let second = kk_pair_second(result[0])
+        // withIndex yields `IndexedValue` objects (index@2, value@3), not
+        // `Pair` boxes — read the fields like compiled component calls do.
+        var thrown = 0
+        let first = kk_array_get(result[0], 2, &thrown)
+        let second = kk_array_get(result[0], 3, &thrown)
         #expect(first == 0)
         #expect(second == 10)
         // Check second pair (1, 20)
-        let first2 = kk_pair_first(result[1])
-        let second2 = kk_pair_second(result[1])
+        let first2 = kk_array_get(result[1], 2, &thrown)
+        let second2 = kk_array_get(result[1], 3, &thrown)
         #expect(first2 == 1)
         #expect(second2 == 20)
     }
@@ -1117,7 +1121,7 @@ extension RuntimeSequenceTests {
             unsafeBitCast(flatMapFn, to: Int.self),
             0
         )
-        let taken = kk_sequence_take(flatMapped, 3)
+        let taken = kk_sequence_take(flatMapped, 3, nil)
 
         #expect(sequenceElements(taken) == [0, 1, 1])
         #expect(_lazyTestYieldCounter <= 2)
@@ -1237,7 +1241,7 @@ extension RuntimeSequenceTests {
             0,
             nil
         )
-        let taken = kk_sequence_take(distinct, 1)
+        let taken = kk_sequence_take(distinct, 1, nil)
         #expect(sequenceElements(taken) == [1])
         #expect(_lazyTestYieldCounter <= 2, "distinctBy should be lazy; take(1) must not force all 5 yields, got \(_lazyTestYieldCounter)")
     }

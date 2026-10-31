@@ -22,6 +22,55 @@ extension CollectionLiteralConstructionLoweringPass {
            state.sequenceRuntimeRepresentation(of: receiverID) != .runtimeBox {
             return false
         }
+        // KUU-3850: the bundled `first`/`last`/`count`/`firstOrNull`/`lastOrNull`
+        // Sequence extensions drive every element through `kk_iterator_*`
+        // dispatch under a generated GC frame. On a confirmed RuntimeSequenceBox
+        // the direct traversal keeps the same semantics — including
+        // NoSuchElementException on `first`/`last` over an empty sequence and
+        // producer exceptions via outThrown — without the per-element dispatch.
+        //
+        // kklib-imported stdlib callees arrive as `kk_fn_*` link names, so the
+        // resolved `kotlin.sequences`/`kotlin.collections` declaration (the
+        // bundled stdlib declares `Sequence.count` in `kotlin.collections`) is
+        // matched as well as the plain callee name.
+        let sequenceDeclName = sequenceExtensionSimpleName(
+            symbol: symbol,
+            sema: ctx.sema,
+            interner: ctx.interner
+        )
+        func matchesTerminal(_ name: InternedString) -> Bool {
+            sequenceDeclName == name || (symbol == nil && callee == name)
+        }
+        if matchesTerminal(lookup.firstName) || matchesTerminal(lookup.firstOrNullName)
+            || matchesTerminal(lookup.lastName) || matchesTerminal(lookup.lastOrNullName)
+            || matchesTerminal(lookup.countName),
+           arguments.count == 1
+        {
+            let receiverID = arguments[0]
+            if state.sequenceRuntimeRepresentation(of: receiverID) == .runtimeBox {
+                let kkName: InternedString
+                if matchesTerminal(lookup.firstName) {
+                    kkName = lookup.kkSequenceFirstName
+                } else if matchesTerminal(lookup.firstOrNullName) {
+                    kkName = lookup.kkSequenceFirstOrNullName
+                } else if matchesTerminal(lookup.lastName) {
+                    kkName = lookup.kkSequenceLastName
+                } else if matchesTerminal(lookup.lastOrNullName) {
+                    kkName = lookup.kkSequenceLastOrNullName
+                } else {
+                    kkName = lookup.kkSequenceCountName
+                }
+                loweredBody.append(.call(
+                    callee: kkName,
+                    arguments: [receiverID],
+                    result: result,
+                    canThrow: true,
+                    thrownResult: thrownResult
+                ))
+                return true
+            }
+        }
+
     if callee == lookup.toSetName, arguments.count == 1 {
         let receiverID = arguments[0]
         if state.sequenceExprIDs.contains(receiverID.rawValue) {

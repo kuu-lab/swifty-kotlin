@@ -501,7 +501,7 @@ final class RuntimeJobHandle: @unchecked Sendable {
 
     private func terminalValueForJoinLocked() -> Int {
         let value = terminalValueLocked()
-        let threadID = ObjectIdentifier(Thread.current)
+        let threadID = runtimeGCCurrentThreadID()
         runtimeStorage.withGCLock { state in
             runtimeRecordShadowHandoffLocked(value, threadID: threadID, state: &state)
         }
@@ -522,7 +522,7 @@ final class RuntimeJobHandle: @unchecked Sendable {
     }
 
     func completionSnapshot(handoff: RuntimeCompletionHandoff = .all) -> (completed: Bool, value: Int, exception: Int) {
-        let threadID = ObjectIdentifier(Thread.current)
+        let threadID = runtimeGCCurrentThreadID()
         lock.lock()
         defer { lock.unlock() }
         let cause = completionCauseLocked()

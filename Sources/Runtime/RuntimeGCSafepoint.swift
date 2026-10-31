@@ -21,7 +21,7 @@ final class RuntimeGCSafepointCoordinator: @unchecked Sendable {
     private var resetDepth = 0
 
     func enter() {
-        let id = ObjectIdentifier(Thread.current)
+        let id = runtimeGCCurrentThreadID()
         condition.lock()
         defer { condition.unlock() }
         waitForResetIfInactive(id)
@@ -39,7 +39,7 @@ final class RuntimeGCSafepointCoordinator: @unchecked Sendable {
     }
 
     func leave() {
-        let id = ObjectIdentifier(Thread.current)
+        let id = runtimeGCCurrentThreadID()
         condition.lock()
         defer { condition.unlock() }
         guard let mutator = mutators[id], mutator.depth > 0 else {
@@ -64,7 +64,7 @@ final class RuntimeGCSafepointCoordinator: @unchecked Sendable {
     }
 
     func poll() {
-        let id = ObjectIdentifier(Thread.current)
+        let id = runtimeGCCurrentThreadID()
         condition.lock()
         defer { condition.unlock() }
         guard let mutator = mutators[id], !mutator.parked else {
@@ -74,7 +74,7 @@ final class RuntimeGCSafepointCoordinator: @unchecked Sendable {
     }
 
     func pollIfEnrolled() {
-        let id = ObjectIdentifier(Thread.current)
+        let id = runtimeGCCurrentThreadID()
         condition.lock()
         defer { condition.unlock() }
         guard let mutator = mutators[id], !mutator.parked else {
@@ -91,7 +91,7 @@ final class RuntimeGCSafepointCoordinator: @unchecked Sendable {
 
     @discardableResult
     func beginBlockingIfEnrolled() -> Bool {
-        let id = ObjectIdentifier(Thread.current)
+        let id = runtimeGCCurrentThreadID()
         condition.lock()
         defer { condition.unlock() }
         guard let mutator = mutators[id] else { return false }
@@ -105,7 +105,7 @@ final class RuntimeGCSafepointCoordinator: @unchecked Sendable {
     }
 
     func endBlocking() {
-        let id = ObjectIdentifier(Thread.current)
+        let id = runtimeGCCurrentThreadID()
         condition.lock()
         defer { condition.unlock() }
         guard let mutator = mutators[id], mutator.suspendedAt.last == mutator.depth else {
@@ -122,7 +122,7 @@ final class RuntimeGCSafepointCoordinator: @unchecked Sendable {
     }
 
     func beginCollection() {
-        let id = ObjectIdentifier(Thread.current)
+        let id = runtimeGCCurrentThreadID()
         condition.lock()
         defer { condition.unlock() }
         waitForResetIfInactive(id)
@@ -147,7 +147,7 @@ final class RuntimeGCSafepointCoordinator: @unchecked Sendable {
     }
 
     func endCollection() {
-        let id = ObjectIdentifier(Thread.current)
+        let id = runtimeGCCurrentThreadID()
         condition.lock()
         defer { condition.unlock() }
         guard collector == id, collectionDepth > 0 else {
@@ -162,7 +162,7 @@ final class RuntimeGCSafepointCoordinator: @unchecked Sendable {
     }
 
     func enterFrame() {
-        let id = ObjectIdentifier(Thread.current)
+        let id = runtimeGCCurrentThreadID()
         condition.lock()
         defer { condition.unlock() }
         waitForResetIfInactive(id)
@@ -170,7 +170,7 @@ final class RuntimeGCSafepointCoordinator: @unchecked Sendable {
     }
 
     func leaveFrame() {
-        let id = ObjectIdentifier(Thread.current)
+        let id = runtimeGCCurrentThreadID()
         condition.lock()
         defer { condition.unlock() }
         guard let count = frameCounts[id], count > 0 else { return }
@@ -183,7 +183,7 @@ final class RuntimeGCSafepointCoordinator: @unchecked Sendable {
     }
 
     func beginResetWork() {
-        let id = ObjectIdentifier(Thread.current)
+        let id = runtimeGCCurrentThreadID()
         condition.lock()
         defer { condition.unlock() }
         waitForResetIfInactive(id)
@@ -202,7 +202,7 @@ final class RuntimeGCSafepointCoordinator: @unchecked Sendable {
     }
 
     func withQuiescentFramesResult(_ body: () -> Bool) -> Bool {
-        let id = ObjectIdentifier(Thread.current)
+        let id = runtimeGCCurrentThreadID()
         condition.lock()
         while let owner = resetOwner, owner != id {
             condition.wait()

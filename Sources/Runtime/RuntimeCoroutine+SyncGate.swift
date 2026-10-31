@@ -376,7 +376,7 @@ final class RuntimeContinuationState: @unchecked Sendable {
     }
 
     func rootedCompletion() -> Int {
-        let threadID = ObjectIdentifier(Thread.current)
+        let threadID = runtimeGCCurrentThreadID()
         gcValuesLock.lock()
         defer { gcValuesLock.unlock() }
         return runtimeStorage.withGCLock { state in
@@ -387,7 +387,7 @@ final class RuntimeContinuationState: @unchecked Sendable {
     }
 
     func rootedSpillSlot(_ slot: Int64) -> Int {
-        let threadID = ObjectIdentifier(Thread.current)
+        let threadID = runtimeGCCurrentThreadID()
         gcValuesLock.lock()
         defer { gcValuesLock.unlock() }
         return runtimeStorage.withGCLock { state in
@@ -398,7 +398,7 @@ final class RuntimeContinuationState: @unchecked Sendable {
     }
 
     func rootedLauncherArg(_ index: Int64) -> Int64 {
-        let threadID = ObjectIdentifier(Thread.current)
+        let threadID = runtimeGCCurrentThreadID()
         gcValuesLock.lock()
         defer { gcValuesLock.unlock() }
         return runtimeStorage.withGCLock { state in
@@ -767,7 +767,7 @@ final class RuntimeContinuationState: @unchecked Sendable {
     /// Generated resume labels receive an exception once. A surrounding catch
     /// may handle it and then suspend again without a child call clearing it.
     func takeThrownException() -> Int {
-        let threadID = ObjectIdentifier(Thread.current)
+        let threadID = runtimeGCCurrentThreadID()
         stateLock.lock()
         defer { stateLock.unlock() }
         gcValuesLock.lock()
@@ -1096,7 +1096,7 @@ final class RuntimeCoroutineResultStorage: @unchecked Sendable {
     }
 
     func load() -> (result: Int, thrown: Int) {
-        let threadID = ObjectIdentifier(Thread.current)
+        let threadID = runtimeGCCurrentThreadID()
         lock.lock()
         defer { lock.unlock() }
         return runtimeStorage.withGCLock { state in
@@ -1126,7 +1126,7 @@ private final class RuntimeTaskAwaitSnapshot: @unchecked Sendable {
     }
 
     func load() -> RuntimeTaskAwaitOutcome {
-        let threadID = ObjectIdentifier(Thread.current)
+        let threadID = runtimeGCCurrentThreadID()
         lock.lock()
         let value = result
         let thrown = thrownException
@@ -1306,7 +1306,7 @@ final class RuntimeAsyncTask: @unchecked Sendable {
     }
 
     func completionSnapshot(handoff: RuntimeCompletionHandoff = .all) -> (completed: Bool, value: Int, exception: Int) {
-        let threadID = ObjectIdentifier(Thread.current)
+        let threadID = runtimeGCCurrentThreadID()
         lock.lock()
         defer { lock.unlock() }
         runtimeStorage.withGCLock { state in
@@ -1424,7 +1424,7 @@ final class RuntimeAsyncTask: @unchecked Sendable {
         if isCompleted {
             let value = propagateFailure ? result : 0
             let thrown = propagateFailure ? thrownException : 0
-            let threadID = ObjectIdentifier(Thread.current)
+            let threadID = runtimeGCCurrentThreadID()
             runtimeStorage.withGCLock { state in
                 runtimeRecordShadowHandoffLocked(value, threadID: threadID, state: &state)
                 runtimeRecordShadowHandoffLocked(thrown, threadID: threadID, state: &state)

@@ -1635,5 +1635,236 @@ struct CollectionLiteralLoweringTests {
             "Without sema context, virtual call should remain unrewritten"
         )
     }
+
+    // MARK: - KUU-3850: runtime-box Sequence pipeline intrinsics
+
+    /// A `generateSequence`-style bridge call followed by one callee: the
+    /// bridge name seeds `.sequence` provenance during the pre-scan, and the
+    /// second call site exercises the KUU-3850 rewrites.
+    private func buildSequenceCall(
+        callee: String,
+        argCount: Int,
+        interner: StringInterner,
+        arena: KIRArena
+    ) -> (KIRModule, KIRDeclID) {
+        let seed = arena.appendExpr(.temporary(0))
+        let fn = arena.appendExpr(.temporary(1))
+        let seq = arena.appendExpr(.temporary(2))
+        let extra = arena.appendExpr(.temporary(3))
+        let result = arena.appendExpr(.temporary(4))
+        var callArgs: [KIRExprID] = [seq]
+        for _ in 0 ..< argCount { callArgs.append(extra) }
+        return makeModule(body: [
+            .call(
+                callee: interner.intern("__kk_sequence_generate"),
+                arguments: [seed, fn],
+                result: seq,
+                canThrow: false
+            ),
+            .call(
+                callee: interner.intern(callee),
+                arguments: callArgs,
+                result: result,
+                canThrow: true
+            ),
+            .returnUnit,
+        ], interner: interner, arena: arena)
+    }
+
+    @Test(arguments: [
+        ("take", "kk_sequence_take"),
+        ("drop", "kk_sequence_drop"),
+        ("takeWhile", "kk_sequence_takeWhile"),
+        ("dropWhile", "kk_sequence_dropWhile"),
+        ("first", "kk_sequence_first"),
+        ("firstOrNull", "kk_sequence_firstOrNull"),
+        ("last", "kk_sequence_last"),
+        ("lastOrNull", "kk_sequence_lastOrNull"),
+        ("count", "kk_sequence_count"),
+    ])
+    func testSequenceBoxCallRewritesToRuntimeBridge(
+        sourceCallee: String,
+        expectedBridge: String
+    ) throws {
+        let interner = StringInterner()
+        let arena = KIRArena()
+        let argCount = sourceCallee == "takeWhile" || sourceCallee == "dropWhile"
+            || sourceCallee == "take" || sourceCallee == "drop" ? 1 : 0
+        let (module, declID) = buildSequenceCall(
+            callee: sourceCallee,
+            argCount: argCount,
+            interner: interner,
+            arena: arena
+        )
+        try runPass(module: module, kirCtx: makeKIRContext(interner: interner))
+        let callees = calleesInDecl(declID, module: module, interner: interner)
+        #expect(
+            callees.contains(expectedBridge),
+            "\(sourceCallee) on a RuntimeSequenceBox should rewrite to \(expectedBridge), got: \(callees)"
+        )
+    }
+
+    /// The kklib stdlib emits `kk_fn_*` link names: the rewrite must key off
+    /// the resolved `kotlin.sequences`/`kotlin.collections` declaration, not
+    /// the callee text (KUU-3850).
+    @Test
+    func testLinkedStubTakeOnSequenceBoxRewritesViaSymbolFqName() throws {
+        let interner = StringInterner()
+        let arena = KIRArena()
+        let (ctx, _, symbols) = makeKIRContextWithSema(interner: interner)
+        let takeSymbol = symbols.define(
+            kind: .function,
+            name: interner.intern("take"),
+            fqName: [interner.intern("kotlin"), interner.intern("sequences"), interner.intern("take")],
+            declSite: nil,
+            visibility: .public,
+            flags: []
+        )
+        let seq = arena.appendExpr(.temporary(0))
+        let n = arena.appendExpr(.temporary(1))
+        let seed = arena.appendExpr(.temporary(2))
+        let fn = arena.appendExpr(.temporary(3))
+        let taken = arena.appendExpr(.temporary(4))
+        let (module, declID) = makeModule(body: [
+            .call(
+                callee: interner.intern("__kk_sequence_generate"),
+                arguments: [seed, fn],
+                result: seq,
+                canThrow: false
+            ),
+            .call(
+                symbol: takeSymbol,
+                callee: interner.intern("kk_fn_take_25356__13x4B53776966744B5374646c6962_6x6b6f746c696e_9x73657175656e636573_4x74616b65"),
+                arguments: [seq, n],
+                result: taken,
+                canThrow: true
+            ),
+            .returnUnit,
+        ], interner: interner, arena: arena)
+        try runPass(module: module, kirCtx: ctx)
+        let callees = calleesInDecl(declID, module: module, interner: interner)
+        #expect(
+            callees.contains("kk_sequence_take"),
+            "kk_fn_take_* on a RuntimeSequenceBox should rewrite via the resolved symbol, got: \(callees)"
+        )
+    }
+
+    /// A `Sequence`-typed value with no confirmed runtime-box provenance must
+    /// keep the bundled `take`/`last` implementations (source-backed or
+    /// unknown receivers are never rewritten).
+    @Test
+    func testTakeOnUnknownSequenceDoesNotRewrite() throws {
+        let interner = StringInterner()
+        let arena = KIRArena()
+        let seq = arena.appendExpr(.temporary(0))
+        let n = arena.appendExpr(.temporary(1))
+        let taken = arena.appendExpr(.temporary(2))
+        let last = arena.appendExpr(.temporary(3))
+        let (module, declID) = makeModule(body: [
+            .call(callee: interner.intern("take"), arguments: [seq, n], result: taken, canThrow: true),
+            .call(callee: interner.intern("last"), arguments: [taken], result: last, canThrow: true),
+            .returnUnit,
+        ], interner: interner, arena: arena)
+        try runPass(module: module, kirCtx: makeKIRContext(interner: interner))
+        let callees = calleesInDecl(declID, module: module, interner: interner)
+        #expect(!callees.contains("kk_sequence_take"), "unknown provenance must keep bundled take, got: \(callees)")
+        #expect(!callees.contains("kk_sequence_last"), "unknown provenance must keep bundled last, got: \(callees)")
+        #expect(callees.contains("take"), "bundled take call should survive, got: \(callees)")
+    }
+
+    /// The `generateSequence(seedFunction, nextFunction)` overload builds a
+    /// source `object : Sequence`, so its result must keep source-backed
+    /// pipeline calls even though the callee name matches (KUU-3850).
+    @Test
+    func testGenerateSequenceSeedFunctionOverloadSeedsSourceObject() throws {
+        let interner = StringInterner()
+        let arena = KIRArena()
+        let (ctx, types, symbols) = makeKIRContextWithSema(interner: interner)
+        let fnType = types.make(.functionType(FunctionType(
+            params: [types.anyType],
+            returnType: types.anyType
+        )))
+        let genSymbol = symbols.define(
+            kind: .function,
+            name: interner.intern("generateSequence"),
+            fqName: [interner.intern("kotlin"), interner.intern("sequences"), interner.intern("generateSequence")],
+            declSite: nil,
+            visibility: .public,
+            flags: []
+        )
+        symbols.setFunctionSignature(FunctionSignature(
+            receiverType: nil,
+            parameterTypes: [fnType, fnType],
+            returnType: types.anyType
+        ), for: genSymbol)
+        let seedFn = arena.appendExpr(.temporary(0))
+        let nextFn = arena.appendExpr(.temporary(1))
+        let seq = arena.appendExpr(.temporary(2))
+        let n = arena.appendExpr(.temporary(3))
+        let taken = arena.appendExpr(.temporary(4))
+        let (module, declID) = makeModule(body: [
+            .call(
+                symbol: genSymbol,
+                callee: interner.intern("kk_fn_generateSequence_25247__13x4B53776966744B5374646c6962_6x6b6f746c696e_9x73657175656e636573_16x67656e657261746553657175656e6365"),
+                arguments: [seedFn, nextFn],
+                result: seq,
+                canThrow: true
+            ),
+            .call(callee: interner.intern("take"), arguments: [seq, n], result: taken, canThrow: true),
+            .returnUnit,
+        ], interner: interner, arena: arena)
+        try runPass(module: module, kirCtx: ctx)
+        let callees = calleesInDecl(declID, module: module, interner: interner)
+        #expect(
+            !callees.contains("kk_sequence_take"),
+            "source-object generateSequence result must not rewrite take, got: \(callees)"
+        )
+        #expect(callees.contains("take"), "bundled take call should survive, got: \(callees)")
+    }
+
+    /// The seeded `generateSequence(seed, nextFunction)` overload returns a
+    /// `RuntimeSequenceBox`: its result must seed `.sequence` provenance so a
+    /// downstream `take` rewrites even under a `kk_fn_*` link name (KUU-3850).
+    @Test
+    func testGenerateSequenceSeedOverloadSeedsRuntimeBox() throws {
+        let interner = StringInterner()
+        let arena = KIRArena()
+        let (ctx, types, symbols) = makeKIRContextWithSema(interner: interner)
+        let genSymbol = symbols.define(
+            kind: .function,
+            name: interner.intern("generateSequence"),
+            fqName: [interner.intern("kotlin"), interner.intern("sequences"), interner.intern("generateSequence")],
+            declSite: nil,
+            visibility: .public,
+            flags: []
+        )
+        symbols.setFunctionSignature(FunctionSignature(
+            receiverType: nil,
+            parameterTypes: [types.anyType, types.anyType],
+            returnType: types.anyType
+        ), for: genSymbol)
+        let seed = arena.appendExpr(.temporary(0))
+        let nextFn = arena.appendExpr(.temporary(1))
+        let seq = arena.appendExpr(.temporary(2))
+        let n = arena.appendExpr(.temporary(3))
+        let taken = arena.appendExpr(.temporary(4))
+        let (module, declID) = makeModule(body: [
+            .call(
+                symbol: genSymbol,
+                callee: interner.intern("kk_fn_generateSequence_25247__13x4B53776966744B5374646c6962_6x6b6f746c696e_9x73657175656e636573_16x67656e657261746553657175656e6365"),
+                arguments: [seed, nextFn],
+                result: seq,
+                canThrow: true
+            ),
+            .call(callee: interner.intern("take"), arguments: [seq, n], result: taken, canThrow: true),
+            .returnUnit,
+        ], interner: interner, arena: arena)
+        try runPass(module: module, kirCtx: ctx)
+        let callees = calleesInDecl(declID, module: module, interner: interner)
+        #expect(
+            callees.contains("kk_sequence_take"),
+            "seeded generateSequence result should tag the box so take rewrites, got: \(callees)"
+        )
+    }
 }
 #endif

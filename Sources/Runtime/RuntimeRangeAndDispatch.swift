@@ -985,6 +985,12 @@ public func kk_range_for_in_next(_ iterRaw: Int) -> Int {
 public func kk_iterator_hasNext(_ iterRaw: Int, _ outThrown: UnsafeMutablePointer<Int>? = nil) -> Int {
     outThrown?.pointee = 0
     let object = resolveRuntimeObjectHandle(iterRaw)
+    // KUU-3850: runtime-backed sequence iterators sit under every lazy
+    // Sequence<T> traversal; dispatch them directly instead of walking the
+    // remaining type checks plus a dynamic itable lookup per element.
+    if let sequenceIterator = object as? RuntimeSequenceIteratorBox {
+        return sequenceIterator.hasNext(outThrown: outThrown) ? 1 : 0
+    }
     if let builder = object as? RuntimeIteratorBuilderBox {
         return builder.probeHasNext(outThrown: outThrown) ? 1 : 0
     }
@@ -1030,6 +1036,12 @@ func runtimeRangeErasedElement(_ value: Int, kind: RuntimeRangeKind) -> Int {
 public func kk_iterator_next(_ iterRaw: Int, _ outThrown: UnsafeMutablePointer<Int>? = nil) -> Int {
     outThrown?.pointee = 0
     let object = resolveRuntimeObjectHandle(iterRaw)
+    // KUU-3850: see kk_iterator_hasNext — direct dispatch for runtime-backed
+    // sequence iterators. `RuntimeSequenceIteratorBox` never registers a
+    // CharIterator typeID, so the trailing char-boxing branch cannot apply.
+    if let sequenceIterator = object as? RuntimeSequenceIteratorBox {
+        return sequenceIterator.next(outThrown: outThrown)
+    }
     if let builder = object as? RuntimeIteratorBuilderBox {
         return builder.consumeNext(outThrown: outThrown)
     }

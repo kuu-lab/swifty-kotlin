@@ -317,7 +317,7 @@ final class RuntimePairBox {
     }
 
     func setSecondValue(_ value: RuntimeValue, returning previous: Int? = nil) {
-        let threadID = ObjectIdentifier(Thread.current)
+        let threadID = runtimeGCCurrentThreadID()
         runtimeStorage.withGCLock { state in
             if let previous {
                 runtimeRecordShadowHandoffLocked(previous, threadID: threadID, state: &state)

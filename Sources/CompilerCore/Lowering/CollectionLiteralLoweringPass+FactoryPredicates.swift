@@ -505,4 +505,37 @@ extension CollectionLiteralConstructionLoweringPass {
         return sema.symbols.isSourceBackedSymbol(symbol)
     }
 
+    /// The simple name of a resolved `kotlin.sequences`/`kotlin.collections`
+    /// function declaration, or `nil` when the callee is unresolved or belongs
+    /// to any other package (KUU-3850).
+    ///
+    /// kklib-imported stdlib callees reach this pass under `kk_fn_*` link
+    /// names, so a plain `callee == "take"`-style comparison can never see
+    /// them; matching on the resolved declaration keeps working in both
+    /// stdlib modes. `kotlin.collections` is included because this bundled
+    /// stdlib declares some `Sequence` extensions (e.g. `count`) in that
+    /// package; the call-site runtime-box receiver check still discriminates
+    /// same-named `Iterable`/`List` overloads.
+    func sequenceExtensionSimpleName(
+        symbol: SymbolID?,
+        sema: SemaModule?,
+        interner: StringInterner
+    ) -> InternedString? {
+        guard let symbol,
+              let sema,
+              let decl = sema.symbols.symbol(symbol),
+              decl.kind == .function,
+              decl.fqName.count == 3,
+              decl.fqName[0] == interner.intern("kotlin")
+        else {
+            return nil
+        }
+        let sequencesPackage = interner.intern("sequences")
+        let collectionsPackage = interner.intern("collections")
+        guard decl.fqName[1] == sequencesPackage || decl.fqName[1] == collectionsPackage else {
+            return nil
+        }
+        return decl.fqName[2]
+    }
+
 }

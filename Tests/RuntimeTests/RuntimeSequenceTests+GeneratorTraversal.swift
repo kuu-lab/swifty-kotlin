@@ -79,7 +79,7 @@ extension RuntimeSequenceTests {
         withUnsafeMutablePointer(to: &calls) { pointer in
             let seq = __kk_sequence_generate(0, unsafeBitCast(countingSequenceNext, to: Int.self), Int(bitPattern: pointer))
             var thrown = 0
-            let taken = kk_sequence_take(seq, count)
+            let taken = kk_sequence_take(seq, count, nil)
             #expect(kk_sequence_count(taken, &thrown) == count)
             #expect(thrown == 0)
         }

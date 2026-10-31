@@ -40,6 +40,8 @@ extension CollectionLiteralConstructionLoweringPass {
         || callee == lookup.kkSequenceConstrainOnceName
         || callee == lookup.kkSequenceShuffledName || callee == lookup.kkSequenceShuffledRandomName
         || callee == lookup.kkSequencePlusName || callee == lookup.kkSequenceMinusName
+        || callee == lookup.kkSequenceTakeName || callee == lookup.kkSequenceDropName
+        || callee == lookup.kkSequenceTakeWhileName || callee == lookup.kkSequenceDropWhileName
     {
         loweredBody.append(instruction)
         if let result { state.sequenceExprIDs.insert(result.rawValue) }
@@ -124,6 +126,78 @@ extension CollectionLiteralConstructionLoweringPass {
                 loweredBody: &loweredBody
             )
             loweredBody.append(.call(callee: kkName, arguments: [receiverID, expanded.fnPtr, expanded.closureRaw], result: result, canThrow: false))
+            if let result { state.sequenceExprIDs.insert(result.rawValue) }
+            return true
+        }
+    }
+
+    // KUU-3850: `take`/`drop`/`takeWhile`/`dropWhile` would otherwise run the
+    // bundled `object : Sequence`/`object : Iterator` wrappers — a generated
+    // GC-framed hasNext/next pair per element on top of the underlying
+    // iterator dispatch. The runtime step forms stay lazy, keep the eager
+    // `require(n >= 0)` contract via outThrown, and propagate producer
+    // exceptions through the same outThrown channel.
+    //
+    // kklib-imported stdlib callees arrive as `kk_fn_*` link names, so the
+    // resolved `kotlin.sequences`/`kotlin.collections` declaration is matched
+    // as well as the plain callee name.
+    let sequenceDeclName = sequenceExtensionSimpleName(
+        symbol: symbol,
+        sema: ctx.sema,
+        interner: ctx.interner
+    )
+    let isTakeCall = sequenceDeclName == lookup.takeName
+        || (symbol == nil && callee == lookup.takeName)
+    let isDropCall = sequenceDeclName == lookup.dropName
+        || (symbol == nil && callee == lookup.dropName)
+    if isTakeCall || isDropCall, arguments.count == 2 {
+        let receiverID = arguments[0]
+        if state.sequenceRuntimeRepresentation(of: receiverID) == .runtimeBox,
+           !state.arrayExprIDs.contains(receiverID.rawValue)
+        {
+            var origThrownResult: KIRExprID?
+            if case let .call(_, _, _, _, _, thrownResult, _, _) = instruction {
+                origThrownResult = thrownResult
+            }
+            let kkName = isTakeCall
+                ? lookup.kkSequenceTakeName : lookup.kkSequenceDropName
+            loweredBody.append(.call(
+                callee: kkName,
+                arguments: [receiverID, arguments[1]],
+                result: result,
+                canThrow: true,
+                thrownResult: origThrownResult
+            ))
+            if let result { state.sequenceExprIDs.insert(result.rawValue) }
+            return true
+        }
+    }
+
+    let isTakeWhileCall = sequenceDeclName == lookup.takeWhileName
+        || (symbol == nil && callee == lookup.takeWhileName)
+    let isDropWhileCall = sequenceDeclName == lookup.dropWhileName
+        || (symbol == nil && callee == lookup.dropWhileName)
+    if isTakeWhileCall || isDropWhileCall,
+       arguments.count == 2 || arguments.count == 3
+    {
+        let receiverID = arguments[0]
+        if state.sequenceRuntimeRepresentation(of: receiverID) == .runtimeBox,
+           !state.arrayExprIDs.contains(receiverID.rawValue)
+        {
+            let kkName = isTakeWhileCall
+                ? lookup.kkSequenceTakeWhileName : lookup.kkSequenceDropWhileName
+            let expanded = expandSequenceLambdaArgument(
+                lambdaExpr: arguments[1],
+                module: module,
+                ctx: ctx,
+                loweredBody: &loweredBody
+            )
+            loweredBody.append(.call(
+                callee: kkName,
+                arguments: [receiverID, expanded.fnPtr, expanded.closureRaw],
+                result: result,
+                canThrow: false
+            ))
             if let result { state.sequenceExprIDs.insert(result.rawValue) }
             return true
         }

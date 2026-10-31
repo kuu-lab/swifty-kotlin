@@ -47,6 +47,17 @@ struct SequenceLookupNames {
     let takeName: InternedString
     let yieldName: InternedString
     let yieldAllName: InternedString
+    // KUU-3850: `take`/`drop`/`*While` plus the traversal terminals so the
+    // pipeline/terminal rewrites can emit the runtime step forms directly.
+    let kkSequenceTakeName: InternedString
+    let kkSequenceDropName: InternedString
+    let kkSequenceTakeWhileName: InternedString
+    let kkSequenceDropWhileName: InternedString
+    let kkSequenceFirstName: InternedString
+    let kkSequenceFirstOrNullName: InternedString
+    let kkSequenceLastName: InternedString
+    let kkSequenceLastOrNullName: InternedString
+    let kkSequenceCountName: InternedString
 
     init(interner: StringInterner) {
         kkSequenceMapName = interner.intern("kk_sequence_map")
@@ -96,5 +107,14 @@ struct SequenceLookupNames {
         takeName = interner.intern("take")
         yieldName = interner.intern("yield")
         yieldAllName = interner.intern("yieldAll")
+        kkSequenceTakeName = interner.intern("kk_sequence_take")
+        kkSequenceDropName = interner.intern("kk_sequence_drop")
+        kkSequenceTakeWhileName = interner.intern("kk_sequence_takeWhile")
+        kkSequenceDropWhileName = interner.intern("kk_sequence_dropWhile")
+        kkSequenceFirstName = interner.intern("kk_sequence_first")
+        kkSequenceFirstOrNullName = interner.intern("kk_sequence_firstOrNull")
+        kkSequenceLastName = interner.intern("kk_sequence_last")
+        kkSequenceLastOrNullName = interner.intern("kk_sequence_lastOrNull")
+        kkSequenceCountName = interner.intern("kk_sequence_count")
     }
 }
