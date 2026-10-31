@@ -313,6 +313,24 @@ enum RuntimeTypeCheckToken {
         }
     }
 
+    /// The user-visible qualified name for a nominal symbol. The synthetic
+    /// `FunctionN` interfaces are modelled under the `kotlin.Function`
+    /// namespace (`kotlin.Function.FunctionN`) for internal identity — type
+    /// IDs, symbol lookup and serialized metadata all key off that spelling —
+    /// but Kotlin exposes them as `kotlin.FunctionN`, so reflection names
+    /// must use the flat form (KUU-3811).
+    static func reflectionQualifiedName(
+        of symbol: SemanticSymbol,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> String {
+        if let shape = sema.types.nominalFunctionInterfaceShape(of: symbol.id),
+           !shape.isSuspend {
+            return "kotlin.Function\(shape.arity)"
+        }
+        return symbol.fqName.map { interner.resolve($0) }.joined(separator: ".")
+    }
+
     static func qualifiedName(of type: TypeID, sema: SemaModule, interner: StringInterner) -> String? {
         let descriptor = classify(type: type, sema: sema)
         if let name = descriptor.category.simpleName {
@@ -323,7 +341,7 @@ enum RuntimeTypeCheckToken {
             guard let symbol = sema.symbols.symbol(symbolID) else {
                 return nil
             }
-            let fqName = symbol.fqName.map { interner.resolve($0) }.joined(separator: ".")
+            let fqName = reflectionQualifiedName(of: symbol, sema: sema, interner: interner)
             if fqName == "kotlin.Nothing" {
                 return "java.lang.Void"
             }

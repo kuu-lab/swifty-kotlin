@@ -414,6 +414,58 @@ struct RuntimeKClassMetadataTests {
         #expect(runtimeRenderAnyForPrint(kk_list_get(list, 0, nil)) == "kotlin.Comparable<test.G>")
     }
 
+    // MARK: - KUU-3811: FunctionN supertype names resolve to the function classifier
+
+    /// A `kotlin.FunctionN` supertype display name is the same classifier as
+    /// `FunctionN::class`: the KType renders in function-type notation like
+    /// kotlinc and its classifier answers the flat `kotlin.FunctionN` name —
+    /// not the internal `kotlin.Function.FunctionN` spelling.
+    @Test func functionInterfaceSupertypeRendersFunctionNotation() {
+        let typeToken = 345
+        _ = __kk_kclass_register_metadata(
+            typeToken,
+            makeRuntimeString("test.Adder"),
+            makeRuntimeString("Adder"),
+            makeRuntimeString("kotlin.Function2<kotlin.Int, kotlin.Int, kotlin.Int>|kotlin.Any"),
+            0, 0, 0, 0
+        )
+        let kclass = __kk_kclass_create(typeToken, makeRuntimeString("test.Adder"))
+        let list = __kk_kclass_supertypes(kclass)
+        #expect(kk_list_size(list) == 2)
+        #expect(runtimeRenderAnyForPrint(kk_list_get(list, 0, nil))
+            == "(kotlin.Int, kotlin.Int) -> kotlin.Int")
+        #expect(runtimeRenderAnyForPrint(kk_list_get(list, 1, nil)) == "kotlin.Any")
+
+        let classifier = __kk_ktype_classifier(kk_list_get(list, 0, nil))
+        #expect(classifier != runtimeNullSentinelInt)
+        #expect(runtimeStringFromRaw(__kk_kclass_qualified_name(classifier)) == "kotlin.Function2")
+        #expect(runtimeStringFromRaw(__kk_kclass_simple_name(classifier)) == "Function2")
+    }
+
+    /// `kotlin.Function` (arity-agnostic) and non-canonical spellings keep
+    /// nominal tokens — only `kotlin.FunctionN` maps to the function base.
+    @Test func functionNameTokenMappingIsStrict() {
+        func payload(_ token: Int64) -> Int64 {
+            (token >> RuntimeTypeTokenEncoding.payloadShift)
+                & RuntimeTypeTokenEncoding.payloadMask
+        }
+        let fn0 = runtimeTypeToken(forQualifiedName: "kotlin.Function0")
+        #expect(fn0 & RuntimeTypeTokenEncoding.baseMask == RuntimeTypeTokenEncoding.functionBase)
+        #expect(payload(fn0) == 0)
+        let fn22 = runtimeTypeToken(forQualifiedName: "kotlin.Function22")
+        #expect(fn22 & RuntimeTypeTokenEncoding.baseMask == RuntimeTypeTokenEncoding.functionBase)
+        #expect(payload(fn22) == 22)
+        let susp1 = runtimeTypeToken(forQualifiedName: "kotlin.coroutines.SuspendFunction1")
+        #expect(susp1 & RuntimeTypeTokenEncoding.baseMask == RuntimeTypeTokenEncoding.functionBase)
+        #expect(payload(susp1) == Int64(1 | 0x100))
+        // Not canonical FunctionN spellings → nominal tokens.
+        for name in ["kotlin.Function", "kotlin.Function03", "kotlin.FunctionN", "kotlin.Functional"] {
+            let token = runtimeTypeToken(forQualifiedName: name)
+            #expect(token & RuntimeTypeTokenEncoding.baseMask
+                == RuntimeTypeTokenEncoding.nominalBase, "\(name) must stay nominal")
+        }
+    }
+
     // MARK: - KUU-1357: Companion object and nested class registries
 
     @Test func companionRegistryRoundTripsThroughCAPI() {

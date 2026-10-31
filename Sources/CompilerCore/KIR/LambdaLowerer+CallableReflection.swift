@@ -682,7 +682,7 @@ private func callableReflectionTypeName(
         return "kotlin.\(primitive.kotlinName)\(nullabilitySuffix(nullability))"
     case let .classType(classType):
         let className = sema.symbols.symbol(classType.classSymbol)
-            .map { $0.fqName.map(interner.resolve).joined(separator: ".") }
+            .map { RuntimeTypeCheckToken.reflectionQualifiedName(of: $0, sema: sema, interner: interner) }
             .flatMap { $0.isEmpty ? nil : $0 }
             ?? sema.types.displayName(of: type, symbols: sema.symbols, interner: interner)
         let arguments = classType.args.isEmpty

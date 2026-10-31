@@ -84,7 +84,9 @@ private func kclassSupertypeDisplayName(
     sema: SemaModule,
     interner: StringInterner
 ) -> String? {
-    let superFQName = superSymbol.fqName.map { interner.resolve($0) }.joined(separator: ".")
+    let superFQName = RuntimeTypeCheckToken.reflectionQualifiedName(
+        of: superSymbol, sema: sema, interner: interner
+    )
     guard !superFQName.isEmpty else { return nil }
     let args = sema.types.nominalSupertypeTypeArgs(for: child, supertype: superSymbol.id)
     guard !args.isEmpty else { return superFQName }

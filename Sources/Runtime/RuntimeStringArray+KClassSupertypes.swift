@@ -188,6 +188,26 @@ func runtimeTypeToken(forQualifiedName name: String) -> Int64 {
     case "kotlin.Nothing": return RuntimeTypeTokenEncoding.nullBase
     case "kotlin.Unit": return RuntimeTypeTokenEncoding.unitBase
     default:
+        // KUU-3811: a `kotlin.FunctionN` classifier in a supertype display
+        // name is the same runtime classifier as the `FunctionN::class`
+        // literal — resolve it to the function-base token so
+        // `KType.classifier == FunctionN::class` holds and the KType renders
+        // in function-type notation like kotlinc. `kotlin.Function` itself
+        // and non-canonical spellings (e.g. `Function03`) stay nominal.
+        if name.hasPrefix("kotlin.Function") {
+            let arityText = String(name.dropFirst("kotlin.Function".count))
+            if let arity = Int(arityText), String(arity) == arityText, (0 ... 255).contains(arity) {
+                return RuntimeTypeTokenEncoding.functionBase
+                    | (Int64(arity) << RuntimeTypeTokenEncoding.payloadShift)
+            }
+        }
+        if name.hasPrefix("kotlin.coroutines.SuspendFunction") {
+            let arityText = String(name.dropFirst("kotlin.coroutines.SuspendFunction".count))
+            if let arity = Int(arityText), String(arity) == arityText, (0 ... 255).contains(arity) {
+                return RuntimeTypeTokenEncoding.functionBase
+                    | ((Int64(arity) | 0x100) << RuntimeTypeTokenEncoding.payloadShift)
+            }
+        }
         return RuntimeTypeTokenEncoding.nominalBase
             | ((runtimeStableNominalTypeID(fqName: name) & RuntimeTypeTokenEncoding.payloadMask)
                 << RuntimeTypeTokenEncoding.payloadShift)
@@ -278,11 +298,17 @@ private func runtimeKTypeForSupertypeDisplayName(
         let projection = RuntimeKTypeProjectionBox(typeRaw: argRaw, variance: .invariant)
         argumentRaws.append(registerRuntimeObject(projection))
     }
+    // KUU-3811: a function classifier keeps no stored display name so the
+    // KType renders in function-type notation `(P…) -> R` and compares equal
+    // to `typeOf<(P…) -> R>` like kotlinc instead of printing the flat
+    // `kotlin.FunctionN<…>` nominal spelling.
+    let typeNameRaw = (token & RuntimeTypeTokenEncoding.baseMask)
+        == RuntimeTypeTokenEncoding.functionBase ? 0 : baseRaw
     let box = RuntimeKTypeBox(
         classifierRaw: classifierRaw,
         argumentRaws: argumentRaws,
         isMarkedNullable: false,
-        typeNameRaw: baseRaw
+        typeNameRaw: typeNameRaw
     )
     registerReflectionRuntimeTypeMetadata()
     return registerRuntimeObject(box)
