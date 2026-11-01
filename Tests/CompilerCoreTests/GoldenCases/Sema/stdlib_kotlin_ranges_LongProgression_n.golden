@@ -44,8 +44,8 @@ expr e@13:37 long(10) type=Long
 expr e@13:49 long(10) type=Long
 expr e@13:48 unary(unaryMinus) operand=e@13:49 type=Long
 expr e@13:37#1 binary(downTo) lhs=e@13:37 rhs=e@13:48 type=kotlin.ranges.LongProgression call=kotlin.ranges.downTo[kind=fun;recv=Long;params=Long;ret=kotlin.ranges.LongProgression;names=[to]]
-expr e@13:58 int(3) type=Int
-expr e@13:37#2 binary(step) lhs=e@13:37#1 rhs=e@13:58 type=kotlin.ranges.LongProgression call=kotlin.ranges.step[kind=fun;recv=kotlin.ranges.LongProgression;params=Int;ret=kotlin.ranges.LongProgression;names=[step]]
+expr e@13:58 int(3) type=Long
+expr e@13:37#2 binary(step) lhs=e@13:37#1 rhs=e@13:58 type=kotlin.ranges.LongProgression call=kotlin.ranges.step[kind=fun;recv=kotlin.ranges.LongProgression;params=Long;ret=kotlin.ranges.LongProgression;names=[step]]
 expr e@13:5 localDecl negative mutable=0 type=LongProgression init=e@13:37#2 type=Unit ref=__local_7.negative[kind=local;type=kotlin.ranges.LongProgression;origin=fixture]
 expr e@14:42 name(LongProgression) type=kotlin.ranges.LongProgression.Companion ref=kotlin.ranges.LongProgression[kind=class]
 expr e@14:74 long(5) type=Long

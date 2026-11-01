@@ -43,8 +43,8 @@ expr e@12:5 localDecl positive mutable=0 type=ULongProgression init=e@12:38#1 ty
 expr e@13:38 ulong(10) type=ULong
 expr e@13:50 ulong(0) type=ULong
 expr e@13:38#1 binary(downTo) lhs=e@13:38 rhs=e@13:50 type=kotlin.ranges.ULongProgression call=kotlin.ranges.downTo[kind=fun;recv=ULong;params=ULong;ret=kotlin.ranges.ULongProgression;names=[to]]
-expr e@13:59 int(3) type=Int
-expr e@13:38#2 binary(step) lhs=e@13:38#1 rhs=e@13:59 type=kotlin.ranges.ULongProgression call=kotlin.ranges.step[kind=fun;recv=kotlin.ranges.ULongProgression;params=Int;ret=kotlin.ranges.ULongProgression;names=[step]]
+expr e@13:59 int(3) type=Long
+expr e@13:38#2 binary(step) lhs=e@13:38#1 rhs=e@13:59 type=kotlin.ranges.ULongProgression call=kotlin.ranges.step[kind=fun;recv=kotlin.ranges.ULongProgression;params=Long;ret=kotlin.ranges.ULongProgression;names=[step]]
 expr e@13:5 localDecl negative mutable=0 type=ULongProgression init=e@13:38#2 type=Unit ref=__local_7.negative[kind=local;type=kotlin.ranges.ULongProgression;origin=fixture]
 expr e@14:43 name(ULongProgression) type=kotlin.ranges.ULongProgression.Companion ref=kotlin.ranges.ULongProgression[kind=class]
 expr e@14:76 ulong(5) type=ULong
