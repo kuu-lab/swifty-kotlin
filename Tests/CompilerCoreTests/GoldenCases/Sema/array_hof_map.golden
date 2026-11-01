@@ -12,7 +12,7 @@ expr e@2:18 name(values) type=kotlin.Array<String> ref=transform.$0.values[kind=
 expr e@2:31 name(it) type=String ref=s-0
 expr e@2:31#1 memberCall recv=e@2:31 callee=uppercase args=[] type=String call=kotlin.text.uppercase[kind=fun;recv=String;params=;ret=String]
 expr e@2:29 lambda params=[] body=e@2:31#1 label=map type=(String) -> String
-expr e@2:18#1 memberCall recv=e@2:18 callee=map args=[_:e@2:29] type=kotlin.collections.List<String> call=kotlin.collections.map[kind=fun;recv=kotlin.Array<T0>;params=fn{p=T0;ret=T1};ret=kotlin.collections.List<T1>;gen=2;nonlocal=[0];names=[transform]] targs=[String,String]
+expr e@2:18#1 memberCall recv=e@2:18 callee=map args=[_:e@2:29] type=kotlin.collections.List<String> call=kotlin.collections.map[kind=fun;recv=kotlin.Array<T0>;params=fn{p=T0;ret=T1};ret=kotlin.collections.List<T1>;gen=2;names=[transform]] targs=[String,String]
 expr e@2:5 localDecl mapped mutable=0 type=_ init=e@2:18#1 type=Unit ref=__local_0.mapped[kind=local;type=kotlin.collections.List<String>;origin=fixture]
 expr e@3:20 name(values) type=kotlin.Array<String> ref=transform.$0.values[kind=vparam;origin=fixture]
 expr e@3:36 name(it) type=String ref=s-1
