@@ -267,6 +267,10 @@ final class RuntimeChannelHandle: @unchecked Sendable {
     /// arrive at the kk_coroutine_scope_* bridges carrying a channel handle;
     /// `runtimeCoroutineScope(from:)` resolves it back through this link.
     private var producerScopeStorage: RuntimeCoroutineScope?
+    /// `actor` shares `__kk_produce_launch` with `produce`; this marks the
+    /// channel so its launch registers the ActorScope type that the block's
+    /// receiver checkcast expects instead of ProducerScope.
+    private var backsActorScopeStorage = false
 
     // KSP-1573: `invokeOnClose` handlers, as (fnPtr, closureRaw) function-value
     // pairs.  They run exactly once, on the first successful `close()`, with a
@@ -683,6 +687,19 @@ final class RuntimeChannelHandle: @unchecked Sendable {
         lock.lock()
         producerScopeStorage = scope
         lock.unlock()
+    }
+
+    var backsActorScope: Bool {
+        get {
+            lock.lock()
+            defer { lock.unlock() }
+            return backsActorScopeStorage
+        }
+        set {
+            lock.lock()
+            backsActorScopeStorage = newValue
+            lock.unlock()
+        }
     }
 
     var producerScope: RuntimeCoroutineScope? {

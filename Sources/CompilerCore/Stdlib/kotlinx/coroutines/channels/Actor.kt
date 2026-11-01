@@ -39,6 +39,11 @@ public class ActorScope<E> : CoroutineScope {
         get() = __kkActorScopeChannel(this)
 }
 
+// The produce launcher registers the channel as ProducerScope unless it is
+// marked first; a block function value checkcasts its receiver to ActorScope.
+@KsSymbolName("__kk_actor_scope_mark")
+private external fun <E> __kkMarkActorScope(channel: Channel<E>): Channel<E>
+
 @KsSymbolName("__kk_produce_launch")
 @OptIn(ObsoleteCoroutinesApi::class)
 private external fun <E> __kkActorLaunch(
@@ -64,6 +69,7 @@ public fun <E> CoroutineScope.actor(
     block: suspend ActorScope<E>.() -> Unit
 ): SendChannel<E> {
     val channel = Channel<E>(capacity)
+    __kkMarkActorScope(channel)
     __kkActorLaunch(channel, block)
     return __kkAsSendChannel(channel)
 }

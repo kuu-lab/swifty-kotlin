@@ -206,6 +206,9 @@ public extension RuntimeABISpec {
         // `(channel, launcherThunk, continuation)` mirroring
         // `kk_kxmini_produce_with_cont` (KSP-1573).
         abi.nt("__kk_produce_launch_with_cont", "channelHandle entryPointRaw continuation"),
+        // Tags an actor channel so the shared produce launchers register
+        // ActorScope, not ProducerScope, as the block receiver's type.
+        abi.nt("__kk_actor_scope_mark", "channelHandle"),
         abi.nt("kk_coroutine_scope_async", "scope context start entryPointRaw closureRaw"),
         abi.nt("kk_coroutine_scope_async_with_cont", "scope context start entryPointRaw continuation scopeSlot"),
         abi.nt("__kk_coroutine_scope_launch_context", "scope context start entryPointRaw closureRaw"),

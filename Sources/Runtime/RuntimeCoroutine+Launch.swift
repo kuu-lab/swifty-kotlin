@@ -546,20 +546,26 @@ private func runtimeBindProducerScope(
     context: RuntimeCoroutineContext
 ) {
     guard let channel = runtimeChannelHandleObject(from: channelHandle) else { return }
-    let producerScopeTypeID = runtimeStableNominalTypeID(
-        fqName: "kotlinx.coroutines.channels.ProducerScope"
-    )
-    runtimeRegisterObjectType(rawValue: channelHandle, classID: producerScopeTypeID)
-    runtimeRegisterTypeEdge(
-        childTypeID: producerScopeTypeID,
-        parentTypeID: runtimeStableNominalTypeID(fqName: "kotlinx.coroutines.CoroutineScope")
-    )
-    runtimeRegisterTypeEdge(
-        childTypeID: producerScopeTypeID,
-        parentTypeID: runtimeStableNominalTypeID(
-            fqName: "kotlinx.coroutines.channels.SendChannel"
+    let coroutineScopeTypeID = runtimeStableNominalTypeID(fqName: "kotlinx.coroutines.CoroutineScope")
+    if channel.backsActorScope {
+        let actorScopeTypeID = runtimeStableNominalTypeID(
+            fqName: "kotlinx.coroutines.channels.ActorScope"
         )
-    )
+        runtimeRegisterObjectType(rawValue: channelHandle, classID: actorScopeTypeID)
+        runtimeRegisterTypeEdge(childTypeID: actorScopeTypeID, parentTypeID: coroutineScopeTypeID)
+    } else {
+        let producerScopeTypeID = runtimeStableNominalTypeID(
+            fqName: "kotlinx.coroutines.channels.ProducerScope"
+        )
+        runtimeRegisterObjectType(rawValue: channelHandle, classID: producerScopeTypeID)
+        runtimeRegisterTypeEdge(childTypeID: producerScopeTypeID, parentTypeID: coroutineScopeTypeID)
+        runtimeRegisterTypeEdge(
+            childTypeID: producerScopeTypeID,
+            parentTypeID: runtimeStableNominalTypeID(
+                fqName: "kotlinx.coroutines.channels.SendChannel"
+            )
+        )
+    }
     let scope = RuntimeCoroutineScope(context: context)
     scope.adoptJob(job)
     channel.bindProducerScope(scope)
@@ -852,6 +858,15 @@ public func kk_kxmini_launch_with_dispatcher_and_cont(_ entryPointRaw: Int, _ co
         boxedWorkItem.performUnlessCancelled()
     }
     return Int(bitPattern: jobPtr)
+}
+
+/// Marks a channel as the receiver of a bundled `actor` block before it is
+/// launched through `__kk_produce_launch*`, which otherwise cannot tell the
+/// two builders apart. Returns the channel handle.
+@_cdecl("__kk_actor_scope_mark")
+public func __kk_actor_scope_mark(_ channelHandle: Int) -> Int {
+    runtimeChannelHandleObject(from: channelHandle)?.backsActorScope = true
+    return channelHandle
 }
 
 /// KSP-1573: backing for the bundled `CoroutineScope.produce`/`actor`
