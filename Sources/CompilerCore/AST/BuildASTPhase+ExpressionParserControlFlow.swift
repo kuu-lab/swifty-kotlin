@@ -845,6 +845,9 @@ extension BuildASTPhase.ExpressionParser {
                     while let typeToken = current() {
                         if typeToken.kind == .keyword(.in) { break }
                         if typeToken.kind == .symbol(.rParen), typeDepth == 0 { break }
+                        // Leave a top-level `,` (`for (i: Int, j in x)`) for
+                        // the comma check below instead of swallowing it.
+                        if typeToken.kind == .symbol(.comma), typeDepth == 0 { break }
                         switch typeToken.kind {
                         case .symbol(.lParen), .symbol(.lBracket), .symbol(.lessThan):
                             typeDepth += 1
