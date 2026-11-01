@@ -123,7 +123,7 @@ struct CallableReferenceMemberExtensionFallbackTests {
         let context = try frontend(source, fromSource: fromSource)
         let errors = context.diagnostics.diagnostics.filter { $0.severity == .error }
         #expect(errors.count == 2, "\(errors)")
-        #expect(errors.allSatisfy { $0.code == "KSWIFTK-TYPE-0001" }, "\(errors)")
+        #expect(errors.allSatisfy { $0.code == "KSWIFTK-SEMA-0468" }, "\(errors)")
     }
 
     private func frontend(_ source: String, fromSource: Bool) throws -> CompilationContext {

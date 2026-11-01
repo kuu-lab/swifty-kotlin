@@ -54,7 +54,7 @@ struct JavaCollectionSizeTests {
             let context = makeCompilationContext(inputs: [path], includeStdlib: false, allowDefaultStdlibLibrary: false)
             do { try runSema(context) } catch {}
             let errors = context.diagnostics.diagnostics.filter { $0.severity == .error }
-            #expect(errors.count == 1 && errors[0].code == "KSWIFTK-TYPE-0001", "\(errors)")
+            #expect(errors.count == 1 && errors[0].code == "KSWIFTK-SEMA-0473", "\(errors)")
         }
     }
 }

@@ -35,9 +35,9 @@
       },
       "severity": 1,
       "severityLabel": "error",
-      "code": "KSWIFTK-SEMA-0002",
+      "code": "KSWIFTK-SEMA-0473",
       "source": "kswiftk",
-      "message": "No viable overload found for call.",
+      "message": "Argument type mismatch.",
       "codeActions": []
     },
     {

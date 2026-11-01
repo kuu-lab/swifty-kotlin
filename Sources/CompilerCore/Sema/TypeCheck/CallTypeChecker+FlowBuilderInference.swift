@@ -72,7 +72,9 @@ extension CallTypeChecker {
             driver.emitSubtypeConstraint(
                 left: type, right: expectedType, range: range,
                 solver: ConstraintSolver(), sema: ctx.sema,
-                diagnostics: ctx.sema.diagnostics
+                diagnostics: ctx.sema.diagnostics,
+                diagnosticCode: "KSWIFTK-SEMA-0473",
+                failureMessage: "Argument type mismatch."
             )
         }
     }

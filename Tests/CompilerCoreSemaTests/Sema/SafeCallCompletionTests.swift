@@ -37,7 +37,7 @@ struct SafeCallCompletionTests {
         try runSema(ctx)
         for index in sources.indices {
             let diagnostics = diagnosticsForPath(ctx.options.inputs[index], in: ctx)
-            assertHasDiagnostic("KSWIFTK-TYPE-0001", in: diagnostics)
+            assertHasDiagnostic("KSWIFTK-SEMA-0469", in: diagnostics)
         }
     }
 

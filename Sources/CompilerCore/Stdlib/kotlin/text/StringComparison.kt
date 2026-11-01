@@ -114,6 +114,12 @@ private fun __kkFoldedCharCompare(a: Char, b: Char): Int {
 internal fun __kkCharsEqual(a: Char, b: Char, ignoreCase: Boolean): Boolean =
     if (ignoreCase) __kkFoldedCharCompare(a, b) == 0 else a == b
 
+// KUU-4050: upstream kotlin.text exposes the two-argument Char.equals overload
+// as an extension; route it through the shared fold so it observes exactly the
+// upper-then-lower rule documented above.
+public fun Char.equals(other: Char, ignoreCase: Boolean = false): Boolean =
+    __kkCharsEqual(this, other, ignoreCase)
+
 internal fun __kkRegionMatches(
     self: List<Char>,
     thisOffset: Int,

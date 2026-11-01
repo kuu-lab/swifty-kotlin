@@ -69,6 +69,12 @@ public extension RuntimeABISpec {
         abiReflection.nt("__kk_java_class_register_inherited_annotation", "annotationNameRaw"),
         abi.nt("__kk_java_class_get_name", "classRaw"),
         abi.nt("__kk_class_simple_name", "classRaw"),
+        abi.nt("__kk_class_superclass", "classRaw"),
+        abi.nt("__kk_class_interfaces", "classRaw"),
+        abi.nt("__kk_class_is_array", "classRaw"),
+        abi.nt("__kk_class_is_primitive", "classRaw"),
+        abi.nt("__kk_class_is_enum", "classRaw"),
+        abi.nt("__kk_class_component_type", "classRaw"),
         abi.nt("__kk_java_class_register_declared_method", "typeToken methodNameRaw signatureRaw flags"),
         abi.nt("__kk_java_class_register_declared_field", "typeToken fieldNameRaw"),
         RuntimeABIFunctionSpec(
@@ -108,6 +114,13 @@ public extension RuntimeABISpec {
         abi.th("__kk_kclass_functions", "kclassRaw"),
         abi.th("__kk_kclass_member_functions", "kclassRaw"),
         abi.th("__kk_kclass_declared_member_functions", "kclassRaw"),
+        // KUU-4064: member-extension callables register alongside members but
+        // answer only `memberExtension*`/`declaredMemberExtension*` queries.
+        abi.nt("__kk_kclass_register_member_extension", "kclassRaw memberRaw"),
+        abi.th("__kk_kclass_member_extension_properties", "kclassRaw"),
+        abi.th("__kk_kclass_declared_member_extension_properties", "kclassRaw"),
+        abi.th("__kk_kclass_member_extension_functions", "kclassRaw"),
+        abi.th("__kk_kclass_declared_member_extension_functions", "kclassRaw"),
         abi.nt("__kk_ktype_classifier", "ktypeRaw"),
         abi.nt("__kk_ktype_arguments", "ktypeRaw"),
         abi.nt("__kk_ktype_isMarkedNullable", "ktypeRaw"),

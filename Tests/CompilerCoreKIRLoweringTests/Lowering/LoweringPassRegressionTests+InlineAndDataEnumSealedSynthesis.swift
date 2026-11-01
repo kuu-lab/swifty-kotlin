@@ -209,27 +209,32 @@ extension LoweringPassRegressionTests {
             declSite: nil,
             visibility: .public
         )
-        _ = symbols.define(
+        let redSymbol = symbols.define(
             kind: .field,
             name: interner.intern("RED"),
             fqName: packagePath + [colorName, interner.intern("RED")],
             declSite: nil,
             visibility: .public
         )
-        _ = symbols.define(
+        let greenSymbol = symbols.define(
             kind: .field,
             name: interner.intern("GREEN"),
             fqName: packagePath + [colorName, interner.intern("GREEN")],
             declSite: nil,
             visibility: .public
         )
-        _ = symbols.define(
+        let blueSymbol = symbols.define(
             kind: .field,
             name: interner.intern("BLUE"),
             fqName: packagePath + [colorName, interner.intern("BLUE")],
             declSite: nil,
             visibility: .public
         )
+
+        // Entries are looked up by parent symbol since #9176, not by fqName prefix.
+        for entrySymbol in [redSymbol, greenSymbol, blueSymbol] {
+            symbols.setParentSymbol(colorSymbol, for: entrySymbol)
+        }
 
         let arena = KIRArena()
         let colorDecl = arena.appendDecl(.nominalType(KIRNominalType(symbol: colorSymbol)))

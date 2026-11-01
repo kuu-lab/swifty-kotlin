@@ -5,15 +5,14 @@ import Testing
 
 @Suite
 struct LambdaLowererDirectCoverageTests {
-    @Test(arguments: [0, 1, 2, 6], [false, true])
-    func nonCapturingLambdaRegistersArityWithoutChangingCallableABI(
+    // Arity stays within the kk_function_create_N family (receiver included).
+    @Test(arguments: [0, 1, 2, 5], [false, true])
+    func nonCapturingLambdaIsMaterializedIntoFunctionValueBox(
         parameterCount: Int, hasReceiver: Bool
     ) throws {
         let fixture = makeKIRDirectLoweringFixture()
         let range = makeRange()
         let body = appendTypedExpr(.intLiteral(42, range), type: fixture.types.intType, fixture: fixture)
-        // #12032 materializes lambdas with non-null primitive parameters at
-        // creation, so use reference-typed parameters to keep the raw ABI.
         let functionType = fixture.types.make(.functionType(FunctionType(
             receiver: hasReceiver ? fixture.types.anyType : nil,
             params: Array(repeating: fixture.types.anyType, count: parameterCount),
@@ -30,14 +29,13 @@ struct LambdaLowererDirectCoverageTests {
             interner: fixture.interner, propertyConstantInitializers: [:],
             instructions: &instructions
         )
-        let tag = try #require(kirCalls(to: .functionTagArity, in: instructions, interner: fixture.interner).first)
-        let arguments = tag.arguments
-        #expect(arguments.first == callable)
-        #expect(fixture.kirArena.expr(arguments[1]) == .intLiteral(Int64(parameterCount + (hasReceiver ? 1 : 0))))
-        #expect(tag.result == nil)
-        #expect(!tag.canThrow)
-        #expect(fixture.driver.ctx.callableValueInfo(for: callable)?.captureArguments.isEmpty == true)
-        #expect(kirFunctionCreationCalls(in: instructions, interner: fixture.interner).isEmpty)
+        // Since #12358 every function-typed non-capturing lambda escapes as its
+        // function-value box, so later erased storage keeps the same object.
+        let creations = kirFunctionCreationCalls(in: instructions, interner: fixture.interner)
+        #expect(creations.count == 1, "\(instructions)")
+        #expect(creations.first?.result == callable)
+        #expect(fixture.driver.ctx.callableValueInfo(for: callable)?.isFunctionValueBox == true)
+        #expect(kirCalls(to: .functionTagArity, in: instructions, interner: fixture.interner).isEmpty)
     }
 
     @Test

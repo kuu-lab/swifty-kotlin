@@ -105,7 +105,7 @@ struct TopLevelInferredRangeContainsTests {
                 return ctx.sourceManager.origin(of: range.start.file) == .user
             }
             #expect(
-                userErrors.contains { $0.code == "KSWIFTK-TYPE-0001" },
+                userErrors.contains { $0.code == "KSWIFTK-SEMA-0473" },
                 "A CharRange must reject an Int contains argument: \(userErrors)"
             )
         }

@@ -5,19 +5,29 @@ struct KIRCallableValueInfo {
     let hasClosureParam: Bool
     /// Raw entry for trampolines that must own the lambda's continuation frames.
     let unboxedSymbol: SymbolID?
+    /// The expression is already a heap function-value object — a
+    /// `kk_function_create_N` box or a callable-ref tag target that shares
+    /// its handle — rather than a bare `(fnPtr, closureRaw)` pair awaiting
+    /// boxing. Erased boundaries must store such a value verbatim:
+    /// re-wrapping mints a fresh object and `listOf(f)[0] === f`,
+    /// `contains`, `indexOf`, `remove` and map-key lookups silently fail
+    /// (KUU-4037).
+    let isFunctionValueBox: Bool
 
     init(
         symbol: SymbolID,
         callee: InternedString,
         captureArguments: [KIRExprID],
         hasClosureParam: Bool,
-        unboxedSymbol: SymbolID? = nil
+        unboxedSymbol: SymbolID? = nil,
+        isFunctionValueBox: Bool = false
     ) {
         self.symbol = symbol
         self.callee = callee
         self.captureArguments = captureArguments
         self.hasClosureParam = hasClosureParam
         self.unboxedSymbol = unboxedSymbol
+        self.isFunctionValueBox = isFunctionValueBox
     }
 }
 
@@ -799,13 +809,6 @@ final class LambdaLowerer {
         }
     }
 
-    private func isNonNullPrimitiveValueType(_ type: TypeID, sema: SemaModule) -> Bool {
-        switch sema.types.kind(of: type) {
-        case .primitive(_, .nonNull): true
-        default: false
-        }
-    }
-
     private func lowerNonCapturingLambda(
         exprID: ExprID,
         params: [InternedString],
@@ -1003,16 +1006,19 @@ final class LambdaLowerer {
             hasClosureParam: false
         )
 
-        // A stored primitive-parameter lambda can reach an erased function
-        // invocation after leaving through a factory, property, field or cast.
-        // Materialize its adapter here so wrong argument types are checked and
-        // valid boxed primitive inputs are normalized before the lambda body.
+        // A stored lambda can reach an erased invocation — or an identity
+        // probe (`===`, `contains`, `indexOf`, `remove`, map keys) — after
+        // leaving through a factory, property, field or cast. Materialize
+        // every function-typed non-capturing lambda into its function-value
+        // box here so the value that escapes is the same object a collection
+        // later stores and reads back (KUU-4037), matching kotlinc where a
+        // lambda is an object. Primitive-parameter lambdas additionally need
+        // the adapter's argument check/unbox before the body (KUU-3535).
         if !hasNonLocalReturn,
            !allowsNonLocalReturn,
            !isSamConversion,
            !sema.bindings.isCoroutineLauncherLambdaExpr(exprID),
            !sema.bindings.rawSuspendEntryLambdaExprIDs.contains(exprID),
-           lambdaParameterTypes.contains(where: { isNonNullPrimitiveValueType($0, sema: sema) }),
            let functionType
         {
             let functionValueType = sema.bindings.functionValueExpectedType(for: exprID)

@@ -773,7 +773,7 @@ struct DataFlowAndSemaRegressionTests {
                 // diagnostics must not hide a return-type mismatch that the second,
                 // authoritative pass still finds once `value`'s real type (`Int`) is
                 // known -- `get()` declares `String`, which `Int` never satisfies.
-                    assertHasDiagnostic("KSWIFTK-TYPE-0001", in: sample7Diagnostics)
+                    assertHasDiagnostic("KSWIFTK-SEMA-0469", in: sample7Diagnostics)
 
             }
 
@@ -792,7 +792,7 @@ struct DataFlowAndSemaRegressionTests {
                 // own initializer type mismatch is checked once, in source order,
                 // and must still be reported even though it textually follows a
                 // function that refers to it.
-                    assertHasDiagnostic("KSWIFTK-TYPE-0001", in: sample8Diagnostics)
+                    assertHasDiagnostic("KSWIFTK-SEMA-0468", in: sample8Diagnostics)
 
             }
 
@@ -903,6 +903,31 @@ struct DataFlowAndSemaRegressionTests {
             let ctx = makeCompilationContext(inputs: [path], includeStdlib: false)
             try runSema(ctx)
             #expect(ctx.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-SEMA-0001" })
+        }
+    }
+
+    // kotlinc exempts a @LowPriorityInOverloadResolution constructor or
+    // factory function from that clash (KUU-2295 diff case).
+    @Test(arguments: [
+        """
+        class Baz
+        @Suppress("INVISIBLE_MEMBER", "INVISIBLE_REFERENCE")
+        @kotlin.internal.LowPriorityInOverloadResolution
+        constructor(val s: String)
+        fun Baz(s: String): Baz = Baz(s + "!")
+        """,
+        """
+        class Baz(val s: String)
+        @Suppress("INVISIBLE_MEMBER", "INVISIBLE_REFERENCE")
+        @kotlin.internal.LowPriorityInOverloadResolution
+        fun Baz(s: String): Baz = Baz(s + "!")
+        """,
+    ])
+    func testLowPriorityConstructorOrFunctionDoesNotConflict(source: String) throws {
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], includeStdlib: false)
+            try runSema(ctx)
+            #expect(!ctx.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-SEMA-0001" })
         }
     }
 

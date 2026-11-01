@@ -48,14 +48,14 @@ struct CallableReferenceExplicitInvokeTests {
         let bodies: [(String, String)] = [
             ("val r = ::add; r.invoke(1)", "KSWIFTK-SEMA-0002"),
             ("val r = ::add; r.invoke(1, 2, 3)", "KSWIFTK-SEMA-0002"),
-            ("val r = ::add; r.invoke(\"bad\", 2)", "KSWIFTK-TYPE-0001"),
+            ("val r = ::add; r.invoke(\"bad\", 2)", "KSWIFTK-SEMA-0473"),
             ("val r = ::add; val result: String = r.invoke(1, 2)", "KSWIFTK-TYPE-0001"),
             ("val r = ::add; r.invoke(a = 1, b = 2)", "KSWIFTK-SEMA-0002"),
             ("val r = ::add; r.invoke(*intArrayOf(1, 2))", "KSWIFTK-SEMA-0002"),
             ("val r: ((Int, Int) -> Int)? = null; r.invoke(1, 2)", "KSWIFTK-SEMA-0024"),
             ("val r = if (true) ::add else null; r.invoke(1, 2)", "KSWIFTK-SEMA-0024"),
             ("val r = Int::bump; r.invoke(1)", "KSWIFTK-SEMA-0002"),
-            ("val r = ::asByte; r.invoke(128)", "KSWIFTK-TYPE-0001"),
+            ("val r = ::asByte; r.invoke(128)", "KSWIFTK-SEMA-0473"),
         ]
         let context = try frontend(bodies.enumerated().map { index, body in
             """

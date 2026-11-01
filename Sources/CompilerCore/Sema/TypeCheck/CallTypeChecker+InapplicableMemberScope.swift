@@ -170,7 +170,11 @@ extension CallTypeChecker {
             hasUnresolvableImplicitLambdaParameter: prepared.hasUnresolvableImplicitLambdaParameter, ctx: ctx
         )
         if resolved.chosenCallee != nil || resolved.diagnostic?.code == "KSWIFTK-SEMA-0003" { return .applicable }
-        return resolved.diagnostic?.code == "KSWIFTK-SEMA-0002" ? .inapplicable : .deferred
+        // A candidate that only fails on an argument type is just as
+        // inapplicable as an unresolvable one — the tower continues.
+        let diagnosticCode = resolved.diagnostic?.code
+        return diagnosticCode == "KSWIFTK-SEMA-0002" || diagnosticCode == "KSWIFTK-SEMA-0473"
+            ? .inapplicable : .deferred
     }
 
     /// Local to the speculative tower probe. The general lambda-inference

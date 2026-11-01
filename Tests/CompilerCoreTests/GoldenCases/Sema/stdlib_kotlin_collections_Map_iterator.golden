@@ -42,4 +42,4 @@ expr e@13:5 call callee=e@13:5#1 args=[_:e@13:13#1] type=Unit call=kotlin.io.pri
 expr e@14:13 name(projectedEntry) type=kotlin.collections.Map.Entry<Any?, kotlin.Number?> ref=__local_4.projectedEntry[kind=local;type=kotlin.collections.Map.Entry<Any?,kotlin.Number?>;origin=fixture]
 expr e@14:13#1 memberCall recv=e@14:13 callee=value args=[] type=kotlin.Number? ref=kotlin.collections.Map.Entry.value[kind=prop;type=T1]
 expr e@14:5 call callee=e@14:5#1 args=[_:e@14:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
-diagnostic severity=error code=KSWIFTK-TYPE-0001 at=9:5 msg=Type constraint could not be satisfied.
+diagnostic severity=error code=KSWIFTK-SEMA-0468 at=9:5 msg=Initializer type mismatch.

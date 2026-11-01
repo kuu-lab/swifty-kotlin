@@ -37,6 +37,7 @@ struct ForLoopCommaVariableParsingTests {
         "for (i: Int in x) { }",
         "for (m: Map<K, V> in x) { }",
         "for (m: Map<K, List<V>> in x) { }",
+        "for (f: (Int, Int) -> Unit in x) { }",
     ])
     func acceptsValidLoopHeaders(_ source: String) throws {
         let lexed = lex(source)

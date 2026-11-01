@@ -212,7 +212,7 @@
                 try withTemporaryFiles(contents: sources) { paths in
                     let ctx = makeCompilationContext(inputs: paths)
                     try runSema(ctx)
-                    #expect(ctx.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-TYPE-0001" })
+                    #expect(ctx.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-SEMA-0469" })
                 }
             }
         }

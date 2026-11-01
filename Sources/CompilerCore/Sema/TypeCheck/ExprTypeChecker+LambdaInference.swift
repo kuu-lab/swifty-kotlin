@@ -611,7 +611,9 @@ extension ExprTypeChecker {
                     range: ast.arena.exprRange(body),
                     solver: ConstraintSolver(),
                     sema: sema,
-                    diagnostics: ctx.sema.diagnostics
+                    diagnostics: ctx.sema.diagnostics,
+                    diagnosticCode: "KSWIFTK-SEMA-0469",
+                    failureMessage: "Return type mismatch."
                 )
             }
             sema.bindings.markSamConversion(id)
@@ -699,7 +701,9 @@ extension ExprTypeChecker {
                     range: ast.arena.exprRange(body),
                     solver: ConstraintSolver(),
                     sema: sema,
-                    diagnostics: ctx.sema.diagnostics
+                    diagnostics: ctx.sema.diagnostics,
+                    diagnosticCode: "KSWIFTK-SEMA-0469",
+                    failureMessage: "Return type mismatch."
                 )
             }
             // When the expected return type is an unresolved type parameter,

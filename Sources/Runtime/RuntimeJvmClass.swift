@@ -53,7 +53,12 @@ func runtimeJavaClassDisplayText(receiverRaw: Int, typeToken: Int, nameHint: Int
     }
 
     let binaryName = runtimeJavaBinaryName(qualifiedName, metadataDisplayName: metadata?.displayName)
-    let kind = metadata?.isInterface == true ? "interface" : "class"
+    // KUU-4067: bundled builtin interfaces usually have no registered
+    // metadata, so the displayText kind also consults the curated interface
+    // name table used by Class.interfaces/superclass.
+    let kind = metadata?.isInterface == true
+        || runtimeJavaInterfaceNominalNames.contains(qualifiedName)
+        ? "interface" : "class"
     return "\(kind) \(binaryName)"
 }
 
@@ -192,6 +197,12 @@ func runtimeJavaBinaryName(_ qualifiedName: String, metadataDisplayName: String?
     case "kotlin.Char": "java.lang.Character"
     case "kotlin.Float": "java.lang.Float"
     case "kotlin.Double": "java.lang.Double"
+    case "kotlin.Number": "java.lang.Number"
+    case "kotlin.Enum": "java.lang.Enum"
+    case "kotlin.Cloneable": "java.lang.Cloneable"
+    case "kotlin.Comparable": "java.lang.Comparable"
+    case "kotlin.CharSequence": "java.lang.CharSequence"
+    case "kotlin.Annotation": "java.lang.annotation.Annotation"
     case "kotlin.collections.Collection": "java.util.Collection"
     case "kotlin.collections.List": "java.util.List"
     case "kotlin.collections.MutableList": "java.util.List"
@@ -205,7 +216,8 @@ func runtimeJavaBinaryName(_ qualifiedName: String, metadataDisplayName: String?
     case "kotlin.collections.LinkedHashSet": "java.util.LinkedHashSet"
     case "kotlin.collections.HashMap": "java.util.HashMap"
     case "kotlin.collections.LinkedHashMap": "java.util.LinkedHashMap"
-    case "kotlin.RuntimeException", "kotlin.Exception", "kotlin.IllegalArgumentException",
+    case "kotlin.Throwable", "kotlin.RuntimeException", "kotlin.Exception",
+         "kotlin.IllegalArgumentException",
          "kotlin.IllegalStateException", "kotlin.ArithmeticException", "kotlin.AssertionError",
          "kotlin.ClassCastException", "kotlin.IndexOutOfBoundsException",
          "kotlin.ArrayIndexOutOfBoundsException", "kotlin.StringIndexOutOfBoundsException",

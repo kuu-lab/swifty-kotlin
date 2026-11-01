@@ -791,6 +791,11 @@ final class TypeCheckDriver {
         }
     }
 
+    /// `diagnosticCode`/`failureMessage` replace the generic
+    /// `KSWIFTK-TYPE-0001` failure identity with the position-specific code
+    /// upstream (kotlinc) reports at this site, so `@Suppress` names like
+    /// `INITIALIZER_TYPE_MISMATCH` can target it without touching the shared
+    /// constraint diagnostic.
     func emitSubtypeConstraint(
         left: TypeID,
         right: TypeID,
@@ -799,7 +804,9 @@ final class TypeCheckDriver {
         sema: SemaModule,
         diagnostics: DiagnosticEngine,
         secondaryRanges: [SourceRange] = [],
-        suppressPlatformWarning: Bool = false
+        suppressPlatformWarning: Bool = false,
+        diagnosticCode: String? = nil,
+        failureMessage: String? = nil
     ) {
         let solution = solver.solve(
             vars: [],
@@ -814,6 +821,17 @@ final class TypeCheckDriver {
             typeSystem: sema.types
         )
         if !solution.isSuccess, let failure = solution.failure {
+            var failure = failure
+            if let diagnosticCode {
+                failure = Diagnostic(
+                    severity: failure.severity,
+                    code: diagnosticCode,
+                    message: failureMessage ?? failure.message,
+                    primaryRange: failure.primaryRange,
+                    secondaryRanges: failure.secondaryRanges,
+                    codeActions: failure.codeActions
+                )
+            }
             diagnostics.emit(withExpectedTypeOrigin(
                 failure,
                 expectedType: right,

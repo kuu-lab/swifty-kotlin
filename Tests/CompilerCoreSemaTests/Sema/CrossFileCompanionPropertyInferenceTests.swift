@@ -171,7 +171,7 @@ struct CrossFileCompanionPropertyInferenceTests {
         let sources = consumerFirst ? [use, declarations] : [declarations, use]
         let ctx = makeContextFromSources(sources)
         try runSema(ctx)
-        #expect(ctx.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-TYPE-0001" })
+        #expect(ctx.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-SEMA-0469" })
     }
 
     @Test(arguments: [true, false])
@@ -217,7 +217,7 @@ struct CrossFileCompanionPropertyInferenceTests {
         let sources = consumerFirst ? [use, declarations] : [declarations, use]
         let ctx = makeContextFromSources(sources)
         try runSema(ctx)
-        #expect(ctx.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-TYPE-0001" })
+        #expect(ctx.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-SEMA-0469" })
         let sema = try #require(ctx.sema)
         for name in ["FIRST", "SECOND"] {
             let property = try #require(sema.symbols.lookup(

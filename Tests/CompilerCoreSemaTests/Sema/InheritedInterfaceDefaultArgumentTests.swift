@@ -164,6 +164,8 @@ struct InheritedInterfaceDefaultArgumentTests {
         let ctx = makeContext(declarations + "\nfun warm() { val valid: () -> String = Leaf()::label }\n" + source)
         try runSema(ctx)
         #expect(ctx.diagnostics.hasError)
+        // Callable-reference specialization against the expected shape reports
+        // its own constraint failure, not the initializer path.
         #expect(ctx.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-TYPE-0001" })
     }
 }

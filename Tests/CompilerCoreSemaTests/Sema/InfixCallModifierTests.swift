@@ -223,7 +223,7 @@ struct InfixCallModifierTests {
             try runSema(ctx)
             let errors = diagnosticsForPath(path, in: ctx).filter { $0.severity == .error }
             #expect(errors.count == 1, "Unexpected diagnostics: \(errors)")
-            #expect(errors.first?.code == "KSWIFTK-SEMA-0002")
+            #expect(errors.first?.code == "KSWIFTK-SEMA-0473")
         }
     }
 
@@ -242,7 +242,7 @@ struct InfixCallModifierTests {
             try runSema(ctx)
             let errors = diagnosticsForPath(path, in: ctx).filter { $0.severity == .error }
             #expect(errors.count == 1)
-            #expect(errors.first?.code == "KSWIFTK-SEMA-0002")
+            #expect(errors.first?.code == "KSWIFTK-SEMA-0473")
         }
     }
 }

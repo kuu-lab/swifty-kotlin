@@ -631,14 +631,16 @@ final class KIRLoweringContext {
         callee: InternedString,
         captureArguments: [KIRExprID],
         hasClosureParam: Bool = false,
-        unboxedSymbol: SymbolID? = nil
+        unboxedSymbol: SymbolID? = nil,
+        isFunctionValueBox: Bool = false
     ) {
         callableValueInfoByExprID[exprID] = KIRCallableValueInfo(
             symbol: symbol,
             callee: callee,
             captureArguments: captureArguments,
             hasClosureParam: hasClosureParam,
-            unboxedSymbol: unboxedSymbol
+            unboxedSymbol: unboxedSymbol,
+            isFunctionValueBox: isFunctionValueBox
         )
     }
 

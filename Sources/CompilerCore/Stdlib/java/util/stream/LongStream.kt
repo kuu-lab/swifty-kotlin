@@ -121,5 +121,50 @@ public class LongStream private constructor(private val values: Sequence<Long>) 
             val range = startInclusive..endInclusive
             return LongStream(streamSequence { range.iterator() })
         }
+
+        public fun iterate(seed: Long, next: LongUnaryOperator): LongStream =
+            LongStream(streamSequence {
+                object : Iterator<Long> {
+                    var current = seed
+
+                    override fun hasNext(): Boolean = true
+
+                    override fun next(): Long {
+                        val value = current
+                        current = next.applyAsLong(value)
+                        return value
+                    }
+                }
+            })
+
+        public fun iterate(seed: Long, hasNext: LongPredicate, next: LongUnaryOperator): LongStream =
+            LongStream(streamSequence {
+                object : Iterator<Long> {
+                    var current = seed
+                    var first = true
+                    var advanced = false
+                    var valid = false
+
+                    private fun advance() {
+                        if (advanced) return
+                        if (first) first = false
+                        else current = next.applyAsLong(current)
+                        valid = hasNext.test(current)
+                        advanced = true
+                    }
+
+                    override fun hasNext(): Boolean {
+                        advance()
+                        return valid
+                    }
+
+                    override fun next(): Long {
+                        advance()
+                        if (!valid) throw NoSuchElementException()
+                        advanced = false
+                        return current
+                    }
+                }
+            })
     }
 }

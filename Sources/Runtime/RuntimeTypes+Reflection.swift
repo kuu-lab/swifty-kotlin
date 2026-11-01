@@ -292,6 +292,12 @@ let runtimeKConstructorRegistry = RuntimeKConstructorRegistry()
 final class RuntimeKMemberRegistry: @unchecked Sendable {
     private let lock = NSLock()
     private var membersByClassRaw: [Int: [Int]] = [:]
+    /// Member-extension callables (`val String.x` / `fun String.f()` declared
+    /// inside a class). The JVM keeps them out of
+    /// `memberProperties`/`memberFunctions`/`declaredMember*` and surfaces them
+    /// only through `memberExtension*`/`declaredMemberExtension*` in
+    /// `kotlin.reflect.full`, while `members` still lists them (KUU-4064).
+    private var extensionMemberRaws: Set<Int> = []
     private var initializedBuiltinClasses: Set<Int> = []
 
     func builtinMembersInitialized(for classRaw: Int) -> Bool {
@@ -306,7 +312,7 @@ final class RuntimeKMemberRegistry: @unchecked Sendable {
         initializedBuiltinClasses.insert(classRaw)
     }
 
-    func register(classRaw: Int, memberRaw: Int) {
+    func register(classRaw: Int, memberRaw: Int, isMemberExtension: Bool = false) {
         guard classRaw != 0, classRaw != runtimeNullSentinelInt,
               isCallableMemberHandle(memberRaw)
         else {
@@ -315,6 +321,15 @@ final class RuntimeKMemberRegistry: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         membersByClassRaw[classRaw, default: []].append(memberRaw)
+        if isMemberExtension {
+            extensionMemberRaws.insert(memberRaw)
+        }
+    }
+
+    func isMemberExtension(_ memberRaw: Int) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return extensionMemberRaws.contains(memberRaw)
     }
 
     func members(for classRaw: Int) -> [Int] {
@@ -327,6 +342,7 @@ final class RuntimeKMemberRegistry: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         membersByClassRaw[classRaw]?.removeAll { members.contains($0) }
+        extensionMemberRaws.subtract(members)
     }
 
     func functions(for classRaw: Int) -> [Int] {
@@ -341,6 +357,7 @@ final class RuntimeKMemberRegistry: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         membersByClassRaw.removeAll()
+        extensionMemberRaws.removeAll()
         initializedBuiltinClasses.removeAll()
     }
 
@@ -508,6 +525,9 @@ final class RuntimeKParameterBox {
     var arrayComponentType: Int?
     var callableOwner = 0
     var boundArguments: [Int] = []
+    /// Annotation records for this parameter. No registration entry point
+    /// emits them yet, so `KParameter.annotations` reads as an empty list.
+    var annotations: [RuntimeAnnotationRecord] = []
     /// Parameter index (0-based).
     let index: Int
     /// Parameter name as a KKString raw handle (0 if unnamed).

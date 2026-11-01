@@ -998,6 +998,7 @@ extension BuildASTPhase {
         let tokens = propertyHeadTokens(
             from: nodeID,
             in: arena,
+            interner: interner,
             includingTrailingLambdaTokens: true
         )
         guard !tokens.isEmpty else {

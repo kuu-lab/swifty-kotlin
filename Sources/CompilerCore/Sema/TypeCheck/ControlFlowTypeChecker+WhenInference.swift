@@ -359,9 +359,13 @@ extension ControlFlowTypeChecker {
                         if driver.exprChecker.equalityHasIncompatibleBuiltinTypes(
                             equalitySubjectType, equalityConditionType, sema: sema
                         ) {
+                            // kotlinc reports the subject/condition type
+                            // mismatch as INCOMPATIBLE_TYPES; give it the
+                            // dedicated code so @Suppress can target it
+                            // without silencing unrelated overload failures.
                             ctx.sema.diagnostics.error(
-                                "KSWIFTK-SEMA-0002",
-                                "Operator '==' cannot be applied to unrelated types.",
+                                "KSWIFTK-SEMA-0466",
+                                "Incompatible types in when branch condition.",
                                 range: ast.arena.exprRange(cond)
                             )
                         }

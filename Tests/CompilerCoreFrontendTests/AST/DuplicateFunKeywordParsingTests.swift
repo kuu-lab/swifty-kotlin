@@ -24,10 +24,13 @@ struct DuplicateFunKeywordParsingTests {
     func newlineSeparatedFunctionsStillRejectWithoutParseError() throws {
         // `fun tailrec` / `fun tr` on separate lines parses as two declarations;
         // the bodiless `tailrec` fails in sema rather than the parser.
-        let (_, context) = try buildASTModule(from: "fun tailrec\nfun tr(n: Int): Int = n", includeStdlib: false)
+        try withTemporaryFile(contents: "fun tailrec\nfun tr(n: Int): Int = n") { path in
+            let context = makeCompilationContext(inputs: [path], includeStdlib: false)
+            try runSema(context)
 
-        #expect(context.diagnostics.hasError)
-        assertNoDiagnostic("KSWIFTK-PARSE-0002", in: context)
+            #expect(context.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-SEMA-0009" })
+            assertNoDiagnostic("KSWIFTK-PARSE-0002", in: context)
+        }
     }
 
     @Test

@@ -11,7 +11,7 @@ public class StringReader(private val source: String) : Reader {
         return source[nextIndex++].code
     }
 
-    public fun read(buffer: CharArray, offset: Int, length: Int): Int {
+    public override fun read(buffer: CharArray, offset: Int, length: Int): Int {
         checkOpen()
         if (offset < 0 || length < 0 || offset > buffer.size - length) {
             throw IndexOutOfBoundsException()

@@ -18,7 +18,7 @@ struct PrimitiveEqualityCompatibilityTests {
 
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
         #expect(errors.count == 3, "Expected errors only for mixed-type equality: \(errors)")
-        #expect(errors.allSatisfy { $0.code == "KSWIFTK-SEMA-0002" })
+        #expect(errors.allSatisfy { $0.code == "KSWIFTK-SEMA-0471" })
         #expect(errors.allSatisfy { $0.message.contains("cannot be applied to unrelated types") })
     }
 }

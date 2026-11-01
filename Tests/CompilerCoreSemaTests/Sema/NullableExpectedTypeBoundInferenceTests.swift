@@ -83,7 +83,7 @@ struct NullableExpectedTypeBoundInferenceTests {
         let ctx = makeContextWithoutStdlib(source)
         try runSema(ctx)
         #expect(ctx.diagnostics.diagnostics.contains {
-            $0.severity == .error && $0.code == "KSWIFTK-TYPE-0001"
+            $0.severity == .error && $0.code == "KSWIFTK-SEMA-0469"
         }, "\(ctx.diagnostics.diagnostics)")
     }
 
@@ -92,7 +92,7 @@ struct NullableExpectedTypeBoundInferenceTests {
         let ctx = makeContextWithoutStdlib("fun invalid(): Int? = \"OK\"")
         try runSema(ctx)
         #expect(ctx.diagnostics.diagnostics.contains {
-            $0.severity == .error && $0.code == "KSWIFTK-TYPE-0001"
+            $0.severity == .error && $0.code == "KSWIFTK-SEMA-0469"
         }, "\(ctx.diagnostics.diagnostics)")
     }
 

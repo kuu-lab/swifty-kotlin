@@ -178,7 +178,7 @@ struct CallableReferenceParsingTests {
     /// recovery also reports `KSWIFTK-PARSE-0022` (Expected an argument), so
     /// these sources yield two diagnostics with PARSE-0014 first.
     @Test(arguments: ["consume(::)", "consume(::, 1)"])
-    func missingMemberInsideArgumentListReportsBothErrors(_ source: String) throws {
+    func missingMemberInsideArgumentListReportsOnce(_ source: String) throws {
         let lexed = lex(source)
         let arena = ASTArena()
         let parser = BuildASTPhase.ExpressionParser(
@@ -189,10 +189,10 @@ struct CallableReferenceParsingTests {
         )
         _ = parser.parse()
 
+        // The slot already reported PARSE-0014, so no redundant PARSE-0022 (#11205).
         let diagnostic = try #require(lexed.diagnostics.diagnostics.first)
         #expect(diagnostic.code == "KSWIFTK-PARSE-0014")
-        #expect(lexed.diagnostics.diagnostics.count == 2)
-        #expect(lexed.diagnostics.diagnostics.last?.code == "KSWIFTK-PARSE-0022")
+        #expect(lexed.diagnostics.diagnostics.count == 1)
     }
 
     @Test(arguments: ["::", "x::"])
@@ -264,6 +264,7 @@ struct CallableReferenceParsingTests {
         "fun main() { consume(::) }",
         "fun main() { println(\"d\")\n:: }",
         "fun main() { val r = { :: } }",
+        "fun main() { val f = { val r = :: } }",
         "fun ref() = ::",
         "val r = ::",
         "fun main() {\n::\nprintln(\"d\")::\nval r = ::\n}",

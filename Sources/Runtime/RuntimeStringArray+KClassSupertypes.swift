@@ -4,8 +4,10 @@ import Foundation
 /// JVM-only supertypes (`kotlin.Number`, `java.io.Serializable`,
 /// `kotlin.Cloneable`, …) that Sema does not model, so the display-name lists
 /// are curated here keyed by qualified name. Verified against kotlinc +
-/// kotlin-reflect.
-private let runtimeBuiltinSupertypes: [String: [String]] = {
+/// kotlin-reflect. Also consulted by `java.lang.Class.interfaces`/`superclass`
+/// (`__kk_class_interfaces`/`__kk_class_superclass`) for builtin class tokens
+/// that carry no registered metadata.
+let runtimeBuiltinSupertypes: [String: [String]] = {
     var table: [String: [String]] = [
         "kotlin.Any": [],
         "kotlin.Unit": ["kotlin.Any"],

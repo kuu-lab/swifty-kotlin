@@ -153,7 +153,9 @@ extension CallTypeChecker {
                         range: ast.arena.exprRange(args[0].expr) ?? range,
                         solver: ConstraintSolver(),
                         sema: sema,
-                        diagnostics: ctx.sema.diagnostics
+                        diagnostics: ctx.sema.diagnostics,
+                        diagnosticCode: "KSWIFTK-SEMA-0473",
+                        failureMessage: "Argument type mismatch."
                     )
 
                     for i in 1 ..< args.count {
@@ -169,7 +171,9 @@ extension CallTypeChecker {
                             range: ast.arena.exprRange(args[i].expr) ?? range,
                             solver: ConstraintSolver(),
                             sema: sema,
-                            diagnostics: ctx.sema.diagnostics
+                            diagnostics: ctx.sema.diagnostics,
+                            diagnosticCode: "KSWIFTK-SEMA-0473",
+                            failureMessage: "Argument type mismatch."
                         )
                     }
 

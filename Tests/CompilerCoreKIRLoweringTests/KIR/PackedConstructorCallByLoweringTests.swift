@@ -8,13 +8,19 @@ struct PackedConstructorCallByLoweringTests {
     func reflectionConstructorHasSeparatePackedAllocatingWrapper(element: String) throws {
         let ctx = makeContextFromSource("""
         class Packed(vararg values: \(element)) { val count = values.size }
-        fun probe() { val reference: (\(element)) -> Packed = ::Packed }
+        fun probe() {
+            val reference: (\(element)) -> Packed = ::Packed
+            val reflected = ::Packed
+        }
         """)
         try runToKIR(ctx)
         try #require(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
         let module = try #require(ctx.kir)
         let sema = try #require(ctx.sema)
         let functions = findAllKIRFunctions(in: module)
+        // The scalar-typed `reference` is a signature-adapted reference and so
+        // no KCallable (#12234); the packed reflection wrapper comes from the
+        // plain `reflected` KFunction, the scalar wrapper from `reference`.
         let packed = try #require(functions.first {
             ctx.interner.resolve($0.name).hasPrefix("kk_reflect_constructor_packed_")
         })
@@ -72,7 +78,8 @@ struct PackedConstructorCallByLoweringTests {
         #expect(clone.params[1].type == sema.types.intType)
         #expect(extractCallees(from: clone.body, interner: ctx.interner).contains("kk_object_new"))
         let stub = try #require(functions.first { ctx.interner.resolve($0.name) == "OptionalPacked$default" })
-        #expect(stub.params.last?.type == sema.types.intType)
+        // `$default` mask words are Long since #11056.
+        #expect(stub.params.last?.type == sema.types.longType)
         #expect(className(stub.params[1].type, sema: sema, interner: ctx.interner)
             == (element == "String" ? "kotlin.Array" : "kotlin.DoubleArray"))
         #expect(!extractCallees(from: stub.body, interner: ctx.interner).contains("__kk_array_toList"))
@@ -206,7 +213,7 @@ struct PackedConstructorCallByLoweringTests {
         #expect(ordered.params.suffix(4).allSatisfy { $0.type == sema.types.intType })
         let orderedStub = try findKIRFunction(named: "ordered$default", in: module, interner: ctx.interner)
         #expect(orderedStub.params.count == 6, "closure/four hidden words/default mask")
-        #expect(orderedStub.params.last?.type == sema.types.intType)
+        #expect(orderedStub.params.last?.type == sema.types.longType, "Long default mask (#11056)")
         #expect(extractCallees(from: orderedStub.body, interner: ctx.interner).contains("__kk_pair_new"))
     }
 

@@ -37,7 +37,8 @@ extension LoweringPassRegressionTests {
 
             #expect(callees.contains(where: { $0.hasPrefix("$enumOrdinalToName$") }),
                     "the interpolated enum must be converted via the name helper; callees: \(callees)")
-            #expect(!callees.contains(RuntimeCall.anyToString.name),
+            #expect(!callees.contains(RuntimeCall.anyToString.name)
+                    && !callees.contains(RuntimeCall.anyToStringThrowing.name),
                     "the ordinal must not reach the generic Any conversion; callees: \(callees)")
         }
     }

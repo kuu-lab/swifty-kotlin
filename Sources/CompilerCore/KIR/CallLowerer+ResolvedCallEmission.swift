@@ -410,7 +410,8 @@ extension CallLowerer {
                 interner: interner,
                 instructions: &instructions,
                 arguments: &finalArgIDs,
-                valueArgOffsetOverride: 0
+                valueArgOffsetOverride: 0,
+                callBinding: callBinding
             )
             return lowerAtomicScalarConstructorCall(
                 constructorSymbol: chosen,
@@ -989,7 +990,8 @@ extension CallLowerer {
                 interner: interner,
                 instructions: &instructions,
                 arguments: &finalArgIDs,
-                callDispatchesVirtually: implicitReceiverDispatch != nil
+                callDispatchesVirtually: implicitReceiverDispatch != nil,
+                callBinding: callBinding
             )
         }
         if loweredCallable == nil, let chosen {

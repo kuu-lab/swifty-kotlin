@@ -145,9 +145,10 @@ extension BuildKIRRegressionTests {
             return arguments[2]
         }
         // #11911 boxes `::name` once at the reference site, then the vararg
-        // selector slot re-wraps it, so only the last four creations are stored.
+        // selector slot re-wraps it; lambdas are boxed at creation (#12358),
+        // so the stored selectors are the last four creations in any order.
         #expect(materialized.count == 5)
-        #expect(Array(stored.suffix(4)) == Array(materialized.suffix(4)))
+        #expect(Set(stored.suffix(4)) == Set(materialized.suffix(4)))
     }
 
     @Test func testBuildKIRImportedCompareValuesByCallableReferenceIsMaterialized() throws {
@@ -212,11 +213,12 @@ extension BuildKIRRegressionTests {
             else { return nil }
             return arguments.last
         }
-        // #11911 also boxes both `::visit` references at their reference sites,
-        // so the two call-site wraps passed to visitPair are the last creations.
-        #expect(materializedCallbacks.count == 4)
+        // #11911 boxes both `::visit` references at their reference sites, and
+        // since #12358 an already-boxed value is passed through without a
+        // call-site re-wrap, so each reference is created exactly once.
+        #expect(materializedCallbacks.count == 2)
         #expect(callbacks.count == 3)
-        #expect(Array(callbacks.prefix(2)) == Array(materializedCallbacks.suffix(2)))
+        #expect(callbacks.prefix(2).allSatisfy { !materializedCallbacks.contains($0) })
         let literalCallback = try #require(callbacks.last)
         guard case .symbolRef? = module.arena.expr(literalCallback) else {
             Issue.record("inline lambda literals must remain directly expandable")
@@ -1015,6 +1017,44 @@ extension BuildKIRRegressionTests {
         }
         #expect(boxedReceivers.count == 2,
                 "Expected both anonymous Int.() -> String receivers boxed via kk_function_create_1, got \(boxedReceivers.count)")
+    }
+
+    @Test func testBuildKIRDoesNotRewrapBoxedFunctionValueForCollectionStorage() throws {
+        // KUU-4037: storing a function value in an array-backed generic
+        // container re-wrapped an already-boxed `kk_function_create_N`
+        // object in a second box, minting a new handle per crossing — so
+        // `listOf(f)[0] === f`, `contains`, `indexOf`, `remove` and map-key
+        // lookups all failed while kotlinc keeps one object. An element
+        // whose invocation ABI already serves the declared element/key
+        // type must pass through with its own identity, leaving exactly
+        // one `kk_function_create_1` per function value.
+        let runtime = try RuntimeNames()
+        let source = """
+        fun main() {
+            val f: (Int) -> Unit = { }
+            println(listOf(f)[0] === f)
+            println(arrayOf(f)[0] === f)
+            println(f in listOf(f))
+            val g: (Int) -> Int = { it + 1 }
+            val m = mutableMapOf<(Int) -> Int, String>()
+            m[g] = "a"
+            println(m[g])
+        }
+        """
+        let ctx = makeContextFromSource(source)
+        try runToKIR(ctx)
+        #expect(!ctx.diagnostics.hasError)
+
+        let module = try #require(ctx.kir)
+        let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+        let functionCreates = body.filter { instruction in
+            guard case let .call(_, callee, _, _, _, _, _, _) = instruction else { return false }
+            return callee == ctx.interner.intern(runtime[.functionCreate1])
+        }
+        // One box for `f`, one for `g`: the list/array/set stores, the map
+        // put and the map get all reuse each value's own object.
+        #expect(functionCreates.count == 2,
+                "Expected each function value boxed exactly once, got \(functionCreates.count)")
     }
 
     // MARK: - P5-39: vararg call lowering / ABI regression tests

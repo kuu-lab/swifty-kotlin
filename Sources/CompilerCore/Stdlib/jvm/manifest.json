@@ -161,7 +161,7 @@
     },
     {
       "path": "declarations/IntProgression.kt",
-      "virtualPath": "<kswiftk-jvm>/int-progression.kt",
+      "virtualPath": "<kswiftk-jvm>/m19-int-progression.kt",
       "excludeFromStdlibBuild": true
     },
     {

@@ -138,6 +138,8 @@ struct UseSiteVarianceFlowTests {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
+            // The projection check runs outside the initializer subtype
+            // path, so it keeps the generic constraint code.
             assertHasDiagnostic("KSWIFTK-TYPE-0001", in: ctx)
         }
     }
@@ -297,8 +299,8 @@ struct UseSiteVarianceFlowTests {
             // `out` projection forbids the indexed `set` — plain `=` and the
             // `set` half of `+=` alike; `in` accepts writes.
             assertDiagnosticCount("KSWIFTK-SEMA-VAR-OUT", expected: 2, in: ctx)
-            // `Box<in Int>` reads a captured type — assigning it to `Int` fails.
-            assertDiagnosticCount("KSWIFTK-TYPE-0001", expected: 1, in: ctx)
+            // `Box<in Int>` reads a captured type — returning it as `Int` fails.
+            assertDiagnosticCount("KSWIFTK-SEMA-0469", expected: 1, in: ctx)
             // `box[0] += v` on `Box<in Int>` reads a captured type on which
             // `plus` does not resolve (kotlinc: unresolved reference '+=').
             assertDiagnosticCount("KSWIFTK-SEMA-0002", expected: 1, in: ctx)

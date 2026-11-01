@@ -116,10 +116,14 @@ struct RuntimePrimitiveArrayAsListTests {
         let other = registerRuntimeObject(RuntimeStringBox("other"))
         let array = RuntimeArrayBox(length: 2)
         array.elements = [string, other]
-        let list = try #require(runtimeListBox(from: kk_array_asList(registerRuntimeObject(array))))
+        let listRaw = kk_array_asList(registerRuntimeObject(array))
+        let list = try #require(runtimeListBox(from: listRaw))
         #expect(list[0] == string)
         #expect(list.childRefs == [string, other])
-        #expect(RuntimeListBox(reversedViewOf: list).childRefs == [other, string])
-        #expect(RuntimeListBox(subListOf: list, fromIndex: 0, toIndex: 1).childRefs == [string])
+        // View storage retains the base box, so childRefs reports the base
+        // pointer first (keeping it alive for GC/freeze) and then the base's
+        // element refs in forward order.
+        #expect(RuntimeListBox(reversedViewOf: list).childRefs == [listRaw, string, other])
+        #expect(RuntimeListBox(subListOf: list, fromIndex: 0, toIndex: 1).childRefs == [listRaw, string, other])
     }
 }

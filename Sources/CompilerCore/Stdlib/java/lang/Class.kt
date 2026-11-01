@@ -55,6 +55,24 @@ private external fun __classForName(className: String): Class<*>
 @KsSymbolName("__kk_java_class_get_annotations_typed")
 private external fun __classGetAnnotations(type: Class<*>): Array<Annotation>
 
+@KsSymbolName("__kk_class_interfaces")
+private external fun __classInterfaces(type: Class<*>): Array<Class<*>>
+
+@KsSymbolName("__kk_class_superclass")
+private external fun __classSuperclass(type: Class<*>): Class<*>?
+
+@KsSymbolName("__kk_class_is_array")
+private external fun __classIsArray(type: Class<*>): kotlin.Boolean
+
+@KsSymbolName("__kk_class_is_primitive")
+private external fun __classIsPrimitive(type: Class<*>): kotlin.Boolean
+
+@KsSymbolName("__kk_class_is_enum")
+private external fun __classIsEnum(type: Class<*>): kotlin.Boolean
+
+@KsSymbolName("__kk_class_component_type")
+private external fun __classComponentType(type: Class<*>): Class<*>?
+
 // JVM-shaped view of an existing class token; it does not own a ClassLoader.
 public class Class<T> {
     public val canonicalName: String?
@@ -85,7 +103,49 @@ public class Class<T> {
 
     public fun getMethods(): Array<Method> = __classGetMethods(this)
 
+    /**
+     * Kotlin view of `getInterfaces()`: the interfaces directly implemented by
+     * this class, or directly extended by this interface. Empty for classes
+     * with no direct interfaces, for primitives, and for `java.lang.Object`;
+     * array classes report `Cloneable` and `Serializable` like the JVM.
+     */
+    public val interfaces: Array<Class<*>>
+        get() = __classInterfaces(this)
+
+    public fun getInterfaces(): Array<Class<*>> = __classInterfaces(this)
+
+    /**
+     * Kotlin view of `getSuperclass()`: the direct superclass, or null for
+     * interfaces, primitives, void, and `java.lang.Object`. Array classes
+     * report `java.lang.Object`.
+     */
+    public val superclass: Class<*>?
+        get() = __classSuperclass(this)
+
+    public fun getSuperclass(): Class<*>? = __classSuperclass(this)
+
     public fun isAssignableFrom(other: Class<*>): Boolean = __classIsAssignableFrom(this, other)
+
+    /** Kotlin view of `isArray()`: true when this Class models an array type. */
+    public val isArray: kotlin.Boolean
+        get() = __classIsArray(this)
+
+    /** Kotlin view of `isPrimitive()`: true for the nine primitive/void class tokens. */
+    public val isPrimitive: kotlin.Boolean
+        get() = __classIsPrimitive(this)
+
+    /** Kotlin view of `isEnum()`: true when this Class models an enum declaration. */
+    public val isEnum: kotlin.Boolean
+        get() = __classIsEnum(this)
+
+    /**
+     * Kotlin view of `getComponentType()`: the element class of an array
+     * class token, or null for non-array classes.
+     */
+    public val componentType: Class<*>?
+        get() = __classComponentType(this)
+
+    public fun getComponentType(): Class<*>? = __classComponentType(this)
 
     public fun getDeclaredMethod(name: String, vararg parameterTypes: Class<*>): Method =
         __classGetDeclaredMethod(this, name, parameterTypes)

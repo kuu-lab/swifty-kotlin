@@ -540,7 +540,7 @@ struct CompilerCoreTests {
                 let sampleDiags = diagnosticsForPath(sample17Path, in: ctx)
 
 
-                        assertHasDiagnostic("KSWIFTK-TYPE-0001", in: sampleDiags)
+                        assertHasDiagnostic("KSWIFTK-SEMA-0469", in: sampleDiags)
 
             }
             // testPropertyInitializerInfersTypeForSubsequentCalls
@@ -560,7 +560,7 @@ struct CompilerCoreTests {
                 let sampleDiags = diagnosticsForPath(sample19Path, in: ctx)
 
 
-                        assertHasDiagnostic("KSWIFTK-TYPE-0001", in: sampleDiags)
+                        assertHasDiagnostic("KSWIFTK-SEMA-0468", in: sampleDiags)
 
             }
             // testParameterDefaultValueTypeMismatchReportsTypeDiagnostic
@@ -570,7 +570,7 @@ struct CompilerCoreTests {
                 let sampleDiags = diagnosticsForPath(sample20Path, in: ctx)
 
 
-                        assertHasDiagnostic("KSWIFTK-TYPE-0001", in: sampleDiags)
+                        assertHasDiagnostic("KSWIFTK-SEMA-0468", in: sampleDiags)
 
             }
             // testPrimaryConstructorParameterDefaultValueTypeMismatchReportsTypeDiagnostic
@@ -580,7 +580,7 @@ struct CompilerCoreTests {
                 let sampleDiags = diagnosticsForPath(sample21Path, in: ctx)
 
 
-                        assertHasDiagnostic("KSWIFTK-TYPE-0001", in: sampleDiags)
+                        assertHasDiagnostic("KSWIFTK-SEMA-0468", in: sampleDiags)
 
             }
             // testPropertyGetterTypeMismatchReportsTypeDiagnostic
@@ -590,7 +590,7 @@ struct CompilerCoreTests {
                 let sampleDiags = diagnosticsForPath(sample22Path, in: ctx)
 
 
-                        assertHasDiagnostic("KSWIFTK-TYPE-0001", in: sampleDiags)
+                        assertHasDiagnostic("KSWIFTK-SEMA-0469", in: sampleDiags)
 
             }
             // testSetterOnValReportsDiagnostic
@@ -610,7 +610,7 @@ struct CompilerCoreTests {
                 let sampleDiags = diagnosticsForPath(sample24Path, in: ctx)
 
 
-                        assertHasDiagnostic("KSWIFTK-SEMA-0002", in: sampleDiags)
+                        assertHasDiagnostic("KSWIFTK-SEMA-0473", in: sampleDiags)
 
             }
             // testOverloadRejectsBooleanArgumentForIntParameter
@@ -620,7 +620,7 @@ struct CompilerCoreTests {
                 let sampleDiags = diagnosticsForPath(sample25Path, in: ctx)
 
 
-                        assertHasDiagnostic("KSWIFTK-SEMA-0002", in: sampleDiags)
+                        assertHasDiagnostic("KSWIFTK-SEMA-0473", in: sampleDiags)
 
             }
             // testCallSupportsMixedNamedAndPositionalArguments

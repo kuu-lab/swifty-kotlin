@@ -282,7 +282,8 @@ extension LambdaLowerer {
             callee: adapterName,
             captureArguments: [closureObj],
             hasClosureParam: true,
-            unboxedSymbol: lambdaSymbol
+            unboxedSymbol: lambdaSymbol,
+            isFunctionValueBox: true
         )
         emitFunctionDescription(
             value: materializedExpr,

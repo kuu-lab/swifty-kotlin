@@ -10,9 +10,11 @@ extension JVMProgramBuilder {
             let object: JVMValueType = .reference("java/lang/Object", nullable: true)
             return JVMForeignMethod(owner: "java/lang/System", name: "arraycopy", descriptor: "(Ljava/lang/Object;ILjava/lang/Object;II)V", parameters: [object, .int, object, .int, .int], result: .unit, isStatic: true, isInterface: false, isAbstract: false)
         }
+        // `Any()` maps here rather than in builtinName: supertype planning
+        // relies on builtinName leaving kotlin/Any unmapped to skip it.
         guard let symbol = sema.symbols.symbol(symbolID), symbol.kind == .constructor,
               let parent = sema.symbols.parentSymbol(for: symbolID), classes[parent] == nil,
-              let source = try? className(parent), let name = JVMClasspathIndex.builtinName(source),
+              let source = try? className(parent), let name = source == "kotlin/Any" ? "java/lang/Object" : JVMClasspathIndex.builtinName(source),
               (name.hasPrefix("java/lang/") || ["java/util/NoSuchElementException", "java/util/AbstractCollection", "java/util/AbstractList", "java/util/AbstractSet", "java/util/AbstractMap", "kotlin/collections/AbstractSet", "kotlin/collections/IntIterator", "kotlin/NotImplementedError", "kotlin/UninitializedPropertyAccessException"].contains(name)), let signature = sema.symbols.functionSignature(for: symbolID),
               let parameters = try? signature.parameterTypes.map(type) else { return nil }
         return JVMForeignMethod(owner: name, name: "<init>", descriptor: "(" + parameters.map(\.descriptor).joined() + ")V", parameters: parameters, result: .reference(name, nullable: false), isStatic: false, isInterface: false, isAbstract: false)

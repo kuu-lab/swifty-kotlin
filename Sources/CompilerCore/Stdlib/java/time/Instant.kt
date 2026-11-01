@@ -37,6 +37,9 @@ public class Instant private constructor(
 
     public fun isAfter(other: Instant): Boolean = compareTo(other) > 0
 
+    /** Combines this instant with an offset to create an [OffsetDateTime]. */
+    public fun atOffset(offset: ZoneOffset): OffsetDateTime = OffsetDateTime.ofInstant(this, offset)
+
     override fun compareTo(other: Instant): Int {
         if (epochSecond != other.epochSecond) return epochSecond.compareTo(other.epochSecond)
         return nano.compareTo(other.nano)

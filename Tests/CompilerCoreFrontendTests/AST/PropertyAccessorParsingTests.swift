@@ -131,6 +131,85 @@ struct PropertyAccessorParsingTests {
         }
     }
 
+    /// KUU-4053: modifiers between the property type and `get`/`set` are
+    /// accessor modifiers, not part of the type reference — `val x: Int @Anno
+    /// get() = 1` must not produce "Expected type after ':'" (PARSE-0020) or
+    /// "Unexpected token after type reference" (PARSE-0024).
+    @Test(arguments: [
+        "val a: Int @Ann get() = 1",
+        "var a: Int @Ann get() = 1\n    set(v) {}",
+        "val a: Int @Ann\n    get() = 1",
+        "val a: Int @Ann private get() = 1",
+    ])
+    func accessorAnnotationBetweenTypeAndAccessorStaysOnAccessor(_ decl: String) throws {
+        let (ast, ctx) = try buildASTModule(from: """
+        @Target(AnnotationTarget.PROPERTY_GETTER, AnnotationTarget.PROPERTY)
+        annotation class Ann
+        \(decl)
+        """, includeStdlib: false)
+
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+        let property = try #require(topLevelProperty(named: "a", in: ast, interner: ctx.interner))
+        let typeRef = try #require(property.type.flatMap { ast.arena.typeRef($0) })
+        guard case let .named(path, args, nullable) = typeRef else {
+            Issue.record("Expected a plain named type, got \(typeRef)")
+            return
+        }
+        #expect(path.map(ctx.interner.resolve) == ["Int"])
+        #expect(args.isEmpty)
+        #expect(!nullable)
+        let getter = try #require(property.getter)
+        #expect(getter.annotations.map(\.name) == ["Ann"])
+    }
+
+    @Test
+    func accessorVisibilityBetweenTypeAndAccessorStaysOnAccessor() throws {
+        let (ast, ctx) = try buildASTModule(from: """
+        val a: Int private get() = 1
+        """, includeStdlib: false)
+
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+        let property = try #require(topLevelProperty(named: "a", in: ast, interner: ctx.interner))
+        let typeRef = try #require(property.type.flatMap { ast.arena.typeRef($0) })
+        guard case .named = typeRef else {
+            Issue.record("Expected a plain named type, got \(typeRef)")
+            return
+        }
+        #expect(property.getter?.visibility == .private)
+    }
+
+    @Test
+    func typeAnnotationAndAccessorAnnotationAreKeptSeparate() throws {
+        let (ast, ctx) = try buildASTModule(from: """
+        @Target(AnnotationTarget.PROPERTY_GETTER, AnnotationTarget.TYPE)
+        annotation class Ann
+        val a: @Ann Int @Ann get() = 1
+        """, includeStdlib: false)
+
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+        let property = try #require(topLevelProperty(named: "a", in: ast, interner: ctx.interner))
+        let typeRef = try #require(property.type.flatMap { ast.arena.typeRef($0) })
+        guard case .annotated = typeRef else {
+            Issue.record("The annotation on the type must remain on the type, got \(typeRef)")
+            return
+        }
+        #expect(property.getter?.annotations.map(\.name) == ["Ann"])
+    }
+
+    @Test(arguments: [
+        "val a: Int @Ann",
+        "val a: Int @Ann = 4",
+    ])
+    func accessorAnnotationWithoutAccessorStillDiagnoses(_ decl: String) throws {
+        let (_, ctx) = try buildASTModule(from: """
+        @Target(AnnotationTarget.PROPERTY_GETTER)
+        annotation class Ann
+        \(decl)
+        """, includeStdlib: false)
+
+        #expect(ctx.diagnostics.hasError)
+    }
+
     @Test
     func semicolonSeparatedGetterAndSetterAreBothParsed() throws {
         let (ast, ctx) = try buildASTModule(from: """

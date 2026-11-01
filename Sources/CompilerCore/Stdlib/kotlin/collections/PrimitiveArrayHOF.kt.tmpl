@@ -132,15 +132,13 @@ public fun <R : Any> {{T}}Array.mapNotNull(transform: ({{T}}) -> R?): List<R> {
     return result
 }
 
-public fun <R> {{T}}Array.flatMap(transform: ({{T}}) -> List<R>): List<R> {
+public fun <R> {{T}}Array.flatMap(transform: ({{T}}) -> Iterable<R>): List<R> {
     val result = mutableListOf<R>()
     var i = 0
     while (i < this.size) {
-        val nested = transform(this[i])
-        var j = 0
-        while (j < nested.size) {
-            result.add(nested[j])
-            j++
+        val nestedIterator = transform(this[i]).iterator()
+        while (nestedIterator.hasNext()) {
+            result.add(nestedIterator.next())
         }
         i++
     }

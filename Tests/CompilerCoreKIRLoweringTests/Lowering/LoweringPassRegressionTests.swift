@@ -31,6 +31,7 @@ struct LoweringPassRegressionTests {
         case anyHashCode = "kk_any_hashCode"
         case anyMemberToString = "kk_any_member_to_string"
         case anyToString = "kk_any_to_string"
+        case anyToStringThrowing = "__kk_any_to_string_throwing"
         case arrayGet = "kk_array_get"
         case arrayGetInbounds = "kk_array_get_inbounds"
         case arrayNew = "kk_array_new"
@@ -242,7 +243,7 @@ struct LoweringPassRegressionTests {
                 .call(callee: interner.intern("set"), arguments: [v0], result: v1, canThrow: false),
                 .call(callee: interner.intern("<lambda>"), arguments: [v0], result: v1, canThrow: false),
                 .call(callee: interner.intern("inlineTarget"), arguments: [], result: v1, canThrow: false),
-                .call(callee: interner.intern("suspendTarget"), arguments: [v0], result: v1, canThrow: false),
+                .call(callee: interner.intern("suspendTarget"), arguments: [], result: v1, canThrow: false),
                 .returnUnit,
             ],
             isSuspend: false,
@@ -312,7 +313,21 @@ struct LoweringPassRegressionTests {
         #expect(callees.contains(RuntimeCall.coroutineContinuationNew.name), "Callees: \(callees)")
         let loweredSuspend = try loweredSuspendFunction(originalNamed: "suspendTarget", in: fixture.module, interner: fixture.interner)
         let loweredSuspendName = fixture.interner.resolve(loweredSuspend.name)
-        #expect(callees.contains(loweredSuspendName), "Callees: \(callees)")
+        // A non-suspend caller enters the lowered function through the completion
+        // relay wrapper rather than calling it directly (#10964).
+        #expect(callees.contains(RuntimeCall.coroutineCallSuspendWrapper.name), "Callees: \(callees)")
+        #expect(!callees.contains("suspendTarget"), "Callees: \(callees)")
+        let wrapperCallee = fixture.interner.intern(RuntimeCall.coroutineCallSuspendWrapper.name)
+        #expect(loweredMain.body.contains { instruction in
+            guard case let .call(_, callee, arguments, _, _, _, _, _) = instruction,
+                  callee == wrapperCallee,
+                  let entryPoint = arguments.first,
+                  case let .symbolRef(symbol) = fixture.module.arena.expr(entryPoint)
+            else {
+                return false
+            }
+            return symbol == loweredSuspend.symbol
+        }, "Expected \(loweredSuspendName) as the wrapper entry point")
         let declaredCallees = Set(RuntimeABIExterns.allExterns.map(\.name))
             .union(RuntimeABISpec.compilerInternalNonThrowingCalleeNames)
             .union(RuntimeABISpec.compilerInternalBuiltinCalleeNames)
@@ -322,7 +337,7 @@ struct LoweringPassRegressionTests {
 
         let throwFlags = extractThrowFlags(from: loweredMain.body, interner: fixture.interner)
         #expect(throwFlags[RuntimeCall.coroutineContinuationNew.name]?.allSatisfy { $0 == false } == true)
-        #expect(throwFlags[loweredSuspendName]?.allSatisfy { $0 == true } == true)
+        #expect(throwFlags[RuntimeCall.coroutineCallSuspendWrapper.name]?.allSatisfy { $0 == true } == true)
     }
 
     @Test
@@ -613,11 +628,12 @@ struct LoweringPassRegressionTests {
             """,
             """
             package sample1
+            import kotlinx.coroutines.*
             suspend fun delayedValue_1(): Int {
                 delay(1)
                 return 42
             }
-            fun main_sample1(): Any? = runBlocking(delayedValue_1)
+            fun main_sample1(): Any? = runBlocking { delayedValue_1() }
             """,
             """
             package sample2
@@ -731,8 +747,9 @@ struct LoweringPassRegressionTests {
                 let suspendBody = try loweredSuspendFunction(originalNamed: "delayedValue_1", in: module, interner: ctx.interner).body
 
                 let mainCalls = extractCallees(from: mainBody, interner: ctx.interner)
-                #expect(mainCalls.contains(RuntimeCall.kxminiRunBlocking.name))
-                #expect(!mainCalls.contains("runBlocking"))
+                // Bundled runBlocking is Kotlin source (#8313); the launcher rewrite happens in its body.
+                #expect(mainCalls.contains { $0 == "runBlocking" || $0 == "runBlocking$default" }, "Callees: \(mainCalls)")
+                #expect(!mainCalls.contains(RuntimeCall.kxminiRunBlocking.name))
 
                 let delayCalls = extractCallees(from: suspendBody, interner: ctx.interner)
                 #expect(delayCalls.contains(RuntimeCall.kxminiDelay.name))

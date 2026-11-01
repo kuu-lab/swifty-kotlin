@@ -113,7 +113,9 @@ extension CallTypeChecker {
                 range: ast.arena.exprRange(args[sizeIndex].expr) ?? range,
                 solver: ConstraintSolver(),
                 sema: sema,
-                diagnostics: ctx.sema.diagnostics
+                diagnostics: ctx.sema.diagnostics,
+                diagnosticCode: "KSWIFTK-SEMA-0473",
+                failureMessage: "Argument type mismatch."
             )
             if args.count == 1 {
                 sema.bindings.markStdlibSpecialCallExpr(id, kind: .arrayConstructor)
@@ -415,7 +417,9 @@ extension CallTypeChecker {
                 range: ast.arena.exprRange(args[0].expr) ?? range,
                 solver: ConstraintSolver(),
                 sema: sema,
-                diagnostics: ctx.sema.diagnostics
+                diagnostics: ctx.sema.diagnostics,
+                diagnosticCode: "KSWIFTK-SEMA-0473",
+                failureMessage: "Argument type mismatch."
             )
             if args.count == 2 {
                 let initExpectedType = sema.types.make(.functionType(FunctionType(
@@ -489,7 +493,9 @@ extension CallTypeChecker {
                 range: ast.arena.exprRange(args[0].expr) ?? range,
                 solver: ConstraintSolver(),
                 sema: sema,
-                diagnostics: ctx.sema.diagnostics
+                diagnostics: ctx.sema.diagnostics,
+                diagnosticCode: "KSWIFTK-SEMA-0473",
+                failureMessage: "Argument type mismatch."
             )
             if args.count == 2 {
                 let initExpectedType = sema.types.make(.functionType(FunctionType(

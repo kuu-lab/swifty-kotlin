@@ -21,7 +21,7 @@ struct ForLoopVariableTypeAnnotationTests {
     ])
     func mismatchedLoopVariableTypeIsRejected(_ source: String) throws {
         let ctx = try semaContext(for: source)
-        assertHasDiagnostic("KSWIFTK-TYPE-0001", in: ctx)
+        assertHasDiagnostic("KSWIFTK-SEMA-0468", in: ctx)
     }
 
     @Test(arguments: [
@@ -33,7 +33,7 @@ struct ForLoopVariableTypeAnnotationTests {
     ])
     func matchingOrSupertypeLoopVariableTypeIsAccepted(_ source: String) throws {
         let ctx = try semaContext(for: source)
-        assertNoDiagnostic("KSWIFTK-TYPE-0001", in: ctx)
+        assertNoDiagnostic("KSWIFTK-SEMA-0468", in: ctx)
     }
 
     @Test

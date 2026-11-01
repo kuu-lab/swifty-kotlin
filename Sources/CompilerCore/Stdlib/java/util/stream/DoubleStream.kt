@@ -96,5 +96,50 @@ public class DoubleStream private constructor(private val values: Sequence<Doubl
             DoubleStream(streamSequence { values.iterator() })
 
         public fun empty(): DoubleStream = DoubleStream(streamSequence { doubleArrayOf().iterator() })
+
+        public fun iterate(seed: Double, next: DoubleUnaryOperator): DoubleStream =
+            DoubleStream(streamSequence {
+                object : Iterator<Double> {
+                    var current = seed
+
+                    override fun hasNext(): Boolean = true
+
+                    override fun next(): Double {
+                        val value = current
+                        current = next.applyAsDouble(value)
+                        return value
+                    }
+                }
+            })
+
+        public fun iterate(seed: Double, hasNext: DoublePredicate, next: DoubleUnaryOperator): DoubleStream =
+            DoubleStream(streamSequence {
+                object : Iterator<Double> {
+                    var current = seed
+                    var first = true
+                    var advanced = false
+                    var valid = false
+
+                    private fun advance() {
+                        if (advanced) return
+                        if (first) first = false
+                        else current = next.applyAsDouble(current)
+                        valid = hasNext.test(current)
+                        advanced = true
+                    }
+
+                    override fun hasNext(): Boolean {
+                        advance()
+                        return valid
+                    }
+
+                    override fun next(): Double {
+                        advance()
+                        if (!valid) throw NoSuchElementException()
+                        advanced = false
+                        return current
+                    }
+                }
+            })
     }
 }

@@ -215,7 +215,9 @@ extension LoweringABIAndPropertyRegressionTests {
             name: interner.intern("set"),
             params: [
                 KIRParameter(symbol: setterReceiverSym, type: types.anyType),
-                KIRParameter(symbol: setterValueSym, type: types.anyType),
+                // Typed like the Int literal it receives: since #11742 the ABI pass
+                // recovers this signature from KIR params and would box into `Any`.
+                KIRParameter(symbol: setterValueSym, type: types.intType),
             ],
             returnType: types.unitType,
             body: [.returnUnit],
@@ -231,8 +233,8 @@ extension LoweringABIAndPropertyRegressionTests {
         // accessor takes (receiver, value), not just the value.
         let callerReceiverSym = SymbolID(rawValue: 101)
         let callerSym = SymbolID(rawValue: 100)
-        let fromExpr = arena.appendExpr(.intLiteral(42), type: types.anyType)
-        let toExpr = arena.appendExpr(.symbolRef(backingFieldSym), type: types.anyType)
+        let fromExpr = arena.appendExpr(.intLiteral(42), type: types.intType)
+        let toExpr = arena.appendExpr(.symbolRef(backingFieldSym), type: types.intType)
 
         let callerFn = KIRFunction(
             symbol: callerSym,

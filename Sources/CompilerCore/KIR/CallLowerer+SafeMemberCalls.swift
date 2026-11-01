@@ -1206,7 +1206,8 @@ extension CallLowerer {
                 arena: arena,
                 interner: interner,
                 instructions: &instructions.instructions,
-                arguments: &finalArguments
+                arguments: &finalArguments,
+                callBinding: callBinding
             )
         } else if let chosen,
            let signature = sema.symbols.functionSignature(for: chosen),
@@ -1289,7 +1290,8 @@ extension CallLowerer {
                 instructions: &instructions.instructions,
                 arguments: &finalArguments,
                 valueArgOffsetOverride: dispatchReceiver == nil ? nil : 2,
-                callDispatchesVirtually: callDispatchesVirtually
+                callDispatchesVirtually: callDispatchesVirtually,
+                callBinding: callBinding
             )
         }
 

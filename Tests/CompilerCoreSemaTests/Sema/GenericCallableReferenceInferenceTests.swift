@@ -164,6 +164,8 @@ struct GenericCallableReferenceInferenceTests {
     func rejectsInvalidReference(source: String) throws {
         let ctx = makeContextFromSource(source)
         try runSema(ctx)
+        // Callable-reference specialization reports its own constraint
+        // failure rather than the initializer path's dedicated code.
         #expect(ctx.diagnostics.diagnostics.contains {
             $0.severity == .error && $0.code == "KSWIFTK-TYPE-0001"
         })

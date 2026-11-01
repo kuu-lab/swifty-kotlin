@@ -10,6 +10,9 @@ public open class InputStreamReader : Reader {
     @KsSymbolName("__kk_buffered_reader_read")
     public external fun read(): Int
 
+    @KsSymbolName("__kk_reader_read_range")
+    public external override fun read(buffer: CharArray, offset: Int, length: Int): Int
+
     @KsSymbolName("__kk_buffered_reader_ready")
     public external fun ready(): Boolean
 

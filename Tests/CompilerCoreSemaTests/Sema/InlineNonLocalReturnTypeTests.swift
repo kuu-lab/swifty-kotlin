@@ -481,7 +481,7 @@ struct InlineNonLocalReturnTypeTests {
         }
         """)
         try runSema(ctx)
-        assertHasDiagnostic("KSWIFTK-TYPE-0001", in: ctx)
+        assertHasDiagnostic("KSWIFTK-SEMA-0469", in: ctx)
     }
 
     @Test(arguments: [
@@ -628,7 +628,7 @@ struct InlineNonLocalReturnTypeTests {
         """)
 
         try runSema(ctx)
-        assertHasDiagnostic("KSWIFTK-TYPE-0001", in: ctx)
+        assertHasDiagnostic("KSWIFTK-SEMA-0469", in: ctx)
     }
 
     @Test func wrongLabeledPredicateReturnTypeIsRejected() throws {
@@ -639,7 +639,7 @@ struct InlineNonLocalReturnTypeTests {
         """)
 
         try runSema(ctx)
-        assertHasDiagnostic("KSWIFTK-TYPE-0001", in: ctx)
+        assertHasDiagnostic("KSWIFTK-SEMA-0469", in: ctx)
     }
 
     @Test func localNamedFunctionResetsTheEnclosingReturnType() throws {

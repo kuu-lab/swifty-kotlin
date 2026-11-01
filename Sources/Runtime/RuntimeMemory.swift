@@ -132,7 +132,7 @@ func runtimeJavaClassHandle(typeToken: Int, nameHint: @autoclosure () -> Int) ->
     )
 }
 
-private func runtimeJavaClassHandle(
+func runtimeJavaClassHandle(
     cacheKey: JavaClassCacheKey,
     typeToken: Int,
     nameHint: () -> Int,
@@ -248,7 +248,7 @@ public func __kk_any_javaClass(_ receiverRaw: Int) -> Int {
     )
 }
 
-private func runtimeKotlinClassName(forJavaClassName name: String) -> String {
+func runtimeKotlinClassName(forJavaClassName name: String) -> String {
     switch name {
     case "java.lang.Object": return "kotlin.Any"
     case "java.lang.String": return "kotlin.String"

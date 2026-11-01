@@ -34,7 +34,8 @@ extension OverloadResolver {
             explicitTypeArgs: call.explicitTypeArgs.map { javaCollectionsFlexibleArgument($0, types: ctx.types) },
             dispatchReceiverTypes: call.dispatchReceiverTypes,
             elvisLhsExpectedTypeHint: call.elvisLhsExpectedTypeHint,
-            elvisRhsCallResultTypeHint: call.elvisRhsCallResultTypeHint
+            elvisRhsCallResultTypeHint: call.elvisRhsCallResultTypeHint,
+            isOperatorCall: call.isOperatorCall
         )
     }
 

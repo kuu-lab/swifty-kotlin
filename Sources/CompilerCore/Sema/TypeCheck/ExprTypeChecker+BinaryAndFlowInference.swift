@@ -66,7 +66,9 @@ extension ExprTypeChecker {
                 range: ast.arena.exprRange(lhsID) ?? range,
                 solver: ConstraintSolver(),
                 sema: sema,
-                diagnostics: ctx.sema.diagnostics
+                diagnostics: ctx.sema.diagnostics,
+                diagnosticCode: "KSWIFTK-SEMA-0467",
+                failureMessage: "Condition type mismatch: expected Boolean."
             )
             let lhsBranch = ctx.dataFlow.branchOnCondition(
                 lhsID,
@@ -92,7 +94,9 @@ extension ExprTypeChecker {
                 range: ast.arena.exprRange(rhsID) ?? range,
                 solver: ConstraintSolver(),
                 sema: sema,
-                diagnostics: ctx.sema.diagnostics
+                diagnostics: ctx.sema.diagnostics,
+                diagnosticCode: "KSWIFTK-SEMA-0467",
+                failureMessage: "Condition type mismatch: expected Boolean."
             )
             if isStatementContext, !ctx.isConditionallyEvaluated, rhs == sema.types.nothingType {
                 let completingState = op == .logicalAnd ? lhsBranch.falseState : lhsBranch.trueState
@@ -362,7 +366,22 @@ extension ExprTypeChecker {
                 let lhsName = sema.types.displayName(of: lhsType, symbols: sema.symbols, interner: interner)
                 let rhsName = sema.types.displayName(of: rhsType, symbols: sema.symbols, interner: interner)
                 ctx.sema.diagnostics.error(
-                    "KSWIFTK-SEMA-0002",
+                    "KSWIFTK-SEMA-0472",
+                    "Identity equality for arguments of types '\(lhsName)' and '\(rhsName)' is prohibited.",
+                    range: range
+                )
+                sema.bindings.bindExprType(id, type: sema.types.errorType)
+                return sema.types.errorType
+            }
+            // kotlinc also forbids `===`/`!==` when a non-null primitive
+            // operand meets an incompatible non-primitive (`Int === "s"`) —
+            // the same FORBIDDEN_IDENTITY_EQUALS name covers it. Class-vs-class
+            // operands stay on the EQUALITY_NOT_APPLICABLE path below.
+            if identityEqualityHasForbiddenPrimitiveOperand(lhsType, rhsType, sema: sema) {
+                let lhsName = sema.types.displayName(of: lhsType, symbols: sema.symbols, interner: interner)
+                let rhsName = sema.types.displayName(of: rhsType, symbols: sema.symbols, interner: interner)
+                ctx.sema.diagnostics.error(
+                    "KSWIFTK-SEMA-0472",
                     "Identity equality for arguments of types '\(lhsName)' and '\(rhsName)' is prohibited.",
                     range: range
                 )
@@ -371,7 +390,7 @@ extension ExprTypeChecker {
             }
             if identityEqualityHasDistinctSingletonTypes(lhsType, rhsType, sema: sema) {
                 ctx.sema.diagnostics.error(
-                    "KSWIFTK-SEMA-0002",
+                    "KSWIFTK-SEMA-0471",
                     "Operator '\(op == .identityEqual ? "===" : "!==")' cannot be applied to unrelated singleton types.",
                     range: range
                 )
@@ -380,8 +399,20 @@ extension ExprTypeChecker {
             }
             if identityEqualityHasDistinctAnonymousObjectTypes(lhsType, rhsType, sema: sema) {
                 ctx.sema.diagnostics.error(
-                    "KSWIFTK-SEMA-0002",
+                    "KSWIFTK-SEMA-0471",
                     "Operator '\(op == .identityEqual ? "===" : "!==")' cannot be applied to unrelated anonymous object types.",
+                    range: range
+                )
+                sema.bindings.bindExprType(id, type: sema.types.errorType)
+                return sema.types.errorType
+            }
+            // Remaining incompatible operands involving a String or primitive
+            // (e.g. `String === SomeClass`) are EQUALITY_NOT_APPLICABLE —
+            // kotlinc's name for `===`/`!==` without a primitive operand.
+            if equalityHasIncompatibleBuiltinTypes(lhsType, rhsType, sema: sema) {
+                ctx.sema.diagnostics.error(
+                    "KSWIFTK-SEMA-0471",
+                    "Operator '\(op == .identityEqual ? "===" : "!==")' cannot be applied to unrelated types.",
                     range: range
                 )
                 sema.bindings.bindExprType(id, type: sema.types.errorType)
@@ -398,7 +429,7 @@ extension ExprTypeChecker {
            )
         {
             ctx.sema.diagnostics.error(
-                "KSWIFTK-SEMA-0002",
+                "KSWIFTK-SEMA-0471",
                 "Operator '\(op == .equal ? "==" : "!=")' cannot be applied to unrelated types.",
                 range: range
             )
@@ -449,7 +480,8 @@ extension ExprTypeChecker {
                 type: operatorArgumentType,
                 signedIntegerLiteral: rhsIntegerLiteral.signed,
                 unsignedIntegerLiteral: rhsIntegerLiteral.unsigned
-            )]
+            )],
+            isOperatorCall: true
         )
         var collectedOperatorCandidates: [SymbolID] = if shouldUseInheritedEqualityDispatch {
             collectOperatorCandidates(
@@ -1060,13 +1092,17 @@ extension ExprTypeChecker {
                 left: lhs, right: boolType,
                 range: ast.arena.exprRange(lhsID) ?? range,
                 solver: ConstraintSolver(), sema: sema,
-                diagnostics: ctx.sema.diagnostics
+                diagnostics: ctx.sema.diagnostics,
+                diagnosticCode: "KSWIFTK-SEMA-0467",
+                failureMessage: "Condition type mismatch: expected Boolean."
             )
             driver.emitSubtypeConstraint(
                 left: rhs, right: boolType,
                 range: ast.arena.exprRange(rhsID) ?? range,
                 solver: ConstraintSolver(), sema: sema,
-                diagnostics: ctx.sema.diagnostics
+                diagnostics: ctx.sema.diagnostics,
+                diagnosticCode: "KSWIFTK-SEMA-0467",
+                failureMessage: "Condition type mismatch: expected Boolean."
             )
             type = boolType
         case .elvis:
@@ -1127,6 +1163,22 @@ extension ExprTypeChecker {
             {
                 type = uintType
                 sema.bindings.markUIntRangeExpr(id)
+            } else if op == .downTo,
+                      let intProgressionType = nominalRangeType(
+                          named: "IntProgression",
+                          sema: sema,
+                          interner: interner
+                      )
+            {
+                // `downTo` materializes an IntProgression, not an IntRange —
+                // keep the nominal distinction so member calls bind the class
+                // the runtime object actually instantiates (the same reason
+                // `step` below keeps IntProgression, KUU-576). Binding the
+                // scalar Int marker would resolve `first`/`last`/`isEmpty`/
+                // `contains` against IntRange and emit a call whose receiver
+                // type can never hold the materialized progression (a JVM
+                // VerifyError / ClassCastException).
+                type = intProgressionType
             } else {
                 type = intType
             }
@@ -1466,6 +1518,22 @@ extension ExprTypeChecker {
               case let .primitive(right, .nonNull) = sema.types.kind(of: rhs)
         else { return false }
         return left != right
+    }
+
+    /// kotlinc's FORBIDDEN_IDENTITY_EQUALS also fires when a primitive operand
+    /// (nullability ignored — `Int? === "s"` is still forbidden) is compared
+    /// against a type it can never be identical to, whether that other type is
+    /// another primitive or a class type (`Int === String`, `SomeClass === Int`).
+    private func identityEqualityHasForbiddenPrimitiveOperand(_ lhs: TypeID, _ rhs: TypeID, sema: SemaModule) -> Bool {
+        func isPrimitiveOperand(_ type: TypeID) -> Bool {
+            guard case .primitive = sema.types.kind(of: sema.types.makeNonNullable(type)) else { return false }
+            return true
+        }
+        guard isPrimitiveOperand(lhs) || isPrimitiveOperand(rhs) else { return false }
+        let nonNullLhs = sema.types.makeNonNullable(lhs)
+        let nonNullRhs = sema.types.makeNonNullable(rhs)
+        return !sema.types.isSubtype(nonNullLhs, nonNullRhs)
+            && !sema.types.isSubtype(nonNullRhs, nonNullLhs)
     }
 
     private func identityEqualityHasDistinctSingletonTypes(_ lhs: TypeID, _ rhs: TypeID, sema: SemaModule) -> Bool {

@@ -30,7 +30,7 @@ struct ValueClassIdentityEqualityTests {
 
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
         #expect(errors.count == 11, "Expected one error per prohibited comparison: \(errors)")
-        #expect(errors.allSatisfy { $0.code == "KSWIFTK-SEMA-0002" })
+        #expect(errors.allSatisfy { $0.code == "KSWIFTK-SEMA-0472" })
         #expect(errors.allSatisfy { $0.message.hasPrefix("Identity equality for arguments of types '") })
         #expect(errors.contains { $0.message == "Identity equality for arguments of types 'Meters?' and 'Meters?' is prohibited." })
         #expect(errors.contains { $0.message == "Identity equality for arguments of types 'Any' and 'Meters' is prohibited." })
