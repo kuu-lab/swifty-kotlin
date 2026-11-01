@@ -10,6 +10,7 @@ package kotlin.reflect.full
 import kotlin.internal.KsSymbolName
 import kotlin.reflect.KClass
 import kotlin.reflect.KFunction
+import kotlin.reflect.KProperty2
 import kotlin.reflect.KType
 import kotlin.reflect.isInstance
 import kotlin.reflect.qualifiedName
@@ -74,3 +75,36 @@ public fun KClass<*>.isSubclassOf(base: KClass<*>): Boolean {
 
 public fun KClass<*>.isSuperclassOf(derived: KClass<*>): Boolean =
     derived.isSubclassOf(this)
+
+// KUU-4064: member-extension accessors. The JVM keeps `val String.x` /
+// `fun String.f()` declared inside a class out of `member*`/`declaredMember*`
+// and surfaces them only through these `memberExtension*` queries.
+@KsSymbolName("__kk_kclass_member_extension_properties")
+private external fun __kk_kclass_member_extension_properties(kclass: KClass<*>): List<KProperty2<*, *, *>>
+
+@KsSymbolName("__kk_kclass_declared_member_extension_properties")
+private external fun __kk_kclass_declared_member_extension_properties(kclass: KClass<*>): List<KProperty2<*, *, *>>
+
+@KsSymbolName("__kk_kclass_member_extension_functions")
+private external fun __kk_kclass_member_extension_functions(kclass: KClass<*>): List<KFunction<*>>
+
+@KsSymbolName("__kk_kclass_declared_member_extension_functions")
+private external fun __kk_kclass_declared_member_extension_functions(kclass: KClass<*>): List<KFunction<*>>
+
+@SinceKotlin("1.1")
+public val <T : Any> KClass<T>.memberExtensionProperties: Collection<KProperty2<T, *, *>>
+    @Suppress("UNCHECKED_CAST")
+    get() = __kk_kclass_member_extension_properties(this) as Collection<KProperty2<T, *, *>>
+
+@SinceKotlin("1.1")
+public val <T : Any> KClass<T>.declaredMemberExtensionProperties: Collection<KProperty2<T, *, *>>
+    @Suppress("UNCHECKED_CAST")
+    get() = __kk_kclass_declared_member_extension_properties(this) as Collection<KProperty2<T, *, *>>
+
+@SinceKotlin("1.1")
+public val <T : Any> KClass<T>.memberExtensionFunctions: Collection<KFunction<*>>
+    get() = __kk_kclass_member_extension_functions(this)
+
+@SinceKotlin("1.1")
+public val <T : Any> KClass<T>.declaredMemberExtensionFunctions: Collection<KFunction<*>>
+    get() = __kk_kclass_declared_member_extension_functions(this)

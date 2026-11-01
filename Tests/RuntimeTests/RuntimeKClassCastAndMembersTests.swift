@@ -477,6 +477,71 @@ struct RuntimeKClassCastAndMembersTests {
         #expect(try runtimeListElements(from: __kk_kclass_declared_member_properties(kclass)) == [prop])
     }
 
+    // KUU-4064: member extensions (`val String.x` / `fun String.f()` declared
+    // inside a class) register via `__kk_kclass_register_member_extension`.
+    // The JVM keeps them out of `member*`/`declaredMember*` (they surface only
+    // through `memberExtension*`/`declaredMemberExtension*`) while `members`
+    // still lists every registered member.
+    @Test func memberExtensionsAreExcludedFromOrdinaryMemberAccessors() throws {
+        let kclass = registerKClass(typeToken: 1012, qualifiedName: "pkg.WithExt", simpleName: "WithExt")
+        let fn = __kk_kfunction_create(makeRuntimeString("normalFn"), 0, makeRuntimeString("kotlin.Int"), 0, 0, 0)
+        let prop = kk_kproperty_stub_create(makeRuntimeString("normal"), makeRuntimeString("kotlin.Int"))
+        let extFn = __kk_kfunction_create(makeRuntimeString("extFn"), 1, makeRuntimeString("kotlin.Int"), 0, 0, 0)
+        let extProp = kk_kproperty_stub_create(makeRuntimeString("ext"), makeRuntimeString("kotlin.Int"))
+
+        _ = __kk_kclass_register_member(kclass, fn)
+        _ = __kk_kclass_register_member(kclass, prop)
+        _ = __kk_kclass_register_member_extension(kclass, extFn)
+        _ = __kk_kclass_register_member_extension(kclass, extProp)
+
+        #expect(try runtimeListElements(from: __kk_kclass_members(kclass)) == [fn, prop, extFn, extProp])
+        #expect(try runtimeListElements(from: __kk_kclass_functions(kclass)) == [fn])
+        #expect(try runtimeListElements(from: __kk_kclass_member_functions(kclass)) == [fn])
+        #expect(try runtimeListElements(from: __kk_kclass_declared_member_functions(kclass)) == [fn])
+        #expect(try runtimeListElements(from: __kk_kclass_properties(kclass)) == [prop])
+        #expect(try runtimeListElements(from: __kk_kclass_member_properties(kclass)) == [prop])
+        #expect(try runtimeListElements(from: __kk_kclass_declared_member_properties(kclass)) == [prop])
+        #expect(try runtimeListElements(from: __kk_kclass_member_extension_functions(kclass)) == [extFn])
+        #expect(try runtimeListElements(from: __kk_kclass_declared_member_extension_functions(kclass)) == [extFn])
+        #expect(try runtimeListElements(from: __kk_kclass_member_extension_properties(kclass)) == [extProp])
+        #expect(try runtimeListElements(from: __kk_kclass_declared_member_extension_properties(kclass)) == [extProp])
+    }
+
+    /// Inherited member extensions merge like ordinary members: visible
+    /// through `memberExtension*` on the subclass, still absent from `member*`.
+    @Test func memberExtensionAccessorsIncludeInheritedExtensions() throws {
+        let parentID = runtimeStableNominalTypeID(fqName: "pkg.ExtParent")
+        let childID = runtimeStableNominalTypeID(fqName: "pkg.ExtChild")
+        let parentToken = Int(
+            (parentID << RuntimeTypeTokenEncoding.payloadShift) | RuntimeTypeTokenEncoding.nominalBase
+        )
+        let childToken = Int(
+            (childID << RuntimeTypeTokenEncoding.payloadShift) | RuntimeTypeTokenEncoding.nominalBase
+        )
+        let parent = registerKClass(typeToken: parentToken, qualifiedName: "pkg.ExtParent", simpleName: "ExtParent")
+        let child = registerKClass(typeToken: childToken, qualifiedName: "pkg.ExtChild", simpleName: "ExtChild")
+        _ = kk_type_register_super(Int(childID), Int(parentID))
+
+        let parentExtProp = kk_kproperty_stub_create(makeRuntimeString("baseExt"), makeRuntimeString("kotlin.Int"))
+        let parentExtFn = __kk_kfunction_create(makeRuntimeString("baseExtFn"), 1, 0, 0, 1, 0)
+        _ = __kk_kclass_register_member_extension(parent, parentExtProp)
+        _ = __kk_kclass_register_member_extension(parent, parentExtFn)
+        let ownExtProp = kk_kproperty_stub_create(makeRuntimeString("ownExt"), makeRuntimeString("kotlin.String"))
+        let ownExtFn = __kk_kfunction_create(makeRuntimeString("ownExtFn"), 1, 0, 0, 1, 0)
+        _ = __kk_kclass_register_member_extension(child, ownExtProp)
+        _ = __kk_kclass_register_member_extension(child, ownExtFn)
+        let ownProp = kk_kproperty_stub_create(makeRuntimeString("ownProp"), makeRuntimeString("kotlin.String"))
+        _ = __kk_kclass_register_member(child, ownProp)
+
+        #expect(try runtimeListElements(from: __kk_kclass_member_extension_properties(child)) == [ownExtProp, parentExtProp])
+        #expect(try runtimeListElements(from: __kk_kclass_member_extension_functions(child)) == [ownExtFn, parentExtFn])
+        #expect(try runtimeListElements(from: __kk_kclass_declared_member_extension_properties(child)) == [ownExtProp])
+        #expect(try runtimeListElements(from: __kk_kclass_declared_member_extension_functions(child)) == [ownExtFn])
+        #expect(try runtimeListElements(from: __kk_kclass_member_properties(child)) == [ownProp])
+        #expect(try runtimeListElements(from: __kk_kclass_member_functions(child)).isEmpty)
+        #expect(try runtimeListElements(from: __kk_kclass_members(child)) == [ownExtProp, ownExtFn, ownProp, parentExtProp, parentExtFn])
+    }
+
     @Test func registerMemberIgnoresInvalidHandles() throws {
         let kclass = registerKClass(typeToken: 1005, qualifiedName: "pkg.E", simpleName: "E")
         // Invalid handles should be ignored.

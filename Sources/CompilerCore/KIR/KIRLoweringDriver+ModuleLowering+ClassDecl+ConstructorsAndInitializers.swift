@@ -1503,6 +1503,17 @@ extension KIRLoweringDriver {
                 interner: interner
             )
             guard !childSym.flags.contains(.synthetic) || isDataClassComponent else { continue }
+            // KUU-4064: member extensions (`val String.x` / `fun String.f()`
+            // declared inside a class) register into the same member list so
+            // `members` keeps listing them, but are flagged so the JVM-shaped
+            // `member*`/`declaredMember*` queries exclude them and only the
+            // `memberExtension*`/`declaredMemberExtension*` accessors surface
+            // them.
+            let memberRegisterCallee = interner.intern(
+                childSym.flags.contains(.memberExtension)
+                    ? "__kk_kclass_register_member_extension"
+                    : "__kk_kclass_register_member"
+            )
             switch childSym.kind {
             case .function:
                 guard let signature = sema.symbols.functionSignature(for: childID) else { continue }
@@ -1543,7 +1554,7 @@ extension KIRLoweringDriver {
                 ))
                 let fnRegisterResult = arena.appendTemporary(type: intType)
                 body.append(.call(
-                    callee: interner.intern("__kk_kclass_register_member"),
+                    callee: memberRegisterCallee,
                     arguments: [kclassExpr, kfunctionResult],
                     result: fnRegisterResult,
                     canThrow: false
@@ -1625,7 +1636,7 @@ extension KIRLoweringDriver {
                 ))
                 let propRegisterResult = arena.appendTemporary(type: intType)
                 body.append(.call(
-                    callee: interner.intern("__kk_kclass_register_member"),
+                    callee: memberRegisterCallee,
                     arguments: [kclassExpr, kpropResult],
                     result: propRegisterResult,
                     canThrow: false
