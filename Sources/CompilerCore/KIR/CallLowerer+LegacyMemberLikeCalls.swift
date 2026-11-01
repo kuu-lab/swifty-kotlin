@@ -811,6 +811,7 @@ extension CallLowerer {
                 sema: sema,
                 arena: arena,
                 interner: interner,
+                chosenCallee: callBinding?.chosenCallee,
                 loweredReceiverID: loweredReceiverID,
                 normalizedArgIDs: normalizedArgIDs,
                 parameterMapping: callBinding?.parameterMapping ?? [:],

@@ -1,0 +1,84 @@
+symbol fq=M.$iface0.T[kind=tparam;origin=fixture] kind=typeParameter vis=private flags=_
+symbol fq=M.asO[kind=fun;recv=M<T0>;params=;ret=O<T0>;gen=1;classGen=1;origin=fixture] kind=function vis=public flags=abstractType sig=recv=M<M.$iface0.T> params=[] ret=O<M.$iface0.T>
+symbol fq=M[kind=iface;gen=1;variance=[i];origin=fixture] kind=interface vis=public flags=_
+symbol fq=O[kind=iface;gen=1;variance=[i];origin=fixture] kind=interface vis=public flags=_
+symbol fq=__local_0.xs[kind=local;type=kotlin.collections.List<O<T0>>;origin=fixture] kind=local vis=private flags=_ type=kotlin.collections.List<O<localReceiver.$0.A>>
+symbol fq=__local_1.direct[kind=local;type=O<T1>?;origin=fixture] kind=local vis=private flags=_ type=O<localReceiver.$0.B>?
+symbol fq=__local_2.trailing[kind=local;type=O<Int>?;origin=fixture] kind=local vis=private flags=_ type=O<Int>?
+symbol fq=__local_3.pairs[kind=local;type=kotlin.collections.List<kotlin.Pair<Int,String>>;origin=fixture] kind=local vis=private flags=_ type=kotlin.collections.List<kotlin.Pair<Int, String>>
+symbol fq=__local_4.transformed[kind=local;type=kotlin.collections.List<String>;origin=fixture] kind=local vis=private flags=_ type=kotlin.collections.List<String>
+symbol fq=callableRef.$1.R[kind=tparam;origin=fixture] kind=typeParameter vis=private flags=_
+symbol fq=callableRef.$1.T[kind=tparam;origin=fixture] kind=typeParameter vis=private flags=_
+symbol fq=callableRef.$1.m[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=callableRef[kind=fun;recv=kotlin.collections.Iterable<M<T0>>;params=fn{p=kotlin.collections.List<T0>;ret=T1};ret=O<T1>?;gen=2;names=[m];origin=fixture] kind=function vis=public flags=_ sig=recv=kotlin.collections.Iterable<M<callableRef.$1.T>> params=[(kotlin.collections.List<callableRef.$1.T>) -> callableRef.$1.R] ret=O<callableRef.$1.R>?
+symbol fq=lambdaChain.$2.R[kind=tparam;origin=fixture] kind=typeParameter vis=private flags=_
+symbol fq=lambdaChain.$2.T[kind=tparam;origin=fixture] kind=typeParameter vis=private flags=_
+symbol fq=lambdaChain.$2.m[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=lambdaChain[kind=fun;recv=kotlin.collections.Iterable<M<T0>>;params=fn{p=kotlin.collections.List<T0>;ret=T1};ret=O<T1>?;gen=2;names=[m];origin=fixture] kind=function vis=public flags=_ sig=recv=kotlin.collections.Iterable<M<lambdaChain.$2.T>> params=[(kotlin.collections.List<lambdaChain.$2.T>) -> lambdaChain.$2.R] ret=O<lambdaChain.$2.R>?
+symbol fq=localReceiver.$0.A[kind=tparam;origin=fixture] kind=typeParameter vis=private flags=_
+symbol fq=localReceiver.$0.B[kind=tparam;origin=fixture] kind=typeParameter vis=private flags=_
+symbol fq=localReceiver.$0.m[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=localReceiver[kind=fun;recv=kotlin.collections.Iterable<O<T0>>;params=fn{p=kotlin.collections.List<T0>;ret=T1};ret=O<T1>?;gen=2;names=[m];origin=fixture] kind=function vis=public flags=_ sig=recv=kotlin.collections.Iterable<O<localReceiver.$0.A>> params=[(kotlin.collections.List<localReceiver.$0.A>) -> localReceiver.$0.B] ret=O<localReceiver.$0.B>?
+symbol fq=stdlibZipStillApplies[kind=fun;params=;ret=Unit;origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
+symbol fq=zip.$3.R[kind=tparam;origin=fixture] kind=typeParameter vis=private flags=_
+symbol fq=zip.$3.T[kind=tparam;origin=fixture] kind=typeParameter vis=private flags=_
+symbol fq=zip.$3.m[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=zip[kind=fun;recv=kotlin.collections.Iterable<O<T0>>;params=fn{p=kotlin.collections.List<T0>;ret=T1};ret=O<T1>?;gen=2;names=[m];origin=fixture] kind=function vis=public flags=_ sig=recv=kotlin.collections.Iterable<O<zip.$3.T>> params=[(kotlin.collections.List<zip.$3.T>) -> zip.$3.R] ret=O<zip.$3.R>?
+file fuser_generic_zip_extension_shadows_stdlib package=_
+  decl O[kind=iface;gen=1;variance=[i];origin=fixture] interface O sym=O[kind=iface;gen=1;variance=[i];origin=fixture]
+  decl M[kind=iface;gen=1;variance=[i];origin=fixture] interface M sym=M[kind=iface;gen=1;variance=[i];origin=fixture]
+  decl zip[kind=fun;recv=kotlin.collections.Iterable<O<T0>>;params=fn{p=kotlin.collections.List<T0>;ret=T1};ret=O<T1>?;gen=2;names=[m];origin=fixture] fun zip sym=zip[kind=fun;recv=kotlin.collections.Iterable<O<T0>>;params=fn{p=kotlin.collections.List<T0>;ret=T1};ret=O<T1>?;gen=2;names=[m];origin=fixture]
+  decl callableRef[kind=fun;recv=kotlin.collections.Iterable<M<T0>>;params=fn{p=kotlin.collections.List<T0>;ret=T1};ret=O<T1>?;gen=2;names=[m];origin=fixture] fun callableRef sym=callableRef[kind=fun;recv=kotlin.collections.Iterable<M<T0>>;params=fn{p=kotlin.collections.List<T0>;ret=T1};ret=O<T1>?;gen=2;names=[m];origin=fixture]
+  decl lambdaChain[kind=fun;recv=kotlin.collections.Iterable<M<T0>>;params=fn{p=kotlin.collections.List<T0>;ret=T1};ret=O<T1>?;gen=2;names=[m];origin=fixture] fun lambdaChain sym=lambdaChain[kind=fun;recv=kotlin.collections.Iterable<M<T0>>;params=fn{p=kotlin.collections.List<T0>;ret=T1};ret=O<T1>?;gen=2;names=[m];origin=fixture]
+  decl localReceiver[kind=fun;recv=kotlin.collections.Iterable<O<T0>>;params=fn{p=kotlin.collections.List<T0>;ret=T1};ret=O<T1>?;gen=2;names=[m];origin=fixture] fun localReceiver sym=localReceiver[kind=fun;recv=kotlin.collections.Iterable<O<T0>>;params=fn{p=kotlin.collections.List<T0>;ret=T1};ret=O<T1>?;gen=2;names=[m];origin=fixture]
+  decl stdlibZipStillApplies[kind=fun;params=;ret=Unit;origin=fixture] fun stdlibZipStillApplies sym=stdlibZipStillApplies[kind=fun;params=;ret=Unit;origin=fixture]
+expr e@4:59 name(null) type=Nothing?
+expr e@7:9 name(M) type=M<callableRef.$1.T> ref=M[kind=iface;gen=1;variance=[i];origin=fixture]
+expr e@7:9#1 callableRef recv=e@7:9 member=asO type=(M<callableRef.$1.T>) -> O<callableRef.$1.T> ref=M.asO[kind=fun;recv=M<T0>;params=;ret=O<T0>;gen=1;classGen=1;origin=fixture]
+expr e@7:5 call callee=e@7:5#1 args=[_:e@7:9#1] type=kotlin.collections.List<O<callableRef.$1.T>> call=kotlin.collections.map[kind=fun;recv=kotlin.collections.Iterable<T0>;params=fn{p=T0;ret=T1};ret=kotlin.collections.List<T1>;gen=2;names=[transform]] targs=[M<callableRef.$1.T>,O<callableRef.$1.T>]
+expr e@7:24 name(m) type=(kotlin.collections.List<callableRef.$1.T>) -> callableRef.$1.R ref=callableRef.$1.m[kind=vparam;origin=fixture]
+expr e@7:5#2 memberCall recv=e@7:5 callee=zip args=[_:e@7:24] type=O<callableRef.$1.R>? call=zip[kind=fun;recv=kotlin.collections.Iterable<O<T0>>;params=fn{p=kotlin.collections.List<T0>;ret=T1};ret=O<T1>?;gen=2;names=[m];origin=fixture] targs=[callableRef.$1.T,callableRef.$1.R]
+expr e@10:11 name(it) type=M<lambdaChain.$2.T> ref=s-0
+expr e@10:11#1 memberCall recv=e@10:11 callee=asO args=[] type=O<lambdaChain.$2.T> call=M.asO[kind=fun;recv=M<T0>;params=;ret=O<T0>;gen=1;classGen=1;origin=fixture] targs=[lambdaChain.$2.T]
+expr e@10:9 lambda params=[] body=e@10:11#1 label=map type=(M<lambdaChain.$2.T>) -> O<lambdaChain.$2.T>
+expr e@10:5 call callee=e@10:5#1 args=[_:e@10:9] type=kotlin.collections.List<O<lambdaChain.$2.T>> call=kotlin.collections.map[kind=fun;recv=kotlin.collections.Iterable<T0>;params=fn{p=T0;ret=T1};ret=kotlin.collections.List<T1>;gen=2;names=[transform]] targs=[M<lambdaChain.$2.T>,O<lambdaChain.$2.T>]
+expr e@10:26 name(m) type=(kotlin.collections.List<lambdaChain.$2.T>) -> lambdaChain.$2.R ref=lambdaChain.$2.m[kind=vparam;origin=fixture]
+expr e@10:5#2 memberCall recv=e@10:5 callee=zip args=[_:e@10:26] type=O<lambdaChain.$2.R>? call=zip[kind=fun;recv=kotlin.collections.Iterable<O<T0>>;params=fn{p=kotlin.collections.List<T0>;ret=T1};ret=O<T1>?;gen=2;names=[m];origin=fixture] targs=[lambdaChain.$2.T,lambdaChain.$2.R]
+expr e@13:26 call callee=e@13:26#1 args=[] type=kotlin.collections.List<O<localReceiver.$0.A>> call=kotlin.collections.listOf[kind=fun;params=;ret=kotlin.collections.List<T0>;gen=1] targs=[O<localReceiver.$0.A>]
+expr e@13:5 localDecl xs mutable=0 type=List<O<A>> init=e@13:26 type=Unit ref=__local_0.xs[kind=local;type=kotlin.collections.List<O<T0>>;origin=fixture]
+expr e@14:25 name(xs) type=kotlin.collections.List<O<localReceiver.$0.A>> ref=__local_0.xs[kind=local;type=kotlin.collections.List<O<T0>>;origin=fixture]
+expr e@14:32 name(m) type=(kotlin.collections.List<localReceiver.$0.A>) -> localReceiver.$0.B ref=localReceiver.$0.m[kind=vparam;origin=fixture]
+expr e@14:25#1 memberCall recv=e@14:25 callee=zip args=[_:e@14:32] type=O<localReceiver.$0.B>? call=zip[kind=fun;recv=kotlin.collections.Iterable<O<T0>>;params=fn{p=kotlin.collections.List<T0>;ret=T1};ret=O<T1>?;gen=2;names=[m];origin=fixture] targs=[localReceiver.$0.A,localReceiver.$0.B]
+expr e@14:5 localDecl direct mutable=0 type=O<B>? init=e@14:25#1 type=Unit ref=__local_1.direct[kind=local;type=O<T1>?;origin=fixture]
+expr e@15:29 name(xs) type=kotlin.collections.List<O<localReceiver.$0.A>> ref=__local_0.xs[kind=local;type=kotlin.collections.List<O<T0>>;origin=fixture]
+expr e@15:46 name(list) type=kotlin.collections.List<localReceiver.$0.A> ref=s-1
+expr e@15:46#1 memberCall recv=e@15:46 callee=size args=[] type=Int ref=kotlin.collections.List.size[kind=prop;type=Int]
+expr e@15:36 lambda params=[list] body=e@15:46#1 label=zip type=(kotlin.collections.List<localReceiver.$0.A>) -> Int
+expr e@15:29#1 memberCall recv=e@15:29 callee=zip args=[_:e@15:36] type=O<Int>? call=zip[kind=fun;recv=kotlin.collections.Iterable<O<T0>>;params=fn{p=kotlin.collections.List<T0>;ret=T1};ret=O<T1>?;gen=2;names=[m];origin=fixture] targs=[localReceiver.$0.A,Int]
+expr e@15:5 localDecl trailing mutable=0 type=O<Int>? init=e@15:29#1 type=Unit ref=__local_2.trailing[kind=local;type=O<Int>?;origin=fixture]
+expr e@16:12 name(direct) type=O<localReceiver.$0.B>? ref=__local_1.direct[kind=local;type=O<T1>?;origin=fixture]
+expr e@16:5 return value=e@16:12 type=Nothing
+expr e@20:24 int(1) type=Int
+expr e@20:27 int(2) type=Int
+expr e@20:17 call callee=e@20:17#1 args=[_:e@20:24,_:e@20:27] type=kotlin.collections.List<Int> call=kotlin.collections.listOf[kind=fun;params=*T0;ret=kotlin.collections.List<T0>;gen=1;vararg=[1];names=[elements]] targs=[Int]
+expr e@20:41 string(a) type=String
+expr e@20:46 string(b) type=String
+expr e@20:34 call callee=e@20:34#1 args=[_:e@20:41,_:e@20:46] type=kotlin.collections.List<String> call=kotlin.collections.listOf[kind=fun;params=*T0;ret=kotlin.collections.List<T0>;gen=1;vararg=[1];names=[elements]] targs=[String]
+expr e@20:17#2 memberCall recv=e@20:17 callee=zip args=[_:e@20:34] type=kotlin.collections.List<kotlin.Pair<Int, String>> call=kotlin.collections.zip[kind=fun;recv=kotlin.collections.Iterable<T0>;params=kotlin.collections.Iterable<T1>;ret=kotlin.collections.List<kotlin.Pair<T0,T1>>;gen=2;names=[other]] targs=[Int,String]
+expr e@20:5 localDecl pairs mutable=0 type=_ init=e@20:17#2 type=Unit ref=__local_3.pairs[kind=local;type=kotlin.collections.List<kotlin.Pair<Int,String>>;origin=fixture]
+expr e@21:30 int(1) type=Int
+expr e@21:33 int(2) type=Int
+expr e@21:23 call callee=e@21:23#1 args=[_:e@21:30,_:e@21:33] type=kotlin.collections.List<Int> call=kotlin.collections.listOf[kind=fun;params=*T0;ret=kotlin.collections.List<T0>;gen=1;vararg=[1];names=[elements]] targs=[Int]
+expr e@21:47 string(a) type=String
+expr e@21:52 string(b) type=String
+expr e@21:40 call callee=e@21:40#1 args=[_:e@21:47,_:e@21:52] type=kotlin.collections.List<String> call=kotlin.collections.listOf[kind=fun;params=*T0;ret=kotlin.collections.List<T0>;gen=1;vararg=[1];names=[elements]] targs=[String]
+expr e@21:77 name(left) type=Int ref=s-2
+expr e@21:82 name(right) type=String ref=s-3
+expr e@21:75 stringTemplate[expr(e@21:77),expr(e@21:82)] type=String
+expr e@21:58 lambda params=[left,right] body=e@21:75 label=zip type=(Int, String) -> Any?
+expr e@21:23#2 memberCall recv=e@21:23 callee=zip args=[_:e@21:40,_:e@21:58] type=kotlin.collections.List<String> call=kotlin.collections.zip[kind=fun;recv=kotlin.collections.Iterable<T0>;params=kotlin.collections.Iterable<T1>,fn{p=T0,T1;ret=T2};ret=kotlin.collections.List<T2>;gen=3;names=[other,transform]] targs=[Int,String,String]
+expr e@21:5 localDecl transformed mutable=0 type=_ init=e@21:23#2 type=Unit ref=__local_4.transformed[kind=local;type=kotlin.collections.List<String>;origin=fixture]
+expr e@22:13 name(pairs) type=kotlin.collections.List<kotlin.Pair<Int, String>> ref=__local_3.pairs[kind=local;type=kotlin.collections.List<kotlin.Pair<Int,String>>;origin=fixture]
+expr e@22:5 call callee=e@22:5#1 args=[_:e@22:13] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
+expr e@23:13 name(transformed) type=kotlin.collections.List<String> ref=__local_4.transformed[kind=local;type=kotlin.collections.List<String>;origin=fixture]
+expr e@23:5 call callee=e@23:5#1 args=[_:e@23:13] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
