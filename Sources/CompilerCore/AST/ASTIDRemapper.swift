@@ -122,6 +122,7 @@ struct ASTIDRemapper {
             isFunInterface: value.isFunInterface,
             typeParams: value.typeParams.map { remap($0) },
             superTypes: value.superTypes.map { remap($0) },
+            superTypeEntries: value.superTypeEntries.map { remap($0) },
             nestedTypeAliases: value.nestedTypeAliases.map { remap($0) },
             memberFunctions: value.memberFunctions.map { remap($0) },
             memberProperties: value.memberProperties.map { remap($0) },

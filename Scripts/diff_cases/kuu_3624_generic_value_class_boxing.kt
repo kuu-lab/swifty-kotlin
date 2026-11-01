@@ -94,6 +94,19 @@ fun box(): String {
     val tagged = throughGenericInterface(TaggedEcho(), Tagged(7))
     if ("$tagged" != "Tagged:7") failures += "Fail 11: $tagged; "
 
+    // KUU-3950: member reads on tagged `V<T : Int>` elements arriving
+    // through erased container boundaries must unwrap to the payload
+    // before the claim-site checkcast — a nominal `V` tag there throws.
+    val arrayIndexed = arrayOf(ArrayFoo(3), ArrayFoo(4))[1]
+    if (arrayIndexed.arg != 4) failures += "Fail 12; "
+
+    var listSum = 0
+    for (value in listOf(ArrayFoo(5), ArrayFoo(6))) listSum += value.arg
+    if (listSum != 11) failures += "Fail 13; "
+
+    val listIndexed = listOf(ArrayFoo(7), ArrayFoo(8))[0]
+    if (listIndexed.arg != 7) failures += "Fail 14; "
+
     return if (failures.isEmpty()) "OK" else failures
 }
 

@@ -508,9 +508,11 @@ struct TypeCheckScopeBuilder {
             }) {
                 // Enum entries belong to the enum, not a package. Source entries
                 // are deliberately absent from the package-only symbol index.
-                for entry in sema.symbols.children(ofFQName: importDecl.path)
-                    where sema.symbols.symbol(entry)?.kind == .field && isAccessibleWildcardSymbol(entry) {
-                    wildcardImportScope.insert(entry)
+                for enumID in resolved where sema.symbols.symbol(enumID)?.kind == .enumClass {
+                    for entry in sema.symbols.declaredChildren(of: enumID)
+                        where sema.symbols.symbol(entry)?.kind == .field && isAccessibleWildcardSymbol(entry) {
+                        wildcardImportScope.insert(entry)
+                    }
                 }
             }
             if resolved.isEmpty {
@@ -574,9 +576,9 @@ struct TypeCheckScopeBuilder {
                             owner = sema.symbols.parentSymbol(for: current)
                         }
                         guard isAccessibleOwner,
-                              let enumSymbol = sema.symbols.symbol(enumOwner)
+                              sema.symbols.symbol(enumOwner) != nil
                         else { continue }
-                        for entry in sema.symbols.children(ofFQName: enumSymbol.fqName) {
+                        for entry in sema.symbols.declaredChildren(of: enumOwner) {
                             guard sema.symbols.symbol(entry)?.kind == .field,
                                   isAccessibleWildcardSymbol(entry)
                             else { continue }

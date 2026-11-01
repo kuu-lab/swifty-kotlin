@@ -11,9 +11,18 @@ enum InlineExprAliasing {
     static func resolveAlias(of expr: KIRExprID, aliases: [KIRExprID: KIRExprID]) -> KIRExprID {
         var current = expr
         var visited: Set<KIRExprID> = []
-        while let next = aliases[current], visited.insert(current).inserted {
-            if next == current {
-                break
+        var hops = 0
+        while let next = aliases[current], next != current {
+            hops += 1
+            if hops == 2 {
+                // A revisit is only possible from the third hop onward
+                // (`next != current` already covers self-aliases, and the
+                // second hop cannot revisit `expr`), so the visited set is
+                // seeded here rather than allocated on the common
+                // single-hop resolution.
+                visited = [expr, current]
+            } else if hops > 2 {
+                guard visited.insert(current).inserted else { return current }
             }
             current = next
         }
@@ -24,7 +33,12 @@ enum InlineExprAliasing {
     /// `.copy` is the one case where both sides -- `from` and its own `to` --
     /// are resolved.
     static func rewriteInstruction(_ instruction: KIRInstruction, aliases: [KIRExprID: KIRExprID]) -> KIRInstruction {
-        switch instruction {
+        // `expandInlineCalls` rewrites the whole caller body every round but
+        // only populates its alias map during lambda splices — most rounds it
+        // stays empty, so resolving is identity and the rebuilt instruction
+        // (plus a fresh `arguments` array per call) is pure allocation.
+        guard !aliases.isEmpty else { return instruction }
+        return switch instruction {
         case let .binary(op, lhs, rhs, result):
             .binary(
                 op: op,
@@ -126,9 +140,9 @@ enum InlineExprAliasing {
 
     /// Used to invalidate a stale alias binding once its key is legitimately
     /// redefined by a later instruction. Deliberately narrower than
-    /// `KIRVerifier`'s full def tracking (`exprIsDefined` in
-    /// `InlineLoweringPass`): a `.copy`'s `to` and a call's `thrownResult` are
-    /// not counted as definitions here.
+    /// `KIRVerifier`'s full def tracking (`InlineDefinedExprIndex`): a
+    /// `.copy`'s `to` and a call's `thrownResult` are not counted as
+    /// definitions here.
     static func definedResult(in instruction: KIRInstruction) -> KIRExprID? {
         switch instruction {
         case let .constValue(result, _),

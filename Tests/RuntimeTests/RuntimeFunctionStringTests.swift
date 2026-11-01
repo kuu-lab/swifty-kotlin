@@ -63,5 +63,24 @@ struct RuntimeFunctionStringTests {
         removeRuntimeObjectMetadata(forObjectKey: UInt(bitPattern: raw))
         #expect(runtimeElementToString(raw).hasPrefix("kotlin.Function1@"))
     }
+
+    // KUU-3947: accessor-backed KProperty wrappers are plain object boxes —
+    // without a description println rendered `<object 0x…>`; the pinned
+    // `val pkg.Owner.name: kotlin.T` text must win instead.
+    @Test func propertyRefWrapperPrintsCompilerDescription() {
+        let raw = kk_object_new(1, 0x51_44)
+        defer { removeRuntimeObjectMetadata(forObjectKey: UInt(bitPattern: raw)) }
+        _ = kk_callable_ref_tag_kproperty(
+            raw,
+            runtimeMakeStringRaw("prop"),
+            runtimeMakeStringRaw("kotlin.Int"),
+            1
+        )
+        #expect(runtimeRenderAnyForPrint(raw).hasPrefix("<object "))
+        let text = "val pkg.C.prop: kotlin.Int"
+        __kk_function_set_description(raw, runtimeMakeStringRaw(text), 0)
+        #expect(runtimeRenderAnyForPrint(raw) == text)
+        #expect(extractString(from: kk_any_to_string(raw, 0)) == text)
+    }
 }
 #endif

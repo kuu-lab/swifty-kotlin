@@ -760,7 +760,7 @@ extension DataFlowSemaPhase {
         }
 
         var finalTarget: (SymbolID, InternedString)?
-        for childID in ctx.symbols.children(ofFQName: ownerSym.fqName) {
+        for childID in ctx.symbols.declaredChildren(of: ownerSymbol) {
             guard childID != memberSymbol,
                   let child = ctx.symbols.symbol(childID),
                   child.fqName == ownerSym.fqName + [child.name],
@@ -1568,7 +1568,7 @@ extension DataFlowSemaPhase {
                 continue
             }
 
-            for candidateID in ctx.symbols.children(ofFQName: owner.fqName) {
+            for candidateID in ctx.symbols.declaredChildren(of: current) {
                 guard let candidate = ctx.symbols.symbol(candidateID),
                       candidate.fqName == owner.fqName + [candidate.name],
                       candidate.kind == .function,
@@ -1636,7 +1636,7 @@ extension DataFlowSemaPhase {
         let anyFQName = [ctx.interner.intern("kotlin"), ctx.interner.intern("Any")]
         guard let anyID = ctx.symbols.lookupNominal(fqName: anyFQName),
               let anySym = ctx.symbols.symbol(anyID) else { return false }
-        return ctx.symbols.children(ofFQName: anySym.fqName).contains { childID in
+        return ctx.symbols.declaredChildren(of: anyID).contains { childID in
             guard let child = ctx.symbols.symbol(childID) else { return false }
             return child.kind == .function
                 && child.name == memberName
@@ -2237,8 +2237,8 @@ extension DataFlowSemaPhase {
         in ownerSymbol: SymbolID,
         ctx: OpenFinalOverrideContext
     ) -> [SymbolID] {
-        guard let ownerSym = ctx.symbols.symbol(ownerSymbol) else { return [] }
-        return ctx.symbols.children(ofFQName: ownerSym.fqName).compactMap { childID -> SymbolID? in
+        guard ctx.symbols.symbol(ownerSymbol) != nil else { return [] }
+        return ctx.symbols.declaredChildren(of: ownerSymbol).compactMap { childID -> SymbolID? in
             guard let child = ctx.symbols.symbol(childID),
                   child.name == memberName,
                   child.kind == .function
@@ -2306,7 +2306,7 @@ extension DataFlowSemaPhase {
                   let owner = ctx.symbols.symbol(current)
             else { continue }
 
-            for candidateID in ctx.symbols.children(ofFQName: owner.fqName) {
+            for candidateID in ctx.symbols.declaredChildren(of: current) {
                 guard let candidate = ctx.symbols.symbol(candidateID),
                       candidate.fqName == owner.fqName + [candidate.name],
                       candidate.kind == .function,
@@ -2730,7 +2730,7 @@ extension DataFlowSemaPhase {
         guard let anyID = ctx.symbols.lookupNominal(fqName: anyFQName),
               let anySymbol = ctx.symbols.symbol(anyID) else { return [] }
         var results: [OFOInheritedMember] = []
-        for childID in ctx.symbols.children(ofFQName: anySymbol.fqName) {
+        for childID in ctx.symbols.declaredChildren(of: anyID) {
             guard let child = ctx.symbols.symbol(childID),
                   child.name == memberName,
                   child.kind == .function || child.kind == .property
@@ -2835,7 +2835,7 @@ extension DataFlowSemaPhase {
             guard visited.insert(current).inserted else { continue }
             guard let sym = symbols.symbol(current) else { continue }
 
-            for childID in symbols.children(ofFQName: sym.fqName) {
+            for childID in symbols.declaredChildren(of: current) {
                 guard let child = symbols.symbol(childID) else {
                     continue
                 }
@@ -2914,7 +2914,7 @@ extension DataFlowSemaPhase {
             guard let sym = symbols.symbol(current) else { continue }
 
             var foundAtThisLevel = false
-            for childID in symbols.children(ofFQName: sym.fqName) {
+            for childID in symbols.declaredChildren(of: current) {
                 guard let child = symbols.symbol(childID) else { continue }
                 guard isInheritedMember(child, from: sym) else { continue }
                 let isMatch = child.kind == .function || child.kind == .property

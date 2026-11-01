@@ -2528,19 +2528,11 @@ extension ExprTypeChecker {
     ) -> [SymbolID] {
         let sema = ctx.sema
         var candidates = ctx.cachedScopeLookup(name)
-        for file in ctx.ast.files {
-            for declID in file.topLevelDecls {
-                guard case let .funDecl(function)? = ctx.ast.arena.decl(declID),
-                      function.name == name,
-                      function.modifiers.contains(.companion),
-                      function.receiverType != nil,
-                      let symbol = sema.bindings.declSymbols[declID],
-                      !candidates.contains(symbol)
-                else {
-                    continue
-                }
-                candidates.append(symbol)
-            }
+        // Name-indexed companion extension decls replace a per-call scan of
+        // every file's `topLevelDecls` (same order, built once per module).
+        for symbol in driver.companionExtensionFunctionDeclsByName[name] ?? []
+        where !candidates.contains(symbol) {
+            candidates.append(symbol)
         }
         return candidates.filter { candidate in
             guard let symbol = sema.symbols.symbol(candidate),

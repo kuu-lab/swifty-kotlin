@@ -2333,6 +2333,35 @@ extension LambdaLowerer {
                 sema: sema, arena: arena, interner: interner, instructions: &instructions
             )
         }
+        if refKind == .propertyRef {
+            // KUU-3947: property references that take the function-value
+            // route (SAM coercion, `(C) -> T` adaptation, KProperty2+)
+            // carry no accessor-backed wrapper identity — pin the same
+            // JVM-style `val pkg.Owner.name: kotlin.T` text the wrapper
+            // path emits so println does not render `<object 0x…>`.
+            let propertySymbol = targetSymbol.flatMap { symbol -> SymbolID? in
+                sema.symbols.symbol(symbol)?.kind == .property
+                    ? symbol
+                    : sema.symbols.accessorOwnerProperty(for: symbol)
+            }
+            emitFunctionDescription(
+                value: taggedExpr,
+                description: propertyReferenceDescription(
+                    memberName: memberName,
+                    propertySymbol: propertySymbol,
+                    isMutable: propertySymbol
+                        .flatMap { sema.symbols.symbol($0)?.flags.contains(.mutable) } == true,
+                    returnType: returnType,
+                    sema: sema,
+                    interner: interner
+                ),
+                identity: false,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            )
+        }
         return taggedExpr
     }
 

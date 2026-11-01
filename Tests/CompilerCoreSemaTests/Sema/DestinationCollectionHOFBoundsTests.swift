@@ -1,4 +1,5 @@
 @testable import CompilerCore
+import Foundation
 import Testing
 @testable import CompilerTestSupport
 
@@ -103,5 +104,137 @@ struct DestinationCollectionHOFBoundsTests {
         }
         #expect(boundErrors.count == 1, "Expected one contravariant bound error, got: \(boundErrors)")
         #expect(boundErrors.allSatisfy { $0.code == "KSWIFTK-TYPE-0001" })
+    }
+
+    /// KUU-3917: `ArrayList(capacity)` has no argument that mentions its element
+    /// type parameter, so the standalone pass fixed `E := Any`. The destination
+    /// bound `C : MutableCollection<in T>` has to steer it back to
+    /// `ArrayList<String>` — kotlinc keeps `E` in the enclosing constraint set
+    /// instead, where `ArrayList<E> <: MutableCollection<in String>`
+    /// contributes `String <: E`. The `values[entry.key] = list` assignment
+    /// below only type-checks when `list` is `MutableList<String>`.
+    @Test
+    func capacityConstructorDestinationBindsElementThroughContravariantBound() throws {
+        try withTemporaryFile(contents: """
+        fun filter(entries: Set<Map.Entry<String, List<String>>>,
+                   keepEmpty: Boolean,
+                   predicate: (String, String) -> Boolean) {
+            val values: MutableMap<String, MutableList<String>> = LinkedHashMap(entries.size)
+            entries.forEach { entry ->
+                val list = entry.value.filterTo(ArrayList(entry.value.size)) { predicate(entry.key, it) }
+                if (keepEmpty || list.isNotEmpty()) {
+                    values[entry.key] = list
+                }
+            }
+        }
+        """) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            let errors = diagnosticsForPath(path, in: ctx).filter { $0.severity == .error }
+            #expect(errors.isEmpty, "Expected the KUU-3917 reproducer to type-check, got: \(errors)")
+
+            let sema = try #require(ctx.sema)
+            let ast = try #require(ctx.ast)
+            let callID = try #require(memberCallExprIDs(
+                named: "filterTo",
+                in: ast,
+                path: path,
+                ctx: ctx,
+                interner: ctx.interner
+            ).first)
+            let resultType = try #require(sema.bindings.exprType(for: callID))
+            guard case let .classType(classType) = sema.types.kind(of: resultType) else {
+                Issue.record("Expected filterTo to return a class type, got \(sema.types.renderType(resultType))")
+                return
+            }
+            #expect(
+                classType.args == [.invariant(sema.types.stringType)],
+                "Expected filterTo destination to infer ArrayList<String>, got \(sema.types.renderType(resultType))"
+            )
+        }
+    }
+
+    /// The declared-type expectation participates in steering too: with the
+    /// call's result contexted as `MutableCollection<Any>`, `E` is free to
+    /// collapse to `Any` the same way kotlinc resolves it.
+    @Test
+    func declaredExpectedTypeSteersCapacityConstructorDestination() throws {
+        try withTemporaryFile(contents: """
+        fun loose() {
+            val anyDestination: MutableCollection<Any> =
+                listOf("a", "b").filterTo(ArrayList(1)) { it.isNotEmpty() }
+        }
+
+        fun strict() {
+            val stringDestination: MutableCollection<String> =
+                listOf("a", "b").filterTo(ArrayList(1)) { it.isNotEmpty() }
+        }
+        """) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            let errors = diagnosticsForPath(path, in: ctx).filter { $0.severity == .error }
+            #expect(errors.isEmpty, "Expected declared-type steering to type-check, got: \(errors)")
+
+            let sema = try #require(ctx.sema)
+            let ast = try #require(ctx.ast)
+            let calls = memberCallExprIDs(named: "filterTo", in: ast, path: path, ctx: ctx, interner: ctx.interner)
+            #expect(calls.count == 2)
+            let expectedArgs: [[TypeArg]] = [
+                [.invariant(sema.types.anyType)],
+                [.invariant(sema.types.stringType)],
+            ]
+            for (callID, args) in zip(calls, expectedArgs) {
+                let resultType = try #require(sema.bindings.exprType(for: callID))
+                guard case let .classType(classType) = sema.types.kind(of: resultType) else {
+                    Issue.record("Expected class type, got \(sema.types.renderType(resultType))")
+                    continue
+                }
+                #expect(
+                    classType.args == args,
+                    "Unexpected inferred destination, got \(sema.types.renderType(resultType))"
+                )
+            }
+        }
+    }
+
+    /// The nested-constructor reinference only loosens the destination argument;
+    /// the predicate keeps its declared `(T) -> Boolean` shape so the generated
+    /// call still consumes a primitive Boolean (the boxed `Any?` result used to
+    /// compare `!= false` as a reference and made `filterTo` retain everything).
+    @Test
+    func destinationPredicateKeepsBooleanReturnType() throws {
+        try withTemporaryFile(contents: """
+        fun pick() {
+            listOf("a", "b").filterTo(ArrayList(1)) { it.length > 1 }
+        }
+        """) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            let errors = diagnosticsForPath(path, in: ctx).filter { $0.severity == .error }
+            #expect(errors.isEmpty, "Expected filterTo with ArrayList destination to type-check, got: \(errors)")
+
+            let sema = try #require(ctx.sema)
+            let ast = try #require(ctx.ast)
+            let lambdaID = try #require(firstExprID(in: ast, path: path, ctx: ctx) { _, expr in
+                if case .lambdaLiteral = expr { return true }
+                return false
+            })
+            let lambdaType = try #require(sema.bindings.exprType(for: lambdaID))
+            guard case let .functionType(functionType) = sema.types.kind(of: lambdaType) else {
+                Issue.record("Expected the filterTo predicate to stay a function type, got \(sema.types.renderType(lambdaType))")
+                return
+            }
+            #expect(
+                functionType.returnType == sema.types.booleanType,
+                "Expected predicate return Boolean, got \(sema.types.renderType(functionType.returnType))"
+            )
+            #expect(
+                functionType.params == [sema.types.stringType],
+                "Expected predicate param String, got \(functionType.params.map { sema.types.renderType($0) })"
+            )
+        }
     }
 }

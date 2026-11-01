@@ -17,7 +17,8 @@ public fun File.readText(): String =
 public fun File.readText(charset: Charset): String =
     __kkFileReadText(this, charset)
 
-private fun fileLines(file: File): List<String> {
+@PublishedApi
+internal fun fileLines(file: File): List<String> {
     val content = file.readText()
     if (content.isEmpty()) return emptyList()
 
@@ -35,10 +36,10 @@ private fun fileLines(file: File): List<String> {
 
 public fun File.readLines(): List<String> = fileLines(this)
 
-public fun File.forEachLine(action: (String) -> Unit) {
+public inline fun File.forEachLine(action: (String) -> Unit) {
     for (line in fileLines(this)) {
         action(line)
     }
 }
 
-public fun <T> File.useLines(block: (List<String>) -> T): T = block(fileLines(this))
+public inline fun <T> File.useLines(block: (List<String>) -> T): T = block(fileLines(this))
