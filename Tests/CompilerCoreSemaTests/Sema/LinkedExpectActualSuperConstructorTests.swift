@@ -28,6 +28,53 @@ struct LinkedExpectActualSuperConstructorTests {
         try expectActualDelegation(from: "Sub", to: "MIE", ctx: ctx)
     }
 
+    // KUU-4105: expect objects list supertypes bare — initialization belongs
+    // to the actual declaration, so SEMA-0436 must not fire.
+    @Test
+    func expectObjectSupertypeMayOmitConstructorInvocation() throws {
+        let ctx = try makeContext([
+            """
+            package x
+            internal expect object E : RuntimeException
+            internal actual object E : RuntimeException()
+            """
+        ])
+        try runSema(ctx)
+
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(
+            !errors.contains { $0.code == "KSWIFTK-SEMA-0436" },
+            "Expect object supertypes may omit the constructor invocation: \(errors)"
+        )
+        #expect(errors.isEmpty, "expect/actual object pair should link cleanly: \(errors)")
+    }
+
+    // Members nested inside an expect declaration are implicitly expect
+    // (kotlinc rejects an explicit `expect` modifier there), so a bare class
+    // supertype on a nested object or class must not require `()` either.
+    @Test
+    func nestedMembersOfExpectDeclarationsSkipSupertypeInitialization() throws {
+        let ctx = try makeContext([
+            """
+            package x
+            open class Sup
+            expect object OuterObj {
+                object Inner : Sup
+            }
+            expect class OuterClass {
+                class Inner : Sup
+            }
+            """
+        ])
+        try runSema(ctx)
+
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(
+            !errors.contains { $0.code == "KSWIFTK-SEMA-0436" },
+            "Implicitly expect members may omit the constructor invocation: \(errors)"
+        )
+    }
+
     @Test(arguments: ["MIE(m)", "x.MIE(m)", "AliasMIE(m)"])
     func splitSourcesBindActualConstructor(superCall: String) throws {
         let ctx = try makeContext([
