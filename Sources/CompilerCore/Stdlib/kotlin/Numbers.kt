@@ -73,6 +73,67 @@ public fun Long.rotateLeft(bitCount: Int): Long =
 public fun Long.rotateRight(bitCount: Int): Long =
     (this shl (64 - bitCount)) or (this ushr bitCount)
 
+// KUU-4103: upstream declares and/or/xor/inv (and shl/shr for UInt/ULong) as
+// members on the integer types. Their bodies still bind through the primitive
+// fast path; the declarations exist so member-style calls resolve against the
+// public kotlin.* surface instead of falling to package-internal helpers such
+// as kotlinx.io's `internal infix fun Int.and(other: Long)`.
+public infix fun Int.and(other: Int): Int = this and other
+
+public infix fun Int.or(other: Int): Int = this or other
+
+public infix fun Int.xor(other: Int): Int = this xor other
+
+public fun Int.inv(): Int = this.inv()
+
+public infix fun Long.and(other: Long): Long = this and other
+
+public infix fun Long.or(other: Long): Long = this or other
+
+public infix fun Long.xor(other: Long): Long = this xor other
+
+public fun Long.inv(): Long = this.inv()
+
+public infix fun UInt.and(other: UInt): UInt = this and other
+
+public infix fun UInt.or(other: UInt): UInt = this or other
+
+public infix fun UInt.xor(other: UInt): UInt = this xor other
+
+public fun UInt.inv(): UInt = this.inv()
+
+public infix fun UInt.shl(bitCount: Int): UInt = this shl bitCount
+
+public infix fun UInt.shr(bitCount: Int): UInt = this shr bitCount
+
+public infix fun ULong.and(other: ULong): ULong = this and other
+
+public infix fun ULong.or(other: ULong): ULong = this or other
+
+public infix fun ULong.xor(other: ULong): ULong = this xor other
+
+public fun ULong.inv(): ULong = this.inv()
+
+public infix fun ULong.shl(bitCount: Int): ULong = this shl bitCount
+
+public infix fun ULong.shr(bitCount: Int): ULong = this shr bitCount
+
+public infix fun UByte.and(other: UByte): UByte = this and other
+
+public infix fun UByte.or(other: UByte): UByte = this or other
+
+public infix fun UByte.xor(other: UByte): UByte = this xor other
+
+public fun UByte.inv(): UByte = this.inv()
+
+public infix fun UShort.and(other: UShort): UShort = this and other
+
+public infix fun UShort.or(other: UShort): UShort = this or other
+
+public infix fun UShort.xor(other: UShort): UShort = this xor other
+
+public fun UShort.inv(): UShort = this.inv()
+
 // KSP-1536: The runtime bridges remain internal representation support: Char
 // uses the existing code-unit constructor bridge, while Double uses the IEEE
 // payload bridge required by the current primitive representation.
