@@ -38,7 +38,7 @@ extension TypeSystemTests {
     }
 
     @Test
-    func testFunctionReceiverCompatibilityPreservesContextReceivers() {
+    func testFunctionReceiverCompatibilityFoldsContextReceivers() {
         let types = TypeSystem()
         let int = types.make(.primitive(.int, .nonNull))
         let extensionType = types.make(.functionType(FunctionType(
@@ -54,7 +54,29 @@ extension TypeSystemTests {
         )))
         #expect(types.isSubtype(extensionType, ordinaryType))
         #expect(types.isSubtype(ordinaryType, extensionType))
-        #expect(!types.isSubtype(extensionType, noContext))
-        #expect(!types.isSubtype(noContext, extensionType))
+        // kotlinc folds context receivers and a receiver into the leading
+        // function-parameter list: `context(Int) String.() -> Int`,
+        // `context(Int) (String) -> Int`, and `(Int, String) -> Int` share
+        // the `(Int, String) -> Int` shape and are mutual subtypes
+        // (verified against kotlinc 2.4.20; KUU-3175, KUU-4061).
+        #expect(types.isSubtype(extensionType, noContext))
+        #expect(types.isSubtype(noContext, extensionType))
+
+        // Folding must not drop the context slot: a plain type missing the
+        // leading Int parameter has a different arity and must not match.
+        let missingContextSlot = types.make(.functionType(FunctionType(
+            params: [types.stringType], returnType: int, isSuspend: true
+        )))
+        #expect(!types.isSubtype(extensionType, missingContextSlot))
+        #expect(!types.isSubtype(missingContextSlot, extensionType))
+
+        // The folded context slot is a normal contravariant parameter
+        // position: `context(Any)` accepts where `context(Int)` is expected.
+        let widerContext = types.make(.functionType(FunctionType(
+            contextReceivers: [types.anyType], receiver: types.stringType,
+            params: [], returnType: int, isSuspend: true
+        )))
+        #expect(types.isSubtype(widerContext, extensionType))
+        #expect(!types.isSubtype(extensionType, widerContext))
     }
 }
