@@ -119,6 +119,25 @@ public fun <K, V> MutableMap<K, V>.merge(
     return newValue
 }
 
+public fun <K, V> MutableMap<K, V>.replace(key: K, value: V): V? {
+    val oldValue = this[key]
+    if (oldValue == null && !containsKey(key)) return null
+    return put(key, value)
+}
+
+public fun <K, V> MutableMap<K, V>.replace(key: K, oldValue: V, newValue: V): Boolean {
+    val current = this[key]
+    if (current != oldValue || (current == null && !containsKey(key))) return false
+    put(key, newValue)
+    return true
+}
+
+public fun <K, V> MutableMap<K, V>.replaceAll(function: (K, V) -> V) {
+    for (entry in this.entries) {
+        entry.setValue(function(entry.key, entry.value))
+    }
+}
+
 public inline fun <K, V> MutableMap<out K, V>.remove(key: K): V? {
     return __kk_mutable_map_remove(this, key)
 }
