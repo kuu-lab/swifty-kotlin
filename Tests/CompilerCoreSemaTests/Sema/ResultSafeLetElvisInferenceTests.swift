@@ -128,5 +128,26 @@ struct ResultSafeLetElvisInferenceTests {
             )
         }
     }
+
+    /// An extension's own type parameter is only bounded by the receiver:
+    /// `Array<out T>.contentDeepEquals(Array<out T>)` takes differently typed
+    /// arrays with `T` inferred as their common supertype, so the receiver's
+    /// argument must not become the nested argument call's expected type.
+    @Test
+    func testExtensionTypeParameterIsNotPinnedByReceiverForNestedArgument() throws {
+        let source = """
+        package extensionReceiverTypeParameter
+        class Box<out T>(val value: T)
+        fun <T> box(value: T): Box<T> = Box(value)
+        fun <T> Box<out T>.sameShape(other: Box<out T>): Boolean = true
+        fun check(): Boolean = box(1).sameShape(box("s"))
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+            #expect(errors.isEmpty, "\(errors)")
+        }
+    }
 }
 #endif

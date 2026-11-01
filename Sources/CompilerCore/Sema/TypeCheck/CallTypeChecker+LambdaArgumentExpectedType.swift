@@ -106,6 +106,7 @@ extension CallTypeChecker {
         signature: FunctionSignature,
         candidate: SymbolID,
         receiverType: TypeID?,
+        classTypeParametersOnly: Bool = false,
         sema: SemaModule
     ) -> TypeID {
         guard sema.symbols.symbol(candidate)?.kind != .constructor,
@@ -174,6 +175,15 @@ extension CallTypeChecker {
             guard case let .typeParam(declaredTypeParam) = sema.types.kind(of: declaredArg),
                   let typeVar = typeVarBySymbol[declaredTypeParam.symbol]
             else {
+                continue
+            }
+            // An extension's own type parameter is only constrained by the
+            // receiver (`Array<out T>` accepts `Array<IntArray>` with any
+            // `T :> IntArray`), so it must stay open for the other arguments.
+            if classTypeParametersOnly,
+               !signature.typeParameterSymbols.prefix(signature.classTypeParameterCount)
+                   .contains(declaredTypeParam.symbol)
+            {
                 continue
             }
             let concreteType: TypeID

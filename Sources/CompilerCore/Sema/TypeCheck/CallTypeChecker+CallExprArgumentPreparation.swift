@@ -125,6 +125,7 @@ extension CallTypeChecker {
                     signature: signature,
                     candidate: candidate,
                     receiverType: receiverType,
+                    classTypeParametersOnly: true,
                     sema: ctx.sema
                 )
                 let allTypeVarBySymbol = ctx.sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
