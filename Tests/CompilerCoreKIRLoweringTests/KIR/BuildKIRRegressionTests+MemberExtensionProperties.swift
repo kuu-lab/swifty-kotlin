@@ -154,23 +154,28 @@ extension BuildKIRRegressionTests {
 
     @Test
     func localObjectMemberExtensionPropertyReadUsesRegisteredAccessor() throws {
-        // KUU-3692: an explicit `OO.e` read on a local object's member
+        // KUU-3692: an explicit `O.e` read on a local object's member
         // extension property must call the registered getter accessor with
         // (dispatch receiver, extension receiver), not a placeholder call
-        // that lowers to an external bare `get` symbol.
+        // that lowers to an external bare `get` symbol. Local named objects
+        // are rejected since #12074 (SEMA-0429), so use an anonymous object.
         let ctx = makeContextFromSource("""
         object O
         fun main() {
-            object OO {
+            val oo = object {
                 var O.e: String
                     get() = "ge"
                     set(v) {}
+                fun probe() {
+                    O.e = "c"
+                    println(O.e)
+                }
             }
-            OO.e = "c"
-            println(OO.e)
+            oo.probe()
         }
         """)
         try runToKIR(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
         let module = try #require(ctx.kir)
         let sema = try #require(ctx.sema)
         let functions = findAllKIRFunctions(in: module)
@@ -179,20 +184,19 @@ extension BuildKIRRegressionTests {
                 && sema.symbols.memberExtensionOwnerSymbol(for: $0.symbol) != nil
         })
         #expect(getter.params.count == 2)
-        let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
-        let call = try #require(body.first {
-            if case let .call(symbol, callee, _, _, _, _, _, _) = $0 {
-                return callee == KnownCompilerNames(interner: ctx.interner).get
-                    || symbol == getter.symbol
-            }
-            return false
-        })
-        guard case let .call(symbol, _, arguments, _, _, _, _, _) = call else {
-            Issue.record("expected a .call getter invocation")
-            return
+        let getterCalls = functions.flatMap(\.body).compactMap { instruction -> [KIRExprID]? in
+            guard case let .call(symbol, _, arguments, _, _, _, _, _) = instruction,
+                  symbol == getter.symbol
+            else { return nil }
+            return arguments
         }
-        #expect(symbol == getter.symbol)
-        #expect(arguments.count == 2)
+        #expect(!getterCalls.isEmpty, "expected a .call getter invocation")
+        #expect(getterCalls.allSatisfy { $0.count == 2 })
+        // No unresolved placeholder `get` call may survive in any body.
+        #expect(!functions.flatMap(\.body).contains { instruction in
+            guard case let .call(symbol, callee, _, _, _, _, _, _) = instruction else { return false }
+            return callee == KnownCompilerNames(interner: ctx.interner).get && symbol == nil
+        })
     }
 
     @Test

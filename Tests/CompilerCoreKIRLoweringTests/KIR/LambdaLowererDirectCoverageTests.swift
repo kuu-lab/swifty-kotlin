@@ -12,9 +12,11 @@ struct LambdaLowererDirectCoverageTests {
         let fixture = makeKIRDirectLoweringFixture()
         let range = makeRange()
         let body = appendTypedExpr(.intLiteral(42, range), type: fixture.types.intType, fixture: fixture)
+        // #12032 materializes lambdas with non-null primitive parameters at
+        // creation, so use reference-typed parameters to keep the raw ABI.
         let functionType = fixture.types.make(.functionType(FunctionType(
-            receiver: hasReceiver ? fixture.types.intType : nil,
-            params: Array(repeating: fixture.types.intType, count: parameterCount),
+            receiver: hasReceiver ? fixture.types.anyType : nil,
+            params: Array(repeating: fixture.types.anyType, count: parameterCount),
             returnType: fixture.types.intType
         )))
         let lambda = appendTypedExpr(
@@ -113,6 +115,11 @@ struct LambdaLowererDirectCoverageTests {
                 parameterTypes: [functionType], returnType: fixture.types.intType,
                 valueParameterAllowsNonLocalReturn: importedParameterAllowsNonLocalReturn.map { [$0] } ?? []
             ), for: importedInline)
+            if importedParameterAllowsNonLocalReturn == true {
+                // #11003/#11142 keep the raw callable only when the imported
+                // inline callee has a body available for cross-module expansion.
+                fixture.sema.importedInlineFunctions.markPendingBody(for: importedInline)
+            }
             var arguments = [callable]
             let instructionCount = instructions.count
             fixture.driver.callLowerer.materializeSourceBackedFunctionValueArguments(
@@ -458,13 +465,14 @@ struct LambdaLowererDirectCoverageTests {
                 sema: fixture.sema
             ))
         )
+        // #10599: a value parameter with no bound local value is not capturable.
         #expect(
-            fixture.driver.lambdaLowerer.canCaptureSymbolForLambda(
+            !(fixture.driver.lambdaLowerer.canCaptureSymbolForLambda(
                 parameterSymbol,
                 lambdaExprID: lambdaExprID,
                 lambdaParamCount: 0,
                 sema: fixture.sema
-            )
+            ))
         )
 
         var emit = KIRLoweringEmitContext()
@@ -494,13 +502,30 @@ struct LambdaLowererDirectCoverageTests {
         )
         #expect(receiverCaptured == receiverExpr)
 
-        _ = fixture.driver.lambdaLowerer.captureValueExpr(
+        let unboundParameter = fixture.driver.lambdaLowerer.captureValueExpr(
             for: parameterSymbol,
             sema: fixture.sema,
             arena: fixture.kirArena,
             interner: fixture.interner,
             emit: &emit
         )
+        #expect(unboundParameter == nil)
+        #expect(emit.instructions.isEmpty)
+
+        // A captured mutable local still emits its capture-cell initialization.
+        let mutableSymbol = defineSemanticSymbol(
+            in: fixture, kind: .local, fqName: ["pkg", "mutableLocal"], flags: [.mutable]
+        )
+        let mutableExpr = fixture.kirArena.appendExpr(.temporary(2), type: fixture.types.anyType)
+        fixture.driver.ctx.localValuesBySymbol[mutableSymbol] = mutableExpr
+        let mutableCaptured = fixture.driver.lambdaLowerer.captureValueExpr(
+            for: mutableSymbol,
+            sema: fixture.sema,
+            arena: fixture.kirArena,
+            interner: fixture.interner,
+            emit: &emit
+        )
+        #expect(mutableCaptured != nil)
         #expect(!emit.instructions.isEmpty)
 
         let nonCapturable = fixture.driver.lambdaLowerer.captureValueExpr(

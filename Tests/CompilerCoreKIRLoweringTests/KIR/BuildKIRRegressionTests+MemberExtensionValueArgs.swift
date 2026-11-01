@@ -16,14 +16,17 @@ extension BuildKIRRegressionTests {
         class Box
         class Outer<R> {
             fun <E> Box.onThing(block: suspend (E) -> R) {}
-            fun test(b: Box) {
-                b.onThing<Int> { it + 1 }
+            fun test(b: Box, r: R) {
+                b.onThing<Int> { r }
             }
         }
         """
 
+        // The block must return `R`; `{ it + 1 }` was ill-typed and only
+        // lowered because the test never checked diagnostics.
         let ctx = makeContextFromSource(source)
         try runToKIR(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
 
         let module = try #require(ctx.kir)
         let testBody = try findKIRFunctionBody(named: "test", in: module, interner: ctx.interner)

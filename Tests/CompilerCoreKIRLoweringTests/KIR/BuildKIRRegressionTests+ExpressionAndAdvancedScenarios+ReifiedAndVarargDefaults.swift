@@ -18,8 +18,12 @@ extension BuildKIRRegressionTests {
         })
 
         let expectedTokenSymbol = SyntheticSymbolScheme.reifiedTypeTokenSymbol(for: typeParameterSymbol)
-        #expect(pickFunction.params.count == 2)
-        #expect(pickFunction.params.last?.symbol == expectedTokenSymbol)
+        // #8313 appends a hidden KType parameter after the type token
+        // (renamed to reifiedKTypeSymbol in #12352).
+        let expectedKTypeSymbol = SyntheticSymbolScheme.reifiedKTypeSymbol(for: typeParameterSymbol)
+        try #require(pickFunction.params.count == 3)
+        #expect(pickFunction.params[1].symbol == expectedTokenSymbol)
+        #expect(pickFunction.params[2].symbol == expectedKTypeSymbol)
 
         guard let callInstruction = mainFunction.body.first(where: { instruction in
             guard case let .call(symbol, _, _, _, _, _, _, _) = instruction else {
@@ -32,7 +36,7 @@ extension BuildKIRRegressionTests {
             Issue.record("Expected main to call inline reified function.")
             return
         }
-        #expect(arguments.count == 2)
+        try #require(arguments.count == 3)
         let tokenArgument = arguments[1]
         guard case let .intLiteral(tokenLiteral)? = kir.arena.expr(tokenArgument) else {
             Issue.record("Expected hidden type token argument to be lowered as int literal.")

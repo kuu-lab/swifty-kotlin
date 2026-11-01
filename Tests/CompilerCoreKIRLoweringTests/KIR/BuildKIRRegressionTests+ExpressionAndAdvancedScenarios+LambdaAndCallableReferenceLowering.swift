@@ -144,8 +144,10 @@ extension BuildKIRRegressionTests {
             else { return nil }
             return arguments[2]
         }
-        #expect(materialized.count == 4)
-        #expect(Array(stored.suffix(4)) == materialized)
+        // #11911 boxes `::name` once at the reference site, then the vararg
+        // selector slot re-wraps it, so only the last four creations are stored.
+        #expect(materialized.count == 5)
+        #expect(Array(stored.suffix(4)) == Array(materialized.suffix(4)))
     }
 
     @Test func testBuildKIRImportedCompareValuesByCallableReferenceIsMaterialized() throws {
@@ -159,18 +161,21 @@ extension BuildKIRRegressionTests {
         #expect(!ctx.diagnostics.hasError)
         let module = try #require(ctx.kir)
         let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
-        let materialized = try #require(body.compactMap { instruction -> KIRExprID? in
+        let materialized = body.compactMap { instruction -> KIRExprID? in
             guard case let .call(_, callee, _, result, _, _, _, _) = instruction,
                   callee == ctx.interner.intern(runtime[.functionCreate1])
             else { return nil }
             return result
-        }.first)
+        }
         let call = try #require(body.first { instruction in
             guard case let .call(_, callee, _, _, _, _, _, _) = instruction else { return false }
             return callee == KnownCompilerNames(interner: ctx.interner).compareValuesBy
         })
         if case let .call(_, _, arguments, _, _, _, _, _) = call {
-            #expect(arguments[2] == materialized)
+            // #11911 boxes `::name` at the reference site first and the call
+            // site re-wraps it, so the selector is one of several creations.
+            #expect(materialized.contains(arguments[2]))
+            #expect(arguments[2] != materialized.first)
         }
     }
 
@@ -207,9 +212,11 @@ extension BuildKIRRegressionTests {
             else { return nil }
             return arguments.last
         }
-        #expect(materializedCallbacks.count == 2)
+        // #11911 also boxes both `::visit` references at their reference sites,
+        // so the two call-site wraps passed to visitPair are the last creations.
+        #expect(materializedCallbacks.count == 4)
         #expect(callbacks.count == 3)
-        #expect(Array(callbacks.prefix(2)) == materializedCallbacks)
+        #expect(Array(callbacks.prefix(2)) == Array(materializedCallbacks.suffix(2)))
         let literalCallback = try #require(callbacks.last)
         guard case .symbolRef? = module.arena.expr(literalCallback) else {
             Issue.record("inline lambda literals must remain directly expandable")
@@ -255,13 +262,15 @@ extension BuildKIRRegressionTests {
         let source = """
         fun main(): Int {
             val base = 40
-            val add = { x -> base + x }
+            val add = { x: Int -> base + x }
             return add(2)
         }
         """
 
+        // An untyped `x` infers `Any`, which #11707 boxes; type it so the Int ABI is exercised.
         let ctx = makeContextFromSource(source)
         try runToKIR(ctx)
+        #expect(!ctx.diagnostics.hasError)
 
         let module = try #require(ctx.kir)
         let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
@@ -479,13 +488,15 @@ extension BuildKIRRegressionTests {
         let source = """
         fun main(): Int {
             val base = 100
-            val add = { a, b -> base + a + b }
+            val add = { a: Int, b: Int -> base + a + b }
             return add(1, 2)
         }
         """
 
+        // Untyped `a, b` infer `Any`, which #11707 boxes; type them so the Int ABI is exercised.
         let ctx = makeContextFromSource(source)
         try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError)
 
         let ast = try #require(ctx.ast)
         let sema = try #require(ctx.sema)
@@ -613,24 +624,27 @@ extension BuildKIRRegressionTests {
         })?.id)
 
         let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
-        let incCall = try #require(mainBody.first { instruction in
-            guard case let .call(symbol, _, _, _, _, _, _, _) = instruction else {
+        // #11911 boxes capture-free references at the reference site, so `f(2)`
+        // calls the generated adapter and the adapter body calls `inc`.
+        let adapterCall = try #require(mainBody.first { instruction in
+            guard case let .call(_, callee, _, _, _, _, _, _) = instruction else {
                 return false
             }
-            return symbol == incSymbol
+            return isCallableAdapter(callee, in: module)
         })
 
-        guard case let .call(callSymbol, callee, arguments, _, _, _, _, _) = incCall else {
-            Issue.record("Expected callable reference call to inc.")
+        guard case let .call(callSymbol, _, arguments, _, _, _, _, _) = adapterCall else {
+            Issue.record("Expected callable reference call through its adapter.")
             return
         }
-        #expect(callSymbol == incSymbol)
-        #expect(callee == sema.symbols.symbol(incSymbol)?.name)
-        #expect(arguments.count == 1)
-        guard case .intLiteral(2)? = module.arena.expr(arguments[0]) else {
+        #expect(arguments.count == 2, "closure object + explicit argument")
+        guard arguments.count == 2, case .intLiteral(2)? = module.arena.expr(arguments[1]) else {
             Issue.record("Expected callable reference call to forward the explicit argument.")
             return
         }
+        let adapterSymbol = try #require(callSymbol)
+        let adapterFunction = try #require(module.arena.function(for: adapterSymbol))
+        #expect(callsSymbol(incSymbol, in: adapterFunction.body))
     }
 
     @Test func testImplicitInterfaceCallableRefUsesVirtualDispatch() throws {
@@ -910,9 +924,25 @@ extension BuildKIRRegressionTests {
             guard case let .call(_, callee, _, result, _, _, _, _) = instruction else { return false }
             return callee == ctx.interner.intern(runtime[.unboxInt]) && result == plusArguments[1]
         })
-        guard case let .call(_, _, unboxArguments, _, _, _, _, _) = unbox,
-              case let .symbolRef(valueSymbol)? = module.arena.expr(unboxArguments[0])
-        else {
+        guard case let .call(_, _, unboxArguments, _, _, _, _, _) = unbox else { return }
+        // #11670 checkcasts the erased value parameter at the adapter boundary,
+        // so the unboxed value is `kk_op_cast(copy(param), token)`; trace it back.
+        let casts = kirCalls(to: .opCast, in: adapter.body, interner: ctx.interner)
+        var traced = unboxArguments[0]
+        tracing: for _ in 0 ..< adapter.body.count {
+            if let cast = casts.first(where: { $0.result == traced }), let source = cast.arguments.first {
+                traced = source
+                continue tracing
+            }
+            for instruction in adapter.body {
+                if case let .copy(from, to) = instruction, to == traced {
+                    traced = from
+                    continue tracing
+                }
+            }
+            break
+        }
+        guard case let .symbolRef(valueSymbol)? = module.arena.expr(traced) else {
             Issue.record("Expected plus() to receive the unboxed adapter value parameter.")
             return
         }
