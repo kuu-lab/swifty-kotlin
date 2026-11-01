@@ -6,8 +6,10 @@ import Testing
 // A statically class-typed or value-class-typed value is represented at
 // runtime as a heap pointer or (for a non-nullable value class) its raw
 // unboxed underlying primitive. Neither representation carries enough
-// information for the generic Any-fallback conversion (kk_any_to_string) to
-// recover on its own -- it either prints "<object 0x...>" for the pointer
+// information for the generic Any-fallback conversion (kk_any_to_string; for
+// object-typed values the funnel emits its thrown-channel variant
+// __kk_any_to_string_throwing so a throwing toString override can propagate)
+// to recover on its own -- it either prints "<object 0x...>" for the pointer
 // case or the raw primitive as a plain number for the value-class case.
 //
 // String template interpolation, `+` concatenation, and `+=` compound
@@ -53,7 +55,8 @@ extension LoweringPassRegressionTests {
             #expect(callsOwnToString, "the interpolated data class must call its own toString(); body: \(body)")
 
             let callees = extractCallees(from: body, interner: ctx.interner)
-            #expect(!callees.contains(RuntimeCall.anyToString.name),
+            #expect(!callees.contains(RuntimeCall.anyToString.name)
+                    && !callees.contains(RuntimeCall.anyToStringThrowing.name),
                     "a class-typed value must not reach the generic Any conversion; callees: \(callees)")
         }
     }
@@ -95,7 +98,8 @@ extension LoweringPassRegressionTests {
             #expect(callsOwnToString, "the concatenated value class must call its own toString(); body: \(body)")
 
             let callees = extractCallees(from: body, interner: ctx.interner)
-            #expect(!callees.contains(RuntimeCall.anyToString.name),
+            #expect(!callees.contains(RuntimeCall.anyToString.name)
+                    && !callees.contains(RuntimeCall.anyToStringThrowing.name),
                     "a value class's raw primitive must not reach the generic Any conversion; callees: \(callees)")
         }
     }
@@ -148,7 +152,8 @@ extension LoweringPassRegressionTests {
                     "the synthesized toString() must render a value-class field via its own toString(); body: \(synthesizedToString.body)")
 
             let callees = extractCallees(from: synthesizedToString.body, interner: ctx.interner)
-            #expect(!callees.contains(RuntimeCall.anyToString.name),
+            #expect(!callees.contains(RuntimeCall.anyToString.name)
+                    && !callees.contains(RuntimeCall.anyToStringThrowing.name),
                     "a value-class field must not be rendered via the generic Any conversion; callees: \(callees)")
         }
     }
@@ -185,7 +190,7 @@ extension LoweringPassRegressionTests {
             // Object-typed conversions go through the throwing variant so a
             // throwing toString can propagate; both are the generic Any path.
             #expect(callees.contains(RuntimeCall.anyToString.name)
-                    || callees.contains("__kk_any_to_string_throwing"),
+                    || callees.contains(RuntimeCall.anyToStringThrowing.name),
                     "a class with no toString of its own must keep the generic Any conversion; callees: \(callees)")
         }
     }
