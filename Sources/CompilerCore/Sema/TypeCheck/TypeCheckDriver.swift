@@ -110,6 +110,32 @@ final class TypeCheckDriver {
 
     private(set) lazy var builtinTypeNamesCache = BuiltinTypeNames(interner: interner)
 
+    /// Top-level `companion` extension *functions*, indexed by short name once
+    /// per module. `companionExtensionFunctionCandidates` and
+    /// `companionExtensionCallableReferenceCandidates` previously rescanned
+    /// every file's `topLevelDecls` for each call site and callable
+    /// reference — O(#topLevelDecls) per lookup, which adds up on
+    /// source-profile stdlib compilations (KUU-3956). File order and
+    /// declaration order are preserved, so the appended candidate order is
+    /// unchanged; `declSymbols` is populated during header collection, which
+    /// runs before any type checking reaches these call sites.
+    private(set) lazy var companionExtensionFunctionDeclsByName: [InternedString: [SymbolID]] = {
+        var index: [InternedString: [SymbolID]] = [:]
+        for file in ast.files {
+            for declID in file.topLevelDecls {
+                guard case let .funDecl(function)? = ast.arena.decl(declID),
+                      function.modifiers.contains(.companion),
+                      function.receiverType != nil,
+                      let symbol = sema.bindings.declSymbols[declID]
+                else {
+                    continue
+                }
+                index[function.name, default: []].append(symbol)
+            }
+        }
+        return index
+    }()
+
     // Stateless utilities (no back-reference needed)
     let helpers = TypeCheckHelpers()
     let scopeBuilder = TypeCheckScopeBuilder()
