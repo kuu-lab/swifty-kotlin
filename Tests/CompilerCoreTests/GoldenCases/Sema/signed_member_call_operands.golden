@@ -1,0 +1,304 @@
+symbol fq=__local_0.x[kind=local;type=Int;origin=fixture] kind=local vis=private flags=_ type=Int
+symbol fq=__local_1.l[kind=local;type=Long;origin=fixture] kind=local vis=private flags=_ type=Long
+symbol fq=__local_2.d[kind=local;type=Double;origin=fixture] kind=local vis=private flags=_ type=Double
+symbol fq=__local_3.f[kind=local;type=Float;origin=fixture] kind=local vis=private flags=_ type=Float
+symbol fq=__local_4.bt[kind=local;type=Byte;origin=fixture] kind=local vis=private flags=_ type=Byte
+symbol fq=__local_5.st[kind=local;type=Short;origin=fixture] kind=local vis=private flags=_ type=Short
+symbol fq=__local_6.u[kind=local;type=UInt;origin=fixture] kind=local vis=private flags=_ type=UInt
+symbol fq=__local_7.ul[kind=local;type=ULong;origin=fixture] kind=local vis=private flags=_ type=ULong
+symbol fq=__local_8.ub[kind=local;type=UByte;origin=fixture] kind=local vis=private flags=_ type=UByte
+symbol fq=__local_9.us[kind=local;type=UShort;origin=fixture] kind=local vis=private flags=_ type=UShort
+symbol fq=__local_10.c[kind=local;type=Char;origin=fixture] kind=local vis=private flags=_ type=Char
+symbol fq=__local_11.xn[kind=local;type=Int?;origin=fixture] kind=local vis=private flags=_ type=Int?
+symbol fq=__local_12.i1[kind=local;type=Int;origin=fixture] kind=local vis=private flags=_ type=Int
+symbol fq=__local_13.i2[kind=local;type=Long;origin=fixture] kind=local vis=private flags=_ type=Long
+symbol fq=__local_14.i3[kind=local;type=Double;origin=fixture] kind=local vis=private flags=_ type=Double
+symbol fq=__local_15.i4[kind=local;type=Float;origin=fixture] kind=local vis=private flags=_ type=Float
+symbol fq=__local_16.i5[kind=local;type=Int;origin=fixture] kind=local vis=private flags=_ type=Int
+symbol fq=__local_17.i6[kind=local;type=Int;origin=fixture] kind=local vis=private flags=_ type=Int
+symbol fq=__local_18.i7[kind=local;type=Int;origin=fixture] kind=local vis=private flags=_ type=Int
+symbol fq=__local_19.i8[kind=local;type=Int;origin=fixture] kind=local vis=private flags=_ type=Int
+symbol fq=__local_20.i9[kind=local;type=Int;origin=fixture] kind=local vis=private flags=_ type=Int
+symbol fq=__local_21.i10[kind=local;type=Int;origin=fixture] kind=local vis=private flags=_ type=Int
+symbol fq=__local_22.l1[kind=local;type=Long;origin=fixture] kind=local vis=private flags=_ type=Long
+symbol fq=__local_23.l2[kind=local;type=Long;origin=fixture] kind=local vis=private flags=_ type=Long
+symbol fq=__local_24.l3[kind=local;type=Long;origin=fixture] kind=local vis=private flags=_ type=Long
+symbol fq=__local_25.l4[kind=local;type=Long;origin=fixture] kind=local vis=private flags=_ type=Long
+symbol fq=__local_26.l5[kind=local;type=Long;origin=fixture] kind=local vis=private flags=_ type=Long
+symbol fq=__local_27.l6[kind=local;type=Int;origin=fixture] kind=local vis=private flags=_ type=Int
+symbol fq=__local_28.l7[kind=local;type=Long;origin=fixture] kind=local vis=private flags=_ type=Long
+symbol fq=__local_29.d1[kind=local;type=Double;origin=fixture] kind=local vis=private flags=_ type=Double
+symbol fq=__local_30.d2[kind=local;type=Double;origin=fixture] kind=local vis=private flags=_ type=Double
+symbol fq=__local_31.d3[kind=local;type=Double;origin=fixture] kind=local vis=private flags=_ type=Double
+symbol fq=__local_32.d4[kind=local;type=Double;origin=fixture] kind=local vis=private flags=_ type=Double
+symbol fq=__local_33.d5[kind=local;type=Double;origin=fixture] kind=local vis=private flags=_ type=Double
+symbol fq=__local_34.d6[kind=local;type=Double;origin=fixture] kind=local vis=private flags=_ type=Double
+symbol fq=__local_35.f1[kind=local;type=Float;origin=fixture] kind=local vis=private flags=_ type=Float
+symbol fq=__local_36.f2[kind=local;type=Float;origin=fixture] kind=local vis=private flags=_ type=Float
+symbol fq=__local_37.b1[kind=local;type=Int;origin=fixture] kind=local vis=private flags=_ type=Int
+symbol fq=__local_38.s1[kind=local;type=Int;origin=fixture] kind=local vis=private flags=_ type=Int
+symbol fq=__local_39.c1[kind=local;type=Char;origin=fixture] kind=local vis=private flags=_ type=Char
+symbol fq=__local_40.c2[kind=local;type=Int;origin=fixture] kind=local vis=private flags=_ type=Int
+symbol fq=__local_41.c3[kind=local;type=Char;origin=fixture] kind=local vis=private flags=_ type=Char
+symbol fq=__local_42.u1[kind=local;type=UInt;origin=fixture] kind=local vis=private flags=_ type=UInt
+symbol fq=__local_43.u2[kind=local;type=UInt;origin=fixture] kind=local vis=private flags=_ type=UInt
+symbol fq=__local_44.u3[kind=local;type=ULong;origin=fixture] kind=local vis=private flags=_ type=ULong
+symbol fq=__local_45.u4[kind=local;type=UInt;origin=fixture] kind=local vis=private flags=_ type=UInt
+symbol fq=__local_46.u5[kind=local;type=UInt;origin=fixture] kind=local vis=private flags=_ type=UInt
+symbol fq=__local_47.u6[kind=local;type=UInt;origin=fixture] kind=local vis=private flags=_ type=UInt
+symbol fq=__local_48.u7[kind=local;type=UInt;origin=fixture] kind=local vis=private flags=_ type=UInt
+symbol fq=__local_49.u8[kind=local;type=UInt;origin=fixture] kind=local vis=private flags=_ type=UInt
+symbol fq=__local_50.u9[kind=local;type=UInt;origin=fixture] kind=local vis=private flags=_ type=UInt
+symbol fq=__local_51.u10[kind=local;type=ULong;origin=fixture] kind=local vis=private flags=_ type=ULong
+symbol fq=__local_52.u11[kind=local;type=UInt;origin=fixture] kind=local vis=private flags=_ type=UInt
+symbol fq=__local_53.u12[kind=local;type=UInt;origin=fixture] kind=local vis=private flags=_ type=UInt
+symbol fq=__local_54.sh1[kind=local;type=Int;origin=fixture] kind=local vis=private flags=_ type=Int
+symbol fq=__local_55.sh2[kind=local;type=Int;origin=fixture] kind=local vis=private flags=_ type=Int
+symbol fq=__local_56.sh3[kind=local;type=Int;origin=fixture] kind=local vis=private flags=_ type=Int
+symbol fq=__local_57.bi1[kind=local;type=Int;origin=fixture] kind=local vis=private flags=_ type=Int
+symbol fq=__local_58.bi2[kind=local;type=Int;origin=fixture] kind=local vis=private flags=_ type=Int
+symbol fq=__local_59.bi3[kind=local;type=Int;origin=fixture] kind=local vis=private flags=_ type=Int
+symbol fq=__local_60.ubi[kind=local;type=UInt;origin=fixture] kind=local vis=private flags=_ type=UInt
+symbol fq=__local_61.sc[kind=local;type=Int?;origin=fixture] kind=local vis=private flags=_ type=Int?
+symbol fq=__local_62.eq[kind=local;type=Boolean;origin=fixture] kind=local vis=private flags=_ type=Boolean
+symbol fq=__local_63.cmp[kind=local;type=Int;origin=fixture] kind=local vis=private flags=_ type=Int
+symbol fq=__local_64.nn[kind=local;type=UInt;origin=fixture] kind=local vis=private flags=_ type=UInt
+symbol fq=golden.sema.main[kind=fun;params=;ret=Unit;origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
+file fsigned_member_call_operands package=golden.sema
+  decl golden.sema.main[kind=fun;params=;ret=Unit;origin=fixture] fun main sym=golden.sema.main[kind=fun;params=;ret=Unit;origin=fixture]
+expr e@10:13 int(5) type=Int
+expr e@10:5 localDecl x mutable=0 type=_ init=e@10:13 type=Unit ref=__local_0.x[kind=local;type=Int;origin=fixture]
+expr e@11:13 long(5) type=Long
+expr e@11:5 localDecl l mutable=0 type=_ init=e@11:13 type=Unit ref=__local_1.l[kind=local;type=Long;origin=fixture]
+expr e@12:13 double(1.5) type=Double
+expr e@12:5 localDecl d mutable=0 type=_ init=e@12:13 type=Unit ref=__local_2.d[kind=local;type=Double;origin=fixture]
+expr e@13:13 float(1.5) type=Float
+expr e@13:5 localDecl f mutable=0 type=_ init=e@13:13 type=Unit ref=__local_3.f[kind=local;type=Float;origin=fixture]
+expr e@14:20 int(1) type=Byte
+expr e@14:5 localDecl bt mutable=0 type=Byte init=e@14:20 type=Unit ref=__local_4.bt[kind=local;type=Byte;origin=fixture]
+expr e@15:21 int(1) type=Short
+expr e@15:5 localDecl st mutable=0 type=Short init=e@15:21 type=Unit ref=__local_5.st[kind=local;type=Short;origin=fixture]
+expr e@16:19 uint(1) type=UInt
+expr e@16:5 localDecl u mutable=0 type=UInt init=e@16:19 type=Unit ref=__local_6.u[kind=local;type=UInt;origin=fixture]
+expr e@17:21 ulong(1) type=ULong
+expr e@17:5 localDecl ul mutable=0 type=ULong init=e@17:21 type=Unit ref=__local_7.ul[kind=local;type=ULong;origin=fixture]
+expr e@18:21 uint(1) type=UByte
+expr e@18:5 localDecl ub mutable=0 type=UByte init=e@18:21 type=Unit ref=__local_8.ub[kind=local;type=UByte;origin=fixture]
+expr e@19:22 uint(1) type=UShort
+expr e@19:5 localDecl us mutable=0 type=UShort init=e@19:22 type=Unit ref=__local_9.us[kind=local;type=UShort;origin=fixture]
+expr e@20:13 char(97) type=Char
+expr e@20:5 localDecl c mutable=0 type=_ init=e@20:13 type=Unit ref=__local_10.c[kind=local;type=Char;origin=fixture]
+expr e@21:20 int(5) type=Int
+expr e@21:5 localDecl xn mutable=0 type=Int? init=e@21:20 type=Unit ref=__local_11.xn[kind=local;type=Int?;origin=fixture]
+expr e@23:14 name(x) type=Int ref=__local_0.x[kind=local;type=Int;origin=fixture]
+expr e@23:21 int(5) type=Int
+expr e@23:14#1 memberCall recv=e@23:14 callee=plus args=[_:e@23:21] type=Int
+expr e@23:5 localDecl i1 mutable=0 type=_ init=e@23:14#1 type=Unit ref=__local_12.i1[kind=local;type=Int;origin=fixture]
+expr e@24:14 name(x) type=Int ref=__local_0.x[kind=local;type=Int;origin=fixture]
+expr e@24:21 long(5) type=Long
+expr e@24:14#1 memberCall recv=e@24:14 callee=plus args=[_:e@24:21] type=Long
+expr e@24:5 localDecl i2 mutable=0 type=_ init=e@24:14#1 type=Unit ref=__local_13.i2[kind=local;type=Long;origin=fixture]
+expr e@25:14 name(x) type=Int ref=__local_0.x[kind=local;type=Int;origin=fixture]
+expr e@25:21 double(1.5) type=Double
+expr e@25:14#1 memberCall recv=e@25:14 callee=plus args=[_:e@25:21] type=Double
+expr e@25:5 localDecl i3 mutable=0 type=_ init=e@25:14#1 type=Unit ref=__local_14.i3[kind=local;type=Double;origin=fixture]
+expr e@26:14 name(x) type=Int ref=__local_0.x[kind=local;type=Int;origin=fixture]
+expr e@26:21 float(1.5) type=Float
+expr e@26:14#1 memberCall recv=e@26:14 callee=plus args=[_:e@26:21] type=Float
+expr e@26:5 localDecl i4 mutable=0 type=_ init=e@26:14#1 type=Unit ref=__local_15.i4[kind=local;type=Float;origin=fixture]
+expr e@27:14 name(x) type=Int ref=__local_0.x[kind=local;type=Int;origin=fixture]
+expr e@27:22 int(2) type=Int
+expr e@27:14#1 memberCall recv=e@27:14 callee=minus args=[_:e@27:22] type=Int
+expr e@27:5 localDecl i5 mutable=0 type=_ init=e@27:14#1 type=Unit ref=__local_16.i5[kind=local;type=Int;origin=fixture]
+expr e@28:14 name(x) type=Int ref=__local_0.x[kind=local;type=Int;origin=fixture]
+expr e@28:22 int(2) type=Int
+expr e@28:14#1 memberCall recv=e@28:14 callee=times args=[_:e@28:22] type=Int
+expr e@28:5 localDecl i6 mutable=0 type=_ init=e@28:14#1 type=Unit ref=__local_17.i6[kind=local;type=Int;origin=fixture]
+expr e@29:14 name(x) type=Int ref=__local_0.x[kind=local;type=Int;origin=fixture]
+expr e@29:20 int(2) type=Int
+expr e@29:14#1 memberCall recv=e@29:14 callee=div args=[_:e@29:20] type=Int
+expr e@29:5 localDecl i7 mutable=0 type=_ init=e@29:14#1 type=Unit ref=__local_18.i7[kind=local;type=Int;origin=fixture]
+expr e@30:14 name(x) type=Int ref=__local_0.x[kind=local;type=Int;origin=fixture]
+expr e@30:20 int(2) type=Int
+expr e@30:14#1 memberCall recv=e@30:14 callee=rem args=[_:e@30:20] type=Int
+expr e@30:5 localDecl i8 mutable=0 type=_ init=e@30:14#1 type=Unit ref=__local_19.i8[kind=local;type=Int;origin=fixture]
+expr e@31:14 name(x) type=Int ref=__local_0.x[kind=local;type=Int;origin=fixture]
+expr e@31:20 int(2) type=Int
+expr e@31:14#1 memberCall recv=e@31:14 callee=mod args=[_:e@31:20] type=Int
+expr e@31:5 localDecl i9 mutable=0 type=_ init=e@31:14#1 type=Unit ref=__local_20.i9[kind=local;type=Int;origin=fixture]
+expr e@32:15 name(x) type=Int ref=__local_0.x[kind=local;type=Int;origin=fixture]
+expr e@32:26 int(2) type=Int
+expr e@32:15#1 memberCall recv=e@32:15 callee=floorDiv args=[_:e@32:26] type=Int
+expr e@32:5 localDecl i10 mutable=0 type=_ init=e@32:15#1 type=Unit ref=__local_21.i10[kind=local;type=Int;origin=fixture]
+expr e@33:14 name(l) type=Long ref=__local_1.l[kind=local;type=Long;origin=fixture]
+expr e@33:21 int(5) type=Int
+expr e@33:14#1 memberCall recv=e@33:14 callee=plus args=[_:e@33:21] type=Long
+expr e@33:5 localDecl l1 mutable=0 type=_ init=e@33:14#1 type=Unit ref=__local_22.l1[kind=local;type=Long;origin=fixture]
+expr e@34:14 name(l) type=Long ref=__local_1.l[kind=local;type=Long;origin=fixture]
+expr e@34:22 long(5) type=Long
+expr e@34:14#1 memberCall recv=e@34:14 callee=minus args=[_:e@34:22] type=Long
+expr e@34:5 localDecl l2 mutable=0 type=_ init=e@34:14#1 type=Unit ref=__local_23.l2[kind=local;type=Long;origin=fixture]
+expr e@35:14 name(l) type=Long ref=__local_1.l[kind=local;type=Long;origin=fixture]
+expr e@35:22 int(5) type=Int
+expr e@35:14#1 memberCall recv=e@35:14 callee=times args=[_:e@35:22] type=Long
+expr e@35:5 localDecl l3 mutable=0 type=_ init=e@35:14#1 type=Unit ref=__local_24.l3[kind=local;type=Long;origin=fixture]
+expr e@36:14 name(l) type=Long ref=__local_1.l[kind=local;type=Long;origin=fixture]
+expr e@36:20 int(2) type=Int
+expr e@36:14#1 memberCall recv=e@36:14 callee=div args=[_:e@36:20] type=Long
+expr e@36:5 localDecl l4 mutable=0 type=_ init=e@36:14#1 type=Unit ref=__local_25.l4[kind=local;type=Long;origin=fixture]
+expr e@37:14 name(l) type=Long ref=__local_1.l[kind=local;type=Long;origin=fixture]
+expr e@37:20 long(2) type=Long
+expr e@37:14#1 memberCall recv=e@37:14 callee=rem args=[_:e@37:20] type=Long
+expr e@37:5 localDecl l5 mutable=0 type=_ init=e@37:14#1 type=Unit ref=__local_26.l5[kind=local;type=Long;origin=fixture]
+expr e@38:14 name(l) type=Long ref=__local_1.l[kind=local;type=Long;origin=fixture]
+expr e@38:20 int(2) type=Int
+expr e@38:14#1 memberCall recv=e@38:14 callee=mod args=[_:e@38:20] type=Int
+expr e@38:5 localDecl l6 mutable=0 type=_ init=e@38:14#1 type=Unit ref=__local_27.l6[kind=local;type=Int;origin=fixture]
+expr e@39:14 name(l) type=Long ref=__local_1.l[kind=local;type=Long;origin=fixture]
+expr e@39:25 long(2) type=Long
+expr e@39:14#1 memberCall recv=e@39:14 callee=floorDiv args=[_:e@39:25] type=Long
+expr e@39:5 localDecl l7 mutable=0 type=_ init=e@39:14#1 type=Unit ref=__local_28.l7[kind=local;type=Long;origin=fixture]
+expr e@40:14 name(d) type=Double ref=__local_2.d[kind=local;type=Double;origin=fixture]
+expr e@40:21 int(5) type=Int
+expr e@40:14#1 memberCall recv=e@40:14 callee=plus args=[_:e@40:21] type=Double
+expr e@40:5 localDecl d1 mutable=0 type=_ init=e@40:14#1 type=Unit ref=__local_29.d1[kind=local;type=Double;origin=fixture]
+expr e@41:14 name(d) type=Double ref=__local_2.d[kind=local;type=Double;origin=fixture]
+expr e@41:21 long(5) type=Long
+expr e@41:14#1 memberCall recv=e@41:14 callee=plus args=[_:e@41:21] type=Double
+expr e@41:5 localDecl d2 mutable=0 type=_ init=e@41:14#1 type=Unit ref=__local_30.d2[kind=local;type=Double;origin=fixture]
+expr e@42:14 name(d) type=Double ref=__local_2.d[kind=local;type=Double;origin=fixture]
+expr e@42:22 float(1.0) type=Float
+expr e@42:14#1 memberCall recv=e@42:14 callee=minus args=[_:e@42:22] type=Double
+expr e@42:5 localDecl d3 mutable=0 type=_ init=e@42:14#1 type=Unit ref=__local_31.d3[kind=local;type=Double;origin=fixture]
+expr e@43:14 name(d) type=Double ref=__local_2.d[kind=local;type=Double;origin=fixture]
+expr e@43:22 double(2.0) type=Double
+expr e@43:14#1 memberCall recv=e@43:14 callee=times args=[_:e@43:22] type=Double
+expr e@43:5 localDecl d4 mutable=0 type=_ init=e@43:14#1 type=Unit ref=__local_32.d4[kind=local;type=Double;origin=fixture]
+expr e@44:14 name(d) type=Double ref=__local_2.d[kind=local;type=Double;origin=fixture]
+expr e@44:20 int(2) type=Int
+expr e@44:14#1 memberCall recv=e@44:14 callee=div args=[_:e@44:20] type=Double
+expr e@44:5 localDecl d5 mutable=0 type=_ init=e@44:14#1 type=Unit ref=__local_33.d5[kind=local;type=Double;origin=fixture]
+expr e@45:14 name(d) type=Double ref=__local_2.d[kind=local;type=Double;origin=fixture]
+expr e@45:20 double(2.0) type=Double
+expr e@45:14#1 memberCall recv=e@45:14 callee=rem args=[_:e@45:20] type=Double
+expr e@45:5 localDecl d6 mutable=0 type=_ init=e@45:14#1 type=Unit ref=__local_34.d6[kind=local;type=Double;origin=fixture]
+expr e@46:14 name(f) type=Float ref=__local_3.f[kind=local;type=Float;origin=fixture]
+expr e@46:21 int(5) type=Int
+expr e@46:14#1 memberCall recv=e@46:14 callee=plus args=[_:e@46:21] type=Float
+expr e@46:5 localDecl f1 mutable=0 type=_ init=e@46:14#1 type=Unit ref=__local_35.f1[kind=local;type=Float;origin=fixture]
+expr e@47:14 name(f) type=Float ref=__local_3.f[kind=local;type=Float;origin=fixture]
+expr e@47:22 float(2.0) type=Float
+expr e@47:14#1 memberCall recv=e@47:14 callee=times args=[_:e@47:22] type=Float
+expr e@47:5 localDecl f2 mutable=0 type=_ init=e@47:14#1 type=Unit ref=__local_36.f2[kind=local;type=Float;origin=fixture]
+expr e@48:14 name(bt) type=Byte ref=__local_4.bt[kind=local;type=Byte;origin=fixture]
+expr e@48:22 name(st) type=Short ref=__local_5.st[kind=local;type=Short;origin=fixture]
+expr e@48:14#1 memberCall recv=e@48:14 callee=plus args=[_:e@48:22] type=Int
+expr e@48:5 localDecl b1 mutable=0 type=_ init=e@48:14#1 type=Unit ref=__local_37.b1[kind=local;type=Int;origin=fixture]
+expr e@49:14 name(st) type=Short ref=__local_5.st[kind=local;type=Short;origin=fixture]
+expr e@49:22 name(bt) type=Byte ref=__local_4.bt[kind=local;type=Byte;origin=fixture]
+expr e@49:14#1 memberCall recv=e@49:14 callee=plus args=[_:e@49:22] type=Int
+expr e@49:5 localDecl s1 mutable=0 type=_ init=e@49:14#1 type=Unit ref=__local_38.s1[kind=local;type=Int;origin=fixture]
+expr e@50:14 name(c) type=Char ref=__local_10.c[kind=local;type=Char;origin=fixture]
+expr e@50:21 int(3) type=Int
+expr e@50:14#1 memberCall recv=e@50:14 callee=plus args=[_:e@50:21] type=Char
+expr e@50:5 localDecl c1 mutable=0 type=_ init=e@50:14#1 type=Unit ref=__local_39.c1[kind=local;type=Char;origin=fixture]
+expr e@51:14 name(c) type=Char ref=__local_10.c[kind=local;type=Char;origin=fixture]
+expr e@51:22 char(98) type=Char
+expr e@51:14#1 memberCall recv=e@51:14 callee=minus args=[_:e@51:22] type=Int
+expr e@51:5 localDecl c2 mutable=0 type=_ init=e@51:14#1 type=Unit ref=__local_40.c2[kind=local;type=Int;origin=fixture]
+expr e@52:14 name(c) type=Char ref=__local_10.c[kind=local;type=Char;origin=fixture]
+expr e@52:22 int(2) type=Int
+expr e@52:14#1 memberCall recv=e@52:14 callee=minus args=[_:e@52:22] type=Char
+expr e@52:5 localDecl c3 mutable=0 type=_ init=e@52:14#1 type=Unit ref=__local_41.c3[kind=local;type=Char;origin=fixture]
+expr e@53:14 name(u) type=UInt ref=__local_6.u[kind=local;type=UInt;origin=fixture]
+expr e@53:21 uint(0) type=UInt
+expr e@53:14#1 memberCall recv=e@53:14 callee=plus args=[_:e@53:21] type=UInt
+expr e@53:5 localDecl u1 mutable=0 type=_ init=e@53:14#1 type=Unit ref=__local_42.u1[kind=local;type=UInt;origin=fixture]
+expr e@54:14 name(u) type=UInt ref=__local_6.u[kind=local;type=UInt;origin=fixture]
+expr e@54:21 name(ub) type=UByte ref=__local_8.ub[kind=local;type=UByte;origin=fixture]
+expr e@54:14#1 memberCall recv=e@54:14 callee=plus args=[_:e@54:21] type=UInt
+expr e@54:5 localDecl u2 mutable=0 type=_ init=e@54:14#1 type=Unit ref=__local_43.u2[kind=local;type=UInt;origin=fixture]
+expr e@55:14 name(u) type=UInt ref=__local_6.u[kind=local;type=UInt;origin=fixture]
+expr e@55:21 ulong(2) type=ULong
+expr e@55:14#1 memberCall recv=e@55:14 callee=plus args=[_:e@55:21] type=ULong
+expr e@55:5 localDecl u3 mutable=0 type=_ init=e@55:14#1 type=Unit ref=__local_44.u3[kind=local;type=ULong;origin=fixture]
+expr e@56:14 name(u) type=UInt ref=__local_6.u[kind=local;type=UInt;origin=fixture]
+expr e@56:22 uint(1) type=UInt
+expr e@56:14#1 memberCall recv=e@56:14 callee=minus args=[_:e@56:22] type=UInt
+expr e@56:5 localDecl u4 mutable=0 type=_ init=e@56:14#1 type=Unit ref=__local_45.u4[kind=local;type=UInt;origin=fixture]
+expr e@57:14 name(u) type=UInt ref=__local_6.u[kind=local;type=UInt;origin=fixture]
+expr e@57:22 uint(2) type=UInt
+expr e@57:14#1 memberCall recv=e@57:14 callee=times args=[_:e@57:22] type=UInt
+expr e@57:5 localDecl u5 mutable=0 type=_ init=e@57:14#1 type=Unit ref=__local_46.u5[kind=local;type=UInt;origin=fixture]
+expr e@58:14 name(u) type=UInt ref=__local_6.u[kind=local;type=UInt;origin=fixture]
+expr e@58:20 uint(2) type=UInt
+expr e@58:14#1 memberCall recv=e@58:14 callee=div args=[_:e@58:20] type=UInt
+expr e@58:5 localDecl u6 mutable=0 type=_ init=e@58:14#1 type=Unit ref=__local_47.u6[kind=local;type=UInt;origin=fixture]
+expr e@59:14 name(u) type=UInt ref=__local_6.u[kind=local;type=UInt;origin=fixture]
+expr e@59:20 uint(2) type=UInt
+expr e@59:14#1 memberCall recv=e@59:14 callee=rem args=[_:e@59:20] type=UInt
+expr e@59:5 localDecl u7 mutable=0 type=_ init=e@59:14#1 type=Unit ref=__local_48.u7[kind=local;type=UInt;origin=fixture]
+expr e@60:14 name(u) type=UInt ref=__local_6.u[kind=local;type=UInt;origin=fixture]
+expr e@60:20 uint(2) type=UInt
+expr e@60:14#1 memberCall recv=e@60:14 callee=mod args=[_:e@60:20] type=UInt
+expr e@60:5 localDecl u8 mutable=0 type=_ init=e@60:14#1 type=Unit ref=__local_49.u8[kind=local;type=UInt;origin=fixture]
+expr e@61:14 name(u) type=UInt ref=__local_6.u[kind=local;type=UInt;origin=fixture]
+expr e@61:25 uint(2) type=UInt
+expr e@61:14#1 memberCall recv=e@61:14 callee=floorDiv args=[_:e@61:25] type=UInt
+expr e@61:5 localDecl u9 mutable=0 type=_ init=e@61:14#1 type=Unit ref=__local_50.u9[kind=local;type=UInt;origin=fixture]
+expr e@62:15 name(ul) type=ULong ref=__local_7.ul[kind=local;type=ULong;origin=fixture]
+expr e@62:23 uint(2) type=UInt
+expr e@62:15#1 memberCall recv=e@62:15 callee=plus args=[_:e@62:23] type=ULong
+expr e@62:5 localDecl u10 mutable=0 type=_ init=e@62:15#1 type=Unit ref=__local_51.u10[kind=local;type=ULong;origin=fixture]
+expr e@63:15 name(ub) type=UByte ref=__local_8.ub[kind=local;type=UByte;origin=fixture]
+expr e@63:23 name(ub) type=UByte ref=__local_8.ub[kind=local;type=UByte;origin=fixture]
+expr e@63:15#1 memberCall recv=e@63:15 callee=plus args=[_:e@63:23] type=UInt
+expr e@63:5 localDecl u11 mutable=0 type=_ init=e@63:15#1 type=Unit ref=__local_52.u11[kind=local;type=UInt;origin=fixture]
+expr e@64:15 name(us) type=UShort ref=__local_9.us[kind=local;type=UShort;origin=fixture]
+expr e@64:23 uint(1) type=UInt
+expr e@64:15#1 memberCall recv=e@64:15 callee=plus args=[_:e@64:23] type=UInt
+expr e@64:5 localDecl u12 mutable=0 type=_ init=e@64:15#1 type=Unit ref=__local_53.u12[kind=local;type=UInt;origin=fixture]
+expr e@65:15 name(x) type=Int ref=__local_0.x[kind=local;type=Int;origin=fixture]
+expr e@65:21 int(1) type=Int
+expr e@65:15#1 memberCall recv=e@65:15 callee=shl args=[_:e@65:21] type=Int
+expr e@65:5 localDecl sh1 mutable=0 type=_ init=e@65:15#1 type=Unit ref=__local_54.sh1[kind=local;type=Int;origin=fixture]
+expr e@66:15 name(x) type=Int ref=__local_0.x[kind=local;type=Int;origin=fixture]
+expr e@66:21 int(1) type=Int
+expr e@66:15#1 memberCall recv=e@66:15 callee=shr args=[_:e@66:21] type=Int
+expr e@66:5 localDecl sh2 mutable=0 type=_ init=e@66:15#1 type=Unit ref=__local_55.sh2[kind=local;type=Int;origin=fixture]
+expr e@67:15 name(x) type=Int ref=__local_0.x[kind=local;type=Int;origin=fixture]
+expr e@67:22 int(1) type=Int
+expr e@67:15#1 memberCall recv=e@67:15 callee=ushr args=[_:e@67:22] type=Int
+expr e@67:5 localDecl sh3 mutable=0 type=_ init=e@67:15#1 type=Unit ref=__local_56.sh3[kind=local;type=Int;origin=fixture]
+expr e@68:15 name(x) type=Int ref=__local_0.x[kind=local;type=Int;origin=fixture]
+expr e@68:21 int(3) type=Int
+expr e@68:15#1 memberCall recv=e@68:15 callee=and args=[_:e@68:21] type=Int
+expr e@68:5 localDecl bi1 mutable=0 type=_ init=e@68:15#1 type=Unit ref=__local_57.bi1[kind=local;type=Int;origin=fixture]
+expr e@69:15 name(x) type=Int ref=__local_0.x[kind=local;type=Int;origin=fixture]
+expr e@69:20 int(3) type=Int
+expr e@69:15#1 memberCall recv=e@69:15 callee=or args=[_:e@69:20] type=Int
+expr e@69:5 localDecl bi2 mutable=0 type=_ init=e@69:15#1 type=Unit ref=__local_58.bi2[kind=local;type=Int;origin=fixture]
+expr e@70:15 name(x) type=Int ref=__local_0.x[kind=local;type=Int;origin=fixture]
+expr e@70:21 int(3) type=Int
+expr e@70:15#1 memberCall recv=e@70:15 callee=xor args=[_:e@70:21] type=Int
+expr e@70:5 localDecl bi3 mutable=0 type=_ init=e@70:15#1 type=Unit ref=__local_59.bi3[kind=local;type=Int;origin=fixture]
+expr e@71:15 name(u) type=UInt ref=__local_6.u[kind=local;type=UInt;origin=fixture]
+expr e@71:21 uint(3) type=UInt
+expr e@71:15#1 memberCall recv=e@71:15 callee=and args=[_:e@71:21] type=UInt
+expr e@71:5 localDecl ubi mutable=0 type=_ init=e@71:15#1 type=Unit ref=__local_60.ubi[kind=local;type=UInt;origin=fixture]
+expr e@72:14 name(xn) type=Int? ref=__local_11.xn[kind=local;type=Int?;origin=fixture]
+expr e@72:23 int(5) type=Int
+expr e@72:14#1 safeMemberCall recv=e@72:14 callee=plus args=[_:e@72:23] type=Int?
+expr e@72:5 localDecl sc mutable=0 type=_ init=e@72:14#1 type=Unit ref=__local_61.sc[kind=local;type=Int?;origin=fixture]
+expr e@73:14 name(x) type=Int ref=__local_0.x[kind=local;type=Int;origin=fixture]
+expr e@73:23 name(xn) type=Int? ref=__local_11.xn[kind=local;type=Int?;origin=fixture]
+expr e@73:14#1 memberCall recv=e@73:14 callee=equals args=[_:e@73:23] type=Boolean
+expr e@73:5 localDecl eq mutable=0 type=_ init=e@73:14#1 type=Unit ref=__local_62.eq[kind=local;type=Boolean;origin=fixture]
+expr e@74:15 name(x) type=Int ref=__local_0.x[kind=local;type=Int;origin=fixture]
+expr e@74:27 int(5) type=Int
+expr e@74:15#1 memberCall recv=e@74:15 callee=compareTo args=[_:e@74:27] type=Int call=kotlin.Comparable.compareTo[kind=fun;recv=kotlin.Comparable<T0>;params=T0;ret=Int;gen=1;classGen=1;names=[other]] targs=[Int]
+expr e@74:5 localDecl cmp mutable=0 type=_ init=e@74:15#1 type=Unit ref=__local_63.cmp[kind=local;type=Int;origin=fixture]
+expr e@75:14 name(u) type=UInt ref=__local_6.u[kind=local;type=UInt;origin=fixture]
+expr e@75:21 call callee=e@75:21#1 args=[] type=Nothing call=kotlin.TODO[kind=fun;params=;ret=Nothing]
+expr e@75:14#1 memberCall recv=e@75:14 callee=plus args=[_:e@75:21] type=UInt
+expr e@75:5 localDecl nn mutable=0 type=_ init=e@75:14#1 type=Unit ref=__local_64.nn[kind=local;type=UInt;origin=fixture]
