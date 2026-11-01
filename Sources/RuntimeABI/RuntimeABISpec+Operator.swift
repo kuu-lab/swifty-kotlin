@@ -108,6 +108,13 @@ public extension RuntimeABISpec {
         abi.th("__kk_kclass_functions", "kclassRaw"),
         abi.th("__kk_kclass_member_functions", "kclassRaw"),
         abi.th("__kk_kclass_declared_member_functions", "kclassRaw"),
+        // KUU-4064: member-extension callables register alongside members but
+        // answer only `memberExtension*`/`declaredMemberExtension*` queries.
+        abi.nt("__kk_kclass_register_member_extension", "kclassRaw memberRaw"),
+        abi.th("__kk_kclass_member_extension_properties", "kclassRaw"),
+        abi.th("__kk_kclass_declared_member_extension_properties", "kclassRaw"),
+        abi.th("__kk_kclass_member_extension_functions", "kclassRaw"),
+        abi.th("__kk_kclass_declared_member_extension_functions", "kclassRaw"),
         abi.nt("__kk_ktype_classifier", "ktypeRaw"),
         abi.nt("__kk_ktype_arguments", "ktypeRaw"),
         abi.nt("__kk_ktype_isMarkedNullable", "ktypeRaw"),

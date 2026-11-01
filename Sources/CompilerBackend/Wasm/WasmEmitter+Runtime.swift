@@ -593,6 +593,7 @@ enum WasmRuntimeHelpers {
         "__kk_kclass_register_companion",
         "__kk_kclass_register_annotation_factory",
         "__kk_kclass_register_member",
+        "__kk_kclass_register_member_extension",
         "__kk_java_class_register_declared_method",
         "__kk_java_class_register_declared_field",
         "__kk_kcallable_register",
@@ -1447,6 +1448,11 @@ enum WasmRuntimeHelpers {
         case "__kk_kclass_register_member":
             extraLocals = 0
             emitOwnerRegisterBody(&code, ctx: ctx, kind: 13)
+        // KUU-4064: member extensions join the same reglist under their own
+        // kind so future member queries can exclude them like the JVM.
+        case "__kk_kclass_register_member_extension":
+            extraLocals = 0
+            emitOwnerRegisterBody(&code, ctx: ctx, kind: 17)
         case "__kk_kcallable_register":
             extraLocals = 0
             emitTokenRegisterBody(&code, ctx: ctx, kind: 14, argumentCount: argumentCount)
