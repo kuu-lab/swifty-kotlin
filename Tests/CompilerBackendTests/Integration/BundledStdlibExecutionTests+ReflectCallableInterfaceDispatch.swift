@@ -219,6 +219,8 @@ extension BundledStdlibExecutionTests {
             fun main() {
                 val t = ::f.parameters.first().type
                 println(t.annotations.size)
+                val erased: Any = t
+                println(erased is KAnnotatedElement)
                 println(typeOf<Int>().annotations.size)
                 println(typeOf<List<String>>().annotations.size)
                 println(::f.returnType.annotations.size)
@@ -230,7 +232,7 @@ extension BundledStdlibExecutionTests {
                 println(describe(u))
             }
             """,
-            expectedOutput: "0\n0\n0\n0\n2\n0\n0\n2\n",
+            expectedOutput: "0\ntrue\n0\n0\n0\n2\n0\n0\n2\n",
             allowDefaultStdlibLibrary: false
         )
     }
