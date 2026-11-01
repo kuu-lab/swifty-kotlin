@@ -1,7 +1,7 @@
 // The capacity is a reservation hint; the Kotlin layer validates negatives.
 
 // A frozen builder keeps the same mutable interface identity but rejects writes.
-private let runtimeListBuilderTypeID: Int64 = {
+let runtimeListBuilderTypeID: Int64 = {
     let id = runtimeStableNominalTypeID(fqName: "kotlin.collections.__KSwiftKListBuilder")
     runtimeRegisterTypeEdge(childTypeID: id, parentTypeID: mutableListRuntimeTypeID)
     runtimeRegisterTypeEdge(
@@ -13,7 +13,7 @@ private let runtimeListBuilderTypeID: Int64 = {
 
 // A frozen builder still implements MutableSet and rejects writes at runtime.
 // Keep that conformance without claiming HashSet or LinkedHashSet identity.
-private let runtimeSetBuilderTypeID: Int64 = {
+let runtimeSetBuilderTypeID: Int64 = {
     let id = runtimeStableNominalTypeID(fqName: "kotlin.collections.__KSwiftKSetBuilder")
     runtimeRegisterTypeEdge(
         childTypeID: id,

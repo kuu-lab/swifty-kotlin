@@ -80,6 +80,15 @@ func runtimeListViewTypeID(mutable: Bool, randomAccess: Bool) -> Int64 {
     listViewRuntimeTypeIDs[(mutable ? 1 : 0) | (randomAccess ? 2 : 0)]
 }
 
+/// Decodes a view tag back into its conformance flags (KUU-3963): reflection
+/// names `subList`/`asReversed` views after the JVM implementation class the
+/// flags describe (`java.util.AbstractList$RandomAccessSubList`,
+/// `kotlin.collections.ReversedList`, ...).
+func runtimeListViewTypeIDFlags(_ typeID: Int64) -> (mutable: Bool, randomAccess: Bool)? {
+    guard let flags = listViewRuntimeTypeIDs.firstIndex(of: typeID) else { return nil }
+    return (flags & 1 != 0, flags & 2 != 0)
+}
+
 private func runtimeListHasConformance(_ raw: Int, to typeID: Int64) -> Bool {
     guard let sourceTypeID = runtimeObjectTypeID(rawValue: raw) else { return false }
     return runtimeIsAssignable(sourceTypeID: sourceTypeID, targetTypeID: typeID)
