@@ -240,5 +240,44 @@ struct RuntimeCallableInvocationTests {
         // The shared receiver keeps pointing at the property.
         #expect(runtimeKParameterBox(from: parameters[0])?.callableRaw == prop)
         #expect(runtimeFunctionDescription(setter) == "fun kotlin.String.`<set-mext>`(kotlin.Int): kotlin.Unit")
+
+    /// KUU-4069 — kotlin-reflect's `KParameter` has value semantics on the JVM
+    /// (`ReflectKParameter.equals` compares owning callable + index), so two
+    /// parameter boxes produced by separate evaluations of the same callable
+    /// reference must satisfy `==`, share a hashCode, and be interchangeable
+    /// map keys — plus render the JVM `toString` shape.
+    @Test func kParameterBoxesCompareByCallableAndIndex() {
+        let first = __kk_kparameter_create_typed(0, runtimeMakeStringRaw("a"), runtimeMakeStringRaw("kotlin.Int"), 0, 2, 3, 123)
+        let equivalent = __kk_kparameter_create_typed(0, runtimeMakeStringRaw("a"), runtimeMakeStringRaw("kotlin.Int"), 0, 2, 3, 123)
+        let otherIndex = __kk_kparameter_create_typed(1, runtimeMakeStringRaw("a"), runtimeMakeStringRaw("kotlin.Int"), 0, 2, 3, 123)
+        let otherCallable = __kk_kparameter_create_typed(0, runtimeMakeStringRaw("a"), runtimeMakeStringRaw("kotlin.Int"), 0, 2, 3, 124)
+        let ownerless = __kk_kparameter_create(0, runtimeMakeStringRaw("a"), runtimeMakeStringRaw("kotlin.Int"), 0, 2)
+        #expect(runtimeValuesEqual(first, equivalent))
+        #expect(!runtimeValuesEqual(first, otherIndex))
+        #expect(!runtimeValuesEqual(first, otherCallable))
+        #expect(!runtimeValuesEqual(first, ownerless))
+        #expect(!runtimeValuesEqual(first, runtimeMakeStringRaw("not a parameter")))
+        #expect(!runtimeValuesEqual(first, runtimeNullSentinelInt))
+        #expect(kk_any_hashCode(first, 0) == kk_any_hashCode(equivalent, 0))
+        #expect(kk_any_hashCode(first, 0) != 0)
+        let map = registerRuntimeObject(RuntimeMapBox(keys: [equivalent], values: [kk_box_int(5)]))
+        #expect(runtimeMapBox(from: map)?.index(ofRawKey: first) != nil)
     }
+
+    @Test func kParameterToStringRendersJvmShapePerKind() {
+        let raw = registerRuntimeObject(RuntimeFunctionValueBox(fnPtr: 0, closureRaw: 0, arity: 2))
+        let tagged = kk_callable_ref_tag_kfunction(raw, runtimeMakeStringRaw("sum"), runtimeMakeStringRaw("kotlin.Int"), 2, 0)
+        __kk_function_set_description(tagged, runtimeMakeStringRaw("fun sum(kotlin.Int, kotlin.Int): kotlin.Int"), 0)
+        let parameters = [
+            __kk_kparameter_create_typed(0, runtimeNullSentinelInt, runtimeMakeStringRaw("C"), 0, 0, 3),
+            __kk_kparameter_create_typed(1, runtimeNullSentinelInt, runtimeMakeStringRaw("kotlin.String"), 0, 1, 3),
+            __kk_kparameter_create_typed(2, runtimeMakeStringRaw("a"), runtimeMakeStringRaw("kotlin.Int"), 0, 2, 3),
+        ]
+        let bridge: @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = callableSumBridge
+        _ = __kk_kcallable_register(tagged, unsafeBitCast(bridge, to: Int.self), 0, list(parameters), list([]), 1, 0, 0, list([]))
+        #expect(runtimeElementToString(parameters[0]) == "instance parameter of fun sum(kotlin.Int, kotlin.Int): kotlin.Int")
+        #expect(runtimeElementToString(parameters[1]) == "extension receiver parameter of fun sum(kotlin.Int, kotlin.Int): kotlin.Int")
+        #expect(runtimeElementToString(parameters[2]) == "parameter #2 a of fun sum(kotlin.Int, kotlin.Int): kotlin.Int")
+        let anonymous = __kk_kparameter_create(1, runtimeNullSentinelInt, runtimeMakeStringRaw("kotlin.Int"), 0, 2)
+        #expect(runtimeElementToString(anonymous) == "parameter #1 null")    }
 }
