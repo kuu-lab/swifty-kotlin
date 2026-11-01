@@ -73,9 +73,15 @@ public val KClass<*>.qualifiedName: String?
 public fun <T : Any> KClass<T>.isInstance(value: Any?): Boolean =
     __kk_kclass_isInstance(this, value)
 
+// Upstream marks the kotlin.reflect cast/safeCast extensions
+// @LowPriorityInOverloadResolution so the kotlin.reflect.full overloads win
+// when both are visible (stdlib KClasses.kt). Mirroring that here keeps
+// unqualified `k.cast(v)` unambiguous now that both packages declare them.
+@kotlin.internal.LowPriorityInOverloadResolution
 public fun <T : Any> KClass<T>.cast(value: Any?): T =
     __kk_kclass_cast(this, value) as T
 
+@kotlin.internal.LowPriorityInOverloadResolution
 public fun <T : Any> KClass<T>.safeCast(value: Any?): T? =
     __kk_kclass_safeCast(this, value) as T?
 
