@@ -81,6 +81,8 @@ public class LocalDate private constructor(
 
     public fun isAfter(other: LocalDate): Boolean = compareTo(other) > 0
 
+    public fun format(formatter: java.time.format.DateTimeFormatter): String = formatter.format(this)
+
     override fun compareTo(other: LocalDate): Int {
         if (year != other.year) return year.compareTo(other.year)
         if (monthValue != other.monthValue) return monthValue.compareTo(other.monthValue)
