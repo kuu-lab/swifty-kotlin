@@ -40,6 +40,23 @@ final class RuntimeKPropertyStub {
     }
 }
 
+/// The `KPropertyN`/`KMutablePropertyN` nominal a property stub answers
+/// `is`/`as`/`as?` as. `arity` counts the receivers the reference exposes
+/// as parameters — 0 for a top-level/local property, 1 for a class member,
+/// 2 for a member extension — matching `emitCallableRefTypeTag`'s arity and
+/// the JVM's PropertyReferenceN hierarchy.
+func runtimeKPropertyStubTypeID(arity: Int, isMutable: Bool) -> Int64 {
+    switch (arity, isMutable) {
+    case (0, false): return kProperty0RuntimeTypeID
+    case (0, true): return kMutableProperty0RuntimeTypeID
+    case (1, false): return kProperty1RuntimeTypeID
+    case (1, true): return kMutableProperty1RuntimeTypeID
+    case (2, false): return kProperty2RuntimeTypeID
+    case (2, true): return kMutableProperty2RuntimeTypeID
+    default: return isMutable ? kMutablePropertyRuntimeTypeID : kPropertyRuntimeTypeID
+    }
+}
+
 @_cdecl("__kk_kproperty_stub_create_cached_typed")
 public func kk_kproperty_stub_create_cached_typed(
     _ nameRaw: Int,
@@ -52,14 +69,7 @@ public func kk_kproperty_stub_create_cached_typed(
     guard let identity = runtimeStringFromRaw(identityRaw) else {
         return kk_kproperty_stub_create(nameRaw, returnTypeRaw)
     }
-    let typeID: Int64
-    switch (arity, isMutable != 0) {
-    case (0, false): typeID = kProperty0RuntimeTypeID
-    case (0, true): typeID = kMutableProperty0RuntimeTypeID
-    case (1, false): typeID = kProperty1RuntimeTypeID
-    case (1, true): typeID = kMutableProperty1RuntimeTypeID
-    default: typeID = kPropertyRuntimeTypeID
-    }
+    let typeID = runtimeKPropertyStubTypeID(arity: arity, isMutable: isMutable != 0)
     return runtimeStorage.withDelegatedPropertyStubLock {
         if let cached = runtimeStorage.withMetadataLock({ $0.delegatedPropertyStubCache[identity] }) {
             return cached
@@ -130,6 +140,29 @@ public func kk_kproperty_stub_create(_ nameStr: Int, _ returnTypeStr: Int) -> In
     let stub = RuntimeKPropertyStub(name: nameStr, returnType: returnTypeStr)
     registerReflectionRuntimeTypeMetadata()
     return registerRuntimeObject(stub, typeID: kPropertyRuntimeTypeID)
+}
+
+/// `KClass.memberProperties`/`declaredMemberProperties` handles reflect as
+/// the unbound `KPropertyN`/`KMutablePropertyN` the member's receivers
+/// imply — 1 for an ordinary member, 2 for a member extension — so a `var`
+/// member answers `is KMutableProperty`/`as? KMutablePropertyN` like the
+/// JVM's kotlin-reflect handles do (KUU-4030).
+@_cdecl("__kk_kproperty_stub_create_member")
+public func kk_kproperty_stub_create_member(
+    _ nameRaw: Int,
+    _ returnTypeRaw: Int,
+    _ arity: Int,
+    _ isMutable: Int
+) -> Int {
+    registerReflectionRuntimeTypeMetadata()
+    return registerRuntimeObject(
+        RuntimeKPropertyStub(
+            name: nameRaw,
+            returnType: returnTypeRaw,
+            isMutable: isMutable != 0
+        ),
+        typeID: runtimeKPropertyStubTypeID(arity: arity, isMutable: isMutable != 0)
+    )
 }
 
 /// Returns one KProperty stub per delegated declaration so getValue, setValue,

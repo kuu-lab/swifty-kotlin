@@ -602,6 +602,7 @@ enum WasmRuntimeHelpers {
         "kk_enum_make_entries_list_cached",
         "kk_enum_valueOf_throw",
         "__kk_kproperty_stub_create_local",
+        "__kk_kproperty_stub_create_member",
         "kk_object_register_any_to_string",
         "kk_object_register_equals_override",
         "kk_object_register_hashcode_override",
@@ -1477,6 +1478,15 @@ enum WasmRuntimeHelpers {
                 fields: [16: 0, 24: 1, 40: 3], boxLocal: argumentCount
             )
             emitStoreAtConst(&code, baseLocal: argumentCount, byteOffset: 32, value: 1)
+        // Member-reflection stub `{name, returnType, isMutable}` — the
+        // arity (arg2) only selects the KPropertyN nominal on native; the
+        // single wasm stub box shape just records mutability (KUU-4030).
+        case "__kk_kproperty_stub_create_member":
+            extraLocals = 1
+            emitSmallBoxBody(
+                &code, ctx: ctx, typeID: L.kpropertyStubTypeID, slots: 5,
+                fields: [16: 0, 24: 1, 40: 3], boxLocal: argumentCount
+            )
         // `kk_object_register_*_override(obj, fnSlot)` → record(obj).s0/s1/s2.
         case "kk_object_register_any_to_string":
             extraLocals = 1
