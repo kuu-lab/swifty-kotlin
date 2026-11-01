@@ -218,21 +218,9 @@ extension BuildASTPhase.ExpressionParser {
         let expressionBody: ExprID?
         let headerEndIndex = index
         if matches(.symbol(.assign)) {
-            // Context and extension receiver expression bodies still require
-            // their existing rejection until their closure lowering is fixed.
             // A lone `<...>` type parameter clause is not a receiver —
             // kotlinc accepts `fun <T>(x: T) = x` (it only prohibits the
             // type parameters themselves, reported above).
-            if (functionStartIndex != expressionStartIndex
-                || (lParenIndex != functionStartIndex + 1
-                    && tokens[functionStartIndex + 1].kind != .symbol(.lessThan))),
-               let token = current() {
-                diagnostics?.error(
-                    "KSWIFTK-PARSE-0001",
-                    "Expected '{' for anonymous function body.",
-                    range: token.range
-                )
-            }
             _ = consume()
             guard let body = parseExpression(minPrecedence: 0) else {
                 index = expressionStartIndex
