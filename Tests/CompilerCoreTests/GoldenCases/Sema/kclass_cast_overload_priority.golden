@@ -1,0 +1,36 @@
+symbol fq=golden.sema.Box[kind=class;origin=fixture] kind=class vis=public flags=_
+symbol fq=golden.sema.castVia.$0.T[kind=tparam;origin=fixture] kind=typeParameter vis=private flags=_
+symbol fq=golden.sema.castVia.$0.klass[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.castVia.$0.value[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.castVia[kind=fun;params=kclass{T0},Any?;ret=T0;gen=1;bounds=[Any];names=[klass,value];origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[KClass<golden.sema.castVia.$0.T>,Any?] ret=golden.sema.castVia.$0.T bounds=[Any]
+symbol fq=golden.sema.inspect.$1.k[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.inspect[kind=fun;params=kotlin.reflect.KClass<*>;ret=Unit;names=[k];origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.reflect.KClass<*>] ret=Unit
+symbol fq=golden.sema.makeBox.$2.k[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.makeBox[kind=fun;params=kclass{golden.sema.Box};ret=golden.sema.Box;names=[k];origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[KClass<golden.sema.Box>] ret=golden.sema.Box
+symbol fq=golden.sema.safeCastVia.$3.T[kind=tparam;origin=fixture] kind=typeParameter vis=private flags=_
+symbol fq=golden.sema.safeCastVia.$3.klass[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.safeCastVia.$3.value[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.safeCastVia[kind=fun;params=kclass{T0},Any?;ret=T0?;gen=1;bounds=[Any];names=[klass,value];origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[KClass<golden.sema.safeCastVia.$3.T>,Any?] ret=golden.sema.safeCastVia.$3.T? bounds=[Any]
+file fkclass_cast_overload_priority package=golden.sema
+  decl golden.sema.Box[kind=class;origin=fixture] class Box sym=golden.sema.Box[kind=class;origin=fixture]
+  decl golden.sema.castVia[kind=fun;params=kclass{T0},Any?;ret=T0;gen=1;bounds=[Any];names=[klass,value];origin=fixture] fun castVia sym=golden.sema.castVia[kind=fun;params=kclass{T0},Any?;ret=T0;gen=1;bounds=[Any];names=[klass,value];origin=fixture]
+  decl golden.sema.safeCastVia[kind=fun;params=kclass{T0},Any?;ret=T0?;gen=1;bounds=[Any];names=[klass,value];origin=fixture] fun safeCastVia sym=golden.sema.safeCastVia[kind=fun;params=kclass{T0},Any?;ret=T0?;gen=1;bounds=[Any];names=[klass,value];origin=fixture]
+  decl golden.sema.makeBox[kind=fun;params=kclass{golden.sema.Box};ret=golden.sema.Box;names=[k];origin=fixture] fun makeBox sym=golden.sema.makeBox[kind=fun;params=kclass{golden.sema.Box};ret=golden.sema.Box;names=[k];origin=fixture]
+  decl golden.sema.inspect[kind=fun;params=kotlin.reflect.KClass<*>;ret=Unit;names=[k];origin=fixture] fun inspect sym=golden.sema.inspect[kind=fun;params=kotlin.reflect.KClass<*>;ret=Unit;names=[k];origin=fixture]
+expr e@8:28 int(3) type=Int
+expr e@10:59 name(klass) type=KClass<golden.sema.castVia.$0.T> ref=golden.sema.castVia.$0.klass[kind=vparam;origin=fixture]
+expr e@10:70 name(value) type=Any? ref=golden.sema.castVia.$0.value[kind=vparam;origin=fixture]
+expr e@10:59#1 memberCall recv=e@10:59 callee=cast args=[_:e@10:70] type=golden.sema.castVia.$0.T call=kotlin.reflect.full.cast[kind=fun;recv=kclass{T0};params=Any?;ret=T0;gen=1;bounds=[Any];names=[value]] targs=[golden.sema.castVia.$0.T]
+expr e@12:64 name(klass) type=KClass<golden.sema.safeCastVia.$3.T> ref=golden.sema.safeCastVia.$3.klass[kind=vparam;origin=fixture]
+expr e@12:79 name(value) type=Any? ref=golden.sema.safeCastVia.$3.value[kind=vparam;origin=fixture]
+expr e@12:64#1 memberCall recv=e@12:64 callee=safeCast args=[_:e@12:79] type=golden.sema.safeCastVia.$3.T? call=kotlin.reflect.full.safeCast[kind=fun;recv=kclass{T0};params=Any?;ret=T0?;gen=1;bounds=[Any];names=[value]] targs=[golden.sema.safeCastVia.$3.T]
+expr e@14:36 name(k) type=KClass<golden.sema.Box> ref=golden.sema.makeBox.$2.k[kind=vparam;origin=fixture]
+expr e@14:36#1 memberCall recv=e@14:36 callee=createInstance args=[] type=golden.sema.Box call=kotlin.reflect.full.createInstance[kind=fun;recv=kclass{T0};params=;ret=T0;gen=1;bounds=[Any]] targs=[golden.sema.Box]
+expr e@17:13 name(k) type=kotlin.reflect.KClass<*> ref=golden.sema.inspect.$1.k[kind=vparam;origin=fixture]
+expr e@17:20 int(42) type=Int
+expr e@17:13#1 memberCall recv=e@17:13 callee=cast args=[_:e@17:20] type=Captured[Nothing..Any] call=kotlin.reflect.full.cast[kind=fun;recv=kclass{T0};params=Any?;ret=T0;gen=1;bounds=[Any];names=[value]] targs=[Captured[Nothing..Any]]
+expr e@17:5 call callee=e@17:5#1 args=[_:e@17:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
+expr e@18:13 name(k) type=kotlin.reflect.KClass<*> ref=golden.sema.inspect.$1.k[kind=vparam;origin=fixture]
+expr e@18:24 string(other) type=String
+expr e@18:13#1 memberCall recv=e@18:13 callee=safeCast args=[_:e@18:24] type=Captured[Nothing..Any]? call=kotlin.reflect.full.safeCast[kind=fun;recv=kclass{T0};params=Any?;ret=T0?;gen=1;bounds=[Any];names=[value]] targs=[Captured[Nothing..Any]]
+expr e@18:5 call callee=e@18:5#1 args=[_:e@18:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
