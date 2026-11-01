@@ -594,6 +594,12 @@ enum DiagnosticRegistry {
             summary: "'super' cannot be a callee."
         ),
         DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0058",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "Cannot access 'this' before the instance has been initialized."
+        ),
+        DiagnosticDescriptor(
             code: "KSWIFTK-SEMA-UNCHECKED-CAST",
             pass: "SEMA",
             defaultSeverity: .warning,
