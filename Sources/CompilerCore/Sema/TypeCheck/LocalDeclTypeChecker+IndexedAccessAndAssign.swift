@@ -110,7 +110,12 @@ extension LocalDeclTypeChecker {
         let interner = ctx.interner
         let intType = sema.types.make(.primitive(.int, .nonNull))
 
-        let receiverType = driver.inferExpr(receiverExpr, ctx: ctx, locals: &locals, expectedType: nil)
+        // The receiver of `a?.b[i]` is evaluated iff the access itself is —
+        // it keeps the conditionality this node was entered with, not the
+        // raised flag that gates the index expressions (KUU-3966).
+        var receiverCtx = ctx
+        receiverCtx.isConditionallyEvaluated = ctx.receiverConditionallyEvaluated
+        let receiverType = driver.inferExpr(receiverExpr, ctx: receiverCtx, locals: &locals, expectedType: nil)
 
         let getName = interner.intern("get")
         let allGetMembers = driver.helpers.collectMemberFunctionCandidates(
@@ -337,7 +342,12 @@ extension LocalDeclTypeChecker {
         let interner = ctx.interner
         let intType = sema.types.make(.primitive(.int, .nonNull))
 
-        let receiverType = driver.inferExpr(receiverExpr, ctx: ctx, locals: &locals, expectedType: nil)
+        // The receiver of `a?.b[i] = v` is evaluated iff the assignment
+        // itself is — it keeps the conditionality this node was entered
+        // with, not the raised flag that gates indices and value (KUU-3966).
+        var receiverCtx = ctx
+        receiverCtx.isConditionallyEvaluated = ctx.receiverConditionallyEvaluated
+        let receiverType = driver.inferExpr(receiverExpr, ctx: receiverCtx, locals: &locals, expectedType: nil)
 
         let setName = interner.intern("set")
         let allSetMembers = driver.helpers.collectMemberFunctionCandidates(

@@ -569,7 +569,12 @@ extension CallTypeChecker {
         if candidates.isEmpty, calleeName == nil,
            let calleeExpr, !calleeExpr.isLambdaOrCallableRef {
             let calleeCheckpoint = sema.diagnostics.checkpoint()
-            let calleeType = driver.inferExpr(calleeID, ctx: ctx, locals: &locals)
+            // The callee sits on the call spine: it is evaluated iff the call
+            // itself is, so it keeps the conditionality this call node was
+            // entered with rather than the raised flag that gates arguments.
+            var calleeCtx = ctx
+            calleeCtx.isConditionallyEvaluated = ctx.receiverConditionallyEvaluated
+            let calleeType = driver.inferExpr(calleeID, ctx: calleeCtx, locals: &locals)
             let needsCallableReferenceContext = sema.diagnostics.diagnostics
                 .dropFirst(calleeCheckpoint)
                 .contains { diagnostic in
