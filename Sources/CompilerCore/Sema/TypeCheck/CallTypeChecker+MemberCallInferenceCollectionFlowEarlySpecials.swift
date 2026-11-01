@@ -305,8 +305,65 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                 sema: sema,
                 interner: interner,
                 ctx: ctx)
+            // The bundled `zip` overloads take `other: Iterable<R>` /
+            // `Array<out R>` (plus an optional `(T, R) -> V` transform). A
+            // first argument whose type provably has a different shape — e.g.
+            // a function type — cannot match them, so this fast path must not
+            // shadow a same-named user extension that ordinary overload
+            // resolution can still pick (KUU-4108). Lambda and callable
+            // references are always function-typed; bail before context-free
+            // inference can pin their parameters to a meaningless shape.
+            let otherExprNode = ast.arena.expr(args[0].expr)
+            if otherExprNode?.isLambdaOrCallableRef == true {
+                return nil
+            }
             let otherType = sema.bindings.exprTypes[args[0].expr]
                 ?? driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals)
+            let nonNullOtherType = sema.types.makeNonNullable(otherType)
+            let iterableSymbol = sema.symbols.lookupNominal(
+                fqName: knownNames.kotlinCollectionsIterableFQName
+            )
+            let otherMatchesBundledShape = nonNullOtherType == sema.types.anyType
+                || checker.typeContainsErrorType(nonNullOtherType, sema: sema)
+                || driver.helpers.allNominalSymbols(
+                    of: nonNullOtherType,
+                    types: sema.types,
+                    symbols: sema.symbols,
+                    interner: interner
+                ).contains { argumentSymbol in
+                    iterableSymbol.map {
+                        sema.types.isNominalSubtypeSymbol(argumentSymbol, of: $0)
+                    } ?? false
+                }
+                || receiverClassifier.isArrayLikeType(nonNullOtherType)
+            if !otherMatchesBundledShape {
+                return nil
+            }
+            if args.count >= 2 {
+                let transformExpr = args[1].expr
+                let transformIsFunctionLiteral = ast.arena.expr(transformExpr)?.isLambdaOrCallableRef ?? false
+                let boundTransformType = sema.bindings.exprTypes[transformExpr]
+                    ?? (transformIsFunctionLiteral
+                        ? nil
+                        : driver.inferExpr(transformExpr, ctx: ctx, locals: &locals))
+                let transformMatchesBundledShape: Bool
+                if transformIsFunctionLiteral {
+                    transformMatchesBundledShape = true
+                } else if let boundTransformType {
+                    let nonNullTransform = sema.types.makeNonNullable(boundTransformType)
+                    if case .functionType = sema.types.kind(of: nonNullTransform) {
+                        transformMatchesBundledShape = true
+                    } else {
+                        transformMatchesBundledShape = nonNullTransform == sema.types.anyType
+                            || checker.typeContainsErrorType(nonNullTransform, sema: sema)
+                    }
+                } else {
+                    transformMatchesBundledShape = true
+                }
+                if !transformMatchesBundledShape {
+                    return nil
+                }
+            }
             let otherElementType: TypeID
             if case let .classType(otherClassType) = sema.types.kind(of: sema.types.makeNonNullable(otherType)),
                let firstArg = otherClassType.args.first

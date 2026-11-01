@@ -1678,6 +1678,18 @@ extension CallLowerer {
             return nil
         }
 
+        // KUU-4108: overload resolution may select a same-named user
+        // extension instead of a bundled ListWindowChunk declaration. The
+        // runtime bridges below only implement the stdlib signatures and
+        // would feed a non-collection argument to a collection callee.
+        if let chosenCallee,
+           let chosenSymbol = sema.symbols.symbol(chosenCallee),
+           !chosenSymbol.flags.contains(.synthetic),
+           chosenSymbol.fqName != knownNames.kotlinCollectionsPackage + [calleeName]
+        {
+            return nil
+        }
+
         if calleeName == knownNames.zip, argumentCount == 4 {
             // Keep Iterable.zip(transform) on its inline source path so the
             // callback's non-local return is expanded into the caller.

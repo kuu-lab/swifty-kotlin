@@ -280,6 +280,7 @@ extension CallLowerer {
         sema: SemaModule,
         arena: KIRArena,
         interner: StringInterner,
+        chosenCallee: SymbolID?,
         loweredReceiverID: KIRExprID,
         normalizedArgIDs: [KIRExprID],
         parameterMapping: [Int: Int],
@@ -287,6 +288,7 @@ extension CallLowerer {
         instructions: inout [KIRInstruction]
     ) -> KIRExprID? {
         let hasHOFLambdaArg = args.last.map { ast.arena.expr($0.expr)?.isLambdaOrCallableRef ?? false } ?? false
+        let knownNames = KnownCompilerNames(interner: interner)
 
         // KSP-307: ListWindowChunk public functions are source-backed, but codegen
         // still lowers their executable path to private runtime bridges.
@@ -299,6 +301,18 @@ extension CallLowerer {
                 || isConcreteArrayLikeType(nonNullReceiverType, sema: sema, interner: interner)
 
             if isListWindowChunkReceiver {
+                // KUU-4108: a same-named user extension selected by overload
+                // resolution is not a bundled ListWindowChunk declaration;
+                // the runtime bridges below only implement the stdlib
+                // signatures.
+                if let chosenCallee,
+                   let chosenSymbol = sema.symbols.symbol(chosenCallee),
+                   !chosenSymbol.flags.contains(.synthetic),
+                   chosenSymbol.fqName != knownNames.kotlinCollectionsPackage
+                       + [interner.intern(calleeNameStr)]
+                {
+                    return nil
+                }
                 func appendBridgeCall(
                     _ name: String,
                     _ runtimeArguments: [KIRExprID],
