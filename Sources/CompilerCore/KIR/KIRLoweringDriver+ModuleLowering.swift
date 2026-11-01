@@ -428,6 +428,14 @@ extension KIRLoweringDriver {
         let kirID = arena.appendDecl(.nominalType(KIRNominalType(symbol: symbol, memberDecls: directMembers)))
         declIDs.append(kirID)
         declIDs.append(contentsOf: allDecls)
+        // Interfaces declare no `<init>` symbols, so this emits the
+        // member-registration half only (KUU-4065).
+        declIDs.append(contentsOf: synthesizeNominalReflectionInitializer(
+            ownerSymbol: symbol,
+            ownerName: interfaceDecl.name,
+            ownerRange: interfaceDecl.range,
+            shared: shared
+        ))
         lowerNestedClassConstructors(
             nestedDecls: interfaceDecl.nestedClasses + ifaceNestedObjects,
             shared: shared,
@@ -465,6 +473,14 @@ extension KIRLoweringDriver {
         var declIDs = [kirID]
         declIDs.append(contentsOf: allDecls)
         declIDs.append(contentsOf: forwardingDecls)
+        // Objects declare no `<init>` symbols, so this emits the
+        // member-registration half only (KUU-4065).
+        declIDs.append(contentsOf: synthesizeNominalReflectionInitializer(
+            ownerSymbol: symbol,
+            ownerName: objectDecl.name,
+            ownerRange: objectDecl.range,
+            shared: shared
+        ))
         lowerNestedClassConstructors(
             nestedDecls: objectDecl.nestedClasses + objectDecl.nestedObjects,
             shared: shared,
