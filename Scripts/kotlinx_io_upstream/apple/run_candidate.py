@@ -156,7 +156,7 @@ def main():
     before=snapshots(root)
     (output/'inputs.before.json').write_text(json.dumps(before,indent=2)+'\n')
     stages=[
-        ('metadata','CompilerCoreTests','IOAppleAPIContractTests',1200,{
+        ('metadata','CompilerCoreSemaTests','IOAppleAPIContractTests',1200,{
             'sixAppleExtensionsHaveRealTypedPublicSourceAndImportedShapes':2}),
         ('runtime','RuntimeTests','RuntimeAppleFoundationTests',900,{
             'realNSDataCopiesAndItsLeaseFollowsBoxRelease':1,
