@@ -181,6 +181,165 @@ struct LinkedExpectActualSuperConstructorTests {
         #expect(binding.substitutedTypeArguments == [sema.types.stringType])
     }
 
+    // KUU-4122: expect declarations cannot invoke supertype constructors —
+    // initialization belongs to the matching actual declaration. kotlinc
+    // reports both "supertype initialization is impossible without a primary
+    // constructor" (expect classes/objects without `()` have none) and
+    // "'expect' classes cannot initialize supertypes".
+    @Test
+    func expectClassSupertypeConstructorInvocationIsRejected() throws {
+        let ctx = try makeContext([
+            """
+            package x
+            open class Sup
+            expect class Y : Sup()
+            actual class Y : Sup()
+            """
+        ])
+        try runSema(ctx)
+
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(
+            errors.contains { $0.code == "KSWIFTK-SEMA-0474" },
+            "expect class without `()` has no primary constructor: \(errors)"
+        )
+        #expect(
+            errors.contains { $0.code == "KSWIFTK-SEMA-0475" },
+            "expect class cannot initialize supertypes: \(errors)"
+        )
+    }
+
+    @Test
+    func expectObjectSupertypeConstructorInvocationIsRejected() throws {
+        let ctx = try makeContext([
+            """
+            package x
+            open class Sup
+            expect object X : Sup()
+            actual object X : Sup()
+            """
+        ])
+        try runSema(ctx)
+
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(
+            errors.contains { $0.code == "KSWIFTK-SEMA-0474" },
+            "expect object has no primary constructor: \(errors)"
+        )
+        #expect(
+            errors.contains { $0.code == "KSWIFTK-SEMA-0475" },
+            "expect object cannot initialize supertypes: \(errors)"
+        )
+    }
+
+    // An expect class with an explicit primary constructor only earns the
+    // expect-specific diagnostic — the invocation would be possible for a
+    // non-expect class (kotlinc emits no "impossible" error there).
+    @Test
+    func expectClassWithPrimaryConstructorSkipsImpossibleDiagnostic() throws {
+        let ctx = try makeContext([
+            """
+            package x
+            open class Sup
+            expect class A() : Sup()
+            actual class A() : Sup()
+            """
+        ])
+        try runSema(ctx)
+
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(
+            !errors.contains { $0.code == "KSWIFTK-SEMA-0474" },
+            "expect class with `()` has a primary constructor: \(errors)"
+        )
+        #expect(
+            errors.contains { $0.code == "KSWIFTK-SEMA-0475" },
+            "expect class cannot initialize supertypes: \(errors)"
+        )
+    }
+
+    // The check is purely syntactic: kotlinc reports both diagnostics even
+    // when the supertype name fails to resolve.
+    @Test
+    func expectSupertypeInvocationIsRejectedEvenWhenUnresolved() throws {
+        let ctx = try makeContext([
+            """
+            package x
+            expect class Y : Bogus()
+            actual class Y
+            """
+        ])
+        try runSema(ctx)
+
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(
+            errors.contains { $0.code == "KSWIFTK-SEMA-0474" },
+            "Unresolved expect supertype still has no primary constructor: \(errors)"
+        )
+        #expect(
+            errors.contains { $0.code == "KSWIFTK-SEMA-0475" },
+            "Unresolved expect supertype still cannot be initialized: \(errors)"
+        )
+    }
+
+    // Members nested inside an expect declaration are implicitly expect, so
+    // their supertype constructor invocations are rejected the same way.
+    @Test
+    func nestedMembersOfExpectDeclarationsRejectSupertypeInvocation() throws {
+        let ctx = try makeContext([
+            """
+            package x
+            open class Sup
+            expect object OuterObj {
+                object Inner : Sup()
+            }
+            actual object OuterObj {
+                actual object Inner : Sup()
+            }
+            expect class OuterClass {
+                class Inner : Sup()
+            }
+            actual class OuterClass {
+                actual class Inner : Sup()
+            }
+            """
+        ])
+        try runSema(ctx)
+
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        let impossible = errors.filter { $0.code == "KSWIFTK-SEMA-0474" }
+        let expectInit = errors.filter { $0.code == "KSWIFTK-SEMA-0475" }
+        #expect(impossible.count == 2, "Both implicit-expect inners lack primary constructors: \(errors)")
+        #expect(expectInit.count == 2, "Both implicit-expect inners cannot initialize supertypes: \(errors)")
+    }
+
+    // Bare supertypes on expect declarations and constructor invocations on
+    // non-expect declarations stay legal.
+    @Test
+    func legalSupertypeFormsDoNotEmitExpectDiagnostics() throws {
+        let ctx = try makeContext([
+            """
+            package x
+            open class Sup
+            expect class E : Sup
+            actual class E : Sup()
+            class Z : Sup()
+            object W : Sup()
+            class NoPrim : Sup {
+                constructor(x: Int) : super()
+            }
+            """
+        ])
+        try runSema(ctx)
+
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(
+            !errors.contains { $0.code == "KSWIFTK-SEMA-0474" || $0.code == "KSWIFTK-SEMA-0475" },
+            "Legal supertype forms must not emit expect diagnostics: \(errors)"
+        )
+        #expect(errors.isEmpty, "Legal supertype forms should compile cleanly: \(errors)")
+    }
+
     private func makeContext(_ sources: [String], useLibrary: Bool = true) throws -> CompilationContext {
         let libraryPath: String?
         if useLibrary {
