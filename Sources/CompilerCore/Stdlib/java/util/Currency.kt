@@ -4,9 +4,14 @@ public class Currency private constructor(
     public val currencyCode: String,
     public val defaultFractionDigits: Int,
 ) {
-    public fun getSymbol(): String = currencyCode
+    // Symbols mirror the JDK default-locale table (CLDR root/en); locales are
+    // not modeled, so getSymbol(locale) returns the same value.
+    public fun getSymbol(): String = symbolFor(currencyCode)
 
-    public fun getSymbol(locale: Locale): String = currencyCode
+    public fun getSymbol(locale: Locale): String = symbolFor(currencyCode)
+
+    public val symbol: String
+        get() = getSymbol()
 
     public fun getDisplayName(): String = currencyCode
 
@@ -39,6 +44,26 @@ public class Currency private constructor(
                 if (character < 'A' || character > 'Z') return false
             }
             return true
+        }
+
+        private fun symbolFor(code: String): String = when (code) {
+            "USD" -> "$"
+            "EUR" -> "€"
+            "GBP" -> "£"
+            "JPY" -> "¥"
+            "CNY" -> "CN¥"
+            "KRW" -> "₩"
+            "INR" -> "₹"
+            "BRL" -> "R$"
+            "CAD" -> "CA$"
+            "AUD" -> "A$"
+            "NZD" -> "NZ$"
+            "HKD" -> "HK$"
+            "MXN" -> "MX$"
+            "TWD" -> "NT$"
+            "ILS" -> "₪"
+            "XXX" -> "¤"
+            else -> code
         }
 
         private fun fractionDigits(code: String): Int = when (code) {

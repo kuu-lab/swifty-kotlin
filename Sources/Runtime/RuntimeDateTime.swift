@@ -207,6 +207,43 @@ public func __kk_calendar_create(_ timeZoneRaw: Int) -> Int {
     )
 }
 
+/// Atomically builds a calendar for explicit wall-clock fields so intermediate
+/// normalization cannot disturb sibling fields (e.g. setting February before
+/// the day on a 31st rolls the date into March). Out-of-range fields normalize
+/// the way java.util.Calendar lenient mode does; a completely unresolvable
+/// combination falls back to the epoch.
+@_cdecl("__kk_calendar_create_fields")
+public func __kk_calendar_create_fields(
+    _ timeZoneRaw: Int,
+    _ year: Int,
+    _ month: Int,
+    _ day: Int,
+    _ hour: Int,
+    _ minute: Int,
+    _ second: Int
+) -> Int {
+    let timeZoneBox = requiredRuntimeTimeZone(timeZoneRaw, symbol: "__kk_calendar_create_fields")
+    var calendar = Foundation.Calendar(identifier: .gregorian)
+    calendar.locale = Locale.current
+    calendar.timeZone = timeZoneBox.timeZone
+    var components = DateComponents()
+    components.calendar = calendar
+    components.timeZone = timeZoneBox.timeZone
+    components.era = 1
+    components.year = year
+    components.month = month + 1
+    components.day = day
+    components.hour = hour
+    components.minute = minute
+    components.second = second
+    components.nanosecond = 0
+    let date = calendar.date(from: components) ?? Date(timeIntervalSince1970: 0)
+    return registerRuntimeObject(
+        RuntimeCalendarBox(calendar: calendar, date: date, timeZoneIdentifier: timeZoneBox.identifier),
+        typeID: runtimeCalendarNominalTypeID
+    )
+}
+
 @_cdecl("__kk_calendar_get_time_in_millis")
 public func __kk_calendar_get_time_in_millis(_ calendarRaw: Int) -> Int {
     runtimeEpochMilliseconds(requiredRuntimeCalendar(calendarRaw, symbol: "__kk_calendar_get_time_in_millis").date)
