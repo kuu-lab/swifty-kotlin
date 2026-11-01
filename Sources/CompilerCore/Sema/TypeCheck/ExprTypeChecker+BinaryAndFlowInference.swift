@@ -1143,15 +1143,23 @@ extension ExprTypeChecker {
                 sema.bindings.markCharRangeExpr(id)
             }
         case .step:
-            // kotlin.ranges declares `step` only for the integral range and
-            // progression types; floating-point ranges have no `step` (kotlinc
-            // reports "unresolved reference 'step'" on the
-            // ClosedFloatingPointRange/OpenEndRange receiver). Without this
-            // gate the builtin path types the expression as IntProgression and
-            // lowers `__kk_op_step` on a floating-point range box, which panics
-            // at runtime with `invalid range handle in kk_range_step`
-            // (KUU-4039).
-            if sema.bindings.isFloatingPointRangeExpr(lhsID) {
+            // kotlin.ranges declares `step` only on the integral
+            // progression/range classes. The builtin `..`/`..<`/`downTo`
+            // receivers reach this fallback as a scalar plus the
+            // range-expression marker, and a nominal IntRange/IntProgression
+            // receiver resolves through the bundled `step` extension overloads
+            // above. A plain scalar (`i step 2`) has no `step` overload, so
+            // kotlinc reports "unresolved reference 'step'" (KUU-4056).
+            // Floating-point ranges carry the range marker too but have no
+            // `step` either; without this gate the builtin path types the
+            // expression as IntProgression and lowers `__kk_op_step` on a
+            // floating-point range box, which panics at runtime with
+            // `invalid range handle in kk_range_step` (KUU-4039).
+            if sema.bindings.isFloatingPointRangeExpr(lhsID)
+                || (lhs != sema.types.errorType
+                    && !sema.bindings.isRangeExpr(lhsID)
+                    && !isStepReceiverType(lhs, sema: sema, interner: interner))
+            {
                 ctx.sema.diagnostics.error(
                     "KSWIFTK-SEMA-0024",
                     "Unresolved member function 'step'.",
@@ -1253,6 +1261,27 @@ extension ExprTypeChecker {
         default:
             return false
         }
+    }
+
+    /// A nominal `step` receiver is valid only when it is one of the concrete
+    /// `kotlin.ranges` range/progression classes — the only types that carry a
+    /// bundled `step` overload. The generic `ClosedRange`/`OpenEndRange`
+    /// interfaces are deliberately excluded: kotlinc rejects `step` on those
+    /// receivers too. A user class that merely shares the simple name is not a
+    /// range receiver either (KUU-4056).
+    private func isStepReceiverType(
+        _ type: TypeID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> Bool {
+        guard let (_, symbol) = resolveClassTypeSymbol(type, sema: sema) else {
+            return false
+        }
+        let knownNames = KnownCompilerNames(interner: interner)
+        guard knownNames.isRangeLikeClassName(symbol.name) else {
+            return false
+        }
+        return symbol.fqName.isEmpty || knownNames.isRangeLikeSymbol(symbol)
     }
 
     private func nominalRangeType(

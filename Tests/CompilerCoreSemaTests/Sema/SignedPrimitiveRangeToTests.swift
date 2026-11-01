@@ -1,6 +1,7 @@
 #if canImport(Testing)
 @testable import CompilerCore
 import Testing
+import TestStdlibCache
 @testable import CompilerTestSupport
 
 @Suite
@@ -86,6 +87,77 @@ struct SignedPrimitiveRangeToTests {
             val k = 'a'..<'z'
         }
         """)
+
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "Unexpected diagnostics: \(ctx.diagnostics.diagnostics)")
+    }
+
+    // KUU-4056: kotlin.ranges declares `step` only on the progression/range
+    // classes, so kotlinc reports "unresolved reference 'step'" on plain
+    // scalar receivers. The builtin infix path used to type `i step 2` as an
+    // Int progression anyway.
+    @Test(arguments: [
+        "5",
+        "5L",
+        "'a'",
+        "1.5",
+        "5u",
+    ])
+    func infixStepRejectsScalarReceivers(receiver: String) throws {
+        let ctx = makeContextFromSource("""
+        fun test() {
+            val p = \(receiver) step 2
+            println(p)
+        }
+        """)
+
+        try runSema(ctx)
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.count == 1, "\(errors)")
+        #expect(errors.allSatisfy { $0.code == "KSWIFTK-SEMA-0024" }, "\(errors)")
+    }
+
+    @Test
+    func infixStepRejectsScalarVariableReceivers() throws {
+        let ctx = makeContextFromSource("""
+        fun test(i: Int, l: Long, c: Char, d: Double) {
+            val a = i step 2
+            val b = l step 2L
+            val cc = c step 2
+            val dd = d step 2
+        }
+        """)
+
+        try runSema(ctx)
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.count == 4, "\(errors)")
+        #expect(errors.allSatisfy { $0.code == "KSWIFTK-SEMA-0024" }, "\(errors)")
+    }
+
+    @Test
+    func infixStepKeepsRangeAndProgressionReceivers() throws {
+        TestStdlibCache.shared.prepare()
+        let ctx = makeContextFromSource("""
+        fun test() {
+            val stepped = 1..10 step 2
+            val down = 10 downTo 1 step 2
+            val until = 1 until 10 step 2
+            val open = 1..<10 step 2
+            val uint = 1u..10u step 2
+            val ulong = 1uL..10uL step 2
+            val chars = 'a'..'z' step 2
+            val longs = 1L..10L step 2L
+            val held = 1..10
+            val heldStep = held step 2
+            var heldVar = 1..10
+            val heldVarStep = heldVar step 2
+            val progression: IntProgression = 1..10 step 2
+            val restep = progression step 3
+            for (x in 1..10 step 2) {
+                println(x)
+            }
+        }
+        """, allowDefaultStdlibLibrary: true)
 
         try runSema(ctx)
         #expect(!ctx.diagnostics.hasError, "Unexpected diagnostics: \(ctx.diagnostics.diagnostics)")
