@@ -482,6 +482,9 @@ final class JVMClasspathIndex {
         case let .classType(type):
             guard let symbol = sema.symbols.symbol(type.classSymbol) else { throw JVMClassReader.Invalid() }
             let name = Self.binaryName(symbol.id, sema: sema, ctx: ctx)
+            // Sema keeps `Any()` typed as the nominal kotlin.Any disguise
+            // symbol rather than `.any`; it is still java.lang.Object here.
+            if name == "kotlin/Any" { return .reference("java/lang/Object", nullable: type.nullability != .nonNull, platform: type.nullability == .platformType) }
             if symbol.kind == .object,
                let site = symbol.declSite, ctx.sourceManager.origin(of: site.start.file) == .residualStdlib,
                let parent = sema.symbols.parentSymbol(for: symbol.id).flatMap(sema.symbols.symbol), parent.kind == .class,
