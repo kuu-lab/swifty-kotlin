@@ -49,8 +49,12 @@ extension TypeSystemTests {
             contextReceivers: [int], params: [types.stringType],
             returnType: int, isSuspend: true
         )))
+        // Since KUU-3175 context receivers and a receiver fold into leading
+        // function parameters, `context(Int) String.() -> Int` has the same
+        // effective shape as `(Int, String) -> Int`; use a mismatched
+        // parameter order for the negative assertions.
         let noContext = types.make(.functionType(FunctionType(
-            params: [int, types.stringType], returnType: int, isSuspend: true
+            params: [types.stringType, int], returnType: int, isSuspend: true
         )))
         #expect(types.isSubtype(extensionType, ordinaryType))
         #expect(types.isSubtype(ordinaryType, extensionType))

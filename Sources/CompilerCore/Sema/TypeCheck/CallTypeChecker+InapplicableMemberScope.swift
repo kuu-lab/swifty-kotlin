@@ -38,10 +38,15 @@ extension CallTypeChecker {
         var receiver = activeReceiver
         if members.isEmpty {
             // An anonymous object's lexical scope can stop at an enclosing
-            // class member. Probe that member against its captured receiver
-            // before allowing it to hide the next lexical/import tier.
+            // class member, and a package extension on the implicit receiver
+            // (e.g. `serializer(it)` inside `Holder.serializer()`) can stop at
+            // the same tier. Probe those callables against their captured
+            // receiver before allowing them to hide the next lexical/import
+            // tier.
             guard !original.isEmpty,
-                  original.allSatisfy({ isRegularNominalScopeMember($0, ctx: ctx) }),
+                  original.allSatisfy({
+                      isRegularNominalScopeMember($0, ctx: ctx) || isScopeExtensionCandidate($0, ctx: ctx)
+                  }),
                   let outerReceiver = ctx.implicitReceiverMemberLookupEntries().first(where: { entry in
                       original.allSatisfy { candidate in
                           guard let declared = sema.symbols.functionSignature(for: candidate)?.receiverType
