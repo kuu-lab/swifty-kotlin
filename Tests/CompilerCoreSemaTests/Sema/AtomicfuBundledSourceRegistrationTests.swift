@@ -169,6 +169,10 @@ struct AtomicfuBundledSourceRegistrationTests {
         }
         if row.kind == "constructor" {
             let owner = String(fq.dropLast(".<init>".count))
+            // Library shells register on demand (#10688); drain this owner's
+            // constructors so allSymbols() can see unreferenced ones.
+            _ = sema.symbols.lookupAll(fqName: (owner.split(separator: ".").map(String.init) + ["<init>"])
+                .map { ctx.interner.intern($0) })
             // Constructors have compiler-specific FQ names. Match the actual
             // owner and exact parameter signature instead of guessing spelling.
             return sema.symbols.allSymbols().filter { symbol in
