@@ -298,5 +298,117 @@ extension CompanionObjectTests {
         )
     }
 
+    /// KUU-3857: `Host.compExtVar = v` resolves through the same
+    /// companion-scope receiver the read path uses and lowers to the
+    /// registered setter accessor — previously the write reported
+    /// KSWIFTK-SEMA-0022 because assignment lookup never considered
+    /// `companion`-marked extension properties behind a class-name
+    /// qualifier.
+    @Test func testCompanionExtensionVarWriteResolvesAndCallsSetter() throws {
+        let source = """
+        class Host
+        companion var Host.compExtVar: Int = 1
+        fun main() {
+            Host.compExtVar = 2
+            println(Host.compExtVar)
+        }
+        """
+        let ctx = makeContextFromSource(source)
+        try runToKIR(ctx)
+        #expect(
+            !ctx.diagnostics.hasError,
+            "Expected no KIR errors for companion extension var write, got: \(ctx.diagnostics.diagnostics.map(\.code))"
+        )
+        let sema = try #require(ctx.sema)
+        let ast = try #require(ctx.ast)
+        let property = try #require(
+            sema.symbols.lookup(fqName: [ctx.interner.intern("compExtVar")])
+        )
+        let write = try #require(ast.arena.exprs.indices.first { index in
+            guard case .memberAssign = ast.arena.expr(ExprID(rawValue: Int32(index))) else {
+                return false
+            }
+            return true
+        }.map { ExprID(rawValue: Int32($0)) })
+        #expect(
+            sema.bindings.identifierSymbol(for: write) == property,
+            "Expected Host.compExtVar = 2 to bind the extension property"
+        )
+    }
+
+    /// KUU-3857: `companion { }` block members live on the hidden
+    /// `$CompanionBlocks` object whose flat global slots are initialized by
+    /// the object's lazy-init function. A write that is the object's first
+    /// access must emit the lazy-init guard *before* storing — otherwise a
+    /// later read runs the object's initializers and clobbers the stored
+    /// value.
+    @Test func testCompanionBlockMemberWriteEmitsLazyInitBeforeStore() throws {
+        let source = """
+        class Blocks {
+            companion {
+                var blockVar = 5
+            }
+        }
+        fun main() {
+            Blocks.blockVar = 7
+            println(Blocks.blockVar)
+        }
+        """
+        let ctx = makeContextFromSource(source)
+        try runToKIR(ctx)
+        #expect(
+            !ctx.diagnostics.hasError,
+            "Expected no KIR errors for companion-block member write, got: \(ctx.diagnostics.diagnostics.map(\.code))"
+        )
+        let module = try #require(ctx.kir)
+        let sema = try #require(ctx.sema)
+        let host = try #require(sema.symbols.lookup(fqName: [ctx.interner.intern("Blocks")]))
+        let blockObject = try #require(sema.symbols.companionBlockObjectSymbol(
+            for: host, interner: ctx.interner
+        ))
+        let blockVar = try #require(sema.symbols.lookup(fqName: [
+            ctx.interner.intern("Blocks"),
+            ctx.interner.intern("$CompanionBlocks"),
+            ctx.interner.intern("blockVar"),
+        ]))
+        #expect(sema.symbols.parentSymbol(for: blockVar) == blockObject)
+        let main = try #require(findAllKIRFunctions(in: module).first {
+            ctx.interner.resolve($0.name) == "main"
+        })
+        var lazyInitIndex: Int?
+        var firstStorageAccessIndex: Int?
+        for (index, instruction) in main.body.enumerated() {
+            switch instruction {
+            case let .call(_, callee, _, _, _, _, _, _):
+                let name = ctx.interner.resolve(callee)
+                if name.hasPrefix("__object_lazy_init") || name.hasPrefix("__companion_lazy_init") {
+                    lazyInitIndex = lazyInitIndex ?? index
+                }
+            case let .loadGlobal(_, symbol), let .storeGlobal(_, symbol):
+                if symbol == blockVar {
+                    firstStorageAccessIndex = firstStorageAccessIndex ?? index
+                }
+            case let .copy(_, to):
+                if case let .symbolRef(symbol)? = module.arena.expr(to), symbol == blockVar {
+                    firstStorageAccessIndex = firstStorageAccessIndex ?? index
+                }
+            default:
+                continue
+            }
+        }
+        let storageIndex = try #require(
+            firstStorageAccessIndex,
+            "Expected main to access the $CompanionBlocks member's global slot"
+        )
+        let guardIndex = try #require(
+            lazyInitIndex,
+            "Expected main to call the $CompanionBlocks lazy-init guard"
+        )
+        #expect(
+            guardIndex < storageIndex,
+            "The object lazy-init guard must run before the member write (guard at \(guardIndex), access at \(storageIndex))"
+        )
+    }
+
 }
 #endif

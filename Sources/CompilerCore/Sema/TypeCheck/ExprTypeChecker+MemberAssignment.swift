@@ -66,15 +66,44 @@ extension ExprTypeChecker {
             return sema.types.errorType
         }
         let nonNullReceiver = sema.types.makeNonNullable(receiverType)
-        let memberResult = driver.helpers.lookupMemberPropertyForWrite(
+        // Class-name receivers (`A.x = v`) denote A's companion scope — the
+        // same target the read path resolves before ordinary member lookup.
+        // `retypeClassNameAsCompanionValue` only covers `companion object`s;
+        // `companion { }` blocks live on the hidden `$CompanionBlocks` object,
+        // and `companion`-marked extension properties resolve against the
+        // owner nominal itself — neither is reachable through the inferred
+        // receiver type (anyType when no companion object exists).
+        let classNameOwnerNominal: SymbolID? = isSafeCall
+            ? nil
+            : driver.helpers.classNameReceiverNominalSymbol(
+                forReceiverExpr: receiver, ctx: ctx
+            )
+        var memberWriteReceiverType = nonNullReceiver
+        var memberResult = driver.helpers.lookupMemberPropertyForWrite(
             named: name, receiverType: nonNullReceiver, sema: sema
         )
+        if memberResult == nil, let ownerNominal = classNameOwnerNominal {
+            for scopeType in driver.helpers.companionScopeProbeTypes(for: ownerNominal, ctx: ctx)
+            where scopeType != nonNullReceiver {
+                if let companionMember = driver.helpers.lookupMemberPropertyForWrite(
+                    named: name, receiverType: scopeType, sema: sema
+                ) {
+                    memberResult = companionMember
+                    memberWriteReceiverType = scopeType
+                    // Re-bind the qualifier to the companion scope so
+                    // lowering emits the object value a member write
+                    // actually dispatches on.
+                    sema.bindings.bindExprType(receiver, type: scopeType)
+                    break
+                }
+            }
+        }
         if let member = memberResult {
             let writeSymbol = member.writeSymbol ?? member.symbol
             // Resolve the write type before inferring the RHS, including contextual
             // integer literals and lambdas. The read type is unsafe for projections.
             let writeType = driver.helpers.memberPropertyWriteType(
-                symbol: writeSymbol, receiverType: nonNullReceiver, fallback: member.type, sema: sema
+                symbol: writeSymbol, receiverType: memberWriteReceiverType, fallback: member.type, sema: sema
             )
             let valueType = driver.inferExpr(value, ctx: ctx, locals: &locals, expectedType: writeType)
             driver.recordGenericCallConsumer(
@@ -146,11 +175,66 @@ extension ExprTypeChecker {
             // Extension setter resolution provides the RHS context when its
             // candidates agree on a value type, just as member-property writes do.
             let errorsBeforeResolution = sema.diagnostics.errorCount
-            let setter = driver.callChecker.resolveExtensionPropertySetter(
-                id: id, calleeName: name, range: range,
-                receiverType: isSafeCall ? nonNullReceiver : receiverType,
-                value: value, locals: &locals, ctx: ctx
-            )
+            var setter: SymbolID?
+            if let ownerNominal = classNameOwnerNominal {
+                // A source `companion object`'s type admits ordinary
+                // extensions on it (`var A.Companion.x`, `var Any.x`) — the
+                // retype above normally covers this, but probe it explicitly
+                // for owners whose expression type never retyped (e.g. an
+                // alias receiver). A `companion { }` block object is not a
+                // value receiver and deliberately gets no unfiltered probe.
+                let sourceCompanionSymbol = sema.symbols.companionObjectSymbol(for: ownerNominal)
+                    ?? sema.symbols.actualSymbol(for: ownerNominal).flatMap {
+                        sema.symbols.companionObjectSymbol(for: $0)
+                    }
+                let companionObjectType: TypeID? = sourceCompanionSymbol.map {
+                    sema.symbols.propertyType(for: $0) ?? sema.types.make(.classType(ClassType(
+                        classSymbol: $0, args: [], nullability: .nonNull
+                    )))
+                }
+                if let companionObjectType,
+                   companionObjectType != receiverType,
+                   sema.diagnostics.errorCount == errorsBeforeResolution
+                {
+                    setter = driver.callChecker.resolveExtensionPropertySetter(
+                        id: id, calleeName: name, range: range,
+                        receiverType: companionObjectType,
+                        value: value, locals: &locals, ctx: ctx,
+                        emitUnresolvedDiagnostics: false
+                    )
+                    if setter != nil {
+                        sema.bindings.bindExprType(receiver, type: companionObjectType)
+                    }
+                }
+                // `companion`-marked extensions (`companion var A.x`) resolve
+                // against the owner nominal — the receiver the read path uses
+                // for the same qualifier. The companion-only filter keeps a
+                // plain `var A.x` from binding where Kotlin reports unresolved.
+                if setter == nil,
+                   sema.diagnostics.errorCount == errorsBeforeResolution
+                {
+                    let ownerReceiverType = sema.types.make(.classType(ClassType(
+                        classSymbol: ownerNominal, args: [], nullability: .nonNull
+                    )))
+                    setter = driver.callChecker.resolveExtensionPropertySetter(
+                        id: id, calleeName: name, range: range,
+                        receiverType: ownerReceiverType,
+                        value: value, locals: &locals, ctx: ctx,
+                        requireCompanionExtension: true,
+                        emitUnresolvedDiagnostics: false
+                    )
+                    if setter != nil {
+                        sema.bindings.bindExprType(receiver, type: ownerReceiverType)
+                    }
+                }
+            }
+            if setter == nil, sema.diagnostics.errorCount == errorsBeforeResolution {
+                setter = driver.callChecker.resolveExtensionPropertySetter(
+                    id: id, calleeName: name, range: range,
+                    receiverType: isSafeCall ? nonNullReceiver : receiverType,
+                    value: value, locals: &locals, ctx: ctx
+                )
+            }
             if setter == nil, sema.diagnostics.errorCount == errorsBeforeResolution {
                 sema.diagnostics.error(
                     "KSWIFTK-SEMA-0022", "Unresolved reference '\(ctx.interner.resolve(name))'.", range: range

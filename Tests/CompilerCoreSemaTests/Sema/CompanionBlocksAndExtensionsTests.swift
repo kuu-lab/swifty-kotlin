@@ -301,5 +301,149 @@ struct CompanionBlocksAndExtensionsTests {
             #expect(!context.diagnostics.hasError, "\(context.diagnostics.diagnostics)")
         }
     }
+
+    /// KUU-3857: `Host.compExtVar = v` writes must resolve through the same
+    /// companion-scope receiver reads use — for a class with no `companion
+    /// object`, the `companion var` extension binds against the owner
+    /// nominal itself.
+    @Test
+    func companionExtensionVarWritesResolveForClassWithoutCompanion() throws {
+        let source = """
+        class Host
+        companion var Host.compExtVar: Int = 1
+        fun main() {
+            Host.compExtVar = 2
+            Host.compExtVar += 3
+            Host.compExtVar++
+            Host.compExtVar -= 1
+            Host.compExtVar--
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let context = makeCompilationContext(inputs: [path], includeStdlib: false)
+            try runSema(context)
+            #expect(!context.diagnostics.hasError, "\(context.diagnostics.diagnostics)")
+            let sema = try #require(context.sema)
+            let ast = try #require(context.ast)
+            let property = try #require(sema.symbols.lookup(fqName: [
+                context.interner.intern("compExtVar"),
+            ]))
+            let writeExprs = ast.arena.exprs.indices.compactMap { index -> ExprID? in
+                let id = ExprID(rawValue: Int32(index))
+                switch ast.arena.expr(id) {
+                case .memberAssign, .memberCompoundAssign:
+                    return id
+                default:
+                    return nil
+                }
+            }
+            #expect(writeExprs.count == 5)
+            for exprID in writeExprs {
+                #expect(
+                    sema.bindings.identifierSymbol(for: exprID) == property,
+                    "Expected the write to bind Host.compExtVar's property symbol"
+                )
+            }
+        }
+    }
+
+    /// KUU-3857: the same write must resolve when the class declares a
+    /// source `companion object` — the qualifier denotes the companion
+    /// scope, and the `companion var` extension is still the bound member.
+    @Test
+    func companionExtensionVarWritesResolveForClassWithCompanionObject() throws {
+        let source = """
+        class Host { companion object }
+        companion var Host.compExtVarObj: Int = 10
+        fun main() {
+            Host.compExtVarObj = 20
+            Host.compExtVarObj += 1
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let context = makeCompilationContext(inputs: [path], includeStdlib: false)
+            try runSema(context)
+            #expect(!context.diagnostics.hasError, "\(context.diagnostics.diagnostics)")
+        }
+    }
+
+    /// KUU-3857: `companion { }` block members are stored on the hidden
+    /// `$CompanionBlocks` object; `Host.blockVar = v` writes must resolve
+    /// through that companion scope.
+    @Test
+    func companionBlockVarWritesResolveThroughClassName() throws {
+        let source = """
+        class Host {
+            companion {
+                var blockVar = 0
+            }
+        }
+        fun main() {
+            Host.blockVar = 2
+            Host.blockVar += 3
+            Host.blockVar++
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let context = makeCompilationContext(inputs: [path], includeStdlib: false)
+            try runSema(context)
+            #expect(!context.diagnostics.hasError, "\(context.diagnostics.diagnostics)")
+            let sema = try #require(context.sema)
+            let ast = try #require(context.ast)
+            let blockObject = try #require(sema.symbols.companionBlockObjectSymbol(
+                for: sema.symbols.lookup(fqName: [context.interner.intern("Host")])!,
+                interner: context.interner
+            ))
+            let blockVar = try #require(sema.symbols.lookup(fqName: [
+                context.interner.intern("Host"),
+                context.interner.intern("$CompanionBlocks"),
+                context.interner.intern("blockVar"),
+            ]))
+            #expect(sema.symbols.parentSymbol(for: blockVar) == blockObject)
+            let writeExprs = ast.arena.exprs.indices.compactMap { index -> ExprID? in
+                let id = ExprID(rawValue: Int32(index))
+                switch ast.arena.expr(id) {
+                case .memberAssign, .memberCompoundAssign:
+                    return id
+                default:
+                    return nil
+                }
+            }
+            #expect(writeExprs.count == 3)
+            for exprID in writeExprs {
+                #expect(
+                    sema.bindings.identifierSymbol(for: exprID) == blockVar,
+                    "Expected the write to bind the $CompanionBlocks member"
+                )
+            }
+        }
+    }
+
+    /// KUU-3857: a `companion val` still rejects assignment, and a plain
+    /// (non-`companion`) `var` extension is not reachable through the class
+    /// name — Kotlin reports both as unresolved.
+    @Test
+    func companionScopeWriteRejectsValAndNonCompanionExtensions() throws {
+        let valSource = """
+        class Host
+        companion val Host.compExtVal: Int = 1
+        fun main() { Host.compExtVal = 2 }
+        """
+        try withTemporaryFile(contents: valSource) { path in
+            let context = makeCompilationContext(inputs: [path], includeStdlib: false)
+            try runSema(context)
+            #expect(context.diagnostics.hasError)
+        }
+        let plainSource = """
+        class Host
+        var Host.plainExtVar: Int = 1
+        fun main() { Host.plainExtVar = 2 }
+        """
+        try withTemporaryFile(contents: plainSource) { path in
+            let context = makeCompilationContext(inputs: [path], includeStdlib: false)
+            try runSema(context)
+            #expect(context.diagnostics.hasError)
+        }
+    }
 }
 #endif
