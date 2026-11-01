@@ -116,13 +116,28 @@ extension BuildASTPhase {
         else {
             return nil
         }
-        // `fun(...)` is an anonymous function expression. Lambda-body parsing
-        // probes local declarations before ordinary expressions, so let this
-        // shape fall through to the expression parser.
+        // `fun(...)`, `fun T.(...)`, `fun <T>(...)`, `fun (T).(...)` and other
+        // nameless `fun` forms are anonymous function expressions, not
+        // declarations: no name token sits between `fun` and the parameter
+        // list. Lambda-body parsing probes local declarations before
+        // ordinary expressions, so let these shapes fall through to the
+        // expression parser — which also emits the diagnostics kotlinc
+        // reports on them (e.g. 'type parameters are prohibited here' for
+        // `fun <T>(x)`).
         if statementTokens.indices.contains(startIndex + 1),
            statementTokens[startIndex + 1].kind == .symbol(.lParen)
         {
             return nil
+        }
+        if let paramsParenIndex = functionParameterOpenParenIndex(
+            in: Array(statementTokens[startIndex...])
+        ), paramsParenIndex > 0 {
+            switch statementTokens[startIndex + paramsParenIndex - 1].kind {
+            case .symbol(.dot), .symbol(.questionDot), .symbol(.greaterThan):
+                return nil
+            default:
+                break
+            }
         }
         // Parse the context clause only after `fun` is confirmed: a statement
         // like `context(Tag("x")) { ... }` is a call to the stdlib `context`
