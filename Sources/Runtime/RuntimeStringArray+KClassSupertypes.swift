@@ -295,8 +295,9 @@ private func runtimeKTypeForSupertypeDisplayName(
             argDisplay,
             typeParameterClassifiers: typeParameterClassifiers
         )
-        let projection = RuntimeKTypeProjectionBox(typeRaw: argRaw, variance: .invariant)
-        argumentRaws.append(registerRuntimeObject(projection))
+        // Register the KTypeProjection nominal type so erased-generic claim
+        // checkcasts (`arguments.single()`) accept the projection.
+        argumentRaws.append(runtimeKTypeProjectionCreate(typeRaw: argRaw, variance: .invariant))
     }
     // KUU-3811: a function classifier keeps no stored display name so the
     // KType renders in function-type notation `(P…) -> R` and compares equal

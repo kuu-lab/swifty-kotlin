@@ -333,7 +333,7 @@ public func __kk_ktypeprojection_create(_ typeRaw: Int, _ varianceOrdinal: Int) 
     return runtimeKTypeProjectionCreate(typeRaw: typeRaw, variance: variance)
 }
 
-private func runtimeKTypeProjectionCreate(typeRaw: Int, variance: RuntimeKVariance?) -> Int {
+func runtimeKTypeProjectionCreate(typeRaw: Int, variance: RuntimeKVariance?) -> Int {
     let box = RuntimeKTypeProjectionBox(typeRaw: typeRaw, variance: variance)
     registerReflectionRuntimeTypeMetadata()
     return registerRuntimeObject(box, typeID: kTypeProjectionRuntimeTypeID)
