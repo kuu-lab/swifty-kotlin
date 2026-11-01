@@ -228,11 +228,35 @@ private fun applyNumberFormat(rawHex: String, format: HexFormat): String {
     return number.prefix + hex + number.suffix
 }
 
+public fun Byte.toHexString(format: HexFormat = defaultHexFormat()): String =
+    applyNumberFormat(hexDigitsOf(this.toLong() and 0xffL, 2), format)
+
+public fun Short.toHexString(format: HexFormat = defaultHexFormat()): String =
+    applyNumberFormat(hexDigitsOf(this.toLong() and 0xffffL, 4), format)
+
 public fun Int.toHexString(format: HexFormat = defaultHexFormat()): String =
     applyNumberFormat(hexDigitsOf(this.toLong() and 0xffffffffL, 8), format)
 
 public fun Long.toHexString(format: HexFormat = defaultHexFormat()): String =
     applyNumberFormat(hexDigitsOf(this, 16), format)
+
+// NOTE: the unsigned receivers widen through `.toLong()` and mask off the
+// excess high bits rather than trusting the raw widened value: an unsigned
+// receiver that happens to widen through a negative signed intermediate can
+// currently produce a value that still prints/compares as negative. The mask
+// keeps the result correct either way. (Same constraint as the hexTo* note
+// below; flagged for follow-up separately.)
+public fun UByte.toHexString(format: HexFormat = defaultHexFormat()): String =
+    applyNumberFormat(hexDigitsOf(this.toLong() and 0xffL, 2), format)
+
+public fun UShort.toHexString(format: HexFormat = defaultHexFormat()): String =
+    applyNumberFormat(hexDigitsOf(this.toLong() and 0xffffL, 4), format)
+
+public fun UInt.toHexString(format: HexFormat = defaultHexFormat()): String =
+    applyNumberFormat(hexDigitsOf(this.toLong() and 0xffffffffL, 8), format)
+
+public fun ULong.toHexString(format: HexFormat = defaultHexFormat()): String =
+    applyNumberFormat(hexDigitsOf(this.toLong(), 16), format)
 
 public fun ByteArray.toHexString(format: HexFormat = defaultHexFormat()): String =
     toHexString(0, size, format)
@@ -370,11 +394,14 @@ private fun hexDigitsToLong(hex: String): Long {
 private fun parseHexNumber(receiver: String, format: HexFormat, maxDigits: Int): Long =
     hexDigitsToLong(fitHexDigits(receiver, stripPrefixSuffix(receiver, format), maxDigits))
 
-public fun String.hexToInt(format: HexFormat = defaultHexFormat()): Int =
-    parseHexNumber(this, format, 8).toInt()
+public fun String.hexToByte(format: HexFormat = defaultHexFormat()): Byte =
+    parseHexNumber(this, format, 2).toByte()
 
 public fun String.hexToShort(format: HexFormat = defaultHexFormat()): Short =
     parseHexNumber(this, format, 4).toShort()
+
+public fun String.hexToInt(format: HexFormat = defaultHexFormat()): Int =
+    parseHexNumber(this, format, 8).toInt()
 
 public fun String.hexToLong(format: HexFormat = defaultHexFormat()): Long =
     parseHexNumber(this, format, 16)
