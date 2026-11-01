@@ -33,7 +33,12 @@ extension ExprTypeChecker {
         isSafeCall: Bool = false
     ) -> TypeID {
         let sema = ctx.sema
-        let inferredReceiver = driver.inferExpr(receiver, ctx: ctx, locals: &locals, expectedType: nil)
+        // The receiver of `a?.b = v` is evaluated iff the assignment itself
+        // is — it keeps the conditionality this node was entered with, not
+        // the raised flag that gates the value write (KUU-3966).
+        var receiverCtx = ctx
+        receiverCtx.isConditionallyEvaluated = ctx.receiverConditionallyEvaluated
+        let inferredReceiver = driver.inferExpr(receiver, ctx: receiverCtx, locals: &locals, expectedType: nil)
         var receiverType = driver.helpers.retypeClassNameAsCompanionValue(
             receiver, currentType: inferredReceiver, ast: ctx.ast, sema: sema
         ) ?? inferredReceiver

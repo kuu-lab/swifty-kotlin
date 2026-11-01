@@ -118,6 +118,57 @@ struct MutableNullAssertionTests {
         #expect(errors.contains { $0.code == "KSWIFTK-SEMA-0002" }, "\(errors)")
     }
 
+    // KUU-3966: `x!!`/`x as T` in the receiver position of a member call
+    // nested inside `?.` arguments stays on the conditional path. A call's
+    // receiver is evaluated iff the member call itself is — it inherits the
+    // outer `?.` conditionality rather than becoming unconditional.
+    private let boxDeclarations = """
+    class Idx(val v: Int = 0) { operator fun get(i: Int): Int = i }
+    class Box(var v: Int = 0) {
+        fun run(n: Int): Int = n + v
+        fun runOpt(n: Int?): Int = n ?: v
+        fun makeFn(): (Int) -> Int = { it }
+    }
+    """
+
+    @Test(arguments: [
+        // Ticket MRE: `y!!` is the receiver of `.v` inside `x?.` arguments.
+        "var y: Box? = null; var x: Box? = Box(); if (flag) { y = Box() }; x?.run(y!!.v); return y.v",
+        // A member call with its own arguments in the same receiver position.
+        "var y: Box? = null; var x: Box? = Box(); if (flag) { y = Box() }; x?.run(y!!.run(1)); return y.v",
+        // `x as T` narrows a stable (val) local through the same leak.
+        "val y: Box? = if (flag) Box() else null; var x: Box? = Box(); x?.run((y as Box).v); return y.v",
+        // A nested member-call receiver in the argument keeps `x!!` conditional.
+        "var x: Box? = Box(); var z: Box? = null; if (flag) { z = Box() }; z?.runOpt((x!!).v); return x.v",
+        // Indexed-access receiver in the same position.
+        "var x: Idx? = Idx(); var z: Box? = null; if (flag) { z = Box() }; z?.runOpt((x!!)[0]); return x.v",
+    ])
+    func rejectsReceiverPositionNarrowingLeakThroughSafeCallArgs(body: String) throws {
+        let context = makeContext(boxDeclarations + "\nfun check(flag: Boolean): Int {\n" + body + "\n}")
+        try runSema(context)
+        let errors = context.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.contains { $0.code == "KSWIFTK-SEMA-0026" }, "\(errors)")
+    }
+
+    // The receiver of `a?.b` / `a?.b = v` / `(a?.f)()` is evaluated iff the
+    // call itself is, so an `x!!` there narrows when the enclosing call is
+    // unconditional.
+    @Test(arguments: [
+        // The `?.` receiver itself runs before the null check.
+        "var x: Box? = Box(); (x!!)?.run(1); return x.v",
+        // Safe member-assign receiver.
+        "var x: Box? = Box(); (x!!)?.v = 3; return x.v",
+        // `.call` callee spine keeps the `?.` receiver unconditional.
+        "var x: Box? = Box(); (x!!)?.makeFn()(1); return x.v",
+        // A plain `.` call narrows its receiver-position `!!` unconditionally.
+        "var x: Box? = Box(); var y: Box? = null; if (flag) { y = Box() }; if (x != null) { x.run(y!!.v); return y.v }; return 0",
+    ])
+    func narrowsNullAssertOnEvaluatedCallSpine(body: String) throws {
+        let context = makeContext(boxDeclarations + "\nfun check(flag: Boolean): Int {\n" + body + "\n}")
+        try runSema(context)
+        #expect(!context.diagnostics.hasError, "\(context.diagnostics.diagnostics)")
+    }
+
     private func makeContext(_ source: String) -> CompilationContext {
         let path = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".kt").path
         let context = makeCompilationContext(inputs: [path], includeStdlib: false)

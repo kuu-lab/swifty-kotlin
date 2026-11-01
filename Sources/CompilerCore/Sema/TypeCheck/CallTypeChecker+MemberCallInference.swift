@@ -40,11 +40,14 @@ extension CallTypeChecker {
         }
 
         var receiverType: TypeID
-        // The receiver of `a?.b` is evaluated unconditionally — only the
-        // member access and arguments are conditional — so it keeps the
-        // caller's unconditional evaluation context.
+        // The receiver of `a?.b` is evaluated iff the call itself is — only
+        // the member access and arguments sit behind the `?.` conditional
+        // point — so it keeps the conditionality the call node was entered
+        // with. `(x!!)?.f()` still narrows `x`, while `x?.f(y!!.v)` keeps
+        // the `!!` on the conditional path so it cannot leak to following
+        // code when the whole call was already conditional (KUU-3966).
         var receiverCtx = ctx
-        receiverCtx.isConditionallyEvaluated = false
+        receiverCtx.isConditionallyEvaluated = ctx.receiverConditionallyEvaluated
         if !safeCall, case let .nameRef(name, nameRange) = ctx.ast.arena.expr(receiverID) {
             receiverType = driver.exprChecker.inferNameRefExpr(
                 receiverID, name: name, nameRange: nameRange, ctx: receiverCtx,

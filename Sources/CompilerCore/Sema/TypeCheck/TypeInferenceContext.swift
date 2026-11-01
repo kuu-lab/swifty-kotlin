@@ -67,6 +67,16 @@ struct TypeInferenceContext: CustomStringConvertible {
     /// suppressed while this is set. Cleared when a fresh locals scope starts
     /// (lambda bodies, `if`/`when` branches), where local narrowing cannot leak.
     var isConditionallyEvaluated = false
+    /// The `isConditionallyEvaluated` value for receiver/callee spine elements
+    /// of the call expression currently being entered — the flag as it was
+    /// before that node raised `isConditionallyEvaluated` for its arguments.
+    /// `a?.b` reads `a` even when `b` is skipped, so spine elements keep the
+    /// conditionality the enclosing call node itself was evaluated under:
+    /// `(x!!)?.f()` still narrows `x`, while `x?.f(y!!.v)` keeps `y!!` on the
+    /// conditional path. Set at each call-expression entry; only meaningful
+    /// until the expression's own `?.` raise, after which non-spine children
+    /// must read `isConditionallyEvaluated` instead.
+    var receiverConditionallyEvaluated = false
     /// Already-checked typed when subjects reused by synthesized is/in conditions.
     /// Keep initializer bindings intact while conditions see the declared variable type.
     var whenSubjectTypes: [ExprID: TypeID] = [:]

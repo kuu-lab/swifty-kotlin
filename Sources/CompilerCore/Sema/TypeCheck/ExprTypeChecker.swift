@@ -235,6 +235,7 @@ final class ExprTypeChecker {
 
         case let .memberAssign(receiverExpr, calleeName, valueExpr, range):
             var assignCtx = ctx
+            assignCtx.receiverConditionallyEvaluated = ctx.isConditionallyEvaluated
             if exprSpineContainsSafeMemberAccess(receiverExpr, ast: ast) {
                 assignCtx.isConditionallyEvaluated = true
             }
@@ -245,6 +246,7 @@ final class ExprTypeChecker {
 
         case let .safeMemberAssign(receiverExpr, calleeName, valueExpr, range):
             var assignCtx = ctx
+            assignCtx.receiverConditionallyEvaluated = ctx.isConditionallyEvaluated
             assignCtx.isConditionallyEvaluated = true
             return inferMemberAssignExpr(
                 id, receiver: receiverExpr, name: calleeName, value: valueExpr,
@@ -253,6 +255,7 @@ final class ExprTypeChecker {
 
         case let .indexedAccess(receiverExpr, indices, range):
             var indexCtx = ctx
+            indexCtx.receiverConditionallyEvaluated = ctx.isConditionallyEvaluated
             if exprSpineContainsSafeMemberAccess(receiverExpr, ast: ast) {
                 indexCtx.isConditionallyEvaluated = true
             }
@@ -268,6 +271,7 @@ final class ExprTypeChecker {
 
         case let .indexedAssign(receiverExpr, indices, valueExpr, range):
             var assignCtx = ctx
+            assignCtx.receiverConditionallyEvaluated = ctx.isConditionallyEvaluated
             if exprSpineContainsSafeMemberAccess(receiverExpr, ast: ast) {
                 assignCtx.isConditionallyEvaluated = true
             }
@@ -456,6 +460,7 @@ final class ExprTypeChecker {
             let explicitTypeArgs = driver.helpers.resolveExplicitTypeArgs(typeArgRefs, ast: ast, sema: sema, interner: interner, scope: ctx.scope, diagnostics: ctx.sema.diagnostics, usageRange: range)
             var callCtx = ctx
             callCtx.isCallResultDiscarded = isStatementContext && expectedType == nil
+            callCtx.receiverConditionallyEvaluated = ctx.isConditionallyEvaluated
             if exprSpineContainsSafeMemberAccess(calleeID, ast: ast) {
                 callCtx.isConditionallyEvaluated = true
             }
@@ -465,6 +470,7 @@ final class ExprTypeChecker {
             let explicitTypeArgs = driver.helpers.resolveExplicitTypeArgs(typeArgRefs, ast: ast, sema: sema, interner: interner, scope: ctx.scope, diagnostics: ctx.sema.diagnostics, usageRange: range)
             var callCtx = ctx
             callCtx.isCallResultDiscarded = isStatementContext && expectedType == nil
+            callCtx.receiverConditionallyEvaluated = ctx.isConditionallyEvaluated
             if exprSpineContainsSafeMemberAccess(receiverID, ast: ast) {
                 callCtx.isConditionallyEvaluated = true
             }
@@ -832,6 +838,7 @@ final class ExprTypeChecker {
             let explicitTypeArgs = driver.helpers.resolveExplicitTypeArgs(typeArgRefs, ast: ast, sema: sema, interner: interner, scope: ctx.scope, diagnostics: ctx.sema.diagnostics, usageRange: range)
             var callCtx = ctx
             callCtx.isCallResultDiscarded = isStatementContext && expectedType == nil
+            callCtx.receiverConditionallyEvaluated = ctx.isConditionallyEvaluated
             callCtx.isConditionallyEvaluated = true
             return driver.callChecker.inferSafeMemberCallExpr(
                 id, receiverID: receiverID, calleeName: calleeName,
