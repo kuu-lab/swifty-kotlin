@@ -66,4 +66,54 @@ extension BundledStdlibExecutionTests {
             allowDefaultStdlibLibrary: fromArtifact
         )
     }
+
+    /// KUU-4018: JVM array Class objects are reified per component type, so
+    /// `Array<Int>::class != Array<String>::class` while the `kotlin.Array`
+    /// nominal name, covariance (`Array<Any>.isInstance(arrayOf(1))`), and
+    /// primitive-array identity stay unchanged. The same component
+    /// descriptor keys `x::class` on array values and reified `T::class`
+    /// captures; `Array<T>::class` on the reified left-hand side erases to
+    /// T's bound like `Object[].class` on the JVM.
+    @Test(arguments: [false, true])
+    func arrayClassLiteralComponentIdentity(fromArtifact: Bool) throws {
+        try compileAndRunKotlin(
+            """
+            fun main() {
+                println(Array<Int>::class.qualifiedName)
+                println(Array<Int>::class.simpleName)
+                println(Array<Int>::class == Array<String>::class)
+                println(Array<Int>::class == Array<Int>::class)
+                println(Array<Int?>::class == Array<Int>::class)
+                println(IntArray::class == IntArray::class)
+                println(Array<Int>::class.isInstance(arrayOf(1)))
+                println(Array<Int>::class.isInstance(arrayOf("x")))
+                println(arrayOf(1)::class == Array<Int>::class)
+                println(arrayOf(1)::class == Array<String>::class)
+                println(intArrayOf(1)::class == IntArray::class)
+                println(Array<Array<Int>>::class == Array<Array<String>>::class)
+                println(Array<Array<Int>>::class.isInstance(arrayOf(arrayOf(1))))
+                println(Array<Array<String>>::class.isInstance(arrayOf(arrayOf(1))))
+                println(Array<Any>::class.isInstance(arrayOf(1)))
+                println(Array<Int>::class.isInstance(arrayOf<Any>(1)))
+                println(classOf<Array<Int>>() == Array<Int>::class)
+                println(classOf<Array<Int>>() == Array<String>::class)
+                println(classOf<IntArray>() == IntArray::class)
+                println(classOf<Array<Int>>() == Array<Int?>::class)
+                println(genericArrayClass<Any>() == genericArrayClass<String>())
+                println(genericArrayClass<Int>() == Array<Int>::class)
+                println(Array<Int>::class.isInstance(42))
+                println(IntArray::class.isInstance(arrayOf(1)))
+                println(Array<Int>::class.isInstance(null))
+            }
+
+            inline fun <reified T> classOf() = T::class
+            inline fun <reified T> genericArrayClass() = Array<T>::class
+            """,
+            expectedOutput: "kotlin.Array\nArray\nfalse\ntrue\ntrue\ntrue\ntrue\nfalse\ntrue\nfalse\n"
+                + "true\nfalse\ntrue\nfalse\ntrue\nfalse\ntrue\nfalse\ntrue\ntrue\n"
+                + "true\nfalse\nfalse\nfalse\nfalse\n",
+            moduleName: "KUU4018ArrayKClassIdentity",
+            allowDefaultStdlibLibrary: fromArtifact
+        )
+    }
 }

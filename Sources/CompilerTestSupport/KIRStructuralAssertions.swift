@@ -11,7 +11,8 @@ enum KIRRuntimeFunction {
     case functionInvoke(arity: Int), functionCreate(arity: Int), functionTagArity
     case functionSetDescription, functionCopyDescription, callableName, tagKFunction, tagKProperty
     case kcallableRegister, callableRefSetIdentity, callableAdapterSetIdentity
-    case kClassCreate, kClassOf, kClassFindAssociatedObject, kClassMetadata, kClassCast, kClassSafeCast
+    case kClassCreate, kClassCreateArray, kClassOf, kClassFindAssociatedObject, kClassMetadata, kClassCast, kClassSafeCast
+    case arrayComponentType, arrayComponentElement
     case observableCreate, opIs, opCast, opSafeCast
     case rangeFirst, rangeLast, floatingRangeEndpoint
     case doubleRangeStart, doubleRangeEndInclusive, floatRangeStart, floatRangeEndInclusive
@@ -47,6 +48,9 @@ enum KIRRuntimeFunction {
         case .callableRefSetIdentity: linkName = "__kk_callable_ref_set_identity"
         case .callableAdapterSetIdentity: linkName = "__kk_callable_adapter_set_identity"
         case .kClassCreate: linkName = "__kk_kclass_create"
+        case .kClassCreateArray: linkName = "__kk_kclass_create_array"
+        case .arrayComponentType: linkName = "__kk_array_component_type"
+        case .arrayComponentElement: linkName = "__kk_array_component_element"
         case .kClassOf: linkName = "__kk_kclass_of"
         case .kClassFindAssociatedObject: linkName = "__kk_kclass_find_associated_object"
         case .kClassMetadata: linkName = "__kk_kclass_register_metadata"
