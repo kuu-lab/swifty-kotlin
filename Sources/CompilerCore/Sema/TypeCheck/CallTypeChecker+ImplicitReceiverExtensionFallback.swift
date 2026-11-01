@@ -184,6 +184,53 @@ extension CallTypeChecker {
         return true
     }
 
+    /// Whether the declared receiver of `candidate` can be supplied by an
+    /// implicit receiver tower entry of type `entryType`. Mirrors the
+    /// matching rule used to pick `callImplicitReceiverType`: member
+    /// extensions match through the member-extension predicate, every other
+    /// receiver-bearing callable through the synthetic-fallback one.
+    func callCandidateDeclaredReceiver(
+        _ candidate: SymbolID,
+        matchesTowerEntryType entryType: TypeID,
+        ctx: TypeInferenceContext
+    ) -> Bool {
+        guard let declaredReceiver = ctx.sema.symbols.functionSignature(for: candidate)?.receiverType
+        else { return false }
+        if ctx.sema.symbols.memberExtensionOwnerSymbol(for: candidate) != nil {
+            return implicitMemberExtensionReceiverMatches(
+                entryType, declared: declaredReceiver, sema: ctx.sema
+            )
+        }
+        return extensionSyntheticFallbackReceiverMatches(
+            callSiteReceiver: entryType,
+            declaredReceiver: declaredReceiver,
+            sema: ctx.sema
+        )
+    }
+
+    /// A scope-visible callable is DSL-blocked when every implicit receiver
+    /// tower entry able to supply its declared receiver is hidden by a nearer
+    /// receiver carrying the same DslMarker annotation. Package-scope
+    /// extensions have no class owner for
+    /// `TypeInferenceContext.isCandidateBlockedByDslMarker` to test, so this
+    /// receiver-tower check must apply on top of it.
+    func isCallCandidateBlockedByDslHiddenReceivers(
+        _ candidate: SymbolID,
+        hiddenReceiverTypes: Set<TypeID>,
+        ctx: TypeInferenceContext
+    ) -> Bool {
+        guard !hiddenReceiverTypes.isEmpty,
+              ctx.sema.symbols.functionSignature(for: candidate)?.receiverType != nil
+        else { return false }
+        var sawMatchingEntry = false
+        for entry in ctx.implicitReceiverMemberLookupEntries()
+        where callCandidateDeclaredReceiver(candidate, matchesTowerEntryType: entry.type, ctx: ctx) {
+            guard hiddenReceiverTypes.contains(entry.type) else { return false }
+            sawMatchingEntry = true
+        }
+        return sawMatchingEntry
+    }
+
     /// Package extensions are not members of their receiver class, so the member
     /// recovery path cannot find them when a receiver lambda shadows `this`.
     func resolveOuterImplicitReceiverExtensionCall(
@@ -198,12 +245,11 @@ extension CallTypeChecker {
     ) -> (resolved: ResolvedCall, receiverSymbol: SymbolID)? {
         let extensions = candidates.filter { isScopeExtensionCandidate($0, ctx: ctx) }
         guard !extensions.isEmpty else { return nil }
-        var nearerDslMarkers = Set<String>()
+        let dslHiddenReceiverTypes = ctx.dslHiddenImplicitReceiverTypes()
         for receiver in ctx.implicitReceiverMemberLookupEntries() {
-            let markers = ctx.collectDslMarkerAnnotations(for: receiver.type)
-            let isDslHidden = !nearerDslMarkers.isDisjoint(with: markers)
-            nearerDslMarkers.formUnion(markers)
-            guard let symbol = receiver.symbol, !isDslHidden else { continue }
+            guard let symbol = receiver.symbol,
+                  !dslHiddenReceiverTypes.contains(receiver.type)
+            else { continue }
             let resolved = resolveCallRespectingLambdaReturnType(
                 candidates: extensions,
                 args: args,
