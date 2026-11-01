@@ -1616,10 +1616,22 @@ extension KIRLoweringDriver {
                 let propTypeInterned = interner.intern(propTypeName)
                 let propTypeExpr = arena.appendExpr(.stringLiteral(propTypeInterned), type: intType)
                 body.append(.constValue(result: propTypeExpr, value: .stringLiteral(propTypeInterned)))
+                // KUU-4030: the member reflection handle answers `is`/`as?`
+                // as the unbound `KPropertyN`/`KMutablePropertyN` its
+                // receivers imply — arity 1 for an ordinary member, 2 for a
+                // member extension — so a `var` member is a KMutableProperty
+                // like on the JVM.
+                let memberPropertyArity: Int64 =
+                    sema.symbols.extensionPropertyReceiverType(for: childID) != nil ? 2 : 1
+                let propArityExpr = arena.appendExpr(.intLiteral(memberPropertyArity), type: intType)
+                body.append(.constValue(result: propArityExpr, value: .intLiteral(memberPropertyArity)))
+                let memberIsMutable: Int64 = childSym.flags.contains(.mutable) ? 1 : 0
+                let propIsMutableExpr = arena.appendExpr(.intLiteral(memberIsMutable), type: intType)
+                body.append(.constValue(result: propIsMutableExpr, value: .intLiteral(memberIsMutable)))
                 let kpropResult = arena.appendTemporary(type: intType)
                 body.append(.call(
-                    callee: interner.intern("__kk_kproperty_stub_create"),
-                    arguments: [propNameExpr, propTypeExpr],
+                    callee: interner.intern("__kk_kproperty_stub_create_member"),
+                    arguments: [propNameExpr, propTypeExpr, propArityExpr, propIsMutableExpr],
                     result: kpropResult,
                     canThrow: false
                 ))
@@ -1670,10 +1682,6 @@ extension KIRLoweringDriver {
                 ) {
                     let getterExpr = arena.appendExpr(.symbolRef(accessor.getterSymbol), type: intType)
                     body.append(.constValue(result: getterExpr, value: .symbolRef(accessor.getterSymbol)))
-                    let memberPropertyArity: Int64 =
-                        sema.symbols.extensionPropertyReceiverType(for: childID) != nil ? 2 : 1
-                    let propArityExpr = arena.appendExpr(.intLiteral(memberPropertyArity), type: intType)
-                    body.append(.constValue(result: propArityExpr, value: .intLiteral(memberPropertyArity)))
                     let propertyKindExpr = arena.appendExpr(.intLiteral(1), type: intType)
                     body.append(.constValue(result: propertyKindExpr, value: .intLiteral(1)))
                     let noFlagsExpr = arena.appendExpr(.intLiteral(0), type: intType)
