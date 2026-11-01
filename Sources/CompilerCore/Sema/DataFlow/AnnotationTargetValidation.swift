@@ -951,6 +951,24 @@ extension DataFlowSemaPhase {
             return
         }
 
+        // kotlinc rejects '@SubclassOptInRequired' on annotation classes: an
+        // opt-in marker cannot require opt-in for subclassing itself, even
+        // though its '@Target(AnnotationTarget.CLASS)' set technically covers
+        // annotation classes.
+        let subclassOptInRequiredFQName: [InternedString] = [
+            interner.intern("kotlin"),
+            interner.intern("SubclassOptInRequired"),
+        ]
+        if annotationSymbol.fqName == subclassOptInRequiredFQName,
+           case .classLike(.annotationClass) = site {
+            diagnostics.error(
+                "KSWIFTK-SEMA-ANNOTATION-TARGET",
+                "'@SubclassOptInRequired' is not applicable to 'annotation class'.",
+                range: ownerRange
+            )
+            return
+        }
+
         guard let allowedTargets = annotationTargets(
             for: annotationSymbolID,
             symbols: symbols,

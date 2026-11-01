@@ -287,35 +287,52 @@ extension TypeCheckHelpers {
         diagnostics: DiagnosticEngine
     ) {
         let markerNames = parseOptInMarkerNames(annotation.arguments)
-        guard let markerName = markerNames.first,
-              let markerSymbol = resolveAnnotationClassSymbol(
+        if markerNames.isEmpty {
+            // An argument that names no marker at all must not silently become
+            // a no-op. An empty 'markerClass' vararg is legal Kotlin and
+            // imposes no requirement.
+            if !annotation.arguments.isEmpty {
+                diagnostics.error(
+                    "KSWIFTK-SEMA-SUBCLASS-OPT-IN",
+                    "'@SubclassOptInRequired' markerClass must reference an opt-in marker annotation.",
+                    range: range
+                )
+            }
+            return
+        }
+
+        // 'markerClass' is a vararg: kotlinc checks every entry and requires
+        // opt-in to each listed marker, not just the first.
+        let markerFile = sourceFile(for: supertype, ctx: ctx) ?? currentFile(in: ctx)
+        for markerName in markerNames {
+            guard let markerSymbol = resolveAnnotationClassSymbol(
                 named: markerName,
-                file: sourceFile(for: supertype, ctx: ctx) ?? currentFile(in: ctx),
+                file: markerFile,
                 ctx: ctx
-              ),
-              let requirement = optInRequirement(forMarkerAnnotation: markerSymbol, ctx: ctx)
-        else {
-            diagnostics.error(
-                "KSWIFTK-SEMA-SUBCLASS-OPT-IN",
-                "'@SubclassOptInRequired' markerClass must reference an opt-in marker annotation.",
-                range: range
-            )
-            return
-        }
+            ), let requirement = optInRequirement(forMarkerAnnotation: markerSymbol, ctx: ctx)
+            else {
+                diagnostics.error(
+                    "KSWIFTK-SEMA-SUBCLASS-OPT-IN",
+                    "'@SubclassOptInRequired' markerClass must reference an opt-in marker annotation.",
+                    range: range
+                )
+                continue
+            }
 
-        guard !optedInMarkers.contains(requirement.markerSymbol) else {
-            return
-        }
+            guard !optedInMarkers.contains(requirement.markerSymbol) else {
+                continue
+            }
 
-        let supertypeName = renderSymbolName(supertype, ctx: ctx)
-        let messageSuffix = requirement.message.isEmpty ? "" : " \(requirement.message)"
-        let message = "Subclassing '\(supertypeName)' requires opt-in to '\(requirement.markerName)'. " +
-            "Annotate the subclass with '@\(requirement.markerName)' or '@OptIn(\(requirement.markerName)::class)'." + messageSuffix
-        switch requirement.level {
-        case .warning:
-            diagnostics.warning("KSWIFTK-SEMA-SUBCLASS-OPT-IN", message, range: range)
-        case .error:
-            diagnostics.error("KSWIFTK-SEMA-SUBCLASS-OPT-IN", message, range: range)
+            let supertypeName = renderSymbolName(supertype, ctx: ctx)
+            let messageSuffix = requirement.message.isEmpty ? "" : " \(requirement.message)"
+            let message = "Subclassing '\(supertypeName)' requires opt-in to '\(requirement.markerName)'. " +
+                "Annotate the subclass with '@\(requirement.markerName)' or '@OptIn(\(requirement.markerName)::class)'." + messageSuffix
+            switch requirement.level {
+            case .warning:
+                diagnostics.warning("KSWIFTK-SEMA-SUBCLASS-OPT-IN", message, range: range)
+            case .error:
+                diagnostics.error("KSWIFTK-SEMA-SUBCLASS-OPT-IN", message, range: range)
+            }
         }
     }
 
