@@ -65,9 +65,10 @@ extension KIRLoweringDriver {
         declIDs.append(contentsOf: allDecls)
         declIDs.append(contentsOf: forwardingDeclIDs)
         declIDs.append(contentsOf: forwardingPropertyDeclIDs)
-        declIDs.append(contentsOf: synthesizeConstructorReflectionInitializer(
-            classDecl: classDecl,
+        declIDs.append(contentsOf: synthesizeNominalReflectionInitializer(
             ownerSymbol: symbol,
+            ownerName: classDecl.name,
+            ownerRange: classDecl.range,
             shared: shared
         ))
 
@@ -125,9 +126,10 @@ extension KIRLoweringDriver {
             }
             switch decl {
             case let .classDecl(nestedClass):
-                declIDs.append(contentsOf: synthesizeConstructorReflectionInitializer(
-                    classDecl: nestedClass,
+                declIDs.append(contentsOf: synthesizeNominalReflectionInitializer(
                     ownerSymbol: nestedSymbol,
+                    ownerName: nestedClass.name,
+                    ownerRange: nestedClass.range,
                     shared: shared
                 ))
                 var deeper = nestedClass.nestedClasses + nestedClass.nestedObjects
@@ -148,6 +150,14 @@ extension KIRLoweringDriver {
                     compilationCtx: compilationCtx
                 ))
             case let .objectDecl(nestedObject):
+                // Objects declare no `<init>` symbols, so this emits the
+                // member-registration half only (KUU-4065).
+                declIDs.append(contentsOf: synthesizeNominalReflectionInitializer(
+                    ownerSymbol: nestedSymbol,
+                    ownerName: nestedObject.name,
+                    ownerRange: nestedObject.range,
+                    shared: shared
+                ))
                 lowerNestedClassConstructors(
                     nestedDecls: nestedObject.nestedClasses + nestedObject.nestedObjects,
                     shared: shared,
@@ -155,6 +165,12 @@ extension KIRLoweringDriver {
                     declIDs: &declIDs
                 )
             case let .interfaceDecl(nestedInterface):
+                declIDs.append(contentsOf: synthesizeNominalReflectionInitializer(
+                    ownerSymbol: nestedSymbol,
+                    ownerName: nestedInterface.name,
+                    ownerRange: nestedInterface.range,
+                    shared: shared
+                ))
                 var deeper = nestedInterface.nestedClasses + nestedInterface.nestedObjects
                 if let companionDeclID = nestedInterface.companionObject {
                     deeper.append(companionDeclID)

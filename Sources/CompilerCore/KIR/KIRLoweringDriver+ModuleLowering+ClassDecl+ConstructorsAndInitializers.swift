@@ -1197,9 +1197,18 @@ extension KIRLoweringDriver {
         return provideDelegateResult
     }
 
-    func synthesizeConstructorReflectionInitializer(
-        classDecl: ClassDecl,
+    /// Synthesizes the per-nominal reflection initializer: it creates the
+    /// interned KClass box for the owner, registers constructor handles when
+    /// the owner declares `<init>` symbols (classes), then registers member
+    /// handles via `emitMemberReflectionRegistration`. `object` and
+    /// `interface` declarations declare no constructors, so only the member
+    /// half applies to them — which is what lets
+    /// `O::class.memberProperties`/`I::class.members` see their declarations
+    /// (KUU-4065).
+    func synthesizeNominalReflectionInitializer(
         ownerSymbol: SymbolID,
+        ownerName: InternedString,
+        ownerRange: SourceRange,
         shared: KIRLoweringSharedContext
     ) -> [KIRDeclID] {
         let sema = shared.sema
@@ -1218,11 +1227,10 @@ extension KIRLoweringDriver {
         // constructor has no internal function and no external link name, and
         // the generated `__kconstructor_callable` thunk would emit a bare
         // `_<init>` reference that cannot link (KUU-2672).
+        // `object`/`interface` owners have no `<init>` symbols at all, so this
+        // is empty for them and the constructor registration below no-ops.
         let ctorSymbols = sema.symbols.lookupAll(fqName: ctorFQName).filter {
             sema.symbols.parentSymbol(for: $0) == ownerSymbol
-        }
-        guard !ctorSymbols.isEmpty else {
-            return []
         }
 
         let initializerSymbol = ctx.allocateSyntheticGeneratedSymbol()
@@ -1244,7 +1252,7 @@ extension KIRLoweringDriver {
         let typeTokenExpr = arena.appendExpr(.intLiteral(encodedToken), type: intType)
         body.append(.constValue(result: typeTokenExpr, value: .intLiteral(encodedToken)))
 
-        let simpleNameInterned = interner.intern(interner.resolve(classDecl.name))
+        let simpleNameInterned = interner.intern(interner.resolve(ownerName))
         let simpleNameExpr = arena.appendExpr(.stringLiteral(simpleNameInterned), type: intType)
         body.append(.constValue(result: simpleNameExpr, value: .stringLiteral(simpleNameInterned)))
 
@@ -1277,7 +1285,7 @@ extension KIRLoweringDriver {
             let fnPtrExpr = arena.appendExpr(.symbolRef(ctorSymbol), type: intType)
             body.append(.constValue(result: fnPtrExpr, value: .symbolRef(ctorSymbol)))
 
-            let isPrimary = sema.symbols.symbol(ctorSymbol)?.declSite == classDecl.range ? 1 : 0
+            let isPrimary = sema.symbols.symbol(ctorSymbol)?.declSite == ownerRange ? 1 : 0
             let isPrimaryExpr = arena.appendExpr(.intLiteral(Int64(isPrimary)), type: intType)
             body.append(.constValue(result: isPrimaryExpr, value: .intLiteral(Int64(isPrimary))))
 
@@ -1449,6 +1457,24 @@ extension KIRLoweringDriver {
             body: &body
         )
 
+        // KUU-4065: interfaces never list kotlin.Any in `directSupertypes`
+        // (member resolution treats it as an implicit supertype only), so the
+        // inherited-member BFS (`runtimeInheritedKClassRaws`) could never
+        // reach the Any member handles — yet kotlin-reflect reports
+        // `equals`/`hashCode`/`toString` on every interface KClass. Register
+        // the interface's declared supertype edges plus a direct kotlin.Any
+        // edge at module init instead of relying on a `I::class` eval site.
+        if ownerInfo.kind == .interface {
+            appendNominalSupertypeEdgeRegistrations(
+                childSymbol: ownerSymbol,
+                extraDirectSupertypes: sema.types.anyClassSymbol.map { [$0] } ?? [],
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &body.instructions
+            )
+        }
+
         appendValueClassAnyToStringRegistration(
             nominalSymbol: ownerSymbol,
             classID: typeToken,
@@ -1471,7 +1497,7 @@ extension KIRLoweringDriver {
                 body: body,
                 isSuspend: false,
                 isInline: false,
-                sourceRange: classDecl.range
+                sourceRange: ownerRange
             ))
         )
         ctx.registerReflectionInitializer(symbol: initializerSymbol, name: initializerName)
@@ -1479,7 +1505,7 @@ extension KIRLoweringDriver {
     }
 
 
-    /// Called from `synthesizeConstructorReflectionInitializer` so that
+    /// Called from `synthesizeNominalReflectionInitializer` so that
     /// `KClass.members` returns real handles rather than count-sized placeholders.
     func emitMemberReflectionRegistration(
         ownerSymbol: SymbolID,
