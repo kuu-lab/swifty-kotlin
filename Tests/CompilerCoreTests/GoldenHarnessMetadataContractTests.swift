@@ -103,6 +103,20 @@ struct GoldenHarnessMetadataContractTests {
         "primary_constructor_private_access.kt",
         "primary_constructor_protected_access.kt",
         "sealed_when_missing_branch.kt",
+        // contract{} calls without @OptIn(ExperimentalContracts) are a real
+        // opt-in violation — the fixture exercises both annotated and bare
+        // contract blocks.
+        "contract_returns.kt",
+        // `inner class` at file scope is a genuine Kotlin error; the fixture
+        // carries it alongside the KClass introspection checks.
+        "kclass_type_kind_introspection.kt",
+        // Named object declarations cannot be local — intended negative fixture.
+        "local_named_nominal.kt",
+        // `partial` deliberately omits a branch of the nested sealed hierarchy.
+        "sealed_when_nested_subinterface.kt",
+        // Deliberately throws non-Throwable types; the throwable-type
+        // mismatches are the point of the fixture.
+        "try_expression.kt",
         // stdlib surface cases carrying errors — flagged for individual
         // investigation; they must not silently grow either.
         // AtomicIntArray's internal constructor becomes correctly invisible
@@ -122,6 +136,25 @@ struct GoldenHarnessMetadataContractTests {
         "stdlib_kotlin_uuid_Uuid_Companion_Companion_n.kt",
         // Worker.execute rejects capturing job lambda with KSWIFTK-SEMA-0430
         "stdlib_kotlin_native_concurrent_Worker_Worker_n.kt",
+        // Number.toChar / CharSequence-style toChar conversions are pinned
+        // DeprecationLevel.ERROR — the fixtures intentionally call them.
+        "stdlib_kotlin_Number_Number_n.kt",
+        "stdlib_kotlin_n_numbers.kt",
+        // kotlin.collections.throwCountOverflow/throwIndexOverflow are
+        // internal; the bundled stdlib does not expose them even under
+        // INVISIBLE_MEMBER suppression, so the calls resolve to `<error>`.
+        "stdlib_kotlin_collections_n_throw.kt",
+        // @OptionalExpectation requires ExperimentalMultiplatform opt-in.
+        "stdlib_kotlin_n_OptionalExpectation.kt",
+        // `exception is IllegalStateException` on the final
+        // IncorrectDereferenceException is always false — kotlinc rejects it
+        // with the same "check for instance is always 'false'" error.
+        "stdlib_kotlin_native_IncorrectDereferenceException_n_n.kt",
+        // Two @file:OptIn uses: OptIn is not @Repeatable — kotlinc emits the
+        // same "this annotation is not repeatable" error.
+        "stdlib_kotlin_native_concurrent_n_n.kt",
+        // Buffer primitive accessors require InternalIoApi opt-in.
+        "stdlib_kotlinx_io_buffer_primitives.kt",
         "use_site_variance.kt",
         "variance_violation.kt",
     ]
@@ -150,6 +183,9 @@ struct GoldenHarnessMetadataContractTests {
         "inner_class.kt",
         "primary_constructor_private_access.kt",
         "primary_constructor_protected_access.kt",
+        // Internal throwCountOverflow/throwIndexOverflow are unresolved, so
+        // the calls and their receivers render `<error>` types.
+        "stdlib_kotlin_collections_n_throw.kt",
         "stdlib_kotlin_ranges_IntRange_cross_contains_n.kt",
         "stdlib_kotlin_ranges_UIntRange_cross_contains_n.kt",
         "use_site_variance.kt",
