@@ -121,6 +121,32 @@ extension CallTypeChecker {
             let isFloating = { (t: TypeID) -> Bool in
                 t == floatType || t == doubleType
             }
+            // KUU-3954: Kotlin's primitive arithmetic members take only
+            // non-null numeric operands — `x.plus(xn)` where xn: Int? is
+            // rejected by kotlinc — but the fast path used to strip operand
+            // nullability via makeNonNullable, and the Double/Float/Long/
+            // unsigned receiver branches skipped operand checks entirely
+            // (letting `d.plus("a")` reach codegen and die at link time).
+            // An operand must be a non-null primitive numeric or an error
+            // type; a non-null Nothing operand is additionally accepted for
+            // unsigned receivers, matching kotlinc (`u.plus(TODO())`
+            // resolves, while `x.plus(TODO())` is ambiguous there and still
+            // rejected here). Anything else — including nullable operands —
+            // falls through to normal resolution, which reports the
+            // mismatch.
+            let rejectsArithmeticOperand = { (operand: TypeID) -> Bool in
+                if isSignedInteger(operand) || isFloating(operand) || isUnsignedInteger(operand) {
+                    return false
+                }
+                switch sema.types.kind(of: operand) {
+                case .error:
+                    return false
+                case .nothing(.nonNull):
+                    return !isUnsignedInteger(receiverForCheck)
+                default:
+                    return true
+                }
+            }
             // Kotlin's unsigned arithmetic members (plus/minus/times/div/rem)
             // only take unsigned operands — e.g. UInt.plus(UByte/UShort/UInt/
             // ULong). Signed, floating-point, or nullable operands have no
@@ -136,7 +162,6 @@ extension CallTypeChecker {
                     nil
                 }
             }
-            let rhsType = sema.types.makeNonNullable(rawRhsType)
             let arithmeticOp: BinaryOp? = switch interner.resolve(calleeName) {
             case "plus": .add
             case "minus": .subtract
@@ -168,20 +193,22 @@ extension CallTypeChecker {
                     driver.exprChecker.collectScopedOperatorExtensionCandidates(
                         names: [calleeName], receiverType: receiverForCheck, argumentType: rawRhsType, ctx: ctx
                     ).isEmpty ? sema.types.stringType : nil
+                } else if rejectsArithmeticOperand(rawRhsType) {
+                    nil
                 } else if isUnsignedInteger(receiverForCheck) {
                     unsignedOperandResultType(rawRhsType)
-                } else if isUnsignedInteger(rhsType) {
+                } else if isUnsignedInteger(rawRhsType) {
                     // Signed/floating receivers have no unsigned-operand
                     // overload either (`x.plus(1u)` fails in kotlinc).
                     nil
-                } else if receiverForCheck == doubleType || rhsType == doubleType {
+                } else if receiverForCheck == doubleType || rawRhsType == doubleType {
                     doubleType
-                } else if receiverForCheck == floatType || rhsType == floatType {
+                } else if receiverForCheck == floatType || rawRhsType == floatType {
                     floatType
-                } else if receiverForCheck == longType || rhsType == longType {
+                } else if receiverForCheck == longType || rawRhsType == longType {
                     longType
                 } else if (receiverForCheck == intType || receiverForCheck == byteType || receiverForCheck == shortType)
-                    && (rhsType == intType || rhsType == byteType || rhsType == shortType)
+                    && (rawRhsType == intType || rawRhsType == byteType || rawRhsType == shortType)
                 {
                     intType
                 } else {
@@ -200,18 +227,20 @@ extension CallTypeChecker {
                     intType
                 } else if receiverForCheck == charType && rawRhsType == intType {
                     charType
+                } else if rejectsArithmeticOperand(rawRhsType) {
+                    nil
                 } else if isUnsignedInteger(receiverForCheck) {
                     unsignedOperandResultType(rawRhsType)
-                } else if isUnsignedInteger(rhsType) {
+                } else if isUnsignedInteger(rawRhsType) {
                     nil
-                } else if receiverForCheck == doubleType || rhsType == doubleType {
+                } else if receiverForCheck == doubleType || rawRhsType == doubleType {
                     doubleType
-                } else if receiverForCheck == floatType || rhsType == floatType {
+                } else if receiverForCheck == floatType || rawRhsType == floatType {
                     floatType
-                } else if receiverForCheck == longType || rhsType == longType {
+                } else if receiverForCheck == longType || rawRhsType == longType {
                     longType
                 } else if (receiverForCheck == intType || receiverForCheck == byteType || receiverForCheck == shortType)
-                    && (rhsType == intType || rhsType == byteType || rhsType == shortType) {
+                    && (rawRhsType == intType || rawRhsType == byteType || rawRhsType == shortType) {
                     intType
                 } else {
                     nil
@@ -223,18 +252,20 @@ extension CallTypeChecker {
                 }
             case "times", "div", "rem":
                 // times/div/rem: small unsigned types promote to UInt (Kotlin stdlib)
-                let resultType: TypeID? = if isUnsignedInteger(receiverForCheck) {
-                    unsignedOperandResultType(rawRhsType)
-                } else if isUnsignedInteger(rhsType) {
+                let resultType: TypeID? = if rejectsArithmeticOperand(rawRhsType) {
                     nil
-                } else if receiverForCheck == doubleType || rhsType == doubleType {
+                } else if isUnsignedInteger(receiverForCheck) {
+                    unsignedOperandResultType(rawRhsType)
+                } else if isUnsignedInteger(rawRhsType) {
+                    nil
+                } else if receiverForCheck == doubleType || rawRhsType == doubleType {
                     doubleType
-                } else if receiverForCheck == floatType || rhsType == floatType {
+                } else if receiverForCheck == floatType || rawRhsType == floatType {
                     floatType
-                } else if receiverForCheck == longType || rhsType == longType {
+                } else if receiverForCheck == longType || rawRhsType == longType {
                     longType
                 } else if (receiverForCheck == intType || receiverForCheck == byteType || receiverForCheck == shortType),
-                    rhsType == intType || rhsType == byteType || rhsType == shortType
+                    rawRhsType == intType || rawRhsType == byteType || rawRhsType == shortType
                 {
                     intType
                 } else {
@@ -260,8 +291,8 @@ extension CallTypeChecker {
                         locals: &locals
                     )
                 }
-                let resultType: TypeID? = if isSignedInteger(receiverForCheck), isSignedInteger(rhsType) {
-                    receiverForCheck == longType || rhsType == longType ? longType : intType
+                let resultType: TypeID? = if isSignedInteger(receiverForCheck), isSignedInteger(rawRhsType) {
+                    receiverForCheck == longType || rawRhsType == longType ? longType : intType
                 } else if isUnsignedInteger(receiverForCheck), isUnsignedInteger(rawRhsType) {
                     receiverForCheck == ulongType || rawRhsType == ulongType ? ulongType : uintType
                 } else {
@@ -275,10 +306,10 @@ extension CallTypeChecker {
             case "mod":
                 // mod overloads return the divisor type for integer overloads and
                 // use normal Float/Double widening for floating operands.
-                let resultType: TypeID? = if isFloating(receiverForCheck), isFloating(rhsType) {
-                    receiverForCheck == doubleType || rhsType == doubleType ? doubleType : floatType
-                } else if isSignedInteger(receiverForCheck), isSignedInteger(rhsType) {
-                    rhsType == longType ? longType : intType
+                let resultType: TypeID? = if isFloating(receiverForCheck), isFloating(rawRhsType) {
+                    receiverForCheck == doubleType || rawRhsType == doubleType ? doubleType : floatType
+                } else if isSignedInteger(receiverForCheck), isSignedInteger(rawRhsType) {
+                    rawRhsType == longType ? longType : intType
                 } else if isUnsignedInteger(receiverForCheck), isUnsignedInteger(rawRhsType) {
                     rawRhsType
                 } else {
