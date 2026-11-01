@@ -29,6 +29,15 @@ public class Stack<E> {
         return elements[elements.size - 1]
     }
 
+    /**
+     * Returns the 1-based position of [element] from the top of the stack,
+     * or -1 if the stack does not contain it.
+     */
+    public fun search(element: Any?): Int {
+        val index = elements.indexOfLast { it == element }
+        return if (index < 0) -1 else elements.size - index
+    }
+
     public operator fun get(index: Int): E = elements[index]
 
     public override fun toString(): String =
