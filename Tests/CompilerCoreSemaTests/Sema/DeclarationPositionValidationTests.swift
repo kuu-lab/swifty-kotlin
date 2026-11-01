@@ -2247,6 +2247,105 @@ struct DeclarationPositionValidationTests {
         assertHasDiagnostic("KSWIFTK-SEMA-0400", in: ctx)
     }
 
+    @Test func inlineOverrideInFinalClassIsAccepted() throws {
+        // KUU-4110: `override` in a final class is effectively final, so
+        // kotlinc permits `inline` on its backing-field-less accessors.
+        let ctx = try semaContext(for: """
+            interface A { val zero: Int }
+            class B : A { override inline val zero: Int get() = 0 }
+            """)
+        assertNoDiagnostic("KSWIFTK-SEMA-0400", in: ctx)
+    }
+
+    @Test func inlineOverrideInNonSubclassableOwnersIsAccepted() throws {
+        // Objects, companion objects, enum entries, and anonymous object
+        // literals cannot be subclassed, so their `override` members are
+        // effectively final.
+        let ctx = try semaContext(for: """
+            interface A { val zero: Int }
+            object O : A { override inline val zero: Int get() = 0 }
+            class C { companion object : A { override inline val zero: Int get() = 0 } }
+            enum class E : A { A2 { override inline val zero: Int get() = 0 } }
+            val anon = object : A { override inline val zero: Int get() = 0 }
+            """)
+        assertNoDiagnostic("KSWIFTK-SEMA-0400", in: ctx)
+    }
+
+    @Test func inlineOverrideInSubclassableOwnersIsRejected() throws {
+        // `override` without `final` stays virtual where the owner can be
+        // subclassed: open/abstract/sealed classes and enum classes.
+        for owner in ["open class", "abstract class", "sealed class", "enum class"] {
+            let body = owner.hasPrefix("enum")
+                ? "E1; override inline val zero: Int get() = 0"
+                : "override inline val zero: Int get() = 0"
+            let ctx = try semaContext(for: """
+                interface A { val zero: Int }
+                \(owner) B : A { \(body) }
+                """)
+            assertHasDiagnostic("KSWIFTK-SEMA-0400", in: ctx)
+        }
+    }
+
+    @Test func inlineOpenInFinalClassIsAccepted() throws {
+        // `open` has no effect on a final class (kotlinc warns but accepts),
+        // so the member is effectively final and may be inlined.
+        let ctx = try semaContext(for: """
+            class C { open inline val value: Int get() = 42 }
+            """)
+        assertNoDiagnostic("KSWIFTK-SEMA-0400", in: ctx)
+    }
+
+    @Test func inlinePrivateInterfacePropertyIsAccepted() throws {
+        // Private interface members are effectively final.
+        let ctx = try semaContext(for: """
+            interface I { private inline val x: Int get() = 1 }
+            """)
+        assertNoDiagnostic("KSWIFTK-SEMA-0400", in: ctx)
+    }
+
+    @Test func inlineInterfacePropertyIsRejected() throws {
+        let ctx = try semaContext(for: """
+            interface I { inline val x: Int get() = 1 }
+            """)
+        assertHasDiagnostic("KSWIFTK-SEMA-0400", in: ctx)
+    }
+
+    @Test func inlineMemberPropertyUsingFieldIsRejected() throws {
+        // A resolved `field` reference inside an accessor materializes a
+        // backing field, so `inline` remains inapplicable.
+        let ctx = try semaContext(for: """
+            class C { inline val x: Int get() = field }
+            """)
+        assertHasDiagnostic("KSWIFTK-SEMA-0400", in: ctx)
+    }
+
+    @Test func inlineVarWithFieldAccessorIsRejected() throws {
+        let ctx = try semaContext(for: """
+            var backing = 0
+            inline var value: Int
+                get() = backing
+                set(v) { field = v }
+            """)
+        assertHasDiagnostic("KSWIFTK-SEMA-0400", in: ctx)
+    }
+
+    @Test func inlineGetterOnlyVarIsRejected() throws {
+        // A `var` needs both accessors inlined; the implicit setter would
+        // use the backing field.
+        let ctx = try semaContext(for: """
+            var backing = 0
+            inline var value: Int get() = backing
+            """)
+        assertHasDiagnostic("KSWIFTK-SEMA-0400", in: ctx)
+    }
+
+    @Test func inlineLocalVariableIsRejected() throws {
+        let ctx = try semaContext(for: """
+            fun f() { inline val x = 1 }
+            """)
+        assertHasDiagnostic("KSWIFTK-SEMA-0400", in: ctx)
+    }
+
     @Test func privateMembersOfAnonymousObjectsAreAccepted() throws {
         // Regression: object-literal member prefixes share the local
         // declaration parser — `private` there is legal.

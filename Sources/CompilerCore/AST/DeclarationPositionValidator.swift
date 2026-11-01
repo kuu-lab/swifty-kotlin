@@ -405,25 +405,74 @@ struct DeclarationPositionValidator {
         case .function:
             return false
         case .nominal(let nominal):
-            guard nominal.kind != .interface else { return false }
+            guard !memberIsVirtualForInline(decl.modifiers, owner: nominal) else {
+                return false
+            }
         }
 
-        let modifiers = decl.modifiers
-        guard !modifiers.contains(.open),
-              !modifiers.contains(.abstract),
-              !(modifiers.contains(.override) && !modifiers.contains(.final)),
-              decl.initializer == nil,
+        guard decl.initializer == nil,
               decl.delegateExpression == nil,
               decl.explicitBackingField == nil,
-              decl.getter.map({ $0.body != .unit }) == true
+              accessorHasBody(decl.getter),
+              !accessorCreatesBackingField(decl, accessor: decl.getter),
+              !accessorCreatesBackingField(decl, accessor: decl.setter)
         else {
             return false
         }
 
         if decl.isVar {
-            return decl.setter.map { $0.body != .unit } == true
+            return accessorHasBody(decl.setter)
         }
         return decl.setter == nil
+    }
+
+    /// KUU-4110: kotlinc prohibits `inline` on virtual members — "Only
+    /// private or final members can be inlined." `open`, `abstract`, and
+    /// `override` (which is implicitly `open` unless `final`) only make a
+    /// member virtual when the owner can actually be subclassed: enum
+    /// classes (entries may override members) and classes carrying `open`,
+    /// `abstract`, or `sealed`. In final classes, objects, companion
+    /// objects, and enum entry bodies every member is effectively final, so
+    /// `override` — and a no-effect `open` — accept `inline`. Interface
+    /// members are virtual unless `private` or `final` (`final` there is
+    /// diagnosed separately).
+    private func memberIsVirtualForInline(_ modifiers: Modifiers, owner: NominalSite) -> Bool {
+        if modifiers.contains(.private) || modifiers.contains(.final) {
+            return false
+        }
+        if owner.kind == .interface {
+            return true
+        }
+        guard modifiers.contains(.open)
+                || modifiers.contains(.abstract)
+                || modifiers.contains(.override)
+        else {
+            return false
+        }
+        switch owner.kind {
+        case .class:
+            return owner.ownerModifiers.contains(.open)
+                || owner.ownerModifiers.contains(.abstract)
+                || owner.ownerModifiers.contains(.sealed)
+        case .enum:
+            return true
+        case .interface, .object, .companionObject, .enumEntry, .annotationClass:
+            return false
+        }
+    }
+
+    /// A `field` reference inside an accessor materializes a backing field.
+    /// A `val` only resolves `field` when it declares a type (`val x
+    /// get() = field` leaves it unresolved); a `var` always can, since its
+    /// type is inferable from the sibling accessor.
+    private func accessorCreatesBackingField(
+        _ decl: PropertyDecl,
+        accessor: PropertyAccessorDecl?
+    ) -> Bool {
+        if decl.isVar {
+            return accessorUsesBackingField(accessor)
+        }
+        return decl.type != nil && accessorUsesBackingField(accessor)
     }
 
     private func hasPropertyInitializationExpression(_ properties: [DeclID]) -> Bool {
