@@ -695,11 +695,15 @@ extension CallTypeChecker {
         let sema = ctx.sema
         let interner = ctx.interner
         guard let receiverType = sema.bindings.exprType(for: receiverID),
-              let rangeKind = MemberRuntimeDispatch.rangeReceiverKind(
+              let rangeKind = MemberRuntimeDispatch.memberCallReceiverKind(
+                  MemberRuntimeDispatch.rangeReceiverKind(
+                      receiverExpr: receiverID,
+                      receiverType: receiverType,
+                      sema: sema,
+                      interner: interner
+                  ),
                   receiverExpr: receiverID,
-                  receiverType: receiverType,
-                  sema: sema,
-                  interner: interner
+                  ast: ctx.ast
               )
         else {
             return nil

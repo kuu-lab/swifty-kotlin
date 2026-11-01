@@ -1189,6 +1189,24 @@ final class ExprTypeChecker {
             return
         }
 
+        // A `downTo` expression materializes a progression, not a range. Int
+        // `downTo` already binds the nominal IntProgression type; non-Int
+        // operands keep the scalar range marker, so member-call dispatch still
+        // needs the progression kind here. Binding the *Range member would
+        // emit a call whose receiver type can never hold the materialized
+        // progression (a JVM invokevirtual of IntRange.contains on an
+        // IntProgression fails verification).
+        let membershipRangeKind = MemberRuntimeDispatch.memberCallReceiverKind(
+            MemberRuntimeDispatch.rangeReceiverKind(
+                receiverExpr: containerExpr,
+                receiverType: containerType,
+                sema: sema,
+                interner: interner
+            ),
+            receiverExpr: containerExpr,
+            ast: ctx.ast
+        )
+
         // Range expressions carry an Int lowering type until their member call
         // is resolved. If a user operator extension is in scope, recover the
         // source-level IntRange receiver before the primitive fast path can
@@ -1199,12 +1217,7 @@ final class ExprTypeChecker {
             sema: sema,
             interner: interner
         ),
-        MemberRuntimeDispatch.rangeReceiverKind(
-            receiverExpr: containerExpr,
-            receiverType: containerType,
-            sema: sema,
-            interner: interner
-        ) == .intRange {
+        membershipRangeKind == .intRange {
             // A same-element contains member shadows a user extension for the
             // in operator, just as it does for an explicit member call. Keep
             // cross-type arguments on the extension overload path below.
@@ -1692,12 +1705,7 @@ final class ExprTypeChecker {
             sema: sema,
             interner: interner
         ) != nil,
-        let rangeKind = MemberRuntimeDispatch.rangeReceiverKind(
-            receiverExpr: containerExpr,
-            receiverType: containerType,
-            sema: sema,
-            interner: interner
-        ),
+        let rangeKind = membershipRangeKind,
         [MemberDispatchReceiverKind.intProgression, .longProgression, .charProgression,
          .uintProgression, .ulongProgression].contains(rangeKind) {
             if let sourceSymbol = driver.callChecker.sourceRangeHOFSymbol(

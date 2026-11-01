@@ -113,6 +113,27 @@ extension CallTypeChecker {
         interner: StringInterner,
         allowSyntacticRangeExpression: Bool = false
     ) -> MemberDispatchReceiverKind? {
+        let kind = sourceLevelRangeMemberMarkerKind(
+            receiverExpr: receiverExpr,
+            receiverType: receiverType,
+            sema: sema,
+            interner: interner,
+            allowSyntacticRangeExpression: allowSyntacticRangeExpression
+        )
+        return MemberRuntimeDispatch.memberCallReceiverKind(
+            kind,
+            receiverExpr: receiverExpr,
+            ast: driver.ast
+        )
+    }
+
+    private func sourceLevelRangeMemberMarkerKind(
+        receiverExpr: ExprID,
+        receiverType: TypeID,
+        sema: SemaModule,
+        interner: StringInterner,
+        allowSyntacticRangeExpression: Bool = false
+    ) -> MemberDispatchReceiverKind? {
         let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
         if let (_, symbol) = resolveClassTypeSymbol(nonNullReceiverType, sema: sema) {
             return MemberRuntimeDispatch.rangeReceiverKind(forClassSymbol: symbol, interner: interner)

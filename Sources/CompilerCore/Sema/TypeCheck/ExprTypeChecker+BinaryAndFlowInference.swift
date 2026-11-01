@@ -1127,6 +1127,22 @@ extension ExprTypeChecker {
             {
                 type = uintType
                 sema.bindings.markUIntRangeExpr(id)
+            } else if op == .downTo,
+                      let intProgressionType = nominalRangeType(
+                          named: "IntProgression",
+                          sema: sema,
+                          interner: interner
+                      )
+            {
+                // `downTo` materializes an IntProgression, not an IntRange —
+                // keep the nominal distinction so member calls bind the class
+                // the runtime object actually instantiates (the same reason
+                // `step` below keeps IntProgression, KUU-576). Binding the
+                // scalar Int marker would resolve `first`/`last`/`isEmpty`/
+                // `contains` against IntRange and emit a call whose receiver
+                // type can never hold the materialized progression (a JVM
+                // VerifyError / ClassCastException).
+                type = intProgressionType
             } else {
                 type = intType
             }
