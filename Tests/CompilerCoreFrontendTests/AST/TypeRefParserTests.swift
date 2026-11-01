@@ -269,6 +269,99 @@ struct TypeRefParserTests {
         #expect(result == nil)
     }
 
+    /// KUU-4107: `suspend` is a type modifier, so annotations may still
+    /// follow it (`suspend @Composable () -> Unit`). The resulting annotated
+    /// function type carries `isSuspend` on the function type itself.
+    @Test(arguments: [
+        ("suspend @C () -> Unit", "C"),
+        ("suspend @C (Int) -> Unit", "C"),
+        ("suspend @C Int.() -> Unit", "C"),
+        ("suspend @C Int?.() -> Unit", "C"),
+        ("suspend @T(\"a\") () -> Unit", "T"),
+    ])
+    func suspendModifierFollowedByTypeAnnotationParses(_ source: String, annotationName: String) throws {
+        let lexed = lex(source)
+        let arena = ASTArena()
+        let result = try #require(TypeRefParserCore.parseTypeRefPrefix(
+            lexed.tokens.dropLast(),
+            interner: lexed.interner,
+            astArena: arena,
+            options: .declaration,
+            diagnostics: lexed.diagnostics
+        ))
+        #expect(result.consumed == lexed.tokens.count - 1)
+        #expect(!lexed.diagnostics.hasError)
+        guard case let .annotated(base, annotations) = arena.typeRef(result.ref) else {
+            Issue.record("Expected an annotated type for \(source)")
+            return
+        }
+        #expect(annotations.count == 1)
+        #expect(annotations.first?.name == annotationName)
+        guard case let .functionType(_, _, _, _, isSuspend, _) = arena.typeRef(base) else {
+            Issue.record("Expected a function type base for \(source)")
+            return
+        }
+        #expect(isSuspend)
+    }
+
+    /// KUU-4107: annotations before and after `suspend` both modify the
+    /// function type, so `@C suspend @D () -> Unit` nests two `.annotated`
+    /// layers around the suspend function type.
+    @Test
+    func suspendModifierBetweenTypeAnnotationsParses() throws {
+        let lexed = lex("@C suspend @D () -> Unit")
+        let arena = ASTArena()
+        let result = try #require(TypeRefParserCore.parseTypeRefPrefix(
+            lexed.tokens.dropLast(),
+            interner: lexed.interner,
+            astArena: arena,
+            options: .declaration,
+            diagnostics: lexed.diagnostics
+        ))
+        #expect(result.consumed == lexed.tokens.count - 1)
+        #expect(!lexed.diagnostics.hasError)
+        guard case let .annotated(inner, outerAnnotations) = arena.typeRef(result.ref) else {
+            Issue.record("Expected an annotated type")
+            return
+        }
+        #expect(outerAnnotations.first?.name == "C")
+        guard case let .annotated(base, innerAnnotations) = arena.typeRef(inner) else {
+            Issue.record("Expected a nested annotated type")
+            return
+        }
+        #expect(innerAnnotations.first?.name == "D")
+        guard case let .functionType(_, _, _, _, isSuspend, _) = arena.typeRef(base) else {
+            Issue.record("Expected a function type base")
+            return
+        }
+        #expect(isSuspend)
+    }
+
+    /// Annotations following `suspend` still must annotate a function type:
+    /// `suspend @C Int` leaves the `@C Int` part unparsed (and thus errors at
+    /// declaration level like `suspend Int` does), while a `(` directly
+    /// attached to the annotation name stays the argument list so the
+    /// trailing `->` dangles — both matching kotlinc.
+    @Test(arguments: [
+        "suspend @C Int",
+        "suspend @C() -> Unit",
+        "suspend @C(Int) -> Unit",
+    ])
+    func suspendModifierFollowedByNonFunctionTypeAnnotationIsRejected(_ source: String) {
+        let lexed = lex(source)
+        let arena = ASTArena()
+        let result = TypeRefParserCore.parseTypeRefPrefix(
+            lexed.tokens.dropLast(),
+            interner: lexed.interner,
+            astArena: arena,
+            options: .declaration,
+            diagnostics: lexed.diagnostics
+        )
+        // `suspend` alone parses as a named type in these inputs; what must
+        // not happen is consuming the whole source as one type.
+        #expect(result == nil || result!.consumed < lexed.tokens.count - 1)
+    }
+
     private func checkReceiverFunctionType(_ ref: TypeRefID, in arena: ASTArena, source: String) throws {
         guard case let .functionType(_, receiver, params, returnType, isSuspend, nullable) = arena.typeRef(ref) else {
             Issue.record("Expected a receiver function type for \(source)")
