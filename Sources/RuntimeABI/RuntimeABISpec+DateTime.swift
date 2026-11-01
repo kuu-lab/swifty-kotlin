@@ -3,6 +3,7 @@ private let abi = RuntimeABISectionBuilder("DateTime")
 public extension RuntimeABISpec {
     static let dateTimeFunctions: [RuntimeABIFunctionSpec] = [
         abi.nt("__kk_calendar_create", "timeZoneRaw"),
+        abi.nt("__kk_calendar_create_fields", "timeZoneRaw year month day hour minute second"),
         abi.nt("__kk_calendar_get_time_in_millis", "calendarRaw"),
         abi.nt("__kk_calendar_set_time_in_millis", "calendarRaw value", ret: .void),
         abi.nt("__kk_calendar_get_field", "calendarRaw field"),

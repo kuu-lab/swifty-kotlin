@@ -7,6 +7,7 @@ public class BigDecimal : Number(), Comparable<BigDecimal> {
     public companion object {
         public val ZERO: BigDecimal = "0".toBigDecimal()
         public val ONE: BigDecimal = "1".toBigDecimal()
+        public val TEN: BigDecimal = "10".toBigDecimal()
     }
 
     @KsSymbolName("__kk_string_toBigDecimal")
@@ -108,6 +109,39 @@ public class BigDecimal : Number(), Comparable<BigDecimal> {
         __kk_bignum_setScale(newScale, roundingMode)
 
     public fun scale(): Int = __kk_bignum_scale()
+
+    /**
+     * Returns a `BigDecimal` whose scale is reduced by [n] (value multiplied by 10^n).
+     * Like the JDK, when the resulting scale would go below zero the unscaled
+     * value is padded instead, so the result's scale is never negative.
+     */
+    public fun movePointRight(n: Int): BigDecimal {
+        val scaled = multiply(BigDecimal("1E" + n))
+        return if (scaled.scale() < 0) scaled.setScale(0) else scaled
+    }
+
+    /**
+     * Returns a `BigDecimal` whose scale is increased by [n] (value multiplied by 10^-n)
+     * while the unscaled value is preserved. A negative [n] shifts the point right.
+     */
+    public fun movePointLeft(n: Int): BigDecimal = movePointRight(-n)
+
+    /** Returns -1, 0, or 1 as this value is negative, zero, or positive. */
+    public fun signum(): Int = compareTo(ZERO)
+
+    /** The unscaled integer value carried by this `BigDecimal`. */
+    public fun unscaledValue(): BigInteger = BigInteger(movePointRight(scale()).toString())
+
+    /** This value converted to a `BigInteger`, dropping any fractional part toward zero. */
+    public fun toBigInteger(): BigInteger =
+        BigInteger(setScale(0, RoundingMode.DOWN).toString())
+
+    /**
+     * This value converted to a `BigInteger`; throws `ArithmeticException`
+     * if a nonzero fractional part would be dropped.
+     */
+    public fun toBigIntegerExact(): BigInteger =
+        BigInteger(setScale(0, RoundingMode.UNNECESSARY).toString())
 
     public operator fun plus(other: BigDecimal): BigDecimal = add(other)
 
