@@ -991,7 +991,10 @@ extension ExprTypeChecker {
             return false
         }()
 
-        if !allowsMixedSignedness, (lhsIsSigned && rhsIsUnsigned) || (lhsIsUnsigned && rhsIsSigned) {
+        // Elvis never dispatches an operator overload — it joins the non-null
+        // lhs with the rhs via LUB — so signed/unsigned mixing is valid there
+        // (`val n = u ?: 0` compiles in kotlinc, KUU-3890).
+        if op != .elvis, !allowsMixedSignedness, (lhsIsSigned && rhsIsUnsigned) || (lhsIsUnsigned && rhsIsSigned) {
             ctx.sema.diagnostics.error(
                 "KSWIFTK-SEMA-0043",
                 "Operator '\(interner.resolve(operatorName))' cannot be applied to '(signed, unsigned)' or '(unsigned, signed)' types.",

@@ -1,0 +1,148 @@
+{
+  "version": 1,
+  "diagnostics": [
+    {
+      "file": "unsigned_int_literal_initializer.kt",
+      "range": {
+        "start": { "line": 12, "character": 4 },
+        "end": { "line": 12, "character": 19 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-TYPE-0001",
+      "source": "kswiftk",
+      "message": "Type constraint could not be satisfied.",
+      "codeActions": []
+    },
+    {
+      "file": "unsigned_int_literal_initializer.kt",
+      "range": {
+        "start": { "line": 13, "character": 4 },
+        "end": { "line": 13, "character": 20 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-TYPE-0001",
+      "source": "kswiftk",
+      "message": "Type constraint could not be satisfied.",
+      "codeActions": []
+    },
+    {
+      "file": "unsigned_int_literal_initializer.kt",
+      "range": {
+        "start": { "line": 14, "character": 4 },
+        "end": { "line": 14, "character": 20 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-TYPE-0001",
+      "source": "kswiftk",
+      "message": "Type constraint could not be satisfied.",
+      "codeActions": []
+    },
+    {
+      "file": "unsigned_int_literal_initializer.kt",
+      "range": {
+        "start": { "line": 15, "character": 4 },
+        "end": { "line": 15, "character": 21 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-TYPE-0001",
+      "source": "kswiftk",
+      "message": "Type constraint could not be satisfied.",
+      "codeActions": []
+    },
+    {
+      "file": "unsigned_int_literal_initializer.kt",
+      "range": {
+        "start": { "line": 16, "character": 4 },
+        "end": { "line": 16, "character": 20 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-TYPE-0001",
+      "source": "kswiftk",
+      "message": "Type constraint could not be satisfied.",
+      "codeActions": []
+    },
+    {
+      "file": "unsigned_int_literal_initializer.kt",
+      "range": {
+        "start": { "line": 17, "character": 4 },
+        "end": { "line": 17, "character": 31 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-TYPE-0001",
+      "source": "kswiftk",
+      "message": "Type constraint could not be satisfied.",
+      "codeActions": []
+    },
+    {
+      "file": "unsigned_int_literal_initializer.kt",
+      "range": {
+        "start": { "line": 18, "character": 4 },
+        "end": { "line": 18, "character": 22 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-TYPE-0001",
+      "source": "kswiftk",
+      "message": "Type constraint could not be satisfied.",
+      "codeActions": []
+    },
+    {
+      "file": "unsigned_int_literal_initializer.kt",
+      "range": {
+        "start": { "line": 20, "character": 4 },
+        "end": { "line": 20, "character": 9 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-TYPE-0001",
+      "source": "kswiftk",
+      "message": "Type constraint could not be satisfied.",
+      "codeActions": []
+    },
+    {
+      "file": "unsigned_int_literal_initializer.kt",
+      "range": {
+        "start": { "line": 21, "character": 12 },
+        "end": { "line": 21, "character": 24 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-0002",
+      "source": "kswiftk",
+      "message": "No viable overload found for call.",
+      "codeActions": []
+    },
+    {
+      "file": "unsigned_int_literal_initializer.kt",
+      "range": {
+        "start": { "line": 22, "character": 12 },
+        "end": { "line": 22, "character": 25 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-0002",
+      "source": "kswiftk",
+      "message": "No viable overload found for call.",
+      "codeActions": []
+    },
+    {
+      "file": "unsigned_int_literal_initializer.kt",
+      "range": {
+        "start": { "line": 23, "character": 4 },
+        "end": { "line": 23, "character": 46 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-TYPE-0001",
+      "source": "kswiftk",
+      "message": "Type constraint could not be satisfied.",
+      "codeActions": []
+    }
+  ]
+}
