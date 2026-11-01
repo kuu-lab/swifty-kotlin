@@ -326,6 +326,11 @@ func runtimeSequenceSourceElements(from rawValue: Int) -> [Int]? {
     if let set = runtimeSetBox(from: rawValue) {
         return set.elements
     }
+    // KUU-3978: ranges/progressions are valid Iterable sources even though
+    // they are neither collection boxes nor itable-backed objects.
+    if let range = runtimeRangeBox(from: rawValue) {
+        return runtimeRangeIterableElements(range)
+    }
     if runtimeObjectBox(from: rawValue) != nil {
         var elements: [Int] = []
         if runtimeTraverseSourceSequenceObject(rawValue, outThrown: nil, yield: { elem in
@@ -351,6 +356,11 @@ func runtimeSequenceSourceValues(from rawValue: Int) -> [RuntimeValue]? {
     }
     if let set = runtimeSetBox(from: rawValue) {
         return set.values
+    }
+    // KUU-3978: see runtimeSequenceSourceElements — same element
+    // representation `toList()` stores.
+    if let range = runtimeRangeBox(from: rawValue) {
+        return runtimeRangeIterableElements(range).map { RuntimeValue(raw: $0) }
     }
     if runtimeObjectBox(from: rawValue) != nil {
         var values: [RuntimeValue] = []
@@ -392,6 +402,10 @@ func runtimeSequenceSourceElementsOrThrow(
     if let set = runtimeSetBox(from: rawValue) {
         return set.elements
     }
+    // KUU-3978: ranges/progressions are valid Iterable sources.
+    if let range = runtimeRangeBox(from: rawValue) {
+        return runtimeRangeIterableElements(range)
+    }
     if runtimeObjectBox(from: rawValue) != nil {
         var elements: [Int] = []
         if runtimeTraverseSourceSequenceObject(rawValue, outThrown: outThrown, yield: { elem in
@@ -424,6 +438,10 @@ func runtimeSequenceSourceValuesOrThrow(
     }
     if let set = runtimeSetBox(from: rawValue) {
         return set.values
+    }
+    // KUU-3978: ranges/progressions are valid Iterable sources.
+    if let range = runtimeRangeBox(from: rawValue) {
+        return runtimeRangeIterableElements(range).map { RuntimeValue(raw: $0) }
     }
     if runtimeObjectBox(from: rawValue) != nil {
         var values: [RuntimeValue] = []
