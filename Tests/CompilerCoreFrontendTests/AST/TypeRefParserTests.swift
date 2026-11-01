@@ -122,6 +122,153 @@ struct TypeRefParserTests {
         #expect(!ctx.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-PARSE-0024" })
     }
 
+    /// KUU-4109: in type position, `(…)` after an annotation name is the
+    /// function type's parameter list — not the annotation's argument list —
+    /// when whitespace precedes the `(` and its matching `)` is followed
+    /// by `->`.
+    @Test(arguments: [
+        "@C (navigator: Int) -> Unit",
+        "@C () -> Unit",
+        "@C (Int) -> Unit",
+        "@C suspend () -> Unit",
+        "@C (f: (Int) -> Int) -> Unit",
+    ])
+    func typeAnnotationFollowedByFunctionTypeParses(_ source: String) throws {
+        let lexed = lex(source)
+        let arena = ASTArena()
+        let result = try #require(TypeRefParserCore.parseTypeRefPrefix(
+            lexed.tokens.dropLast(),
+            interner: lexed.interner,
+            astArena: arena,
+            options: .declaration,
+            diagnostics: lexed.diagnostics
+        ))
+        #expect(result.consumed == lexed.tokens.count - 1)
+        #expect(!lexed.diagnostics.hasError)
+        guard case let .annotated(base, annotations) = arena.typeRef(result.ref) else {
+            Issue.record("Expected an annotated type for \(source)")
+            return
+        }
+        #expect(annotations.count == 1)
+        #expect(annotations.first?.name == "C")
+        #expect(annotations.first?.arguments.isEmpty == true)
+        guard case .functionType = arena.typeRef(base) else {
+            Issue.record("Expected a function type base for \(source)")
+            return
+        }
+    }
+
+    /// Annotation arguments are still consumed when the matching `)` is not
+    /// followed by `->` — `("a")`/`(x = 1)` are argument lists, then the
+    /// remaining `() -> Unit` is the annotated function type.
+    @Test(arguments: [
+        ("@T (\"a\") () -> Unit", "\"a\""),
+        ("@T (x = 1) () -> Unit", "x=1"),
+    ])
+    func typeAnnotationArgumentListBeforeFunctionTypeParses(_ source: String, expectedArgument: String) throws {
+        let lexed = lex(source)
+        let arena = ASTArena()
+        let result = try #require(TypeRefParserCore.parseTypeRefPrefix(
+            lexed.tokens.dropLast(),
+            interner: lexed.interner,
+            astArena: arena,
+            options: .declaration,
+            diagnostics: lexed.diagnostics
+        ))
+        #expect(result.consumed == lexed.tokens.count - 1)
+        #expect(!lexed.diagnostics.hasError)
+        guard case let .annotated(base, annotations) = arena.typeRef(result.ref) else {
+            Issue.record("Expected an annotated type for \(source)")
+            return
+        }
+        #expect(annotations.count == 1)
+        #expect(annotations.first?.name == "T")
+        let argument = try #require(annotations.first?.arguments.first)
+        #expect(argument == expectedArgument)
+        guard case .functionType = arena.typeRef(base) else {
+            Issue.record("Expected a function type base for \(source)")
+            return
+        }
+    }
+
+    /// A `(` after the annotation name that opens with `val`/`var` is the
+    /// function type parameter list, never an argument list.
+    @Test
+    func typeAnnotationBeforeValParameterFunctionTypeParses() throws {
+        let lexed = lex("@T (val x: Int) -> Unit")
+        let arena = ASTArena()
+        let result = try #require(TypeRefParserCore.parseTypeRefPrefix(
+            lexed.tokens.dropLast(),
+            interner: lexed.interner,
+            astArena: arena,
+            options: .declaration,
+            diagnostics: lexed.diagnostics
+        ))
+        #expect(result.consumed == lexed.tokens.count - 1)
+        #expect(!lexed.diagnostics.hasError)
+        guard case let .annotated(base, annotations) = arena.typeRef(result.ref) else {
+            Issue.record("Expected an annotated type")
+            return
+        }
+        #expect(annotations.first?.arguments.isEmpty == true)
+        guard case .functionType = arena.typeRef(base) else {
+            Issue.record("Expected a function type base")
+            return
+        }
+    }
+
+    /// KUU-4109 end-to-end: an annotated function type is a valid typealias
+    /// right-hand side — previously dropped, producing SEMA-0061.
+    @Test(arguments: [
+        ("AC", "@C (navigator: Int) -> Unit"),
+        ("D", "(@C () -> Unit)?"),
+        ("E", "@C suspend () -> Unit"),
+    ])
+    func annotatedTypeIsAcceptedAsTypeAliasRightHandSide(
+        _ aliasName: String, _ rhs: String
+    ) throws {
+        let (ast, ctx) = try buildASTModule(
+            from: "annotation class C\ntypealias \(aliasName) = \(rhs)",
+            includeStdlib: false
+        )
+        #expect(!ctx.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-SEMA-0061" })
+        let typeAlias = try #require(firstTypeAliasDecl(named: aliasName, in: ast, interner: ctx.interner))
+        guard let underlying = typeAlias.underlyingType,
+              case let .annotated(base, _) = ast.arena.typeRef(underlying)
+        else {
+            Issue.record("Expected the alias RHS to be an annotated type")
+            return
+        }
+        guard case .functionType = ast.arena.typeRef(base) else {
+            Issue.record("Expected a function type under the annotation")
+            return
+        }
+    }
+
+    /// kotlinc rejects `(...) -> Unit` when the `(` is directly attached to
+    /// the annotation name: the argument list binds to the annotation and
+    /// `->` dangles (whitespace is significant — `@C() -> Unit` fails while
+    /// `@C () -> Unit` parses). A whitespace-separated `("a")` is the
+    /// parameter list instead and fails because a string literal is no type.
+    @Test(arguments: [
+        "@T (\"a\") -> Unit",
+        "@T(\"a\") -> Unit",
+        "@C(navigator: Int) -> Unit",
+        "@C() -> Unit",
+    ])
+    func typeAnnotationArgumentListFollowedByArrowIsRejected(_ source: String) {
+        let lexed = lex(source)
+        let arena = ASTArena()
+        let result = TypeRefParserCore.parseTypeRefPrefix(
+            lexed.tokens.dropLast(),
+            interner: lexed.interner,
+            astArena: arena,
+            options: .declaration,
+            diagnostics: lexed.diagnostics
+        )
+        #expect(result == nil)
+    }
+
     private func checkReceiverFunctionType(_ ref: TypeRefID, in arena: ASTArena, source: String) throws {
         guard case let .functionType(_, receiver, params, returnType, isSuspend, nullable) = arena.typeRef(ref) else {
             Issue.record("Expected a receiver function type for \(source)")

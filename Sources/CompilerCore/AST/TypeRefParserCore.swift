@@ -173,7 +173,8 @@ enum TypeRefParserCore {
                 from: tokens,
                 start: next,
                 interner: interner,
-                allowUseSiteTarget: false
+                allowUseSiteTarget: false,
+                typeContext: true
             ) {
                 if parsedAnnotation.invalidUseSiteTargetRange != nil {
                     diagnostics?.error(

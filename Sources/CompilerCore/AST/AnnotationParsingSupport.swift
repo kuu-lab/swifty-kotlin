@@ -9,11 +9,19 @@ enum AnnotationParsingSupport {
         let invalidUseSiteTargetRange: SourceRange?
     }
 
+    /// - Parameter typeContext: Pass `true` when parsing an annotation in
+    ///   type position (`val x: @A () -> Unit`, `typealias F = @A (T) -> R`).
+    ///   Mirrors kotlinc's TYPE_CONTEXT rule: a `(` after the annotation name
+    ///   opens the argument list unless the token inside is `val`/`var`, or —
+    ///   only when whitespace or a comment precedes it — its matching `)` is
+    ///   followed by `->`. In those cases it is the parameter list of the
+    ///   function type being annotated.
     static func parseAnnotation(
         from tokens: [Token],
         start: Int,
         interner: StringInterner,
-        allowUseSiteTarget: Bool
+        allowUseSiteTarget: Bool,
+        typeContext: Bool = false
     ) -> ParsedAnnotation? {
         guard start < tokens.count, tokens[start].kind == .symbol(.at) else {
             return nil
@@ -57,7 +65,9 @@ enum AnnotationParsingSupport {
         }
 
         var arguments: [String] = []
-        if index < tokens.count, tokens[index].kind == .symbol(.lParen) {
+        if index < tokens.count, tokens[index].kind == .symbol(.lParen),
+           consumesArgumentList(in: tokens, at: index, typeContext: typeContext)
+        {
             index += 1
             var depth = BuildASTPhase.BracketDepth()
             depth.paren = 1
@@ -103,6 +113,54 @@ enum AnnotationParsingSupport {
             nextIndex: index,
             invalidUseSiteTargetRange: invalidUseSiteTargetRange
         )
+    }
+
+    /// Decides whether a `(` following an annotation name opens its argument
+    /// list or the parameter list of the function type the annotation applies
+    /// to (`typealias F = @Composable (navigator: Navigator) -> Unit`).
+    /// Outside type position a `(` is always the argument list.
+    ///
+    /// kotlinc first parses `(...)` as the argument list and, only when that
+    /// ends abnormally — a `)` directly followed by `->` — retries the
+    /// annotation in a whitespace-significant mode. The `(` therefore opens
+    /// the function type's parameter list only when whitespace or a comment
+    /// precedes it: `@A (x: Int) -> Unit` annotates a function type while
+    /// `@A(x: Int) -> Unit` keeps `(x: Int)` as arguments and errors on the
+    /// dangling `->`.
+    private static func consumesArgumentList(
+        in tokens: [Token], at lParenIndex: Int, typeContext: Bool
+    ) -> Bool {
+        guard typeContext else {
+            return true
+        }
+        let innerIndex = lParenIndex + 1
+        if innerIndex < tokens.count,
+           tokens[innerIndex].kind == .keyword(.val)
+               || tokens[innerIndex].kind == .keyword(.var)
+        {
+            return false
+        }
+        var depth = 0
+        for index in lParenIndex ..< tokens.count {
+            switch tokens[index].kind {
+            case .symbol(.lParen):
+                depth += 1
+            case .symbol(.rParen):
+                depth -= 1
+                if depth == 0 {
+                    let next = index + 1
+                    if next >= tokens.count || tokens[next].kind != .symbol(.arrow) {
+                        return true
+                    }
+                    return tokens[lParenIndex].leadingTrivia.isEmpty
+                }
+            default:
+                break
+            }
+        }
+        // An unbalanced `(` cannot start a function type; treat it as the
+        // argument list so diagnostics land on the unclosed annotation.
+        return true
     }
 
     /// Keep folding token-based so empty operands and '+' inside string
