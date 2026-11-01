@@ -15,6 +15,8 @@ public extension RuntimeABISpec {
         abi.nt("__kk_kparameter_is_optional", "handle"),
         abi.nt("__kk_kparameter_get_kind", "handle"),
         abi.nt("__kk_kparameter_is_vararg", "handle"),
+        abi.nt("__kk_kparameter_is_runtime", "raw"),
+        abi.th("__kk_kparameter_get_annotations_typed", "parameterRaw outThrown"),
     ]
 
     static let kFunctionFunctions: [RuntimeABIFunctionSpec] = [

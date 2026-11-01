@@ -444,6 +444,25 @@ public func __kk_kparameter_get_kind(_ raw: Int) -> Int {
     }
 }
 
+/// Distinguishes native KParameter boxes from source implementations of
+/// KParameter so `KAnnotatedElement.annotations` reads can bypass the
+/// interface getter (KUU-4017).
+@_cdecl("__kk_kparameter_is_runtime")
+public func __kk_kparameter_is_runtime(_ raw: Int) -> Int {
+    runtimeKParameterBox(from: raw) == nil ? 0 : 1
+}
+
+/// Returns the annotations list for a KParameter as a RuntimeListBox.
+/// Parameter-annotation metadata is not yet emitted for runtime
+/// KParameter boxes, so this returns an empty list; source-backed
+/// KParameter implementations keep their own `annotations` through
+/// interface dispatch.
+@_cdecl("__kk_kparameter_get_annotations_typed")
+public func __kk_kparameter_get_annotations_typed(_ raw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    let records = runtimeKParameterBox(from: raw)?.annotations ?? []
+    return runtimeAnnotationList(records, materializeFactories: true, outThrown: outThrown)
+}
+
 
 /// - Parameters:
 ///   - nameRaw: Opaque pointer to the KKString for the function name.

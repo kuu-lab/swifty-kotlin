@@ -508,6 +508,9 @@ final class RuntimeKParameterBox {
     var arrayComponentType: Int?
     var callableOwner = 0
     var boundArguments: [Int] = []
+    /// Annotation records for this parameter. No registration entry point
+    /// emits them yet, so `KParameter.annotations` reads as an empty list.
+    var annotations: [RuntimeAnnotationRecord] = []
     /// Parameter index (0-based).
     let index: Int
     /// Parameter name as a KKString raw handle (0 if unnamed).
