@@ -118,10 +118,13 @@ extension JVMFunctionBuilder {
                     let source = try requireValue(receiver)
                     return JVMIntrinsicResult(value: try jdkCall("java/util/Objects", "toString", [object], .string, arguments: [source]))
                 }
-                if name == "equals", args.count == 1 {
-                    let source = try requireValue(receiver), argument = try requireValue(args[0].expr)
-                    return JVMIntrinsicResult(value: try jdkCall("java/util/Objects", "equals", [object, object], .boolean, arguments: [source, argument]))
-                }
+            }
+            if name == "equals", args.count == 1 {
+                // `x.equals(y)` on a non-null scalar boxes the receiver into its
+                // wrapper; nullable receivers reach Any?.equals instead, whose
+                // null-safe semantics the same Objects.equals call provides.
+                let source = try requireValue(receiver), argument = try requireValue(args[0].expr)
+                return JVMIntrinsicResult(value: try jdkCall("java/util/Objects", "equals", [object, object], .boolean, arguments: [source, argument]))
             }
             if name == "toString", args.isEmpty {
                 let source = try requireValue(receiver)
