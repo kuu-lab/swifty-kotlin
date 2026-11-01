@@ -44,22 +44,26 @@ public fun <T> MutableList<T>.removeLastOrNull(): T? {
     return removeAt(size - 1)
 }
 
-// KSP-436: Direct storage mutation stays in the `__kk_mutable_*` bridges; the
-// functions below are expressed in terms of the `size` / `get` / `set` /
-// `removeAt` members that reach those bridges.
-
-public fun <T> MutableList<T>.removeIf(predicate: (T) -> Boolean): Boolean {
+// KUU-4026: on JVM removeIf resolves as the java.util.Collection default
+// method, so the receiver is MutableCollection — covering MutableList,
+// MutableSet, and the MutableMap entries/keys/values views. Removal goes
+// through MutableIterator.remove, matching the JDK implementation.
+@IgnorableReturnValue
+public fun <T> MutableCollection<T>.removeIf(predicate: (T) -> Boolean): Boolean {
     var changed = false
-    var index = size - 1
-    while (index >= 0) {
-        if (predicate(this[index])) {
-            removeAt(index)
+    val iterator = iterator()
+    while (iterator.hasNext()) {
+        if (predicate(iterator.next())) {
+            iterator.remove()
             changed = true
         }
-        index -= 1
     }
     return changed
 }
+
+// KSP-436: Direct storage mutation stays in the `__kk_mutable_*` bridges; the
+// functions below are expressed in terms of the `size` / `get` / `set`
+// members that reach those bridges.
 
 public fun <T> MutableList<T>.replaceAll(transform: (T) -> T) {
     var index = 0
