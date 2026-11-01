@@ -90,6 +90,17 @@ private func withComparatorObject(mode: Int, body: (Int) -> Void) {
     }
     box.elements[0] = mode
     _ = kk_object_register_itable_method(object, 0, 0, unsafeBitCast(comparatorObjectCompare, to: Int.self))
+    // Interface-typed call sites (e.g. `__kk_compare_with_comparator`) resolve
+    // the itable slot dynamically via kk_itable_lookup_dynamic, keyed by the
+    // kotlin.Comparator stable type ID, so the hand-built object must record
+    // the same iface -> slot 0 mapping compiler-emitted classes get from
+    // kk_object_register_itable_iface. Without it the lookup returns 0 and the
+    // bridge panics with "method not found in vtable/itable".
+    _ = kk_object_register_itable_iface(
+        object,
+        Int(runtimeStableNominalTypeID(fqName: "kotlin.Comparator")),
+        0
+    )
     body(object)
 }
 
