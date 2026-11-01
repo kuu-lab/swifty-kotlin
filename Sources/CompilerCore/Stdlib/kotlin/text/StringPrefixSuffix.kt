@@ -130,13 +130,16 @@ public fun CharSequence.removeRange(startIndex: Int, endIndex: Int): CharSequenc
 
     // JVM allocates the destination builder before appending, so an oversized
     // removed span surfaces as NegativeArraySizeException ahead of the range
-    // checks on the two appends below.
-    val sb = StringBuilder(length - (endIndex - startIndex))
-    if (startIndex < 0 || startIndex > length) {
-        throw IndexOutOfBoundsException("Range [0, $startIndex) out of bounds for length $length")
+    // checks on the two appends below. Read `length` once here: JVM evaluates
+    // it only for the capacity and the final append bound, so the bounds
+    // checks must not add observable reads on custom receivers.
+    val currentLength = length
+    val sb = StringBuilder(currentLength - (endIndex - startIndex))
+    if (startIndex < 0 || startIndex > currentLength) {
+        throw IndexOutOfBoundsException("Range [0, $startIndex) out of bounds for length $currentLength")
     }
-    if (endIndex > length) {
-        throw IndexOutOfBoundsException("Range [$endIndex, $length) out of bounds for length $length")
+    if (endIndex > currentLength) {
+        throw IndexOutOfBoundsException("Range [$endIndex, $currentLength) out of bounds for length $currentLength")
     }
 
     // Use StringBuilder's CharSequence-aware appendRange so custom receivers
