@@ -149,4 +149,96 @@ struct RuntimeCallableInvocationTests {
         #expect(__kk_kcallable_call_by(raw, foreign, &thrown) == runtimeNullSentinelInt)
         #expect(thrown != 0)
     }
+
+    /// Registers a `KMutableProperty`-style callable reference (`C::w`):
+    /// `kind == .property` with a receiver parameter, a setter invoker, and a
+    /// compiler-style setter parameter list (distinct boxes carrying the
+    /// setter's own `callableOwner` token). `member` sets flags bit6, the
+    /// marker the compiler emits for class-owned properties (KUU-4091).
+    private func mutableProperty(member: Bool, name: String = "w") -> (Int, [Int], [Int], Int) {
+        let raw = registerRuntimeObject(RuntimeFunctionValueBox(fnPtr: 0, closureRaw: 0, arity: 1))
+        let tagged = kk_callable_ref_tag_kproperty(raw, runtimeMakeStringRaw(name), runtimeMakeStringRaw("kotlin.Int"), 1)
+        let parameters = [
+            __kk_kparameter_create_typed(0, runtimeNullSentinelInt, runtimeMakeStringRaw("C"), 0, 0, 0, 41),
+        ]
+        let setterParameters = [
+            __kk_kparameter_create_typed(0, runtimeNullSentinelInt, runtimeMakeStringRaw("C"), 0, 0, 0, 42),
+            __kk_kparameter_create_typed(1, runtimeNullSentinelInt, runtimeMakeStringRaw("kotlin.Int"), 0, 2, 0, 42),
+        ]
+        let bridge: @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = callableSumBridge
+        let bridgeRaw = unsafeBitCast(bridge, to: Int.self)
+        let flags = member ? (1 | 64) : 1
+        _ = __kk_kcallable_register(
+            tagged, bridgeRaw, 0, list(parameters), list([]), flags, 0, bridgeRaw, list(setterParameters)
+        )
+        let parametersListRaw = runtimeStorage.withDelegateLock {
+            $0.callableRefMetadataByValue[tagged]?.parameters ?? 0
+        }
+        return (tagged, parameters, setterParameters, parametersListRaw)
+    }
+
+    /// KUU-4091 — member-property accessors are descriptor-backed KCallables
+    /// on the JVM: `ref.getter.parameters[i]` is a different object than
+    /// `ref.parameters[i]`, owns a getter-distinct callable token, and points
+    /// its callable handle at the accessor so `of <callable>` renders
+    /// `fun Owner.`<get-x>``. Accessors are cached on the reference.
+    @Test func memberPropertyAccessorParametersAreAccessorOwned() throws {
+        let (prop, parameters, setterParameters, parametersListRaw) = mutableProperty(member: true)
+        __kk_function_set_description(prop, runtimeMakeStringRaw("var C.w: kotlin.Int"), 0)
+
+        let getter = __kk_kcallable_get_metadata(prop, 9)
+        #expect(getter != 0)
+        #expect(__kk_kcallable_get_metadata(prop, 9) == getter)
+        #expect(__kk_kcallable_get_metadata(getter, 0) != parametersListRaw)
+        let getterParameters = try #require(
+            runtimeReflectionObject(from: __kk_kcallable_get_metadata(getter, 0), as: RuntimeListBox.self)
+        )
+        let getterInstance = try #require(getterParameters.elements.first)
+        #expect(getterInstance != parameters[0])
+        let getterInstanceBox = try #require(runtimeKParameterBox(from: getterInstance))
+        let propertyInstanceBox = try #require(runtimeKParameterBox(from: parameters[0]))
+        #expect(getterInstanceBox.callableOwner == ~propertyInstanceBox.callableOwner)
+        #expect(getterInstanceBox.callableRaw == getter)
+        #expect(__kk_kparameter_get_index(getterInstance) == 0)
+        #expect(__kk_kparameter_get_kind(getterInstance) == __kk_kparameter_get_kind(parameters[0]))
+        #expect(runtimeFunctionDescription(getter) == "fun C.`<get-w>`(): kotlin.Int")
+
+        let setter = __kk_kcallable_get_metadata(prop, 10)
+        #expect(setter != 0)
+        #expect(__kk_kcallable_get_metadata(prop, 10) == setter)
+        let setterList = try #require(
+            runtimeReflectionObject(from: __kk_kcallable_get_metadata(setter, 0), as: RuntimeListBox.self)
+        )
+        #expect(setterList.elements == setterParameters)
+        for element in setterParameters {
+            #expect(runtimeKParameterBox(from: element)?.callableRaw == setter)
+        }
+        #expect(runtimeFunctionDescription(setter) == "fun C.`<set-w>`(kotlin.Int): kotlin.Unit")
+    }
+
+    /// KUU-4091 — top-level/extension properties use kotlin-reflect's
+    /// metadata-backed model: the getter serves `property.parameters`
+    /// (literally shared), and the setter serves the receiver parameters plus
+    /// its own accessor-owned value parameter.
+    @Test func topLevelPropertyAccessorParametersShareReceivers() throws {
+        let (prop, parameters, setterParameters, parametersListRaw) = mutableProperty(member: false, name: "mext")
+        __kk_function_set_description(prop, runtimeMakeStringRaw("var kotlin.String.mext: kotlin.Int"), 0)
+
+        let getter = __kk_kcallable_get_metadata(prop, 9)
+        #expect(getter != 0)
+        #expect(__kk_kcallable_get_metadata(getter, 0) == parametersListRaw)
+        #expect(runtimeFunctionDescription(getter) == "fun kotlin.String.`<get-mext>`(): kotlin.Int")
+
+        let setter = __kk_kcallable_get_metadata(prop, 10)
+        #expect(setter != 0)
+        let setterList = try #require(
+            runtimeReflectionObject(from: __kk_kcallable_get_metadata(setter, 0), as: RuntimeListBox.self)
+        )
+        #expect(setterList.elements == parameters + [setterParameters[1]])
+        #expect(setterList.elements[0] == parameters[0])
+        #expect(runtimeKParameterBox(from: setterParameters[1])?.callableRaw == setter)
+        // The shared receiver keeps pointing at the property.
+        #expect(runtimeKParameterBox(from: parameters[0])?.callableRaw == prop)
+        #expect(runtimeFunctionDescription(setter) == "fun kotlin.String.`<set-mext>`(kotlin.Int): kotlin.Unit")
+    }
 }

@@ -91,6 +91,18 @@ func runtimeElementKeyHash(_ value: Int, into hasher: inout Hasher, depth: Int =
         hasher.combine(callableHash)
         return
     }
+    // KParameter boxes hash the owning-callable token + bound arguments +
+    // index, matching `runtimeKParameterBoxesEqual`, so equal `parameters[i]`
+    // handles land in the same bucket (callBy's map lookup, KUU-4069).
+    if let parameterBox = tryCast(pointer, to: RuntimeKParameterBox.self) {
+        hasher.combine(18)
+        hasher.combine(parameterBox.callableOwner)
+        for argument in parameterBox.boundArguments {
+            runtimeElementKeyHash(argument, into: &hasher, depth: depth + 1)
+        }
+        hasher.combine(parameterBox.index)
+        return
+    }
     if let range = tryCast(pointer, to: RuntimeRangeBox.self) {
         hasher.combine(10)
         hasher.combine(range.kind.rawValue)

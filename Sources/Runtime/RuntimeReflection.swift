@@ -463,6 +463,98 @@ public func __kk_kparameter_get_annotations_typed(_ raw: Int, _ outThrown: Unsaf
     return runtimeAnnotationList(records, materializeFactories: true, outThrown: outThrown)
 }
 
+/// The owning callable's runtime handle for a `RuntimeKParameterBox`, when it
+/// can be resolved. `__kk_kcallable_register` back-fills `callableRaw` for
+/// compiler-emitted lists whose `callableOwner` is an encoded SymbolID;
+/// runtime-created reflection members pass the callable's raw handle as
+/// `callableOwner` directly, which is itself the handle.
+func runtimeKParameterCallableRaw(_ box: RuntimeKParameterBox) -> Int {
+    if box.callableRaw != 0 {
+        return box.callableRaw
+    }
+    if resolveRuntimeObjectHandle(box.callableOwner) != nil {
+        return box.callableOwner
+    }
+    return 0
+}
+
+/// Value equality for KParameter boxes, mirroring the JVM's
+/// `ReflectKParameter.equals` (`callable == other.callable && index ==
+/// other.index`). `callableOwner` is the callable's value identity — an
+/// encoded SymbolID for compiler-emitted parameter lists, the owning
+/// callable's handle for runtime-created reflection members — so two
+/// `::f.parameters[i]` handles produced by separate evaluations of `::f`
+/// compare equal. Bound callable references additionally compare their
+/// captured arguments, the same components `runtimeCallableReferenceValuesEqual`
+/// checks on the callable itself; `callBy`'s key-matching fallback
+/// (`callableParameterMatches`) delegates here so both paths agree.
+func runtimeKParameterBoxesEqual(_ lhs: RuntimeKParameterBox, _ rhs: RuntimeKParameterBox) -> Bool {
+    guard lhs.callableOwner != 0,
+          lhs.callableOwner == rhs.callableOwner,
+          lhs.index == rhs.index,
+          lhs.boundArguments.count == rhs.boundArguments.count
+    else {
+        return false
+    }
+    return zip(lhs.boundArguments, rhs.boundArguments)
+        .allSatisfy { runtimeValuesEqual($0, $1) }
+}
+
+/// `ReflectKParameter.hashCode` = `callable.hashCode() * 31 + index`. The
+/// callable side hashes the same identity token equality compares, so equal
+/// parameters hash identically.
+func runtimeKParameterHashCode(_ box: RuntimeKParameterBox) -> Int {
+    var hash = Int32(truncatingIfNeeded: box.callableOwner ^ (box.callableOwner >> 32))
+    for argument in box.boundArguments {
+        hash = 31 &* hash &+ Int32(truncatingIfNeeded: runtimeValueHash(argument))
+    }
+    return Int(31 &* hash &+ Int32(truncatingIfNeeded: box.index))
+}
+
+/// `ReflectionObjectRenderer.renderParameter`: "<kind text> of <callable>".
+/// The callable text reuses the JVM-shaped description already pinned on
+/// callable references (`fun f(kotlin.Int): kotlin.Unit`) and property stubs
+/// (`val C.v: kotlin.Int`), matching `renderCallable`.
+func runtimeKParameterToString(_ box: RuntimeKParameterBox) -> String {
+    let name: String? = box.nameRaw == 0 || box.nameRaw == runtimeNullSentinelInt
+        ? nil
+        : extractString(from: UnsafeMutableRawPointer(bitPattern: box.nameRaw))
+    let head: String
+    switch box.kind {
+    case 0:
+        head = "instance parameter"
+    case 1:
+        head = "extension receiver parameter"
+    case 3:
+        head = "context parameter \(name ?? "null")"
+    default:
+        head = "parameter #\(box.index) \(name ?? "null")"
+    }
+    guard let callable = runtimeKParameterCallableDescription(box) else {
+        return head
+    }
+    return "\(head) of \(callable)"
+}
+
+private func runtimeKParameterCallableDescription(_ box: RuntimeKParameterBox) -> String? {
+    let raw = runtimeKParameterCallableRaw(box)
+    guard raw != 0 else { return nil }
+    if let description = runtimeFunctionDescription(raw) {
+        return description
+    }
+    if let stub = runtimeReflectionObject(from: raw, as: RuntimeKPropertyStub.self) {
+        return runtimeKPropertyStubToString(stub)
+    }
+    if let function = runtimeKFunctionBox(from: raw),
+       function.nameRaw != 0,
+       function.nameRaw != runtimeNullSentinelInt,
+       let name = extractString(from: UnsafeMutableRawPointer(bitPattern: function.nameRaw))
+    {
+        return "fun \(name)"
+    }
+    return nil
+}
+
 
 /// - Parameters:
 ///   - nameRaw: Opaque pointer to the KKString for the function name.
