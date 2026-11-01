@@ -102,20 +102,24 @@ extension LoweringPassRegressionTests {
             declSite: nil,
             visibility: .public
         )
-        _ = symbols.define(
+        let redSymbol = symbols.define(
             kind: .field,
             name: interner.intern("RED"),
             fqName: packagePath + [colorName, interner.intern("RED")],
             declSite: nil,
             visibility: .public
         )
-        _ = symbols.define(
+        let blueSymbol = symbols.define(
             kind: .field,
             name: interner.intern("BLUE"),
             fqName: packagePath + [colorName, interner.intern("BLUE")],
             declSite: nil,
             visibility: .public
         )
+        // Enum entries must be owned by the enum class for enumEntrySymbols
+        // to discover them (children(of:) + enumOwnerSymbol).
+        symbols.setParentSymbol(colorSymbol, for: redSymbol)
+        symbols.setParentSymbol(colorSymbol, for: blueSymbol)
 
         let baseName = interner.intern("Base")
         let baseSymbol = symbols.define(
@@ -209,27 +213,34 @@ extension LoweringPassRegressionTests {
             declSite: nil,
             visibility: .public
         )
-        _ = symbols.define(
+        let redSymbol = symbols.define(
             kind: .field,
             name: interner.intern("RED"),
             fqName: packagePath + [colorName, interner.intern("RED")],
             declSite: nil,
             visibility: .public
         )
-        _ = symbols.define(
+        let greenSymbol = symbols.define(
             kind: .field,
             name: interner.intern("GREEN"),
             fqName: packagePath + [colorName, interner.intern("GREEN")],
             declSite: nil,
             visibility: .public
         )
-        _ = symbols.define(
+        let blueSymbol = symbols.define(
             kind: .field,
             name: interner.intern("BLUE"),
             fqName: packagePath + [colorName, interner.intern("BLUE")],
             declSite: nil,
             visibility: .public
         )
+        // Enum entries must be owned by the enum class: enumEntrySymbols
+        // discovers them via children(of:) filtered by enumOwnerSymbol, both
+        // of which need the registered parent edge that sema sets for real
+        // entries (HeaderCollection+CollectHeader).
+        symbols.setParentSymbol(colorSymbol, for: redSymbol)
+        symbols.setParentSymbol(colorSymbol, for: greenSymbol)
+        symbols.setParentSymbol(colorSymbol, for: blueSymbol)
 
         let arena = KIRArena()
         let colorDecl = arena.appendDecl(.nominalType(KIRNominalType(symbol: colorSymbol)))
