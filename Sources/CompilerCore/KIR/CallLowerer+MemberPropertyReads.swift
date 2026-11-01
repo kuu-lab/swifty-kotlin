@@ -1316,6 +1316,7 @@ extension CallLowerer {
         instructions.append(.constValue(result: one, value: .intLiteral(1)))
         let classLabel = driver.ctx.makeLoopLabel()
         let callableLabel = driver.ctx.makeLoopLabel()
+        let parameterLabel = driver.ctx.makeLoopLabel()
         let interfaceLabel = driver.ctx.makeLoopLabel()
         let endLabel = driver.ctx.makeLoopLabel()
         instructions.append(.jumpIfEqual(lhs: isClass, rhs: one, target: classLabel))
@@ -1324,6 +1325,11 @@ extension CallLowerer {
             resultType: sema.types.intType, arena: arena, into: &instructions
         )
         instructions.append(.jumpIfEqual(lhs: isCallable, rhs: one, target: callableLabel))
+        let isParameter = emitNonThrowingCall(
+            callee: interner.intern("__kk_kparameter_is_runtime"), arg: loweredReceiverID,
+            resultType: sema.types.intType, arena: arena, into: &instructions
+        )
+        instructions.append(.jumpIfEqual(lhs: isParameter, rhs: one, target: parameterLabel))
         instructions.append(.jump(interfaceLabel))
         instructions.append(.label(classLabel))
         // Native reads must materialize producer-owned annotation instances.
@@ -1335,6 +1341,11 @@ extension CallLowerer {
         instructions.append(.jump(endLabel))
         instructions.append(.label(callableLabel))
         instructions.append(.call(callee: interner.intern("__kk_kcallable_get_annotations_typed"),
+                                  arguments: [loweredReceiverID], result: result,
+                                  canThrow: true))
+        instructions.append(.jump(endLabel))
+        instructions.append(.label(parameterLabel))
+        instructions.append(.call(callee: interner.intern("__kk_kparameter_get_annotations_typed"),
                                   arguments: [loweredReceiverID], result: result,
                                   canThrow: true))
         instructions.append(.jump(endLabel))
