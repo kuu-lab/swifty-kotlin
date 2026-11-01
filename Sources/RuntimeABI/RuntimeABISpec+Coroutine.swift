@@ -111,6 +111,9 @@ public extension RuntimeABISpec {
         abi.th("__kk_dispatcher_limited_parallelism", "dispatcher parallelism nameRaw"),
         abi.th("__kk_dispatcher_immediate_or_self", "dispatcher"),
         abi.th("__kk_dispatcher_is_unconfined", "dispatcher"),
+        // KUU-3910: CoroutineDispatcher.isDispatchNeeded backing (Unconfined /
+        // immediate-on-current-queue answer false; everything else true).
+        abi.th("__kk_dispatcher_is_dispatch_needed", "dispatcher"),
         abi.th("__kk_dispatcher_as_executor", "dispatcher outThrown"),
         abi.th("__kk_dispatcher_default_execute", "runnableRaw outThrown"),
         abi.th("__kk_coroutine_new_thread_pool_executor", "nThreads nameRaw scheduled outThrown"),

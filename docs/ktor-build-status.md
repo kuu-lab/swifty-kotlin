@@ -201,8 +201,10 @@ declaration の所有権を持つため上流側がすべて `KSWIFTK-LIB-0031` 
 - kotlinx_io は上流ソースが完全クリーンにコンパイルできる（旧5件のドリフトは解消）
 - ktor_io は引き続き 0 errors。consumer ハーネスも O0/O2 とも PASS
 - ktor_utils の残りは、未リンクの上流依存（`kotlinx.serialization` の `KSerializer` /
-  `Serializable`、coroutines 内部 API の `recoverStackTrace` / `isDispatchNeeded`）が大半で、
-  実ギャップは SEMA-INFER / TYPE-0001 / SEMA-0308 / SEMA-0104 など数件
+  `Serializable`）が大半で、実ギャップは SEMA-INFER / TYPE-0001 / SEMA-0308 / SEMA-0104 など数件。
+  coroutines 内部 API の `recoverStackTrace` / `isDispatchNeeded`（`CoroutineDispatcher` の
+  open member および `kotlinx.coroutines.internal` のトップレベル関数）は KUU-3910 で
+  bundled coroutines に追加済み
 - ktor_http の 341 は `io.ktor.util.*` 未解決のカスケードが主因（ktor_utils.kklib が
   未生成のため全 import が落ちる）。ktor_utils が通るまで実数はマスクされる
 

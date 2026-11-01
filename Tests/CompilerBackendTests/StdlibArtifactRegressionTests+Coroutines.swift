@@ -621,6 +621,59 @@ extension StdlibArtifactRegressionTests {
         }
     }
 
+    /// KUU-3910: `kotlinx.coroutines.internal` APIs real libraries import
+    /// (ktor-utils StackTraceRecover.kt) plus the upstream
+    /// `CoroutineDispatcher.isDispatchNeeded` member (SuspendFunctionGun.kt)
+    /// must resolve and run against bundled coroutines — including on native
+    /// dispatcher objects, which carry no Kotlin vtable.
+    @Test
+    func testCoroutineInternalApisAndIsDispatchNeeded() throws {
+        let artifactPath = try Self.buildStdlibArtifact()
+        let source = """
+        import kotlinx.coroutines.internal.recoverStackTrace
+        import kotlinx.coroutines.internal.isDispatchNeeded
+        import kotlinx.coroutines.Dispatchers
+        import kotlin.coroutines.*
+
+        fun rec(t: Throwable, c: Continuation<*>) = recoverStackTrace(t, c)
+        fun disp(ctx: CoroutineContext) = isDispatchNeeded(ctx)
+
+        fun main() {
+            println("member:${Dispatchers.Default.isDispatchNeeded(EmptyCoroutineContext)}")
+            println("unconfined:${Dispatchers.Unconfined.isDispatchNeeded(EmptyCoroutineContext)}")
+            println("top:${disp(EmptyCoroutineContext)}")
+            val cont = object : Continuation<Unit> {
+                override val context: CoroutineContext = EmptyCoroutineContext
+                override fun resumeWith(result: Result<Unit>) {}
+            }
+            val boom = IllegalStateException("boom")
+            val recovered = rec(boom, cont)
+            println("rec:${recovered === boom}:${recovered.message}")
+        }
+        """
+        try withTemporaryFile(contents: source) { userPath in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString).path
+            let ctx = makeCompilationContext(
+                inputs: [userPath], moduleName: "CoroutineInternalApis",
+                emit: .executable, outputPath: outputBase,
+                includeStdlib: false, stdlibLibraryPath: artifactPath,
+                allowDefaultStdlibLibrary: false
+            )
+            try runToKIR(ctx)
+            try #require(!ctx.diagnostics.hasError, "diagnostics: \(ctx.diagnostics.diagnostics)")
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            #expect(result.exitCode == 0, "stderr: \(result.stderr)")
+            #expect(
+                result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
+                    == "member:true\nunconfined:false\ntop:false\nrec:true:boom\n"
+            )
+        }
+    }
+
     @Test(arguments: [false, true])
     func testDispatcherNames(useArtifact: Bool) throws {
         TestStdlibCache.shared.prepare()

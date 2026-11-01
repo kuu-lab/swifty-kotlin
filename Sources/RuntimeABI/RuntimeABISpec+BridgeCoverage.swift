@@ -386,6 +386,10 @@ public extension RuntimeABISpec {
         bridgeSpec("kk_itable_lookup", section: "Delegate", params: ["receiver", "ifaceSlot", "methodSlot"]),
         bridgeSpec("kk_itable_lookup_dynamic", section: "Delegate", params: ["receiver", "interfaceTypeID", "methodSlot"]),
         bridgeSpec("kk_vtable_lookup", section: "Delegate", params: ["receiver", "slot"]),
+        // KUU-3910: guarded vtable lookup for `CoroutineDispatcher.isDispatchNeeded`
+        // — native dispatcher objects have no Kotlin vtable, so they resolve the
+        // source default while Kotlin dispatchers keep their vtable entry.
+        bridgeSpec("kk_vtable_lookup_or_default", section: "Delegate", params: ["receiver", "slot", "defaultMethod"]),
     ]
 
     static let stringBridgeFunctions: [RuntimeABIFunctionSpec] = [
