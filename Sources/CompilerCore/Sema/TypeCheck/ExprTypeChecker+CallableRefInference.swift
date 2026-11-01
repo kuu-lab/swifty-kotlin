@@ -787,11 +787,57 @@ extension ExprTypeChecker {
                 else {
                     return false
                 }
-                return driver.callChecker.extensionSyntheticFallbackReceiverMatches(
+                guard driver.callChecker.extensionSyntheticFallbackReceiverMatches(
                     callSiteReceiver: nonNullReceiver,
                     declaredReceiver: declaredReceiver,
                     sema: sema
+                ) else {
+                    return false
+                }
+                return receiverSatisfiesOwnTypeParameterBounds(
+                    declaredReceiver: declaredReceiver,
+                    signature: signature
                 )
+            }
+            // The receiver fallback admits any bare type-parameter receiver
+            // (`fun <R : CharSequence> R.zap()`). Since #11436 an unbound
+            // reference with several candidates is ambiguous instead of
+            // taking the first one, so drop candidates whose own receiver
+            // type parameter cannot be bound to this receiver.
+            func receiverSatisfiesOwnTypeParameterBounds(
+                declaredReceiver: TypeID,
+                signature: FunctionSignature
+            ) -> Bool {
+                guard case let .typeParam(receiverParam) = sema.types.kind(
+                    of: sema.types.makeNonNullable(declaredReceiver)
+                ),
+                    let index = signature.typeParameterSymbols.firstIndex(of: receiverParam.symbol)
+                else {
+                    return true
+                }
+                let declaredBounds = index < signature.typeParameterUpperBoundsList.count
+                    ? signature.typeParameterUpperBoundsList[index] : []
+                let storedBounds = sema.symbols.typeParameterUpperBounds(for: receiverParam.symbol)
+                let ownParameters = signature.typeParameterSymbols
+                for bound in declaredBounds + storedBounds.filter({ !declaredBounds.contains($0) }) {
+                    let nonNullBound = sema.types.makeNonNullable(bound)
+                    let mentionsOwnParameter = ownParameters.contains { parameter in
+                        sema.types.typeContainsTypeParam(nonNullBound, symbol: parameter)
+                    }
+                    if !mentionsOwnParameter {
+                        if !sema.types.isSubtype(nonNullReceiver, nonNullBound) { return false }
+                        continue
+                    }
+                    // Bounds like `ClosedRange<T>` still need solving, so
+                    // only compare the nominal class of the receiver.
+                    if case let .classType(boundClass) = sema.types.kind(of: nonNullBound),
+                       case let .classType(receiverClass) = sema.types.kind(of: nonNullReceiver),
+                       !sema.types.isNominalSubtypeSymbol(receiverClass.classSymbol, of: boundClass.classSymbol)
+                    {
+                        return false
+                    }
+                }
+                return true
             }
             // Local functions can be present in value-position locals even
             // when this callable-reference scope lookup cannot see them.
