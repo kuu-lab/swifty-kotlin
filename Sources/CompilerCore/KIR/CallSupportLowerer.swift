@@ -377,7 +377,7 @@ final class CallSupportLowerer {
                 params.append(KIRParameter(symbol: tokenSymbol, type: intType))
                 reifiedTokenSymbols.append(tokenSymbol)
                 if !driver.callLowerer.kirIsRuntimeBridgedCallee(originalSymbol, sema: sema) {
-                    let componentSymbol = SyntheticSymbolScheme.reifiedArrayComponentTokenSymbol(for: typeParamSymbol)
+                    let componentSymbol = SyntheticSymbolScheme.reifiedKTypeSymbol(for: typeParamSymbol)
                     params.append(KIRParameter(symbol: componentSymbol, type: intType))
                     reifiedTokenSymbols.append(componentSymbol)
                 }

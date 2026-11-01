@@ -29,7 +29,7 @@ struct ReifiedMemberDefaultLoweringTests {
             let hiddenSymbols = signature.reifiedTypeParameterIndices.sorted().flatMap { index in
                 let parameter = signature.typeParameterSymbols[index]
                 return [SyntheticSymbolScheme.reifiedTypeTokenSymbol(for: parameter),
-                        SyntheticSymbolScheme.reifiedArrayComponentTokenSymbol(for: parameter)]
+                        SyntheticSymbolScheme.reifiedKTypeSymbol(for: parameter)]
             }
             #expect(hiddenSymbols.count == tokenCount)
             #expect(member.params.count == leadingCount + tokenCount)

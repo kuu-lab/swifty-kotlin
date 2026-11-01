@@ -120,9 +120,12 @@ public enum SyntheticSymbolScheme {
     }
 
     /// Separate reserved band; all existing synthetic IDs retain their encoding.
-    /// A reified component descriptor accompanies, rather than replaces, its
-    /// class token. The sign bit keeps real and imported type parameters distinct.
-    static func reifiedArrayComponentTokenSymbol(for typeParameterSymbol: SymbolID) -> SymbolID {
+    /// The slot accompanies, rather than replaces, the reified class token and
+    /// carries the substituted type's materialized `KType` box — the runtime
+    /// still derives `__kk_array_component_type` descriptors from it for array
+    /// allocation, while `typeOf<T>` reads it directly (KUU-4022). The sign bit
+    /// keeps real and imported type parameters distinct.
+    static func reifiedKTypeSymbol(for typeParameterSymbol: SymbolID) -> SymbolID {
         let original = Int64(typeParameterSymbol.rawValue)
         let magnitude = original.magnitude
         precondition(magnitude < 100_000_000, "reified component symbol band exhausted")

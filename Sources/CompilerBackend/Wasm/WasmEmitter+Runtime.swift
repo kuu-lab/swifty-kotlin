@@ -573,6 +573,8 @@ enum WasmRuntimeHelpers {
         "__kk_ktypeprojection_create",
         "__kk_ktypeparameter_create",
         "__kk_ktypeparameter_set_upper_bounds",
+        "__kk_ktype_with_nullability",
+        "__kk_ktype_component_descriptor",
         "__kk_kparameter_create_typed",
         "__kk_kparameter_set_array_component",
         "__kk_kproperty_stub_create",
@@ -1359,6 +1361,14 @@ enum WasmRuntimeHelpers {
             extraLocals = 0
             emitStoreAt(&code, baseLocal: 0, byteOffset: 48, valueLocal: 1)
             code.i64Const(0)
+        case "__kk_ktype_with_nullability":
+            extraLocals = 2
+            emitKTypeWithNullabilityBody(&code, ctx: ctx)
+        case "__kk_ktype_component_descriptor":
+            // Component descriptors aren't consumed by wasm iteration — the
+            // `__kk_array_component_type` pass-through above applies too.
+            extraLocals = 0
+            code.localGet(0)
         case "__kk_kparameter_create_typed":
             extraLocals = 1
             emitSmallBoxBody(
@@ -8616,6 +8626,39 @@ enum WasmRuntimeHelpers {
         emitStoreAt(&code, baseLocal: ktL, byteOffset: 16, valueLocal: 0)
         emitStoreAt(&code, baseLocal: ktL, byteOffset: 24, valueLocal: 1)
         emitStoreAt(&code, baseLocal: ktL, byteOffset: 32, valueLocal: 2)
+        code.localGet(ktL)
+    }
+
+    /// `__kk_ktype_with_nullability(ktype, flag) -> KType` — copies the
+    /// `{classifier@16, args@24, nullable@32}` box for a reified `typeOf<T>`;
+    /// `flag < 0` preserves the source nullability. Each call hands out a
+    /// fresh box because KType reference identity is observable.
+    private static func emitKTypeWithNullabilityBody(
+        _ code: inout WasmCode,
+        ctx: WasmModuleContext
+    ) {
+        let ktL = 2, tmpL = 3
+        code.i64Const(5)
+        code.i64Const(L.ktypeTypeID)
+        code.call(ctx.emittedHelperIndex(for: "kk_object_new", argumentCount: 2))
+        code.localSet(ktL)
+        emitLoadAt(&code, baseLocal: 0, byteOffset: 16)
+        code.localSet(tmpL)
+        emitStoreAt(&code, baseLocal: ktL, byteOffset: 16, valueLocal: tmpL)
+        emitLoadAt(&code, baseLocal: 0, byteOffset: 24)
+        code.localSet(tmpL)
+        emitStoreAt(&code, baseLocal: ktL, byteOffset: 24, valueLocal: tmpL)
+        code.localGet(1)
+        code.i64Const(0)
+        code.op(WasmOpcode.i64LtS)
+        code.openIf()
+        emitLoadAt(&code, baseLocal: 0, byteOffset: 32)
+        code.localSet(tmpL)
+        code.elseBranch()
+        code.localGet(1)
+        code.localSet(tmpL)
+        code.end()
+        emitStoreAt(&code, baseLocal: ktL, byteOffset: 32, valueLocal: tmpL)
         code.localGet(ktL)
     }
 

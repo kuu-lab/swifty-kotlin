@@ -139,7 +139,7 @@ extension KIRLoweringDriver {
                 let tokenSymbol = SyntheticSymbolScheme.reifiedTypeTokenSymbol(for: typeParamSymbol)
                 params.append(KIRParameter(symbol: tokenSymbol, type: intType))
                 params.append(KIRParameter(
-                    symbol: SyntheticSymbolScheme.reifiedArrayComponentTokenSymbol(for: typeParamSymbol), type: intType
+                    symbol: SyntheticSymbolScheme.reifiedKTypeSymbol(for: typeParamSymbol), type: intType
                 ))
             }
         }

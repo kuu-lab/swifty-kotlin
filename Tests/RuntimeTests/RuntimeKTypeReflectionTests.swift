@@ -223,4 +223,69 @@ struct RuntimeKTypeReflectionTests {
         #expect(runtimeListBox(from: __kk_ktype_arguments(123_456))?.elements.count == 0)
         #expect(__kk_ktype_isMarkedNullable(123_456) == 0)
     }
+
+    /// KUU-4022: the reified slot's copy helper must keep classifier and
+    /// arguments while applying the use site's nullability, and each call
+    /// must hand out a fresh box (KType `===` is observable).
+    @Test func ktypeWithNullabilityCopiesStructureWithFreshIdentity() {
+        let stringType = makeKTypeHandle(name: "kotlin.String", typeToken: 40)
+        let listType = makeKTypeHandle(
+            name: "kotlin.collections.List",
+            typeToken: 41,
+            arguments: [__kk_ktypeprojection_create(stringType, 2)]
+        )
+
+        let copied = __kk_ktype_with_nullability(listType, 0)
+        #expect(copied != listType)
+        #expect(kk_structural_eq(copied, listType) == 1)
+        #expect(kk_any_hashCode(copied, 0) == kk_any_hashCode(listType, 0))
+        #expect(__kk_ktype_isMarkedNullable(copied) == 0)
+        #expect(runtimeListBox(from: __kk_ktype_arguments(copied))?.elements.count == 1)
+
+        let nullable = __kk_ktype_with_nullability(listType, 1)
+        #expect(__kk_ktype_isMarkedNullable(nullable) == 1)
+        #expect(kk_structural_eq(nullable, listType) == 0)
+
+        let preserved = __kk_ktype_with_nullability(nullable, -1)
+        #expect(__kk_ktype_isMarkedNullable(preserved) == 1)
+        #expect(kk_structural_eq(preserved, nullable) == 1)
+    }
+
+    /// KUU-4022: a captured KType box derives the same interned
+    /// `__kk_array_component_type` descriptor the compile-time descriptor
+    /// path produced — nominal classifiers map to `(token, 0)` while
+    /// `kotlin.Array` recurses into its element projection; `in`/`star`
+    /// collapse to `Any`, and a `KTypeParameter` resolves to its bound.
+    @Test func ktypeComponentDescriptorMatchesInternedDescriptors() {
+        let stringType = makeKTypeHandle(name: "kotlin.String", typeToken: Int(RuntimeTypeTokenEncoding.stringBase))
+        let arrayToken = Int(
+            RuntimeTypeTokenEncoding.nominalBase
+                | (Int64(runtimeStableNominalTypeID(fqName: "kotlin.Array"))
+                    << RuntimeTypeTokenEncoding.payloadShift)
+        )
+        let arrayOfString = makeKTypeHandle(
+            name: "kotlin.Array",
+            typeToken: arrayToken,
+            arguments: [__kk_ktypeprojection_create(stringType, 2)]
+        )
+        let arrayOfStar = makeKTypeHandle(
+            name: "kotlin.Array",
+            typeToken: arrayToken,
+            arguments: [__kk_ktypeprojection_create(0, -1)]
+        )
+
+        let anyDescriptor = __kk_array_component_type(Int(RuntimeTypeTokenEncoding.anyBase), 0)
+        let stringDescriptor = __kk_array_component_type(Int(RuntimeTypeTokenEncoding.stringBase), 0)
+
+        #expect(__kk_ktype_component_descriptor(stringType) == stringDescriptor)
+        #expect(
+            __kk_ktype_component_descriptor(arrayOfString)
+                == __kk_array_component_type(arrayToken, stringDescriptor)
+        )
+        #expect(
+            __kk_ktype_component_descriptor(arrayOfStar)
+                == __kk_array_component_type(arrayToken, anyDescriptor)
+        )
+        #expect(__kk_ktype_component_descriptor(123_456) == 0)
+    }
 }

@@ -656,7 +656,7 @@ extension MemberLowerer {
                 let typeParameter = signature.typeParameterSymbols[index]
                 let tokens = [
                     SyntheticSymbolScheme.reifiedTypeTokenSymbol(for: typeParameter),
-                    SyntheticSymbolScheme.reifiedArrayComponentTokenSymbol(for: typeParameter),
+                    SyntheticSymbolScheme.reifiedKTypeSymbol(for: typeParameter),
                 ]
                 for token in tokens {
                     params.append(KIRParameter(symbol: token, type: sema.types.intType))

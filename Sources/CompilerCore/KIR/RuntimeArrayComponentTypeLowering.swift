@@ -51,13 +51,25 @@ private func boundedRuntimeArrayComponentTypeExpr<Instructions: RangeReplaceable
         guard case let .typeParam(parameter) = sema.types.kind(of: erased) else { break }
         if useReifiedToken,
            sema.symbols.symbol(parameter.symbol)?.flags.contains(.reifiedTypeParameter) == true {
-            let symbol = SyntheticSymbolScheme.reifiedArrayComponentTokenSymbol(for: parameter.symbol)
-            if let capturedComponent = context?.localValue(for: symbol) {
-                return capturedComponent
+            let symbol = SyntheticSymbolScheme.reifiedKTypeSymbol(for: parameter.symbol)
+            let capturedKType: KIRExprID
+            if let captured = context?.localValue(for: symbol) {
+                capturedKType = captured
+            } else {
+                let fallback = arena.appendExpr(.symbolRef(symbol), type: sema.types.intType)
+                instructions.append(.constValue(result: fallback, value: .symbolRef(symbol)))
+                capturedKType = fallback
             }
-            let component = arena.appendExpr(.symbolRef(symbol), type: sema.types.intType)
-            instructions.append(.constValue(result: component, value: .symbolRef(symbol)))
-            return component
+            // The hidden slot now carries the substituted type's KType box
+            // (KUU-4022); derive the allocation descriptor from it. For a
+            // non-Array substitution this is the classifier's nominal token;
+            // `T = Array<U>` still yields the nested element descriptor.
+            let descriptor = arena.appendTemporary(type: sema.types.intType)
+            instructions.append(.call(
+                callee: interner.intern("__kk_ktype_component_descriptor"),
+                arguments: [capturedKType], result: descriptor, canThrow: false
+            ))
+            return descriptor
         }
         guard activeParameters.insert(parameter.symbol).inserted else { return integer(0) }
         insertedParameters.append(parameter.symbol)
