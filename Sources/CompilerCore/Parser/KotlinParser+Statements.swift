@@ -439,7 +439,9 @@ extension KotlinParser {
 
             _ = consumeToken(into: &children, range: &range)
             depth.track(token.kind)
-            if token.kind == .symbol(.semicolon) { return }
+            // Outside a block, braces are consumed flat, so a `;` inside a
+            // lambda body (`0 -> run { a(); b }`) must not end the entry.
+            if token.kind == .symbol(.semicolon), atTopLevel { return }
             if !inBlock, hasLeadingNewline(stream.peek()) {
                 let stillGrouped = !depth.isTopLevel
                 if stillGrouped {
