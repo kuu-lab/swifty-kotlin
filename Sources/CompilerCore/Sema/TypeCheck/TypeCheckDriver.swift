@@ -685,6 +685,14 @@ final class TypeCheckDriver {
                             solver: solver,
                             diagnostics: diagnostics
                         )
+                    case let .interfaceDecl(interfaceDecl):
+                        declChecker.precheckIndependentInterfaceMemberProperties(
+                            interfaceDecl,
+                            symbol: symbol,
+                            ctx: inferCtx,
+                            solver: solver,
+                            diagnostics: diagnostics
+                        )
                     default:
                         continue
                     }
